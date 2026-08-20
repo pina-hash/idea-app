@@ -179,7 +179,7 @@
 		pointer-events: none;
 	}
 	.deck-title {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--dim);
 		white-space: nowrap;
@@ -193,7 +193,7 @@
 		border: 1px solid var(--line);
 		border-radius: 999px;
 		color: var(--white);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		padding: 0 0.9rem;
 		cursor: pointer;
@@ -246,7 +246,7 @@
 	}
 	.deck-index-n {
 		flex: none;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--gold);
 		min-width: 1.4rem;

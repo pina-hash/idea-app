@@ -12,6 +12,12 @@
 	--font-display: 'Rajdhani', sans-serif; /* headings + body */
 	--font-mono: 'Share Tech Mono', monospace; /* chrome, labels, code */
 	--font-hero: 'Chakra Petch', sans-serif; /* landing display, wordmark */
+	/* Page titles and the brand mark on the app-shell rooms (the portal home,
+	   the dashboard, the classroom h1). A token rather than a literal for the
+	   same reason as the three above: the face is named in one place. The value
+	   is byte-identical to the literal it replaced, so every rule pointed at it
+	   renders exactly what it did. */
+	--font-title: 'Orbitron', sans-serif;
 
 	/* --- Weights --- */
 	--fw-regular: 400; /* @kind font */

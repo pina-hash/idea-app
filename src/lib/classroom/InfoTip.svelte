@@ -92,7 +92,7 @@
 		border: 1px solid var(--line-strong);
 		background: var(--surface-2);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.8rem;
 		font-weight: 400;
 		text-transform: none;

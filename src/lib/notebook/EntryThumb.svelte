@@ -94,13 +94,13 @@
 		flex: 0 0 auto;
 		width: var(--thumb-size);
 		height: var(--thumb-size);
-		border-radius: var(--nb-radius-control);
-		border: 1px solid var(--nb-hairline);
-		background: var(--nb-surface-dim);
+		border-radius: var(--radius-control);
+		border: 1px solid var(--hairline);
+		background: var(--surface-2);
 		overflow: hidden;
 		display: grid;
 		place-items: center;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.thumb img {
 		width: 100%;
@@ -119,7 +119,7 @@
 		font-weight: 700;
 		line-height: 1;
 		padding: 0.15em 0.3em;
-		border-radius: 4px;
+		border-radius: var(--radius-card);
 		background: rgba(38, 34, 27, 0.72);
 		color: #fff;
 	}
@@ -133,8 +133,8 @@
 		padding: 0.3em 0.35em;
 		font-size: calc(var(--thumb-size) * 0.088);
 		line-height: 1.35;
-		color: var(--nb-ink-soft);
-		background: var(--nb-surface);
+		color: var(--text-2);
+		background: var(--surface-1);
 		overflow: hidden;
 		word-break: break-word;
 		/* Fades the last line out so the clip is deliberate, not truncated. */

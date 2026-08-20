@@ -441,7 +441,7 @@
 		border-radius: var(--radius-card);
 		background: none;
 		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		cursor: pointer;
 	}
@@ -492,7 +492,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-control);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.9rem;
 		padding: 0.3rem 0.45rem;
 	}
@@ -536,7 +536,7 @@
 	.rt-surface {
 		position: relative;
 		padding: 0.55rem 0.7rem;
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		line-height: 1.6;
 		color: var(--text-1);
@@ -570,7 +570,7 @@
 	/* Matches ItemBody's rendering, so what is typed is what is published. */
 	.rt-surface :global(.rt-input h3),
 	.rt-surface :global(.rt-input h4) {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.04em;
 		color: var(--text-1);
 		margin: 1.1rem 0 0.4rem;

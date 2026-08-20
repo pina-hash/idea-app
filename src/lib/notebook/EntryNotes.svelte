@@ -412,24 +412,24 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 1.3rem;
+		gap: var(--space-5);
 	}
 	.notes.compact {
-		gap: 0.9rem;
+		gap: var(--space-4);
 	}
 	.note {
 		border-left: 2px solid var(--nb-hairline-strong);
-		padding-left: 0.9rem;
+		padding-left: var(--space-4);
 	}
 	.note-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		margin-bottom: 0.35rem;
+		margin-bottom: var(--space-1);
 		font-size: 0.74rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.dot {
 		color: var(--nb-hairline-strong);
@@ -443,15 +443,15 @@
 	.note-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		margin-top: 0.5rem;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.note-edit-btn {
 		background: none;
 		border: none;
 		padding: 0;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font: inherit;
 		font-size: 0.72rem;
 		font-weight: 600;
@@ -463,16 +463,16 @@
 		color: var(--nb-accent-ink);
 	}
 	.note-error {
-		margin: 0.5rem 0 0;
+		margin: var(--space-2) 0 0;
 		color: var(--nb-error);
 		font-size: 0.84rem;
 	}
 	.history {
-		margin-top: 0.6rem;
+		margin-top: var(--space-2);
 	}
 	.history summary {
 		font-size: 0.74rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		cursor: pointer;
 	}
 	.history summary:hover {
@@ -480,16 +480,16 @@
 	}
 	.revisions {
 		list-style: none;
-		margin: 0.6rem 0 0;
+		margin: var(--space-2) 0 0;
 		padding: 0;
 		display: grid;
-		gap: 0.9rem;
+		gap: var(--space-4);
 		border-left: 1px dashed var(--nb-hairline-strong);
-		padding-left: 0.8rem;
+		padding-left: var(--space-3);
 	}
 	/* Superseded text is history, so it sits back from what the note says now. */
 	.revisions :global(.note-body) {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 
@@ -498,7 +498,7 @@
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
-		padding: 0 0.4rem;
+		padding: 0 var(--space-2);
 		background: none;
 		border: none;
 		color: var(--nb-error);
@@ -520,10 +520,10 @@
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
-		padding: 0 0.4rem;
+		padding: 0 var(--space-2);
 		background: none;
 		border: none;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font: inherit;
 		font-size: 0.72rem;
 		font-weight: 600;
@@ -539,10 +539,10 @@
 		cursor: default;
 	}
 	.note-confirm {
-		margin: 0.4rem 0 0;
+		margin: var(--space-2) 0 0;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		color: var(--nb-error);
 		font-weight: 600;
@@ -553,11 +553,11 @@
 	   scaled to one note thread rather than a whole card. --- */
 	.note-danger-zone {
 		display: grid;
-		gap: 0.5rem;
-		margin-top: 0.7rem;
-		padding: 0.6rem 0.7rem;
-		border: 1px solid color-mix(in srgb, var(--nb-error) 35%, var(--nb-hairline));
-		border-radius: var(--nb-radius-control);
+		gap: var(--space-2);
+		margin-top: var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid color-mix(in srgb, var(--nb-error) 35%, var(--hairline));
+		border-radius: var(--radius-control);
 		background: color-mix(in srgb, var(--nb-error) 4%, transparent);
 	}
 	.note-danger-confirm {
@@ -569,7 +569,7 @@
 	.note-danger-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.note-danger-btn {
@@ -577,10 +577,10 @@
 		align-items: center;
 		justify-content: center;
 		min-height: 2.75rem;
-		padding: 0 0.7rem;
-		background: var(--nb-surface);
+		padding: 0 var(--space-3);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-error);
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 		color: var(--nb-error);
 		font: inherit;
 		font-size: 0.78rem;
@@ -589,7 +589,7 @@
 	}
 	.note-danger-btn:hover:not(:disabled) {
 		background: var(--nb-error);
-		color: var(--nb-surface);
+		color: var(--surface-1);
 	}
 	.note-danger-btn:disabled {
 		opacity: 0.5;
@@ -604,13 +604,13 @@
 	/* --- deleted-notes disclosure (0119): closed by default, the same rule
 	   the removed-photos one follows. --- */
 	.removed-notes {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 	.removed-notes summary {
 		cursor: pointer;
 		font-size: 0.84rem;
 		font-weight: 600;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		min-height: 2.75rem;
 		display: flex;
 		align-items: center;
@@ -620,34 +620,34 @@
 	}
 	.removed-notes ul {
 		list-style: none;
-		margin: 0.3rem 0 0;
+		margin: var(--space-1) 0 0;
 		padding: 0;
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.removed-notes li {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		padding: 0.5rem 0.7rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 	}
 	.removed-note-head {
 		display: grid;
-		gap: 0.15rem;
+		gap: var(--space-1);
 		min-width: 0;
 	}
 	.removed-note-summary {
 		font-size: 0.84rem;
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.removed-when {
 		font-size: 0.72rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.restore-note-btn {
 		min-height: 2.75rem;
@@ -656,7 +656,7 @@
 	.note-refusal {
 		margin: 0;
 		font-size: 0.78rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-style: italic;
 	}
 </style>

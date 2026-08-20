@@ -197,7 +197,7 @@
 		z-index: 1000;
 		display: flex;
 		flex-direction: column;
-		background: rgba(22, 20, 16, 0.98);
+		background: var(--nb-shot-ground);
 		padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
 	}
 	.cc-head {
@@ -207,11 +207,11 @@
 		font-weight: 700;
 		font-size: 1.05rem;
 		letter-spacing: -0.01em;
-		color: #f5f2e9;
+		color: var(--nb-shot-ink);
 	}
 	.cc-hint {
-		margin: 0.25rem 0 0;
-		color: rgba(245, 242, 233, 0.62);
+		margin: var(--space-1) 0 0;
+		color: color-mix(in srgb, var(--nb-shot-ink) 62%, transparent);
 		font-size: 0.83rem;
 	}
 	.cc-stage {
@@ -220,7 +220,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		margin: 0.6rem 0;
+		margin: var(--space-2) 0;
 		position: relative;
 	}
 	.cc-stage video {
@@ -228,17 +228,17 @@
 		max-height: 100%;
 		width: auto;
 		height: auto;
-		border: 1px solid rgba(245, 242, 233, 0.16);
-		background: #171512;
+		border: 1px solid color-mix(in srgb, var(--nb-shot-ink) 16%, transparent);
+		background: var(--nb-shot-plate);
 	}
 	.cc-status {
 		position: absolute;
-		color: rgba(245, 242, 233, 0.62);
+		color: color-mix(in srgb, var(--nb-shot-ink) 62%, transparent);
 		font-size: 0.88rem;
 	}
 	.cc-notice {
 		flex: none;
-		margin: 0 0 0.6rem;
+		margin: 0 0 var(--space-2);
 		color: var(--nb-accent);
 		font-size: 0.82rem;
 	}
@@ -247,13 +247,13 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.7rem;
+		gap: var(--space-3);
 	}
 	.cc-shutter {
 		width: 68px;
 		height: 68px;
 		border-radius: 50%;
-		border: 3px solid #f5f2e9;
+		border: 3px solid var(--nb-shot-ink);
 		background: transparent;
 		padding: 0;
 		cursor: pointer;
@@ -265,7 +265,7 @@
 		width: 52px;
 		height: 52px;
 		border-radius: 50%;
-		background: #f5f2e9;
+		background: var(--nb-shot-ink);
 	}
 	.cc-shutter:disabled {
 		opacity: 0.45;
@@ -278,17 +278,17 @@
 	}
 	.cc-secondary {
 		background: none;
-		border: 1px solid rgba(245, 242, 233, 0.38);
-		border-radius: 6px;
-		color: #f5f2e9;
+		border: 1px solid color-mix(in srgb, var(--nb-shot-ink) 38%, transparent);
+		border-radius: var(--radius-card);
+		color: var(--nb-shot-ink);
 		font: inherit;
 		font-size: 0.85rem;
 		font-weight: 600;
-		padding: 0.6rem 0.9rem;
+		padding: var(--space-2) var(--space-4);
 		cursor: pointer;
 	}
 	.cc-secondary:hover:not(:disabled) {
-		border-color: #f5f2e9;
+		border-color: var(--nb-shot-ink);
 	}
 	.cc-secondary:disabled {
 		opacity: 0.45;

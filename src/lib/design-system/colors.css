@@ -132,6 +132,58 @@
 	--nb-folder-plum: #74497a;
 	/* The fallback for an unfiled entry and for a folder saved with no colour. */
 	--nb-folder-none: var(--nb-ink-faint);
+
+	/* The PHOTO ISLAND (--nb-shot-*). CameraCapture, PhotoCorrector and
+	   PhotoStager stay DARK in every palette -- a viewfinder that glares and a
+	   drag quad that has to hold its contrast over an arbitrary photograph are
+	   not preferences. What follows the room is the HUE and the depth: warm on
+	   light and dark, green-black on IDEA. The island does not invert, and
+	   saying so is the honest reading of "follows a palette change". The alpha
+	   ladder (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call
+	   sites, so it is one value here rather than six per palette. */
+	--nb-shot-ground: rgba(22, 20, 16, 0.98); /* full-bleed overlay ground */
+	--nb-shot-plate: #171512; /* OPAQUE letterbox: what a camera with no frame yet shows */
+	--nb-shot-scrim: rgba(22, 20, 16, 0.72); /* the thumbnail scrim, a different job from the ground */
+	--nb-shot-ink: #f5f2e9; /* paper: type, the shutter, the handles */
+	--nb-shot-ink-deep: #26221b; /* reads as TEXT on --nb-shot-ink */
+	--nb-shot-ink-bright: #ffffff; /* the hover-lifted paper */
+
+	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). On PAPER the portal tokens are catastrophic: all six measured 1.93-3.34:1,
+	   five of them below even 3:1. These are the same six hues deepened onto
+	   white, each holding its source hue angle to within 0.9 degrees -- the move
+	   --gold -> --nb-accent-ink (line ~105) already makes on this exact plate.
+	   Each cell draws its border AND its glyph in the ink and fills with a
+	   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is
+	   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
+	   The hue identity is fixed and is NOT a free choice: green = on time,
+	   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
+	   sage = missing. What varies per plate is lightness. */
+	--nb-cell-ontime: #486e43;
+	--nb-cell-late: #895420;
+	--nb-cell-await: #367165;
+	--nb-cell-flagged: #944141;
+	/* Excused and missing are the two near-neutral sages, and darkening both onto
+	   white collapses them into each other (measured: CIEDE2000 1.19). They are
+	   pushed apart on LIGHTNESS instead, which is what keeps them tellable while
+	   both stay sage -- and they carry different glyphs and a different edge as
+	   well, so colour is not doing the work alone. */
+	--nb-cell-excused: #69756a;
+	--nb-cell-missing: #464e43;
+	--nb-cell-missing-edge: #5c6659;
+	/* THE FILL IS PINNED, NOT MIXED OFF THE INK, and that is the whole trick.
+	   A fill written as color-mix(<ink> 26%) moves whenever the ink does, so
+	   deepening a glyph darkened its own ground and gave most of the contrast
+	   straight back (measured: on time reached only 3.84:1 that way). These are
+	   the fills the grid SHIPPED, to the byte -- the patch a reader recognises at
+	   a glance is unchanged, and only the mark on top of it moved. */
+	--nb-cell-ontime-fill: #dcedda;
+	--nb-cell-late-fill: #f3dec9;
+	--nb-cell-await-fill: #def2ee;
+	--nb-cell-flagged-fill: #f4cfcf;
+	/* The hover / focus-visible ring. Was a hardcoded ink rgba that measured
+	   1.02:1 on the dark plates -- i.e. the keyboard focus indicator was not
+	   drawn at all. It is the room's own ink now, so it follows the plate. */
+	--nb-cell-ring: rgba(38, 34, 27, 0.55);
 }
 
 /* --- Notebook DARK palette --------------------------------------------------
@@ -205,6 +257,51 @@
 		--nb-folder-gold: var(--nb-accent-ink);
 		--nb-folder-none: var(--nb-ink-faint);
 		--nb-meta-accent: var(--nb-accent-ink);
+
+		/* The PHOTO ISLAND (--nb-shot-*). CameraCapture, PhotoCorrector and
+		   PhotoStager stay DARK in every palette -- a viewfinder that glares and a
+		   drag quad that has to hold its contrast over an arbitrary photograph are
+		   not preferences. What follows the room is the HUE and the depth: warm on
+		   light and dark, green-black on IDEA. The island does not invert, and
+		   saying so is the honest reading of "follows a palette change". The alpha
+		   ladder (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call
+		   sites, so it is one value here rather than six per palette. */
+		--nb-shot-ground: rgba(15, 13, 9, 0.98); /* full-bleed overlay ground */
+		--nb-shot-plate: #0b0907; /* OPAQUE letterbox: what a camera with no frame yet shows */
+		--nb-shot-scrim: rgba(15, 13, 9, 0.72); /* the thumbnail scrim, a different job from the ground */
+		--nb-shot-ink: #faf7ee; /* paper: type, the shutter, the handles */
+		--nb-shot-ink-deep: #16140f; /* reads as TEXT on --nb-shot-ink */
+		--nb-shot-ink-bright: #fffdf6; /* the hover-lifted paper */
+
+		/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). Three of six failed here (on time 4.32, late 3.62, flagged 3.06). Only the
+		   two that needed it move, and on time keeps --green exactly -- lightening it
+		   would collide with the IDEA accent it was tuned against. Its fill drops a
+		   couple of points instead, which is the lever that was actually free.
+		   Each cell draws its border AND its glyph in the ink and fills with a
+		   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is
+		   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
+		   The hue identity is fixed and is NOT a free choice: green = on time,
+		   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
+		   sage = missing. What varies per plate is lightness. */
+		--nb-cell-ontime: #86bf7e;
+		--nb-cell-late: #db9d60;
+		--nb-cell-await: var(--cyan);
+		--nb-cell-flagged: #e69494;
+		--nb-cell-excused: var(--ice);
+		--nb-cell-missing: var(--dim);
+		--nb-cell-missing-edge: var(--gear);
+		/* Pinned to the fills this grid already shipped; see the note on the light
+		   palette for why they are not a mix of the ink. --cyan, --ice and --dim
+		   already cleared the bar here and are untouched, which is also what keeps
+		   this palette's published accent separations exact. */
+		--nb-cell-ontime-fill: #37452d;
+		--nb-cell-late-fill: #4e371d;
+		--nb-cell-await-fill: #2c3d33;
+		--nb-cell-flagged-fill: #58312c;
+		/* The hover / focus-visible ring. Was a hardcoded ink rgba that measured
+		   1.02:1 on the dark plates -- i.e. the keyboard focus indicator was not
+		   drawn at all. It is the room's own ink now, so it follows the plate. */
+		--nb-cell-ring: rgba(240, 235, 221, 0.55);
 	}
 }
 
@@ -234,6 +331,51 @@
 	--nb-folder-gold: var(--nb-accent-ink);
 	--nb-folder-none: var(--nb-ink-faint);
 	--nb-meta-accent: var(--nb-accent-ink);
+
+	/* The PHOTO ISLAND (--nb-shot-*). CameraCapture, PhotoCorrector and
+	   PhotoStager stay DARK in every palette -- a viewfinder that glares and a
+	   drag quad that has to hold its contrast over an arbitrary photograph are
+	   not preferences. What follows the room is the HUE and the depth: warm on
+	   light and dark, green-black on IDEA. The island does not invert, and
+	   saying so is the honest reading of "follows a palette change". The alpha
+	   ladder (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call
+	   sites, so it is one value here rather than six per palette. */
+	--nb-shot-ground: rgba(15, 13, 9, 0.98); /* full-bleed overlay ground */
+	--nb-shot-plate: #0b0907; /* OPAQUE letterbox: what a camera with no frame yet shows */
+	--nb-shot-scrim: rgba(15, 13, 9, 0.72); /* the thumbnail scrim, a different job from the ground */
+	--nb-shot-ink: #faf7ee; /* paper: type, the shutter, the handles */
+	--nb-shot-ink-deep: #16140f; /* reads as TEXT on --nb-shot-ink */
+	--nb-shot-ink-bright: #fffdf6; /* the hover-lifted paper */
+
+	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). Three of six failed here (on time 4.32, late 3.62, flagged 3.06). Only the
+	   two that needed it move, and on time keeps --green exactly -- lightening it
+	   would collide with the IDEA accent it was tuned against. Its fill drops a
+	   couple of points instead, which is the lever that was actually free.
+	   Each cell draws its border AND its glyph in the ink and fills with a
+	   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is
+	   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
+	   The hue identity is fixed and is NOT a free choice: green = on time,
+	   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
+	   sage = missing. What varies per plate is lightness. */
+	--nb-cell-ontime: #86bf7e;
+	--nb-cell-late: #db9d60;
+	--nb-cell-await: var(--cyan);
+	--nb-cell-flagged: #e69494;
+	--nb-cell-excused: var(--ice);
+	--nb-cell-missing: var(--dim);
+	--nb-cell-missing-edge: var(--gear);
+	/* Pinned to the fills this grid already shipped; see the note on the light
+	   palette for why they are not a mix of the ink. --cyan, --ice and --dim
+	   already cleared the bar here and are untouched, which is also what keeps
+	   this palette's published accent separations exact. */
+	--nb-cell-ontime-fill: #37452d;
+	--nb-cell-late-fill: #4e371d;
+	--nb-cell-await-fill: #2c3d33;
+	--nb-cell-flagged-fill: #58312c;
+	/* The hover / focus-visible ring. Was a hardcoded ink rgba that measured
+	   1.02:1 on the dark plates -- i.e. the keyboard focus indicator was not
+	   drawn at all. It is the room's own ink now, so it follows the plate. */
+	--nb-cell-ring: rgba(240, 235, 221, 0.55);
 }
 
 /* --- Notebook IDEA palette ---------------------------------------------------
@@ -322,4 +464,49 @@
 	   faint ink. Both are stated outright. */
 	--nb-folder-gold: var(--gold);
 	--nb-folder-none: var(--nb-ink-faint);
+
+	/* The PHOTO ISLAND (--nb-shot-*). CameraCapture, PhotoCorrector and
+	   PhotoStager stay DARK in every palette -- a viewfinder that glares and a
+	   drag quad that has to hold its contrast over an arbitrary photograph are
+	   not preferences. What follows the room is the HUE and the depth: warm on
+	   light and dark, green-black on IDEA. The island does not invert, and
+	   saying so is the honest reading of "follows a palette change". The alpha
+	   ladder (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call
+	   sites, so it is one value here rather than six per palette. */
+	--nb-shot-ground: rgba(6, 14, 9, 0.98); /* full-bleed overlay ground */
+	--nb-shot-plate: #030a05; /* OPAQUE letterbox: what a camera with no frame yet shows */
+	--nb-shot-scrim: rgba(6, 14, 9, 0.72); /* the thumbnail scrim, a different job from the ground */
+	--nb-shot-ink: #f2faf5; /* paper: type, the shutter, the handles */
+	--nb-shot-ink-deep: #0b1410; /* reads as TEXT on --nb-shot-ink */
+	--nb-shot-ink-bright: #f8fdfa; /* the hover-lifted paper */
+
+	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). The same six values the dark plate takes: this ground is DARKER than dark's,
+	   so every fill is darker and anything clearing dark clears here (measured
+	   4.69-8.73 against dark's 4.51-8.38). --green, --cyan and --ice never move,
+	   which is what preserves this palette's published accent separations.
+	   Each cell draws its border AND its glyph in the ink and fills with a
+	   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is
+	   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
+	   The hue identity is fixed and is NOT a free choice: green = on time,
+	   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
+	   sage = missing. What varies per plate is lightness. */
+	--nb-cell-ontime: #86bf7e;
+	--nb-cell-late: #db9d60;
+	--nb-cell-await: var(--cyan);
+	--nb-cell-flagged: #e69494;
+	--nb-cell-excused: var(--ice);
+	--nb-cell-missing: var(--dim);
+	--nb-cell-missing-edge: var(--gear);
+	/* Pinned to the fills this grid already shipped; see the note on the light
+	   palette for why they are not a mix of the ink. --cyan, --ice and --dim
+	   already cleared the bar here and are untouched, which is also what keeps
+	   this palette's published accent separations exact. */
+	--nb-cell-ontime-fill: #2b452d;
+	--nb-cell-late-fill: #42361d;
+	--nb-cell-await-fill: #1f3c33;
+	--nb-cell-flagged-fill: #4c302c;
+	/* The hover / focus-visible ring. Was a hardcoded ink rgba that measured
+	   1.02:1 on the dark plates -- i.e. the keyboard focus indicator was not
+	   drawn at all. It is the room's own ink now, so it follows the plate. */
+	--nb-cell-ring: rgba(240, 235, 221, 0.55);
 }

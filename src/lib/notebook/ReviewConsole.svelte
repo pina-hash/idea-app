@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SessionManager from '$lib/notebook/SessionManager.svelte';
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
 	import DocumentationCheck from '$lib/notebook/DocumentationCheck.svelte';
-	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
+	import NotebookMasthead from '$lib/notebook/NotebookMasthead.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { revealDetailPane } from '$lib/shell/reveal';
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
@@ -357,14 +355,7 @@
      through data-nb-theme, which of its three palettes is showing; the review
      console lives in the same room as the student feed, in every light. -->
 <div class="nb-root" data-nb-theme={notebookThemeAttr()}>
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<NotebookThemeToggle />
-		<a class="btn secondary" href="/notebook">&lsaquo; My Notebook</a>
-		<ProfileMenu />
-	</div>
-</div>
+<NotebookMasthead backHref="/notebook" backLabel="My Notebook" />
 
 {#snippet gridPane()}
 	{#if grid}
@@ -534,9 +525,9 @@
 		/* app.css caps every <main> at 880px and gives it its own side padding;
 		   both belong to the single-column shell, and this one spans the split. */
 		max-width: none;
-		padding: 3rem 0;
+		padding: var(--space-7) 0;
 		display: grid;
-		gap: 1.1rem;
+		gap: var(--space-4);
 	}
 	/* Every block this component RENDERS. It deliberately does not reach the
 	   split -- Svelte scopes `> *` to this component's own markup, and the split
@@ -556,7 +547,7 @@
 	.pickers {
 		display: flex;
 		align-items: flex-end;
-		gap: 1rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 	}
 	.entry-col {
@@ -564,7 +555,7 @@
 	}
 	.field {
 		display: grid;
-		gap: 0.25rem;
+		gap: var(--space-1);
 		min-width: min(12rem, 100%);
 		max-width: 100%;
 	}
@@ -573,7 +564,7 @@
 		font-weight: 600;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.field select {
 		/* min-width: 0 stops the select's intrinsic width (its longest option
@@ -582,11 +573,11 @@
 		   made the whole layout viewport overflow. */
 		width: 100%;
 		min-width: 0;
-		padding: 0.45rem 0.55rem;
-		background: var(--nb-surface);
+		padding: var(--space-2);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
 		font-family: inherit;
 		font-size: 0.95rem;
 	}
@@ -597,15 +588,15 @@
 	.picker-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		margin-left: auto;
 	}
 	.loading {
 		font-size: 0.78rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.note {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.88rem;
 	}
 	.msg {

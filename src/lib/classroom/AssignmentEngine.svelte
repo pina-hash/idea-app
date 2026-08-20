@@ -462,7 +462,7 @@
 		margin-bottom: 0.7rem;
 	}
 	.state-chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
@@ -478,7 +478,7 @@
 		border-color: var(--line-strong);
 	}
 	.status-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -497,7 +497,7 @@
 	.section-label {
 		margin: 0 0 var(--space-2);
 		font-size: 0.8rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -520,7 +520,7 @@
 	}
 	.comment-label {
 		display: block;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -585,7 +585,7 @@
 		margin-bottom: 0.9rem;
 	}
 	.submit-hint {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
 	}

@@ -76,7 +76,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 		padding: 0.3rem 0.85rem;

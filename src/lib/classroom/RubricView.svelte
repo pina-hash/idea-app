@@ -108,14 +108,14 @@
 		border-bottom: 1px solid var(--hairline);
 	}
 	.rubric-title {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
 	}
 	.rubric-total {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--gold);
 		white-space: nowrap;
@@ -137,7 +137,7 @@
 		font-size: 0.88rem;
 	}
 	.criterion-points {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		white-space: nowrap;
@@ -178,7 +178,7 @@
 		font-size: 0.75rem;
 	}
 	.level-points {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--gold);
 		min-width: 1.6rem;
@@ -205,7 +205,7 @@
 		color: var(--text-1);
 	}
 	.note-label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.6rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;

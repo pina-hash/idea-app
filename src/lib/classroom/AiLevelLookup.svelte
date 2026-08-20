@@ -62,7 +62,7 @@
 		min-width: 0;
 	}
 	.picker-label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -76,7 +76,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
 		min-height: 44px;
@@ -109,7 +109,7 @@
 		gap: 0.35rem 0.8rem;
 	}
 	dt {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;

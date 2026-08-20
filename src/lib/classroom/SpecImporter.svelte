@@ -500,7 +500,7 @@
 		display: flex;
 		gap: var(--space-2);
 		flex-wrap: wrap;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -559,7 +559,7 @@
 		flex-wrap: wrap;
 	}
 	.state-tag {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;

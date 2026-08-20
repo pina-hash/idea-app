@@ -138,13 +138,13 @@
 		overflow-wrap: anywhere;
 	}
 	.lp-host {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--cyan);
 		overflow-wrap: anywhere;
 	}
 	.lp-fallback {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--gold);
 		overflow-wrap: anywhere;

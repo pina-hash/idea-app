@@ -51,7 +51,7 @@
 	}
 	/* Verbatim from SpecRenderer -- see the component note. */
 	.chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		border: 1px solid var(--hairline);
 		border-radius: 999px;

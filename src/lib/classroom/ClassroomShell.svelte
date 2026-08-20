@@ -238,7 +238,7 @@
 		min-width: 0;
 	}
 	.sw-code {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		letter-spacing: 0.06em;
 		color: var(--gold);
@@ -289,7 +289,7 @@
 		box-shadow: inset 2px 0 0 var(--gold);
 	}
 	.sw-item-code {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--gold);
 		white-space: nowrap;
@@ -301,7 +301,7 @@
 	}
 	.sw-item-flag {
 		margin-left: auto;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.6rem;
 		color: var(--text-2);
 	}
@@ -330,7 +330,7 @@
 		list-style: none;
 		margin: 0 0 0.5rem;
 		padding: 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 	}
 	.crumbs li {
@@ -373,7 +373,7 @@
 		padding: 0.5rem 0.9rem;
 		border-bottom: 2px solid transparent;
 		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		text-decoration: none;
 		min-height: 40px;

@@ -199,7 +199,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		padding: 0.28rem 0.8rem;
 		cursor: pointer;
@@ -223,7 +223,7 @@
 	}
 	.fb-kind,
 	.fb-status {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
@@ -241,12 +241,12 @@
 		border-color: var(--cyan);
 	}
 	.fb-page {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--gold);
 	}
 	.fb-when {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--text-2);
 		margin-left: auto;
@@ -269,7 +269,7 @@
 		font-size: 0.82rem;
 	}
 	.fb-email {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
 	}
@@ -281,7 +281,7 @@
 	}
 	.fb-review {
 		margin: var(--space-2) 0 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
 	}

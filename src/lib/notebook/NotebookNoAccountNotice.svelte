@@ -20,11 +20,11 @@
 <style>
 	.nb-noaccount {
 		max-width: var(--measure-split);
-		margin: 1rem auto 0;
+		margin: var(--space-4) auto 0;
 		box-sizing: border-box;
 		padding: 0.7rem var(--cr-gutter, 1rem);
 		border: 1px solid var(--line);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 		background: var(--bg2);
 		font-size: 0.9rem;
 		color: var(--dim);

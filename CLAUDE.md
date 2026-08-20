@@ -612,12 +612,21 @@ inside the function fails closed rather than falling through to a weaker path.
 - **`min-width: 0` on grid/flex children.** An item's automatic minimum is its
   min-content, so a `nowrap` row forces the whole page wider than the viewport.
   `overflow: hidden` and an ellipsis do NOT reduce min-content.
-- **The notebook review grid's density and six status glyphs (checkmark, up-arrow,
-  circle, bang, E, dash), their exact tokens, Share Tech Mono, and the 1.9rem cell
-  box are a LOCKED CONTRACT.** They use PLATFORM tokens, so no scoped palette can
-  reach them. Verify byte-identical after any restyle. Do not put words in a cell
-  to satisfy a label audit -- the always-visible legend and the hint above the grid
-  carry the meaning.
+- **The notebook review grid's density, its six status glyphs (checkmark,
+  up-arrow, circle, bang, E, dash), Share Tech Mono and the 1.9rem cell box are a
+  LOCKED CONTRACT.** Verify byte-identical after any restyle. Do not put words in
+  a cell to satisfy a label audit -- the always-visible legend and the hint above
+  the grid carry the meaning.
+  - **The six status COLOURS are per-palette (`--nb-cell-*`), and used not to be.**
+    They were the portal's own tokens on the grounds that no scoped palette should
+    reach them. Measured on the three notebook plates, that rule was costing the
+    thing it protected: twelve of eighteen plate-state combinations sat below
+    4.5:1 and on the DEFAULT plate all six did, five of them below 3:1. What is
+    fixed is each state's HUE IDENTITY -- green on time, amber late, cyan awaiting,
+    crimson flagged, ice excused, sage missing -- and only lightness moves per
+    plate. **The FILL is a pinned colour, never a `color-mix` of the ink:** a fill
+    derived from the ink moves whenever the ink does and hands most of the
+    contrast straight back (measured, 4.79 vs 3.84).
 
 ### Interface standards
 
@@ -1068,7 +1077,11 @@ the source of truth; **do not invent colours or swap fonts.**
 - **Fonts:** `Rajdhani` (display, body, input values) and `Share Tech Mono`
   (metadata, button/nav labels, mono chrome), via `@fontsource`. `/` and `/archive`
   additionally use `Orbitron`. **Never Arial, Inter, Roboto, or system fonts** in
-  the IDEA shell.
+  the IDEA shell -- the notebook's system-sans stack was the last exception and it
+  is gone. **A face is named through its TOKEN, never as a literal:**
+  `--font-display`, `--font-mono`, `--font-title` (Orbitron), `--font-hero`. Each
+  resolves to exactly the string it replaced, so pointing a rule at one is a
+  rename, not a restyle.
 - **Shared classes** live in `src/app.css`. The `.legacy-index` theme is scoped
   under that wrapper so it never affects the app shell.
 - **The animated emblem** is `src/lib/brand/AnimatedLogo.svelte`, prop-driven so
@@ -1099,6 +1112,32 @@ shows through, and neutralizes the app-shell globals that would leak (the green
 - **`.nb-root` -- notebook editorial**, light / dark / IDEA palettes. Tokens only:
   a rule needing to know which palette is showing should have been a token. IDEA is
   opt-in only -- no `prefers-color-scheme` selector reaches it.
+  - **The palettes are BACKGROUND PLATES, not an identity.** They exist so a student
+    can read a photograph of paper in different lighting. The notebook is on the
+    platform's type, radius and spacing -- Rajdhani, `--radius-*`, `--space-*` --
+    exactly as the classroom is, and switching a plate must change nothing else.
+    The room's private system-sans stack and its own 10px/6px corners are RETIRED;
+    do not reintroduce a notebook-only type or corner scale.
+  - **THE ROOM ALIASES, IT DOES NOT REDECLARE.** `.nb-root` points the shared names
+    at its own plate (`--surface-1: var(--nb-surface)`, `--text-1: var(--nb-ink)`,
+    `--hairline: var(--nb-hairline)`, and so on), so every notebook component reads
+    the same vocabulary the classroom does. **The alias must stay on `.nb-root`
+    itself.** Writing the plate values straight onto `--surface-*` in the palette
+    blocks would put the LIGHT set at `:root` (where the light palette lives) and
+    repaint the classroom, the reference viewer and view-as in paper white. Source
+    and target on the SAME element is also what keeps the
+    var()-resolves-where-declared trap off this: it needs a descendant
+    redeclaration, and an alias is not one. **The canvas mirror
+    (`body:has(.nb-root)`) must keep naming `--nb-bg`** -- `body` and `:root` are
+    ANCESTORS of `.nb-root` and cannot see the alias.
+  - **`--text-3` does not mean "below the text threshold" in here.** In the
+    classroom it is decorative tertiary; in the notebook it is real muted copy.
+  - **What stays notebook-named is what has no counterpart**, not what someone
+    liked: `--nb-shadow` (there is no `--shadow-*` family), `--nb-hairline-strong`
+    (the platform has one rule weight; `--line-strong` is mint green),
+    `--nb-ink-hover`, the accent trio, `--nb-ok/-error/-warn` (the raw semantic
+    tokens are the UNCORRECTED values these exist to correct), `--nb-masthead`, the
+    folder colours, `--nb-cell-*` and `--nb-shot-*`.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
 - **`.glb` -- GREENLINE brand** (`Greenline Art Direction Reference.html`,

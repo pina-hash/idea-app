@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "Your notebook and your classes look like one place now",
+			"body": "The digital notebook used to be set in a different typeface, at a different size, with rounder corners and its own spacing, so moving between a class and your notebook felt like moving between two different apps. It now uses the same type, the same corners and the same spacing as the rest of the class site. Nothing moved and nothing is hidden. The light, dark and IDEA appearance settings are all still there and still do the same thing, and the switch is in the same place at the top of the notebook. The status squares on the section review grid have been recoloured so the tick, arrow, circle, bang, E and dash are properly readable on all three, which they were not on the light setting.",
+			"tags": ["Notebook", "Appearance"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "A notebook check-in can live on the work it belongs to",
 			"body": "When your teacher sets up a notebook check-in for a particular post, assignment or handout, it now shows up ON that item instead of as a separate row further down the class. Open the item and you see the check-in right under the title: what it is called, which unit and day it is for, whether you have filed it, started a draft or not done it yet, and a link straight into your notebook with that check-in already picked. Check-ins that are not attached to anything keep their own row in the class exactly as before, and nothing about filing a page changes.",
 			"tags": ["Stream", "Classwork", "Notebook"]

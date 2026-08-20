@@ -71,8 +71,13 @@
 	   are generous rather than technical. Nothing outside .nb-root reads
 	   these. ------------------------------------------------------------- */
 	--nb-shadow: 0 1px 2px rgba(38, 34, 27, 0.05), 0 10px 28px rgba(38, 34, 27, 0.06); /* @kind other */
-	--nb-radius: 10px; /* cards, panels */
-	--nb-radius-control: 6px; /* buttons, inputs, picks */
+	/* THE TWO NOTEBOOK RADII ARE GONE. --nb-radius (10px) and
+	   --nb-radius-control (6px) were the room's own corner scale; the notebook
+	   reads --radius-card (4px) and --radius-control (3px) now, the same two the
+	   classroom does. This is a real visual change -- 47 corners tighten -- and
+	   it is the point: a shared radius is most of what makes two rooms read as
+	   one product. The soft paper SHADOW below stays notebook-only, because the
+	   design system has no --shadow-* family for it to join. */
 }
 
 /* The dark palette's counterpart (see the DARK block in colors.css for the

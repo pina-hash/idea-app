@@ -892,7 +892,7 @@
 		height: 100%;
 	}
 	.insp-label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -910,7 +910,7 @@
 	}
 	.insp-hint {
 		flex: none;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--text-2);
 	}
@@ -936,7 +936,7 @@
 
 	.meta-line,
 	.edited-line {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		margin: 0.2rem 0 0;
@@ -973,13 +973,13 @@
 		font-size: 0.95rem;
 	}
 	.ci-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--text-2);
 	}
 	.ci-link {
 		margin-left: auto;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--gold);
 		white-space: nowrap;
@@ -1005,7 +1005,7 @@
 	.section-label {
 		margin: 0 0 var(--space-2);
 		font-size: 0.85rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -1043,7 +1043,7 @@
 	}
 	.also-line {
 		margin: var(--space-2) 0 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -1070,7 +1070,7 @@
 		margin: 0;
 	}
 	.chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.65rem;
 		color: var(--cyan);
 		border: 1px solid var(--hairline);

@@ -82,12 +82,12 @@
 		margin-bottom: 0.3rem;
 	}
 	.update-when {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--cyan);
 	}
 	.chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
 		border: 1px solid var(--hairline);

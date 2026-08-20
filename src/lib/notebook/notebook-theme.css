@@ -10,16 +10,26 @@
  * '// ' h2 prefix, no link-hover glow, opaque and above the .bg-fx scanline
  * layer.
  *
- * Type is a plain system sans stack, deliberately no webfont: the repo's
- * loaded faces (Rajdhani / Share Tech Mono / Orbitron / Roboto-for-FRC) are
- * all voices of other rooms. Share Tech Mono survives in exactly one place,
- * the review grid's status cells, where the glyph rendering itself is a
- * locked contract (see SectionGrid.svelte).
+ * TYPE IS RAJDHANI, and that REVERSES a decision this file used to argue for.
+ * The room ran on a system sans stack on the grounds that every loaded face was
+ * another room's voice. What that actually produced was two products: the same
+ * sentence rendered in a different typeface, at a different size, on a different
+ * corner radius depending on which tab a student was in. The notebook keeps its
+ * editorial LAYOUT -- the whitespace, the measure, the left-aligned opening, the
+ * paper plates -- and gives up its private typeface. Rajdhani advances ~7.7%
+ * narrower than the system stack, which is why the room also stopped overriding
+ * the platform's 1.05rem body size: at 1rem the same paragraph would have run 8%
+ * longer lines. Share Tech Mono stays where it always was, the review grid's
+ * status cells, whose glyph rendering is a locked contract (see
+ * SectionGrid.svelte).
  *
- * Two deliberate dark islands remain: the masthead (.app-header) stays an
- * ink band because the AnimatedLogo emblem and ProfileMenu are drawn for
- * dark ground, and the PhotoCorrector overlay stays dark so the drag quad
- * and handles keep their contrast over arbitrary photos.
+ * Two deliberate dark islands remain, and both are TOKENISED rather than
+ * hardcoded now: the masthead (.app-header) stays an ink band because the
+ * AnimatedLogo emblem and ProfileMenu are drawn for dark ground, and the photo
+ * surfaces (CameraCapture, PhotoCorrector, PhotoStager) stay dark so the drag
+ * quad and handles keep their contrast over arbitrary photographs. The second
+ * reads --nb-shot-* (colors.css), so it shifts hue with the plate instead of
+ * being frozen at the light palette's literals. Neither inverts.
  *
  * THERE ARE THREE PALETTES NOW (light, dark, IDEA) and this file belongs to
  * NONE of them. Each is a set of values for the same --nb-* tokens
@@ -55,23 +65,56 @@
 }
 
 .nb-root {
+	/* THE ROOMS SHARE ONE VOCABULARY NOW. Every notebook component reads the
+	   design-system names -- --surface-*, --text-*, --hairline -- exactly as the
+	   classroom's do; what the notebook adds is that those names resolve to
+	   whichever PLATE is showing. The palette blocks in colors.css still declare
+	   --nb-bg / --nb-surface / --nb-ink and so on, and this is where the two
+	   meet.
+
+	   WHY THE ALIAS RUNS THIS WAY ROUND, rather than the palettes declaring
+	   --surface-1 directly. The light palette lives at :root (colors.css), so a
+	   palette declaring --surface-1 would declare it GLOBALLY and repaint the
+	   classroom, the reference viewer and every other calm-surface route in
+	   paper white. Aliasing on .nb-root keeps it to this room.
+
+	   AND WHY IT IS SAFE TO ALIAS ON THIS ELEMENT AT ALL: a custom property
+	   resolves where it is DECLARED, so an alias whose source and target sit on
+	   the SAME element cannot pick up the wrong palette -- the ancestor trap the
+	   rest of this file guards against needs a descendant redeclaration, which
+	   this is not. Checked before it was written: nothing else rendered inside
+	   .nb-root reads these names. app.css, ProfileMenu, VersionBadge,
+	   AnimatedLogo and Avatar contain zero references to any of them, and the
+	   one place split.css does (--cr-thumb, --cr-pane-line) the notebook
+	   already overrides just below.
+
+	   --text-3 IS NOT "below the text threshold" IN HERE. In the classroom it is
+	   a decorative tertiary; here it inherits --nb-ink-faint, which is real
+	   muted copy. Do not carry the classroom's rule about it across. */
+	--surface-0: var(--nb-bg);
+	--surface-1: var(--nb-surface);
+	--surface-2: var(--nb-surface-dim);
+	--text-1: var(--nb-ink);
+	--text-2: var(--nb-ink-soft);
+	--text-3: var(--nb-ink-faint);
+	--hairline: var(--nb-hairline);
+
 	/* The shell's two per-room hooks. Paper wants a warmer, lighter bar and a
 	   hairline frame than the classroom's plate does. */
-	--cr-pane-line: var(--nb-hairline);
-
-	--nb-font:
-		-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial,
-		sans-serif;
+	--cr-pane-line: var(--hairline);
 
 	position: relative;
 	/* Above the portal's fixed .bg-fx overlay (z-index 0), and opaque, so the
 	   dark scanline ambiance never shows through the light surfaces. */
 	z-index: 1;
 	min-height: 100vh;
-	background: var(--nb-bg);
-	color: var(--nb-ink);
-	font-family: var(--nb-font);
-	font-size: 1rem;
+	background: var(--surface-0);
+	color: var(--text-1);
+	/* No font-family and no font-size of its own any more: both come from
+	   app.css's body rule, which is what the classroom already runs on --
+	   Rajdhani at 1.05rem. The old system-sans stack and the 1rem that went
+	   with it were what made the same sentence render 5% smaller here than one
+	   room over. */
 	line-height: 1.6;
 	-webkit-font-smoothing: auto;
 }
@@ -129,9 +172,9 @@ body:has(.nb-root) {
 .nb-root h1,
 .nb-root h2,
 .nb-root h3 {
-	font-family: var(--nb-font);
+	font-family: var(--font-display);
 	font-weight: 700;
-	color: var(--nb-ink);
+	color: var(--text-1);
 	line-height: 1.15;
 	letter-spacing: -0.01em;
 }
@@ -141,7 +184,7 @@ body:has(.nb-root) {
 }
 .nb-root h2 {
 	font-size: 1.3rem;
-	margin: 0 0 0.9rem;
+	margin: 0 0 var(--space-4);
 }
 /* Neutralize the app shell's green '// ' heading prefix. */
 .nb-root h2::before {
@@ -161,7 +204,7 @@ body:has(.nb-root) {
 }
 
 .nb-root .eyebrow {
-	font-family: var(--nb-font);
+	font-family: var(--font-display);
 	font-size: 0.7rem;
 	font-weight: 600;
 	letter-spacing: 0.18em;
@@ -174,7 +217,7 @@ body:has(.nb-root) {
 	text-shadow: none;
 }
 .nb-root .lead {
-	color: var(--nb-ink-soft);
+	color: var(--text-2);
 	font-size: 1.02rem;
 	max-width: 40rem;
 }
@@ -210,42 +253,42 @@ body:has(.nb-root) {
 
 .nb-root .hero {
 	text-align: left;
-	padding: 2.9rem 0 1.4rem;
+	padding: var(--space-7) 0 var(--space-5);
 }
 
 /* --- Paper cards over machined metal ------------------------------------- */
 
 .nb-root .card {
-	background: var(--nb-surface);
-	border: 1px solid var(--nb-hairline);
-	border-radius: var(--nb-radius);
+	background: var(--surface-1);
+	border: 1px solid var(--hairline);
+	border-radius: var(--radius-card);
 	box-shadow: var(--nb-shadow);
-	padding: 1.75rem;
+	padding: var(--space-5);
 }
 .nb-root .card > p {
-	color: var(--nb-ink);
+	color: var(--text-1);
 }
 .nb-root code {
 	font-size: 0.86em;
-	background: var(--nb-surface-dim);
-	border: 1px solid var(--nb-hairline);
-	border-radius: 4px;
+	background: var(--surface-2);
+	border: 1px solid var(--hairline);
+	border-radius: var(--radius-card);
 	padding: 0.05em 0.35em;
 }
 
 /* --- Buttons: quiet ink, sentence case, no glow --------------------------- */
 
 .nb-root .btn {
-	font-family: var(--nb-font);
+	font-family: var(--font-display);
 	font-size: 0.85rem;
 	font-weight: 600;
 	letter-spacing: 0.01em;
 	text-transform: none;
 	color: var(--nb-bg);
-	background: var(--nb-ink);
-	border: 1px solid var(--nb-ink);
-	border-radius: var(--nb-radius-control);
-	padding: 0.6rem 1.15rem;
+	background: var(--text-1);
+	border: 1px solid var(--text-1);
+	border-radius: var(--radius-control);
+	padding: var(--space-3) var(--space-4);
 }
 .nb-root .btn:hover {
 	background: var(--nb-ink-hover);
@@ -260,21 +303,21 @@ body:has(.nb-root) {
 }
 .nb-root .btn:disabled,
 .nb-root .btn:disabled:hover {
-	background: var(--nb-surface-dim);
+	background: var(--surface-2);
 	border-color: var(--nb-hairline-strong);
-	color: var(--nb-ink-faint);
+	color: var(--text-3);
 	box-shadow: none;
 	opacity: 1;
 }
 .nb-root .btn.secondary {
-	background: var(--nb-surface);
+	background: var(--surface-1);
 	border-color: var(--nb-hairline-strong);
-	color: var(--nb-ink-soft);
+	color: var(--text-2);
 }
 .nb-root .btn.secondary:hover {
-	background: var(--nb-surface);
-	border-color: var(--nb-ink);
-	color: var(--nb-ink);
+	background: var(--surface-1);
+	border-color: var(--text-1);
+	color: var(--text-1);
 	box-shadow: none;
 	text-shadow: none;
 }
@@ -284,22 +327,22 @@ body:has(.nb-root) {
    is the baseline for anything unstyled, e.g. the entry label field. ------ */
 
 .nb-root .field {
-	border-bottom-color: var(--nb-hairline);
+	border-bottom-color: var(--hairline);
 }
 .nb-root input[type='text'],
 .nb-root input[type='number'],
 .nb-root input[type='date'],
 .nb-root select,
 .nb-root textarea {
-	font-family: var(--nb-font);
+	font-family: var(--font-display);
 	font-size: 0.95rem;
-	color: var(--nb-ink);
-	background: var(--nb-surface);
+	color: var(--text-1);
+	background: var(--surface-1);
 	border: 1px solid var(--nb-hairline-strong);
-	border-radius: var(--nb-radius-control);
-	padding: 0.5rem 0.65rem;
+	border-radius: var(--radius-control);
+	padding: var(--space-2) var(--space-3);
 }
 .nb-root input::placeholder,
 .nb-root textarea::placeholder {
-	color: var(--nb-ink-faint);
+	color: var(--text-3);
 }

@@ -340,7 +340,7 @@
 	}
 	.deck-manage-label {
 		margin: 0 0 var(--space-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -396,7 +396,7 @@
 	}
 	.deck-meta,
 	.deck-sub {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -427,7 +427,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--crimson);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		padding: 0 0.9rem;
 		cursor: pointer;
@@ -482,7 +482,7 @@
 		justify-content: space-between;
 		gap: 0.6rem;
 		margin-top: 0.35rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -521,7 +521,7 @@
 		color: var(--crimson);
 	}
 	.deck-code {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--text-2);
 		white-space: nowrap;
@@ -530,7 +530,7 @@
 		color: var(--green);
 	}
 	.deck-warn code {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.74rem;
 	}
 	.deck-choose {

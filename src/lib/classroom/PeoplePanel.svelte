@@ -610,13 +610,13 @@
 	.classroom-page h3 {
 		margin: 1rem 0 0.4rem;
 		font-size: 0.85rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
 	}
 	.section-line {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--text-2);
 	}
@@ -665,7 +665,7 @@
 		display: inline-flex;
 		align-items: baseline;
 		gap: 0.3rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		letter-spacing: 0.04em;
 		border: 1px solid var(--hairline);
@@ -702,7 +702,7 @@
 	}
 	.nb-attention summary {
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--amber);
 	}
@@ -718,7 +718,7 @@
 		font-size: 0.85rem;
 	}
 	.nb-student-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -732,7 +732,7 @@
 		margin-bottom: var(--space-2);
 	}
 	label > span {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 		color: var(--text-2);
@@ -743,7 +743,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
 		width: 100%;
@@ -800,7 +800,7 @@
 		font-size: 0.9rem;
 	}
 	.roster-email {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
 		overflow-wrap: anywhere;
@@ -826,13 +826,13 @@
 	}
 	.csv-import summary {
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--gold);
 	}
 	.csv-import textarea {
 		margin: 0.4rem 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 	}
 	.csv-import input[type='file'] {

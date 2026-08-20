@@ -465,7 +465,7 @@
 	}
 	.module-eyebrow {
 		display: block;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
@@ -481,7 +481,7 @@
 		flex-wrap: wrap;
 	}
 	.chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
@@ -505,7 +505,7 @@
 	}
 	.gate-lock {
 		margin: 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--amber);
 	}
@@ -527,7 +527,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		line-height: 1.5;
 		padding: 0.45rem 0.6rem;
@@ -557,7 +557,7 @@
 		border-radius: 999px;
 		border: 1px solid var(--hairline);
 		background: var(--surface-0);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		font-weight: 600;
 		color: var(--text-2);
@@ -589,7 +589,7 @@
 	}
 	.entry-table th {
 		text-align: left;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -614,7 +614,7 @@
 		border: 1px solid transparent;
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.9rem;
 		padding: 0.3rem 0.4rem;
 		min-width: 6rem;
@@ -692,7 +692,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.8rem;
 		padding: 0.25rem 0.4rem;
 	}
@@ -705,7 +705,7 @@
 		background: none;
 		border: none;
 		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		text-align: left;
 		cursor: pointer;
@@ -781,7 +781,7 @@
 		border-color: var(--line-strong);
 	}
 	.gate-label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;

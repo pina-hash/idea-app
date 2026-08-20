@@ -344,24 +344,24 @@
 		z-index: 1000;
 		display: flex;
 		flex-direction: column;
-		background: rgba(22, 20, 16, 0.97);
+		background: var(--nb-shot-ground);
 		padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
 	}
 	.pc-head {
 		flex: none;
-		margin-bottom: 0.6rem;
+		margin-bottom: var(--space-2);
 	}
 	.pc-head > div {
 		display: flex;
 		align-items: baseline;
-		gap: 0.8rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
 	}
 	.pc-title {
 		font-weight: 700;
 		font-size: 1.05rem;
 		letter-spacing: -0.01em;
-		color: #f5f2e9;
+		color: var(--nb-shot-ink);
 	}
 	.pc-count {
 		font-size: 0.76rem;
@@ -369,8 +369,8 @@
 		color: var(--nb-accent);
 	}
 	.pc-hint {
-		margin: 0.25rem 0 0;
-		color: rgba(245, 242, 233, 0.62);
+		margin: var(--space-1) 0 0;
+		color: color-mix(in srgb, var(--nb-shot-ink) 62%, transparent);
 		font-size: 0.83rem;
 	}
 	.pc-stage {
@@ -396,8 +396,8 @@
 		max-height: calc(100vh - 11rem);
 		width: auto;
 		height: auto;
-		border: 1px solid rgba(245, 242, 233, 0.16);
-		background: #171512;
+		border: 1px solid color-mix(in srgb, var(--nb-shot-ink) 16%, transparent);
+		background: var(--nb-shot-plate);
 	}
 	.pc-frame svg {
 		position: absolute;
@@ -434,7 +434,7 @@
 		width: 18px;
 		height: 18px;
 		border-radius: 50%;
-		background: color-mix(in srgb, var(--green) 25%, var(--bg0));
+		background: color-mix(in srgb, var(--green) 25%, var(--nb-shot-plate));
 		border: 2px solid var(--green);
 		box-shadow: 0 0 8px color-mix(in srgb, var(--green) 60%, transparent);
 	}
@@ -442,16 +442,16 @@
 		background: var(--green);
 	}
 	.pc-status {
-		color: rgba(245, 242, 233, 0.62);
+		color: color-mix(in srgb, var(--nb-shot-ink) 62%, transparent);
 		font-size: 0.88rem;
 	}
 	.pc-actions {
 		flex: none;
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		margin-top: 0.8rem;
+		margin-top: var(--space-3);
 	}
 	/* Overlay-local button styling: the room's ink-on-paper .btn treatment
 	   inverts here (paper button on the dark stage), and these scoped rules
@@ -462,43 +462,43 @@
 		font-weight: 600;
 		letter-spacing: 0.01em;
 		text-transform: none;
-		color: #26221b;
-		background: #f5f2e9;
-		border: 1px solid #f5f2e9;
-		border-radius: 6px;
-		padding: 0.6rem 1.2rem;
+		color: var(--nb-shot-ink-deep);
+		background: var(--nb-shot-ink);
+		border: 1px solid var(--nb-shot-ink);
+		border-radius: var(--radius-card);
+		padding: var(--space-3) var(--space-4);
 	}
 	.pc-actions .btn:hover {
-		color: #26221b;
-		background: #ffffff;
-		border-color: #ffffff;
+		color: var(--nb-shot-ink-deep);
+		background: var(--nb-shot-ink-bright);
+		border-color: var(--nb-shot-ink-bright);
 		box-shadow: none;
 		text-shadow: none;
 	}
 	.pc-actions .btn:disabled,
 	.pc-actions .btn:disabled:hover {
-		color: rgba(245, 242, 233, 0.45);
-		background: rgba(245, 242, 233, 0.12);
+		color: color-mix(in srgb, var(--nb-shot-ink) 45%, transparent);
+		background: color-mix(in srgb, var(--nb-shot-ink) 12%, transparent);
 		border-color: transparent;
 		box-shadow: none;
 		opacity: 1;
 	}
 	.pc-actions .btn.secondary {
-		color: #f5f2e9;
+		color: var(--nb-shot-ink);
 		background: transparent;
-		border-color: rgba(245, 242, 233, 0.38);
+		border-color: color-mix(in srgb, var(--nb-shot-ink) 38%, transparent);
 	}
 	.pc-actions .btn.secondary:hover {
-		color: #ffffff;
+		color: var(--nb-shot-ink-bright);
 		background: transparent;
-		border-color: #f5f2e9;
+		border-color: var(--nb-shot-ink);
 		box-shadow: none;
 		text-shadow: none;
 	}
 	.pc-reset {
 		background: none;
 		border: none;
-		color: rgba(245, 242, 233, 0.55);
+		color: color-mix(in srgb, var(--nb-shot-ink) 55%, transparent);
 		font-family: inherit;
 		font-size: 0.74rem;
 		font-weight: 600;

@@ -511,16 +511,16 @@
 
 <style>
 	.doc-check h2 {
-		margin: 0 0 0.3rem;
+		margin: 0 0 var(--space-1);
 		font-size: 1rem;
 	}
 	.note {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.88rem;
-		margin: 0.3rem 0;
+		margin: var(--space-1) 0;
 	}
 	.msg {
-		margin: 0.4rem 0;
+		margin: var(--space-2) 0;
 		font-size: 0.9rem;
 	}
 	.msg.error {
@@ -530,18 +530,18 @@
 		color: var(--nb-ok);
 	}
 	.dim {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.link-row {
 		display: flex;
 		align-items: flex-end;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		margin-top: 0.5rem;
+		margin-top: var(--space-2);
 	}
 	.field {
 		display: grid;
-		gap: 0.25rem;
+		gap: var(--space-1);
 		min-width: 0;
 		flex: 1 1 14rem;
 	}
@@ -553,18 +553,18 @@
 		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.field select,
 	.field input,
 	.field textarea {
 		width: 100%;
 		min-width: 0;
-		padding: 0.4rem 0.5rem;
-		background: var(--nb-surface);
+		padding: var(--space-2);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
 		font-family: inherit;
 		font-size: 0.92rem;
 	}
@@ -574,9 +574,9 @@
 	.linked {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		margin: 0.4rem 0 0.6rem;
+		margin: var(--space-2) 0 var(--space-2);
 	}
 	.linked-line {
 		margin: 0;
@@ -585,29 +585,29 @@
 	.linked-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		margin-left: auto;
 		flex-wrap: wrap;
 	}
 	.confirm-note {
 		font-size: 0.8rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.students {
 		list-style: none;
-		margin: 0.6rem 0 0;
+		margin: var(--space-2) 0 0;
 		padding: 0;
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--space-2);
 	}
 	.students > li {
 		/* A grid item's automatic minimum is its min-content, which a nowrap
 		   row would push past a phone's width. */
 		min-width: 0;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		padding: 0.55rem 0.7rem;
-		background: var(--nb-surface);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		padding: var(--space-2) var(--space-3);
+		background: var(--surface-1);
 	}
 	.students > li.open {
 		border-color: var(--nb-accent);
@@ -615,12 +615,12 @@
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.who {
 		display: grid;
-		gap: 0.1rem;
+		gap: var(--space-1);
 		min-width: 0;
 		flex: 1 1 12rem;
 	}
@@ -630,16 +630,16 @@
 	}
 	.counts {
 		font-size: 0.78rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.chip {
 		font-size: 0.7rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		padding: 0.15rem 0.45rem;
+		padding: var(--space-1) var(--space-2);
 		border-radius: 999px;
 		border: 1px solid var(--nb-hairline-strong);
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.chip.returned {
@@ -651,22 +651,22 @@
 	}
 	.editor {
 		display: grid;
-		gap: 0.7rem;
-		margin-top: 0.7rem;
-		padding-top: 0.7rem;
-		border-top: 1px solid var(--nb-hairline);
+		gap: var(--space-3);
+		margin-top: var(--space-3);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--hairline);
 	}
 	.criterion {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-1);
 	}
 	.criterion.needs {
 		border-left: 3px solid var(--nb-error);
-		padding-left: 0.5rem;
+		padding-left: var(--space-2);
 	}
 	.crit-head {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: baseline;
 		flex-wrap: wrap;
 	}
@@ -677,22 +677,22 @@
 	.evidence {
 		margin: 0;
 		font-size: 0.8rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.levels {
 		display: flex;
-		gap: 0.35rem;
+		gap: var(--space-1);
 		flex-wrap: wrap;
 	}
 	.level {
 		display: grid;
-		gap: 0.05rem;
+		gap: var(--space-1);
 		min-height: 44px;
-		padding: 0.3rem 0.6rem;
-		background: var(--nb-surface);
+		padding: var(--space-1) var(--space-2);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
 		font-family: inherit;
 		cursor: pointer;
 		text-align: left;
@@ -707,12 +707,12 @@
 	}
 	.level-label {
 		font-size: 0.72rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.editor-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.total {
@@ -722,14 +722,14 @@
 	/* The SessionManager convention, so the two-step confirm reads the same
 	   in both notebook panels. */
 	.btn.danger {
-		background: var(--nb-surface);
+		background: var(--surface-1);
 		border-color: var(--nb-error);
 		color: var(--nb-error);
 	}
 	.btn.danger:hover {
 		background: var(--nb-error);
 		border-color: var(--nb-error);
-		color: var(--nb-surface);
+		color: var(--surface-1);
 		box-shadow: none;
 	}
 </style>

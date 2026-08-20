@@ -68,10 +68,10 @@
 	.note-body {
 		font-size: 0.98rem;
 		line-height: 1.6;
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.note-body p {
-		margin: 0 0 0.7rem;
+		margin: 0 0 var(--space-3);
 	}
 	.note-body p:last-child,
 	.note-body ul:last-child,
@@ -80,11 +80,11 @@
 	}
 	.note-body ul,
 	.note-body ol {
-		margin: 0 0 0.7rem;
-		padding-left: 1.4rem;
+		margin: 0 0 var(--space-3);
+		padding-left: var(--space-5);
 	}
 	.note-body li {
-		margin: 0.15rem 0;
+		margin: var(--space-1) 0;
 	}
 	.note-link {
 		color: var(--nb-accent-ink);

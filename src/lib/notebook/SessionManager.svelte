@@ -469,47 +469,47 @@
 <style>
 	.sessions {
 		display: grid;
-		gap: 0.9rem;
+		gap: var(--space-4);
 	}
 	.sessions-head {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 	}
 	.sessions-head h2 {
 		margin: 0;
 	}
 	.note {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.85rem;
-		margin: 0.2rem 0 0;
+		margin: var(--space-1) 0 0;
 	}
 	.empty {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 	.session-list {
 		list-style: none;
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--space-2);
 	}
 	.session-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
-		padding: 0.6rem 0.7rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 	}
 	.session-main {
 		display: flex;
 		align-items: baseline;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
 	}
 	.unit {
@@ -517,17 +517,17 @@
 		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		white-space: nowrap;
 	}
 	.label {
-		color: var(--nb-ink);
+		color: var(--text-1);
 		font-weight: 500;
 	}
 	.date {
 		font-size: 0.76rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.shared {
 		font-size: 0.7rem;
@@ -540,19 +540,19 @@
 	.session-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.posted-panel {
 		/* A row is a wrapping flex line; the panel is a block under it. */
 		width: 100%;
 		display: grid;
-		gap: 0.5rem;
-		margin-top: 0.6rem;
-		padding: 0.7rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+		padding: var(--space-3);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
 	}
 	.posted-panel h4 {
 		margin: 0;
@@ -560,23 +560,23 @@
 		font-weight: 600;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.posted-list {
 		list-style: none;
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-1);
 		margin: 0;
 		padding: 0;
 	}
 	.posted-list li {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.posted-name {
-		color: var(--nb-ink);
+		color: var(--text-1);
 		font-size: 0.9rem;
 	}
 	.section-field {
@@ -584,7 +584,7 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--space-2);
 	}
 	.section-field legend {
 		padding: 0;
@@ -592,19 +592,19 @@
 		font-weight: 600;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.section-picker {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.4rem 1rem;
+		gap: var(--space-2) var(--space-4);
 	}
 	.check {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-2);
 		font-size: 0.9rem;
-		color: var(--nb-ink);
+		color: var(--text-1);
 		/* A 44px tap target on a phone without moving the label off the line. */
 		min-height: 2.75rem;
 	}
@@ -619,11 +619,11 @@
 	}
 	.session-form {
 		display: grid;
-		gap: 0.7rem;
-		padding: 0.9rem;
+		gap: var(--space-3);
+		padding: var(--space-4);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 		width: 100%;
 	}
 	.session-form h3 {
@@ -633,26 +633,26 @@
 	.form-grid {
 		display: grid;
 		grid-template-columns: 6rem 11rem 1fr;
-		gap: 0.7rem;
+		gap: var(--space-3);
 	}
 	.field {
 		display: grid;
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 	.field span {
 		font-size: 0.7rem;
 		font-weight: 600;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.field input {
 		width: 100%;
-		padding: 0.45rem 0.55rem;
-		background: var(--nb-surface);
+		padding: var(--space-2);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
 		font-family: inherit;
 		font-size: 0.95rem;
 	}
@@ -663,7 +663,7 @@
 	.form-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.hint {
@@ -681,14 +681,14 @@
 		color: var(--nb-ok);
 	}
 	.btn.danger {
-		background: var(--nb-surface);
+		background: var(--surface-1);
 		border-color: var(--nb-error);
 		color: var(--nb-error);
 	}
 	.btn.danger:hover {
 		background: var(--nb-error);
 		border-color: var(--nb-error);
-		color: var(--nb-surface);
+		color: var(--surface-1);
 		box-shadow: none;
 		text-shadow: none;
 	}

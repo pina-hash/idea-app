@@ -1129,7 +1129,7 @@
 <style>
 	.entry {
 		border: 1px solid transparent;
-		border-radius: var(--nb-radius);
+		border-radius: var(--radius-card);
 		/* Belt-and-braces with `.entries > li { min-width: 0 }` in the feed:
 		   whatever this card is placed inside, it must be allowed to narrow
 		   past the nowrap row below rather than push its container wider. */
@@ -1138,15 +1138,15 @@
 	/* An expanded entry is a raised card; a collapsed one is a row in a list,
 	   so a long feed reads as a list rather than as a stack of boxes. */
 	.entry.open {
-		border-color: var(--nb-hairline);
-		background: var(--nb-surface);
+		border-color: var(--hairline);
+		background: var(--surface-1);
 		box-shadow: var(--nb-shadow);
-		padding: 0.2rem 0.9rem 1rem;
+		padding: var(--space-1) var(--space-4) var(--space-4);
 	}
 	.row {
 		display: flex;
 		align-items: stretch;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		min-width: 0;
 	}
 	/* The box itself stays small, but the LABEL is the hit target and is padded
@@ -1157,7 +1157,7 @@
 		align-items: center;
 		justify-content: center;
 		min-width: 2.75rem;
-		padding: 0 0.2rem;
+		padding: 0 var(--space-1);
 		cursor: pointer;
 	}
 	.pick input {
@@ -1172,18 +1172,18 @@
 		min-width: 0;
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-3);
 		text-align: left;
-		padding: 0.6rem 0.35rem;
+		padding: var(--space-2) var(--space-1);
 		border: none;
 		background: none;
 		font: inherit;
 		color: inherit;
 		cursor: pointer;
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 	}
 	.disclosure:hover {
-		background: var(--nb-surface-dim);
+		background: var(--surface-2);
 	}
 	.entry.open .disclosure:hover {
 		background: transparent;
@@ -1194,7 +1194,7 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.14rem;
+		gap: var(--space-1);
 	}
 	.row-title {
 		font-weight: 700;
@@ -1210,13 +1210,13 @@
 		white-space: normal;
 	}
 	.row-title.untitled {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-style: italic;
 		font-weight: 500;
 	}
 	.row-preview {
 		font-size: 0.82rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1224,11 +1224,11 @@
 	.row-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		font-size: 0.74rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.dot {
 		color: var(--nb-hairline-strong);
@@ -1237,10 +1237,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3em;
-		padding: 0.05rem 0.45rem 0.05rem 0.4rem;
+		padding: var(--space-1) var(--space-2) var(--space-1) var(--space-2);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		max-width: 11rem;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1255,7 +1255,7 @@
 		flex: 0 0 auto;
 	}
 	.status {
-		padding: 0.1rem 0.5rem;
+		padding: var(--space-1) var(--space-2);
 		border-radius: 999px;
 		border: 1px solid currentColor;
 		text-transform: uppercase;
@@ -1268,13 +1268,13 @@
 		color: var(--nb-accent-ink);
 	}
 	.status.pending {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	/* UNMISTAKABLE ON PURPOSE: a draft must never read as turned-in work, so it
 	   gets the warning thread rather than a neutral chip a reader could skim
 	   past. Same shape as .status so it reads as one family of markers. */
 	.draft-chip {
-		padding: 0.1rem 0.5rem;
+		padding: var(--space-1) var(--space-2);
 		border-radius: 999px;
 		border: 1px solid currentColor;
 		text-transform: uppercase;
@@ -1292,24 +1292,24 @@
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		gap: 0.15rem;
-		padding-right: 0.1rem;
+		gap: var(--space-1);
+		padding-right: var(--space-1);
 	}
 	.tool {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.3rem;
+		gap: var(--space-1);
 		/* 44px TALL, the same thumb-sized target the select checkbox is padded
 		   to; the width now follows the word, since this is a control a student
 		   taps on a phone and must be able to read without hovering it. */
 		min-width: 2.75rem;
 		height: 2.75rem;
-		padding: 0 0.55rem;
+		padding: 0 var(--space-2);
 		border: none;
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 		background: none;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		cursor: pointer;
 		transition:
 			color 0.15s ease,
@@ -1329,10 +1329,10 @@
 	.folder-pick {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.35rem;
+		gap: var(--space-1);
 		height: 2.75rem;
-		padding: 0 0.2rem 0 0.45rem;
-		color: var(--nb-ink-faint);
+		padding: 0 var(--space-1) 0 var(--space-2);
+		color: var(--text-3);
 		cursor: pointer;
 	}
 	.folder-pick-label {
@@ -1344,12 +1344,12 @@
 		font: inherit;
 		font-size: 0.74rem;
 		max-width: 8.5rem;
-		padding: 0.3rem 0.35rem;
+		padding: var(--space-1);
 		border: 1px solid var(--nb-hairline-strong);
 		border-left: 3px solid var(--dot, var(--nb-folder-none));
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
-		color: var(--nb-ink-soft);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+		color: var(--text-2);
 		cursor: pointer;
 	}
 	.folder-pick select:disabled {
@@ -1358,37 +1358,37 @@
 	}
 	.folder-pick:hover .folder-pick-label,
 	.folder-pick:focus-within .folder-pick-label {
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.folder-pick select:focus-visible {
 		outline: none;
 		border-color: var(--nb-accent);
 	}
 	.row-error {
-		margin: 0 0 0.5rem;
-		padding: 0.4rem 0.6rem;
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2);
 		font-size: 0.8rem;
 		color: var(--nb-error);
 		border: 1px solid color-mix(in srgb, var(--nb-error) 40%, transparent);
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 	}
 	.rename-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		margin: 0 0 0.6rem;
-		padding: 0.1rem 0.35rem;
+		margin: 0 0 var(--space-2);
+		padding: var(--space-1);
 	}
 	.rename-row input {
 		flex: 1 1 12rem;
 		min-width: 8rem;
 		min-height: 2.75rem;
-		padding: 0.4rem 0.6rem;
+		padding: var(--space-2);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+		color: var(--text-1);
 		font: inherit;
 		font-size: 0.95rem;
 	}
@@ -1404,7 +1404,7 @@
 		justify-content: center;
 		border: none;
 		background: none;
-		padding: 0 0.5rem;
+		padding: 0 var(--space-2);
 		font: inherit;
 		font-size: 0.82rem;
 		font-weight: 600;
@@ -1418,8 +1418,8 @@
 		cursor: default;
 	}
 	.tool:hover:not(:disabled) {
-		color: var(--nb-ink);
-		background: var(--nb-surface-dim);
+		color: var(--text-1);
+		background: var(--surface-2);
 	}
 	.tool.on {
 		color: var(--nb-accent-ink);
@@ -1465,16 +1465,16 @@
 	   an already-dense meta row. */
 	.entry.pinned {
 		border-left: 3px solid var(--nb-accent);
-		border-radius: var(--nb-radius);
-		padding-left: 0.35rem;
+		border-radius: var(--radius-card);
+		padding-left: var(--space-1);
 	}
 	.entry.pinned.open {
-		padding-left: 0.85rem;
+		padding-left: var(--space-3);
 	}
 
 	.chev {
 		flex: 0 0 auto;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		display: grid;
 		place-items: center;
 		width: 1.4rem;
@@ -1494,43 +1494,43 @@
 	}
 
 	.body {
-		padding: 0.3rem 0.35rem 0;
+		padding: var(--space-1) var(--space-1) 0;
 	}
 	.entry-session {
-		margin: 0 0 0.7rem;
+		margin: 0 0 var(--space-3);
 		font-size: 0.78rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.callout {
 		border-left: 2px solid var(--nb-accent);
-		padding: 0.55rem 0.8rem;
-		margin: 0 0 0.8rem;
+		padding: var(--space-2) var(--space-3);
+		margin: 0 0 var(--space-3);
 		background: var(--nb-accent-wash);
-		border-radius: 0 var(--nb-radius-control) var(--nb-radius-control) 0;
+		border-radius: 0 var(--radius-control) var(--radius-control) 0;
 		font-size: 0.88rem;
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--space-1);
 	}
 	.callout strong {
 		color: var(--nb-accent-ink);
 	}
 	.callout-hint {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.8rem;
 	}
 	.entry-notes {
-		margin-top: 1.2rem;
+		margin-top: var(--space-4);
 	}
 
 	/* Closed by default (0119), the same rule as .removed-photos below. */
 	.entry-history {
-		margin-top: 1.2rem;
+		margin-top: var(--space-4);
 	}
 	.entry-history summary {
 		cursor: pointer;
 		font-size: 0.84rem;
 		font-weight: 600;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		min-height: 2.75rem;
 		display: flex;
 		align-items: center;
@@ -1540,64 +1540,64 @@
 	}
 	.history-list {
 		list-style: none;
-		margin: 0.5rem 0 0;
+		margin: var(--space-2) 0 0;
 		padding: 0;
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		border-left: 1px dashed var(--nb-hairline-strong);
 	}
 	.history-list li {
 		display: flex;
 		align-items: baseline;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		padding: 0 0 0 0.8rem;
+		padding: 0 0 0 var(--space-3);
 		font-size: 0.82rem;
 	}
 	.history-list .stamp {
 		flex: none;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.history-list .event-label {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 
 	/* Closed by default: a page a student removed is not the first thing they
 	   came back to see, but it has to be reachable and restorable. */
 	.removed-photos {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 	.removed-photos summary {
 		cursor: pointer;
 		font-size: 0.84rem;
 		font-weight: 600;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		min-height: 2.75rem;
 		display: flex;
 		align-items: center;
 	}
 	.removed-photos ul {
 		list-style: none;
-		margin: 0.3rem 0 0;
+		margin: var(--space-1) 0 0;
 		padding: 0;
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--space-2);
 	}
 	.removed-photos li {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		padding: 0.4rem 0.6rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		padding: var(--space-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 	}
 	.removed-name {
 		font-size: 0.84rem;
-		color: var(--nb-ink);
+		color: var(--text-1);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1605,7 +1605,7 @@
 	}
 	.removed-when {
 		font-size: 0.72rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		margin-right: auto;
 	}
 	.restore-photo-btn {
@@ -1614,20 +1614,20 @@
 	}
 
 	.entry-add {
-		margin-top: 1.1rem;
+		margin-top: var(--space-4);
 	}
 	.entry-add-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
 	}
 	.add-btn {
-		padding: 0.3rem 0.8rem;
+		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		background: var(--nb-surface);
-		color: var(--nb-ink-soft);
+		background: var(--surface-1);
+		color: var(--text-2);
 		font: inherit;
 		font-size: 0.76rem;
 		font-weight: 600;
@@ -1647,29 +1647,29 @@
 		cursor: default;
 	}
 	.entry-panel {
-		margin-top: 0.9rem;
-		padding: 0.9rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		margin-top: var(--space-4);
+		padding: var(--space-4);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 	}
 	.actions {
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
-		margin-top: 1.1rem;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
 		flex-wrap: wrap;
 	}
 	.progress {
 		font-size: 0.8rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.feedback {
 		font-size: 0.84rem;
-		padding: 0.55rem 0.8rem;
-		border-radius: var(--nb-radius-control);
-		margin: 0.7rem 0 0;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-control);
+		margin: var(--space-3) 0 0;
 	}
 	.feedback.error {
 		color: var(--nb-error);
@@ -1693,17 +1693,17 @@
 	   the title line with the NAME as the only shrinkable child, so a chip
 	   never wraps the line and a long title ellipsises instead. */
 	.entry-row {
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 	}
 	.entry-row .disclosure {
-		gap: 0.6rem;
-		padding: 0.45rem 0.4rem;
+		gap: var(--space-2);
+		padding: var(--space-2);
 		align-items: center;
 	}
 	.entry-row .row-title {
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
+		gap: var(--space-1);
 		flex-wrap: nowrap;
 		min-width: 0;
 		font-size: 0.92rem;
@@ -1721,13 +1721,13 @@
 		text-overflow: ellipsis;
 	}
 	.entry-row .row-name.untitled {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-style: italic;
 		font-weight: 500;
 	}
 	.entry-row .row-meta {
 		flex-wrap: nowrap;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		overflow: hidden;
 		white-space: nowrap;
 	}
@@ -1739,7 +1739,7 @@
 	.entry-row .ind {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.15rem;
+		gap: var(--space-1);
 		flex: none;
 	}
 	.entry-row .ind svg {
@@ -1766,7 +1766,7 @@
 		font-weight: 600;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		padding: 0.08rem 0.42rem;
+		padding: var(--space-1) var(--space-2);
 		border: 1px solid currentColor;
 		border-radius: 999px;
 		white-space: nowrap;
@@ -1776,7 +1776,7 @@
 		color: var(--nb-accent-ink);
 	}
 	.entry-row .status.pending {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	/*
 	 * THE ROW YOU ARE READING, indicated the way the classroom indicates it: a
@@ -1785,7 +1785,7 @@
 	 * an active state, where the classroom spends green.
 	 */
 	.entry-row.current {
-		background: var(--nb-surface-dim);
+		background: var(--surface-2);
 		box-shadow: inset 3px 0 0 var(--nb-accent);
 	}
 	.entry-row.current .row-name {
@@ -1818,8 +1818,8 @@
 			   tool. */
 			flex-wrap: wrap;
 			justify-content: flex-end;
-			padding: 0 0.1rem 0.3rem 0;
-			gap: 0.1rem;
+			padding: 0 var(--space-1) var(--space-1) 0;
+			gap: var(--space-1);
 		}
 		.folder-pick select {
 			max-width: 7rem;

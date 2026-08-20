@@ -46,7 +46,7 @@
 		border-bottom: 1px solid var(--amber);
 	}
 	.imp-tag {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.12em;
 		color: var(--amber);
@@ -66,19 +66,19 @@
 		color: var(--text-1);
 	}
 	.imp-email {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.imp-note {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--text-2);
 	}
 	.imp-exit {
 		margin-left: auto;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--gold);
 	}

@@ -399,8 +399,8 @@
 		margin: 0;
 		padding: 0;
 		border: none;
-		background: var(--nb-bg);
-		color: var(--nb-ink);
+		background: var(--surface-0);
+		color: var(--text-1);
 	}
 	.pv-dialog::backdrop {
 		background: rgba(6, 5, 3, 0.78);
@@ -418,15 +418,15 @@
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		padding: 0.6rem 0.9rem;
-		background: var(--nb-surface);
-		border-bottom: 1px solid var(--nb-hairline);
+		padding: var(--space-2) var(--space-4);
+		background: var(--surface-1);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.pv-bottom {
 		border-bottom: none;
-		border-top: 1px solid var(--nb-hairline);
+		border-top: 1px solid var(--hairline);
 		justify-content: center;
 	}
 
@@ -440,10 +440,10 @@
 		white-space: nowrap;
 	}
 	.pv-count {
-		margin-left: 0.6rem;
+		margin-left: var(--space-2);
 		font-weight: 400;
 		font-size: 0.78rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 
 	/* The stage is a deliberate dark island regardless of palette (the
@@ -488,8 +488,8 @@
 		inset: 0;
 		display: grid;
 		place-items: center;
-		gap: 0.8rem;
-		padding: 1.2rem;
+		gap: var(--space-3);
+		padding: var(--space-4);
 		text-align: center;
 		color: #e8e3d8;
 	}
@@ -499,7 +499,7 @@
 	.pv-broken-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.9rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 		justify-content: center;
 	}
@@ -517,11 +517,11 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0 0.7rem;
+		padding: 0 var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
+		color: var(--text-1);
 		font: inherit;
 		font-size: 1rem;
 		cursor: pointer;
@@ -548,7 +548,7 @@
 		text-align: center;
 		font-variant-numeric: tabular-nums;
 		font-size: 0.82rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 
 	.pv-divider {
@@ -564,7 +564,7 @@
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
 		overflow: hidden;
-		background: var(--nb-surface-dim);
+		background: var(--surface-2);
 	}
 	.pv-variant-toggle button {
 		display: inline-flex;
@@ -572,10 +572,10 @@
 		min-height: 2.75rem;
 		background: none;
 		border: none;
-		padding: 0 0.9rem;
+		padding: 0 var(--space-4);
 		font: inherit;
 		font-size: 0.8rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		cursor: pointer;
 	}
 	.pv-variant-toggle button.on {

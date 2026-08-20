@@ -315,36 +315,36 @@
 <style>
 	.entry-panel {
 		display: grid;
-		gap: 0.9rem;
+		gap: var(--space-4);
 		border-color: var(--nb-hairline-strong);
 	}
 	.entry-head {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 	}
 	.entry-head h2 {
-		margin: 0.1rem 0 0;
+		margin: var(--space-1) 0 0;
 	}
 	.meta {
 		display: flex;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
 		align-items: center;
-		margin: 0.35rem 0 0;
+		margin: var(--space-1) 0 0;
 		font-size: 0.76rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	/* Panel status chips (NOT the grid's locked glyph cells): same hue
 	   families, each deepened onto ink via color-mix so the small text reads
 	   on the light card. */
 	.state {
-		padding: 0.1rem 0.4rem;
+		padding: var(--space-1) var(--space-2);
 		border: 1px solid currentColor;
-		border-radius: 3px;
+		border-radius: var(--radius-control);
 		font-weight: 600;
 	}
 	.state.on_time {
@@ -361,7 +361,7 @@
 	}
 	.state.excused,
 	.state.missing {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.also {
 		color: var(--nb-accent-ink);
@@ -369,36 +369,36 @@
 	/* Deliberately quiet: the student's filing is context, never a review
 	   signal, so it must not read as one. */
 	.filed {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-style: italic;
 	}
 	.callout {
 		display: grid;
-		gap: 0.2rem;
-		padding: 0.6rem 0.8rem;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
 		border-left: 2px solid var(--nb-accent);
 		background: var(--nb-accent-wash);
-		border-radius: 0 var(--nb-radius-control) var(--nb-radius-control) 0;
+		border-radius: 0 var(--radius-control) var(--radius-control) 0;
 		font-size: 0.88rem;
 	}
 	.callout strong {
 		color: var(--nb-accent-ink);
 	}
 	.empty {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 	.notes-block h3 {
-		margin: 0 0 0.6rem;
+		margin: 0 0 var(--space-2);
 		font-size: 0.95rem;
 	}
 	.review-form {
 		display: grid;
-		gap: 0.6rem;
-		padding: 0.9rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		gap: var(--space-2);
+		padding: var(--space-4);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 	}
 	.review-form h3 {
 		margin: 0;
@@ -406,12 +406,12 @@
 	}
 	.form-row {
 		display: flex;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
 	}
 	.field {
 		display: grid;
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 	.field.grow {
 		flex: 1 1 16rem;
@@ -421,16 +421,16 @@
 		font-weight: 600;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.field select,
 	.field input {
 		width: 100%;
-		padding: 0.45rem 0.55rem;
-		background: var(--nb-surface);
+		padding: var(--space-2);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		color: var(--nb-ink);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
 		font-family: inherit;
 		font-size: 0.95rem;
 	}
@@ -441,7 +441,7 @@
 	}
 	.form-actions {
 		display: flex;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.msg {
@@ -460,7 +460,7 @@
 	}
 	.note {
 		margin: 0;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.82rem;
 	}
 
@@ -469,10 +469,10 @@
 	   never one click apart on the same control cluster. */
 	.danger-zone {
 		display: grid;
-		gap: 0.6rem;
-		padding: 0.9rem;
-		border: 1px solid color-mix(in srgb, var(--nb-error) 35%, var(--nb-hairline));
-		border-radius: var(--nb-radius-control);
+		gap: var(--space-2);
+		padding: var(--space-4);
+		border: 1px solid color-mix(in srgb, var(--nb-error) 35%, var(--hairline));
+		border-radius: var(--radius-control);
 		background: color-mix(in srgb, var(--nb-error) 4%, transparent);
 	}
 	.danger-zone h3 {
@@ -481,14 +481,14 @@
 		color: var(--nb-error);
 	}
 	.btn.danger {
-		background: var(--nb-surface);
+		background: var(--surface-1);
 		border-color: var(--nb-error);
 		color: var(--nb-error);
 	}
 	.btn.danger:hover:not(:disabled) {
 		background: var(--nb-error);
 		border-color: var(--nb-error);
-		color: var(--nb-surface);
+		color: var(--surface-1);
 		box-shadow: none;
 		text-shadow: none;
 	}

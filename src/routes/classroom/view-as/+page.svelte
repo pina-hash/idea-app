@@ -91,7 +91,7 @@
 		margin-bottom: 0.7rem;
 	}
 	.filter span {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 		color: var(--text-2);
@@ -101,7 +101,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
 		width: 100%;
@@ -141,14 +141,14 @@
 		font-size: 0.95rem;
 	}
 	.student-email {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.student-count {
 		margin-left: auto;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--cyan);
 		white-space: nowrap;

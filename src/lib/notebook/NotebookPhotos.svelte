@@ -220,7 +220,7 @@
 	   a wider gap between pages; captions are quiet gray sans. */
 	.photos {
 		display: grid;
-		gap: 1.4rem;
+		gap: var(--space-5);
 	}
 	.photo {
 		margin: 0;
@@ -234,7 +234,7 @@
 		font: inherit;
 		text-align: left;
 		cursor: zoom-in;
-		border-radius: 8px;
+		border-radius: var(--radius-card);
 	}
 	.photo-open:focus-visible {
 		outline: 2px solid var(--nb-accent-ink);
@@ -250,19 +250,19 @@
 		min-height: 12rem;
 		max-height: 40rem;
 		object-fit: contain;
-		background: var(--nb-surface-dim);
-		border: 1px solid var(--nb-hairline);
-		border-radius: 8px;
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 	}
 	.photo-missing {
 		display: grid;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		justify-items: start;
-		padding: 1.2rem;
+		padding: var(--space-4);
 		border: 1px dashed var(--nb-hairline-strong);
-		border-radius: 8px;
-		background: var(--nb-surface-dim);
-		color: var(--nb-ink-soft);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+		color: var(--text-2);
 		font-size: 0.87rem;
 	}
 	.photo-missing p {
@@ -271,25 +271,25 @@
 	.photo-missing-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.9rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 	}
 	.drive-link {
 		font-size: 0.76rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.drive-link:hover {
 		color: var(--nb-accent-ink);
 	}
 	figcaption {
 		display: flex;
-		gap: 0.55rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		align-items: center;
-		margin-top: 0.4rem;
+		margin-top: var(--space-2);
 		font-size: 0.74rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.variant {
 		color: var(--nb-accent-ink);
@@ -299,14 +299,14 @@
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
 		overflow: hidden;
-		background: var(--nb-surface);
+		background: var(--surface-1);
 	}
 	.variant-toggle button {
 		background: none;
 		border: none;
-		padding: 0.12rem 0.6rem;
+		padding: var(--space-1) var(--space-2);
 		font: inherit;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		cursor: pointer;
 	}
 	/* Gold marks the active segment, the platform's one accent thread. */
@@ -325,10 +325,10 @@
 		margin-left: auto;
 		min-height: 2.75rem;
 		min-width: 2.75rem;
-		padding: 0 0.7rem;
+		padding: 0 var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
 		color: var(--nb-error);
 		font: inherit;
 		font-size: 0.74rem;
@@ -348,7 +348,7 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0 0.5rem;
+		padding: 0 var(--space-2);
 		border: none;
 		background: none;
 		color: var(--nb-accent-ink);

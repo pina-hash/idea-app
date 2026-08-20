@@ -35,7 +35,7 @@
 		max-width: var(--measure-reading);
 		margin: 0.9rem auto -0.5rem;
 		padding: 0 1.2rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 	}
 	.viewas-nav a {

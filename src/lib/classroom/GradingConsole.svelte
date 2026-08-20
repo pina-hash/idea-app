@@ -470,7 +470,7 @@
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	.meta-line {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		margin: 0.2rem 0 0;
@@ -492,7 +492,7 @@
 	.section-label {
 		margin: 0 0 var(--space-2);
 		font-size: 0.8rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -505,7 +505,7 @@
 	}
 	.csv-hint {
 		margin: 0 0 var(--space-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
 	}
@@ -528,7 +528,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.9rem;
 		padding: 0.4rem 0.55rem;
 		cursor: pointer;
@@ -549,7 +549,7 @@
 		overflow-wrap: anywhere;
 	}
 	.roster-chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.6rem;
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
@@ -589,7 +589,7 @@
 	}
 	.work-meta {
 		margin: 0.15rem 0 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -675,7 +675,7 @@
 		min-width: 0;
 	}
 	.score-value {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		color: var(--text-1);
 		white-space: nowrap;
@@ -708,7 +708,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		padding: 0.4rem 0.55rem;
 		min-height: 2.75rem;
 		cursor: pointer;
@@ -726,7 +726,7 @@
 		gap: 0.4rem;
 	}
 	.level-points {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--gold);
 		min-width: 1.6rem;
@@ -743,7 +743,7 @@
 		background: none;
 		border: none;
 		color: var(--cyan);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		text-align: left;
 		padding: 0.35rem 0;
@@ -761,7 +761,7 @@
 		border: 1px solid var(--amber);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.85rem;
 		padding: 0.35rem 0.5rem;
 	}
@@ -792,7 +792,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.85rem;
 		padding: 0.25rem 0.35rem;
 	}
@@ -801,19 +801,19 @@
 		border-color: var(--line-strong);
 	}
 	.score-out {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 	}
 	.score-total {
 		margin: 0.6rem 0;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.82rem;
 		color: var(--gold);
 	}
 	.comment-label {
 		display: block;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -827,7 +827,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.9rem;
 		padding: 0.4rem 0.55rem;
 		margin-bottom: var(--space-2);

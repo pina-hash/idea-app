@@ -116,7 +116,7 @@
 	   same reason, the reference-document renderer applies. */
 	.item-body h3,
 	.item-body h4 {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.04em;
 		color: var(--text-1);
 		margin: 1.1rem 0 0.4rem;

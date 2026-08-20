@@ -56,7 +56,7 @@
 		padding: 0 1.2rem 3rem;
 	}
 	.header-note {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
@@ -71,7 +71,7 @@
 		gap: 0.4rem 0.9rem;
 	}
 	.files a {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 	}
 	.page-footer {

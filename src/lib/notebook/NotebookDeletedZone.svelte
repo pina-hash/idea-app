@@ -100,14 +100,14 @@
 <style>
 	.deleted-zone {
 		max-width: var(--measure-split);
-		margin: 1.4rem auto 2rem;
+		margin: var(--space-5) auto var(--space-6);
 		box-sizing: border-box;
 		padding: 1rem var(--cr-gutter, 1rem);
 		border: 1px solid var(--line);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 		background: var(--bg2);
 		display: grid;
-		gap: 0.7rem;
+		gap: var(--space-3);
 	}
 	.deleted-zone h2 {
 		margin: 0;
@@ -124,22 +124,22 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.deleted-entries li {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.8rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		padding: 0.55rem 0.7rem;
+		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--line);
-		border-radius: 4px;
+		border-radius: var(--radius-card);
 		background: var(--bg0);
 	}
 	.deleted-main {
 		display: grid;
-		gap: 0.15rem;
+		gap: var(--space-1);
 		min-width: 0;
 	}
 	.deleted-title {

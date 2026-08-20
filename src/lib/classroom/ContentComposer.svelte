@@ -1319,7 +1319,7 @@
 	/* Field captions read as the shared micro-label without every one of them
 	   having to carry the class. */
 	label > span {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 		color: var(--text-2);
@@ -1329,7 +1329,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
 		width: 100%;
@@ -1358,7 +1358,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		padding: 0.3rem 0.9rem;
 		cursor: pointer;
@@ -1433,7 +1433,7 @@
 		line-height: 1.45;
 	}
 	kbd {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-control);
@@ -1485,7 +1485,7 @@
 		overflow-wrap: anywhere;
 	}
 	.staged-size {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
 	}
@@ -1533,7 +1533,7 @@
 		margin-top: var(--space-1);
 	}
 	.upload-pct {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.6rem;
 		color: var(--text-2);
 		min-width: 2.2rem;
@@ -1560,7 +1560,7 @@
 		flex-wrap: wrap;
 	}
 	.posted-name {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--text-1);
 	}
@@ -1586,7 +1586,7 @@
 		accent-color: var(--green);
 	}
 	.target-check span {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--text-1);
 		letter-spacing: 0;

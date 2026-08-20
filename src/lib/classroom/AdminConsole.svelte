@@ -327,7 +327,7 @@
 	.classroom-page h3 {
 		margin: 0;
 		font-size: 0.85rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -421,7 +421,7 @@
 		min-width: 0;
 	}
 	.course-code {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--gold);
 	}
@@ -440,7 +440,7 @@
 		margin-bottom: var(--space-2);
 	}
 	label > span {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 		color: var(--text-2);
@@ -451,7 +451,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
 		width: 100%;

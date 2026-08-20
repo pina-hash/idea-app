@@ -244,19 +244,19 @@
 <style>
 	.manager {
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius);
-		background: var(--nb-surface);
-		padding: 1rem 1.1rem 1.1rem;
-		margin-bottom: 1.1rem;
+		border-radius: var(--radius-card);
+		background: var(--surface-1);
+		padding: var(--space-4) var(--space-4) var(--space-4);
+		margin-bottom: var(--space-4);
 	}
 	header {
 		display: flex;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-4);
 	}
 	h3 {
-		margin: 0 0 0.35rem;
+		margin: 0 0 var(--space-1);
 		font-size: 1.02rem;
 	}
 	.close {
@@ -270,15 +270,15 @@
 		padding: 0;
 	}
 	.note {
-		margin: 0 0 0.9rem;
+		margin: 0 0 var(--space-4);
 		font-size: 0.83rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.feedback {
 		font-size: 0.82rem;
-		padding: 0.45rem 0.7rem;
-		border-radius: var(--nb-radius-control);
-		margin: 0 0 0.7rem;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-control);
+		margin: 0 0 var(--space-3);
 	}
 	.feedback.error {
 		color: var(--nb-error);
@@ -293,18 +293,18 @@
 
 	.list {
 		list-style: none;
-		margin: 0 0 1rem;
+		margin: 0 0 var(--space-4);
 		padding: 0;
 		display: grid;
-		gap: 0.1rem;
+		gap: var(--space-1);
 	}
 	.row {
 		display: grid;
 		grid-template-columns: auto 1fr auto auto;
 		align-items: center;
-		gap: 0.55rem;
-		padding: 0.4rem 0.1rem;
-		border-bottom: 1px solid var(--nb-hairline);
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-1);
+		border-bottom: 1px solid var(--hairline);
 		font-size: 0.9rem;
 	}
 	.row.editing {
@@ -325,11 +325,11 @@
 	.row-count {
 		font-variant-numeric: tabular-nums;
 		font-size: 0.76rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.row-actions {
 		display: flex;
-		gap: 0.55rem;
+		gap: var(--space-2);
 	}
 	.row-actions button {
 		border: none;
@@ -338,11 +338,11 @@
 		font: inherit;
 		font-size: 0.76rem;
 		font-weight: 600;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		cursor: pointer;
 	}
 	.row-actions button:hover:not(:disabled) {
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.row-actions .danger {
 		color: var(--nb-error);
@@ -353,15 +353,15 @@
 	}
 	.confirm {
 		grid-column: 1 / -1;
-		margin: 0.35rem 0 0.15rem;
+		margin: var(--space-1) 0 var(--space-1);
 		font-size: 0.8rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.link {
 		border: none;
 		background: none;
 		padding: 0;
-		margin-left: 0.5rem;
+		margin-left: var(--space-2);
 		font: inherit;
 		font-size: inherit;
 		color: var(--nb-accent-ink);
@@ -371,8 +371,8 @@
 	}
 
 	.editor {
-		border-top: 1px solid var(--nb-hairline);
-		padding-top: 0.9rem;
+		border-top: 1px solid var(--hairline);
+		padding-top: var(--space-4);
 	}
 	.editor-title {
 		display: block;
@@ -380,13 +380,13 @@
 		font-weight: 600;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
-		margin-bottom: 0.5rem;
+		color: var(--text-3);
+		margin-bottom: var(--space-2);
 	}
 	/* The shared .field class is a ROW flex; this one is a single input. */
 	.editor .field {
 		display: block;
-		margin: 0 0 0.6rem;
+		margin: 0 0 var(--space-2);
 	}
 	.editor input {
 		width: 100%;
@@ -394,28 +394,28 @@
 	.colors {
 		border: none;
 		padding: 0;
-		margin: 0 0 0.8rem;
+		margin: 0 0 var(--space-3);
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.field-label {
 		display: block;
 		padding: 0;
-		margin-bottom: 0.25rem;
+		margin-bottom: var(--space-1);
 		font-size: 0.7rem;
 		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	legend.field-label {
 		/* A legend is not a flex item, so it needs to claim the whole first
 		   line itself rather than sitting in the swatch run. */
 		float: left;
 		width: 100%;
-		margin-bottom: 0.35rem;
+		margin-bottom: var(--space-1);
 	}
 	.optional {
 		text-transform: none;
@@ -434,19 +434,19 @@
 	.swatch.none {
 		background: repeating-linear-gradient(
 			45deg,
-			var(--nb-surface-dim) 0 4px,
-			var(--nb-hairline) 4px 8px
+			var(--surface-2) 0 4px,
+			var(--hairline) 4px 8px
 		);
 	}
 	.swatch.selected {
 		box-shadow:
-			0 0 0 2px var(--nb-surface),
+			0 0 0 2px var(--surface-1),
 			0 0 0 4px var(--nb-accent);
 	}
 	.editor-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
+		gap: var(--space-3);
 	}
 	.sr-only {
 		position: absolute;

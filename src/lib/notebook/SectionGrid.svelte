@@ -215,13 +215,13 @@
 <style>
 	.grid-card {
 		display: grid;
-		gap: 0.9rem;
+		gap: var(--space-4);
 	}
 	.grid-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 	}
 	.grid-head h2 {
@@ -229,42 +229,42 @@
 	}
 	.grid-title {
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--space-1);
 	}
 	.grid-hint {
 		margin: 0;
 		max-width: 34rem;
 		font-size: 0.78rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.legend {
 		list-style: none;
 		display: flex;
-		gap: 0.85rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
 		font-size: 0.72rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.legend li {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: var(--space-1);
 	}
 	.chip {
 		display: inline-grid;
 		place-items: center;
 		width: 1.1rem;
 		height: 1.1rem;
-		border-radius: 3px;
+		border-radius: var(--radius-control);
 		/* Explicit, where it used to inherit from the legend: the glyph
 		   rendering (✓ ⤴ ○ ! E –) is a locked contract, so the chips keep
 		   Share Tech Mono even though the legend labels went sans. */
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		line-height: 1;
 	}
 	.empty {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 
@@ -281,7 +281,7 @@
 	td {
 		padding: 0.35rem 0.4rem;
 		text-align: center;
-		border-bottom: 1px solid var(--nb-hairline);
+		border-bottom: 1px solid var(--hairline);
 	}
 	thead th {
 		vertical-align: bottom;
@@ -291,12 +291,12 @@
 		text-align: left;
 		position: sticky;
 		left: 0;
-		background: var(--nb-surface);
+		background: var(--surface-1);
 		min-width: 11rem;
 		font-weight: 400;
 	}
 	.student-name {
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	/* The one gold thread this console already uses for links and active
 	   states; the six status colours stay a locked contract and are not
@@ -320,7 +320,7 @@
 	.free {
 		display: block;
 		font-size: 0.7rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	/*
 	 * Roster context, never a review signal -- so it borrows the same muted
@@ -336,7 +336,7 @@
 		font-size: 0.62rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-weight: 500;
 	}
 	.session-col {
@@ -346,7 +346,7 @@
 	.col-label {
 		display: block;
 		font-size: 0.8rem;
-		color: var(--nb-ink);
+		color: var(--text-1);
 		font-weight: 500;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -356,7 +356,7 @@
 		display: block;
 		font-size: 0.7rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.count-col {
 		min-width: 5rem;
@@ -364,7 +364,7 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.count {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.count.full {
 		color: var(--nb-ok);
@@ -378,9 +378,9 @@
 		position: relative;
 		width: 1.9rem;
 		height: 1.9rem;
-		border-radius: 4px;
+		border-radius: var(--radius-card);
 		border: 1px solid transparent;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.9rem;
 		line-height: 1;
 		background: transparent;
@@ -388,51 +388,85 @@
 	button.cell {
 		cursor: pointer;
 	}
+	/* THE FOCUS RING WAS NOT BEING DRAWN. It was a hardcoded ink rgba tuned for
+	   paper, and it measured 1.02:1 on the dark plate and 1.03:1 on IDEA -- i.e.
+	   a keyboard user tabbing through the grid had no visible indicator at all in
+	   two of the three rooms, and 1.88:1 in the third. --nb-cell-ring is the
+	   room's own ink, so it follows the plate: 4.2:1 light, 8.9:1 dark. */
 	button.cell:hover,
 	button.cell:focus-visible {
 		outline: none;
-		box-shadow: 0 0 0 2px rgba(38, 34, 27, 0.3);
+		box-shadow: 0 0 0 2px var(--nb-cell-ring);
 	}
 	/* The open cell keeps the raw gold ring -- the accent thread, unchanged. */
 	.cell.selected {
 		box-shadow: 0 0 0 2px var(--gold);
 	}
 
+	/* THE SIX STATUS STATES, PER PLATE, AND WHY THAT CHANGED.
+	 *
+	 * These were the PORTAL's tokens -- --green, --amber, --cyan, --crimson,
+	 * --ice, --gear/--dim -- used directly. Those were tuned against the portal's
+	 * dark green plate, and the notebook renders them on three grounds, one of
+	 * which is white paper. Measured, before this change, on the ground the cell
+	 * actually composites over (--surface-1, the card, NOT the page):
+	 *
+	 *            light   dark   idea        (glyph against its own resolved fill)
+	 *   on time   1.93   4.32   4.49
+	 *   late      2.36   3.62   3.84
+	 *   awaiting  1.94   5.10   5.28
+	 *   flagged   2.55   3.06   3.25
+	 *   excused   2.01   8.38   8.73
+	 *   missing   3.34   5.03   5.24
+	 *
+	 * Twelve of eighteen below 4.5:1, and on the DEFAULT palette all six were --
+	 * five of them below even 3:1. The glyph is text at 14.4px, so 4.5:1 is the
+	 * bar it has to clear, and it was not close.
+	 *
+	 * The values now come from --nb-cell-* (colors.css), declared once per plate.
+	 * What is NOT per-plate, and is still the locked contract: the six glyphs, the
+	 * 1.9rem cell box, the 0.35/0.4rem density, Share Tech Mono, and the hue
+	 * identity of each state (green = on time, amber = late, cyan = awaiting,
+	 * crimson = flagged, ice = excused, sage = missing). Only lightness moves,
+	 * every value holds its source hue to within a degree, and no state depends
+	 * on colour alone -- each still carries its own glyph and its own fill style.
+	 * The fill is a PINNED colour rather than a mix of the ink, because a mix moves
+	 * whenever the ink does and hands most of the contrast straight back. */
 	.chip.on_time,
 	.cell.on_time {
-		background: color-mix(in srgb, var(--green) 26%, transparent);
-		border-color: var(--green);
-		color: var(--green);
+		background: var(--nb-cell-ontime-fill);
+		border-color: var(--nb-cell-ontime);
+		color: var(--nb-cell-ontime);
 	}
 	.chip.late,
 	.cell.late {
-		background: color-mix(in srgb, var(--amber) 26%, transparent);
-		border-color: var(--amber);
-		color: var(--amber);
+		background: var(--nb-cell-late-fill);
+		border-color: var(--nb-cell-late);
+		color: var(--nb-cell-late);
 	}
 	.chip.pending_review,
 	.cell.pending_review {
-		background: color-mix(in srgb, var(--cyan) 20%, transparent);
-		border-color: var(--cyan);
-		color: var(--cyan);
+		background: var(--nb-cell-await-fill);
+		border-color: var(--nb-cell-await);
+		color: var(--nb-cell-await);
 	}
 	.chip.flagged,
 	.cell.flagged {
-		background: color-mix(in srgb, var(--crimson) 30%, transparent);
-		border-color: var(--crimson);
-		color: var(--crimson);
+		background: var(--nb-cell-flagged-fill);
+		border-color: var(--nb-cell-flagged);
+		color: var(--nb-cell-flagged);
 	}
 	.chip.excused,
 	.cell.excused {
 		background: transparent;
-		border: 1px dashed var(--ice);
-		color: var(--ice);
+		border: 1px dashed var(--nb-cell-excused);
+		color: var(--nb-cell-excused);
 	}
 	.chip.missing,
 	.cell.missing {
 		background: transparent;
-		border: 1px dashed var(--gear);
-		color: var(--dim);
+		border: 1px dashed var(--nb-cell-missing-edge);
+		color: var(--nb-cell-missing);
 	}
 
 	.badge {
@@ -443,7 +477,7 @@
 		padding: 0 0.15rem;
 		border-radius: 999px;
 		/* Was --bg0 (the dark page); the badge floats on the light card now. */
-		background: var(--nb-surface);
+		background: var(--surface-1);
 		border: 1px solid currentColor;
 		font-size: 0.6rem;
 		line-height: 0.95rem;

@@ -102,7 +102,7 @@
 	}
 	.calc-table th[scope='col'] {
 		text-align: left;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -124,7 +124,7 @@
 	}
 	.num {
 		text-align: right;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 	}
 	tr.muted td,
 	tr.muted th {
@@ -137,7 +137,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.85rem;
 		padding: 0.28rem 0.4rem;
 		text-align: right;
@@ -174,19 +174,19 @@
 		flex-wrap: wrap;
 	}
 	.overall-label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.65rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.overall-value {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 1.3rem;
 		color: var(--text-1);
 	}
 	.overall-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
 	}

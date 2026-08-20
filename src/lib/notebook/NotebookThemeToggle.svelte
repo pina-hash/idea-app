@@ -152,12 +152,12 @@
 	.nb-theme {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.35rem;
+		gap: var(--space-1);
 		min-width: 2.4rem;
 		height: 2.4rem;
-		padding: 0 0.5rem;
+		padding: 0 var(--space-2);
 		border: 1px solid rgba(234, 230, 216, 0.32);
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 		background: transparent;
 		color: var(--white);
 		cursor: pointer;
@@ -183,7 +183,7 @@
 		height: 1.15rem;
 	}
 	.nb-theme-word {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -196,33 +196,33 @@
 		right: 0;
 		z-index: 60;
 		min-width: 15rem;
-		padding: 0.3rem;
+		padding: var(--space-1);
 		display: grid;
-		gap: 0.1rem;
-		background: var(--nb-surface);
+		gap: var(--space-1);
+		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius);
+		border-radius: var(--radius-card);
 		box-shadow: var(--nb-shadow);
 	}
 	.option {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--space-2);
 		width: 100%;
 		/* 44px, the phone tap target the rest of the notebook holds to. */
 		min-height: 2.75rem;
-		padding: 0.4rem 0.5rem;
+		padding: var(--space-2);
 		border: 1px solid transparent;
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 		background: transparent;
-		color: var(--nb-ink);
+		color: var(--text-1);
 		font-family: inherit;
 		font-size: 0.85rem;
 		text-align: left;
 		cursor: pointer;
 	}
 	.option:hover {
-		background: var(--nb-surface-dim);
+		background: var(--surface-2);
 	}
 	.option:focus-visible {
 		outline: 2px solid var(--nb-accent-ink);
@@ -235,7 +235,7 @@
 	}
 	.text {
 		display: grid;
-		gap: 0.05rem;
+		gap: var(--space-1);
 		flex: 1 1 auto;
 		min-width: 0;
 	}
@@ -246,10 +246,10 @@
 	.note {
 		font-size: 0.72rem;
 		line-height: 1.25;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.option.current .note {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.tick {
 		flex: 0 0 auto;
@@ -271,7 +271,7 @@
 			display: none;
 		}
 		.nb-theme {
-			padding: 0 0.45rem;
+			padding: 0 var(--space-2);
 		}
 		/*
 		 * THE MENU STOPS HANGING OFF THE TRIGGER AND SPANS THE MASTHEAD

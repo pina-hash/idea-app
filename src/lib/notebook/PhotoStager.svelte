@@ -448,9 +448,9 @@
 <style>
 	.feedback {
 		font-size: 0.84rem;
-		padding: 0.55rem 0.8rem;
-		border-radius: var(--nb-radius-control);
-		margin-bottom: 0.9rem;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-control);
+		margin-bottom: var(--space-4);
 	}
 	.feedback.error {
 		color: var(--nb-error);
@@ -459,12 +459,12 @@
 	}
 	.hint {
 		display: block;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-size: 0.8rem;
-		margin-top: 0.3rem;
+		margin-top: var(--space-1);
 	}
 	.photo-field {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 		/* The shared .field class is a ROW flex. Everything in here is written
 		   to stack (the label and the hint both carry vertical margins), and a
 		   row silently spreads them across the viewport instead -- which is
@@ -476,7 +476,7 @@
 	}
 	.photo-label {
 		display: block;
-		margin-bottom: 0.3rem;
+		margin-bottom: var(--space-1);
 		font-weight: 600;
 	}
 	/* Two real, thumb-sized targets rather than a bare file input: this is a
@@ -485,16 +485,16 @@
 	.photo-buttons {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.photo-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		min-height: 3rem;
-		padding: 0.7rem 1rem;
+		padding: var(--space-3) var(--space-4);
 		border: 1px solid var(--nb-accent);
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 		background: var(--nb-accent-wash);
 		color: var(--nb-accent-ink);
 		font-weight: 600;
@@ -504,8 +504,8 @@
 	}
 	.photo-btn.secondary {
 		border-color: var(--nb-hairline-strong);
-		background: var(--nb-surface-dim);
-		color: var(--nb-ink);
+		background: var(--surface-2);
+		color: var(--text-1);
 	}
 	.photo-btn:hover {
 		border-color: var(--nb-accent-ink);
@@ -525,11 +525,11 @@
 	}
 	.in-app-camera {
 		display: block;
-		margin-top: 0.55rem;
+		margin-top: var(--space-2);
 		padding: 0;
 		background: none;
 		border: none;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font: inherit;
 		font-size: 0.8rem;
 		text-decoration: underline;
@@ -547,8 +547,8 @@
 	   real control, deliberately not a peer of the two buttons above it. */
 	.native-fallback {
 		display: block;
-		margin-top: 0.6rem;
-		color: var(--nb-ink-faint);
+		margin-top: var(--space-2);
+		color: var(--text-3);
 		font-size: 0.8rem;
 		line-height: 1.35;
 		text-decoration: underline;
@@ -575,8 +575,8 @@
 		display: flex;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 0.6rem;
-		margin: 1.2rem 0 0.4rem;
+		gap: var(--space-2);
+		margin: var(--space-4) 0 var(--space-2);
 	}
 	.staged-head .photo-label {
 		margin-bottom: 0;
@@ -584,7 +584,7 @@
 	.staged-count {
 		font-size: 0.78rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.staged {
 		list-style: none;
@@ -595,19 +595,19 @@
 		   staged photos a ~1100px scroll, which defeats seeing the set at a
 		   glance) while still giving three across the desktop column. */
 		grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-		gap: 0.7rem;
+		gap: var(--space-3);
 	}
 	.staged-item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
+		gap: var(--space-1);
 	}
 	.thumb {
 		position: relative;
 		aspect-ratio: 3 / 4;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
 		overflow: hidden;
 		display: flex;
 		align-items: center;
@@ -623,10 +623,10 @@
 		display: block;
 	}
 	.thumb-fallback {
-		padding: 0.5rem;
+		padding: var(--space-2);
 		font-size: 0.74rem;
 		line-height: 1.3;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		text-align: center;
 		overflow-wrap: anywhere;
 	}
@@ -644,8 +644,8 @@
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 		/* Reads over an arbitrary photo, so it carries its own ground. */
-		color: #f5f2e9;
-		background: rgba(22, 20, 16, 0.72);
+		color: var(--nb-shot-ink);
+		background: var(--nb-shot-scrim);
 	}
 	.staged-tag {
 		position: absolute;
@@ -658,15 +658,15 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--nb-accent);
-		background: rgba(22, 20, 16, 0.72);
+		background: var(--nb-shot-scrim);
 		border-radius: 999px;
-		padding: 0.1rem 0.3rem;
+		padding: var(--space-1);
 	}
 	.remove {
 		background: none;
 		border: none;
 		padding: 0;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-size: 0.72rem;
 		font-weight: 600;
 		cursor: pointer;

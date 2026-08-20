@@ -198,7 +198,7 @@
 		flex: 0 0 auto;
 	}
 	.ci-field span {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 		color: var(--text-2);
@@ -227,7 +227,7 @@
 		font-size: 0.9rem;
 	}
 	.ci-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
 	}

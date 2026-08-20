@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import PhotoStager from '$lib/notebook/PhotoStager.svelte';
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
@@ -22,7 +20,7 @@
 	} from '$lib/notebook/notebook-shell';
 	import '$lib/notebook/notebook-theme.css';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
-	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
+	import NotebookMasthead from '$lib/notebook/NotebookMasthead.svelte';
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import {
 		ENTRY_SORTS,
@@ -1367,14 +1365,7 @@
 <!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css)
      and keeps it out of every other surface. -->
 <div class="nb-root" data-nb-theme={notebookThemeAttr()}>
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<NotebookThemeToggle />
-		<a class="btn secondary" href={homeHref}>&lsaquo; Home</a>
-		<ProfileMenu />
-	</div>
-</div>
+<NotebookMasthead backHref={homeHref} backLabel="Home" />
 
 {#snippet navPane()}
 	<!--
@@ -2162,7 +2153,7 @@
 	   Both are the single-column shell's, and this one spans the split. */
 	.nb-shell {
 		max-width: none;
-		padding: 3rem 0 4.5rem;
+		padding: var(--space-7) 0 4.5rem;
 	}
 	.nb-block {
 		max-width: var(--measure-split);
@@ -2171,16 +2162,16 @@
 		box-sizing: border-box;
 	}
 	.notice-strip {
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-4);
 	}
 	.notice-strip .feedback {
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-2);
 	}
 	/* The blocks outside the split keep the old card rhythm. */
 	.nb-block.card,
 	.nb-pane-card,
 	.compose-card {
-		margin-bottom: 1.6rem;
+		margin-bottom: var(--space-5);
 	}
 	.nb-shell h2 {
 		margin-top: 0;
@@ -2189,9 +2180,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.8rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		margin-bottom: 0.9rem;
+		margin-bottom: var(--space-4);
 	}
 	.pane-head h2 {
 		margin: 0;
@@ -2205,12 +2196,12 @@
 		display: none;
 	}
 	.open-entry {
-		padding-bottom: 1.6rem;
+		padding-bottom: var(--space-5);
 	}
 	.detail-empty {
 		margin: 0;
-		padding: 2.5rem 0.2rem;
-		color: var(--nb-ink-faint);
+		padding: var(--space-7) var(--space-1);
+		color: var(--text-3);
 		font-size: 0.92rem;
 	}
 
@@ -2237,23 +2228,23 @@
 		}
 	}
 	.lead strong {
-		color: var(--nb-ink);
+		color: var(--text-1);
 		font-weight: 600;
 	}
 	.hero-meta {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin-top: 0.9rem;
+		gap: var(--space-2);
+		margin-top: var(--space-4);
 	}
 	.chip {
 		font-size: 0.74rem;
 		font-weight: 500;
 		letter-spacing: 0.02em;
-		padding: 0.25rem 0.7rem;
+		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 	}
 	.chip-link {
 		color: var(--nb-accent-ink);
@@ -2266,17 +2257,17 @@
 		text-decoration: none;
 	}
 	.note {
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 	.empty-state {
-		padding: 0.6rem 0;
+		padding: var(--space-2) 0;
 	}
 	.feedback {
 		font-size: 0.84rem;
-		padding: 0.55rem 0.8rem;
-		border-radius: var(--nb-radius-control);
-		margin-bottom: 0.9rem;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-control);
+		margin-bottom: var(--space-4);
 	}
 	.feedback.error {
 		color: var(--nb-error);
@@ -2293,32 +2284,32 @@
 	.picker {
 		border: none;
 		padding: 0;
-		margin: 0 0 0.9rem;
+		margin: 0 0 var(--space-4);
 	}
 	.picker legend {
 		font-size: 0.7rem;
 		font-weight: 600;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		padding: 0;
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-2);
 	}
 	.quick-picks {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.pick {
 		display: flex;
 		flex-direction: column;
-		gap: 0.15rem;
+		gap: var(--space-1);
 		text-align: left;
-		padding: 0.6rem 0.75rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
-		color: var(--nb-ink);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
+		color: var(--text-1);
 		cursor: pointer;
 		font: inherit;
 	}
@@ -2335,7 +2326,7 @@
 	}
 	.pick-meta {
 		font-size: 0.73rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.pick.free .pick-label {
 		color: var(--nb-accent-ink);
@@ -2344,24 +2335,24 @@
 		margin: 0;
 	}
 	.submit-hint {
-		margin: 0.5rem 0 0;
-		color: var(--nb-ink-faint);
+		margin: var(--space-2) 0 0;
+		color: var(--text-3);
 		font-size: 0.85rem;
 	}
 	.label-field .optional {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-weight: 400;
 	}
 	.hint {
 		display: block;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-size: 0.8rem;
-		margin-top: 0.3rem;
+		margin-top: var(--space-1);
 	}
 	/* The shared .field class is a ROW flex; these stack. */
 	.note-field,
 	.folder-field {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
@@ -2372,14 +2363,14 @@
 	}
 	.photo-label {
 		display: block;
-		margin-bottom: 0.3rem;
+		margin-bottom: var(--space-1);
 		font-weight: 600;
 	}
 	.actions {
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
-		margin-top: 1.1rem;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
 		flex-wrap: wrap;
 	}
 	/* The shared .btn class pads to ~39px, under the 44px touch target these two
@@ -2392,7 +2383,7 @@
 	.progress {
 		font-size: 0.8rem;
 		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.inline-link {
 		border: none;
@@ -2406,7 +2397,7 @@
 		cursor: pointer;
 	}
 	.inline-link:hover:not(:disabled) {
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.inline-link:disabled {
 		opacity: 0.5;
@@ -2418,22 +2409,22 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.6rem;
-		padding-bottom: 0.9rem;
-		margin-bottom: 0.4rem;
-		border-bottom: 1px solid var(--nb-hairline);
+		gap: var(--space-2);
+		padding-bottom: var(--space-4);
+		margin-bottom: var(--space-2);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.search {
 		flex: 1 1 14rem;
 		min-width: 0;
 		display: flex;
 		align-items: center;
-		gap: 0.45rem;
-		padding: 0.35rem 0.7rem;
+		gap: var(--space-2);
+		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		background: var(--nb-surface);
-		color: var(--nb-ink-faint);
+		background: var(--surface-1);
+		color: var(--text-3);
 	}
 	.search:focus-within {
 		border-color: var(--nb-accent);
@@ -2451,29 +2442,29 @@
 		padding: 0;
 		font: inherit;
 		font-size: 0.86rem;
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.search input:focus {
 		outline: none;
 	}
 	.chips {
 		display: flex;
-		gap: 0.35rem;
+		gap: var(--space-1);
 		flex-wrap: wrap;
 	}
 	.chip-toggle {
-		padding: 0.28rem 0.66rem;
+		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		background: var(--nb-surface);
-		color: var(--nb-ink-soft);
+		background: var(--surface-1);
+		color: var(--text-2);
 		font: inherit;
 		font-size: 0.76rem;
 		cursor: pointer;
 		white-space: nowrap;
 	}
 	.chip-toggle:hover {
-		border-color: var(--nb-ink-faint);
+		border-color: var(--text-3);
 	}
 	.chip-toggle.on {
 		border-color: var(--nb-accent);
@@ -2493,17 +2484,17 @@
 		display: inline-flex;
 		align-items: center;
 		min-height: 2.75rem;
-		margin-top: 0.3rem;
+		margin-top: var(--space-1);
 	}
 	.tools {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-3);
 		font-size: 0.78rem;
 		margin-left: auto;
 	}
 	.result-count {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 	}
@@ -2511,68 +2502,68 @@
 	.sort {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: var(--space-1);
 	}
 	.sort-label {
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		white-space: nowrap;
 	}
 	.sort select {
 		font-size: 0.78rem;
-		padding: 0.25rem 0.4rem;
-		border-color: var(--nb-hairline);
-		background: var(--nb-surface);
-		color: var(--nb-ink-soft);
+		padding: var(--space-1) var(--space-2);
+		border-color: var(--hairline);
+		background: var(--surface-1);
+		color: var(--text-2);
 	}
 
 	/* ---- bulk selection ---- */
 	.bulk {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		padding: 0.55rem 0.75rem;
-		margin: 0.6rem 0 0.2rem;
+		padding: var(--space-2) var(--space-3);
+		margin: var(--space-2) 0 var(--space-1);
 		border: 1px solid var(--nb-accent);
 		background: var(--nb-accent-wash);
-		border-radius: var(--nb-radius-control);
+		border-radius: var(--radius-control);
 		font-size: 0.82rem;
 	}
 	.bulk-count {
 		font-weight: 600;
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	.bulk-move select {
 		font: inherit;
 		font-size: 0.8rem;
-		padding: 0.2rem 0.4rem;
+		padding: var(--space-1) var(--space-2);
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
 	}
 	:global(.nb-root .btn.small) {
-		padding: 0.28rem 0.8rem;
+		padding: var(--space-1) var(--space-3);
 		font-size: 0.78rem;
 	}
 
 	/* ---- the feed ---- */
 	.group {
-		margin-top: 1.3rem;
+		margin-top: var(--space-5);
 	}
 	.group-head {
 		font-size: 0.7rem;
 		font-weight: 700;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--nb-ink-faint);
-		margin: 0 0 0.4rem;
+		color: var(--text-3);
+		margin: 0 0 var(--space-2);
 	}
 	.entries {
 		list-style: none;
 		padding: 0;
 		margin: 0;
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-1);
 	}
 	/* A grid item's automatic minimum size is its MIN-CONTENT, and a collapsed
 	   entry's row is a nowrap flex line, so without this each <li> refuses to
@@ -2584,7 +2575,7 @@
 		min-width: 0;
 	}
 	.more {
-		margin-top: 1.4rem;
+		margin-top: var(--space-5);
 		display: flex;
 		justify-content: center;
 	}
@@ -2594,25 +2585,25 @@
 	   deleted row shows only what is needed to tell entries apart and to act on
 	   one, never the full-card controls a live entry offers. */
 	.deleted-view {
-		margin-top: 0.6rem;
+		margin-top: var(--space-2);
 	}
 	.deleted-entries {
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.deleted-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.8rem;
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		padding: 0.55rem 0.7rem;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
 	}
 	.deleted-main {
 		display: grid;
-		gap: 0.15rem;
+		gap: var(--space-1);
 		min-width: 0;
 	}
 	.deleted-title {
@@ -2624,12 +2615,12 @@
 	}
 	.deleted-meta {
 		font-size: 0.74rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.deleted-refusal {
 		margin: 0;
 		font-size: 0.78rem;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		max-width: 18rem;
 	}
 	.restore-btn {

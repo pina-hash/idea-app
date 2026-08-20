@@ -384,12 +384,12 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.9rem;
 		padding: 0.3rem 0.45rem;
 	}
 	.crit-max {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--gold);
 		white-space: nowrap;
@@ -426,7 +426,7 @@
 	.level-points {
 		width: 4rem;
 		color: var(--gold) !important;
-		font-family: 'Share Tech Mono', monospace !important;
+		font-family: var(--font-mono) !important;
 	}
 	.level-label {
 		flex: 0 1 9rem;
@@ -441,7 +441,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.82rem;
 		padding: 0.3rem 0.4rem;
 	}
@@ -464,7 +464,7 @@
 		background: none;
 		border: none;
 		color: var(--cyan);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		text-align: left;
 		cursor: pointer;
@@ -476,7 +476,7 @@
 		color: var(--amber);
 	}
 	.total {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--gold);
 	}

@@ -258,8 +258,8 @@
 <style>
 	.note-editor {
 		border: 1px solid var(--nb-hairline-strong);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
 		overflow: hidden;
 	}
 	.note-editor.disabled {
@@ -268,11 +268,11 @@
 	.note-toolbar {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
+		gap: var(--space-1);
 		flex-wrap: wrap;
-		padding: 0.35rem 0.4rem;
-		border-bottom: 1px solid var(--nb-hairline);
-		background: var(--nb-surface-dim);
+		padding: var(--space-1) var(--space-2);
+		border-bottom: 1px solid var(--hairline);
+		background: var(--surface-2);
 	}
 	.note-toolbar button {
 		/* 44px, the touch target this codebase already standardised on for the
@@ -281,18 +281,18 @@
 		   nobody uses. */
 		min-width: 2.75rem;
 		min-height: 2.75rem;
-		padding: 0.2rem 0.55rem;
+		padding: var(--space-1) var(--space-2);
 		border: 1px solid transparent;
-		border-radius: 5px;
+		border-radius: var(--radius-card);
 		background: none;
-		color: var(--nb-ink-soft);
+		color: var(--text-2);
 		font: inherit;
 		font-size: 0.82rem;
 		cursor: pointer;
 	}
 	.note-toolbar button:hover:not(:disabled) {
 		border-color: var(--nb-hairline-strong);
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	/* Gold marks the active state, the notebook's one accent thread. */
 	.note-toolbar button.on {
@@ -308,14 +308,14 @@
 		width: 1px;
 		height: 1.1rem;
 		background: var(--nb-hairline-strong);
-		margin: 0 0.2rem;
+		margin: 0 var(--space-1);
 	}
 	.note-surface {
 		position: relative;
-		padding: 0.7rem 0.8rem;
+		padding: var(--space-3);
 		font-size: 0.98rem;
 		line-height: 1.6;
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 	/* ProseMirror owns the inner element, so its styles have to be global. */
 	.note-surface :global(.note-input) {
@@ -323,7 +323,7 @@
 		outline: none;
 	}
 	.note-surface :global(.note-input p) {
-		margin: 0 0 0.7rem;
+		margin: 0 0 var(--space-3);
 	}
 	.note-surface :global(.note-input p:last-child),
 	.note-surface :global(.note-input ul:last-child),
@@ -332,8 +332,8 @@
 	}
 	.note-surface :global(.note-input ul),
 	.note-surface :global(.note-input ol) {
-		margin: 0 0 0.7rem;
-		padding-left: 1.4rem;
+		margin: 0 0 var(--space-3);
+		padding-left: var(--space-5);
 	}
 	.note-surface :global(.note-input a) {
 		color: var(--nb-accent-ink);
@@ -344,13 +344,13 @@
 		position: absolute;
 		top: 0.7rem;
 		left: 0.8rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 		pointer-events: none;
 	}
 	.editor-note {
 		margin: 0;
-		padding: 0.4rem 0.8rem 0.6rem;
-		color: var(--nb-ink-faint);
+		padding: var(--space-2) var(--space-3) var(--space-2);
+		color: var(--text-3);
 		font-size: 0.8rem;
 	}
 </style>

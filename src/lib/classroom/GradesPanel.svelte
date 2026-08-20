@@ -149,7 +149,7 @@
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	.section-line {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--text-2);
 	}
@@ -207,7 +207,7 @@
 		font-size: 0.95rem;
 	}
 	.grade-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
@@ -220,7 +220,7 @@
 		flex: none;
 	}
 	.chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		border: 1px solid var(--hairline);
 		border-radius: 999px;

@@ -19,14 +19,14 @@
 <style>
 	.back-strip {
 		max-width: var(--measure-split);
-		margin: 1rem auto 0;
+		margin: var(--space-4) auto 0;
 		padding-inline: var(--cr-gutter, 1rem);
 		box-sizing: border-box;
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-1);
 	}
 	.back {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		color: var(--gold);
 	}

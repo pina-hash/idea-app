@@ -148,7 +148,7 @@
 		font-size: 1rem;
 	}
 	.updates-all {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--gold);
 		text-decoration: none;
@@ -168,7 +168,7 @@
 		flex-wrap: wrap;
 	}
 	.update-when {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--cyan);
 		white-space: nowrap;
@@ -244,7 +244,7 @@
 		min-width: 0;
 	}
 	.class-code {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.08em;
 		color: var(--acc);
@@ -255,13 +255,13 @@
 		line-height: 1.25;
 	}
 	.class-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
 	}
 	.class-cta {
 		margin-top: auto;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--acc);
 	}

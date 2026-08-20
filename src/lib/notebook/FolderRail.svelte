@@ -118,15 +118,15 @@
 	.rail {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		margin-bottom: 1rem;
+		gap: var(--space-2);
+		margin-bottom: var(--space-4);
 	}
 	ul {
 		list-style: none;
 		margin: 0;
-		padding: 0 0 0.2rem;
+		padding: 0 0 var(--space-1);
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--space-2);
 		overflow-x: auto;
 		flex: 1 1 auto;
 		min-width: 0;
@@ -138,26 +138,26 @@
 	.tab {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.42rem;
-		padding: 0.32rem 0.7rem;
+		gap: var(--space-2);
+		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		background: var(--nb-surface);
-		color: var(--nb-ink-soft);
+		background: var(--surface-1);
+		color: var(--text-2);
 		font: inherit;
 		font-size: 0.82rem;
 		white-space: nowrap;
 		cursor: pointer;
 	}
 	.tab:hover {
-		border-color: var(--nb-ink-faint);
-		color: var(--nb-ink);
+		border-color: var(--text-3);
+		color: var(--text-1);
 	}
 	/* Gold is the active state here as everywhere else in this room. */
 	.tab.selected {
 		border-color: var(--nb-accent);
 		background: var(--nb-accent-wash);
-		color: var(--nb-ink);
+		color: var(--text-1);
 		font-weight: 600;
 	}
 	/* One region, one scrollbar: in the pane there is vertical room, so the
@@ -167,7 +167,7 @@
 		ul {
 			flex-wrap: wrap;
 			overflow-x: visible;
-			row-gap: 0.4rem;
+			row-gap: var(--space-2);
 		}
 	}
 	.dot {
@@ -188,7 +188,7 @@
 	.count {
 		font-variant-numeric: tabular-nums;
 		font-size: 0.74rem;
-		color: var(--nb-ink-faint);
+		color: var(--text-3);
 	}
 	.tab.selected .count {
 		color: var(--nb-accent-ink);
@@ -197,7 +197,7 @@
 		flex: 0 0 auto;
 		border: none;
 		background: none;
-		padding: 0.2rem 0;
+		padding: var(--space-1) 0;
 		font: inherit;
 		font-size: 0.78rem;
 		color: var(--nb-accent-ink);
@@ -206,6 +206,6 @@
 		cursor: pointer;
 	}
 	.manage:hover {
-		color: var(--nb-ink);
+		color: var(--text-1);
 	}
 </style>

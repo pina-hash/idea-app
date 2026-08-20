@@ -143,7 +143,7 @@
 		align-items: center;
 		height: 1.3rem;
 		padding: 0 0.35rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.6rem;
 		font-weight: 600;
 		letter-spacing: 0.03em;
@@ -152,7 +152,7 @@
 		border-radius: var(--radius-card);
 	}
 	.attach-size {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.64rem;
 		color: var(--text-2);
 		white-space: nowrap;
@@ -163,7 +163,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--crimson);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		padding: 0.1rem 0.5rem;
 		cursor: pointer;

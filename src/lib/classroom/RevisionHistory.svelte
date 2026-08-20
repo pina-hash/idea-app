@@ -228,7 +228,7 @@
 		min-height: 2.75rem;
 	}
 	.history-title {
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-weight: 600;
 		font-size: 0.95rem;
 	}
@@ -327,7 +327,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		padding: 0.5rem 0.6rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		line-height: 1.5;
 		color: var(--text-2);

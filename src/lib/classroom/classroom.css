@@ -120,14 +120,14 @@ body:has(.cr-root) {
    Tech Mono for data values, ids and timestamps.
    ------------------------------------------------------------------------ */
 .cr-root h1 {
-	font-family: 'Orbitron', sans-serif;
+	font-family: var(--font-title);
 	font-weight: 700;
 	letter-spacing: 0.01em;
 }
 .cr-root h2,
 .cr-root h3,
 .cr-root h4 {
-	font-family: 'Rajdhani', sans-serif;
+	font-family: var(--font-display);
 	font-weight: 600;
 	color: var(--text-1);
 }
@@ -163,7 +163,7 @@ body:has(.cr-root) {
    The small tracked caption above a field or a group. Was written out
    verbatim in ContentComposer and ManageConsole. */
 .cr-root .mini-label {
-	font-family: 'Share Tech Mono', monospace;
+	font-family: var(--font-mono);
 	font-size: 0.68rem;
 	letter-spacing: 0.06em;
 	color: var(--text-2);
@@ -175,7 +175,7 @@ body:has(.cr-root) {
    message. A component that needs spacing sets its own.
    ------------------------------------------------------------------------ */
 .cr-root .feedback {
-	font-family: 'Share Tech Mono', monospace;
+	font-family: var(--font-mono);
 	font-size: 0.78rem;
 	line-height: 1.5;
 	padding: var(--space-2) 0.65rem;
@@ -211,7 +211,7 @@ body:has(.cr-root) {
 .cr-root .draft-chip,
 .cr-root .sched-chip,
 .cr-root .kind-chip {
-	font-family: 'Share Tech Mono', monospace;
+	font-family: var(--font-mono);
 	font-size: 0.62rem;
 	letter-spacing: 0.04em;
 	border: 1px solid var(--hairline);
@@ -295,7 +295,7 @@ body:has(.cr-root) {
 	flex: none;
 }
 .cr-root .spec-meta {
-	font-family: 'Share Tech Mono', monospace;
+	font-family: var(--font-mono);
 	font-size: 0.66rem;
 	color: var(--text-2);
 }
@@ -309,7 +309,7 @@ body:has(.cr-root) {
 	border: 1px solid var(--hairline);
 	border-radius: var(--radius-card);
 	color: var(--text-1);
-	font-family: 'Share Tech Mono', monospace;
+	font-family: var(--font-mono);
 	font-size: 0.72rem;
 	line-height: 1.45;
 	padding: 0.5rem 0.6rem;
