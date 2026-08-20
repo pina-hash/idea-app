@@ -8,7 +8,7 @@
     "dueDate": "2026-08-21",
     "totalPoints": 15,
     "assignmentId": "idea100-dogtag-01",
-    "buildVersion": "v2",
+    "buildVersion": "v3",
     "headerFields": [
       "studentName",
       "date",
@@ -22,11 +22,11 @@
       "id": "m1",
       "intro": "The template gives you a 2.000 in square. Everything you draw lives inside it. The only thing that matters today is that your shape closes.",
       "title": "Sketch the Outline",
-      "aiNote": "No AI on any part of this assignment. You are drawing in SolidWorks during a supervised period and the file is timestamped, so the setting itself sets the level.",
+      "aiNote": "AI is a tutor here, not a source: it can walk you through a tool or explain why something is not working, but the shape has to be yours. Press Win plus Shift plus S to capture part of your screen, paste it straight into an AI chat, and ask what to do next.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "1. Download **dogtag_template.SLDPRT** from this assignment and open it in SolidWorks.\n2. In the FeatureManager design tree, right-click **Starter Sketch** and choose **Edit Sketch**.\n3. You will see a square perimeter, 2.000 in on a side. Your design stays inside it.\n4. Use line, arc, circle, and trim to build the outer shape of your tag. It has to end as one closed loop with no gaps.\n5. Add a circle for the chain hole. **No dimensions today.** Leave enough material between the hole and the outside edge that it reads like a real dogtag.\n6. Exit the sketch.\n\nSketch tools, relations, dragging, and trimming are in the **CAD Quick Reference** material. Go there first if you are stuck rather than waiting."
+          "content": "1. Download **dogtag_template.SLDPRT** from this assignment and open it in SolidWorks.\n2. In the FeatureManager design tree, right-click **Starter Sketch** and choose **Edit Sketch**.\n3. You will see a square perimeter, 2.000 in on a side. Your design stays inside it.\n4. Use line, arc, circle, and trim to build the outer shape of your tag. It has to end as one closed loop with no gaps.\n5. Add a circle for the chain hole. **No dimensions today.** Leave enough material between the hole and the outside edge that it reads like a real dogtag.\n6. Exit the sketch.\n\nSketch tools, relations, dragging, and trimming are in the **CAD Quick Reference**. So is **Getting Unstuck**, which shows you how to screenshot what you are looking at and ask an AI what to do next. Use it. Do not sit and wait."
         },
         {
           "id": "z1",
@@ -94,13 +94,13 @@
           "criterion": "Hole and containment"
         }
       ],
-      "aiLevel": 0
+      "aiLevel": 1
     },
     {
       "id": "m2",
       "intro": "SolidWorks made the geometry. The DXF is how that geometry gets handed to the laser. Check it before you leave SolidWorks, because a bad DXF is invisible until it is too late.",
       "title": "Extrude and Export the DXF",
-      "aiNote": "No AI. This module is a fixed export procedure carried out on the machine in front of you.",
+      "aiNote": "Use AI to get unstuck on the export wizard, not to decide anything for you. Pasting a screenshot of the dialog into the chat and asking what each option does is faster than describing it in words.",
       "blocks": [
         {
           "type": "instructions",
@@ -157,13 +157,13 @@
           "criterion": "Extrude and DXF export"
         }
       ],
-      "aiLevel": 0
+      "aiLevel": 1
     },
     {
       "id": "m3",
-      "intro": "SolidWorks makes geometry. xTool Studio makes a machine job. Same shape, different question: this is where you decide what the laser actually does to each line.",
+      "intro": "SolidWorks makes geometry. xTool Studio makes a machine job. Same shape, different question: this is where you decide what the laser actually does to each line. You are not running the machine. Your saved file goes into a batch that gets cut before Monday.",
       "title": "Set Up the Job in xTool Studio",
-      "aiNote": "No AI. Everything in this module is done inside xTool Studio during class.",
+      "aiNote": "AI can explain what cut, score, and engrave do and where things live in xTool Studio. What goes on your tag and which process each feature gets are your calls, and you have to be able to explain them.",
       "blocks": [
         {
           "type": "instructions",
@@ -243,20 +243,20 @@
           "criterion": "Process assignment"
         }
       ],
-      "aiLevel": 0
+      "aiLevel": 1
     },
     {
       "id": "m4",
-      "intro": "You watched the toolpath preview. Answer from what you saw.",
-      "title": "One Change",
-      "aiNote": "No AI. This is your own judgment about your own design, written in class.",
+      "intro": "Your file goes to the machine without you. Everything the laser does to your tag is already decided by what you just saved.",
+      "title": "Hand Off the File",
+      "aiNote": "AI can help you understand what you are seeing in the preview. The answer is your own reading of your own file, so do not have it written for you.",
       "blocks": [
         {
           "id": "f1",
           "type": "textField",
           "points": 2,
-          "prompt": "If you cut this tag again tomorrow, what is one thing you would change about the design, and why? Tie the reason to what the machine actually does: cut, score, or engrave.",
-          "maxSentences": 3,
+          "prompt": "You are handing this file off and you will not be there when it cuts. From your Process preview, state what the laser will do to your outline, to your hole, and to one thing you added. Then name one thing that could still go wrong.",
+          "maxSentences": 4,
           "minSentences": 2
         }
       ],
@@ -267,15 +267,15 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Specific change, machine reason",
+              "short": "All three named, one risk",
               "points": 2,
-              "descriptor": "Names one specific change to the design and gives a reason tied to how the machine cuts, scores, or engraves it."
+              "descriptor": "Names the process assigned to the outline, to the hole, and to one added feature, and names one specific thing that could go wrong on this tag."
             },
             {
               "label": "Developing",
-              "short": "Change or reason, not both",
+              "short": "Incomplete, or no risk named",
               "points": 1,
-              "descriptor": "Names a change with no reason, or gives a reason without naming a specific change, or gives a reason unrelated to the machine."
+              "descriptor": "Names the process for only some of the three features, or names all three but gives no risk, or gives a risk that is not specific to this tag."
             },
             {
               "label": "Absent",
@@ -284,10 +284,10 @@
               "descriptor": "Not answered."
             }
           ],
-          "criterion": "One change with a machine-based reason"
+          "criterion": "Reads the job off the preview"
         }
       ],
-      "aiLevel": 0
+      "aiLevel": 1
     }
   ],
   "approvalGate": null,
