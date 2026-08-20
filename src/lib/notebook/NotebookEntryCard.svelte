@@ -4,7 +4,7 @@
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
 	import EntryThumb from '$lib/notebook/EntryThumb.svelte';
-	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
+	import { noteThreads, tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
 	import { onDestroy } from 'svelte';
 	import {
 		entryPlainText,
@@ -206,8 +206,17 @@
 	/** Owner-only (0117): the entry's own removed photos, for the disclosure below. */
 	const removed = $derived(removedPhotos(entry.photos));
 	const notes = $derived(entry.notes ?? []);
-	/** Distinct logical notes, not revisions: an edit is not a second note. */
-	const noteCount = $derived(new Set(notes.map((n) => n.note_id)).size);
+	/**
+	 * The LIVE notes, as threads. Through `noteThreads` rather than off the raw
+	 * rows (0119), which does two jobs at once: it drops a deleted note's whole
+	 * chain, and it collapses revisions to logical notes -- an edit is not a
+	 * second note, and a removed note is not a note. The hand-rolled
+	 * `new Set(notes.map(n => n.note_id)).size` this replaces got the second
+	 * right and could not have got the first, since a deleted chain is exactly
+	 * as distinct as a live one.
+	 */
+	const threads = $derived(noteThreads(notes));
+	const noteCount = $derived(threads.length);
 	const freeForm = $derived(entry.session_id === null);
 	/** Never on a check-in: its title IS the check-in's label (0116). */
 	const canRetitle = $derived(freeForm && !!onRetitle);
@@ -916,7 +925,7 @@
 				</details>
 			{/if}
 
-			{#if notes.length}
+			{#if noteCount}
 				<div class="entry-notes">
 					<!-- canEdit is NO LONGER gated on freeForm (0116 relaxed
 					     notebook_edit_note: a revision never overwrites what an

@@ -374,6 +374,14 @@ names the new parameter ONLY when the feature is actually being used.
   all. Editing INSERTS a superseding row; the chain is `supersedes_id` + a unique
   `(logical_id, revision)`, so "current" is a plain `max()` and two concurrent
   edits collide on the constraint instead of silently losing one.
+- **SOFT-DELETING A REVISION CHAIN MARKS EVERY ROW IN IT, never just the head.**
+  Where "current" is a `max()` over a chain, stamping only the newest row promotes
+  the one beneath it: a read filtering `deleted_at is null` then answers with the
+  content as it read BEFORE the last edit, with nothing raised anywhere. Key the
+  UPDATE on the LOGICAL id (`note_id`), and refuse an EDIT of a deleted chain --
+  an insert would otherwise graft a live head onto a marked history. A shell or
+  emptiness guard excludes the chain by that same logical id, or the rows being
+  deleted count themselves as remaining content.
 - **Archive, never delete.** `active = false` / `revoked_at` / `removed` keep
   history, roster and board rows intact. A real delete is offered only where the
   row holds no record worth keeping (a notebook FOLDER is organization, so

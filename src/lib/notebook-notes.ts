@@ -61,6 +61,30 @@ export interface NotebookNoteRow {
 	revision: number;
 	content: NoteDoc;
 	created_at: string;
+	/**
+	 * When this note was removed, or null (0119). Soft: the row survives, which
+	 * is the only reason a restore can exist at all.
+	 *
+	 * STAMPED ON EVERY REVISION IN THE CHAIN, never only the head. A note is its
+	 * whole `note_id` chain and which revision counts is a `max()` (0078), so
+	 * marking one row would promote the revision beneath it and quietly put an
+	 * older draft of the note back on screen. `noteThreads` filters on this
+	 * field, so the chain rule is what lets that filter drop a whole thread.
+	 *
+	 * OPTIONAL, and absence means something different from null -- the same
+	 * two-state rule `NotebookPhoto.removed_at` carries. `null` is a live note;
+	 * `undefined` is a read from a narrower rung of the select ladder, where the
+	 * column does not exist and nothing can have been deleted. Both read as
+	 * live, which is why every rung below the history one keeps working.
+	 */
+	deleted_at?: string | null;
+	/**
+	 * Who removed it (0119), or null. The student themselves, or an instructor:
+	 * only the first is restorable by the student -- `notebook_restore_note`
+	 * refuses a staff-deleted note and says to ask their instructor -- so this is
+	 * what a Restore control reads to know whether to offer itself.
+	 */
+	deleted_by?: string | null;
 }
 
 /**
@@ -81,16 +105,23 @@ export interface NoteThread {
 	/** When it last changed, or null if it never has. */
 	editedAt: string | null;
 	revisions: number;
+	/**
+	 * When the note was removed, or null (0119). Always null on a thread from
+	 * `noteThreads`, which returns only live notes; it carries a real stamp only
+	 * on one from `deletedNoteThreads`.
+	 */
+	deletedAt: string | null;
+	/** Who removed it (0119), or null. See `NotebookNoteRow.deleted_by`. */
+	deletedBy: string | null;
 }
 
 /**
- * Group revision rows into notes, in the order the notes were WRITTEN.
- *
- * Ordering is by the first revision's timestamp, so editing a note keeps its
- * place in the entry rather than jumping it to the end -- an entry added to
- * over weeks still reads as one chronological record.
+ * Group revision rows into notes without asking whether they are live -- the
+ * shared half of the two exported views below, so "what does this note say, and
+ * what did it replace" is derived once and cannot drift between the live list
+ * and the deleted one.
  */
-export function noteThreads(rows: NotebookNoteRow[]): NoteThread[] {
+function buildThreads(rows: NotebookNoteRow[]): NoteThread[] {
 	const byNote = new Map<string, NotebookNoteRow[]>();
 	for (const row of rows) {
 		const list = byNote.get(row.note_id);
@@ -109,13 +140,61 @@ export function noteThreads(rows: NotebookNoteRow[]): NoteThread[] {
 			history: ordered.slice(0, -1).reverse(),
 			createdAt: root.created_at,
 			editedAt: ordered.length > 1 ? current.created_at : null,
-			revisions: ordered.length
+			revisions: ordered.length,
+			deletedAt: current.deleted_at ?? null,
+			deletedBy: current.deleted_by ?? null
 		});
 	}
 
 	return threads.sort(
 		(a, b) => a.createdAt.localeCompare(b.createdAt) || a.noteId.localeCompare(b.noteId)
 	);
+}
+
+/**
+ * The entry's LIVE notes, in the order they were WRITTEN.
+ *
+ * Ordering is by the first revision's timestamp, so editing a note keeps its
+ * place in the entry rather than jumping it to the end -- an entry added to
+ * over weeks still reads as one chronological record.
+ *
+ * THE DELETED FILTER IS HERE, AT THE ONE FUNNEL, and that is the point (0119).
+ * Every surface that renders, counts, previews, titles or copies an entry's
+ * notes goes through this function -- EntryNotes, the folder counts and
+ * previews, `entryTitle`, `entryPlainText` -- so one filter covers all of them
+ * and a new consumer inherits it. The alternative, a `liveNotes()` every caller
+ * remembers to apply, is exactly the second copy that quietly stops matching.
+ *
+ * A ROW WITH NO `deleted_at` FIELD AT ALL IS LIVE. That is a read from a
+ * narrower rung of the select ladder, which cannot ask for a column that is not
+ * there, and it is correct: nothing can have been deleted on a project with
+ * nowhere to mark it.
+ *
+ * IT DROPS WHOLE THREADS, NOT ROWS, because deletion stamps every revision in
+ * the chain (0119). Filtering here can therefore never leave a thread holding
+ * only its older revisions, with revision N-1 promoted to `current` and
+ * standing in for the note that was removed.
+ */
+export function noteThreads(rows: NotebookNoteRow[]): NoteThread[] {
+	return buildThreads(rows.filter((r) => !r.deleted_at));
+}
+
+/**
+ * The mirror of `noteThreads` (0119): the notes removed from this entry, for
+ * the removed-notes disclosure on the student's own card and for the entry
+ * history.
+ *
+ * KEPT BESIDE `noteThreads`, NEVER MERGED INTO IT, on the same rule
+ * `removedPhotos` follows: `noteThreads` is what every surface renders an
+ * entry's notes from, and a deleted note must never reappear there because a
+ * caller forgot to filter twice.
+ *
+ * Each thread keeps its full revision history, which is what lets a restore
+ * show the note as it actually read -- and its `deletedBy`, which is what says
+ * whether the student can undo it themselves.
+ */
+export function deletedNoteThreads(rows: NotebookNoteRow[]): NoteThread[] {
+	return buildThreads(rows.filter((r) => !!r.deleted_at));
 }
 
 /**

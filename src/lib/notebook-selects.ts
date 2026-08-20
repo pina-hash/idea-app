@@ -105,6 +105,41 @@ export const NOTEBOOK_DELETION_SELECT = `id, session_id, section_id, custom_labe
 export const NOTEBOOK_DRAFT_SELECT = `${NOTEBOOK_DELETION_SELECT}, submitted_at`;
 
 /**
+ * + note deletion and the entry history (0119): `deleted_at` / `deleted_by` on
+ * each note revision, `created_at` on each photo, and `reviewed_at` on the
+ * entry.
+ *
+ * A NEW WIDEST RUNG, WRITTEN OUT IN FULL rather than composed on
+ * `NOTEBOOK_DRAFT_SELECT`, because it widens BOTH EMBEDS as well as the
+ * entry's own column list -- the same reason `NOTEBOOK_DELETION_SELECT` is
+ * written out. Composition only works for a rung that appends a scalar column;
+ * an embed's field list sits in the middle of the string, so widening one means
+ * rewriting it, and a rung below must never be rewritten.
+ *
+ * ONE RUNG, NOT TWO, and that is a judgement rather than an oversight: all
+ * three additions land in the SAME migration, so there is no deploy state in
+ * which a project has one and not another. The rule is that a rung stands for a
+ * capability that can be independently missing, and these cannot be.
+ *
+ * THE DELETED-ENTRY FILTER STILL RIDES IT (`excludeDeleted: true`). That is the
+ * bug 0118 shipped and this file now encodes as data: a new widest rung carries
+ * `deleted_at` and would silently stop excluding deleted entries if it inherited
+ * `false` by omission.
+ *
+ * THE DELETED NOTES IT CARRIES ARE NOT FILTERED SERVER-SIDE, deliberately.
+ * `noteThreads` drops them at the one funnel every rendering surface goes
+ * through, and `deletedNoteThreads` is what the removed-notes disclosure and the
+ * history read them back from -- so they have to ARRIVE. A PostgREST filter on
+ * the embedded resource would keep them out of the payload entirely and leave
+ * the student with no way to see, let alone restore, a note they removed.
+ */
+export const NOTEBOOK_HISTORY_SELECT = `id, session_id, section_id, custom_label,
+	 upload_timestamp, status, flag_reason, instructor_comment, reviewed_at,
+	 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename, removed_at, created_at ),
+	 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at, deleted_at, deleted_by ),
+	 folder_id, pinned_at, deleted_at, submitted_at`;
+
+/**
  * Widest first; each entry names the capability its rung adds, so the load can
  * report exactly what it lost rather than one boolean for all of it.
  *
@@ -132,6 +167,7 @@ export const NOTEBOOK_DELETED_SELECT =
 	'id, session_id, custom_label, upload_timestamp, deleted_at, deleted_by';
 
 export const NOTEBOOK_ENTRY_SELECTS = [
+	{ select: NOTEBOOK_HISTORY_SELECT, capability: 'history', excludeDeleted: true },
 	{ select: NOTEBOOK_DRAFT_SELECT, capability: 'drafts', excludeDeleted: true },
 	{ select: NOTEBOOK_DELETION_SELECT, capability: 'deletion', excludeDeleted: true },
 	{ select: NOTEBOOK_FULL_SELECT, capability: 'pins', excludeDeleted: false },
@@ -216,7 +252,36 @@ export const REVIEW_ENTRY_DELETION_SELECT = `id, student_id, session_id, custom_
  */
 export const REVIEW_ENTRY_DRAFT_SELECT = `${REVIEW_ENTRY_DELETION_SELECT}, submitted_at`;
 
+/**
+ * + note deletion (0119): `deleted_at` on each note revision, and NOTHING ELSE
+ * from that migration.
+ *
+ * IT IS NARROWER THAN THE STUDENT'S OWN HISTORY RUNG ON PURPOSE. The console
+ * gets no `deleted_by`, no photo `created_at` and no `reviewed_at`, because it
+ * renders no history and offers no restore: an instructor reads a student's
+ * notes and never rewrites one (see `ReviewEntry`). The single field it does
+ * need is the one that lets `noteThreads` DROP a removed note, which is the
+ * whole of what a staff read is entitled to know about it.
+ *
+ * WHY A CARRIED FIELD RATHER THAN A SERVER-SIDE FILTER. This is a direct
+ * RLS-scoped select on the table, so exclusion is either a PostgREST filter on
+ * the embed or a client-side drop -- and the client-side drop is what the photo
+ * beside it already does (`removed_at` is carried and `livePhotos` drops it, in
+ * this very read). One mechanism, one funnel. The staff RPC read of the same
+ * content, `_notebook_student_payload`, DOES exclude in the database, because
+ * there the filter has somewhere to live that no caller can forget.
+ *
+ * Written out rather than composed: it widens an embed in the middle of the
+ * string, so the rungs below must stay byte-identical.
+ */
+export const REVIEW_ENTRY_HISTORY_SELECT = `id, student_id, session_id, custom_label,
+	 upload_timestamp, status, flag_reason, instructor_comment, deleted_at,
+	 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename, removed_at ),
+	 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at, deleted_at ),
+	 notebook_folders ( name ), submitted_at`;
+
 export const REVIEW_ENTRY_SELECTS = [
+	REVIEW_ENTRY_HISTORY_SELECT,
 	REVIEW_ENTRY_DRAFT_SELECT,
 	REVIEW_ENTRY_DELETION_SELECT,
 	REVIEW_ENTRY_FULL_SELECT,

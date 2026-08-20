@@ -44,6 +44,16 @@ export interface NotebookPhoto {
 	 * which is why every narrower rung of the select ladder keeps working.
 	 */
 	removed_at?: string | null;
+	/**
+	 * When this photo was uploaded (0069's own column, first SELECTED by 0119's
+	 * history rung). OPTIONAL for the same two-state reason `removed_at` is: a
+	 * read from a narrower rung never asked for it.
+	 *
+	 * READ ONLY BY THE TIMELINE ($lib/notebook-history), and nothing else may
+	 * start ordering pages by it -- `sequence_order` is what page order means
+	 * (0069), and the two disagree the moment a student re-uploads a page.
+	 */
+	created_at?: string;
 }
 
 /** A notebook_sessions row: an instructor-scheduled required check-in. */
@@ -98,6 +108,18 @@ export interface NotebookEntry {
 	 */
 	submitted_at: string | null;
 	status: NotebookStatus;
+	/**
+	 * When an instructor last acted on this entry, or null (0069's own column,
+	 * first SELECTED by 0119's history rung).
+	 *
+	 * OPTIONAL, and the distinction is load-bearing: `undefined` is a read from
+	 * a narrower rung that never asked, and `null` is an entry genuinely nobody
+	 * has reviewed. The timeline emits a review event only from a real stamp, so
+	 * a narrower read produces a shorter history rather than one that claims an
+	 * entry was never looked at. `status` remains the thing every other surface
+	 * asks -- this is a WHEN, not a WHETHER.
+	 */
+	reviewed_at?: string | null;
 	flag_reason: NotebookFlagReason | null;
 	instructor_comment: string | null;
 	session: Pick<NotebookSession, 'session_label' | 'unit_number' | 'session_date'> | null;

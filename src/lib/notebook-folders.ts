@@ -218,7 +218,10 @@ export const ENTRY_FILTERS: { id: EntryFilterId; label: string; hint: string }[]
 const FILTER_PREDICATES: Record<EntryFilterId, (e: NotebookEntry) => boolean> = {
 	attention: (e) => e.status === 'flagged' || e.status === 'pending_review',
 	photos: (e) => e.photos.length > 0,
-	notes: (e) => (e.notes?.length ?? 0) > 0,
+	// Through noteThreads (0119), not the raw row count: a chip that says "Has
+	// notes" must mean live ones, and a deleted note leaves its revisions in
+	// `e.notes` exactly where they were.
+	notes: (e) => noteThreads(e.notes ?? []).length > 0,
 	checkins: (e) => e.session_id !== null,
 	drafts: (e) => e.submitted_at === null
 };

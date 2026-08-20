@@ -85,6 +85,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * because a read that actually included it came back, never by default.
 	 */
 	const ready: Record<string, boolean> = {
+		history: false,
 		drafts: false,
 		deletion: false,
 		pins: false,
@@ -131,6 +132,19 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * never any other way to make one.
 	 */
 	const draftsReady = ready.drafts;
+	/**
+	 * Whether a note can be DELETED and an entry can show a HISTORY (0119) --
+	 * one question, because both come from the same migration and neither can be
+	 * present without the other.
+	 *
+	 * False means the notebook renders exactly as it did before 0119: every note
+	 * live, no removed-notes disclosure, no timeline. Correct on a database with
+	 * no column to mark a note in -- and note that this is the flag a SURFACE
+	 * asks, never the thing that keeps a deleted note out of the feed. That is
+	 * `noteThreads`, which drops a marked row wherever one turns up and needs no
+	 * flag at all.
+	 */
+	const historyReady = ready.history;
 
 	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
 		const row = r as unknown as Record<string, unknown>;
@@ -155,6 +169,14 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 				? ((row.submitted_at as string | null) ?? null)
 				: (row.upload_timestamp as string),
 			status: row.status as NotebookEntry['status'],
+			/**
+			 * NOT `?? null` (0119), for the reason `submitted_at` above is not
+			 * either: `undefined` on a narrower rung means the column was never
+			 * asked for, and flattening that to null would tell the timeline that
+			 * nobody has ever reviewed the entry. Left `undefined` there, so the
+			 * history emits no review event rather than a wrong one.
+			 */
+			reviewed_at: historyReady ? ((row.reviewed_at as string | null) ?? null) : undefined,
 			flag_reason: (row.flag_reason as NotebookEntry['flag_reason']) ?? null,
 			instructor_comment: (row.instructor_comment as string | null) ?? null,
 			// Filled in below from its own read, never an embed: since 0098 there
@@ -170,6 +192,15 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 			// history, and which revision counts is derived (noteThreads), never
 			// stored. Photo visibility and note visibility both delegate to
 			// notebook_can_read_entry, so this needs no filter of its own.
+			//
+			// DELETED NOTES (0119) ARE CARRIED THROUGH HERE UNFILTERED, exactly
+			// as removed photos are one line up, and dropped by `noteThreads` at
+			// every render, count, title and copy site -- so a surface reading
+			// `entry.notes` straight cannot miss the filter, and the one surface
+			// that WANTS them (`deletedNoteThreads`, for the removed-notes
+			// disclosure and the entry history) still has them to read. A read on
+			// a narrower rung carries no `deleted_at` at all, and every note is
+			// live.
 			notes: (row.notebook_entry_notes as NotebookEntry['notes']) ?? []
 		};
 	});
@@ -447,6 +478,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	return {
 		configured,
 		initialCheckIn,
+		historyReady,
 		draftsReady,
 		deletionReady,
 		photosReady,

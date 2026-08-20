@@ -1,6 +1,7 @@
 <script lang="ts">
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
+	import { noteThreads } from '$lib/notebook-notes';
 	import {
 		entryTitle,
 		flagReasonLabel,
@@ -85,6 +86,18 @@
 		deleteArmed = false;
 		deleteError = null;
 	});
+
+	/**
+	 * The LIVE notes on this entry (0119). Through `noteThreads` rather than
+	 * `entry.notes.length`, because a note the student removed is still a row in
+	 * that array -- so the raw length would both render an empty "Written notes"
+	 * block and suppress the "no photos and no written notes" line on an entry
+	 * that genuinely has neither.
+	 *
+	 * The console never OFFERS to restore one: this is a read-only surface (see
+	 * `ReviewEntry`), and staff restore is its own RPC on the grid's own tools.
+	 */
+	const noteCount = $derived(noteThreads(entry.notes ?? []).length);
 
 	// entryTitle() is the same five-fallback derivation the student's own card
 	// uses (session label -> custom_label -> photo filename -> first note's
@@ -195,11 +208,11 @@
 
 	{#if entry.photos.length}
 		<NotebookPhotos photos={entry.photos} label={title} lazy={false} />
-	{:else if !entry.notes?.length}
+	{:else if !noteCount}
 		<p class="empty">This entry has no photos and no written notes.</p>
 	{/if}
 
-	{#if entry.notes?.length}
+	{#if noteCount}
 		<!-- The student's own words, rendered by the SAME component their feed
 		     uses. Read-only: `canEdit` is never set here, and 0078's
 		     notebook_edit_note refuses anyone but the note's owner regardless. -->

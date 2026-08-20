@@ -55,11 +55,12 @@ import {
 	REVIEW_ENTRY_SELECTS
 } from '../src/lib/notebook-selects';
 import { livePhotos, photoPages } from '../src/lib/notebook';
+import { deletedNoteThreads, noteThreads } from '../src/lib/notebook-notes';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
 import type { NotebookFolder } from '../src/lib/notebook-folders';
 import { load } from '../src/routes/notebook/+page.server';
 
-/** The chain the LIVE project carries: 0069 through 0116, on its dependencies. */
+/** The chain the LIVE project carries: 0069 through 0119, on its dependencies. */
 const FULL_CHAIN = [
 	'0001_profiles.sql',
 	'0003_profile_section.sql',
@@ -82,7 +83,8 @@ const FULL_CHAIN = [
 	'0114_notebook_note_entry_session.sql',
 	'0116_notebook_soft_delete.sql',
 	'0117_notebook_soft_delete_restore.sql',
-	'0118_notebook_draft_state.sql'
+	'0118_notebook_draft_state.sql',
+	'0119_notebook_note_delete.sql'
 ];
 
 /**
@@ -97,7 +99,8 @@ const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter(
 	(m) =>
 		m !== '0116_notebook_soft_delete.sql' &&
 		m !== '0117_notebook_soft_delete_restore.sql' &&
-		m !== '0118_notebook_draft_state.sql'
+		m !== '0118_notebook_draft_state.sql' &&
+		m !== '0119_notebook_note_delete.sql'
 );
 
 /**
@@ -108,7 +111,18 @@ const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter(
  * come back as TURNED IN; reading it as a draft would report a notebook full of
  * handed-in work as nothing handed in.
  */
-const PRE_DRAFT_CHAIN = FULL_CHAIN.filter((m) => m !== '0118_notebook_draft_state.sql');
+const PRE_DRAFT_CHAIN = FULL_CHAIN.filter(
+	(m) => m !== '0118_notebook_draft_state.sql' && m !== '0119_notebook_note_delete.sql'
+);
+
+/**
+ * Short of 0119 ONLY: everything up to and including drafts, note deletion not.
+ * Its own state and its own database, because the history rung is a separate
+ * schema assertion from the drafts one -- and it widens BOTH EMBEDS, which is
+ * the shape most likely to take a working page down with it. A pre-0119 project
+ * must degrade to exactly the notebook it had, with every note live.
+ */
+const PRE_HISTORY_CHAIN = FULL_CHAIN.filter((m) => m !== '0119_notebook_note_delete.sql');
 
 /**
  * A project with the notebook's DEPENDENCIES but not one notebook migration --
@@ -148,6 +162,7 @@ let keptPhotoId: string; // its live sibling: the control
  */
 interface LoadResult {
 	configured: boolean;
+	historyReady: boolean;
 	draftsReady: boolean;
 	deletionReady: boolean;
 	photosReady: boolean;
@@ -374,6 +389,8 @@ describe('the real load against the full chain (0069 through 0116)', () => {
 	it('reports the notebook available, with every capability present', () => {
 		// The headline: this is the assertion that was false in production.
 		expect(result.configured).toBe(true);
+		expect(result.historyReady).toBe(true);
+		expect(result.draftsReady).toBe(true);
 		expect(result.deletionReady).toBe(true);
 		expect(result.photosReady).toBe(true);
 		expect(result.notesReady).toBe(true);
@@ -549,11 +566,27 @@ describe('the select ladder', () => {
 		// Asserted as an equivalence in BOTH directions, so neither a rung that
 		// filters on a column it does not have (which fails the whole select) nor
 		// one that has it and does not (the bug) can pass.
+		//
+		// GENERALIZED FOR 0119 rather than deleted: that migration put a
+		// `deleted_at` inside the NOTES EMBED, so a regex over the whole select
+		// string now answers "does anything here have that column" instead of the
+		// question the filter is actually about, which is the ENTRY's own. The
+		// rule is unchanged; what it reads is narrowed to the entry's column list,
+		// with the embeds stripped out first. Re-mutated to confirm it still
+		// bites: flipping the history rung to `excludeDeleted: false` reddens it.
+		const entryColumns = (select: string) => select.replace(/\([^()]*\)/g, '');
 		const { NOTEBOOK_ENTRY_SELECTS } = await import('../src/lib/notebook-selects');
 		for (const rung of NOTEBOOK_ENTRY_SELECTS) {
-			const carriesColumn = /(^|[\s,])deleted_at(\s|,|$)/.test(rung.select);
+			const carriesColumn = /(^|[\s,])deleted_at(\s|,|$)/.test(entryColumns(rung.select));
 			expect([rung.capability, carriesColumn]).toEqual([rung.capability, rung.excludeDeleted]);
 		}
+		// Kept honest a second way: the stripper must actually remove the embeds,
+		// or it is testing the same string it was handed. The history rung carries
+		// `deleted_at` in BOTH places, so this distinguishes them.
+		const history = NOTEBOOK_ENTRY_SELECTS.find((r) => r.capability === 'history')!;
+		expect(history.select).toContain('created_at, deleted_at, deleted_by )');
+		expect(entryColumns(history.select)).not.toContain('deleted_by');
+		expect(entryColumns(history.select)).toContain('deleted_at');
 		// Kept honest: at least one rung of each kind, so an empty or
 		// all-one-way ladder cannot satisfy this vacuously.
 		expect(NOTEBOOK_ENTRY_SELECTS.some((r) => r.excludeDeleted)).toBe(true);
@@ -612,6 +645,89 @@ describe('drafts (0118) belong to the student and stay in their feed', () => {
 		expect(result.entries[0].submitted_at).toBe(result.entries[0].upload_timestamp);
 		// Everything below the new rung is unaffected -- including 0116's, which
 		// is the rung immediately beneath it.
+		expect(result.deletionReady).toBe(true);
+		expect(result.photosReady).toBe(true);
+		expect(result.notesReady).toBe(true);
+		expect(result.foldersReady).toBe(true);
+		expect(result.pinsReady).toBe(true);
+	}, 180_000);
+});
+
+describe('note deletion (0119) reaches the feed, and degrades to nothing without it', () => {
+	let preHistory: TestDb;
+
+	afterAll(async () => {
+		await preHistory?.stop();
+	});
+
+	it('carries a deleted note through, and the one funnel drops it', async () => {
+		// A second note on the free entry, deleted through the REAL RPC, beside
+		// the live one that entry already has -- exclusion and positive control
+		// on the same row.
+		const removedNoteId = await db.asUser(alice.id, async (q) => {
+			const { rows } = await q<{ result: { note_id: string } }>(
+				'select public.notebook_add_note($1::uuid, $2::jsonb) as result',
+				[freeEntryId, JSON.stringify([{ type: 'p', runs: [{ text: 'Withdrawn.' }] }])]
+			);
+			return rows[0].result.note_id;
+		});
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_delete_note($1::uuid)', [removedNoteId])
+		);
+
+		const result = await runLoad(db, fks, alice);
+		expect(result.historyReady).toBe(true);
+		const free = result.entries.find((e) => e.id === freeEntryId)!;
+
+		// PRESENT on the row, because the owner's history and the restore control
+		// both have to be able to see it -- this rung deliberately does not filter
+		// server-side.
+		expect(free.notes).toHaveLength(2);
+		expect(free.notes.filter((n) => n.deleted_at).map((n) => n.note_id)).toEqual([removedNoteId]);
+
+		// ABSENT from what every rendering surface reads, and the live note is
+		// still there beside it, so this is not an empty list passing vacuously.
+		expect(noteThreads(free.notes)).toHaveLength(1);
+		expect(noteThreads(free.notes)[0].noteId).not.toBe(removedNoteId);
+		expect(deletedNoteThreads(free.notes).map((t) => t.noteId)).toEqual([removedNoteId]);
+
+		// Put it back, so the rest of this file's fixture is what it was.
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_restore_note($1::uuid)', [removedNoteId])
+		);
+	});
+
+	it('degrades to a notebook with every note live on a project without 0119', async () => {
+		preHistory = await startTestDb(PRE_HISTORY_CHAIN);
+		const keys = await loadForeignKeys(preHistory);
+		const student = await createUser(preHistory, 'alice@boscotech.net', 'Alice Alvarez');
+		await preHistory.asUser(student.id, (q) =>
+			q('select public.notebook_create_note_entry($1::jsonb, $2, null, null)', [
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Still here.' }] }]),
+				'Pre-0119 entry'
+			])
+		);
+		const result = await runLoad(preHistory, keys, student);
+
+		expect(result.configured).toBe(true);
+		expect(result.historyReady).toBe(false);
+		expect(result.entries).toHaveLength(1);
+
+		// THE DIRECTION THAT FAILS SILENTLY, twice over. An absent `deleted_at`
+		// must read as LIVE, not as deleted -- flattening it to null would be
+		// harmless, but treating absence as a stamp would blank every note on a
+		// pre-0119 project. And `reviewed_at` must stay ABSENT rather than
+		// becoming null, so the timeline emits no review event instead of
+		// claiming the entry was never looked at.
+		const entry = result.entries[0];
+		expect(entry.notes).toHaveLength(1);
+		expect(entry.notes[0].deleted_at).toBeUndefined();
+		expect(noteThreads(entry.notes)).toHaveLength(1);
+		expect(deletedNoteThreads(entry.notes)).toHaveLength(0);
+		expect(entry.reviewed_at).toBeUndefined();
+
+		// Everything below the new rung is unaffected, 0118's included.
+		expect(result.draftsReady).toBe(true);
 		expect(result.deletionReady).toBe(true);
 		expect(result.photosReady).toBe(true);
 		expect(result.notesReady).toBe(true);

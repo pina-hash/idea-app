@@ -12,6 +12,7 @@
 		NotebookSession,
 		NotePayload
 	} from '$lib/notebook';
+	import { noteThreads } from '$lib/notebook-notes';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
 
@@ -958,7 +959,10 @@
 		const entry = current().find((e) => e.photos.some((p) => p.id === photoId));
 		if (!entry) return { ok: false, error: 'That photo does not exist or is not yours.' };
 		const remaining = entry.photos.filter((p) => p.id !== photoId && !p.removed_at).length;
-		if (remaining === 0 && entry.notes.length === 0) {
+		// LIVE notes only (0119), the same clause the real RPC counts on. A
+		// harness whose guard is looser than the RPC's lets a drive pass that the
+		// real page would refuse, which is the one thing a harness must not do.
+		if (remaining === 0 && noteThreads(entry.notes).length === 0) {
 			return { ok: false, error: 'That is the only thing in this entry. Delete the whole entry instead.' };
 		}
 		updateAll((list) =>
@@ -1008,7 +1012,7 @@
 					'This entry is filed against a scheduled check-in, so its title comes from the check-in and cannot be changed here.'
 			};
 		}
-		if (!label && entry.photos.length === 0 && entry.notes.length === 0) {
+		if (!label && entry.photos.length === 0 && noteThreads(entry.notes).length === 0) {
 			return { ok: false, error: 'That title is the only thing in this entry. Delete the whole entry instead.' };
 		}
 		updateAll((list) => list.map((e) => (e.id === entryId ? { ...e, custom_label: label } : e)));
@@ -1026,7 +1030,7 @@
 			return { ok: false, error: 'That entry has already been turned in.' };
 		}
 		const photos = found.photos.filter((p) => !p.removed_at).length;
-		const notes = found.notes.length;
+		const notes = noteThreads(found.notes).length;
 		if (photos === 0 && notes === 0) {
 			return {
 				ok: false,
