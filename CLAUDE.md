@@ -750,6 +750,11 @@ These have each cost a debugging session. They are not hypothetical.
 
 ### The Browser pane (`mcp__Claude_Browser__*`)
 
+This subsection is for a fact about the VERIFICATION ENVIRONMENT itself -- something
+that costs a debugging detour to rediscover because the pane behaves unlike a real,
+foregrounded browser tab. It is not for facts about the application under test; those
+belong wherever the app's own behaviour is documented.
+
 - **It does not composite.** Screenshots time out; **every visual claim must be a
   measured computed-style, geometry or hit-test read**, and must be reported as
   such.
@@ -758,8 +763,29 @@ These have each cost a debugging session. They are not hypothetical.
   Inject `* { transition: none !important }` before asserting any computed colour.
 - **`loading="lazy"` images never request** -- the intersection observer never
   fires.
-- **`ResizeObserver` never delivers**, and rAF is frozen. Drive such paths directly
-  (patch the constructor to capture the callback, then invoke it).
+- **`requestAnimationFrame` never fires while the pane's tab is hidden.** A Svelte
+  flush that depends on rAF never lands, so a synchronous DOM read taken right after
+  a state change sees stale values. Confirm by checking whether the read changes
+  after a plain `setTimeout` delay instead of immediately. Workaround: flush on a
+  timeout, not rAF, when driving or verifying through this pane.
+- **`ResizeObserver` never delivers**, and rAF is frozen. Confirm by resizing the
+  element and polling the value the callback would have set -- it never changes on
+  its own. Workaround: patch the `ResizeObserver` constructor to capture the
+  callback, resize the element for real, then invoke the captured callback directly.
+- **A stage element measured while its container is `display:none` captures a 0x0
+  size PERMANENTLY**, because the app's own recovery path is a `ResizeObserver`
+  callback that (per above) never arrives here to correct it. Gate any measurement
+  on the container actually being visible before reading its size.
+- **`dialog.close()` does not dispatch a `close` event** in this pane, confirmed
+  against a bare vanilla `<dialog>` rather than assumed from application code. A
+  deliberate close path in code under test should notify its parent directly rather
+  than rely on the event round trip when verifying here.
+- **`dialog` `close` and `cancel` events do not bubble here**, so Svelte's delegated
+  `onclose`-style attribute binding silently never fires. Attach with
+  `addEventListener` directly on the element when scripting a verification.
+- **Navigation sometimes reports failure while having actually succeeded.** Confirm
+  by reading the page (`read_page` / `get_page_text`) rather than trusting the
+  `navigate` call's own result.
 - **A live WebGL canvas hangs pane screenshots.** Read the framebuffer back instead
   (pixel counts, occupancy grids), or use claude-in-chrome.
 - **A harness whose loop rides rAF must be told to pump it** (`?glheadless=1` on
@@ -773,6 +799,13 @@ These have each cost a debugging session. They are not hypothetical.
   Route real hardware input through a same-origin popup it opens and scripts.
 - **A rolling performance counter measures your own instrumentation.** Stop every
   sampler and wait past the window before reading it.
+- **No real Chrome is connected in this setup.** Prior sessions checked
+  (`mcp__claude-in-chrome__list_connected_browsers`) and found nothing attached --
+  claude-in-chrome needs the user to install and connect the Chrome extension on
+  their own machine first; there is no way to attach one from inside a session.
+  Until then, treat every claude-in-chrome call as unavailable and fall back to the
+  `mcp__Claude_Browser__*` pane (with the limits above) or to headless/pixel-level
+  reads.
 
 ### Machine and toolchain
 
