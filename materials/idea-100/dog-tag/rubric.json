@@ -135,12 +135,12 @@
       {
         "label": "Complete",
         "points": 2,
-        "descriptor": "Names one specific change to the design and gives a reason tied to how the machine cuts, scores, or engraves it."
+        "descriptor": "Names the process assigned to the outline, to the hole, and to one added feature, and names one specific thing that could go wrong on this tag."
       },
       {
         "label": "Developing",
         "points": 1,
-        "descriptor": "Names a change with no reason, or gives a reason without naming a specific change, or gives a reason unrelated to the machine."
+        "descriptor": "Names the process for only some of the three features, or names all three but gives no risk, or gives a risk that is not specific to this tag."
       },
       {
         "label": "Absent",
@@ -149,7 +149,7 @@
       }
     ],
     "points": 2,
-    "criterion": "One Change: One change with a machine-based reason",
+    "criterion": "Hand Off the File: Reads the job off the preview",
     "incomplete": false
   }
 ]
