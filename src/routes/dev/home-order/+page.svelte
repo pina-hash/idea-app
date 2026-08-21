@@ -26,9 +26,11 @@
 <div class="harness-strip">
 	role=<strong>{data.harness.role}</strong> &middot; classes=<strong>{data.harness.classes}</strong>
 	&middot; rows/card=<strong>{data.harness.rows}</strong>
+	&middot; admin=<strong>{data.harness.admin}</strong>
 	&middot; <a href="?role=student&classes=1&rows=3">student x1</a>
 	&middot; <a href="?role=teacher&classes=4&rows=3">teacher x4</a>
 	&middot; <a href="?role=teacher&classes=1&rows=3">teacher x1</a>
+	&middot; <a href="?role=teacher&classes=1&rows=3&admin=1">all 11 cards</a>
 </div>
 
 <Home data={homeData} />

@@ -77,6 +77,15 @@ export const load: PageLoad = async ({ url }) => {
 	const role = url.searchParams.get('role') === 'teacher' ? 'teacher' : 'student';
 	const classes = Math.max(0, Math.min(8, Number(url.searchParams.get('classes') ?? '1') || 0));
 	const rows = Math.max(0, Math.min(6, Number(url.searchParams.get('rows') ?? '3') || 0));
+	/**
+	 * `?admin=1` renders the three admin-only cards as well. It is the fourth
+	 * variable the page actually has: `isAdmin` reaches the launcher's
+	 * `visibleApps`, and without it three of the eleven cards never mount, so a
+	 * sweep over the cards on screen silently measures eight of them and comes
+	 * back clean. It is NOT an access decision -- the real page reads this off
+	 * the root layout, and this route 404s in production either way.
+	 */
+	const admin = url.searchParams.get('admin') === '1';
 
 	const isTeacher = role === 'teacher';
 	const me = isTeacher ? TEACHER : STUDENT;
@@ -121,7 +130,7 @@ export const load: PageLoad = async ({ url }) => {
 			pathway: 'IDEA',
 			preferences: {}
 		},
-		isAdmin: false,
-		harness: { role, classes, rows }
+		isAdmin: admin,
+		harness: { role, classes, rows, admin }
 	};
 };

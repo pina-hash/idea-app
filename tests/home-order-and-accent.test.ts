@@ -7,14 +7,20 @@
 //    completely ordinary on screen -- nobody holds both roles at once, and the
 //    only symptom is a scroll distance nobody measures.
 //
-// 2. THE SHARED ACCENT. Launcher cards carry ONE accent and are told apart by
-//    name, tagline and status badge (CLAUDE.md, "Launcher cards carry ONE
-//    shared accent"). That rule was already written down and already broken:
-//    every PORTAL_APPS entry declared a `theme`, AppLauncher wrote it onto the
-//    card as an inline `--acc-primary`/`--acc-secondary`, and an inline custom
-//    property beats the class rule -- so `.app-card`'s uniform token never
-//    painted on a single card and nothing said so. A constant only makes the
-//    right thing available; this is what stops the wrong thing coming back.
+// 2. THE ACCENT MECHANISM. Launcher cards DO carry a per-app accent, and that
+//    is deliberate: GAUNTLET, GREENLINE and VANGUARD carry their product
+//    colours and the FRC card carries FIRST's brand. What is pinned here is
+//    HOW it arrives. It used to arrive as an inline style written from a
+//    `PortalApp.theme` field, and an inline custom property beats every class
+//    rule -- so `.app-card`'s shared brass/gold pair was dead code, no later
+//    rule could correct one card, and nothing said so for months. It is now a
+//    stylesheet rule keyed on the card's `data-app` attribute, which sits
+//    inside the cascade: the shared pair is a live DEFAULT for the apps that
+//    declare nothing, and one selector overrides one card.
+//
+//    Going back to inline is the regression this file exists to redden, and it
+//    is a silent one: the eleven wrong colours painted for months in front of
+//    everyone. A constant only makes the right thing available.
 //
 // SSR-ONLY, the classroom-body-render.test.ts pattern: `svelte/server`'s
 // render() mounts the REAL components and hands back markup. There is no DOM
@@ -23,6 +29,7 @@
 // the thing actually worth pinning.
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 import Home from '../src/routes/+page.svelte';
 import AppLauncher from '$lib/AppLauncher.svelte';
@@ -185,8 +192,78 @@ describe('home page: which block comes first', () => {
 	});
 });
 
-describe('launcher cards carry ONE shared accent', () => {
-	it('no app declares a per-card colour of any kind', () => {
+/**
+ * THE STYLESHEET IS READ AS SOURCE TEXT, ON PURPOSE.
+ *
+ * `svelte/server`'s render() returns markup, not styles -- Svelte extracts a
+ * component <style> block at compile time -- so there is no rendered CSSOM here
+ * to interrogate, and jsdom does not resolve custom properties through the
+ * cascade even when there is. Whether these rules actually PAINT is a browser
+ * measurement, and it was one: eleven cards swept in the pane at 1440px and
+ * 375px, every accent-derived text clearing 4.5:1 and every load-bearing edge
+ * 3:1, resolved by painting each colour to a canvas (docs/HISTORY.md).
+ *
+ * What this file adds is the thing a browser pass cannot catch on a Tuesday six
+ * months from now: that the values are still DECLARED where the cascade can
+ * reach them, rather than stamped onto the element where nothing can.
+ */
+const LAUNCHER_SRC = readFileSync(new URL('../src/lib/AppLauncher.svelte', import.meta.url), 'utf8');
+const LAUNCHER_CSS = LAUNCHER_SRC.slice(LAUNCHER_SRC.lastIndexOf('<style>'));
+
+/** App ids with a `[data-app=...]` accent rule of their own. */
+const declaringIds = () => {
+	const ids = new Set<string>();
+	for (const m of LAUNCHER_CSS.matchAll(/\.app-card\[data-app='([a-z-]+)'\]/g)) ids.add(m[1]);
+	return ids;
+};
+
+/** The body of one `[data-app=...]` rule, so a declaration can be attributed. */
+function ruleFor(id: string): string {
+	const at = LAUNCHER_CSS.indexOf(`.app-card[data-app='${id}']`);
+	if (at < 0) return '';
+	const open = LAUNCHER_CSS.indexOf('{', at);
+	return LAUNCHER_CSS.slice(open, LAUNCHER_CSS.indexOf('}', open));
+}
+
+function launcherHtml(): string {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return render(AppLauncher as any, { props: { onRequireSignIn: () => {} } }).body;
+}
+
+describe('launcher accents are stylesheet data, never an inline style', () => {
+	it('stamps NO accent custom property on any card, so the cascade still decides', () => {
+		// THE REJECTED ALTERNATIVE, and the one this whole file is aimed at. An
+		// inline custom property outranks every stylesheet rule, including the
+		// `.app-card` default and any later per-card override, so putting the pair
+		// back on the element would make both unreachable exactly as before.
+		const html = launcherHtml();
+		const cards = html.split('class="app-card').length - 1;
+		// Positive control: "no card carries X" is worth nothing if no card rendered.
+		expect(cards).toBe(visibleApps(false).length);
+		expect(cards).toBeGreaterThan(5);
+		for (const prop of [
+			'--acc-primary',
+			'--acc-secondary',
+			'--acc-ink',
+			'--card-texture',
+			'--card-texture-size'
+		]) {
+			expect(html, `${prop} is stamped inline on a card`).not.toContain(`${prop}:`);
+		}
+	});
+
+	it('gives every card the `data-app` attribute the rules key on', () => {
+		// A rule keyed on an attribute no card carries is a rule that never
+		// matches, and the card would silently fall back to the shared default.
+		const html = launcherHtml();
+		for (const app of visibleApps(false)) {
+			expect(html, `${app.id}: no data-app attribute`).toContain(`data-app="${app.id}"`);
+		}
+	});
+
+	it('declares no colour field on any PORTAL_APPS entry', () => {
+		// The paint belongs to the stylesheet. A colour field here is how it gets
+		// read back into a style attribute again.
 		expect(PORTAL_APPS.length).toBeGreaterThan(5); // positive control
 		const offenders = PORTAL_APPS.filter((app) =>
 			Object.keys(app).some((k) => /theme|colou?r|accent|palette/i.test(k))
@@ -194,16 +271,36 @@ describe('launcher cards carry ONE shared accent', () => {
 		expect(offenders).toEqual([]);
 	});
 
-	it('stamps no inline accent on any card, so the class rule is what paints', () => {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const html = render(AppLauncher as any, { props: { onRequireSignIn: () => {} } }).body;
-		const cards = html.split('class="app-card').length - 1;
-		// Positive control: an assertion about "no card carries X" is worthless
-		// if no card rendered.
-		expect(cards).toBe(visibleApps(false).length);
-		expect(cards).toBeGreaterThan(5);
-		expect(html).not.toContain('--acc-primary:');
-		expect(html).not.toContain('--acc-secondary:');
-		expect(html).not.toContain('--card-texture');
+	it('keeps the shared pair as a LIVE default, not a value every app restates', () => {
+		// Both halves matter. The `.app-card` rule must declare the pair, AND some
+		// real app must be taking it -- a default every entry overrides is the dead
+		// code this replaced, wearing a stylesheet instead of a style attribute.
+		const base = LAUNCHER_CSS.slice(LAUNCHER_CSS.indexOf('.app-card {'));
+		expect(base).toContain('--acc-primary: var(--gold);');
+		expect(base).toContain('--acc-secondary: var(--green);');
+
+		const declaring = declaringIds();
+		const takingDefault = visibleApps(true)
+			.map((a) => a.id)
+			.filter((id) => !declaring.has(id));
+		expect(takingDefault.length, 'every app declares its own accent').toBeGreaterThan(0);
+
+		// POSITIVE CONTROL for the line above: the same check must be able to SEE a
+		// declared accent, or "some app takes the default" passes because the sweep
+		// found nothing at all.
+		expect(declaring.size, 'no app declares an accent').toBeGreaterThan(0);
+		for (const id of declaring) {
+			expect(ruleFor(id), `${id}: rule declares no accent`).toContain('--acc-primary:');
+		}
+	});
+
+	it('never moves an identity colour for contrast, only the ink', () => {
+		// FRC is the one card whose brand colour cannot carry text on --bg1: pure
+		// #ED1C24 measured 3.41:1 there. The fix moved --acc-ink and left FIRST red
+		// painting the strip and the texture. Quietly lightening --acc-primary
+		// instead would be a recoloured trademark, which is the thing to refuse.
+		expect(ruleFor('frc')).toContain('--acc-primary: #ed1c24;');
+		expect(ruleFor('frc')).toContain('--acc-secondary: #0066b3;');
+		expect(ruleFor('frc')).toContain('--acc-ink:');
 	});
 });

@@ -1320,20 +1320,46 @@ the source of truth; **do not invent colours or swap fonts.**
   the same component is the animated hero mark and the static fallback. Its spin is
   gated behind `prefers-reduced-motion: no-preference`.
 - **Everything animated is gated behind `prefers-reduced-motion`.**
-- **Launcher cards carry ONE shared accent (brass/gold); there is deliberately no
-  per-card accent field.** Cards are differentiated by name, tagline and status
-  badge, never by an arbitrary colour. A product's own colour belongs inside its
-  scoped theme (`.gt-root`, `.glb`, `.frc-root`), never on the tile that opens
-  it.
-  - **THIS RULE WAS TRUE ON PAPER AND FALSE ON SCREEN FOR MONTHS, and how is the
-    part worth remembering.** `PortalApp.theme` fed an INLINE
-    `--acc-primary`/`--acc-secondary` onto every card, and **an inline custom
-    property beats the class rule that declares the shared pair** -- so
-    `.app-card`'s uniform token was dead code and six cards painted an identity
-    colour. The field is gone rather than set to one value everywhere: a field
-    that may only ever hold one value is an invitation to put a second one in
-    it. `tests/home-order-and-accent.test.ts` is what enforces it now; a
-    constant only makes the right thing available.
+- **Launcher cards carry a PER-APP accent, declared in the stylesheet and keyed
+  on the card, with the shared brass/gold pair as the live default.** The
+  identity is deliberate: GAUNTLET and GREENLINE carry their product colours,
+  VANGUARD its arcade green, and the FRC card carries FIRST's red and blue. An
+  app that declares nothing takes the shared pair, so a NEW card looks right
+  with no entry anywhere.
+  - **THE MECHANISM IS THE RULE, AND IT IS A CASCADE ARGUMENT, NOT A TASTE
+    ONE.** The pairs used to arrive as an INLINE style written from a
+    `PortalApp.theme` field, and **an inline custom property beats every class
+    rule** -- so `.app-card`'s shared pair was dead code that could not paint,
+    no later rule could correct a single card, and the value was discoverable
+    only by reading the registry. They are now plain rules on
+    `.app-card[data-app='<id>']` in `AppLauncher.svelte`, which sit INSIDE the
+    cascade: the default is reachable, and overriding one card is one selector.
+    **There is still no colour field on `PortalApp`** -- `src/lib/portal-apps.ts`
+    carries an app's identity, never its paint, because a field there is how the
+    value gets read back onto the element again.
+  - **AN IDENTITY COLOUR IS NEVER MOVED TO PASS A CONTRAST CHECK; the derived
+    value moves.** `--acc-primary`/`--acc-secondary` are the brand. `--acc-ink`
+    is the glyph colour every text, icon and edge derives from, defaulting to
+    the identity, and it is what a card re-pins when the brand cannot carry
+    text. FRC is the only case: #ED1C24 measures 3.41:1 on `--bg1` (it is made
+    for the white paper `.frc-root` puts it on), so the ink is the same hue and
+    the same saturation at 68% lightness instead of 52%. **Lightness only --
+    desaturating is how a brand quietly stops being itself.** If a colour cannot
+    clear while staying recognisable, say so and stop.
+  - **A LOAD-BEARING BOUNDARY AND A DECORATIVE ONE ARE TWO TOKENS**
+    (`IDEA_INTERFACE_STANDARDS` 10). `--acc-edge` draws the card edge, which is
+    the only thing separating a card from the page (`--bg1` on `--bg0` measures
+    1.18:1, one region to the eye), so it clears 3:1. `--acc-line` outlines the
+    CTA pill, which decorates a label nobody can operate on its own, and stays
+    faint. Raising one hairline to satisfy the other draws every card as a
+    wireframe.
+  - **A HOVER FILL IS PINNED, NEVER MIXED FROM THE INK ABOVE IT.** The CTA
+    pill's hover background was `color-mix(ink 12%)`, so lightening the ink
+    lightened its own ground with it: sweeping FRC from 80% to 40% brand red
+    moved that case 3.41 to 4.89 and cost the whole colour. Pinned to `--bg2` it
+    stops chasing.
+  - `tests/home-order-and-accent.test.ts` enforces all of this; a stylesheet
+    only makes the right thing available.
 - **Background:** the `.bg-fx` scanline + vignette overlay, disabled under reduced
   motion. Legibility first.
 

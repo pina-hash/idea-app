@@ -30,21 +30,29 @@ export interface PortalApp {
 	/** Only rendered for site admins (0067; was teachers). */
 	adminOnly?: boolean;
 	/**
-	 * THERE IS NO `theme` FIELD, AND ADDING ONE BACK IS THE CHANGE TO REFUSE.
+	 * THERE IS NO `theme` FIELD, AND ADDING ONE BACK IS STILL THE CHANGE TO
+	 * REFUSE -- but the per-app accent it used to carry is BACK, one layer down.
 	 *
-	 * Every entry used to declare `{ primary, secondary }`, which AppLauncher
-	 * wrote onto the card as an inline `--acc-primary` / `--acc-secondary`. An
-	 * inline custom property beats the class rule that declares the shared
-	 * brass/gold pair, so `.app-card`'s uniform accent was dead code: the token
-	 * it names never painted on a single card. Six cards were rendering an
-	 * arbitrary identity colour (a pure FIRST red, a chartreuse, a cyan) on the
-	 * portal shell, against the standing rule that launcher cards carry ONE
-	 * shared accent and are told apart by name, tagline and status badge.
+	 * Each entry once declared `{ primary, secondary }`, which AppLauncher
+	 * stamped onto the card as an INLINE `--acc-primary` / `--acc-secondary`.
+	 * THAT is what was wrong with it, and it is the only thing that was: an
+	 * inline custom property beats every class rule, so `.app-card`'s shared
+	 * brass/gold pair was dead code, no later rule could correct a single card,
+	 * and the only way to learn what a card would paint was to read this file.
+	 * Deleting the field fixed the cascade by deleting the identity with it,
+	 * which was the wrong half: the identity is deliberate. GAUNTLET, GREENLINE
+	 * and VANGUARD carry their own product colours and the FRC card carries
+	 * FIRST's brand.
 	 *
-	 * The field is gone rather than corrected to a uniform value, because a
-	 * field that may only ever hold one value is an invitation to put a second
-	 * one in it. Product colour belongs inside each product's own scoped theme
-	 * (`.gt-root`, `.glb`, `.frc-root`), not on the launcher tile that opens it.
+	 * The pairs now live in AppLauncher's stylesheet, keyed on the `data-app`
+	 * attribute the card already carried, with the shared brass/gold pair as the
+	 * live default on `.app-card` for any app that declares nothing. A new app
+	 * therefore looks right with no entry anywhere, and a later pass overrides
+	 * one card with one selector instead of hunting through a registry.
+	 *
+	 * What belongs in THIS file is the app's identity (`id`), not its paint. A
+	 * colour field here would put the value back on the losing side of the
+	 * cascade the moment anything read it into a style attribute again.
 	 */
 	/**
 	 * Superseded by a newer tool but kept reachable (bookmarks, muscle memory).

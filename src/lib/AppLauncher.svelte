@@ -516,36 +516,151 @@
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
 	.app-card {
-		/* THE ONE SHARED ACCENT, and now it actually paints. These two lines were
-		   already here and were dead: every card carried an inline
-		   `--acc-primary`/`--acc-secondary` from PortalApp.theme, and an inline
-		   custom property beats any class rule, so the uniform token below was
-		   overridden on all eleven cards. The inline pair is gone; cards are
-		   differentiated by name, tagline and status badge, never by colour. */
+		/* THE SHARED BRASS/GOLD PAIR IS THE DEFAULT, NOT THE ONLY VALUE, and it
+		   is a real default: four of the eleven cards declare nothing and paint
+		   from exactly these two lines. A per-app pair, where one exists, is
+		   declared below on `[data-app=...]`, a plain class-level rule that this
+		   one loses to on specificity and wins against for anybody who declares
+		   nothing. The pair used to arrive as an INLINE style instead, which beat
+		   this rule on all eleven cards and made it dead code.
+
+		   --acc-primary and --acc-secondary are IDENTITY (the strip, the brand).
+		   Nothing derived for legibility may move them; --acc-ink is what moves.
+		   See the contrast note above the per-app block. */
 		--acc-primary: var(--gold);
 		--acc-secondary: var(--green);
-		--acc: var(--acc-primary);
+		/* THE GLYPH COLOUR, and the one an app re-pins when its identity colour
+		   cannot carry text. Defaults to the identity colour, which every accent
+		   but one clears 4.5:1 with, measured on --bg1. */
+		--acc-ink: var(--acc-primary);
+		--acc: var(--acc-ink);
 		--acc-title: var(--acc);
-		--acc-glow: color-mix(in srgb, var(--acc-primary) 30%, transparent);
-		--acc-line: color-mix(in srgb, var(--acc-primary) 20%, transparent);
-		--acc-line-strong: color-mix(in srgb, var(--acc-primary) 50%, transparent);
-		--acc-wash: color-mix(in srgb, var(--acc-primary) 5%, transparent);
-		--acc-hover-glow: color-mix(in srgb, var(--acc-primary) 20%, transparent);
+		--acc-glow: color-mix(in srgb, var(--acc-ink) 30%, transparent);
+		/* A LOAD-BEARING BOUNDARY AND A DECORATIVE ONE ARE TWO TOKENS, not one
+		   hairline used twice (IDEA_INTERFACE_STANDARDS 10). --acc-edge draws
+		   the CARD edge, which is the only thing separating a card from the
+		   page (--bg1 on --bg0 measures 1.18:1, one region to the eye), so it
+		   clears 3:1 -- 75% of the ink is the floor that gets every accent
+		   there, FRC at 3.35 being the worst. --acc-line is the CTA pill
+		   outline, which decorates a LABEL whose own text already clears
+		   4.5:1 and is not a control anyone can operate on its own; raising
+		   it to the edge weight would draw every card as a wireframe. */
+		--acc-edge: color-mix(in srgb, var(--acc-ink) 75%, transparent);
+		--acc-edge-strong: var(--acc-ink);
+		--acc-line: color-mix(in srgb, var(--acc-ink) 20%, transparent);
+		--acc-line-strong: color-mix(in srgb, var(--acc-ink) 50%, transparent);
+		--acc-wash: color-mix(in srgb, var(--acc-ink) 5%, transparent);
+		--acc-hover-glow: color-mix(in srgb, var(--acc-ink) 20%, transparent);
+		/* PINNED, AND THAT IS THE POINT. This was color-mix(ink 12%), a fill
+		   derived from the very ink it sits behind, so lightening the ink
+		   lightened its ground with it and the ratio barely moved: sweeping
+		   FRC from 80% to 40% brand red moved this case 3.41 -> 4.89 and cost
+		   the entire colour. Pinned to --bg2 the ground stops chasing the ink,
+		   and every accent clears 4.5:1 on it (worst 4.73, FRC). */
+		--acc-cta-hover-fill: var(--bg2);
 		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
-		/* Base surface + the design system's brushed-metal texture, the same on
-		   every card. Kept off ::before so the accent strip is untouched. */
+		/* Base surface + the card's interior texture, at <=3% opacity so it can
+		   never touch text legibility. Kept off ::before so the accent strip is
+		   untouched. Both vars are declared per app below; the fallback is the
+		   design system's brushed-metal token, which is what most cards take. */
 		background-color: var(--bg1);
-		background-image: var(--texture-brushed);
-		border: 1px solid var(--acc-line);
+		background-image: var(--card-texture, var(--texture-brushed));
+		background-size: var(--card-texture-size, auto);
+		border: 1px solid var(--acc-edge);
 		border-radius: var(--radius-card);
 		box-shadow: var(--bevel-raised);
 		padding: 0.85rem 1rem;
 		text-decoration: none;
 		overflow: hidden;
 		transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+	}
+	/* ======================================================================
+	   PER-APP IDENTITY, KEYED ON THE CARD'S OWN `data-app` ATTRIBUTE.
+
+	   These pairs painted for months, as an inline style written from a
+	   `PortalApp.theme` field, and the identity was always deliberate: GAUNTLET
+	   and GREENLINE carry their product colours, VANGUARD its arcade green, and
+	   the FRC card carries FIRST's own red and blue. What was wrong was the
+	   MECHANISM. An inline custom property beats every class rule, so the shared
+	   default was unreachable, no later rule could correct a single card, and
+	   the value was discoverable only by reading the registry.
+
+	   As a stylesheet rule keyed on an attribute, the same data sits INSIDE the
+	   cascade: the default above is live for the four cards that declare nothing
+	   (classroom, notebook, coins, coin-desk), a new app needs no entry anywhere
+	   to look right, and overriding one card is one selector rather than a
+	   registry edit. The attribute is `data-app`, which both card branches
+	   already carried for the tour and for drag-and-drop.
+
+	   THE PAIR IS IDENTITY AND IS NEVER MOVED FOR CONTRAST. Where a brand
+	   colour cannot carry text at 4.5:1 on --bg1, the card re-pins --acc-ink
+	   ONLY and --acc-primary keeps painting the strip. FRC is the one case; the
+	   measured table is in docs/HISTORY.md.
+	   ====================================================================== */
+	.app-card[data-app='gauntlet'] {
+		--acc-primary: #00ff41;
+		--acc-secondary: #00f0ff;
+		/* 24px blueprint grid. */
+		--card-texture:
+			linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+		--card-texture-size: 24px 24px;
+	}
+	.app-card[data-app='frc'] {
+		/* FIRST red and FIRST blue, unmodified: a trademark colour used as the
+		   mark, not as a colour we picked. Neither moves, and the strip, the
+		   texture and the FIRST logo itself all still paint from them. */
+		--acc-primary: #ed1c24;
+		--acc-secondary: #0066b3;
+		/* THE ONE RE-PINNED INK ON THE LAUNCHER. #ed1c24 carries text at
+		   3.41:1 on this card, measured -- it is a mid-luminance red made for
+		   white paper, and .frc-root uses it on #eef1f5 where it works. Here
+		   it fails, so the GLYPH moves and the identity does not.
+
+		   The move is LIGHTNESS ONLY: #ed1c24 is hsl(357.7 85.3% 52.0%) and
+		   this is the same hue and the same saturation at 68% lightness. It is
+		   not a desaturation, which is the thing that would quietly stop it
+		   being FIRST red. Measured 4.99 resting, 4.76 on the card hover wash,
+		   4.73 on the CTA hover fill. Written as hsl() so the next reader can
+		   see the one number that changed; #f3686d is the same colour. */
+		--acc-ink: hsl(357.7 85.3% 68%);
+		/* Diagonal stripes. */
+		--card-texture:
+			repeating-linear-gradient(
+				45deg,
+				rgba(237, 28, 36, 0.025) 0px,
+				rgba(237, 28, 36, 0.025) 1px,
+				transparent 1px,
+				transparent 16px
+			);
+	}
+	.app-card[data-app='greenline'] {
+		--acc-primary: #2ae57e;
+		--acc-secondary: #cfdae2;
+	}
+	.app-card[data-app='vanguard'] {
+		--acc-primary: #00ff41;
+		--acc-secondary: #c8ff00;
+		/* Horizontal scanlines. */
+		--card-texture: repeating-linear-gradient(
+			0deg,
+			rgba(0, 255, 65, 0.03) 0px,
+			rgba(0, 255, 65, 0.03) 1px,
+			transparent 1px,
+			transparent 4px
+		);
+	}
+	.app-card[data-app='tournaments'] {
+		--acc-primary: #00ff41;
+		--acc-secondary: #c8a848;
+	}
+	.app-card[data-app='dashboard'],
+	.app-card[data-app='admin'] {
+		--acc-primary: #78b870;
+		--acc-secondary: #5abda8;
 	}
 	.app-strip {
 		position: absolute;
@@ -558,7 +673,7 @@
 		pointer-events: none;
 	}
 	a.app-card:hover {
-		border-color: var(--acc-line-strong);
+		border-color: var(--acc-edge-strong);
 		/* background-color (not the shorthand) so the interior texture image
 		   survives the hover wash. */
 		background-color: var(--acc-wash);
@@ -691,7 +806,9 @@
 	}
 	a.app-card:hover .app-cta {
 		border-color: var(--acc-line-strong);
-		background: color-mix(in srgb, var(--acc-primary) 12%, transparent);
+		/* See --acc-cta-hover-fill: a pinned surface, never a mix of the ink
+		   the label above it is written in. */
+		background: var(--acc-cta-hover-fill);
 		box-shadow: 0 0 10px var(--acc-wash);
 	}
 	.app-tools {
@@ -750,7 +867,7 @@
 	}
 	/* Where the dragged card would land. */
 	.app-card.dropinto {
-		border-color: var(--acc-line-strong);
+		border-color: var(--acc-edge-strong);
 		box-shadow: inset 0 0 0 1px var(--acc-hover-glow);
 	}
 	.launcher-hint {
