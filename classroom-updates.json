@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-21",
+			"title": "Indented bullets stay indented",
+			"body": "A bulleted or numbered list can now have lists inside it, and they stay that way. Before, an indented bullet was moved out to the same level as the one above it, so a materials list with its parts tucked underneath came out as one long flat list. Anything you write or paste with sub-bullets now reads the way it was written, on the item page, in the class stream and in your notebook, and it comes back the same way when you open it again to edit it. Nothing you wrote before this has changed: those lists were already flattened when they were saved, and there is no way to put the indenting back other than re-indenting them yourself. One thing a bullet still cannot do is hold two separate paragraphs; if you write one that way, each paragraph becomes its own bullet.",
+			"tags": ["notebook", "assignments", "writing"]
+		},
+		{
+			"date": "2026-08-21",
 			"title": "Instructions get out of the way once you start working",
 			"body": "An assignment's instructions, and each module's instructions inside it, now open the first time you look at an item and fold themselves away once you have typed anything in. Press Show to read them again at any point, and Hide when you want the room back. Whatever you choose is remembered for that item on that computer, so it stays the way you left it next time. Nothing is deleted: the instructions are always one press away, and they still come out on a printed copy whether they were open or shut.",
 			"tags": ["assignments", "reading"]

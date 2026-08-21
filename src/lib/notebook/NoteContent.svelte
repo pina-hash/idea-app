@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { safeHref, type NoteDoc, type NoteInline } from '$lib/notebook-notes';
+	import {
+		NOTE_LIST_MAX_DEPTH,
+		safeHref,
+		type NoteDoc,
+		type NoteInline,
+		type NoteItem,
+		type NoteList
+	} from '$lib/notebook-notes';
+	import { itemParts } from '$lib/rich-text-doc';
 
 	/**
 	 * The one way a written note is rendered anywhere in this app -- the
@@ -16,6 +24,13 @@
 	 *
 	 * A link whose target does not survive that second check renders as plain
 	 * text rather than vanishing: the student's words are theirs either way.
+	 *
+	 * IT RECURSES, AND IT CARRIES THE CAP DOWN (0122). A list item may hold a
+	 * sublist, so `list` and `listItem` below call each other; the depth is
+	 * passed rather than read from the document, and a level past
+	 * NOTE_LIST_MAX_DEPTH is not rendered. The gate refuses a deeper note, but
+	 * a renderer that trusts the gate is a renderer that hangs the day
+	 * something reaches the table another way.
 	 */
 	let { doc }: { doc: NoteDoc } = $props();
 
@@ -44,22 +59,36 @@
 	{/each}
 {/snippet}
 
+{#snippet listItem(item: NoteItem, depth: number)}
+	{@const parts = itemParts(item)}
+	{@render runs(parts.runs)}
+	{#each parts.lists as sub, k (k)}
+		{#if depth < NOTE_LIST_MAX_DEPTH}{@render list(sub, depth + 1)}{/if}
+	{/each}
+{/snippet}
+
+{#snippet list(block: NoteList, depth: number)}
+	{#if block.type === 'ul'}
+		<ul>
+			{#each block.items as item, j (j)}
+				<li>{@render listItem(item, depth)}</li>
+			{/each}
+		</ul>
+	{:else}
+		<ol>
+			{#each block.items as item, j (j)}
+				<li>{@render listItem(item, depth)}</li>
+			{/each}
+		</ol>
+	{/if}
+{/snippet}
+
 <div class="note-body">
 	{#each doc as block, i (i)}
 		{#if block.type === 'p'}
 			<p>{@render runs(block.runs)}</p>
-		{:else if block.type === 'ul'}
-			<ul>
-				{#each block.items as item, j (j)}
-					<li>{@render runs(item)}</li>
-				{/each}
-			</ul>
 		{:else}
-			<ol>
-				{#each block.items as item, j (j)}
-					<li>{@render runs(item)}</li>
-				{/each}
-			</ol>
+			{@render list(block, 1)}
 		{/if}
 	{/each}
 </div>
@@ -82,6 +111,13 @@
 	.note-body ol {
 		margin: 0 0 var(--space-3);
 		padding-left: var(--space-5);
+	}
+	/* A sublist sits INSIDE its item, so it takes the item's own leading rather
+	   than a block's trailing gap -- the bottom margin above would open a hole
+	   between the sublist and the next bullet of the list it is inside. */
+	.note-body li > ul,
+	.note-body li > ol {
+		margin: var(--space-1) 0 0;
 	}
 	.note-body li {
 		margin: var(--space-1) 0;

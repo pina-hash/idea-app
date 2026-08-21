@@ -27,10 +27,11 @@
  * PASTE FIDELITY IS THE OTHER HALF OF THE JOB. A teacher pasting instructions
  * out of a document brings headings, nested lists, tables, spans and inline
  * styles. Flattening rather than refusing is deliberate: an out-of-scope
- * wrapper contributes its TEXT rather than losing it, a nested list becomes
- * more items of its parent, and a heading is clamped into the two levels a
- * body is allowed to use. What arrives is what was written, minus formatting
- * this feature does not have.
+ * wrapper contributes its TEXT rather than losing it, and a heading is clamped
+ * into the two levels a body is allowed to use. A NESTED LIST KEEPS ITS LEVEL
+ * (0122): it is stored inside the item it hangs off, at any depth the walk's
+ * own ceiling permits. What arrives is what was written, minus formatting this
+ * feature does not have.
  *
  * THE WALK ITSELF LIVES IN `./rich-text-normalize` and is shared with the
  * notebook's written notes, which used to hold a line-for-line copy of it. The

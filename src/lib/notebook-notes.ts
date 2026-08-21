@@ -25,6 +25,7 @@
  */
 
 import { safeHref, tiptapHasText, type TiptapNode } from '$lib/rich-text';
+import { itemParts, richDocText } from '$lib/rich-text-doc';
 
 /** One run of inline text. The absent-means-off flags keep stored docs small. */
 export interface NoteInline {
@@ -35,14 +36,47 @@ export interface NoteInline {
 	href?: string;
 }
 
-export type NoteBlock =
-	| { type: 'p'; runs: NoteInline[] }
-	/** Each item is its own run list; nested lists flatten into their parent. */
-	| { type: 'ul'; items: NoteInline[][] }
-	| { type: 'ol'; items: NoteInline[][] };
+/**
+ * A bulleted or numbered list, at the top of a note or inside a list item.
+ *
+ * ONE SHAPE FOR BOTH POSITIONS (0122). A nested list is the same object a
+ * top-level one is, which is what lets the gate, the projection and the
+ * renderer each gain nesting as one recursive branch rather than a second
+ * vocabulary.
+ */
+export interface NoteList {
+	type: 'ul' | 'ol';
+	items: NoteItem[];
+}
+
+/**
+ * One list item: its own runs, then any sublists under it.
+ *
+ *     item := ( run | list )*
+ *
+ * `type` is a TOTAL discriminator per element -- a run cannot carry one, and
+ * has not been able to since 0078 -- so every note stored before 0122 is
+ * exactly this shape with no list in it. There is no legacy branch.
+ *
+ * A LIST ITEM STILL CANNOT HOLD TWO PARAGRAPHS, and that is deliberate rather
+ * than unfinished. See the note on `listItems` in
+ * $lib/server/rich-text-normalize.
+ */
+export type NoteItem = (NoteInline | NoteList)[];
+
+export type NoteBlock = { type: 'p'; runs: NoteInline[] } | NoteList;
 
 /** A whole note: an ordered list of blocks. */
 export type NoteDoc = NoteBlock[];
+
+/**
+ * How deep a note's list nesting may go: 0122's `_notebook_note_list_len` cap,
+ * and therefore the deepest a stored note can be. Carried down by everything
+ * that walks a note -- the projection, the editor round trip, the renderer --
+ * so none of them can be the one that trusts the gate and recurses forever on
+ * a document that reached the table another way.
+ */
+export const NOTE_LIST_MAX_DEPTH = 12;
 
 /**
  * A generous ceiling on a note's PLAIN TEXT, not a formatting budget -- the
@@ -210,20 +244,15 @@ export function deletedNoteThreads(rows: NotebookNoteRow[]): NoteThread[] {
  */
 export { safeHref };
 
-/** Every run in a block, whatever kind it is. */
-function blockRuns(block: NoteBlock): NoteInline[][] {
-	return block.type === 'p' ? [block.runs] : block.items;
-}
-
-/** The note as plain text: one line per block or list item. */
+/**
+ * The note as plain text: one line per block or list item, at every level.
+ *
+ * The walk is shared with the classroom's item bodies ($lib/rich-text-doc),
+ * which is where the reasoning lives -- including why a sublist's items each
+ * get their own line, and why the trim is SQL's rather than JavaScript's.
+ */
 export function docText(doc: NoteDoc): string {
-	const lines: string[] = [];
-	for (const block of doc) {
-		for (const runs of blockRuns(block)) {
-			lines.push(runs.map((r) => r.text).join(''));
-		}
-	}
-	return lines.join('\n').trim();
+	return richDocText(doc, NOTE_LIST_MAX_DEPTH);
 }
 
 export function docIsEmpty(doc: NoteDoc | null | undefined): boolean {
@@ -275,17 +304,37 @@ function paragraph(runs: NoteInline[]): TiptapNode {
 	return content.length ? { type: 'paragraph', content } : { type: 'paragraph' };
 }
 
+/**
+ * One stored list -> the editor's own list, sublists included.
+ *
+ * A LIST ITEM IS `paragraph block*` IN THE EDITOR'S SCHEMA, so the item's own
+ * runs are its paragraph and each sublist follows as a further block of the
+ * same item -- which is exactly where the editor put the sublist that was
+ * normalized into this shape. An item that holds only a sublist round-trips
+ * as an EMPTY paragraph plus that list, which is the arrangement it came from.
+ * Getting this wrong is invisible until someone reopens a note to edit it and
+ * saves it back one level flatter than they wrote it.
+ */
+function listToTiptap(list: NoteList, depth: number): TiptapNode {
+	return {
+		type: list.type === 'ul' ? 'bulletList' : 'orderedList',
+		content: list.items.map((item) => {
+			const { runs, lists } = itemParts(item);
+			return {
+				type: 'listItem',
+				content: [
+					paragraph(runs),
+					...(depth < NOTE_LIST_MAX_DEPTH ? lists.map((sub) => listToTiptap(sub, depth + 1)) : [])
+				]
+			};
+		})
+	};
+}
+
 /** Stored doc -> the editor's own document, for opening an existing note. */
 export function docToTiptap(doc: NoteDoc): TiptapNode {
-	const content: TiptapNode[] = doc.map((block) => {
-		if (block.type === 'p') return paragraph(block.runs);
-		return {
-			type: block.type === 'ul' ? 'bulletList' : 'orderedList',
-			content: block.items.map((item) => ({
-				type: 'listItem',
-				content: [paragraph(item)]
-			}))
-		};
-	});
+	const content: TiptapNode[] = doc.map((block) =>
+		block.type === 'p' ? paragraph(block.runs) : listToTiptap(block, 1)
+	);
 	return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
 }

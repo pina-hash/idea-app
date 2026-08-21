@@ -203,7 +203,14 @@ describe('a paste keeps its structure instead of flattening', () => {
 	// than inside one, which ProseMirror cannot produce -- so it exercised a
 	// branch no real paste reaches, and stayed green for as long as it existed
 	// while every genuine nested list was being concatenated into one item.
-	it('keeps every bullet of a nested list, as its own item, in document order', () => {
+	//
+	// THE EXPECTED SHAPE HAS CHANGED ONCE SINCE, and generalizing rather than
+	// deleting it is why it still bites: b57b61d fixed the concatenation by
+	// SPLICING a sublist's items into the parent list, and this asserted that
+	// flat list of seven items. 0122 widened both gates to hold a sublist, so
+	// the level now survives -- but the property underneath is the same one,
+	// and the assertion below still fails for either older walk.
+	it('keeps every bullet of a nested list, nested where it was written', () => {
 		const written = editorDoc(
 			itemSchema,
 			pmDoc(
@@ -228,15 +235,39 @@ describe('a paste keeps its structure instead of flattening', () => {
 			{
 				type: 'ul',
 				items: [
-					[{ text: 'Materials' }],
-					[{ text: '250 mL beaker' }],
-					[{ text: 'Digital scale' }],
-					[{ text: 'Graduated cylinder' }],
-					[{ text: 'Method' }],
-					[{ text: 'Weigh it' }],
-					[{ text: 'Record it' }]
+					[
+						{ text: 'Materials' },
+						{
+							type: 'ul',
+							items: [
+								[{ text: '250 mL beaker' }],
+								[{ text: 'Digital scale' }],
+								[{ text: 'Graduated cylinder' }]
+							]
+						}
+					],
+					[
+						{ text: 'Method' },
+						{ type: 'ol', items: [[{ text: 'Weigh it' }], [{ text: 'Record it' }]] }
+					]
 				]
 			}
+		]);
+		// The outer list has TWO items. Seven was the interim splice; one was
+		// the concatenation before it.
+		const list = ok(written)[0] as { items: unknown[] };
+		expect(list.items).toHaveLength(2);
+		// And every bullet is still readable, in document order, in the text
+		// projection -- which is the part a reader of `body` sees and the part
+		// neither older walk got right.
+		expect(docText(ok(written)).split('\n')).toEqual([
+			'Materials',
+			'250 mL beaker',
+			'Digital scale',
+			'Graduated cylinder',
+			'Method',
+			'Weigh it',
+			'Record it'
 		]);
 	});
 

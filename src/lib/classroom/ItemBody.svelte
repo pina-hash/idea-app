@@ -1,5 +1,14 @@
 <script lang="ts">
-	import { itemBodyDoc, safeHref, type ItemDoc, type ItemInline } from '$lib/classroom/classroom-doc';
+	import {
+		ITEM_LIST_MAX_DEPTH,
+		itemBodyDoc,
+		safeHref,
+		type ItemDoc,
+		type ItemInline,
+		type ItemItem,
+		type ItemList
+	} from '$lib/classroom/classroom-doc';
+	import { itemParts } from '$lib/rich-text-doc';
 
 	/**
 	 * The ONE way a classroom item's body is rendered anywhere in this app.
@@ -20,6 +29,13 @@
 	 *
 	 * A link whose target does not survive that third check renders as plain text
 	 * rather than vanishing: the teacher's words are theirs either way.
+	 *
+	 * IT RECURSES, AND IT CARRIES THE CAP DOWN (0122). A list item may hold a
+	 * sublist, so `list` and `listItem` below call each other; the depth is
+	 * passed rather than read from the document, and a level past
+	 * ITEM_LIST_MAX_DEPTH is not rendered. The gate refuses a deeper body, but
+	 * a renderer that trusts the gate is a renderer that hangs the day
+	 * something reaches the table another way.
 	 *
 	 * TAKES THE ITEM, NOT THE DOC, on purpose. `itemBodyDoc` is what falls back
 	 * to the plain-text body when `body_doc` is absent -- an item authored before
@@ -63,6 +79,30 @@
 	{/each}
 {/snippet}
 
+{#snippet listItem(entry: ItemItem, depth: number)}
+	{@const parts = itemParts(entry)}
+	{@render runs(parts.runs)}
+	{#each parts.lists as sub, k (k)}
+		{#if depth < ITEM_LIST_MAX_DEPTH}{@render list(sub, depth + 1)}{/if}
+	{/each}
+{/snippet}
+
+{#snippet list(block: ItemList, depth: number)}
+	{#if block.type === 'ul'}
+		<ul>
+			{#each block.items as entry, j (j)}
+				<li>{@render listItem(entry, depth)}</li>
+			{/each}
+		</ul>
+	{:else}
+		<ol>
+			{#each block.items as entry, j (j)}
+				<li>{@render listItem(entry, depth)}</li>
+			{/each}
+		</ol>
+	{/if}
+{/snippet}
+
 <div class="item-body" class:compact>
 	{#each doc as block, i (i)}
 		{#if block.type === 'p'}
@@ -71,18 +111,8 @@
 			<h3>{@render runs(block.runs)}</h3>
 		{:else if block.type === 'h4'}
 			<h4>{@render runs(block.runs)}</h4>
-		{:else if block.type === 'ul'}
-			<ul>
-				{#each block.items as entry, j (j)}
-					<li>{@render runs(entry)}</li>
-				{/each}
-			</ul>
 		{:else}
-			<ol>
-				{#each block.items as entry, j (j)}
-					<li>{@render runs(entry)}</li>
-				{/each}
-			</ol>
+			{@render list(block, 1)}
 		{/if}
 	{/each}
 </div>
@@ -107,6 +137,13 @@
 	.item-body ul,
 	.item-body ol {
 		padding-left: 1.4rem;
+	}
+	/* A sublist sits INSIDE its item, so it takes the item's own leading rather
+	   than a block's trailing gap -- the 0.7rem bottom margin above would open
+	   a hole between the sublist and the next bullet of the list it is inside. */
+	.item-body li > ul,
+	.item-body li > ol {
+		margin: 0.15rem 0 0;
 	}
 	.item-body li {
 		margin: 0.15rem 0;

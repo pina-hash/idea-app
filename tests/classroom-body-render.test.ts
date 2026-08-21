@@ -80,7 +80,11 @@ const CHAIN = [
 	'0085_classroom_canonical_items.sql',
 	'0090_classroom_instructor_materials.sql',
 	'0104_classroom_edit_visibility.sql',
-	'0108_classroom_rich_body.sql'
+	'0108_classroom_rich_body.sql',
+	// The gate that accepts a nested list. Without it the RPC below refuses the
+	// document the normalizer now produces, which is the deploy-ordering rule
+	// this repo states in reverse: the gate goes first, always.
+	'0122_rich_text_nested_lists.sql'
 ];
 
 // ---------------------------------------------------------------------------
@@ -116,10 +120,9 @@ const EDITOR_DOC = editorDoc(
 		pmBullets(
 			pmItem(pmPara(pmText('A ruler'))),
 			// WHERE A NESTED LIST REALLY LIVES: inside the list item above it, as
-			// a second block of that item (`listItem` is `paragraph block*`). The
-			// documented rule is that it flattens into MORE ITEMS OF ITS PARENT --
-			// indentation is out of scope for the stored shape, and losing a level
-			// reads better than losing the text.
+			// a second block of that item (`listItem` is `paragraph block*`). Since
+			// 0122 the stored shape can hold it there too, so the level survives
+			// the whole way down to the markup below.
 			pmItem(pmPara(pmText('Graph paper')), pmBullets(pmItem(pmPara(pmText('Sharp pencil')))))
 		),
 		pmNumbers(
@@ -168,7 +171,13 @@ const EXPECTED_DOC: ItemDoc = [
 	{ type: 'h4', runs: [{ text: 'Bring' }] },
 	{
 		type: 'ul',
-		items: [[{ text: 'A ruler' }], [{ text: 'Graph paper' }], [{ text: 'Sharp pencil' }]]
+		items: [
+			[{ text: 'A ruler' }],
+			// The sublist is stored INSIDE the item it hangs off, not as a third
+			// item of this list -- which is what it was until 0122 widened the
+			// gate and the walk was taught to fill the wider shape.
+			[{ text: 'Graph paper' }, { type: 'ul', items: [[{ text: 'Sharp pencil' }]] }]
+		]
 	},
 	{
 		type: 'ol',
@@ -263,17 +272,21 @@ describe('the item body, editor JSON to rendered markup', () => {
 
 		it('renders the bulleted list as a real <ul> with one <li> per item', () => {
 			expect(html).toContain('<li');
-			const ul = html.match(/<ul[^>]*>([\s\S]*?)<\/ul>/);
+			// The OUTER list has two items, and the second one CONTAINS the
+			// sublist rather than being followed by it. Matched non-greedily
+			// from the outer <ul> to the LAST </ul> so the nested list is inside
+			// the span being read, which is the whole difference this asserts.
+			const ul = html.match(/<ul[^>]*>([\s\S]*)<\/ul>/);
 			expect(ul).not.toBeNull();
-			expect([...ul![1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => m[1].trim())).toEqual([
-				'A ruler',
-				'Graph paper',
-				// The sublist that hangs off 'Graph paper', flattened into a THIRD
-				// item of the same list. Every bullet the teacher wrote survives as
-				// its own line; only the indentation is gone, which is what the
-				// stored shape cannot express yet.
-				'Sharp pencil'
-			]);
+			expect(ul![1]).toMatch(/Graph paper[\s\S]*<ul[^>]*>[\s\S]*Sharp pencil/);
+			// Two <ul>, one nested inside the other; five <li> in the document,
+			// three in the bulleted pair and two in the numbered list below it.
+			expect([...html.matchAll(/<ul/g)]).toHaveLength(2);
+			expect([...html.matchAll(/<li/g)]).toHaveLength(5);
+			// And the sublist's own item is not a sibling of 'A ruler': the
+			// outer list closes only after the inner one has.
+			expect(html.indexOf('Sharp pencil')).toBeGreaterThan(html.indexOf('Graph paper'));
+			expect(html.lastIndexOf('</ul>')).toBeGreaterThan(html.indexOf('Sharp pencil'));
 		});
 
 		it('renders the numbered list as a real <ol>, keeping the mark inside an item', () => {
@@ -314,6 +327,9 @@ describe('the item body, editor JSON to rendered markup', () => {
 				'ul',
 				'li',
 				'li',
+				// The sublist OPENS INSIDE the second <li>, which is what says
+				// this is nesting rather than three flat bullets.
+				'ul',
 				'li',
 				'ol',
 				'li',

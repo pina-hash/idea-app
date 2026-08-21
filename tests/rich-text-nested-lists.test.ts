@@ -23,11 +23,22 @@
 //     "cycle" can be here, and the depth check is the only thing that answers
 //     it. It must answer `false`, not a stack error.
 //
-// WHERE THE FIXTURES COME FROM. Every ACCEPTED flat document below is produced
-// by running the REAL normalizer (`normalizeNoteDoc`, `itemBodyColumns`) over a
-// ProseMirror document built through the REAL editor schema in
-// rich-text-fixtures.ts. A gate test whose "currently stored shape" was typed
-// out by hand is a test of what someone believed the normalizer emits.
+// WHERE THE FIXTURES COME FROM, AND WHY THEY ARE NOW A RECORDING. Every
+// ACCEPTED flat document below was produced by running the REAL normalizer
+// (`normalizeNoteDoc`, `itemBodyColumns`) over a ProseMirror document built
+// through the REAL editor schema in rich-text-fixtures.ts. A gate test whose
+// "currently stored shape" was typed out by hand is a test of what someone
+// believed the normalizer emits.
+//
+// It is read from tests/fixtures/flat-stored-corpus.json rather than produced
+// live, and the difference is the whole point of the parity assertion. This
+// file's central claim is about documents that were ALREADY STORED when 0122
+// was applied -- which is, by definition, whatever the FLATTENING normalizer
+// emitted. The bundle after 0122 taught that normalizer to nest, so a live
+// call now returns documents the DEPLOYED gate would rightly have refused, and
+// comparing those two answers would prove nothing about the rows in the table.
+// The fixture was generated mechanically from the shipping source at the
+// commit before that change, and must not be regenerated from a later one.
 //
 // The REFUSED documents are hand-written, and that is correct here rather than
 // a lapse: this gate exists precisely because both RPC families are granted to
@@ -80,10 +91,11 @@
 // migration of its own with its own answer for what to do about rows already
 // stored.
 //
-// NOT COVERED HERE, and stated rather than left silent: nothing renders a
-// nested list yet, on either side, because nothing can emit one. This file
-// asserts what the DATABASE accepts and what it derives; the renderer and the
-// normalizer are the next bundle and are untouched by this one.
+// NOT COVERED HERE, and stated rather than left silent: this file asserts what
+// the DATABASE accepts and what it derives, and nothing else. The walk that
+// EMITS a nested list, the projections, the editor round trip and the two
+// renderers are the bundle after this one, and their proof is
+// tests/rich-text-nesting.test.ts.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -136,6 +148,18 @@ const ITEM_CHAIN = [
 	'0109_classroom_scheduled_posting.sql',
 	'0110_classroom_content_revisions.sql'
 ] as const;
+
+/**
+ * WHAT THE FLATTENING NORMALIZER EMITTED, recorded rather than recomputed.
+ * See the header: this is the corpus of documents that could actually have
+ * been in the table when 0122 was applied.
+ */
+const FLAT_STORED = JSON.parse(
+	readFileSync(new URL('./fixtures/flat-stored-corpus.json', import.meta.url), 'utf8')
+) as {
+	notes: { label: string; doc: unknown }[];
+	items: { label: string; doc: unknown; body: string }[];
+};
 
 const MIGRATION_0122 = readFileSync(
 	join(
@@ -220,78 +244,6 @@ interface Case {
 	 */
 	want?: boolean;
 }
-
-/** Editor documents both schemas can hold, so one set feeds both normalizers. */
-const SHARED_EDITOR_DOCS: { label: string; json: unknown }[] = [
-	{ label: 'one plain paragraph', json: pmDoc(pmPara(pmText('Bench notes for today.'))) },
-	{
-		label: 'marks and a safe link',
-		json: pmDoc(
-			pmPara(
-				pmText('Plain '),
-				pmText('bold', [pmBold]),
-				pmText(' and '),
-				pmText('italic', [pmItalic]),
-				pmText(' and '),
-				pmText('a link', [pmLink('https://example.com/a?b=c')])
-			)
-		)
-	},
-	{
-		label: 'a bulleted list',
-		json: pmDoc(
-			pmBullets(
-				pmItem(pmPara(pmText('250 mL beaker'))),
-				pmItem(pmPara(pmText('Digital scale'))),
-				pmItem(pmPara(pmText('Graduated cylinder')))
-			)
-		)
-	},
-	{
-		label: 'a numbered list',
-		json: pmDoc(
-			pmNumbers(pmItem(pmPara(pmText('Zero the scale'))), pmItem(pmPara(pmText('Mass the beaker'))))
-		)
-	},
-	{
-		label: 'a list with a sublist, which the normalizer FLATTENS today',
-		json: pmDoc(
-			pmBullets(
-				pmItem(
-					pmPara(pmText('Materials')),
-					pmBullets(
-						pmItem(pmPara(pmText('250 mL beaker'))),
-						pmItem(pmPara(pmText('Digital scale')))
-					)
-				),
-				pmItem(pmPara(pmText('Method')))
-			)
-		)
-	},
-	{
-		label: 'a list item holding two paragraphs',
-		json: pmDoc(
-			pmBullets(pmItem(pmPara(pmText('First half')), pmPara(pmText('Second half'))))
-		)
-	},
-	{
-		label: 'paragraphs around a list',
-		json: pmDoc(
-			pmPara(pmText('Before.')),
-			pmBullets(pmItem(pmPara(pmText('Middle')))),
-			pmPara(pmText('After.'))
-		)
-	}
-];
-
-/** Documents only the item schema can hold. */
-const ITEM_ONLY_EDITOR_DOCS: { label: string; json: unknown }[] = [
-	{ label: 'an h3', json: pmDoc(pmHeading(3, pmText('Safety'))) },
-	{
-		label: 'an h4 above a list',
-		json: pmDoc(pmHeading(4, pmText('Steps')), pmBullets(pmItem(pmPara(pmText('Measure')))))
-	}
-];
 
 /**
  * Stored documents that must be REFUSED. Hand-written because this gate's real
@@ -460,11 +412,11 @@ describe('0122 over the notebook note gate', () => {
 			teacherEmail: teacher.email
 		});
 
-		producible = SHARED_EDITOR_DOCS.map(({ label, json }) => {
-			const result = normalizeNoteDoc(editorDoc(noteSchema, json));
-			if (!result.ok) throw new Error(`fixture "${label}" refused by the normalizer: ${result.error}`);
-			return { label: `producible: ${label}`, doc: result.doc, want: true };
-		});
+		producible = FLAT_STORED.notes.map(({ label, doc }) => ({
+			label: `producible: ${label}`,
+			doc,
+			want: true
+		}));
 
 		corpus = [
 			...producible,
@@ -736,11 +688,11 @@ describe('0122 over the classroom item-body gate', () => {
 			return rows[0].result.section_id;
 		});
 
-		producible = [...SHARED_EDITOR_DOCS, ...ITEM_ONLY_EDITOR_DOCS].map(({ label, json }) => {
-			const shaped = itemBodyColumns(editorDoc(itemSchema, json));
-			if (!shaped.ok) throw new Error(`fixture "${label}" refused by the normalizer: ${shaped.error}`);
-			return { label: `producible: ${label}`, doc: shaped.doc, want: true };
-		});
+		producible = FLAT_STORED.items.map(({ label, doc }) => ({
+			label: `producible: ${label}`,
+			doc,
+			want: true
+		}));
 
 		corpus = [
 			...producible,
@@ -756,10 +708,8 @@ describe('0122 over the classroom item-body gate', () => {
 		];
 
 		seededItems = [];
-		for (const { label, json } of [...SHARED_EDITOR_DOCS, ...ITEM_ONLY_EDITOR_DOCS]) {
-			const shaped = itemBodyColumns(editorDoc(itemSchema, json));
-			if (!shaped.ok) throw new Error(`fixture "${label}" refused: ${shaped.error}`);
-			const itemId = await createItem(shaped.doc, shaped.body);
+		for (const { doc, body } of FLAT_STORED.items) {
+			const itemId = await createItem(doc, body);
 			const { rows } = await db.sql<{ body: string; body_doc: unknown }>(
 				'select body, body_doc from public.classroom_items where id = $1',
 				[itemId]
@@ -806,7 +756,7 @@ describe('0122 over the classroom item-body gate', () => {
 		for (const seeded of seededItems) {
 			expect(await docText(seeded.doc), `projection for item ${seeded.itemId}`).toBe(seeded.body);
 		}
-		expect(seededItems.length).toBe(SHARED_EDITOR_DOCS.length + ITEM_ONLY_EDITOR_DOCS.length);
+		expect(seededItems.length).toBe(FLAT_STORED.items.length);
 		expect(seededItems.some((s) => s.body.includes('\n'))).toBe(true);
 	});
 

@@ -78,3 +78,87 @@ export const pmLink = (href: string) => ({ type: 'link', attrs: { href } });
 export const pmItem = (...content: unknown[]) => ({ type: 'listItem', content });
 export const pmBullets = (...content: unknown[]) => ({ type: 'bulletList', content });
 export const pmNumbers = (...content: unknown[]) => ({ type: 'orderedList', content });
+
+// --- The editor-document corpus -------------------------------------------
+//
+// One set of documents both normalizers are driven with, so a construct is
+// never covered on one side and forgotten on the other. Lifted out of
+// tests/rich-text-nested-lists.test.ts, which declared it inline and is now one
+// of three readers: the gate parity sweep, the golden flat corpus that pins
+// what the FLATTENING normalizer emitted (tests/fixtures/flat-stored-corpus.json),
+// and the nesting pipeline proof.
+//
+// EVERY ENTRY IS BUILT THROUGH THE REAL SCHEMA at the point of use, by
+// `editorDoc`, so nothing here can be a document ProseMirror could not hold.
+
+/** Editor documents both schemas can hold, so one set feeds both normalizers. */
+export const SHARED_EDITOR_DOCS: { label: string; json: unknown }[] = [
+	{ label: 'one plain paragraph', json: pmDoc(pmPara(pmText('Bench notes for today.'))) },
+	{
+		label: 'marks and a safe link',
+		json: pmDoc(
+			pmPara(
+				pmText('Plain '),
+				pmText('bold', [pmBold]),
+				pmText(' and '),
+				pmText('italic', [pmItalic]),
+				pmText(' and '),
+				pmText('a link', [pmLink('https://example.com/a?b=c')])
+			)
+		)
+	},
+	{
+		label: 'a bulleted list',
+		json: pmDoc(
+			pmBullets(
+				pmItem(pmPara(pmText('250 mL beaker'))),
+				pmItem(pmPara(pmText('Digital scale'))),
+				pmItem(pmPara(pmText('Graduated cylinder')))
+			)
+		)
+	},
+	{
+		label: 'a numbered list',
+		json: pmDoc(
+			pmNumbers(pmItem(pmPara(pmText('Zero the scale'))), pmItem(pmPara(pmText('Mass the beaker'))))
+		)
+	},
+	{
+		label: 'a list with a sublist',
+		json: pmDoc(
+			pmBullets(
+				pmItem(
+					pmPara(pmText('Materials')),
+					pmBullets(
+						pmItem(pmPara(pmText('250 mL beaker'))),
+						pmItem(pmPara(pmText('Digital scale')))
+					)
+				),
+				pmItem(pmPara(pmText('Method')))
+			)
+		)
+	},
+	{
+		label: 'a list item holding two paragraphs',
+		json: pmDoc(
+			pmBullets(pmItem(pmPara(pmText('First half')), pmPara(pmText('Second half'))))
+		)
+	},
+	{
+		label: 'paragraphs around a list',
+		json: pmDoc(
+			pmPara(pmText('Before.')),
+			pmBullets(pmItem(pmPara(pmText('Middle')))),
+			pmPara(pmText('After.'))
+		)
+	}
+];
+
+/** Documents only the item schema can hold. */
+export const ITEM_ONLY_EDITOR_DOCS: { label: string; json: unknown }[] = [
+	{ label: 'an h3', json: pmDoc(pmHeading(3, pmText('Safety'))) },
+	{
+		label: 'an h4 above a list',
+		json: pmDoc(pmHeading(4, pmText('Steps')), pmBullets(pmItem(pmPara(pmText('Measure')))))
+	}
+];

@@ -479,6 +479,11 @@ with its own answer for the rows already stored.
   `do $$` block instead. A blind drop-then-add raises `2BP01` on the second run.
 - **Postgres `round()` is half-up (away from zero), not banker's rounding**, and
   agrees with JS `Math.round()` at ties for positive inputs.
+- **`btrim(x)` with no second argument strips SPACES ONLY, where JavaScript's
+  `trim()` also strips newlines and tabs.** A TypeScript mirror of a SQL
+  projection that ends in `btrim` must not spell it `trim()`: the two agree until
+  the first value whose first or last line is blank, and then the client and the
+  column disagree with nothing to say so.
 - **A volatile expression like `now()` cannot appear in an index predicate**, so
   "currently active" cannot be a partial unique index on its own; pair
   `revoked_at is null` in the index with a lazily-stamped close on the row.
@@ -539,8 +544,9 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A pure, client-safe registry per subsystem** holds plain data and pure helpers
   with no `?raw`, no `$lib/legacy`, no three.js, no Svelte: `curriculum.ts`,
   `portal-apps.ts`, `pathways.ts`, `gauntlet.ts`, `tracks.ts`, `abilities.ts`,
-  `combat.ts`, `feed.ts`, `track-runtime.ts`, `rich-text-schema.ts`. Pure layers are
-  what make arithmetic testable without a browser.
+  `combat.ts`, `feed.ts`, `track-runtime.ts`, `rich-text-schema.ts`,
+  `rich-text-doc.ts`. Pure layers are what make arithmetic testable without a
+  browser.
 - **Data says WHERE the limits are, never HOW they are enforced.** A track file states
   its boundaries; the runtime decides whether that is a soft wall, a drag penalty or a
   local clamp. Keep the enforcement policy in code, out of the data format.
@@ -853,6 +859,28 @@ inside the function fails closed rather than falling through to a weaker path.
     deal for the plain-text projection. Note the mismatch in a comment; do NOT
     rename it, because ~90 applied references resolve it BY NAME (the
     `is_teacher()` trap).
+- **A STORED LIST ITEM IS `( run | list )*`, AND `type` IS A TOTAL
+  DISCRIMINATOR** (0122). A run cannot carry a `type` and never could, so a
+  nested list needs no vocabulary of its own and every document stored before it
+  is the case with no list in it -- there is no legacy branch to keep. Only
+  `ul`/`ol` nest; a `p` inside an item would give an item's own text two
+  spellings. **A LIST ITEM CANNOT HOLD TWO PARAGRAPHS, deliberately** -- each
+  paragraph becomes its own item -- because the alternative vocabulary (an item
+  holding blocks) would make every item stored to date a legacy shape that
+  `notebook_entry_notes`, being append-only with no UPDATE grant, could never be
+  migrated out of. Do not "fix" that limit.
+  - **EVERYTHING THAT WALKS A STORED DOCUMENT RECURSES AND CARRIES THE CAP
+    DOWN**: the plain-text projections, both `docToTiptap`s and both renderers.
+    A renderer that trusts the gate is a renderer that hangs the day something
+    reaches the table another way. The walk itself is ONE shared module
+    (`src/lib/rich-text-doc.ts`), parameterized by the cap, for the same reason
+    `$lib/server/rich-text-normalize.ts` is shared one direction earlier.
+  - **THE TypeScript `docText` IS A MIRROR OF `_classroom_doc_text`, NOT AN
+    INDEPENDENT PROJECTION.** The write RPCs derive `classroom_items.body` from
+    the document with the SQL function and IGNORE a caller's `p_body`, so any
+    difference is a client contradicting the column the stream, the feed and the
+    export read. Assert them against each other on the same corpus, corners
+    included.
 - **`safeHref` has ONE implementation** (`src/lib/rich-text.ts`), re-checked at
   RENDER time as well as on write. An unsafe link keeps its TEXT and loses its
   href -- the writing is theirs either way.

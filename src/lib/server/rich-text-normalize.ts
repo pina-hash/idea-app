@@ -28,6 +28,7 @@
  */
 
 import { safeHref, type TiptapNode } from '$lib/rich-text';
+import type { RichItem, RichList } from '$lib/rich-text-doc';
 
 /**
  * One run of inline text. Structurally the SAME thing `NoteInline` and
@@ -42,10 +43,19 @@ export interface RichInline {
 	href?: string;
 }
 
+/**
+ * A list item, and a list, in the shape both closed contracts store (0122).
+ *
+ * IMPORTED RATHER THAN RESTATED. `RichItem`/`RichList` are the same grammar
+ * $lib/rich-text-doc walks on the way back out, and a third declaration of
+ * "what may sit in a list item" is a third thing to widen next time.
+ */
+export type { RichItem, RichList };
+
 /** A block, loose enough for both closed shapes. Cast to one at the door. */
 export type RichBlock =
 	| { type: string; runs: RichInline[] }
-	| { type: string; items: RichInline[][] };
+	| { type: string; items: RichItem[] };
 
 export interface RichWalkOptions {
 	/**
@@ -172,87 +182,118 @@ function isList(node: TiptapNode): boolean {
 	return node.type === 'bulletList' || node.type === 'orderedList';
 }
 
-/** One node's whole text as an item, appended only if there is any. */
-function pushItem(
-	items: RichInline[][],
-	node: TiptapNode,
-	depth: number,
-	opts: RichWalkOptions
-): void {
+/** One node's whole text, trimmed, as a list item's own runs. */
+function ownRuns(node: TiptapNode, depth: number, opts: RichWalkOptions): RichInline[] {
 	const runs: RichInline[] = [];
 	collectRuns(node, runs, depth, opts);
-	const trimmed = trimRuns(runs);
-	if (trimmed.length) items.push(trimmed);
+	return trimRuns(runs);
 }
 
 /**
- * A list's items: one run list each, with nested lists flattened in place.
+ * A list node -> the stored list, or null when nothing survived the walk.
+ *
+ * A list that normalizes to no items at all is not stored as an empty list:
+ * an empty `ul` renders as nothing, projects to nothing, and is only ever the
+ * residue of content that was dropped somewhere below.
+ */
+function listFrom(node: TiptapNode, depth: number, opts: RichWalkOptions): RichList | null {
+	const items = listItems(node, depth, opts);
+	if (!items.length) return null;
+	return { type: node.type === 'bulletList' ? 'ul' : 'ol', items };
+}
+
+/**
+ * A list's items: each item's own runs, with any sublist NESTED INSIDE the
+ * item it hangs off.
  *
  * WHERE A NESTED LIST ACTUALLY LIVES. Under the ProseMirror schema both
  * editors are configured with, a list's content is `listItem+` and a list
  * item's is `paragraph block*` -- so a sublist is a child of the LIST ITEM
- * above it, never a sibling of it. The version this replaces tested the list's
- * direct children for `bulletList`/`orderedList`, which no editor output can
- * satisfy, so every real nested list fell through to a single `collectRuns`
- * over the whole list item. That walk reaches the sublist's text too and
- * `pushRun` joins same-mark runs, so two items each holding a three-item
- * sublist came out as two items reading
+ * above it, never a sibling of it. An earlier version tested the list's direct
+ * children for `bulletList`/`orderedList`, which no editor output can satisfy,
+ * so every real nested list fell through to a single `collectRuns` over the
+ * whole list item. That walk reaches the sublist's text too and `pushRun`
+ * joins same-mark runs, so two items each holding a three-item sublist came
+ * out as two items reading
  * "Materials250 mL beakerDigital scaleGraduated cylinder". Silently, on save,
  * with nothing to see until somebody read it back.
  *
  * So the walk descends INTO the list item and emits, in document order: the
- * item's own blocks, each as its own item, and each nested list's items
- * spliced in after them. Text is never joined across a list-item boundary, and
- * a bullet can no longer disappear into the one above it.
+ * item's own blocks, each as its own item, and each nested list attached to
+ * the item it followed. b57b61d fixed the data loss by SPLICING a sublist's
+ * items into the parent as siblings, which cost the indentation the author
+ * wrote; 0122 widened both storage gates to hold a sublist, and this is the
+ * walk that fills that shape.
  *
- * INDENTATION IS STILL LOST IN THIS PASS -- a sublist's items become more
- * items of the same flat list, because the stored shape (`ul`/`ol` with one
- * run list per item) has no way to express a level. That is a deliberate
- * INTERIM: real nesting needs a wider stored shape, a wider SQL gate on both
- * sides and a renderer that can nest, which is its own bundle. What this fixes
- * is the DATA LOSS -- every bullet the author wrote survives as its own
- * readable item.
+ * THE ITEM A SUBLIST BELONGS TO IS THE LAST ONE EMITTED BEFORE IT, which is
+ * document order and nothing cleverer: the nesting hangs off the text
+ * immediately above it. A `listItem` whose sublist has no text before it at
+ * all -- an empty bullet holding an indented list, which a paste can carry --
+ * becomes an item of its own holding only that list, so the level survives
+ * rather than being hoisted into its parent.
+ *
+ * A LIST ITEM STILL CANNOT HOLD TWO PARAGRAPHS. `paragraph block*` says an
+ * editor can produce one, and each paragraph becomes ITS OWN ITEM here rather
+ * than being joined -- joining them is the same defect one level down. 0122
+ * rejected the block-item vocabulary that would have expressed it (an item
+ * holding blocks, with the item's own text wrapped in a `p`) DELIBERATELY:
+ * `notebook_entry_notes` is append-only with no UPDATE grant, so every item
+ * stored to date would have become a second, legacy vocabulary that no
+ * migration respecting that table could ever retire, and both the gate and
+ * the renderer would carry "run list or block list?" forever. This limit is
+ * the price of there being one spelling. Do not "fix" it back.
  *
  * The sibling-list branch below is kept as pure defensiveness: it is not
  * something either editor can produce, but this function's input is arbitrary
  * untrusted JSON and a hand-written document can carry one.
  */
-export function listItems(
-	node: TiptapNode,
-	depth: number,
-	opts: RichWalkOptions
-): RichInline[][] {
-	const items: RichInline[][] = [];
+export function listItems(node: TiptapNode, depth: number, opts: RichWalkOptions): RichItem[] {
+	const items: RichItem[] = [];
 	if (depth > opts.maxDepth) return items;
 
 	for (const child of Array.isArray(node.content) ? node.content : []) {
 		if (!child || typeof child !== 'object') continue;
 
 		// A list directly inside a list: not editor output, but possible in
-		// hand-written JSON. Its items join this list's.
+		// hand-written JSON. It is a level of its own, so it becomes an item
+		// holding that level rather than being merged into this one.
 		if (isList(child)) {
-			items.push(...listItems(child, depth + 1, opts));
+			const sub = listFrom(child, depth + 1, opts);
+			if (sub) items.push([sub]);
 			continue;
 		}
 
 		if (child.type === 'listItem') {
+			/** The item a sublist attaches to: the last one this listItem emitted. */
+			let current: RichItem | null = null;
 			for (const grandchild of Array.isArray(child.content) ? child.content : []) {
 				if (!grandchild || typeof grandchild !== 'object') continue;
+
 				if (isList(grandchild)) {
-					items.push(...listItems(grandchild, depth + 2, opts));
+					// `depth + 2`: one ProseMirror level for the listItem, one for
+					// the list itself, which is why a normalizer capped at 12 tree
+					// levels emits about six list levels and the gate that accepts
+					// twelve is comfortably wider than anything this can produce.
+					const sub = listFrom(grandchild, depth + 2, opts);
+					if (!sub) continue;
+					if (current) current.push(sub);
+					else items.push([sub]);
 					continue;
 				}
-				// Each of the item's OWN blocks is its own item. A list item can
-				// legitimately hold more than one paragraph (`paragraph block*`),
-				// and joining those would be the same defect one level down.
-				pushItem(items, grandchild, depth + 2, opts);
+
+				const runs = ownRuns(grandchild, depth + 2, opts);
+				if (runs.length) {
+					current = [...runs];
+					items.push(current);
+				}
 			}
 			continue;
 		}
 
 		// Anything else sitting directly in a list contributes its text as one
 		// item, the same way an out-of-scope block does anywhere else.
-		pushItem(items, child, depth + 1, opts);
+		const runs = ownRuns(child, depth + 1, opts);
+		if (runs.length) items.push(runs);
 	}
 
 	return items;
@@ -276,8 +317,8 @@ export function richBlocksFrom<Block extends RichBlock>(
 		if (!node || typeof node !== 'object' || typeof node.type !== 'string') continue;
 
 		if (isList(node)) {
-			const items = listItems(node, depth + 1, opts);
-			if (items.length) blocks.push({ type: node.type === 'bulletList' ? 'ul' : 'ol', items });
+			const list = listFrom(node, depth + 1, opts);
+			if (list) blocks.push(list);
 			continue;
 		}
 

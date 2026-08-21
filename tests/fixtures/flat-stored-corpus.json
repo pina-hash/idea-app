@@ -1,0 +1,392 @@
+{
+	"_": "GOLDEN. What the FLATTENING normalizer emitted for tests/rich-text-fixtures.ts's SHARED_EDITOR_DOCS / ITEM_ONLY_EDITOR_DOCS, generated mechanically from the shipping source at commit 7419b2d (normalizeNoteDoc / itemBodyColumns over editorDoc(schema, json)), immediately before the nesting bundle changed it. It is the corpus of documents that were ACTUALLY STORABLE before nesting existed, which is what 0122's parity assertion is a claim about. Do not regenerate it from the current normalizer: that would make the parity check compare the widened gate against documents the deployed gate never saw.",
+	"notes": [
+		{
+			"label": "one plain paragraph",
+			"doc": [
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "Bench notes for today."
+						}
+					]
+				}
+			]
+		},
+		{
+			"label": "marks and a safe link",
+			"doc": [
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "Plain "
+						},
+						{
+							"text": "bold",
+							"bold": true
+						},
+						{
+							"text": " and "
+						},
+						{
+							"text": "italic",
+							"italic": true
+						},
+						{
+							"text": " and "
+						},
+						{
+							"text": "a link",
+							"href": "https://example.com/a?b=c"
+						}
+					]
+				}
+			]
+		},
+		{
+			"label": "a bulleted list",
+			"doc": [
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "250 mL beaker"
+							}
+						],
+						[
+							{
+								"text": "Digital scale"
+							}
+						],
+						[
+							{
+								"text": "Graduated cylinder"
+							}
+						]
+					]
+				}
+			]
+		},
+		{
+			"label": "a numbered list",
+			"doc": [
+				{
+					"type": "ol",
+					"items": [
+						[
+							{
+								"text": "Zero the scale"
+							}
+						],
+						[
+							{
+								"text": "Mass the beaker"
+							}
+						]
+					]
+				}
+			]
+		},
+		{
+			"label": "a list with a sublist",
+			"doc": [
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "Materials"
+							}
+						],
+						[
+							{
+								"text": "250 mL beaker"
+							}
+						],
+						[
+							{
+								"text": "Digital scale"
+							}
+						],
+						[
+							{
+								"text": "Method"
+							}
+						]
+					]
+				}
+			]
+		},
+		{
+			"label": "a list item holding two paragraphs",
+			"doc": [
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "First half"
+							}
+						],
+						[
+							{
+								"text": "Second half"
+							}
+						]
+					]
+				}
+			]
+		},
+		{
+			"label": "paragraphs around a list",
+			"doc": [
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "Before."
+						}
+					]
+				},
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "Middle"
+							}
+						]
+					]
+				},
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "After."
+						}
+					]
+				}
+			]
+		}
+	],
+	"items": [
+		{
+			"label": "one plain paragraph",
+			"doc": [
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "Bench notes for today."
+						}
+					]
+				}
+			],
+			"body": "Bench notes for today."
+		},
+		{
+			"label": "marks and a safe link",
+			"doc": [
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "Plain "
+						},
+						{
+							"text": "bold",
+							"bold": true
+						},
+						{
+							"text": " and "
+						},
+						{
+							"text": "italic",
+							"italic": true
+						},
+						{
+							"text": " and "
+						},
+						{
+							"text": "a link",
+							"href": "https://example.com/a?b=c"
+						}
+					]
+				}
+			],
+			"body": "Plain bold and italic and a link"
+		},
+		{
+			"label": "a bulleted list",
+			"doc": [
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "250 mL beaker"
+							}
+						],
+						[
+							{
+								"text": "Digital scale"
+							}
+						],
+						[
+							{
+								"text": "Graduated cylinder"
+							}
+						]
+					]
+				}
+			],
+			"body": "250 mL beaker\nDigital scale\nGraduated cylinder"
+		},
+		{
+			"label": "a numbered list",
+			"doc": [
+				{
+					"type": "ol",
+					"items": [
+						[
+							{
+								"text": "Zero the scale"
+							}
+						],
+						[
+							{
+								"text": "Mass the beaker"
+							}
+						]
+					]
+				}
+			],
+			"body": "Zero the scale\nMass the beaker"
+		},
+		{
+			"label": "a list with a sublist",
+			"doc": [
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "Materials"
+							}
+						],
+						[
+							{
+								"text": "250 mL beaker"
+							}
+						],
+						[
+							{
+								"text": "Digital scale"
+							}
+						],
+						[
+							{
+								"text": "Method"
+							}
+						]
+					]
+				}
+			],
+			"body": "Materials\n250 mL beaker\nDigital scale\nMethod"
+		},
+		{
+			"label": "a list item holding two paragraphs",
+			"doc": [
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "First half"
+							}
+						],
+						[
+							{
+								"text": "Second half"
+							}
+						]
+					]
+				}
+			],
+			"body": "First half\nSecond half"
+		},
+		{
+			"label": "paragraphs around a list",
+			"doc": [
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "Before."
+						}
+					]
+				},
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "Middle"
+							}
+						]
+					]
+				},
+				{
+					"type": "p",
+					"runs": [
+						{
+							"text": "After."
+						}
+					]
+				}
+			],
+			"body": "Before.\nMiddle\nAfter."
+		},
+		{
+			"label": "an h3",
+			"doc": [
+				{
+					"type": "h3",
+					"runs": [
+						{
+							"text": "Safety"
+						}
+					]
+				}
+			],
+			"body": "Safety"
+		},
+		{
+			"label": "an h4 above a list",
+			"doc": [
+				{
+					"type": "h4",
+					"runs": [
+						{
+							"text": "Steps"
+						}
+					]
+				},
+				{
+					"type": "ul",
+					"items": [
+						[
+							{
+								"text": "Measure"
+							}
+						]
+					]
+				}
+			],
+			"body": "Steps\nMeasure"
+		}
+	]
+}

@@ -169,6 +169,28 @@
 	/** Shorthand for a plain-paragraph document. */
 	const p = (...text: string[]): NoteDoc => text.map((t) => ({ type: 'p', runs: [{ text: t }] }));
 
+	/**
+	 * A note with a SUBLIST in it (0122), so one is on screen without anybody
+	 * having to paste it first.
+	 *
+	 * It covers the two places a level can be lost: NoteContent, which renders
+	 * it, and -- through `docToTiptap` -- the editor that opens this note for
+	 * editing, where a lost level shows up only on the next save.
+	 */
+	const NESTED_NOTE: NoteDoc = [
+		{ type: 'p', runs: [{ text: 'Preload measured with the dial indicator.' }] },
+		{
+			type: 'ul',
+			items: [
+				[
+					{ text: 'Stage one' },
+					{ type: 'ul', items: [[{ text: '0.02mm runout' }], [{ text: 'Reseated twice' }]] }
+				],
+				[{ text: 'Stage two' }, { type: 'ol', items: [[{ text: 'Shim to 0.05mm' }]] }]
+			]
+		}
+	];
+
 	// Deliberately OLDEST-FIRST: the real load asks Postgres for newest-first,
 	// so feeding the reverse is what proves the component's own newestFirst()
 	// ordering is doing the work rather than inheriting the caller's order.
@@ -355,7 +377,7 @@
 			],
 			notes: [
 				note('n-7', 'e-7', 'n-7', 1, p('Stage two came out at 3.4:1, not 3.0.'), '2026-08-08T13:25:00Z'),
-				note('n-8', 'e-7', 'n-8', 1, p('Preload measured with the dial indicator.'), '2026-08-08T13:40:00Z')
+				note('n-8', 'e-7', 'n-8', 1, NESTED_NOTE, '2026-08-08T13:40:00Z')
 			]
 		},
 		{

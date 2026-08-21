@@ -118,7 +118,20 @@
 		{ type: 'h4', runs: [{ text: 'Bring' }] },
 		{
 			type: 'ul',
-			items: [[{ text: 'A ruler' }], [{ text: 'Graph paper' }], [{ text: 'Your notebook' }]]
+			items: [
+				[{ text: 'A ruler' }],
+				// A SUBLIST, stored inside the item it hangs off (0122). It is here
+				// so every surface below renders one without anybody having to
+				// paste it first: ItemBody at both type scales, the composer's own
+				// preview, and -- through `docToTiptap` -- the editor that opens
+				// this item for editing, which is where a lost level would
+				// otherwise show up only on the next save.
+				[
+					{ text: 'Graph paper' },
+					{ type: 'ul', items: [[{ text: 'Sharp pencil' }], [{ text: 'Eraser' }]] }
+				],
+				[{ text: 'Your notebook' }]
+			]
 		},
 		{ type: 'h4', runs: [{ text: 'Steps' }] },
 		{
@@ -147,6 +160,10 @@
 		'Bring',
 		'A ruler',
 		'Graph paper',
+		// A sublist's items each get their own line in the projection, at every
+		// level -- which is what `_classroom_doc_text` writes into the column.
+		'Sharp pencil',
+		'Eraser',
 		'Your notebook',
 		'Steps',
 		'Measure twice',
