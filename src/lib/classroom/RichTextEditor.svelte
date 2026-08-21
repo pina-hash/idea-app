@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { docToTiptap, type ItemDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
+	import { ITEM_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	import type { Editor } from '@tiptap/core';
 
 	/**
@@ -16,7 +17,7 @@
 	 * list pasted from a document stays a list, bold stays bold, and anything
 	 * the schema does not have (a table, a font tag, a colour) contributes its
 	 * text rather than its markup. The schema is the paste filter, which is also
-	 * why turning a node type off here is a real guarantee and not a preference.
+	 * why turning a node type off in $lib/rich-text-schema is a real guarantee and not a preference.
 	 *
 	 * StarterKit is configured with everything out of the feature's scope turned
 	 * OFF -- blockquotes, code, code blocks, horizontal rules, strike, underline
@@ -36,7 +37,7 @@
 	 * WHAT IT HANDS BACK is ProseMirror JSON, not HTML -- `onchange` fires with
 	 * `editor.getJSON()` and the caller posts that. The server normalizes it into
 	 * the stored shape (src/lib/server/classroom-doc.ts) and a SQL gate refuses
-	 * anything outside it. Nothing here is trusted: the schema below is a good
+	 * anything outside it. Nothing here is trusted: the schema is a good
 	 * editing experience, not a security boundary.
 	 */
 	let {
@@ -70,7 +71,7 @@
 	/**
 	 * Map a pasted document's heading levels into the two this body may use.
 	 *
-	 * WHY IT IS NEEDED AT ALL: the schema below only knows levels 3 and 4, and
+		 * WHY IT IS NEEDED AT ALL: the schema only knows levels 3 and 4, and
 	 * ProseMirror builds its HTML parse rules FROM that list -- so a pasted
 	 * `<h1>` matches no heading rule and falls through to a plain paragraph.
 	 * Found in the browser: a heading pasted out of a document arrived as body
@@ -142,26 +143,10 @@
 
 				const instance = new Editor({
 					element,
-					extensions: [
-						StarterKit.configure({
-							// Everything outside the feature's scope is off, so a paste
-							// cannot bring it in and the document cannot contain it.
-							heading: { levels: [3, 4] },
-							blockquote: false,
-							code: false,
-							codeBlock: false,
-							horizontalRule: false,
-							strike: false,
-							underline: false,
-							hardBreak: false,
-							link: {
-								openOnClick: false,
-								autolink: true,
-								protocols: ['http', 'https', 'mailto'],
-								HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' }
-							}
-						})
-					],
+					// The schema lives in $lib/rich-text-schema so the tests that fix the
+					// normalizer's behaviour build their fixtures from the SAME declaration
+					// this editor is configured with.
+					extensions: [StarterKit.configure(ITEM_SCHEMA_OPTIONS)],
 					content: value && value.length ? docToTiptap(value) : undefined,
 					editable: !disabled,
 					editorProps: {

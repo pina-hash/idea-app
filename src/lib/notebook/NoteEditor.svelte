@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { docToTiptap, type NoteDoc, type TiptapNode } from '$lib/notebook-notes';
+	import { NOTE_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	import type { Editor } from '@tiptap/core';
 
 	/**
@@ -10,13 +11,14 @@
 	 * Picked over the alternatives because it is the one option that is both
 	 * genuinely maintained and genuinely constrained: it is not a contenteditable
 	 * wrapper handing back whatever the browser produced, it is a ProseMirror
-	 * SCHEMA, so the document can only ever contain node and mark types this file
-	 * switched on. StarterKit is configured with everything out of scope turned
-	 * OFF -- headings, blockquotes, code, code blocks, horizontal rules, strike,
-	 * underline and hard breaks -- leaving exactly bold, italic, bulleted and
-	 * numbered lists, and links. It is framework-agnostic, so Svelte 5 needs no
-	 * wrapper package (svelte-tiptap exists and works, but everything it adds is
-	 * bubble/floating menus this fixed toolbar does not want).
+	 * SCHEMA, so the document can only ever contain the node and mark types
+	 * it was switched on with. StarterKit is configured ($lib/rich-text-schema)
+	 * with everything out of scope turned OFF -- headings, blockquotes, code,
+	 * code blocks, horizontal rules, strike, underline and hard breaks --
+	 * leaving exactly bold, italic, bulleted and numbered lists, and links. It
+	 * is framework-agnostic, so Svelte 5 needs no wrapper package (svelte-tiptap
+	 * exists and works, but everything it adds is bubble/floating menus this
+	 * fixed toolbar does not want).
 	 *
 	 * It is DYNAMICALLY IMPORTED, browser-only, on mount: ProseMirror is the
 	 * heaviest thing on this page and no other notebook surface should pay for
@@ -105,26 +107,10 @@
 
 				const instance = new Editor({
 					element,
-					extensions: [
-						StarterKit.configure({
-							// Everything outside the feature's scope is off, so the
-							// document cannot contain it in the first place.
-							heading: false,
-							blockquote: false,
-							code: false,
-							codeBlock: false,
-							horizontalRule: false,
-							strike: false,
-							underline: false,
-							hardBreak: false,
-							link: {
-								openOnClick: false,
-								autolink: true,
-								protocols: ['http', 'https', 'mailto'],
-								HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' }
-							}
-						})
-					],
+					// The schema lives in $lib/rich-text-schema so the tests that fix the
+					// normalizer's behaviour build their fixtures from the SAME declaration
+					// this editor is configured with.
+					extensions: [StarterKit.configure(NOTE_SCHEMA_OPTIONS)],
 					content: value ? docToTiptap(value) : undefined,
 					autofocus,
 					editable: !disabled,

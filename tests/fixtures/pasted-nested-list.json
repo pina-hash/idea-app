@@ -1,0 +1,109 @@
+{
+	"_readme": [
+		"CAPTURED FROM THE REAL EDITORS IN A REAL BROWSER, 2026-08-20, not typed by hand.",
+		"",
+		"Each document below is exactly what `editor.getJSON()` held after pasting HTML",
+		"containing a nested list into the shipping component at its dev harness",
+		"(/dev/notebook and /dev/classroom-phase1), read back off the ProseMirror view",
+		"as `editorDOM.pmViewDesc.node.toJSON()`.",
+		"",
+		"WHY IT IS COMMITTED. The whole nested-list defect turned on a claim about what",
+		"the editor can produce: a sublist is a child of the LIST ITEM above it, never a",
+		"sibling of it. Two test files asserted the opposite for two releases. The schema",
+		"builder in tests/rich-text-fixtures.ts argues that claim from the schema; this",
+		"file is the same claim OBSERVED, so the builder itself has something real to be",
+		"checked against. The trailing empty paragraph is the editor's own, kept because",
+		"removing it would make this a tidied-up version rather than a capture."
+	],
+	"note": {
+		"type": "doc",
+		"content": [
+			{
+				"type": "bulletList",
+				"content": [
+					{
+						"type": "listItem",
+						"content": [
+							{ "type": "paragraph", "content": [{ "type": "text", "text": "Materials" }] },
+							{
+								"type": "bulletList",
+								"content": [
+									{
+										"type": "listItem",
+										"content": [
+											{ "type": "paragraph", "content": [{ "type": "text", "text": "250 mL beaker" }] }
+										]
+									},
+									{
+										"type": "listItem",
+										"content": [
+											{ "type": "paragraph", "content": [{ "type": "text", "text": "Digital scale" }] }
+										]
+									},
+									{
+										"type": "listItem",
+										"content": [
+											{
+												"type": "paragraph",
+												"content": [{ "type": "text", "text": "Graduated cylinder" }]
+											}
+										]
+									}
+								]
+							}
+						]
+					},
+					{
+						"type": "listItem",
+						"content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Method" }] }]
+					}
+				]
+			},
+			{ "type": "paragraph" }
+		]
+	},
+	"item": {
+		"type": "doc",
+		"content": [
+			{
+				"type": "heading",
+				"attrs": { "level": 3 },
+				"content": [{ "type": "text", "text": "Was h1" }]
+			},
+			{
+				"type": "bulletList",
+				"content": [
+					{
+						"type": "listItem",
+						"content": [
+							{ "type": "paragraph", "content": [{ "type": "text", "text": "Materials" }] },
+							{
+								"type": "orderedList",
+								"attrs": { "start": 1, "type": null },
+								"content": [
+									{
+										"type": "listItem",
+										"content": [
+											{ "type": "paragraph", "content": [{ "type": "text", "text": "250 mL beaker" }] }
+										]
+									},
+									{
+										"type": "listItem",
+										"content": [
+											{ "type": "paragraph", "content": [{ "type": "text", "text": "Digital scale" }] }
+										]
+									}
+								]
+							}
+						]
+					},
+					{
+						"type": "listItem",
+						"content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Method" }] }]
+					}
+				]
+			},
+			{ "type": "paragraph" }
+		]
+	}
+}

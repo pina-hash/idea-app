@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "Indented bullet points no longer run together",
+			"body": "If a teacher wrote instructions with a list inside a list, or you wrote a note that way, everything under the indented part was being squashed into the bullet above it with no spaces, so a list of materials could come out reading as one long unbroken word. Every bullet now keeps its own line, in the order it was written, in class instructions and in your notebook notes. The indenting itself is not shown yet, so an indented bullet sits at the same level as the rest of the list for now. This only fixes lists saved from today onwards. Anything already saved as one run-on line is stored that way and cannot be sorted out on its own, so if you find one in your own notebook, open it and type the bullets out again.",
+			"tags": ["Instructions", "Notebook"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "Grading in your class looks different, and it is only what your teacher sees",
 			"body": "Your teacher marks your work on a screen that shows the class list, what you handed in and the marking scale all at once. That screen was cramped, so the wording of each mark on the scale was squeezed into a narrow strip and a teacher had to scroll away from your work to score it. It now uses the whole window: the class list, your work and the scale sit side by side and each one scrolls on its own. Each level of the scale shows a short line, with the full wording of the standard right there on the level, so nothing about what earns a mark has been shortened or dropped. Your teacher can also work through a class from the keyboard now, and they get a warning before leaving a student whose marks they have not saved, so a score entered for you is far less likely to be lost. Nothing about what you hand in, how you hand it in, or how anything is scored has changed.",
 			"tags": ["Grading"]

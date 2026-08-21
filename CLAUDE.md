@@ -508,8 +508,8 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A pure, client-safe registry per subsystem** holds plain data and pure helpers
   with no `?raw`, no `$lib/legacy`, no three.js, no Svelte: `curriculum.ts`,
   `portal-apps.ts`, `pathways.ts`, `gauntlet.ts`, `tracks.ts`, `abilities.ts`,
-  `combat.ts`, `feed.ts`, `track-runtime.ts`. Pure layers are what make arithmetic
-  testable without a browser.
+  `combat.ts`, `feed.ts`, `track-runtime.ts`, `rich-text-schema.ts`. Pure layers are
+  what make arithmetic testable without a browser.
 - **Data says WHERE the limits are, never HOW they are enforced.** A track file states
   its boundaries; the runtime decides whether that is a soft wall, a drag penalty or a
   local clamp. Keep the enforcement policy in code, out of the data format.
@@ -849,6 +849,13 @@ belong wherever the app's own behaviour is documented.
 - **A harness whose loop rides rAF must be told to pump it** (`?glheadless=1` on
   the GREENLINE harnesses, read from the URL so it works on any route). Without it
   the sim silently never ticks and every physics assertion passes vacuously.
+- **Enter and Tab dispatched through the pane do not reach a ProseMirror keymap.**
+  Text typed with `computer` arrives, but the keys an editor binds commands to are
+  swallowed, so a list cannot be indented or split from here. Drive a rich-text
+  editor by dispatching a real `paste` ClipboardEvent with a `text/html` payload
+  instead -- which is the path most structural editor bugs arrive on anyway -- and
+  read the result back as `editorDOM.pmViewDesc.node.toJSON()`, which is the
+  editor's own document without needing the instance exposed.
 - **A long `await` loop inside one `javascript_tool` call KEEPS RUNNING after the
   call times out.** Keep scripted UI loops short, or verify state before trusting a
   later measurement.
@@ -951,6 +958,18 @@ belong wherever the app's own behaviour is documented.
   derived from the implementation's own rule cannot fail. Prefer a fixture of REAL
   committed data, or a figure the implementation does not produce. **The question
   is not "does this pass" but "where does the expected value come from".**
+- **A FIXTURE MUST BE SOMETHING ITS REAL PRODUCER CAN EMIT**, and where the
+  producer owns a schema, BUILD it through that schema rather than typing it out.
+  Both rich-text normalizer tests hand-wrote a nested list as a SIBLING of its
+  list items -- a document ProseMirror cannot hold -- so they exercised a dead
+  branch and passed while every real nested list was being silently concatenated
+  into one unreadable item. A green test on an impossible document is worse than
+  no test: it is a claim of coverage over the exact case that is broken. The
+  editor schema therefore lives in ONE plain-data module (`rich-text-schema.ts`)
+  that the component and the test both read, and the test asserts the impossible
+  shape can no longer be constructed. **Feeding input the producer cannot emit is
+  still right where the surface is reachable WITHOUT it** (a hand-rolled POST to
+  a route); say so in the test, so nobody reads it as editor coverage.
 - **Keep the suite honest.** Pair every exclusion assertion with a positive control
   and report BOTH counts -- a scan reading the wrong property comes back clean, and
   clean is what nobody investigates. Assert the case count of a generated sweep, so

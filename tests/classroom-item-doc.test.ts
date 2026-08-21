@@ -26,10 +26,26 @@ import {
 	ITEM_BODY_MAX_CHARS,
 	docFromPlainText,
 	docText,
+	docToTiptap,
 	itemBodyDoc,
 	safeHref,
 	type ItemDoc
 } from '../src/lib/classroom/classroom-doc';
+import {
+	canHold,
+	editorDoc,
+	itemSchema,
+	pmBold,
+	pmBullets,
+	pmDoc,
+	pmHeading,
+	pmItalic,
+	pmItem,
+	pmLink,
+	pmNumbers,
+	pmPara,
+	pmText
+} from './rich-text-fixtures';
 
 /** The editor's own output shape. */
 const doc = (...content: unknown[]) => ({ type: 'doc', content });
@@ -182,17 +198,114 @@ describe('a paste keeps its structure instead of flattening', () => {
 		]);
 	});
 
-	it('flattens a nested list into its parent rather than losing the items', () => {
-		const d = ok(
-			doc({
-				type: 'bulletList',
-				content: [
-					listItem(para(text('Top'))),
-					{ type: 'bulletList', content: [listItem(para(text('Nested')))] }
-				]
-			})
+	// THE FIXTURE IS BUILT FROM THE EDITOR'S OWN SCHEMA, not typed by hand.
+	// The version this replaces put the sublist beside its list items rather
+	// than inside one, which ProseMirror cannot produce -- so it exercised a
+	// branch no real paste reaches, and stayed green for as long as it existed
+	// while every genuine nested list was being concatenated into one item.
+	it('keeps every bullet of a nested list, as its own item, in document order', () => {
+		const written = editorDoc(
+			itemSchema,
+			pmDoc(
+				pmBullets(
+					pmItem(
+						pmPara(pmText('Materials')),
+						pmBullets(
+							pmItem(pmPara(pmText('250 mL beaker'))),
+							pmItem(pmPara(pmText('Digital scale'))),
+							pmItem(pmPara(pmText('Graduated cylinder')))
+						)
+					),
+					pmItem(
+						pmPara(pmText('Method')),
+						pmNumbers(pmItem(pmPara(pmText('Weigh it'))), pmItem(pmPara(pmText('Record it'))))
+					)
+				)
+			)
 		);
-		expect(d).toEqual([{ type: 'ul', items: [[{ text: 'Top' }], [{ text: 'Nested' }]] }]);
+
+		expect(ok(written)).toEqual([
+			{
+				type: 'ul',
+				items: [
+					[{ text: 'Materials' }],
+					[{ text: '250 mL beaker' }],
+					[{ text: 'Digital scale' }],
+					[{ text: 'Graduated cylinder' }],
+					[{ text: 'Method' }],
+					[{ text: 'Weigh it' }],
+					[{ text: 'Record it' }]
+				]
+			}
+		]);
+	});
+
+	// The measured output of the version this replaces, named so the defect
+	// cannot come back quietly: two items, each one unreadable word.
+	it('never joins a sublist onto the item above it', () => {
+		const written = editorDoc(
+			itemSchema,
+			pmDoc(
+				pmBullets(
+					pmItem(
+						pmPara(pmText('Materials')),
+						pmBullets(
+							pmItem(pmPara(pmText('250 mL beaker'))),
+							pmItem(pmPara(pmText('Digital scale'))),
+							pmItem(pmPara(pmText('Graduated cylinder')))
+						)
+					)
+				)
+			)
+		);
+		const SOURCE = ['Materials', '250 mL beaker', 'Digital scale', 'Graduated cylinder'];
+		const lines = docText(ok(written)).split('\n');
+		expect(lines).toEqual(SOURCE);
+		// Each line carries exactly ONE of the things that was written, which is
+		// the property the old walk broke. Positive control on the sweep: four
+		// lines are checked, not zero.
+		expect(lines).toHaveLength(4);
+		for (const line of lines) expect(SOURCE.filter((s) => line.includes(s))).toHaveLength(1);
+		expect(lines).not.toContain(SOURCE.join(''));
+	});
+
+	// A list item's content is `paragraph block*`, so a pasted bullet can
+	// legitimately hold two paragraphs, or a paragraph and a heading. Each is
+	// its own item -- joining them would be the same defect one level down, and
+	// a list item has no room for a heading BLOCK in the stored shape.
+	it('gives each block inside a single list item its own item', () => {
+		expect(
+			ok(
+				editorDoc(
+					itemSchema,
+					pmDoc(pmBullets(pmItem(pmPara(pmText('First half')), pmPara(pmText('Second half')))))
+				)
+			)
+		).toEqual([{ type: 'ul', items: [[{ text: 'First half' }], [{ text: 'Second half' }]] }]);
+
+		expect(
+			ok(
+				editorDoc(
+					itemSchema,
+					pmDoc(pmBullets(pmItem(pmPara(pmText('Lead')), pmHeading(4, pmText('Inner heading')))))
+				)
+			)
+		).toEqual([{ type: 'ul', items: [[{ text: 'Lead' }], [{ text: 'Inner heading' }]] }]);
+	});
+
+	// The guard on the fixture itself: the shape the old test used is not
+	// something this schema can hold, so nothing can quietly go back to
+	// asserting against it.
+	it('cannot construct the sibling-list shape the old fixture used', () => {
+		const siblingList = pmDoc(
+			pmBullets(pmItem(pmPara(pmText('Top'))), pmBullets(pmItem(pmPara(pmText('Nested')))))
+		);
+		const realNesting = pmDoc(
+			pmBullets(pmItem(pmPara(pmText('Top')), pmBullets(pmItem(pmPara(pmText('Nested'))))))
+		);
+		expect(canHold(itemSchema, siblingList)).toBe(false);
+		// Positive control: the same content, nested where it really lives.
+		expect(canHold(itemSchema, realNesting)).toBe(true);
 	});
 
 	it('keeps the words from a table or any other out-of-scope wrapper', () => {
@@ -465,5 +578,201 @@ describe('the renderer is the third gate', () => {
 	it('re-checks every href at render time, not only at write time', () => {
 		const source = readFileSync('src/lib/classroom/ItemBody.svelte', 'utf8');
 		expect(source).toContain('safeHref');
+	});
+});
+
+
+// ---------------------------------------------------------------------------
+// THE ROUND TRIP
+//
+// One document holding one instance of every construct the body editor can
+// produce, at every nesting arrangement its schema permits, run all the way
+// through: written -> normalized -> stored -> re-saved as stored (the publish
+// toggle's path) -> seeded back into the editor -> normalized again. Nothing
+// may be dropped, reordered or joined to its neighbour anywhere along it.
+//
+// The fixture is built through the real schema, so it cannot encode a document
+// the editor could not have held. The EXPECTED lines are written out by hand
+// beside it rather than derived from the walk, so the expectation cannot agree
+// with the implementation by construction.
+// ---------------------------------------------------------------------------
+describe('a whole item body survives the round trip', () => {
+	/** Every construct: both heading levels, marks, both list kinds, three
+	 *  levels of nesting, a two-paragraph bullet and a heading inside a bullet. */
+	const written = () =>
+		editorDoc(
+			itemSchema,
+			pmDoc(
+				pmHeading(3, pmText('Section heading')),
+				pmHeading(4, pmText('Subsection heading')),
+				pmPara(
+					pmText('Plain '),
+					pmText('bold', [pmBold]),
+					pmText(' '),
+					pmText('italic', [pmItalic]),
+					pmText(' '),
+					pmText('both', [pmBold, pmItalic]),
+					pmText(' '),
+					pmText('link', [pmLink('https://example.com/a')]),
+					pmText(' '),
+					pmText('bold link', [pmBold, pmLink('https://example.com/b')])
+				),
+				pmBullets(
+					pmItem(
+						pmPara(pmText('Level one bullet')),
+						pmNumbers(
+							pmItem(
+								pmPara(pmText('Level two number')),
+								pmBullets(pmItem(pmPara(pmText('Level three bullet'))))
+							),
+							pmItem(pmPara(pmText('Level two, second number')))
+						)
+					),
+					pmItem(
+						pmPara(pmText('Second bullet, first paragraph')),
+						pmPara(pmText('Second bullet, second paragraph'))
+					),
+					pmItem(pmPara(pmText('Third bullet')), pmHeading(4, pmText('Heading inside a bullet')))
+				),
+				pmNumbers(pmItem(pmPara(pmText('Numbered '), pmText('with emphasis', [pmItalic])))),
+				pmPara(pmText('Closing paragraph'))
+			)
+		);
+
+	/** Written by hand from the fixture above, in the order it was written. */
+	const LINES = [
+		'Section heading',
+		'Subsection heading',
+		'Plain bold italic both link bold link',
+		'Level one bullet',
+		'Level two number',
+		'Level three bullet',
+		'Level two, second number',
+		'Second bullet, first paragraph',
+		'Second bullet, second paragraph',
+		'Third bullet',
+		'Heading inside a bullet',
+		'Numbered with emphasis',
+		'Closing paragraph'
+	];
+
+	it('keeps every line, in order, with nothing joined to its neighbour', () => {
+		const stored = ok(written());
+		expect(types(stored)).toEqual(['h3', 'h4', 'p', 'ul', 'ol', 'p']);
+		expect(docText(stored).split('\n')).toEqual(LINES);
+		// Positive control on the sweep itself: thirteen lines, not zero.
+		expect(LINES).toHaveLength(13);
+	});
+
+	it('keeps every mark on the run it was written on', () => {
+		const stored = ok(written());
+		expect(stored[2]).toEqual({
+			type: 'p',
+			runs: [
+				{ text: 'Plain ' },
+				{ text: 'bold', bold: true },
+				{ text: ' ' },
+				{ text: 'italic', italic: true },
+				{ text: ' ' },
+				{ text: 'both', bold: true, italic: true },
+				{ text: ' ' },
+				{ text: 'link', href: 'https://example.com/a' },
+				{ text: ' ' },
+				{ text: 'bold link', bold: true, href: 'https://example.com/b' }
+			]
+		});
+		expect(stored[4]).toEqual({
+			type: 'ol',
+			items: [[{ text: 'Numbered ' }, { text: 'with emphasis', italic: true }]]
+		});
+	});
+
+	it('re-saving the STORED document changes nothing', () => {
+		const stored = ok(written());
+		// The publish toggle's path: the item's existing document handed straight
+		// back in. `looksStored` has to recognise it, or the body is silently
+		// emptied for an item nobody was editing.
+		expect(ok(stored)).toEqual(stored);
+		expect(docText(ok(stored)).split('\n')).toEqual(LINES);
+	});
+
+	it('seeds an editor the schema can hold, and normalizes back to the same doc', () => {
+		const stored = ok(written());
+		const reopened = docToTiptap(stored);
+		// The stored doc goes back into a REAL editor, so what it seeds has to be
+		// something that editor's schema accepts.
+		expect(canHold(itemSchema, reopened)).toBe(true);
+		expect(ok(editorDoc(itemSchema, reopened))).toEqual(stored);
+		expect(docText(ok(editorDoc(itemSchema, reopened))).split('\n')).toEqual(LINES);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// THE OBSERVED DOCUMENT
+//
+// Everything above argues from the SCHEMA about what the editor can produce.
+// This is the same claim OBSERVED: `editor.getJSON()` read straight off the
+// shipping component at /dev/classroom-phase1 in a real browser after pasting
+// HTML with an h1 and a nested list into it
+// (tests/fixtures/pasted-nested-list.json).
+//
+// It is what keeps the schema builder honest, and it also pins the ONE thing
+// the schema cannot check: the pasted `<h1>` arrived as an h3, because
+// `transformPastedHTML` rewrites the tag before ProseMirror parses and the
+// schema only knows levels 3 and 4. The schema does NOT range-check a heading's
+// `level` attr, so no fixture guard can catch a level-1 heading; only this can.
+// ---------------------------------------------------------------------------
+describe('what the editor was actually observed to produce', () => {
+	const CAPTURED = JSON.parse(
+		readFileSync(new URL('./fixtures/pasted-nested-list.json', import.meta.url), 'utf8')
+	).item;
+
+	it('is byte-identical to what the schema builder produces for the same content', () => {
+		expect(
+			editorDoc(
+				itemSchema,
+				pmDoc(
+					pmHeading(3, pmText('Was h1')),
+					pmBullets(
+						pmItem(
+							pmPara(pmText('Materials')),
+							pmNumbers(
+								pmItem(pmPara(pmText('250 mL beaker'))),
+								pmItem(pmPara(pmText('Digital scale')))
+							)
+						),
+						pmItem(pmPara(pmText('Method')))
+					),
+					pmPara()
+				)
+			)
+		).toEqual(CAPTURED);
+	});
+
+	it('clamped the pasted h1 to an h3 before the server ever saw it', () => {
+		expect(CAPTURED.content[0]).toEqual({
+			type: 'heading',
+			attrs: { level: 3 },
+			content: [{ type: 'text', text: 'Was h1' }]
+		});
+	});
+
+	it('puts the sublist INSIDE the list item, never beside it', () => {
+		const list = CAPTURED.content[1];
+		expect(list.type).toBe('bulletList');
+		// Positive control: the list has two children and BOTH are list items.
+		expect(list.content).toHaveLength(2);
+		expect(list.content.map((n: { type: string }) => n.type)).toEqual(['listItem', 'listItem']);
+		expect(list.content[0].content[1].type).toBe('orderedList');
+	});
+
+	it('normalizes to a heading and four readable items, not one run-on word', () => {
+		expect(docText(ok(CAPTURED)).split('\n')).toEqual([
+			'Was h1',
+			'Materials',
+			'250 mL beaker',
+			'Digital scale',
+			'Method'
+		]);
 	});
 });

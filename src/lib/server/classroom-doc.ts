@@ -9,7 +9,7 @@
  * IT IS A WHITELIST TRANSLATOR, NOT A STRIPPER. The input is the editor's own
  * ProseMirror JSON, arbitrary and untrusted; the output is the closed ItemDoc
  * shape from $lib/classroom/classroom-doc. Nothing is "cleaned up and passed
- * along": a node type this file does not name cannot appear in the result,
+ * along": a node type the walk does not name cannot appear in the result,
  * because the result is BUILT, node by node, from the ones it does. That is
  * what makes the failure mode of a novel attack "the content disappears"
  * rather than "the content survives in a form nobody checked".
@@ -31,6 +31,12 @@
  * more items of its parent, and a heading is clamped into the two levels a
  * body is allowed to use. What arrives is what was written, minus formatting
  * this feature does not have.
+ *
+ * THE WALK ITSELF LIVES IN `./rich-text-normalize` and is shared with the
+ * notebook's written notes, which used to hold a line-for-line copy of it. The
+ * two CONTRACTS stay separate -- separate closed shapes, separate SQL gates,
+ * separate renderers -- and everything below is what makes this one an item
+ * body rather than a note.
  */
 
 import {
@@ -38,127 +44,13 @@ import {
 	docLength,
 	docText,
 	docToTiptap,
-	safeHref,
 	type ItemBlock,
 	type ItemDoc,
-	type ItemInline,
 	type TiptapNode
 } from '$lib/classroom/classroom-doc';
+import { richBlocksFrom, type RichWalkOptions } from './rich-text-normalize';
 
 export type NormalizeItemDocResult = { ok: true; doc: ItemDoc } | { ok: false; error: string };
-
-/**
- * Hostile input can nest thousands deep; a recursive walk over it is a stack
- * overflow, which in a serverless function is a 500 rather than a refusal.
- * Real instructions are two or three levels (list -> item -> emphasis).
- */
-const MAX_DEPTH = 16;
-
-/** Marks we understand. Anything else on a run is simply not carried over. */
-function markState(node: TiptapNode): { bold: boolean; italic: boolean; href: string | null } {
-	let bold = false;
-	let italic = false;
-	let href: string | null = null;
-	for (const mark of node.marks ?? []) {
-		if (!mark || typeof mark.type !== 'string') continue;
-		switch (mark.type) {
-			case 'bold':
-			case 'strong':
-				bold = true;
-				break;
-			case 'italic':
-			case 'em':
-				italic = true;
-				break;
-			case 'link': {
-				const raw = mark.attrs?.href;
-				// A link whose target is not http/https/mailto keeps its TEXT and
-				// loses its link -- dropping the run would silently delete what
-				// the teacher wrote.
-				href = safeHref(typeof raw === 'string' ? raw : null);
-				break;
-			}
-			default:
-				break;
-		}
-	}
-	return { bold, italic, href };
-}
-
-/** Adjacent runs that would render identically are one run. */
-function pushRun(runs: ItemInline[], run: ItemInline): void {
-	const last = runs[runs.length - 1];
-	if (
-		last &&
-		!!last.bold === !!run.bold &&
-		!!last.italic === !!run.italic &&
-		last.href === run.href
-	) {
-		last.text += run.text;
-		return;
-	}
-	runs.push(run);
-}
-
-/**
- * Every text node reachable from `node`, flattened into runs.
- *
- * Flattening rather than rejecting is the point: a paste that arrives wrapped
- * in something out of scope (a table cell, a span, a div with inline styles)
- * still gives the teacher their words back instead of losing them.
- */
-function collectRuns(node: TiptapNode, runs: ItemInline[], depth: number): void {
-	if (depth > MAX_DEPTH || !node || typeof node !== 'object') return;
-
-	if (node.type === 'text' && typeof node.text === 'string' && node.text !== '') {
-		const { bold, italic, href } = markState(node);
-		const run: ItemInline = { text: node.text };
-		if (bold) run.bold = true;
-		if (italic) run.italic = true;
-		if (href) run.href = href;
-		pushRun(runs, run);
-		return;
-	}
-
-	// The shape has no hard break; a space keeps the words apart.
-	if (node.type === 'hardBreak') {
-		pushRun(runs, { text: ' ' });
-		return;
-	}
-
-	for (const child of Array.isArray(node.content) ? node.content : []) {
-		collectRuns(child, runs, depth + 1);
-	}
-}
-
-function trimRuns(runs: ItemInline[]): ItemInline[] {
-	const kept = runs.filter((r) => r.text !== '');
-	if (kept.length) {
-		kept[0] = { ...kept[0], text: kept[0].text.replace(/^\s+/, '') };
-		const last = kept.length - 1;
-		kept[last] = { ...kept[last], text: kept[last].text.replace(/\s+$/, '') };
-	}
-	return kept.filter((r) => r.text !== '');
-}
-
-/** A list's items: one run list each, with nested lists flattened in place. */
-function listItems(node: TiptapNode, depth: number): ItemInline[][] {
-	const items: ItemInline[][] = [];
-	for (const child of Array.isArray(node.content) ? node.content : []) {
-		if (!child || typeof child !== 'object') continue;
-		if (child.type === 'bulletList' || child.type === 'orderedList') {
-			// A nested list becomes more items of the SAME list. Indentation is
-			// out of scope, and losing a level reads better than losing the text.
-			if (depth < MAX_DEPTH) items.push(...listItems(child, depth + 1));
-			continue;
-		}
-		const runs: ItemInline[] = [];
-		collectRuns(child, runs, depth + 1);
-		const trimmed = trimRuns(runs);
-		if (trimmed.length) items.push(trimmed);
-	}
-	return items;
-}
 
 /**
  * A heading's stored level.
@@ -176,34 +68,16 @@ function headingType(node: TiptapNode): 'h3' | 'h4' {
 	return level <= 3 ? 'h3' : 'h4';
 }
 
-function blocksFrom(nodes: TiptapNode[], depth: number): ItemBlock[] {
-	const blocks: ItemBlock[] = [];
-	for (const node of nodes) {
-		if (!node || typeof node !== 'object' || typeof node.type !== 'string') continue;
-
-		if (node.type === 'bulletList' || node.type === 'orderedList') {
-			const items = listItems(node, depth + 1);
-			if (items.length) blocks.push({ type: node.type === 'bulletList' ? 'ul' : 'ol', items });
-			continue;
-		}
-
-		if (node.type === 'heading') {
-			const runs: ItemInline[] = [];
-			collectRuns(node, runs, depth + 1);
-			const trimmed = trimRuns(runs);
-			if (trimmed.length) blocks.push({ type: headingType(node), runs: trimmed });
-			continue;
-		}
-
-		// Everything else -- paragraph, and any out-of-scope block a paste
-		// dragged in -- contributes its text as a paragraph.
-		const runs: ItemInline[] = [];
-		collectRuns(node, runs, depth + 1);
-		const trimmed = trimRuns(runs);
-		if (trimmed.length) blocks.push({ type: 'p', runs: trimmed });
-	}
-	return blocks;
-}
+/**
+ * Real instructions are two or three levels (list -> item -> emphasis), or one
+ * more once a sublist is in play; the ceiling is a guard against hostile
+ * nesting, not a feature limit. `blockType` is the one place a body differs
+ * from a note structurally: it has headings.
+ */
+const WALK: RichWalkOptions = {
+	maxDepth: 16,
+	blockType: (node) => (node.type === 'heading' ? headingType(node) : null)
+};
 
 /**
  * Is this an ALREADY-STORED document rather than editor output?
@@ -272,7 +146,7 @@ export function normalizeItemDoc(input: unknown): NormalizeItemDocResult {
 		return { ok: false, error: 'That body is too long to save.' };
 	}
 
-	const doc = blocksFrom(nodes, 0);
+	const doc = richBlocksFrom<ItemBlock>(nodes, 0, WALK);
 	if (docLength(doc) > ITEM_BODY_MAX_CHARS) {
 		return {
 			ok: false,
