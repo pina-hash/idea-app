@@ -321,6 +321,20 @@ parameter.** The drops mean the old arities stop existing the moment it runs and
 the new ones do not exist until it does. Where the client can degrade instead, it
 names the new parameter ONLY when the feature is actually being used.
 
+**A VALIDATION GATE WIDENS IN ITS OWN BUNDLE, BEFORE ANYTHING CAN EMIT THE WIDER
+SHAPE, and the asymmetry is the whole argument.** A gate accepting a shape
+nothing produces is INERT; a producer emitting a shape the gate refuses breaks
+every save on that feature at once. So widen the gate, ship it alone, and let the
+producer follow -- never the reverse and never together. The widened gate then
+has one obligation that outranks the widening: **it must answer every ALREADY
+STORED document exactly as the deployed one did, refusals included.** Assert that
+by putting the corpus to the deployed gate FIRST, applying the migration over the
+same database, and comparing case for case; a gate that quietly tightens
+something on the way past is how a bundle that "only adds a feature" starts
+refusing content that is already in the table. Resist fixing an unrelated
+looseness in the same file -- that is a narrowing, and it needs its own migration
+with its own answer for the rows already stored.
+
 ### Write path
 
 - **ZERO client write grants on feature tables.** No insert/update/delete grant
@@ -447,7 +461,16 @@ names the new parameter ONLY when the feature is actually being used.
 
 - **`jsonb_typeof(x) <> 'string'` is NULL -- not true -- for an ABSENT key**, so
   the guard falls straight through and the check never fires. Use
-  `is distinct from`. This has bitten twice.
+  `is distinct from`. This has bitten three times, and the third one is the
+  reason it matters: **in a boolean GATE the NULL does not stop there.** It
+  propagates through whatever the guard was protecting, out of the function as
+  SQL NULL, and every caller asks `if not <gate> then raise` -- which does NOT
+  fire on NULL. So the fall-through does not merely skip a check, it ACCEPTS
+  the write. `_notebook_note_run_len` (0078) still does this for a run carrying
+  no `text` key; `_classroom_run_ok` (0108) is the same function written
+  correctly. When a gate can return NULL, assert `toBeNull()` on it in a test
+  rather than `toBe(false)` -- they are wildly different outcomes and only one
+  of them refuses anything.
 - **An RLS policy records a real dependency on every FUNCTION and COLUMN its
   expression names.** Drop the policy before dropping the column, and recreate it
   after.
