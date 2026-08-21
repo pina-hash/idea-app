@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { SaveState } from '$lib/save-state.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
@@ -633,12 +635,48 @@
 		onsaved({ kind: editingKind, published: item.published, text: '' });
 	}
 
+	/**
+	 * THE INDICATOR ONLY. This composer's save BEHAVIOUR is deliberately
+	 * untouched: it already collects every failure into one report and leaves
+	 * anything that did not land staged, so saving again retries exactly the
+	 * rest. That is the honest thing and it predates the shared primitive.
+	 *
+	 * What it did not have was the other three surfaces' VOCABULARY -- no state
+	 * a reader could point at, and no clock time on a save that worked. So the
+	 * SaveState here wraps the existing run and reports its verdict; it adds no
+	 * autosave, no debounce, no backoff and no navigation guard, because this
+	 * composer is owned by a LAYOUT and survives every move inside its class.
+	 *
+	 * The verdict is READ OFF `msg` rather than re-derived: a second reading of
+	 * the same run is exactly how an indicator ends up disagreeing with the
+	 * report printed under it.
+	 */
+	let pendingPublish = false;
+	const save = new SaveState({
+		autosave: false,
+		fallbackMessage: 'That save did not land.',
+		async save() {
+			await runSubmit(pendingPublish);
+			if (msg && !msg.ok) {
+				// NOT retryable by the machine: what is left staged is retried by
+				// saving again, on this composer's own terms, never by a backoff
+				// loop re-uploading files behind a teacher's back.
+				return { ok: false, retryable: false, message: msg.text } as const;
+			}
+			return { ok: true } as const;
+		}
+	});
+
+	$effect(() => save.attach());
+
 	async function submit(publish: boolean) {
 		if (busy) return;
 		busy = true;
 		msg = null;
+		pendingPublish = publish;
+		save.markDirty();
 		try {
-			await runSubmit(publish);
+			await save.saveNow();
 		} finally {
 			// Whatever happens, the buttons come back -- a stuck busy flag is a
 			// silently wedged editor (the number-input coercion throw, found live
@@ -1298,6 +1336,10 @@
 			</button>
 		{/if}
 	</div>
+	<!-- The same five states, in the same words, as the other three surfaces.
+	     The full report stays below it: the indicator says WHICH state, the
+	     feedback line says what did and did not land. -->
+	<div class="save-line"><SaveIndicator state={save} /></div>
 	{#if msg}
 		<p class="feedback" class:ok={msg.ok} class:error={!msg.ok}>{msg.text}</p>
 	{/if}
@@ -1307,6 +1349,12 @@
 	/* Spacing only: the look lives in classroom.css. */
 	.feedback {
 		margin: 0.6rem 0 0;
+	}
+	.save-line:empty {
+		display: none;
+	}
+	.save-line {
+		margin-top: 0.6rem;
 	}
 
 	.composer {

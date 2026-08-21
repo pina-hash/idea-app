@@ -1355,9 +1355,48 @@
 		return null;
 	}
 
+	/**
+	 * FAULT INJECTION FOR THE SAVE STATE, the FSP harnesses' convention.
+	 *
+	 * The autosave's honesty is only observable when a write FAILS, and a
+	 * harness that can never fail proves nothing about the failed, retry or
+	 * backoff states. `saveFailNext` fails that many of the next response
+	 * writes as a TRANSPORT failure (retryable); `saveLatency` holds each one
+	 * open long enough to watch the writing state exist.
+	 */
+	let saveFailNext = $state(0);
+	let saveLatency = $state(0);
+
+	/**
+	 * THE STORE, READABLE FROM A VERIFICATION SCRIPT.
+	 *
+	 * "Did the answer actually land" has to be answered by reading what the
+	 * transport WROTE, not by reading the field it was typed into -- the field
+	 * still holds the text either way, which is exactly how the lost-write
+	 * defect stayed invisible for so long. This exposes the harness's own
+	 * in-memory response rows so a browser pass can assert against them.
+	 * Harness-only: this route is dev-guarded and 404s in production.
+	 */
+	$effect(() => {
+		(window as unknown as Record<string, unknown>).__engineStore = {
+			rows: () => $state.snapshot(engResponses),
+			// NOT named `valueOf`: that shadows Object.prototype's own.
+			read: (blockId: string) =>
+				engResponses.find(
+					(r) => r.item_id === ENGINE_ITEM && r.student_email === STUDENT_EMAIL && r.block_id === blockId
+				)?.value ?? null
+		};
+	});
+
 	const engineTransports: AssignmentEngineTransports = {
 		async saveResponse(itemId, blockId, value) {
 			note('saveResponse', { itemId, blockId, value });
+			if (saveLatency > 0) await new Promise((r) => setTimeout(r, saveLatency));
+			if (saveFailNext > 0) {
+				saveFailNext -= 1;
+				note('saveResponse FAILED (simulated)', { blockId, remaining: saveFailNext });
+				return { ok: false, message: 'The network is down (simulated).' };
+			}
 			if (!engineSpec) return { ok: false, message: 'This assignment has no interactive spec.' };
 			if (subOf(STUDENT_EMAIL)?.state === 'submitted') {
 				return { ok: true, data: { ok: false, reason: 'locked' } };
@@ -2280,6 +2319,20 @@
 		<p class="harness-note">The sample item was deleted in another view.</p>
 	{/if}
 {:else if view === 'assignment'}
+	<!-- The save-state controls. Only here: this is the one view that mounts
+	     the student autosave, and the states worth looking at are the ones a
+	     working endpoint never produces. -->
+	<div class="save-fault">
+		<span class="save-fault-label">Save faults</span>
+		<button type="button" onclick={() => (saveFailNext = 2)}>Fail next 2 writes</button>
+		<button type="button" onclick={() => (saveFailNext = 999)}>Endpoint down</button>
+		<button type="button" onclick={() => (saveFailNext = 0)}>Endpoint up</button>
+		<span class="save-fault-badge" class:on={saveFailNext > 0}>failNext = {saveFailNext}</span>
+		<label>
+			latency
+			<input type="number" bind:value={saveLatency} min="0" step="250" /> ms
+		</label>
+	</div>
 	{#if detailItem}
 		<ItemDetail
 			section={section1}
@@ -2436,6 +2489,27 @@
 </div>
 
 <style>
+	.save-fault {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin: 0 0 0.8rem;
+		padding: 0.5rem 0.7rem;
+		border: 1px dashed var(--hairline);
+		border-radius: var(--radius-sm, 4px);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+	}
+	.save-fault-label {
+		color: var(--cyan);
+	}
+	.save-fault-badge.on {
+		color: var(--crimson);
+	}
+	.save-fault input {
+		width: 5rem;
+	}
 	.harness-bar {
 		display: flex;
 		align-items: center;

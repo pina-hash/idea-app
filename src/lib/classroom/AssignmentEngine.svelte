@@ -19,6 +19,9 @@
 		type UnmetEntry
 	} from '$lib/classroom/assignment-spec';
 	import type { ClassroomItem } from '$lib/classroom/classroom';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { SaveState } from '$lib/save-state.svelte';
+	import { guardSaveNavigation } from '$lib/save-guard.svelte';
 
 	/**
 	 * The student half of the assignment engine, mounted in the item detail
@@ -57,8 +60,6 @@
 	);
 	let rendererKey = $state(0);
 
-	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
-	let saveError = $state<string | null>(null);
 	let busy = $state(false);
 	let notice = $state<string | null>(null);
 	let serverUnmet = $state<UnmetEntry[] | null>(null);
@@ -88,68 +89,92 @@
 	const returned = $derived(subState === 'returned');
 
 	// ------------------------------------------------------------------
-	// Autosave: one debounced timer per block, flushed before submit. The
-	// FSP tools' ~800ms debounce convention.
+	// AUTOSAVE, on the shared SaveState primitive.
+	//
+	// WHAT THIS REPLACED, and why it was the urgent one. There was a timer per
+	// block, and `saveStatus` went to 'saving' inside queueSave -- BEFORE any
+	// network call existed, and 800ms before one would. So the indicator said
+	// "Saving..." for a request that had not been made; a failed write was
+	// never re-attempted unless the student happened to edit that same block
+	// again; and with no beforeNavigate and no unload net, clicking the next
+	// item inside the debounce window discarded the last answer in silence.
+	// That is the reported defect, and it is the first thing the tests cover.
+	//
+	// ONE STATE FOR THE WHOLE ENGINE, not one per block. The student is owed a
+	// single honest answer to "is my work saved", and N indicators that each
+	// speak for one block cannot give it. The dirty SET is what remembers which
+	// blocks still owe a write; the run sends all of them.
 	// ------------------------------------------------------------------
-	const timers = new Map<string, ReturnType<typeof setTimeout>>();
-	const inflight = new Set<string>();
+	const dirtyBlocks = new Set<string>();
+
+	function refusalText(reason: string | undefined): string {
+		return reason === 'locked'
+			? 'This is submitted, so edits are locked. Unsubmit to keep working.'
+			: reason === 'approval_pending'
+				? 'That module is still locked, ask your teacher to approve your earlier work.'
+				: 'That change was not saved.';
+	}
+
+	const save = new SaveState({
+		fallbackMessage: 'That change was not saved.',
+		async save() {
+			const ids = [...dirtyBlocks];
+			if (!ids.length) return { ok: true } as const;
+			let transportFail: string | null = null;
+			let refusal: string | null = null;
+			for (const id of ids) {
+				const res = await transports.saveResponse(item.id, id, values[id] ?? {});
+				if (!res.ok) {
+					// STAYS DIRTY, so the retry re-sends it. The value is still in
+					// `values`, which is what the field renders from, so nothing the
+					// student typed has been taken off the screen either.
+					transportFail = res.message;
+					continue;
+				}
+				if (res.data.ok === false) {
+					refusal = refusalText(res.data.reason);
+					continue;
+				}
+				dirtyBlocks.delete(id);
+			}
+			// A transport failure outranks a refusal for RETRYABILITY: if any block
+			// failed to reach the server at all, another attempt can still change
+			// the answer, and the refusal will simply be reported again with it.
+			if (transportFail) return { ok: false, retryable: true, message: transportFail } as const;
+			if (refusal) return { ok: false, retryable: false, message: refusal } as const;
+			return { ok: true } as const;
+		}
+	});
+
+	$effect(() => save.attach());
+
+	/**
+	 * Pending work is flushed BEFORE the navigation, and only a flush that
+	 * cannot land raises a question. See save-guard.svelte.ts.
+	 */
+	guardSaveNavigation(save, {
+		warning:
+			'Your last answer has not been saved yet, and leaving now will lose it.'
+	});
 
 	function queueSave(blockId: string, value: ResponseValue) {
 		values[blockId] = value;
 		serverUnmet = null;
-		const existing = timers.get(blockId);
-		if (existing) clearTimeout(existing);
-		timers.set(
-			blockId,
-			setTimeout(() => {
-				timers.delete(blockId);
-				void writeBlock(blockId);
-			}, 800)
-		);
-		saveStatus = 'saving';
+		dirtyBlocks.add(blockId);
+		save.markDirty();
 	}
 
-	async function writeBlock(blockId: string) {
-		inflight.add(blockId);
-		const value = values[blockId];
-		const res = await transports.saveResponse(item.id, blockId, value);
-		inflight.delete(blockId);
-		if (!res.ok) {
-			saveStatus = 'error';
-			saveError = res.message;
-			return;
-		}
-		if (res.data.ok === false) {
-			saveStatus = 'error';
-			saveError =
-				res.data.reason === 'locked'
-					? 'This is submitted, so edits are locked. Unsubmit to keep working.'
-					: res.data.reason === 'approval_pending'
-						? 'That module is still locked -- ask your teacher to approve your earlier work.'
-						: 'That change was not saved.';
-			return;
-		}
-		if (timers.size === 0 && inflight.size === 0) {
-			saveStatus = 'saved';
-			saveError = null;
-		}
-	}
-
-	/** Write out everything still pending (before submit). */
+	/** Write out everything still pending (before submit, and before leaving). */
 	async function flushSaves() {
-		const pending = [...timers.keys()];
-		for (const id of pending) {
-			const t = timers.get(id);
-			if (t) clearTimeout(t);
-			timers.delete(id);
-		}
-		await Promise.all(pending.map((id) => writeBlock(id)));
+		await save.saveNow();
 	}
 
 	async function setDeclaration(checked: boolean) {
 		values[DECLARATION_BLOCK_ID] = { checked: [checked] };
-		saveStatus = 'saving';
-		await writeBlock(DECLARATION_BLOCK_ID);
+		dirtyBlocks.add(DECLARATION_BLOCK_ID);
+		save.markDirty();
+		// A tick is a decision, not typing: there is nothing to debounce.
+		await save.saveNow();
 	}
 
 	// ------------------------------------------------------------------
@@ -227,6 +252,12 @@
 			engine = res.data;
 			values = Object.fromEntries(res.data.responses.map((r) => [r.block_id, r.value ?? {}]));
 			rendererKey += 1;
+			// WHAT IS ON SCREEN IS NOW WHAT THE SERVER HOLDS: every field was just
+			// re-seeded from its response rows, so any block still marked dirty is
+			// naming a local edit that no longer exists. Leaving them marked would
+			// make the guard ask about work that is not there.
+			dirtyBlocks.clear();
+			save.markSaved();
 		}
 	}
 
@@ -295,9 +326,17 @@
 			</span>
 		{/if}
 		{#if spec}
-			<span class="status-meta save-state {saveStatus}">
-				{#if saveStatus === 'saving'}Saving…{:else if saveStatus === 'saved'}All changes saved{:else if saveStatus === 'error'}{saveError ?? 'Save failed'}{/if}
-			</span>
+			<!--
+				THE INDICATOR REPORTS THE ACKNOWLEDGEMENT, not the dispatch, and
+				carries the clock time of the last successful write. The explicit
+				Save now control reports through the SAME indicator: two controls
+				with two answers to "is it saved" is the defect one level along.
+			-->
+			<SaveIndicator
+				state={save}
+				onsave={editable ? () => void save.saveNow() : null}
+				saveLabel="Save now"
+			/>
 		{/if}
 	</div>
 
@@ -457,7 +496,9 @@
 	}
 	.status-row {
 		display: flex;
-		align-items: baseline;
+		/* `center`, not `baseline`: the save indicator carries a real 44px
+		   control, and a baseline row hangs it off the chip's text line. */
+		align-items: center;
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		margin-bottom: 0.7rem;
@@ -482,15 +523,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
-	}
-	.save-state.saving {
-		color: var(--amber);
-	}
-	.save-state.saved {
-		color: var(--green);
-	}
-	.save-state.error {
-		color: var(--crimson);
 	}
 	.card {
 		margin-bottom: 0.9rem;

@@ -40,6 +40,42 @@ export function notebookComposerHasWork(work: ComposerWork): boolean {
 export const NOTEBOOK_DISCARD_WARNING =
 	'This entry has not been saved yet, and the photos and text in it are only in this browser.';
 
+/** The other thing a notebook page can be holding: an open note editor. */
+export const NOTEBOOK_NOTE_DISCARD_WARNING =
+	'You have edits to a note that have not been saved yet.';
+
+/** Everything on a notebook page that the server has not acknowledged. */
+export type NotebookUnsavedWork = {
+	/** The composer's contents, or null when it is not mounted at all. */
+	composer: ComposerWork | null;
+	/** How many open note editors are holding unsaved edits. */
+	dirtyNoteEditors: number;
+};
+
+/**
+ * WHICH UNSAVED THING THE PAGE IS HOLDING, or null for none.
+ *
+ * The guard used to ask `notebookComposerHasWork` and nothing else, so an open
+ * note editor with a retyped paragraph in it was invisible to it: clicking
+ * another entry threw the edit away with nothing said. A note editor is two
+ * components below the page, so it reports its own dirty state up and this
+ * function is where the two answers are combined -- one place, so the guard
+ * and the close control cannot end up disagreeing about what counts as work.
+ *
+ * THE NOTE COMES FIRST because it is the more surprising loss. A composer
+ * visibly holds a form; an open note editor looks like the note.
+ */
+export function notebookUnsavedReason(work: NotebookUnsavedWork): 'note' | 'composer' | null {
+	if (work.dirtyNoteEditors > 0) return 'note';
+	if (work.composer && notebookComposerHasWork(work.composer)) return 'composer';
+	return null;
+}
+
+/** The warning that goes with each reason, so no caller writes its own. */
+export function notebookUnsavedWarning(reason: 'note' | 'composer'): string {
+	return reason === 'note' ? NOTEBOOK_NOTE_DISCARD_WARNING : NOTEBOOK_DISCARD_WARNING;
+}
+
 /**
  * WHICH ENTRY THE DETAIL PANE IS SHOWING, resolved from the CURRENT list every
  * time rather than captured when the row was clicked.

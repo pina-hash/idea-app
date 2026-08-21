@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { SaveState, saveStateLabel } from '$lib/save-state.svelte';
 	import { FSP_TECHS, fspTechById, type FspTechId } from './techs';
 	import { postSelection, type FspPayload, type FspSelection } from './client';
 
@@ -58,15 +59,11 @@
 		) as FspTechId[]
 	);
 
-	type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-	let status = $state<SaveStatus>('idle');
-	let errorDetail = $state('');
 	let mounted = $state(false);
 
-	let debTimer: ReturnType<typeof setTimeout> | null = null;
-	let inflight = false;
-	let pendingChange = false;
 	// Serialized payload most recently confirmed saved (baseline = the prefill).
+	// Still ours: WHAT counts as a change is this surface's question, and the
+	// shared SaveState deliberately has no opinion about it.
 	let lastSavedSerial = '';
 
 	const namesReady = $derived(lastName.trim().length > 0 && firstName.trim().length > 0);
@@ -109,7 +106,10 @@
 	$effect(() => {
 		if (initial && serial && lastSavedSerial === '') {
 			lastSavedSerial = serial;
-			status = 'saved';
+			// No clock time: this is what the server already held when the page
+			// loaded, not a write this session made. `markSaved(null)` says
+			// exactly that rather than stamping a time nothing happened at.
+			untrack(() => save.markSaved());
 		}
 	});
 
@@ -180,11 +180,6 @@
 		dragOverIndex = null;
 	}
 
-	function backoffMs(attempt: number) {
-		return Math.min(DEBOUNCE_MS * 2 ** (attempt - 1), 8000);
-	}
-	const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 	function doSaveOnce(payload: FspPayload): Promise<void> {
 		if (saveOnce) return saveOnce(payload);
 		if (!execUrl) return Promise.reject(new Error('not-configured'));
@@ -192,91 +187,67 @@
 	}
 
 	/**
-	 * Persist the CURRENT state (read fresh each attempt, so retries and any
-	 * in-flight coalescing always send the latest = last-write-wins). Retries
-	 * with exponential backoff; after MAX_ATTEMPTS surfaces a visible error with
-	 * a manual Retry, never a silent failure. A change arriving mid-save is
-	 * coalesced into one more run when the current one settles.
+	 * THE SAVE ENGINE IS NO LONGER IN THIS FILE. The 800ms debounce, the
+	 * backoff, the coalescing of an edit that lands mid-write and the
+	 * visibilitychange / pagehide net all live in `$lib/save-state.svelte`,
+	 * which was extracted FROM here -- this surface and FspPulse held two
+	 * byte-identical copies of it, and the classroom went and wrote a worse
+	 * third rather than reusing either.
+	 *
+	 * What is left below is the only part that was ever specific to this tool:
+	 * what a payload is, when there is one worth sending, and the sendBeacon
+	 * that a cross-origin Apps Script endpoint needs at pagehide.
 	 */
-	async function persist() {
-		if (!readyToSave) return;
-		if (!saveOnce && !execUrl) {
-			status = 'error';
-			errorDetail = 'Saving is not configured yet (endpoint URL not set).';
-			return;
-		}
-		if (inflight) {
-			pendingChange = true;
-			return;
-		}
-		inflight = true;
-		status = 'saving';
-		errorDetail = '';
-
-		let saved = false;
-		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+	const save = new SaveState({
+		debounceMs: DEBOUNCE_MS,
+		maxAttempts: MAX_ATTEMPTS,
+		onHide: () => flushBeacon(),
+		fallbackMessage: 'Could not save your ranking. Tap Retry, or just leave this page open.',
+		async save() {
+			// Read fresh every attempt, so a retry and a coalesced re-run both
+			// send the LATEST state (last-write-wins), never a stale snapshot.
+			if (!readyToSave) return { ok: true } as const;
+			if (!saveOnce && !execUrl) {
+				// A terminal refusal, not a retryable failure: the endpoint URL is
+				// not set, and no number of attempts is going to set it.
+				return {
+					ok: false,
+					retryable: false,
+					message: 'Saving is not configured yet (endpoint URL not set).'
+				} as const;
+			}
 			const payload = snapshot();
 			const s = JSON.stringify(payload);
 			try {
 				await doSaveOnce(payload);
 				lastSavedSerial = s;
-				status = 'saved';
-				errorDetail = '';
-				saved = true;
-				break;
-			} catch (err) {
-				if (attempt < MAX_ATTEMPTS) {
-					status = 'saving';
-					errorDetail = `Retrying (attempt ${attempt + 1} of ${MAX_ATTEMPTS})…`;
-					await wait(backoffMs(attempt));
-				} else {
-					status = 'error';
-					errorDetail =
-						err instanceof Error && err.message === 'not-configured'
-							? 'Saving is not configured yet (endpoint URL not set).'
-							: 'Could not save your ranking. Tap Retry, or just leave this page open.';
-				}
+				return { ok: true } as const;
+			} catch {
+				return {
+					ok: false,
+					retryable: true,
+					message: 'Could not save your ranking. Tap Retry, or just leave this page open.'
+				} as const;
 			}
 		}
+	});
 
-		inflight = false;
-		pendingChange = false;
-		// If a newer edit landed mid-save, flush that latest state (last-write-wins).
-		// Only when it actually differs from what saved, so we never re-POST an
-		// identical row. On failure we do NOT loop here: the debounce effect (and
-		// the manual Retry) re-drive the slow background retry instead.
-		if (saved && readyToSave && serial !== lastSavedSerial) {
-			void persist();
-		}
-	}
-
-	// Debounced auto-save: any change to a saveable selection (name entered,
-	// at least 1 pick, need not reach 4) schedules a save.
+	// Debounced auto-save. `untrack` around the call is load-bearing: markDirty
+	// READS the phase it may then write, so a tracked call would re-run this
+	// effect on every transition the machine makes -- turning `saved` straight
+	// back into `dirty`, forever.
 	$effect(() => {
 		const s = serial;
-		if (!s || s === lastSavedSerial) return;
-		if (status !== 'error') status = 'saving';
-		if (debTimer) clearTimeout(debTimer);
-		debTimer = setTimeout(() => {
-			debTimer = null;
-			void persist();
-		}, DEBOUNCE_MS);
-		return () => {
-			if (debTimer) clearTimeout(debTimer);
-		};
+		if (!s || s === untrack(() => lastSavedSerial)) return;
+		untrack(() => save.markDirty());
 	});
 
 	function saveNow() {
-		if (debTimer) {
-			clearTimeout(debTimer);
-			debTimer = null;
-		}
-		void persist();
+		void save.saveNow();
 	}
 
 	function retry() {
-		errorDetail = '';
-		saveNow();
+		void save.retry();
 	}
 
 	/** Native <form> submit (JS path): never navigate away, just save now. */
@@ -286,7 +257,9 @@
 	}
 
 	// Best-effort durability net: if the tab is hidden/closed with unsaved
-	// changes, fire one sendBeacon so the latest state still lands.
+	// changes, fire one sendBeacon so the latest state still lands. Handed to
+	// the SaveState as `onHide` rather than wired to the events here, so there
+	// is one place that decides when a flush is due.
 	function flushBeacon() {
 		if (!execUrl || saveOnce) return;
 		if (!readyToSave || serial === lastSavedSerial) return;
@@ -300,16 +273,7 @@
 
 	onMount(() => {
 		mounted = true;
-		const onHide = () => {
-			if (document.visibilityState === 'hidden') flushBeacon();
-		};
-		document.addEventListener('visibilitychange', onHide);
-		window.addEventListener('pagehide', flushBeacon);
-		return () => {
-			document.removeEventListener('visibilitychange', onHide);
-			window.removeEventListener('pagehide', flushBeacon);
-			if (debTimer) clearTimeout(debTimer);
-		};
+		return save.attach();
 	});
 
 	// What the persistent status pill shows. Not-yet-saveable (no name, or no
@@ -318,10 +282,29 @@
 	const pill = $derived.by(() => {
 		if (!namesReady) return { kind: 'idle', text: 'Enter your name to begin' };
 		if (!hasPicks) return { kind: 'idle', text: 'Pick at least 1 pathway to save' };
-		if (status === 'saving') return { kind: 'saving', text: 'Saving…' };
-		if (status === 'saved') return { kind: 'saved', text: 'Saved' };
-		if (status === 'error') return { kind: 'error', text: 'Not saved' };
-		return { kind: 'idle', text: 'Ready' };
+		// THE WORDS COME FROM THE SHARED LABEL, so this tool and the classroom
+		// cannot end up saying different things about the same five states. The
+		// two readiness lines above are the only copy still ours: they are about
+		// whether there is anything to save yet, not about a save.
+		const label = saveStateLabel({
+			phase: save.phase,
+			savedAt: save.savedAt,
+			message: save.message,
+			attempt: save.attempt,
+			maxAttempts: save.maxAttempts
+		});
+		if (label.kind === 'clean') return { kind: 'idle', text: 'Ready' };
+		// This tool's own class names, kept so the pill's styling and its
+		// no-JS fallback are untouched by the extraction.
+		const kind =
+			label.kind === 'writing'
+				? 'saving'
+				: label.kind === 'failed'
+					? 'error'
+					: label.kind === 'dirty'
+						? 'dirty'
+						: 'saved';
+		return { kind, text: label.text };
 	});
 </script>
 
@@ -499,17 +482,18 @@
 				{#if pill.kind === 'saving'}<span class="spinner" aria-hidden="true"></span>{/if}
 				{#if pill.kind === 'saved'}<span class="tick" aria-hidden="true">&checkmark;</span>{/if}
 				{#if pill.kind === 'error'}<span class="bang" aria-hidden="true">!</span>{/if}
+				{#if pill.kind === 'dirty'}<span class="bang" aria-hidden="true">&middot;</span>{/if}
 				<span class="status-text">{pill.text}</span>
 			</div>
-			{#if status === 'error' && readyToSave}
+			{#if save.failed && readyToSave}
 				<button type="button" class="retry" onclick={retry}>Retry</button>
 			{/if}
 			{#if mounted}
 				<button type="submit" class="save-now" disabled={!readyToSave}>Save now</button>
 			{/if}
 		</div>
-		{#if errorDetail}
-			<p class="detail" class:err={status === 'error'}>{errorDetail}</p>
+		{#if save.failed && save.message}
+			<p class="detail err">{save.message}</p>
 		{/if}
 
 		<!-- No-JS fallback: plain selects posting the same fields to the same URL. -->
@@ -900,6 +884,13 @@
 		border: 1px solid var(--fsp-line);
 		background: var(--fsp-surface-2);
 		color: var(--fsp-muted);
+	}
+	.status-pill.dirty {
+		/* The new fifth state: something is typed and not yet on its way out.
+		   Reads as the muted default rather than as a warning, because on this
+		   tool it is a normal 800ms of every edit. */
+		color: var(--fsp-navy);
+		border-color: color-mix(in srgb, var(--fsp-navy) 22%, #fff);
 	}
 	.status-pill.saving {
 		color: var(--fsp-navy);

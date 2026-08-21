@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "Your work now tells you when it is actually saved",
+			"body": "On an assignment with questions in it, the note under the status now says one of four things, and it means them. \"Unsaved changes\" means you have typed something that has not gone out yet. \"Saving...\" means it is on its way. \"Saved\" comes with the time it happened, so you can tell a save from a minute ago apart from one from an hour ago. \"Not saved\" means it did not work, and it tells you why and gives you a Retry button; it also keeps trying on its own for a while before giving up, and whatever you typed stays in the box the whole time. If you click away to another page while an answer is still on its way, it is now sent first instead of being lost, and if it truly cannot be sent you get asked before you leave rather than finding out later. There is also a \"Save now\" button if you would rather not wait. The same wording is used when you edit a note in your notebook, so it reads the same everywhere.",
+			"tags": ["Assignments", "Notebook"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "Pictures can now sit inside instructions",
 			"body": "Your teacher can put a picture directly into the instructions on an assignment or a material, with a caption under it, instead of leaving it as a file at the bottom of the page you have to open separately. A diagram of the part you are making now sits next to the step that talks about it. Pictures print, so a page you print for the bench keeps them. If a picture cannot be shown for any reason you will see its caption with a short note in place of the image, rather than a blank space or a broken picture, so you always know something was meant to be there and can ask about it.",
 			"tags": ["Instructions", "Materials"]

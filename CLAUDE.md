@@ -674,6 +674,32 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A partial failure KEEPS what did not land** and names it; only what succeeded
   is cleared. A retry after a partial create UPDATES the record already made, or
   it produces a duplicate.
+- **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
+  (`$lib/save-state.svelte`), never a sixth hand-rolled variant. It owns the five
+  states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
+  8s, and the visibilitychange / pagehide net; `$lib/save-guard.svelte` is its
+  navigation guard and `SaveIndicator.svelte` is the one set of words for it.
+  - **`saved` is the ACKNOWLEDGEMENT, never the dispatch**, and it carries the
+    clock time of the write. A status set beside a `fetch` call says a request
+    was made, which is not what the reader is asking.
+  - **A retryable failure and a REFUSAL are different outcomes.** Backoff belongs
+    to the network; a server that considered the payload and said no is answered
+    once and reported, never retried five times.
+  - **Pending work is FLUSHED before a navigation, and only a flush that cannot
+    land raises a question.** The correct answer to "you have unsaved work" is
+    "then save it"; a confirm on every move is a confirm nobody reads.
+  - **PER-INSTANCE, NEVER A SHELL BANNER.** One global indicator reading "all
+    changes saved" while a sibling surface holds a failed write is a false
+    negative with a much wider blast radius than the defect it papers over.
+  - **`autosave: false` where a write MINTS A RECORD** (a notebook note is a
+    revision): the machine still reports dirty for the guard and schedules
+    nothing.
+  - **`markDirty` driven from an `$effect` must be `untrack`ed.** It reads the
+    phase it may then write, so a tracked call re-runs the effect on every
+    transition and turns `saved` straight back into `dirty`. A dirty signal
+    reported to a parent tracks `save.dirty`, NOT the draft -- the draft is
+    cleared before the acknowledgement lands -- and is withdrawn on teardown,
+    because a remount destroys the instance that reported it.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.

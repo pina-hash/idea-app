@@ -116,7 +116,8 @@
 		onSubmit,
 		onUnsubmit,
 		onDeleteNote,
-		onRestoreNote
+		onRestoreNote,
+		onNoteDirty
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
@@ -215,6 +216,14 @@
 		 * there shows the RPC's refusal instead, regardless of this transport.
 		 */
 		onRestoreNote?: (noteId: string) => Promise<EntryActionResult>;
+		/**
+		 * PASSED STRAIGHT THROUGH to EntryNotes: whether this entry's note editor
+		 * is holding unsaved edits. The page owns the navigation guard and the
+		 * editor is two components down from it, so the signal travels up as
+		 * intent rather than the guard reaching down. The card itself does
+		 * nothing with it.
+		 */
+		onNoteDirty?: (entryId: string, dirty: boolean) => void;
 	} = $props();
 
 	/**
@@ -1016,6 +1025,7 @@
 						onDelete={historyReady ? onDeleteNote : undefined}
 						onRestore={historyReady ? onRestoreNote : undefined}
 						{viewerId}
+						ondirty={onNoteDirty ? (d) => onNoteDirty(entry.id, d) : undefined}
 					/>
 				</div>
 			{/if}

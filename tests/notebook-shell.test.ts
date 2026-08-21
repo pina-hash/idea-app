@@ -4,6 +4,7 @@ import { render } from 'svelte/server';
 import NotebookEntryCard from '../src/lib/notebook/NotebookEntryCard.svelte';
 import {
 	NOTEBOOK_DISCARD_WARNING,
+	NOTEBOOK_NOTE_DISCARD_WARNING,
 	clampSelection,
 	notebookComposerHasWork,
 	selectedEntryOf
@@ -297,8 +298,25 @@ describe('what counts as unsaved work', () => {
 	it('says the same thing wherever it is asked', () => {
 		const view = read('src/lib/notebook/NotebookView.svelte');
 		expect(NOTEBOOK_DISCARD_WARNING.length).toBeGreaterThan(20);
-		// One constant, two call sites: the Close control and the guard.
-		expect(view.match(/NOTEBOOK_DISCARD_WARNING/g) ?? []).toHaveLength(3);
+		expect(NOTEBOOK_NOTE_DISCARD_WARNING.length).toBeGreaterThan(20);
+
+		/**
+		 * THE RULE, NOT A COUNT.
+		 *
+		 * This used to assert exactly three occurrences of one constant, which a
+		 * second KIND of unsaved work necessarily breaks -- and it broke the
+		 * moment the guard learned about an open note editor, which is a
+		 * legitimate change. What the assertion was actually protecting is that
+		 * the page never spells a warning out for itself: every warning it can
+		 * show comes from notebook-shell.ts, so the Close control and the
+		 * navigation guard cannot diverge, and a third kind is added there
+		 * rather than by typing a fourth sentence into this page.
+		 */
+		const fromTheOneModule = view.match(/NOTEBOOK_DISCARD_WARNING|notebookUnsavedWarning\(/g) ?? [];
+		expect(fromTheOneModule.length).toBeGreaterThanOrEqual(3);
+		// No hand-written warning prose anywhere in the page.
+		expect(view).not.toMatch(/has not been saved yet/);
+		expect(view).not.toMatch(/only in this browser/);
 	});
 });
 

@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
@@ -159,6 +161,41 @@
 	});
 
 	/**
+	 * THE UNSAVED MARKER IS LIVE, not something you find out about by trying to
+	 * leave.
+	 *
+	 * The dirty guard (7e6cfd7) already refused to swap students over unsaved
+	 * grading, and that is still the boundary. What it did not do was SAY
+	 * anything: a grader filled in a rubric, looked at a console that showed no
+	 * difference from a saved one, and only learned there was unsaved work when
+	 * a confirm appeared over a click they had already decided on.
+	 *
+	 * `autosave: false` because grading is not typing: a draft save is an act,
+	 * with an explicit control, and a debounce would push half-entered rubrics
+	 * at the server on the way through. The machine still tracks `dirty` off the
+	 * same baseline the guard uses, so the two cannot disagree.
+	 */
+	const save = new SaveState({
+		autosave: false,
+		fallbackMessage: 'The grade was not saved.',
+		save: () => grade(false)
+	});
+
+	$effect(() => save.attach());
+
+	// `untrack`: markDirty READS the phase it may then write, so a tracked call
+	// would re-run this effect on every transition of the machine.
+	$effect(() => {
+		const isDirty = dirty;
+		untrack(() => {
+			if (isDirty) save.markDirty();
+			// `saved` and `failed` are reports of a WRITE and are left standing;
+			// only an unsaved marker with nothing behind it is cleared here.
+			else if (save.phase === 'dirty') save.reset();
+		});
+	});
+
+	/**
 	 * THE ONE WAY IN. Every path that changes who is selected -- a roster click,
 	 * Close, the keyboard -- goes through here, so the guard cannot be routed
 	 * around by adding a fourth.
@@ -202,8 +239,11 @@
 
 	async function saveThenSwitch() {
 		const next = pending?.next ?? null;
-		const ok = await grade(false);
-		if (!ok) return;
+		await save.saveNow();
+		// The switch only happens on the ACKNOWLEDGEMENT: a failed draft save
+		// that then swapped the student would discard the very rubric the
+		// confirm was asking about.
+		if (save.dirty) return;
 		applySelect(next);
 	}
 
@@ -234,8 +274,8 @@
 		return { label: 'Not submitted', cls: 'none' };
 	}
 
-	async function grade(release: boolean): Promise<boolean> {
-		if (!selected || !rubric) return false;
+	async function grade(release: boolean): Promise<SaveOutcome> {
+		if (!selected || !rubric) return { ok: true };
 		gradeError = null;
 		gradeNotice = null;
 		needComment = [];
@@ -259,7 +299,9 @@
 			);
 			if (!res.ok) {
 				gradeError = res.message;
-				return false;
+				// The request did not reach the server: another attempt can
+				// still change the answer.
+				return { ok: false, retryable: true, message: res.message };
 			}
 			if (res.data.ok === false) {
 				if (res.data.reason === 'override_needs_comment') {
@@ -268,13 +310,15 @@
 						needComment.length === 1
 							? 'Say why you scored between levels (1 criterion still needs a comment).'
 							: `Say why you scored between levels (${needComment.length} criteria still need a comment).`;
-					return false;
+					// A refusal, not a failure: the server considered this and said
+					// no, so retrying it five times arrives at the same answer.
+					return { ok: false, retryable: false, message: gradeError };
 				}
 				gradeError =
 					res.data.reason === 'incomplete_scores'
 						? `Score every criterion before returning (${res.data.missing?.length ?? 0} left).`
 						: 'The grade was refused.';
-				return false;
+				return { ok: false, retryable: false, message: gradeError };
 			}
 			gradeNotice = release
 				? `Returned to ${selected.displayName} -- they can see the score and comment now.`
@@ -283,7 +327,7 @@
 			// switching students after a save must not ask about work that landed.
 			baseline = currentSnapshot();
 			await load();
-			return true;
+			return { ok: true };
 		} finally {
 			// IN A `finally`: a transport that throws rather than resolving
 			// `{ok:false}` otherwise left every control on the console disabled,
@@ -533,7 +577,7 @@
 				moveStudent(-1);
 				return;
 			case 'save':
-				if (!busy) void grade(false);
+				if (!busy) void save.saveNow();
 				return;
 			case 'return':
 				if (busy) return;
@@ -900,7 +944,12 @@
 									{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
 									{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
 									<span class="grade-actions">
-										<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => grade(false)}>
+										<button
+											type="button"
+											class="btn secondary tiny"
+											disabled={busy}
+											onclick={() => void save.saveNow()}
+										>
 											Save draft
 										</button>
 										<button
@@ -912,6 +961,10 @@
 										>
 											{armReturn ? 'Press R again to return' : 'Return to student'}
 										</button>
+										<!-- The live unsaved marker, in the same words the other three
+										     surfaces use. It reports the acknowledgement, so "Saved" here
+										     means the draft is stored, never that a request went out. -->
+										<SaveIndicator state={save} />
 									</span>
 								</div>
 							</div>

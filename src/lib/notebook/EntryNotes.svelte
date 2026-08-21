@@ -9,6 +9,9 @@
 		type TiptapNode
 	} from '$lib/notebook-notes';
 	import type { EntryActionResult, NoteSaveResult } from '$lib/notebook';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { SaveState } from '$lib/save-state.svelte';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Every written note on one entry, in the order they were written, with the
@@ -54,7 +57,8 @@
 		onStaffDelete,
 		subjectName,
 		viewerId,
-		compact = false
+		compact = false,
+		ondirty
 	}: {
 		notes: NotebookNoteRow[];
 		/** False on a session-linked entry: no edit control is rendered. */
@@ -83,6 +87,19 @@
 		viewerId?: string;
 		/** The instructor panel wants a tighter block than the student feed. */
 		compact?: boolean;
+		/**
+		 * AN OPEN EDITOR WITH UNSAVED EDITS IS WORK, and this is how the page
+		 * that owns the navigation guard finds out about it.
+		 *
+		 * NotebookView's guard tested the composer only (staged photos, the
+		 * title, the note draft), so a student who opened an existing note,
+		 * retyped a paragraph and clicked another entry lost it with nothing
+		 * said. The note editor is two components down from that guard, so it
+		 * reports UP rather than the guard reaching down -- the card is a
+		 * presentation component and this is intent, which is the direction
+		 * everything else here travels too.
+		 */
+		ondirty?: (dirty: boolean) => void;
 	} = $props();
 
 	const threads = $derived(noteThreads(notes));
@@ -99,37 +116,105 @@
 	 * one place an instructor goes to see what actually changed.
 	 */
 	let baseline = $state<string | null>(null);
-	let busy = $state(false);
-	let errorMsg = $state<string | null>(null);
-
 	const changed = $derived(draft !== null && baseline !== null && JSON.stringify(draft) !== baseline);
+
+	/**
+	 * THE LABEL REPORTS THE ACKNOWLEDGEMENT. It used to be driven by a `busy`
+	 * flag set before the call and cleared after it, which says a request is
+	 * in flight and says nothing at all about whether the revision landed --
+	 * the editor simply closed, and a failure showed a message with no state
+	 * behind it and no way to try again but retyping.
+	 *
+	 * `autosave: false` is deliberate and is not a smaller version of the
+	 * classroom's autosave. A note write INSERTS a revision (0078), so a
+	 * debounce here would mint one every 800ms and fill a thread with versions
+	 * nobody asked for. The machine still moves to `dirty` on the first
+	 * keystroke -- which is what the navigation guard reads -- it just never
+	 * schedules anything of its own.
+	 */
+	const save = new SaveState({
+		autosave: false,
+		fallbackMessage: 'That note was not saved.',
+		async save() {
+			const noteId = editingId;
+			if (!noteId || !onSave || !draft || !changed) return { ok: true } as const;
+			const result = await onSave(noteId, draft);
+			if (!result.ok) return { ok: false, retryable: true, message: result.error } as const;
+			// ACKNOWLEDGED, and only now: the editor closes on the server's
+			// answer, never on the dispatch. The draft is left in place until
+			// this line, so a failed write keeps every word of it on screen.
+			editingId = null;
+			draft = null;
+			baseline = null;
+			return { ok: true } as const;
+		}
+	});
+
+	/**
+	 * THE SIGNAL IS WITHDRAWN ON TEARDOWN, and that is not tidiness.
+	 *
+	 * A successful note save reloads the feed, which remounts this card -- so
+	 * the instance that reported `dirty` is destroyed and a fresh one, with no
+	 * open editor, takes its place. Without this cleanup the page's Set keeps
+	 * that entry id forever and the guard asks about a note that was saved
+	 * minutes ago, which is exactly the kind of warning people learn to click
+	 * through. Found in the browser: the note saved, the editor closed, and the
+	 * next navigation still asked.
+	 */
+	$effect(() => {
+		const off = save.attach();
+		return () => {
+			off();
+			ondirty?.(false);
+		};
+	});
+
+	// `untrack` around both calls: they READ the phase they may then write, so a
+	// tracked call re-runs this effect on every transition and turns `saved`
+	// straight back into `dirty`.
+	$effect(() => {
+		const isChanged = changed;
+		untrack(() => {
+			if (isChanged) save.markDirty();
+			// `saved` and `failed` are reports of a WRITE and are left standing;
+			// only an unsaved marker with nothing behind it is cleared here.
+			// (`startEdit` and `cancelEdit` reset explicitly.)
+			else if (save.phase === 'dirty') save.reset();
+		});
+	});
+
+	/**
+	 * THE SIGNAL TRACKS THE MACHINE, NOT THE DRAFT, and that distinction is the
+	 * whole bug it fixes.
+	 *
+	 * Reporting from the effect above meant reading `save.dirty` inside its
+	 * `untrack`, so the only thing that could re-run it was `changed`. A
+	 * successful save clears the draft (making `changed` false) BEFORE the
+	 * acknowledgement lands, so the last thing the page was told was `dirty`
+	 * while the phase was still `writing` -- and the `writing` to `saved`
+	 * transition, the one that actually releases the guard, re-ran nothing.
+	 * Found in the browser: the note saved, the editor closed, and the next
+	 * navigation still asked about it.
+	 */
+	$effect(() => {
+		const isDirty = save.dirty;
+		untrack(() => ondirty?.(isDirty));
+	});
+
+	const busy = $derived(save.phase === 'writing');
 
 	function startEdit(noteId: string) {
 		editingId = noteId;
 		draft = null;
 		baseline = null;
-		errorMsg = null;
+		save.reset();
 	}
 
 	function cancelEdit() {
 		editingId = null;
 		draft = null;
 		baseline = null;
-		errorMsg = null;
-	}
-
-	async function save(noteId: string) {
-		if (busy || !onSave || !draft || !changed) return;
-		busy = true;
-		errorMsg = null;
-		const result = await onSave(noteId, draft);
-		busy = false;
-		if (!result.ok) {
-			errorMsg = result.error;
-			return;
-		}
-		editingId = null;
-		draft = null;
+		save.reset();
 	}
 
 	function when(iso: string): string {
@@ -228,21 +313,23 @@
 							autofocus
 							label="Edit note"
 						/>
-						{#if errorMsg}
-							<p class="note-error" role="alert">{errorMsg}</p>
-						{/if}
 						<div class="note-actions">
 							<button
 								type="button"
 								class="btn"
 								disabled={busy || !changed}
-								onclick={() => save(thread.noteId)}
+								onclick={() => void save.saveNow()}
 							>
-								{busy ? 'Saving...' : 'Save changes'}
+								Save changes
 							</button>
 							<button type="button" class="btn secondary" disabled={busy} onclick={cancelEdit}>
 								Cancel
 							</button>
+							<!-- The same indicator, in the same words, as the other three
+							     surfaces. It replaces both the old `busy ? 'Saving...'`
+							     button label and the bare error line: those said what had
+							     been dispatched, this says what landed and when. -->
+							<SaveIndicator state={save} />
 						</div>
 					</div>
 				{:else}

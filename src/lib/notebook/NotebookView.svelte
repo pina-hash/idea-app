@@ -16,6 +16,8 @@
 		NOTEBOOK_DISCARD_WARNING,
 		clampSelection,
 		notebookComposerHasWork,
+		notebookUnsavedReason,
+		notebookUnsavedWarning,
 		selectedEntryOf
 	} from '$lib/notebook/notebook-shell';
 	import '$lib/notebook/notebook-theme.css';
@@ -431,15 +433,39 @@
 	 * link; cancelling it there is what raises the native unload dialog, which
 	 * is the only warning a page is allowed to show at that point.
 	 */
+	/**
+	 * WHICH ENTRIES HAVE A NOTE EDITOR HOLDING UNSAVED EDITS.
+	 *
+	 * The guard below asked `notebookComposerHasWork` and nothing else, so an
+	 * open note editor with a retyped paragraph in it was invisible to it: a
+	 * click on another entry threw the edit away with nothing said. A note
+	 * editor is two components down from this page, so each EntryNotes reports
+	 * its own SaveState up through its card and this Set collects them.
+	 *
+	 * A plain Set, not a reactive one: it is read only inside the guard, at the
+	 * moment a navigation happens, so there is nothing here to re-render.
+	 */
+	const dirtyNoteEditors = new Set<string>();
+	function noteEditorDirty(entryId: string, dirty: boolean) {
+		if (dirty) dirtyNoteEditors.add(entryId);
+		else dirtyNoteEditors.delete(entryId);
+	}
+
+	/** Set by the guard before it needs the warning; see notebook-shell.ts. */
+	let unsavedReason: 'note' | 'composer' | null = null;
+
 	beforeNavigate((nav) => {
-		if (!composerMounted) return;
-		if (!notebookComposerHasWork({ staged, title, noteDraft })) return;
+		unsavedReason = notebookUnsavedReason({
+			composer: composerMounted ? { staged, title, noteDraft } : null,
+			dirtyNoteEditors: dirtyNoteEditors.size
+		});
+		if (!unsavedReason) return;
 		if (nav.type === 'leave') {
 			nav.cancel();
 			return;
 		}
 		if (nav.to?.route.id && nav.to.route.id === nav.from?.route.id) return;
-		if (window.confirm(`${NOTEBOOK_DISCARD_WARNING}\n\nLeave anyway?`)) return;
+		if (window.confirm(`${notebookUnsavedWarning(unsavedReason)}\n\nLeave anyway?`)) return;
 		nav.cancel();
 	});
 
@@ -1732,6 +1758,7 @@
 										onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
 										onDeleteNote={deleteNote ? deleteNoteOne : undefined}
 										onRestoreNote={restoreNote ? restoreNoteOne : undefined}
+										onNoteDirty={noteEditorDirty}
 									/>
 								</li>
 							{/each}
@@ -2030,6 +2057,7 @@
 					onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
 					onDeleteNote={deleteNote ? deleteNoteOne : undefined}
 					onRestoreNote={restoreNote ? restoreNoteOne : undefined}
+										onNoteDirty={noteEditorDirty}
 				/>
 			</div>
 		{/key}
