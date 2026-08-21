@@ -103,6 +103,15 @@
 	   hairline frame than the classroom's plate does. */
 	--cr-pane-line: var(--hairline);
 
+	/* The shared Disclosure's two hooks ($lib/Disclosure.svelte). Every other
+	   interactive thing in this room takes the brass accent; the portal's mint
+	   --green and its cyan focus ring are both tuned for a dark plate and
+	   neither is measured against paper. Declared HERE, on the wrapper, so the
+	   component's own `var(--disc-accent, ...)` fallback is what the classroom
+	   keeps getting. */
+	--disc-accent: var(--nb-accent-ink);
+	--disc-focus: var(--nb-accent-ink);
+
 	position: relative;
 	/* Above the portal's fixed .bg-fx overlay (z-index 0), and opaque, so the
 	   dark scanline ambiance never shows through the light surfaces. */

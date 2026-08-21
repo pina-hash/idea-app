@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-21",
+			"title": "Instructions get out of the way once you start working",
+			"body": "An assignment's instructions, and each module's instructions inside it, now open the first time you look at an item and fold themselves away once you have typed anything in. Press Show to read them again at any point, and Hide when you want the room back. Whatever you choose is remembered for that item on that computer, so it stays the way you left it next time. Nothing is deleted: the instructions are always one press away, and they still come out on a printed copy whether they were open or shut.",
+			"tags": ["assignments", "reading"]
+		},
+		{
+			"date": "2026-08-21",
 			"title": "A report now says which browser you were using",
 			"body": "When you send a Report a problem note, it already carried the page you were on, your role, your class and the size of your screen. It now also carries which browser and which kind of device you were using, picked up on its own the way everything else is, so there is nothing extra to fill in. It is there because a lot of what goes wrong only goes wrong in one browser, and without knowing which one there was no way to tell. The note above the box says so before you send.",
 			"tags": ["Appearance"]

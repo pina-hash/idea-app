@@ -754,6 +754,34 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A disclosure is a real `<button>` with `aria-expanded`/`aria-controls`**, never a
   div plus a document-level click listener -- that is mouse-only and invisible to
   assistive tech, and it double-toggles against any control added later.
+  - **`$lib/Disclosure.svelte` IS THAT DISCLOSURE, and a new one is a caller of
+    it.** It takes a `label` (a word, never only a caret), an optional `heading`
+    level, a `collapseWhen` signal and a `scope`; `$lib/disclosure.ts` holds the
+    arithmetic so it is assertable without a browser. **The region is HIDDEN IN
+    CSS, never removed** -- so it prints, and reopening it costs nothing.
+  - **Its default is EXPANDED, for every role.** `disclosureOpen` takes no role
+    parameter and must not gain one: a per-role default is two behaviours to
+    keep in step. **What is stored is the MANUAL CHOICE, never the current
+    state** -- storing the state freezes the first render forever, which is the
+    exact defect a collapse exists to fix. The viewer's id is added to the
+    storage key INSIDE the component, so "per person, per item" is one rule in
+    one place and no caller threads an identity.
+  - **A room re-points it through `--disc-accent` / `--disc-focus`**, read at
+    the point of use with a fallback rather than declared on the component --
+    a declaration there sits on a DESCENDANT of the room's wrapper and would
+    beat it.
+  - **Twenty-odd hand-rolled disclosures predate it** (native `<details>`, and a
+    button over a `max-height` rule). They are MIGRATION CANDIDATES, not a
+    second sanctioned pattern. **A menu, a popover and a combobox are not
+    disclosures** -- `aria-haspopup`, outside-dismiss and `role="combobox"` are
+    different contracts and do not migrate.
+- **READING COLLAPSES ONCE THE WORK HAS STARTED, and it is ONE decision across
+  surfaces.** An assignment's instructions panel and a notebook check-in's
+  guidance panel are the same question, so they are the same component with the
+  same behaviour (`IDEA_INTERFACE_STANDARDS` 1). The "has started" signal is
+  DERIVED from state the surface already holds -- `specStarted` /
+  `moduleStarted` off the responses already loaded -- never from a store, a new
+  prop or a second read.
 - **Every section stays in the DOM when a surface must be printable**; hide an
   inactive one with CSS. A section that never rendered cannot print.
 
@@ -1400,6 +1428,20 @@ which is real -- and the copy would be overwritten by the next one to land.
 - **AI levels on assignments are set by ASKING THE INSTRUCTOR**, never inferred
   from the content. `docs/policy/IDEA_AI_Use_Policy.md`'s category-defaults table is
   the starting point for that conversation, not a rule that self-applies.
+- **A module's `instructions` carry a 250-word TARGET and a 300-word CEILING**
+  (`IDEA_MATERIAL_SPEC` v2.1). Instructions and the input tables share one scroll
+  column on the item page, so teaching that explains WHY belongs in the unit
+  reference document and only bench procedure stays in the item. **The two
+  numbers are enforced in two different places, on purpose:** 251-300 is a
+  non-blocking WARNING from `validateSpec`, rendered in SpecImporter's problem
+  list and never gating publish; 301 fails `tests/spec-instructions-budget.test.ts`
+  by name and by count. **The count comes from the renderer's own
+  `parseMarkdown` walk** (`instructionsWordCount`), never a regex stripper --
+  a second syntax parser would charge an author for their own list markers and
+  the number a test failed on would not be the number on the page. Three
+  byte-identical authoring test copies are exempt BY PATH AND BY HASH, capped at
+  three; a fourth over-budget spec is a standards conversation, not a line added
+  to that list.
 - **Real quiz and rubric CONTENT is not committed to this repo.** It is pasted into
   its table by hand by whoever has SQL editor access, the same way the coin price
   list is maintained. A role or unit with zero questions is a legitimate state, not

@@ -401,13 +401,116 @@ export function sentenceState(count: number, min: number | undefined): SentenceS
 // Spec validation (the friendly half; _classroom_check_spec is the boundary)
 // ---------------------------------------------------------------------------
 
+import { parseMarkdown, type InlineRun, type MarkdownList } from './reference-spec';
 import { specKind } from './reference-spec';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 
-export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; errors: string[] } {
+// ---------------------------------------------------------------------------
+// The instructions budget (IDEA_MATERIAL_SPEC v2.1, modules[])
+// ---------------------------------------------------------------------------
+
+/**
+ * 250 IS THE TARGET, 300 IS THE CEILING, and the gap is deliberate: one
+ * unavoidably long procedure should not require a standards argument, and a
+ * ceiling that authors write to stops being a ceiling.
+ *
+ * The reason the budget exists at all is the item page's single scroll column:
+ * instructions and the input tables share it, so every paragraph of teaching
+ * pushes the working surface further down. Procedure a student needs at the
+ * bench stays in the item; teaching that explains why belongs in the unit
+ * reference document.
+ *
+ * WHERE EACH NUMBER IS ENFORCED, and they are different jobs. 301 is the
+ * REPO's job -- `tests/spec-instructions-budget.test.ts` sweeps every spec
+ * under `materials/` and fails by name and by count, which is what makes the
+ * ceiling a constraint rather than a preference. 251 through 300 is the
+ * IMPORTER's job: a WARNING in the same problem list every other problem
+ * appears in, which never gates publish, because a spec over target is over
+ * target and not wrong.
+ */
+export const INSTRUCTIONS_WORD_TARGET = 250;
+export const INSTRUCTIONS_WORD_CEILING = 300;
+
+/**
+ * The runs of ONE paragraph, cell or list item, counted as one string.
+ *
+ * JOINED WITH NOTHING, and that is the load-bearing part. A run boundary is a
+ * FORMATTING boundary, not a word boundary: `**Measure**.` arrives as a bold
+ * run and a `.` run, and counting the runs separately charges the author two
+ * words for one. Joining before counting is also why this must never be used
+ * ACROSS a structural boundary -- two list items joined would read as one word
+ * where the marker was, which is the mistake the notebook normalizer made with
+ * real content.
+ */
+function runWords(runs: InlineRun[]): number {
+	return countWords(runs.map((run) => run.text).join(''));
+}
+
+function listWords(list: MarkdownList): number {
+	let n = 0;
+	for (const item of list.items) {
+		n += runWords(item.runs);
+		if (item.child) n += listWords(item.child);
+	}
+	return n;
+}
+
+function countWords(text: string): number {
+	const trimmed = text.trim();
+	if (!trimmed) return 0;
+	return trimmed.split(/\s+/).length;
+}
+
+/**
+ * Words of RENDERED instructions content in one module, markdown syntax
+ * excluded, summed across every `instructions` block the module carries.
+ *
+ * IT COUNTS WHAT MarkdownText WILL DRAW, by walking the same `parseMarkdown`
+ * output that component walks -- not by running a regex over the source. A
+ * hand-rolled syntax stripper is a second, worse implementation of the parser:
+ * it would charge an author for their pipe-table borders and their list
+ * markers, and the number a test failed on would not be the number on the
+ * page. A figure's alt text IS counted, because it renders as the visible
+ * caption; a code block is counted because it renders.
+ */
+export function instructionsWordCount(mod: SpecModule): number {
+	let total = 0;
+	for (const block of mod.blocks) {
+		if (block.type !== 'instructions') continue;
+		for (const node of parseMarkdown(block.content ?? '')) {
+			if (node.type === 'heading' || node.type === 'paragraph') total += runWords(node.runs);
+			else if (node.type === 'list') total += listWords(node);
+			else if (node.type === 'quote') for (const p of node.paragraphs) total += runWords(p);
+			else if (node.type === 'code') total += countWords(node.text);
+			else if (node.type === 'table') {
+				for (const cell of node.headers) total += runWords(cell);
+				for (const row of node.rows) for (const cell of row) total += runWords(cell);
+			} else if (node.type === 'figure') total += countWords(node.alt);
+		}
+	}
+	return total;
+}
+
+/**
+ * THE FRIENDLY HALF OF SPEC VALIDATION, in two tiers.
+ *
+ * `errors` are refusals: the spec comes back null and nothing can be
+ * published. `warnings` are advice the importer renders in the same problem
+ * list, visually distinct, and NEVER a gate -- a spec over the instructions
+ * target is over target, not wrong, and a teacher with a reason for a long
+ * procedure must not be stopped by an authoring preference. Anything that
+ * genuinely may not ship is an error here and a refusal in
+ * `_classroom_check_spec` (0086), which is the actual boundary.
+ */
+export function validateSpec(raw: unknown): {
+	spec: AssignmentSpec | null;
+	errors: string[];
+	warnings: string[];
+} {
 	const errors: string[] = [];
-	const fail = () => ({ spec: null, errors });
+	const warnings: string[] = [];
+	const fail = () => ({ spec: null, errors, warnings });
 
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
 		errors.push('The spec must be a JSON object.');
@@ -559,6 +662,25 @@ export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; error
 			}
 		});
 
+		// THE INSTRUCTIONS BUDGET, caught at import rather than at review.
+		// Counted through the RENDERER's own parse (see instructionsWordCount)
+		// and summed across every instructions block in the module, so the
+		// number a teacher reads here is the number the repo's spec-lint test
+		// reports. Over the CEILING is still a warning rather than an error:
+		// the ceiling is enforced by that test, by name and by count, and the
+		// tier that gates publishing is the one that answers to the SQL
+		// boundary.
+		const words = instructionsWordCount({ blocks: blocks as SpecBlock[] } as SpecModule);
+		if (words > INSTRUCTIONS_WORD_CEILING) {
+			warnings.push(
+				`Module "${name}" instructions run to ${words} words, over the ${INSTRUCTIONS_WORD_CEILING}-word ceiling. Move the teaching into the unit reference document and keep the bench procedure here.`
+			);
+		} else if (words > INSTRUCTIONS_WORD_TARGET) {
+			warnings.push(
+				`Module "${name}" instructions run to ${words} words. The authoring target is ${INSTRUCTIONS_WORD_TARGET} and the ceiling is ${INSTRUCTIONS_WORD_CEILING}. This does not block publishing.`
+			);
+		}
+
 		// Rubric criteria are LEVELED (schema v1.1). A criterion's maximum is its
 		// TOP level's points, and a flat criterion is refused BY NAME -- the
 		// message has to say which one, since a spec carries many.
@@ -631,7 +753,7 @@ export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; error
 		}
 	}
 
-	return errors.length ? fail() : { spec: raw as AssignmentSpec, errors: [] };
+	return errors.length ? fail() : { spec: raw as AssignmentSpec, errors: [], warnings };
 }
 
 // ---------------------------------------------------------------------------
@@ -744,6 +866,72 @@ export function specUnmet(
 		}
 	}
 	return unmet;
+}
+
+/**
+ * HAS ANYTHING BEEN PUT INTO THIS BLOCK AT ALL.
+ *
+ * DELIBERATELY NOT `blockProgress(...).have > 0`, and the difference is the
+ * whole point of the function. `blockProgress` answers "how far along is this
+ * against its own constraint", so it returns null for a block that carries no
+ * constraint -- a textField with no `minSentences`, a table with no `minRows`.
+ * A student typing into one of those has unmistakably started work, and a
+ * predicate built on progress would say they had not.
+ *
+ * ONE IMPLEMENTATION, because `moduleStarted` and `specStarted` below are the
+ * same question asked at two altitudes and a second copy is how the two would
+ * come to disagree.
+ */
+export function blockStarted(
+	block: SpecBlock,
+	responses: Map<string, ResponseValue>,
+	filesByBlock: Map<string, number>
+): boolean {
+	if (block.type === 'textField') {
+		return (responses.get(block.id)?.text ?? '').trim() !== '';
+	}
+	if (block.type === 'table') {
+		const rows = responses.get(block.id)?.rows ?? [];
+		return rows.some(
+			(r) =>
+				!!r &&
+				typeof r === 'object' &&
+				Object.values(r).some((v) => String(v ?? '').trim() !== '')
+		);
+	}
+	if (block.type === 'imageZone') {
+		return (filesByBlock.get(block.id) ?? 0) > 0;
+	}
+	if (block.type === 'checklist') {
+		return (responses.get(block.id)?.checked ?? []).some(Boolean);
+	}
+	// instructions and calc collect nothing, so they can never be started.
+	return false;
+}
+
+/**
+ * Has this student entered anything into this module.
+ *
+ * What the module's own instructions panel collapses on: the reading has done
+ * its job once the person is working, and it should not be sitting between
+ * them and the table on every visit after that
+ * (IDEA_INTERFACE_STANDARDS 1). It never removes anything -- see Disclosure.
+ */
+export function moduleStarted(
+	mod: SpecModule,
+	responses: Map<string, ResponseValue>,
+	filesByBlock: Map<string, number>
+): boolean {
+	return mod.blocks.some((block) => blockStarted(block, responses, filesByBlock));
+}
+
+/** Has this student entered anything into this assignment, in any module. */
+export function specStarted(
+	spec: AssignmentSpec,
+	responses: Map<string, ResponseValue>,
+	filesByBlock: Map<string, number>
+): boolean {
+	return spec.modules.some((mod) => moduleStarted(mod, responses, filesByBlock));
 }
 
 /** Per-module completion for the module chip: constrained blocks met / total. */

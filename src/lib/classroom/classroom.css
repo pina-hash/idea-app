@@ -343,16 +343,45 @@ body:has(.cr-root) {
 
 /* Validation problems. Amber, which is this palette's "you need to fix
    something" -- crimson stays reserved for live/error states proper. */
+/* THE INLINE PROBLEM LIST, in two tiers.
+   An ERROR stops the write, so it takes --crimson, which is the token's actual
+   role (live / rec / error) -- this list used to draw errors in --amber, the
+   WARNING colour, which left nothing for a warning to be. A WARNING keeps
+   amber. Neither relies on the hue: each row carries the word as well, since
+   colour is never the only signal. */
 .cr-root .problem-list {
 	margin: 0;
-	padding-left: 1.2rem;
+	padding-left: 0;
+	list-style: none;
 	display: flex;
 	flex-direction: column;
-	gap: 0.2rem;
+	gap: 0.25rem;
 }
 .cr-root .problem-list li {
+	display: flex;
+	align-items: baseline;
+	gap: 0.45rem;
 	font-size: 0.8rem;
+	color: var(--text-1);
+}
+.cr-root .problem-list .problem-tag {
+	flex: none;
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	border: 1px solid currentColor;
+	border-radius: var(--radius-chip);
+	padding: 0 0.3rem;
+}
+.cr-root .problem-list li.error {
+	color: var(--crimson);
+}
+.cr-root .problem-list li.warning {
 	color: var(--amber);
+}
+.cr-root .problem-list .problem-text {
+	color: var(--text-1);
 }
 
 /* The hairline between two tools stacked in one card. */

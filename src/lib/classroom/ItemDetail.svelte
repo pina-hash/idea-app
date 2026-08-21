@@ -3,6 +3,7 @@
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
@@ -25,12 +26,15 @@
 	} from '$lib/classroom/class-check-ins';
 	import type { RevisionTransports } from '$lib/classroom/revisions';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
-	import type {
-		AssignmentEngineTransports,
-		AssignmentSpec,
-		AssignmentTeacherTransports,
-		RubricCriterion,
-		StudentEngineData
+	import {
+		filesByBlockCount,
+		responsesMap,
+		specStarted,
+		type AssignmentEngineTransports,
+		type AssignmentSpec,
+		type AssignmentTeacherTransports,
+		type RubricCriterion,
+		type StudentEngineData
 	} from '$lib/classroom/assignment-spec';
 	import {
 		authorLabel,
@@ -199,6 +203,28 @@
 			.filter((p) => p.section_id !== section.id)
 			.map((p) => sections.find((s) => s.id === p.section_id))
 			.filter((s): s is ClassroomSection => !!s)
+	);
+
+	/**
+	 * HAS THIS STUDENT STARTED THE WORK ON THIS ITEM.
+	 *
+	 * Read off the engine slice this page ALREADY loaded -- their own saved
+	 * responses and their own uploaded files -- through the same pure predicate
+	 * SpecRenderer uses per module, so "started" means one thing on this page
+	 * rather than two. No store, no new prop, no second read.
+	 *
+	 * FALSE FOR ANYONE WITHOUT AN ENGINE SLICE, which is a manager, a material,
+	 * and an announcement. That is the rule producing the right answer rather
+	 * than an exemption from it: a person with no rows has entered no rows, so
+	 * the reading stays open for them.
+	 */
+	const started = $derived(
+		!!engine?.spec &&
+			specStarted(
+				engine.spec,
+				responsesMap(engine.responses),
+				filesByBlockCount(engine.files)
+			)
 	);
 
 	// --- The inspector ----------------------------------------------------
@@ -720,12 +746,36 @@
 	     different questions ("what is this and why am I being given it" vs. the
 	     reference itself), so the body goes ABOVE, where it reads as the
 	     introduction it is. -->
+	<!--
+		THE WRITTEN BODY IS A DISCLOSURE, not because it is optional but because
+		it is READING (IDEA_INTERFACE_STANDARDS 1): expanded the first time, and
+		out of the way once this student has started the work, with the state
+		remembered per person and per item and a manual toggle overriding it for
+		good. It is hidden, never removed -- the material stays one press away
+		and it still prints.
+
+		THE DISCLOSURE IS HERE AND NOT INSIDE ItemBody. ItemBody is also what the
+		class stream mounts for its expanded rows, where a collapse would mean
+		something else entirely; wrapping the component would have given that
+		surface a behaviour nobody asked it for. Same component, same rule, one
+		decision per surface.
+
+		THE INSTRUCTOR GETS THE IDENTICAL PANEL WITH THE IDENTICAL DEFAULT. There
+		is no `canManage` in `started` on purpose: a manager has no responses of
+		their own, so the panel simply stays open for them -- which is the rule
+		playing out, not a second rule written for them.
+	-->
 	{#if item.body.trim()}
 		<section class="card">
-			<h2 class="section-label">
-				{item.kind === 'assignment' ? 'Instructions' : 'Details'}
-			</h2>
-			<ItemBody {item} />
+			<Disclosure
+				label={item.kind === 'assignment' ? 'Instructions' : 'Details'}
+				heading={2}
+				scope={`item:${item.id}:body`}
+				collapseWhen={started}
+				testId="item-body-disclosure"
+			>
+				<ItemBody {item} />
+			</Disclosure>
 		</section>
 	{/if}
 

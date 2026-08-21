@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
 	import AiLevelBadge from '$lib/classroom/AiLevelBadge.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import MarkdownText from '$lib/classroom/MarkdownText.svelte';
 	import {
@@ -9,6 +10,7 @@
 		gatedModuleIds,
 		isSubmissionFileImage,
 		moduleCompletion,
+		moduleStarted,
 		sentenceState,
 		submissionFileSrc,
 		type AssignmentSpec,
@@ -221,7 +223,14 @@
 
 {#each spec.modules as mod, mi (mod.id)}
 	{@const gated = moduleGated(mod)}
-	{@const completion = moduleCompletion(mod, new Map(Object.entries(values)), fileCounts)}
+	{@const responses = new Map(Object.entries(values))}
+	{@const completion = moduleCompletion(mod, responses, fileCounts)}
+	<!-- HAS THIS PERSON PUT ANYTHING INTO THIS MODULE. Derived from the values
+	     map this component already owns, right beside the completion chip that
+	     already reads it -- no store, no new prop, and no second source of
+	     truth about what a student has done. It drives nothing but the
+	     instructions panel's default state. -->
+	{@const started = moduleStarted(mod, responses, fileCounts)}
 	<section class="module card" class:gated>
 		<header class="module-head">
 			<div class="module-titles">
@@ -262,8 +271,22 @@
 					     module's markdown -- headings, bold, lists, tables, code --
 					     comes through as real elements rather than literal
 					     asterisks and hash marks. -->
+					<!-- EXPANDED THE FIRST TIME, COLLAPSED ONCE THE WORK HAS STARTED,
+					     and never removed either way (Disclosure hides it in CSS, so
+					     it is one press away and it still prints). The teacher gets
+					     this panel in exactly this state: `started` is the only
+					     input, there is no role branch here, and the readonly
+					     renders (the grading console, the importer's preview) read
+					     the same rule off the same values. -->
 					<div class="block instructions">
-						<MarkdownText body={block.content} {attachments} />
+						<Disclosure
+							label="Instructions"
+							scope={`${spec.meta.assignmentId}:${mod.id}:instructions:${bi}`}
+							collapseWhen={started}
+							testId="module-instructions"
+						>
+							<MarkdownText body={block.content} {attachments} />
+						</Disclosure>
 					</div>
 				{:else if block.type === 'textField'}
 					{@const counter = counterFor(block)}

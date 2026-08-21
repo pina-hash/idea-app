@@ -42,6 +42,12 @@ export default defineConfig({
 			'$app/environment': fileURLToPath(
 				new URL('./tests/stubs/app-environment.ts', import.meta.url)
 			),
+			// The shared Disclosure reads the viewer's id off `page.data` so that
+			// a remembered panel is remembered per person, in ONE place rather
+			// than through every caller's props. Two components already covered
+			// by render tests mount it, so without this stand-in those tests
+			// cannot import them.
+			'$app/state': fileURLToPath(new URL('./tests/stubs/app-state.ts', import.meta.url)),
 			'virtual:site-versions': fileURLToPath(
 				new URL('./tests/stubs/site-versions.ts', import.meta.url)
 			)

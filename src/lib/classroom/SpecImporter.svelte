@@ -53,6 +53,14 @@
 	 * every problem at once rather than a gate. A server refusal renders into
 	 * the SAME inline problem list -- there is one place problems appear, and a
 	 * teacher does not have to learn which kind of problem shows up where.
+	 *
+	 * THE LIST CARRIES TWO TIERS, AND ONLY ONE OF THEM GATES. An ERROR means
+	 * the spec is not publishable and the button is off. A WARNING is advice --
+	 * an instructions module over the 250-word authoring target is the first of
+	 * them -- and it changes nothing about whether Publish works: the "Valid:"
+	 * line still renders beside it, so a teacher can see at a glance that they
+	 * are being told something rather than stopped. The two are told apart by a
+	 * WORD as well as a colour, because colour is never the only signal.
 	 */
 
 	type ImporterKind = 'assignment' | 'reference';
@@ -102,7 +110,12 @@
 
 	let open = $state(false);
 	let raw = $state('');
-	let problems = $state<string[]>([]);
+	/** One line in the inline list. `tone` is the only thing that differs. */
+	type Problem = { tone: 'error' | 'warning'; text: string };
+
+	let problems = $state<Problem[]>([]);
+	/** Errors alone decide whether anything is publishable. Warnings never do. */
+	const blocking = $derived(problems.some((p) => p.tone === 'error'));
 	let parsed = $state<AnySpec | null>(null);
 	let busy = $state(false);
 	let notice = $state<string | null>(null);
@@ -140,12 +153,20 @@
 		try {
 			json = JSON.parse(trimmed);
 		} catch (e) {
-			problems = [`Not valid JSON: ${(e as Error).message}`];
+			problems = [{ tone: 'error', text: `Not valid JSON: ${(e as Error).message}` }];
 			parsed = null;
 			return;
 		}
 		const result = isReference ? validateReferenceSpec(json) : validateSpec(json);
-		problems = result.errors;
+		// Errors first: what stops the publish is what a teacher should read
+		// first, and a warning under it reads as the aside it is. The reference
+		// validator has no warning tier yet, so `?? []` is its normal answer
+		// rather than a defensive guard.
+		const warnings = 'warnings' in result ? (result.warnings ?? []) : [];
+		problems = [
+			...result.errors.map((text): Problem => ({ tone: 'error', text })),
+			...warnings.map((text): Problem => ({ tone: 'warning', text }))
+		];
 		parsed = (result.spec as AnySpec | null) ?? null;
 	}
 
@@ -227,7 +248,8 @@
 		busy = false;
 		if (!res.ok) {
 			// The server's own refusal, into the same list as everything else.
-			problems = [res.message ?? 'Something went wrong.'];
+			// It is always an ERROR: the write did not happen.
+			problems = [{ tone: 'error', text: res.message ?? 'Something went wrong.' }];
 			return;
 		}
 		notice = isReference
@@ -400,10 +422,19 @@
 			{#if problems.length}
 				<ul class="problem-list" data-testid="spec-problems">
 					{#each problems as p, i (i)}
-						<li>{p}</li>
+						<li class={p.tone} data-tone={p.tone}>
+							<!-- The word, so the two tiers are told apart without
+							     relying on the colour. -->
+							<span class="problem-tag">{p.tone === 'error' ? 'Error' : 'Warning'}</span>
+							<span class="problem-text">{p.text}</span>
+						</li>
 					{/each}
 				</ul>
-			{:else if parsed}
+			{/if}
+			<!-- NOT AN `{:else}`. A warned spec is a valid spec, so it still says
+			     so -- next to the warning, which is what makes "this does not stop
+			     you" legible without a sentence explaining it. -->
+			{#if parsed && !blocking}
 				<p class="valid-line" data-testid="spec-valid">
 					Valid: "{parsed.meta.title}" -- {previewMeta}.
 				</p>
