@@ -10,6 +10,8 @@
 	import GradesPanel from '$lib/classroom/GradesPanel.svelte';
 	import UpdatesPage from '$lib/classroom/UpdatesPage.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
+	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
+	import { describeBuild } from '$lib/feedback/context';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
@@ -1768,7 +1770,7 @@
 			},
 			...feedbackRows
 		];
-		return { error: null };
+		return { error: null, retryable: false };
 	}
 
 	async function setFeedbackStatus(id: string, status: FeedbackStatus) {
@@ -2180,7 +2182,7 @@
 </div>
 
 {#if view === 'home'}
-	<MyClasses sections={[section1, section2]} {submitFeedback} />
+	<MyClasses sections={[section1, section2]} />
 {:else if view === 'home-empty'}
 	<MyClasses sections={[]} />
 {:else if view === 'home-staff-empty'}
@@ -2198,7 +2200,6 @@
 		checkIns={checkInsApplied ? CHECK_INS['s-1'] : []}
 		{transports}
 		{fetchPreview}
-		{submitFeedback}
 		notebookHref="/dev/notebook"
 	/>
 {:else if view === 'class-teacher'}
@@ -2221,7 +2222,6 @@
 		}}
 		notice={devComposeNotice}
 		{fetchPreview}
-		{submitFeedback}
 		notebookHref="/dev/notebook-review?section=s-1"
 	/>
 	{#if devComposing}
@@ -2264,7 +2264,6 @@
 		sectionOutstanding={checkInsApplied ? gridSummary(NB_GRIDS['s-2']).outstanding : null}
 		{transports}
 		{fetchPreview}
-		{submitFeedback}
 		notebookHref="/dev/notebook-review?section=s-2"
 	/>
 {:else if view === 'class2'}
@@ -2292,7 +2291,6 @@
 			item={detailItem}
 			{transports}
 			{fetchPreview}
-			{submitFeedback}
 			checkIns={itemCheckIns('s-1', detailItem.id)}
 		/>
 	{:else}
@@ -2307,7 +2305,6 @@
 			canManage={true}
 			{transports}
 			{fetchPreview}
-			{submitFeedback}
 			spec={engineSpec}
 			rubric={engineRubric}
 			teacherTransports={teacherEngineTransports}
@@ -2339,7 +2336,6 @@
 			item={detailItem}
 			{transports}
 			{fetchPreview}
-			{submitFeedback}
 			engine={buildStudentData(STUDENT_EMAIL)}
 			{engineTransports}
 		/>
@@ -2359,8 +2355,24 @@
 		<p class="harness-note">The sample item was deleted in another view.</p>
 	{/if}
 {:else if view === 'updates'}
-	<UpdatesPage {submitFeedback} />
+	<UpdatesPage />
 {:else if view === 'feedback'}
+	<!--
+		THE REAL AFFORDANCE, against the same in-memory sink the console reads,
+		so a note filed here lands in the queue below on the next render. The
+		component is the one the shell mounts; only the transport differs.
+	-->
+	<div class="harness-feedback">
+		<SiteFeedback
+			place="relocated"
+			routeId="/dev/classroom"
+			pathname="/dev/classroom"
+			role="teacher"
+			sectionId="s-1"
+			build={describeBuild({ sha: 'abc1234', complete: true }, null)}
+			submit={submitFeedback}
+		/>
+	</div>
 	<FeedbackConsole rows={feedbackRows} setStatus={setFeedbackStatus} />
 {:else if view === 'feedback-notready'}
 	<FeedbackConsole ready={false} rows={[]} setStatus={setFeedbackStatus} />
@@ -2374,7 +2386,6 @@
 		items={inSection('s-1', true)}
 		canManage={false}
 		transports={null}
-		submitFeedback={null}
 		{fetchPreview}
 		basePath={viewAsBase}
 		notebookHref="/dev/notebook?viewas=1"
@@ -2388,7 +2399,6 @@
 			item={detailItem}
 			canManage={false}
 			transports={null}
-			submitFeedback={null}
 			{fetchPreview}
 			basePath={viewAsBase}
 			viewAs={VIEW_AS_EMAIL}
@@ -2403,7 +2413,6 @@
 		initialSections={ownSections}
 		initialCourses={courses}
 		{transports}
-		{submitFeedback}
 	/>
 {:else if view === 'admin-notready'}
 	<AdminConsole
@@ -2419,7 +2428,6 @@
 		roster={enrollments.filter((e) => e.section_id === 's-1')}
 		{transports}
 		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
-		{submitFeedback}
 	/>
 {:else if view === 'grades'}
 	<GradesPanel
@@ -2429,7 +2437,6 @@
 			engSubmissions.map((s) => ({ item_id: s.item_id, state: s.state, score: s.score ?? null })),
 			rosterSize('s-1')
 		)}
-		{submitFeedback}
 	/>
 {:else if view === 'shell'}
 	<!--

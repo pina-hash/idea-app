@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { invalidate } from '$app/navigation';
+	import { page } from '$app/state';
+	import { version as buildId } from '$app/environment';
+	import { deploy } from 'virtual:site-versions';
 	import { onMount } from 'svelte';
 	import '@fontsource/rajdhani/300.css';
 	import '@fontsource/rajdhani/400.css';
@@ -17,9 +20,34 @@
 	import '../app.css';
 	import InstallPrompt from '$lib/InstallPrompt.svelte';
 	import PathwayPicker from '$lib/PathwayPicker.svelte';
+	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
+	import { feedbackWriter } from '$lib/feedback/feedback';
+	import { describeBuild } from '$lib/feedback/context';
 
 	let { data, children } = $props();
 	let { claims, supabase } = $derived(data);
+
+	/**
+	 * EVERY SURFACE REPORTS ITS OWN DEFECTS, and this is the only mount that
+	 * makes that true. There are no layout resets anywhere in src/routes, so
+	 * this layout wraps every page route: a route added next month INHERITS the
+	 * affordance instead of having to remember it. Mounting it per page is the
+	 * rejected alternative, and tests/feedback-coverage.test.ts reddens if it
+	 * moves back to one.
+	 *
+	 * Exclusions are the component's own business (a projected deck, the
+	 * GAUNTLET viewport, the GREENLINE race, an error page), read from the
+	 * registry in $lib/feedback/context.ts BY CATEGORY rather than by page.
+	 *
+	 * THE BUILD IDENTIFIER IS THE HONEST PROBLEM. Both candidates go to
+	 * `describeBuild`, which picks one and records WHAT IT IS: `deploy.sha` is
+	 * the git commit this deployment was built FROM, and `version` is
+	 * SvelteKit's build id, which is a timestamp. Neither is a function of the
+	 * built artifact, so the row says so in words rather than presenting a
+	 * plausible value as more than it is.
+	 */
+	const build = describeBuild(deploy, buildId);
+	const submitFeedback = $derived(feedbackWriter(supabase, claims?.sub));
 
 	onMount(() => {
 		const { data: authData } = supabase.auth.onAuthStateChange((_, newSession) => {
@@ -38,3 +66,13 @@
      pathway set (self-contained, reads page data like ProfileMenu). -->
 <PathwayPicker />
 <InstallPrompt />
+<SiteFeedback
+	routeId={page.route.id}
+	pathname={page.url.pathname}
+	role={data.userProfile?.role ?? null}
+	sectionId={page.params.sectionId ?? null}
+	{build}
+	submit={submitFeedback}
+	status={page.error ? page.status : null}
+	errorMessage={page.error?.message ?? null}
+/>

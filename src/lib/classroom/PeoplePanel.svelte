@@ -1,6 +1,5 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import {
 		importReasonLabel,
 		parseSectionRosterCsv,
@@ -18,7 +17,6 @@
 		type GridSummary,
 		type ReviewTransports
 	} from '$lib/notebook-review';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
@@ -40,7 +38,6 @@
 		roster = [],
 		transports,
 		loadNotebookGrid = null,
-		submitFeedback = null,
 		onchanged = null,
 		ondeleted = null
 	}: {
@@ -60,7 +57,6 @@
 		 * fail-soft state where the notebook migrations are not applied.
 		 */
 		loadNotebookGrid?: ReviewTransports['loadGrid'] | null;
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 		/**
 		 * Deleting the class removes the page under your feet, so the caller
@@ -583,12 +579,6 @@
 			</div>
 		{/if}
 	</section>
-
-	<ClassroomFeedback
-		context="people"
-		meta={{ section_id: section.id, section: sectionTitle(section) }}
-		submit={submitFeedback}
-	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />

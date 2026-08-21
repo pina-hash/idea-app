@@ -15,7 +15,6 @@
 	item={data.item}
 	canManage={false}
 	transports={null}
-	submitFeedback={null}
 	fetchPreview={fetchLinkPreviewClient}
 	basePath={base}
 	viewAs={data.studentEmail}

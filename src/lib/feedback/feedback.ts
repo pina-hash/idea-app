@@ -54,16 +54,45 @@ export function feedbackIssue(message: string): string | null {
 }
 
 /**
+ * What one attempt came back with.
+ *
+ * `retryable` IS THE WHOLE POINT OF THE SHAPE. The box drives the shared
+ * SaveState, which retries a retryable failure with backoff and reports a
+ * refusal once. Collapsing the two into a bare error string is what makes a
+ * retry loop spend fifteen seconds arriving at the same answer while telling
+ * the person their note is being re-sent.
+ */
+export interface FeedbackResult {
+	error: string | null;
+	retryable: boolean;
+}
+
+/**
+ * A POSTGREST CODE MEANS THE DATABASE CONSIDERED THIS AND SAID NO.
+ *
+ * supabase-js surfaces a transport failure ("Failed to fetch", an aborted
+ * request, a cold start that timed out) as an error with NO code, because
+ * nothing on the far side ever answered. Anything carrying a code -- a CHECK
+ * violation, an RLS denial, a missing column -- is a considered refusal, and
+ * sending the identical payload again cannot change it.
+ */
+export function feedbackRetryable(code: string | null | undefined): boolean {
+	return !(code ?? '').trim();
+}
+
+/**
  * Submit one piece of feedback. Never throws; a blocked write or an unapplied
- * migration comes back as an error string the caller shows in place.
+ * migration comes back as an error string plus whether re-sending could help.
  */
 export async function submitFeedback(
 	supabase: SupabaseClient,
 	userId: string,
 	entry: FeedbackEntry
-): Promise<{ error: string | null }> {
+): Promise<FeedbackResult> {
 	const issue = feedbackIssue(entry.message);
-	if (issue) return { error: issue };
+	// A local validation problem is a refusal: the same payload is refused
+	// again, and the person is looking at the field that needs changing.
+	if (issue) return { error: issue, retryable: false };
 	const { error } = await supabase.from(APP_FEEDBACK_TABLE).insert({
 		user_id: userId,
 		app: entry.app,
@@ -72,5 +101,45 @@ export async function submitFeedback(
 		message: entry.message.trim(),
 		meta: entry.meta ?? {}
 	});
-	return { error: error ? error.message : null };
+	if (!error) return { error: null, retryable: false };
+	return { error: error.message, retryable: feedbackRetryable(error.code) };
+}
+
+/**
+ * THE ONE BOUND WRITER. Null with no signed-in user, which is what REMOVES the
+ * control wherever it is mounted: read-only is structural (there is no write to
+ * execute) rather than a discipline.
+ *
+ * The signed-out path is deliberately absent. It needs an RLS change and a rate
+ * limit and ships separately; until then a visitor sees no control rather than
+ * one that fails when pressed.
+ */
+export function feedbackWriter(
+	supabase: SupabaseClient,
+	userId: string | null | undefined
+): ((entry: FeedbackEntry) => Promise<FeedbackResult>) | null {
+	if (!userId) return null;
+	return (entry) => submitFeedback(supabase, userId, entry);
+}
+
+// ---------------------------------------------------------------------------
+// The triage queue (0085's status columns and admin RPCs)
+// ---------------------------------------------------------------------------
+
+export type FeedbackStatus = 'new' | 'seen' | 'resolved';
+
+/** One row as app_feedback_admin_list returns it. */
+export interface FeedbackRow {
+	id: string;
+	app: string;
+	context: string | null;
+	kind: string;
+	message: string;
+	meta: Record<string, unknown> | null;
+	status: FeedbackStatus;
+	created_at: string;
+	reviewed_at: string | null;
+	reviewed_by: string | null;
+	submitter_name: string | null;
+	submitter_email: string | null;
 }

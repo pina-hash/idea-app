@@ -1,12 +1,12 @@
-import { error, redirect } from '@sveltejs/kit';
-import type { FeedbackRow } from '$lib/classroom/classroom';
+import { error } from '@sveltejs/kit';
+import type { FeedbackRow } from '$lib/feedback/feedback';
 import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
 /**
- * The classroom feedback console. ADMIN ONLY, and a non-admin gets a 404 rather
- * than a redirect (the /admin rule): probing the URL should tell a curious
- * student nothing at all. Anonymous visitors never reach it -- /classroom is in
+ * The feedback console. ADMIN ONLY, and a non-admin gets a 404 rather than a
+ * redirect (the /admin rule): probing the URL should tell a curious student
+ * nothing at all. Anonymous visitors never reach it -- /classroom is in
  * hooks.server.ts authedPrefixes -- but the guard stands on its own regardless.
  *
  * This page guard is convenience: app_feedback_admin_list and
@@ -17,9 +17,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	if (!claims) error(404, 'Not found');
 	if (!(await isAdmin(supabase, claims.sub))) error(404, 'Not found');
 
-	const { data, error: rpcError } = await supabase.rpc('app_feedback_admin_list', {
-		p_app: 'classroom'
-	});
+	// EVERY APP, NOT JUST THE CLASSROOM. `p_app` was 'classroom' when the
+	// classroom was the only surface with a Feedback button; the affordance is
+	// mounted in the root layout now, so narrowing to one app here would hide
+	// most of what arrives. `app_feedback_admin_list` already defaults `p_app` to
+	// null (all apps), so this is an omission rather than a new parameter -- no
+	// deploy-ordering problem, and it works against the schema already applied.
+	const { data, error: rpcError } = await supabase.rpc('app_feedback_admin_list');
 
 	return {
 		// Fails soft: 0085 unapplied reads as a clearly-flagged card, not a crash.

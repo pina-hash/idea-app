@@ -12,6 +12,8 @@
 		type DeckUploadResult
 	} from '$lib/classroom/deck';
 	import { DeckUploadCancelled, postDeckZip } from '$lib/classroom/deck-upload';
+	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
+	import { describeBuild } from '$lib/feedback/context';
 
 	/**
 	 * /dev/classroom-deck -- the deck harness (404 in production, no auth, no
@@ -314,7 +316,27 @@
      can trust for a visual check. -->
 <div class="cr-root">
 {#if view === 'viewer' && deck}
-	<DeckViewer {deck} backHref="#" backLabel="Back to the harness" />
+	<!--
+		THE DECK EXCLUSION, RELOCATED, mirrored here. /dev/classroom-deck is in the
+		`deck` exclusion category exactly as the real route is, so the shell's
+		floating control is absent on both; the real route hands the affordance to
+		the viewer's own bar as a `controls` snippet and so does this. A harness
+		missing that half would make a passing drive prove nothing about where the
+		control actually sits during a projected lesson.
+	-->
+	<DeckViewer {deck} backHref="#" backLabel="Back to the harness">
+		{#snippet controls()}
+			<SiteFeedback
+				place="relocated"
+				routeId="/dev/classroom-deck"
+				pathname="/dev/classroom-deck"
+				role="teacher"
+				build={describeBuild({ sha: 'a1b2c3d', complete: true }, null)}
+				submit={async () => ({ error: null, retryable: false })}
+				label="Report"
+			/>
+		{/snippet}
+	</DeckViewer>
 	<button class="escape" onclick={() => (view = 'panel')}>close viewer</button>
 {:else}
 	<main class="wrap">

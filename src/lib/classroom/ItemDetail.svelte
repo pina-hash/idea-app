@@ -3,7 +3,6 @@
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
@@ -50,7 +49,6 @@
 		type ClassroomSection,
 		type LinkPreview
 	} from '$lib/classroom/classroom';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import { itemInspector, toggleItemInspector } from '$lib/classroom/inspector.svelte';
 
 	/**
@@ -99,7 +97,6 @@
 		basePath = '/classroom',
 		viewAs = null,
 		fetchPreview = null,
-		submitFeedback = null,
 		onchanged = null,
 		ondeleted = null,
 		engine = null,
@@ -125,7 +122,6 @@
 		basePath?: string;
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 		ondeleted?: (() => void) | null;
 		/** The STUDENT engine slice + its transports (assignments only). */
@@ -829,17 +825,6 @@
 			</section>
 		{/if}
 	{/if}
-
-	<ClassroomFeedback
-		context="item"
-		meta={{
-			section_id: section.id,
-			section: sectionTitle(section),
-			item_id: item.id,
-			kind: item.kind
-		}}
-		submit={submitFeedback}
-	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />

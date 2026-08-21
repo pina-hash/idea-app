@@ -12,7 +12,17 @@ declare global {
 			[key: string]: unknown;
 		}
 
-		// interface Error {}
+		/**
+		 * WHAT A FAILED REQUEST CARRIES BACK TO THE PAGE. `id` is minted by
+		 * `handleError` in hooks.server.ts and logged beside the stack, so a
+		 * report someone files from the error boundary can be joined to the
+		 * server log line for the same failure. The message stays generic: an
+		 * internal error's real text is never handed to a caller.
+		 */
+		interface Error {
+			message: string;
+			id?: string;
+		}
 		interface Locals {
 			supabase: SupabaseClient;
 			claims: Claims | null;

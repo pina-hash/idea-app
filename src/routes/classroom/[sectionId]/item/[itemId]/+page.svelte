@@ -2,7 +2,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import {
-		classroomFeedbackSubmit,
 		createClassroomTransports,
 		createEngineTransports,
 		createReferenceTransports,
@@ -22,7 +21,6 @@
 	// svelte-ignore state_referenced_locally
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
-	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
 	// svelte-ignore state_referenced_locally
 	const engineTransports = createEngineTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
@@ -52,7 +50,6 @@
 	canManage={data.canManage}
 	attachmentsEnabled={data.attachmentsEnabled}
 	{transports}
-	{submitFeedback}
 	fetchPreview={fetchLinkPreviewClient}
 	engine={data.engine}
 	{engineTransports}

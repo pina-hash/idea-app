@@ -28,11 +28,19 @@
 	let {
 		deck,
 		backHref,
-		backLabel = 'Back'
+		backLabel = 'Back',
+		controls
 	}: {
 		deck: ClassroomDeck;
 		backHref: string;
 		backLabel?: string;
+		/**
+		 * Extra chrome for the bar. THE STAGE IS PROJECTED, so nothing may float
+		 * over it: the shell's report affordance is excluded on this route and the
+		 * route hands it in here instead, where it sits in the bar the viewer
+		 * already owns rather than in the photograph of the lesson.
+		 */
+		controls?: import('svelte').Snippet;
 	} = $props();
 
 	let frame = $state<HTMLIFrameElement | null>(null);
@@ -117,6 +125,9 @@
 			<button type="button" class="deck-btn" onclick={toggleFullscreen}>
 				{isFull ? 'Exit full screen' : 'Full screen'}
 			</button>
+			{#if controls}
+				<span class="deck-extra">{@render controls()}</span>
+			{/if}
 		</div>
 
 		{#if showIndex && deck.slides.length}
@@ -177,6 +188,10 @@
 	.deck-spacer {
 		flex: 1;
 		pointer-events: none;
+	}
+	.deck-extra {
+		display: inline-flex;
+		align-items: center;
 	}
 	.deck-title {
 		font-family: var(--font-mono);

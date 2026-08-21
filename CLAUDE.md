@@ -527,6 +527,18 @@ inside the function fails closed rather than falling through to a weaker path.
   guard does NOT run for endpoints.
 - **A group-wide gate is hoisted to `+layout.server.ts`** and stated once, so a
   new area cannot ship ungated by forgetting to copy the check.
+- **A FAILED LOAD RENDERS IN THE APP'S CHROME.** `src/routes/+error.svelte` is the
+  ONE error boundary -- root only, because a root boundary already catches a
+  failure from any page or layout load beneath it and a per-section one is one
+  more thing each new area must remember. It carries the status, the route, the
+  correlation id and the report affordance, prefilled.
+- **`handleError` in `hooks.server.ts` MINTS THE CORRELATION ID** and logs it
+  beside the route and the stack, so a server log line and a report filed about it
+  join on one string (`page.error.id`, `App.Error` in `src/app.d.ts`). It does
+  nothing else on purpose: it runs on a request that has already gone wrong, and a
+  second thing that can fail inside it turns a 500 into a 500 with no log at all.
+  The message it returns for a 500 is GENERIC -- an internal error's own text can
+  carry a query, a path or a token, and that value is rendered to the caller.
 - **Proxy routes serving bytes from the app's own origin use a MIME ALLOWLIST,
   never an echo of the upstream header** -- same-origin `text/html` runs as script.
   Anything outside the allowlist is served `application/octet-stream` + `nosniff`.
@@ -674,6 +686,25 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A partial failure KEEPS what did not land** and names it; only what succeeded
   is cleared. A retry after a partial create UPDATES the record already made, or
   it produces a duplicate.
+- **EVERY SURFACE REPORTS ITS OWN DEFECTS, AND THE AFFORDANCE IS MOUNTED ONCE IN
+  THE ROOT LAYOUT.** `SiteFeedback.svelte` sits in `src/routes/+layout.svelte`;
+  there are no layout resets in `src/routes`, so that mount is what makes
+  coverage something a new route INHERITS rather than has to remember. **Do not
+  mount it per page** -- that is the rejected alternative, and
+  `tests/feedback-coverage.test.ts` sweeps every `+page.svelte` and reddens if it
+  moves back to one.
+  - **AN EXCLUSION IS BY CATEGORY AND IT RELOCATES, NEVER DELETES.** The registry
+    is `FEEDBACK_EXCLUSIONS` in `src/lib/feedback/context.ts`, matched on ROUTE ID
+    so a page added under an excluded section inherits it. A surface that takes
+    the control off the shell mounts it itself at `place="relocated"` (the deck
+    bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page). A
+    category with nowhere to relocate to is an exclusion that deleted the control.
+  - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
+    role, section, viewport, clock time, and the build. A field somebody has to
+    fill in is a field that arrives empty.
+  - **`app_feedback` is the ONE queue for every surface**, and the console at
+    `/classroom/feedback` (admin only) reads ALL apps. Filter before exporting;
+    an export of everything is a semester nobody reads.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
@@ -1081,6 +1112,14 @@ commit is the update.
   a shallow clone it slides BACKWARDS; the build detects that and emits no version
   at all rather than a number that can decrease. Set `VERCEL_DEEP_CLONE=true` in
   the Vercel env to get versions in production.
+- **NO IDENTIFIER AVAILABLE HERE IS A FUNCTION OF THE BUILT ARTIFACT, and anything
+  recording one says which it took.** `deploy.sha` is the git commit the
+  deployment was built FROM (exact about the input, silent about the output);
+  `$app/environment`'s `version` is SvelteKit's build id, which is a TIMESTAMP and
+  changes on every build of identical code. `describeBuild` in
+  `src/lib/feedback/context.ts` picks one and stores what it means in words beside
+  it. A plausible-looking hex string with no provenance is read as a content hash
+  by the next person to see it, and the wrong build gets bisected.
 - **Registering a new app** means adding it to `APPS` in `site-manifest.ts` with
   the paths it claims.
 - **Different shas on two routes mean different deploys, not a broken build** --

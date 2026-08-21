@@ -473,8 +473,7 @@ describe('a throw cannot strand the form', () => {
 			file: 'src/lib/classroom/RubricBuilder.svelte',
 			fns: ['async function save(', 'async function removeRubric('],
 			flag: 'busy'
-		},
-		{ file: 'src/lib/feedback/FeedbackBox.svelte', fns: ['async function send('], flag: 'sending' }
+		}
 	];
 
 	for (const { file, fns, flag } of FILES) {
@@ -498,6 +497,33 @@ describe('a throw cannot strand the form', () => {
 			});
 		}
 	}
+
+	/**
+	 * FEEDBACKBOX USED TO BE IN THE LIST ABOVE, with its own `sending` flag and
+	 * its own `finally`. It has none now: sending runs on the shared SaveState in
+	 * `autosave: false` mode, which is where the guarantee moved to rather than
+	 * where it was dropped. The rule is the same one -- a transport that THROWS
+	 * cannot leave the form disabled with the note still typed in it -- asserted
+	 * one level up, so it keeps biting for every surface on that machine instead
+	 * of only for this box.
+	 */
+	it('FeedbackBox delegates the stranding guarantee to the shared SaveState', () => {
+		const box = read('src/lib/feedback/FeedbackBox.svelte');
+		expect(box).toContain("import { SaveState } from '$lib/save-state.svelte'");
+		expect(box).toContain('autosave: false');
+		// No hand-rolled busy flag came back beside it.
+		expect(box).not.toMatch(/\bsending\s*=\s*\$state/);
+		expect(box).not.toMatch(/\bsending = (true|false)/);
+
+		// And the machine it delegates to really does clear in-flight in a
+		// `finally`, so the delegation is not a promotion of the defect.
+		const machine = read('src/lib/save-state.svelte.ts');
+		const at = machine.indexOf('async #execute(');
+		expect(at, '#execute is not in save-state.svelte.ts').toBeGreaterThan(-1);
+		const body = machine.slice(at, machine.indexOf('\n\t}', at) + 3);
+		expect(body).toMatch(/\} finally \{[\s\S]*?this\.#inflight = false;[\s\S]*?\}/);
+		expect((body.match(/this\.#inflight = false/g) ?? []).length).toBe(1);
+	});
 });
 
 describe('switching students cannot discard grading silently', () => {

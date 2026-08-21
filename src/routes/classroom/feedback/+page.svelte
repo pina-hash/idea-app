@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
-	import type { FeedbackStatus } from '$lib/classroom/classroom';
+	import type { FeedbackStatus } from '$lib/feedback/feedback';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

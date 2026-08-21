@@ -1,7 +1,6 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
@@ -56,7 +55,6 @@
 		type ClassCheckIn
 	} from '$lib/classroom/class-check-ins';
 	import { flagReasonLabel } from '$lib/notebook';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
@@ -97,7 +95,6 @@
 		onToggleGroup = null,
 		viewAs = null,
 		fetchPreview = null,
-		submitFeedback = null,
 		deckTransports = null,
 		teacherTransports = null,
 		loadExportStatuses = null,
@@ -170,7 +167,6 @@
 		onToggleGroup?: ((groupId: string) => void | Promise<void>) | null;
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 		deckTransports?: DeckTransports | null;
 		teacherTransports?: AssignmentTeacherTransports | null;
 		/**
@@ -1020,12 +1016,6 @@
 			</p>
 		</section>
 	{/if}
-
-	<ClassroomFeedback
-		context="class"
-		meta={{ section_id: section.id, section: sectionTitle(section) }}
-		submit={submitFeedback}
-	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />

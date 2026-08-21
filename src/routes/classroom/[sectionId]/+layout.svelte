@@ -12,7 +12,6 @@
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
 	import {
-		classroomFeedbackSubmit,
 		createCheckInTransports,
 		createClassroomTransports,
 		createReferenceTransports,
@@ -65,7 +64,6 @@
 	// svelte-ignore state_referenced_locally
 	const unitTransports = createUnitTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
-	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
 	// svelte-ignore state_referenced_locally
 	const teacherTransports = createTeacherEngineTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
@@ -227,7 +225,6 @@
 		{unitTransports}
 		{deckTransports}
 		{teacherTransports}
-		{submitFeedback}
 		{notebookHref}
 		fetchPreview={fetchLinkPreviewClient}
 		loadExportStatuses={(ids) => loadExportStatuses(data.supabase, ids)}

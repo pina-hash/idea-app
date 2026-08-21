@@ -1,8 +1,6 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import { CLASSROOM_UPDATES, updateDateLabel } from '$lib/classroom/updates';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
 	 * The student-facing classroom update log. Presentation only (the
@@ -11,12 +9,8 @@
 	 * changed in the app" is a property of the deployed code, not of anyone's
 	 * account.
 	 */
-	let {
-		submitFeedback = null
-	}: {
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
-	} = $props();
-
+	// No props: the page is the changelog file, and the report affordance now
+	// comes from the shell rather than from a control each page mounts itself.
 	const updates = CLASSROOM_UPDATES;
 </script>
 
@@ -57,8 +51,6 @@
 			</article>
 		{/each}
 	{/if}
-
-	<ClassroomFeedback context="updates" submit={submitFeedback} />
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />

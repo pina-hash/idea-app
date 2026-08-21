@@ -1,6 +1,5 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import {
 		formatDue,
 		isScheduled,
@@ -10,7 +9,6 @@
 		type AssignmentStanding,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
@@ -28,13 +26,11 @@
 	let {
 		section,
 		standings = [],
-		basePath = '/classroom',
-		submitFeedback = null
+		basePath = '/classroom'
 	}: {
 		section: ClassroomSection;
 		standings?: AssignmentStanding[];
 		basePath?: string;
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
 	/**
@@ -130,12 +126,6 @@
 			</ul>
 		</section>
 	{/if}
-
-	<ClassroomFeedback
-		context="grades"
-		meta={{ section_id: section.id, section: sectionTitle(section) }}
-		submit={submitFeedback}
-	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />

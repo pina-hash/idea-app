@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { SaveState } from '$lib/save-state.svelte';
 	import {
 		FEEDBACK_KINDS,
 		FEEDBACK_MAX_LEN,
 		feedbackIssue,
 		type FeedbackEntry,
+		type FeedbackResult,
 		type FeedbackKind
 	} from './feedback';
 
@@ -29,6 +32,15 @@
 	 * Escape steps back exactly like GreenlineSettings: it closes the modal, and
 	 * keydowns are swallowed while open so a game underneath never sees the
 	 * player typing.
+	 *
+	 * ONE VOCABULARY FOR SAVING. Sending is an explicit one-shot write, so it
+	 * runs on the SHARED SaveState in `autosave: false` mode and reports itself
+	 * through the SHARED SaveIndicator, rather than this box owning a sixth set
+	 * of words for saving, saved and failed. What that buys beyond consistency:
+	 * a network failure backs off and retries by itself, while a REFUSAL (an RLS
+	 * denial, a CHECK violation, a message the database will not take) is
+	 * reported once and never re-sent. `FeedbackResult.retryable` is what
+	 * carries that distinction across the seam.
 	 */
 	const {
 		app,
@@ -45,8 +57,8 @@
 		context?: string | null;
 		/** Free-form context attached to the row (build, track, screen state). */
 		meta?: Record<string, unknown>;
-		/** Performs the write. Resolves with an error string, or null on success. */
-		submit: (entry: FeedbackEntry) => Promise<{ error: string | null }>;
+		/** Performs the write. Says whether a failure is worth re-sending. */
+		submit: (entry: FeedbackEntry) => Promise<FeedbackResult>;
 		onClose: () => void;
 		title?: string;
 		note?: string;
@@ -54,42 +66,60 @@
 
 	let kind = $state<FeedbackKind>('bug');
 	let message = $state('');
-	let sending = $state(false);
-	let sent = $state(false);
-	let error = $state('');
 
-	const remaining = $derived(FEEDBACK_MAX_LEN - message.trim().length);
-	const canSend = $derived(!sending && feedbackIssue(message) === null);
-
-	async function send() {
-		const issue = feedbackIssue(message);
-		if (issue) {
-			error = issue;
-			return;
-		}
-		sending = true;
-		error = '';
-		try {
+	/**
+	 * `autosave: false` because a write MINTS A RECORD: a debounce here would
+	 * file a report per pause in someone's typing. The machine still moves to
+	 * `dirty`, which is what the indicator and the send control read; it just
+	 * schedules nothing.
+	 *
+	 * `save()` reads `message` and `kind` FRESH rather than closing over a
+	 * snapshot, so a retry after a network failure sends what is on screen now.
+	 */
+	const save = new SaveState({
+		autosave: false,
+		fallbackMessage: 'That did not send.',
+		save: async () => {
+			const issue = feedbackIssue(message);
+			if (issue) return { ok: false as const, retryable: false as const, message: issue };
 			const res = await submit({ app, context, kind, message, meta });
-			if (res.error) {
-				error = res.error;
-				return;
-			}
-			sent = true;
-		} finally {
-			// IN A `finally`: a `submit` that throws rather than resolving `{error}`
-			// otherwise left the box disabled for good, with the note still typed in
-			// it and no way to send it.
-			sending = false;
+			if (!res.error) return { ok: true as const };
+			return { ok: false as const, retryable: res.retryable, message: res.error };
 		}
+	});
+
+	$effect(() => {
+		// DELIBERATELY NOT `save.attach()`. That net exists so work in progress
+		// survives a hidden tab; a half-written report is not work the server
+		// should receive because somebody switched tabs, and nothing is lost by
+		// not sending it -- the text is still in the box when they come back.
+		return () => save.destroy();
+	});
+
+	const sent = $derived(save.phase === 'saved');
+	const remaining = $derived(FEEDBACK_MAX_LEN - message.trim().length);
+	const canSend = $derived(save.phase !== 'writing' && feedbackIssue(message) === null);
+
+	/** From the input event, never from an `$effect`: markDirty reads the phase
+	 * it then writes, so a tracked call would turn `saved` straight back into
+	 * `dirty` on every transition. */
+	function typed() {
+		save.markDirty();
+	}
+
+	function send() {
+		// A `submit` that throws rather than resolving is handled inside the
+		// SaveState, which treats a throw as a retryable failure; there is no
+		// busy flag here left to strand.
+		save.markDirty();
+		void save.saveNow();
 	}
 
 	/** Reset back to an empty form so a player can send a second note without
 	 * closing and reopening the box. */
 	function again() {
-		sent = false;
+		save.reset();
 		message = '';
-		error = '';
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -167,20 +197,24 @@
 				class="fb-area"
 				bind:this={areaEl}
 				bind:value={message}
+				oninput={typed}
 				rows="5"
 				maxlength={FEEDBACK_MAX_LEN}
 				placeholder="What happened, and what were you doing at the time?"
 			></textarea>
 
-			{#if error}
-				<div class="fb-error" role="alert">{error}</div>
-			{/if}
+			<div class="fb-state">
+				<!-- THE SHARED INDICATOR, not a private one: the same five states,
+				     the same words, and the same Retry control every other surface
+				     in the portal offers. -->
+				<SaveIndicator state={save} />
+			</div>
 
 			<div class="fb-actions">
 				<span class="fb-count" class:low={remaining < 120}>{remaining} left</span>
 				<button class="fb-btn" onclick={onClose}>CANCEL</button>
 				<button class="fb-btn fb-btn-primary" disabled={!canSend} onclick={send}>
-					{sending ? 'SENDING…' : 'SEND'}
+					{save.phase === 'writing' ? 'SENDING' : 'SEND'}
 				</button>
 			</div>
 		{/if}
@@ -246,6 +280,10 @@
 		text-transform: uppercase;
 	}
 	.fb-x {
+		/* 44px, the tap-target floor. Nothing in this box is inside a locked
+		   density contract, so there is nothing here to trade against. */
+		min-width: 44px;
+		min-height: 44px;
 		background: none;
 		border: 1px solid transparent;
 		border-radius: 3px;
@@ -275,6 +313,7 @@
 	}
 	.fb-kind {
 		flex: 1 1 auto;
+		min-height: 44px;
 		padding: 0.32rem 0.6rem;
 		background: rgba(10, 15, 21, 0.6);
 		border: 1px solid var(--fb-line);
@@ -326,15 +365,9 @@
 		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
 		outline-offset: 1px;
 	}
-	.fb-error {
+	.fb-state {
 		margin-top: 0.5rem;
-		padding: 0.4rem 0.55rem;
-		border: 1px solid color-mix(in srgb, var(--fb-danger) 45%, transparent);
-		border-radius: 2px;
-		background: color-mix(in srgb, var(--fb-danger) 8%, transparent);
-		color: var(--fb-ink-dim);
-		font-size: 0.74rem;
-		line-height: 1.45;
+		min-height: 1.2rem;
 	}
 	.fb-actions {
 		display: flex;
@@ -352,6 +385,8 @@
 		color: var(--fb-danger);
 	}
 	.fb-btn {
+		min-height: 44px;
+		min-width: 44px;
 		background: linear-gradient(180deg, rgba(23, 30, 37, 0.85), rgba(9, 13, 17, 0.9));
 		border: 1px solid var(--fb-line);
 		border-radius: 2px;

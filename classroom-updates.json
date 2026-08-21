@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-21",
+			"title": "Report a problem from any page",
+			"body": "The Feedback button used to sit at the bottom of a few classroom pages, so if something went wrong anywhere else there was nowhere to say so. There is now a Report a problem button in the corner of every page in the portal, and it is the same box: pick what kind of note it is, write what you noticed, send. You no longer have to describe where you were. The page you are on, whether you are signed in as a student or a teacher, which class you were looking at, the size of your screen and which build you had all ride along on their own. During a presentation the button moves into the deck's own bar rather than floating over the slides, and it never prints. If a page fails to load, you now get an IDEA page instead of a blank browser error, with a reference code on it and the same button right there, already filled in with what went wrong. Quote that code if you write to us about it. You have to be signed in to send a report for now.",
+			"tags": [
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-08-21",
 			"title": "An entry keeps its name when you take a page out",
 			"body": "If you took every page out of an entry, that entry was still named after one of the pages you removed, so its name pointed at something that was no longer in it. Now it is named after what is still there: a page you can still see comes first, and if there is no page left, the opening words of what you wrote. If all that is left is pages you removed, the entry keeps their name rather than becoming \"Untitled entry\", so it never quietly loses the name you were looking for it under. It is the same name everywhere: on the card in your notebook, in search, when you copy an entry out to paste somewhere else, and on your teacher's screen when they read it.",
 			"tags": [

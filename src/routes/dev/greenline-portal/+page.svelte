@@ -654,18 +654,27 @@
 	let feedbackOpen = $state(false);
 	let feedbackContext = $state('title');
 	let feedbackLog = $state<{ at: string; entry: FeedbackEntry }[]>([]);
-	// Forces the error branch, which is otherwise unreachable without a backend.
-	let feedbackFails = $state(false);
+	/**
+	 * Forces a failure branch, otherwise unreachable without a backend. THREE
+	 * STATES, NOT TWO, because a refusal and a network failure are now different
+	 * outcomes: the box retries the second with backoff and reports the first
+	 * once. A single "fails" toggle could only ever demonstrate one of them.
+	 */
+	let feedbackFails = $state<'none' | 'refusal' | 'network'>('none');
+	const FEEDBACK_FAIL_MODES = ['none', 'refusal', 'network'] as const;
 	function openFeedback(context: string) {
 		feedbackContext = context;
 		feedbackOpen = true;
 	}
 	const devSubmitFeedback = async (entry: FeedbackEntry) => {
 		await new Promise((r) => setTimeout(r, 220));
-		if (feedbackFails) return { error: 'Simulated write failure (dev toggle).' };
+		if (feedbackFails === 'refusal')
+			return { error: 'Simulated refusal (dev toggle): the row was rejected.', retryable: false };
+		if (feedbackFails === 'network')
+			return { error: 'Simulated network failure (dev toggle).', retryable: true };
 		feedbackLog = [{ at: new Date().toLocaleTimeString(), entry }, ...feedbackLog].slice(0, 8);
 		lastAction = `feedback ${entry.kind} from ${entry.context}`;
-		return { error: null };
+		return { error: null, retryable: false };
 	};
 
 	// --- Results screen (real component, sample data) ---
@@ -919,8 +928,19 @@
 	<button class:on={liveRace} onclick={() => (liveRace = !liveRace)}>
 		live race {liveRace ? 'on' : 'off'}
 	</button>
-	<button class:on={feedbackFails} onclick={() => (feedbackFails = !feedbackFails)}>
-		{feedbackFails ? 'submit FAILS' : 'submit succeeds'}
+	<button
+		class:on={feedbackFails !== 'none'}
+		onclick={() =>
+			(feedbackFails =
+				FEEDBACK_FAIL_MODES[
+					(FEEDBACK_FAIL_MODES.indexOf(feedbackFails) + 1) % FEEDBACK_FAIL_MODES.length
+				])}
+	>
+		{feedbackFails === 'none'
+			? 'submit succeeds'
+			: feedbackFails === 'refusal'
+				? 'submit REFUSED (no retry)'
+				: 'submit FAILS (retries)'}
 	</button>
 	<span class="dh-note">
 		{feedbackLog.length

@@ -16,7 +16,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { submitFeedback, type FeedbackEntry } from '$lib/feedback/feedback';
 import {
 	normalizeSubmissionRow,
 	type AssignmentEngineTransports,
@@ -79,20 +78,6 @@ export async function fetchLinkPreviewClient(url: string): Promise<LinkPreview |
 	} catch {
 		return null;
 	}
-}
-
-/**
- * The classroom's feedback writer: a bound caller of the SHARED 0053 insert
- * (own-row RLS, no RPC -- a note about yourself has nothing to forge). Every
- * classroom page hands this to ClassroomFeedback so the control is identical
- * everywhere and only its `context` differs.
- */
-export function classroomFeedbackSubmit(
-	supabase: SupabaseClient,
-	userId: string | null | undefined
-): ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null {
-	if (!userId) return null;
-	return (entry) => submitFeedback(supabase, userId, entry);
 }
 
 export const SECTION_SELECT =

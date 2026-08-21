@@ -1451,23 +1451,12 @@ export function sectionDeleteBlockedLabel(r: SectionDeleteResult): string {
 // Feedback console (0053's app_feedback, given a moderation status by 0085)
 // ---------------------------------------------------------------------------
 
-export type FeedbackStatus = 'new' | 'seen' | 'resolved';
-
-/** One row as app_feedback_admin_list returns it. */
-export interface FeedbackRow {
-	id: string;
-	app: string;
-	context: string | null;
-	kind: string;
-	message: string;
-	meta: Record<string, unknown> | null;
-	status: FeedbackStatus;
-	created_at: string;
-	reviewed_at: string | null;
-	reviewed_by: string | null;
-	submitter_name: string | null;
-	submitter_email: string | null;
-}
+// RE-EXPORTED, NOT REDECLARED. The queue is app_feedback -- one table for every
+// surface in the portal since the shell started carrying the report affordance
+// -- so its row shape belongs to $lib/feedback, and a second copy here is a
+// second thing to keep matching. The re-export keeps the existing
+// `from '$lib/classroom/classroom'` imports resolving.
+export type { FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
 
 /** Human-readable reason for a refused import row. */
 export function importReasonLabel(reason: string | undefined): string {

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
-	import { classroomFeedbackSubmit, createClassroomTransports } from '$lib/classroom/transports';
+	import { createClassroomTransports } from '$lib/classroom/transports';
 	import type { SectionGrid } from '$lib/notebook-review';
 	import type { PageData } from './$types';
 
@@ -28,8 +28,6 @@
 	// re-authorized by the RPC it calls, so this is plumbing, never a boundary.
 	// svelte-ignore state_referenced_locally
 	const transports = createClassroomTransports(data.supabase);
-	// svelte-ignore state_referenced_locally
-	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
 </script>
 
 <PeoplePanel
@@ -37,7 +35,6 @@
 	roster={data.roster}
 	{transports}
 	{loadNotebookGrid}
-	{submitFeedback}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto('/classroom')}
 />

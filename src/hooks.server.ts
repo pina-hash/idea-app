@@ -1,5 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
-import { type Handle, redirect } from '@sveltejs/kit';
+import { type Handle, type HandleServerError, redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
@@ -133,3 +133,35 @@ const authGuard: Handle = async ({ event, resolve }) => {
 };
 
 export const handle: Handle = sequence(legacyRedirects, supabase, authGuard);
+
+/**
+ * THE MINIMUM THAT MAKES A SERVER ERROR AND A REPORT ABOUT IT THE SAME EVENT.
+ *
+ * Until this existed, an unexpected throw fell to SvelteKit's default error
+ * page: outside the app's chrome, carrying nothing, with a log line on the
+ * server that nobody could tie to the report a student filed ten minutes later
+ * ("the notebook broke"). The correlation id is the whole feature. It is minted
+ * here, logged beside the route and the stack, handed to the page as
+ * `page.error.id`, shown on the error boundary, and captured into the `meta` of
+ * any report filed from it -- so the two rows join on one string.
+ *
+ * WHAT IS NOT DONE HERE, deliberately: no reporting service, no database write,
+ * no attempt to read the session. `handleError` runs on a request that has
+ * already gone wrong, and a second thing that can fail inside it turns a 500
+ * into a 500 with no log line at all. `console.error` reaches the Vercel
+ * function log, which is where a server error is already looked for.
+ *
+ * The returned MESSAGE stays generic. An internal error's real text can carry a
+ * query, a path or a token, and this value is rendered to the caller.
+ */
+export const handleError: HandleServerError = ({ error, event, status, message }) => {
+	const id = crypto.randomUUID();
+	console.error(
+		`[error ${id}] ${status} ${event.request.method} ${event.url.pathname}` +
+			` route=${event.route.id ?? 'none'}`,
+		error
+	);
+	// 404s and other expected statuses keep their own words; only a genuine
+	// internal failure gets the generic line.
+	return { message: status === 500 ? 'Something went wrong on our side.' : message, id };
+};

@@ -39,7 +39,6 @@
 	units={data.units}
 	canManage={false}
 	transports={null}
-	submitFeedback={null}
 	fetchPreview={fetchLinkPreviewClient}
 	basePath={base}
 	notebookHref={`${base}/notebook`}

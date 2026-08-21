@@ -1,6 +1,5 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import {
 		emailLocal,
 		sectionTitle,
@@ -9,7 +8,6 @@
 		type ClassroomCourse,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
 	 * The ONE global classroom area, and only the genuinely cross-cutting half:
@@ -33,8 +31,7 @@
 		isAdmin = false,
 		initialSections,
 		initialCourses,
-		transports,
-		submitFeedback = null
+		transports
 	}: {
 		ready?: boolean;
 		email: string;
@@ -42,7 +39,6 @@
 		initialSections: ClassroomSection[];
 		initialCourses: ClassroomCourse[];
 		transports: ClassroomAdminTransports;
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
 	type Msg = { ok: boolean; text: string } | null;
@@ -304,8 +300,6 @@
 			</section>
 		{/if}
 	{/if}
-
-	<ClassroomFeedback context="admin" submit={submitFeedback} />
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />

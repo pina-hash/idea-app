@@ -1,9 +1,7 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import { recentUpdates, updateDateLabel } from '$lib/classroom/updates';
-	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
@@ -20,15 +18,13 @@
 		ready = true,
 		isStaff = false,
 		sections,
-		basePath = '/classroom',
-		submitFeedback = null
+		basePath = '/classroom'
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
 		sections: ClassroomSection[];
 		/** Link root -- rewritten under /classroom/view-as/<email>. */
 		basePath?: string;
-		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
@@ -124,8 +120,6 @@
 			{/each}
 		</ul>
 	</section>
-
-	<ClassroomFeedback context="home" submit={submitFeedback} />
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
