@@ -344,6 +344,7 @@
 			<SpecRenderer
 				{spec}
 				initialValues={values}
+				attachments={item.attachments}
 				files={engine.files}
 				locked={!editable}
 				{approved}

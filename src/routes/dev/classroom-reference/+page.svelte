@@ -23,6 +23,22 @@
 		LinkPreview
 	} from '$lib/classroom/classroom';
 	import type { ShortLinkRow, ShortLinkTransports } from '$lib/short-links';
+	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
+
+	/**
+	 * THE ITEM'S ATTACHMENTS, which the fixture's `attachment:caliper.png` figure
+	 * resolves against. Registered against a file that really exists in static/,
+	 * so the figure renders REAL BYTES here: there is no Drive in a harness, and
+	 * a figure verified against a broken image proves nothing about layout,
+	 * print or caption contrast.
+	 *
+	 * `missing.png` is deliberately NOT in this list -- the fixture references it
+	 * so the unresolved path is on screen beside the resolved one.
+	 */
+	const FIGURE_ATTACHMENTS = [
+		{ id: 'att-ref-1', filename: 'caliper.png', mime_type: 'image/png', size_bytes: 18244, sort_order: 1 }
+	];
+	registerLocalAttachmentUrl('att-ref-1', '/IDEA/idea-logo-text.png');
 
 	/**
 	 * Dev harness for the reference-document system (404 in production, no auth,
@@ -138,7 +154,7 @@
 		created_at: '2026-07-14T17:00:00Z',
 		updated_at: '2026-07-14T17:00:00Z',
 		links: [],
-		attachments: [],
+		attachments: FIGURE_ATTACHMENTS,
 		postings: [{ section_id: 's-1' }]
 	};
 
@@ -232,9 +248,9 @@
 			Deep links: try <code>/dev/classroom-reference#ai-policy</code> from a cold load, and the
 			<code>#materials</code> link card whose second target 404s.
 		</p>
-		<ReferenceDoc spec={shownSpec} {fetchPreview} />
+		<ReferenceDoc spec={shownSpec} {fetchPreview} attachments={FIGURE_ATTACHMENTS} />
 	{:else if view === 'stacked'}
-		<ReferenceDoc spec={stackedSpec} {fetchPreview} />
+		<ReferenceDoc spec={stackedSpec} {fetchPreview} attachments={FIGURE_ATTACHMENTS} />
 	{:else if view === 'item-plain' || view === 'item-ref'}
 		<ItemDetail
 			section={devSection}
@@ -252,7 +268,7 @@
 				itemId: 'm-1',
 				title: shownSpec.meta.title,
 				spec: shownSpec,
-				attachments: [],
+				attachments: FIGURE_ATTACHMENTS,
 				updatedAt: null,
 				specErrors: []
 			} as unknown as import('../../reference/[itemId]/$types').PageData}

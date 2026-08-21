@@ -349,6 +349,159 @@ export function isImageAttachment(a: ClassroomAttachment): boolean {
 	return PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
 }
 
+// ---------------------------------------------------------------------------
+// Figures in authored prose
+//
+// ONE RESOLVER FOR BOTH KINDS. An assignment spec's `instructions` block and a
+// reference document's `instructions` / `callout` blocks carry the identical
+// `{ type: 'instructions', content: string }` shape and go through the identical
+// MarkdownText renderer, so they get the identical rule from the identical
+// function. A second copy for "the public one" is how the two would come to
+// disagree about what `data:` means.
+//
+// SAFEHREF IS NOT REUSED HERE, ON PURPOSE. `safeHref` (reference-spec.ts) admits
+// http, https and mailto, which is right for an ANCHOR: a link is navigation the
+// reader chooses to follow, to a destination their browser will show them in a
+// new tab. An `img src` is neither of those things. The browser fetches it
+// automatically, with the reader's IP and Referer, before anyone has decided
+// anything -- so an authored external image is a beacon that fires on open, on a
+// document we serve to signed-out readers over a printed QR code. The two are
+// different threat surfaces and get different predicates; `safeHref` must never
+// be widened to cover this, and this must never be narrowed into it.
+// ---------------------------------------------------------------------------
+
+/**
+ * THE ABSOLUTE PATHS A FIGURE MAY NAME. Explicit, exported and greppable rather
+ * than a pattern, because "which directories may authored content point an
+ * automatic fetch at" is a decision worth being able to find and worth being
+ * able to test. Widening it is one line here, and that line is the whole review.
+ *
+ * `/IDEA/` is the brand-asset mirror (static/IDEA) that `rewriteLegacyLinks` and
+ * the icon set already depend on. It is the only static directory in this repo
+ * holding images intended to be referenced by name.
+ */
+export const FIGURE_STATIC_PREFIXES = ['/IDEA/'] as const;
+
+/** Why a figure will not be shown. Every one renders identically (caption plus
+ *  a visible marker); the reason exists so a test can name the shape it means
+ *  and so the marker can say something true. */
+export type FigureRefusal =
+	| 'empty'
+	| 'scheme'
+	| 'protocol-relative'
+	| 'not-absolute'
+	| 'off-prefix'
+	| 'svg'
+	| 'unresolved';
+
+export type FigureSrc =
+	| { ok: true; src: string; attachmentId: string | null }
+	| { ok: false; reason: FigureRefusal };
+
+/** The reference string an author writes for one attachment. ONE spelling, used
+ *  by the resolver below and by the copy affordance in AttachmentList, so the
+ *  string an author is handed is by construction the string the parser reads. */
+export function figureReference(filename: string): string {
+	return `![${filename.replace(/\.[^./\\]+$/, '')}](attachment:${filename})`;
+}
+
+const ATTACHMENT_PREFIX = 'attachment:';
+/** Any scheme at all: `http:`, `data:`, `javascript:`, `vbscript:`, `file:`. */
+const HAS_SCHEME_RE = /^[a-z][a-z0-9+.\-]*:/i;
+/**
+ * SVG IS REFUSED WHEREVER IT COMES FROM, BY EXTENSION AND BY MIME. An SVG is a
+ * document, not a picture: it can carry `<script>`, external references and
+ * event handlers, and a same-origin one loaded in an `img` is the one image
+ * format where "it is on our own domain" makes the problem worse rather than
+ * better. Both spellings are checked because either can be the only one
+ * present -- a static path has an extension and no mime, an attachment has a
+ * mime and may have been uploaded under any name.
+ */
+const SVG_NAME_RE = /\.svgz?$/i;
+
+function isSvgName(name: string): boolean {
+	return SVG_NAME_RE.test(name.trim());
+}
+function isSvgMime(mime: string | null | undefined): boolean {
+	return (mime ?? '').toLowerCase().includes('svg');
+}
+/** The path with any query and fragment removed, so an extension check cannot
+ *  be walked past with `/IDEA/x.svg?a=.png`. */
+function pathOnly(ref: string): string {
+	return ref.split('#')[0].split('?')[0];
+}
+
+/**
+ * An authored figure `src` -> something an `img` may load, or a refusal.
+ *
+ * `attachment:<filename>` matches case-insensitively against the attachments of
+ * the item BEING RENDERED, first match wins, and resolves through the existing
+ * helpers -- so the signed-in item page gets the plain RLS-enforcing proxy path
+ * and the public reference viewer gets the `?public=1` branch, which resolves
+ * through `classroom_public_attachment` and can therefore only ever answer for
+ * a file on a published public material. Never a drive.google.com URL, for the
+ * reason `attachmentSrc` states: those render only for someone who personally
+ * has access to the school's shared drive.
+ *
+ * THE ALIAS RATHER THAN A FILE ID IS THE POINT (MATERIAL_SPEC v2.2). A spec is
+ * authored before the item exists, has to survive the file being re-uploaded
+ * under a new id, and has to still mean something in the exported copy under
+ * `materials/`. A uuid satisfies none of those.
+ *
+ * NO ATTACHMENTS IS NOT AN ERROR. A caller that passes none -- a preview, a
+ * harness, a surface that does not load them -- resolves every `attachment:`
+ * reference to `unresolved`, which renders as the caption plus a marker. That
+ * is the correct degradation and it is the same one a typo produces.
+ */
+export function resolveFigureSrc(
+	raw: string,
+	attachments: ClassroomAttachment[] = [],
+	opts: { public?: boolean; viewAs?: string | null } = {}
+): FigureSrc {
+	const ref = (raw ?? '').trim();
+	if (!ref) return { ok: false, reason: 'empty' };
+
+	// FIRST, because `attachment:` is itself a scheme and the scheme check below
+	// would otherwise refuse the one form this feature exists to support.
+	if (ref.toLowerCase().startsWith(ATTACHMENT_PREFIX)) {
+		const filename = ref.slice(ATTACHMENT_PREFIX.length).trim();
+		if (!filename) return { ok: false, reason: 'empty' };
+		if (isSvgName(filename)) return { ok: false, reason: 'svg' };
+		const wanted = filename.toLowerCase();
+		const match = attachments.find((a) => (a.filename ?? '').toLowerCase() === wanted);
+		if (!match) return { ok: false, reason: 'unresolved' };
+		// Checked again on the ROW, not only on the authored string: the stored
+		// mime is what the proxy will serve, and it is the half an author cannot
+		// see when they type the reference.
+		if (isSvgMime(match.mime_type) || isSvgName(match.filename ?? '')) {
+			return { ok: false, reason: 'svg' };
+		}
+		return {
+			ok: true,
+			attachmentId: match.id,
+			src: opts.public ? publicAttachmentSrc(match.id) : attachmentSrc(match.id, opts.viewAs)
+		};
+	}
+
+	// BEFORE the scheme test: `//evil.example/x.png` carries no scheme at all and
+	// would sail past it, then fail the leading-slash test for the wrong reason.
+	// It is the classic protocol-relative external load and it is refused by name.
+	if (ref.startsWith('//')) return { ok: false, reason: 'protocol-relative' };
+	// http, https, data, javascript, and everything else with a colon in front.
+	if (HAS_SCHEME_RE.test(ref)) return { ok: false, reason: 'scheme' };
+	if (!ref.startsWith('/')) return { ok: false, reason: 'not-absolute' };
+	// Traversal, plain and percent-encoded, and the Windows separator. A prefix
+	// test alone would accept `/IDEA/../../anything`.
+	if (ref.includes('..') || /%2e/i.test(ref) || ref.includes('\\')) {
+		return { ok: false, reason: 'off-prefix' };
+	}
+	if (isSvgName(pathOnly(ref))) return { ok: false, reason: 'svg' };
+	if (!FIGURE_STATIC_PREFIXES.some((prefix) => ref.startsWith(prefix))) {
+		return { ok: false, reason: 'off-prefix' };
+	}
+	return { ok: true, src: ref, attachmentId: null };
+}
+
 /** A staged (not yet uploaded) file the composer can preview inline. */
 export function isPreviewableFile(file: File): boolean {
 	const type = (file.type ?? '').toLowerCase();

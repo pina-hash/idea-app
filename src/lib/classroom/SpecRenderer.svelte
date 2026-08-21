@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
 	import AiLevelBadge from '$lib/classroom/AiLevelBadge.svelte';
 	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import MarkdownText from '$lib/classroom/MarkdownText.svelte';
@@ -19,6 +20,7 @@
 		type TableBlock,
 		type TextFieldBlock
 	} from '$lib/classroom/assignment-spec';
+	import type { ClassroomAttachment } from '$lib/classroom/classroom';
 
 	/**
 	 * The student renderer for one assignment spec: modules in order with
@@ -36,6 +38,7 @@
 	let {
 		spec,
 		initialValues,
+		attachments = [],
 		files = [],
 		locked = false,
 		approved = false,
@@ -49,6 +52,14 @@
 	}: {
 		spec: AssignmentSpec;
 		initialValues: Record<string, ResponseValue>;
+		/**
+		 * The ITEM's own attachments -- the teacher's files on the assignment,
+		 * which an `attachment:<filename>` figure reference in an `instructions`
+		 * block resolves against. Deliberately NOT `files` below: those are the
+		 * STUDENT's uploaded evidence, a different table with a different proxy
+		 * and a different reader, and a figure must never be able to name one.
+		 */
+		attachments?: ClassroomAttachment[];
 		files?: SubmissionFileRow[];
 		locked?: boolean;
 		/** The approval gate's state for THIS student (true when no gate). */
@@ -251,7 +262,9 @@
 					     module's markdown -- headings, bold, lists, tables, code --
 					     comes through as real elements rather than literal
 					     asterisks and hash marks. -->
-					<div class="block instructions"><MarkdownText body={block.content} /></div>
+					<div class="block instructions">
+						<MarkdownText body={block.content} {attachments} />
+					</div>
 				{:else if block.type === 'textField'}
 					{@const counter = counterFor(block)}
 					<div class="block">
@@ -432,6 +445,20 @@
 							{/each}
 						</ul>
 					</div>
+				{:else if dev}
+					<!-- A BLOCK TYPE THE DATABASE STILL HOLDS AND THIS CODE NO LONGER
+					     KNOWS. Until now this chain ended with a bare {/if}, so such a
+					     block rendered NOTHING AT ALL -- a module quietly one block
+					     short, with no gap and no error, which on an ASSIGNMENT means a
+					     student is never shown something they are being graded on.
+					     Only reachable if a type is retired while stored specs still
+					     carry it; the validators refuse an unknown type on write.
+
+					     DEV ONLY. Production is byte-for-byte what it was, because the
+					     person who can act on this is not the student. -->
+					<div class="block unknown-block">
+						Unsupported block type ({(block as { type: string }).type})
+					</div>
 				{/if}
 			{/each}
 		{/if}
@@ -492,6 +519,15 @@
 	.points-chip {
 		color: var(--gold);
 		border-color: var(--gold);
+	}
+	/* Dev-only diagnostic (see the markup). */
+	.unknown-block {
+		padding: var(--space-3);
+		border: 1px dashed var(--line-strong);
+		border-radius: var(--radius-card);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--amber);
 	}
 	.done-chip.complete {
 		color: var(--green);

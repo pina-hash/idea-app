@@ -643,6 +643,12 @@ export interface MarkdownListItem {
  * match the header's own column count (a short row is padded with an empty
  * cell, a long one is truncated) -- so the renderer never has to guard a
  * ragged row itself.
+ *
+ * A `figure` node is a WHOLE LINE that is nothing but `![alt](src)`. It carries
+ * the RAW `src` exactly as authored, never a URL: resolving one needs the item
+ * whose attachments it is being rendered against, which the parser does not
+ * have and must not be given. `resolveFigureSrc` in classroom.ts is the one
+ * place that turns this string into something an `img` may load.
  */
 export type MarkdownNode =
 	| { type: 'heading'; level: 3 | 4; runs: InlineRun[] }
@@ -650,7 +656,8 @@ export type MarkdownNode =
 	| ({ type: 'list' } & MarkdownList)
 	| { type: 'quote'; paragraphs: InlineRun[][] }
 	| { type: 'code'; text: string; lang?: string }
-	| { type: 'table'; headers: InlineRun[][]; rows: InlineRun[][][] };
+	| { type: 'table'; headers: InlineRun[][]; rows: InlineRun[][][] }
+	| { type: 'figure'; alt: string; src: string };
 
 const SAFE_HREF_RE = /^(https?:|mailto:)/i;
 
@@ -667,6 +674,15 @@ export function safeHref(url: string): string | undefined {
  *
  * Code is FIRST in the alternation so a backticked span wins over emphasis
  * inside it; the whole span becomes one literal run.
+ *
+ * THERE IS DELIBERATELY NO INLINE IMAGE RUN, AND ADDING ONE IS A DECISION THIS
+ * COMMENT EXISTS TO STOP BEING MADE BY ACCIDENT. An image inside a paragraph is
+ * unsupported: a figure is a block with a caption, and the only syntax that
+ * produces one is a line that is nothing else (see `FIGURE_RE`). Every other
+ * `![` in authored prose therefore keeps the behaviour it has always had --
+ * `!` is an ordinary character, so `![x](y)` is a literal `!` followed by an
+ * ordinary link, which is what the `[label](url)` arm below already produces
+ * and what the round-trip fixture pins.
  */
 export function parseInline(text: string): InlineRun[] {
 	const runs: InlineRun[] = [];
@@ -686,6 +702,23 @@ export function parseInline(text: string): InlineRun[] {
 }
 
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
+/**
+ * A FIGURE IS A WHOLE LINE AND NOTHING ELSE. Anchored at both ends against the
+ * TRIMMED line, so `![alt](src)` with anything before or after it is not a
+ * figure and falls through to the paragraph path unchanged.
+ *
+ * ALT IS REQUIRED. `[^\]]+` cannot match empty, so `![](src)` is not a figure
+ * and stays literal -- and the caller additionally rejects an alt that is only
+ * whitespace, since `![ ](src)` would otherwise pass the character class. That
+ * is not a formatting preference: the alt is the img's alt attribute AND the
+ * visible caption, so a figure without one is an image nobody can read and
+ * nobody can describe. There is no silent fallback to the filename, because a
+ * filename is not a description.
+ *
+ * `[^)\s]+` for the src matches `parseInline`'s own link arm: a src with a
+ * space in it is not a src, it is prose that happens to contain brackets.
+ */
+const FIGURE_RE = /^!\[([^\]]+)\]\(([^)\s]+)\)$/;
 const QUOTE_RE = /^>\s?(.*)$/;
 const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})\s*([A-Za-z0-9_+-]*)\s*$/;
 const ITEM_RE = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(.*)$/;
@@ -857,6 +890,18 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 				level: heading[1].length <= 3 ? 3 : 4,
 				runs: parseInline(heading[2].trim())
 			});
+			continue;
+		}
+
+		// A figure: the whole line is `![alt](src)`. Placed AFTER the fence and
+		// indented-code handling above, so a figure line inside a code block is
+		// code like everything else in one, and after the heading (which cannot
+		// begin with `!`, so the two can never contend). A blank alt is not a
+		// figure: the line falls through and renders as the literal text it is.
+		const figure = FIGURE_RE.exec(trimmed);
+		if (figure && figure[1].trim()) {
+			flushAll();
+			nodes.push({ type: 'figure', alt: figure[1].trim(), src: figure[2] });
 			continue;
 		}
 

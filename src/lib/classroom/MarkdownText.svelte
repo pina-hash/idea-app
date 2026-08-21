@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
 	import {
 		parseMarkdown,
 		type InlineRun,
 		type MarkdownList,
 		type MarkdownNode
 	} from '$lib/classroom/reference-spec';
+	import { resolveFigureSrc, type ClassroomAttachment } from '$lib/classroom/classroom';
 
 	/**
 	 * Authored prose rendered as real elements.
@@ -21,10 +23,40 @@
 	 * AUTHORED HEADINGS ARE h3/h4 AND CARRY NO id. h1 is the document title and
 	 * h2 the section title; section slugs are the only anchor contract, so a
 	 * heading inside a block is never a link target.
+	 *
+	 * A FIGURE IS THE ONE ELEMENT HERE THAT FETCHES SOMETHING. Every other node
+	 * is text this component escapes; an `img` makes the browser go and get
+	 * whatever the author named, automatically, before the reader has decided
+	 * anything. `resolveFigureSrc` is the whole of the rule and it lives in
+	 * classroom.ts beside the other src builders -- NOT `safeHref`, which is for
+	 * anchors and admits external http (see that function's header). A src it
+	 * refuses never reaches an `img` attribute at all: the element is not
+	 * rendered, rather than rendered with a blank or sanitized value.
 	 */
-	let { body }: { body: string } = $props();
+	let {
+		body,
+		attachments = [],
+		publicAttachments = false,
+		viewAs = null
+	}: {
+		body: string;
+		/**
+		 * The attachments of the ITEM THIS PROSE BELONGS TO, which is what an
+		 * `attachment:<filename>` reference resolves against. Absent is a normal
+		 * state, not an error: every such reference then reads as unresolved and
+		 * renders as its caption plus a marker, which is exactly what a typo does.
+		 */
+		attachments?: ClassroomAttachment[];
+		/** The public reference viewer's `?public=1` branch (see resolveFigureSrc). */
+		publicAttachments?: boolean;
+		/** The impersonated student, so a view-as page is answered as they would be. */
+		viewAs?: string | null;
+	} = $props();
 
 	const nodes = $derived<MarkdownNode[]>(parseMarkdown(body));
+
+	const figureSrc = (src: string) =>
+		resolveFigureSrc(src, attachments, { public: publicAttachments, viewAs });
 </script>
 
 {#snippet inline(runs: InlineRun[])}
@@ -106,8 +138,34 @@
 					<p>{@render inline(para)}</p>
 				{/each}
 			</blockquote>
-		{:else}
+		{:else if node.type === 'figure'}
+			{@const resolved = figureSrc(node.src)}
+			<figure class="md-figure" class:unresolved={!resolved.ok}>
+				{#if resolved.ok}
+					<!-- The alt IS the caption, deliberately: one authored string, so a
+					     reader using a screen reader and a reader looking at the page
+					     are told the same thing, and neither can be given a description
+					     the other does not have. -->
+					<img src={resolved.src} alt={node.alt} loading="lazy" />
+				{:else}
+					<!-- NEVER A BROKEN IMAGE ELEMENT AND NEVER SILENCE. An `img` with a
+					     refused src would either 404 in the layout or, worse, render as
+					     nothing and leave a caption describing a picture that is not
+					     there. The marker carries a WORD, not only a colour, so it is
+					     legible in print and to anyone not distinguishing hues. -->
+					<span class="md-figure-marker">Image unavailable</span>
+				{/if}
+				<figcaption>{node.alt}</figcaption>
+			</figure>
+		{:else if node.type === 'code'}
 			<pre><code>{node.text}</code></pre>
+		{:else if dev}
+			<!-- A NODE TYPE THIS RENDERER DOES NOT KNOW. Unreachable from
+			     parseMarkdown as it stands; it exists for the state where a stored
+			     document outlives the code that read it. Dev only: production is
+			     unchanged and still renders nothing, because a marker on a
+			     student's screen is not an improvement on a gap. -->
+			<p class="md-unknown">Unsupported content ({(node as { type: string }).type})</p>
 		{/if}
 	{/each}
 </div>
@@ -268,6 +326,58 @@
 		border-bottom: none;
 	}
 
+	/* A FIGURE TAKES THE FULL MEASURE OF THE COLUMN IT IS IN. `width: 100%` with
+	   `height: auto` is what keeps the intrinsic aspect ratio: the browser scales
+	   the box from the image's own dimensions, so nothing is squashed and no
+	   ratio has to be authored. `aspect-ratio` is deliberately NOT set -- it
+	   would need a per-image value the spec does not carry, and getting it wrong
+	   crops. */
+	.md :global(.md-figure) {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.md :global(.md-figure img) {
+		display: block;
+		width: 100%;
+		height: auto;
+		max-width: 100%;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	/* Real caption copy, so --text-2 (6.3:1 on --surface-1) rather than --text-3,
+	   which the design system reserves for separators and disabled glyphs and
+	   which sits below any text threshold. Measured against the ground it
+	   actually composites over, per IDEA_INTERFACE_STANDARDS 10. */
+	.md :global(.md-figure figcaption) {
+		font-size: 0.82rem;
+		line-height: 1.5;
+		color: var(--text-2);
+	}
+	/* The refused / unresolved state. A dashed box says "something was meant to
+	   be here" without pretending to be a picture, and the word inside it says
+	   what happened -- colour is never the only signal. */
+	.md :global(.md-figure-marker) {
+		display: block;
+		padding: var(--space-3);
+		border: 1px dashed var(--line-strong);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--amber);
+		text-align: center;
+	}
+	.md :global(.md-unknown) {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--amber);
+	}
+
 	@media print {
 		.md :global(.md-h3),
 		.md :global(.md-h4) {
@@ -296,6 +406,51 @@
 		}
 		.md :global(.md-table td) {
 			border-color: #bbb;
+		}
+
+		/* FIGURES PRINT. They are content, not chrome: a procedure that says
+		   "match the surface to the photograph" is unusable on paper without it.
+
+		   CAPPED AT 4in, WHICH IS THE WHOLE RULE. US Letter leaves roughly 9in of
+		   printable height, so a figure can take a little under half a page and
+		   never the whole of one -- otherwise a single tall image pushes every
+		   step of the procedure it belongs to onto the following sheet, which is
+		   the failure this cap exists to prevent. `width: auto` alongside it is
+		   load-bearing: with the screen rule's `width: 100%` still applying, the
+		   max-height would be overridden by the width and the cap would do
+		   nothing. Both dimensions go automatic and the intrinsic ratio decides.
+
+		   `align-self: flex-start` IS THE OTHER HALF, AND IT WAS FOUND BY
+		   MEASURING RATHER THAN BY READING. `.md-figure` is a flex COLUMN, so the
+		   default stretch alignment sizes the img box to the figure's full width
+		   whatever `width: auto` says -- and `max-height` then clamps the height
+		   independently of it. With `object-fit` at its default `fill`, that does
+		   not letterbox, it DISTORTS: a 1202x1202 square measured 846x384 in the
+		   print box, squashed to 45% of its height. Aligning to the start lets the
+		   box shrink to its content, and the same image measures 384x384. */
+		.md :global(.md-figure) {
+			break-inside: avoid;
+			page-break-inside: avoid;
+		}
+		.md :global(.md-figure img) {
+			align-self: flex-start;
+			width: auto;
+			height: auto;
+			max-width: 100%;
+			max-height: 4in;
+			border-color: #999;
+			background: none;
+		}
+		.md :global(.md-figure figcaption) {
+			color: #333;
+		}
+		/* The marker prints too. A caption on paper describing a picture that is
+		   not on the paper is worse than the marker, since nobody printing it can
+		   tell whether the image failed or was never meant to be there. */
+		.md :global(.md-figure-marker) {
+			border-color: #999;
+			background: none;
+			color: #333;
 		}
 	}
 </style>

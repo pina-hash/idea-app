@@ -1,6 +1,6 @@
 <script lang="ts">
 	import ReferenceBlock from '$lib/classroom/ReferenceBlock.svelte';
-	import type { LinkPreview } from '$lib/classroom/classroom';
+	import type { ClassroomAttachment, LinkPreview } from '$lib/classroom/classroom';
 	import { slugFromHash, type ReferenceSpec } from '$lib/classroom/reference-spec';
 	import {
 		canScrollEnd,
@@ -105,13 +105,28 @@
 		 */
 		preview = false,
 		/** Extra chrome the host wants under the title (attachments, a back link). */
-		aside = null
+		aside = null,
+		attachments = [],
+		publicAttachments = false
 	}: {
 		spec: ReferenceSpec;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		showHeader?: boolean;
 		preview?: boolean;
 		aside?: import('svelte').Snippet | null;
+		/**
+		 * The host ITEM's attachments, which `attachment:<filename>` figure
+		 * references in this document's prose resolve against. Passed straight
+		 * down to ReferenceBlock; this component neither reads nor fetches them.
+		 *
+		 * The spec importer's live preview passes NONE, deliberately: the item it
+		 * would resolve against does not exist yet, and every figure there reads
+		 * as unresolved. That is the honest preview of a document whose images
+		 * cannot be checked until it is attached to something.
+		 */
+		attachments?: ClassroomAttachment[];
+		/** The signed-out public viewer's `?public=1` resolution branch. */
+		publicAttachments?: boolean;
 	} = $props();
 
 	const tabbed = $derived((spec.navigation ?? 'tabs') === 'tabs');
@@ -672,7 +687,7 @@
 					{#if section.blurb}<p class="section-blurb">{section.blurb}</p>{/if}
 				</div>
 				{#each section.blocks as block, bi (bi)}
-					<ReferenceBlock {block} {fetchPreview} />
+					<ReferenceBlock {block} {fetchPreview} {attachments} {publicAttachments} />
 				{/each}
 			</section>
 		{/each}

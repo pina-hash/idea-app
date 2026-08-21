@@ -115,7 +115,21 @@ export const SAMPLE_REFERENCE: ReferenceSpec = {
 						'',
 						'- Raw HTML: <script>alert("xss")</script> and <b>bold?</b>',
 						'- An image with a handler: <img src=x onerror="alert(1)">',
-						'- A javascript: link: [click me](javascript:alert(1))'
+						'- A javascript: link: [click me](javascript:alert(1))',
+						'',
+						'The six below are FIGURE syntax, which is real syntax since the figure pass. Only the first two may become an image; the rest must render as their caption plus a visible marker.',
+						'',
+						'![Allowed: the IDEA gear, from a named static prefix](/IDEA/idea-gear.png)',
+						'',
+						'![Allowed: a caliper photo, by attachment alias](attachment:caliper.png)',
+						'',
+						'![Refused: an external host](https://evil.example/beacon.png)',
+						'',
+						'![Refused: an inline data payload](data:image/png;base64,iVBORw0KGgo=)',
+						'',
+						'![Refused: SVG, wherever it comes from](/IDEA/idea-logo.svg)',
+						'',
+						'![Unresolved: no such attachment on this item](attachment:missing.png)'
 					].join('\n')
 				}
 			]

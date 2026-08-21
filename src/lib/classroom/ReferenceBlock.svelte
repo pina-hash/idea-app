@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
 	import AiLevelLookup from '$lib/classroom/AiLevelLookup.svelte';
 	import GradeCalculator from '$lib/classroom/GradeCalculator.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import MarkdownText from '$lib/classroom/MarkdownText.svelte';
-	import type { LinkPreview } from '$lib/classroom/classroom';
+	import type { ClassroomAttachment, LinkPreview } from '$lib/classroom/classroom';
 	import type {
 		AiLevelLookupConfig,
 		GradeCalculatorConfig,
@@ -36,15 +37,26 @@
 	 */
 	let {
 		block,
-		fetchPreview = null
+		fetchPreview = null,
+		attachments = [],
+		publicAttachments = false
 	}: {
 		block: ReferenceBlock;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
+		/** The host ITEM's attachments, for `attachment:` figure references in
+		 *  prose. Threaded, never fetched: this component has no transport and
+		 *  gains none here. */
+		attachments?: ClassroomAttachment[];
+		/** True on the signed-out public viewer, which resolves attachments
+		 *  through the `?public=1` branch. */
+		publicAttachments?: boolean;
 	} = $props();
 </script>
 
 {#if block.type === 'instructions'}
-	<div class="rb rb-prose"><MarkdownText body={block.content} /></div>
+	<div class="rb rb-prose">
+		<MarkdownText body={block.content} {attachments} {publicAttachments} />
+	</div>
 {:else if block.type === 'keyValue'}
 	<div class="rb rb-panel rb-kv-panel">
 		{#if block.title}<h3 class="rb-title">{block.title}</h3>{/if}
@@ -91,7 +103,7 @@
 		</span>
 		<div class="rb-callout-body">
 			{#if block.title}<h3 class="rb-callout-title">{block.title}</h3>{/if}
-			<MarkdownText body={block.content} />
+			<MarkdownText body={block.content} {attachments} {publicAttachments} />
 		</div>
 	</aside>
 {:else if block.type === 'cardGrid'}
@@ -136,6 +148,19 @@
 			<AiLevelLookup config={block.config as AiLevelLookupConfig} />
 		{/if}
 	</div>
+{:else if dev}
+	<!-- A BLOCK TYPE THE DATABASE STILL HOLDS AND THIS CODE NO LONGER KNOWS.
+	     Until now this chain ended with a bare {/if}, so such a block rendered
+	     NOTHING AT ALL: the document came up short with no gap, no error and no
+	     way to tell it had happened from looking at it. That is only reachable
+	     if a type is retired while stored documents still carry it -- the
+	     validators refuse an unknown type on write -- which is exactly the case
+	     where the person who retired it needs to see the hole.
+
+	     DEV ONLY, so production is byte-for-byte what it was. A student reading a
+	     syllabus is not the person who can act on this, and a diagnostic in their
+	     copy is noise pointed at the wrong reader. -->
+	<div class="rb rb-unknown">Unsupported block type ({(block as { type: string }).type})</div>
 {/if}
 
 <style>
@@ -403,6 +428,17 @@
 
 	.rb-tool {
 		padding: var(--space-4);
+	}
+
+	/* Dev-only diagnostic (see the markup). Prefixed `rb-` like everything else
+	   here, because src/app.css owns several unprefixed names. */
+	.rb-unknown {
+		padding: var(--space-3);
+		border: 1px dashed var(--line-strong);
+		border-radius: var(--radius-card);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--amber);
 	}
 
 	@media (max-width: 620px) {

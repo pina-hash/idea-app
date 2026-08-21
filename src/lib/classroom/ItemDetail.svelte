@@ -735,7 +735,12 @@
 
 	{#if referenceSpec}
 		<section class="card ref-card">
-			<ReferenceDoc spec={referenceSpec} {fetchPreview} showHeader={false} />
+			<ReferenceDoc
+				spec={referenceSpec}
+				{fetchPreview}
+				showHeader={false}
+				attachments={item.attachments}
+			/>
 		</section>
 	{/if}
 
@@ -753,7 +758,10 @@
 	{#if item.attachments.length}
 		<section class="card">
 			<h2 class="section-label">Files</h2>
-			<AttachmentList attachments={item.attachments} {viewAs} />
+			<!-- `figureRefs` is the manage gate, and it is the ONLY thing that
+			     changes about this list for a teacher: the same component, the same
+			     rows, plus one affordance. -->
+			<AttachmentList attachments={item.attachments} {viewAs} figureRefs={canManage} />
 		</section>
 	{/if}
 
@@ -786,7 +794,13 @@
 				<section class="engine-host">
 					<h2 class="section-label">Assignment</h2>
 					{#key item.id}
-						<SpecRenderer {spec} initialValues={{}} readonly uploadEnabled={false} />
+						<SpecRenderer
+							{spec}
+							initialValues={{}}
+							attachments={item.attachments}
+							readonly
+							uploadEnabled={false}
+						/>
 					{/key}
 				</section>
 			{/if}

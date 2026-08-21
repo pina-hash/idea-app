@@ -19,8 +19,10 @@ import IdeaSequencer from './tests/db/sequencer';
  *
  * The aliases below are the minimum needed to import a REAL server route
  * handler (rather than a copy of it) into a test: SvelteKit's `$lib` path and
- * its `$env/dynamic/private` module. Nothing else from the app's build is
- * pulled in.
+ * its `$env/dynamic/private` module. `$app/environment` joins them because three
+ * renderers branch on `dev` for a diagnostic, and without a stand-in none of
+ * them can be imported here at all. Nothing else from the app's build is pulled
+ * in.
  *
  * `virtual:site-versions` is the third, and it is here for the same reason as
  * the svelte plugin: the two surfaces that render the build stamp import that
@@ -36,6 +38,9 @@ export default defineConfig({
 			$lib: fileURLToPath(new URL('./src/lib', import.meta.url)),
 			'$env/dynamic/private': fileURLToPath(
 				new URL('./tests/stubs/env-dynamic-private.ts', import.meta.url)
+			),
+			'$app/environment': fileURLToPath(
+				new URL('./tests/stubs/app-environment.ts', import.meta.url)
 			),
 			'virtual:site-versions': fileURLToPath(
 				new URL('./tests/stubs/site-versions.ts', import.meta.url)

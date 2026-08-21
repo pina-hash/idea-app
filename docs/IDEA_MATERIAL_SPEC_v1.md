@@ -1,174 +1,56 @@
-# IDEA Material Spec - Schema v1.1
-**Version 1.1 - 2026-08-13**
-The canonical authoring format for IDEA assignments and worksheets. One spec per material. The spec is the durable, version-controlled asset; every rendering is generated from it.
+# IDEA Material Spec v1 - SUPERSEDED, NOT AUTHORITATIVE
 
-Canonical form: one JSON file per material, named `[assignmentId].spec.json`.
-ID convention: `[course]-[project or unit]-[assignment#]`, lowercase, hyphens only. Examples: `idea209h-u1-03`, `idea100-blade-02`.
+**This file is a stub. Do not author against it and do not cite it.**
 
----
+The canonical authoring format for IDEA course materials is
+**`IDEA_MATERIAL_SPEC_v2.md`**, which is **maintained outside this repository**
+and was at **version 2.2 (2026-08-20)** when this stub was written. It supersedes
+the v1 schema this file used to describe: v2 adds the `kind` discriminator
+(`assignment` keeps everything v1 had, unchanged; `reference` is the read-only
+document kind), moves rubrics to leveled descriptors, and describes rules the
+database actually rejects rather than conventions.
 
-## Top-Level Structure
+Its companion standards live outside this repo too, and none of them is mirrored
+here:
 
-```json
-{
-  "schemaVersion": 1,
-  "meta": { },
-  "modules": [ ],
-  "declarations": { },
-  "approvalGate": null,
-  "print": { }
-}
-```
+- `IDEA_MATERIAL_SPEC_v2.md` - the schema, both kinds, the enforcement matrix
+- `IDEA_RUBRIC_STANDARDS.md` - leveled criteria, `short` forms, descriptor writing
+- `IDEA_INTERFACE_STANDARDS.md` - layout, role parity, legibility, viewport verification
+- `IDEA_VERIFICATION_STANDARDS.md` - how a claim about a build is proven
+- `IDEA_Design_System.md` - color, typography, effects, themes
 
-### meta
+## Why this file still exists
 
-```json
-{
-  "assignmentId": "idea209h-u1-03",
-  "course": "IDEA209H",
-  "unit": 1,
-  "title": "Material Identification Checkpoint",
-  "buildVersion": "v1",
-  "totalPoints": 70,
-  "dueDate": "2026-09-04",
-  "theme": "idea-green",
-  "gradingCategory": "Unit Assignments",
-  "headerFields": ["studentName", "date", "section"]
-}
-```
+Deleting it would be worse than stubbing it. It was cited as authority by an
+agent reading this repo, which is the exact failure a stale copy causes: the
+agent had no way to know a newer version existed, because from inside the repo
+this file looked like the standard. A stub that says "not this one, and here is
+the name of the real one" fails loudly where a deleted file fails silently and a
+stale file does not fail at all. `IDEA_MATERIAL_SPEC_v2.md` 2.2 records this
+specific incident in its changelog.
 
-- `totalPoints` must equal the sum of module points.
-- `dueDate` is fixed at authoring. Deadlines are firm; no rendering may imply flexibility.
-- `theme`: engine materials use `idea-green`. The engine ships no other themes yet. Per-material theme selection applies only to Claude Design output.
-- `gradingCategory` matches the course's locked grading categories exactly, since it feeds the FACTS export.
-- `headerFields`: `studentName` and `date` always present.
-- `buildVersion`: bump on breaking content changes (module removed, points changed, field ids renamed). Wording fixes do not bump.
+## What IS authoritative inside this repo
 
-### modules[]
+For anything the code actually enforces, read the code, not a document:
 
-```json
-{
-  "id": "m1",
-  "title": "Appearance-Based Identification",
-  "points": 20,
-  "aiLevel": 1,
-  "intro": "One short paragraph of module context. Markdown allowed.",
-  "blocks": [ ],
-  "rubric": [ ]
-}
-```
+- `src/lib/classroom/assignment-spec.ts` - assignment spec types and `validateSpec`
+- `src/lib/classroom/reference-spec.ts` - reference spec types, `validateReferenceSpec`,
+  and the authored-prose parser (`parseMarkdown`)
+- `supabase/migrations/0086_classroom_assignment_engine.sql` - `_classroom_check_spec`,
+  the SQL boundary for assignment specs
+- `supabase/migrations/0092_classroom_reference_specs.sql` - the reference-spec
+  validator and the public read path
 
-- `aiLevel`: 0-3 per `IDEA_AI_Use_Policy.md` category defaults, recommended by chat, confirmed by Alejandro before the spec is finalized. `null` omits the badge.
-- `rubric`: leveled criteria per `IDEA_RUBRIC_STANDARDS.md`. Criterion maximums must sum to module points.
+Where a standard and the code disagree, that is a bug in one of them and worth
+raising. It is not a licence to pick whichever is convenient.
 
-### rubric[] (changed in v1.1)
+## What used to be here
 
-Each criterion carries an ordered list of levels. Flat single-descriptor criteria are no longer valid.
-
-```json
-{
-  "id": "c1",
-  "criterion": "Material identification",
-  "levels": [
-    { "points": 10, "label": "Complete",   "descriptor": "All six materials correctly identified, each with a stated visual justification." },
-    { "points": 7,  "label": "Proficient", "descriptor": "Four or five correctly identified with justification." },
-    { "points": 4,  "label": "Developing", "descriptor": "Two or three correctly identified, or all six with no justifications." },
-    { "points": 0,  "label": "Absent",     "descriptor": "Fewer than two correct, or not attempted." }
-  ]
-}
-```
-
-Structure, point distribution, and descriptor language are governed by `IDEA_RUBRIC_STANDARDS.md`. Read it before authoring any rubric. Hard constraints in summary: three or four levels, top level equals the criterion maximum, bottom level is 0, descriptors observable and countable, level labels consistent within an assignment.
-
-### Block Types
-
-Blocks appear in `blocks[]` in display order. Each type defines an engine rendering and a print rendering; the dual contract is what makes specs portable.
-
-**instructions** - static content.
-```json
-{ "type": "instructions", "content": "Markdown text. May include numbered procedures." }
-```
-
-**textField** - written student response.
-```json
-{ "type": "textField", "id": "f1", "prompt": "Explain why 304 stainless resists corrosion better than 1018 steel.", "minSentences": 3, "maxSentences": 5, "points": 5 }
-```
-Engine: auto-resizing textarea with a live sentence counter (dim / amber / green). Print: prompt plus ruled response lines.
-
-**table** - structured data entry.
-```json
-{
-  "type": "table", "id": "t1", "points": 10,
-  "columns": [
-    { "key": "material", "label": "Material", "tip": "Material - Name from the six-material set." },
-    { "key": "observation", "label": "Visual Observation", "tip": "Visual Observation - Color, luster, weight feel." }
-  ],
-  "minRows": 6,
-  "printRows": 8,
-  "rowImages": false,
-  "statusColumn": false
-}
-```
-
-**imageZone** - visual evidence.
-```json
-{ "type": "imageZone", "id": "z1", "minImages": 2, "captions": true, "points": 5, "printAs": "sketch" }
-```
-`printAs`: `sketch`, `attach`, or `notebookRef`.
-
-**checklist** - binary completion items.
-```json
-{ "type": "checklist", "id": "k1", "points": 5, "items": ["Blank measured and recorded", "Tool zeroed before first cut"] }
-```
-
-**calc** - RESERVED, NOT YET SUPPORTED. The engine's spec importer refuses calc blocks by name. Do not author them. Materials needing computed tools use a table with a hand-computed column until the block type ships. The shape is retained here so the type name stays reserved:
-```json
-{ "type": "calc", "id": "k9", "tool": "dualUnit", "config": { }, "printAs": "manualTable" }
-```
-
-### declarations
-
-```json
-{ "academicIntegrity": true }
-```
-Engine: required checkbox, blocked submit without it. Declaration text lives with the renderer, not per-spec.
-
-### approvalGate
-
-`null` when absent. When present:
-```json
-{ "afterModule": "m2", "label": "Instructor Approval Required" }
-```
-Engine: gated modules locked until a teacher approves, enforced server-side at save, upload, and submit.
-
-### print
-
-Per-material print overrides. Usually empty, and only relevant when a print trigger from `IDEA_MATERIALS_PROCESS.md` applies.
-
----
-
-## Derived Behavior (never authored manually)
-
-- **Preflight and completion criteria** derive from block constraints: `minSentences`, `minRows`, `minImages`, checklist items, declaration. The engine recomputes preflight server-side on submit regardless of client state.
-- **Points display** derives from module and block points.
-- **Footer content** derives from meta.
-
-If a completion rule cannot be expressed through block constraints, add it as a named entry in a `customChecks` array on the module with a plain-language description.
-
----
-
-## Authoring Workflow
-
-1. Chat drafts the spec from the pacing entry and content discussion.
-2. Chat presents for approval: module structure, points, block types, rubric criteria with levels, and AI levels with a one-line rationale each.
-3. On approval, the spec JSON is finalized and delivered as a file for engine import.
-4. Alejandro imports the spec in IDEA Classroom, generates the rubric, and verifies through view-as-student before publishing.
-
-Verified before every delivery: module points sum to total, criterion maximums sum to module points, top level equals criterion maximum and bottom level is 0 on every criterion, block ids unique, no calc blocks.
-
----
-
-## Changelog
-
-- **1.1 (2026-08-13)** - Rubric criteria changed from flat single-descriptor to leveled, governed by the new `IDEA_RUBRIC_STANDARDS.md`. Flat criteria are no longer valid. `calc` marked reserved and unsupported, since the engine importer refuses it. Authoring workflow corrected: specs are delivered for engine import, not paired with a print rendering by default. Theme guidance corrected to `idea-green` for engine materials.
-- **1.0 (2026-08-10)** - Initial schema.
+Schema v1.1, dated 2026-08-13: top-level structure, `meta`, `modules[]`, flat
+then leveled `rubric[]`, the six block types, `declarations`, `approvalGate`,
+`print`, derived behaviour, and the authoring workflow. All of it is in v2 Part 1
+in current form. Two things it described are now known to be wrong and are
+corrected in v2.2 rather than here: there is no separate print renderer for spec
+blocks (print is `@media print` CSS inside the rendering components), and
+`printAs` / `printConfig` were declared and read by nothing. Both have since been
+removed from `assignment-spec.ts`.

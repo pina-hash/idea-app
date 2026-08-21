@@ -242,6 +242,12 @@
 		};
 	}
 
+	// THE HARNESS'S OWN BYTES for the seeded figure attachment. attachmentSrc
+	// consults this map first, so the assignment's `attachment:truss-detail.png`
+	// figure resolves to a file that actually loads. Production is unaffected --
+	// nothing outside a harness ever calls this.
+	registerLocalAttachmentUrl('att-fig-1', '/IDEA/idea-logo-text.png');
+
 	let items = $state<ClassroomItem[]>([
 		item({
 			id: 'i-1',
@@ -278,6 +284,15 @@
 				{ id: 'r-2', label: 'Sketching rubric', url: 'https://example.com/rubric', sort_order: 2 }
 			],
 			postings: [{ section_id: 's-1' }, { section_id: 's-2' }],
+			// A REAL IMAGE ATTACHMENT, so `![...](attachment:truss-detail.png)` in
+			// this assignment's spec instructions resolves and renders for real here.
+			// Its bytes come from registerLocalAttachmentUrl above, pointed at a file
+			// that genuinely exists in static/ -- there is no Drive in a harness, and
+			// a figure verified against a broken image proves nothing about layout,
+			// print or contrast.
+			attachments: [
+				{ id: 'att-fig-1', filename: 'truss-detail.png', mime_type: 'image/png', size_bytes: 18244, sort_order: 1 }
+			],
 			// Seeded instructor-only material (0090): a teacher opening this item
 			// should see these immediately, and a student (or view-as-student)
 			// never should.
@@ -998,7 +1013,19 @@
 				blocks: [
 					{
 						type: 'instructions',
-						content: '1. Front, top, side.\n2. Label every member.\n3. Use a straightedge.'
+						content: [
+							'1. Front, top, side.',
+							'2. Label every member.',
+							'3. Use a straightedge.',
+							'',
+							'![Truss detail, joint 4 (attachment alias)](attachment:truss-detail.png)',
+							'',
+							'![The IDEA gear (named static prefix)](/IDEA/idea-gear.png)',
+							'',
+							'![Refused: an external host](https://evil.example/beacon.png)',
+							'',
+							'Inline stays literal: ![not a figure](attachment:truss-detail.png) mid-sentence.'
+						].join('\n')
 					},
 					{
 						type: 'textField',

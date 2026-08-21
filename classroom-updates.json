@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "Pictures can now sit inside instructions",
+			"body": "Your teacher can put a picture directly into the instructions on an assignment or a material, with a caption under it, instead of leaving it as a file at the bottom of the page you have to open separately. A diagram of the part you are making now sits next to the step that talks about it. Pictures print, so a page you print for the bench keeps them. If a picture cannot be shown for any reason you will see its caption with a short note in place of the image, rather than a blank space or a broken picture, so you always know something was meant to be there and can ask about it.",
+			"tags": ["Instructions", "Materials"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "Indented bullet points no longer run together",
 			"body": "If a teacher wrote instructions with a list inside a list, or you wrote a note that way, everything under the indented part was being squashed into the bullet above it with no spaces, so a list of materials could come out reading as one long unbroken word. Every bullet now keeps its own line, in the order it was written, in class instructions and in your notebook notes. The indenting itself is not shown yet, so an indented bullet sits at the same level as the rest of the list for now. This only fixes lists saved from today onwards. Anything already saved as one run-on line is stored that way and cannot be sorted out on its own, so if you find one in your own notebook, open it and type the bullets out again.",
 			"tags": ["Instructions", "Notebook"]

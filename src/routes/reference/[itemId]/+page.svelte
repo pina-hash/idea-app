@@ -28,7 +28,18 @@
 </div>
 
 <main class="ref-page">
-	<ReferenceDoc spec={data.spec} fetchPreview={fetchLinkPreviewClient}>
+	<!-- ATTACHMENTS AND THE PUBLIC BRANCH TOGETHER. This page is signed out, so
+	     an `attachment:` figure in the document's prose has to resolve through
+	     `?public=1` -- which narrows to `classroom_public_attachment`, i.e. only
+	     a file on a published PUBLIC material. `data.attachments` is the same
+	     list the file strip below already renders, so a figure can name nothing
+	     this page was not already prepared to serve. -->
+	<ReferenceDoc
+		spec={data.spec}
+		fetchPreview={fetchLinkPreviewClient}
+		attachments={data.attachments}
+		publicAttachments
+	>
 		{#snippet aside()}
 			{#if data.attachments.length}
 				<ul class="files">

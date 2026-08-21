@@ -716,6 +716,26 @@ inside the function fails closed rather than falling through to a weaker path.
 - **Editor content is Tiptap/ProseMirror JSON, never HTML.** The schema is what
   constrains a paste; the server translates. Enabling a node type also enables its
   paste rule, so clamp what the schema does not allow on the way in.
+- **AN `img src` IS NOT AN `a href`, AND THEY GET DIFFERENT PREDICATES.**
+  `safeHref` admits external http/https because a link is navigation a reader
+  CHOOSES to follow; a browser fetches an `img` automatically, carrying the
+  reader's IP and Referer, before anyone has decided anything. Authored images
+  therefore go through `resolveFigureSrc` (`src/lib/classroom/classroom.ts`),
+  which is SAME-ORIGIN ONLY: an `attachment:<filename>` alias resolved against
+  the rendering item's own attachments through the existing proxy helpers, or an
+  absolute path under `FIGURE_STATIC_PREFIXES` -- one exported constant, so the
+  set is greppable and testable. Everything else is refused by name, including
+  SVG from ANY source (it is a document, not a picture: script, external
+  references and handlers), checked by extension AND by stored MIME because
+  either can be the only spelling present. **Never widen `safeHref` to cover an
+  image, and never route an image through it.**
+- **A refused or unresolved image renders its caption plus a visible marker**,
+  never a broken `img` and never silence. The refused src must not reach an
+  attribute at all -- the element is not rendered, rather than rendered with a
+  blanked value.
+- **An attachment ALIAS, never a file id**, in anything an author writes: a spec
+  is authored before the item exists, must survive a re-upload under a new id,
+  and must still mean something in the exported copy under `materials/`.
 
 ---
 

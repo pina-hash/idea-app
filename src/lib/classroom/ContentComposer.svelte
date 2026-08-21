@@ -1011,7 +1011,16 @@
 				<p class="hint">Uploads when you save.</p>
 			{/if}
 			{#if mode === 'edit' && existing.length}
-				<AttachmentList attachments={existing} onremove={removeExisting} removing={removingId} />
+				<!-- The composer is manager-only by construction, so the reference is
+				     offered unconditionally here. This is where an author is when
+				     they need it: the file is on screen and the prose editor is a
+				     few centimetres away. -->
+				<AttachmentList
+					attachments={existing}
+					onremove={removeExisting}
+					removing={removingId}
+					figureRefs
+				/>
 			{/if}
 		</div>
 	{/if}

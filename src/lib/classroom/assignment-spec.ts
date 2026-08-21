@@ -4,7 +4,8 @@
  * counting, rubric generation, grading math, and the FACTS CSV. No Svelte, no
  * Supabase.
  *
- * THE SPEC FORMAT is docs/IDEA_MATERIAL_SPEC_v1.md, one JSON document per
+ * THE SPEC FORMAT is IDEA_MATERIAL_SPEC_v2.md (maintained outside this repo --
+ * docs/IDEA_MATERIAL_SPEC_v1.md is a stub pointing at it), one JSON document per
  * assignment. Validation here is the FRIENDLY half -- the import UI runs it so
  * a teacher sees every problem at once before anything is sent. The BOUNDARY is
  * _classroom_check_spec in migration 0086, which enforces the same rules inside
@@ -20,7 +21,7 @@
  */
 
 // ---------------------------------------------------------------------------
-// Spec types (docs/IDEA_MATERIAL_SPEC_v1.md, schema v1)
+// Spec types (IDEA_MATERIAL_SPEC_v2.md Part 1, schema v1 -- the `kind` default)
 // ---------------------------------------------------------------------------
 
 export interface SpecMeta {
@@ -73,7 +74,6 @@ export interface ImageZoneBlock {
 	minImages?: number;
 	captions?: boolean;
 	points?: number;
-	printAs?: string;
 }
 
 export interface ChecklistBlock {
@@ -83,13 +83,28 @@ export interface ChecklistBlock {
 	items: string[];
 }
 
+/**
+ * `printAs` AND `printConfig` USED TO BE DECLARED HERE AND ON `ImageZoneBlock`,
+ * and are gone. They described a dual engine-and-print rendering contract from
+ * schema v1.0 that this repo never implemented: there is no separate print
+ * renderer for spec blocks and there never was one. Print is `@media print` CSS
+ * inside the components that render the blocks -- SpecRenderer, ReferenceBlock,
+ * MarkdownText, GradeCalculator, InfoTip -- and nothing anywhere read either
+ * field. IDEA_MATERIAL_SPEC v2.2 records both facts and says to treat them as
+ * dead until removed.
+ *
+ * REMOVING THEM BREAKS NO STORED SPEC, which is why it is safe rather than
+ * merely tidy. Neither validator rejects unknown keys on a block: `validateSpec`
+ * below and `_classroom_check_spec` (0086) each check `type` against a whitelist
+ * and then validate the fields they name. A spec still carrying `printAs`
+ * therefore imports and renders exactly as it did; the field is simply no longer
+ * a thing the type system claims this app understands.
+ */
 export interface CalcBlock {
 	type: 'calc';
 	id: string;
 	tool?: string;
 	config?: unknown;
-	printAs?: string;
-	printConfig?: unknown;
 }
 
 export type SpecBlock =

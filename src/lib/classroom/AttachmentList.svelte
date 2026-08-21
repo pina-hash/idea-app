@@ -2,6 +2,7 @@
 	import {
 		attachmentSrc,
 		fileKindLabel,
+		figureReference,
 		formatBytes,
 		isImageAttachment,
 		type ClassroomAttachment
@@ -24,7 +25,8 @@
 		viewAs = null,
 		onremove = null,
 		removing = null,
-		resolveSrc = null
+		resolveSrc = null,
+		figureRefs = false
 	}: {
 		attachments: ClassroomAttachment[];
 		viewAs?: string | null;
@@ -37,9 +39,60 @@
 		 * the student-facing one attachmentSrc builds.
 		 */
 		resolveSrc?: ((a: ClassroomAttachment) => string) | null;
+		/**
+		 * THE AUTHORING AFFORDANCE FOR FIGURES, and it is off by default.
+		 *
+		 * An author writing `![alt](attachment:<filename>)` has to get the
+		 * filename exactly right, and the only place it is written down is the
+		 * row they are looking at. Making them retype it -- or worse, hunt for it
+		 * in a Drive folder -- is how the reference ends up pointing at
+		 * `Photo (1).JPG` when the file is `photo (1).jpg`.
+		 *
+		 * TURNED ON ONLY WHERE THE VIEWER MANAGES THE ITEM, and only on the
+		 * STUDENT-FACING list. It is deliberately not offered on the
+		 * instructor-only list (0090): those files resolve through their own proxy
+		 * which `resolveFigureSrc` never calls, so a reference to one could not
+		 * work -- and if it ever did, it would be embedding an instructor-only
+		 * file into prose every student in the class reads.
+		 */
+		figureRefs?: boolean;
 	} = $props();
 
 	const srcOf = (a: ClassroomAttachment) => resolveSrc?.(a) ?? attachmentSrc(a.id, viewAs);
+
+	/** Which row is showing its "copied" confirmation, and the timer clearing it. */
+	let copied = $state<string | null>(null);
+	let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function copyRef(a: ClassroomAttachment) {
+		// ONE SPELLING OF THE REFERENCE, shared with the resolver (classroom.ts),
+		// so what an author is handed is by construction what the parser reads.
+		const ref = figureReference(a.filename);
+		try {
+			await navigator.clipboard.writeText(ref);
+		} catch {
+			// A denied or unavailable clipboard is ordinary (an insecure origin, a
+			// permission prompt dismissed). Falling back to a selected textarea
+			// keeps the string reachable rather than reporting a failure the
+			// author can do nothing with.
+			const scratch = document.createElement('textarea');
+			scratch.value = ref;
+			scratch.setAttribute('readonly', '');
+			scratch.style.position = 'fixed';
+			scratch.style.opacity = '0';
+			document.body.appendChild(scratch);
+			scratch.select();
+			try {
+				document.execCommand('copy');
+			} catch {
+				/* Nothing further to offer; the confirmation below is not shown. */
+			}
+			document.body.removeChild(scratch);
+		}
+		copied = a.id;
+		if (copyTimer) clearTimeout(copyTimer);
+		copyTimer = setTimeout(() => (copied = null), 2000);
+	}
 
 	// A broken fetch is an ordinary outcome (an expired session, a Drive
 	// hiccup), so a failed image falls back to the file row rather than a
@@ -69,6 +122,22 @@
 						{a.filename}
 					</a>
 					{#if a.size_bytes}<span class="attach-size">{formatBytes(a.size_bytes)}</span>{/if}
+					<!-- Images only: a figure is an image, and offering the reference
+					     beside a PDF would hand an author a string that resolves to a
+					     refusal. `isImageAttachment` already excludes SVG, which the
+					     resolver refuses outright, so the two agree without a second
+					     rule here. A visible WORD, not a glyph: a phone cannot hover
+					     and a tooltip is not discoverable. -->
+					{#if figureRefs && isImageAttachment(a)}
+						<button
+							type="button"
+							class="attach-ref"
+							data-testid="attach-figure-ref"
+							onclick={() => copyRef(a)}
+						>
+							{copied === a.id ? 'Reference copied' : 'Copy figure reference'}
+						</button>
+					{/if}
 					{#if onremove}
 						<button
 							type="button"
@@ -157,6 +226,31 @@
 		color: var(--text-2);
 		white-space: nowrap;
 	}
+	/* 44px MINIMUM, PER IDEA_INTERFACE_STANDARDS 10. Measured at 131x16 when
+	   this first shipped, which is under even the absolute 24px floor. A teacher
+	   authoring on a phone can reach this control, so it takes the touch target
+	   rather than the console floor. The pill keeps its type scale; only the box
+	   grows, so the row's reading weight is unchanged. */
+	.attach-ref {
+		appearance: none;
+		background: none;
+		border: 1px solid var(--hairline);
+		border-radius: 999px;
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		padding: 0.1rem 0.75rem;
+		min-height: 44px;
+		cursor: pointer;
+	}
+	.attach-ref:hover {
+		color: var(--gold);
+		border-color: var(--gold);
+	}
+	/* PRE-EXISTING, and raised in the same pass for the same reason: it is the
+	   adjacent sibling in this row and also measured 16px. One compliant control
+	   beside one non-compliant one reads as a broken row rather than a fixed one,
+	   so the two move together. */
 	.attach-remove {
 		appearance: none;
 		background: none;
@@ -165,11 +259,21 @@
 		color: var(--crimson);
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
-		padding: 0.1rem 0.5rem;
+		padding: 0.1rem 0.75rem;
+		min-height: 44px;
 		cursor: pointer;
 	}
 	.attach-remove:disabled {
 		color: var(--text-3);
 		cursor: default;
+	}
+
+	/* AUTHORING CHROME NEVER PRINTS. The reference string is a thing you paste
+	   into a spec, so on paper it is a button nobody can press beside a filename
+	   that is already there. */
+	@media print {
+		.attach-ref {
+			display: none;
+		}
 	}
 </style>

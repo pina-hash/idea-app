@@ -750,6 +750,7 @@
 										initialValues={Object.fromEntries(
 											selected.responses.map((r) => [r.block_id, r.value ?? {}])
 										)}
+										attachments={item.attachments}
 										files={selected.files}
 										readonly
 										approved={gateApproved(spec, selected.approvals)}
