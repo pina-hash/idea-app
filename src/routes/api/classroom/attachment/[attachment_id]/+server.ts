@@ -79,25 +79,24 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 	}
 
 	/**
-	 * VIEW-AS-STUDENT. `?as=<email>` asks the database whether THAT student
-	 * could fetch this attachment, through the admin-gated
-	 * classroom_view_as_can_read_attachment (0083) -- so an impersonated page
-	 * behaves like the student it is imitating rather than like the admin
-	 * driving it, and a non-admin passing `as` is refused by the RPC itself,
-	 * not by anything written here. It can only ever NARROW: an admin already
-	 * reads every attachment through their own policy.
+	 * THERE IS NO `?as=` BRANCH ANY MORE, and `as` is now an ordinary unknown
+	 * query parameter this route ignores -- exactly as the instructor-material
+	 * proxy beside it always has.
+	 *
+	 * It existed for the classroom view-as-student preview: it asked
+	 * classroom_view_as_can_read_attachment whether the impersonated student
+	 * could fetch this file, so a previewed page 404'd on an attachment they
+	 * were not entitled to. Both pages that could produce such a URL (the class
+	 * preview and the item preview) are gone, so nothing generates one.
+	 *
+	 * REMOVING IT CANNOT WIDEN ANYTHING. The branch only ever NARROWED an
+	 * already-authorized read: every response below is the CALLER'S own,
+	 * scoped by classroom_attachments' policy, and that is unchanged. What the
+	 * parameter can no longer do is make this route answer as somebody else.
+	 * The SQL function stays applied and unreferenced (see the orphan list in
+	 * docs/HISTORY.md); dropping it is a later migration, because a dropped
+	 * function under a still-deployed route is a 500.
 	 */
-	const viewAs = url.searchParams.get('as')?.trim().toLowerCase() ?? '';
-	if (viewAs) {
-		const { data: allowed, error } = await supabase.rpc(
-			'classroom_view_as_can_read_attachment',
-			{ p_email: viewAs, p_attachment_id: id }
-		);
-		if (error || allowed !== true) {
-			return new Response('Not found', { status: 404 });
-		}
-	}
-
 	const { data, error } = await supabase
 		.from('classroom_attachments')
 		.select('drive_file_id, filename, mime_type')

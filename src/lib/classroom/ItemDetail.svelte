@@ -99,7 +99,6 @@
 		transports = null,
 		attachmentsEnabled = true,
 		basePath = '/classroom',
-		viewAs = null,
 		fetchPreview = null,
 		onchanged = null,
 		ondeleted = null,
@@ -124,7 +123,6 @@
 		transports?: ClassroomComposerTransports | null;
 		attachmentsEnabled?: boolean;
 		basePath?: string;
-		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 		ondeleted?: (() => void) | null;
@@ -146,18 +144,12 @@
 		/**
 		 * The item's presentation deck (0101). Null = it has none; a manager
 		 * still gets the upload control, a student gets nothing at all.
-		 * DELIBERATELY NOT PASSED IN VIEW-AS: classroom_view_as_section's payload
-		 * carries no deck, exactly as it carries no notebook check-in, so the
-		 * panel simply does not render there rather than an admin's own read
-		 * being shown under a student's name.
 		 */
 		deck?: ClassroomDeck | null;
 		deckTransports?: DeckTransports | null;
 		/**
 		 * The item's content history (0110). Manager-only, and absent rather
-		 * than empty where it does not apply -- view-as carries none, exactly as
-		 * it carries no deck: previewing what a STUDENT sees must not include a
-		 * teacher's drafts.
+		 * than empty where it does not apply.
 		 */
 		revisionTransports?: RevisionTransports | null;
 		/**
@@ -165,11 +157,6 @@
 		 * already narrowed by the caller (checkInsForItem). Each carries the
 		 * VIEWER'S OWN status, or null for a manager -- a teacher has no personal
 		 * standing on their own class's check-in.
-		 *
-		 * DELIBERATELY NOT PASSED IN VIEW-AS, exactly as the deck is not:
-		 * `classroom_view_as_section`'s payload carries no check-in, so the block
-		 * does not render there rather than an admin's own read appearing under a
-		 * student's name.
 		 */
 		checkIns?: ClassCheckIn[];
 		/**
@@ -807,7 +794,7 @@
 			<!-- `figureRefs` is the manage gate, and it is the ONLY thing that
 			     changes about this list for a teacher: the same component, the same
 			     rows, plus one affordance. -->
-			<AttachmentList attachments={item.attachments} {viewAs} figureRefs={canManage} />
+			<AttachmentList attachments={item.attachments} figureRefs={canManage} />
 		</section>
 	{/if}
 
@@ -860,17 +847,21 @@
 		{:else}
 			<section class="card engine-slot">
 				<h2 class="section-label">Handing this in</h2>
+				<!-- THE PLACEHOLDER THAT KILLED THE PREVIEW. There used to be a
+				     `{#if viewAs}` here saying "submission tools are hidden while
+				     viewing as a student", because the view-as payload carried no
+				     engine slice -- so an admin previewing an assignment was shown
+				     this sentence exactly where a student's work surface belongs.
+				     The two roles differ by PAYLOAD, not by render, which is the one
+				     gap no preview can close (IDEA_INTERFACE_STANDARDS 3). The
+				     preview is gone and so is the branch. -->
 				<p class="note">
-					{#if viewAs}
-						Submission tools are hidden while viewing as a student.
-					{:else}
-						<!-- NOT "not available right now", which read as an outage and left a
-						     student waiting for a form that was never coming. This assignment
-						     genuinely has no online hand-in; the instructions say where the
-						     work goes. -->
-						This assignment has no online hand-in. Follow the instructions above --
-						your teacher has said there how to turn this one in.
-					{/if}
+					<!-- NOT "not available right now", which read as an outage and left a
+					     student waiting for a form that was never coming. This assignment
+					     genuinely has no online hand-in; the instructions say where the
+					     work goes. -->
+					This assignment has no online hand-in. Follow the instructions above --
+					your teacher has said there how to turn this one in.
 				</p>
 			</section>
 		{/if}

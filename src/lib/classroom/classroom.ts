@@ -286,14 +286,18 @@ export function normalizeItemRow(row: Record<string, unknown>): ClassroomItem {
  * The ONE place an attachment URL is built. Always the app's own proxy, never
  * a drive.google.com link: the files live in a restricted school shared drive,
  * so a direct link renders only for someone who personally has access to that
- * folder. `viewAs` carries the impersonated student's email so the proxy can
- * answer as THAT student would be answered (0083; admin-gated server-side).
+ * folder.
+ *
+ * IT TAKES NO `viewAs` ANY MORE. It used to append `?as=<email>` so the proxy
+ * would answer as an impersonated student; the classroom view-as class and
+ * item previews that produced those URLs are gone, and the proxy no longer
+ * reads the parameter. Every caller now gets the CALLER'S own read, which is
+ * what every surviving surface wants.
  */
-export function attachmentSrc(attachmentId: string, viewAs?: string | null): string {
+export function attachmentSrc(attachmentId: string): string {
 	const local = localAttachmentUrls.get(attachmentId);
 	if (local) return local;
-	const base = `/api/classroom/attachment/${attachmentId}`;
-	return viewAs ? `${base}?as=${encodeURIComponent(viewAs)}` : base;
+	return `/api/classroom/attachment/${attachmentId}`;
 }
 
 /**
@@ -312,9 +316,8 @@ export function publicAttachmentSrc(attachmentId: string): string {
 
 /**
  * URL for an INSTRUCTOR-ONLY attachment (0090) -- its OWN proxy, never the
- * student-facing one above. Deliberately takes no `viewAs`: that route has no
- * ?as= support at all, on purpose, so there is nothing here to accidentally
- * wire up for a surface (view-as-student) that must never reach it.
+ * student-facing one above, so an instructor-only file is never resolved
+ * through the proxy every student in the class can reach.
  */
 export function instructorAttachmentSrc(attachmentId: string): string {
 	const local = localAttachmentUrls.get(attachmentId);
@@ -456,7 +459,7 @@ function pathOnly(ref: string): string {
 export function resolveFigureSrc(
 	raw: string,
 	attachments: ClassroomAttachment[] = [],
-	opts: { public?: boolean; viewAs?: string | null } = {}
+	opts: { public?: boolean } = {}
 ): FigureSrc {
 	const ref = (raw ?? '').trim();
 	if (!ref) return { ok: false, reason: 'empty' };
@@ -479,7 +482,7 @@ export function resolveFigureSrc(
 		return {
 			ok: true,
 			attachmentId: match.id,
-			src: opts.public ? publicAttachmentSrc(match.id) : attachmentSrc(match.id, opts.viewAs)
+			src: opts.public ? publicAttachmentSrc(match.id) : attachmentSrc(match.id)
 		};
 	}
 

@@ -36,8 +36,7 @@
 	let {
 		body,
 		attachments = [],
-		publicAttachments = false,
-		viewAs = null
+		publicAttachments = false
 	}: {
 		body: string;
 		/**
@@ -49,14 +48,11 @@
 		attachments?: ClassroomAttachment[];
 		/** The public reference viewer's `?public=1` branch (see resolveFigureSrc). */
 		publicAttachments?: boolean;
-		/** The impersonated student, so a view-as page is answered as they would be. */
-		viewAs?: string | null;
 	} = $props();
 
 	const nodes = $derived<MarkdownNode[]>(parseMarkdown(body));
 
-	const figureSrc = (src: string) =>
-		resolveFigureSrc(src, attachments, { public: publicAttachments, viewAs });
+	const figureSrc = (src: string) => resolveFigureSrc(src, attachments, { public: publicAttachments });
 </script>
 
 {#snippet inline(runs: InlineRun[])}

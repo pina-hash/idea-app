@@ -107,6 +107,14 @@ it is not required to browse.
   read, VANGUARD's TUNE mode.
 - **The homepage `/` IS the student dashboard.** Students have no separate one;
   `/dashboard` is admin-only.
+  - **ITS SECTION ORDER TURNS ON WHAT THE VIEWER MANAGES, never on their role.**
+    Apps sits above Your Classes for anyone who manages a section, and below it
+    for everyone else -- a student's feed deep-links them into the exact item
+    that is due, which nothing else on the page does, so it keeps the top. The
+    signal is `classroomFeeds.some((f) => f.manages)`, reusing `buildFeed`'s own
+    `manages` (which mirrors `classroom_manages_section`); `profile.role` is the
+    wrong key, because the email domain grants `teacher` to staff who teach no
+    section and an admin can manage every section without it.
 
 ### Roles
 
@@ -668,6 +676,23 @@ inside the function fails closed rather than falling through to a weaker path.
   reveals nothing the caller could not already read -- only the arrangement on
   screen changes. If a change here needs a session swap, a service-role client or a
   new grant, that is the signal it has stopped being a preview: stop.
+- **WHERE TWO ROLES DIFFER BY PAYLOAD RATHER THAN BY RENDER, NO PREVIEW CAN
+  CLOSE THE GAP, and the answer is to delete the preview rather than improve
+  it.** The classroom's class and item previews under `/classroom/view-as` are
+  GONE for exactly this: a student's item page carries an engine slice that a
+  manager's read never loads, so an assignment "previewed as a student" showed a
+  placeholder precisely where the work surface belongs, and only a real student
+  session could have fixed it. Parity is what a preview was standing in for, and
+  parity is already real -- `ItemDetail` is one component gated by `canManage`,
+  so an instructor reads the student page plus affordances. **Do not rebuild
+  them.** What survives at `/classroom/view-as` is the student picker and the
+  NOTEBOOK preview, which is not the same case: no notebook payload splits by
+  role, so `notebook_view_as_notebook` returns what the student's own page
+  returns.
+  - **A route that answers as somebody else is a preview's plumbing, and it goes
+    with the preview.** The attachment proxy's `?as=<email>` branch is removed;
+    `attachmentSrc` and `resolveFigureSrc` take no `viewAs`. Neither classroom
+    proxy resolves an identity now, and neither may gain one.
 - **Everything an item needs is attachable at creation, on one surface** -- and on
   ONE surface only. Do not make an author save first and come back; equally, do not
   put a second copy of a panel the page already shows beside the first.
@@ -1236,7 +1261,18 @@ the source of truth; **do not invent colours or swap fonts.**
 - **Everything animated is gated behind `prefers-reduced-motion`.**
 - **Launcher cards carry ONE shared accent (brass/gold); there is deliberately no
   per-card accent field.** Cards are differentiated by name, tagline and status
-  badge, never by an arbitrary colour.
+  badge, never by an arbitrary colour. A product's own colour belongs inside its
+  scoped theme (`.gt-root`, `.glb`, `.frc-root`), never on the tile that opens
+  it.
+  - **THIS RULE WAS TRUE ON PAPER AND FALSE ON SCREEN FOR MONTHS, and how is the
+    part worth remembering.** `PortalApp.theme` fed an INLINE
+    `--acc-primary`/`--acc-secondary` onto every card, and **an inline custom
+    property beats the class rule that declares the shared pair** -- so
+    `.app-card`'s uniform token was dead code and six cards painted an identity
+    colour. The field is gone rather than set to one value everywhere: a field
+    that may only ever hold one value is an invitation to put a second one in
+    it. `tests/home-order-and-accent.test.ts` is what enforces it now; a
+    constant only makes the right thing available.
 - **Background:** the `.bg-fx` scanline + vignette overlay, disabled under reduced
   motion. Legibility first.
 

@@ -151,7 +151,7 @@
 					{/if}
 					{#if isAdmin}
 						<a class="sw-item" role="menuitem" href="/classroom/view-as" onclick={() => (switcherOpen = false)}>
-							<span class="sw-item-name">View as student</span>
+							<span class="sw-item-name">Student notebooks</span>
 						</a>
 					{/if}
 				</div>

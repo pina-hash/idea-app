@@ -29,8 +29,23 @@ export interface PortalApp {
 	requiresAuth?: boolean;
 	/** Only rendered for site admins (0067; was teachers). */
 	adminOnly?: boolean;
-	/** Per-card accent colors. Falls back to the shared brass/gold scheme when unset. */
-	theme?: { primary: string; secondary: string };
+	/**
+	 * THERE IS NO `theme` FIELD, AND ADDING ONE BACK IS THE CHANGE TO REFUSE.
+	 *
+	 * Every entry used to declare `{ primary, secondary }`, which AppLauncher
+	 * wrote onto the card as an inline `--acc-primary` / `--acc-secondary`. An
+	 * inline custom property beats the class rule that declares the shared
+	 * brass/gold pair, so `.app-card`'s uniform accent was dead code: the token
+	 * it names never painted on a single card. Six cards were rendering an
+	 * arbitrary identity colour (a pure FIRST red, a chartreuse, a cyan) on the
+	 * portal shell, against the standing rule that launcher cards carry ONE
+	 * shared accent and are told apart by name, tagline and status badge.
+	 *
+	 * The field is gone rather than corrected to a uniform value, because a
+	 * field that may only ever hold one value is an invitation to put a second
+	 * one in it. Product colour belongs inside each product's own scoped theme
+	 * (`.gt-root`, `.glb`, `.frc-root`), not on the launcher tile that opens it.
+	 */
 	/**
 	 * Superseded by a newer tool but kept reachable (bookmarks, muscle memory).
 	 * Renders a muted "Legacy" badge and dimmed chrome so it never reads as
@@ -54,11 +69,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'classroom',
 		href: '/classroom',
 		cta: 'Open',
-		requiresAuth: true,
-		// The shared brass/gold scheme, stated explicitly (the notebook card's
-		// lesson: omitting `theme` falls back to a green-led card, not the
-		// uniform gold --acc convention).
-		theme: { primary: '#C8A848', secondary: '#78B870' }
+		requiresAuth: true
 	},
 	{
 		id: 'notebook',
@@ -69,15 +80,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		cta: 'Open',
 		// Every signed-in account, whatever their role: a notebook is a
 		// personal record, not a student-only surface.
-		requiresAuth: true,
-		// The shared brass/gold scheme, stated explicitly rather than left to
-		// the snippet's fallback. Omitting `theme` does NOT yield the gold
-		// `--acc` convention: appCard's fallback is `var(--green)` primary, so
-		// an unthemed card renders green-led. These are the design-system
-		// --gold / --green tokens themselves (the .app-card CSS default, and
-		// what the coin cards already use), so this is the documented uniform
-		// accent, not a new per-card color.
-		theme: { primary: '#C8A848', secondary: '#78B870' }
+		requiresAuth: true
 	},
 	// TWO coin cards, deliberately, and there is no third. The Ledger is the
 	// single student hub — balance, leaderboard, transactions, analytics,
@@ -92,8 +95,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		sub: 'Your balance, the leaderboard, every transaction, open contracts, and role applications.',
 		icon: 'coins',
 		href: '/coins/index.html',
-		cta: 'View live',
-		theme: { primary: '#C8A848', secondary: '#78B870' }
+		cta: 'View live'
 	},
 	{
 		id: 'gauntlet',
@@ -102,8 +104,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'gauntlet',
 		href: '/gauntlet',
 		cta: 'Enter',
-		requiresAuth: true,
-		theme: { primary: '#00FF41', secondary: '#00F0FF' }
+		requiresAuth: true
 	},
 	{
 		id: 'frc',
@@ -112,8 +113,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'frc',
 		href: '/frc',
 		cta: 'Enter',
-		requiresAuth: true,
-		theme: { primary: '#ED1C24', secondary: '#0066B3' }
+		requiresAuth: true
 	},
 	{
 		id: 'greenline',
@@ -122,8 +122,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'greenline',
 		href: '/greenline',
 		cta: 'Race',
-		requiresAuth: true,
-		theme: { primary: '#2AE57E', secondary: '#CFDAE2' }
+		requiresAuth: true
 	},
 	{
 		id: 'vanguard',
@@ -131,8 +130,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		sub: 'Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.',
 		icon: 'vanguard',
 		href: '/vanguard/',
-		cta: 'Play',
-		theme: { primary: '#00FF41', secondary: '#C8FF00' }
+		cta: 'Play'
 	},
 	{
 		id: 'tournaments',
@@ -140,8 +138,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
 		icon: 'tournament',
 		href: '/tournaments',
-		cta: 'View',
-		theme: { primary: '#00FF41', secondary: '#C8A848' }
+		cta: 'View'
 	},
 	{
 		id: 'coin-desk',
@@ -150,8 +147,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'coin-desk',
 		href: '/coin-desk',
 		cta: 'Open',
-		adminOnly: true,
-		theme: { primary: '#C8A848', secondary: '#78B870' }
+		adminOnly: true
 	},
 	{
 		id: 'dashboard',
@@ -160,8 +156,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'dashboard',
 		href: '/dashboard',
 		cta: 'Open',
-		adminOnly: true,
-		theme: { primary: '#78B870', secondary: '#5ABDA8' }
+		adminOnly: true
 	},
 	{
 		id: 'admin',
@@ -170,8 +165,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'dashboard',
 		href: '/admin',
 		cta: 'Open',
-		adminOnly: true,
-		theme: { primary: '#78B870', secondary: '#5ABDA8' }
+		adminOnly: true
 	}
 	// NO "Courses & Assignments" card (it pointed at #your-class, a same-page
 	// anchor on a section that no longer held either) and NO "Course Archive"

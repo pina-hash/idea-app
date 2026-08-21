@@ -93,7 +93,6 @@
 		onCompose = null,
 		notice = null,
 		onToggleGroup = null,
-		viewAs = null,
 		fetchPreview = null,
 		deckTransports = null,
 		teacherTransports = null,
@@ -108,12 +107,12 @@
 		/** Every section the caller manages, for the composer's linkage controls. */
 		sections?: ClassroomSection[];
 		canManage?: boolean;
-		/** Omitted (null) on every read-only surface, view-as included. */
+		/** Omitted (null) on every read-only surface. */
 		transports?: ClassroomComposerTransports | null;
 		/** Null = units are not offered here (a read-only surface, or pre-0111). */
 		unitTransports?: ClassroomUnitTransports | null;
 		attachmentsEnabled?: boolean;
-		/** Link root -- rewritten under /classroom/view-as/<email>. */
+		/** Link root: every item href is built from it. */
 		basePath?: string;
 		notebookHref?: string | null;
 		checkIns?: ClassCheckIn[];
@@ -128,7 +127,7 @@
 		/**
 		 * The item open in the detail pane beside this list, marked here so the
 		 * two-pane shell says which row you are reading. Null on every surface
-		 * that is not a split -- a phone, view-as, the dev harness -- where there
+		 * that is not a split -- a phone, the dev harness -- where there
 		 * is no detail pane for a row to correspond to.
 		 */
 		selectedItemId?: string | null;
@@ -165,7 +164,6 @@
 		 */
 		notice?: string | null;
 		onToggleGroup?: ((groupId: string) => void | Promise<void>) | null;
-		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		deckTransports?: DeckTransports | null;
 		teacherTransports?: AssignmentTeacherTransports | null;
@@ -526,7 +524,7 @@
 			</div>
 		{/if}
 		{#if item.attachments.length}
-			<AttachmentList attachments={item.attachments} {viewAs} />
+			<AttachmentList attachments={item.attachments} />
 		{/if}
 		{#if canManage && ((item.instructorLinks?.length ?? 0) > 0 || (item.instructorAttachments?.length ?? 0) > 0)}
 			<div class="instructor-note-box">

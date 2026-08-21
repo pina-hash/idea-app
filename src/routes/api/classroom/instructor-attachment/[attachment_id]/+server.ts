@@ -7,10 +7,13 @@ import type { RequestHandler } from './$types';
 /**
  * Serves (GET) and removes (DELETE) one INSTRUCTOR-ONLY classroom attachment.
  * Modelled on /api/classroom/attachment/[attachment_id], with one deliberate
- * omission: THERE IS NO ?as= (view-as-student) SUPPORT HERE, AND THERE MUST
- * NEVER BE. View-as exists to preview what a student sees; instructor-only
- * material is never part of that answer, so this route does not even read the
- * query string for it. The row is read purely under the CALLER'S OWN session,
+ * omission: THERE IS NO ?as= (answer-as-somebody-else) SUPPORT HERE, AND THERE
+ * MUST NEVER BE. Instructor-only material is never part of what a student sees,
+ * so this route does not even read the query string for it. (The student-facing
+ * proxy beside it once did, for the classroom view-as preview; that preview and
+ * that branch are both gone, so neither route resolves an identity now -- but
+ * the rule here is the stronger one and stands on its own.) The row is read
+ * purely under the CALLER'S OWN session,
  * so an admin's own account can fetch it (as an admin legitimately can,
  * classroom_can_read_instructor_material, 0090) but a signed-in student's
  * session -- impersonated or not -- never resolves a row at all.

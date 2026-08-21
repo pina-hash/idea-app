@@ -62,6 +62,30 @@
 		})
 	);
 
+	/**
+	 * DOES THIS VIEWER MANAGE ANY CLASS -- which is what decides whether Apps or
+	 * Your Classes comes first.
+	 *
+	 * WHY THE ORDER IS NOT FIXED. The feed is the one thing on this page nothing
+	 * else does: for a student it is a deep link into the exact item that is due,
+	 * so it earns the top. For an instructor it is a roster of what THEY posted,
+	 * which they can also reach from /classroom, and it is much taller -- four
+	 * classes push the Apps section most of a screen further down than one does.
+	 * So a manager gets the launcher first and the feed under it; a student's
+	 * order is untouched.
+	 *
+	 * DERIVED FROM WHAT THE PAGE ALREADY HAS. `buildFeed` already computes
+	 * `manages` per section (teacher of record, or admin -- mirroring
+	 * classroom_manages_section), so this asks the SAME question through the same
+	 * implementation rather than re-deriving it from roles or emails here. No
+	 * extra load, no second rule to keep in step.
+	 *
+	 * A viewer with no feed at all -- nobody's teacher, or a backend where the
+	 * classroom read failed -- gets the student order, which is the order this
+	 * page has always had.
+	 */
+	const managesAnySection = $derived(classroomFeeds.some((f) => f.manages));
+
 	// Collapse state, persisted per USER in profiles.preferences.classroomFeed
 	// (the AppLauncher pattern), so a folded class stays folded on their phone
 	// too. Optimistic locally so the arrow turns on the click, not on the round
@@ -385,38 +409,59 @@
 		</div>
 	</section>
 
-	<div class="courses" style="margin-top:2.5rem" data-tour="classes">
-		<div class="year-label">Your Classes</div>
-		{#if signedIn}
-			<ClassroomFeed
-				feeds={classroomFeeds}
-				collapsed={feedPrefs.collapsed ?? []}
-				onToggle={toggleFeedCard}
-				ready={data.classroomReady !== false}
-				{now}
-			/>
-		{:else}
-			<div class="course-card section-card feed-card">
-				<div class="empty-state">
-					<div class="empty-icon">[ ]</div>
-					<div class="empty-text">
-						Sign in with your Bosco Tech account to see your classes: announcements, what is due,
-						and work that has been handed back.
-						<button
-							class="text-btn inline"
-							type="button"
-							onclick={() => signInWithGoogle()}
-							disabled={loading}
-						>
-							Sign in
-						</button>
+	<!--
+		TWO BLOCKS, ONE DEFINITION EACH, RENDERED IN ONE OF TWO ORDERS.
+
+		Snippets rather than a CSS `order` on a flex parent: `order` moves the
+		paint and leaves the DOM alone, so the tab order and the screen-reader
+		reading order would disagree with what is on screen. And snippets rather
+		than writing each block twice inside an `{#if}`, because two copies of the
+		feed is two places to fix it.
+	-->
+	{#snippet yourClasses()}
+		<div class="courses" style="margin-top:2.5rem" data-tour="classes">
+			<div class="year-label">Your Classes</div>
+			{#if signedIn}
+				<ClassroomFeed
+					feeds={classroomFeeds}
+					collapsed={feedPrefs.collapsed ?? []}
+					onToggle={toggleFeedCard}
+					ready={data.classroomReady !== false}
+					{now}
+				/>
+			{:else}
+				<div class="course-card section-card feed-card">
+					<div class="empty-state">
+						<div class="empty-icon">[ ]</div>
+						<div class="empty-text">
+							Sign in with your Bosco Tech account to see your classes: announcements, what is due,
+							and work that has been handed back.
+							<button
+								class="text-btn inline"
+								type="button"
+								onclick={() => signInWithGoogle()}
+								disabled={loading}
+							>
+								Sign in
+							</button>
+						</div>
 					</div>
 				</div>
-			</div>
-		{/if}
-	</div>
+			{/if}
+		</div>
+	{/snippet}
 
-	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
+	{#snippet portalApps()}
+		<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
+	{/snippet}
+
+	{#if managesAnySection}
+		{@render portalApps()}
+		{@render yourClasses()}
+	{:else}
+		{@render yourClasses()}
+		{@render portalApps()}
+	{/if}
 
 	<div class="changelog-wrap">
 		<div class="divider" style="padding:0;margin-bottom:1.5rem">

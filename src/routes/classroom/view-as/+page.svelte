@@ -15,17 +15,22 @@
 </script>
 
 <svelte:head>
-	<title>View as student // IDEA Classroom</title>
+	<title>Student notebooks // IDEA Classroom</title>
 </svelte:head>
 
 <!-- The shell owns the masthead; under view-as it renders in minimal mode. -->
 <main class="viewas-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Classroom &middot; admin</div>
-		<h1>View as student</h1>
+		<h1>View a student's notebook</h1>
 		<p class="lead">
-			Render the classroom exactly as a student sees it -- their classes only, published content
-			only. Strictly read-only: nothing you click here writes anything.
+			Open a student's digital notebook exactly as they see it. Strictly read-only: nothing you
+			click here writes anything.
+		</p>
+		<p class="lead">
+			The class and assignment previews that used to live here are gone. An instructor already
+			reads the real class page and the real item page, through the same components a student
+			does -- the only difference is the edit affordances.
 		</p>
 	</section>
 
@@ -50,7 +55,13 @@
 			{:else}
 				<div class="student-rows">
 					{#each shown as s (s.student_email)}
-						<a class="student-row" href={`/classroom/view-as/${encodeURIComponent(s.student_email)}`}>
+						<!-- Straight to the notebook: it is the only surface under a
+						     student now, so a landing page in between would be one link on
+						     a page of its own. -->
+						<a
+							class="student-row"
+							href={`/classroom/view-as/${encodeURIComponent(s.student_email)}/notebook`}
+						>
 							<span class="student-main">
 								<span class="student-name">{s.display_name}</span>
 								<span class="student-email">{s.student_email}</span>

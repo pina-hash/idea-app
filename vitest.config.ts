@@ -48,6 +48,17 @@ export default defineConfig({
 			// by render tests mount it, so without this stand-in those tests
 			// cannot import them.
 			'$app/state': fileURLToPath(new URL('./tests/stubs/app-state.ts', import.meta.url)),
+			// Both of these are reached by server-rendering the REAL home page:
+			// Avatar -> profile.ts reads the storage URL at import time, and
+			// ProfileMenu imports invalidateAll for its sign-out path. Without them
+			// the page cannot be imported here and its section order cannot be
+			// asserted against the shipping component.
+			'$env/static/public': fileURLToPath(
+				new URL('./tests/stubs/env-static-public.ts', import.meta.url)
+			),
+			'$app/navigation': fileURLToPath(
+				new URL('./tests/stubs/app-navigation.ts', import.meta.url)
+			),
 			'virtual:site-versions': fileURLToPath(
 				new URL('./tests/stubs/site-versions.ts', import.meta.url)
 			)

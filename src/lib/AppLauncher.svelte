@@ -171,38 +171,15 @@
 	}
 
 	/**
-	 * Per-theme card interior texture (background-image), keyed off the card's
-	 * primary/secondary accent. Kept at <=3% opacity so it never touches text
-	 * readability. Returns the image string plus a background-size (only the
-	 * blueprint grid needs a fixed tile; the rest are repeating gradients).
+	 * THE PER-CARD TEXTURE WENT WITH THE PER-CARD ACCENT, and for the same
+	 * reason. `cardTexture` keyed a card's interior pattern off its theme
+	 * colours -- scanlines for VANGUARD, a blueprint grid for GAUNTLET, diagonal
+	 * stripes for FRC -- so removing `PortalApp.theme` left it with nothing to
+	 * read. Re-keying it on `app.id` would have been the same per-card identity
+	 * treatment wearing a different field: cards are told apart by name, tagline
+	 * and status badge. Every card now takes the design system's brushed-metal
+	 * token, declared once in `.app-card` below rather than stamped inline.
 	 */
-	const cardTexture = (primary: string, secondary: string): { image: string; size: string } => {
-		const p = primary.toUpperCase();
-		const s = secondary.toUpperCase();
-		// VANGUARD (green + chartreuse): horizontal scanlines.
-		if (p === '#00FF41' && s === '#C8FF00')
-			return {
-				image:
-					'repeating-linear-gradient(0deg, rgba(0,255,65,0.03) 0px, rgba(0,255,65,0.03) 1px, transparent 1px, transparent 4px)',
-				size: 'auto'
-			};
-		// GAUNTLET (green + cyan): 24px blueprint grid.
-		if (p === '#00FF41' && s === '#00F0FF')
-			return {
-				image:
-					'linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px)',
-				size: '24px 24px'
-			};
-		// FRC (red primary): diagonal stripes.
-		if (p === '#ED1C24')
-			return {
-				image:
-					'repeating-linear-gradient(45deg, rgba(237,28,36,0.025) 0px, rgba(237,28,36,0.025) 1px, transparent 1px, transparent 16px)',
-				size: 'auto'
-			};
-		// Everything else: the design-system brushed-metal token.
-		return { image: 'var(--texture-brushed)', size: 'auto' };
-	};
 
 	/**
 	 * Card entrance: cards rise in as they scroll into view. Initial hidden state
@@ -309,10 +286,6 @@
 {/snippet}
 
 {#snippet appCard(app: PortalApp, i: number)}
-	{@const primary = app.theme?.primary ?? 'var(--green)'}
-	{@const secondary = app.theme?.secondary ?? 'var(--gold)'}
-	{@const tex = cardTexture(primary, secondary)}
-	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};--card-texture:${tex.image};--card-texture-size:${tex.size};`}
 	{@const isPinned = pinnedIds.has(app.id)}
 	{#if customizing}
 		<div
@@ -321,7 +294,6 @@
 			class:legacy={app.legacy}
 			class:dragging={dragFrom === i}
 			class:dropinto={dragFrom !== null && dragOver === i && dragFrom !== i}
-			style={accStyle}
 			data-tour={app.id}
 			data-app={app.id}
 			role="listitem"
@@ -370,7 +342,6 @@
 			class:legacy={app.legacy}
 			href={app.href}
 			onclick={(e) => appClick(e, app)}
-			style={accStyle}
 			data-tour={app.id}
 			data-app={app.id}
 		>
@@ -545,10 +516,12 @@
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
 	.app-card {
-		/* Per-card accent, set inline from PortalApp.theme (primary/secondary);
-		   falls back to the shared brass/gold scheme when a card has no theme.
-		   The `--acc*` vars keep the card's icon, edges, title, and CTA tied to
-		   its own two-color scheme. */
+		/* THE ONE SHARED ACCENT, and now it actually paints. These two lines were
+		   already here and were dead: every card carried an inline
+		   `--acc-primary`/`--acc-secondary` from PortalApp.theme, and an inline
+		   custom property beats any class rule, so the uniform token below was
+		   overridden on all eleven cards. The inline pair is gone; cards are
+		   differentiated by name, tagline and status badge, never by colour. */
 		--acc-primary: var(--gold);
 		--acc-secondary: var(--green);
 		--acc: var(--acc-primary);
@@ -562,12 +535,10 @@
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
-		/* Base surface + a subtle per-theme interior texture (<=3% opacity) layered
-		   as a background-image behind content. Kept off ::before so the accent
-		   strip is untouched. Both vars are set inline per card by cardTexture(). */
+		/* Base surface + the design system's brushed-metal texture, the same on
+		   every card. Kept off ::before so the accent strip is untouched. */
 		background-color: var(--bg1);
-		background-image: var(--card-texture, none);
-		background-size: var(--card-texture-size, auto);
+		background-image: var(--texture-brushed);
 		border: 1px solid var(--acc-line);
 		border-radius: var(--radius-card);
 		box-shadow: var(--bevel-raised);

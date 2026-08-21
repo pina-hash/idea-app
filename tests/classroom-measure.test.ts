@@ -127,9 +127,16 @@ describe('the classroom chrome is as wide as the page under it', () => {
 		expect(read(SPLIT_CSS)).toMatch(/--cr-measure:\s*var\(--measure-split\)/);
 	});
 
-	it('view-as sets no measure, so its two differently-sized pages keep their own', () => {
+	it('view-as sets no measure, so its differently-sized pages keep their own', () => {
+		// The picker, and anything below a student. The deepest path is asserted
+		// on its SHAPE rather than on a route that exists today: the class and
+		// item previews that used to live at `<email>/<sectionId>` are deleted,
+		// and what this pins is that the head match keeps swallowing the whole
+		// subtree whatever ends up under it.
 		expect(classroomMeasure(locateClassroom('/classroom/view-as'))).toBeNull();
-		expect(classroomMeasure(locateClassroom('/classroom/view-as/a@b.net/s-1'))).toBeNull();
+		expect(classroomMeasure(locateClassroom('/classroom/view-as/a@b.net'))).toBeNull();
+		expect(classroomMeasure(locateClassroom('/classroom/view-as/a@b.net/notebook'))).toBeNull();
+		expect(classroomMeasure(locateClassroom('/classroom/view-as/a@b.net/anything/deeper'))).toBeNull();
 	});
 });
 

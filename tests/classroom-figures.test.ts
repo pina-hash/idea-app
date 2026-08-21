@@ -201,13 +201,19 @@ describe('resolveFigureSrc refuses each shape by name', () => {
 		expect(r.src).toBe('/api/classroom/attachment/att-1?public=1');
 	});
 
-	it('carries viewAs on the signed-in branch, so view-as is answered as that student', () => {
-		const r = resolveFigureSrc('attachment:teardown-03.jpg', ATTACHMENTS, {
-			viewAs: 'student@boscotech.net'
-		});
+	it('builds the bare proxy path on the signed-in branch, with no impersonation query', () => {
+		// There used to be a `viewAs` option here that appended `?as=<email>` so
+		// the classroom view-as preview was answered as the impersonated student.
+		// That preview is deleted and the proxy no longer reads the parameter, so
+		// the signed-in branch is now the caller's own read and nothing else. The
+		// assertion is written as "no query at all" rather than dropped, because
+		// the thing worth pinning is that a figure src can no longer carry an
+		// identity.
+		const r = resolveFigureSrc('attachment:teardown-03.jpg', ATTACHMENTS);
 		expect(r.ok).toBe(true);
 		if (!r.ok) throw new Error('unreachable');
-		expect(r.src).toBe('/api/classroom/attachment/att-1?as=student%40boscotech.net');
+		expect(r.src).toBe('/api/classroom/attachment/att-1');
+		expect(r.src).not.toContain('?');
 	});
 
 	it('matches a filename case-insensitively', () => {

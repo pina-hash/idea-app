@@ -17,14 +17,11 @@
 	let {
 		ready = true,
 		isStaff = false,
-		sections,
-		basePath = '/classroom'
+		sections
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
 		sections: ClassroomSection[];
-		/** Link root -- rewritten under /classroom/view-as/<email>. */
-		basePath?: string;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
@@ -82,7 +79,7 @@
 	{:else}
 		<div class="class-grid">
 			{#each ordered as s (s.id)}
-				<a class="class-card" href={`${basePath}/${s.id}`}>
+				<a class="class-card" href={`/classroom/${s.id}`}>
 					<span class="class-icon" aria-hidden="true">
 						<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M16 6L3 12l13 6 13-6z" />
@@ -109,7 +106,7 @@
 	<section class="card updates-card">
 		<div class="updates-head">
 			<h2>What's new</h2>
-			<a class="updates-all" href={`${basePath}/updates`}>All updates &#9656;</a>
+			<a class="updates-all" href="/classroom/updates">All updates &#9656;</a>
 		</div>
 		<ul class="updates-list">
 			{#each recent as u (u.date + u.title)}

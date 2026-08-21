@@ -390,30 +390,50 @@ describe('GET /api/classroom/attachment/[attachment_id]', () => {
 	});
 });
 
-describe('view-as (?as=) on the proxy', () => {
-	it('an admin gets the answer THAT STUDENT would get, not their own', async () => {
-		// Published + enrolled -> served.
-		const allowed = await callGet(pubPostAttachment, owner.id, studentA.email);
-		expect(allowed.status).toBe(200);
-
-		// The admin can read the draft's attachment on their own account (proved
-		// above), but as this student it must read exactly like the student's own
-		// 404 -- otherwise the mode reports something no student can see.
-		const draft = await callGet(draftPostAttachment, owner.id, studentA.email);
-		expect(draft.status).toBe(404);
-
-		// ...and a section the impersonated student is not in.
-		const foreign = await callGet(foreignAttachment, owner.id, studentA.email);
-		expect(foreign.status).toBe(404);
+/**
+ * `?as=` IS INERT NOW, and this block is what pins that rather than a deletion.
+ *
+ * The parameter used to route the read through
+ * classroom_view_as_can_read_attachment, so the classroom view-as preview was
+ * answered as the impersonated student. Both previews that produced such a URL
+ * are deleted, and the branch went with them.
+ *
+ * WHAT MATTERS IS THE DIRECTION IT COULD MOVE. The branch only ever NARROWED an
+ * already-authorized read, so removing it cannot leak: every case below is the
+ * CALLER'S own answer, identical with the parameter and without it. The
+ * assertions are written as that equivalence, so a future re-introduction of an
+ * identity parameter on this route fails here by name. It is the same shape as
+ * the instructor proxy's own "a ?as= query param has NO EFFECT" test.
+ */
+describe('?as= on the proxy is an ordinary unknown query param', () => {
+	it('changes nothing for an admin: the same answer with it and without it', async () => {
+		for (const [label, attachment] of [
+			['published + enrolled', pubPostAttachment],
+			['a draft', draftPostAttachment],
+			['a foreign section', foreignAttachment]
+		] as const) {
+			const plain = await callGet(attachment, owner.id);
+			const withAs = await callGet(attachment, owner.id, studentA.email);
+			expect(withAs.status, label).toBe(plain.status);
+		}
 	});
 
-	it('a NON-admin passing ?as= is refused by the RPC, not by the route', async () => {
-		// Both of these could read the attachment normally; the `as` parameter is
-		// what they may not use.
-		for (const user of [teacherA, studentA]) {
-			const res = await callGet(pubPostAttachment, user.id, studentA.email);
-			expect(res.status, user.email).toBe(404);
-		}
+	it('cannot narrow an admin onto a student, which is what it used to do', async () => {
+		// The admin reads a DRAFT's attachment through their own policy. Under the
+		// old branch, `?as=<a student who cannot see the draft>` turned this into a
+		// 404. It must now be the admin's own 200: the parameter carries no
+		// identity and this route resolves nobody but its caller.
+		const res = await callGet(draftPostAttachment, owner.id, studentA.email);
+		expect(res.status).toBe(200);
+	});
+
+	it('cannot widen a student either: they still get their own answer', async () => {
+		// A student passing another identity is not elevated by it -- their own
+		// policy is still the whole boundary.
+		const own = await callGet(pubPostAttachment, studentA.id, 'someone-else@boscotech.net');
+		expect(own.status).toBe(200);
+		const foreign = await callGet(foreignAttachment, studentA.id, 'someone-else@boscotech.net');
+		expect(foreign.status).toBe(404);
 	});
 });
 

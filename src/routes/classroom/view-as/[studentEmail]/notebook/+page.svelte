@@ -5,7 +5,13 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const base = $derived(`/classroom/view-as/${encodeURIComponent(data.student.email)}`);
+	/**
+	 * The way up is the PICKER now, not this student's own landing page. That
+	 * page listed their classes so an admin could open one as them, and both
+	 * class-level previews are gone; the URL survives only as a redirect back
+	 * here, so pointing "Home" at it would be a link to the page you are on.
+	 */
+	const HOME = '/classroom/view-as';
 </script>
 
 <!--
@@ -34,6 +40,6 @@
 	canReview={false}
 	uploadReady={false}
 	readOnly
-	homeHref={base}
+	homeHref={HOME}
 	masthead={false}
 />

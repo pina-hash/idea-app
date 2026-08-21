@@ -1793,16 +1793,8 @@
 	}
 	const detailItem = $derived(items.find((i) => i.id === 'i-3') ?? inSection('s-1', true)[0]);
 
-	// --- View-as-student slices ------------------------------------------
-	const VIEW_AS_EMAIL = 'alice@boscotech.net';
-	const viewAsSections = $derived(
-		enrollments
-			.filter((e) => e.student_email === VIEW_AS_EMAIL && e.active)
-			.map((e) => sections.find((s) => s.id === e.section_id))
-			.filter((s): s is ClassroomSection => !!s)
-			.map(withCourse)
-	);
-	const viewAsBase = `/dev/classroom`;
+	// The classroom view-as class and item previews were deleted; the notebook
+	// preview keeps its own harness at /dev/classroom-view-as-notebook.
 
 	const VIEWS = [
 		['home', 'Student home'],
@@ -1825,10 +1817,7 @@
 		['shell', 'Shell + switcher'],
 		['updates', 'Update log'],
 		['feedback', 'Feedback console'],
-		['feedback-notready', 'Feedback: unapplied'],
-		['viewas-home', 'View as: My Classes'],
-		['viewas-class', 'View as: class'],
-		['viewas-item', 'View as: item']
+		['feedback-notready', 'Feedback: unapplied']
 	] as const;
 	type ViewId = (typeof VIEWS)[number][0];
 	const initial = page.url.searchParams.get('view') as ViewId | null;
@@ -2376,36 +2365,6 @@
 	<FeedbackConsole rows={feedbackRows} setStatus={setFeedbackStatus} />
 {:else if view === 'feedback-notready'}
 	<FeedbackConsole ready={false} rows={[]} setStatus={setFeedbackStatus} />
-{:else if view === 'viewas-home'}
-	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
-	<MyClasses sections={viewAsSections} basePath={viewAsBase} />
-{:else if view === 'viewas-class'}
-	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
-	<ClassView
-		section={section1}
-		items={inSection('s-1', true)}
-		canManage={false}
-		transports={null}
-		{fetchPreview}
-		basePath={viewAsBase}
-		notebookHref="/dev/notebook?viewas=1"
-		viewAs={VIEW_AS_EMAIL}
-	/>
-{:else if view === 'viewas-item'}
-	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
-	{#if detailItem}
-		<ItemDetail
-			section={section1}
-			item={detailItem}
-			canManage={false}
-			transports={null}
-			{fetchPreview}
-			basePath={viewAsBase}
-			viewAs={VIEW_AS_EMAIL}
-		/>
-	{:else}
-		<p class="harness-note">No published item in this section.</p>
-	{/if}
 {:else if view === 'admin'}
 	<AdminConsole
 		email={TEACHER}

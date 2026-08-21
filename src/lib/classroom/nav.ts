@@ -52,12 +52,15 @@ export interface ClassroomLocation {
 /**
  * VIEW-AS IS ITS OWN WORLD AND IS MATCHED FIRST.
  *
- * `/classroom/view-as/<email>/<sectionId>` looks exactly like a section route
- * two segments along, and it must never be read as one: that tree renders the
- * ordinary student experience for somebody else under an impersonation banner,
- * with its own admin gate and its own chrome. The shell drops to a minimal mode
- * there rather than offering a switcher listing the ADMIN's own sections beside
- * a student's name.
+ * `/classroom/view-as/<email>/...` looks exactly like a section route two
+ * segments along, and it must never be read as one: that tree renders one
+ * student's own notebook under an impersonation banner, with its own admin gate
+ * and its own chrome. The shell drops to a minimal mode there rather than
+ * offering a switcher listing the ADMIN's own sections beside a student's name.
+ *
+ * The head match is what makes this safe as the tree shrinks: the class and
+ * item previews that once lived under it are gone, and nothing here had to
+ * change for that.
  */
 export function locateClassroom(pathname: string): ClassroomLocation {
 	const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
@@ -161,11 +164,11 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 			return 'console';
 		/**
 		 * NULL, not a width. `view-as` is one place covering two genuinely
-		 * different pages -- the 46rem student picker and a full 60rem class page
-		 * rendered under somebody else's name -- and it runs the shell in minimal
-		 * mode, so it has no crumbs or tabs to align with anything. Every
-		 * component there keeps its own fallback, which is exactly what it had
-		 * before this existed.
+		 * different pages -- the 46rem student picker and a notebook mounted
+		 * under somebody else's shell -- and it runs the shell in minimal mode,
+		 * so it has no crumbs or tabs to align with anything. Every component
+		 * there keeps its own fallback, which is exactly what it had before this
+		 * existed.
 		 */
 		case 'view-as':
 		case 'other':

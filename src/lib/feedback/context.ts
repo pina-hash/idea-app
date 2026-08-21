@@ -55,8 +55,12 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// The stage is projected onto a wall. A floating control over it is in
 		// the photograph of the lesson.
 		match: (routeId) =>
+			// A `/classroom/view-as/.../deck` alternative used to sit here. It never
+			// matched anything -- the view-as tree has never had a deck route -- and
+			// the class and item previews it was written in anticipation of are now
+			// deleted outright. Removing an alternative that matched no route is not
+			// removing an exclusion: no surface loses or gains the control.
 			/^\/classroom\/\[sectionId\]\/item\/\[itemId\]\/deck$/.test(routeId) ||
-			/^\/classroom\/view-as\/.*\/deck$/.test(routeId) ||
 			under('/dev/classroom-deck')(routeId),
 		samples: ['/classroom/[sectionId]/item/[itemId]/deck', '/dev/classroom-deck']
 	},

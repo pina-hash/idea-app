@@ -1094,15 +1094,32 @@ describe('view as student -- admin only, read only', () => {
 			 where n.nspname = 'public' and p.proname like 'classroom_view_as%'
 			 order by p.proname`
 		);
-		expect(rows.map((r) => r.name).sort()).toEqual([
-			'classroom_view_as_can_read_attachment',
-			'classroom_view_as_item',
-			'classroom_view_as_section',
-			'classroom_view_as_sections',
-			'classroom_view_as_students'
-		]);
-		// 's' = STABLE. A VOLATILE one would be the first thing able to write.
-		expect(rows.every((r) => r.volatility === 's')).toBe(true);
+
+		/**
+		 * THE RULE, NOT THE ROSTER.
+		 *
+		 * This used to spell out five function names, which made it a list to
+		 * edit every time the surface moved rather than a guard on anything: it
+		 * would have failed the moment a sixth read-only reader was added, and it
+		 * said nothing about a seventh that could write. What it exists to
+		 * protect is that NOTHING under this prefix can write, whatever the set
+		 * happens to be. 's' = STABLE; a VOLATILE function is the first thing
+		 * able to.
+		 *
+		 * THE COUNT IS ITS POSITIVE CONTROL. Without it, a prefix typo or a
+		 * chain that never applied 0083 would return zero rows and every
+		 * assertion below would pass by finding nothing.
+		 */
+		expect(rows.length).toBeGreaterThanOrEqual(5);
+		expect(rows.filter((r) => r.volatility !== 's').map((r) => r.name)).toEqual([]);
+
+		// The class and item PREVIEWS were deleted from the app in the same
+		// bundle as this generalization, leaving classroom_view_as_section,
+		// classroom_view_as_item and classroom_view_as_can_read_attachment
+		// applied but unreferenced (see docs/HISTORY.md for the orphan list). An
+		// orphaned read-only function is harmless and is dropped by a later
+		// migration; nothing here should care either way, and after this change
+		// nothing does.
 	});
 });
 

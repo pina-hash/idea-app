@@ -341,8 +341,8 @@ async function deleteAttachment(id: string): Promise<TxResult<undefined>> {
 /**
  * The instructor-only counterpart of uploadAttachment/deleteAttachment (0090):
  * same shape, a DIFFERENT route (/api/classroom/instructor-attachment), whose
- * proxy has no ?as= support at all -- there is nothing view-as-student could
- * ever be pointed at here.
+ * proxy answers only its own caller and is never reachable from a
+ * student-facing surface.
  */
 async function uploadInstructorAttachment(
 	itemId: string,

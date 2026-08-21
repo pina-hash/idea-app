@@ -17,25 +17,27 @@
 	 * Every src goes through attachmentSrc -> the app's own RLS-enforcing proxy;
 	 * there is deliberately no drive.google.com link anywhere, since that only
 	 * renders for a viewer who personally has access to the school's shared
-	 * drive. `viewAs` rides through so an impersonated page is answered as that
-	 * student would be.
+	 * drive.
+	 *
+	 * IT NO LONGER TAKES A `viewAs`. That prop appended `?as=<email>` so an
+	 * impersonated page was answered as that student; the classroom view-as
+	 * class and item previews are gone and the proxy no longer reads the
+	 * parameter, so every list here is the caller's own read.
 	 */
 	let {
 		attachments,
-		viewAs = null,
 		onremove = null,
 		removing = null,
 		resolveSrc = null,
 		figureRefs = false
 	}: {
 		attachments: ClassroomAttachment[];
-		viewAs?: string | null;
 		/** Teacher-only; omitted entirely on the student-facing views. */
 		onremove?: ((a: ClassroomAttachment) => void) | null;
 		removing?: string | null;
 		/**
 		 * Overrides how a source URL is built -- for the instructor-only list,
-		 * which goes through its OWN proxy (no ?as= support at all) rather than
+		 * which goes through its OWN proxy rather than
 		 * the student-facing one attachmentSrc builds.
 		 */
 		resolveSrc?: ((a: ClassroomAttachment) => string) | null;
@@ -58,7 +60,7 @@
 		figureRefs?: boolean;
 	} = $props();
 
-	const srcOf = (a: ClassroomAttachment) => resolveSrc?.(a) ?? attachmentSrc(a.id, viewAs);
+	const srcOf = (a: ClassroomAttachment) => resolveSrc?.(a) ?? attachmentSrc(a.id);
 
 	/** Which row is showing its "copied" confirmation, and the timer clearing it. */
 	let copied = $state<string | null>(null);
