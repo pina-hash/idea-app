@@ -166,11 +166,13 @@
 	// svelte-ignore state_referenced_locally
 	let notesOpen = $state(pageCount === 0 && noteCount > 0);
 
-	// entryTitle() is the same five-fallback derivation the student's own card
-	// uses (session label -> custom_label -> photo filename -> first note's
-	// opening words -> "Untitled entry"), trimmed and truthiness-tested rather
-	// than nullish-tested. ReviewEntry carries only `session_id`, not an
-	// embedded session object, so the shape entryTitle needs is built here from
+	// entryTitle() is the same fallback derivation the student's own card uses
+	// (session label -> custom_label -> a LIVE photo's filename -> first note's
+	// opening words -> a REMOVED photo's filename -> "Untitled entry"), trimmed
+	// and truthiness-tested rather than nullish-tested. This panel therefore
+	// names a reviewed entry exactly as the student's own list does, including
+	// when every page has been removed. ReviewEntry carries only `session_id`,
+	// not an embedded session object, so the shape entryTitle needs is built from
 	// the `session` prop already resolved by the caller.
 	const title = $derived(
 		entryTitle({

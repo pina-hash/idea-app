@@ -148,16 +148,41 @@ export interface StagedPhoto {
  *
  * Since 0071 an entry may be FULLY unlabeled -- no session, no custom label
  * -- so the chain has to bottom out in something printable rather than an
- * empty line: session label, else the typed title, else the browser filename
- * the upload recorded, else the first note's opening words, else a plain
- * placeholder. This mirrors (but does not duplicate) the Drive-naming
- * fallback order in notebookDriveFilename.
+ * empty line: session label, else the typed title, else a LIVE photo's
+ * filename, else the first note's opening words, else a REMOVED photo's
+ * filename, else a plain placeholder. This mirrors (but does not duplicate)
+ * the Drive-naming fallback order in notebookDriveFilename.
  *
  * The note step is why `custom_label` staying a TITLE costs a student
  * nothing: since 0078 a note carries its own text, so an untitled note entry
  * can name itself from what it says instead of reading as "Untitled entry".
+ *
+ * LIVE CONTENT OUTRANKS REMOVED CONTENT, and that is the whole reason the
+ * filename step is split in two rather than simply filtered through
+ * `livePhotos`. One list, one filter, would have been the smaller change and
+ * it is the wrong one: an entry whose pages were all deleted but whose note
+ * still says something would fall through the note step it has already passed
+ * and land on "Untitled entry", so deleting a page would silently rename a
+ * live entry in every list that shows it and flip what `isUntitled` reports.
+ * A REMOVED photo's filename is still the only name some entries ever had, so
+ * it stays in the chain -- below the note, above the placeholder. An entry
+ * never loses its identity in a list because a page was deleted.
  */
 export const UNTITLED_ENTRY = 'Untitled entry';
+
+/**
+ * The first photo by sequence order that recorded a browser filename, without
+ * its extension -- or null when this list holds none. Taken over a list the
+ * caller has already narrowed to live or removed photos, so the ORDER of the
+ * two questions lives in `entryTitle` and the answer to each is asked once.
+ */
+function photoFilenameTitle(photos: NotebookPhoto[]): string | null {
+	const named = [...photos]
+		.sort((a, b) => a.sequence_order - b.sequence_order)
+		.find((p) => p.original_filename?.trim());
+	const filename = named?.original_filename?.trim();
+	return filename ? stripExtension(filename) : null;
+}
 
 export function entryTitle(
 	entry: Pick<NotebookEntry, 'session' | 'custom_label' | 'photos' | 'notes'>
@@ -166,17 +191,15 @@ export function entryTitle(
 	if (session) return session;
 	const custom = entry.custom_label?.trim();
 	if (custom) return custom;
-	// First photo by sequence order: the entry's own "original" upload.
-	const named = [...entry.photos]
-		.sort((a, b) => a.sequence_order - b.sequence_order)
-		.find((p) => p.original_filename?.trim());
-	const filename = named?.original_filename?.trim();
-	if (filename) return stripExtension(filename);
+	const live = photoFilenameTitle(livePhotos(entry.photos));
+	if (live) return live;
 	const firstNote = noteThreads(entry.notes ?? [])[0];
 	if (firstNote) {
 		const summary = docSummary(firstNote.current.content);
 		if (summary) return summary;
 	}
+	const removed = photoFilenameTitle(removedPhotos(entry.photos));
+	if (removed) return removed;
 	return UNTITLED_ENTRY;
 }
 

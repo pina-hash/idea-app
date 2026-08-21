@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-21",
+			"title": "An entry keeps its name when you take a page out",
+			"body": "If you took every page out of an entry, that entry was still named after one of the pages you removed, so its name pointed at something that was no longer in it. Now it is named after what is still there: a page you can still see comes first, and if there is no page left, the opening words of what you wrote. If all that is left is pages you removed, the entry keeps their name rather than becoming \"Untitled entry\", so it never quietly loses the name you were looking for it under. It is the same name everywhere: on the card in your notebook, in search, when you copy an entry out to paste somewhere else, and on your teacher's screen when they read it.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-21",
 			"title": "\"Has photos\" now means photos you can still see",
 			"body": "If you took a page out of an entry, that entry kept turning up under the \"Has photos\" filter in your notebook, and then opened with no page in it. It does not any more: that filter now lists entries that still have a page you can look at. Nothing about the entry itself changed. Anything you wrote on it is still there, it still turns up under \"Has notes\" if you wrote one, and the page you took out is still under \"Removed photos\" on the entry if you want it back.",
 			"tags": ["Notebook"]

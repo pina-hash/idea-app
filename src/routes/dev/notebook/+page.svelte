@@ -414,6 +414,38 @@
 			session: { session_label: 'Bearing teardown', unit_number: 3, session_date: '2026-08-08' },
 			photos: [photo('p-12', 1, 'bearing-1.jpg')],
 			notes: []
+		},
+		{
+			// THE TITLE ORDER ACROSS A REMOVAL, and the only fixture in this file
+			// shaped for it: no session, no typed title, ONE named photo and ONE
+			// note, so every step of entryTitle above the two under test is out of
+			// the way. While the page is live the card reads 'brake-rotor-runout';
+			// remove it and the card must read the NOTE's opening words, never
+			// 'Untitled entry' and never the filename of a page that is gone.
+			// notebook_remove_photo permits this because the note is what is left.
+			id: 'e-10',
+			session_id: null,
+			section_id: null,
+			folder_id: null,
+			pinned_at: null,
+			custom_label: null,
+			upload_timestamp: '2026-08-10T10:15:00Z',
+			submitted_at: '2026-08-10T10:15:00Z',
+			status: 'compliant',
+			flag_reason: null,
+			instructor_comment: null,
+			session: null,
+			photos: [photo('p-13', 1, 'brake-rotor-runout.jpg')],
+			notes: [
+				note(
+					'n-10',
+					'e-10',
+					'n-10',
+					1,
+					p('Rotor runs out 0.08mm at the outer edge.'),
+					'2026-08-10T10:20:00Z'
+				)
+			]
 		}
 	];
 
