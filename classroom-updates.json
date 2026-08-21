@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-21",
+			"title": "\"Has photos\" now means photos you can still see",
+			"body": "If you took a page out of an entry, that entry kept turning up under the \"Has photos\" filter in your notebook, and then opened with no page in it. It does not any more: that filter now lists entries that still have a page you can look at. Nothing about the entry itself changed. Anything you wrote on it is still there, it still turns up under \"Has notes\" if you wrote one, and the page you took out is still under \"Removed photos\" on the entry if you want it back.",
+			"tags": ["Notebook"]
+		},
+		{
 			"date": "2026-08-20",
 			"title": "Your work now tells you when it is actually saved",
 			"body": "On an assignment with questions in it, the note under the status now says one of four things, and it means them. \"Unsaved changes\" means you have typed something that has not gone out yet. \"Saving...\" means it is on its way. \"Saved\" comes with the time it happened, so you can tell a save from a minute ago apart from one from an hour ago. \"Not saved\" means it did not work, and it tells you why and gives you a Retry button; it also keeps trying on its own for a while before giving up, and whatever you typed stays in the box the whole time. If you click away to another page while an answer is still on its way, it is now sent first instead of being lost, and if it truly cannot be sent you get asked before you leave rather than finding out later. There is also a \"Save now\" button if you would rather not wait. The same wording is used when you edit a note in your notebook, so it reads the same everywhere.",

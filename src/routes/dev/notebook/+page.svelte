@@ -12,6 +12,12 @@
 		NotebookSession,
 		NotePayload
 	} from '$lib/notebook';
+	// The harness counts photos through the SAME helper the app does. Each of
+	// the four sites below stands in for an RPC whose own guard counts
+	// `removed_at is null`, so a hand-rolled filter here is a second copy of a
+	// rule that can stop matching -- and a harness looser than the RPC it
+	// mirrors certifies a bug as fixed.
+	import { livePhotos } from '$lib/notebook';
 	import { noteThreads } from '$lib/notebook-notes';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
@@ -997,7 +1003,7 @@
 		log = [...log, `RPC notebook_remove_photo p_photo_id=${JSON.stringify(photoId)}`];
 		const entry = current().find((e) => e.photos.some((p) => p.id === photoId));
 		if (!entry) return { ok: false, error: 'That photo does not exist or is not yours.' };
-		const remaining = entry.photos.filter((p) => p.id !== photoId && !p.removed_at).length;
+		const remaining = livePhotos(entry.photos).filter((p) => p.id !== photoId).length;
 		// LIVE notes only (0119), the same clause the real RPC counts on. A
 		// harness whose guard is looser than the RPC's lets a drive pass that the
 		// real page would refuse, which is the one thing a harness must not do.
@@ -1045,7 +1051,7 @@
 			return { ok: false, error: 'That note has already been deleted.' };
 		}
 		const remainingNotes = noteThreads(entry.notes).length - 1;
-		const remainingPhotos = entry.photos.filter((p) => !p.removed_at).length;
+		const remainingPhotos = livePhotos(entry.photos).length;
 		if (remainingNotes === 0 && remainingPhotos === 0 && entry.submitted_at !== null) {
 			return { ok: false, error: 'That is the only thing in this entry. Delete the whole entry instead.' };
 		}
@@ -1110,7 +1116,11 @@
 					'This entry is filed against a scheduled check-in, so its title comes from the check-in and cannot be changed here.'
 			};
 		}
-		if (!label && entry.photos.length === 0 && noteThreads(entry.notes).length === 0) {
+		// LIVE photos only, which is what notebook_set_entry_label's own guard
+		// counts (`p.removed_at is null`). The raw length let a title be cleared
+		// on an entry whose pages had all been removed -- a shell the real RPC
+		// refuses, so the harness was passing a drive the real page would not.
+		if (!label && livePhotos(entry.photos).length === 0 && noteThreads(entry.notes).length === 0) {
 			return { ok: false, error: 'That title is the only thing in this entry. Delete the whole entry instead.' };
 		}
 		updateAll((list) => list.map((e) => (e.id === entryId ? { ...e, custom_label: label } : e)));
@@ -1127,7 +1137,7 @@
 		if (found.submitted_at !== null) {
 			return { ok: false, error: 'That entry has already been turned in.' };
 		}
-		const photos = found.photos.filter((p) => !p.removed_at).length;
+		const photos = livePhotos(found.photos).length;
 		const notes = noteThreads(found.notes).length;
 		if (photos === 0 && notes === 0) {
 			return {

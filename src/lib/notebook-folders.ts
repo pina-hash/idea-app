@@ -22,7 +22,13 @@
  */
 
 import { docSummary, docText, noteThreads, type NoteDoc } from '$lib/notebook-notes';
-import { entryTitle, orderedPhotos, photoPages, type NotebookEntry } from '$lib/notebook';
+import {
+	entryTitle,
+	livePhotos,
+	orderedPhotos,
+	photoPages,
+	type NotebookEntry
+} from '$lib/notebook';
 
 // ---------------------------------------------------------------------------
 // 1. Folders
@@ -217,7 +223,13 @@ export const ENTRY_FILTERS: { id: EntryFilterId; label: string; hint: string }[]
 
 const FILTER_PREDICATES: Record<EntryFilterId, (e: NotebookEntry) => boolean> = {
 	attention: (e) => e.status === 'flagged' || e.status === 'pending_review',
-	photos: (e) => e.photos.length > 0,
+	// Through livePhotos (0116), not the raw row count, for exactly the reason
+	// the notes chip below gives. The feed's load carries removed photos
+	// deliberately -- the removed-photos disclosure is what reads them -- and
+	// leaves the liveness rule to every count and render site, so an entry whose
+	// pages have all been removed answered "Has photos" and then opened with
+	// none. This predicate was the one site 0116's sweep did not reach.
+	photos: (e) => livePhotos(e.photos).length > 0,
 	// Through noteThreads (0119), not the raw row count: a chip that says "Has
 	// notes" must mean live ones, and a deleted note leaves its revisions in
 	// `e.notes` exactly where they were.

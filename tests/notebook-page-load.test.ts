@@ -59,6 +59,7 @@ import {
 import { livePhotos, photoPages } from '../src/lib/notebook';
 import { deletedNoteThreads, noteThreads } from '../src/lib/notebook-notes';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
+import { EMPTY_QUERY, applyQuery } from '../src/lib/notebook-folders';
 import type { NotebookFolder } from '../src/lib/notebook-folders';
 import { load } from '../src/routes/notebook/+page.server';
 
@@ -749,6 +750,128 @@ describe('note deletion (0119) reaches the feed, and degrades to nothing without
 		expect(result.foldersReady).toBe(true);
 		expect(result.pinsReady).toBe(true);
 	}, 180_000);
+});
+
+describe('the feed’s filter chips read LIVE content, not raw rows', () => {
+	/**
+	 * THE SHAPE THAT BROKE IT, and it is one the real RPCs reach rather than a
+	 * hand-built impossibility: an entry carrying one photo and one note.
+	 * `notebook_remove_photo` refuses only when NOTHING would be left, so the
+	 * note is what makes taking the last page out legal -- and the photo row
+	 * stays on the entry with a `removed_at` on it, because the load carries it
+	 * deliberately for the student's own "removed photos" disclosure.
+	 *
+	 * "Has photos" then answered on the raw array length and returned an entry
+	 * with no page to show, exactly as "Has notes" did before 0119 routed it
+	 * through `noteThreads`. This is the client-side half of 0116's sweep; the
+	 * server-side half is asserted further up this file.
+	 *
+	 * DRIVEN THROUGH THE REAL `applyQuery`, not the predicate map -- that map is
+	 * module-private, and a test reaching past the function the feed actually
+	 * calls would not notice a chip wired to the wrong predicate.
+	 */
+	let emptiedEntryId: string;
+
+	beforeAll(async () => {
+		emptiedEntryId = await db.asUser(alice.id, async (q) => {
+			const { rows } = await q<{ result: { entry_id: string } }>(
+				'select public.notebook_create_entry($1, $2, null, null, $3, $4) as result',
+				[alice.id, 'drive-alice-emptied', 'Photographed then withdrawn', 'IMG_0100.jpg']
+			);
+			return rows[0].result.entry_id;
+		});
+		const onlyPhotoId = (
+			await db.sql<{ id: string }>(
+				'select id from public.notebook_entry_photos where entry_id = $1',
+				[emptiedEntryId]
+			)
+		).rows[0].id;
+		// The note is what makes the removal legal, and it is also why the entry
+		// is still worth listing at all once the page is gone.
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_add_note($1::uuid, $2::jsonb)', [
+				emptiedEntryId,
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Reshooting this page tomorrow.' }] }])
+			])
+		);
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_remove_photo($1)', [onlyPhotoId])
+		);
+	}, 180_000);
+
+	afterAll(async () => {
+		// Put the fixture back where the rest of this file left it.
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_delete_entry($1)', [emptiedEntryId])
+		);
+	});
+
+	it('carries the removed row, so the chip is the only thing filtering', async () => {
+		const result = await runLoad(db, fks, alice);
+		const emptied = result.entries.find((e) => e.id === emptiedEntryId);
+		expect(emptied).toBeDefined();
+		// PRESENT on the row -- the removed-photos disclosure and the restore
+		// control both need it -- so the absence asserted below is the chip
+		// narrowing and not the load having dropped something.
+		expect(emptied!.photos).toHaveLength(1);
+		expect(emptied!.photos[0].removed_at).not.toBeNull();
+		expect(livePhotos(emptied!.photos)).toHaveLength(0);
+	});
+
+	it('“Has photos” drops an entry whose only page was removed', async () => {
+		const result = await runLoad(db, fks, alice);
+
+		// POSITIVE CONTROL: with no chip selected the entry is in the list.
+		const unfiltered = applyQuery(result.entries, EMPTY_QUERY).map((e) => e.id);
+		expect(unfiltered).toContain(emptiedEntryId);
+
+		const ids = applyQuery(result.entries, { ...EMPTY_QUERY, filters: ['photos'] }).map(
+			(e) => e.id
+		);
+		// ABSENT: nothing left on it to look at.
+		expect(ids).not.toContain(emptiedEntryId);
+		// THERE: the linked entry, whose second page was removed and whose first
+		// was not -- so the chip is not simply answering false for everyone.
+		expect(ids).toContain(linkedEntryId);
+		// ...and the note-only entry is still out, as it always was.
+		expect(ids).not.toContain(freeEntryId);
+		// The chip narrowed something, so `ids` is not the whole feed.
+		expect(ids.length).toBeLessThan(unfiltered.length);
+
+		/**
+		 * THE WHOLE SET, against an expectation THE CLIENT CODE CANNOT PRODUCE:
+		 * the same question asked of Postgres directly. The three named checks
+		 * above are each satisfiable by a predicate that is still wrong in some
+		 * other way -- this one is not, and it is what catches the draft 0118
+		 * leaves behind (which does have a live photo and must stay IN).
+		 */
+		const { rows: expected } = await db.sql<{ id: string }>(
+			`select e.id from public.notebook_entries e
+			 where e.student_id = $1
+			   and e.deleted_at is null
+			   and exists (
+			     select 1 from public.notebook_entry_photos p
+			     where p.entry_id = e.id and p.removed_at is null
+			   )`,
+			[alice.id]
+		);
+		expect(expected.length).toBeGreaterThan(1);
+		expect(ids.slice().sort()).toEqual(expected.map((r) => r.id).sort());
+	});
+
+	it('leaves that entry findable by every OTHER chip it still answers', async () => {
+		const result = await runLoad(db, fks, alice);
+		// The fix is narrower than "hide it": the entry still holds a live note
+		// and is still turned in, and both chips must still say so. A predicate
+		// that dropped the entry outright would pass the test above and fail
+		// here, which is the point of asserting it.
+		expect(
+			applyQuery(result.entries, { ...EMPTY_QUERY, filters: ['notes'] }).map((e) => e.id)
+		).toContain(emptiedEntryId);
+		expect(
+			applyQuery(result.entries, { ...EMPTY_QUERY, filters: ['drafts'] }).map((e) => e.id)
+		).not.toContain(emptiedEntryId);
+	});
 });
 
 describe('a project with every notebook table but not 0116', () => {
