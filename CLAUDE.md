@@ -1306,6 +1306,44 @@ The two files have different jobs, and the split is the point.
 - New routes, tiers, roles, env vars, traps or conventions update `CLAUDE.md` in the
   same change that introduces them.
 
+### Standards copied in from outside -- READ, CITE, NEVER EDIT
+
+`docs/standards/` holds the IDEA programme standards. They are **authored and
+maintained OUTSIDE this repository**; what is here is a **copy**, kept so that work
+in this repo can read and cite them without leaving it.
+
+- `docs/standards/IDEA_INTERFACE_STANDARDS.md` -- layout, viewport behaviour, role
+  parity, legibility, interaction structure.
+- `docs/standards/IDEA_MATERIAL_SPEC_v2.md` -- the canonical material authoring
+  format: both kinds, the block types, the enforcement matrix.
+- `docs/standards/IDEA_RUBRIC_STANDARDS.md` -- leveled criteria, `short` forms,
+  descriptor writing, grading behaviour.
+
+**Cite them by section**, the way the code already does (`IDEA_INTERFACE_STANDARDS`
+10, `IDEA_MATERIAL_SPEC` v2.2), and cite the path under `docs/standards/` so the
+reference resolves for the next reader.
+
+**Never edit a file in `docs/standards/`.** A correction goes UPSTREAM to the
+authored original and comes back as a new copy. Editing here produces a document
+that disagrees with the one everyone else is reading, with nothing anywhere to say
+which is real -- and the copy would be overwritten by the next one to land.
+
+- **The header version and the newest changelog entry must agree**, which
+  `tests/standards-version-header.test.ts` asserts over every file in the
+  directory. A header that has fallen behind its own changelog reads as correct and
+  has already caused a document to be rewritten from a stale base. The test refuses
+  the copy; it does not repair it.
+- **Their companions are NOT mirrored here** -- `IDEA_VERIFICATION_STANDARDS.md`,
+  `IDEA_Design_System.md` and `IDEA_MATERIALS_PROCESS.md` live only upstream, and the
+  copied documents cite them by bare name. A bare name with no `docs/standards/`
+  path is that: a pointer out of the repo, not a broken link.
+- **`docs/IDEA_MATERIAL_SPEC_v1.md` is a deliberate stub, not a standard**, and
+  says so. It stays because an agent once cited it as authority; a stub that names
+  the real document fails loudly where a deletion fails silently.
+- **Where a standard and the code disagree, that is a bug in one of them and worth
+  raising.** It is not licence to pick whichever is convenient. `CLAUDE.md` still
+  wins on how work in THIS repo is done.
+
 ---
 
 ## Scope
