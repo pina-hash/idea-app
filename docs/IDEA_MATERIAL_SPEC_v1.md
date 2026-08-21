@@ -3,21 +3,18 @@
 **This file is a stub. Do not author against it and do not cite it.**
 
 The canonical authoring format for IDEA course materials is
-**`IDEA_MATERIAL_SPEC_v2.md`**, which is **maintained outside this repository**
-and was at **version 2.2 (2026-08-20)** when this stub was written. It supersedes
-the v1 schema this file used to describe: v2 adds the `kind` discriminator
-(`assignment` keeps everything v1 had, unchanged; `reference` is the read-only
-document kind), moves rubrics to leveled descriptors, and describes rules the
-database actually rejects rather than conventions.
+**`docs/standards/IDEA_MATERIAL_SPEC_v2.md`**, a copy of a document **authored
+and maintained outside this repository**. It supersedes the v1 schema this file
+used to describe: v2 adds the `kind` discriminator (`assignment` keeps
+everything v1 had, unchanged; `reference` is the read-only document kind),
+moves rubrics to leveled descriptors, and describes rules the database actually
+rejects rather than conventions.
 
-Its companion standards live outside this repo too, and none of them is mirrored
-here:
-
-- `IDEA_MATERIAL_SPEC_v2.md` - the schema, both kinds, the enforcement matrix
-- `IDEA_RUBRIC_STANDARDS.md` - leveled criteria, `short` forms, descriptor writing
-- `IDEA_INTERFACE_STANDARDS.md` - layout, role parity, legibility, viewport verification
-- `IDEA_VERIFICATION_STANDARDS.md` - how a claim about a build is proven
-- `IDEA_Design_System.md` - color, typography, effects, themes
+Read that file for what the format is now, and `docs/standards/` for the
+programme standards copied in beside it. This is a POINTER: it names where the
+document lives and nothing about which version is there, because a version
+written down here is a version that goes stale without anybody noticing. Its
+header and changelog are the only place a version number is true.
 
 ## Why this file still exists
 
@@ -26,7 +23,7 @@ agent reading this repo, which is the exact failure a stale copy causes: the
 agent had no way to know a newer version existed, because from inside the repo
 this file looked like the standard. A stub that says "not this one, and here is
 the name of the real one" fails loudly where a deleted file fails silently and a
-stale file does not fail at all. `IDEA_MATERIAL_SPEC_v2.md` 2.2 records this
+stale file does not fail at all. `IDEA_MATERIAL_SPEC_v2.md` records this
 specific incident in its changelog.
 
 ## What IS authoritative inside this repo
@@ -50,7 +47,7 @@ Schema v1.1, dated 2026-08-13: top-level structure, `meta`, `modules[]`, flat
 then leveled `rubric[]`, the six block types, `declarations`, `approvalGate`,
 `print`, derived behaviour, and the authoring workflow. All of it is in v2 Part 1
 in current form. Two things it described are now known to be wrong and are
-corrected in v2.2 rather than here: there is no separate print renderer for spec
+corrected there rather than here: there is no separate print renderer for spec
 blocks (print is `@media print` CSS inside the rendering components), and
 `printAs` / `printConfig` were declared and read by nothing. Both have since been
 removed from `assignment-spec.ts`.

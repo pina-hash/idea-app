@@ -1318,6 +1318,11 @@ in this repo can read and cite them without leaving it.
   format: both kinds, the block types, the enforcement matrix.
 - `docs/standards/IDEA_RUBRIC_STANDARDS.md` -- leveled criteria, `short` forms,
   descriptor writing, grading behaviour.
+- `docs/standards/IDEA_VERIFICATION_ADDENDA.md` -- **a STAGING file, not a
+  standard.** Rules written here on their way UPSTREAM, held in the directory so
+  work in this repo can read them before they land. It is DELETED once they merge
+  into the authored originals, so nothing may treat it as a durable citation
+  target: cite the standard the rule ends up in, not this file.
 
 **Cite them by section**, the way the code already does (`IDEA_INTERFACE_STANDARDS`
 10, `IDEA_MATERIAL_SPEC` v2.2), and cite the path under `docs/standards/` so the

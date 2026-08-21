@@ -4,8 +4,8 @@
  * counting, rubric generation, grading math, and the FACTS CSV. No Svelte, no
  * Supabase.
  *
- * THE SPEC FORMAT is IDEA_MATERIAL_SPEC_v2.md (maintained outside this repo --
- * docs/IDEA_MATERIAL_SPEC_v1.md is a stub pointing at it), one JSON document per
+ * THE SPEC FORMAT is docs/standards/IDEA_MATERIAL_SPEC_v2.md, a copy of a
+ * document authored and maintained OUTSIDE this repo, one JSON document per
  * assignment. Validation here is the FRIENDLY half -- the import UI runs it so
  * a teacher sees every problem at once before anything is sent. The BOUNDARY is
  * _classroom_check_spec in migration 0086, which enforces the same rules inside
@@ -150,10 +150,11 @@ export interface SpecModule {
 	points: number;
 	aiLevel?: number | null;
 	/**
-	 * Schema v2's module-specific AI context (docs/IDEA_MATERIAL_SPEC_v2.md):
-	 * one or two sentences on what this level means for THIS module's actual
-	 * work, surfaced on hover/focus of the AI badge in place of the generic
-	 * level rule. Absent falls back to that generic rule (AI_LEVELS' blurb).
+	 * Schema v2's module-specific AI context
+	 * (docs/standards/IDEA_MATERIAL_SPEC_v2.md): one or two sentences on what
+	 * this level means for THIS module's actual work, surfaced on hover/focus
+	 * of the AI badge in place of the generic level rule. Absent falls back to
+	 * that generic rule (AI_LEVELS' blurb).
 	 */
 	aiNote?: string | null;
 	intro?: string;
