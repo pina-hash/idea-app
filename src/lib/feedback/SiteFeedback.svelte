@@ -78,8 +78,8 @@
 	const shown = $derived(!!submit && !excluded);
 
 	let open = $state(false);
-	/** Captured at OPEN, not at render: the viewport is what they were looking
-	 * at when they decided something was wrong. */
+	/** Captured at OPEN, not at render: the viewport and the user agent are what
+	 * they were looking at when they decided something was wrong. */
 	let captured = $state<Record<string, unknown>>({});
 
 	function openBox() {
@@ -87,12 +87,14 @@
 			typeof window === 'undefined'
 				? null
 				: { w: window.innerWidth, h: window.innerHeight };
+		const userAgent = typeof navigator === 'undefined' ? null : navigator.userAgent;
 		captured = captureMeta({
 			routeId,
 			pathname,
 			role,
 			sectionId,
 			viewport,
+			userAgent,
 			at: new Date(now()).toISOString(),
 			build,
 			status,
@@ -104,8 +106,8 @@
 
 	const noteFor = $derived(
 		status === null
-			? 'Something confusing, broken, or missing? The page you are on, your role and the build are attached automatically.'
-			: `This page failed with a ${status}. The status, the route and the build are attached automatically, so say what you were trying to do.`
+			? 'Something confusing, broken, or missing? The page you are on, your role, your browser and the build are attached automatically.'
+			: `This page failed with a ${status}. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
 	);
 </script>
 

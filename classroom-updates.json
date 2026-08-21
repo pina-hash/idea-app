@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-21",
+			"title": "A report now says which browser you were using",
+			"body": "When you send a Report a problem note, it already carried the page you were on, your role, your class and the size of your screen. It now also carries which browser and which kind of device you were using, picked up on its own the way everything else is, so there is nothing extra to fill in. It is there because a lot of what goes wrong only goes wrong in one browser, and without knowing which one there was no way to tell. The note above the box says so before you send.",
+			"tags": ["Appearance"]
+		},
+		{
+			"date": "2026-08-21",
 			"title": "Report a problem from any page",
 			"body": "The Feedback button used to sit at the bottom of a few classroom pages, so if something went wrong anywhere else there was nowhere to say so. There is now a Report a problem button in the corner of every page in the portal, and it is the same box: pick what kind of note it is, write what you noticed, send. You no longer have to describe where you were. The page you are on, whether you are signed in as a student or a teacher, which class you were looking at, the size of your screen and which build you had all ride along on their own. During a presentation the button moves into the deck's own bar rather than floating over the slides, and it never prints. If a page fails to load, you now get an IDEA page instead of a blank browser error, with a reference code on it and the same button right there, already filled in with what went wrong. Quote that code if you write to us about it. You have to be signed in to send a report for now.",
 			"tags": [

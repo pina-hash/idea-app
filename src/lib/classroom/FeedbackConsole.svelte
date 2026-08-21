@@ -9,13 +9,15 @@
 		feedbackMarkdown,
 		filterFeedback,
 		rowBuild,
+		rowDistinctPath,
 		rowErrorId,
-		rowPath,
 		rowRole,
 		rowRoute,
 		rowSection,
 		rowStatusCode,
+		rowUserAgentSummary,
 		rowViewport,
+		resolveSectionId,
 		type FeedbackFilter
 	} from '$lib/feedback/console';
 
@@ -109,6 +111,19 @@
 	let exportNote = $state<string | null>(null);
 
 	/**
+	 * WHETHER THE NAMES LEAVE WITH THE BUNDLE, decided HERE rather than noticed
+	 * afterwards. Included by default: knowing who to go and ask is most of what
+	 * makes a report actionable, and a queue that quietly anonymised everything
+	 * would be answering a question nobody asked. The bundle states which way
+	 * this was set, so a bundle with no names cannot be read as a bundle from
+	 * nobody.
+	 */
+	let includeSubmitter = $state(true);
+	const identityNote = $derived(
+		includeSubmitter ? '' : ' Submitter names and addresses were withheld.'
+	);
+
+	/**
 	 * The download. `<a download>` on a blob URL, revoked after the click: a
 	 * server round trip would only re-derive rows the console already holds.
 	 */
@@ -127,19 +142,20 @@
 	function exportMarkdown() {
 		const stamp = new Date(now()).toISOString();
 		// VISIBLE ROWS, NOT `rows`: filtering happens before export.
-		const bundle = feedbackMarkdown(visible, { filter, generatedAt: stamp });
+		const bundle = feedbackMarkdown(visible, { filter, generatedAt: stamp, includeSubmitter });
 		download(feedbackExportName('md', stamp.slice(0, 19)), bundle.text, 'text/markdown');
+		const shape = bundle.grouped ? ' Grouped by route.' : '';
 		exportNote =
 			bundle.dropped > 0
-				? `Exported ${bundle.included} of ${visible.length} filtered reports as markdown. ${bundle.dropped} did not fit the pasteable budget and are named at the end of the file.`
-				: `Exported ${bundle.included} filtered report${bundle.included === 1 ? '' : 's'} as markdown.`;
+				? `Exported ${bundle.included} of ${visible.length} filtered reports as markdown. ${bundle.dropped} did not fit the pasteable budget and are named at the end of the file.${shape}${identityNote}`
+				: `Exported ${bundle.included} filtered report${bundle.included === 1 ? '' : 's'} as markdown.${shape}${identityNote}`;
 	}
 
 	function exportJson() {
 		const stamp = new Date(now()).toISOString();
-		const text = feedbackJson(visible, { filter, generatedAt: stamp });
+		const text = feedbackJson(visible, { filter, generatedAt: stamp, includeSubmitter });
 		download(feedbackExportName('json', stamp.slice(0, 19)), text, 'application/json');
-		exportNote = `Exported ${visible.length} filtered report${visible.length === 1 ? '' : 's'} as JSON.`;
+		exportNote = `Exported ${visible.length} filtered report${visible.length === 1 ? '' : 's'} as JSON.${identityNote}`;
 	}
 
 	function clearFilter() {
@@ -237,6 +253,15 @@
 			<span class="export-count">
 				{visible.length} of {rows.length} shown
 			</span>
+			<label class="export-identity" for="fbc-identity">
+				<input
+					id="fbc-identity"
+					class="fbc-control"
+					type="checkbox"
+					bind:checked={includeSubmitter}
+				/>
+				<span>Include submitter names</span>
+			</label>
 			<button
 				type="button"
 				class="fbc-control btn secondary"
@@ -273,10 +298,11 @@
 					</div>
 					<p class="fb-message">{row.message}</p>
 					<ul class="fb-context">
-						{#if rowPath(row)}<li>path {rowPath(row)}</li>{/if}
+						{#if rowDistinctPath(row)}<li>path {rowDistinctPath(row)}</li>{/if}
 						{#if rowRole(row)}<li>role {rowRole(row)}</li>{/if}
-						{#if rowSection(row)}<li>section {rowSection(row)}</li>{/if}
+						{#if rowSection(row)}<li>section {resolveSectionId(rowSection(row))?.label}</li>{/if}
 						{#if rowViewport(row)}<li>viewport {rowViewport(row)}</li>{/if}
+						{#if rowUserAgentSummary(row)}<li>{rowUserAgentSummary(row)}</li>{/if}
 						{#if rowStatusCode(row) !== null}<li>http {rowStatusCode(row)}</li>{/if}
 						{#if rowErrorId(row)}<li>error id {rowErrorId(row)}</li>{/if}
 					</ul>
@@ -429,6 +455,15 @@
 	}
 	.export-note {
 		margin: 0 0 var(--space-3);
+	}
+	.export-identity {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
+		cursor: pointer;
 	}
 
 	.fb-row {

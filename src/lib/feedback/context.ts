@@ -252,6 +252,12 @@ export interface FeedbackContextInput {
 	role: string | null;
 	sectionId?: string | null;
 	viewport?: { w: number; h: number } | null;
+	/**
+	 * `navigator.userAgent`, threaded in from the caller for the same reason the
+	 * viewport is: it describes the machine the person was looking at, and it is
+	 * read once at OPEN rather than reconstructed afterwards from anything.
+	 */
+	userAgent?: string | null;
 	/** ISO 8601, threaded in from the caller rather than read here. */
 	at: string;
 	build: BuildStamp;
@@ -270,6 +276,11 @@ export function captureMeta(input: FeedbackContextInput): Record<string, unknown
 		role: input.role ?? null,
 		section: input.sectionId ?? null,
 		viewport: input.viewport ? `${input.viewport.w}x${input.viewport.h}` : null,
+		// THE FULL STRING, STORED VERBATIM. Summarising at capture time throws
+		// away the half that turns out to matter (an in-app webview, an OS build,
+		// a locale-specific fork); a summary can be recomputed from the string
+		// forever, and the string cannot be recovered from a summary.
+		userAgent: (input.userAgent ?? '').trim() || null,
 		at: input.at,
 		build: {
 			value: input.build.value,
@@ -282,6 +293,57 @@ export function captureMeta(input: FeedbackContextInput): Record<string, unknown
 	if (input.errorMessage) meta.error = input.errorMessage;
 	if (input.errorId) meta.errorId = input.errorId;
 	return meta;
+}
+
+/**
+ * A user agent string, reduced to the two facts a triage read actually turns
+ * on: which browser, and which platform.
+ *
+ * ONE IMPLEMENTATION, HERE, beside the capture that stores the string, because
+ * the exports and any future UI want the same reduction and a second copy is
+ * what stops agreeing. It is deliberately shallow: a UA string is not a
+ * reliable structured record, so this reports what it can recognise and says
+ * "unrecognised browser" rather than guessing. The FULL string stays on the
+ * row, and is what a question this cannot answer is answered from.
+ *
+ * Order is load-bearing. Every Chromium fork carries "Chrome" and Chrome
+ * carries "Safari", so the narrower token has to be tested first; iPadOS
+ * reports itself as a Mac, so the iPad token is tested before Mac OS X.
+ */
+export function summarizeUserAgent(ua: string | null | undefined): string | null {
+	const s = (ua ?? '').trim();
+	if (!s) return null;
+
+	const browsers: [RegExp, string][] = [
+		[/\bEdg(?:e|A|iOS)?\/(\d+)/, 'Edge'],
+		[/\bOPR\/(\d+)/, 'Opera'],
+		[/\bSamsungBrowser\/(\d+)/, 'Samsung Internet'],
+		[/\bFirefox\/(\d+)/, 'Firefox'],
+		[/\bFxiOS\/(\d+)/, 'Firefox'],
+		[/\bCriOS\/(\d+)/, 'Chrome'],
+		[/\bChrome\/(\d+)/, 'Chrome'],
+		[/\bVersion\/(\d+)[^)]*\bSafari\//, 'Safari']
+	];
+	let browser = 'unrecognised browser';
+	for (const [re, name] of browsers) {
+		const m = s.match(re);
+		if (m) {
+			browser = `${name} ${m[1]}`;
+			break;
+		}
+	}
+
+	const platforms: [RegExp, string][] = [
+		[/\biPad\b/, 'iPad'],
+		[/\biPhone\b/, 'iPhone'],
+		[/\bAndroid\b/, 'Android'],
+		[/\bWindows NT\b/, 'Windows'],
+		[/\bCrOS\b/, 'ChromeOS'],
+		[/\bMac OS X\b/, 'macOS'],
+		[/\bLinux\b/, 'Linux']
+	];
+	const platform = platforms.find(([re]) => re.test(s))?.[1] ?? null;
+	return platform ? `${browser} on ${platform}` : browser;
 }
 
 /** The `context` column: the route id, which is the stable name of a surface. */

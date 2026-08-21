@@ -10,6 +10,8 @@
  * rows already narrowed to one route on one afternoon is a thing that can be
  * pasted into a conversation and acted on.
  */
+import { sectionById } from '$lib/curriculum';
+import { summarizeUserAgent } from './context';
 import type { FeedbackRow, FeedbackStatus } from './feedback';
 
 /** Read a string off the free-form meta blob without trusting its shape. */
@@ -34,6 +36,23 @@ export function rowPath(row: FeedbackRow): string | null {
 	return metaString(row, 'path');
 }
 
+/**
+ * The path ONLY WHEN IT SAYS SOMETHING THE ROUTE ID DID NOT.
+ *
+ * On a route with no parameters the two are the same string, and showing both
+ * trains the reader to skip the line on exactly the routes where they differ
+ * (which student, which item, which section) -- so the field earns its place by
+ * being absent most of the time.
+ *
+ * ONE IMPLEMENTATION, read by the export AND by the queue's own row list. Two
+ * copies of this comparison is two answers to one question, and the day they
+ * stop agreeing is the day nobody notices.
+ */
+export function rowDistinctPath(row: FeedbackRow): string | null {
+	const path = rowPath(row);
+	return path && path !== rowRoute(row) ? path : null;
+}
+
 export function rowRole(row: FeedbackRow): string | null {
 	return metaString(row, 'role');
 }
@@ -46,15 +65,33 @@ export function rowViewport(row: FeedbackRow): string | null {
 	return metaString(row, 'viewport');
 }
 
+/** The user agent VERBATIM, as it was captured. */
+export function rowUserAgent(row: FeedbackRow): string | null {
+	return metaString(row, 'userAgent');
+}
+
+/**
+ * The same string reduced to browser and platform, through the ONE summariser
+ * in context.ts. A row filed before the capture existed has no string and gets
+ * null, which every surface renders as nothing rather than as "unknown".
+ */
+export function rowUserAgentSummary(row: FeedbackRow): string | null {
+	return summarizeUserAgent(rowUserAgent(row));
+}
+
+
 /** The build value AND what it means, never the value on its own. */
-export function rowBuild(row: FeedbackRow): { value: string; means: string } | null {
+export function rowBuild(
+	row: FeedbackRow
+): { value: string; source: string; means: string } | null {
 	const raw = (row.meta ?? {}).build;
 	if (!raw || typeof raw !== 'object') return null;
 	const build = raw as Record<string, unknown>;
 	const value = typeof build.value === 'string' ? build.value.trim() : '';
 	const means = typeof build.means === 'string' ? build.means.trim() : '';
+	const source = typeof build.source === 'string' ? build.source.trim() : '';
 	if (!value) return null;
-	return { value, means };
+	return { value, source: source || 'unlabelled', means };
 }
 
 export function rowStatusCode(row: FeedbackRow): number | null {
@@ -139,6 +176,61 @@ export function facetValues(
 }
 
 // ---------------------------------------------------------------------------
+// Resolving a section id
+// ---------------------------------------------------------------------------
+
+/**
+ * What a section id MEANS, rather than what it is stored as.
+ *
+ * A report carries `profiles.section_id` because that is the value the page had
+ * to hand; `eng1h-junior` is not what anybody reading a triage queue thinks in.
+ * RESOLVED AT EXPORT TIME, NOT AT CAPTURE TIME, on purpose: the registry is the
+ * live answer, so a course renamed after a report was filed exports under the
+ * name it has today, and no stored copy can go stale.
+ *
+ * `period` is the scheduling slot. `curriculum.ts` spells that field `term`
+ * (T1 / T2 / T3 / S1 / Summer); this is the same value under the word the
+ * export uses, not a second source for it.
+ */
+export interface ResolvedSection {
+	/** The id exactly as it was filed. */
+	id: string;
+	resolved: boolean;
+	course: string | null;
+	period: string | null;
+	/** The one string an export prints. */
+	label: string;
+}
+
+/**
+ * AN ID THAT DOES NOT RESOLVE SAYS SO. Falling back to the raw id silently
+ * would render a stored slug in the position a course name occupies, and the
+ * next reader takes it for a course nobody has heard of rather than for a
+ * section that has been retired, mistyped, or never added to the registry.
+ */
+export function resolveSectionId(id: string | null | undefined): ResolvedSection | null {
+	const raw = (id ?? '').trim();
+	if (!raw) return null;
+	const section = sectionById(raw);
+	if (!section) {
+		return {
+			id: raw,
+			resolved: false,
+			course: null,
+			period: null,
+			label: `${raw} (unresolved: not a known section id, shown as filed)`
+		};
+	}
+	return {
+		id: raw,
+		resolved: true,
+		course: section.course,
+		period: section.term,
+		label: `${section.course}, period ${section.term} (${raw})`
+	};
+}
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -150,35 +242,148 @@ export function facetValues(
  */
 export const FEEDBACK_MARKDOWN_BUDGET = 60_000;
 
+/**
+ * ABOVE THIS MANY REPORTS THE BUNDLE GROUPS BY ROUTE; at or below it, the list
+ * is flat.
+ *
+ * A flat list of four reports is read straight through, and grouping it only
+ * puts headings between single entries. Past that the useful question stops
+ * being "what did each person say" and becomes "which page is generating
+ * these", which a count per route answers and a flat list buries.
+ */
+export const FEEDBACK_GROUPING_THRESHOLD = 5;
+
 export interface FeedbackExport {
 	text: string;
 	/** How many rows made it into `text`. */
 	included: number;
 	/** How many the budget cut. NEVER SILENT: named in the text as well. */
 	dropped: number;
+	/** Whether the bundle came out grouped by route id. */
+	grouped: boolean;
 }
 
-function oneRow(row: FeedbackRow, index: number): string {
-	const lines: string[] = [];
-	lines.push(`### ${index}. ${row.kind} at ${rowRoute(row)}`);
-	const facts: string[] = [`status: ${row.status}`, `filed: ${row.created_at}`];
+export interface FeedbackExportOptions {
+	filter?: FeedbackFilter;
+	generatedAt?: string;
+	budget?: number;
+	/**
+	 * Whether the submitter's name and address travel with the bundle.
+	 *
+	 * DEFAULTS TO INCLUDED, because knowing who to go and ask is most of what
+	 * makes a report actionable. It is a CHOICE MADE AT EXPORT because a bundle
+	 * pasted into a chat window does not always need student names attached, and
+	 * that is a decision worth taking before the paste rather than noticing
+	 * afterwards. Withholding is stated in the bundle's own header, so a reader
+	 * cannot mistake a bundle with no names for a bundle from nobody.
+	 */
+	includeSubmitter?: boolean;
+}
+
+/**
+ * The route buckets, count descending then route ascending.
+ *
+ * The tiebreak is not decoration: without it two exports of the same set can
+ * order two equal groups differently, and a bundle stops being diffable against
+ * the one taken an hour earlier.
+ */
+export function groupFeedbackByRoute(
+	rows: FeedbackRow[]
+): { route: string; rows: FeedbackRow[] }[] {
+	const byRoute = new Map<string, FeedbackRow[]>();
+	for (const row of rows) {
+		const route = rowRoute(row);
+		const bucket = byRoute.get(route);
+		if (bucket) bucket.push(row);
+		else byRoute.set(route, [row]);
+	}
+	return [...byRoute.entries()]
+		.map(([route, group]) => ({ route, rows: group }))
+		.sort((a, b) => b.rows.length - a.rows.length || a.route.localeCompare(b.route));
+}
+
+/**
+ * A MESSAGE IS PROSE SOMEBODY TYPED, and prose contains whatever they typed. A
+ * report that opens a line with `###`, or pastes a trace containing a rule of
+ * dashes, would otherwise close the entry it sits inside and reparent
+ * everything after it: the next report's fields would read as part of that
+ * message, which is a bundle that lies rather than one that looks untidy.
+ *
+ * Every line goes inside ONE blockquote, so no line of it can be a
+ * document-level block. A blank line becomes a bare `>`, which keeps the quote
+ * contiguous instead of ending it and starting a second one.
+ *
+ * TWO KINDS OF LINE ARE ESCAPED ON TOP OF THAT, because a blockquote contains a
+ * block but does not stop it being one:
+ *
+ * - a leading `#` or `>`, which would be a heading or a nested quote;
+ * - a line that is NOTHING BUT a run of `-`, `=`, `_` or `*`, which is a
+ *   thematic break, and after a line of prose is a SETEXT HEADING -- so a
+ *   report that pastes a rule of dashes silently promotes the sentence above it
+ *   to a heading. That is the whole reason this case is picked out: it changes
+ *   what the person wrote while looking like ordinary formatting.
+ *
+ * A leading `-` or `*` on a line with words after it is left alone: that is a
+ * bullet the person typed, and it renders as one.
+ */
+const MARKDOWN_RULE = /^[-=_*]+$/;
+
+export function quoteMessage(message: string): string {
+	return message
+		.trim()
+		.split(/\r?\n/)
+		.map((line) => {
+			const bare = line.trim();
+			const isRule = bare.length > 1 && MARKDOWN_RULE.test(bare.replace(/ /g, ''));
+			const text =
+				isRule || /^\s*[#>]/.test(line) ? line.replace(/^(\s*)(.)/, '$1\\$2') : line;
+			return text.trim() ? `> ${text}` : '>';
+		})
+		.join('\n');
+}
+
+function oneRow(row: FeedbackRow, index: number, includeSubmitter: boolean): string {
+	const route = rowRoute(row);
+	const lines: string[] = [`### ${index}. ${row.kind} at ${route}`];
+
+	// THE CORRELATION ID GETS ITS OWN LINE, AT THE TOP. It is the only field
+	// here that leads anywhere else: it is what joins this report to the server
+	// log line handleError wrote. Set among a dozen bullets it reads as one more
+	// attribute of the page, and the join never gets made.
+	const errorId = rowErrorId(row);
+	if (errorId) {
+		lines.push('');
+		lines.push(`**Error id \`${errorId}\`** -- joins this report to the server log line.`);
+	}
+	lines.push('');
+
+	const facts: string[] = [`app: ${row.app}`, `status: ${row.status}`, `filed: ${row.created_at}`];
+	const path = rowDistinctPath(row);
+	if (path) facts.push(`path: ${path}`);
 	const role = rowRole(row);
 	if (role) facts.push(`role: ${role}`);
-	const section = rowSection(row);
-	if (section) facts.push(`section: ${section}`);
+	const section = resolveSectionId(rowSection(row));
+	if (section) facts.push(`section: ${section.label}`);
 	const viewport = rowViewport(row);
 	if (viewport) facts.push(`viewport: ${viewport}`);
+	// The SUMMARY here; the full string is on the row and rides the JSON export.
+	const browser = rowUserAgentSummary(row);
+	if (browser) facts.push(`browser: ${browser}`);
 	const httpStatus = rowStatusCode(row);
 	if (httpStatus !== null) facts.push(`http status: ${httpStatus}`);
-	const errorId = rowErrorId(row);
-	if (errorId) facts.push(`error id: ${errorId}`);
-	const who = row.submitter_name || row.submitter_email;
-	if (who) facts.push(`from: ${who}`);
-	lines.push(facts.map((f) => `- ${f}`).join('\n'));
+	if (includeSubmitter) {
+		const who = row.submitter_name || row.submitter_email;
+		if (who) facts.push(`from: ${who}`);
+	}
+	// THE VALUE AND WHICH KIND OF IDENTIFIER IT IS. What that kind MEANS is
+	// stated once in the header, because it is the same sentence every time and
+	// repeating it under every report is most of the bundle's length.
 	const build = rowBuild(row);
-	if (build) lines.push(`- build: ${build.value} (${build.means})`);
+	if (build) facts.push(`build: ${build.value} (${build.source})`);
+
+	lines.push(facts.map((f) => `- ${f}`).join('\n'));
 	lines.push('');
-	lines.push(row.message.trim());
+	lines.push(quoteMessage(row.message));
 	lines.push('');
 	return lines.join('\n');
 }
@@ -190,10 +395,13 @@ function oneRow(row: FeedbackRow, index: number): string {
  */
 export function feedbackMarkdown(
 	rows: FeedbackRow[],
-	options: { filter?: FeedbackFilter; generatedAt?: string; budget?: number } = {}
+	options: FeedbackExportOptions = {}
 ): FeedbackExport {
 	const budget = options.budget ?? FEEDBACK_MARKDOWN_BUDGET;
 	const filter = options.filter ?? EMPTY_FEEDBACK_FILTER;
+	const includeSubmitter = options.includeSubmitter !== false;
+	const grouped = rows.length > FEEDBACK_GROUPING_THRESHOLD;
+
 	const facets: string[] = [`status: ${filter.status}`];
 	if (filter.route) facets.push(`route contains "${filter.route}"`);
 	if (filter.role) facets.push(`role: ${filter.role}`);
@@ -201,25 +409,57 @@ export function feedbackMarkdown(
 	if (filter.from) facets.push(`from ${filter.from}`);
 	if (filter.to) facets.push(`to ${filter.to}`);
 
-	const head = [
-		'# IDEA feedback',
-		'',
-		`Filter: ${facets.join(', ')}`,
-		options.generatedAt ? `Exported: ${options.generatedAt}` : '',
-		`Reports: ${rows.length}`,
-		''
-	]
-		.filter((l) => l !== '')
-		.join('\n');
+	const headLines: string[] = ['# IDEA feedback', '', `Filter: ${facets.join(', ')}`];
+	if (options.generatedAt) headLines.push(`Exported: ${options.generatedAt}`);
+	headLines.push(`Reports: ${rows.length}`);
+	headLines.push(
+		includeSubmitter
+			? 'Submitter identity: included.'
+			: 'Submitter identity: withheld at export. No name or address appears below.'
+	);
+	headLines.push(
+		grouped
+			? `Grouped by route id, largest group first (more than ${FEEDBACK_GROUPING_THRESHOLD} reports).`
+			: `Listed flat, in queue order (${FEEDBACK_GROUPING_THRESHOLD} reports or fewer).`
+	);
+
+	// WHAT A BUILD IDENTIFIER MEANS, ONCE. Neither available identifier is a
+	// hash of the built artifact, which is exactly what a bare hex string gets
+	// mistaken for, so the words have to be somewhere. They do not have to be
+	// under every report: one line per kind PRESENT is the whole claim.
+	const meanings = new Map<string, string>();
+	for (const row of rows) {
+		const build = rowBuild(row);
+		if (build && !meanings.has(build.source)) meanings.set(build.source, build.means);
+	}
+	if (meanings.size > 0) {
+		headLines.push('');
+		headLines.push('Build identifiers, stated once here rather than under every report:');
+		for (const [source, means] of meanings) {
+			headLines.push(`- ${source}: ${means || 'no description was captured with this value'}`);
+		}
+	}
+	const head = headLines.join('\n');
+
+	const groups = groupFeedbackByRoute(rows);
+	const ordered = grouped ? groups.flatMap((g) => g.rows) : rows;
+	const groupHeading = new Map<FeedbackRow, string>();
+	if (grouped) {
+		for (const g of groups) {
+			const n = g.rows.length;
+			groupHeading.set(g.rows[0], `## ${g.route} (${n} report${n === 1 ? '' : 's'})`);
+		}
+	}
 
 	const body: string[] = [];
 	let used = head.length;
 	let included = 0;
-	for (const row of rows) {
-		const block = oneRow(row, included + 1);
+	for (const row of ordered) {
+		const heading = groupHeading.get(row);
+		const block = (heading ? `${heading}\n\n` : '') + oneRow(row, included + 1, includeSubmitter);
 		// Leave room for the truncation notice itself, so the thing that says
 		// what was dropped can never be the thing that gets dropped.
-		if (used + block.length > budget - 200 && included > 0) break;
+		if (used + block.length > budget - 320 && included > 0) break;
 		body.push(block);
 		used += block.length;
 		included += 1;
@@ -228,23 +468,64 @@ export function feedbackMarkdown(
 	const parts = [head, '', ...body];
 	if (dropped > 0) {
 		parts.push(
-			`_${dropped} more report${dropped === 1 ? '' : 's'} matched this filter and were left out of this bundle to keep it pasteable. Narrow the filter to see them._`
+			`_${dropped} more report${dropped === 1 ? '' : 's'} matched this filter and were left out of this bundle to keep it pasteable. A count in a group heading above is for the whole filtered set, not for what fitted. Narrow the filter to see them._`
 		);
 	}
-	return { text: parts.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n', included, dropped };
+	return {
+		text:
+			parts
+				.join('\n')
+				.replace(/\n{3,}/g, '\n\n')
+				.trimEnd() + '\n',
+		included,
+		dropped,
+		grouped
+	};
 }
 
-/** The filtered set as JSON. Verbatim rows: nothing is summarised away. */
-export function feedbackJson(
-	rows: FeedbackRow[],
-	options: { filter?: FeedbackFilter; generatedAt?: string } = {}
-): string {
+/** The submitter's name and address blanked, everything else untouched. */
+function withoutSubmitter(row: FeedbackRow): FeedbackRow {
+	return { ...row, submitter_name: null, submitter_email: null };
+}
+
+/**
+ * The filtered set as JSON. Rows are verbatim -- nothing is summarised away, so
+ * the FULL user agent string travels here even though the markdown carries only
+ * its summary.
+ *
+ * TWO DELIBERATE ADDITIONS BESIDE THE ROWS, neither of them a rewrite of one:
+ * `sections` resolves every section id the set mentions, and `buildIdentifiers`
+ * states what each kind of build value means. Both are lookups NEXT TO the rows
+ * rather than fields spliced into them, so a row still reads exactly as it is
+ * stored.
+ *
+ * The one thing that does edit a row is withholding the submitter, which is the
+ * point of the toggle; `submitterIdentity` says so in the file.
+ */
+export function feedbackJson(rows: FeedbackRow[], options: FeedbackExportOptions = {}): string {
+	const includeSubmitter = options.includeSubmitter !== false;
+	const sections = new Map<string, ResolvedSection>();
+	const buildIdentifiers = new Map<string, string>();
+	for (const row of rows) {
+		const section = resolveSectionId(rowSection(row));
+		if (section && !sections.has(section.id)) sections.set(section.id, section);
+		const build = rowBuild(row);
+		if (build && !buildIdentifiers.has(build.source)) {
+			buildIdentifiers.set(build.source, build.means);
+		}
+	}
 	return JSON.stringify(
 		{
 			generatedAt: options.generatedAt ?? null,
 			filter: options.filter ?? EMPTY_FEEDBACK_FILTER,
 			count: rows.length,
-			reports: rows
+			submitterIdentity: includeSubmitter ? 'included' : 'withheld',
+			buildIdentifiers: [...buildIdentifiers.entries()].map(([source, means]) => ({
+				source,
+				means
+			})),
+			sections: [...sections.values()].sort((a, b) => a.id.localeCompare(b.id)),
+			reports: includeSubmitter ? rows : rows.map(withoutSubmitter)
 		},
 		null,
 		2

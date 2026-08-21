@@ -11,22 +11,27 @@ import {
 	contextOf,
 	describeBuild,
 	feedbackExclusion,
+	summarizeUserAgent,
 	type BuildStamp,
 	type FeedbackExclusionId
 } from '../src/lib/feedback/context';
 import { feedbackRetryable, type FeedbackRow } from '../src/lib/feedback/feedback';
 import {
 	EMPTY_FEEDBACK_FILTER,
+	FEEDBACK_GROUPING_THRESHOLD,
 	facetValues,
 	feedbackJson,
 	feedbackMarkdown,
 	filterFeedback,
+	groupFeedbackByRoute,
 	rowDay,
+	rowDistinctPath,
 	rowRole,
 	rowRoute,
 	rowSection,
 	type FeedbackFilter
 } from '../src/lib/feedback/console';
+import { SECTIONS } from '../src/lib/curriculum';
 
 /**
  * EVERY SURFACE REPORTS ITS OWN DEFECTS, asserted where it fails SILENTLY.
@@ -585,7 +590,11 @@ describe('export takes the filtered set, and says what it left out', () => {
 		expect(md.text).toContain('role: teacher');
 		expect(md.text).toContain('section: s-3');
 		expect(md.text).toContain('http status: 500');
-		expect(md.text).toContain('error id: abc');
+		// The correlation id moved OUT of the fact list and onto its own line at
+		// the top of the entry; assert the RULE (it is present, above the facts)
+		// rather than the bullet it used to be.
+		expect(md.text).toContain('abc');
+		expect(md.text.indexOf('abc')).toBeLessThan(md.text.indexOf('- app:'));
 	});
 
 	it('truncates a bundle to stay pasteable, and NAMES what it dropped', () => {
@@ -634,5 +643,438 @@ describe('the console controls clear the tap-target floor', () => {
 		const controls = src.match(/<(button|input|select)\b[^>]*/g) ?? [];
 		expect(controls.length).toBeGreaterThan(8);
 		for (const tag of controls) expect(tag).toContain('fbc-control');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 8. WHAT LEAVES IN AN EXPORT
+// ---------------------------------------------------------------------------
+
+/**
+ * THE EXPORT REFINEMENTS, EACH ASSERTED ON A FIXTURE THAT SHOWS THE DIFFERENCE.
+ *
+ * These are all quiet failures. A path printed beside an identical route id is
+ * noise nobody files a bug about; a grouped bundle that never groups reads as a
+ * small queue; a section id shown raw reads as a course; a multi-line message
+ * that reparents the reports after it produces a bundle that is WRONG while
+ * looking completely ordinary; and an identity toggle that does nothing hands
+ * student names to a chat window with the box unticked.
+ *
+ * WHERE THE EXPECTED VALUES COME FROM. The section fixture uses a REAL id out
+ * of `curriculum.ts` and the expectation is read off that registry entry, not
+ * recomputed with the resolver. The user agent strings are real ones. The
+ * grouping expectations are counted off the fixture by eye. Every absence
+ * assertion is paired with a positive control on the same bundle.
+ */
+
+/** A real registry entry, so the expected course and period are read off it. */
+const REAL_SECTION = SECTIONS.find((s) => s.id === 'eng1h-junior');
+
+const UA_CHROME_WIN =
+	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const UA_SAFARI_IPHONE =
+	'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+
+const BUILD_META = {
+	value: 'a1b2c3d',
+	source: 'git-commit',
+	means: BUILD_MEANS['git-commit'],
+	historyComplete: true
+};
+
+/** One report, on a route whose path is the same string as its route id. */
+const ONE: FeedbackRow[] = [
+	row({
+		id: 'one',
+		app: 'notebook',
+		message: 'The photo grid stops halfway down.',
+		meta: {
+			route: '/notebook',
+			path: '/notebook',
+			role: 'student',
+			section: 'eng1h-junior',
+			viewport: '1512x852',
+			userAgent: UA_CHROME_WIN,
+			build: BUILD_META
+		}
+	})
+];
+
+/**
+ * Six reports over three routes: /notebook x3, /classroom/[sectionId] x2,
+ * /coin-desk x1. Counted off this list by eye, which is what the grouping
+ * assertions below compare against.
+ */
+const SIX: FeedbackRow[] = [
+	row({ id: 'g1', meta: { route: '/notebook', path: '/notebook' } }),
+	row({
+		id: 'g2',
+		meta: { route: '/classroom/[sectionId]', path: '/classroom/eng1h-junior' }
+	}),
+	row({ id: 'g3', meta: { route: '/notebook', path: '/notebook' } }),
+	row({ id: 'g4', meta: { route: '/coin-desk', path: '/coin-desk' } }),
+	row({
+		id: 'g5',
+		meta: { route: '/classroom/[sectionId]', path: '/classroom/intro-100-1' }
+	}),
+	row({ id: 'g6', meta: { route: '/notebook', path: '/notebook' } })
+];
+
+const MULTILINE = [
+	'### Not a heading, it is what I typed',
+	'',
+	'Then the page did this:',
+	'---',
+	'> quoted from the error box',
+	'- a bullet I actually meant',
+	'# and a hash line'
+].join('\n');
+
+describe('the markdown export says where a report came from', () => {
+	it('is a well-formed empty bundle when nothing matched', () => {
+		const md = feedbackMarkdown([], { generatedAt: '2026-08-21T00:00:00.000Z' });
+		expect(md.included).toBe(0);
+		expect(md.dropped).toBe(0);
+		expect(md.grouped).toBe(false);
+		expect(md.text).toContain('# IDEA feedback');
+		expect(md.text).toContain('Reports: 0');
+		// Nothing invented to fill the space: no entry heading, no group heading.
+		expect(md.text).not.toContain('### ');
+		expect(md.text).not.toContain('## /');
+		// Positive control for the two absences: the same call over ONE report
+		// does produce an entry heading, so "no headings" cannot be the renderer
+		// being broken for every input.
+		expect(feedbackMarkdown(ONE).text).toContain('### 1. ');
+	});
+
+	it('carries the app, the route id, and the path only when it differs', () => {
+		const md = feedbackMarkdown(ONE);
+		expect(md.text).toContain('- app: notebook');
+		expect(md.text).toContain('at /notebook');
+		// Route id and path are the same string here, so the path line is noise.
+		expect(md.text).not.toContain('- path:');
+		// PAIRED POSITIVE CONTROL, same field, same renderer: a parameterised
+		// route whose path resolves to something else DOES print it.
+		const parameterised = feedbackMarkdown([
+			row({
+				id: 'p1',
+				meta: { route: '/classroom/[sectionId]', path: '/classroom/eng1h-junior' }
+			})
+		]);
+		expect(parameterised.text).toContain('- path: /classroom/eng1h-junior');
+
+		// ONE RULE, TWO READERS. The queue's own row list asks the same helper,
+		// so the export and the screen cannot start giving different answers to
+		// "is this path worth showing".
+		expect(rowDistinctPath(ONE[0])).toBeNull();
+		expect(rowDistinctPath(SIX[1])).toBe('/classroom/eng1h-junior');
+		const src = read('src/lib/classroom/FeedbackConsole.svelte');
+		expect(src).toContain('rowDistinctPath(row)');
+		expect(src).not.toMatch(/\{#if rowPath\(row\)\}/);
+	});
+
+	it('summarises the browser in markdown and keeps the full string in JSON', () => {
+		const md = feedbackMarkdown(ONE);
+		expect(md.text).toContain('- browser: Chrome 126 on Windows');
+		// The bundle carries the summary and NOT the 100-character string, which
+		// is the whole point of summarising it.
+		expect(md.text).not.toContain('AppleWebKit');
+
+		const parsed = JSON.parse(feedbackJson(ONE));
+		expect(parsed.reports[0].meta.userAgent).toBe(UA_CHROME_WIN);
+	});
+
+	it('resolves a section id to its course and period, and says when it cannot', () => {
+		// Expected values read off the registry entry, never recomputed here.
+		expect(REAL_SECTION).toBeTruthy();
+		const md = feedbackMarkdown(ONE);
+		expect(md.text).toContain(`- section: ${REAL_SECTION?.course}, period ${REAL_SECTION?.term}`);
+		// The raw id survives beside the resolution, so the stored value is still
+		// greppable against the database.
+		expect(md.text).toContain('(eng1h-junior)');
+
+		const unresolvable = feedbackMarkdown([
+			row({ id: 'u1', meta: { route: '/notebook', section: 'period-9-woodshop' } })
+		]);
+		expect(unresolvable.text).toContain('- section: period-9-woodshop (unresolved:');
+		// NAMED, NOT SILENT: the raw id alone would read as a resolved answer.
+		expect(unresolvable.text).toContain('not a known section id');
+	});
+
+	it('gives the error correlation id its own line at the top of the entry', () => {
+		const md = feedbackMarkdown([
+			row({
+				id: 'e1',
+				message: 'It went white.',
+				meta: { route: '/notebook', status: 500, errorId: 'cid-7f3a' }
+			})
+		]);
+		const lines = md.text.split('\n');
+		const heading = lines.findIndex((l) => l.startsWith('### '));
+		const idLine = lines.findIndex((l) => l.includes('cid-7f3a'));
+		const firstFact = lines.findIndex((l) => l.startsWith('- '));
+		expect(heading).toBeGreaterThanOrEqual(0);
+		expect(firstFact).toBeGreaterThan(heading);
+		// ABOVE THE FACT LIST, not inside it. The ordering IS the claim.
+		expect(idLine).toBeGreaterThan(heading);
+		expect(idLine).toBeLessThan(firstFact);
+		expect(lines[idLine]).toContain('server log');
+		// It is not also repeated as a bullet.
+		expect(md.text).not.toContain('- error id:');
+	});
+
+	it('states what a build identifier means once in the header, not per report', () => {
+		const many = SIX.map((r, i) =>
+			row({ ...r, id: `b${i}`, meta: { ...(r.meta ?? {}), build: BUILD_META } })
+		);
+		const md = feedbackMarkdown(many);
+		const meansCount = md.text.split(BUILD_MEANS['git-commit']).length - 1;
+		expect(meansCount).toBe(1);
+		// And the header is where the one copy is: it appears before any entry.
+		expect(md.text.indexOf(BUILD_MEANS['git-commit'])).toBeLessThan(md.text.indexOf('### 1.'));
+		// The per-report line still carries the VALUE and WHICH KIND it is, six
+		// times, so dropping the paragraph did not drop the provenance.
+		expect(md.text.split('- build: a1b2c3d (git-commit)').length - 1).toBe(6);
+	});
+
+	it('groups by route above the threshold and lists flat at or below it', () => {
+		// SIX rows, three routes, counted off the fixture: 3 / 2 / 1.
+		const grouped = feedbackMarkdown(SIX);
+		expect(SIX.length).toBe(6);
+		expect(grouped.grouped).toBe(true);
+		expect(grouped.text).toContain('## /notebook (3 reports)');
+		expect(grouped.text).toContain('## /classroom/[sectionId] (2 reports)');
+		expect(grouped.text).toContain('## /coin-desk (1 report)');
+		// Ordered by count descending.
+		expect(grouped.text.indexOf('## /notebook')).toBeLessThan(
+			grouped.text.indexOf('## /classroom/[sectionId]')
+		);
+		expect(grouped.text.indexOf('## /classroom/[sectionId]')).toBeLessThan(
+			grouped.text.indexOf('## /coin-desk')
+		);
+		// Every report still present, once each.
+		for (const r of SIX) expect(grouped.text).toContain(`note ${r.id}`);
+
+		// THE THRESHOLD, ASSERTED BOTH WAYS on the same fixture minus one row: a
+		// grouping rule that always grouped, or never did, passes a one-sided
+		// test and fails exactly one of these.
+		const five = SIX.slice(0, 5);
+		expect(five.length).toBe(FEEDBACK_GROUPING_THRESHOLD);
+		const flat = feedbackMarkdown(five);
+		expect(flat.grouped).toBe(false);
+		expect(flat.text).not.toContain('## /');
+		expect(flat.text).not.toContain(' reports)');
+		// Positive control on the same five rows: they ARE in the bundle, so the
+		// two absences above are the grouping being off and not an empty file.
+		for (const r of five) expect(flat.text).toContain(`note ${r.id}`);
+		expect(flat.included).toBe(5);
+	});
+
+	it('buckets and orders groups deterministically', () => {
+		const groups = groupFeedbackByRoute(SIX);
+		expect(groups.map((g) => [g.route, g.rows.length])).toEqual([
+			['/notebook', 3],
+			['/classroom/[sectionId]', 2],
+			['/coin-desk', 1]
+		]);
+	});
+
+	it('orders by COUNT, not by which route was seen first', () => {
+		// SIX happens to arrive largest-group-first, so it cannot tell a real
+		// ordering from no ordering at all: a bucketer that simply kept insertion
+		// order passes the case above. This fixture arrives smallest first.
+		const smallestFirst = [
+			row({ id: 'o1', meta: { route: '/coin-desk' } }),
+			row({ id: 'o2', meta: { route: '/notebook' } }),
+			row({ id: 'o3', meta: { route: '/notebook' } })
+		];
+		expect(groupFeedbackByRoute(smallestFirst).map((g) => g.route)).toEqual([
+			'/notebook',
+			'/coin-desk'
+		]);
+		// The rendered bundle agrees with the bucketer, so the ordering is not
+		// something only the helper does.
+		const md = feedbackMarkdown([...smallestFirst, ...smallestFirst.map((r, i) =>
+			row({ ...r, id: `o${4 + i}` })
+		)]);
+		expect(md.grouped).toBe(true);
+		expect(md.text.indexOf('## /notebook')).toBeLessThan(md.text.indexOf('## /coin-desk'));
+	});
+
+	it('breaks a tie on route id, so two exports of one set match', () => {
+		const tied = [
+			row({ id: 'z1', meta: { route: '/zeta' } }),
+			row({ id: 'a1', meta: { route: '/alpha' } })
+		];
+		expect(groupFeedbackByRoute(tied).map((g) => g.route)).toEqual(['/alpha', '/zeta']);
+	});
+
+	it('keeps a multi-line message from breaking the bundle structure', () => {
+		const rows = [
+			row({ id: 'm1', message: MULTILINE, meta: { route: '/notebook' } }),
+			row({ id: 'm2', message: 'The one after it.', meta: { route: '/notebook' } })
+		];
+		const md = feedbackMarkdown(rows);
+		const lines = md.text.split('\n');
+
+		// EVERY line of the message is inside the blockquote, so none of them can
+		// be a document-level block that closes the entry it sits in.
+		for (const raw of MULTILINE.split('\n')) {
+			const trimmed = raw.trim();
+			if (!trimmed) continue;
+			const carried = lines.find((l) => l.startsWith('> ') && l.includes(trimmed.replace(/^[#>]/, '')));
+			expect(carried, `message line not quoted: ${raw}`).toBeTruthy();
+		}
+		// The structure is intact: exactly two entries, and the second one's
+		// heading still exists. A message that reparented the rest of the file is
+		// exactly the failure that leaves this at one.
+		expect(lines.filter((l) => l.startsWith('### ')).length).toBe(2);
+		expect(md.text).toContain('### 2. bug at /notebook');
+		// No line of the message survived at column 0 as markdown structure.
+		expect(lines.some((l) => l === '### Not a heading, it is what I typed')).toBe(false);
+		expect(lines.some((l) => l === '---')).toBe(false);
+		expect(lines.some((l) => l === '# and a hash line')).toBe(false);
+
+		// A RULE OF DASHES IS ESCAPED INSIDE THE QUOTE TOO. Left bare it is a
+		// setext underline, which silently promotes the sentence above it to a
+		// heading: the message still renders, saying something different.
+		expect(md.text).toContain('> \\---');
+		expect(md.text).not.toContain('> ---');
+		// PAIRED CONTROL, same escaping pass: a real bullet keeps its dash,
+		// because a line with words after the dash is a list the person typed.
+		expect(md.text).toContain('> - a bullet I actually meant');
+		// Positive control: the words are all still there, so "no structure" is
+		// not "no message".
+		expect(md.text).toContain('Not a heading, it is what I typed');
+		expect(md.text).toContain('and a hash line');
+	});
+
+	it('summarises a second real user agent, and says so when it recognises none', () => {
+		// MAJOR VERSION ONLY, uniformly: Chrome reports 126.0.0.0 and Safari 17.5,
+		// and a summary that carried whatever precision each vendor happened to
+		// print would not be comparable across two rows. The full string is on the
+		// row for the question that needs the minor.
+		expect(summarizeUserAgent(UA_SAFARI_IPHONE)).toBe('Safari 17 on iPhone');
+		expect(summarizeUserAgent(UA_CHROME_WIN)).toBe('Chrome 126 on Windows');
+		expect(summarizeUserAgent('SomeCrawler/1.0')).toBe('unrecognised browser');
+		expect(summarizeUserAgent('')).toBeNull();
+		expect(summarizeUserAgent(null)).toBeNull();
+	});
+
+	it('captures the user agent at file time, beside the viewport', () => {
+		const meta = captureMeta({
+			routeId: '/notebook',
+			pathname: '/notebook',
+			role: 'student',
+			viewport: { w: 1512, h: 852 },
+			userAgent: UA_CHROME_WIN,
+			at: '2026-08-21T00:00:00.000Z',
+			build: { value: 'x', source: 'git-commit', means: 'm', complete: true }
+		});
+		expect(meta.viewport).toBe('1512x852');
+		expect(meta.userAgent).toBe(UA_CHROME_WIN);
+		// Absent rather than an empty string when the browser gave nothing, so a
+		// reader is never shown a blank where a machine should be.
+		const none = captureMeta({
+			routeId: '/notebook',
+			pathname: '/notebook',
+			role: null,
+			at: '2026-08-21T00:00:00.000Z',
+			build: { value: 'x', source: 'git-commit', means: 'm', complete: true }
+		});
+		expect(none.userAgent).toBeNull();
+	});
+
+	it('is captured by the shell, not typed by the person reporting', () => {
+		// The component reads navigator itself: a userAgent that has to be passed
+		// in from a route is a userAgent that arrives undefined from most of them.
+		const src = read('src/lib/feedback/SiteFeedback.svelte');
+		expect(src).toContain('navigator.userAgent');
+		expect(src).toMatch(/captureMeta\(\{[\s\S]*userAgent,/);
+	});
+});
+
+describe('submitter identity is a choice made at export', () => {
+	const named = [
+		row({
+			id: 'n1',
+			meta: { route: '/notebook' },
+			submitter_name: 'Robin Vega',
+			submitter_email: 'robin.vega@boscotech.net'
+		})
+	];
+
+	it('includes the submitter by default, in both exports', () => {
+		const md = feedbackMarkdown(named);
+		expect(md.text).toContain('- from: Robin Vega');
+		expect(md.text).toContain('Submitter identity: included.');
+		const parsed = JSON.parse(feedbackJson(named));
+		expect(parsed.submitterIdentity).toBe('included');
+		expect(parsed.reports[0].submitter_name).toBe('Robin Vega');
+		expect(parsed.reports[0].submitter_email).toBe('robin.vega@boscotech.net');
+	});
+
+	it('withholds it in both exports when the toggle is off, and says it did', () => {
+		const md = feedbackMarkdown(named, { includeSubmitter: false });
+		// NEITHER SPELLING of the identity, in either export.
+		expect(md.text).not.toContain('Robin Vega');
+		expect(md.text).not.toContain('robin.vega@boscotech.net');
+		expect(md.text).not.toContain('- from:');
+		// Stated, so a bundle with no names is not read as a bundle from nobody.
+		expect(md.text).toContain('Submitter identity: withheld at export.');
+		// Positive control on the SAME bundle: the report itself is still here,
+		// so the four absences are the toggle and not an empty export.
+		expect(md.text).toContain('note n1');
+		expect(md.included).toBe(1);
+
+		const parsed = JSON.parse(feedbackJson(named, { includeSubmitter: false }));
+		expect(parsed.submitterIdentity).toBe('withheld');
+		expect(parsed.count).toBe(1);
+		expect(parsed.reports[0].submitter_name).toBeNull();
+		expect(parsed.reports[0].submitter_email).toBeNull();
+		// Everything that is NOT identity is untouched.
+		expect(parsed.reports[0].id).toBe('n1');
+		expect(parsed.reports[0].message).toBe('note n1');
+		expect(JSON.stringify(parsed)).not.toContain('robin.vega');
+	});
+
+	it('is wired to a real control in the console, defaulting to included', () => {
+		const src = read('src/lib/classroom/FeedbackConsole.svelte');
+		expect(src).toContain('let includeSubmitter = $state(true);');
+		// A visible word, not only a checkbox, and handed to BOTH exporters.
+		expect(src).toContain('Include submitter names');
+		expect(src).toMatch(/feedbackMarkdown\(visible, \{[^}]*includeSubmitter/);
+		expect(src).toMatch(/feedbackJson\(visible, \{[^}]*includeSubmitter/);
+	});
+});
+
+describe('the JSON export resolves the same things beside the verbatim rows', () => {
+	it('lists every section the set mentions, resolved or not', () => {
+		const parsed = JSON.parse(
+			feedbackJson([
+				...ONE,
+				row({ id: 'x1', meta: { route: '/notebook', section: 'period-9-woodshop' } })
+			])
+		);
+		expect(parsed.sections.map((s: { id: string }) => s.id)).toEqual([
+			'eng1h-junior',
+			'period-9-woodshop'
+		]);
+		const resolved = parsed.sections.find((s: { id: string }) => s.id === 'eng1h-junior');
+		expect(resolved.resolved).toBe(true);
+		expect(resolved.course).toBe(REAL_SECTION?.course);
+		expect(resolved.period).toBe(REAL_SECTION?.term);
+		const missing = parsed.sections.find((s: { id: string }) => s.id === 'period-9-woodshop');
+		expect(missing.resolved).toBe(false);
+		expect(missing.course).toBeNull();
+	});
+
+	it('states each build identifier meaning once, beside the rows', () => {
+		const parsed = JSON.parse(feedbackJson(ONE));
+		expect(parsed.buildIdentifiers).toEqual([
+			{ source: 'git-commit', means: BUILD_MEANS['git-commit'] }
+		]);
+		// The row is still verbatim: the resolution sits NEXT TO it, not in it.
+		expect(parsed.reports[0].meta.build.means).toBe(BUILD_MEANS['git-commit']);
 	});
 });
