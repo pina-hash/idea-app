@@ -1,0 +1,313 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "CAD Quick Reference",
+    "course": "IDEA100",
+    "subtitle": "SolidWorks sketching, DXF export, and xTool Studio",
+    "referenceId": "idea100-cad-quickref",
+    "buildVersion": "v2"
+  },
+  "sections": [
+    {
+      "slug": "sketch-tools",
+      "blurb": "The five tools that build almost every shape you will draw this rotation.",
+      "title": "Sketch Tools",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "key": "L",
+              "use": "Straight segments. Click each corner, press Escape to stop.",
+              "tool": "Line"
+            },
+            {
+              "key": "C",
+              "use": "Click the center, drag out. This is your chain hole.",
+              "tool": "Circle"
+            },
+            {
+              "key": "R",
+              "use": "Corner to corner. Fastest way to start a tag body.",
+              "tool": "Rectangle"
+            },
+            {
+              "key": "A",
+              "use": "Rounds off an end. Click center, then start, then end.",
+              "tool": "Centerpoint Arc"
+            },
+            {
+              "key": "T",
+              "use": "Removes the part of a line you do not want.",
+              "tool": "Trim Entities"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Tools you need today",
+          "columns": [
+            {
+              "key": "tool",
+              "label": "Tool"
+            },
+            {
+              "key": "key",
+              "label": "Shortcut"
+            },
+            {
+              "key": "use",
+              "label": "What it does"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### Trimming\n\nPick **Trim Entities**, choose **Power Trim**, then click and drag your cursor across the piece of line you want gone. It disappears where it crosses another line. This is how you turn overlapping shapes into one clean outline.\n\nIf trim takes more than it should, press **Ctrl+Z** and drag a shorter stroke.\n\n### Dragging\n\nAny endpoint can be dragged. Click it and move it. This is faster than deleting and redrawing.\n\nSketch geometry is colored on purpose:\n\n- **Blue** means under-defined. It can still be dragged. This is fine for today.\n- **Black** means fully defined. It will not move.\n- **Red** means over-defined. Something conflicts. Undo the last thing you added."
+        },
+        {
+          "type": "instructions",
+          "content": "### Relations\n\nSolidWorks adds relations automatically while you draw. The small yellow icons that appear near your cursor are it telling you what it is about to lock in.\n\n| Icon meaning | What it forces |\n|---|---|\n| Coincident | Two points sit on top of each other |\n| Horizontal / Vertical | A line stays flat or straight up |\n| Tangent | An arc meets a line smoothly, no corner |\n| Equal | Two lines or circles stay the same size |\n\nTo add one yourself, select two entities, then pick the relation from the panel on the left.\n\nTo delete one, click the small green icon in the sketch and press **Delete**."
+        }
+      ]
+    },
+    {
+      "slug": "getting-unstuck",
+      "blurb": "What to do when you are stuck and Mr. Pina is across the room.",
+      "title": "Getting Unstuck",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### Screenshot it and ask\n\nSolidWorks and xTool Studio have hundreds of buttons. Describing the one you are looking at is slow. Showing it is fast.\n\n1. Press **Win + Shift + S**. The screen dims and your cursor becomes a crosshair.\n2. Drag a box around the part you are stuck on. Include the whole dialog or the whole toolbar, not just the button.\n3. The image is now on your clipboard.\n4. Open an AI chat, press **Ctrl + V**, and type your question.\n\nGive it the context or it will guess. Something like: *I am in SolidWorks making a dogtag outline for class. This is my sketch. Why will it not let me trim this line?*"
+        },
+        {
+          "type": "callout",
+          "title": "This is allowed, and it is the point",
+          "content": "This assignment is AI level 1, COACH. Use it any time you are stuck, not only after you have tried everything. It can explain a tool, walk you through a menu, or tell you why something is not working.\n\nWhat it does not do is make the tag. The shape, the hole, what goes on it, and which process each feature gets are yours.",
+          "variant": "info"
+        },
+        {
+          "rows": [
+            {
+              "ask": "How do I close a gap between two endpoints in a SolidWorks sketch?",
+              "not": "Draw me a dogtag outline."
+            },
+            {
+              "ask": "What does this option in the DXF export wizard do?",
+              "not": "What settings should I pick? Just tell me."
+            },
+            {
+              "ask": "Why is my sketch line red instead of black?",
+              "not": "Fix my sketch."
+            },
+            {
+              "ask": "What is the difference between score and engrave on a laser?",
+              "not": "Which one should I use for everything?"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Questions that work, and questions that do not",
+          "columns": [
+            {
+              "key": "ask",
+              "label": "Ask this"
+            },
+            {
+              "key": "not",
+              "label": "Not this"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Two rules that never change",
+          "content": "**Verify it.** AI is confident when it is wrong. If it names a menu that is not there, it made it up. Check against the actual program.\n\n**Explain it.** You can be asked to explain any part of what you submitted, in your own words, at any time. Work you cannot explain gets corrected before it earns credit.",
+          "variant": "required"
+        }
+      ]
+    },
+    {
+      "slug": "closed-loops",
+      "blurb": "The single thing that makes or breaks a laser file.",
+      "title": "Closed Loops",
+      "blocks": [
+        {
+          "type": "callout",
+          "title": "A gap you cannot see will still fail",
+          "content": "The laser needs to know what is inside your shape and what is outside. A loop with a gap anywhere has no inside, so the machine cannot cut it. A gap of one thousandth of an inch fails exactly the same as an obvious one.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "### Finding a gap\n\nDrag the whole sketch by one line. Everything connected moves together. Anything that stays behind was never attached.\n\n### Closing a gap\n\nDrag one endpoint onto the other and hold until the **coincident** icon appears next to your cursor, then release. The two points are now one point.\n\n### Stray entities\n\nAnything left over inside your outline is a line the machine will try to follow. Construction lines you added and forgot, a circle you drew twice, half of a shape you trimmed. Delete them before you exit the sketch."
+        }
+      ]
+    },
+    {
+      "slug": "dxf-export",
+      "blurb": "How the geometry gets from SolidWorks to the laser, and what usually goes wrong.",
+      "title": "DXF Export",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### The order matters\n\nSelect the **flat face** of the extruded tag first, then **File, Save As, DXF**. The export wizard reads the face you already selected. If you start the export with nothing selected, the wizard asks you to pick, and it is easy to pick the wrong one.\n\n### Check it before you leave\n\nWhen the DXF opens in xTool Studio, you should see exactly two shapes: your outline and your hole. Anything else means something came along that should not have."
+        },
+        {
+          "rows": [
+            {
+              "fix": "Re-export with the part set to inches, or scale it in xTool Studio and note it",
+              "cause": "Units mismatch between the part and the export",
+              "symptom": "Tag imports tiny or enormous"
+            },
+            {
+              "fix": "Re-export with only the flat face selected",
+              "cause": "The side wall of the extrude exported along with the face",
+              "symptom": "Extra outline just outside the first"
+            },
+            {
+              "fix": "Go back to the sketch and close the circle",
+              "cause": "The circle was not closed, so it was not a hole",
+              "symptom": "Hole missing"
+            },
+            {
+              "fix": "Save As again and confirm the type is DXF",
+              "cause": "Saved as DWG or the wizard was cancelled",
+              "symptom": "Nothing imports"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Common failures",
+          "columns": [
+            {
+              "key": "symptom",
+              "label": "What you see"
+            },
+            {
+              "key": "cause",
+              "label": "What caused it"
+            },
+            {
+              "key": "fix",
+              "label": "Fix"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "processes",
+      "blurb": "Three things the laser can do to a line. Pick one per feature.",
+      "title": "Cut, Score, Engrave",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "use": "The outline and the chain hole. Nothing else.",
+              "does": "Burns all the way through the metal",
+              "process": "Cut"
+            },
+            {
+              "use": "Borders, outlines of shapes, thin line art",
+              "does": "Follows a line and marks it without going through",
+              "process": "Score"
+            },
+            {
+              "use": "Your name, filled shapes, images",
+              "does": "Sweeps back and forth and darkens an area",
+              "process": "Engrave"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Processes",
+          "columns": [
+            {
+              "key": "process",
+              "label": "Process"
+            },
+            {
+              "key": "does",
+              "label": "What the laser does"
+            },
+            {
+              "key": "use",
+              "label": "Use it for"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Cut is the one that ends the part",
+          "content": "Anything assigned cut becomes a hole. If you assign cut to your name, your name falls out of the tag and what is left is a stencil. Check every feature in the preview before you finish.",
+          "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "engraving-images",
+      "blurb": "What to bring in, and what will come out as a gray smudge.",
+      "title": "Images That Engrave Well",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### The rule\n\nThe laser has two settings for any spot: marked or not marked. It has no gray. Anything that depends on shading to be recognizable will not survive.\n\nHigh contrast, hard edges, and large shapes work. Detail smaller than about the width of a pencil line disappears."
+        },
+        {
+          "rows": [
+            {
+              "why": "Imports as real vectors, so it can be scored or cut as well as engraved, and it scales without going fuzzy",
+              "kind": "SVG line art",
+              "verdict": "Best"
+            },
+            {
+              "why": "Hard edges, no shading to lose. Use a transparent or plain white background",
+              "kind": "Black and white silhouette, PNG",
+              "verdict": "Very good"
+            },
+            {
+              "why": "Works if the strokes are thick. Thin outlines vanish",
+              "kind": "Simple logo or icon, PNG",
+              "verdict": "Good"
+            },
+            {
+              "why": "Everything recognizable in a photo is shading, and shading is what the laser cannot do",
+              "kind": "Photograph",
+              "verdict": "Avoid"
+            },
+            {
+              "why": "Comes out as blotches with a hard edge where the machine picked a side",
+              "kind": "Gradient or soft shadow",
+              "verdict": "Avoid"
+            },
+            {
+              "why": "Small text turns into a solid dark bar. Use the text tool instead",
+              "kind": "Screenshot with text",
+              "verdict": "Avoid"
+            }
+          ],
+          "type": "dataTable",
+          "title": "What to bring",
+          "columns": [
+            {
+              "key": "kind",
+              "label": "Image type"
+            },
+            {
+              "key": "verdict",
+              "label": "Verdict"
+            },
+            {
+              "key": "why",
+              "label": "Why"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "What you are allowed to put on it",
+          "content": "School appropriate, and yours to use. No copyrighted characters, no team or company logos you do not own, nothing you would not hand to the Dean. You are taking this tag home and wearing it.",
+          "variant": "required"
+        }
+      ]
+    }
+  ],
+  "navigation": "tabs",
+  "schemaVersion": 2
+}
