@@ -53,6 +53,21 @@ import ItemBody from '$lib/classroom/ItemBody.svelte';
 import { itemBodyDoc, type ItemDoc } from '$lib/classroom/classroom-doc';
 import { normalizeItemDoc, itemBodyColumns } from '$lib/server/classroom-doc';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import {
+	canHold,
+	editorDoc,
+	itemSchema,
+	pmBold,
+	pmBullets,
+	pmDoc,
+	pmHeading,
+	pmItalic,
+	pmItem,
+	pmLink,
+	pmNumbers,
+	pmPara,
+	pmText
+} from './rich-text-fixtures';
 
 const CHAIN = [
 	'0001_profiles.sql',
@@ -73,50 +88,67 @@ const CHAIN = [
 //
 // Every construct the feature supports, in one body: a heading, a nested
 // heading, bold, italic, a link, a bulleted list, a numbered list, and a list
-// nested inside a list. Written out as ProseMirror JSON by hand rather than
-// captured from a fixture file, so what goes in is visibly the shape Tiptap's
-// `getJSON()` produces and not a shape that happens to suit the assertions.
+// nested inside a list.
+//
+// BUILT THROUGH THE REAL SCHEMA, never typed out. `editorDoc` runs the JSON
+// through `@tiptap/core`'s own `getSchema` over the SAME options object
+// `RichTextEditor.svelte` configures StarterKit with, `check()`s the result and
+// hands back ProseMirror's OWN serialization of it. So what goes in here is a
+// document the composer could genuinely have held, not a shape that happens to
+// suit the assertions below. The version this replaces wrote the nested list as
+// a SIBLING of its list items -- a document ProseMirror cannot hold at all --
+// and every assertion in this file was made against it.
 // ---------------------------------------------------------------------------
-const text = (t: string, marks?: unknown[]) => ({ type: 'text', text: t, ...(marks ? { marks } : {}) });
-const para = (...content: unknown[]) => ({ type: 'paragraph', content });
-const listItem = (...content: unknown[]) => ({ type: 'listItem', content });
-
-const EDITOR_DOC = {
-	type: 'doc',
-	content: [
-		{ type: 'heading', attrs: { level: 3 }, content: [text('Before you start')] },
-		para(
-			text('Read the '),
-			text('whole', [{ type: 'bold' }]),
-			text(' brief, '),
-			text('carefully', [{ type: 'italic' }]),
-			text(', and check '),
-			text('the tolerance table', [
-				{ type: 'link', attrs: { href: 'https://example.com/tolerances' } }
-			]),
-			text('.')
+const EDITOR_DOC = editorDoc(
+	itemSchema,
+	pmDoc(
+		pmHeading(3, pmText('Before you start')),
+		pmPara(
+			pmText('Read the '),
+			pmText('whole', [pmBold]),
+			pmText(' brief, '),
+			pmText('carefully', [pmItalic]),
+			pmText(', and check '),
+			pmText('the tolerance table', [pmLink('https://example.com/tolerances')]),
+			pmText('.')
 		),
-		{ type: 'heading', attrs: { level: 4 }, content: [text('Bring')] },
-		{
-			type: 'bulletList',
-			content: [
-				listItem(para(text('A ruler'))),
-				listItem(para(text('Graph paper'))),
-				// A list nested inside a list. The documented rule is that it
-				// flattens into MORE ITEMS OF ITS PARENT -- indentation is out of
-				// scope, and losing a level reads better than losing the text.
-				{ type: 'bulletList', content: [listItem(para(text('Sharp pencil')))] }
-			]
-		},
-		{
-			type: 'orderedList',
-			content: [
-				listItem(para(text('Measure '), text('twice', [{ type: 'bold' }]))),
-				listItem(para(text('Cut once')))
-			]
-		}
-	]
-};
+		pmHeading(4, pmText('Bring')),
+		pmBullets(
+			pmItem(pmPara(pmText('A ruler'))),
+			// WHERE A NESTED LIST REALLY LIVES: inside the list item above it, as
+			// a second block of that item (`listItem` is `paragraph block*`). The
+			// documented rule is that it flattens into MORE ITEMS OF ITS PARENT --
+			// indentation is out of scope for the stored shape, and losing a level
+			// reads better than losing the text.
+			pmItem(pmPara(pmText('Graph paper')), pmBullets(pmItem(pmPara(pmText('Sharp pencil')))))
+		),
+		pmNumbers(
+			pmItem(pmPara(pmText('Measure '), pmText('twice', [pmBold]))),
+			pmItem(pmPara(pmText('Cut once')))
+		)
+	)
+);
+
+// The guard on the fixture itself. The shape this file used to feed the whole
+// chain is not something the item-body schema can hold, so nothing can quietly
+// go back to asserting against it, and the round trip below cannot again be a
+// round trip over a document no editor emits.
+describe('the fixture is a document the composer could have produced', () => {
+	it('cannot hold a list as a SIBLING of the list items above it', () => {
+		const siblingList = pmDoc(
+			pmBullets(pmItem(pmPara(pmText('Graph paper'))), pmBullets(pmItem(pmPara(pmText('Sharp pencil')))))
+		);
+		expect(canHold(itemSchema, siblingList)).toBe(false);
+		// POSITIVE CONTROL: the same two bullets, nested where they really live,
+		// which is what EDITOR_DOC above is built from.
+		const realNesting = pmDoc(
+			pmBullets(
+				pmItem(pmPara(pmText('Graph paper')), pmBullets(pmItem(pmPara(pmText('Sharp pencil')))))
+			)
+		);
+		expect(canHold(itemSchema, realNesting)).toBe(true);
+	});
+});
 
 /** What the whole chain should agree the stored document is. */
 const EXPECTED_DOC: ItemDoc = [
@@ -236,7 +268,10 @@ describe('the item body, editor JSON to rendered markup', () => {
 			expect([...ul![1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => m[1].trim())).toEqual([
 				'A ruler',
 				'Graph paper',
-				// The nested list, flattened into its parent as documented.
+				// The sublist that hangs off 'Graph paper', flattened into a THIRD
+				// item of the same list. Every bullet the teacher wrote survives as
+				// its own line; only the indentation is gone, which is what the
+				// stored shape cannot express yet.
 				'Sharp pencil'
 			]);
 		});

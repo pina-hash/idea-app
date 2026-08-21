@@ -56,11 +56,18 @@ export type NormalizeItemDocResult = { ok: true; doc: ItemDoc } | { ok: false; e
  * A heading's stored level.
  *
  * CLAMPED, never refused: the surfaces that render a body own h1 (the item's
- * title) and h2 (the section label), so a body's headings start at h3. A paste
- * carrying an h1 becomes an h3 -- still the most prominent thing in the body,
- * still subordinate to the title of the thing it is inside. Clamping is also
- * what guarantees no heading can leak through as a paragraph and lose its
- * emphasis, or arrive as literal markup.
+ * title) and h2 (the section label), so a body's headings start at h3. An h1
+ * becomes an h3 -- still the most prominent thing in the body, still
+ * subordinate to the title of the thing it is inside. Clamping is also what
+ * guarantees no heading can leak through as a paragraph and lose its emphasis,
+ * or arrive as literal markup.
+ *
+ * A PASTE IS NOT WHAT THIS CATCHES. `RichTextEditor.svelte` rewrites h1/h2 and
+ * h5/h6 in `transformPastedHTML`, and the schema it configures allows only
+ * levels 3 and 4, so composer output never carries a level to clamp. What
+ * reaches here with one is a hand-rolled POST to /api/classroom/item, or a
+ * direct PostgREST call on the RPC behind it -- which is why this is a gate and
+ * not a duplicate of the editor's rule.
  */
 function headingType(node: TiptapNode): 'h3' | 'h4' {
 	const raw = node.attrs?.level;

@@ -329,7 +329,28 @@ describe('a paste keeps its structure instead of flattening', () => {
 		expect(docText(d)).toContain('Right');
 	});
 
-	it('clamps every heading level into the two a body may use', () => {
+	// THE HEADING CLAMP, ON THE PATH IT ACTUALLY GUARDS -- deliberately fed
+	// input the editor cannot emit, the notebook route test's convention
+	// (tests/notebook-note-route.test.ts, 'stores only the closed shape,
+	// whatever the body carried').
+	//
+	// A PASTE CANNOT REACH THIS. `RichTextEditor.svelte`'s `transformPastedHTML`
+	// rewrites h1/h2 to h3 and h5/h6 to h4 before ProseMirror parses, and the
+	// item schema is configured `heading: { levels: [3, 4] }` on top of that, so
+	// nothing coming out of the composer carries a level this has to clamp. The
+	// observed capture at the bottom of this file is where that is pinned, and
+	// it is what makes this test's input editor-impossible rather than merely
+	// unusual.
+	//
+	// WHAT DOES REACH IT is a hand-rolled POST to /api/classroom/item, which
+	// hands `normalizeItemDoc` arbitrary JSON with no editor anywhere in front
+	// of it -- and the RPC behind that route is granted to `authenticated` and
+	// reachable straight through PostgREST as well. So the clamp is a live gate
+	// on untrusted input, not a second copy of a rule the editor already
+	// applied. Levels 1, 2 and 6 below are shapes only that caller can produce;
+	// 3 and 4 are the positive control that this clamps rather than flattening
+	// every heading to one level.
+	it('clamps any heading level a caller sends into the two a body may use', () => {
 		const d = ok(
 			doc(
 				heading(1, text('Was h1')),
@@ -340,8 +361,10 @@ describe('a paste keeps its structure instead of flattening', () => {
 			)
 		);
 		// h1 and h2 belong to the page around the body (the item's title and the
-		// section label), so a pasted h1 becomes the most prominent thing a BODY
-		// can be, not something competing with the title above it.
+		// section label), so an h1 arriving from anywhere becomes the most
+		// prominent thing a BODY can be, not something competing with the title
+		// above it. Nothing is refused and nothing is demoted to a paragraph:
+		// every heading stays a heading, and every word survives.
 		expect(types(d)).toEqual(['h3', 'h3', 'h3', 'h4', 'h4']);
 		expect(docText(d).split('\n')).toEqual(['Was h1', 'Was h2', 'Was h3', 'Was h4', 'Was h6']);
 	});

@@ -22,6 +22,7 @@ import { isTypingTarget, keyAction, type KeyBinding } from '../src/lib/shell/key
 import {
 	levelShort,
 	rubricFromSpec,
+	validateSpec,
 	type AssignmentSpec,
 	type RubricCriterion
 } from '../src/lib/classroom/assignment-spec';
@@ -312,9 +313,29 @@ describe('the console owns its keys, and prints the ones it owns', () => {
 // 3. The short form, and the order it resolves in.
 // ---------------------------------------------------------------------------
 
+// A REAL spec, not a shape hand-trimmed to what the two functions below happen
+// to read. It carries `schemaVersion` and `meta` because the authoring path and
+// `_classroom_check_spec` (0095) both refuse a spec without them, and its
+// module points sum to meta.totalPoints for the same reason -- so a fixture
+// here cannot drift into a document no teacher could ever have imported. The
+// `as unknown as AssignmentSpec` this replaces was hiding exactly that: an
+// object missing both fields, carrying a `version` key no version of the format
+// has ever had.
+//
+// CHECKED AGAINST THE SQL BOUNDARY, not only against the type: this exact
+// object was run through `public._classroom_check_spec` on a real embedded
+// Postgres with the 0086/0092/0095 chain applied and was accepted, and the
+// shape it replaces was refused there. That was a throwaway file (this one has
+// no database and should not grow one); the runnable half of the guard is the
+// `validateSpec` check below, which is the friendly mirror of that function.
 const SPEC: AssignmentSpec = {
-	version: '1.1',
-	title: 'Sketch',
+	schemaVersion: 1,
+	meta: {
+		assignmentId: 'IDEA209H-sketch',
+		title: 'Sketch',
+		// The gate the module points below have to add up to.
+		totalPoints: 8
+	},
 	modules: [
 		{
 			id: 'm1',
@@ -351,9 +372,25 @@ const SPEC: AssignmentSpec = {
 			]
 		}
 	]
-} as unknown as AssignmentSpec;
+};
 
 describe('a level shows a line, and the line comes from one place', () => {
+	// The guard on the fixture itself, and the reason the cast could go. Nothing
+	// below asserts anything about validation; this is here so SPEC cannot quietly
+	// become a document the importer would reject, the way its predecessor was.
+	// `validateSpec` is the friendly half of the pair whose boundary is
+	// `_classroom_check_spec`; the two are required to agree.
+	it('is a spec the importer would actually accept', () => {
+		const { spec, errors } = validateSpec(SPEC);
+		expect(errors).toEqual([]);
+		expect(spec).not.toBeNull();
+		// Positive control on the check: the shape this fixture used to have --
+		// no schemaVersion, no meta -- is refused, so an empty `errors` above
+		// means the validator ran rather than that it has nothing to say.
+		const { modules } = SPEC;
+		expect(validateSpec({ modules }).errors.length).toBeGreaterThan(0);
+	});
+
 	it('rubricFromSpec CARRIES the authored short form through', () => {
 		const rubric = rubricFromSpec(SPEC);
 		expect(rubric.length).toBe(2);
