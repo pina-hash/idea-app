@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "Grading in your class looks different, and it is only what your teacher sees",
+			"body": "Your teacher marks your work on a screen that shows the class list, what you handed in and the marking scale all at once. That screen was cramped, so the wording of each mark on the scale was squeezed into a narrow strip and a teacher had to scroll away from your work to score it. It now uses the whole window: the class list, your work and the scale sit side by side and each one scrolls on its own. Each level of the scale shows a short line, with the full wording of the standard right there on the level, so nothing about what earns a mark has been shortened or dropped. Your teacher can also work through a class from the keyboard now, and they get a warning before leaving a student whose marks they have not saved, so a score entered for you is far less likely to be lost. Nothing about what you hand in, how you hand it in, or how anything is scored has changed.",
+			"tags": ["Grading"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "Your instructor can mark a notebook entry reviewed",
 			"body": "Until now the only thing an instructor could record on a notebook entry was a flag, so there was no way to tell an entry they had read and approved from one nobody had opened yet. They can now mark an entry as reviewed. It does not change your grade and it does not change what the entry says: it only records that somebody has looked at it. One thing does change for you. While an entry is marked reviewed you can no longer delete it yourself, and you can no longer pull it back to a draft, because it is part of a record your instructor is keeping. If you need it changed after that, ask them. They can undo the mark, and then it is yours to edit again. The class review screen and your own notebook also update on their own now, so work you turn in shows up for your instructor without either of you reloading the page.",
 			"tags": ["Notebook"]

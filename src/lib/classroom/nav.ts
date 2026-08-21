@@ -136,7 +136,7 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
  * widens `--cr-measure` to `--measure-split` when a split is actually on
  * screen. See the `.cr-split` rules there.
  */
-export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide';
+export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide' | 'console';
 
 export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | null {
 	switch (loc.place) {
@@ -147,8 +147,18 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 			return 'form';
 		case 'admin':
 			return 'panel';
+		/**
+		 * A CONSOLE, not a column. Grading is three regions worked side by
+		 * side -- the roster, the student's response, the rubric -- and it used
+		 * to take `wide` (62rem), which at 1440px left the rubric column 228px
+		 * of content: a level's descriptor wrapped to five lines and the
+		 * decision it exists to inform was made against a sliver. `console` is
+		 * the window less the room's gutter, which is what an application
+		 * surface takes. classroom.css is what resolves it past the split's own
+		 * override; see the `.cr-console` rule there.
+		 */
 		case 'item-grade':
-			return 'wide';
+			return 'console';
 		/**
 		 * NULL, not a width. `view-as` is one place covering two genuinely
 		 * different pages -- the 46rem student picker and a full 60rem class page

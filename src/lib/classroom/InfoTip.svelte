@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { anchored } from '$lib/shell/anchored';
 
 	/**
 	 * A small accessible tooltip: the wrapped content plus a quiet info glyph,
@@ -13,6 +14,20 @@
 	 * where there is no hover to trigger it. This fixes both at once, in one
 	 * place, rather than once per call site.
 	 *
+	 * IT ESCAPES ITS SCROLL CONTAINER, which it did not used to. The panel was
+	 * `position: absolute` inside a `position: relative` wrapper, so it was
+	 * clipped by the nearest ancestor that clips -- and on the grading console
+	 * there are TWO stacked in one chain (the response table's `.table-scroll`,
+	 * whose `overflow-x: auto` forces `overflow-y` to `auto`, and the work
+	 * column's own `overflow-y: auto`). The panel opens above a `<th>` sitting
+	 * on the top edge of the inner one, so it was clipped to nothing. It is
+	 * positioned against the VIEWPORT now, by `$lib/shell/anchored`, which flips
+	 * it in both axes near an edge.
+	 *
+	 * The panel element STAYS IN THIS COMPONENT'S MARKUP (the action writes two
+	 * coordinates rather than portalling the node), which is what keeps the
+	 * print rules below working on it.
+	 *
 	 * NO `{@html}`, no sanitizer to get wrong: `tip` is plain text, rendered as
 	 * one text node.
 	 */
@@ -20,6 +35,29 @@
 
 	const tipId = $props.id();
 	const hasTip = $derived(!!tip?.trim());
+
+	let triggerEl = $state<HTMLButtonElement | null>(null);
+	let hovered = $state(false);
+	let focused = $state(false);
+	/**
+	 * ESCAPE CLOSED IT WHILE THE TRIGGER STILL HOLDS FOCUS. Without this the
+	 * panel is glued open for as long as focus stays put, and Escape does
+	 * nothing -- which on a surface with keyboard shortcuts is the one key
+	 * somebody will press to get rid of it.
+	 */
+	let dismissed = $state(false);
+	const shown = $derived((hovered || focused) && !dismissed);
+
+	function onKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Escape' || !shown) return;
+		// Stopped here so the surface's own Escape (back to the roster) does not
+		// also fire: the visible panel is what the press was aimed at.
+		event.stopPropagation();
+		dismissed = true;
+		// Focus RETURNED, which for this control means kept: the trigger is where
+		// the person already was, and moving them anywhere else would be worse.
+		triggerEl?.focus();
+	}
 </script>
 
 {#if hasTip}
@@ -29,11 +67,36 @@
 		     button is keyboard-focusable (and reachable by touch) with no extra
 		     attribute at all. It does nothing on click -- the tooltip is a
 		     hover/focus affordance -- so it is reset to look like plain text. -->
-		<button type="button" class="info-tip-trigger" aria-describedby={tipId}>
+		<button
+			type="button"
+			class="info-tip-trigger"
+			aria-describedby={tipId}
+			bind:this={triggerEl}
+			onpointerenter={() => (hovered = true)}
+			onpointerleave={() => {
+				hovered = false;
+				dismissed = false;
+			}}
+			onfocus={() => {
+				focused = true;
+				dismissed = false;
+			}}
+			onblur={() => {
+				focused = false;
+				dismissed = false;
+			}}
+			onkeydown={onKeydown}
+		>
 			{@render children?.()}
 			<span class="info-tip-icon" aria-hidden="true">i</span>
 		</button>
-		<span class="info-tip-panel" role="tooltip" id={tipId}>{tip}</span>
+		<span
+			class="info-tip-panel"
+			class:shown
+			role="tooltip"
+			id={tipId}
+			use:anchored={{ anchor: triggerEl, open: shown, prefer: 'above' }}>{tip}</span
+		>
 	</span>
 {:else}
 	{@render children?.()}
@@ -41,7 +104,6 @@
 
 <style>
 	.info-tip {
-		position: relative;
 		display: inline-flex;
 	}
 	.info-tip-trigger {
@@ -77,14 +139,15 @@
 		opacity: 0.7;
 	}
 
-	/* Hidden by default and revealed on hover ANYWHERE in the wrapper (so
-	   moving the cursor onto the panel itself, e.g. to select the text, keeps
-	   it open) or when the trigger holds keyboard focus. */
+	/* Hidden by default and revealed while the trigger is hovered or holds
+	   keyboard focus. `position: fixed` is what escapes a scrolling ancestor's
+	   clip; $lib/shell/anchored supplies the two coordinates and flips the panel
+	   near a viewport edge. */
 	.info-tip-panel {
-		position: absolute;
+		position: fixed;
 		left: 0;
-		bottom: calc(100% + 0.35rem);
-		z-index: 20;
+		top: 0;
+		z-index: 60;
 		min-width: 12rem;
 		max-width: 20rem;
 		padding: 0.4rem 0.6rem;
@@ -103,10 +166,13 @@
 		opacity: 0;
 		visibility: hidden;
 		pointer-events: none;
-		transition: opacity 0.12s ease;
 	}
-	.info-tip:hover .info-tip-panel,
-	.info-tip:focus-within .info-tip-panel {
+	@media (prefers-reduced-motion: no-preference) {
+		.info-tip-panel {
+			transition: opacity 0.12s ease;
+		}
+	}
+	.info-tip-panel.shown {
 		opacity: 1;
 		visibility: visible;
 	}
@@ -120,9 +186,13 @@
 		}
 		/* No hover on paper, so the note has to just BE there -- static, in flow,
 		   always visible, rather than a floating panel that only ever appears on
-		   interaction. */
+		   interaction. `!important` on the three positioning properties because
+		   the anchor action writes them INLINE, and an inline declaration beats
+		   a stylesheet one. */
 		.info-tip-panel {
-			position: static;
+			position: static !important;
+			left: auto !important;
+			top: auto !important;
 			display: block;
 			max-width: none;
 			margin-top: 0.15rem;

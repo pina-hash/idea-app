@@ -197,6 +197,27 @@ body:has(.cr-root) {
 	font-size: 0.65rem;
 	padding: 0.28rem 0.6rem;
 }
+
+/* THE CONSOLE'S CONTROLS ARE WORKED, NOT READ PAST.
+
+   `.btn.tiny` measures 21px tall, which is right for the chip-sized action
+   sitting beside a heading on a page somebody is reading. On the grading
+   console the SAME class carries Save draft, Return to student, Approve and
+   Close -- the surface's primary actions, used a hundred times an hour and
+   often on a laptop trackpad. 44px is the standard tap target; the block
+   padding is what carries it, so the type and the horizontal rhythm are
+   untouched and no other surface's chip changes size.
+
+   Scoped to `.cr-console` (the grading page's own class) rather than applied to
+   `.btn.tiny` everywhere: ten other call sites want the chip. */
+.cr-root .cr-console .btn,
+.cr-root .cr-console .btn.tiny,
+.cr-root .cr-console .btn.secondary.tiny {
+	min-height: 44px;
+	padding-block: var(--space-2);
+	display: inline-flex;
+	align-items: center;
+}
 .cr-root .btn.danger,
 .cr-root .btn.tiny.danger {
 	color: var(--crimson);

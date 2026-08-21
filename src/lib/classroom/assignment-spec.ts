@@ -112,6 +112,12 @@ export interface SpecRubricLevel {
 	points: number;
 	label: string;
 	descriptor: string;
+	/**
+	 * The descriptor in a line, for a control that has to show every level at
+	 * once. Optional: a level authored before this existed has only the
+	 * descriptor, and `levelShort` falls back to it.
+	 */
+	short?: string;
 }
 
 export interface SpecRubricRow {
@@ -249,6 +255,15 @@ export interface RubricLevel {
 	points: number;
 	label: string;
 	descriptor?: string;
+	/**
+	 * The one-line form the grading console's level control shows. Carried
+	 * through from the spec by `rubricFromSpec` and stored verbatim (the
+	 * normalizer passes `levels` through untouched), but almost every level
+	 * already in a row predates it -- so nothing may depend on its presence.
+	 * `levelShort` is the ONE resolver; there is no backfill and no second
+	 * write path.
+	 */
+	short?: string;
 }
 
 export interface RubricCriterion {
@@ -800,7 +815,12 @@ export function rubricFromSpec(
 			const levels = (row.levels ?? []).map((l) => ({
 				points: Number(l.points),
 				label: l.label,
-				descriptor: l.descriptor
+				descriptor: l.descriptor,
+				// The authored short form, kept rather than dropped. This map was the
+				// ONE place it was being lost: the specs carry it, the SQL normalizer
+				// passes `levels` through verbatim, and the grading console has
+				// nowhere else to read it from.
+				...(l.short?.trim() ? { short: l.short } : {})
 			}));
 			criteria.push({
 				id,
@@ -812,6 +832,42 @@ export function rubricFromSpec(
 		});
 	}
 	return criteria;
+}
+
+/**
+ * A LEVEL'S ONE-LINE FORM, resolved in one place for every caller.
+ *
+ * THREE SOURCES, in this order, and the order is the whole rule:
+ *   1. the STORED level's own `short`, which is what a rubric saved since this
+ *      existed carries;
+ *   2. the matching SPEC level, paired by criterion id (rubricFromSpec's own id
+ *      rule, so a rubric generated from this spec lines up) and then by points
+ *      inside that criterion -- points are strictly descending, so at most one
+ *      level can match, and matching on them rather than on position survives a
+ *      criterion whose levels were reordered or trimmed in the builder;
+ *   3. the full descriptor, which is what every level authored before this
+ *      field existed has and is never wrong, only long.
+ *
+ * IT IS A READ, NOT A MIGRATION. Nothing here writes anything back: a spec's
+ * short forms reach a stored rubric only when somebody regenerates it, and
+ * until then this is what puts them on screen.
+ */
+export function levelShort(
+	level: RubricLevel | null | undefined,
+	criterionId: string,
+	spec: AssignmentSpec | null | undefined
+): string {
+	if (!level) return '';
+	const own = level.short?.trim();
+	if (own) return own;
+	if (spec) {
+		const match = rubricFromSpec(spec)
+			.find((c) => c.id === criterionId)
+			?.levels?.find((l) => Number(l.points) === Number(level.points));
+		const fromSpec = match?.short?.trim();
+		if (fromSpec) return fromSpec;
+	}
+	return level.descriptor?.trim() ?? '';
 }
 
 export function rubricTotal(criteria: RubricCriterion[]): number {

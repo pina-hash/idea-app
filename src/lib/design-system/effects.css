@@ -46,6 +46,14 @@
 	--measure-page: 60rem; /* the standard listing page, and the default */
 	--measure-wide: 62rem; /* the widest single column: a dense work surface */
 	--measure-split: 92rem; /* both panes of a two-pane master-detail shell */
+	/* A CONSOLE IS NOT A READING SURFACE, so it has no reading width. The
+	   grading console is three regions worked side by side -- roster, response
+	   and rubric -- and every rem it is denied comes off the rubric column,
+	   which is the narrowest of the three: at `--measure-wide` it held 228px of
+	   content in a 1440px window. It takes the WINDOW instead, less the room's
+	   own gutter, which the page's padding already supplies -- so this is the
+	   one measure that is a percentage rather than a length. */
+	--measure-console: 100%; /* an application surface: the window, less the gutter */
 	/* THE NAVIGATION PANE of that shell, while a detail is open beside it.
 	   A measure like the others: the list is a column of two-line rows, and
 	   this is how wide that column is. It is a token rather than a literal

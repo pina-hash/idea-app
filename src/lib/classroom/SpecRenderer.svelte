@@ -497,6 +497,18 @@
 		color: var(--green);
 		border-color: var(--line-strong);
 	}
+	/* PROSE KEEPS ITS MEASURE WHEREVER THE SPEC IS RENDERED. Every surface that
+	   mounted this used to be a reading column narrower than the measure, so
+	   nothing needed saying. The grading console is an application surface that
+	   takes the window, and its response pane measured a 1035px line at 2560px --
+	   about 65rem, half again past the reading measure. The cap belongs on the
+	   prose, not on the console: bounding the console instead would take the room
+	   back off the rubric, which is the whole reason it is wide. */
+	.module-intro,
+	.readonly-text,
+	.prompt {
+		max-width: var(--measure-reading);
+	}
 	.module-intro {
 		margin: 0 0 0.6rem;
 		color: var(--text-2);

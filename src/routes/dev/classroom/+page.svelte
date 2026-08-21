@@ -19,7 +19,13 @@
 		registerLocalAttachmentUrl,
 		studentWorkMap
 	} from '$lib/classroom/classroom';
-	import { activeTab, classroomCrumbs, locateClassroom, sectionTabs } from '$lib/classroom/nav';
+	import {
+		activeTab,
+		classroomCrumbs,
+		classroomMeasure,
+		locateClassroom,
+		sectionTabs
+	} from '$lib/classroom/nav';
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
@@ -134,10 +140,51 @@
 	const unitsFor = (courseId: string | undefined) =>
 		units.filter((u) => u.course_id === courseId);
 
+	/**
+	 * A REAL CLASS SIZE, not three names. The grading console's roster is its own
+	 * scroll region above 1024px, and "a long roster does not grow the page" is
+	 * not something a three-row list can show either way: with three rows nothing
+	 * overflows and the assertion passes vacuously. Twenty-four is a period at
+	 * this school.
+	 *
+	 * The first three keep their exact identities (Ben is still the inactive one)
+	 * because the other views in this harness -- People, the class stream, view-as
+	 * -- were built against them.
+	 */
+	const FILLER_NAMES = [
+		'Dana Whitfield',
+		'Elias Moreno-Vasquez',
+		'Fiona Achebe',
+		'Grant Petrossian',
+		'Hana Yamaguchi',
+		'Ibrahim Al-Rashid',
+		'Jules Bergstrom',
+		'Kiara Nwosu',
+		'Liam O’Donnell',
+		'Maya Krishnamurthy',
+		'Noah Fitzgerald',
+		'Odalys Restrepo',
+		'Priya Venkatesan',
+		'Quentin Ashworth',
+		'Rosa Delacroix',
+		'Samuel Oyelaran',
+		'Tessa Lindqvist',
+		'Umar Chaudhry',
+		'Vera Kaminski',
+		'Wesley Thornbury',
+		'Ximena Ferreira'
+	];
+
 	let enrollments = $state<ClassroomEnrollment[]>([
 		{ section_id: 's-1', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true },
 		{ section_id: 's-1', student_email: 'ben@boscotech.net', display_name: 'Ben Okafor', active: false },
 		{ section_id: 's-1', student_email: 'carla@boscotech.net', display_name: 'Carla Cardenas', active: true },
+		...FILLER_NAMES.map((name, i) => ({
+			section_id: 's-1',
+			student_email: `${name.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '')}${i}@boscotech.net`,
+			display_name: name,
+			active: true
+		})),
 		{ section_id: 's-2', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true }
 	]);
 
@@ -974,11 +1021,14 @@
 					{
 						id: 'views',
 						criterion: 'All three views complete and labeled',
+						// SHORT FORMS AUTHORED, and carried all the way through to the
+						// grading console's level control by rubricFromSpec. This is the
+						// FIRST resolution branch: the stored level has its own.
 						levels: [
-							{ points: 5, label: 'Complete', descriptor: 'All three views drawn to scale with every member labeled.' },
-							{ points: 3, label: 'Proficient', descriptor: 'All three views drawn; two or three members unlabeled.' },
-							{ points: 1, label: 'Developing', descriptor: 'One or two views drawn, or labeling largely missing.' },
-							{ points: 0, label: 'Absent', descriptor: 'No views drawn, or not attempted.' }
+							{ points: 5, label: 'Complete', short: 'Three views, all labeled', descriptor: 'All three views drawn to scale with every member labeled.' },
+							{ points: 3, label: 'Proficient', short: 'Three views, some labels missing', descriptor: 'All three views drawn; two or three members unlabeled.' },
+							{ points: 1, label: 'Developing', short: 'Views missing or unlabeled', descriptor: 'One or two views drawn, or labeling largely missing.' },
+							{ points: 0, label: 'Absent', short: 'Nothing drawn', descriptor: 'No views drawn, or not attempted.' }
 						]
 					},
 					{
@@ -1004,11 +1054,15 @@
 					{
 						id: 'photos',
 						criterion: 'Photos legible and captioned',
+						// Also authored -- but the STORED rubric below has this criterion's
+						// shorts stripped, which is what a row saved before the field
+						// existed looks like. That is the SECOND resolution branch: the
+						// console reads them back off the spec.
 						levels: [
-							{ points: 6, label: 'Complete', descriptor: 'Both photos in focus, whole sketch in frame, both captioned.' },
-							{ points: 4, label: 'Proficient', descriptor: 'Both photos usable; one caption missing or unclear.' },
-							{ points: 2, label: 'Developing', descriptor: 'One usable photo, or captions missing entirely.' },
-							{ points: 0, label: 'Absent', descriptor: 'No photos attached.' }
+							{ points: 6, label: 'Complete', short: 'Both sharp, both captioned', descriptor: 'Both photos in focus, whole sketch in frame, both captioned.' },
+							{ points: 4, label: 'Proficient', short: 'Usable, a caption missing', descriptor: 'Both photos usable; one caption missing or unclear.' },
+							{ points: 2, label: 'Developing', short: 'One photo, or no captions', descriptor: 'One usable photo, or captions missing entirely.' },
+							{ points: 0, label: 'Absent', short: 'No photos', descriptor: 'No photos attached.' }
 						]
 					}
 				]
@@ -1048,15 +1102,32 @@
 	// flat-to-leveled migration produces: its old descriptor as the top level and
 	// nothing beneath it, flagged incomplete. That is the one shape the builder,
 	// the grading console and the student rubric all have to render honestly.
-	const SEED_RUBRIC: RubricCriterion[] = rubricFromSpec(SEED_SPEC).map((c, i, all) =>
-		i === all.length - 1
-			? {
-					...c,
-					levels: [{ points: c.points, label: 'Full credit', descriptor: 'Failure prediction is reasoned.' }],
-					incomplete: true
-				}
-			: c
-	);
+	//
+	// THE THREE SHORT-FORM STATES ARE ALL ON THIS ONE FIXTURE, on purpose:
+	//   * m1-views keeps the shorts rubricFromSpec carried in (branch 1);
+	//   * m2-photos has them STRIPPED, the shape of every rubric row stored
+	//     before the field existed, so the console has to find them on the spec
+	//     (branch 2);
+	//   * m1-reflection and m3-failure were never authored with one anywhere, so
+	//     the control falls back to the full descriptor (branch 3).
+	// A harness showing only one of the three would leave the other two
+	// unexercised, and branch 2 is the one nothing else can reach.
+	const SEED_RUBRIC: RubricCriterion[] = rubricFromSpec(SEED_SPEC).map((c, i, all) => {
+		if (i === all.length - 1) {
+			return {
+				...c,
+				levels: [{ points: c.points, label: 'Full credit', descriptor: 'Failure prediction is reasoned.' }],
+				incomplete: true
+			};
+		}
+		if (c.id === 'm2-photos') {
+			return {
+				...c,
+				levels: (c.levels ?? []).map(({ short: _short, ...rest }) => rest)
+			};
+		}
+		return c;
+	});
 	let engineRubric = $state<RubricCriterion[] | null>(SEED_RUBRIC);
 	/**
 	 * Seeded so the class view shows a student ALL FOUR of their own states at
@@ -1697,6 +1768,21 @@
 
 	const emptySection = $derived(withCourse({ ...section2, id: 's-empty' }));
 
+	/**
+	 * The route's own answer, through the REAL function. `item-grade` is the
+	 * grading console's place; everything else in this harness renders under the
+	 * ordinary page measure, which is what `other` gives (null, and every
+	 * component keeps its own fallback -- exactly what the real shell does on an
+	 * unrecognized path).
+	 */
+	const harnessMeasure = $derived(
+		classroomMeasure({
+			place: view === 'grade' ? 'item-grade' : 'other',
+			sectionId: 's-1',
+			itemId: 'i-1'
+		})
+	);
+
 	// --- Notebook check-ins in the class stream (0098) ---------------------
 	//
 	// What the class page load hands ClassPage. The session ids match the
@@ -1983,7 +2069,17 @@
      scanline overlay behind them -- the surfaces they were deliberately moved
      OFF -- and a harness that renders in the wrong room is a harness nobody
      can trust for a visual check. -->
-<div class="cr-root">
+<!-- THE MEASURE AND THE APP FRAME EXACTLY WHERE THE REAL LAYOUT PUTS THEM (see
+     src/routes/classroom/+layout.svelte, which sets both from nav.ts's answer,
+     through the REAL classroomMeasure rather than a copy of its table). The
+     grading console's three-pane fill depends on a bounded parent it does not
+     own; a harness missing that half would render a page that scrolls and prove
+     nothing about the one that does not. -->
+<div
+	class="cr-root"
+	class:cr-app={harnessMeasure === 'console'}
+	style={harnessMeasure ? `--cr-measure-route: var(--measure-${harnessMeasure})` : undefined}
+>
 <div class="harness-bar">
 	<span class="harness-label">DEV // classroom</span>
 	{#each VIEWS as [id, label] (id)}

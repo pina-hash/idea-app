@@ -24,6 +24,7 @@
 import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
 import type { NotebookNoteRow } from '$lib/notebook-notes';
 import { formatSectionLabel } from '$lib/section-label';
+import { isTypingTarget, keyAction, type KeyBinding } from '$lib/shell/keys';
 
 // ---------------------------------------------------------------------------
 // 1. The shapes `notebook_get_section_grid` actually returns (0069, reshaped
@@ -398,12 +399,13 @@ export function nextUnreviewed(grid: SectionGrid, cursor: GridCursor): GridCurso
 /** Everything a key press can ask the console to do. */
 export type ReviewAction = CursorMove | 'accept' | 'flag' | 'pages' | 'close';
 
-export interface ReviewKeyHint {
-	/** What the legend prints in its <kbd>. */
-	keys: string;
-	label: string;
-	action: ReviewAction;
-}
+/**
+ * THE HINT SHAPE IS SHARED (`$lib/shell/keys`), the ACTIONS are the notebook's
+ * own. The grading console needs the same legend-is-the-dispatch-table
+ * arrangement over a completely different set of actions, so the generic half
+ * moved out and this is the notebook's instance of it.
+ */
+export type ReviewKeyHint = KeyBinding<ReviewAction>;
 
 /**
  * THE KEY LEGEND, and it is the SAME LIST the handler dispatches from.
@@ -413,12 +415,22 @@ export interface ReviewKeyHint {
  * The console renders this; `reviewAction` resolves against it.
  */
 export const REVIEW_KEYS: ReviewKeyHint[] = [
-	{ keys: '↑ ↓', label: 'Student', action: 'down' },
-	{ keys: '← →', label: 'Check-in', action: 'right' },
-	{ keys: 'A', label: 'Accept, next', action: 'accept' },
-	{ keys: 'F', label: 'Flag', action: 'flag' },
-	{ keys: 'Enter', label: 'Open pages', action: 'pages' },
-	{ keys: 'Esc', label: 'Close', action: 'close' }
+	{
+		keys: '↑ ↓',
+		label: 'Student',
+		action: 'down',
+		dispatch: { ArrowUp: 'up', ArrowDown: 'down' }
+	},
+	{
+		keys: '← →',
+		label: 'Check-in',
+		action: 'right',
+		dispatch: { ArrowLeft: 'left', ArrowRight: 'right' }
+	},
+	{ keys: 'A', label: 'Accept, next', action: 'accept', dispatch: { a: 'accept' } },
+	{ keys: 'F', label: 'Flag', action: 'flag', dispatch: { f: 'flag' } },
+	{ keys: 'Enter', label: 'Open pages', action: 'pages', dispatch: { Enter: 'pages' } },
+	{ keys: 'Esc', label: 'Close', action: 'close', dispatch: { Escape: 'close' } }
 ];
 
 /**
@@ -435,45 +447,16 @@ export function reviewAction(event: {
 	metaKey?: boolean;
 	altKey?: boolean;
 }): ReviewAction | null {
-	if (event.ctrlKey || event.metaKey || event.altKey) return null;
-	switch (event.key) {
-		case 'ArrowUp':
-			return 'up';
-		case 'ArrowDown':
-			return 'down';
-		case 'ArrowLeft':
-			return 'left';
-		case 'ArrowRight':
-			return 'right';
-		case 'Enter':
-			return 'pages';
-		case 'Escape':
-			return 'close';
-		default:
-			break;
-	}
-	const lower = event.key.toLowerCase();
-	if (lower === 'a') return 'accept';
-	if (lower === 'f') return 'flag';
-	return null;
+	return keyAction(event, REVIEW_KEYS);
 }
 
 /**
- * IS THE PERSON TYPING? A single-letter shortcut over a screen that also has a
- * comment box is how "insufficient detail" becomes an accept halfway through
- * the word "flag".
- *
- * Pure, and takes the shape rather than the element, so the rule is testable
- * without a DOM: any form control, anything contenteditable.
+ * IS THE PERSON TYPING? RE-EXPORTED, not reimplemented: the rule is the same
+ * one the grading console needs and it lives in `$lib/shell/keys` now. The name
+ * stays reachable from here because every existing call site and its test
+ * import it from this module.
  */
-export function isTypingTarget(target: {
-	tagName?: string;
-	isContentEditable?: boolean;
-}): boolean {
-	if (target.isContentEditable) return true;
-	const tag = (target.tagName ?? '').toLowerCase();
-	return tag === 'input' || tag === 'textarea' || tag === 'select';
-}
+export { isTypingTarget };
 
 /**
  * `${student_key}|${session_id}` -> cell, for O(1) table lookup. Keyed on

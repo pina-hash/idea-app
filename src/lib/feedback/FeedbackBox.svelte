@@ -69,13 +69,19 @@
 		}
 		sending = true;
 		error = '';
-		const res = await submit({ app, context, kind, message, meta });
-		sending = false;
-		if (res.error) {
-			error = res.error;
-			return;
+		try {
+			const res = await submit({ app, context, kind, message, meta });
+			if (res.error) {
+				error = res.error;
+				return;
+			}
+			sent = true;
+		} finally {
+			// IN A `finally`: a `submit` that throws rather than resolving `{error}`
+			// otherwise left the box disabled for good, with the note still typed in
+			// it and no way to send it.
+			sending = false;
 		}
-		sent = true;
 	}
 
 	/** Reset back to an empty form so a player can send a second note without

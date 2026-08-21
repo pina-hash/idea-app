@@ -67,9 +67,29 @@
 	 * component falls back to its own measure, which is what it had before.
 	 */
 	const measure = $derived(classroomMeasure(loc));
+
+	/**
+	 * A CONSOLE IS THE VIEWPORT, and this is the only place that can say so.
+	 *
+	 * `.cr-app` (in $lib/shell/split.css) is the shell's application frame:
+	 * above 1024px the room is `100dvh` and does not scroll, the chrome above --
+	 * masthead, trail, tabs -- measures itself, and the page's own `.cr-app-body`
+	 * takes whatever is left. It has to go on THIS element because the chrome and
+	 * the page are siblings here; a component can only ever claim the second half
+	 * of that contract.
+	 *
+	 * Read off the same `classroomMeasure` answer as the width, rather than from
+	 * a second list of routes: a route is a full-height application exactly when
+	 * it asked for the console measure.
+	 */
+	const isConsole = $derived(measure === 'console');
 </script>
 
-<div class="cr-root" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
+<div
+	class="cr-root"
+	class:cr-app={isConsole}
+	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
+>
 	<ClassroomShell
 		sections={data.navSections ?? []}
 		currentSectionId={loc.sectionId}

@@ -165,27 +165,37 @@
 			}
 		}
 		busy = true;
-		const payload = rows.map((r) => ({
-			...r,
-			criterion: r.criterion.trim(),
-			points: criterionMax(r),
-			levels: (r.levels ?? []).map((l) => ({
-				points: Number(l.points) || 0,
-				label: l.label.trim(),
-				descriptor: l.descriptor?.trim() ?? ''
-			}))
-		}));
-		const res = await transports.setRubric(itemId, payload as RubricCriterion[]);
-		busy = false;
-		if (!res.ok) {
-			error = res.message;
-			return;
+		try {
+			const payload = rows.map((r) => ({
+				...r,
+				criterion: r.criterion.trim(),
+				points: criterionMax(r),
+				levels: (r.levels ?? []).map((l) => ({
+					points: Number(l.points) || 0,
+					label: l.label.trim(),
+					descriptor: l.descriptor?.trim() ?? '',
+					// KEPT, not dropped. Generating from the spec carries the authored
+					// short form in; re-listing the fields here without it would throw
+					// it away one step later, which is the same defect one level in.
+					...(l.short?.trim() ? { short: l.short.trim() } : {})
+				}))
+			}));
+			const res = await transports.setRubric(itemId, payload as RubricCriterion[]);
+			if (!res.ok) {
+				error = res.message;
+				return;
+			}
+			editing = false;
+			notice = unfinished
+				? `Rubric saved with ${unfinished} criteri${unfinished === 1 ? 'on' : 'a'} still unfinished.`
+				: 'Rubric saved. Students can see it on the assignment.';
+			await onchanged?.();
+		} finally {
+			// IN A `finally`: a throw anywhere above (a transport that rejects rather
+			// than resolving `{ok:false}`, a refresh that fails) otherwise left every
+			// control on this panel disabled with no way back but a reload.
+			busy = false;
 		}
-		editing = false;
-		notice = unfinished
-			? `Rubric saved with ${unfinished} criteri${unfinished === 1 ? 'on' : 'a'} still unfinished.`
-			: 'Rubric saved. Students can see it on the assignment.';
-		await onchanged?.();
 	}
 
 	async function removeRubric() {
@@ -195,14 +205,17 @@
 		}
 		armRemove = false;
 		busy = true;
-		const res = await transports.setRubric(itemId, null);
-		busy = false;
-		if (!res.ok) {
-			error = res.message;
-			return;
+		try {
+			const res = await transports.setRubric(itemId, null);
+			if (!res.ok) {
+				error = res.message;
+				return;
+			}
+			notice = 'Rubric removed.';
+			await onchanged?.();
+		} finally {
+			busy = false;
 		}
-		notice = 'Rubric removed.';
-		await onchanged?.();
 	}
 </script>
 

@@ -336,11 +336,20 @@ describe('the keyboard', () => {
 			const ok = advertised.has(action) || advertised.has((pairs[action] ?? '') as ReviewAction);
 			expect(ok, `${action} is dispatched but not printed in the legend`).toBe(true);
 		}
-		// ...and nothing is advertised that cannot be dispatched.
+		// ...and nothing is advertised that cannot be dispatched. A NATIVE row
+		// (one the browser handles, e.g. Tab over a roving tabindex) is exempt by
+		// construction rather than by omission: it advertises a key this module
+		// deliberately does not swallow. The notebook has none today, so the
+		// count below is what stops that exemption from quietly covering
+		// everything.
+		expect(REVIEW_KEYS.filter((k) => k.native).length).toBe(0);
 		for (const hint of REVIEW_KEYS) {
-			expect(dispatchable.has(hint.action), `${hint.keys} is printed but never dispatched`).toBe(
-				true
-			);
+			if (hint.native) continue;
+			expect(hint.action, `${hint.keys} advertises no action`).toBeDefined();
+			expect(
+				dispatchable.has(hint.action as ReviewAction),
+				`${hint.keys} is printed but never dispatched`
+			).toBe(true);
 			expect(hint.keys.length).toBeGreaterThan(0);
 			expect(hint.label.length).toBeGreaterThan(0);
 		}
