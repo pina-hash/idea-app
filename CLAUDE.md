@@ -843,6 +843,16 @@ inside the function fails closed rather than falling through to a weaker path.
   unknown type cannot survive into it), a SQL CHECK function (the RPCs are granted
   to `authenticated` and reachable straight through PostgREST, so the route is
   skippable), and the renderer.
+  - **THE SQL GATE IS `_classroom_doc_ok`, AND ITS NAME LIES.** It is a PURE jsonb
+    predicate that names no table, no column and no policy, so ANY column storing
+    the closed document shape CALLS it -- `notebook_sessions.guidance_doc` (0123)
+    does, and gained nested lists for free because 0122 had already widened it.
+    **Never clone it under a subsystem's own prefix.** A second copy of "what may
+    a document contain" is what stops matching, and the copy would have been
+    frozen at 0108 while the original moved. `_classroom_doc_text` is the same
+    deal for the plain-text projection. Note the mismatch in a comment; do NOT
+    rename it, because ~90 applied references resolve it BY NAME (the
+    `is_teacher()` trap).
 - **`safeHref` has ONE implementation** (`src/lib/rich-text.ts`), re-checked at
   RENDER time as well as on write. An unsafe link keeps its TEXT and loses its
   href -- the writing is theirs either way.
