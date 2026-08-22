@@ -1015,14 +1015,32 @@ describe('enrollment corrections', () => {
 	});
 });
 
+/**
+ * WHAT IS LEFT OF THIS SURFACE, AND WHY THE REST OF IT WENT.
+ *
+ * f734e7c deleted the class and item previews: the two roles differ by PAYLOAD
+ * rather than by render, so an assignment previewed as a student showed a
+ * placeholder exactly where the work surface belongs. 0124 then dropped the
+ * four functions behind them (`classroom_view_as_sections`,
+ * `classroom_view_as_section`, `classroom_view_as_item`,
+ * `classroom_view_as_can_read_attachment`) plus the private
+ * `_classroom_item_json` they were the only callers of.
+ *
+ * So the cases below are trimmed to the one reader that survives -- the
+ * pick-a-student list, which is how anyone reaches the NOTEBOOK preview, and
+ * which is a different case because no notebook payload splits by role.
+ *
+ * TWO CLAIMS THE DELETED CASES MADE ARE STILL MADE, elsewhere and directly:
+ * draft invisibility is asserted against the POLICY in "drafts are invisible
+ * to the student, visible to the section teacher", which never went through an
+ * impersonation RPC; and the active-enrollment rule is asserted below on the
+ * picker, which filters on `e.active` exactly as the deleted section reader
+ * did. Neither was dropped because its surface was.
+ */
 describe('view as student -- admin only, read only', () => {
 	test('every view_as RPC refuses a student AND a plain teacher', async () => {
 		const calls: [string, unknown[]][] = [
-			['public.classroom_view_as_students()', []],
-			['public.classroom_view_as_sections($1)', [studentA.email]],
-			['public.classroom_view_as_section($1, $2::uuid)', [studentA.email, sectionA]],
-			['public.classroom_view_as_item($1, $2::uuid, $3::uuid)', [studentA.email, sectionA, postAPub]],
-			['public.classroom_view_as_can_read_attachment($1, $2::uuid)', [studentA.email, postAPub]]
+			['public.classroom_view_as_students()', []]
 		];
 		for (const actor of [studentA, teacherA]) {
 			for (const [call, params] of calls) {
@@ -1032,59 +1050,37 @@ describe('view as student -- admin only, read only', () => {
 		}
 	});
 
-	test("the admin sees the STUDENT's classes, not their own reach", async () => {
-		const sections = await rpc<{ id: string }[]>(owner.id, 'public.classroom_view_as_sections($1)', [
-			studentA.email
-		]);
-		expect(sections.map((s) => s.id)).toEqual([sectionA]);
-	});
+	test('the picker lists a student by ACTIVE enrollment, and a deactivation removes them', async () => {
+		// What the deleted "a DEACTIVATED enrollment drops the class out"
+		// case was really asserting -- `e.active`, not `e` -- kept on the
+		// reader that survived it. The picker is now the ONLY door to the
+		// notebook preview, so a student who was removed from every class
+		// must not be reachable through it.
+		const listed = async () =>
+			(await rpc<{ student_email: string }[]>(owner.id, 'public.classroom_view_as_students()', []))
+				.map((s) => s.student_email);
 
-	test('drafts are absent from the impersonated view even though the admin can read them', async () => {
-		const payload = await rpc<{ items: { id: string }[] }>(
-			owner.id,
-			'public.classroom_view_as_section($1, $2::uuid)',
-			[studentA.email, sectionA]
-		);
-		const ids = payload.items.map((i) => i.id);
-		expect(ids).toContain(postAPub);
-		expect(ids).not.toContain(postADraft);
-		expect(ids).not.toContain(asgADraft);
+		// The positive control comes first, so the absence below cannot pass
+		// by the RPC simply answering nothing.
+		expect(await listed()).toContain(studentA.email);
 
-		// The admin's OWN read still sees them -- the RPC narrows, it never widens.
-		const direct = await db.asUser(owner.id, (q) =>
-			q('select id from public.classroom_items where id = $1', [postADraft])
-		);
-		expect(direct.rows).toHaveLength(1);
-
-		const draftItem = await rpc(
-			owner.id,
-			'public.classroom_view_as_item($1, $2::uuid, $3::uuid)',
-			[studentA.email, sectionA, postADraft]
-		);
-		expect(draftItem).toBeNull();
-	});
-
-	test('a DEACTIVATED enrollment drops the class out of the impersonated view', async () => {
 		await rpc(teacherA.id, 'public.classroom_set_enrollment($1::uuid, $2, $3, false)', [
 			sectionA,
 			studentA.email,
 			'Alice A. Alvarez'
 		]);
-		const sections = await rpc<{ id: string }[]>(owner.id, 'public.classroom_view_as_sections($1)', [
-			studentA.email
-		]);
-		expect(sections).toEqual([]);
-		const section = await rpc(owner.id, 'public.classroom_view_as_section($1, $2::uuid)', [
-			studentA.email,
-			sectionA
-		]);
-		expect(section).toBeNull();
+		const afterDeactivation = await listed();
+		expect(afterDeactivation).not.toContain(studentA.email);
+		// ...and the OTHER student is still there, so the deactivation
+		// narrowed the list rather than emptying it.
+		expect(afterDeactivation).toContain(studentB.email);
 
 		await rpc(teacherA.id, 'public.classroom_set_enrollment($1::uuid, $2, $3, true)', [
 			sectionA,
 			studentA.email,
 			'Alice A. Alvarez'
 		]);
+		expect(await listed()).toContain(studentA.email);
 	});
 
 	test('there is NO view_as write function at all -- read-only is structural', async () => {
@@ -1106,20 +1102,21 @@ describe('view as student -- admin only, read only', () => {
 		 * happens to be. 's' = STABLE; a VOLATILE function is the first thing
 		 * able to.
 		 *
-		 * THE COUNT IS ITS POSITIVE CONTROL. Without it, a prefix typo or a
-		 * chain that never applied 0083 would return zero rows and every
-		 * assertion below would pass by finding nothing.
+		 * THE POSITIVE CONTROL. Without one, a prefix typo or a chain that
+		 * never applied 0083 would return zero rows and the assertion below
+		 * would pass by finding nothing.
+		 *
+		 * IT USED TO BE `>= 5`, AND THAT NUMBER WAS A ROSTER IN DISGUISE.
+		 * This chain stops at 0085, where five functions carry the prefix; the
+		 * deployed schema is past 0124, where FOUR of them are dropped and one
+		 * is left. A control that only holds at one point in the chain says
+		 * nothing about the rule. What has to be true for this sweep to be
+		 * reading anything at all is that the surviving reader -- the picker,
+		 * which is the one door to the notebook preview -- is in the rows it
+		 * found.
 		 */
-		expect(rows.length).toBeGreaterThanOrEqual(5);
+		expect(rows.map((r) => r.name)).toContain('classroom_view_as_students');
 		expect(rows.filter((r) => r.volatility !== 's').map((r) => r.name)).toEqual([]);
-
-		// The class and item PREVIEWS were deleted from the app in the same
-		// bundle as this generalization, leaving classroom_view_as_section,
-		// classroom_view_as_item and classroom_view_as_can_read_attachment
-		// applied but unreferenced (see docs/HISTORY.md for the orphan list). An
-		// orphaned read-only function is harmless and is dropped by a later
-		// migration; nothing here should care either way, and after this change
-		// nothing does.
 	});
 });
 
@@ -1144,10 +1141,15 @@ describe('anon boundary', () => {
 			'classroom_set_enrollment(uuid, text, text, boolean)',
 			'classroom_update_enrollment(uuid, text, text, text)',
 			'classroom_import_roster(jsonb)',
+			// The other four view_as functions were dropped by 0124, so there
+			// is no longer an `anon` grant on them to check. They are not
+			// listed here even though this chain stops at 0085 and still
+			// defines them: `has_function_privilege` RAISES on a signature
+			// that does not exist, so the day this chain grows past 0124 a
+			// stale entry would fail as "function does not exist" rather than
+			// as a privilege finding. Their absence is asserted in
+			// tests/view-as-orphans-dropped.test.ts.
 			'classroom_view_as_students()',
-			'classroom_view_as_sections(text)',
-			'classroom_view_as_section(text, uuid)',
-			'classroom_view_as_item(text, uuid, uuid)',
 			'app_feedback_set_status(uuid, text)',
 			'app_feedback_admin_list(text, integer)'
 		];

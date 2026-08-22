@@ -256,17 +256,14 @@ function supabaseFor(userId: string) {
 			};
 		},
 		async rpc(fn: string, args: Record<string, unknown>) {
-			// Only the two the route can reach.
-			expect(['classroom_view_as_can_read_attachment', 'classroom_delete_attachment']).toContain(fn);
+			// ONE, now. `classroom_view_as_can_read_attachment` was the other,
+			// reached only from the `?as=` branch this route no longer has;
+			// 0124 dropped the function itself. The allow-list is what makes
+			// that a REFUSAL rather than a silent pass -- a route that grew an
+			// identity RPC back would fail here by name, which is the same
+			// direction the `?as=` block below guards.
+			expect([fn]).toEqual(['classroom_delete_attachment']);
 			try {
-				if (fn === 'classroom_view_as_can_read_attachment') {
-					const data = await rpc<boolean>(
-						userId,
-						'public.classroom_view_as_can_read_attachment($1, $2::uuid)',
-						[args.p_email, args.p_attachment_id]
-					);
-					return { data, error: null };
-				}
 				const data = await rpc(userId, 'public.classroom_delete_attachment($1::uuid)', [args.p_id]);
 				return { data, error: null };
 			} catch (e) {

@@ -466,11 +466,26 @@ with its own answer for the rows already stored.
   propagates through whatever the guard was protecting, out of the function as
   SQL NULL, and every caller asks `if not <gate> then raise` -- which does NOT
   fire on NULL. So the fall-through does not merely skip a check, it ACCEPTS
-  the write. `_notebook_note_run_len` (0078) still does this for a run carrying
-  no `text` key; `_classroom_run_ok` (0108) is the same function written
-  correctly. When a gate can return NULL, assert `toBeNull()` on it in a test
-  rather than `toBe(false)` -- they are wildly different outcomes and only one
-  of them refuses anything.
+  the write. `_notebook_note_run_len` (0078) did this for a run carrying no
+  `text` key for four months, and 0125 fixed it; `_classroom_run_ok` (0108) is
+  the same function written correctly and always was. When a gate can return
+  NULL, assert `toBeNull()` on it in a test rather than `toBe(false)` -- they
+  are wildly different outcomes and only one of them refuses anything.
+  - **FIXING ONE IS A NARROWING, AND A NARROWING REFUSES RATHER THAN
+    TIGHTENS.** The gate starts saying no to something already in the table,
+    and it does it SILENTLY: every stored row keeps rendering, and only the
+    next save of it fails, mid-edit, in front of whoever wrote it. So the
+    migration COUNTS the affected rows itself, at apply time, against the real
+    table, and raises with the number rather than applying (0125). Whether to
+    strand that work is a decision a person makes with the count in front of
+    them. **Take the count as `<gate>(col) IS NULL` under the DEPLOYED
+    function** -- the behavioural probe -- never as a second hand-written walk
+    looking for the bad shape: the question is which rows CHANGE ANSWER, and a
+    second copy of "what a run is" is the thing that quietly stops matching.
+  - **The `_notebook_note_content_ok` backstop is DEFENCE IN DEPTH, not
+    belt-and-braces**: its final `return` refuses a NULL total outright, so
+    reopening the run guard one level down still fails closed. Verified by
+    opening each layer separately and confirming only the pair reddens.
 - **An RLS policy records a real dependency on every FUNCTION and COLUMN its
   expression names.** Drop the policy before dropping the column, and recreate it
   after.
@@ -722,6 +737,18 @@ inside the function fails closed rather than falling through to a weaker path.
     with the preview.** The attachment proxy's `?as=<email>` branch is removed;
     `attachmentSrc` and `resolveFigureSrc` take no `viewAs`. Neither classroom
     proxy resolves an identity now, and neither may gain one.
+  - **The SQL went too, one bundle later, and the ORDER is the rule.** A dropped
+    function under a still-deployed route is a 500, so the routes go first and
+    the drop follows in its own migration (0124:
+    `classroom_view_as_section`, `_item`, `_can_read_attachment`, `_sections`,
+    and the private `_classroom_item_json` they were the only callers of). What
+    stays is `classroom_view_as_students` (the picker),
+    `_classroom_view_as_guard` and `_classroom_item_live`. **A migration that
+    drops a plpgsql function carries its own caller guard**: Postgres records a
+    dependency from a policy, a view, a default or an index, but NOT from one
+    plpgsql body to another, so `drop function` succeeds silently and the caller
+    breaks at its next invocation. Sweep `pg_proc.prosrc` for `<name>(` and
+    refuse.
 - **Everything an item needs is attachable at creation, on one surface** -- and on
   ONE surface only. Do not make an author save first and come back; equally, do not
   put a second copy of a panel the page already shows beside the first.
