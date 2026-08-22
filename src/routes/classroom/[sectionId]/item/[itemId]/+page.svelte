@@ -4,6 +4,7 @@
 	import {
 		createClassroomTransports,
 		createEngineTransports,
+		createInstructorCopyTransports,
 		createReferenceTransports,
 		createRevisionTransports,
 		createCheckInTransports,
@@ -31,6 +32,18 @@
 	const revisionTransports = createRevisionTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const checkInTransports = createCheckInTransports(data.supabase);
+
+	/**
+	 * The instructor working copy's writes (0128). Built only when the LOAD
+	 * answered with a copy -- its absence is what removes the whole surface, so
+	 * a deployment without the migration falls back to the read-only spec render
+	 * rather than offering controls whose RPCs do not exist yet.
+	 */
+	const instructorCopyTransports = $derived(
+		data.instructorCopy
+			? createInstructorCopyTransports(data.supabase, data.instructorCopy.myEmail)
+			: null
+	);
 
 	/**
 	 * THE CHECK-IN TRANSPORTS THIS DEPLOYMENT CAN ACTUALLY EXECUTE.
@@ -73,6 +86,8 @@
 	fetchPreview={fetchLinkPreviewClient}
 	engine={data.engine}
 	{engineTransports}
+	instructorCopy={data.canManage ? data.instructorCopy : null}
+	{instructorCopyTransports}
 	spec={data.spec}
 	rubric={data.rubric}
 	teacherTransports={data.canManage ? teacherTransports : null}

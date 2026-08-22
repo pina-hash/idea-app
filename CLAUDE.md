@@ -377,6 +377,21 @@ with its own answer for the rows already stored.
     body (there is no field for it). The route hands over an ADDRESS; the salt
     lives in the database and the digest is taken inside the definer function,
     so no route can choose what lands in `reporter_hash`.
+- **AN INSTRUCTOR'S OWN ANSWERS ARE THEIR OWN TABLE, NOT A FLAG ON THE
+  STUDENT'S** (0128). `classroom_instructor_responses` mirrors
+  `classroom_responses` column for column with the student replaced by the
+  instructor, and `classroom_instructor_keys` (one row per item) says which copy
+  is the answer key. Every reader of `classroom_responses` -- the grading
+  console, the FACTS CSV, the Grades tab, the export -- assumes a row there
+  belongs to a student on somebody's roster, so an `is_instructor` column would
+  make ONE forgotten `and not is_instructor` enough to grade a teacher or put an
+  answer key in a CSV. **NO STUDENT READ PATH EXISTS**: both policies gate on
+  `classroom_can_read_instructor_material` first, and there must never be a
+  policy, payload or proxy that changes that. Writing and designating need only
+  that gate (manages ANY posted section, so a Block 4 instructor can keep a
+  copy), never `_classroom_manages_item`; an UNDESIGNATED copy is private to its
+  author; undesignating is the author, the designator or an admin, and anyone
+  else REPLACES instead.
 - **A cross-user staff write is always an RPC**, never a direct client write.
 - **Nested SECURITY DEFINER calls are the reuse mechanism.** `is_admin()` /
   `current_user_email()` read the session's JWT claims, not the executing role, so
@@ -392,6 +407,17 @@ with its own answer for the rows already stored.
   returns other people's rows to a DIFFERENT caller (a teacher reading their
   sections), a page computing "MY rows" adds the explicit filter. Authorization
   and ATTRIBUTION are different jobs.
+- **A ROSTER-SHAPED LIST TAKES ITS ROWS FROM THE ROSTER, NEVER FROM THE
+  PAYLOAD.** Reshaping work rows into a per-person list, do not create a person
+  because an email turned up in the data: the policies scope on "may I review
+  this", which for a manager of two sections legitimately returns the OTHER
+  section's students on a co-posted item, and an invented row is `active`, named
+  from the local part of an address, and indistinguishable from a student in the
+  roster, the chips, the returned count, the CSV and a Grades tally whose
+  denominator excludes it. **Drop it, but say how many** -- a silent drop hides a
+  real enrollment mistake exactly as well as it hides the expected case. Report
+  the COUNT, not the addresses: what reaches a console reaches an export, a paste
+  and a screenshot.
 - **An owner-privileged view (not `security_invoker`) MUST carry its own explicit
   row predicate** to replace the RLS it bypasses.
 - **`security_invoker = true`** wherever a view should add no reach.

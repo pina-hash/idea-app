@@ -657,7 +657,7 @@ describe('the Documentation Check grading path is untouched', () => {
 
 	const csvFor = async (itemId: string, outOf: number) =>
 		gradesCsv(
-			studentWorkRows(await loadGrading(itemId)).map((s) => ({
+			studentWorkRows(await loadGrading(itemId)).rows.map((s) => ({
 				displayName: s.displayName,
 				email: s.email,
 				score: s.submission?.state === 'returned' ? (s.submission.score ?? null) : null,

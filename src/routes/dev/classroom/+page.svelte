@@ -67,6 +67,10 @@
 		specUnmet,
 		validateSpec,
 		type AssignmentEngineTransports,
+		type InstructorCopyData,
+		type InstructorCopyRow,
+		type InstructorCopyTransports,
+		type InstructorKeyRow,
 		type AssignmentSpec,
 		type AssignmentTeacherTransports,
 		type ModuleApprovalRow,
@@ -1208,7 +1212,26 @@
 			graded_at: null
 		}
 	]);
-	let engResponses = $state<ResponseRow[]>([]);
+	/**
+	 * THE OFF-ROSTER RESPONSE SET, seeded deliberately.
+	 *
+	 * A manager of two sections loading an item posted to both legitimately
+	 * receives the OTHER section's students' rows -- RLS scopes on
+	 * classroom_can_review_submission, which does not know which section the
+	 * console is open on. Before the fix, studentWorkRows appended that email as
+	 * an active roster row indistinguishable from a student's. This row is what
+	 * makes the console's off-roster notice, and the exclusion behind it,
+	 * something a browser pass can actually see rather than reason about.
+	 */
+	const OFF_ROSTER_EMAIL = 'zenobia@boscotech.net';
+	let engResponses = $state<ResponseRow[]>([
+		{
+			item_id: ENGINE_ITEM,
+			student_email: OFF_ROSTER_EMAIL,
+			block_id: 'f1',
+			value: { text: 'Answered from another section entirely.' }
+		}
+	]);
 	let engFiles = $state<SubmissionFileRow[]>([]);
 	let engApprovals = $state<ModuleApprovalRow[]>([]);
 
@@ -1285,6 +1308,7 @@
 			submitted_at: hoursFromNow(-20)
 		});
 		engResponses = [
+			...engResponses,
 			{
 				item_id: ENGINE_ITEM,
 				student_email: 'carla@boscotech.net',
@@ -1347,6 +1371,135 @@
 			approvals: approvalsOf(email)
 		};
 	}
+
+	// ------------------------------------------------------------------
+	// THE INSTRUCTOR WORKING COPY (0128), answered in memory.
+	//
+	// TWO INSTRUCTORS ON PURPOSE. `me` is the viewer; `other` already has a
+	// copy, so the harness can put the surface into the state that matters --
+	// somebody ELSE'S copy designated as the key, read-only beside your own.
+	// The store is exposed for the same reason the engine's is: "did the answer
+	// land" has to be read off what the transport wrote.
+	// ------------------------------------------------------------------
+	const INSTRUCTOR_EMAIL = 'tvargas@boscotech.edu';
+	const OTHER_INSTRUCTOR_EMAIL = 'mreed@boscotech.edu';
+	let icopyRows = $state<InstructorCopyRow[]>([
+		{
+			item_id: ENGINE_ITEM,
+			instructor_email: OTHER_INSTRUCTOR_EMAIL,
+			block_id: 'f1',
+			value: {
+				text: 'The top view was hardest. The chords foreshorten, so the member lengths have to be read off the front view. Working the joints out one at a time is what fixed it.'
+			}
+		},
+		{
+			item_id: ENGINE_ITEM,
+			instructor_email: OTHER_INSTRUCTOR_EMAIL,
+			block_id: 't1',
+			value: {
+				rows: [
+					{ member: 'Top chord', loading: 'Compression' },
+					{ member: 'Bottom chord', loading: 'Tension' },
+					{ member: 'Web diagonal', loading: 'Tension' }
+				]
+			}
+		},
+		{
+			item_id: ENGINE_ITEM,
+			instructor_email: OTHER_INSTRUCTOR_EMAIL,
+			block_id: 'c1',
+			value: { checked: [true, true] }
+		}
+	]);
+	let icopyKey = $state<InstructorKeyRow | null>({
+		item_id: ENGINE_ITEM,
+		instructor_email: OTHER_INSTRUCTOR_EMAIL,
+		designated_at: '2026-08-01T15:00:00.000Z',
+		designated_by: OTHER_INSTRUCTOR_EMAIL
+	});
+
+	function icopyData(): InstructorCopyData {
+		const key = icopyKey;
+		return {
+			myEmail: INSTRUCTOR_EMAIL,
+			mine: icopyRows.filter((r) => r.instructor_email === INSTRUCTOR_EMAIL),
+			key,
+			keyResponses:
+				key && key.instructor_email !== INSTRUCTOR_EMAIL
+					? icopyRows.filter((r) => r.instructor_email === key.instructor_email)
+					: []
+		};
+	}
+
+	$effect(() => {
+		(window as unknown as Record<string, unknown>).__instructorCopyStore = {
+			rows: () => $state.snapshot(icopyRows),
+			key: () => $state.snapshot(icopyKey),
+			read: (blockId: string) =>
+				icopyRows.find(
+					(r) => r.instructor_email === INSTRUCTOR_EMAIL && r.block_id === blockId
+				)?.value ?? null
+		};
+	});
+
+	const instructorCopyTransports: InstructorCopyTransports = {
+		async saveResponse(itemId, blockId, value) {
+			note('instructor saveResponse', { itemId, blockId, value });
+			if (saveLatency > 0) await new Promise((r) => setTimeout(r, saveLatency));
+			if (saveFailNext > 0) {
+				saveFailNext -= 1;
+				return { ok: false, message: 'The network is down (simulated).' };
+			}
+			if (!engineSpec) return { ok: false, message: 'This assignment has no interactive spec.' };
+			const found = blockIn(engineSpec, blockId);
+			if (!found) return { ok: false, message: `Unknown block "${blockId}".` };
+			// The RPC's own rule, so the harness cannot accept a shape the server
+			// refuses: a file block takes no typed response.
+			if (found.block.type === 'imageZone') {
+				return { ok: false, message: `Block "${blockId}" does not take a typed response.` };
+			}
+			const existing = icopyRows.find(
+				(r) => r.instructor_email === INSTRUCTOR_EMAIL && r.block_id === blockId
+			);
+			icopyRows = existing
+				? icopyRows.map((r) => (r === existing ? { ...r, value } : r))
+				: [
+						...icopyRows,
+						{
+							item_id: ENGINE_ITEM,
+							instructor_email: INSTRUCTOR_EMAIL,
+							block_id: blockId,
+							value
+						}
+					];
+			return { ok: true, data: { ok: true } };
+		},
+		async designateKey(itemId) {
+			note('designateKey', { itemId });
+			if (!icopyRows.some((r) => r.instructor_email === INSTRUCTOR_EMAIL)) {
+				return { ok: true, data: { ok: false, reason: 'empty_copy' } };
+			}
+			icopyKey = {
+				item_id: ENGINE_ITEM,
+				instructor_email: INSTRUCTOR_EMAIL,
+				designated_at: new Date().toISOString(),
+				designated_by: INSTRUCTOR_EMAIL
+			};
+			return { ok: true, data: { ok: true } };
+		},
+		async undesignateKey(itemId) {
+			note('undesignateKey', { itemId });
+			if (!icopyKey) return { ok: true, data: { ok: false, reason: 'no_key' } };
+			if (icopyKey.instructor_email !== INSTRUCTOR_EMAIL) {
+				return { ok: true, data: { ok: false, reason: 'not_yours' } };
+			}
+			icopyKey = null;
+			return { ok: true, data: { ok: true } };
+		},
+		async reload() {
+			return { ok: true, data: icopyData() };
+		}
+	};
 
 	function blockIn(spec: AssignmentSpec, blockId: string) {
 		for (const mod of spec.modules) {
@@ -1809,6 +1962,7 @@
 		['item', 'Item detail'],
 		['item-teacher', 'Item detail (teacher)'],
 		['assignment', 'Assignment engine (student)'],
+		['instructor-copy', 'Instructor copy (teacher)'],
 		['grade', 'Grading console'],
 		['people', 'People tab'],
 		['grades', 'Grades tab'],
@@ -2384,6 +2538,41 @@
 			{fetchPreview}
 			engine={buildStudentData(STUDENT_EMAIL)}
 			{engineTransports}
+		/>
+	{:else}
+		<p class="harness-note">The sample item was deleted in another view.</p>
+	{/if}
+{:else if view === 'instructor-copy'}
+	<!-- THE MANAGER'S OWN WORKING COPY, mounted through the REAL ItemDetail with
+	     canManage true -- the same slot, the same component and the same branch
+	     the live page takes, so what is drivable here is what ships. The save
+	     faults above apply to it: its writes go through the same injected
+	     latency and failure counters the student engine's do. -->
+	<div class="save-fault">
+		<span class="save-fault-label">Save faults</span>
+		<button type="button" onclick={() => (saveFailNext = 2)}>Fail next 2 writes</button>
+		<button type="button" onclick={() => (saveFailNext = 999)}>Endpoint down</button>
+		<button type="button" onclick={() => (saveFailNext = 0)}>Endpoint up</button>
+		<span class="save-fault-badge" class:on={saveFailNext > 0}>failNext = {saveFailNext}</span>
+		<label>
+			latency
+			<input type="number" bind:value={saveLatency} min="0" step="250" /> ms
+		</label>
+	</div>
+	{#if detailItem}
+		<ItemDetail
+			section={section1}
+			item={detailItem}
+			sections={ownSections}
+			canManage={true}
+			{transports}
+			{fetchPreview}
+			spec={engineSpec}
+			rubric={engineRubric}
+			teacherTransports={teacherEngineTransports}
+			instructorCopy={icopyData()}
+			{instructorCopyTransports}
+			gradeHref="/dev/classroom?view=grade"
 		/>
 	{:else}
 		<p class="harness-note">The sample item was deleted in another view.</p>

@@ -22,6 +22,10 @@ import {
 	type AssignmentEngineTransports,
 	type AssignmentTeacherTransports,
 	type EngineOpResult,
+	type InstructorCopyData,
+	type InstructorCopyRow,
+	type InstructorCopyTransports,
+	type InstructorKeyRow,
 	type ModuleApprovalRow,
 	type ResponseRow,
 	type StudentEngineData,
@@ -958,6 +962,97 @@ export async function loadStudentEngineData(
 		responses: (responsesRes.data ?? []) as ResponseRow[],
 		files: (filesRes.data ?? []) as SubmissionFileRow[],
 		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+	};
+}
+
+// ---------------------------------------------------------------------------
+// THE INSTRUCTOR WORKING COPY (0128).
+// ---------------------------------------------------------------------------
+
+const INSTRUCTOR_COPY_SELECT = 'item_id, instructor_email, block_id, value, updated_at';
+const INSTRUCTOR_KEY_SELECT = 'item_id, instructor_email, designated_at, designated_by';
+
+/**
+ * The instructor's own working copy of one assignment, plus the designated key
+ * when somebody else authored it.
+ *
+ * FAILS SOFT TO NULL, and the surface then renders exactly what a manager saw
+ * before 0128 (the read-only spec). Migrations here are applied by hand, so a
+ * deployment sitting between 0127 and 0128 is a real state and PostgREST
+ * answers a whole select with an error for an unknown table -- a manager must
+ * not lose the assignment page over a feature that has not landed yet.
+ *
+ * THE `mine` FILTER IS ATTRIBUTION, NOT AUTHORIZATION. RLS legitimately returns
+ * two people's rows here -- the caller's own and the designated key author's --
+ * so the split has to be made by somebody, and the policy is still the only
+ * thing deciding what arrives.
+ */
+export async function loadInstructorCopy(
+	supabase: SupabaseClient,
+	itemId: string,
+	myEmail: string
+): Promise<InstructorCopyData | null> {
+	const me = myEmail.trim().toLowerCase();
+	const [copiesRes, keyRes] = await Promise.all([
+		supabase.from('classroom_instructor_responses').select(INSTRUCTOR_COPY_SELECT).eq('item_id', itemId),
+		supabase
+			.from('classroom_instructor_keys')
+			.select(INSTRUCTOR_KEY_SELECT)
+			.eq('item_id', itemId)
+			.maybeSingle()
+	]);
+	if (copiesRes.error) return null;
+	const rows = (copiesRes.data ?? []) as InstructorCopyRow[];
+	const key = (keyRes.data as InstructorKeyRow | null) ?? null;
+	return {
+		myEmail: me,
+		mine: rows.filter((r) => r.instructor_email === me),
+		key,
+		keyResponses:
+			key && key.instructor_email !== me
+				? rows.filter((r) => r.instructor_email === key.instructor_email)
+				: []
+	};
+}
+
+/**
+ * Writes for that copy. Every one is a 0128 RPC that resolves the caller
+ * itself: none of them takes an email, so there is no identity for a client to
+ * get wrong or to forge.
+ */
+export function createInstructorCopyTransports(
+	supabase: SupabaseClient,
+	myEmail: string
+): InstructorCopyTransports {
+	return {
+		async saveResponse(itemId, blockId, value) {
+			const { data: res, error } = await supabase.rpc('classroom_save_instructor_response', {
+				p_item_id: itemId,
+				p_block_id: blockId,
+				p_value: value
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async designateKey(itemId) {
+			const { data: res, error } = await supabase.rpc('classroom_designate_instructor_key', {
+				p_item_id: itemId
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async undesignateKey(itemId) {
+			const { data: res, error } = await supabase.rpc('classroom_undesignate_instructor_key', {
+				p_item_id: itemId
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async reload(itemId) {
+			const data = await loadInstructorCopy(supabase, itemId, myEmail);
+			if (!data) return { ok: false, message: 'Could not reload your instructor copy.' };
+			return { ok: true, data };
+		}
 	};
 }
 

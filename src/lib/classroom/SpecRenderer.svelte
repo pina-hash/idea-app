@@ -46,6 +46,7 @@
 		approved = false,
 		uploadEnabled = true,
 		readonly = false,
+		fileNotice = null,
 		onvalue = null,
 		onupload = null,
 		ondeletefile = null,
@@ -69,6 +70,15 @@
 		uploadEnabled?: boolean;
 		/** The grading console's read-only rendering: values, no inputs. */
 		readonly?: boolean;
+		/**
+		 * WHAT THIS SURFACE DOES WITH A FILE BLOCK, when the answer is "nothing".
+		 * Set, an imageZone renders its heading and this sentence and NO control
+		 * -- no counter that would read as progress toward something, no picker
+		 * that leads nowhere. The instructor working copy (0128) is the caller:
+		 * there is no instructor-side file table, and a control that does nothing
+		 * is worse than a stated absence.
+		 */
+		fileNotice?: string | null;
 		onvalue?: ((blockId: string, value: ResponseValue) => void) | null;
 		onupload?: ((blockId: string, files: File[]) => void | Promise<void>) | null;
 		ondeletefile?: ((fileId: string) => void | Promise<void>) | null;
@@ -219,18 +229,31 @@
 	function isImage(f: SubmissionFileRow): boolean {
 		return isSubmissionFileImage(f);
 	}
+
+	/**
+	 * The module the progress chip and the "has this been started" signal are
+	 * computed over. Identical to the module itself everywhere except a surface
+	 * that captures no files (`fileNotice`), where the file blocks come OUT of
+	 * the tally rather than sitting in it forever undone -- a chip that reads
+	 * 2/3 on a surface where the third can never be done is a lie about the
+	 * work, not a reminder about it.
+	 */
+	function progressModule(mod: SpecModule): SpecModule {
+		if (!fileNotice) return mod;
+		return { ...mod, blocks: mod.blocks.filter((b) => b.type !== 'imageZone') };
+	}
 </script>
 
 {#each spec.modules as mod, mi (mod.id)}
 	{@const gated = moduleGated(mod)}
 	{@const responses = new Map(Object.entries(values))}
-	{@const completion = moduleCompletion(mod, responses, fileCounts)}
+	{@const completion = moduleCompletion(progressModule(mod), responses, fileCounts)}
 	<!-- HAS THIS PERSON PUT ANYTHING INTO THIS MODULE. Derived from the values
 	     map this component already owns, right beside the completion chip that
 	     already reads it -- no store, no new prop, and no second source of
 	     truth about what a student has done. It drives nothing but the
 	     instructions panel's default state. -->
-	{@const started = moduleStarted(mod, responses, fileCounts)}
+	{@const started = moduleStarted(progressModule(mod), responses, fileCounts)}
 	<section class="module card" class:gated>
 		<header class="module-head">
 			<div class="module-titles">
@@ -378,6 +401,16 @@
 								</span>
 							{/if}
 						</div>
+					</div>
+				{:else if block.type === 'imageZone' && fileNotice}
+					<!-- A surface that captures no files says so on the block, and
+					     renders nothing that could be mistaken for a control or for
+					     progress toward one. -->
+					<div class="block">
+						<div class="zone-head">
+							<span class="prompt">Photo evidence</span>
+						</div>
+						<p class="note">{fileNotice}</p>
 					</div>
 				{:else if block.type === 'imageZone'}
 					{@const zone = zoneFiles.get(block.id) ?? []}

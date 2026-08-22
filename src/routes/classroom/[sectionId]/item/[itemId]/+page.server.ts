@@ -4,6 +4,7 @@ import {
 	selectItemsWithDoc,
 	loadItemDeck,
 	loadStudentEngineData,
+	loadInstructorCopy,
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
@@ -102,6 +103,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	const deck = await loadItemDeck(supabase, item.id);
 
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;
+	let instructorCopy: Awaited<ReturnType<typeof loadInstructorCopy>> = null;
 	let spec: AssignmentSpec | null = null;
 	let rubric: RubricCriterion[] | null = null;
 	if (item.kind === 'assignment') {
@@ -112,6 +114,21 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			]);
 			spec = (specRes.data?.spec as AssignmentSpec | undefined) ?? null;
 			rubric = (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null;
+			/**
+			 * THE MANAGER'S OWN WORKING COPY (0128), and only when there is a spec
+			 * to fill in -- an assignment with no interactive spec has no blocks to
+			 * answer, and the save RPC refuses one. Its own query, failing soft to
+			 * null, for the deploy-ordering reason every other read here documents:
+			 * a deployment sitting between 0127 and 0128 is a real state, and the
+			 * manager's item page must not break over it.
+			 *
+			 * NEVER LOADED FOR A NON-MANAGER, and it would answer nothing if it
+			 * were -- the RLS policy admits no student at all. The branch is here
+			 * so a student's payload provably cannot carry the key.
+			 */
+			if (spec) {
+				instructorCopy = await loadInstructorCopy(supabase, item.id, claims.email ?? '');
+			}
 		} else {
 			engine = await loadStudentEngineData(supabase, item.id);
 		}
@@ -121,6 +138,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		item,
 		deck,
 		engine,
+		instructorCopy,
 		spec,
 		rubric,
 		referenceSpec

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
+	import InstructorCopy from '$lib/classroom/InstructorCopy.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import CheckInGuidance from '$lib/CheckInGuidance.svelte';
@@ -36,6 +37,8 @@
 		type AssignmentEngineTransports,
 		type AssignmentSpec,
 		type AssignmentTeacherTransports,
+		type InstructorCopyData,
+		type InstructorCopyTransports,
 		type RubricCriterion,
 		type StudentEngineData
 	} from '$lib/classroom/assignment-spec';
@@ -107,6 +110,8 @@
 		ondeleted = null,
 		engine = null,
 		engineTransports = null,
+		instructorCopy = null,
+		instructorCopyTransports = null,
 		spec = null,
 		rubric = null,
 		teacherTransports = null,
@@ -132,6 +137,15 @@
 		/** The STUDENT engine slice + its transports (assignments only). */
 		engine?: StudentEngineData | null;
 		engineTransports?: AssignmentEngineTransports | null;
+		/**
+		 * THE MANAGER'S OWN WORKING COPY of this assignment (0128), and the
+		 * designated answer key if there is one. Null on a deployment without
+		 * 0128, and for anyone who is not a manager here -- in both cases the
+		 * engine slot falls back to the read-only spec render it showed before,
+		 * so the page never breaks over a feature that has not landed.
+		 */
+		instructorCopy?: InstructorCopyData | null;
+		instructorCopyTransports?: InstructorCopyTransports | null;
 		/** The teacher tools' data + transports (assignments only). */
 		spec?: AssignmentSpec | null;
 		rubric?: RubricCriterion[] | null;
@@ -906,7 +920,26 @@
 	-->
 	{#if item.kind === 'assignment'}
 		{#if canManage}
-			{#if spec}
+			{#if spec && instructorCopy && instructorCopyTransports}
+				<!--
+					THE WORKING COPY (0128) TAKES THE SAME SLOT, in the same reading
+					position, so a manager reads the assignment where a student reads
+					it. It carries no grade, no hand-in, no due state and no
+					submission machinery of any kind -- see InstructorCopy for why
+					that is absence rather than concealment.
+				-->
+				<section class="engine-host">
+					{#key item.id}
+						<InstructorCopy
+							itemId={item.id}
+							{spec}
+							attachments={item.attachments}
+							data={instructorCopy}
+							transports={instructorCopyTransports}
+						/>
+					{/key}
+				</section>
+			{:else if spec}
 				<section class="engine-host">
 					<h2 class="section-label">Assignment</h2>
 					{#key item.id}

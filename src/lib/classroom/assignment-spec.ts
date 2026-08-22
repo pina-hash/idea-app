@@ -1286,44 +1286,155 @@ export interface AssignmentTeacherTransports {
 	loadGrading(itemId: string, sectionId: string): Promise<TxResult<GradingData>>;
 }
 
-/** GradingData reshaped into per-student slices, roster-ordered. */
-export function studentWorkRows(data: GradingData): StudentWork[] {
+// ---------------------------------------------------------------------------
+// THE INSTRUCTOR WORKING COPY (0128).
+//
+// An instructor fills the assignment out themselves; the answers autosave the
+// way a student's do, into classroom_instructor_responses. It is NOT a
+// submission and the words below are what say so on screen -- they live here,
+// in the one pure module, so the surface, the harness and the scan that proves
+// a student never sees them are all reading the same strings.
+// ---------------------------------------------------------------------------
+
+/** One instructor's copy: their own answers, keyed by block. */
+export interface InstructorCopyRow {
+	item_id: string;
+	instructor_email: string;
+	block_id: string;
+	value: ResponseValue;
+	updated_at?: string;
+}
+
+/** The designated answer key's identity (never its contents). */
+export interface InstructorKeyRow {
+	item_id: string;
+	instructor_email: string;
+	designated_at: string;
+	designated_by: string;
+}
+
+/** Everything the instructor working surface renders from. */
+export interface InstructorCopyData {
+	/** The signed-in instructor's own email, lowercased -- the attribution key. */
+	myEmail: string;
+	/** The caller's OWN rows. Filtered by email in the load, deliberately: RLS
+	 *  legitimately returns the key author's rows through the same policy, and
+	 *  authorization and attribution are different jobs. */
+	mine: InstructorCopyRow[];
+	/** The designated key, or null. `mine` when the caller authored it. */
+	key: InstructorKeyRow | null;
+	/** The key author's rows, present only when the key is somebody else's. */
+	keyResponses: InstructorCopyRow[];
+}
+
+export interface InstructorCopyTransports {
+	saveResponse(
+		itemId: string,
+		blockId: string,
+		value: ResponseValue
+	): Promise<TxResult<EngineOpResult>>;
+	designateKey(itemId: string): Promise<TxResult<EngineOpResult>>;
+	undesignateKey(itemId: string): Promise<TxResult<EngineOpResult>>;
+	/** Refetch after designating, so "whose key is it" comes from the server. */
+	reload(itemId: string): Promise<TxResult<InstructorCopyData>>;
+}
+
+/**
+ * The words that mark this surface as an instructor's own copy. ONE spelling
+ * each, exported, because `tests` and the browser scan that proves a student
+ * render contains none of them have to be looking for the same strings the
+ * component renders -- a scan written against a retyped copy proves nothing.
+ */
+export const INSTRUCTOR_COPY_HEADING = 'Instructor copy';
+export const INSTRUCTOR_COPY_NOTE =
+	'This is your own working copy. It is never graded, never handed in, and no student can see it.';
+export const INSTRUCTOR_COPY_UPLOAD_NOTE =
+	'Photo uploads are not captured in an instructor copy.';
+export const INSTRUCTOR_KEY_DESIGNATE = 'Designate as answer key';
+export const INSTRUCTOR_KEY_UNDESIGNATE = 'Undesignate as answer key';
+export const INSTRUCTOR_KEY_HEADING = 'Designated answer key';
+
+/** "Designated answer key, by mreed@boscotech.edu" -- whose it is, always. */
+export function instructorKeyByline(key: InstructorKeyRow, myEmail: string): string {
+	return key.instructor_email === myEmail
+		? `${INSTRUCTOR_KEY_HEADING}: your copy`
+		: `${INSTRUCTOR_KEY_HEADING}, by ${key.instructor_email}`;
+}
+
+/** What studentWorkRows answers: the roster, and what did not belong to it. */
+export interface StudentWorkRows {
+	/** One slice per ROSTER student, roster-ordered. Nothing else, ever. */
+	rows: StudentWork[];
+	/**
+	 * Emails that carried work on this item but sit on no row of this
+	 * section's roster, sorted and deduped. Reported, never silently dropped.
+	 */
+	offRoster: string[];
+}
+
+/**
+ * GradingData reshaped into per-student slices, roster-ordered.
+ *
+ * THE ROSTER IS THE ONLY SOURCE OF ROWS, and it used not to be. `ensure()` was
+ * called on responses, submissions, files and approvals as well, so ANY email
+ * in the payload that was not on the roster got a row appended -- active, named
+ * from the local part of its address, and indistinguishable on screen from a
+ * student. That row then reached the roster list, its status chip, the returned
+ * count, the FACTS CSV, and the Grades tab counts, where it was measured
+ * against a denominator (the enrollment count) that deliberately excluded it.
+ *
+ * IT IS NOT HYPOTHETICAL AND IT IS NOT ABOUT INSTRUCTORS. RLS scopes these
+ * reads with classroom_can_review_submission, which answers for a student
+ * enrolled in ANY section of this item that the caller manages -- so a manager
+ * of two sections loading an item posted to both legitimately receives the
+ * OTHER section's students' rows. Every one of them was an appended roster row.
+ *
+ * DROPPING THEM SILENTLY WOULD HIDE A REAL ENROLLMENT MISTAKE exactly as well
+ * as it hides the cross-section case, so the emails come back with the rows and
+ * the console says how many were found.
+ */
+export function studentWorkRows(data: GradingData): StudentWorkRows {
 	const byEmail = new Map<string, StudentWork>();
 	const rows: StudentWork[] = [];
-	const ensure = (email: string, name?: string, active = true): StudentWork => {
-		let row = byEmail.get(email);
-		if (!row) {
-			row = {
-				email,
-				displayName: name || email.split('@')[0],
-				active,
-				submission: null,
-				responses: [],
-				files: [],
-				approvals: []
-			};
-			byEmail.set(email, row);
-			rows.push(row);
-		}
-		return row;
-	};
+	const offRoster = new Set<string>();
 	for (const e of [...data.roster].sort((a, b) =>
 		a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })
 	)) {
-		ensure(e.student_email, e.display_name, e.active);
+		if (byEmail.has(e.student_email)) continue;
+		const row: StudentWork = {
+			email: e.student_email,
+			displayName: e.display_name || e.student_email.split('@')[0],
+			active: e.active,
+			submission: null,
+			responses: [],
+			files: [],
+			approvals: []
+		};
+		byEmail.set(e.student_email, row);
+		rows.push(row);
 	}
+	/** A roster row, or null having RECORDED that this email is not on it. */
+	const onRoster = (email: string): StudentWork | null => {
+		const row = byEmail.get(email);
+		if (row) return row;
+		offRoster.add(email);
+		return null;
+	};
 	const submissionOwner = new Map<string, string>();
 	for (const s of data.submissions) {
 		submissionOwner.set(s.id, s.student_email);
-		ensure(s.student_email).submission = s;
+		const row = onRoster(s.student_email);
+		if (row) row.submission = s;
 	}
-	for (const r of data.responses) ensure(r.student_email).responses.push(r);
+	for (const r of data.responses) onRoster(r.student_email)?.responses.push(r);
 	for (const f of data.files) {
 		const owner = submissionOwner.get(f.submission_id);
-		if (owner) ensure(owner).files.push(f);
+		// An owner this payload never named is not a roster question: the file's
+		// submission row was not returned, so there is nothing to attribute it to.
+		if (owner) onRoster(owner)?.files.push(f);
 	}
-	for (const a of data.approvals) ensure(a.student_email).approvals.push(a);
-	return rows;
+	for (const a of data.approvals) onRoster(a.student_email)?.approvals.push(a);
+	return { rows, offRoster: [...offRoster].sort() };
 }
 
 // ---------------------------------------------------------------------------

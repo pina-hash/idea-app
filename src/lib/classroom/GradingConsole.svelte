@@ -80,7 +80,18 @@
 	let gradeError = $state<string | null>(null);
 	let gradeNotice = $state<string | null>(null);
 
-	const students = $derived(data ? studentWorkRows(data) : []);
+	const work = $derived(
+		data ? studentWorkRows(data) : { rows: [] as StudentWork[], offRoster: [] as string[] }
+	);
+	const students = $derived(work.rows);
+	/**
+	 * Response sets that belong to nobody on THIS section's roster (another
+	 * section this item is posted to, or an enrollment that was never made).
+	 * They are out of the list, the counts and the CSV -- and SAID, because a
+	 * silent drop hides a real enrollment mistake as well as it hides anything
+	 * else.
+	 */
+	const offRosterCount = $derived(work.offRoster.length);
 	const selected = $derived(students.find((s) => s.email === selectedEmail) ?? null);
 	const outOf = $derived(rubric ? rubricTotal(rubric) : (item.points ?? 0));
 	const liveTotal = $derived(
@@ -668,6 +679,14 @@
 						CSV scores fill in as work is returned ({returnedCount}/{students.length} returned).
 					</p>
 				{/if}
+				{#if offRosterCount > 0}
+					<p class="off-roster" data-testid="off-roster-notice">
+						{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} on this assignment
+						{offRosterCount === 1 ? 'belongs' : 'belong'} to somebody who is not on this class
+						roster, so {offRosterCount === 1 ? 'it is' : 'they are'} not listed, counted or
+						exported here. Check the roster on the People tab if that is unexpected.
+					</p>
+				{/if}
 				<!-- No tabindex here: every row is a real button, so the roster is
 				     already reachable and scrollable from the keyboard. -->
 				<ul class="roster-list">
@@ -1060,6 +1079,17 @@
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
+	}
+	/* Amber, not crimson: an off-roster response set is something to look at,
+	   not an error, and crimson stays reserved for live / rec / error. */
+	.off-roster {
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid var(--amber);
+		border-radius: var(--radius-card);
+		font-size: 0.76rem;
+		line-height: 1.45;
+		color: var(--text-1);
 	}
 	.roster-list {
 		list-style: none;

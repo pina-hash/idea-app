@@ -590,7 +590,7 @@ describe('the FACTS CSV', () => {
 			});
 
 		const csvFor = async (itemId: string, outOf: number) => {
-			const rows = studentWorkRows(await loadGrading(itemId));
+			const { rows } = studentWorkRows(await loadGrading(itemId));
 			return gradesCsv(
 				rows.map((s) => ({
 					displayName: s.displayName,
