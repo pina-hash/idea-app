@@ -74,6 +74,21 @@
 	const checkInTransports = createCheckInTransports(data.supabase);
 
 	/**
+	 * The writes this DEPLOYMENT can execute, per capability rather than
+	 * all-or-nothing. 0120 and 0123 are applied separately, so a schema with the
+	 * item link and no guidance column is a real state: it stages a check-in and
+	 * offers no prompt field, because the field is removed by the transport's
+	 * absence rather than hidden by a flag somebody has to remember to read.
+	 */
+	const liveCheckInTransports = $derived(
+		data.checkInLinksReady
+			? data.checkInGuidanceReady
+				? checkInTransports
+				: { createForItem: checkInTransports.createForItem, unlink: checkInTransports.unlink }
+			: null
+	);
+
+	/**
 	 * COMPOSING IS LAYOUT STATE, NOT A ROUTE, and that is the whole design.
 	 *
 	 * The composer holds STAGED FILE HANDLES -- a picked zip, a pasted
@@ -249,7 +264,7 @@
 				{teacherTransports}
 				{referenceTransports}
 				attachmentsEnabled={data.attachmentsEnabled}
-				checkInTransports={data.checkInLinksReady ? checkInTransports : null}
+				checkInTransports={liveCheckInTransports}
 				onsaved={composerSaved}
 				ondirtychange={(d) => (composerDirty = d)}
 				oncancel={closeComposer}

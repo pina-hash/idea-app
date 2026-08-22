@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
+	import type { ItemDoc } from '$lib/classroom/classroom-doc';
+	import type { TiptapNode } from '$lib/rich-text';
 	import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
 	import type { NoteDoc, NotebookNoteRow } from '$lib/notebook-notes';
 	import {
@@ -134,13 +136,35 @@
 	}
 
 	let sessions = $state<StoreSession[]>([
-		{ id: 'ses-a1', section_ids: ['sec-a'], unit_number: 3, session_date: '2026-08-03', session_label: 'Design brief' },
+		// `guidance_doc: null` on every check-in without a prompt, never absent:
+		// a real read on the widest rung returns the column carrying null, and
+		// `undefined` is the different fact that the rung did not carry it. The
+		// console reads exactly that difference to decide whether this project
+		// can hold guidance at all, so a harness that left the key off would be
+		// simulating a pre-0123 database while claiming to be a current one.
+		{ id: 'ses-a1', section_ids: ['sec-a'], unit_number: 3, session_date: '2026-08-03', session_label: 'Design brief', guidance_doc: null },
 		// SHARED ACROSS BOTH SECTIONS: the case the whole change exists for.
 		// One record, one date, a column in each of the two grids.
-		{ id: 'ses-a2', section_ids: ['sec-a', 'sec-b'], unit_number: 3, session_date: '2026-08-05', session_label: 'Shaft stackup calcs' },
-		{ id: 'ses-a3', section_ids: ['sec-a'], unit_number: 3, session_date: '2026-08-07', session_label: 'Bearing teardown' },
-		{ id: 'ses-a4', section_ids: ['sec-a'], unit_number: 2, session_date: '2026-07-28', session_label: 'Shop safety walk' },
-		{ id: 'ses-b1', section_ids: ['sec-b'], unit_number: 3, session_date: '2026-08-04', session_label: 'Gear train sketch' }
+		{ id: 'ses-a2', section_ids: ['sec-a', 'sec-b'], unit_number: 3, session_date: '2026-08-05', session_label: 'Shaft stackup calcs', guidance_doc: null },
+		// CARRIES A PROMPT ALREADY (0123), so the field opens on a real document
+		// rather than only on an empty one -- the seed path is where a `{#key}`
+		// bug hides. `ses-a2` is shared across two sections and has none, which is
+		// the pair the "every class reads the same prompt" hint is about.
+		{
+			id: 'ses-a3',
+			section_ids: ['sec-a'],
+			unit_number: 3,
+			session_date: '2026-08-07',
+			session_label: 'Bearing teardown',
+			guidance_doc: [
+				{
+					type: 'p',
+					runs: [{ text: 'Photograph both pages of your teardown notes, flat and in focus.' }]
+				}
+			]
+		},
+		{ id: 'ses-a4', section_ids: ['sec-a'], unit_number: 2, session_date: '2026-07-28', session_label: 'Shop safety walk', guidance_doc: null },
+		{ id: 'ses-b1', section_ids: ['sec-b'], unit_number: 3, session_date: '2026-08-04', session_label: 'Gear train sketch', guidance_doc: null }
 	]);
 
 	const STUDENTS: StoreStudent[] = [
@@ -525,6 +549,22 @@
 		emitChange();
 	}
 
+	/**
+	 * The editor's document -> the STORED shape, the way the real route's
+	 * `$lib/server` normalizer does. Paragraphs and text runs only, which is
+	 * every document this harness can produce by typing; anything richer is what
+	 * the real normalizer is for and is not simulated here, deliberately, rather
+	 * than half-simulated into a shape the gate would refuse.
+	 */
+	function harnessNormalizeDoc(doc: TiptapNode | null): ItemDoc {
+		const blocks: ItemDoc = [];
+		for (const node of doc?.content ?? []) {
+			const text = (node.content ?? []).map((n) => n.text ?? '').join('');
+			if (text.trim() !== '') blocks.push({ type: 'p', runs: [{ text }] });
+		}
+		return blocks;
+	}
+
 	const baseTransports: ReviewTransports = {
 		async loadSessions(sectionId) {
 			note(`select notebook_session_postings where section_id=${JSON.stringify(sectionId)}`);
@@ -534,6 +574,38 @@
 				// what the real transport's two-step read is for.
 				value: sessions.filter((s) => s.section_ids.includes(sectionId)).map((s) => ({ ...s }))
 			};
+		},
+
+		/**
+		 * THE GUIDANCE WRITE (0123), answered in memory.
+		 *
+		 * IT MIRRORS THE REAL MECHANISM RATHER THAN SHORTCUTTING IT: the manager
+		 * check is the same `mayManage` over EVERY section the check-in runs in
+		 * that the edit path uses (`_notebook_manages_session`'s own bar), null
+		 * and an empty document collapse to one cleared state exactly as the RPC
+		 * folds them, and the document is stored in the STORED shape -- not the
+		 * editor's -- because that is what crosses the real route's normalizer.
+		 * A harness missing the guard the real page has makes a passing drive
+		 * prove nothing.
+		 */
+		async setSessionGuidance(sessionId, doc) {
+			note(`POST /api/notebook/session-guidance ${sessionId} ${doc ? 'doc' : 'null'}`);
+			const session = sessions.find((s) => s.id === sessionId);
+			if (!session) return { ok: false, error: 'That check-in does not exist.' };
+			if (!session.section_ids.every(mayManage)) {
+				return {
+					ok: false,
+					error:
+						'Only the teacher of record for every class this check-in runs in can write its guidance.'
+				};
+			}
+			const stored = harnessNormalizeDoc(doc);
+			const cleared = stored.length === 0;
+			sessions = sessions.map((s) =>
+				s.id === sessionId ? { ...s, guidance_doc: cleared ? null : stored } : s
+			);
+			emitChange();
+			return { ok: true, value: { cleared } };
 		},
 
 		async saveSession(input) {
@@ -587,7 +659,12 @@
 					section_ids: [...input.section_ids],
 					unit_number: input.unit_number,
 					session_date: input.session_date,
-					session_label: input.session_label
+					session_label: input.session_label,
+					// NULL, not absent: a real widest-rung read returns the column with
+					// a null in it, and `undefined` is the different fact that the read
+					// never asked for it. The console tells the two apart to decide
+					// whether to offer the field at all, so the harness must too.
+					guidance_doc: null
 				}
 			];
 			return { ok: true, value: { session_id: id } };

@@ -46,16 +46,39 @@ import {
 	createPostgrestShim,
 	embeddedTables,
 	loadForeignKeys,
+	parseSelect,
 	relationshipBetween
 } from './db/postgrest-shim';
 import {
 	NOTEBOOK_ENTRY_SELECTS,
+	NOTEBOOK_POSTING_GUIDANCE_SELECT,
 	NOTEBOOK_POSTING_ITEM_SELECT,
 	NOTEBOOK_POSTING_SELECT,
 	NOTEBOOK_POSTING_SELECTS,
 	NOTEBOOK_SESSION_SELECT,
 	REVIEW_ENTRY_SELECTS
 } from '../src/lib/notebook-selects';
+
+/**
+ * A select string as two field sets: its own columns, and the columns inside
+ * each embed. Read through the SHIM'S OWN PARSER rather than a regex here, so
+ * a ladder assertion below cannot be measuring something PostgREST would parse
+ * differently from this file.
+ */
+function selectShape(select: string): { scalars: string[]; embeds: Map<string, string[]> } {
+	const scalars: string[] = [];
+	const embeds = new Map<string, string[]>();
+	for (const node of parseSelect(select)) {
+		if (node.kind === 'column') scalars.push(node.name);
+		else {
+			embeds.set(
+				node.table,
+				node.inner.filter((n) => n.kind === 'column').map((n) => (n as { name: string }).name)
+			);
+		}
+	}
+	return { scalars, embeds };
+}
 import { livePhotos, photoPages } from '../src/lib/notebook';
 import { deletedNoteThreads, noteThreads } from '../src/lib/notebook-notes';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
@@ -372,14 +395,46 @@ describe('the shipped select strings against the real schema', () => {
 		// because a select string naming an embed is an assertion about the
 		// FOREIGN KEYS that nothing else type-checks.
 		expect(embeddedTables(NOTEBOOK_POSTING_ITEM_SELECT)).toEqual(['notebook_sessions']);
-		// The ladder narrows strictly: the wide rung is the narrow one plus the
-		// column, so degrading can never cost an unrelated capability.
-		expect(NOTEBOOK_POSTING_SELECTS.map((r) => r.select)).toEqual([
-			NOTEBOOK_POSTING_ITEM_SELECT,
-			NOTEBOOK_POSTING_SELECT
-		]);
+		/**
+		 * THE LADDER NARROWS STRICTLY, ASSERTED AS THE RULE RATHER THAN AS A LIST.
+		 *
+		 * This used to spell the two rungs out by name, which meant 0123 adding a
+		 * third one BROKE A PASSING TEST BY DOING THE RIGHT THING -- the failure a
+		 * hurried session deletes rather than generalizes. The property that
+		 * actually matters is the one the whole ladder doctrine rests on: every
+		 * rung is the one beneath it plus something, at the top level AND inside
+		 * the embed, so degrading one step can never cost an unrelated capability.
+		 *
+		 * It still bites. Swap two rungs, drop `item_id` from a rung that adds
+		 * `guidance_doc`, or add a rung that embeds a second table, and this fails.
+		 */
+		const rungs = NOTEBOOK_POSTING_SELECTS.map((r) => selectShape(r.select));
+		expect(rungs.length).toBeGreaterThan(1);
+		for (let i = 0; i + 1 < rungs.length; i++) {
+			const wide = rungs[i];
+			const narrow = rungs[i + 1];
+			// Same shape of read: one embed, the same one, every rung.
+			expect([...wide.embeds.keys()]).toEqual(['notebook_sessions']);
+			expect([...narrow.embeds.keys()]).toEqual(['notebook_sessions']);
+			// Strictly wider: a superset, and not the same set.
+			for (const c of narrow.scalars) expect(wide.scalars).toContain(c);
+			for (const c of narrow.embeds.get('notebook_sessions')!) {
+				expect(wide.embeds.get('notebook_sessions')!).toContain(c);
+			}
+			const wideCount =
+				wide.scalars.length + wide.embeds.get('notebook_sessions')!.length;
+			const narrowCount =
+				narrow.scalars.length + narrow.embeds.get('notebook_sessions')!.length;
+			expect(wideCount).toBeGreaterThan(narrowCount);
+		}
+		// The two capabilities the rungs above the base one carry, each named on
+		// its own rung and absent from every rung below it -- which is what makes
+		// the degrade cost exactly one thing at a time.
 		expect(NOTEBOOK_POSTING_ITEM_SELECT).toContain('item_id');
 		expect(NOTEBOOK_POSTING_SELECT).not.toContain('item_id');
+		expect(NOTEBOOK_POSTING_GUIDANCE_SELECT).toContain('guidance_doc');
+		expect(NOTEBOOK_POSTING_ITEM_SELECT).not.toContain('guidance_doc');
+		expect(NOTEBOOK_POSTING_SELECT).not.toContain('guidance_doc');
 	});
 
 	it('would still catch the original bug: the old embed is unresolvable', async () => {

@@ -44,6 +44,8 @@
  * rather than at the four places that call it.
  */
 import type { NotebookFlagReason } from '$lib/notebook';
+import type { ItemDoc } from '$lib/classroom/classroom-doc';
+import type { TiptapNode } from '$lib/rich-text';
 import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
 
 // ---------------------------------------------------------------------------
@@ -107,6 +109,22 @@ export interface ClassCheckIn {
 	 * as "not linked" in some branches and "unknown" in others.
 	 */
 	item_id: string | null;
+	/**
+	 * THE INSTRUCTOR'S GUIDANCE PROMPT (0123), in the closed classroom rich-text
+	 * shape, or null for a check-in with no prompt.
+	 *
+	 * It is the CANONICAL check-in's, not the posting's, so every class this row
+	 * could be about carries the same one -- which is why editing it is one edit
+	 * rather than three.
+	 *
+	 * OPTIONAL, unlike `item_id` beside it, and the difference is deliberate:
+	 * `item_id` null is a real answer a caller has to give ("not linked"), while
+	 * `undefined` here means the read never asked -- a project between 0122 and
+	 * 0123 answering through a narrower ladder rung. Null and undefined render
+	 * identically; they are only distinguished where a surface decides whether to
+	 * offer the field for EDITING.
+	 */
+	guidance_doc?: ItemDoc | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +261,26 @@ export interface CheckInDraft {
 	/** YYYY-MM-DD, straight off a date input. */
 	session_date: string;
 	session_label: string;
+	/**
+	 * THE INSTRUCTOR'S GUIDANCE PROMPT (0123), as the EDITOR's own document, or
+	 * null for none.
+	 *
+	 * IT IS ON THE DRAFT AND NOT IN `checkInDraftPayload`, deliberately, and the
+	 * split is the whole design. The payload is what
+	 * `notebook_admin_upsert_session` takes -- a WHOLE-ROW REPLACE that also
+	 * reconciles the section list -- and guidance must never travel through it:
+	 * a caller who wanted to change only the prompt would have to restate the
+	 * unit, the date, the label AND every class the check-in runs in, and
+	 * getting the last of those wrong unposts those classes and detaches the
+	 * work filed against them. So the prompt rides the DRAFT (it is authored on
+	 * the same form, in the same breath) and is WRITTEN by
+	 * `notebook_set_session_guidance` alone, which sets exactly one column.
+	 *
+	 * Untrusted and unnormalized, exactly like `ItemInput.bodyDoc`: the
+	 * translation into the stored shape is a `$lib/server` whitelist and the SQL
+	 * gate refuses whatever survives it.
+	 */
+	guidance?: TiptapNode | null;
 }
 
 /**
@@ -291,27 +329,54 @@ export function checkInDraftPayload(draft: CheckInDraft): {
 }
 
 /**
- * The two writes that move a check-in between its two shapes.
+ * The writes that move a check-in between its two shapes, plus the guidance
+ * write (0123).
  *
  * INJECTED, like every other transport in this module, so the dev harnesses
- * answer them in memory and the real route points them at the RPCs. Both are
- * re-authorized inside the function they call (`classroom_manages_section`);
- * handing them in is plumbing, never the boundary.
+ * answer them in memory and the real route points them at the RPCs. Each is
+ * re-authorized inside the function it calls (`classroom_manages_section`, or
+ * `_notebook_manages_session` for guidance); handing them in is plumbing, never
+ * the boundary.
  *
  * ABSENCE REMOVES THE CONTROL, down through the components -- an item page
  * given no transports has no attach and no detach to execute, which is what
  * makes a student's read-only view structural rather than a discipline.
  */
 export interface ClassCheckInTransports {
-	/** Create a check-in that belongs to this item, in every class it is posted to. */
+	/**
+	 * Create a check-in that belongs to this item, in every class it is posted
+	 * to.
+	 *
+	 * IT REPORTS THE SESSION IT MADE, and that is not decoration: guidance is
+	 * authored on the same form but written by a SECOND, narrow RPC against the
+	 * check-in's id, which does not exist until this call returns. Without the
+	 * id a retry after a half-landed save has nothing to aim at and would create
+	 * a second check-in -- the same duplicate-on-retry defect `createdItemId`
+	 * exists to prevent one level up.
+	 */
 	createForItem: (
 		itemId: string,
 		draft: CheckInDraft
-	) => Promise<{ ok: boolean; message?: string }>;
+	) => Promise<{ ok: boolean; message?: string; sessionId?: string | null }>;
 	/** Put one back in the class stream. The check-in and its entries are untouched. */
 	unlink: (
 		sessionId: string,
 		sectionId: string
+	) => Promise<{ ok: boolean; message?: string }>;
+	/**
+	 * WRITE THE GUIDANCE PROMPT on a check-in that exists (0123). Null clears
+	 * it, which is the only way to clear it.
+	 *
+	 * OPTIONAL, the presence-gates-the-control rule: a deployment whose schema
+	 * predates 0123 hands in nothing, and every guidance field disappears
+	 * rather than offering a save that would fail. It is a SEPARATE transport
+	 * from `createForItem` for the same reason it is a separate RPC -- the
+	 * upsert behind that one is a whole-row replace that reconciles the section
+	 * list, and a prompt must never be able to unpost a class.
+	 */
+	setGuidance?: (
+		sessionId: string,
+		doc: TiptapNode | null
 	) => Promise<{ ok: boolean; message?: string }>;
 }
 

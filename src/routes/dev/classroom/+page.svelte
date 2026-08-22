@@ -1875,7 +1875,40 @@
 				session_label: 'Shaft stackup',
 				status: 'flagged',
 				flag_reason: 'illegible',
-				item_id: 'i-3'
+				item_id: 'i-3',
+				// A GUIDANCE PROMPT (0123), in the STORED shape a real read hands
+				// over. It carries bold, a nested list and a link, because those are
+				// what the shared gate widened to allow (0122) and what the shared
+				// renderer has to walk -- and it is on the LINKED check-in, which is
+				// the one whose page renders it.
+				guidance_doc: [
+					{
+						type: 'p',
+						runs: [
+							{ text: 'Photograph ' },
+							{ text: 'both pages', bold: true },
+							{ text: ' of your stackup working, flat and in focus.' }
+						]
+					},
+					{
+						type: 'ul',
+						items: [
+							[{ text: 'Every dimension you measured.' }],
+							[
+								{ text: 'And what you measured it with:' },
+								{ type: 'ul', items: [[{ text: 'Calipers, to 0.01 mm.' }]] }
+							]
+						]
+					},
+					{
+						type: 'p',
+						runs: [
+							{ text: 'Tolerances are in the ' },
+							{ text: 'unit reference', href: 'https://example.org/unit-3' },
+							{ text: '.' }
+						]
+					}
+				]
 			},
 			{
 				session_id: 'ns-3',
@@ -1918,6 +1951,10 @@
 			harnessCheckInFail = on;
 			return harnessCheckInFail;
 		};
+		(window as unknown as Record<string, unknown>).__guidanceFail = (on: boolean) => {
+			harnessGuidanceFail = on;
+			return harnessGuidanceFail;
+		};
 	});
 
 	/**
@@ -1933,17 +1970,37 @@
 	 * is the half that has to leave the form's work where it was.
 	 */
 	let harnessCheckInFail = $state(false);
+	/**
+	 * The GUIDANCE write's own failure switch (`window.__guidanceFail(true)`),
+	 * separate from `harnessCheckInFail` because the interesting state is the
+	 * HALF-LANDED one: the check-in created, its prompt refused. That is the
+	 * case a retry must not turn into a second check-in, and one shared switch
+	 * could never reach it.
+	 */
+	let harnessGuidanceFail = $state(false);
+	let harnessSessionSeq = 0;
 	const harnessCheckInTransports: ClassCheckInTransports = {
 		async createForItem(itemId, draft) {
 			if (harnessCheckInFail) {
 				return { ok: false, message: 'The server refused that check-in.' };
 			}
 			checkInLog.push({ fn: 'createForItem', itemId, draft });
-			return { ok: true };
+			// The real RPC reports the check-in it made; the caller needs it to
+			// write the prompt, and to retry that write without creating a second
+			// check-in. A harness that returned no id would make the retry path
+			// untestable here and pass anyway.
+			return { ok: true, sessionId: `ses-harness-${++harnessSessionSeq}` };
 		},
 		async unlink(sessionId, sectionId) {
 			if (harnessCheckInFail) return { ok: false, message: 'The server refused that.' };
 			checkInLog.push({ fn: 'unlink', sessionId, sectionId });
+			return { ok: true };
+		},
+		async setGuidance(sessionId, doc) {
+			if (harnessGuidanceFail) {
+				return { ok: false, message: 'The server refused that guidance.' };
+			}
+			checkInLog.push({ fn: 'setGuidance', sessionId, doc });
 			return { ok: true };
 		}
 	};

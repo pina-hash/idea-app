@@ -99,18 +99,29 @@
 		line-height: 1;
 	}
 
+	/* FOUR ROOM HOOKS, read at the point of use with the portal's own tokens as
+	   the fallback -- the mechanism Disclosure uses for `--disc-accent`.
+
+	   The four defaults are the raw semantic tokens, which are tuned for the
+	   app shell's dark plate. 0123 mounted this indicator inside `.nb-root` for
+	   the first time, and measured on that room's LIGHT plate the FAILED message
+	   -- the one a person most needs to be able to read -- came to 3.65:1. The
+	   notebook already carries corrected values for exactly this reason
+	   (`--nb-warn` / `--nb-ok` / `--nb-error` exist because the raw tokens are
+	   the uncorrected ones), so the room points these at them and every other
+	   surface renders byte-identically to what it rendered before. */
 	.save-ind.clean .save-ind-text,
 	.save-ind.dirty .save-ind-text {
-		color: var(--amber);
+		color: var(--save-warn, var(--amber));
 	}
 	.save-ind.writing .save-ind-text {
-		color: var(--cyan);
+		color: var(--save-info, var(--cyan));
 	}
 	.save-ind.saved .save-ind-text {
-		color: var(--green);
+		color: var(--save-ok, var(--green));
 	}
 	.save-ind.failed .save-ind-text {
-		color: var(--crimson);
+		color: var(--save-error, var(--crimson));
 	}
 
 	.save-ind-btn {
@@ -137,12 +148,12 @@
 		cursor: default;
 	}
 	.save-ind-btn.retry {
-		border-color: var(--crimson);
-		color: var(--crimson);
+		border-color: var(--save-error, var(--crimson));
+		color: var(--save-error, var(--crimson));
 	}
 	.save-ind-btn.retry:hover {
-		background: color-mix(in srgb, var(--crimson) 14%, transparent);
-		border-color: var(--crimson);
-		color: var(--crimson);
+		background: color-mix(in srgb, var(--save-error, var(--crimson)) 14%, transparent);
+		border-color: var(--save-error, var(--crimson));
+		color: var(--save-error, var(--crimson));
 	}
 </style>

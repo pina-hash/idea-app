@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-21",
+			"title": "Your teacher can say what a check-in is asking for",
+			"body": "A notebook check-in can now carry a short set of instructions from your teacher: what to photograph, and what to write about it. You see it in your notebook, right under the control where you pick which check-in an entry is for, so it is on screen before you type anything. It opens up the first time and folds itself away once you have started writing, and you can open or close it yourself whenever you like, and it remembers what you chose. It is on the entry afterwards too, under \"What was asked for\", so you can check what was wanted when you go back to a page you already turned in. If your teacher rewrites the instructions later, everyone sees the new version, including on entries that were already turned in. Not every check-in will have one, and nothing changes for the ones that do not.",
+			"tags": ["notebook", "check-ins"]
+		},
+		{
+			"date": "2026-08-21",
 			"title": "Indented bullets stay indented",
 			"body": "A bulleted or numbered list can now have lists inside it, and they stay that way. Before, an indented bullet was moved out to the same level as the one above it, so a materials list with its parts tucked underneath came out as one long flat list. Anything you write or paste with sub-bullets now reads the way it was written, on the item page, in the class stream and in your notebook, and it comes back the same way when you open it again to edit it. Nothing you wrote before this has changed: those lists were already flattened when they were saved, and there is no way to put the indenting back other than re-indenting them yourself. One thing a bullet still cannot do is hold two separate paragraphs; if you write one that way, each paragraph becomes its own bullet.",
 			"tags": ["notebook", "assignments", "writing"]

@@ -785,6 +785,16 @@ inside the function fails closed rather than falling through to a weaker path.
     reported to a parent tracks `save.dirty`, NOT the draft -- the draft is
     cleared before the acknowledgement lands -- and is withdrawn on teardown,
     because a remount destroys the instance that reported it.
+  - **`markDirty` FIRES ON A REAL CHANGE, NEVER ON A CHANGE EVENT.** Compare the
+    incoming value against the last acknowledged one first. A rich-text editor
+    emits a transaction just for being SEEDED -- ProseMirror normalizes what it
+    is handed -- so wiring `markDirty` straight to an editor's `onchange` arms
+    the debounce for a document nobody typed, the write lands, the re-render
+    produces another transaction, and the surface autosaves itself forever
+    (measured: 151 writes in seconds; on a surface whose save refetches, it
+    wedged the renderer outright). Compare against the EDITOR'S OWN
+    serialization at mount (`onready`), not against the value handed in, or a
+    harmless normalization reads as an unsaved change.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
@@ -1368,6 +1378,19 @@ the source of truth; **do not invent colours or swap fonts.**
 Each is scoped under one wrapper class, opaque, at `z-index: 1` so `.bg-fx` never
 shows through, and neutralizes the app-shell globals that would leak (the green
 `// ` h2 prefix, the link glow):
+
+**A SHARED COMPONENT MOVING INTO A SCOPED ROOM READS ITS COLOURS THROUGH A ROOM
+HOOK, and the portal token is the FALLBACK.** `var(--body-link, var(--cyan))`,
+the way `Disclosure` reads `--disc-accent`. The portal's semantic tokens are
+tuned for a dark plate, so a component built in the shell and mounted in a light
+room carries values measured against the wrong ground: `ItemBody`'s link landed
+at **2.00:1** and `SaveIndicator`'s failed message at **3.65:1** on the
+notebook's paper the first time each arrived there. Written as a hook the
+shell renders byte-identically and the room points the name at the corrected
+value it already has (`--nb-accent-ink`, `--nb-error`) -- and the hook is
+declared ON THE ROOM'S OWN WRAPPER, never on the component, or it sits on a
+descendant and beats the room. **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
+ROOM**; both of those had passed review in the room they were written for.
 
 - **`.gt-root` -- GAUNTLET VIEWPORT** (`docs/GAUNTLET-DESIGN.md`). All GAUNTLET UI
   must conform. Read tokens and reuse the viewport components rather than writing

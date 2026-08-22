@@ -264,12 +264,46 @@ describe('the instructions panel on a module', () => {
 describe("ItemDetail's instructions card", () => {
 	const src = readFileSync(new URL('../src/lib/classroom/ItemDetail.svelte', import.meta.url), 'utf8');
 
+	/**
+	 * EVERY `<Disclosure>` BLOCK IN THE FILE, so an assertion about ONE of them
+	 * is picked out by what it IS rather than by where it appears.
+	 *
+	 * It used to be a single non-greedy match, which meant the first Disclosure
+	 * added ABOVE the body card (0123's check-in guidance panel) silently
+	 * captured this test -- a legitimate change breaking a passing assertion by
+	 * position rather than by meaning.
+	 */
+	const disclosures = src
+		.split('<Disclosure')
+		.slice(1)
+		.map((s) => s.split('</Disclosure>')[0]);
+
 	it('wraps the body in the shared Disclosure rather than a local one', () => {
 		expect(src).toContain("import Disclosure from '$lib/Disclosure.svelte'");
-		const card = src.match(/<Disclosure[\s\S]*?<ItemBody[\s\S]*?<\/Disclosure>/);
-		expect(card, 'the item body is not inside a Disclosure').not.toBeNull();
-		expect(card![0]).toContain('collapseWhen={started}');
-		expect(card![0]).toContain('scope={`item:${item.id}:body`}');
+		expect(disclosures.length).toBeGreaterThan(0);
+		const card = disclosures.find((d) => d.includes('scope={`item:${item.id}:body`}'));
+		expect(card, 'the item body is not inside a Disclosure').toBeDefined();
+		expect(card!).toContain('collapseWhen={started}');
+		expect(card!).toContain('<ItemBody');
+	});
+
+	/**
+	 * 0123's check-in guidance panel: the same component, on its own scope.
+	 *
+	 * ITS OWN SCOPE IS THE CLAIM. The notebook composer renders the same
+	 * paragraph under `check-in:<id>:guidance` with a different collapse signal;
+	 * sharing one key would let a collapse made mid-upload hide the prompt on
+	 * the page a student came to read it on, with nothing on either screen to
+	 * say why.
+	 */
+	it('gives the check-in guidance panel its own Disclosure and its own scope', () => {
+		const panel = disclosures.find((d) =>
+			d.includes('scope={`item-check-in:${checkIn.session_id}:guidance`}')
+		);
+		expect(panel, 'the check-in guidance is not inside a Disclosure').toBeDefined();
+		expect(panel!).toContain('<ItemBody');
+		// Not the notebook composer's key.
+		expect(src).not.toContain('scope={`check-in:${checkIn.session_id}:guidance`}');
 	});
 
 	it('derives `started` from the engine slice, with no role term in it', () => {
@@ -292,7 +326,15 @@ describe("ItemDetail's instructions card", () => {
 		// A disclosure inside ItemBody would give the stream's expanded rows a
 		// behaviour nobody asked them for. One component, one decision per
 		// surface.
-		expect(itemBody).not.toContain('Disclosure');
+		//
+		// MATCHED ON THE IMPORT AND THE ELEMENT, not on the WORD. It used to be a
+		// bare `not.toContain('Disclosure')`, which 0123 tripped with a CSS
+		// comment explaining that ItemBody's link colour borrows Disclosure's
+		// room-hook mechanism -- a true sentence about a real design decision,
+		// failing a test it does not violate. What the claim actually is: this
+		// component neither IMPORTS the disclosure nor RENDERS one.
+		expect(itemBody).not.toContain('Disclosure.svelte');
+		expect(itemBody).not.toMatch(/<Disclosure[\s\/>]/);
 		expect(itemBody).not.toContain('aria-expanded');
 	});
 });

@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
+	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type {
 		AddPhotoResult,
 		CreateEntryResult,
@@ -102,13 +103,56 @@
 		Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ua });
 	});
 
+	/**
+	 * THE GUIDANCE PROMPT (0123), in the STORED shape the load hands over --
+	 * `guidance_doc` is `classroom_items.body_doc`'s closed shape, so a fixture
+	 * here is an ItemDoc and not editor JSON. Bold, a link and a nested list are
+	 * in it on purpose: they are what the shared gate widened to allow (0122) and
+	 * what the shared renderer has to walk.
+	 */
+	const GUIDANCE: ItemDoc = [
+		{
+			type: 'p',
+			runs: [
+				{ text: 'Photograph ' },
+				{ text: 'both pages', bold: true },
+				{ text: ' of your teardown notes, flat and in focus.' }
+			]
+		},
+		{
+			type: 'ul',
+			items: [
+				[{ text: 'The bearing numbers you read off the races.' }],
+				[
+					{ text: 'What you measured, and with what:' },
+					{
+						type: 'ul',
+						items: [[{ text: 'Calipers to the nearest 0.01 mm.' }], [{ text: 'Bore and OD both.' }]]
+					}
+				],
+				[{ text: 'Anything that did not come apart the way the manual said it would.' }]
+			]
+		},
+		{
+			type: 'p',
+			runs: [
+				{ text: 'Torque values are in the ' },
+				{ text: 'unit reference', href: 'https://example.org/unit-3' },
+				{ text: '.' }
+			]
+		}
+	];
+
 	const SESSIONS: NotebookSession[] = [
 		{
 			id: 'ses-1',
 			section_id: 'sec-1',
 			unit_number: 3,
 			session_date: '2026-08-08',
-			session_label: 'Bearing teardown'
+			session_label: 'Bearing teardown',
+			// The only check-in here that carries one, so the harness shows BOTH
+			// states: a prompt above the form, and the three below it with none.
+			guidance_doc: GUIDANCE
 		},
 		{
 			id: 'ses-2',
@@ -209,7 +253,15 @@
 			status: 'compliant',
 			flag_reason: null,
 			instructor_comment: null,
-			session: { session_label: 'Design brief + sketches', unit_number: 2, session_date: '2026-07-29' },
+			// A FILED entry that carries its check-in's prompt, which is the second
+			// reading surface: "what was asked for", on the work that answered it.
+			// Read through the check-in at load time, never copied here.
+			session: {
+				session_label: 'Design brief + sketches',
+				unit_number: 2,
+				session_date: '2026-07-29',
+				guidance_doc: GUIDANCE
+			},
 			photos: [photo('p-1', 1, 'IMG_4821.HEIC'), photo('p-2', 2, 'IMG_4822.HEIC')],
 			notes: [
 				note(

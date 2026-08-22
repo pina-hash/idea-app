@@ -1,4 +1,7 @@
 <script lang="ts">
+	import CheckInGuidance from '$lib/CheckInGuidance.svelte';
+	import { hasGuidance } from '$lib/check-in-guidance';
+	import type { TiptapNode } from '$lib/rich-text';
 	import {
 		sectionName,
 		sessionsInOrder,
@@ -37,7 +40,8 @@
 		onSave,
 		onDelete,
 		onAddSections,
-		onRemoveSection
+		onRemoveSection,
+		onSetGuidance = null
 	}: {
 		sectionId: string;
 		/** Every section the caller manages -- what a check-in may be posted to. */
@@ -55,6 +59,15 @@
 		) => Promise<
 			ReviewResult<{ ok: boolean; reason?: string; detached_entries?: number; remaining?: number }>
 		>;
+		/**
+		 * Write one check-in's guidance prompt (0123). ABSENT removes the field
+		 * outright -- there is no write to execute -- which is the honest state on
+		 * a deployment where 0123 is not applied, and is what keeps read-only
+		 * structural rather than a discipline.
+		 */
+		onSetGuidance?:
+			| ((sessionId: string, doc: TiptapNode | null) => Promise<ReviewResult<{ cleared: boolean }>>)
+			| null;
 	} = $props();
 
 	const ordered = $derived(sessionsInOrder(sessions));
@@ -95,6 +108,12 @@
 	let confirmDelete = $state<string | null>(null);
 	/** Which session's "posted to" panel is open, if any. */
 	let managing = $state<string | null>(null);
+	/**
+	 * Which session's GUIDANCE panel is open, if any (0123). Its own state, not
+	 * a second use of `managing`: the two answer different questions and a
+	 * teacher fixing a prompt should not have the class list open under it.
+	 */
+	let guiding = $state<string | null>(null);
 	/** Two-step confirm on an unpost, since it detaches that class's entries. */
 	let confirmRemove = $state<string | null>(null);
 	/** Sections ticked in the open panel's "add a class" list. */
@@ -176,6 +195,11 @@
 		managing = managing === session.id ? null : session.id;
 		confirmRemove = null;
 		addSections = [];
+		errorMsg = null;
+	}
+
+	function openGuidance(session: GridSession) {
+		guiding = guiding === session.id ? null : session.id;
 		errorMsg = null;
 	}
 
@@ -314,6 +338,19 @@
 									aria-expanded={managing === session.id}
 									onclick={() => openManage(session)}>Classes</button
 								>
+								<!-- Only where it can be WRITTEN: no transport, no control.
+								     The word is on the button, never a glyph alone. -->
+								{#if onSetGuidance}
+									<button
+										type="button"
+										class="btn secondary"
+										data-testid="session-guidance-open"
+										aria-expanded={guiding === session.id}
+										onclick={() => openGuidance(session)}
+									>
+										Guidance{hasGuidance(session.guidance_doc) ? ' ✓' : ''}
+									</button>
+								{/if}
 								<button type="button" class="btn secondary" onclick={() => openEdit(session)}>
 									Edit
 								</button>
@@ -324,6 +361,47 @@
 								>
 							{/if}
 						</div>
+						<!--
+							THE PROMPT, EDITED WHERE THE CHECK-IN IS EDITED (0123). A
+							check-in's date, label and classes are changed on this row, so a
+							prompt authorable only in the classroom composer would be the
+							split that produces "why can't I change this here".
+
+							IT IS `{#key}`ED ON THE CHECK-IN, so opening a different row seeds
+							Tiptap with that row's own prompt: the editor takes `value` once,
+							on mount, and without the key the second row opened would show the
+							first one's paragraph over its own save.
+
+							ONE PROMPT, WHEREVER IT RUNS. The guidance is on the canonical
+							check-in and not on the posting, so this is not per-class and the
+							panel says so.
+						-->
+						{#if onSetGuidance && guiding === session.id}
+							<div class="guidance-panel" data-testid="session-guidance-panel">
+								{#key session.id}
+									<CheckInGuidance
+										value={session.guidance_doc ?? null}
+										disabled={busy}
+										testId="session-guidance-field"
+										hint={postedTo(session).length > 1
+											? `Every one of the ${postedTo(session).length} classes this runs in reads the same prompt.`
+											: 'Students read this in their notebook, above the entry they are about to file.'}
+										onchange={() => {}}
+										onsave={async (doc) => {
+											const res = await onSetGuidance(session.id, doc);
+											return res.ok
+												? { ok: true as const, cleared: res.value.cleared }
+												: { ok: false as const, message: res.error };
+										}}
+									/>
+								{/key}
+								<p class="note">
+									Leave it empty to remove the prompt. Editing it changes what every class
+									this check-in runs in reads, including students who have already filed.
+								</p>
+							</div>
+						{/if}
+
 						{#if managing === session.id}
 							{@const posted = postedTo(session)}
 							{@const available = sections.filter((s) => !posted.includes(s.id))}
@@ -543,6 +621,7 @@
 		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
+	.guidance-panel,
 	.posted-panel {
 		/* A row is a wrapping flex line; the panel is a block under it. */
 		width: 100%;
@@ -553,6 +632,11 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
+	}
+	.guidance-panel {
+		/* Its own gap: the editor, its counter and the note under it are three
+		   blocks, not a list of rows like the posted panel's. */
+		gap: var(--space-3);
 	}
 	.posted-panel h4 {
 		margin: 0;

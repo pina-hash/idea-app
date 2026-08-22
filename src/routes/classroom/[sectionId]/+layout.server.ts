@@ -14,6 +14,7 @@ import {
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
 import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
+import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import { driveConfigured } from '$lib/server/notebook-drive';
@@ -44,6 +45,8 @@ interface PostingRow {
 		unit_number: number;
 		session_date: string;
 		session_label: string;
+		/** 0123's column. Absent on either narrower rung. */
+		guidance_doc?: ItemDoc | null;
 	} | null;
 }
 
@@ -67,6 +70,8 @@ async function sectionCheckIns(
 ): Promise<{
 	rows: Omit<ClassCheckIn, 'status' | 'flag_reason'>[];
 	linksReady: boolean;
+	/** 0123: whether this project can carry a guidance prompt at all. */
+	guidanceReady: boolean;
 } | null> {
 	for (const rung of NOTEBOOK_POSTING_SELECTS) {
 		const { data, error: postingError } = await supabase
@@ -88,9 +93,15 @@ async function sectionCheckIns(
 				// On the narrow rung the column was never asked for, so nothing is
 				// linked -- which is exactly the behaviour of a project without
 				// 0120, rather than a guess about one.
-				item_id: r.item_id ?? null
+				item_id: r.item_id ?? null,
+				// Same shape, one migration later: undefined on any rung that did
+				// not ask, which every reader renders as no prompt.
+				guidance_doc: r.notebook_sessions.guidance_doc
 			}));
-		return { rows, linksReady: rung.capability === 'checkInItems' };
+		// The guidance rung is the widest, so it also carries `item_id`; a rung
+		// that carries the prompt necessarily carries the link too.
+		const guidanceReady = rung.capability === 'checkInGuidance';
+		return { rows, linksReady: guidanceReady || rung.capability === 'checkInItems', guidanceReady };
 	}
 	// null means "the notebook is not here", which the page renders as no
 	// check-ins at all rather than as an error -- migrations are applied by hand,
@@ -420,6 +431,9 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * says so rather than failing when they press it.
 		 */
 		checkInLinksReady: checkInRows?.linksReady ?? false,
+		// 0123. The item page hands the guidance transport in ONLY when this is
+		// true, so an instructor is never offered a field whose save would fail.
+		checkInGuidanceReady: checkInRows?.guidanceReady ?? false,
 		sectionOutstanding
 	};
 };

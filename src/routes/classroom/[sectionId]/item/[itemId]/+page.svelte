@@ -33,6 +33,26 @@
 	const checkInTransports = createCheckInTransports(data.supabase);
 
 	/**
+	 * THE CHECK-IN TRANSPORTS THIS DEPLOYMENT CAN ACTUALLY EXECUTE.
+	 *
+	 * `createCheckInTransports` always builds all three writes -- it is a factory
+	 * over a Supabase client, not a capability report -- so the DEPLOYMENT's
+	 * answer has to be applied here. Two migrations are involved and they can be
+	 * applied separately: without 0120 there is nothing to attach a check-in to,
+	 * and without 0123 there is no column to write a prompt into. So the object
+	 * handed down carries exactly the writes the schema supports, and ItemDetail
+	 * removes the control for each one it does not get -- absence is the
+	 * mechanism, rather than a flag the component has to remember to read.
+	 */
+	const liveCheckInTransports = $derived(
+		data.canManage && data.checkInLinksReady
+			? data.checkInGuidanceReady
+				? checkInTransports
+				: { createForItem: checkInTransports.createForItem, unlink: checkInTransports.unlink }
+			: null
+	);
+
+	/**
 	 * THE CHECK-INS THAT HANG OFF THIS ITEM (0120), out of the class's own list.
 	 *
 	 * `data.checkIns` is the LAYOUT's -- page data merges over layout data, and
@@ -62,7 +82,7 @@
 	deckTransports={data.canManage ? deckTransports : null}
 	revisionTransports={data.canManage ? revisionTransports : null}
 	checkIns={itemCheckIns}
-	checkInTransports={data.canManage && data.checkInLinksReady ? checkInTransports : null}
+	checkInTransports={liveCheckInTransports}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}

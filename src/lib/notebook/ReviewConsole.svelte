@@ -2,6 +2,7 @@
 	import { tick, untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SessionManager from '$lib/notebook/SessionManager.svelte';
+	import type { TiptapNode } from '$lib/rich-text';
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
 	import DocumentationCheck from '$lib/notebook/DocumentationCheck.svelte';
@@ -514,6 +515,39 @@
 		return result;
 	}
 
+	/**
+	 * The guidance write (0123), through the SAME refresh path every other
+	 * check-in write here takes: the manager's list is what seeds each editor,
+	 * so a save that did not refresh would leave the next open of that row
+	 * showing the prompt as it was before.
+	 *
+	 * `undefined` when the transport is absent, so the prop it is handed to is
+	 * absent too and the field is never rendered -- absence is the mechanism.
+	 */
+	/**
+	 * DOES THIS PROJECT CARRY GUIDANCE (0123). Read off the payload that
+	 * actually came back rather than assumed from the transport: `loadSessions`
+	 * rides a two-rung ladder, and on the narrow rung `guidance_doc` was never
+	 * asked for, so it is `undefined` on every row. A `null` is the widest rung
+	 * having answered "this check-in has no prompt", which is a different fact.
+	 *
+	 * It starts FALSE and is turned on only by a rung that actually included the
+	 * column succeeding, which is the rule every other capability flag in this
+	 * repo follows. With no check-ins at all there is nothing to author guidance
+	 * on, so false is also the right answer there.
+	 */
+	const guidanceReady = $derived(sessions.some((s) => s.guidance_doc !== undefined));
+
+	const setSessionGuidance = $derived(
+		transports.setSessionGuidance && guidanceReady
+			? async (sessionId: string, doc: TiptapNode | null) => {
+					const result = await transports.setSessionGuidance!(sessionId, doc);
+					if (result.ok) await refresh();
+					return result;
+				}
+			: null
+	);
+
 	async function deleteSession(id: string) {
 		const result = await transports.deleteSession(id);
 		if (result.ok) {
@@ -897,6 +931,7 @@
 						onDelete={deleteSession}
 						onAddSections={addSessionSections}
 						onRemoveSection={removeSessionSection}
+						onSetGuidance={setSessionGuidance}
 					/>
 				{/if}
 			</div>

@@ -33,8 +33,16 @@
 		specs: [] as { itemId: string; kind: string }[],
 		/** Check-ins created against an item (0120), in call order. */
 		checkIns: [] as { itemId: string; label: string; unit: number | string; date: string }[],
+		/**
+		 * Guidance prompts written against a check-in (0123), in call order.
+		 *
+		 * SEPARATE FROM `checkIns` because the two are separate writes, and the
+		 * state that matters is the one where the first landed and the second did
+		 * not: `checkIns` must NOT grow on the retry, and this one must.
+		 */
+		guidance: [] as { sessionId: string; doc: unknown }[],
 		/** Injected failures, flipped from the console for the partial-failure case. */
-		fail: { deck: false, spec: false, checkIn: false }
+		fail: { deck: false, spec: false, checkIn: false, guidance: false }
 	};
 </script>
 
@@ -201,6 +209,24 @@
 				}
 			];
 			logCall('createItemCheckIn', { itemId, label: draft.session_label });
+			// The id the real RPC reports back, which the composer needs to write
+			// the staged prompt against and to retry that write without scheduling
+			// a second check-in.
+			return { ok: true, sessionId: `ses-harness-${composeLog.checkIns.length}` };
+		},
+		/**
+		 * THE PROMPT (0123), its own write and its own failure switch
+		 * (`composeLog.fail.guidance`). Separate from the check-in's, because the
+		 * state worth reaching is the HALF-LANDED one -- check-in created, prompt
+		 * refused -- which one shared switch cannot produce.
+		 */
+		async setGuidance(sessionId, doc) {
+			if (composeLog.fail.guidance) {
+				logCall('setSessionGuidance:failed', { sessionId });
+				return { ok: false, message: 'The server refused that guidance.' };
+			}
+			composeLog.guidance = [...composeLog.guidance, { sessionId, doc }];
+			logCall('setSessionGuidance', { sessionId });
 			return { ok: true };
 		},
 		async unlink(sessionId, sectionId) {

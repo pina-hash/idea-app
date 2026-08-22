@@ -298,6 +298,33 @@ export const REVIEW_ENTRY_SELECTS = [
 export const NOTEBOOK_SESSION_SELECT = 'id, session_label, unit_number, session_date';
 
 /**
+ * + the instructor's guidance prompt (0123), so an entry ALREADY FILED can
+ * still show what was asked for.
+ *
+ * ITS OWN RUNG, because `guidance_doc` is a column a project between 0122 and
+ * 0123 does not have and PostgREST rejects the WHOLE select for one it does not
+ * know. Degrading costs the prompt on a filed entry and nothing else -- the
+ * label, the unit and the date are what every reader before 0123 had.
+ *
+ * NO FILTER RIDES THIS RUNG and none may. The prompt is read THROUGH the
+ * check-in, by id, every time -- it is never copied onto the entry. That is the
+ * whole design: an instructor who corrects an unclear instruction corrects it
+ * for the class that already filed against it too, and a snapshot taken at
+ * filing time would leave thirty students reading the sentence that was wrong.
+ */
+export const NOTEBOOK_SESSION_GUIDANCE_SELECT =
+	'id, session_label, unit_number, session_date, guidance_doc';
+
+/**
+ * Widest first. `capability: null` is the rung carrying none of its own:
+ * failing it is what makes `sessionsReady` false.
+ */
+export const NOTEBOOK_SESSION_SELECTS = [
+	{ select: NOTEBOOK_SESSION_GUIDANCE_SELECT, capability: 'guidance' },
+	{ select: NOTEBOOK_SESSION_SELECT, capability: null }
+] as const;
+
+/**
  * The student's own classes' scheduled check-ins. Since 0098 a check-in is a
  * canonical record plus one posting per section, so this reads the POSTING --
  * which is also what carries the section an entry filed against it belongs to.
@@ -319,11 +346,50 @@ export const NOTEBOOK_POSTING_ITEM_SELECT =
 	'section_id, item_id, notebook_sessions!inner ( id, unit_number, session_date, session_label )';
 
 /**
+ * The same read, plus the check-in's GUIDANCE PROMPT (0123).
+ *
+ * ITS OWN RUNG on top of the item one, for the reason every rung here is its
+ * own: 0120 and 0123 are separate migrations applied by hand, so a project with
+ * one and not the other is a real state, and folding the prompt into the item
+ * rung would cost an unrelated capability on the way down. It widens the
+ * EMBED's field list rather than appending a scalar column, so it is written
+ * out in full and the rung beneath it stays byte-identical.
+ */
+export const NOTEBOOK_POSTING_GUIDANCE_SELECT =
+	'section_id, item_id, notebook_sessions!inner ( id, unit_number, session_date, session_label, guidance_doc )';
+
+/**
  * Widest first. `capability: null` is the rung that carries none of its own:
  * failing it means the notebook is not on this project at all, which the class
  * page renders as no check-ins rather than as an error.
  */
 export const NOTEBOOK_POSTING_SELECTS = [
+	{ select: NOTEBOOK_POSTING_GUIDANCE_SELECT, capability: 'checkInGuidance' },
 	{ select: NOTEBOOK_POSTING_ITEM_SELECT, capability: 'checkInItems' },
 	{ select: NOTEBOOK_POSTING_SELECT, capability: null }
+] as const;
+
+/* -------------------------------------------------------------------------
+ * The instructor review console's CHECK-IN MANAGER (`/notebook/review`), which
+ * reads the canonical check-ins by id rather than through a posting: it is the
+ * surface where a check-in's date, label, classes and (since 0123) guidance are
+ * edited, so it needs the canonical row and every section each one runs in.
+ * ------------------------------------------------------------------------- */
+
+/** The check-in and every class it runs in (0098). The narrowest rung. */
+export const MANAGE_SESSION_SELECT =
+	'id, unit_number, session_date, session_label, notebook_session_postings ( section_id )';
+
+/**
+ * + the guidance prompt (0123), so the manager can EDIT it rather than only
+ * schedule around it. Its own rung: without 0123 the console keeps every
+ * control it had and loses exactly the guidance field, which is the honest
+ * state rather than a save that would fail.
+ */
+export const MANAGE_SESSION_GUIDANCE_SELECT =
+	'id, unit_number, session_date, session_label, guidance_doc, notebook_session_postings ( section_id )';
+
+export const MANAGE_SESSION_SELECTS = [
+	{ select: MANAGE_SESSION_GUIDANCE_SELECT, capability: 'guidance' },
+	{ select: MANAGE_SESSION_SELECT, capability: null }
 ] as const;

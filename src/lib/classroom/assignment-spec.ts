@@ -401,6 +401,7 @@ export function sentenceState(count: number, min: number | undefined): SentenceS
 // Spec validation (the friendly half; _classroom_check_spec is the boundary)
 // ---------------------------------------------------------------------------
 
+import { countWords } from '$lib/rich-text';
 import { parseMarkdown, type InlineRun, type MarkdownList } from './reference-spec';
 import { specKind } from './reference-spec';
 
@@ -454,12 +455,6 @@ function listWords(list: MarkdownList): number {
 		if (item.child) n += listWords(item.child);
 	}
 	return n;
-}
-
-function countWords(text: string): number {
-	const trimmed = text.trim();
-	if (!trimmed) return 0;
-	return trimmed.split(/\s+/).length;
 }
 
 /**

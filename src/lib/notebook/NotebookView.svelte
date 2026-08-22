@@ -1,5 +1,8 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import ItemBody from '$lib/classroom/ItemBody.svelte';
+	import { hasGuidance } from '$lib/check-in-guidance';
 	import PhotoStager from '$lib/notebook/PhotoStager.svelte';
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
 	import NotebookEntryCard from '$lib/notebook/NotebookEntryCard.svelte';
@@ -585,6 +588,44 @@
 	 * visible half of the same rule).
 	 */
 	const canSaveDraft = $derived(draftsReady && canSubmit);
+
+	/**
+	 * THE PICKED CHECK-IN'S GUIDANCE PROMPT (0123), resolved from the CURRENT
+	 * list on every read rather than captured when the pick was made -- the feed
+	 * reloads after every save, and a snapshot describes the state before it.
+	 *
+	 * Resolved on the PAIR, not the id: one canonical check-in posted to two of
+	 * this student's classes arrives as two postings sharing an id (0098), and
+	 * `find(s => s.id === ...)` would resolve to whichever sorted first. The
+	 * prompt is the same on both -- it is authored once on the canonical check-in
+	 * -- but reading it the wrong way here is how the next field to be added
+	 * inherits the bug.
+	 */
+	const pickedSession = $derived(
+		selectedSession === null
+			? null
+			: (sessions.find(
+					(s) => s.id === selectedSession && s.section_id === selectedSectionId
+				) ??
+				sessions.find((s) => s.id === selectedSession) ??
+				null)
+	);
+	const pickedGuidance = $derived(pickedSession?.guidance_doc ?? null);
+	const showGuidance = $derived(hasGuidance(pickedGuidance));
+
+	/**
+	 * HAS THIS STUDENT STARTED. The collapse signal for the guidance panel, and
+	 * it is DERIVED from state the composer already holds rather than from a new
+	 * prop, a store or a second read -- `notebookComposerHasWork` is the same
+	 * function the navigation guard and the close control ask, so "started"
+	 * cannot come to mean two things on one screen.
+	 *
+	 * THE RULE ITSELF IS `Disclosure`'S AND IS NOT RESTATED HERE: expanded the
+	 * first time, collapsed once the work has started, a manual toggle
+	 * overriding both for good, remembered per person and per check-in. This is
+	 * only the signal (IDEA_INTERFACE_STANDARDS 1).
+	 */
+	const composerStarted = $derived(notebookComposerHasWork({ staged, title, noteDraft }));
 
 	// Default to the outstanding session nearest today, and otherwise leave
 	// the student's own pick alone as `entries` refreshes underneath -- with
@@ -1884,6 +1925,43 @@
 					{/if}
 				</fieldset>
 
+				<!--
+					WHAT THE INSTRUCTOR ASKED FOR (0123), directly under the control that
+					picks the check-in and above everything the student fills in. The
+					picker is the FIRST control in this form, so by the time anyone is
+					typing the prompt is already on screen -- putting it below the photo
+					stager or beside the editor would be putting the instruction after
+					the work it is instructions for.
+
+					THE SHARED Disclosure, on the shared rule. `.nb-root` already points
+					`--disc-accent` and `--disc-focus` at the brass accent, so the panel
+					is this room's without a line of styling here. `collapseWhen` is the
+					only thing this surface decides, and it decides it from state it
+					already held.
+
+					IT IS KEYED ON THE CHECK-IN, which is what makes moving between two
+					check-ins show each one's own remembered answer rather than carrying
+					the last one's -- `scope` changing is enough for that, and the `{#if}`
+					around it never removes NoteEditor from the form.
+				-->
+				{#if showGuidance && pickedGuidance}
+					<div class="nb-guidance" data-testid="check-in-guidance-panel">
+						<Disclosure
+							label="What to do"
+							scope={`check-in:${selectedSession}:guidance`}
+							collapseWhen={composerStarted}
+							testId="check-in-guidance-disclosure"
+						>
+							{#snippet meta()}{pickedSession?.session_label ?? ''}{/snippet}
+							<!-- ItemBody, because this IS a classroom item body: the same
+							     closed shape, written in the same editor, past the same SQL
+							     gate. A second renderer is how two surfaces come to disagree
+							     about what a bulleted list looks like. -->
+							<ItemBody item={{ body: '', body_doc: pickedGuidance }} compact />
+						</Disclosure>
+					</div>
+				{/if}
+
 				{#if selectedSession === null}
 					<label class="field label-field">
 						<span>Title <span class="optional">(optional)</span></span>
@@ -2374,6 +2452,43 @@
 	}
 	.no-sessions {
 		margin: 0;
+	}
+	/* The instructor's prompt (0123). A framed block rather than loose prose,
+	   so it reads as somebody else's words in a form full of the student's --
+	   and `min-width: 0` because a grid child's automatic minimum is its
+	   min-content, which a pasted URL in a prompt would push past the pane. */
+	/* RAISED PAPER, NOT RECESSED, and it is a measured choice rather than a
+	   taste one. `--nb-accent-ink` is the brass deepened exactly far enough to
+	   read as TEXT on this room's page ground; on the RECESSED plate
+	   (--surface-2, #F2F1EA) an authored link in a prompt measures 4.32:1, under
+	   the 4.5 bar, and on the raised one (#FFFFFF) it measures 4.83. The prompt
+	   is somebody else's words sitting above the student's form, so raised is
+	   also what it should have read as. The identity colour does not move. */
+	.nb-guidance {
+		min-width: 0;
+		margin: var(--space-3) 0 0;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--hairline);
+		border-left: 3px solid var(--nb-accent-ink);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+	}
+	/*
+		PRINTED, WITHOUT ITS PLATE. Disclosure already prints its region whatever
+		the screen was showing and drops its own trigger, so all this has to do is
+		stop the panel spending ink on a background nobody asked for.
+
+		STATED PLAINLY: THIS IS INERT TODAY. There is no print rendering anywhere
+		in the notebook -- no @media print under src/lib/notebook or
+		src/routes/notebook, and none in app.css -- so printing this page prints
+		the whole application shell. This rule is correct for the day that changes
+		and is not a claim that the notebook prints well now.
+	*/
+	@media print {
+		.nb-guidance {
+			background: none;
+			border-color: var(--hairline);
+		}
 	}
 	.submit-hint {
 		margin: var(--space-2) 0 0;

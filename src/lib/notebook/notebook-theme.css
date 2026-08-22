@@ -112,6 +112,29 @@
 	--disc-accent: var(--nb-accent-ink);
 	--disc-focus: var(--nb-accent-ink);
 
+	/* The shared CheckInGuidance counter's one hook ($lib/CheckInGuidance.svelte).
+	   --amber is the portal's UNCORRECTED warning value, which is exactly what
+	   --nb-warn exists in here to correct against paper. Same mechanism as the
+	   two Disclosure hooks above, and the same reason. */
+	--gd-warn: var(--nb-warn);
+
+	/* The shared ItemBody's link colour ($lib/classroom/ItemBody.svelte), which
+	   the notebook renders a check-in's guidance prompt through (0123). Its
+	   default is --cyan, which is tuned for a dark plate and measures 2.00:1 on
+	   this room's paper one. Same mechanism as the two hooks above, and the same
+	   measured reason the --nb-cell-* tokens exist. */
+	--body-link: var(--nb-accent-ink);
+
+	/* The shared SaveIndicator's four state hooks ($lib/SaveIndicator.svelte),
+	   which 0123 brought into this room with the guidance field. Its defaults
+	   are the raw semantic tokens -- the UNCORRECTED values --nb-warn / --nb-ok
+	   / --nb-error exist to correct -- and measured on the light plate the
+	   FAILED message came to 3.65:1. `writing` keeps the portal's --cyan: there
+	   is no notebook counterpart, and it measures 4.61:1 here already. */
+	--save-warn: var(--nb-warn);
+	--save-ok: var(--nb-ok);
+	--save-error: var(--nb-error);
+
 	position: relative;
 	/* Above the portal's fixed .bg-fx overlay (z-index 0), and opaque, so the
 	   dark scanline ambiance never shows through the light surfaces. */

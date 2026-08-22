@@ -100,8 +100,26 @@ export interface StagedExtras {
 	 * endpoint, no multipart parse, no staged upload job, no progress to report.
 	 * What it shares with both is the two-phase shape, because the check-in
 	 * hangs off an item id that does not exist until the create call returns.
+	 *
+	 * Since 0123 the draft also carries the GUIDANCE PROMPT, which is a SECOND
+	 * write against the check-in's own id -- see `checkInSessionId` for why that
+	 * makes the retry story load-bearing rather than incidental.
 	 */
 	checkIn: CheckInDraft | null;
+	/**
+	 * A CHECK-IN THIS SAVE ALREADY CREATED, whose guidance did not land.
+	 *
+	 * The exact shape of `saveTarget`'s `createdItemId`, one level down and for
+	 * the same reason: a check-in and its prompt are two writes, so a save can
+	 * half-land, and the failure message invites somebody to save again. Without
+	 * this, that second save would call `createForItem` again and schedule a
+	 * DUPLICATE check-in for the same day -- and unlike a duplicate item, a
+	 * duplicate check-in puts a second column on every affected class's grid and
+	 * asks thirty students for the same page twice.
+	 *
+	 * Null on a first attempt, which is every save that has not half-landed.
+	 */
+	checkInSessionId?: string | null;
 }
 
 export interface StagedExtrasTransports {
@@ -116,7 +134,22 @@ export interface StagedExtrasTransports {
 	 * same way it does for the other two.
 	 */
 	createCheckIn:
-		| ((itemId: string, draft: CheckInDraft) => Promise<{ ok: boolean; message?: string }>)
+		| ((
+				itemId: string,
+				draft: CheckInDraft
+			) => Promise<{ ok: boolean; message?: string; sessionId?: string | null }>)
+		| null;
+	/**
+	 * Write the guidance prompt on the check-in that was just created (0123).
+	 *
+	 * NULL IS A REAL STATE AND IT IS NOT A FAILURE: a deployment without 0123
+	 * has no column to write, and a check-in still schedules perfectly well
+	 * without a prompt. It is reported as a failure only when a prompt was
+	 * actually staged, because that is the only case where something the author
+	 * typed would otherwise disappear silently.
+	 */
+	setGuidance:
+		| ((sessionId: string, doc: unknown) => Promise<{ ok: boolean; message?: string }>)
 		| null;
 }
 
@@ -132,6 +165,12 @@ export interface StagedExtrasResult {
 	deck: File | null;
 	spec: unknown | null;
 	checkIn: CheckInDraft | null;
+	/**
+	 * The check-in this run CREATED but could not finish writing. Carried back
+	 * so the retry updates it instead of making a second one; null whenever
+	 * there is nothing half-done.
+	 */
+	checkInSessionId: string | null;
 }
 
 /**
@@ -153,6 +192,7 @@ export async function applyStagedExtras(
 	let deck = staged.deck;
 	let spec = staged.spec;
 	let checkIn = staged.checkIn;
+	let checkInSessionId = staged.checkInSessionId ?? null;
 
 	if (deck) {
 		if (!transports.deck) {
@@ -206,25 +246,67 @@ export async function applyStagedExtras(
 	 * same reason the deck is named by its filename.
 	 */
 	if (checkIn) {
+		const name = checkIn.session_label.trim() || 'untitled';
 		if (!transports.createCheckIn) {
 			failures.push('notebook check-in: attaching one is not available here');
 		} else {
-			let res: { ok: boolean; message?: string };
-			try {
-				res = await transports.createCheckIn(itemId, checkIn);
-			} catch (e) {
-				res = { ok: false, message: (e as Error).message || 'Save failed.' };
+			// A RETRY AFTER A HALF-LANDED SAVE DOES NOT CREATE A SECOND CHECK-IN.
+			// `checkInSessionId` is set only when the create SUCCEEDED and the
+			// guidance write did not, which is exactly the state the failure
+			// message invites somebody to save again from.
+			let created = checkInSessionId;
+			if (!created) {
+				let res: { ok: boolean; message?: string; sessionId?: string | null };
+				try {
+					res = await transports.createCheckIn(itemId, checkIn);
+				} catch (e) {
+					res = { ok: false, message: (e as Error).message || 'Save failed.' };
+				}
+				if (!res.ok) {
+					failures.push(`notebook check-in "${name}": ${res.message ?? 'could not be attached'}`);
+					return { failures, deck, spec, checkIn, checkInSessionId };
+				}
+				created = res.sessionId ?? null;
 			}
-			if (res.ok) {
+
+			// THE PROMPT IS A SECOND WRITE, and it is the only reason this is not
+			// a one-liner. It goes through the NARROW RPC against the check-in's
+			// own id -- never a parameter on the upsert that created it, which is
+			// a whole-row replace that also reconciles the section list.
+			if (!checkIn.guidance) {
 				checkIn = null;
+				checkInSessionId = null;
+			} else if (!transports.setGuidance || !created) {
+				// The check-in landed. Only the prompt did not, and saying which is
+				// the difference between "go and retype a paragraph" and "go and
+				// schedule the whole thing again".
+				checkInSessionId = created;
+				failures.push(
+					`notebook check-in "${name}": it was scheduled, but its guidance could not be ` +
+						'written here -- this classroom is running an older database'
+				);
 			} else {
-				const name = checkIn.session_label.trim() || 'untitled';
-				failures.push(`notebook check-in "${name}": ${res.message ?? 'could not be attached'}`);
+				let res: { ok: boolean; message?: string };
+				try {
+					res = await transports.setGuidance(created, checkIn.guidance);
+				} catch (e) {
+					res = { ok: false, message: (e as Error).message || 'Save failed.' };
+				}
+				if (res.ok) {
+					checkIn = null;
+					checkInSessionId = null;
+				} else {
+					checkInSessionId = created;
+					failures.push(
+						`notebook check-in "${name}": it was scheduled, but its guidance was not saved ` +
+							`(${res.message ?? 'the write was refused'})`
+					);
+				}
 			}
 		}
 	}
 
-	return { failures, deck, spec, checkIn };
+	return { failures, deck, spec, checkIn, checkInSessionId };
 }
 
 /**

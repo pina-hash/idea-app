@@ -244,9 +244,19 @@
 	 * the spec once the item exists.
 	 */
 	let stagedCheckIn = $state<CheckInDraft | null>(null);
+	/**
+	 * The check-in a half-landed save already created (0123): the check-in went
+	 * in and its guidance did not. `saveTarget`'s `createdItemId`, one level
+	 * down -- without it, "save again" would schedule a SECOND check-in for the
+	 * same day and put a second column on every affected class's grid.
+	 */
+	let stagedCheckInSessionId = $state<string | null>(null);
 	const canStageCheckIn = $derived(mode === 'create' && !!checkInTransports);
 	$effect(() => {
-		if (!canStageCheckIn) stagedCheckIn = null;
+		if (!canStageCheckIn) {
+			stagedCheckIn = null;
+			stagedCheckInSessionId = null;
+		}
 	});
 	/** The staged JSON, re-read as the spec type the summary line wants. */
 	const stagedSpecShown = $derived(
@@ -823,7 +833,13 @@
 		if (stagedDeck || stagedSpec != null || stagedCheckIn != null) {
 			const extras = await applyStagedExtras(
 				itemId,
-				{ deck: stagedDeck, spec: stagedSpec, specKind, checkIn: stagedCheckIn },
+				{
+					deck: stagedDeck,
+					spec: stagedSpec,
+					specKind,
+					checkIn: stagedCheckIn,
+					checkInSessionId: stagedCheckInSessionId
+				},
 				{
 					deck: deckTransports,
 					setSpec: teacherTransports
@@ -834,6 +850,12 @@
 						: null,
 					createCheckIn: checkInTransports
 						? (id, draft) => checkInTransports.createForItem(id, draft)
+						: null,
+					// Its own transport, and null on a deployment without 0123 --
+					// the same presence-gates-the-control rule the other three
+					// follow, applied to the write rather than to the form.
+					setGuidance: checkInTransports?.setGuidance
+						? (id, doc) => checkInTransports.setGuidance!(id, doc as TiptapNode | null)
 						: null
 				},
 				(p) => (deckProgress = p)
@@ -843,7 +865,10 @@
 			stagedSpec = extras.spec;
 			// Stays staged when it did not land, exactly like the other two: the
 			// failure message names it and saving again retries only what is left.
+			// The session id rides back with it, so a retry writes the prompt onto
+			// the check-in already made rather than scheduling a second one.
 			stagedCheckIn = extras.checkIn;
+			stagedCheckInSessionId = extras.checkInSessionId;
 			failures.push(...extras.failures);
 		}
 
@@ -908,6 +933,7 @@
 			stagedDeck = null;
 			stagedSpec = null;
 			stagedCheckIn = null;
+			stagedCheckInSessionId = null;
 			deckIssue = null;
 			// The editor is remounted by bumping its key rather than reset
 			// through it: `bodyDoc` is what the parent holds, and a keyed
@@ -1135,8 +1161,15 @@
 				hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class you post to."
 				staged={stagedCheckIn}
 				busy={busy}
+				guidanceAvailable={!!checkInTransports?.setGuidance}
 				onstage={(draft) => (stagedCheckIn = draft)}
-				onremove={() => (stagedCheckIn = null)}
+				onremove={() => {
+					stagedCheckIn = null;
+					// A check-in already created has to be forgotten with it, or the
+					// next save would write a prompt onto a check-in this form no
+					// longer claims to be attaching.
+					stagedCheckInSessionId = null;
+				}}
 			/>
 		</div>
 	{/if}

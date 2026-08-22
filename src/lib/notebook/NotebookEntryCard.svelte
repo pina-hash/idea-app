@@ -1,5 +1,8 @@
 <script lang="ts">
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import ItemBody from '$lib/classroom/ItemBody.svelte';
+	import { hasGuidance } from '$lib/check-in-guidance';
 	import PhotoStager from '$lib/notebook/PhotoStager.svelte';
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
@@ -965,6 +968,41 @@
 				<p class="entry-session">{sessionMeta(entry.session)}</p>
 			{/if}
 
+			<!--
+				WHAT WAS ASKED FOR (0123), on the entry that answered it.
+
+				THIS SLOT AND NOT `.tools`, of the two the markup offers. `.tools`
+				sits in `.row`, which renders COLLAPSED as well as expanded, and is a
+				strip of one-click controls -- folder, pin, copy. A paragraph of
+				somebody else's prose inside a control group, on a row whose whole
+				purpose collapsed is to be scanned past, is reading material in the
+				one place nothing else on the row is. `.body` renders only when the
+				entry is open, and it already OPENS with the line naming the check-in
+				this entry answers, so the prompt reads as that line expanded. (The
+				third position somebody will reach for -- beside `.row-title` -- is not
+				a position: that title is inside a `<button>`, and a disclosure's own
+				button nested in it is invalid HTML whose clicks would toggle the row.)
+
+				COLLAPSED BY DEFAULT HERE, and that is the SAME rule rather than a
+				second one: `collapseWhen` means "the reading is no longer the thing in
+				front of this person", and on an entry they have already filed it
+				emphatically is not. One press brings it back, the choice is remembered
+				per person and per entry, and it is hidden in CSS rather than removed,
+				so it prints.
+			-->
+			{#if entry.session?.guidance_doc && hasGuidance(entry.session.guidance_doc)}
+				<div class="entry-guidance" data-testid="entry-guidance">
+					<Disclosure
+						label="What was asked for"
+						scope={`entry:${entry.id}:guidance`}
+						collapseWhen={true}
+						testId="entry-guidance-disclosure"
+					>
+						<ItemBody item={{ body: '', body_doc: entry.session.guidance_doc }} compact />
+					</Disclosure>
+				</div>
+			{/if}
+
 			{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
 				<div class="callout">
 					{#if entry.flag_reason}
@@ -1505,6 +1543,28 @@
 
 	.body {
 		padding: var(--space-1) var(--space-1) 0;
+	}
+	.entry-guidance {
+		/* The same framed block the composer's panel uses, so the prompt reads
+		   as one thing across the two places a student meets it -- including the
+		   RAISED paper, which is what keeps an authored link in a prompt above
+		   4.5:1 on this room's light plate. See NotebookView for the numbers. */
+		min-width: 0;
+		margin: 0 0 var(--space-3);
+		padding: 0 var(--space-3);
+		border: 1px solid var(--hairline);
+		border-left: 3px solid var(--nb-accent-ink);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+	}
+	/* As in the composer: Disclosure prints its region whatever the screen was
+	   showing, so this only drops the plate. INERT TODAY -- the notebook has no
+	   print rendering at all, and this bundle does not add one. */
+	@media print {
+		.entry-guidance {
+			background: none;
+			border-color: var(--hairline);
+		}
 	}
 	.entry-session {
 		margin: 0 0 var(--space-3);

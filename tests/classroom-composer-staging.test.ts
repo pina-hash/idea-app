@@ -40,7 +40,8 @@ function transports(over: Partial<StagedExtrasTransports> = {}): StagedExtrasTra
 		deck: { uploadDeck: async () => ({ ok: true, message: '' }), deleteDeck: async () => ({ ok: true, message: '' }) },
 		setSpec: async () => ({ ok: true }),
 		setReferenceSpec: async () => ({ ok: true }),
-		createCheckIn: async () => ({ ok: true }),
+		createCheckIn: async () => ({ ok: true, sessionId: 'sess-1' }),
+		setGuidance: async () => ({ ok: true }),
 		...over
 	};
 }

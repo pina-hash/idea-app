@@ -1,7 +1,8 @@
 <script lang="ts">
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
 	import type { NotebookFlagReason, NotebookPhoto } from '$lib/notebook';
-	import { REVIEW_ENTRY_SELECTS } from '$lib/notebook-selects';
+	import { MANAGE_SESSION_SELECTS, REVIEW_ENTRY_SELECTS } from '$lib/notebook-selects';
+	import { saveSessionGuidance } from '$lib/check-in-guidance';
 	import type {
 		GridSession,
 		ReviewEntry,
@@ -39,6 +40,26 @@
 	}
 
 	const transports: ReviewTransports = {
+		/**
+		 * THE GUIDANCE WRITE (0123), and the only one on this console.
+		 *
+		 * Not a `supabase.rpc` call like its neighbours, and it cannot be: the RPC
+		 * takes the STORED document shape and the browser holds the EDITOR's, and
+		 * the translation between them is a `$lib/server` whitelist. One egress
+		 * point for that write lives in $lib/check-in-guidance and is shared with
+		 * the classroom's own check-in transports, so the two surfaces cannot come
+		 * to disagree about what a prompt is.
+		 *
+		 * The route calls `notebook_set_session_guidance` as THIS caller, so
+		 * `_notebook_manages_session` is still what decides.
+		 */
+		async setSessionGuidance(sessionId, doc) {
+			const res = await saveSessionGuidance(sessionId, doc);
+			return res.ok
+				? { ok: true, value: { cleared: res.cleared } }
+				: { ok: false, error: res.message };
+		},
+
 		async loadSessions(sectionId) {
 			// Plain RLS-scoped selects, not an RPC: notebook_sessions and its
 			// postings are readable by any signed-in user (0069, 0098), which is
@@ -57,21 +78,40 @@
 			const ids = (posted.data ?? []).map((r) => r.session_id as string);
 			if (ids.length === 0) return { ok: true, value: [] };
 
-			const { data: rows, error } = await data.supabase
-				.from('notebook_sessions')
-				.select(
-					'id, unit_number, session_date, session_label, notebook_session_postings ( section_id )'
-				)
-				.in('id', ids)
-				.order('session_date');
-			if (error) return fail(error, 'Could not load this section’s check-ins.');
+			// TWO RUNGS (0123), widest first, and the select strings live in
+			// $lib/notebook-selects with every other one for the same reason: they
+			// name an EMBED, and an embed is an assertion about the foreign keys
+			// that nothing in the type system checks.
+			//
+			// Degrading costs the guidance field and nothing else -- the console
+			// keeps every control it had before 0123 -- because the narrow rung is
+			// byte-identical to what this call read then.
+			let rows: unknown[] | null = null;
+			let error: unknown = null;
+			for (const rung of MANAGE_SESSION_SELECTS) {
+				const res = await data.supabase
+					.from('notebook_sessions')
+					.select(rung.select)
+					.in('id', ids)
+					.order('session_date');
+				error = res.error;
+				if (!res.error) {
+					rows = (res.data ?? []) as unknown[];
+					break;
+				}
+			}
+			if (!rows) return fail(error, 'Could not load this section’s check-ins.');
 
-			const value = ((rows ?? []) as unknown as Record<string, unknown>[]).map(
+			const value = (rows as unknown as Record<string, unknown>[]).map(
 				(row): GridSession => ({
 					id: row.id as string,
 					unit_number: Number(row.unit_number),
 					session_date: row.session_date as string,
 					session_label: row.session_label as string,
+					// Undefined on the narrow rung, which is "not asked" rather than
+					// "no prompt" -- the field is not rendered either way, because the
+					// route hands in no transport when the column is missing.
+					guidance_doc: row.guidance_doc as GridSession['guidance_doc'],
 					section_ids: ((row.notebook_session_postings ?? []) as { section_id: string }[]).map(
 						(p) => p.section_id
 					)

@@ -21,6 +21,8 @@
  * at a glance, the per-student completion arithmetic, and the CSV.
  */
 
+import type { ItemDoc } from '$lib/classroom/classroom-doc';
+import type { TiptapNode } from '$lib/rich-text';
 import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
 import type { NotebookNoteRow } from '$lib/notebook-notes';
 import { formatSectionLabel } from '$lib/section-label';
@@ -57,6 +59,17 @@ export interface GridSession {
 	unit_number: number;
 	session_date: string;
 	session_label: string;
+	/**
+	 * The instructor-authored GUIDANCE PROMPT (0123), in the closed classroom
+	 * rich-text shape, or null for a check-in with no prompt.
+	 *
+	 * Optional because the caller may not have asked for it, and because a
+	 * deployment between 0122 and 0123 cannot answer it at all: the manager's
+	 * own load rides a ladder whose narrow rung omits the column entirely, so
+	 * `undefined` here means "not asked" and null means "no prompt". The grid
+	 * RPC has no use for either and reports neither.
+	 */
+	guidance_doc?: ItemDoc | null;
 	/**
 	 * Every section this check-in runs in (0098). ONE canonical check-in can be
 	 * posted to several sections, so the grid's own column list is a filtered
@@ -734,6 +747,24 @@ export interface ReviewTransports {
 	 * the RPC re-checks classroom_manages_section itself.
 	 */
 	deleteNote?: (noteId: string) => Promise<ReviewResult>;
+	/**
+	 * WRITE A CHECK-IN'S GUIDANCE PROMPT (0123). Null clears it.
+	 *
+	 * OPTIONAL, the presence-gates-the-control rule every notebook write here
+	 * follows: a deployment without 0123 hands in nothing and the field is not
+	 * rendered, which is honest, rather than offering an instructor a box whose
+	 * save would fail. The RPC re-checks `_notebook_manages_session` itself, so
+	 * this is the belt to that braces.
+	 *
+	 * IT IS NOT A PARAMETER ON `saveSession`, and that is the whole reason it
+	 * exists separately: `notebook_admin_upsert_session` is a whole-row replace
+	 * that RECONCILES THE SECTION LIST, so a call made to change a sentence
+	 * could unpost a class and detach the work filed against it.
+	 */
+	setSessionGuidance?: (
+		sessionId: string,
+		doc: TiptapNode | null
+	) => Promise<ReviewResult<{ cleared: boolean }>>;
 }
 
 /** Distinct unit numbers across a section's sessions, ascending. */

@@ -3,6 +3,9 @@
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
+	import CheckInGuidance from '$lib/CheckInGuidance.svelte';
+	import type { TiptapNode } from '$lib/rich-text';
+	import { hasGuidance } from '$lib/check-in-guidance';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
@@ -225,6 +228,13 @@
 	const canEditAssignment = $derived(item.kind === 'assignment' && canManage && !!teacherTransports);
 	const canManageDeck = $derived(canManage && !!deckTransports);
 	const canManageCheckIn = $derived(canManage && !!checkInTransports);
+	/**
+	 * Whether a guidance prompt can be WRITTEN from this page (0123). Its own
+	 * transport, so a deployment carrying 0120 and not 0123 keeps attach and
+	 * detach and simply offers no prompt field -- the presence-gates-the-control
+	 * rule, applied one capability at a time rather than all-or-nothing.
+	 */
+	const canWriteGuidance = $derived(canManageCheckIn && !!checkInTransports?.setGuidance);
 
 	// --- The notebook check-in (0120) --------------------------------------
 	//
@@ -251,6 +261,24 @@
 		} finally {
 			checkInBusy = false;
 		}
+	}
+
+	/**
+	 * One check-in's guidance write (0123), as a closure over its id.
+	 *
+	 * Built per check-in rather than taking the id as an argument because
+	 * `CheckInGuidance`'s save contract is "persist what you are holding" and
+	 * knows nothing about which row it is on -- the same shape `SessionManager`
+	 * hands it. It reports a refusal once and never retries: the server
+	 * considered the document and answered.
+	 */
+	function saveGuidance(sessionId: string) {
+		return async (doc: TiptapNode | null) => {
+			const res = await checkInTransports!.setGuidance!(sessionId, doc);
+			return res.ok
+				? ({ ok: true, cleared: false } as const)
+				: ({ ok: false, message: res.message ?? 'That guidance was not saved.' } as const);
+		};
 	}
 
 	async function detachCheckIn(checkIn: ClassCheckIn) {
@@ -495,6 +523,34 @@
 										<strong>{checkIn.session_label}</strong>
 										<span class="ci-meta">{checkInMeta(checkIn)}</span>
 									</p>
+									<!--
+										THE EDIT AFFORDANCE for the prompt the card above renders (0123).
+										It is in the inspector because this block IS the item page's
+										instructor region; the CONTENT itself is one render path for both
+										roles, which is what keeps a manager reading the student's page.
+
+										IT WRITES THROUGH THE NARROW RPC and moves nothing else on the
+										check-in. Its date, its name and which classes it runs in stay in
+										/notebook/review's SessionManager, which owns them -- and which
+										offers this same field on this same component, so a teacher who is
+										already in there fixing a date does not have to come here.
+
+										`{#key}`ED ON THE CHECK-IN: Tiptap takes `value` once, on mount,
+										so without the key a second check-in on this item would open
+										showing the first one's paragraph over its own save.
+									-->
+									{#if canWriteGuidance}
+										{#key checkIn.session_id}
+											<CheckInGuidance
+												value={checkIn.guidance_doc ?? null}
+												disabled={checkInBusy}
+												testId="insp-check-in-guidance"
+												hint="Students read this in their notebook, above the entry they are about to file. Leave it empty to remove it."
+												onchange={() => {}}
+												onsave={saveGuidance(checkIn.session_id)}
+											/>
+										{/key}
+									{/if}
 									{#if detaching === checkIn.session_id}
 										<!-- Names what it costs before the confirm: nothing is
 										     destroyed, and saying so is the honest version. -->
@@ -538,6 +594,7 @@
 								{/each}
 							{:else}
 								<CheckInStager
+									guidanceAvailable={canWriteGuidance}
 									label="Notebook check-in"
 									submitLabel={checkInBusy ? 'Attaching...' : 'Attach check-in'}
 									hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class this item is posted to."
@@ -710,6 +767,32 @@
 						{/if}
 					</span>
 					<span class="ci-meta">{checkInMeta(checkIn)}</span>
+					<!--
+						WHAT THE INSTRUCTOR ASKED FOR (0123), read by EVERYONE who can see
+						the check-in. It is student-facing content, so it renders in the
+						content flow rather than in the manage inspector; the affordance to
+						EDIT it is what sits in the inspector, which is this page's standing
+						shape (IDEA_INTERFACE_STANDARDS: an instructor's view of
+						student-facing content is the student view plus edit affordances,
+						through the SAME render path).
+
+						ITS OWN SCOPE, not the notebook composer's. They are two panels over
+						one paragraph with different collapse signals -- here nothing has
+						been started, so it opens; in the composer it folds away once the
+						student is working. Sharing one memory would let a collapse made
+						mid-upload hide the prompt on the page they came to read it on.
+					-->
+					{#if checkIn.guidance_doc && hasGuidance(checkIn.guidance_doc)}
+						<div class="ci-guidance" data-testid="item-check-in-guidance">
+							<Disclosure
+								label="What to do"
+								scope={`item-check-in:${checkIn.session_id}:guidance`}
+								testId="item-check-in-guidance-disclosure"
+							>
+								<ItemBody item={{ body: '', body_doc: checkIn.guidance_doc }} compact />
+							</Disclosure>
+						</div>
+					{/if}
 					<!-- The same door the stream row offers, carrying both ids: the
 					     upload flow files against a (check-in, class) PAIR, and a
 					     student in two classes that share one has two to choose
@@ -996,6 +1079,18 @@
 		flex-wrap: wrap;
 		align-items: baseline;
 		gap: var(--space-2) var(--space-3);
+	}
+	/* The prompt is a BLOCK inside a wrapping flex row, so it takes the whole
+	   line rather than sitting between the meta line and the link: prose in a
+	   baseline-aligned row of chips gets whatever measure is left over. */
+	.ci-guidance {
+		flex: 1 0 100%;
+		min-width: 0;
+		padding: 0 var(--space-3);
+		/* A quiet boundary, not an accent. The word on the disclosure's trigger
+		   is what says what this is; --green is for primary actions and --cyan
+		   for metadata, and neither is a decoration token. */
+		border-left: 2px solid var(--hairline);
 	}
 	.ci-row + .ci-row {
 		margin-top: var(--space-3);

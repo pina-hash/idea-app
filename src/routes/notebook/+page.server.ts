@@ -1,12 +1,14 @@
 import { redirect } from '@sveltejs/kit';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import { notebookAccess } from '$lib/server/notebook-access';
+import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import type { NotebookDeletedEntry, NotebookEntry, NotebookSession } from '$lib/notebook';
 import {
 	NOTEBOOK_DELETED_SELECT,
 	NOTEBOOK_ENTRY_SELECTS,
-	NOTEBOOK_POSTING_SELECT,
-	NOTEBOOK_SESSION_SELECT
+	NOTEBOOK_POSTING_SELECTS,
+	NOTEBOOK_SESSION_SELECT,
+	NOTEBOOK_SESSION_SELECTS
 } from '$lib/notebook-selects';
 import type { NotebookFolder } from '$lib/notebook-folders';
 import type { PageServerLoad } from './$types';
@@ -224,11 +226,33 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 			...new Set(entries.map((e) => e.session_id).filter((id): id is string => Boolean(id)))
 		];
 		if (linkedIds.length) {
-			const { data: sessionRows, error: sessionError } = await supabase
-				.from('notebook_sessions')
-				.select(NOTEBOOK_SESSION_SELECT)
-				.in('id', linkedIds);
-			if (sessionError) sessionsReady = false;
+			/**
+			 * TWO RUNGS (0123), widest first. The guidance prompt is a column a
+			 * project between 0122 and 0123 does not have, and PostgREST rejects
+			 * the WHOLE select for one it does not know -- which would take the
+			 * check-in LABEL down with it and leave every filed entry unnamed. The
+			 * narrow rung is byte-identical to what this load read before, so
+			 * degrading costs the prompt and nothing else.
+			 *
+			 * The prompt is read THROUGH the check-in, by id, on every load. It is
+			 * never copied onto the entry: an instructor who corrects an unclear
+			 * instruction has to correct it for the students who already answered
+			 * the unclear one, and a snapshot taken at filing time cannot.
+			 */
+			let sessionRows: unknown[] | null = null;
+			let sessionError: unknown = null;
+			for (const rung of NOTEBOOK_SESSION_SELECTS) {
+				const res = await supabase
+					.from('notebook_sessions')
+					.select(rung.select)
+					.in('id', linkedIds);
+				sessionError = res.error;
+				if (!res.error) {
+					sessionRows = (res.data ?? []) as unknown[];
+					break;
+				}
+			}
+			if (sessionError && !sessionRows) sessionsReady = false;
 			else {
 				const byId = new Map(
 					((sessionRows ?? []) as unknown as {
@@ -236,12 +260,16 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 						session_label: string;
 						unit_number: number;
 						session_date: string;
+						guidance_doc?: ItemDoc | null;
 					}[]).map((s) => [
 						s.id,
 						{
 							session_label: s.session_label,
 							unit_number: s.unit_number,
-							session_date: s.session_date
+							session_date: s.session_date,
+							// Undefined on the narrow rung, which is not the same claim as
+							// null ("this check-in has no prompt") and is left as it is.
+							guidance_doc: s.guidance_doc
 						}
 					])
 				);
@@ -306,12 +334,33 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 			// be filed under when a shared check-in runs in more than one of
 			// them. `!inner` makes the posting the row, so a check-in shared
 			// with a class they are not in still arrives named for theirs.
-			const { data: sessionRows, error: postingError } = await supabase
-				.from('notebook_session_postings')
-				.select(NOTEBOOK_POSTING_SELECT)
-				.in('section_id', sectionIds)
-				.order('session_date', { ascending: false, referencedTable: 'notebook_sessions' });
-			if (postingError) sessionsReady = false;
+			/**
+			 * THREE RUNGS, widest first. The composer reads the GUIDANCE PROMPT off
+			 * this list -- it is what the student sees above the entry they are
+			 * about to file -- so 0123's column rides the widest one. Below it the
+			 * ladder is exactly what it was: the check-ins still arrive, still
+			 * named for the student's own class, with no prompt to show.
+			 *
+			 * `item_id` is not read here and never was: which classroom item a
+			 * check-in hangs off is the CLASS page's question, not the notebook's.
+			 * The rung carries it because the select string is shared; this load
+			 * simply ignores the field.
+			 */
+			let postingRows: unknown[] | null = null;
+			let postingError: unknown = null;
+			for (const rung of NOTEBOOK_POSTING_SELECTS) {
+				const res = await supabase
+					.from('notebook_session_postings')
+					.select(rung.select)
+					.in('section_id', sectionIds)
+					.order('session_date', { ascending: false, referencedTable: 'notebook_sessions' });
+				postingError = res.error;
+				if (!res.error) {
+					postingRows = (res.data ?? []) as unknown[];
+					break;
+				}
+			}
+			if (postingError && !postingRows) sessionsReady = false;
 
 			interface PostingRow {
 				section_id: string;
@@ -320,9 +369,10 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 					unit_number: number;
 					session_date: string;
 					session_label: string;
+					guidance_doc?: ItemDoc | null;
 				} | null;
 			}
-			sessions = ((sessionRows ?? []) as unknown as PostingRow[])
+			sessions = ((postingRows ?? []) as unknown as PostingRow[])
 				.filter((r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
 					Boolean(r.notebook_sessions)
 				)
@@ -331,7 +381,8 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 					section_id: r.section_id,
 					unit_number: r.notebook_sessions.unit_number,
 					session_date: r.notebook_sessions.session_date,
-					session_label: r.notebook_sessions.session_label
+					session_label: r.notebook_sessions.session_label,
+					guidance_doc: r.notebook_sessions.guidance_doc
 				}))
 				.sort((a, b) => b.session_date.localeCompare(a.session_date));
 		}

@@ -62,3 +62,54 @@ export function tiptapHasText(node: TiptapNode | null | undefined): boolean {
 	if (typeof node.text === 'string' && node.text.trim() !== '') return true;
 	return (node.content ?? []).some(tiptapHasText);
 }
+
+/**
+ * WORDS IN A PIECE OF PLAIN TEXT.
+ *
+ * Whitespace-separated, after a trim, with an empty string counting zero. It
+ * lived privately inside `assignment-spec.ts` (behind `instructionsWordCount`)
+ * until a second rich-text surface needed the same number, and a second copy of
+ * "what a word is" is the thing that quietly stops matching: an instructions
+ * budget that charges an author 250 and a guidance counter that charges them
+ * 248 for the same paragraph is a disagreement nobody can adjudicate.
+ */
+export function countWords(text: string): number {
+	const trimmed = text.trim();
+	if (!trimmed) return 0;
+	return trimmed.split(/\s+/).length;
+}
+
+/**
+ * WORDS IN AN EDITOR'S OWN DOCUMENT, counted the way the stored-shape counter
+ * counts (`runWords` / `listWords` in assignment-spec).
+ *
+ * IT NEVER JOINS ACROSS A STRUCTURAL BOUNDARY, and that is the whole care in
+ * it. Within one block, adjacent runs ARE joined before counting -- ProseMirror
+ * splits "un**bold**ed" into three text nodes and counting them separately
+ * charges the author three words for one. Across blocks they are not: two list
+ * items joined would read as one word where the marker was, which is exactly
+ * the mistake the notebook normalizer made with real content.
+ *
+ * In Tiptap JSON a paragraph's `content` is a FLAT array of text nodes (a link
+ * is a mark, not a wrapper), so "this node's own inline run" is its direct text
+ * children and nothing deeper -- and any child that is not a text node is a
+ * block, counted on its own.
+ *
+ * It reads the EDITOR'S shape rather than the stored one on purpose: this is a
+ * live counter beside a control somebody is typing into, and the stored shape
+ * does not exist until a save.
+ */
+export function tiptapWordCount(node: TiptapNode | null | undefined): number {
+	if (!node || typeof node !== 'object') return 0;
+	let total = 0;
+	const inline: string[] = [];
+	if (typeof node.text === 'string') inline.push(node.text);
+	for (const child of node.content ?? []) {
+		if (child && typeof child.text === 'string' && !child.content?.length) {
+			inline.push(child.text);
+		} else {
+			total += tiptapWordCount(child);
+		}
+	}
+	return total + countWords(inline.join(''));
+}

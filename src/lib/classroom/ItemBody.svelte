@@ -175,8 +175,17 @@
 	.item-body > :last-child {
 		margin-bottom: 0;
 	}
+	/* A ROOM HOOK WITH A FALLBACK, read at the point of use -- the mechanism
+	   Disclosure uses for `--disc-accent`, and for the same measured reason.
+
+	   `--cyan` is the portal's metadata colour, tuned for a dark plate. When
+	   0123 put this renderer inside `.nb-root` it landed on the notebook's PAPER
+	   plate, where the same link measures 2.00:1 against #F2F1EA -- unreadable,
+	   and the exact defect class the `--nb-cell-*` tokens already exist to
+	   correct. Written this way the classroom keeps `--cyan` byte for byte and
+	   the notebook points the token at its own corrected accent. */
 	.item-link {
-		color: var(--cyan);
+		color: var(--body-link, var(--cyan));
 		text-decoration: underline;
 		text-underline-offset: 2px;
 	}

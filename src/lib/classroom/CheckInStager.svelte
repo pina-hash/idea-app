@@ -1,4 +1,6 @@
 <script lang="ts">
+	import CheckInGuidance from '$lib/CheckInGuidance.svelte';
+	import type { TiptapNode } from '$lib/rich-text';
 	import {
 		CHECK_IN_UNIT_MAX,
 		CHECK_IN_UNIT_MIN,
@@ -24,6 +26,18 @@
 	 * RPC's own three refusals -- not a second opinion written in a component.
 	 * The RPC re-checks everything regardless; this exists so somebody finds out
 	 * while they are typing.
+	 *
+	 * THE GUIDANCE PROMPT (0123) IS A FOURTH FIELD AND IS NOT A FOURTH REFUSAL.
+	 * It rides the draft rather than the payload, because the payload goes to
+	 * `notebook_admin_upsert_session` -- a whole-row replace that reconciles the
+	 * section list -- and a prompt must never be able to unpost a class. It is
+	 * written by the narrow RPC, by whoever the parent hands the draft to. The
+	 * word counter beside it never gates anything, here or anywhere.
+	 *
+	 * IT IS OFFERED ONLY WHERE IT CAN BE WRITTEN. `guidanceAvailable` false
+	 * removes the field outright -- a project whose schema predates 0123, or a
+	 * caller with no transport for it -- rather than collecting prose that has
+	 * nowhere to go.
 	 */
 	let {
 		staged = null,
@@ -31,6 +45,7 @@
 		label = 'Notebook check-in',
 		submitLabel = 'Attach check-in',
 		hint = null,
+		guidanceAvailable = false,
 		onstage,
 		onremove = null
 	}: {
@@ -40,6 +55,11 @@
 		label?: string;
 		submitLabel?: string;
 		hint?: string | null;
+		/**
+		 * Whether a guidance prompt can be WRITTEN from this mount. False removes
+		 * the field, which is the honest state on a deployment without 0123.
+		 */
+		guidanceAvailable?: boolean;
 		/** A valid draft, confirmed. What happens to it is the parent's business. */
 		onstage: (draft: CheckInDraft) => void;
 		/** Absent removes the control -- a surface that cannot take it back. */
@@ -53,19 +73,32 @@
 	let date = $state('');
 	let name = $state('');
 	let issue = $state<string | null>(null);
+	/** The editor's own document, or null before it has mounted. */
+	let guidance = $state<TiptapNode | null>(null);
+	/**
+	 * Bumped to REMOUNT the editor on a reset. Tiptap is seeded once, on mount,
+	 * so clearing `guidance` alone would empty the variable and leave the
+	 * paragraph on screen -- the same reason the composer keys its body editor.
+	 */
+	let guidanceKey = $state(0);
 
 	function reset() {
 		unit = '';
 		date = '';
 		name = '';
 		issue = null;
+		guidance = null;
+		guidanceKey += 1;
 	}
 
 	function confirm() {
 		const draft: CheckInDraft = {
 			unit_number: unit,
 			session_date: date,
-			session_label: name
+			session_label: name,
+			// Only when this mount can write one, so a draft can never carry a
+			// prompt the parent has no transport to apply.
+			guidance: guidanceAvailable ? guidance : null
 		};
 		const problem = checkInDraftIssue(draft);
 		issue = problem;
@@ -88,6 +121,12 @@
 				{#if !busy}&middot; attaches on save{/if}
 			</span>
 		</p>
+		{#if guidanceAvailable && staged.guidance}
+			<!-- Named, not rendered. The prompt is authored on the form above and
+			     read by students on the check-in itself; repeating it here would be a
+			     second copy of the same paragraph on the same screen. -->
+			<p class="ci-meta" data-testid="staged-check-in-guidance">Guidance written.</p>
+		{/if}
 		{#if onremove && !busy}
 			<span class="ci-actions">
 				<button
@@ -130,6 +169,22 @@
 				/>
 			</label>
 		</div>
+
+		<!-- STAGED, NOT SAVED: there is no check-in to write to until the item
+		     exists, so no `onsave` is handed in and the field carries no save
+		     machinery at all. Whoever takes the draft applies it. -->
+		{#if guidanceAvailable}
+			<div class="ci-guidance">
+				{#key guidanceKey}
+					<CheckInGuidance
+						disabled={busy}
+						hint="Optional. Students read this in their notebook, above the entry they are about to file."
+						testId="check-in-guidance"
+						onchange={(doc) => (guidance = doc)}
+					/>
+				{/key}
+			</div>
+		{/if}
 		<span class="ci-actions">
 			<button
 				type="button"
@@ -242,5 +297,10 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
+	}
+	.ci-guidance {
+		/* Its own block under the three inline fields: the prompt is prose and
+		   wrapping it into the same flex row would give it a 14rem measure. */
+		min-width: 0;
 	}
 </style>

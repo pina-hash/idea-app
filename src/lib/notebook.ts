@@ -9,6 +9,7 @@
  * lives in 0069/0071's RLS and RPCs; nothing here re-implements any of it.
  */
 
+import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import {
 	docSummary,
 	docText,
@@ -70,6 +71,21 @@ export interface NotebookSession {
 	unit_number: number;
 	session_date: string;
 	session_label: string;
+	/**
+	 * THE INSTRUCTOR'S GUIDANCE PROMPT (0123): what to photograph and what to
+	 * write about it, in the closed classroom rich-text shape, or null for a
+	 * check-in with no prompt -- which is every check-in scheduled before 0123.
+	 *
+	 * OPTIONAL because a read may not have asked for it: it rides its own ladder
+	 * rung, so a deployment between 0122 and 0123 answers `undefined` here and
+	 * every surface renders exactly the check-in it rendered last week.
+	 *
+	 * IT IS THE CHECK-IN'S, NOT THE ENTRY'S, and that is the whole design. It is
+	 * read through the check-in by id at every read, never copied onto an entry
+	 * when one is filed, so an instructor correcting an unclear instruction
+	 * corrects it for the students who already answered the unclear one.
+	 */
+	guidance_doc?: ItemDoc | null;
 }
 
 /**
@@ -122,7 +138,10 @@ export interface NotebookEntry {
 	reviewed_at?: string | null;
 	flag_reason: NotebookFlagReason | null;
 	instructor_comment: string | null;
-	session: Pick<NotebookSession, 'session_label' | 'unit_number' | 'session_date'> | null;
+	session: Pick<
+		NotebookSession,
+		'session_label' | 'unit_number' | 'session_date' | 'guidance_doc'
+	> | null;
 	photos: NotebookPhoto[];
 	/** Every revision of every written note on this entry (0078). */
 	notes: NotebookNoteRow[];
@@ -218,7 +237,10 @@ export function isUntitled(entry: NotebookEntry): boolean {
 export interface NotebookDeletedEntry {
 	id: string;
 	custom_label: string | null;
-	session: Pick<NotebookSession, 'session_label' | 'unit_number' | 'session_date'> | null;
+	session: Pick<
+		NotebookSession,
+		'session_label' | 'unit_number' | 'session_date' | 'guidance_doc'
+	> | null;
 	upload_timestamp: string;
 	deleted_at: string;
 	/**

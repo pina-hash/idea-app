@@ -16,6 +16,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { saveSessionGuidance } from '$lib/check-in-guidance';
 import {
 	normalizeSubmissionRow,
 	type AssignmentEngineTransports,
@@ -1001,20 +1002,35 @@ export function createReferenceTransports(supabase: SupabaseClient): ReferenceTr
  * one of its postings at the item, because a client-side create-then-link loop
  * can stop halfway with nobody able to say how much landed. The RPC calls
  * `notebook_admin_upsert_session` and `notebook_link_session_item` itself.
+ *
+ * `setGuidance` (0123) is the THIRD, and it is a separate round trip on
+ * purpose rather than a fourth parameter on the create: the prompt is edited
+ * long after the check-in is scheduled, by whoever notices the instruction was
+ * unclear, and folding it into a create would leave that edit with no door.
+ * The check-in's date, label and classes are still the review console's, which
+ * is why there is no fourth write here.
  */
 export function createCheckInTransports(supabase: SupabaseClient): ClassCheckInTransports {
 	return {
 		async createForItem(itemId, draft) {
 			const issue = checkInDraftIssue(draft);
 			if (issue) return { ok: false, message: issue };
+			// `checkInDraftPayload` deliberately drops the guidance prompt: this RPC
+			// runs `notebook_admin_upsert_session`, and nothing but a check-in's own
+			// authored columns may travel through a whole-row replace that also
+			// reconciles the section list. The prompt follows through setGuidance.
 			const payload = checkInDraftPayload(draft);
-			const { error } = await supabase.rpc('notebook_create_item_check_in', {
+			const { data, error } = await supabase.rpc('notebook_create_item_check_in', {
 				p_item_id: itemId,
 				p_unit_number: payload.unit_number,
 				p_session_date: payload.session_date,
 				p_session_label: payload.session_label
 			});
-			return error ? fail(error) : { ok: true };
+			if (error) return fail(error);
+			// The id the caller needs to write a prompt against, and to retry that
+			// write without scheduling a second check-in.
+			const sessionId = (data as { session_id?: string } | null)?.session_id ?? null;
+			return { ok: true, sessionId };
 		},
 		async unlink(sessionId, sectionId) {
 			const { error } = await supabase.rpc('notebook_unlink_session_item', {
@@ -1022,6 +1038,15 @@ export function createCheckInTransports(supabase: SupabaseClient): ClassCheckInT
 				p_section_id: sectionId
 			});
 			return error ? fail(error) : { ok: true };
+		},
+		// Not a `supabase.rpc` call like its two siblings, and it cannot be: the
+		// browser holds the EDITOR's document and the RPC takes the stored shape,
+		// and the translation between them is a `$lib/server` whitelist. One
+		// egress point for that write, in $lib/check-in-guidance, shared with the
+		// review console so the two cannot drift.
+		async setGuidance(sessionId, doc) {
+			const res = await saveSessionGuidance(sessionId, doc);
+			return res.ok ? { ok: true } : { ok: false, message: res.message };
 		}
 	};
 }
