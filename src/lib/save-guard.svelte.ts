@@ -27,6 +27,17 @@ import type { SaveState } from '$lib/save-state.svelte';
  *    be awaited in that window, so the SaveState's own pagehide net (a fetch,
  *    or FSP's sendBeacon) is what actually tries to land it.
  *
+ * WORK THIS SaveState CANNOT WRITE IS REPORTED BY `alsoUnsaved`, and it is
+ * not an escape hatch. Some surfaces hold something no autosave can land: the
+ * notebook composer's STAGED PHOTOS are File handles that exist nowhere but in
+ * that browser's memory, so there is no request that could flush them, and its
+ * open note editors own their own SaveState two components down. Both are still
+ * work a navigation destroys, so the guard has to see them -- and the
+ * alternative, a second `beforeNavigate` beside this one, is two guards racing
+ * to cancel the same navigation and two confirms for one move. It returns the
+ * warning to show, or null for nothing outstanding, and is asked AFTER the
+ * flush as well as before it: whatever the flush landed is no longer work.
+ *
  * SAME-ROUTE MOVES ARE EXEMPT, the NotebookView rule: SvelteKit serves a
  * query-string change by re-running the load against the same component
  * instance, so the surface survives it and warning would be a lie people learn
@@ -39,15 +50,22 @@ export function guardSaveNavigation(
 		warning: string;
 		/** False disables the guard entirely (a read-only mount, say). */
 		enabled?: () => boolean;
+		/**
+		 * Unsaved work this SaveState is not the one holding -- staged files that
+		 * no request could carry, a child surface's own machine. Returns the
+		 * warning to show, or null when there is nothing outstanding.
+		 */
+		alsoUnsaved?: () => string | null;
 	}
 ): void {
 	let resuming = false;
+	const residual = () => options.alsoUnsaved?.() ?? null;
 
 	beforeNavigate((nav) => {
 		// The re-issued navigation must not be caught by this same guard.
 		if (resuming) return;
 		if (options.enabled && !options.enabled()) return;
-		if (!state.dirty) return;
+		if (!state.dirty && !residual()) return;
 
 		if (nav.type === 'leave') {
 			nav.cancel();
@@ -60,8 +78,12 @@ export function guardSaveNavigation(
 
 		void (async () => {
 			await state.saveNow();
+			// THE STATE'S OWN WARNING OUTRANKS THE RESIDUAL ONE: a flush that could
+			// not land is the case this guard exists for, and it is the more
+			// surprising loss of the two.
+			const remaining = state.dirty ? options.warning : residual();
 			const proceed =
-				!state.dirty || sameRoute || window.confirm(`${options.warning}\n\nLeave anyway?`);
+				!remaining || sameRoute || window.confirm(`${remaining}\n\nLeave anyway?`);
 			if (!proceed || !url) return;
 			resuming = true;
 			try {

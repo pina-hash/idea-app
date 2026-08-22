@@ -708,6 +708,86 @@ describe('a draft is private, at both read sites', () => {
 		expect(forOwner.sort()).toEqual([draft, live].sort());
 	});
 
+	it('an AUTOSAVED draft -- the note door, no photo -- is invisible at the same gate', async () => {
+		// THE SHAPE THE COMPOSER'S AUTOSAVE WRITES. It never uploads a photo, so
+		// its first write is always notebook_create_note_entry with p_submitted
+		// false, and every later one is notebook_edit_note on the chain that
+		// created. The photo-door draft above proves the gate; this proves the
+		// gate is the one the autosave lands behind, because an entry that
+		// appears the moment somebody types is only acceptable if nobody else
+		// can see it.
+		const typed = (
+			await rpc<{ entry_id: string; note_id: string }>(
+				ada,
+				'public.notebook_create_note_entry($1::jsonb, $2, null, null, null, $3)',
+				[
+					JSON.stringify([{ type: 'p', runs: [{ text: 'Half a sentence, mid-thought.' }] }]),
+					'Autosaved while typing',
+					false
+				]
+			)
+		).entry_id;
+		// A second autosave, exactly as the composer makes it: an EDIT of the
+		// same chain, not another note. The entry must still be one draft.
+		await rpc(ada, 'public.notebook_edit_note($1, $2::jsonb)', [
+			(
+				await db.sql<{ note_id: string }>(
+					`select note_id from public.notebook_entry_notes where entry_id = $1`,
+					[typed]
+				)
+			).rows[0].note_id,
+			JSON.stringify([{ type: 'p', runs: [{ text: 'Half a sentence, finished.' }] }])
+		]);
+		const { rows: chains } = await db.sql<{ n: string }>(
+			`select count(distinct note_id) as n from public.notebook_entry_notes where entry_id = $1`,
+			[typed]
+		);
+		expect(chains[0].n).toBe('1');
+		expect(await submittedAt(typed)).toBeNull();
+
+		const can = (as: SeededUser, id: string) =>
+			rpc<boolean>(as, 'public.notebook_can_read_entry($1)', [id]);
+		// GONE: the autosaved draft. THERE: `live`, turned in by the same student
+		// in the same section -- the positive control, so a gate answering false
+		// to everything (or a fixture with no readable row in it) cannot pass this.
+		expect([await can(teacher, typed), await can(teacher, live)]).toEqual([false, true]);
+		expect([await can(owner, typed), await can(owner, live)]).toEqual([false, true]);
+		expect([await can(ada, typed), await can(ada, live)]).toEqual([true, true]);
+
+		// And the same answer at the OTHER read site, the policy itself.
+		expect(await visibleEntries(teacher, [typed, live])).toEqual([live]);
+		expect((await visibleEntries(ada, [typed, live])).sort()).toEqual([typed, live].sort());
+
+		// THE WORDS THEMSELVES, one delegated read down. The positive control is
+		// its OWN turned-in note entry rather than `live`, which the tests below
+		// assert has no notes on it: a control that mutates shared fixture state
+		// is a control that breaks the next assertion instead of proving this one.
+		const turnedIn = (
+			await rpc<{ entry_id: string }>(
+				ada,
+				'public.notebook_create_note_entry($1::jsonb, $2, null, null, null, $3)',
+				[
+					JSON.stringify([{ type: 'p', runs: [{ text: 'Written and handed in.' }] }]),
+					'Turned in beside the autosaved one',
+					true
+				]
+			)
+		).entry_id;
+		const noteRows = (as: SeededUser, entryId: string) =>
+			db.asUser(as.id, async (q) => {
+				const { rows } = await q<{ id: string }>(
+					`select id from public.notebook_entry_notes where entry_id = $1`,
+					[entryId]
+				);
+				return rows.length;
+			});
+		// GONE: both revisions of the autosaved draft. THERE: the turned-in one.
+		expect([await noteRows(teacher, typed), await noteRows(teacher, turnedIn)]).toEqual([0, 1]);
+		// The owner reads the whole chain, revisions and all -- two of them,
+		// because an edit APPENDS rather than replacing.
+		expect(await noteRows(ada, typed)).toBe(2);
+	});
+
 	it('notebook_can_read_entry says the same thing', async () => {
 		// The FUNCTION, which governs every delegated read -- and the two must not
 		// be able to disagree, which is why 0118 recreates both.

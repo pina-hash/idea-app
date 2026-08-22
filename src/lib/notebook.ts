@@ -648,9 +648,27 @@ export function photoCountLabel(count: number): string {
  * /api/notebook/note respectively, so a harness can answer them without a
  * network.
  */
-export type CreateEntryResult = { ok: true; entryId: string } | { ok: false; error: string };
+/**
+ * `noteId` NAMES THE CHAIN THE TEXT LANDED IN, and it is what stops the
+ * composer's autosave from filling a draft with note threads.
+ *
+ * `notebook_entry_notes` is append-only: adding a note starts a NEW chain at
+ * revision 1, while editing one appends a revision to the chain it names. An
+ * autosave that could not tell which chain it had just written would have to
+ * add every time, so a student writing for ten minutes would end up with a
+ * draft carrying a dozen separate notes saying successively more of the same
+ * paragraph. Both creating RPCs already return the id; these two results
+ * simply stop dropping it on the floor.
+ *
+ * OPTIONAL, because a transport that cannot report it is a real state (an
+ * older route, a harness). A caller that has written once and still has no
+ * chain id must REFUSE to write again rather than add a second one.
+ */
+export type CreateEntryResult =
+	| { ok: true; entryId: string; noteId?: string }
+	| { ok: false; error: string };
 export type AddPhotoResult = { ok: true } | { ok: false; error: string };
-export type NoteSaveResult = { ok: true } | { ok: false; error: string };
+export type NoteSaveResult = { ok: true; noteId?: string } | { ok: false; error: string };
 
 /**
  * A photo-less free-form entry whose content is a written note (0075 opened

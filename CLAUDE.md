@@ -918,12 +918,25 @@ inside the function fails closed rather than falling through to a weaker path.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
+    **Work the machine CANNOT write -- a staged `File` handle, a child
+    surface's own machine -- is reported to that ONE guard through
+    `alsoUnsaved`, never a second `beforeNavigate` beside it:** two guards on
+    one page race to cancel the same navigation and ask two questions about
+    one move. It is asked again AFTER the flush, so whatever the flush landed
+    stops counting.
   - **PER-INSTANCE, NEVER A SHELL BANNER.** One global indicator reading "all
     changes saved" while a sibling surface holds a failed write is a false
     negative with a much wider blast radius than the defect it papers over.
-  - **`autosave: false` where a write MINTS A RECORD** (a notebook note is a
-    revision): the machine still reports dirty for the guard and schedules
-    nothing.
+  - **`autosave: false` where a write MINTS A RECORD SOMEBODY ELSE READS** (a
+    notebook note is a revision, and `EntryNotes` edits one an instructor has
+    already seen): the machine still reports dirty for the guard and schedules
+    nothing. **A record NOBODY else can read yet is the exception, and the
+    privacy is what makes it one** -- the notebook composer autosaves into a
+    DRAFT entry, which is invisible at both read sites until it is turned in,
+    so the revisions it mints are the author's own history and not a thread
+    filling up in front of a reader. **Autosave into a record the moment it
+    becomes visible to anyone else is the thing this rule refuses**, and the
+    revision-per-write cost is real either way: see `docs/HISTORY.md`.
   - **`markDirty` driven from an `$effect` must be `untrack`ed.** It reads the
     phase it may then write, so a tracked call re-runs the effect on every
     transition and turns `saved` straight back into `dirty`. A dirty signal

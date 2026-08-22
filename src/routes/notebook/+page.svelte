@@ -37,14 +37,18 @@
 	}
 
 	function readEntry(body: Record<string, unknown>, fallback: string): CreateEntryResult {
-		const entryId = (body.entry as { entry_id?: string } | undefined)?.entry_id;
+		const entry = body.entry as { entry_id?: string; note_id?: string } | undefined;
+		const entryId = entry?.entry_id;
 		if (!body.ok || !entryId) return { ok: false, error: (body.error as string) || fallback };
-		return { ok: true, entryId };
+		// The note chain the entry was created with, when it was created FROM a
+		// note. Passed through so the composer's autosave edits that chain on
+		// every later write instead of starting another one.
+		return { ok: true, entryId, noteId: entry?.note_id };
 	}
 
 	function readOk(body: Record<string, unknown>, fallback: string): NoteSaveResult {
 		if (!body.ok) return { ok: false, error: (body.error as string) || fallback };
-		return { ok: true };
+		return { ok: true, noteId: (body.note as { note_id?: string } | undefined)?.note_id };
 	}
 
 	async function createEntry(form: FormData): Promise<CreateEntryResult> {

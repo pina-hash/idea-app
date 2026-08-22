@@ -67,6 +67,12 @@
 	let deletionReady = $state(true);
 	let uploadReady = $state(true);
 	let draftsReady = $state(true);
+	/**
+	 * EVERY NOTE WRITE FAILS. The composer's autosave has a retry curve and an
+	 * indicator that must not read "Saved" for a request that did not land, and
+	 * neither is checkable against transports that always succeed.
+	 */
+	let writesFail = $state(false);
 	let historyReady = $state(true);
 	/** The "self" side of every deleted-note fixture below (0119). */
 	const VIEWER_ID = 'u-self';
@@ -599,11 +605,59 @@
 		};
 	});
 
+	/**
+	 * WHAT THE FAKE SERVER KEPT ACROSS A RELOAD.
+	 *
+	 * A harness that forgets everything the moment the page reloads cannot
+	 * stand in for a server for the one proof an autosave is worth having: type
+	 * something, go away without pressing anything, come back, and is it there.
+	 * So entries CREATED here (their ids all start `new-`) are held in
+	 * sessionStorage and merged back at startup, which is the one thing a real
+	 * server does that memory does not. The committed fixtures are untouched by
+	 * it, and "forget saved entries" puts the harness back to them.
+	 */
+	const CREATED_KEY = 'dev-notebook-created';
+	const isCreated = (e: NotebookEntry) => e.id.startsWith('new-');
+	function restoreCreated(): Record<string, NotebookEntry[]> {
+		if (typeof sessionStorage === 'undefined') return {};
+		try {
+			return JSON.parse(sessionStorage.getItem(CREATED_KEY) ?? '{}') as Record<
+				string,
+				NotebookEntry[]
+			>;
+		} catch {
+			return {};
+		}
+	}
+	const restored = restoreCreated();
+
 	// Live copies so a fake save can actually append to the feed.
-	let studentEntries = $state<NotebookEntry[]>([...STUDENT_ENTRIES]);
+	let studentEntries = $state<NotebookEntry[]>([...(restored.student ?? []), ...STUDENT_ENTRIES]);
 	let fillerEntries = $state<NotebookEntry[]>([...FILLER]);
-	let instructorEntries = $state<NotebookEntry[]>([...INSTRUCTOR_ENTRIES]);
-	let plainEntries = $state<NotebookEntry[]>([]);
+	let instructorEntries = $state<NotebookEntry[]>([
+		...(restored.instructor ?? []),
+		...INSTRUCTOR_ENTRIES
+	]);
+	let plainEntries = $state<NotebookEntry[]>([...(restored.plain ?? [])]);
+
+	function persistCreated() {
+		if (typeof sessionStorage === 'undefined') return;
+		sessionStorage.setItem(
+			CREATED_KEY,
+			JSON.stringify({
+				student: studentEntries.filter(isCreated),
+				instructor: instructorEntries.filter(isCreated),
+				plain: plainEntries.filter(isCreated)
+			})
+		);
+	}
+
+	function forgetCreated() {
+		if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(CREATED_KEY);
+		studentEntries = studentEntries.filter((e) => !isCreated(e));
+		instructorEntries = instructorEntries.filter((e) => !isCreated(e));
+		plainEntries = plainEntries.filter((e) => !isCreated(e));
+	}
 
 	// ---- restore (0117): a graveyard, so deleteEntry has somewhere to put a
 	// row and restoreEntry has somewhere to find it. Real deletion is a stamp,
@@ -715,12 +769,18 @@
 	const sectionLabel = $derived(account === 'student' ? 'Engineering I Honors' : null);
 	const canReview = $derived(account === 'instructor');
 
-	let seq = 0;
+	// PAST WHATEVER SURVIVED THE RELOAD, so a second session cannot mint an id
+	// a restored entry already carries.
+	let seq = [...(restored.student ?? []), ...(restored.instructor ?? []), ...(restored.plain ?? [])]
+		.map((e) => Number(e.id.replace('new-', '')) || 0)
+		.reduce((a, b) => Math.max(a, b), 0);
 
 	function update(fn: (list: NotebookEntry[]) => NotebookEntry[]) {
 		if (account === 'student') studentEntries = fn(studentEntries);
 		else if (account === 'instructor') instructorEntries = fn(instructorEntries);
 		else plainEntries = fn(plainEntries);
+		// THE ONE MUTATION FUNNEL, so nothing has to remember to persist.
+		persistCreated();
 	}
 
 	function current(): NotebookEntry[] {
@@ -903,6 +963,7 @@
 	 * grid would count it as filed, exactly as the real RPC's row does.
 	 */
 	async function createNote(payload: NotePayload): Promise<CreateEntryResult> {
+		if (writesFail) return { ok: false, error: 'The server is unreachable (dev harness).' };
 		log = [
 			...log,
 			`POST /api/notebook/note  custom_label=${JSON.stringify(
@@ -942,7 +1003,10 @@
 			notes: [note(noteId, id, noteId, 1, doc, new Date().toISOString())]
 		};
 		update((list) => [entry, ...list]);
-		return { ok: true, entryId: id };
+		// The chain the text landed in, exactly as the route passes it back from
+		// notebook_create_note_entry. Without it the composer's autosave cannot
+		// tell which note to edit, and would add a second one on every write.
+		return { ok: true, entryId: id, noteId };
 	}
 
 	async function addPhoto(form: FormData): Promise<AddPhotoResult> {
@@ -975,6 +1039,7 @@
 
 	/** notebook_add_note: a brand new chain (revision 1) on an existing entry. */
 	async function addNote(entryId: string, content: TiptapNode): Promise<NoteSaveResult> {
+		if (writesFail) return { ok: false, error: 'The server is unreachable (dev harness).' };
 		log = [...log, `POST /api/notebook/add-note  entry_id=${JSON.stringify(entryId)}`];
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
@@ -986,7 +1051,7 @@
 					: e
 			)
 		);
-		return { ok: true };
+		return { ok: true, noteId };
 	}
 
 	/**
@@ -996,6 +1061,7 @@
 	 * happen if it did.
 	 */
 	async function editNote(noteId: string, content: TiptapNode): Promise<NoteSaveResult> {
+		if (writesFail) return { ok: false, error: 'The server is unreachable (dev harness).' };
 		log = [...log, `POST /api/notebook/edit-note  note_id=${JSON.stringify(noteId)}`];
 		const owner = current().find((e) => e.notes.some((n) => n.note_id === noteId));
 		if (!owner) return { ok: false, error: 'That note does not exist.' };
@@ -1333,6 +1399,10 @@
 	     write transports at all, so what renders here is what an admin
 	     previewing a student's notebook renders. -->
 	<label><input type="checkbox" bind:checked={viewAs} data-testid="sim-view-as" /> view as student (read-only)</label>
+	<label
+		><input type="checkbox" bind:checked={writesFail} data-testid="sim-writes-fail" /> note writes fail</label
+	>
+	<button type="button" onclick={forgetCreated} data-testid="forget-created">forget saved entries</button>
 	<button type="button" onclick={() => (log = [])}>clear log</button>
 	<span class="tag" data-testid="can-review">canReview={canReview}</span>
 </div>

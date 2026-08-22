@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-22",
+			"title": "Your notebook writing now saves itself",
+			"body": "When you write in the notebook entry box, what you type is saved as a draft a moment after you stop typing. You do not have to press anything, and the draft is private to you until you turn it in. The box tells you when the last save landed, and says so plainly if a save did not go through, with a Retry button. Photos are different: they only exist on your device until you press Save draft or Turn in, so still press one of those before you leave the page.",
+			"tags": ["notebook"]
+		},
+		{
+			"date": "2026-08-22",
 			"title": "You can report a problem without being signed in",
 			"body": "The Report a problem button used to disappear when you were signed out, which meant the one thing you could never tell us about was a sign-in that would not work. It is there now on every page, signed in or not, including the page you sign in from. A report sent while you are signed out carries no name, so there is one extra box on the form: a way to reach you, if you want one. It is optional and it means it. Leave it empty and the report is still read; put in an email, a first name or just \"ask me in 4th\" and somebody can come and find you. Nothing about reporting while signed in has changed. One thing worth knowing: there is a limit on how many reports can come from one network in ten minutes, and the whole school shares one network, so if you get told to try again later it is not personal.",
 			"tags": ["accessibility", "site"]

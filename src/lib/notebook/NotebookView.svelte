@@ -9,8 +9,11 @@
 	import FolderRail from '$lib/notebook/FolderRail.svelte';
 	import FolderManager from '$lib/notebook/FolderManager.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { beforeNavigate } from '$app/navigation';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { EditBaseline } from '$lib/edit-baseline.svelte';
+	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
+	import { guardSaveNavigation } from '$lib/save-guard.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { revealDetailPane } from '$lib/shell/reveal';
 	import { splitIsWide, watchSplitWidth } from '$lib/shell/split.svelte';
@@ -390,7 +393,10 @@
 	 */
 	function confirmDiscard(): boolean {
 		if (!composerMounted) return true;
-		if (!notebookComposerHasWork({ staged, title, noteDraft })) return true;
+		// WHAT IS ACTUALLY AT STAKE, not what is on the screen: text autosave has
+		// already written into this session's draft is on the server, and asking
+		// about it is the question people learn to click through.
+		if (!notebookComposerHasWork(composerUnsaved)) return true;
 		return window.confirm(`${NOTEBOOK_DISCARD_WARNING}\n\nDiscard it?`);
 	}
 
@@ -422,21 +428,6 @@
 	}
 
 	/**
-	 * Navigating away is the one discard path this component cannot see coming.
-	 *
-	 * Unlike the classroom's composer -- which is owned by a LAYOUT and so
-	 * survives every move inside its class -- this one is owned by a page, so
-	 * any navigation to a different route destroys it. The one exception is a
-	 * move within the SAME route (a query-string change, which SvelteKit serves
-	 * by re-running the load against the same component instance): the form
-	 * survives that, so warning about it would be a lie, and a lie people learn
-	 * to click through.
-	 *
-	 * `type: 'leave'` is the browser closing the tab or following an external
-	 * link; cancelling it there is what raises the native unload dialog, which
-	 * is the only warning a page is allowed to show at that point.
-	 */
-	/**
 	 * WHICH ENTRIES HAVE A NOTE EDITOR HOLDING UNSAVED EDITS.
 	 *
 	 * The guard below asked `notebookComposerHasWork` and nothing else, so an
@@ -453,24 +444,6 @@
 		if (dirty) dirtyNoteEditors.add(entryId);
 		else dirtyNoteEditors.delete(entryId);
 	}
-
-	/** Set by the guard before it needs the warning; see notebook-shell.ts. */
-	let unsavedReason: 'note' | 'composer' | null = null;
-
-	beforeNavigate((nav) => {
-		unsavedReason = notebookUnsavedReason({
-			composer: composerMounted ? { staged, title, noteDraft } : null,
-			dirtyNoteEditors: dirtyNoteEditors.size
-		});
-		if (!unsavedReason) return;
-		if (nav.type === 'leave') {
-			nav.cancel();
-			return;
-		}
-		if (nav.to?.route.id && nav.to.route.id === nav.from?.route.id) return;
-		if (window.confirm(`${notebookUnsavedWarning(unsavedReason)}\n\nLeave anyway?`)) return;
-		nav.cancel();
-	});
 
 	// ---- new-entry form state ----------------------------------------------
 
@@ -534,6 +507,58 @@
 	 */
 	let savedDraftId = $state<string | null>(null);
 
+	/**
+	 * THE NOTE CHAIN THAT DRAFT'S TEXT LIVES IN, once autosave (or a manual
+	 * save) has written it. `notebook_entry_notes` is append-only, so the next
+	 * write must EDIT this chain -- adding again would start a second note on
+	 * the same draft, and a ten-minute writing session would end up as a dozen
+	 * notes each holding a little more of one paragraph.
+	 *
+	 * Null with `savedDraftId` set is legitimate: a draft created from a photo
+	 * has no note yet, and the first text write adds one.
+	 */
+	let savedNoteId = $state<string | null>(null);
+	/**
+	 * A note HAS been written and the transport did not say into which chain.
+	 * Fails the next text write closed rather than adding a second note: the
+	 * duplicate is invisible on the composer and only shows up on the entry.
+	 */
+	let noteChainUnknown = $state(false);
+	/** The title the draft entry carries on the server, so a retitle is a diff. */
+	let savedLabel = $state<string | null>(null);
+	/**
+	 * The check-in the draft was created against. `notebook_set_entry_label`
+	 * refuses a session-linked entry -- its title comes from the check-in -- so
+	 * a title change is only writable when this is null.
+	 */
+	let savedDraftSession = $state<string | null>(null);
+	/**
+	 * A note the composer is holding that autosave must NOT write, and there is
+	 * exactly one way in: `resetForm(true)`, the case where the entry saved and
+	 * its note did not. That entry already exists and may already be turned in,
+	 * so the text on screen belongs to it and the message says to add it from
+	 * its own card. Autosaving it would create a SECOND entry out of it. It is
+	 * still unsaved work, so the navigation guard still asks about it.
+	 */
+	let orphanNote = $state(false);
+	/**
+	 * WHAT THE SERVER HAS ACKNOWLEDGED OF THE NOTE BOX -- the one comparison,
+	 * on the shared EditBaseline, seeded with `null` because a fresh composer
+	 * has nothing on the server. Not "is there text in here": NoteEditor emits
+	 * a transaction just for being mounted, and a draft whose text has already
+	 * landed must not be written again on the next keystroke elsewhere.
+	 */
+	const autosaveBaseline = new EditBaseline();
+	autosaveBaseline.seed(null);
+	/**
+	 * A WRITE IS IN FLIGHT, autosave or manual. Distinct from `busy`, which
+	 * disables the form: an autosave must never do that (it fires while
+	 * somebody is typing into the box it would grey out), but it must still be
+	 * the only write running, or a click landing mid-autosave could create a
+	 * second entry from the same text.
+	 */
+	let inFlight = false;
+
 	const open = $derived(outstandingSessions(sessions, entries));
 
 	/** How the feed is ordered under the pins. Not persisted: it is a way of
@@ -588,6 +613,116 @@
 	 * visible half of the same rule).
 	 */
 	const canSaveDraft = $derived(draftsReady && canSubmit);
+
+	// ---- autosave ------------------------------------------------------------
+	//
+	// WHAT THIS REPLACED. The composer had no persistence mechanism at all:
+	// nothing was written until somebody pressed Save draft or Turn in, and
+	// `beforeNavigate` raised a window.confirm because there was nothing to
+	// flush. Typing a paragraph and clicking an entry in the feed lost it, and
+	// the only warning was a question whose honest answer was "then save it".
+	//
+	// IT WRITES TEXT, AND ONLY TEXT, INTO THE DRAFT 0118 ALREADY BUILT. A draft
+	// entry is private to its author at both read sites, and it is reversible --
+	// so an entry that appears because somebody typed is not an entry anybody
+	// else can see, and turning it in stays a deliberate act.
+	//
+	// STAGED PHOTOS ARE DELIBERATELY OUTSIDE IT, and nothing here should look
+	// like it protects them. They are File handles that exist nowhere but in
+	// this browser's memory; there is no request that carries one without
+	// uploading it, and uploading on a debounce would push a student's camera
+	// roll into Drive a photo at a time while they were still deciding. They are
+	// carried by the navigation guard and the pagehide net -- the composer says
+	// so in words, next to the button.
+	// -------------------------------------------------------------------------
+
+	/**
+	 * IS AUTOSAVE AVAILABLE AT ALL. `draftsReady` is the load-bearing one: with
+	 * 0118 unapplied there is no draft state, so an autosave would be silently
+	 * TURNING ENTRIES IN as somebody typed. The transports follow the rule the
+	 * rest of this component follows -- an absent one removes the capability
+	 * rather than failing at the point of use.
+	 */
+	const autosaveReady = $derived(
+		!readOnly && draftsReady && noteAllowed && !!createNote && !!addNote && !!editNote
+	);
+
+	/** Note text the server has not acknowledged. */
+	const noteUnsaved = $derived(hasNote && autosaveBaseline.changed(noteDraft));
+	/** ...that autosave is allowed to write. See `orphanNote`. */
+	const noteDue = $derived(noteUnsaved && !orphanNote && !noteChainUnknown);
+	/**
+	 * A TITLE CHANGE IS ONLY WRITABLE ONCE THERE IS AN ENTRY TO PUT IT ON, and
+	 * that is a property of the schema rather than a choice made here: no RPC
+	 * creates an entry out of a title. `notebook_create_note_entry` needs real
+	 * note content and `notebook_create_entry` needs a photo, so a form holding
+	 * nothing but a typed title has nothing any write could land. It stays
+	 * unsaved work the navigation guard asks about, and the form's own hint
+	 * already says what makes it savable.
+	 */
+	const labelDue = $derived(
+		!!savedDraftId && !savedDraftSession && !!setEntryLabel && (title.trim() || null) !== savedLabel
+	);
+	const autosaveDue = $derived(autosaveReady && (noteDue || labelDue));
+
+	/**
+	 * WHAT THE COMPOSER IS HOLDING THAT THE SERVER HAS NOT ACKNOWLEDGED, which
+	 * is not the same question as `notebookComposerHasWork`. A title the draft
+	 * already carries and a note already written into it are on the screen and
+	 * on the server both; warning about them is the lie people learn to click
+	 * through. Staged photos are always in it -- nothing can write them.
+	 */
+	const composerUnsaved = $derived({
+		staged,
+		title: savedDraftId && (title.trim() || null) === savedLabel ? '' : title,
+		noteDraft: noteUnsaved ? noteDraft : null
+	});
+
+	/**
+	 * THE ONE SAVE STATE for this surface ($lib/save-state.svelte), autosaving
+	 * on the same 800ms debounce the assignment engine uses. `saved` is reached
+	 * only when a write is ACKNOWLEDGED, and carries the clock time of it.
+	 */
+	const save = new SaveState({
+		fallbackMessage: 'Your writing was not saved.',
+		async save() {
+			return await runSave(false, true);
+		}
+	});
+
+	/** visibilitychange + pagehide, living and dying with this instance. */
+	$effect(() => save.attach());
+
+	// `untrack` around both calls, the EntryNotes rule: they READ the phase they
+	// may then write, so a tracked call re-runs this effect on every transition
+	// and turns `saved` straight back into `dirty`.
+	$effect(() => {
+		const due = autosaveDue;
+		untrack(() => {
+			if (due) save.markDirty();
+			// `saved` and `failed` are reports of a WRITE and stand until the next
+			// one; only an unsaved marker with nothing behind it is cleared.
+			else if (save.phase === 'dirty') save.reset();
+		});
+	});
+
+	/**
+	 * ONE GUARD for the whole page. The composer's text is FLUSHED and the
+	 * navigation re-issued; only what no write can carry -- a staged photo, a
+	 * title with nothing to hang it on, an open note editor two components down
+	 * -- is worth a question, and `alsoUnsaved` is how the shared guard is told
+	 * about it.
+	 */
+	guardSaveNavigation(save, {
+		warning: NOTEBOOK_DISCARD_WARNING,
+		alsoUnsaved: () => {
+			const reason = notebookUnsavedReason({
+				composer: composerMounted ? composerUnsaved : null,
+				dirtyNoteEditors: dirtyNoteEditors.size
+			});
+			return reason ? notebookUnsavedWarning(reason) : null;
+		}
+	});
 
 	/**
 	 * THE PICKED CHECK-IN'S GUIDANCE PROMPT (0123), resolved from the CURRENT
@@ -757,6 +892,18 @@
 		// The draft this session was continuing is done -- fully saved, or
 		// turned in. The NEXT save, if any, is a genuinely new entry.
 		savedDraftId = null;
+		savedNoteId = null;
+		noteChainUnknown = false;
+		savedLabel = null;
+		savedDraftSession = null;
+		// SEEDED AT NOTHING, in both cases, because that is what the server holds
+		// for the composer session starting here. With the note kept (its entry
+		// saved and its note did not) that leaves it reading as unsaved, which it
+		// is -- and `orphanNote` is what stops the autosave making a SECOND entry
+		// out of it while the guard still asks about it.
+		autosaveBaseline.seed(null);
+		orphanNote = keepNote;
+		save.reset();
 	}
 
 	/**
@@ -865,6 +1012,108 @@
 	 */
 
 	/**
+	 * REMEMBER THE ENTRY THIS COMPOSER SESSION MADE, in ONE place. Every create
+	 * path calls this the instant its RPC succeeds: from that line on nothing in
+	 * this session may create another entry, it may only add to this one. The
+	 * note chain and the stored title are recorded with it, because they are
+	 * what the next write has to diff against.
+	 */
+	function rememberDraft(entryId: string, noteId: string | undefined, wroteNote: boolean) {
+		savedDraftId = entryId;
+		savedDraftSession = selectedSession;
+		savedLabel = title.trim() || null;
+		if (wroteNote) {
+			savedNoteId = noteId ?? null;
+			// The transport did not say which chain. Fail the NEXT text write
+			// closed rather than starting a second note on this entry.
+			noteChainUnknown = !noteId;
+			autosaveBaseline.advance(noteDraft);
+		}
+	}
+
+	/**
+	 * THE COMPOSER'S NOTE TEXT ONTO A DRAFT THAT ALREADY EXISTS -- the one
+	 * implementation, called by the autosave and by both buttons, so "add the
+	 * first note, edit it after that" cannot come to mean two things.
+	 */
+	async function persistNote(entryId: string): Promise<NoteSaveResult> {
+		const doc = noteDraft as TiptapNode;
+		if (noteChainUnknown) {
+			return {
+				ok: false,
+				error: 'Your writing could not be added to this entry. Save it from the entry itself.'
+			};
+		}
+		const result = savedNoteId && editNote ? await editNote(savedNoteId, doc) : await addNote!(entryId, doc);
+		if (!result.ok) return result;
+		if (!savedNoteId) {
+			savedNoteId = result.noteId ?? null;
+			noteChainUnknown = !result.noteId;
+		}
+		// ACKNOWLEDGED: from here this text is what the server holds.
+		autosaveBaseline.advance(doc);
+		return { ok: true };
+	}
+
+	/** The draft entry's own title, when it is a free-form entry (see labelDue). */
+	async function persistLabel(entryId: string): Promise<EntryActionResult> {
+		const label = title.trim() || null;
+		const result = await setEntryLabel!(entryId, label);
+		if (!result.ok) return result;
+		savedLabel = label;
+		return { ok: true };
+	}
+
+	/**
+	 * ONE AUTOSAVE PASS. Returns a SaveOutcome for the shared machine rather
+	 * than setting any message of its own: the indicator beside the buttons is
+	 * where an autosave speaks, and a green "Draft saved" banner appearing
+	 * every 800ms while somebody types is not a report, it is noise.
+	 *
+	 * IT NEVER TOUCHES A PHOTO AND NEVER TURNS ANYTHING IN. The door is always
+	 * the note door: create the draft from the text, or add to the draft this
+	 * session already made.
+	 *
+	 * IT DOES NOT CALL `onChanged`. That reloads the whole notebook, and doing
+	 * it on a debounce would re-fetch every entry a student holds each time they
+	 * paused typing -- and would render the draft in the feed underneath the
+	 * composer still holding the same words. The feed picks the draft up on the
+	 * next real refresh, which is what makes the reload proof honest.
+	 */
+	async function autosaveDraft(): Promise<SaveOutcome> {
+		if (!autosaveDue) return { ok: true };
+		if (!savedDraftId) {
+			// A create needs real text: a title alone is not an entry any RPC can
+			// make. Nothing to do until there is something to write.
+			if (!noteDue) return { ok: true };
+			const saved = await createNote!({
+				content: noteDraft as TiptapNode,
+				custom_label: title.trim() || null,
+				folder_id: folderChoice,
+				session_id: selectedSession,
+				section_id: selectedSession ? sectionForPick() : null,
+				submitted: false
+			});
+			if (!saved.ok) return { ok: false, retryable: true, message: saved.error };
+			rememberDraft(saved.entryId, saved.noteId, true);
+			return { ok: true };
+		}
+		if (noteDue) {
+			const wrote = await persistNote(savedDraftId);
+			// A chain this cannot name never gets here -- `noteDue` is false while
+			// `noteChainUnknown` is set, which is what fails that case closed rather
+			// than retrying it into a second note. Everything reaching this line is
+			// a transport failure, and sending it again can change the answer.
+			if (!wrote.ok) return { ok: false, retryable: true, message: wrote.error };
+		}
+		if (labelDue) {
+			const titled = await persistLabel(savedDraftId);
+			if (!titled.ok) return { ok: false, retryable: true, message: titled.error };
+		}
+		return { ok: true };
+	}
+
+	/**
 	 * Fresh create, note-only door (no photo, real text): notebook_create_note_entry.
 	 * Runs ONLY when `savedDraftId` is null -- see `runSave`.
 	 */
@@ -894,10 +1143,13 @@
 			// Remembered AT ONCE: the create succeeded, so nothing after this
 			// point may ever call createNote again in this composer session --
 			// only add to the entry this id names (the saveTarget guarantee).
-			savedDraftId = saved.entryId;
+			rememberDraft(saved.entryId, saved.noteId, true);
 			successMsg = 'Draft saved. Turn it in from its card whenever you are ready.';
 			noteDraft = null;
 			noteKey += 1;
+			// The box is empty and the server holds the words: nothing is owed.
+			autosaveBaseline.seed(null);
+			save.reset();
 		}
 		onChanged?.();
 	}
@@ -940,8 +1192,9 @@
 			return;
 		}
 		// Remembered AT ONCE, whichever button was pressed: from this line on,
-		// nothing in this composer session may call createEntry again.
-		savedDraftId = created.entryId;
+		// nothing in this composer session may call createEntry again. The note,
+		// if there is one, is recorded a few lines down once it has landed.
+		rememberDraft(created.entryId, undefined, false);
 
 		// The entry's optional note, written in the same action -- on ANY tier
 		// since the mode picker went, so a photographed page can carry a
@@ -950,9 +1203,9 @@
 		// is what keeps the student's own words from being the thing lost to a
 		// dropped connection halfway through the photos.
 		let noteFailed = false;
-		if (hasNote) {
+		if (noteUnsaved) {
 			progress = 'Saving your note...';
-			const savedNote = await addNote!(created.entryId, noteDraft as TiptapNode);
+			const savedNote = await persistNote(created.entryId);
 			noteFailed = !savedNote.ok;
 		}
 
@@ -1025,10 +1278,17 @@
 	async function continueSaved(submitted: boolean) {
 		const entryId = savedDraftId as string;
 		let noteFailed = false;
-		if (hasNote) {
+		// `noteUnsaved`, not `hasNote`: the autosave may already have written
+		// exactly these words into this entry, and re-sending them would mint a
+		// revision saying the same thing.
+		if (noteUnsaved) {
 			progress = 'Saving your note...';
-			const savedNote = await addNote!(entryId, noteDraft as TiptapNode);
+			const savedNote = await persistNote(entryId);
 			noteFailed = !savedNote.ok;
+		}
+		if (labelDue) {
+			const titled = await persistLabel(entryId);
+			if (!titled.ok) errorMsg = titled.error;
 		}
 		const failed: number[] = [];
 		const failedEnhanced: number[] = [];
@@ -1075,16 +1335,41 @@
 	 * from here on only ever adds to it -- `continueSaved` is the one and only
 	 * place that can be true, and it is never reachable from a fresh composer.
 	 */
-	async function runSave(submitted: boolean) {
-		if (readOnly || busy) return;
+	async function runSave(submitted: boolean, auto = false): Promise<SaveOutcome> {
+		if (readOnly) return { ok: false, retryable: false, message: 'This is a read-only preview.' };
+
+		if (auto) {
+			// A manual save is writing exactly what this pass would. Retryable, so
+			// the machine comes back once that click has settled and finds either
+			// nothing left to do or whatever was typed meanwhile.
+			if (busy || inFlight) return { ok: false, retryable: true, message: 'A save is already running.' };
+			inFlight = true;
+			try {
+				return await autosaveDraft();
+			} catch (err) {
+				return { ok: false, retryable: true, message: (err as Error).message || 'The save failed to send.' };
+			} finally {
+				inFlight = false;
+			}
+		}
+
+		if (busy) return { ok: true };
+		// FLUSH FIRST, so this click continues the draft the autosave made
+		// rather than racing it into a second entry. Deliberately before `busy`:
+		// the machine may be mid-write, and its own run has to settle before the
+		// decision below reads `savedDraftId`.
+		await save.saveNow();
+		if (busy) return { ok: true };
+
 		const continuing = !!savedDraftId;
-		if (!continuing && !canSubmit) return;
-		if (!continuing && (noteOnly ? !createNote : !createEntry)) return;
+		if (!continuing && !canSubmit) return { ok: true };
+		if (!continuing && (noteOnly ? !createNote : !createEntry)) return { ok: true };
 		// A continuing draft with nothing new staged and no request to turn it
 		// in is a click with nothing to do.
-		if (continuing && !hasNote && staged.length === 0 && !submitted) return;
+		if (continuing && !hasNote && staged.length === 0 && !submitted) return { ok: true };
 
 		busy = true;
+		inFlight = true;
 		errorMsg = null;
 		successMsg = null;
 		progress = 'Saving...';
@@ -1095,9 +1380,11 @@
 		} catch (err) {
 			errorMsg = (err as Error).message || 'The save failed to send.';
 		} finally {
+			inFlight = false;
 			busy = false;
 			progress = '';
 		}
+		return { ok: true };
 	}
 
 	async function onTurnInSubmit(e: SubmitEvent) {
@@ -2075,7 +2362,30 @@
 						</button>
 					{/if}
 					{#if progress}<span class="progress">{progress}</span>{/if}
+					<!-- WHERE AN AUTOSAVE SPEAKS. Per-instance and inside the surface
+					     that owns the work, never a shell banner; `saved` carries the
+					     clock time of the acknowledgement, and a failed write offers
+					     its own Retry. -->
+					{#if autosaveReady}
+						<SaveIndicator state={save} />
+					{/if}
 				</div>
+				<!-- SAID PLAINLY, because the two halves of this form are persisted
+				     in completely different ways and nothing on screen would
+				     otherwise show it. A staged photo is a file in this browser and
+				     nothing else; there is no request that carries it without
+				     uploading it, so no autosave can protect it. -->
+				{#if autosaveReady}
+					<p class="note autosave-note" data-testid="nb-autosave-note">
+						{#if staged.length}
+							Your writing saves itself as a draft as you go. Photos attach when you save the
+							entry, so use Save draft or Turn in before you leave this page.
+						{:else}
+							Your writing saves itself as a draft as you go, and stays private until you turn
+							it in. Photos attach when you save the entry.
+						{/if}
+					</p>
+				{/if}
 				<!-- SAYS WHICH HALF IS MISSING, and never names photos alone: the
 				     student is being stopped by a rule with two ways to satisfy it,
 				     so both have to be on screen at the moment they are stopped. -->
@@ -2491,6 +2801,11 @@
 		}
 	}
 	.submit-hint {
+		margin: var(--space-2) 0 0;
+		color: var(--text-3);
+		font-size: 0.85rem;
+	}
+	.autosave-note {
 		margin: var(--space-2) 0 0;
 		color: var(--text-3);
 		font-size: 0.85rem;
