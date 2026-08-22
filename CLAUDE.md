@@ -1149,6 +1149,17 @@ These have each cost a debugging session. They are not hypothetical.
 - **An anchored menu breaks when its trigger's row WRAPS.** Below the breakpoint
   drop the wrapper out of the positioning chain (`position: static`) and measure
   insets from something that spans the width.
+- **`CSSStyleRule` HAS A `cssRules` PROPERTY NOW (CSS Nesting), AND AN EMPTY
+  `CSSRuleList` IS TRUTHY.** So the ordinary shape for walking a stylesheet --
+  `for (const r of rules) { if (r.cssRules) { walk(r.cssRules); continue; } ... }`
+  -- treats EVERY plain rule as a grouping rule and skips its declarations. A
+  sweep written that way comes back with zero matches and reads as a clean
+  result. Test the declaration FIRST and recurse only on `r.cssRules?.length`.
+  Read `r.style.background` rather than `r.cssText` while you are there: with
+  nesting, `cssText` contains the children's declarations too, so a parent gets
+  credited with a child's value. **Pair any such sweep with a positive control**
+  -- a case it is known to find -- or "no hits" cannot be told from "found
+  nothing at all".
 - **Check `src/app.css`'s global class list before naming a component class.**
   `.callout` there is a flex ROW; a scoped `background` override does not undo an
   inherited `display: flex`. Prefix component classes (`rb-`, `nb-`, `cd-`).
@@ -1667,6 +1678,18 @@ ROOM**; both of those had passed review in the room they were written for.
     ANCESTORS of `.nb-root` and cannot see the alias.
   - **`--text-3` does not mean "below the text threshold" in here.** In the
     classroom it is decorative tertiary; in the notebook it is real muted copy.
+  - **MUTED COPY THAT SITS ON AN ACTIVE FILL TAKES `--text-2`, NEVER `--text-3`.**
+    The plate tokens are tuned against the three plate GROUNDS, and
+    `--nb-accent-wash` is a veil laid ON one of them: it lightens the ground out
+    from under the text on a dark plate and the tier below stops clearing. Measured
+    on the nine combinations (three plates x three grounds the wash can land on),
+    `--text-3` fails six of them -- 3.30 to 4.31 -- while `--text-2` clears all
+    nine, worst 4.89. `NotebookThemeToggle`'s `.option.current .note` and
+    `NotebookView`'s `.pick.selected .pick-meta` are the two rules that implement
+    this; a third surface putting muted copy on a selected row joins them.
+    **Lowering the wash is the rejected alternative:** at the 6% that would rescue
+    `--text-3` the fill measures 1.09:1 against the card, so the selected row stops
+    being marked at all.
   - **What stays notebook-named is what has no counterpart**, not what someone
     liked: `--nb-shadow` (there is no `--shadow-*` family), `--nb-hairline-strong`
     (the platform has one rule weight; `--line-strong` is mint green),

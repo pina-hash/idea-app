@@ -2757,6 +2757,29 @@
 		font-size: 0.73rem;
 		color: var(--text-3);
 	}
+	/* MUTED COPY ON AN ACTIVE FILL TAKES --text-2, NEVER --text-3, and this is a
+	   measured rule rather than a preference. --text-3 is real muted copy in this
+	   room (see notebook-theme.css), but it is tuned against the three PLATE
+	   grounds -- and the selected state replaces this button's ground with
+	   --nb-accent-wash, which lightens it out from under the text. Measured by
+	   compositing the wash onto its real ground and painting the result to a
+	   canvas: 3.63:1 on the default plate and 3.55:1 on IDEA, against a 4.5 bar,
+	   with light passing at 4.81 only because paper barely moves under a 13%
+	   veil. --text-2 clears on all three (5.31 / 7.04 / 6.33) and on every ground
+	   the wash can land on, the worst of the nine being 4.89.
+
+	   The nested "Draft in progress" span inherits this, which is why it is not
+	   named separately.
+
+	   LOWERING THE WASH IS THE REJECTED ALTERNATIVE: at the 6% needed to clear
+	   --text-3 the fill measures 1.09:1 against the card, i.e. the selected row
+	   stops being marked at all, which is the wash's entire job.
+
+	   NotebookThemeToggle's `.option.current .note` is the same rule for the same
+	   reason and predates this one; keep them in step. */
+	.pick.selected .pick-meta {
+		color: var(--text-2);
+	}
 	.pick.free .pick-label {
 		color: var(--nb-accent-ink);
 	}
