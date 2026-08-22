@@ -4,7 +4,7 @@
 	import { deploy } from 'virtual:site-versions';
 	import DeckViewer from '$lib/classroom/DeckViewer.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackWriter } from '$lib/feedback/feedback';
+	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 	import type { PageData } from './$types';
 
@@ -19,7 +19,15 @@
 	 * still say so from the surface it went wrong on.
 	 */
 	const build = describeBuild(deploy, buildId);
+	/**
+	 * Signed out cannot happen here today -- this section is behind
+	 * `authedPrefixes` -- so `anonymous` is passed for correctness rather than
+	 * for a case that arises: the flag and the writer come from ONE predicate,
+	 * and a mount that hard-codes false is a mount that lies the day the gate
+	 * changes.
+	 */
 	const submit = $derived(feedbackWriter(data.supabase, data.claims?.sub));
+	const anonymous = $derived(feedbackIsAnonymous(data.supabase, data.claims?.sub));
 </script>
 
 <DeckViewer deck={data.deck} backHref={data.backHref} backLabel="Back to the item">
@@ -32,6 +40,7 @@
 			sectionId={page.params.sectionId ?? null}
 			{build}
 			{submit}
+			{anonymous}
 			label="Report"
 		/>
 	{/snippet}

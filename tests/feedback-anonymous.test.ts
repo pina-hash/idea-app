@@ -65,6 +65,15 @@ const CONSOLE_CHAIN = [
 	'0126_app_feedback_anonymous.sql'
 ];
 
+/**
+ * The same chain with 0127 over the top: the console read that gives an
+ * authorless row a name on screen, which 0126 deliberately left to a later
+ * bundle. Kept as a SEPARATE chain from CONSOLE_CHAIN so both states are
+ * asserted -- a deployment sitting between the two is a real state, and the
+ * console's own fallback is written for it.
+ */
+const CONSOLE_CHAIN_0127 = [...CONSOLE_CHAIN, '0127_app_feedback_console_anonymous.sql'];
+
 /** The RPC, called the way a service-role request would call it. */
 const SUBMIT = `select public.app_feedback_submit(
 	p_app => $1,
@@ -499,7 +508,7 @@ describe('what the function refuses gracefully', () => {
 	});
 });
 
-describe('the triage console, which this bundle does not change', () => {
+describe('the triage console, before 0127 and after it', () => {
 	it('still reads the queue once it contains an authorless row', async () => {
 		const console_db = await startTestDb(CONSOLE_CHAIN);
 		try {
@@ -539,6 +548,130 @@ describe('the triage console, which this bundle does not change', () => {
 			// The authorless row comes back with no submitter to name, which is
 			// what an anonymous report is. Naming it on screen is a later bundle.
 			expect(list.find((r) => r.message === 'anonymous and nameless')?.submitter_email).toBeNull();
+		} finally {
+			await console_db.stop();
+		}
+	}, 120_000);
+
+	/**
+	 * 0127. THE THREE THINGS IT CHANGES AND THE ONE IT MUST NOT.
+	 *
+	 * The first two fail invisibly, which is why they are here rather than in a
+	 * browser pass: a payload that stopped saying `anonymous` renders as a
+	 * report from somebody whose name we simply could not find, and a payload
+	 * that started carrying `reporter_hash` puts a salted address on an admin's
+	 * screen, in an export, and in a screenshot, while looking like nothing at
+	 * all.
+	 */
+	it('states anonymity, returns the contact, and NEVER the reporter hash', async () => {
+		const console_db = await startTestDb(CONSOLE_CHAIN_0127);
+		try {
+			const owner = await createUser(console_db, 'apina@boscotech.edu', 'Site Owner');
+			const reporter = await createUser(console_db, 'reporter@boscotech.net', 'A Reporter');
+
+			await console_db.asUser(reporter.id, (q) =>
+				q(
+					`insert into public.app_feedback (user_id, app, kind, message)
+					 values ($1, 'portal', 'idea', 'signed in and named')`,
+					[reporter.id]
+				)
+			);
+			for (const [message, contact] of [
+				['anonymous with a contact', 'ask me in 4th'],
+				['anonymous with nothing', null]
+			] as [string, string | null][]) {
+				await console_db.asServiceRole(async (q) => {
+					const { rows } = await q<{ result: SubmitResult }>(SUBMIT, [
+						'portal',
+						'bug',
+						message,
+						null,
+						'{}',
+						contact,
+						`203.0.113.${message.length}`
+					]);
+					expect([message, rows[0].result.ok]).toEqual([message, true]);
+				});
+			}
+
+			const list = await console_db.asUser(owner.id, async (q) => {
+				const { rows } = await q<{
+					rows_json: Record<string, unknown>[];
+				}>(`select public.app_feedback_admin_list() as rows_json`);
+				return rows[0].rows_json;
+			});
+			const byMessage = new Map(list.map((r) => [r.message as string, r]));
+			expect([...byMessage.keys()].sort()).toEqual([
+				'anonymous with a contact',
+				'anonymous with nothing',
+				'signed in and named'
+			]);
+
+			const withContact = byMessage.get('anonymous with a contact')!;
+			expect(withContact.anonymous).toBe(true);
+			expect(withContact.contact).toBe('ask me in 4th');
+			// NULL, not the empty string 0085's expression produced: a console
+			// branches on absence, and '' is not absence.
+			expect(withContact.submitter_name).toBeNull();
+			expect(withContact.submitter_email).toBeNull();
+
+			const bare = byMessage.get('anonymous with nothing')!;
+			expect(bare.anonymous).toBe(true);
+			expect(bare.contact).toBeNull();
+
+			// THE ONE IT MUST NOT CHANGE: a signed-in row is what it always was.
+			const named = byMessage.get('signed in and named')!;
+			expect(named.anonymous).toBe(false);
+			expect(named.submitter_name).toBe('A Reporter');
+			expect(named.submitter_email).toBe('reporter@boscotech.net');
+
+			// THE HASH IS IN THE TABLE AND NOT IN THE PAYLOAD, asserted in one
+			// place so the absence cannot be a row that was never written.
+			const stored = await console_db.sql<{ reporter_hash: string | null }>(
+				`select reporter_hash from public.app_feedback where reporter_hash is not null`
+			);
+			expect(stored.rows).toHaveLength(2);
+			const payload = JSON.stringify(list);
+			for (const row of stored.rows) {
+				expect(payload).not.toContain(row.reporter_hash);
+			}
+			expect(payload).not.toContain('reporter_hash');
+			// POSITIVE CONTROL: the payload is real and carries the rest of it.
+			expect(payload).toContain('ask me in 4th');
+		} finally {
+			await console_db.stop();
+		}
+	}, 120_000);
+
+	it('re-applies, and leaves exactly one app_feedback_admin_list', async () => {
+		const console_db = await startTestDb(CONSOLE_CHAIN_0127);
+		try {
+			const sql = readFileSync(
+				new URL(
+					'../supabase/migrations/0127_app_feedback_console_anonymous.sql',
+					import.meta.url
+				),
+				'utf8'
+			);
+			await console_db.sql(sql);
+			const { rows } = await console_db.sql<{ n: string }>(
+				`select count(*)::text as n from pg_proc p
+				   join pg_namespace n on n.oid = p.pronamespace
+				  where n.nspname = 'public' and p.proname = 'app_feedback_admin_list'`
+			);
+			// The signature did not change, so `create or replace` is correct and
+			// no old arity can have survived as a second overload.
+			expect(rows[0].n).toBe('1');
+			const grant = await console_db.sql<{ ok: boolean }>(
+				`select has_function_privilege('authenticated',
+					'public.app_feedback_admin_list(text, integer)', 'execute') as ok`
+			);
+			expect(grant.rows[0].ok).toBe(true);
+			const anon = await console_db.sql<{ ok: boolean }>(
+				`select has_function_privilege('anon',
+					'public.app_feedback_admin_list(text, integer)', 'execute') as ok`
+			);
+			expect(anon.rows[0].ok).toBe(false);
 		} finally {
 			await console_db.stop();
 		}

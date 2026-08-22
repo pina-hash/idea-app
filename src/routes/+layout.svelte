@@ -21,7 +21,7 @@
 	import InstallPrompt from '$lib/InstallPrompt.svelte';
 	import PathwayPicker from '$lib/PathwayPicker.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackWriter } from '$lib/feedback/feedback';
+	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 
 	let { data, children } = $props();
@@ -47,7 +47,16 @@
 	 * plausible value as more than it is.
 	 */
 	const build = describeBuild(deploy, buildId);
+	/**
+	 * ONE WRITER, TWO PATHS, AND THE SHELL PICKS NEITHER. `feedbackWriter` hands
+	 * a signed-in caller the direct RLS-scoped insert and a signed-out one the
+	 * anonymous route; both come back as the same `(entry) => Promise<result>`,
+	 * so nothing here branches. What the layout DOES say is which kind of report
+	 * this will be, because that changes what the person is told and whether
+	 * they are offered a way to be reached.
+	 */
 	const submitFeedback = $derived(feedbackWriter(supabase, claims?.sub));
+	const anonymousReport = $derived(feedbackIsAnonymous(supabase, claims?.sub));
 
 	onMount(() => {
 		const { data: authData } = supabase.auth.onAuthStateChange((_, newSession) => {
@@ -73,6 +82,7 @@
 	sectionId={page.params.sectionId ?? null}
 	{build}
 	submit={submitFeedback}
+	anonymous={anonymousReport}
 	status={page.error ? page.status : null}
 	errorMessage={page.error?.message ?? null}
 />

@@ -3,7 +3,7 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackWriter } from '$lib/feedback/feedback';
+	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 	import { version as buildId } from '$app/environment';
 	import { deploy } from 'virtual:site-versions';
@@ -27,11 +27,18 @@
 	 * the status, the route and the correlation id already filled in. The shell's
 	 * own copy stands down here (the `error` exclusion category), so there is one
 	 * control offering more rather than two offering different things.
+	 *
+	 * IT NO LONGER NEEDS A SESSION, OR EVEN A SUPABASE CLIENT. This boundary
+	 * catches a failure in a LAYOUT load, which is precisely when `page.data`
+	 * may carry neither -- and it used to answer that case with a sentence
+	 * telling the person to sign in and come back, on a page that had just
+	 * failed to load. `feedbackWriter` hands back the anonymous route in exactly
+	 * those cases now, so the highest-value report in the portal is the one
+	 * report that can always be filed.
 	 */
 	const build = describeBuild(deploy, buildId);
-	const submit = $derived(
-		page.data.supabase ? feedbackWriter(page.data.supabase, page.data.claims?.sub) : null
-	);
+	const submit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
+	const anonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
 
 	const heading = $derived(
 		page.status === 404 ? 'That page is not here' : 'Something went wrong'
@@ -71,6 +78,7 @@
 				sectionId={page.params.sectionId ?? null}
 				{build}
 				{submit}
+				{anonymous}
 				status={page.status}
 				errorMessage={page.error?.message ?? null}
 				{errorId}
@@ -78,9 +86,16 @@
 			/>
 		</div>
 		{#if !submit}
+			<!--
+				A STATE THAT NO LONGER HAS A CAUSE, KEPT RATHER THAN DELETED. Every
+				visitor gets a writer now, signed in or not, so this cannot render
+				from being signed out. It stands because `submit` is still allowed to
+				be null (a caller that hands in nothing), and a control that silently
+				is not there is worse than one that says why.
+			-->
 			<p class="err-note">
-				Sign in from the portal home page to send a report about this. We are not taking
-				signed-out reports yet.
+				Reporting is not available on this page. The reference above is in the
+				server log if you can pass it on another way.
 			</p>
 		{/if}
 	</div>

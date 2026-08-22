@@ -3,8 +3,10 @@
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import {
+		FEEDBACK_CONTACT_MAX,
 		FEEDBACK_KINDS,
 		FEEDBACK_MAX_LEN,
+		feedbackContactIssue,
 		feedbackIssue,
 		type FeedbackEntry,
 		type FeedbackResult,
@@ -48,6 +50,7 @@
 		meta,
 		submit,
 		onClose,
+		askContact = false,
 		title = 'Send feedback',
 		note = 'Tell us what you noticed. It goes straight to the team.'
 	}: {
@@ -60,12 +63,23 @@
 		/** Performs the write. Says whether a failure is worth re-sending. */
 		submit: (entry: FeedbackEntry) => Promise<FeedbackResult>;
 		onClose: () => void;
+		/**
+		 * OFFER A WAY TO BE REACHED. True only where there is no account behind
+		 * the report, because a signed-in one is attributable already and 0126
+		 * cannot store a contact beside an author anyway.
+		 *
+		 * FALSE REMOVES THE FIELD, and with it the value: nothing renders, and
+		 * `contact` is not on the entry at all. Absence is the mechanism here for
+		 * the same reason it is for the whole control.
+		 */
+		askContact?: boolean;
 		title?: string;
 		note?: string;
 	} = $props();
 
 	let kind = $state<FeedbackKind>('bug');
 	let message = $state('');
+	let contact = $state('');
 
 	/**
 	 * `autosave: false` because a write MINTS A RECORD: a debounce here would
@@ -80,9 +94,18 @@
 		autosave: false,
 		fallbackMessage: 'That did not send.',
 		save: async () => {
-			const issue = feedbackIssue(message);
+			const issue = feedbackIssue(message) ?? (askContact ? feedbackContactIssue(contact) : null);
 			if (issue) return { ok: false as const, retryable: false as const, message: issue };
-			const res = await submit({ app, context, kind, message, meta });
+			// `contact` is on the entry ONLY when the field was offered, so a
+			// surface that never asked cannot send one by accident.
+			const res = await submit({
+				app,
+				context,
+				kind,
+				message,
+				meta,
+				...(askContact ? { contact } : {})
+			});
 			if (!res.error) return { ok: true as const };
 			return { ok: false as const, retryable: res.retryable, message: res.error };
 		}
@@ -98,7 +121,11 @@
 
 	const sent = $derived(save.phase === 'saved');
 	const remaining = $derived(FEEDBACK_MAX_LEN - message.trim().length);
-	const canSend = $derived(save.phase !== 'writing' && feedbackIssue(message) === null);
+	const canSend = $derived(
+		save.phase !== 'writing' &&
+			feedbackIssue(message) === null &&
+			(!askContact || feedbackContactIssue(contact) === null)
+	);
 
 	/** From the input event, never from an `$effect`: markDirty reads the phase
 	 * it then writes, so a tracked call would turn `saved` straight back into
@@ -120,6 +147,7 @@
 	function again() {
 		save.reset();
 		message = '';
+		contact = '';
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -202,6 +230,32 @@
 				maxlength={FEEDBACK_MAX_LEN}
 				placeholder="What happened, and what were you doing at the time?"
 			></textarea>
+
+			{#if askContact}
+				<!--
+					PLAINLY OPTIONAL, AND NOTHING IMPLIES A REPORT WITHOUT ONE IS WORTH
+					LESS. The word "optional" is in the label rather than only in a
+					placeholder, because a placeholder disappears the moment somebody
+					types and is not read by a screen reader as part of the field.
+				-->
+				<label class="fb-label" for="fb-contact">
+					A way to reach you, if you want one (optional)
+				</label>
+				<input
+					id="fb-contact"
+					class="fb-contact"
+					type="text"
+					bind:value={contact}
+					oninput={typed}
+					maxlength={FEEDBACK_CONTACT_MAX}
+					autocomplete="off"
+					placeholder="an email, a name, a class period, or nothing at all"
+				/>
+				<p class="fb-contact-note">
+					Leave it empty and the report is still read. It is not signed in to
+					anything, so nothing here is checked.
+				</p>
+			{/if}
 
 			<div class="fb-state">
 				<!-- THE SHARED INDICATOR, not a private one: the same five states,
@@ -365,6 +419,34 @@
 		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
 		outline-offset: 1px;
 	}
+	.fb-contact {
+		width: 100%;
+		box-sizing: border-box;
+		/* 44px, the tap-target floor, as min-height so it can only round up. */
+		min-height: 44px;
+		margin-bottom: 0.3rem;
+		padding: 0.5rem 0.6rem;
+		background: rgba(5, 8, 11, 0.75);
+		border: 1px solid var(--fb-line-strong);
+		border-radius: 2px;
+		color: var(--fb-ink);
+		font: inherit;
+		font-size: 0.82rem;
+	}
+	.fb-contact::placeholder {
+		color: var(--fb-ink-faint);
+	}
+	.fb-contact:focus-visible {
+		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		outline-offset: 1px;
+	}
+	.fb-contact-note {
+		margin: 0;
+		color: var(--fb-ink-faint);
+		font-size: 0.68rem;
+		line-height: 1.45;
+	}
+
 	.fb-state {
 		margin-top: 0.5rem;
 		min-height: 1.2rem;

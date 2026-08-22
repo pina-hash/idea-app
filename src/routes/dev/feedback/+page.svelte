@@ -3,6 +3,7 @@
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import { describeBuild, FEEDBACK_EXCLUSIONS } from '$lib/feedback/context';
+	import { submitAnonymousFeedback } from '$lib/feedback/feedback';
 	import type { FeedbackEntry, FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
 
 	/**
@@ -17,13 +18,111 @@
 	 *   reported once, a network failure backs off and retries;
 	 * - the exclusion registry, per category, with a positive control beside it;
 	 * - the console's filters and both exports, on the same rows.
+	 *
+	 * THE ANONYMOUS LANE IS NOT SIMULATED. Everything above runs against an
+	 * in-memory sink; the signed-out lane below posts to the REAL
+	 * /api/feedback through the REAL `submitAnonymousFeedback`, because the
+	 * three things worth driving there are all on the far side of that fetch:
+	 * that the body cap answers as a REFUSAL rather than a retryable failure,
+	 * that the refusal is reported ONCE, and that no second request is made.
+	 * A stubbed transport would prove none of them. The attempt counter beside
+	 * it wraps `fetch` itself, so "no retry" is a measurement rather than a
+	 * reading of the indicator.
 	 */
 	const build = describeBuild({ sha: 'a1b2c3d', complete: true }, '1755735000000');
 	const buildFallback = describeBuild(null, '1755735000000');
 
 	let mode = $state<'ok' | 'refusal' | 'network'>('ok');
-	let sink = $state<FeedbackRow[]>([]);
+	let sink = $state<FeedbackRow[]>(seedRows());
 	let seq = 0;
+
+	/**
+	 * Hostile and ordinary rows side by side, so the console's rendering of an
+	 * authorless report is drivable with nothing sent. The two markup fixtures
+	 * are the browser-side half of tests/feedback-untrusted-render.test.ts: a
+	 * public write feeding an admin screen is the exact shape that property
+	 * exists to defeat, and it should be visible as text on the page, not only
+	 * green in a test run.
+	 */
+	function seedRows(): FeedbackRow[] {
+		const base = {
+			app: 'portal',
+			context: '/',
+			kind: 'bug' as const,
+			meta: { route: '/', path: '/', viewport: '1440x900' },
+			status: 'new' as const,
+			created_at: '2026-08-21T09:02:00.000Z',
+			reviewed_at: null,
+			reviewed_by: null
+		};
+		return [
+			{
+				...base,
+				id: 'seed-anon-contact',
+				message: 'Sign in bounces me back to the home page every time.',
+				anonymous: true,
+				contact: 'ask me in 4th period',
+				submitter_name: null,
+				submitter_email: null
+			},
+			{
+				...base,
+				id: 'seed-anon-bare',
+				message: 'The QR code on the handout goes nowhere.',
+				anonymous: true,
+				contact: null,
+				submitter_name: null,
+				submitter_email: null
+			},
+			{
+				...base,
+				id: 'seed-anon-hostile',
+				message:
+					'<script>alert(1)<\/script><img src=x onerror=alert(1)><b>bold</b> and a <a href="javascript:alert(1)">link</a>',
+				anonymous: true,
+				contact: '<script>alert(2)<\/script><b>me</b>',
+				submitter_name: null,
+				submitter_email: null
+			},
+			{
+				...base,
+				id: 'seed-signed',
+				message: 'The notebook plate switch is hard to hit on a phone.',
+				anonymous: false,
+				contact: null,
+				submitter_name: 'Harness User',
+				submitter_email: 'harness@boscotech.net'
+			}
+		];
+	}
+
+	/**
+	 * THE REAL ROUTE, COUNTED. `attempts` wraps fetch rather than reading the
+	 * save indicator, so "reported once, no retry" is measured at the transport.
+	 */
+	let attempts = $state(0);
+	let lastOutcome = $state<string | null>(null);
+	const countingFetch: typeof fetch = (input, init) => {
+		attempts += 1;
+		return fetch(input, init);
+	};
+
+	async function realAnonymous(entry: FeedbackEntry) {
+		const res = await submitAnonymousFeedback(entry, countingFetch);
+		lastOutcome = res.error
+			? `refused/failed: ${res.error} (retryable: ${res.retryable})`
+			: 'accepted by the route';
+		return res;
+	}
+
+	/**
+	 * The same real path with a meta blob past FEEDBACK_MAX_BODY_BYTES, which is
+	 * the only honest way to reach the cap from a browser: the message field is
+	 * capped at 2000 characters by the box itself, so the body can only be
+	 * pushed over 16 KB by the captured context.
+	 */
+	const oversized = (entry: FeedbackEntry) =>
+		realAnonymous({ ...entry, meta: { ...(entry.meta ?? {}), pad: 'x'.repeat(24_000) } });
 
 	const submit = async (entry: FeedbackEntry) => {
 		await new Promise((r) => setTimeout(r, 180));
@@ -148,6 +247,44 @@
 					/></span
 				>
 			</p>
+		</section>
+
+		<section class="hx-card">
+			<h2>Signed out: the REAL /api/feedback</h2>
+			<p class="hx-note">
+				These two post to the real route. Locally there is no
+				SUPABASE_SERVICE_ROLE_KEY, so an ordinary send comes back
+				<code>not_configured</code>; the oversized one is refused by the body cap before
+				the key is ever read. Both are REFUSALS: reported once, never retried, which the
+				attempt counter is here to show.
+			</p>
+			<div class="hx-row">
+				<SiteFeedback
+					place="relocated"
+					routeId="/"
+					pathname="/"
+					{build}
+					anonymous
+					submit={realAnonymous}
+					label="Report (signed out, real route)"
+				/>
+				<SiteFeedback
+					place="relocated"
+					routeId="/"
+					pathname="/"
+					{build}
+					anonymous
+					submit={oversized}
+					label="Report with an oversized body"
+				/>
+				<button class="hx-btn" onclick={() => { attempts = 0; lastOutcome = null; }}>
+					reset counter
+				</button>
+			</div>
+			<dl class="hx-facts">
+				<div><dt>fetch attempts</dt><dd data-testid="attempts">{attempts}</dd></div>
+				<div><dt>last outcome</dt><dd data-testid="outcome">{lastOutcome ?? 'nothing sent yet'}</dd></div>
+			</dl>
 		</section>
 
 		<section class="hx-card">

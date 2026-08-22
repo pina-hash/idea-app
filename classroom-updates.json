@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-22",
+			"title": "You can report a problem without being signed in",
+			"body": "The Report a problem button used to disappear when you were signed out, which meant the one thing you could never tell us about was a sign-in that would not work. It is there now on every page, signed in or not, including the page you sign in from. A report sent while you are signed out carries no name, so there is one extra box on the form: a way to reach you, if you want one. It is optional and it means it. Leave it empty and the report is still read; put in an email, a first name or just \"ask me in 4th\" and somebody can come and find you. Nothing about reporting while signed in has changed. One thing worth knowing: there is a limit on how many reports can come from one network in ten minutes, and the whole school shares one network, so if you get told to try again later it is not personal.",
+			"tags": ["accessibility", "site"]
+		},
+		{
+			"date": "2026-08-22",
 			"title": "Bigger buttons on assignments, and edges you can actually see",
 			"body": "Two things you should notice, and neither one changes how anything works. First, the controls on an assignment are bigger. Add row, the photo and file pickers, the tick boxes and the Submit button were all small enough to miss on a phone, and they now match the size everything else on the site uses. Same for your notebook: the folder tabs, the search box, the colour dots, the filters and the camera links are all easier to hit. Second, the lines around things you can click or type into are darker. A box you can type in, a row you can pick, and the edge of a card now have a border you can actually see, while the quiet dividers inside a card are unchanged, so the page does not turn into a grid of boxes. If you use the site on a phone or you have ever tapped next to a button instead of on it, this is the change you were waiting for.",
 			"tags": ["assignments", "notebook", "accessibility"]

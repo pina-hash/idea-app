@@ -9,8 +9,10 @@
 		feedbackMarkdown,
 		filterFeedback,
 		rowBuild,
+		rowContact,
 		rowDistinctPath,
 		rowErrorId,
+		rowIsAnonymous,
 		rowRole,
 		rowRoute,
 		rowSection,
@@ -30,6 +32,16 @@
 	 * only `app = 'classroom'`, which was right when the classroom was the only
 	 * place with a Feedback button. Now every route has one, so a queue that
 	 * filtered to one app would silently hide most of what arrives.
+	 *
+	 * AN ANONYMOUS REPORT IS VISIBLY ANONYMOUS. 0126 made an authorless row
+	 * possible and this queue is the only place one is ever read, so the word is
+	 * on the row rather than inferred from an empty name. What it carries
+	 * INSTEAD of a name is a contact string the reporter typed, and that is
+	 * rendered as exactly what it is: unverified text, never a name, never an
+	 * address the console can vouch for. The reporter hash is not in this
+	 * payload at all -- 0127 does not return it, deliberately -- so there is
+	 * nothing here that could put it on a screen, in an export, or in a
+	 * screenshot.
 	 *
 	 * FILTER FIRST, EXPORT SECOND. The export buttons act on what is on screen,
 	 * never on the whole load: what leaves is the ten reports that matter rather
@@ -120,7 +132,9 @@
 	 */
 	let includeSubmitter = $state(true);
 	const identityNote = $derived(
-		includeSubmitter ? '' : ' Submitter names and addresses were withheld.'
+		includeSubmitter
+			? ''
+			: ' Submitter names, addresses and anonymous contact strings were withheld.'
 	);
 
 	/**
@@ -260,7 +274,10 @@
 					type="checkbox"
 					bind:checked={includeSubmitter}
 				/>
-				<span>Include submitter names</span>
+				<!-- A contact string is the only thing on an anonymous row that can
+				     name a person, so it travels with this decision rather than
+				     beside it. -->
+				<span>Include submitter names and contacts</span>
 			</label>
 			<button
 				type="button"
@@ -317,8 +334,23 @@
 					{/if}
 					<div class="fb-foot">
 						<span class="fb-who">
-							{row.submitter_name || row.submitter_email || 'unknown'}
-							{#if row.submitter_email}<span class="fb-email">{row.submitter_email}</span>{/if}
+							{#if rowIsAnonymous(row)}
+								<!-- THE WORD, not a colour and not a blank. -->
+								<span class="fb-anon">Anonymous</span>
+								{#if rowContact(row)}
+									<span class="fb-contact">
+										asked to be reached at "{rowContact(row)}"
+									</span>
+									<span class="fb-contact-warn">
+										typed by the reporter, nothing verified it
+									</span>
+								{:else}
+									<span class="fb-contact-warn">left no way to be reached</span>
+								{/if}
+							{:else}
+								{row.submitter_name || row.submitter_email || 'unknown'}
+								{#if row.submitter_email}<span class="fb-email">{row.submitter_email}</span>{/if}
+							{/if}
 						</span>
 						<span class="fb-actions">
 							{#each STATUSES as s (s.id)}
@@ -556,6 +588,25 @@
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
+	}
+	/* THE WORD CARRIES IT, not the colour: --text-2 is the same tone the row's
+	   other metadata uses, so nothing here reads as a status. */
+	.fb-anon {
+		font-family: var(--font-mono);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		font-size: 0.66rem;
+		color: var(--text-2);
+	}
+	.fb-contact {
+		font-size: 0.78rem;
+		/* A reporter's own words, so they get the reading face the message has. */
+		color: var(--text-1);
+	}
+	.fb-contact-warn {
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		color: var(--text-3);
 	}
 	.fb-actions {
 		margin-left: auto;

@@ -25,10 +25,18 @@
 	 * were when it happened.
 	 *
 	 * PRESENTATION + TRANSPORT IN, INTENT OUT. It fetches nothing. `submit` null
-	 * (signed out, or a harness with no session) REMOVES the control entirely
-	 * rather than rendering one that cannot write: absence is the mechanism.
-	 * The signed-out path is deliberately not built here -- it needs an RLS
-	 * change and a rate limit, and ships separately.
+	 * (a harness with no session, or a surface with nothing to write through)
+	 * REMOVES the control entirely rather than rendering one that cannot write:
+	 * absence is the mechanism.
+	 *
+	 * SIGNED OUT IS NO LONGER ONE OF THOSE CASES, and the sign-in page is the
+	 * whole reason. The person who most needs to file a report is the one whose
+	 * sign-in is broken, and until now they were the one person who could not:
+	 * `feedbackWriter` returned null with no session and the control vanished on
+	 * exactly the page where it mattered. A signed-out visitor now gets the same
+	 * control, writing through the anonymous route instead of the table, plus
+	 * ONE extra field -- an optional way to be reached, which a signed-in
+	 * reporter does not need because their report already carries an account.
 	 *
 	 * TWO PLACES IT CAN BE MOUNTED:
 	 * - `place="shell"` (the default) applies the exclusion registry, so a deck
@@ -44,6 +52,7 @@
 		sectionId = null,
 		build,
 		submit = null,
+		anonymous = false,
 		place = 'shell',
 		status = null,
 		errorMessage = null,
@@ -61,6 +70,17 @@
 		 * the identical component against an in-memory sink.
 		 */
 		submit?: ((entry: FeedbackEntry) => Promise<FeedbackResult>) | null;
+		/**
+		 * Whether this report will arrive with no account behind it. It changes
+		 * TWO things and nothing else: the box offers an optional contact field,
+		 * and the note says what "anonymous" actually means here rather than
+		 * leaving somebody to guess whether they have been identified.
+		 *
+		 * A SEPARATE SIGNAL FROM `submit`, deliberately. Which transport is in
+		 * play is the layout's business; what the person is told about their own
+		 * report is not something to infer from a function reference.
+		 */
+		anonymous?: boolean;
 		place?: 'shell' | 'relocated';
 		/** The error boundary fills these in; nothing else does. */
 		status?: number | null;
@@ -106,8 +126,12 @@
 
 	const noteFor = $derived(
 		status === null
-			? 'Something confusing, broken, or missing? The page you are on, your role, your browser and the build are attached automatically.'
-			: `This page failed with a ${status}. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
+			? anonymous
+				? 'Something confusing, broken, or missing? You are not signed in, so this report carries no name. The page you are on, your browser and the build are attached automatically.'
+				: 'Something confusing, broken, or missing? The page you are on, your role, your browser and the build are attached automatically.'
+			: anonymous
+				? `This page failed with a ${status}. You are not signed in, so this report carries no name. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
+				: `This page failed with a ${status}. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
 	);
 </script>
 
@@ -145,6 +169,7 @@
 			context={contextOf({ routeId, pathname })}
 			meta={captured}
 			{submit}
+			askContact={anonymous}
 			onClose={() => (open = false)}
 			title={status === null ? 'Report a problem' : `Report this ${status}`}
 			note={noteFor}

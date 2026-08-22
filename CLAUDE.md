@@ -97,6 +97,9 @@ it is not required to browse.
   - **The public reference viewer and short links live OUTSIDE `/classroom`
     deliberately** -- that prefix is in `authedPrefixes` and would bounce a
     signed-out visitor to `/` before either load ran.
+  - **`POST /api/feedback` is the one PUBLIC WRITE endpoint**: an anonymous
+    report, rate limited per address inside the database. It answers its own
+    responses, so it is not in `authedPrefixes`, and it reads no session.
 - **Signed-in tier (any role):** `/gauntlet`, `/frc`, `/greenline`, `/notebook`,
   `/classroom`. `hooks.server.ts` redirects anonymous users off a LIST of authed
   prefixes.
@@ -240,10 +243,16 @@ build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly TWO modules: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly THREE modules: the GREENLINE
   community-track publish endpoint (which must run the game's real track
-  validation in Node before any row is written) and the tournament push sender.
-  Nothing else may read it, and **it must never gain a `PUBLIC_` prefix**.
+  validation in Node before any row is written), the tournament push sender, and
+  the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
+  caller of `app_feedback_submit`, which is granted to `service_role` alone
+  because the rate limit's key has to come from the request and not from
+  anything in it). Nothing else may read it, and **it must never gain a
+  `PUBLIC_` prefix**. Unset, the feedback route answers a structured
+  `not_configured` refusal rather than a retryable failure: a missing
+  environment variable does not fix itself in eight seconds of backoff.
 - **`GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
   `GOOGLE_DRIVE_REFRESH_TOKEN`** -- Drive storage for notebook photos, classroom
   attachments and decks. Auth is **OAuth on behalf of a real Bosco Tech account,
@@ -348,6 +357,26 @@ with its own answer for the rows already stored.
   own-row `WITH CHECK`, because there is nothing to forge in a comment about
   yourself; and the legacy coin import writes rows directly because they are
   HISTORY, not events, and no live rule should read them.
+- **`app_feedback` HAS TWO WRITE PATHS ON PURPOSE, AND THEY DO NOT CONVERGE.**
+  A signed-in report is the direct insert above, whose `WITH CHECK` pins
+  `user_id` to `auth.uid()`; an anonymous one goes through
+  `app_feedback_submit`, granted to `service_role` ALONE and reachable only
+  from `src/routes/api/feedback/+server.ts`. **Do not merge them.** Converging
+  would mean either forwarding a caller's JWT into a function granted to the
+  role that bypasses RLS, or letting a server route assert who wrote a row --
+  both replacing a database-enforced gate with a server-side one where the
+  database-enforced one already works. And 0126's XOR check makes the single
+  row shape impossible anyway: an account and an address hash cannot sit on
+  one row, because that pair links the account to every anonymous report from
+  the same address. **This reverses a plan stated three times** (0053, 0085 and
+  0126 each said the direct grant would be revoked once the RPC existed); the
+  reasoning is in `docs/HISTORY.md` under the anonymous-path bundle.
+  - **THE ADDRESS IS DETERMINED BY THE ROUTE, FROM THE REQUEST.**
+    `getClientAddress()`, never a header (a caller can set one, so a rate limit
+    keyed on it counts to five over an unbounded set of buckets) and never the
+    body (there is no field for it). The route hands over an ADDRESS; the salt
+    lives in the database and the digest is taken inside the definer function,
+    so no route can choose what lands in `reporter_hash`.
 - **A cross-user staff write is always an RPC**, never a direct client write.
 - **Nested SECURITY DEFINER calls are the reuse mechanism.** `is_admin()` /
   `current_user_email()` read the session's JWT claims, not the executing role, so
@@ -822,9 +851,33 @@ inside the function fails closed rather than falling through to a weaker path.
   - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
     role, section, viewport, clock time, and the build. A field somebody has to
     fill in is a field that arrives empty.
+  - **A SIGNED-OUT VISITOR GETS THE SAME CONTROL, and the sign-in page is the
+    reason.** The person who most needs to report is the one whose sign-in is
+    broken, and a writer that answered null with no session removed the control
+    on exactly that page. `feedbackWriter` now hands a signed-out caller the
+    anonymous route; `feedbackIsAnonymous` is the ONE predicate saying which
+    kind of report this will be, and every mount reads it rather than spelling
+    "are they signed in" a second time. **`submit={null}` still removes the
+    control** -- absence is still the mechanism, being signed out is simply no
+    longer one of its causes.
+  - **THE OPTIONAL CONTACT IS OFFERED ONLY WHERE THERE IS NO ACCOUNT**
+    (`askContact`), is optional in the LABEL rather than only in a placeholder,
+    and is absent from the entry entirely when it was not asked for. It is
+    **NEVER AN IDENTITY**: nothing verified it, so every surface showing it says
+    so, and the export's identity toggle withholds it exactly as it withholds a
+    name. A signed-in row cannot carry one.
   - **`app_feedback` is the ONE queue for every surface**, and the console at
     `/classroom/feedback` (admin only) reads ALL apps. Filter before exporting;
     an export of everything is a semester nobody reads.
+    - **AN AUTHORLESS ROW IS VISIBLY ANONYMOUS, from the payload rather than
+      from an empty name** (`anonymous`, stated by 0127). **The reporter hash is
+      not in that payload and must not be added**: it exists to be counted, and
+      a column that reaches a console reaches an export, a paste and a
+      screenshot.
+    - **THE QUEUE RENDERS A STRING ANYONE CAN WRITE**, which no rich-text
+      renderer or sanitizer touches. `tests/feedback-untrusted-render.test.ts`
+      asserts it for this surface specifically rather than inheriting the
+      typed-document argument, which does not apply here.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to

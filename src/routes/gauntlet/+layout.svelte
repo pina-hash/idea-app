@@ -5,7 +5,7 @@
 	import { version as buildId } from '$app/environment';
 	import { deploy } from 'virtual:site-versions';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackWriter } from '$lib/feedback/feedback';
+	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 	import '$lib/gauntlet/viewport/viewport.css';
 	import ViewportBackground from '$lib/gauntlet/viewport/ViewportBackground.svelte';
@@ -37,9 +37,15 @@
 	 * below 1440px, so the only affordance on a phone would be no affordance.
 	 */
 	const build = describeBuild(deploy, buildId);
-	const submit = $derived(
-		page.data.supabase ? feedbackWriter(page.data.supabase, page.data.claims?.sub) : null
-	);
+	/**
+	 * Signed out cannot happen here today -- this section is behind
+	 * `authedPrefixes` -- so `anonymous` is passed for correctness rather than
+	 * for a case that arises: the flag and the writer come from ONE predicate,
+	 * and a mount that hard-codes false is a mount that lies the day the gate
+	 * changes.
+	 */
+	const submit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
+	const anonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
 
 	// Staggered entrance for every page's top-level blocks, re-run per
 	// navigation so future pages get the choreography with zero wiring.
@@ -67,6 +73,7 @@
 				role={page.data.userProfile?.role ?? null}
 				{build}
 				{submit}
+				{anonymous}
 			/>
 		</p>
 	</div>

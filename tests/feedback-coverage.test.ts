@@ -15,7 +15,12 @@ import {
 	type BuildStamp,
 	type FeedbackExclusionId
 } from '../src/lib/feedback/context';
-import { feedbackRetryable, type FeedbackRow } from '../src/lib/feedback/feedback';
+import {
+	feedbackIsAnonymous,
+	feedbackRetryable,
+	feedbackWriter,
+	type FeedbackRow
+} from '../src/lib/feedback/feedback';
 import {
 	EMPTY_FEEDBACK_FILTER,
 	FEEDBACK_GROUPING_THRESHOLD,
@@ -24,8 +29,10 @@ import {
 	feedbackMarkdown,
 	filterFeedback,
 	groupFeedbackByRoute,
+	rowContact,
 	rowDay,
 	rowDistinctPath,
+	rowIsAnonymous,
 	rowRole,
 	rowRoute,
 	rowSection,
@@ -136,7 +143,12 @@ describe('coverage is structural, not per page', () => {
 			'role=',
 			'sectionId={page.params.sectionId ?? null}',
 			'{build}',
-			'submit='
+			'submit=',
+			// WHICH KIND OF REPORT THIS WILL BE. It is what decides whether the
+			// box offers a way to be reached and what the note tells the person
+			// about their own report, so a mount that stopped passing it would
+			// quietly start telling signed-out visitors their role was attached.
+			'anonymous='
 		]) {
 			expect(mount).toContain(prop);
 		}
@@ -236,7 +248,7 @@ describe('every exclusion is by category, and each has a positive control', () =
 });
 
 // ---------------------------------------------------------------------------
-// 3. SIGNED-IN ONLY, AND ABSENCE IS THE MECHANISM
+// 3. ABSENCE IS THE MECHANISM -- BUT BEING SIGNED OUT IS NO LONGER AN ABSENCE
 // ---------------------------------------------------------------------------
 
 describe('no transport, no control', () => {
@@ -244,6 +256,95 @@ describe('no transport, no control', () => {
 		expect(triggers({ submit: null })).toBe(0);
 		expect(triggers({})).toBe(1);
 		expect(triggers({ place: 'relocated', submit: null })).toBe(0);
+	});
+});
+
+describe('a signed-out visitor gets the control, which is the point of the bundle', () => {
+	/**
+	 * THE FAILURE THIS REPLACES. `feedbackWriter` answered null with no session,
+	 * so the affordance vanished on exactly the page where a broken sign-in
+	 * would be reported from. It is asserted through the REAL writer rather than
+	 * by rendering with a hand-made transport, because the null was the writer's
+	 * doing and a test that hands in its own function cannot see it.
+	 */
+	it('hands a writer to a caller with no session, and still allows none', () => {
+		const client = {} as never;
+		expect(feedbackWriter(client, null)).not.toBeNull();
+		expect(feedbackWriter(client, undefined)).not.toBeNull();
+		// No client either: the error boundary's case, where a LAYOUT load failed
+		// and page.data carries nothing at all.
+		expect(feedbackWriter(null, null)).not.toBeNull();
+		// A surface with nothing to offer can still say so.
+		expect(feedbackWriter(null, null, { allowAnonymous: false })).toBeNull();
+		// POSITIVE CONTROL: a signed-in caller is a DIFFERENT writer, not the
+		// same one -- the two paths do not converge.
+		expect(feedbackWriter(client, 'u-1')).not.toBe(feedbackWriter(client, null));
+	});
+
+	it('answers one question about anonymity, in one place', () => {
+		const client = {} as never;
+		expect(feedbackIsAnonymous(client, 'u-1')).toBe(false);
+		expect(feedbackIsAnonymous(client, null)).toBe(true);
+		// A claim with no client to write through is a report that goes out
+		// anonymously, and the box has to say so.
+		expect(feedbackIsAnonymous(null, 'u-1')).toBe(true);
+		expect(feedbackIsAnonymous(null, null)).toBe(true);
+	});
+
+	it('offers a way to be reached ONLY when there is no account behind it', () => {
+		const anon = render(SiteFeedback, {
+			props: {
+				routeId: '/',
+				pathname: '/',
+				build: BUILD,
+				submit: async () => ({ error: null, retryable: false }),
+				anonymous: true
+			}
+		}).body;
+		const signedIn = render(SiteFeedback, {
+			props: {
+				routeId: '/',
+				pathname: '/',
+				build: BUILD,
+				submit: async () => ({ error: null, retryable: false }),
+				anonymous: false
+			}
+		}).body;
+		// The box is closed until the trigger is pressed, so what is asserted
+		// here is the SOURCE wiring plus the note both renders would carry.
+		expect(triggers({ anonymous: true })).toBe(1);
+		expect(anon.length).toBeGreaterThan(0);
+		expect(signedIn.length).toBeGreaterThan(0);
+
+		const site = read('src/lib/feedback/SiteFeedback.svelte');
+		expect(site).toContain('askContact={anonymous}');
+		const box = read('src/lib/feedback/FeedbackBox.svelte');
+		// ABSENCE IS THE MECHANISM one level in: no field, and no `contact` on
+		// the entry at all.
+		expect(box).toContain('{#if askContact}');
+		expect(box).toContain('...(askContact ? { contact } : {})');
+		// PLAINLY OPTIONAL, in the label rather than only in a placeholder.
+		expect(box).toContain('(optional)');
+		expect(box).toContain('Leave it empty and the report is still read.');
+	});
+
+	it('tells a signed-out reporter their report carries no name', () => {
+		const site = read('src/lib/feedback/SiteFeedback.svelte');
+		expect(site).toContain('You are not signed in, so this report carries no name.');
+		// And the signed-in note still says what a signed-in report attaches, so
+		// the two are not one string with a word swapped.
+		expect(site).toContain('your role, your browser and the build are attached automatically');
+	});
+
+	it('no longer tells the error boundary to go and sign in', () => {
+		// THE REJECTED SENTENCE. This page renders when a load has already
+		// failed; sending the person away to sign in and come back was the one
+		// thing it could not usefully ask for.
+		const err = read('src/routes/+error.svelte');
+		expect(err).not.toContain('We are not taking');
+		expect(err).not.toContain('Sign in from the portal home page to send a report');
+		expect(err).toContain('feedbackWriter(page.data.supabase, page.data.claims?.sub)');
+		expect(err).toContain('{anonymous}');
 	});
 });
 
@@ -1076,5 +1177,113 @@ describe('the JSON export resolves the same things beside the verbatim rows', ()
 		]);
 		// The row is still verbatim: the resolution sits NEXT TO it, not in it.
 		expect(parsed.reports[0].meta.build.means).toBe(BUILD_MEANS['git-commit']);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 12. A REPORT WITH NOBODY BEHIND IT, THROUGH THE FILTERS AND BOTH EXPORTS
+// ---------------------------------------------------------------------------
+
+describe('an authorless row is an ordinary row everywhere except where it says so', () => {
+	const anonWithContact = row({
+		id: 'a1',
+		message: 'Sign in bounces me back to the home page.',
+		meta: { route: '/', path: '/' },
+		anonymous: true,
+		contact: 'ask me in 4th',
+		submitter_name: null,
+		submitter_email: null
+	});
+	const anonBare = row({
+		id: 'a2',
+		message: 'The QR code goes nowhere.',
+		meta: { route: '/', path: '/' },
+		anonymous: true,
+		contact: null,
+		submitter_name: null,
+		submitter_email: null
+	});
+	/** What 0085's list returns for an authorless row: no flag, empty name. */
+	const preMigration = row({
+		id: 'a3',
+		message: 'Filed before 0127 was applied.',
+		meta: { route: '/', path: '/' },
+		submitter_name: '',
+		submitter_email: null
+	});
+	const signed = row({ id: 's1', meta: { route: '/', path: '/', role: 'student' } });
+
+	it('is read as anonymous from the payload, and from the shape of an older one', () => {
+		expect(rowIsAnonymous(anonWithContact)).toBe(true);
+		expect(rowIsAnonymous(anonBare)).toBe(true);
+		// The fallback: 0085's payload carries neither field, and a deployment
+		// sitting between two migrations is a real state here.
+		expect(rowIsAnonymous(preMigration)).toBe(true);
+		// POSITIVE CONTROL: a signed row is not swept up by either branch.
+		expect(rowIsAnonymous(signed)).toBe(false);
+		expect(rowContact(anonWithContact)).toBe('ask me in 4th');
+		expect(rowContact(anonBare)).toBeNull();
+	});
+
+	it('collapses a contact to one line, so it cannot restructure an export', () => {
+		const multiline = row({ id: 'a4', anonymous: true, contact: 'text me\n### injected' });
+		expect(rowContact(multiline)).toBe('text me ### injected');
+	});
+
+	it('passes every filter a signed row passes, and is excluded only by identity facets', () => {
+		const all = [anonWithContact, anonBare, signed];
+		// Not special-cased out of the default view, the route facet or the dates.
+		expect(ids(filterFeedback(all, EMPTY_FEEDBACK_FILTER))).toEqual(['a1', 'a2', 's1']);
+		expect(ids(filterFeedback(all, filter({ route: '/' })))).toEqual(['a1', 'a2', 's1']);
+		expect(ids(filterFeedback(all, filter({ status: 'new' })))).toEqual(['a1', 'a2', 's1']);
+		// A role facet is a question about a signed-in reporter, so choosing one
+		// excludes a report that has no role. That is the facet working rather
+		// than a row falling out, and the line above is the control that says so.
+		expect(ids(filterFeedback(all, filter({ role: 'student' })))).toEqual(['s1']);
+	});
+
+	it('says it is anonymous in the markdown export, and carries the contact as unverified', () => {
+		const md = feedbackMarkdown([anonWithContact, anonBare]);
+		expect(md.included).toBe(2);
+		expect(md.text).toContain('from: anonymous, left this way to be reached');
+		expect(md.text).toContain('ask me in 4th');
+		expect(md.text).toContain('unverified, typed by the reporter');
+		// The one with nothing left says so, rather than reading as a row whose
+		// field went missing.
+		expect(md.text).toContain('from: anonymous, left no way to be reached');
+	});
+
+	it('withholds the contact with the names, because it is the only thing that can name them', () => {
+		const md = feedbackMarkdown([anonWithContact], { includeSubmitter: false });
+		expect(md.text).not.toContain('ask me in 4th');
+		expect(md.text).not.toContain('- from:');
+		expect(md.text).toContain('no contact string from an anonymous report either');
+		// POSITIVE CONTROL on the same bundle: the report is still in it.
+		expect(md.text).toContain('Sign in bounces me back');
+		expect(md.included).toBe(1);
+
+		const parsed = JSON.parse(feedbackJson([anonWithContact], { includeSubmitter: false }));
+		expect(parsed.reports[0].contact).toBeNull();
+		// The FACT of anonymity is not identity and is KEPT, so a blanked row is
+		// not mistaken for a name that went missing.
+		expect(parsed.reports[0].anonymous).toBe(true);
+		expect(JSON.stringify(parsed)).not.toContain('ask me in 4th');
+	});
+
+	it('keeps the contact verbatim in the JSON export when identity is included', () => {
+		const parsed = JSON.parse(feedbackJson([anonWithContact]));
+		expect(parsed.submitterIdentity).toBe('included');
+		expect(parsed.reports[0].contact).toBe('ask me in 4th');
+		expect(parsed.reports[0].anonymous).toBe(true);
+	});
+
+	it('is rendered as anonymous by the console, never as a verified identity', () => {
+		const src = read('src/lib/classroom/FeedbackConsole.svelte');
+		expect(src).toContain('rowIsAnonymous(row)');
+		expect(src).toContain('Anonymous');
+		expect(src).toContain('typed by the reporter, nothing verified it');
+		expect(src).toContain('left no way to be reached');
+		// The identity toggle's word covers what it now withholds.
+		expect(src).toContain('Include submitter names and contacts');
 	});
 });

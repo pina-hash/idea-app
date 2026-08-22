@@ -94,6 +94,50 @@ export function rowBuild(
 	return { value, source: source || 'unlabelled', means };
 }
 
+// ---------------------------------------------------------------------------
+// A report with nobody behind it
+// ---------------------------------------------------------------------------
+
+/**
+ * WHETHER THIS REPORT WAS SIGNED BY AN ACCOUNT.
+ *
+ * READ FROM THE PAYLOAD WHERE THE PAYLOAD SAYS SO. 0127 states it, because
+ * "nobody signed this" and "we cannot find who signed this" are different
+ * sentences to put in front of an admin, and a reader inferring one from two
+ * empty fields cannot tell them apart.
+ *
+ * THE FALLBACK IS FOR A DEPLOYMENT SITTING BETWEEN TWO MIGRATIONS, which is a
+ * real state here: 0085's version of the list returns neither `anonymous` nor
+ * `contact`, and an authorless row comes back from it with an empty name and a
+ * null address. Reading that as anonymous is right far more often than it is
+ * wrong, and the alternative -- rendering an authorless row as a signed one
+ * with a blank name -- is the failure this exists to prevent.
+ */
+export function rowIsAnonymous(row: FeedbackRow): boolean {
+	if (typeof row.anonymous === 'boolean') return row.anonymous;
+	return !(row.submitter_name ?? '').trim() && !(row.submitter_email ?? '').trim();
+}
+
+/**
+ * The way to be reached an anonymous reporter chose to leave, or null.
+ *
+ * NOT AN IDENTITY, AND NOTHING HERE PRETENDS IT IS. Nobody signed in to type
+ * it and nothing verified it, so every surface that shows it says as much, and
+ * the export's identity toggle withholds it exactly the way it withholds a
+ * name: it is the only thing in an anonymous row that can name a person.
+ */
+export function rowContact(row: FeedbackRow): string | null {
+	// COLLAPSED TO ONE LINE, because that is what it is: a single-line field,
+	// rendered on one line in the console and printed as ONE BULLET in the
+	// markdown export. A newline inside it would end that bullet and let the
+	// rest of the string become a document-level block -- the same defect
+	// `quoteMessage` exists to stop in the message, arriving through a field
+	// nothing quotes. The stored value is untouched; the JSON export carries the
+	// row verbatim and is where the exact bytes live.
+	const raw = (row.contact ?? '').replace(/\s+/g, ' ').trim();
+	return raw ? raw : null;
+}
+
 export function rowStatusCode(row: FeedbackRow): number | null {
 	const raw = (row.meta ?? {}).status;
 	return typeof raw === 'number' ? raw : null;
@@ -372,8 +416,20 @@ function oneRow(row: FeedbackRow, index: number, includeSubmitter: boolean): str
 	const httpStatus = rowStatusCode(row);
 	if (httpStatus !== null) facts.push(`http status: ${httpStatus}`);
 	if (includeSubmitter) {
-		const who = row.submitter_name || row.submitter_email;
-		if (who) facts.push(`from: ${who}`);
+		// AN ANONYMOUS ROW IS NOT A ROW WITH A MISSING FIELD, so it does not read
+		// as one. It says what it is, and a contact string travels with the words
+		// that describe what it is worth.
+		if (rowIsAnonymous(row)) {
+			const contact = rowContact(row);
+			facts.push(
+				contact
+					? `from: anonymous, left this way to be reached (unverified, typed by the reporter): ${contact}`
+					: 'from: anonymous, left no way to be reached'
+			);
+		} else {
+			const who = row.submitter_name || row.submitter_email;
+			if (who) facts.push(`from: ${who}`);
+		}
 	}
 	// THE VALUE AND WHICH KIND OF IDENTIFIER IT IS. What that kind MEANS is
 	// stated once in the header, because it is the same sentence every time and
@@ -414,8 +470,8 @@ export function feedbackMarkdown(
 	headLines.push(`Reports: ${rows.length}`);
 	headLines.push(
 		includeSubmitter
-			? 'Submitter identity: included.'
-			: 'Submitter identity: withheld at export. No name or address appears below.'
+			? 'Submitter identity: included. An anonymous report says so, and carries the contact string its reporter typed, if any.'
+			: 'Submitter identity: withheld at export. No name or address appears below, and no contact string from an anonymous report either.'
 	);
 	headLines.push(
 		grouped
@@ -483,9 +539,17 @@ export function feedbackMarkdown(
 	};
 }
 
-/** The submitter's name and address blanked, everything else untouched. */
+/**
+ * The submitter's name and address blanked, everything else untouched.
+ *
+ * AND THE CONTACT STRING WITH THEM. It is the one field on an anonymous row
+ * that can name a person, so withholding names while leaving "text me,
+ * 555-0134" in the file would be the toggle doing the opposite of what it
+ * says. `anonymous` is deliberately KEPT: it is the absence of an identity, not
+ * one, and it is what stops a blanked row reading as a name that went missing.
+ */
 function withoutSubmitter(row: FeedbackRow): FeedbackRow {
-	return { ...row, submitter_name: null, submitter_email: null };
+	return { ...row, submitter_name: null, submitter_email: null, contact: null };
 }
 
 /**
