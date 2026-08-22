@@ -499,6 +499,14 @@ with its own answer for the rows already stored.
   projection that ends in `btrim` must not spell it `trim()`: the two agree until
   the first value whose first or last line is blank, and then the client and the
   column disagree with nothing to say so.
+  - **AN EMPTINESS GATE SPELLED WITH `btrim` ACCEPTS A BLANK.** `length(trim(x))
+    > 0` passes a value of newlines and tabs, which is empty to whoever typed it
+    and empty to the client's `trim()` -- so the gate admits the one thing it
+    was written to refuse. Where a gate must agree with a person's idea of
+    empty, normalize with `regexp_replace(x, '^\s+|\s+$', '', 'g')`, in ONE
+    private function the whole file calls. Not `btrim(x, E' \t\n\r\f\v')`: an
+    escape Postgres does not recognise in an `E''` string is kept as the bare
+    LETTER, so that trim set silently also strips `v` from both ends.
 - **A volatile expression like `now()` cannot appear in an index predicate**, so
   "currently active" cannot be a partial unique index on its own; pair
   `revoked_at is null` in the index with a lazily-stamped close on the row.

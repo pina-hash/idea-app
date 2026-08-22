@@ -110,6 +110,14 @@ export interface TestDb {
 	 * `authenticated` carries grants `anon` does not.
 	 */
 	asAnon<T>(fn: (q: QueryFn) => Promise<T>): Promise<T>;
+	/**
+	 * Runs as `service_role` — a request from one of our own servers holding
+	 * SUPABASE_SERVICE_ROLE_KEY, which is a different caller from every other
+	 * one here: it bypasses RLS and carries grants no client has. Pass `userId`
+	 * for the case where such a request also carries a signed-in subject, so
+	 * auth.uid() is set; omit it for the signed-out case.
+	 */
+	asServiceRole<T>(fn: (q: QueryFn) => Promise<T>, userId?: string | null): Promise<T>;
 	stop(): Promise<void>;
 }
 
@@ -266,7 +274,34 @@ export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS
 		}
 	};
 
-	return { databaseName: database, sql, asUser, asAnon, stop };
+	/**
+	 * A request from one of our own servers, holding the service key. Same
+	 * mechanism as asUser -- claims GUC, then SET ROLE -- because the role
+	 * switch is what makes the function grants apply at all: the connection
+	 * role owns everything here and would be refused by nothing.
+	 */
+	const asServiceRole = async <T>(
+		fn: (q: QueryFn) => Promise<T>,
+		userId?: string | null
+	): Promise<T> => {
+		const client = await pool.connect();
+		try {
+			await client.query(`select set_config('request.jwt.claims', $1, false)`, [
+				userId
+					? JSON.stringify({ sub: userId, role: 'service_role' })
+					: JSON.stringify({ role: 'service_role' })
+			]);
+			await client.query('set role service_role');
+			const q: QueryFn = (text, params) => client.query(text, params as unknown[]);
+			return await fn(q);
+		} finally {
+			await client.query('reset role').catch(() => {});
+			await client.query(`select set_config('request.jwt.claims', '', false)`).catch(() => {});
+			client.release();
+		}
+	};
+
+	return { databaseName: database, sql, asUser, asAnon, asServiceRole, stop };
 }
 
 export interface SeededUser {
