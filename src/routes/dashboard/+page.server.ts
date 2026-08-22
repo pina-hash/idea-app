@@ -74,6 +74,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		}));
 	}
 
+	// New-report count for the Feedback entry point card. Same RPC the console
+	// itself reads (app_feedback_admin_list); fails soft to 0 pending a
+	// migration rather than blocking the rest of the dashboard.
+	const { data: feedbackRows } = await supabase.rpc('app_feedback_admin_list');
+	const feedbackNewCount = ((feedbackRows ?? []) as { status: string }[]).filter(
+		(r) => r.status === 'new'
+	).length;
+
 	return {
 		profile,
 		email: claims.email ?? profile?.email ?? null,
@@ -84,7 +92,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		frcReviewQueue,
 		frcReviewReady,
 		greenlineDecalQueue,
-		greenlineDecalReady
+		greenlineDecalReady,
+		feedbackNewCount
 	};
 };
 

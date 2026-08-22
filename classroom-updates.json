@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-22",
+			"title": "The path back up top of a class page is easier to read",
+			"body": "The trail above a class page (My Classes / your class / where you are) is a little bigger now, and every step you can click is underlined so it is clear it is a link.",
+			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-08-22",
 			"title": "Your notebook writing now saves itself",
 			"body": "When you write in the notebook entry box, what you type is saved as a draft a moment after you stop typing. You do not have to press anything, and the draft is private to you until you turn it in. The box tells you when the last save landed, and says so plainly if a save did not go through, with a Retry button. Photos are different: they only exist on your device until you press Save draft or Turn in, so still press one of those before you leave the page.",
 			"tags": ["notebook"]

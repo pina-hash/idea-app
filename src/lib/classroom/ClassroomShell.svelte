@@ -334,7 +334,7 @@
 		margin: 0 0 0.5rem;
 		padding: 0;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: 0.72rem;
 	}
 	.crumbs li {
 		display: flex;
@@ -352,7 +352,8 @@
 		   (IDEA_INTERFACE_STANDARDS 10). */
 		--tap-reach-w: 0px;
 		color: var(--text-2);
-		text-decoration: none;
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
 	}
 	.crumbs a:hover {
 		color: var(--gold);

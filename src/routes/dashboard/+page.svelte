@@ -367,6 +367,29 @@
 
 	<div class="divider" style="margin-top:2.5rem">
 		<div class="divider-line"></div>
+		<div class="divider-label">Feedback</div>
+		<div class="divider-line"></div>
+	</div>
+
+	<div class="courses">
+		<div class="course-card visible">
+			<div class="course-header">
+				<div class="course-header-left">
+					<div class="course-id">Feedback Queue</div>
+					<div class="course-updated">
+						Everything sent from the Report a problem control, anywhere in the portal.
+					</div>
+				</div>
+				<div class="course-meta">
+					<span class="section-meta">{data.feedbackNewCount} new</span>
+					<a class="btn secondary" href="/classroom/feedback">Open queue</a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="divider" style="margin-top:2.5rem">
+		<div class="divider-line"></div>
 		<div class="divider-label">Students &amp; Pathways</div>
 		<div class="divider-line"></div>
 	</div>

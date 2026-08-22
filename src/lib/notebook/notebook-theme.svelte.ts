@@ -35,9 +35,12 @@ function read(): NotebookTheme {
 	if (typeof localStorage === 'undefined') return 'system';
 	try {
 		const stored = localStorage.getItem(KEY);
-		return NOTEBOOK_THEMES.includes(stored as NotebookTheme)
-			? (stored as NotebookTheme)
-			: 'system';
+		if (stored === null) return 'system';
+		if (NOTEBOOK_THEMES.includes(stored as NotebookTheme)) return stored as NotebookTheme;
+		// A retired or corrupted plate id. Drop it now rather than letting the
+		// fallback repeat silently forever, or reusing the id later would revive it.
+		localStorage.removeItem(KEY);
+		return 'system';
 	} catch {
 		return 'system';
 	}

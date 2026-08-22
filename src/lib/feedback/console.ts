@@ -247,14 +247,45 @@ export interface ResolvedSection {
 }
 
 /**
+ * A `classroom_sections` row, projected to what an export needs to print. Keyed
+ * by `classroom_sections.id` -- the value `page.params.sectionId` actually is on
+ * `/classroom/[sectionId]`, and so what a report's `meta.section` carries from
+ * that route. It is a DIFFERENT NAMESPACE from `curriculum.ts`'s `SECTIONS`
+ * slugs (`profiles.section_id`), and the two ids can collide as strings with no
+ * relation to each other, so this is looked up FIRST and `sectionById` is the
+ * fallback for a report filed somewhere that only ever had the curriculum slug.
+ */
+export interface ClassroomSectionInfo {
+	id: string;
+	/** Course code, e.g. "IDEA 209H". */
+	course: string;
+	/** "Period 3", "A", ... */
+	label: string;
+	block: string | null;
+}
+
+/**
  * AN ID THAT DOES NOT RESOLVE SAYS SO. Falling back to the raw id silently
  * would render a stored slug in the position a course name occupies, and the
  * next reader takes it for a course nobody has heard of rather than for a
  * section that has been retired, mistyped, or never added to the registry.
  */
-export function resolveSectionId(id: string | null | undefined): ResolvedSection | null {
+export function resolveSectionId(
+	id: string | null | undefined,
+	classroomSections?: ReadonlyMap<string, ClassroomSectionInfo>
+): ResolvedSection | null {
 	const raw = (id ?? '').trim();
 	if (!raw) return null;
+	const live = classroomSections?.get(raw);
+	if (live) {
+		return {
+			id: raw,
+			resolved: true,
+			course: live.course,
+			period: live.block,
+			label: `${live.course} ${live.label}${live.block ? `, ${live.block}` : ''} (${raw})`
+		};
+	}
 	const section = sectionById(raw);
 	if (!section) {
 		return {
@@ -322,6 +353,8 @@ export interface FeedbackExportOptions {
 	 * cannot mistake a bundle with no names for a bundle from nobody.
 	 */
 	includeSubmitter?: boolean;
+	/** The live `classroom_sections` lookup, see {@link resolveSectionId}. */
+	classroomSections?: ReadonlyMap<string, ClassroomSectionInfo>;
 }
 
 /**
@@ -386,7 +419,12 @@ export function quoteMessage(message: string): string {
 		.join('\n');
 }
 
-function oneRow(row: FeedbackRow, index: number, includeSubmitter: boolean): string {
+function oneRow(
+	row: FeedbackRow,
+	index: number,
+	includeSubmitter: boolean,
+	classroomSections?: ReadonlyMap<string, ClassroomSectionInfo>
+): string {
 	const route = rowRoute(row);
 	const lines: string[] = [`### ${index}. ${row.kind} at ${route}`];
 
@@ -406,7 +444,7 @@ function oneRow(row: FeedbackRow, index: number, includeSubmitter: boolean): str
 	if (path) facts.push(`path: ${path}`);
 	const role = rowRole(row);
 	if (role) facts.push(`role: ${role}`);
-	const section = resolveSectionId(rowSection(row));
+	const section = resolveSectionId(rowSection(row), classroomSections);
 	if (section) facts.push(`section: ${section.label}`);
 	const viewport = rowViewport(row);
 	if (viewport) facts.push(`viewport: ${viewport}`);
@@ -456,6 +494,7 @@ export function feedbackMarkdown(
 	const budget = options.budget ?? FEEDBACK_MARKDOWN_BUDGET;
 	const filter = options.filter ?? EMPTY_FEEDBACK_FILTER;
 	const includeSubmitter = options.includeSubmitter !== false;
+	const classroomSections = options.classroomSections;
 	const grouped = rows.length > FEEDBACK_GROUPING_THRESHOLD;
 
 	const facets: string[] = [`status: ${filter.status}`];
@@ -512,7 +551,9 @@ export function feedbackMarkdown(
 	let included = 0;
 	for (const row of ordered) {
 		const heading = groupHeading.get(row);
-		const block = (heading ? `${heading}\n\n` : '') + oneRow(row, included + 1, includeSubmitter);
+		const block =
+			(heading ? `${heading}\n\n` : '') +
+			oneRow(row, included + 1, includeSubmitter, classroomSections);
 		// Leave room for the truncation notice itself, so the thing that says
 		// what was dropped can never be the thing that gets dropped.
 		if (used + block.length > budget - 320 && included > 0) break;
@@ -571,7 +612,7 @@ export function feedbackJson(rows: FeedbackRow[], options: FeedbackExportOptions
 	const sections = new Map<string, ResolvedSection>();
 	const buildIdentifiers = new Map<string, string>();
 	for (const row of rows) {
-		const section = resolveSectionId(rowSection(row));
+		const section = resolveSectionId(rowSection(row), options.classroomSections);
 		if (section && !sections.has(section.id)) sections.set(section.id, section);
 		const build = rowBuild(row);
 		if (build && !buildIdentifiers.has(build.source)) {

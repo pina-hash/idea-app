@@ -20,4 +20,9 @@
 	}
 </script>
 
-<FeedbackConsole ready={data.ready} rows={data.rows} {setStatus} />
+<FeedbackConsole
+	ready={data.ready}
+	rows={data.rows}
+	classroomSections={data.classroomSections}
+	{setStatus}
+/>

@@ -20,6 +20,7 @@
 		rowUserAgentSummary,
 		rowViewport,
 		resolveSectionId,
+		type ClassroomSectionInfo,
 		type FeedbackFilter
 	} from '$lib/feedback/console';
 
@@ -58,15 +59,20 @@
 	let {
 		ready = true,
 		rows,
+		classroomSections = [],
 		setStatus,
 		now = () => Date.now()
 	}: {
 		ready?: boolean;
 		rows: FeedbackRow[];
+		/** Live `classroom_sections` rows for every id these rows' `meta.section` names. */
+		classroomSections?: ClassroomSectionInfo[];
 		setStatus: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
 		/** Injectable clock, so a harness can pin the export stamp. */
 		now?: () => number;
 	} = $props();
+
+	const sectionMap = $derived(new Map(classroomSections.map((s) => [s.id, s])));
 
 	const STATUSES: { id: FeedbackStatus; label: string }[] = [
 		{ id: 'new', label: 'New' },
@@ -156,7 +162,12 @@
 	function exportMarkdown() {
 		const stamp = new Date(now()).toISOString();
 		// VISIBLE ROWS, NOT `rows`: filtering happens before export.
-		const bundle = feedbackMarkdown(visible, { filter, generatedAt: stamp, includeSubmitter });
+		const bundle = feedbackMarkdown(visible, {
+			filter,
+			generatedAt: stamp,
+			includeSubmitter,
+			classroomSections: sectionMap
+		});
 		download(feedbackExportName('md', stamp.slice(0, 19)), bundle.text, 'text/markdown');
 		const shape = bundle.grouped ? ' Grouped by route.' : '';
 		exportNote =
@@ -167,7 +178,12 @@
 
 	function exportJson() {
 		const stamp = new Date(now()).toISOString();
-		const text = feedbackJson(visible, { filter, generatedAt: stamp, includeSubmitter });
+		const text = feedbackJson(visible, {
+			filter,
+			generatedAt: stamp,
+			includeSubmitter,
+			classroomSections: sectionMap
+		});
 		download(feedbackExportName('json', stamp.slice(0, 19)), text, 'application/json');
 		exportNote = `Exported ${visible.length} filtered report${visible.length === 1 ? '' : 's'} as JSON.${identityNote}`;
 	}
@@ -317,7 +333,7 @@
 					<ul class="fb-context">
 						{#if rowDistinctPath(row)}<li>path {rowDistinctPath(row)}</li>{/if}
 						{#if rowRole(row)}<li>role {rowRole(row)}</li>{/if}
-						{#if rowSection(row)}<li>section {resolveSectionId(rowSection(row))?.label}</li>{/if}
+						{#if rowSection(row)}<li>section {resolveSectionId(rowSection(row), sectionMap)?.label}</li>{/if}
 						{#if rowViewport(row)}<li>viewport {rowViewport(row)}</li>{/if}
 						{#if rowUserAgentSummary(row)}<li>{rowUserAgentSummary(row)}</li>{/if}
 						{#if rowStatusCode(row) !== null}<li>http {rowStatusCode(row)}</li>{/if}
