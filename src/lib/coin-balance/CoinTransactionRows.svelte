@@ -155,8 +155,10 @@
 		padding: 0.05rem 0.3rem;
 		color: var(--dim);
 	}
+	/* The WORD takes the ink, the EDGE keeps the accent -- see --violet-ink in
+	   $lib/design-system/colors.css. Raw --violet measured 2.45:1 here. */
 	.type-chip.adjustment {
-		color: var(--violet);
+		color: var(--violet-ink);
 		border-color: var(--violet);
 	}
 	.type-chip.payout {
@@ -195,7 +197,7 @@
 	/* An adjustment is neither an award nor a fine whatever its sign, so it is
 	   neither green nor amber -- the same violet the Ledger gives it. */
 	.amount.adjustment {
-		color: var(--violet);
+		color: var(--violet-ink);
 	}
 	/* A transfer gained and lost nothing, so it carries no sign and none of
 	   the colours that imply one. */

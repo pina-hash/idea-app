@@ -2167,7 +2167,14 @@ a:hover {
 }
 .legacy-index .hero-stat .label {
 	font-size: 0.58rem;
-	color: var(--dim);
+	/* --dim ON --bg2 IS 4.24:1, and this is a label rather than decoration.
+	   The TOKEN is not moved: --dim is also read inside .frc-root, whose page
+	   is paper, where it already measures 2.95 / 3.23 and lightening it makes
+	   that worse -- degrading a room this sweep did not cover is the exact
+	   mistake being corrected here. --text-2 is the register's own token for
+	   "secondary text, labels, meta" and clears every portal ground
+	   (6.91 / 5.88 / 5.51). */
+	color: var(--text-2);
 	letter-spacing: 0.15em;
 	text-transform: uppercase;
 }
@@ -2466,7 +2473,9 @@ a:hover {
 	font-size: 0.55rem;
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
-	color: var(--dim);
+	/* --dim on --bg2 is 4.24:1; see .hero-stat .label above for why the token
+	   itself is left alone. 5.51:1. */
+	color: var(--text-2);
 	border: 1px solid rgba(135, 148, 124, 0.3);
 	padding: 0.2rem 0.6rem;
 	border-radius: 2px;
@@ -2945,7 +2954,10 @@ a:hover {
 }
 .legacy-index .footer-sub {
 	font-size: 0.58rem;
-	color: rgba(135, 148, 124, 0.6);
+	/* Was a raw rgba at 0.6 alpha, which composited to 2.81:1 on the page --
+	   the least readable line on the homepage, and spelled as a literal so no
+	   token move could ever have found it. 6.91:1. */
+	color: var(--text-2);
 	letter-spacing: 0.1em;
 }
 .legacy-index .footer-archive {

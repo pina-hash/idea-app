@@ -401,8 +401,15 @@
 		white-space: nowrap;
 		max-width: 22rem;
 	}
+	/* A SEPARATOR GLYPH IS A BOUNDARY, AND A HAIRLINE TOKEN MUST NEVER PAINT
+	   ONE. A rule weight is authored to sit below every text threshold, because
+	   a hairline is a line drawn beside content and never a mark drawn AS
+	   content -- so this measured 1.18:1 on the shell's own ground and the
+	   thing it exists to separate was not being separated. Same defect as the
+	   notebook's meta middots, one room over. --boundary is the load-bearing
+	   token and clears the 3:1 a boundary carries: 4.44:1 here. */
 	.crumb-sep {
-		color: var(--hairline);
+		color: var(--boundary);
 	}
 
 	/* THE TAB BAR IS THE LAST THING BEFORE THE CONTENT, so the space under it is

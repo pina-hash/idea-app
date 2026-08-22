@@ -1149,8 +1149,14 @@
 	.roster-row.active {
 		background: var(--surface-0);
 	}
+	/* 0.6 PUT EVERY WORD IN THE ROW UNDER THE BAR, including the work chip:
+	   --text-2 at 0.6 measured 3.29:1. A group opacity dims the state signal and
+	   the content it describes by exactly the same amount, so the only lever is
+	   the number. 0.8 is the lowest step that clears 4.5 on both grounds this
+	   row lands on (4.81 on --surface-2, 5.17 on --surface-0) and is still a
+	   plainly visible step down from an active row. */
 	.roster-row.inactive {
-		opacity: 0.6;
+		opacity: 0.8;
 	}
 	.roster-name {
 		min-width: 0;

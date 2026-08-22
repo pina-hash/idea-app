@@ -1277,8 +1277,24 @@ belong wherever the app's own behaviour is documented.
   Interpolability CAN be: `el.animate([from, to])`, `pause()`, then set
   `currentTime` and read the computed value at several points -- a smooth ramp
   proves the two values interpolate, a jump at 50% proves they are discrete.
-- **`loading="lazy"` images never request** -- the intersection observer never
-  fires.
+- **`IntersectionObserver` NEVER FIRES AT ALL, for anything.** `loading="lazy"`
+  images never request, and neither does any hand-written observer: `AppLauncher`
+  stamps `opacity:0` inline on every card at mount and clears it from an IO
+  callback, so in this pane all eight cards sit at 0 forever and every title,
+  mark and CTA in the launcher drops out of a sweep as invisible -- a smaller
+  denominator with nothing to say the launcher went missing. Confirmed by
+  scrolling all eight through the centre of the viewport and re-reading their
+  inline opacity, which stayed "0". **Do not scroll and hope.** Put the
+  component into its own settled state the way its own cleanup does (clear the
+  inline entrance styles), which is byte-identically what the reduced-motion
+  path renders from the first frame, and say in the report how many you
+  settled.
+- **KILLING `animation` ALONG WITH `transition` FREEZES ENTRANCE ANIMATIONS AT
+  THEIR FIRST FRAME.** The blanket `* { transition: none !important }` this
+  section calls for must NOT also say `animation: none` -- six candidates on the
+  portal home came back at ratio 1.00 with an accumulated opacity of 0, which
+  reads exactly like six real failures and is entirely the instrument's doing.
+  Freeze transitions, let animations run, then settle on a TIMEOUT.
 - **`requestAnimationFrame` never fires while the pane's tab is hidden.** A Svelte
   flush that depends on rAF never lands, so a synchronous DOM read taken right after
   a state change sees stale values. Confirm by checking whether the read changes
@@ -1693,6 +1709,16 @@ the source of truth; **do not invent colours or swap fonts.**
     the same saturation at 68% lightness instead of 52%. **Lightness only --
     desaturating is how a brand quietly stops being itself.** If a colour cannot
     clear while staying recognisable, say so and stop.
+    - **THIS IS NOT A LAUNCHER RULE, IT IS THE RULE, and there are three of it
+      now.** `--acc-ink` for a card, `--violet-ink` for anything painting a WORD
+      in `--violet` (the raw accent measures 2.88 / 2.45 / 2.30 as text on
+      `--bg0` / `--bg1` / `--bg2` -- not a near-miss, unreadable), and
+      `Pathway.ink` in `src/lib/pathways.ts` beside `Pathway.color`. In each the
+      IDENTITY paints the fill and the edge and the INK paints the word and the
+      glyph, the ink DEFAULTS to the identity where the identity already carries
+      text (three of the six pathways do, and simply repeat it), and the move is
+      lightness only. `pathwayInk()` sits beside `pathwayColor()` so "tint this
+      name in the pathway colour" has a right answer to reach for.
   - **`--acc-edge` IS THE SHARED `--boundary` CONTRACT WITH THIS CARD'S
     IDENTITY COLOUR IN IT** (see the `--boundary` rule above for the contract
     itself). It draws the card edge, the only thing separating a card from the
@@ -1731,6 +1757,22 @@ value it already has (`--nb-accent-ink`, `--nb-error`) -- and the hook is
 declared ON THE ROOM'S OWN WRAPPER, never on the component, or it sits on a
 descendant and beats the room. **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
 ROOM**; both of those had passed review in the room they were written for.
+
+**AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL
+TOKEN CANNOT BE RAISED TO FIX A PORTAL GROUND UNTIL THE LIGHT ROOMS THAT READ IT
+HAVE BEEN MEASURED.** `--dim` clears only the DARKEST of the three portal
+grounds -- 5.31 on `--bg0`, **4.46** on `--bg1`, **4.24** on `--bg2` -- and the
+obvious answer, lightening it (hue 105deg and 6.7% saturation held, 53.3% ->
+56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
+five FRC components on `.frc-root`'s paper, where it already measures 2.95 /
+3.23 and the candidate takes it to **2.72 / 2.98**. Degrading a room the sweep
+did not cover, to fix one it did, is the exact mistake this whole section
+exists to name. So the two failing CALL SITES took `--text-2` (the register's
+own token for secondary labels and meta, 6.91 / 5.88 / 5.51 on the same three
+grounds) and the token did not move. **`--dim` on `--bg1` or `--bg2` is still a
+failure waiting for a use**, and FRC's own `--frc-gray` measures 2.77 on its own
+surface, so the room needs a hook of its own before either can be fixed
+properly. That is a bundle, not a line.
 
 - **`.gt-root` -- GAUNTLET VIEWPORT** (`docs/GAUNTLET-DESIGN.md`). All GAUNTLET UI
   must conform. Read tokens and reuse the viewport components rather than writing

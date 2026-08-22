@@ -4,7 +4,7 @@
 	import Avatar from '$lib/Avatar.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import { PATHWAYS, pathwayColor } from '$lib/pathways';
+	import { PATHWAYS, pathwayInk } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
 	import { store } from './store';
 
@@ -95,7 +95,10 @@
 			<div class="id-row">
 				<Avatar profile={sp} size={30} />
 				<PathwayChip pathway={p.id} size="sm" />
-				<span class="id-name" style="color:{pathwayColor(p.id)}">{displayName(sp)}</span>
+				<!-- The INK, not the identity: this is a NAME, and the harness has to
+				     demonstrate what ships. At the raw identity CSEE measured 4.01:1
+				     and MSET 4.09:1 here. -->
+				<span class="id-name" style="color:{pathwayInk(p.id)}">{displayName(sp)}</span>
 				<span class="id-note">avatar stays; chip + tint added</span>
 			</div>
 		{/each}

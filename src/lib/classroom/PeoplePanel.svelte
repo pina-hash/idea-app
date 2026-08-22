@@ -681,8 +681,13 @@
 	.nb-flagged .nb-glyph {
 		color: var(--crimson);
 	}
+	/* EXCUSED IS A STATUS, NOT DECORATION. At --text-3 the glyph measured
+	   3.13:1 on the card -- the one mark in the cell, below the bar. --ice is
+	   both the semantic token for "disabled / not-yet-started" AND what the
+	   notebook's own review grid gives excused on its dark plates, so the two
+	   spellings of this hue now agree: 9.31:1. */
 	.nb-excused .nb-glyph {
-		color: var(--text-3);
+		color: var(--ice);
 	}
 	.nb-missing .nb-glyph {
 		color: var(--text-2);
@@ -780,9 +785,16 @@
 	.roster-row:last-child {
 		border-bottom: none;
 	}
+	/* A REMOVED STUDENT IS STILL A NAME AND AN ADDRESS SOMEBODY HAS TO READ.
+	   --text-3 is decorative tertiary in this room (CLAUDE.md says so in as many
+	   words) and it measured 3.13:1 on the card -- so the row that tells you who
+	   was removed was the least readable row on the page. --text-2 is this
+	   register's own word for secondary copy: 7.27:1. The line-through is what
+	   carries "removed", which is the point -- colour was never the only
+	   signal here, so dropping the dimness costs nothing. */
 	.roster-row.inactive .roster-name,
 	.roster-row.inactive .roster-email {
-		color: var(--text-3);
+		color: var(--text-2);
 		text-decoration: line-through;
 	}
 	.roster-name {

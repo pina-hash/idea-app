@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-22",
+			"title": "Small text around the class pages is easier to read",
+			"body": "A sweep of every classroom screen turned up six bits of text that were too faint against the background behind them, and all six are fixed. The slash between the crumbs at the top of a class page was drawn so lightly it was very nearly invisible, so the trail back to your classes was hard to follow; it now shows up properly. On the People tab, a student who has been removed from the roster had their name and email dimmed almost to nothing, and the excused mark in the notebook tally was the faintest thing in the row: the strike through the name is what says removed now, and both read clearly. In the grading console a removed student's whole row was dimmed far enough that the Not submitted chip was hard to make out. And on an assignment, the line telling you a section is locked until your teacher approves it was dimmed along with the section it was explaining, which is the one line that has to be readable. Nothing moved and no colour changed family.",
+			"tags": [
+				"classroom"
+			]
+		},
+		{
+			"date": "2026-08-22",
 			"title": "Save draft keeps you in the same entry now",
 			"body": "Pressing Save draft in the notebook used to quietly close the entry you were writing, so the next sentence you typed started a second entry with the same work split across the two. Save draft is now a checkpoint: your writing stays in the box, the entry stays the one you were already on, and anything you type afterwards goes on to it as a new version. The button greys out once there is nothing new to save, so a second press cannot add an empty version. Turning the entry in still finishes it and clears the form for the next one, and that is now the only thing that does. Photos work the same as before: they attach when you press Save draft or Turn in, so keep doing that before you leave the page.",
 			"tags": [

@@ -110,7 +110,7 @@
 						class:selected={selected === p.id}
 						type="button"
 						disabled={saving}
-						style="--pw:{p.color}; --pw-bg:{withAlpha(p.color, 0.1)}; --pw-line:{withAlpha(p.color, 0.45)}"
+						style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-bg:{withAlpha(p.color, 0.1)}; --pw-line:{withAlpha(p.color, 0.45)}"
 						onclick={() => (selected = p.id)}
 					>
 						<svg
@@ -209,7 +209,10 @@
 		background: var(--bg2, #081209);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
 		border-radius: 6px;
-		color: var(--pw);
+		/* THE INK DRAWS THE WORD AND THE GLYPH; --pw (the identity) still draws
+		   the selected edge below. The raw identity measured 3.36-4.25:1 on this
+		   option's own 10% tint for CSEE, MSET and BMET. See $lib/pathways.ts. */
+		color: var(--pw-ink);
 		cursor: pointer;
 		transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 	}

@@ -534,8 +534,14 @@
 	.module {
 		margin-bottom: 0.9rem;
 	}
+	/* THE ONE THING A GATED MODULE MUST SAY IS WHY IT IS GATED, and at 0.75 the
+	   lock message measured 3.91:1 -- the group dim was applied to the
+	   explanation as well as to the work it was explaining. 0.85 is the lowest
+	   step that carries .gate-lock's amber over 4.5 (4.73:1); the dashed border
+	   is what says "gated" and it is untouched, so the state still reads
+	   without depending on the dim. */
 	.module.gated {
-		opacity: 0.75;
+		opacity: 0.85;
 		border-style: dashed;
 	}
 	.module-head {

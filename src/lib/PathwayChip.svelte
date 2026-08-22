@@ -6,6 +6,14 @@
 	 * its short label, always together, so identity never depends on color alone.
 	 * Renders nothing when the pathway is unset or unknown. It always sits BESIDE
 	 * the profile image, never in place of it.
+	 *
+	 * THE INK DRAWS THE WORD AND THE GLYPH; THE IDENTITY DRAWS THE FILL AND THE
+	 * EDGE. For three of the six they are the same value. For CSEE, MSET and
+	 * BMET the raw identity measured 3.31-4.45:1 against this chip's own 12%
+	 * tint of itself, so the label and the icon were the least readable part of
+	 * a pill whose whole job is to be legible at a glance. The icon strokes
+	 * with `currentColor` and follows the ink for the same reason. See
+	 * `$lib/pathways.ts` for the derivation.
 	 */
 	let {
 		pathway,
@@ -18,7 +26,7 @@
 {#if p}
 	<span
 		class="pathway-chip {size}"
-		style="color:{p.color}; background:{withAlpha(p.color, 0.12)}; border-color:{withAlpha(p.color, 0.45)}"
+		style="color:{p.ink}; background:{withAlpha(p.color, 0.12)}; border-color:{withAlpha(p.color, 0.45)}"
 		title="{p.label} pathway"
 	>
 		<svg

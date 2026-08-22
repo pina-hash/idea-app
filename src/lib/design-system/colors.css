@@ -21,6 +21,14 @@
 	--amber: #d08030; /* warning: copper */
 	--teal: #3ea368; /* in-progress */
 	--violet: #7050a8; /* special, sparingly */
+	/* THE INK --violet CANNOT CARRY ITSELF. As a fill or an edge #7050a8 is the
+	   accent and does not move; as TEXT it measures 2.88 / 2.45 / 2.30 on
+	   --bg0 / --bg1 / --bg2, which is not a near-miss, it is unreadable. This
+	   is the --acc-ink contract in its other costume: same hue (261.8deg),
+	   same saturation (35.5%), LIGHTNESS ONLY, 48.6% -> 66%. 5.88 / 5.00 /
+	   4.69. Anything that paints a WORD in violet reads this; anything that
+	   paints a fill or a border keeps --violet. */
+	--violet-ink: #a08ac7;
 	--white: #eae6d8; /* body text: bone — the letterform ivory, NOT pure white */
 	--dim: #849080; /* dim text, placeholders, secondary labels (gear sage) */
 	--ice: #a9bcab; /* disabled / not-yet-started */
