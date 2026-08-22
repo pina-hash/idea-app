@@ -1,0 +1,344 @@
+{
+  "kind": "reference",
+  "schemaVersion": 2,
+  "meta": {
+    "referenceId": "idea100-syllabus",
+    "course": "IDEA100",
+    "title": "IDEA100 Digital Syllabus",
+    "subtitle": "Technology Rotation, Fall 2026",
+    "buildVersion": "v1",
+    "theme": "idea-green"
+  },
+  "navigation": "tabs",
+  "sections": [
+    {
+      "slug": "overview",
+      "title": "Overview",
+      "blurb": "What this course is and how the rotation fits into freshman year.",
+      "blocks": [
+        {
+          "type": "keyValue",
+          "items": [
+            { "label": "Course", "value": "Freshman technology rotation on the daily technology block. One rotation runs about six weeks." },
+            { "label": "Enrollment", "value": "Grade 9. No prerequisite." },
+            { "label": "Credit", "value": "Letter grade, not GPA-weighted." },
+            { "label": "Instructor", "value": "Mr. Pina, apina@boscotech.edu" },
+            { "label": "Hours", "value": "Before school from 7:30, during lunch, and after school until 4:30." }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "IDEA is engineering design and manufacturing. Over six weeks you will run a mill, a lathe, a bandsaw, and a belt sander, cut and engrave your own dogtag, design a part that gets 3D printed and then loaded until it breaks, and build an IDEA-Blade with a team to fight in a tournament.\n\nYou take home the hex core, your dogtag, and your hook. The IDEA-Blade is a team build, not an individual take-home.\n\nThis is a sampler. At the end of the rotation you move to a different technology, and at the end of freshman year you choose one pathway for the next four. Six weeks is enough time to find out whether this one is yours."
+        },
+        {
+          "type": "callout",
+          "variant": "info",
+          "title": "This syllabus covers all three rotations",
+          "content": "Rotations run 24 to 27 class days, so phase lengths flex slightly and every project deadline falls on a different calendar day depending on which rotation you are in. Your rotation's dates are on the Rotation tab. Every project due date is posted in IDEA Classroom."
+        }
+      ]
+    },
+    {
+      "slug": "rotation",
+      "title": "The Rotation",
+      "blurb": "The four phases, in order, and the calendar dates for each rotation.",
+      "blocks": [
+        {
+          "type": "dataTable",
+          "title": "Phases",
+          "columns": [
+            { "key": "phase", "label": "Phase" },
+            { "key": "name", "label": "Name" },
+            { "key": "detail", "label": "What happens" }
+          ],
+          "rows": [
+            { "phase": "P1", "name": "Manufacturing and Assembly", "detail": "Manufacture a hex core across five stations. Mechanical assembly on the bench." },
+            { "phase": "P2", "name": "Dogtag", "detail": "Design in CAD, cut and engraved live on the xTool MetalFab." },
+            { "phase": "P3", "name": "Hook Competition", "detail": "Design a hook under a 60g cap, print it, load it to failure. Peak load is the score." },
+            { "phase": "P4", "name": "IDEA-Blade", "detail": "Teams design and build a combat spinning top, then fight a double-elimination tournament." }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "One full class near the start of the rotation covers how AI gets used in this program and where it stops. It sits immediately before your first computer work, so the rules are fresh when they first apply."
+        },
+        {
+          "type": "dataTable",
+          "title": "Your rotation",
+          "columns": [
+            { "key": "rot", "label": "Rotation" },
+            { "key": "first", "label": "First day" },
+            { "key": "signed", "label": "Signed page due" },
+            { "key": "last", "label": "Last day" }
+          ],
+          "rows": [
+            { "rot": "Rotation 1", "first": "Mon, Aug 17", "signed": "Fri, Aug 21", "last": "Wed, Sep 23" },
+            { "rot": "Rotation 2", "first": "Thu, Sep 24", "signed": "Fri, Oct 2", "last": "Wed, Oct 28" },
+            { "rot": "Rotation 3", "first": "Thu, Oct 29", "signed": "Fri, Nov 6", "last": "Mon, Dec 14" }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "platform",
+      "title": "Platform",
+      "blurb": "Where assignments live and how the notebook works.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Everything in IDEA runs through ideabosco.com. Sign in with your boscotech.net Google account, not your .edu account."
+        },
+        {
+          "type": "cardGrid",
+          "cards": [
+            {
+              "title": "IDEA Classroom",
+              "url": "https://ideabosco.com/classroom",
+              "body": "Assignments are posted, opened, worked in, and submitted here, and your work saves as you go. Due dates, returned grades, and comments live here too. FACTS remains the official gradebook."
+            },
+            {
+              "title": "The Notebook",
+              "url": "https://ideabosco.com/notebook",
+              "body": "Your engineering record for the rotation. Entries attach to a specific project, which is what makes them gradeable."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "variant": "required",
+          "title": "A bound physical notebook is required",
+          "content": "Any work done outside the classroom, in the shop or at a test station, gets written on paper while it happens. You cannot reconstruct a record afterward from memory and you cannot type at a machine."
+        },
+        {
+          "type": "instructions",
+          "content": "### How you keep the record is up to you\n\nThe notebook supports three modes, and you can switch between them at any time.\n\n#### Digital only\nType entries directly into the Notebook. Shop work still gets captured on paper first, then typed up from those notes.\n\n#### Paper only\nWrite in your bound notebook, photograph each page, and upload the photo.\n\n#### Hybrid\nType some entries, photograph others. Most students end up here.\n\nWhat matters is that an entry exists, that it holds what you actually recorded while you worked, and that it attaches to the right project."
+        }
+      ]
+    },
+    {
+      "slug": "documentation",
+      "title": "Documentation",
+      "blurb": "What a Documentation Check looks for.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Documentation is a daily practice, not something you catch up on later. A Documentation Check closes each phase and is worth 20 points."
+        },
+        {
+          "type": "dataTable",
+          "columns": [
+            { "key": "criterion", "label": "Criterion" },
+            { "key": "pts", "label": "Pts" }
+          ],
+          "rows": [
+            { "criterion": "An entry exists for every build and test session", "pts": "7" },
+            { "criterion": "Entries hold raw data as recorded, not reconstructed afterward", "pts": "5" },
+            { "criterion": "Entries are dated and legible", "pts": "4" },
+            { "criterion": "Entries are specific enough that another student could repeat your work", "pts": "4" }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "grading",
+      "title": "Grading",
+      "blurb": "Category weights, and a calculator for working out where you stand.",
+      "blocks": [
+        {
+          "type": "dataTable",
+          "columns": [
+            { "key": "category", "label": "Category" },
+            { "key": "weight", "label": "Weight" },
+            { "key": "pts", "label": "Pts" }
+          ],
+          "rows": [
+            { "category": "Manufacturing and Assembly", "weight": "12%", "pts": "60" },
+            { "category": "Dogtag", "weight": "8%", "pts": "40" },
+            { "category": "Hook Competition", "weight": "26%", "pts": "130" },
+            { "category": "IDEA-Blade (team 120 + individual 70)", "weight": "38%", "pts": "190" },
+            { "category": "Engineering Documentation (4 x 20)", "weight": "16%", "pts": "80" },
+            { "category": "Rotation total", "weight": "100%", "pts": "500" }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "Large projects are staged into checkpoints, so a mistake costs you the day it happens instead of the whole project. There is no final exam. Letter grades follow the school's scale. This course is not GPA-weighted, and there is no extra credit."
+        },
+        {
+          "type": "calc",
+          "tool": "gradeCalculator",
+          "config": {
+            "categories": [
+              { "name": "Manufacturing and Assembly", "pointsPossible": 60, "weight": 12 },
+              { "name": "Dogtag", "pointsPossible": 40, "weight": 8 },
+              { "name": "Hook Competition", "pointsPossible": 130, "weight": 26 },
+              { "name": "IDEA-Blade", "pointsPossible": 190, "weight": 38 },
+              { "name": "Engineering Documentation", "pointsPossible": 80, "weight": 16 }
+            ],
+            "disclaimer": "Estimate only. FACTS is the official gradebook and is the only record that counts."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "coins",
+      "title": "IDEA Coins",
+      "blurb": "The classroom currency, and why it has nothing to do with your grade.",
+      "blocks": [
+        {
+          "type": "callout",
+          "variant": "warn",
+          "title": "Coins are not grade points",
+          "content": "Coins do not convert into grade points in this course. Winning a tournament does not raise your grade and losing one does not lower it. Your grade comes from the work."
+        },
+        {
+          "type": "instructions",
+          "content": "IDEA Coins (i&cent;) are the classroom currency. Every student earns a base wage each week just for being enrolled. Everything past that you earn or lose.\n\n### Earn\nPerfect scores on graded work, correct and reasoned answers in class, holding a class role like Shop Steward or Safety Officer, donating supplies, taking contract work, competition winnings, and instructor discretion for work that goes past what was asked.\n\n### Lose\nFines. Shop safety violations and leaving the shop uncleaned are priced at the top on purpose. The rest cover disruption, off-task device use, leaving without permission, unauthorized printing, and careless property damage.\n\nYour balance can go negative, and while it is negative you cannot buy anything until you earn your way back to zero.\n\n### Spend\n3D printing past what a project provides, paper printing, song requests, platform cosmetics, a permanent pay raise, and an eating pass."
+        }
+      ]
+    },
+    {
+      "slug": "rules",
+      "title": "Three Rules",
+      "blurb": "Deadlines, defense, and honest AI use.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### 1. Deadlines are firm\n\nNo extensions. An excused absence moves your due date by the number of days you were out, and that is the only adjustment. There is typically no homework, but unfinished classwork gets finished outside of class and turned in on time.\n\n### 2. Defend it or fix it\n\nYou can be asked to explain any part of what you submitted, in your own words, at any time. Something you cannot explain is corrected the same day, before it earns credit. That is a correction, not a penalty.\n\n### 3. Use AI honestly\n\nAI is allowed. Verify anything it gives you against the real source, and be able to explain everything you submit in your own words. Every assignment carries a level and asks you to disclose your use."
+        },
+        {
+          "type": "callout",
+          "variant": "info",
+          "title": "Shop access outside class",
+          "content": "The shop is open before school from 7:30, during lunch, and after school until 4:30. Use it to finish classwork, get machine time, run a print, or get help. Machine access outside of class still requires that you have been trained and cleared on that machine."
+        }
+      ]
+    },
+    {
+      "slug": "ai-policy",
+      "title": "AI Policy",
+      "blurb": "The four levels, and which level applies to which kind of work.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Two principles hold at every level.\n\n**Verify before you trust it.** AI is never the source. It is fine to use it to search, compare, or explore. It is not fine to submit a number, spec, or fact because AI said so.\n\n**Explain it or it does not count.** Any instructor can ask you to explain any part of what you submitted, at any time. If you cannot, it gets corrected before it earns credit."
+        },
+        {
+          "type": "dataTable",
+          "title": "The four levels",
+          "columns": [
+            { "key": "lvl", "label": "Level" },
+            { "key": "rule", "label": "Rule" }
+          ],
+          "rows": [
+            { "lvl": "0 OFF", "rule": "No AI in producing the work. Applies where the setting itself proves it: notebook entries, timed work, live defense." },
+            { "lvl": "1 COACH", "rule": "AI as tutor, any time you are stuck. It explains concepts and walks you through methods. It generates none of the submitted answer." },
+            { "lvl": "2 ASSIST", "rule": "AI can help generate, draft, search, or explore. Everything factual gets verified. You can explain and defend every part of it." },
+            { "lvl": "3 OPEN", "rule": "Unrestricted. Used only when directing or evaluating AI output is itself the skill being graded. Always set by the instructor." }
+          ]
+        },
+        {
+          "type": "calc",
+          "tool": "aiLevelLookup",
+          "config": {
+            "entries": [
+              {
+                "workType": "Calculation and analysis",
+                "level": 1,
+                "permitted": "Ask it to explain a method, or to walk you through why your own answer came out wrong.",
+                "notPermitted": "Asking for the answer to copy. The computation method is the tested skill.",
+                "example": "Fine: why is my torque negative. Not fine: what is the torque here."
+              },
+              {
+                "workType": "Research and part selection",
+                "level": 2,
+                "permitted": "Search, compare, and shortlist parts or materials. Every number then gets traced to the real catalog page.",
+                "notPermitted": "Submitting a spec because AI stated it. AI's memory of a spec is not the spec.",
+                "example": "Check the printed datasheet before a number goes in your submission."
+              },
+              {
+                "workType": "Design and CAD",
+                "level": 2,
+                "permitted": "Explore options and approaches. The selected design and its justification are yours.",
+                "notPermitted": "Submitting geometry you cannot explain or modify."
+              },
+              {
+                "workType": "Written reports and design rationale",
+                "level": 2,
+                "permitted": "Drafting help and revision. Every fact and figure gets verified.",
+                "notPermitted": "Letting it write the judgment. The conclusion is yours."
+              },
+              {
+                "workType": "Reflection and self-assessment",
+                "level": 1,
+                "permitted": "Asking it to review what you wrote.",
+                "notPermitted": "Having it write the reflection. Reflection loses its whole point if AI writes it."
+              },
+              {
+                "workType": "Notebook entries, timed and live work",
+                "level": 0,
+                "permitted": "Nothing. This is enforced by the setting, not by an honor rule.",
+                "notPermitted": "Any AI assistance. An AI-assisted notebook entry stops being a record of what actually happened."
+              }
+            ]
+          }
+        },
+        {
+          "type": "callout",
+          "variant": "warn",
+          "title": "Age requirement",
+          "content": "Most consumer AI services require account holders to be 18 or older. Check the terms before you sign up for anything."
+        }
+      ]
+    },
+    {
+      "slug": "safety",
+      "title": "Shop Safety",
+      "blurb": "Non-negotiable rules for working on real equipment.",
+      "blocks": [
+        {
+          "type": "callout",
+          "variant": "required",
+          "title": "Violating a shop safety rule removes you from the shop",
+          "content": "You work on real manufacturing equipment in this course. These rules are not negotiable."
+        },
+        {
+          "type": "instructions",
+          "content": "- Eye protection any time anyone nearby is cutting, grinding, or machining.\n- Closed-toe shoes. No loose clothing or jewelry. Long hair tied back.\n- No machine runs until you are trained on it and cleared for that session.\n- Hearing protection where it is called for. Bluetooth headphones and earbuds do not count.\n- Report every injury, near miss, and broken tool immediately, your own included. Reporting one is never a problem. Hiding one is.\n- Horseplay is removal from the shop for the day. No warning."
+        }
+      ]
+    },
+    {
+      "slug": "materials",
+      "title": "Materials",
+      "blurb": "What to bring, and what is optional to own.",
+      "blocks": [
+        {
+          "type": "callout",
+          "variant": "info",
+          "title": "Nothing in this course is a required purchase",
+          "content": "IDEA provides all safety gear, tools, and project materials for the rotation. If cost is ever a problem, see me."
+        },
+        {
+          "type": "instructions",
+          "content": "### Bring every day\n\nA bound physical notebook, a pen or pencil, and a device that reaches ideabosco.com. The notebook is not optional."
+        },
+        {
+          "type": "dataTable",
+          "title": "Recommended to own, never required",
+          "caption": "For fit and sanitation only. IDEA provides all of this at all times.",
+          "columns": [
+            { "key": "item", "label": "Item" },
+            { "key": "cost", "label": "Cost" }
+          ],
+          "rows": [
+            { "item": "Safety glasses, ANSI Z87.1+", "cost": "$8-20" },
+            { "item": "Digital caliper, 6 in", "cost": "$15-25" },
+            { "item": "Engineering notebook", "cost": "$8-12" },
+            { "item": "Whole list, together", "cost": "$31-57" }
+          ]
+        }
+      ]
+    }
+  ]
+}
