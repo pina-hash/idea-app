@@ -18,10 +18,14 @@
 	 * live in the token layer -- this knows neither.
 	 *
 	 * IT IS A MENU, WHERE IT USED TO BE A CYCLE, and the third palette is what
-	 * forced that. Cycling three states was already borderline; cycling four
-	 * means up to three presses to reach the one you want, and -- worse -- a
-	 * theme nobody knows exists cannot be discovered by pressing a button that
-	 * shows one state at a time. A list names all four at once.
+	 * forced that. Cycling three states was already borderline, and -- worse --
+	 * a theme nobody knows exists cannot be discovered by pressing a button that
+	 * shows one state at a time. A list names them all at once.
+	 *
+	 * THERE IS NO 'dark' ROW, AND THAT IS NOT AN OMISSION. The default plate IS
+	 * the dark one now (the classroom's console register), so a separate dark
+	 * option would be a second name for the state the picker already opens on.
+	 * See notebook-theme.svelte.ts for what happens to a stored 'dark'.
 	 */
 
 	const theme = $derived(notebookTheme());
@@ -75,11 +79,6 @@
 				stroke-linecap="round"
 			/>
 		</svg>
-	{:else if which === 'dark'}
-		<!-- moon -->
-		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-			<path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2z" stroke-linejoin="round" />
-		</svg>
 	{:else if which === 'idea'}
 		<!-- gear: the IDEA emblem's own mark, reduced to a glyph -->
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -90,10 +89,13 @@
 			/>
 		</svg>
 	{:else}
-		<!-- half-filled circle: neither one nor the other, i.e. whatever the device says -->
+		<!-- console frame with a prompt caret: the default plate is the classroom's
+		     own register, so the glyph is the surface it matches rather than the
+		     half-filled circle that used to stand for "whatever the device says". -->
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-			<circle cx="12" cy="12" r="8.2" />
-			<path d="M12 3.8a8.2 8.2 0 0 1 0 16.4z" fill="currentColor" stroke="none" />
+			<rect x="3" y="4.5" width="18" height="15" rx="2.2" />
+			<path d="M3 8.6h18" />
+			<path d="M7 12.4l2.2 2.2L7 16.8M11.8 16.8h4.6" stroke-linecap="round" stroke-linejoin="round" />
 		</svg>
 	{/if}
 {/snippet}
@@ -139,7 +141,7 @@
 </div>
 
 <style>
-	/* The masthead is an ink band in ALL THREE palettes (the emblem and
+	/* The masthead is a band in ALL THREE palettes (the emblem and
 	   ProfileMenu are drawn for dark ground), so the trigger is styled for that
 	   band rather than for the page -- the same reasoning as the header's own
 	   .btn.secondary override in notebook-theme.css. The MENU is a different

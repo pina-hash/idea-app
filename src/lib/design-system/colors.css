@@ -222,158 +222,133 @@
 	--nb-cell-ring: rgba(38, 34, 27, 0.55);
 }
 
-/* --- Notebook DARK palette --------------------------------------------------
-   The SAME editorial room at night, not the platform's terminal aesthetic.
-   The notebook was deliberately given a light editorial identity distinct
-   from VANGUARD and GAUNTLET, and this keeps that character: a WARM dark
-   ground (a hue with the light theme's own ink in it, never cooled
-   graphite), the same generous rhythm, the same gold thread, and body type
-   that is warm off-white rather than stark.
+/* --- Notebook DEFAULT palette: the classroom's console register ---------------
+   THIS REPLACES THE WARM NEAR-BLACK "DARK" PLATE THAT USED TO SIT HERE, and the
+   reason is not taste. That plate was the notebook holding a private opinion
+   about what a dark room looks like: a student crossing from an assignment to
+   the notebook entry the assignment asks for went from the classroom's
+   near-neutral console into a browner one, in the same session, with neither
+   screen able to say why. Six tokens now map ONE TO ONE onto the register
+   declared in :root above, with no approximation and no adaptation by eye:
 
-   It is a SECOND PALETTE, not a set of component overrides: every token below
-   already exists above, so nothing in notebook-theme.css or in any of the 16
-   notebook components has to know which one is showing.
+     --nb-bg           <- --surface-0   #0a0c0b
+     --nb-surface      <- --surface-1   #101312
+     --nb-surface-dim  <- --surface-2   #161a18
+     --nb-ink          <- --text-1      #e7eae8
+     --nb-ink-soft     <- --text-2      #9aa49d
+     --nb-boundary     <- --boundary    #6f7b73
 
-   TWO SELECTORS, ONE PALETTE -- KEEP THEM IN STEP. The media query is the
-   default (a student who has never touched the toggle follows their device,
-   with no JS involved and so no flash of the wrong theme on first paint);
-   the attribute is the explicit override, and it is written so each wins in
-   its own direction -- data-nb-theme="light" opts out of a dark OS, and
-   data-nb-theme="dark" opts in from a light one. Adding a token means adding
-   it to BOTH blocks.
+   THE SIX ARE WRITTEN OUT AS LITERALS, NOT ALIASED THROUGH var(--surface-0),
+   and that is required rather than tidy. .nb-root aliases --surface-1 BACK to
+   --nb-surface (notebook-theme.css), so an alias in this direction closes a
+   cycle; and a --nb-* token defined as var(<a token declared on an ancestor>)
+   resolves where it is DECLARED and inherits that resolved colour down, which
+   is the trap the folder colours below already document twice.
 
-   ON THE ACCENT, since the light theme's note here is the reverse: raw
-   #c8a848 measures ~2.2:1 on the light ground and had to be deepened to
-   #8a6d24 to read as text. On this ground it measures ~7.9:1, so the dark
-   theme's accent-ink IS the platform gold, undeepened -- nothing about the
-   light theme's correction carried over, and none of it was assumed to.
-   Every value below was measured against --nb-bg, not adapted by eye:
-   ink 15.3:1, ink-soft 9.9:1, ink-faint 5.3:1, and all six folder colours
-   between 7.7:1 and 9.4:1 (the light palette's own >= 4.5:1 rule).
+   IT IS THE DEFAULT UNCONDITIONALLY, and prefers-color-scheme no longer reaches
+   the notebook at all. The retired plate was the dark HALF of an OS-driven
+   pair, so it needed a media query plus an opt-in block kept in step; one
+   default needs neither. 'light' is now an explicit choice and falls through to
+   the :root block unchanged, 'idea' is an explicit choice, and a stored 'dark'
+   is normalized to the default in notebook-theme.svelte.ts rather than answered
+   by a fourth block here.
+
+   THREE THINGS ARE AUTHORED RATHER THAN CARRIED, because the register has no
+   counterpart for them. Every ratio below was computed against this plate's own
+   grounds, never inherited from the retired one:
+
+     --nb-ink-faint  The register's --text-3 (#5c665f) is DECORATIVE tertiary in
+                     the classroom -- separators, disabled glyphs -- and it is
+                     REAL MUTED COPY in here (timestamps, captions, hints), which
+                     is the warning notebook-theme.css has carried since the room
+                     was built. Measured, #5c665f lands 3.29 / 3.13 / 2.95 on
+                     bg / surface / surface-dim, i.e. it fails on all three. The
+                     value below is #5c665f's OWN hue and saturation at a higher
+                     lightness (hsl(138 5.2% 38%) -> 50%), the same lightness-only
+                     move --boundary itself is: 5.16 / 4.91 / 4.62, clear of 4.5
+                     on every ground, and still 12 lightness points below
+                     --nb-ink-soft so the two tiers stay tellable.
+
+     --nb-masthead   The band is --surface-2, the register's own "toolbars and
+                     header bars" value, which is also what keeps it distinct
+                     from a CARD (--surface-1). On paper the band is an ink slab
+                     against white and needs nothing else; on a #0a0c0b page no
+                     opaque neutral separates on its own, so the band gets an
+                     EDGE and --nb-masthead-line supplies it. Measured in the
+                     browser, composited: the band reads 1.12:1 against the page
+                     and its hairline 1.37:1 -- which is DECORATION by the
+                     standard's own examples, not a load-bearing boundary, and
+                     is deliberately the same treatment (a touch stronger) as
+                     the classroom's own masthead, whose --surface-1 band reads
+                     1.05:1 under a hairline at 1.29:1. Matching the classroom
+                     is the whole brief; drawing this one edge at 3:1 when the
+                     room next door does not is how two rooms stop matching.
+                     The edge is a TOKEN rather than a per-plate rule for the
+                     reason this file states throughout: light and IDEA simply
+                     do not declare it, and notebook-theme.css's
+                     `var(--nb-masthead-line, none)` leaves both byte-identical,
+                     border and box height included (measured: 80.91px header on
+                     both, against 81.91px here).
+
+     --nb-cell-*     Re-measured below, against #101312, rather than carried.
+
+   The rest of the plate is measured on the same grounds: ink 15.42 on the card,
+   ink-soft 7.27, accent (brass) 8.14, ok 8.91, error 7.50, warn 8.50, and all
+   six folder colours 7.9-10.0, clear of the light palette's own >= 4.5 rule.
    ------------------------------------------------------------------------- */
 
-/* THE SELECTOR IS `:not([data-nb-theme])`, i.e. "no explicit choice", and that
-   narrowing is what lets a THIRD palette exist. It used to read
-   `:not([data-nb-theme='light'])`, which also matches data-nb-theme='idea' --
-   so under a dark OS the IDEA surfaces would have been handed the dark
-   palette's warm browns on top of their own greens, decided by nothing but
-   source order. Explicit dark has always had its own block below, so this is
-   behaviour-preserving for both existing palettes: no-attribute still follows
-   the OS, ='dark' is still served by that block, ='light' still opts out. */
-@media (prefers-color-scheme: dark) {
-	.nb-root:not([data-nb-theme]) {
-		--nb-bg: #16140f;
-		--nb-surface: #201d16;
-		--nb-surface-dim: #0f0d09;
-		--nb-ink: #f0ebdd;
-		--nb-ink-soft: #c3bba8;
-		--nb-ink-faint: #918a79;
-		--nb-ink-hover: #ded8c7;
-		--nb-hairline: #2e2a21;
-		--nb-hairline-strong: #423c31;
-		/* The load-bearing boundary on this plate (dark (system)). See --boundary in the
-		   :root block for why this is a second token rather than a raised
-		   hairline. hsl(39 15% 40%), from #423c31's 22%. Measured on this
-		   plate: nb-bg 3.50, nb-surface 3.20, nb-surface-dim 3.69. */
-		--nb-boundary: #756b57;
-		--nb-masthead: #0f0d09;
-		--nb-accent-ink: var(--nb-accent);
-		--nb-accent-wash: rgba(200, 168, 72, 0.18);
-		--nb-ok: color-mix(in srgb, var(--teal) 62%, #dff5e6);
-		--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
-		--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
-		--nb-folder-slate: #a6b4c2;
-		--nb-folder-sage: #9dc491;
-		--nb-folder-clay: #e09873;
-		--nb-folder-sky: #86b6de;
-		--nb-folder-plum: #c79ecd;
-		/* RE-DECLARED, not inherited, and this is not tidiness. A custom
-		   property's var() is substituted where the property is DECLARED, so
-		   the :root versions of these two computed against the LIGHT
-		   accent-ink and ink-faint and then inherited that resolved colour
-		   down here -- leaving a gold folder dot at 3.8:1 on the dark ground
-		   while every other colour was fine. Found by measuring, not by
-		   reading. Any future --nb-* token defined as var(<another --nb-*>)
-		   has to be repeated in both dark blocks for the same reason. */
-		--nb-folder-gold: var(--nb-accent-ink);
-		--nb-folder-none: var(--nb-ink-faint);
-		--nb-meta-accent: var(--nb-accent-ink);
-
-		/* The PHOTO ISLAND (--nb-shot-*). CameraCapture, PhotoCorrector and
-		   PhotoStager stay DARK in every palette -- a viewfinder that glares and a
-		   drag quad that has to hold its contrast over an arbitrary photograph are
-		   not preferences. What follows the room is the HUE and the depth: warm on
-		   light and dark, green-black on IDEA. The island does not invert, and
-		   saying so is the honest reading of "follows a palette change". The alpha
-		   ladder (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call
-		   sites, so it is one value here rather than six per palette. */
-		--nb-shot-ground: rgba(15, 13, 9, 0.98); /* full-bleed overlay ground */
-		--nb-shot-plate: #0b0907; /* OPAQUE letterbox: what a camera with no frame yet shows */
-		--nb-shot-scrim: rgba(15, 13, 9, 0.72); /* the thumbnail scrim, a different job from the ground */
-		--nb-shot-ink: #faf7ee; /* paper: type, the shutter, the handles */
-		--nb-shot-ink-deep: #16140f; /* reads as TEXT on --nb-shot-ink */
-		--nb-shot-ink-bright: #fffdf6; /* the hover-lifted paper */
-
-		/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). Three of six failed here (on time 4.32, late 3.62, flagged 3.06). Only the
-		   two that needed it move, and on time keeps --green exactly -- lightening it
-		   would collide with the IDEA accent it was tuned against. Its fill drops a
-		   couple of points instead, which is the lever that was actually free.
-		   Each cell draws its border AND its glyph in the ink and fills with a
-		   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is
-		   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
-		   The hue identity is fixed and is NOT a free choice: green = on time,
-		   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
-		   sage = missing. What varies per plate is lightness. */
-		--nb-cell-ontime: #86bf7e;
-		--nb-cell-late: #db9d60;
-		--nb-cell-await: var(--cyan);
-		--nb-cell-flagged: #e69494;
-		--nb-cell-excused: var(--ice);
-		--nb-cell-missing: var(--dim);
-		--nb-cell-missing-edge: var(--gear);
-		/* Pinned to the fills this grid already shipped; see the note on the light
-		   palette for why they are not a mix of the ink. --cyan, --ice and --dim
-		   already cleared the bar here and are untouched, which is also what keeps
-		   this palette's published accent separations exact. */
-		--nb-cell-ontime-fill: #37452d;
-		--nb-cell-late-fill: #4e371d;
-		--nb-cell-await-fill: #2c3d33;
-		--nb-cell-flagged-fill: #58312c;
-		/* The hover / focus-visible ring. Was a hardcoded ink rgba that measured
-		   1.02:1 on the dark plates -- i.e. the keyboard focus indicator was not
-		   drawn at all. It is the room's own ink now, so it follows the plate. */
-		--nb-cell-ring: rgba(240, 235, 221, 0.55);
-	}
-}
-
-.nb-root[data-nb-theme='dark'] {
-	--nb-bg: #16140f;
-	--nb-surface: #201d16;
-	--nb-surface-dim: #0f0d09;
-	--nb-ink: #f0ebdd;
-	--nb-ink-soft: #c3bba8;
-	--nb-ink-faint: #918a79;
-	--nb-ink-hover: #ded8c7;
-	--nb-hairline: #2e2a21;
-	--nb-hairline-strong: #423c31;
-	/* The load-bearing boundary on this plate (dark (opt-in)). See --boundary in the
-	   :root block for why this is a second token rather than a raised
-	   hairline. The same value as the system-dark block above; the two
-	   palettes are byte-identical by design. */
-	--nb-boundary: #756b57;
-	--nb-masthead: #0f0d09;
+.nb-root:not([data-nb-theme]) {
+	--nb-bg: #0a0c0b;
+	--nb-surface: #101312;
+	--nb-surface-dim: #161a18;
+	--nb-ink: #e7eae8;
+	--nb-ink-soft: #9aa49d;
+	/* AUTHORED. See the block comment: the register's --text-3 fails 4.5:1 on
+	   all three grounds of this plate, and muted copy in this room is text. */
+	--nb-ink-faint: #79867d;
+	/* The ink button, pressed-on-hover: --nb-ink's own hue and saturation at
+	   83% lightness instead of 91%, the same ~8-point step the retired plate
+	   took. The button's LABEL is --nb-bg, which reads 13.43:1 on it. */
+	--nb-ink-hover: #d1d7d3;
+	/* The register's own decorative rule, to the byte. */
+	--nb-hairline: rgba(255, 255, 255, 0.08);
+	/* The room's second rule weight, which the platform has no counterpart for
+	   (--line-strong is mint green). Same mechanism as the hairline, one step
+	   up: 1.60:1 on the card, deliberately below any text threshold. */
+	--nb-hairline-strong: rgba(255, 255, 255, 0.16);
+	/* The load-bearing boundary on this plate (default). See --boundary in the
+	   :root block for why this is a second token rather than a raised hairline.
+	   It IS --boundary here, because this plate IS the register that value was
+	   measured against: nb-bg 4.44, nb-surface 4.23, nb-surface-dim 3.98. */
+	--nb-boundary: #6f7b73;
+	/* AUTHORED. The masthead band; see the block comment. */
+	--nb-masthead: #161a18;
+	/* The band's edge, and the only reason it reads as a band on a plate this
+	   deep. Declared ONLY here: light and IDEA leave it unset and
+	   notebook-theme.css falls back to `none`, which is exactly what they drew
+	   before this palette existed. */
+	--nb-masthead-line: 1px solid var(--nb-hairline);
+	/* Brass is the room's thread and does not change with the plate. Raw
+	   #c8a848 reads 8.14:1 on the card here, so it needs none of the light
+	   palette's deepening. */
 	--nb-accent-ink: var(--nb-accent);
 	--nb-accent-wash: rgba(200, 168, 72, 0.18);
 	--nb-ok: color-mix(in srgb, var(--teal) 62%, #dff5e6);
 	--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
 	--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
+	/* A folder is a student's own filing tag and is the same colour in every
+	   dark room they can be in; all six re-measure at 8.3-10.0 on this ground. */
 	--nb-folder-slate: #a6b4c2;
 	--nb-folder-sage: #9dc491;
 	--nb-folder-clay: #e09873;
 	--nb-folder-sky: #86b6de;
 	--nb-folder-plum: #c79ecd;
-	/* See the note in the media-query block above: these must be re-declared,
-	   not inherited. */
+	/* RE-DECLARED, not inherited, and this is not tidiness. A custom property's
+	   var() is substituted where the property is DECLARED, so the :root versions
+	   of these three computed against the LIGHT accent-ink and ink-faint and
+	   then inherited that resolved colour down here. Any future --nb-* token
+	   defined as var(<another --nb-*>) has to be repeated here for the same
+	   reason. */
 	--nb-folder-gold: var(--nb-accent-ink);
 	--nb-folder-none: var(--nb-ink-faint);
 	--nb-meta-accent: var(--nb-accent-ink);
@@ -381,28 +356,45 @@
 	/* The PHOTO ISLAND (--nb-shot-*). CameraCapture, PhotoCorrector and
 	   PhotoStager stay DARK in every palette -- a viewfinder that glares and a
 	   drag quad that has to hold its contrast over an arbitrary photograph are
-	   not preferences. What follows the room is the HUE and the depth: warm on
-	   light and dark, green-black on IDEA. The island does not invert, and
-	   saying so is the honest reading of "follows a palette change". The alpha
-	   ladder (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call
-	   sites, so it is one value here rather than six per palette. */
-	--nb-shot-ground: rgba(15, 13, 9, 0.98); /* full-bleed overlay ground */
-	--nb-shot-plate: #0b0907; /* OPAQUE letterbox: what a camera with no frame yet shows */
-	--nb-shot-scrim: rgba(15, 13, 9, 0.72); /* the thumbnail scrim, a different job from the ground */
-	--nb-shot-ink: #faf7ee; /* paper: type, the shutter, the handles */
-	--nb-shot-ink-deep: #16140f; /* reads as TEXT on --nb-shot-ink */
-	--nb-shot-ink-bright: #fffdf6; /* the hover-lifted paper */
+	   not preferences. What follows the room is the HUE and the depth: this
+	   plate is the register's near-neutral green-black where the retired one
+	   was warm. The island does not invert. The alpha ladder
+	   (62/55/45/38/16/12%) is a color-mix off --nb-shot-ink at the call sites,
+	   so it is one value here rather than six per palette. */
+	--nb-shot-ground: rgba(10, 12, 11, 0.98); /* full-bleed overlay ground */
+	--nb-shot-plate: #060807; /* OPAQUE letterbox: what a camera with no frame yet shows */
+	--nb-shot-scrim: rgba(10, 12, 11, 0.72); /* the thumbnail scrim, a different job from the ground */
+	--nb-shot-ink: #f1f3f2; /* paper: type, the shutter, the handles -- 18.02:1 on the letterbox */
+	--nb-shot-ink-deep: #0a0c0b; /* reads as TEXT on --nb-shot-ink */
+	--nb-shot-ink-bright: #ffffff; /* the hover-lifted paper */
 
-	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). Three of six failed here (on time 4.32, late 3.62, flagged 3.06). Only the
-	   two that needed it move, and on time keeps --green exactly -- lightening it
-	   would collide with the IDEA accent it was tuned against. Its fill drops a
-	   couple of points instead, which is the lever that was actually free.
-	   Each cell draws its border AND its glyph in the ink and fills with a
-	   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is
-	   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
-	   The hue identity is fixed and is NOT a free choice: green = on time,
-	   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
-	   sage = missing. What varies per plate is lightness. */
+	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*), RE-MEASURED ON #101312
+	   RATHER THAN CARRIED. Phase 4d found twelve of eighteen grid states below
+	   4.5:1, and all six of them on the then-default palette; that is the defect
+	   this token set exists to keep fixed, so the six were put to THIS plate's
+	   card rather than assumed from the retired plate's.
+
+	   The INKS are the six the two surviving dark rooms already carry: their hue
+	   identity is a locked contract (green = on time, amber = late, cyan =
+	   awaiting review, crimson = flagged, ice = excused, sage = missing) and
+	   only lightness is ever a free choice, which a card this deep does not need
+	   to spend.
+
+	   The FILLS are the IDEA plate's, not the retired plate's, and the measured
+	   reason is that #101312 sits at the same depth as IDEA's #101c16 while the
+	   retired card (#201d16) was a full step lighter. Each cell draws its border
+	   AND its glyph in the ink and fills with a PINNED colour; the glyph is
+	   TEXT, so 4.5:1 against that fill is the bar. Measured here against
+	   --nb-surface (the card), not --nb-bg:
+
+	     on time 4.90   late 5.07   awaiting 5.30   flagged 5.11
+	     excused 9.31   missing 5.59   (those two fill with nothing and sit on
+	                                    the card itself; missing's dashed edge
+	                                    reads 4.70)
+
+	   Six of six clear, worst case 4.90. The retired plate's fills would have
+	   measured 4.76-5.09 here -- also clear, which is exactly why they had to be
+	   MEASURED rather than assumed. */
 	--nb-cell-ontime: #86bf7e;
 	--nb-cell-late: #db9d60;
 	--nb-cell-await: var(--cyan);
@@ -410,39 +402,42 @@
 	--nb-cell-excused: var(--ice);
 	--nb-cell-missing: var(--dim);
 	--nb-cell-missing-edge: var(--gear);
-	/* Pinned to the fills this grid already shipped; see the note on the light
-	   palette for why they are not a mix of the ink. --cyan, --ice and --dim
-	   already cleared the bar here and are untouched, which is also what keeps
-	   this palette's published accent separations exact. */
-	--nb-cell-ontime-fill: #37452d;
-	--nb-cell-late-fill: #4e371d;
-	--nb-cell-await-fill: #2c3d33;
-	--nb-cell-flagged-fill: #58312c;
-	/* The hover / focus-visible ring. Was a hardcoded ink rgba that measured
-	   1.02:1 on the dark plates -- i.e. the keyboard focus indicator was not
-	   drawn at all. It is the room's own ink now, so it follows the plate. */
-	--nb-cell-ring: rgba(240, 235, 221, 0.55);
+	/* THE FILL IS PINNED, NOT MIXED OFF THE INK. A fill written as
+	   color-mix(<ink> 26%) moves whenever the ink does and hands most of the
+	   contrast straight back (measured on paper: 4.79 vs 3.84). */
+	--nb-cell-ontime-fill: #2b452d;
+	--nb-cell-late-fill: #42361d;
+	--nb-cell-await-fill: #1f3c33;
+	--nb-cell-flagged-fill: #4c302c;
+	/* The hover / focus-visible ring, the room's own ink so it follows the
+	   plate. Measured in the browser by compositing the 55% ink onto the ground
+	   it actually lands on: 5.24:1 on the card, 3.82:1 over the on-time fill --
+	   the tightest of the four -- both clear of the 3:1 a non-text indicator has
+	   to make. */
+	--nb-cell-ring: rgba(231, 234, 232, 0.55);
 }
 
 /* --- Notebook IDEA palette ---------------------------------------------------
    The same editorial room in the program's own colours: a RECOLOUR, not a
    reskin. Every rule in notebook-theme.css and all 16 notebook components are
    untouched, so the spacing, the type stack, the whitespace and the layout are
-   the light and dark themes' -- only these values differ. Nothing here reaches
+   the default and light plates' -- only these values differ. Nothing here reaches
    for Orbitron, Rajdhani or the GAUNTLET chrome; this is the notebook wearing
    IDEA green, not the notebook becoming a terminal.
 
-   ONE SELECTOR, deliberately, where dark has two: IDEA is OPT-IN ONLY. It is
-   never reachable from prefers-color-scheme, so a student who has expressed no
-   preference still gets the light/dark pair exactly as before and can only
-   arrive here by choosing it.
+   OPT-IN ONLY: a student who has expressed no preference gets the DEFAULT
+   plate above and can only arrive here by choosing it. This used to be phrased
+   as "one selector where dark has two", because dark was the OS-driven half of
+   a pair; the console register that replaced it takes one selector as well, so
+   every palette in this room is now reached the same way.
 
-   Ground is a green-black rather than dark's warm near-black, and the two are
-   genuinely different rooms: this sits at oklch hue 165 against dark's ~85.
-   The neutral ladder is not eyeballed -- it reproduces dark's own lightness
-   steps at that hue, which is why the ratios land within 0.2 of dark's
-   throughout (ink 16.35 vs dark's 15.45, ink-soft 9.82 vs 9.63, ink-faint 5.42
-   vs 5.36, hairline 1.34 vs 1.29). Measured against --nb-bg:
+   Ground is a green-black. The neutral ladder is not eyeballed -- it
+   reproduces the lightness steps of the RETIRED warm dark plate at this hue,
+   which is the history behind the numbers below (ink 16.35 against that
+   plate's 15.45, ink-soft 9.82 vs 9.63, ink-faint 5.42 vs 5.36, hairline 1.34
+   vs 1.29). Nothing here was re-derived when that plate was replaced, and
+   nothing needed to be: this palette never read a value from it. Measured
+   against --nb-bg:
 
      ink 16.35   ink-soft 9.82   ink-faint 5.42   ink-hover 13.14
      accent 13.59   gold 8.16   ok 9.14   error 7.52   warn 8.52
@@ -450,8 +445,8 @@
 
    THE ACCENT IS THE ONE VALUE THAT WAS NOT A FREE CHOICE, and it is worth
    knowing why before anyone "calms it down". The review grid's six status
-   colours are a locked contract, and they are platform tokens, so they are
-   identical in all three palettes -- which also means an accent has to stay
+   colours are a locked contract, and their INKS are identical in both dark
+   plates -- which also means an accent has to stay
    clear of all six AT ONCE. Two of them bracket the green family: --green
    #78b870 (on time) at oklch hue 142 and --cyan #5abda8 (awaiting review) at
    hue 178. A restrained mint sits BETWEEN them: the obvious candidate
@@ -500,7 +495,7 @@
 	--nb-ok: color-mix(in srgb, var(--teal) 60%, #dff5e6);
 	--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
 	--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
-	/* Carried over from the dark palette unchanged, on purpose: a folder is a
+	/* The same six the DEFAULT plate carries, on purpose: a folder is a
 	   student's own filing tag and should be the same colour whichever dark
 	   room they are in. All six re-measure at 7.9-9.6 on this ground. */
 	--nb-folder-slate: #a6b4c2;
@@ -531,9 +526,9 @@
 	--nb-shot-ink-deep: #0b1410; /* reads as TEXT on --nb-shot-ink */
 	--nb-shot-ink-bright: #f8fdfa; /* the hover-lifted paper */
 
-	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). The same six values the dark plate takes: this ground is DARKER than dark's,
-	   so every fill is darker and anything clearing dark clears here (measured
-	   4.69-8.73 against dark's 4.51-8.38). --green, --cyan and --ice never move,
+	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). The same six inks both other plates take; the FILLS below are this
+	   plate's own, and the DEFAULT plate now shares them because its card sits
+	   at the same depth (measured 4.69-8.73 here). --green, --cyan and --ice never move,
 	   which is what preserves this palette's published accent separations.
 	   Each cell draws its border AND its glyph in the ink and fills with a
 	   color-mix of it; the glyph is TEXT, so 4.5:1 against that resolved fill is

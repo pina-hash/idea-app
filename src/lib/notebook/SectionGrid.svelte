@@ -578,10 +578,11 @@
 		cursor: default;
 	}
 	/* THE FOCUS RING WAS NOT BEING DRAWN. It was a hardcoded ink rgba tuned for
-	   paper, and it measured 1.02:1 on the dark plate and 1.03:1 on IDEA -- i.e.
-	   a keyboard user tabbing through the grid had no visible indicator at all in
-	   two of the three rooms, and 1.88:1 in the third. --nb-cell-ring is the
-	   room's own ink, so it follows the plate: 4.2:1 light, 8.9:1 dark. */
+	   paper, and it measured 1.02:1 on the plate that is now the default and
+	   1.03:1 on IDEA -- i.e. a keyboard user tabbing through the grid had no
+	   visible indicator at all in two of the three rooms, and 1.88:1 in the
+	   third. --nb-cell-ring is the room's own ink, so it follows the plate:
+	   4.2:1 light, 5.29:1 on the default plate's card. */
 	.cell:hover,
 	.cell:focus-visible {
 		outline: none;
@@ -605,7 +606,10 @@
 	 * --ice, --gear/--dim -- used directly. Those were tuned against the portal's
 	 * dark green plate, and the notebook renders them on three grounds, one of
 	 * which is white paper. Measured, before this change, on the ground the cell
-	 * actually composites over (--surface-1, the card, NOT the page):
+	 * actually composites over (--surface-1, the card, NOT the page). The `dark`
+	 * column is the warm near-black plate that has since been replaced by the
+	 * classroom's console register; the console plate's own six measure
+	 * 4.90-9.31 (colors.css):
 	 *
 	 *            light   dark   idea        (glyph against its own resolved fill)
 	 *   on time   1.93   4.32   4.49

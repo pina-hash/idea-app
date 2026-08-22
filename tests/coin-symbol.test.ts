@@ -45,6 +45,7 @@ const COIN_SOURCES = [
 	'src/lib/coin-desk/payout.ts',
 	'src/lib/contracts/ContractsView.svelte',
 	'src/lib/marks/CoinMark.svelte',
+	'src/lib/marks/CoinDeskMark.svelte',
 	'src/lib/AppLauncher.svelte',
 	'src/lib/tournaments/DeleteTournament.svelte',
 	'src/routes/dev/coin-desk/+page.svelte',

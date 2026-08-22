@@ -14,6 +14,18 @@
 	"entries": [
 		{
 			"date": "2026-08-22",
+			"title": "The notebook now opens in the same dark as your classes",
+			"body": "The notebook's default look used to be a warm brown-black that belonged to nothing else on the site. It is now the same dark surfaces your class pages use, so moving from an assignment to the notebook entry it asks for no longer feels like changing buildings. Nothing about how the notebook works has changed, and the other two looks are exactly where they were: tap Appearance in the notebook header for Light (warm paper) or IDEA (green-black). The old separate Dark option is gone because the default IS the dark one now; if you had picked it, you will land on the default and everything looks the same as it did.",
+			"tags": ["notebook"]
+		},
+		{
+			"date": "2026-08-22",
+			"title": "App cards on the home screen look like the apps they open",
+			"body": "The Tournaments and IDEA Coin Ledger cards now use the colours those pages actually use, instead of colours borrowed from somewhere else. Six cards whose icons sat still, including Classroom and My Notebook, now move a little, and Site Admins has its own icon so it is no longer the same picture as Admin Dashboard. If your device is set to reduce motion, none of the icons move.",
+			"tags": ["portal"]
+		},
+		{
+			"date": "2026-08-22",
 			"title": "The path back up top of a class page is easier to read",
 			"body": "The trail above a class page (My Classes / your class / where you are) is a little bigger now, and every step you can click is underlined so it is clear it is a link.",
 			"tags": ["classroom"]

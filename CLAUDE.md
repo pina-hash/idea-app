@@ -762,7 +762,7 @@ inside the function fails closed rather than falling through to a weaker path.
     They were the portal's own tokens on the grounds that no scoped palette should
     reach them. Measured on the three notebook plates, that rule was costing the
     thing it protected: twelve of eighteen plate-state combinations sat below
-    4.5:1 and on the DEFAULT plate all six did, five of them below 3:1. What is
+    4.5:1 and on the LIGHT plate all six did, five of them below 3:1. What is
     fixed is each state's HUE IDENTITY -- green on time, amber late, cyan awaiting,
     crimson flagged, ice excused, sage missing -- and only lightness moves per
     plate. **The FILL is a pinned colour, never a `color-mix` of the ink:** a fill
@@ -1539,12 +1539,33 @@ the source of truth; **do not invent colours or swap fonts.**
   the same component is the animated hero mark and the static fallback. Its spin is
   gated behind `prefers-reduced-motion: no-preference`.
 - **Everything animated is gated behind `prefers-reduced-motion`.**
-- **Launcher cards carry a PER-APP accent, declared in the stylesheet and keyed
-  on the card, with the shared brass/gold pair as the live default.** The
-  identity is deliberate: GAUNTLET and GREENLINE carry their product colours,
-  VANGUARD its arcade green, and the FRC card carries FIRST's red and blue. An
-  app that declares nothing takes the shared pair, so a NEW card looks right
-  with no entry anywhere.
+- **Launcher cards carry a PER-APP accent AND an optional per-app TEXTURE, both
+  declared in the stylesheet and keyed on `data-app`, with the shared brass/gold
+  pair and the brushed-metal token as the live defaults.** The identity is
+  deliberate: GAUNTLET and GREENLINE carry their product colours, VANGUARD its
+  arcade green, the FRC card FIRST's red and blue, Tournaments its room's
+  `--tnm-accent`/`--tnm-gold`, and the Coin Ledger the neon-terminal palette its
+  own page is built from. An app that declares nothing takes the shared pair, so
+  a NEW card looks right with no entry anywhere.
+  - **A CARD QUOTES ITS OWN ROOM OR IT DECLARES NOTHING.** Those are the only two
+    honest answers. A pair invented for a card whose app has no colours of its own
+    is inventing an identity for the app -- classroom, coin-desk, dashboard and
+    admin take the default for exactly that reason. And a card whose room DOES have
+    a rule inherits the rule with the colours: Tournaments spends its emerald once,
+    on the mark, because "at most one dominant emerald element per screen" is that
+    theme's own hard constraint.
+  - **A rule may declare a TEXTURE and still take the shared accent** (the notebook
+    card: brass is correct for it, and restating a default is how a default
+    drifts). What a `[data-app=...]` rule may not be is inert -- it has to carry at
+    least one of the five per-card properties, which
+    `tests/home-order-and-accent.test.ts` asserts.
+  - **THE FRC MARK IS NEVER ANIMATED, and that outranks matching the cards either
+    side of it.** FIRST's brand guidelines prohibit altering the mark, and motion
+    is an alteration. Every other app mark is a component in `$lib/marks` with a
+    3-4.6s loop gated behind `prefers-reduced-motion: no-preference`, and
+    **nothing is hidden in a base state**: with the animation cancelled every
+    animated element is at full opacity and no transform, so a reduced-motion
+    reader sees the whole glyph.
   - **THE MECHANISM IS THE RULE, AND IT IS A CASCADE ARGUMENT, NOT A TASTE
     ONE.** The pairs used to arrive as an INLINE style written from a
     `PortalApp.theme` field, and **an inline custom property beats every class
@@ -1609,9 +1630,23 @@ ROOM**; both of those had passed review in the room they were written for.
   logo, a lookalike, or its red-on-white scheme**; the Dassault Systemes disclaimer
   footer stays on every page. The VIEWPORT layer is visual only -- it never touches
   data flow, auth, scoring, or room timing.
-- **`.nb-root` -- notebook editorial**, light / dark / IDEA palettes. Tokens only:
-  a rule needing to know which palette is showing should have been a token. IDEA is
-  opt-in only -- no `prefers-color-scheme` selector reaches it.
+- **`.nb-root` -- notebook editorial**, default / light / IDEA palettes. Tokens only:
+  a rule needing to know which palette is showing should have been a token.
+  - **THE DEFAULT PLATE IS THE CLASSROOM'S CONSOLE REGISTER, UNCONDITIONALLY, and
+    `prefers-color-scheme` reaches NOTHING in this room.** Six `--nb-*` tokens map
+    one to one onto the `:root` register (`--surface-0/-1/-2`, `--text-1/-2`,
+    `--boundary`) and are written out as LITERALS -- `.nb-root` aliases
+    `--surface-1` back to `--nb-surface`, so an alias in that direction closes a
+    cycle. The warm near-black "dark" plate that used to hold this slot is RETIRED:
+    it was the notebook holding a private opinion about what a dark room looks
+    like, one step away from the classroom a student had just come from. Light and
+    IDEA are both opt-in, both unchanged, and a plate that no longer exists is
+    answered in `read()` (`notebook-theme.svelte.ts`) rather than by keeping a CSS
+    block, an attribute value or a picker row alive for it.
+  - **What the register has NO counterpart for is AUTHORED and MEASURED, never
+    borrowed across.** `--nb-ink-faint` is the case that proves it: the classroom's
+    `--text-3` fails 4.5:1 on all three grounds of this plate (3.29 / 3.13 / 2.95)
+    because it is decorative there and real muted copy here.
   - **The palettes are BACKGROUND PLATES, not an identity.** They exist so a student
     can read a photograph of paper in different lighting. The notebook is on the
     platform's type, radius and spacing -- Rajdhani, `--radius-*`, `--space-*` --

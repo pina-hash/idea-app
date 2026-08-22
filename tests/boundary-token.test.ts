@@ -122,16 +122,14 @@ const ROOMS = [
 		grounds: ['--nb-bg', '--nb-surface', '--nb-surface-dim']
 	},
 	{
-		name: 'notebook dark (system)',
+		// The DEFAULT plate: the classroom's console register. It replaced a warm
+		// near-black plate that was the dark half of an OS-driven pair and so had
+		// TWO entries here, a media query and an opt-in block kept in step. One
+		// default needs one selector, which is why this list is four rooms rather
+		// than five.
+		name: 'notebook default (console register)',
 		css: COLORS,
-		selector: '@media (prefers-color-scheme: dark) {',
-		boundary: '--nb-boundary',
-		grounds: ['--nb-bg', '--nb-surface', '--nb-surface-dim']
-	},
-	{
-		name: 'notebook dark (opt-in)',
-		css: COLORS,
-		selector: "[data-nb-theme='dark'] {",
+		selector: ':not([data-nb-theme]) {',
 		boundary: '--nb-boundary',
 		grounds: ['--nb-bg', '--nb-surface', '--nb-surface-dim']
 	},
@@ -146,9 +144,9 @@ const ROOMS = [
 
 describe('the load-bearing boundary token', () => {
 	it('is declared for every room, and the notebook room aliases it', () => {
-		// Five palettes, and the count is asserted so a sweep that generated
+		// Four palettes, and the count is asserted so a sweep that generated
 		// nothing cannot pass silently.
-		expect(ROOMS.length).toBe(5);
+		expect(ROOMS.length).toBe(4);
 		for (const room of ROOMS) {
 			expect(tokenIn(room.css, room.selector, room.boundary), room.name).toMatch(/^#[0-9a-f]{6}$/i);
 		}
@@ -169,8 +167,8 @@ describe('the load-bearing boundary token', () => {
 				if (ratio < 3) failures.push(`${room.name}: ${fg} on ${g} (${bg}) = ${ratio.toFixed(2)}`);
 			}
 		}
-		// 6 portal/classroom grounds + 3 per notebook plate x 4 plates.
-		expect(cases, 'the sweep must actually generate its cases').toBe(18);
+		// 6 portal/classroom grounds + 3 per notebook plate x 3 plates.
+		expect(cases, 'the sweep must actually generate its cases').toBe(15);
 		expect(failures).toEqual([]);
 	});
 });

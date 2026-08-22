@@ -31,15 +31,21 @@
  * reads --nb-shot-* (colors.css), so it shifts hue with the plate instead of
  * being frozen at the light palette's literals. Neither inverts.
  *
- * THERE ARE THREE PALETTES NOW (light, dark, IDEA) and this file belongs to
+ * THERE ARE THREE PALETTES (default, light, IDEA) and this file belongs to
  * NONE of them. Each is a set of values for the same --nb-* tokens
- * (colors.css / effects.css, keyed off prefers-color-scheme and the
- * data-nb-theme attribute this file's .nb-root carries), so every rule below
- * is written once and holds in all three. That is the rule to keep: a
- * component or a skin rule that needs to know which palette is showing is a
- * rule that should have been a token. Adding the IDEA palette needed exactly
- * one edit in this file -- .eyebrow, which had to stop assuming the accent and
- * the meta line are the same colour -- and no component edits at all.
+ * (colors.css / effects.css, keyed off the data-nb-theme attribute this file's
+ * .nb-root carries), so every rule below is written once and holds in all
+ * three. That is the rule to keep: a component or a skin rule that needs to
+ * know which palette is showing is a rule that should have been a token.
+ * Adding the IDEA palette needed exactly one edit in this file -- .eyebrow,
+ * which had to stop assuming the accent and the meta line are the same colour
+ * -- and no component edits at all.
+ *
+ * THE DEFAULT IS THE CLASSROOM'S CONSOLE REGISTER, and it replaced a warm
+ * near-black "dark" plate that was the dark half of an OS-driven pair. That
+ * retirement is why prefers-color-scheme no longer selects anything in this
+ * room, and why the masthead's edge below is a token: see the DEFAULT block in
+ * colors.css for the reasoning and the measurements.
  *
  * THE TWO-PANE SHELL IS SHARED, NOT REBUILT. Both notebook screens sit on the
  * same split the class page does, so its geometry -- and the page gutter, pane
@@ -186,22 +192,23 @@ body:has(.nb-root) {
 	background: var(--nb-bg);
 }
 
-/* --nb-bg's dark and IDEA VALUES are declared only inside .nb-root's own
-   selectors below, and a custom property redefined on a descendant cannot
-   cascade UP to `body`, its ancestor -- inheritance only flows down. So the
+/* --nb-bg's DEFAULT and IDEA VALUES are declared only inside .nb-root's own
+   selectors, and a custom property redefined on a descendant cannot cascade UP
+   to `body`, its ancestor -- inheritance only flows down. So the
    `body:has(.nb-root) { background: var(--nb-bg) }` rule above resolves
    against the `:root` LIGHT default in every palette unless --nb-bg is
    re-declared somewhere `body` can see it too. Mirroring it here, against the
-   identical selector conditions the palette blocks below use (the file's own
-   "keep two selectors in step" discipline, now three), is what keeps the
-   canvas matching whichever palette .nb-root is actually showing. */
-@media (prefers-color-scheme: dark) {
-	:root:has(.nb-root:not([data-nb-theme])) {
-		--nb-bg: #16140f;
-	}
-}
-:root:has(.nb-root[data-nb-theme='dark']) {
-	--nb-bg: #16140f;
+   identical selector conditions the palette blocks use (the file's own "keep
+   the selectors in step" discipline), is what keeps the canvas matching
+   whichever palette .nb-root is actually showing.
+
+   TWO MIRRORS NOW, WHERE THERE WERE THREE. The retired dark plate needed a
+   prefers-color-scheme copy AND a `[data-nb-theme='dark']` copy because it was
+   the dark half of an OS-driven pair; the console register that replaced it is
+   the default unconditionally, so the no-attribute selector is the whole
+   story. */
+:root:has(.nb-root:not([data-nb-theme])) {
+	--nb-bg: #0a0c0b;
 }
 :root:has(.nb-root[data-nb-theme='idea']) {
 	--nb-bg: #0b1410;
@@ -267,7 +274,16 @@ body:has(.nb-root) {
 
 .nb-root .app-header {
 	background: var(--nb-masthead);
-	border-bottom: none;
+	/* THE BAND'S EDGE IS A TOKEN, NOT A PER-PLATE RULE. On paper the masthead
+	   is an ink slab against white and separates on its own, which is why this
+	   was a flat `border-bottom: none`. On the console plate no opaque neutral
+	   separates from a #0a0c0b page (--nb-masthead measures 1.12:1 on it), so
+	   that plate -- and only that plate -- declares --nb-masthead-line and gets
+	   the classroom's own hairline under its header. Light and IDEA declare
+	   nothing and fall back to `none`, which is byte-identical to what they
+	   drew before, box height included: writing this as `1px solid
+	   transparent` would have grown both by a pixel. */
+	border-bottom: var(--nb-masthead-line, none);
 	/* The masthead has to OUT-STACK `main`. Both sit at z-index 1 inside
 	   .nb-root's stacking context and `main` comes later in the document, so
 	   it wins the tie and paints over anything the header hangs below itself

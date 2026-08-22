@@ -9,40 +9,45 @@
  * different answers, and a profile-stored one would insist they want the same.
  * It is also why this needed no migration.
  *
- * 'system' is the default and follows prefers-color-scheme in CSS alone --
- * there is no matchMedia read here and none is wanted, because resolving the
- * OS preference in JS would mean the first paint is whatever the server
- * guessed and the right theme arrives a frame later. The explicit values are
- * overrides, applied as a `data-nb-theme` attribute on .nb-root, and the CSS
- * is written so each wins over the media query in its own direction.
+ * THE DEFAULT IS THE CLASSROOM'S CONSOLE REGISTER, AND IT IS UNCONDITIONAL.
+ * There used to be a 'system' state here that followed prefers-color-scheme in
+ * CSS alone, choosing between a light paper plate and a warm near-black one.
+ * That warm plate is retired (see the DEFAULT block in colors.css): it was the
+ * notebook holding a private opinion about what a dark room looks like, one
+ * step away from the classroom a student had just come from. What replaced it
+ * is the classroom's own register, and a single default has no half to pair
+ * with -- so 'system' went with it rather than being redefined into a name that
+ * no longer follows the system. Light and IDEA are explicit choices, applied as
+ * a `data-nb-theme` attribute on .nb-root.
  *
- * 'idea' IS OPT-IN ONLY, and that is a property of the CSS rather than of
- * anything here: the light and dark palettes each have a prefers-color-scheme
- * selector, the IDEA palette has none, so no device preference can select it.
- * 'system' therefore still means exactly what it always meant -- the
- * light/dark pair, decided by the OS -- and IDEA is reachable only by choosing
- * it.
+ * A STORED 'dark' RESOLVES TO THE DEFAULT, in `read()` below, and the key is
+ * dropped on the way past. That is the whole migration: the retired id can
+ * still be sitting in a student's browser, and answering it here means no CSS
+ * block, no attribute value and no picker row has to keep existing for it.
+ * 'system' was never written to storage (it removed the key), so it needs no
+ * branch of its own -- an unrecognised value takes the same path.
  */
 
-export type NotebookTheme = 'system' | 'light' | 'dark' | 'idea';
+export type NotebookTheme = 'default' | 'light' | 'idea';
 
 const KEY = 'idea_notebook_theme';
 
 /** Every state, in the order the picker lists them. */
-export const NOTEBOOK_THEMES: NotebookTheme[] = ['system', 'light', 'dark', 'idea'];
+export const NOTEBOOK_THEMES: NotebookTheme[] = ['default', 'light', 'idea'];
 
 function read(): NotebookTheme {
-	if (typeof localStorage === 'undefined') return 'system';
+	if (typeof localStorage === 'undefined') return 'default';
 	try {
 		const stored = localStorage.getItem(KEY);
-		if (stored === null) return 'system';
+		if (stored === null) return 'default';
 		if (NOTEBOOK_THEMES.includes(stored as NotebookTheme)) return stored as NotebookTheme;
-		// A retired or corrupted plate id. Drop it now rather than letting the
-		// fallback repeat silently forever, or reusing the id later would revive it.
+		// A retired or corrupted plate id -- 'dark' and 'system' are the two that
+		// were really written. Drop it now rather than letting the fallback repeat
+		// silently forever, or reusing the id later would revive it.
 		localStorage.removeItem(KEY);
-		return 'system';
+		return 'default';
 	} catch {
-		return 'system';
+		return 'default';
 	}
 }
 
@@ -53,19 +58,19 @@ export function notebookTheme(): NotebookTheme {
 }
 
 /**
- * What goes on the wrapper. 'system' is the ABSENCE of the attribute, so the
- * media query is the only thing deciding -- rather than a value the CSS would
- * have to special-case.
+ * What goes on the wrapper. 'default' is the ABSENCE of the attribute, so the
+ * `:not([data-nb-theme])` palette block is the only thing deciding -- rather
+ * than a value the CSS would have to special-case.
  */
-export function notebookThemeAttr(): 'light' | 'dark' | 'idea' | undefined {
-	return theme === 'system' ? undefined : theme;
+export function notebookThemeAttr(): 'light' | 'idea' | undefined {
+	return theme === 'default' ? undefined : theme;
 }
 
 export function setNotebookTheme(next: NotebookTheme) {
 	theme = next;
 	if (typeof localStorage === 'undefined') return;
 	try {
-		if (next === 'system') localStorage.removeItem(KEY);
+		if (next === 'default') localStorage.removeItem(KEY);
 		else localStorage.setItem(KEY, next);
 	} catch {
 		// A blocked or full store costs the persistence, never the choice.
@@ -73,21 +78,19 @@ export function setNotebookTheme(next: NotebookTheme) {
 }
 
 export const NOTEBOOK_THEME_LABELS: Record<NotebookTheme, string> = {
-	system: 'Match my device',
+	default: 'Default',
 	light: 'Light',
-	dark: 'Dark',
 	idea: 'IDEA'
 };
 
 /**
- * What each option is FOR, shown under its name in the picker. A list of four
+ * What each option is FOR, shown under its name in the picker. A list of
  * one-word names says nothing about why you would pick one, and "IDEA" in
  * particular is a name nobody can infer a look from.
  */
 export const NOTEBOOK_THEME_NOTES: Record<NotebookTheme, string> = {
-	system: 'Follows your light or dark setting',
+	default: 'The same dark surfaces as your classes',
 	light: 'Warm paper',
-	dark: 'Warm near-black',
 	idea: 'Green-black, in the program colours'
 };
 
@@ -97,8 +100,7 @@ export const NOTEBOOK_THEME_NOTES: Record<NotebookTheme, string> = {
  * The full phrase above stays the accessible name.
  */
 export const NOTEBOOK_THEME_SHORT: Record<NotebookTheme, string> = {
-	system: 'Auto',
+	default: 'Default',
 	light: 'Light',
-	dark: 'Dark',
 	idea: 'IDEA'
 };

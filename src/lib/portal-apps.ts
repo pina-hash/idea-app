@@ -169,8 +169,13 @@ export const PORTAL_APPS: PortalApp[] = [
 	{
 		id: 'admin',
 		title: 'Site Admins',
+		// ITS OWN GLYPH, where this used to read `icon: 'dashboard'`. The two
+		// admin cards then drew the same gauge and were told apart by their
+		// titles alone -- and in the compact view, which is the DEFAULT, the
+		// tagline is dropped too. A roster with a key is what this surface
+		// actually is; the gauge stays with the readings it describes.
+		icon: 'admin',
 		sub: 'Who can administer the portal. Owner manages the list.',
-		icon: 'dashboard',
 		href: '/admin',
 		cta: 'Open',
 		adminOnly: true

@@ -8,6 +8,12 @@
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
 	import GreenlineMark from '$lib/marks/GreenlineMark.svelte';
 	import CoinMark from '$lib/marks/CoinMark.svelte';
+	import ClassroomMark from '$lib/marks/ClassroomMark.svelte';
+	import NotebookMark from '$lib/marks/NotebookMark.svelte';
+	import TournamentMark from '$lib/marks/TournamentMark.svelte';
+	import CoinDeskMark from '$lib/marks/CoinDeskMark.svelte';
+	import DashboardMark from '$lib/marks/DashboardMark.svelte';
+	import AdminMark from '$lib/marks/AdminMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
@@ -171,14 +177,18 @@
 	}
 
 	/**
-	 * THE PER-CARD TEXTURE WENT WITH THE PER-CARD ACCENT, and for the same
-	 * reason. `cardTexture` keyed a card's interior pattern off its theme
-	 * colours -- scanlines for VANGUARD, a blueprint grid for GAUNTLET, diagonal
-	 * stripes for FRC -- so removing `PortalApp.theme` left it with nothing to
-	 * read. Re-keying it on `app.id` would have been the same per-card identity
-	 * treatment wearing a different field: cards are told apart by name, tagline
-	 * and status badge. Every card now takes the design system's brushed-metal
-	 * token, declared once in `.app-card` below rather than stamped inline.
+	 * THE PER-CARD TEXTURE CAME BACK WITH THE PER-CARD ACCENT, and this comment
+	 * used to say the opposite. `cardTexture` once keyed a card's interior
+	 * pattern off a `PortalApp.theme` field and was deleted when that field was;
+	 * the note left behind claimed cards are told apart by name, tagline and
+	 * badge alone. They are not, and have not been since the accents were
+	 * restored as stylesheet rules: five `[data-app=...]` rules below re-declare
+	 * `--card-texture`, and `.app-card`'s own
+	 * `background-image: var(--card-texture, var(--texture-brushed))` is written
+	 * as a fallback chain precisely so they can. The brushed-metal token is the
+	 * DEFAULT, not the only value. What is still true, and is the part worth
+	 * keeping, is the MECHANISM: the pattern is a stylesheet rule keyed on
+	 * `data-app`, never an inline style read out of the registry.
 	 */
 
 	/**
@@ -236,6 +246,20 @@
 	});
 </script>
 
+<!--
+	EVERY APP MARK IS A COMPONENT IN $lib/marks NOW, except the two that cannot
+	be. Six of these glyphs used to be inline paths in the {#else} branch below,
+	and being inline is exactly what kept them still: an animation belongs beside
+	the geometry it moves, and putting six sets of keyframes into this file's
+	400-line <style> block would have been the wrong home for all of them. They
+	are the SAME PATHS, extracted rather than redrawn.
+
+	TWO EXCEPTIONS, each for its own reason. FRC is the official FIRST emblem,
+	used unmodified: FIRST's brand guidelines prohibit altering the mark, and
+	that outranks looking consistent with the cards either side of it, so it is
+	an <img> and it does not move. `coin-balance` has no app pointing at it and
+	is left inline as the generic fallback branch rather than promoted.
+-->
 {#snippet appIcon(id: string)}
 	{#if id === 'vanguard'}
 		<VanguardMark />
@@ -245,41 +269,32 @@
 		<GreenlineMark />
 	{:else if id === 'coins'}
 		<CoinMark />
+	{:else if id === 'classroom'}
+		<ClassroomMark />
+	{:else if id === 'notebook'}
+		<NotebookMark />
+	{:else if id === 'tournament'}
+		<TournamentMark />
+	{:else if id === 'coin-desk'}
+		<CoinDeskMark />
+	{:else if id === 'dashboard'}
+		<DashboardMark />
+	{:else if id === 'admin'}
+		<AdminMark />
 	{:else if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
-		     distortion) while it fills the icon slot like every other app mark. -->
+		     distortion) while it fills the icon slot like every other app mark.
+		     UNANIMATED, deliberately: altering the mark, motion included, is what
+		     FIRST's guidelines forbid. -->
 		<img class="frc-icon-img" src={frcIcon} width="516" height="309" alt="FIRST Robotics Competition" />
 	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		{#if id === 'coin-desk'}
-			<!-- IDEA Coin (i¢) with an award "+", so it reads as awarding coins. -->
-			<circle cx="13" cy="17" r="9.5" />
-			<text x="13" y="17.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 9px 'Share Tech Mono', monospace">{COIN_SYMBOL}</text>
-			<path d="M25 8v6m3-3h-6" />
-		{:else if id === 'coin-balance'}
+		{#if id === 'coin-balance'}
 			<!-- IDEA Coin (i¢) with short ledger lines, reading as a personal statement. -->
 			<circle cx="11" cy="16" r="8" />
 			<text x="11" y="16.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 8px 'Share Tech Mono', monospace">{COIN_SYMBOL}</text>
 			<path d="M22 9h6M22 14h6M22 19h4" />
-		{:else if id === 'dashboard'}
-			<path d="M5 24a11 11 0 1122 0z" /><path d="M16 24l5.5-7" /><circle cx="16" cy="24" r="1.6" />
-		{:else if id === 'classroom'}
-			<!-- Mortarboard over a class list: your classes in one place. -->
-			<path d="M16 5L3 11l13 6 13-6z" />
-			<path d="M9 14.5V21c0 1.6 3.1 3 7 3s7-1.4 7-3v-6.5" />
-			<path d="M29 11v7" />
-		{:else if id === 'notebook'}
-			<!-- Bound notebook with a camera lens on the cover: pages you photograph. -->
-			<path d="M8 5h16a2 2 0 012 2v18a2 2 0 01-2 2H8z" /><path d="M8 5a2 2 0 00-2 2v18a2 2 0 002 2" />
-			<path d="M6 11h4M6 16h4M6 21h4" />
-			<circle cx="17" cy="16" r="4" />
-		{:else if id === 'tournament'}
-			<!-- Double-elim bracket: two pairs converging into a final node. -->
-			<path d="M4 6h6M4 12h6M10 6v6M10 9h4" />
-			<path d="M4 20h6M4 26h6M10 20v6M10 23h4" />
-			<path d="M14 9v14M14 16h5" />
-			<circle cx="24" cy="16" r="4" />
 		{/if}
 	</svg>
 	{/if}
@@ -662,9 +677,65 @@
 			transparent 4px
 		);
 	}
+	.app-card[data-app='coins'] {
+		/* THE LEDGER HAS A REAL SURFACE AND THIS CARD WAS NOT QUOTING IT. The
+		   Coin Ledger is a standalone neon-terminal page (static/coins/index.html)
+		   whose own palette is green #00FF41, gold #C8FF00 and cyan #00F0FF on a
+		   near-black base; the card fell to the shared brass/mint default, so the
+		   one app on the launcher with a fully designed room of its own was the
+		   one showing none of it.
+
+		   GOLD LEADS because gold leads there: it is the page's most-used colour
+		   (50 references against green's 31), it is the legendary rank and payout
+		   treatment, and it is the colour the particle field is drawn in. Cyan is
+		   the second stop because gold-to-cyan is literally how that page's own
+		   legendary gradient opens. Green is the page's ambient border colour and
+		   is deliberately NOT one of the two slots here: paired with gold it would
+		   make this card a mirror of VANGUARD's, which is the opposite of an
+		   identity. Measured on the card: #C8FF00 carries text at 12.78:1 and its
+		   edge reads 9.11:1 against the page, so neither value moves. */
+		--acc-primary: #c8ff00;
+		--acc-secondary: #00f0ff;
+		/* The page's background particle field, quoted rather than the brushed
+		   default: 90 drifting gold specks, 0.7-2.0px, over near-black. Three
+		   dot layers on different tile sizes so the field does not read as a
+		   grid, all at <=3% so it can never touch text legibility. */
+		--card-texture:
+			radial-gradient(circle at 18% 26%, rgba(200, 255, 0, 0.03) 1px, transparent 1.6px),
+			radial-gradient(circle at 71% 61%, rgba(200, 255, 0, 0.028) 1.3px, transparent 1.9px),
+			radial-gradient(circle at 43% 85%, rgba(200, 255, 0, 0.03) 0.9px, transparent 1.5px);
+		--card-texture-size: 47px 47px, 63px 63px, 37px 37px;
+	}
+	.app-card[data-app='notebook'] {
+		/* NO ACCENT RULE, DELIBERATELY: brass is right for this card and brass is
+		   the shared default, so declaring it would only put a second copy of the
+		   default somewhere it can drift. What the notebook does declare is a
+		   TEXTURE, because paper is the one thing that room is actually about --
+		   ruled lines at the plate's own off-white (#fafaf7, --nb-bg on the light
+		   palette), 7px apart, at 2.5%. */
+		--card-texture: repeating-linear-gradient(
+			0deg,
+			rgba(250, 250, 247, 0.025) 0px,
+			rgba(250, 250, 247, 0.025) 1px,
+			transparent 1px,
+			transparent 7px
+		);
+	}
 	.app-card[data-app='tournaments'] {
-		--acc-primary: #00ff41;
-		--acc-secondary: #c8a848;
+		/* THE ROOM'S OWN TWO TOKENS, where this card previously quoted neither:
+		   #00ff41 is VANGUARD's arcade green and #c8a848 the portal's brass, and
+		   nothing on /tournaments paints either. --tnm-accent and --tnm-gold
+		   (tournaments-theme.css) are what a student actually sees there.
+
+		   AND THE ROOM'S RULE COMES WITH THEM. At most ONE dominant emerald
+		   element per screen is a hard rule in that theme, so the card spends its
+		   emerald once -- on the mark, via --acc-ink, which defaults to the
+		   primary -- and gold appears nowhere but the 2px strip along the card's
+		   top edge. Measured on the card: emerald carries text at 6.23:1 and its
+		   edge (75% of it) reads 4.81:1 against the page, so nothing has to move
+		   for legibility and the identity stays exactly the room's. */
+		--acc-primary: #0fbe7a;
+		--acc-secondary: #e0ac4e;
 	}
 	.app-card[data-app='dashboard'],
 	.app-card[data-app='admin'] {

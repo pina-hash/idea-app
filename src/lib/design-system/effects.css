@@ -88,21 +88,17 @@
 	   design system has no --shadow-* family for it to join. */
 }
 
-/* The dark palette's counterpart (see the DARK block in colors.css for the
-   two-selectors-one-palette rule these follow). A shadow tinted with the
-   light theme's ink is invisible on a dark ground, so the raised card would
-   read as flat: this is a true shade instead, deeper and tighter, doing the
-   lifting the paper shadow does on white. Radii are unchanged -- the room's
-   proportions do not depend on the light. */
-@media (prefers-color-scheme: dark) {
-	/* `:not([data-nb-theme])` = "no explicit choice"; see the matching note in
-	   colors.css for why it is not `:not([data-nb-theme='light'])`. */
-	.nb-root:not([data-nb-theme]) {
-		--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
-	}
-}
+/* The DEFAULT palette's counterpart (see the DEFAULT block in colors.css). A
+   shadow tinted with the light theme's ink is invisible on a dark ground, so
+   the raised card would read as flat: this is a true shade instead, deeper and
+   tighter, doing the lifting the paper shadow does on white. Radii are
+   unchanged -- the room's proportions do not depend on the light.
 
-.nb-root[data-nb-theme='dark'] {
+   ONE SELECTOR NOW, where this used to be a media query plus a matching
+   `[data-nb-theme='dark']` block kept in step with it. The default plate is the
+   console register unconditionally, so prefers-color-scheme no longer selects
+   anything in this room. */
+.nb-root:not([data-nb-theme]) {
 	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
 }
 

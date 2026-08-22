@@ -210,10 +210,33 @@ describe('home page: which block comes first', () => {
 const LAUNCHER_SRC = readFileSync(new URL('../src/lib/AppLauncher.svelte', import.meta.url), 'utf8');
 const LAUNCHER_CSS = LAUNCHER_SRC.slice(LAUNCHER_SRC.lastIndexOf('<style>'));
 
-/** App ids with a `[data-app=...]` accent rule of their own. */
+/** App ids with a `[data-app=...]` rule of their own, of any kind. */
 const declaringIds = () => {
 	const ids = new Set<string>();
 	for (const m of LAUNCHER_CSS.matchAll(/\.app-card\[data-app='([a-z-]+)'\]/g)) ids.add(m[1]);
+	return ids;
+};
+
+/**
+ * The five per-card custom properties a `[data-app=...]` rule exists to carry.
+ * A rule that declares NONE of them is a rule that does nothing, which is the
+ * thing worth reddening -- as against a rule that declares a texture and takes
+ * the shared accent, which is a legitimate combination and is what the notebook
+ * card is: brass is correct for it, and restating the default is how a default
+ * drifts.
+ */
+const PER_CARD_PROPS = [
+	'--acc-primary',
+	'--acc-secondary',
+	'--acc-ink',
+	'--card-texture',
+	'--card-texture-size'
+];
+
+/** App ids whose rule re-pins the identity PAIR, rather than only a texture. */
+const accentIds = () => {
+	const ids = new Set<string>();
+	for (const id of declaringIds()) if (ruleFor(id).includes('--acc-primary:')) ids.add(id);
 	return ids;
 };
 
@@ -241,13 +264,7 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		// Positive control: "no card carries X" is worth nothing if no card rendered.
 		expect(cards).toBe(visibleApps(false).length);
 		expect(cards).toBeGreaterThan(5);
-		for (const prop of [
-			'--acc-primary',
-			'--acc-secondary',
-			'--acc-ink',
-			'--card-texture',
-			'--card-texture-size'
-		]) {
+		for (const prop of PER_CARD_PROPS) {
 			expect(html, `${prop} is stamped inline on a card`).not.toContain(`${prop}:`);
 		}
 	});
@@ -279,18 +296,31 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		expect(base).toContain('--acc-primary: var(--gold);');
 		expect(base).toContain('--acc-secondary: var(--green);');
 
-		const declaring = declaringIds();
+		// "Takes the default" is measured against the ACCENT, not against having a
+		// rule at all: a card may declare a texture and still paint its accent
+		// from `.app-card`, which is exactly what the notebook card does.
+		const accents = accentIds();
 		const takingDefault = visibleApps(true)
 			.map((a) => a.id)
-			.filter((id) => !declaring.has(id));
+			.filter((id) => !accents.has(id));
 		expect(takingDefault.length, 'every app declares its own accent').toBeGreaterThan(0);
 
 		// POSITIVE CONTROL for the line above: the same check must be able to SEE a
 		// declared accent, or "some app takes the default" passes because the sweep
 		// found nothing at all.
-		expect(declaring.size, 'no app declares an accent').toBeGreaterThan(0);
-		for (const id of declaring) {
-			expect(ruleFor(id), `${id}: rule declares no accent`).toContain('--acc-primary:');
+		expect(accents.size, 'no app declares an accent').toBeGreaterThan(0);
+
+		// And no per-card rule may be inert. This used to require --acc-primary of
+		// every declaring id, which a texture-only rule legitimately breaks; the
+		// rule that survives is the one that was actually meant -- a
+		// `[data-app=...]` block has to carry at least one of the five properties
+		// the mechanism reads, or it is a selector painting nothing.
+		for (const id of declaringIds()) {
+			const body = ruleFor(id);
+			expect(
+				PER_CARD_PROPS.some((prop) => body.includes(`${prop}:`)),
+				`${id}: rule declares none of the per-card properties`
+			).toBe(true);
 		}
 	});
 
