@@ -2417,7 +2417,15 @@ a:hover {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
-	flex-shrink: 0;
+	/* NOT flex-shrink: 0. The chips already wrap among themselves, so this row
+	   only ever needs the widest ONE of them -- refusing to shrink instead
+	   handed it the whole nowrap sum, and a real teacher address put the right
+	   edge at 401px against a 375px layout viewport (measured on
+	   /dev/home-feed with a representative local part; the harness fixture's
+	   short one hides it). min-width: 0 is the other half: a flex item's
+	   automatic minimum is its min-content, which wrapping the CHILDREN does
+	   not reduce on its own. */
+	min-width: 0;
 	margin-left: auto;
 	flex-wrap: wrap;
 }
@@ -2426,6 +2434,9 @@ a:hover {
 	color: var(--dim);
 	letter-spacing: 0.06em;
 	font-family: 'Share Tech Mono', monospace;
+	/* An address local part has no space to break at, so its min-content is the
+	   whole token and the row above cannot get under the viewport on its own. */
+	overflow-wrap: anywhere;
 }
 .legacy-index .course-badge {
 	font-size: 0.58rem;

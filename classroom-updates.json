@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-22",
+			"title": "The trail back up a class is easier to tap, and the home page fits your phone",
+			"body": "Two things about tapping and fitting. The small trail of links above every class page (My Classes / your class / the assignment) sat tight against the bar above it, and on a phone the top half of each link was not really tappable, so taps landed on the bar instead. There is a little more room around that trail now and the whole of each link takes a tap. Separately, the home page could be dragged sideways on a phone: the row of buttons above the app tiles, and the class and teacher labels on a class card, were wider than the screen. Both now wrap onto a second line instead, so the page sits still.",
+			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-08-22",
 			"title": "Your notebook writing is one version again, not fifty",
 			"body": "The notebook saves what you write as you go. Until now every one of those saves counted as a separate version, so an entry you spent ten minutes on turned in with a version list dozens of lines long and its History was unreadable. Now the writing you do in one sitting stays one version: it keeps the time you started it and says when you last changed it. Pressing Save draft or Turn in keeps that version for good, so anything you write afterwards starts a new one. Nothing you have already written was lost, and the long lists on entries you turned in this week have been tidied up into the version each of them ended on.",
 			"tags": ["notebook"]

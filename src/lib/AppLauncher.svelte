@@ -467,6 +467,20 @@
 		display: inline-flex;
 		align-items: baseline;
 		gap: 0.9rem;
+		/* A FLEX ITEM'S AUTOMATIC MINIMUM IS ITS MIN-CONTENT, and a nowrap row of
+		   a 156px select plus two buttons is 396.5px of it -- 53.5px past the
+		   343px bar at a 375px layout viewport, which is what put the home page
+		   into a horizontal scroll on a phone (measured: documentElement
+		   scrollWidth 412 against clientWidth 375; window.innerWidth reports 412
+		   there and is the wrong number to read, because an overflowing document
+		   zooms the VISUAL viewport out and leaves the layout one alone).
+		   Wrapping drops the requirement to the widest single control, and
+		   min-width: 0 keeps it dropped if a future child ever refuses to wrap.
+		   Do not solve this by clipping: these are the sort, density and
+		   customize controls for the app grid, and a phone must be able to reach
+		   all three. */
+		flex-wrap: wrap;
+		min-width: 0;
 	}
 	.launcher-note,
 	.launcher-err {

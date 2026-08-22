@@ -320,10 +320,45 @@
 	   46rem item and a 62rem grading console, not only with the 60rem pages
 	   they used to be pinned to. The fallback is what the dev harness (which
 	   mounts this with no layout) and view-as get. */
+	/* THE TRAIL OWNS ITS OWN 44px BAND, and these two values are what buy it.
+	   `.tap-reach-44` expands a 18.4px link to 44px by centring a pseudo-element
+	   on it, which needs 12.8px of clear space above the link and 12.8px below.
+	   It had NEITHER: the trail started flush against the masthead's bottom
+	   border (measured gap: 0px) and sat 8px above the tab bar.
+
+	   ABOVE, the failure was PAINT ORDER, not a real target conflict. Nothing in
+	   the masthead's bottom band is tappable -- it is 16px of padding, and a
+	   hit-test across the full width at 6px above the border returns the header
+	   div itself at every x. But `.cr-root .app-header` is `z-index: 2` and the
+	   reach is a positioned pseudo-element at `z-index: auto`, so the header
+	   painted over it and took the tap: hit-testing the link's vertical span
+	   found 9px of upward reach (its own half-height) against the 22px it needs,
+	   and the whole extension dead.
+
+	   RAISING THE TRAIL ABOVE THE HEADER IS THE REJECTED ALTERNATIVE, and it is
+	   rejected for the reason the header's own z-index comment gives. `.sw-menu`
+	   is trapped inside the header's stacking context, so ANY value that gets
+	   this reach past the header -- 3, or 2 and winning the tie on document
+	   order -- also puts it over the open section switcher, which drops down
+	   across exactly this strip. That pin is load-bearing; it stays.
+
+	   So the room is real room. 16px (--space-4) rather than 12px (--space-3):
+	   the requirement is 12.8px and a floor rounds BOTH ways, so the nearer
+	   token would clip 0.8px off the top and measure 43.2px while reading as
+	   snapped-to-scale. Measured cost: 24px of chrome above the page (16px new
+	   at the top, 8px added to the bottom margin). That is what a 44px target
+	   costs when both neighbours already own their space -- but the reach still
+	   earns its place over a `min-height` on the link, because the trail is
+	   `align-items: baseline` and a taller link would drag the `/` separators
+	   off the baseline they align on.
+
+	   BELOW, the 8px was not merely short, it was borrowed: the reach extended
+	   4.8px into `.sec-tab`'s own 44px box and won the hit test there, leaving
+	   the tab bar 39.2px. 16px clears both. */
 	.crumbs {
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
-		padding: 0 var(--cr-gutter, 1.2rem);
+		padding: var(--space-4) var(--cr-gutter, 1.2rem) 0;
 	}
 	.crumbs ol {
 		display: flex;
@@ -331,7 +366,7 @@
 		align-items: baseline;
 		gap: 0.35rem;
 		list-style: none;
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-4);
 		padding: 0;
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
@@ -343,12 +378,13 @@
 		min-width: 0;
 	}
 	.crumbs a {
-		/* 17.4px measured. It CANNOT grow: the crumb list is `align-items:
-		   baseline` and sits above every classroom page, so a 44px box adds
-		   26px of chrome to the top of the whole section and breaks the
-		   baseline the separators align on. The hit area is expanded instead
-		   -- see `.tap-reach-44` in src/app.css. Height only, so two crumbs
-		   sitting 0.35rem apart on the same line keep their own taps
+		/* 18.4px measured. The BOX cannot grow: the crumb list is
+		   `align-items: baseline`, and a 44px link drags the `/` separators off
+		   the baseline they align on. The hit area is expanded instead -- see
+		   `.tap-reach-44` in src/app.css -- and the clear space that reach needs
+		   on both sides is bought by `.crumbs` above; read that comment before
+		   changing either value. Height only, so two crumbs sitting 0.35rem
+		   apart on the same line keep their own taps
 		   (IDEA_INTERFACE_STANDARDS 10). */
 		--tap-reach-w: 0px;
 		color: var(--text-2);

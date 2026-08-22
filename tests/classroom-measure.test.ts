@@ -180,6 +180,31 @@ function splitCssRooms(css: string): string[] {
 		.filter(Boolean);
 }
 
+/**
+ * The left and right values of a `padding` shorthand, splitting on TOP-LEVEL
+ * whitespace only -- `var(--cr-gutter, 1.2rem)` carries a space of its own and
+ * a plain `.split(/\s+/)` tears it in half.
+ */
+function inlineSides(shorthand: string): string[] {
+	const parts: string[] = [];
+	let depth = 0;
+	let cur = '';
+	for (const ch of shorthand) {
+		if (ch === '(') depth += 1;
+		else if (ch === ')') depth -= 1;
+		if (depth === 0 && /\s/.test(ch)) {
+			if (cur) parts.push(cur);
+			cur = '';
+			continue;
+		}
+		cur += ch;
+	}
+	if (cur) parts.push(cur);
+	if (parts.length === 1) return [parts[0], parts[0]];
+	if (parts.length === 4) return [parts[1], parts[3]];
+	return [parts[1]];
+}
+
 describe('one page gutter, read by everything', () => {
 	it('is declared once, for every room, and at both widths', () => {
 		const css = read(SPLIT_CSS);
@@ -205,8 +230,25 @@ describe('one page gutter, read by everything', () => {
 
 	it('the trail and the tabs read it, and neither keeps a literal', () => {
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
-		const uses = shell.match(/padding:\s*0 var\(--cr-gutter[^)]*\)/g) ?? [];
-		expect(uses.length, 'the breadcrumb row and the tab bar').toBe(2);
+		// THE RULE IS ABOUT THE INLINE SIDES ONLY. This used to count occurrences
+		// of the literal string `padding: 0 var(--cr-gutter...)`, which also
+		// pinned the BLOCK sides to 0 -- incidental to the gutter, and it broke
+		// the moment the trail took the vertical room its 44px tap reach needs.
+		// Parse the shorthand and assert what the gutter actually governs.
+		const rows = ['.crumbs', '.sec-tabs'];
+		for (const sel of rows) {
+			// Sliced rather than matched: the rule body is bounded by the first
+			// closing brace, and a selector carries a dot a regex would have to escape.
+			const at = shell.indexOf(sel + ' {');
+			const decls = at < 0 ? '' : shell.slice(at, shell.indexOf('}', at));
+			const shorthand = decls.match(/(?:^|[\s;])padding:\s*([^;]+);/)?.[1].trim() ?? '';
+			// Positive control: a selector that stopped matching would otherwise
+			// sail past the loop below with an empty string and nothing to say.
+			expect(shorthand, `${sel} declares no padding shorthand`).not.toBe('');
+			for (const side of inlineSides(shorthand)) {
+				expect(side, `${sel} keeps a literal inline gutter`).toMatch(/^var\(--cr-gutter/);
+			}
+		}
 		// The phone override that used to put the chrome on its own line is gone.
 		expect(shell).not.toMatch(/padding-inline:\s*0\.9rem/);
 	});

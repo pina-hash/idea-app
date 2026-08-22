@@ -51,8 +51,23 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 36 warnings.** Any change to
+- **`svelte-check` at the baseline: 0 errors, 37 warnings.** Any change to
   either number is a finding to report, not something to leave unmentioned.
+  - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
+    npx svelte-check`, and read the count off its own summary line -- the sync
+    first, because stale generated route types report phantom errors (see the
+    toolchain traps). A number written down here is a number that drifts: this
+    line said 36 against a tree measuring 37, and two separate sessions found
+    the same gap independently before either said so, which is what a figure
+    being trusted rather than measured looks like. **A session that measures a
+    different number CORRECTS THIS LINE in the same change**, and says in its
+    history entry which warning moved.
+  - The 37 break down as 31 `state_referenced_locally`, 5
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
+    breakdown is the diagnostic: it says WHICH kind moved when the total does,
+    and a total that holds while the mix changes is still a finding. Read it
+    with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
+    | sed 's|.*/||' | sort | uniq -c | sort -rn`.
 - **The full test suite once, at the end.** During development run only the test
   files the change touches.
 - **Assert both directions on any visibility or gating claim.** Name what must
