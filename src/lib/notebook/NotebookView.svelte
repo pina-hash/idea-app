@@ -547,6 +547,18 @@
 	 * duplicate is invisible on the composer and only shows up on the entry.
 	 */
 	let noteChainUnknown = $state(false);
+	/**
+	 * THE HEAD REVISION OF THIS DRAFT'S NOTE WAS WRITTEN BY AN AUTOSAVE AND IS
+	 * STILL REPLACEABLE (0129), so a Save draft click has a boundary to stamp
+	 * even when it has no words to send. False whenever a write came from a
+	 * button, because that revision is already a boundary, and false with 0129
+	 * unapplied, because no write is marked replaceable there at all.
+	 *
+	 * Written in exactly two places -- `persistNote`, which knows how it sent
+	 * the write, and the autosave's own create -- and cleared by the seal and
+	 * by `resetForm`.
+	 */
+	let headUnsealed = $state(false);
 	/** The title the draft entry carries on the server, so a retitle is a diff. */
 	let savedLabel = $state<string | null>(null);
 	/**
@@ -629,13 +641,6 @@
 	 * with nothing new staged, there is still a real entry to turn in.
 	 */
 	const canTurnIn = $derived(canSubmit || !!savedDraftId);
-	/**
-	 * Save draft only ever asks "is there something NEW to save right now" --
-	 * a second click with nothing added since the first is a no-op the button
-	 * refuses rather than offers (`runSave` guards it too, this is only the
-	 * visible half of the same rule).
-	 */
-	const canSaveDraft = $derived(draftsReady && canSubmit);
 
 	// ---- autosave ------------------------------------------------------------
 	//
@@ -687,6 +692,30 @@
 		!!savedDraftId && !savedDraftSession && !!setEntryLabel && (title.trim() || null) !== savedLabel
 	);
 	const autosaveDue = $derived(autosaveReady && (noteDue || labelDue));
+
+	/**
+	 * Save draft only ever asks "is there something NEW to save right now" --
+	 * a second click with nothing added since the first is a no-op the button
+	 * refuses rather than offers (`runSave` guards it too, this is only the
+	 * visible half of the same rule).
+	 *
+	 * ONCE THIS SESSION HAS A DRAFT, "new" IS WHAT THE SERVER HAS NOT
+	 * ACKNOWLEDGED, never what is on screen. Save draft is a checkpoint and the
+	 * writing stays in the box after one, so `canSubmit` -- which answers "is
+	 * there content in here" -- would leave the button lit forever on a form
+	 * holding nothing but words already saved. That is the presence-of-state
+	 * dirty signal CLAUDE.md names, and it is the same comparison the autosave
+	 * uses rather than a second spelling of it.
+	 *
+	 * `headUnsealed` is the case that is not a diff: the autosave has written
+	 * exactly these words, so nothing is owed, and the click still has a job --
+	 * stamping the 0129 boundary so the next keystroke cannot write over the
+	 * version the student just chose to keep.
+	 */
+	const saveDraftDue = $derived(
+		savedDraftId ? noteUnsaved || labelDue || staged.length > 0 || headUnsealed : canSubmit
+	);
+	const canSaveDraft = $derived(draftsReady && saveDraftDue);
 
 	/**
 	 * WHAT THE COMPOSER IS HOLDING THAT THE SERVER HAS NOT ACKNOWLEDGED, which
@@ -919,6 +948,7 @@
 		noteChainUnknown = false;
 		savedLabel = null;
 		savedDraftSession = null;
+		headUnsealed = false;
 		// SEEDED AT NOTHING, in both cases, because that is what the server holds
 		// for the composer session starting here. With the note kept (its entry
 		// saved and its note did not) that leaves it reading as unsaved, which it
@@ -927,6 +957,39 @@
 		autosaveBaseline.seed(null);
 		orphanNote = keepNote;
 		save.reset();
+	}
+
+	/**
+	 * A SAVE DRAFT LANDED AND THE COMPOSER SESSION CONTINUES. The counterpart
+	 * to `resetForm`, and the reason there are two: a Save draft is a
+	 * CHECKPOINT, not the end of anything.
+	 *
+	 * `savedDraftId` and the note chain behind it stay exactly where they are,
+	 * so the next autosave -- and the next click -- adds to the entry this
+	 * session already made rather than starting a second one. Only a Turn in,
+	 * or the deliberate new-entry action, ends the session. This is what a0d43ba
+	 * got right on its fresh-create path and wrong on its continuing one, where
+	 * an unconditional `resetForm` meant the next word typed became a second
+	 * entry; and it is what 0129 already says from the other side, where an
+	 * explicit save is a revision boundary rather than a finish.
+	 *
+	 * THE WRITING STAYS IN THE BOX, and that is the same rule seen from the
+	 * chain's end. The chain is EDITED in place from here on, so a cleared box
+	 * over a kept `savedDraftId` means the next paragraph REPLACES the saved one
+	 * as the entry's current note instead of following it -- the earlier words
+	 * surviving only as a revision nobody is looking at. Keeping them is safe
+	 * because `persistNote`/`rememberDraft` have already advanced
+	 * `autosaveBaseline` to exactly this document: the box reads clean and
+	 * nothing is sent again until something actually changes.
+	 *
+	 * `markSaved`, never `reset`: the machine is reporting a write that just
+	 * landed, and `clean` would throw away the acknowledgement and its clock
+	 * time. Staged photos are NOT cleared here -- only the caller knows whether
+	 * they all landed.
+	 */
+	function checkpoint() {
+		recoveryNote = null;
+		save.markSaved(Date.now());
 	}
 
 	/**
@@ -1085,6 +1148,10 @@
 		}
 		// ACKNOWLEDGED: from here this text is what the server holds.
 		autosaveBaseline.advance(doc);
+		// WHAT THIS WRITE LEFT AT THE HEAD OF THE CHAIN. Sent as an autosave, it
+		// is replaceable and a click still owes it a boundary; sent from a
+		// button, it IS the boundary.
+		headUnsealed = asAutosave;
 		return { ok: true };
 	}
 
@@ -1134,6 +1201,9 @@
 			});
 			if (!saved.ok) return { ok: false, retryable: true, message: saved.error };
 			rememberDraft(saved.entryId, saved.noteId, true);
+			// Revision 1 went in marked replaceable (`autosave` above), so it owes
+			// a boundary exactly as an autosaved edit does.
+			headUnsealed = coalescingReady;
 			return { ok: true };
 		}
 		if (noteDue) {
@@ -1184,12 +1254,11 @@
 			// point may ever call createNote again in this composer session --
 			// only add to the entry this id names (the saveTarget guarantee).
 			rememberDraft(saved.entryId, saved.noteId, true);
-			successMsg = 'Draft saved. Turn it in from its card whenever you are ready.';
-			noteDraft = null;
-			noteKey += 1;
-			// The box is empty and the server holds the words: nothing is owed.
-			autosaveBaseline.seed(null);
-			save.reset();
+			successMsg = 'Draft saved. Keep writing, or turn it in when you are ready.';
+			// The words stay in the box and `rememberDraft` has already advanced
+			// the baseline to them, so nothing is owed. See `checkpoint` for why
+			// clearing the box here would cost the paragraph that was just saved.
+			checkpoint();
 		}
 		onChanged?.();
 	}
@@ -1296,14 +1365,14 @@
 			// A DRAFT: keep `savedDraftId` (it was set above) and clear only
 			// what actually landed, so a retry click can finish the rest --
 			// through `continueSaved` below -- without ever recreating the entry.
+			// The note is not "what landed" in that sense: it stays in the box
+			// either way, saved (baseline advanced, nothing owed) or failed
+			// (`orphanNote` is not set here, so the retry click resends it).
 			if (!failed.length) {
 				staged = [];
 				stager?.reset();
 			}
-			if (!noteFailed) {
-				noteDraft = null;
-				noteKey += 1;
-			}
+			if (!noteFailed) checkpoint();
 		}
 		onChanged?.();
 	}
@@ -1347,7 +1416,14 @@
 		 * on it, the words are saved either way, and a red line about revision
 		 * granularity beside a successful save would be a report of nothing.
 		 */
-		if (coalescingReady && sealNotes) await sealNotes(entryId);
+		if (coalescingReady && sealNotes) {
+			const sealed = await sealNotes(entryId);
+			// The head is a boundary now, so this session owes no further stamp
+			// until the next autosave writes one. A failure leaves it OWED, which
+			// is why this reads the result of a call whose failure is otherwise
+			// deliberately silent.
+			if (sealed.ok) headUnsealed = false;
+		}
 		const failed: number[] = [];
 		const failedEnhanced: number[] = [];
 		for (let i = 0; i < staged.length; i++) {
@@ -1382,7 +1458,17 @@
 				failedEnhanced
 			)} did not upload; the original is saved.`;
 		}
-		resetForm();
+		// TURN IN ENDS THE SESSION; SAVE DRAFT DOES NOT. See `checkpoint`. Every
+		// photo landed to reach this line (the failure above returns), so
+		// clearing the stage is unconditional here in a way it is not on the
+		// create path.
+		if (submitted) {
+			resetForm();
+		} else {
+			staged = [];
+			stager?.reset();
+			checkpoint();
+		}
 		onChanged?.();
 	}
 
@@ -1422,9 +1508,12 @@
 		const continuing = !!savedDraftId;
 		if (!continuing && !canSubmit) return { ok: true };
 		if (!continuing && (noteOnly ? !createNote : !createEntry)) return { ok: true };
-		// A continuing draft with nothing new staged and no request to turn it
-		// in is a click with nothing to do.
-		if (continuing && !hasNote && staged.length === 0 && !submitted) return { ok: true };
+		// A continuing draft with nothing the server has not already got, and no
+		// request to turn it in, is a click with nothing to do. THE SAME
+		// PREDICATE THE BUTTON READS -- this is the enforcing half of one rule,
+		// not a second statement of it -- and it is read AFTER the flush above,
+		// so whatever the autosave just landed has stopped counting.
+		if (continuing && !submitted && !saveDraftDue) return { ok: true };
 
 		busy = true;
 		inFlight = true;
@@ -2848,13 +2937,18 @@
 	   so it reads as somebody else's words in a form full of the student's --
 	   and `min-width: 0` because a grid child's automatic minimum is its
 	   min-content, which a pasted URL in a prompt would push past the pane. */
-	/* RAISED PAPER, NOT RECESSED, and it is a measured choice rather than a
-	   taste one. `--nb-accent-ink` is the brass deepened exactly far enough to
-	   read as TEXT on this room's page ground; on the RECESSED plate
-	   (--surface-2, #F2F1EA) an authored link in a prompt measures 4.32:1, under
-	   the 4.5 bar, and on the raised one (#FFFFFF) it measures 4.83. The prompt
-	   is somebody else's words sitting above the student's form, so raised is
-	   also what it should have read as. The identity colour does not move. */
+	/* RAISED PAPER, NOT RECESSED. This started as a CONTRAST argument and is
+	   no longer one: `--nb-accent-ink` was the brass deepened just far enough
+	   to read on the page ground, so an authored link in a prompt measured
+	   4.32:1 on the RECESSED plate (--surface-2, #F2F1EA) against 4.83 on the
+	   raised one, and raised was the only one over the bar. The ink has since
+	   been deepened again -- the light plate's inks are now measured against
+	   the WASH grounds too, not only the bare plates -- and the same link
+	   measures 5.02 recessed against 5.69 raised, so both clear. What keeps it
+	   raised is the reason that was always the better half: the prompt is
+	   somebody else's words sitting above the student's form, and that is what
+	   raised paper says. The identity colour does not move; the derived one
+	   did. */
 	.nb-guidance {
 		min-width: 0;
 		margin: var(--space-3) 0 0;

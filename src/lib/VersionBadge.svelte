@@ -36,10 +36,23 @@
 		font-size: 0.6rem;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
-		color: var(--dim, #4a7a52);
+		/* A ROOM HOOK, PORTAL TOKEN AS THE FALLBACK. --dim is measured against a
+		   dark plate; this component is mounted inside .nb-root, where the page
+		   is paper and it measured 3.20:1. The room points the name at the
+		   muted-copy ink it already has (see --stamp-ink in
+		   $lib/notebook/notebook-theme.css) and the shell renders byte-identically.
+		   Same mechanism as ItemBody's --body-link and SaveIndicator's --save-*. */
+		color: var(--stamp-ink, var(--dim, #4a7a52));
 		white-space: nowrap;
 	}
+	/* The separator is quieter than the segments it parts, but it still has to
+	   be VISIBLE to part them. At 0.6 it measured 2.38-2.76:1 across the three
+	   portal grounds and the three notebook plates; 0.8 is the lowest step that
+	   clears 3:1 on all six (worst 3.23, on --bg2) while staying well under the
+	   stamp's own 4.24-5.42. This is the same defect as the notebook meta dots
+	   drawn in a hairline token: a separator painted below the threshold at
+	   which it separates anything. */
 	.sep {
-		opacity: 0.6;
+		opacity: 0.8;
 	}
 </style>

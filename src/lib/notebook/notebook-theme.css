@@ -149,6 +149,18 @@
 	--save-ok: var(--nb-ok);
 	--save-error: var(--nb-error);
 
+	/* The shared VersionBadge's one hook ($lib/VersionBadge.svelte), which
+	   NotebookView and ReviewConsole both mount. Its default is the portal's
+	   --dim, a value tuned against a dark plate: on this room's paper it
+	   measured 3.20:1, the same shape as ItemBody's link and SaveIndicator's
+	   failed message above, and the same answer. --nb-ink-faint is what this
+	   room already calls muted copy, so the stamp is now measured on the
+	   ground it is actually drawn on: light 3.20 -> 5.06, default 5.87 ->
+	   5.16, IDEA 5.60 -> 5.42. The two dark plates MOVE, and that is the hook
+	   working rather than a side effect -- they were reading the portal's ink
+	   on the notebook's page, and both clear comfortably either way. */
+	--stamp-ink: var(--nb-ink-faint);
+
 	position: relative;
 	/* Above the portal's fixed .bg-fx overlay (z-index 0), and opaque, so the
 	   dark scanline ambiance never shows through the light surfaces. */

@@ -1297,8 +1297,19 @@
 		font-variant-numeric: tabular-nums;
 		color: var(--text-3);
 	}
+	/* A SEPARATOR, NOT A RULE, AND THE TOKEN HAS TO SAY SO. This was
+	   --nb-hairline-strong, which is a RULE WEIGHT: deliberately below any
+	   text threshold, because a hairline is a line drawn beside content and
+	   never a glyph drawn as content. Painted as a middot it measured
+	   1.48:1 on the light plate's card, 1.58 on the default one and 1.63 on
+	   IDEA -- invisible on all three, so the thing it exists to separate was
+	   not being separated on any of them. --nb-boundary is the room's
+	   load-bearing separator token and is per-plate already: light
+	   3.72 / 3.56 / 3.28, default 4.23 / 4.44 / 3.98, IDEA 3.25 / 3.48 /
+	   3.63 against surface / page / recessed, every one clear of the 3:1
+	   a boundary carries. */
 	.dot {
-		color: var(--nb-hairline-strong);
+		color: var(--nb-boundary);
 	}
 	.folder-chip {
 		display: inline-flex;

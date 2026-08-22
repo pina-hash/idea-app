@@ -1017,6 +1017,30 @@ inside the function fails closed rather than falling through to a weaker path.
     or differs from the SEEDED one -- so the two answers cannot drift apart. A
     guard that fires when nothing is wrong is a guard people learn to click
     through, which costs the one case it exists for.
+  - **A MANUAL SAVE IS A CHECKPOINT, NOT A FINISH, AND ONLY A DELIBERATE FINISH
+    ENDS THE SESSION.** A surface that keeps a handle on the record it created
+    (the notebook composer's `savedDraftId`) must keep it across an explicit
+    save: reset the handle and the next keystroke starts a SECOND record, with
+    one piece of work split across two. So a Save-draft-shaped button clears
+    only what actually landed and leaves the surface on the same record; only a
+    turn-in, a publish, or an explicit new-record action calls the reset. This
+    is the same thing 0129 says from the storage end -- an explicit save stamps
+    a revision BOUNDARY, which is a thing you write past, not a thing you stop
+    at.
+    - **AND THE WRITING STAYS IN THE BOX, because the two halves are one
+      rule.** Where the next write EDITS the chain rather than appending to
+      it, a cleared box over a kept handle means the next paragraph REPLACES
+      the saved one as the record's current content instead of following it,
+      and the earlier words survive only as a revision nobody is looking at.
+      What makes keeping them safe is that the write already advanced the
+      `EditBaseline`: the box reads clean and nothing is sent again until
+      something actually changes.
+    - **ITS BUTTON THEN ASKS THE DIFF, NEVER "IS THERE CONTENT IN HERE"** --
+      the presence-of-state bug one bullet up, in its other costume. Once the
+      surface holds a record, "something new to save" is what the server has
+      not acknowledged, plus any boundary the click still owes. The button and
+      the handler read the SAME derived predicate; two spellings of it is the
+      thing that stops matching.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
@@ -1278,6 +1302,21 @@ belong wherever the app's own behaviour is documented.
 - **Navigation sometimes reports failure while having actually succeeded.** Confirm
   by reading the page (`read_page` / `get_page_text`) rather than trusting the
   `navigate` call's own result.
+- **A `git stash` DOES NOT RELIABLY REACH THE SERVED BUNDLE.** A before/after
+  measurement taken by stashing the tree and reloading measured the CHANGED
+  stylesheet on a stash that had already landed on disk: Vite's watcher had not
+  invalidated the module, and the reload served the edited one. It is silent --
+  a plausible baseline comes back and the diff simply understates itself.
+  **Assert the tree you think you are on by reading a TOKEN the change moves**
+  (`--stamp-ink` unset, a `.sep` at 0.6) before running the sweep, and `touch`
+  the files after a stash or a pop to wake the watcher.
+- **A forced state must be forced onto a UNIQUE node.** `document.querySelector('.sep')`
+  returned an unrelated component's separator, because Svelte's scoping hashes
+  the STYLE and not the class: four `.sep` elements were in that tree and two
+  were the badge's. Anchor a scripted read at a `data-testid`, or at a
+  descendant selector under the component's own root, and print the match COUNT
+  beside the value -- a single-node read that silently hit the wrong node reads
+  exactly like a correct one.
 - **A live WebGL canvas hangs pane screenshots.** Read the framebuffer back instead
   (pixel counts, occupancy grids), or use claude-in-chrome.
 - **A harness whose loop rides rAF must be told to pump it** (`?glheadless=1` on
@@ -1567,6 +1606,16 @@ the source of truth; **do not invent colours or swap fonts.**
     (`--bg1` on `--bg0` is 1.18:1, one region to the eye). Everything else --
     a rule between two paragraphs in a card, a table cell edge, the frame on a
     thumbnail, a static chip -- keeps `--hairline`.
+    - **A SEPARATOR GLYPH IS A BOUNDARY, AND A HAIRLINE TOKEN MUST NEVER PAINT
+      ONE.** A rule weight is authored to sit BELOW every text threshold,
+      because a hairline is a line drawn beside content and never a mark drawn
+      as content. The notebook's meta middots were `--nb-hairline-strong` and
+      measured 1.48:1 on the light plate's card, 1.58 on the default and 1.63
+      on IDEA -- invisible on all three, so the thing they exist to separate
+      was not being separated on any of them, and nothing on screen reports
+      that. They take the room's `--boundary` (per-plate already, so one rule
+      fixes three), and they clear the 3:1 a boundary carries rather than the
+      4.5 of the text beside them.
   - **DO NOT RAISE `--hairline`. That is the rejected alternative, and it is one
     line.** It is drawn on ~190 elements in the classroom alone, almost all of it
     decoration; raising the one token draws every one of them at full strength
@@ -1671,8 +1720,12 @@ HOOK, and the portal token is the FALLBACK.** `var(--body-link, var(--cyan))`,
 the way `Disclosure` reads `--disc-accent`. The portal's semantic tokens are
 tuned for a dark plate, so a component built in the shell and mounted in a light
 room carries values measured against the wrong ground: `ItemBody`'s link landed
-at **2.00:1** and `SaveIndicator`'s failed message at **3.65:1** on the
-notebook's paper the first time each arrived there. Written as a hook the
+at **2.00:1**, `SaveIndicator`'s failed message at **3.65:1** and
+`VersionBadge`'s stamp at **3.20:1** on the notebook's paper the first time
+each arrived there. **The stamp is the one that says to go LOOKING**: nobody
+carried it into the room -- it had been mounted in every notebook header all
+along, reading `--dim` off a plate it has never been on, which is what a hook
+audit finds and a change review never does. Written as a hook the
 shell renders byte-identically and the room points the name at the corrected
 value it already has (`--nb-accent-ink`, `--nb-error`) -- and the hook is
 declared ON THE ROOM'S OWN WRAPPER, never on the component, or it sits on a
@@ -1737,6 +1790,25 @@ ROOM**; both of those had passed review in the room they were written for.
     **Lowering the wash is the rejected alternative:** at the 6% that would rescue
     `--text-3` the fill measures 1.09:1 against the card, so the selected row stops
     being marked at all.
+  - **AND THE SAME GROUND ARITHMETIC BINDS THE ROOM'S OWN INKS, NOT ONLY THE
+    BORROWED TIERS.** A plate has SIX grounds, not three: `--nb-surface`,
+    `--nb-bg`, `--nb-surface-dim`, and the wash laid over each of them. Every
+    `--nb-*` ink is measured against all six or it is not measured. The light
+    plate's were checked against the bare three only, and the missing half is
+    exactly where they failed -- `--nb-accent-ink` at 4.25/4.32/4.45 across 15
+    distinct candidates, `--nb-warn` failing four of six from 4.33 down,
+    `--nb-ok` failing the recessed plate at 4.33. Deepening the ink is the fix
+    (lightness only for a hex, the dark-end fraction for a `color-mix`); the
+    hue identity never moves.
+  - **A WASH IS A SIGNAL, AND A SIGNAL IS NOT THE THING TO SPEND.** Thinning it
+    to rescue an ink is refused, and the measurement is why rather than the
+    taste: carrying `#8a6d24` to 4.5 on wash-over-page needs 5% alpha, where
+    the fill reads **1.04:1** against its own card; it still cannot reach 4.5
+    on wash-over-recessed at ANY alpha (best 4.20, because thinning only
+    asymptotes to the bare plate, which was already failing); and it does
+    nothing at all for the candidates sitting on a bare recessed plate with no
+    wash under them. A lever that cannot reach the target, and destroys the
+    signal on the way, is not the lever.
   - **What stays notebook-named is what has no counterpart**, not what someone
     liked: `--nb-shadow` (there is no `--shadow-*` family), `--nb-hairline-strong`
     (the platform has one rule weight; `--line-strong` is mint green),

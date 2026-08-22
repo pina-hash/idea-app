@@ -806,6 +806,25 @@
 		return account === 'student' ? studentEntries : account === 'instructor' ? instructorEntries : plainEntries;
 	}
 
+	/**
+	 * THE ENTRY LIST AND THE REPLACEABLE SET, exposed read-only for scripted
+	 * verification, for `__notebookReceived`'s reason one level up: "one entry
+	 * with two revisions, not two entries" is a claim about rows, and reading
+	 * it off the feed's markup measures the renderer instead. A getter rather
+	 * than a snapshot, so a script reads the list as it stands at the moment it
+	 * asks. Dev-only page; nothing in `src/lib` may look for either name.
+	 */
+	if (typeof window !== 'undefined') {
+		Object.defineProperty(window, '__notebookEntries', {
+			configurable: true,
+			get: () => current()
+		});
+		Object.defineProperty(window, '__notebookReplaceable', {
+			configurable: true,
+			get: () => [...replaceable]
+		});
+	}
+
 	/** Every field the component actually put on the FormData, verbatim. */
 	function describe(form: FormData): string {
 		const parts: string[] = [];

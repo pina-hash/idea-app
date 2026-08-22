@@ -120,7 +120,25 @@
 	   same brass deepened only enough to read as TEXT on the light ground
 	   (raw #c8a848 measures ~2.2:1 on #fafaf7). Status feedback colors are
 	   DERIVED from the existing semantic tokens via color-mix, never new
-	   hues. ------------------------------------------------------------- */
+	   hues.
+
+	   THE INKS ON THIS PLATE ARE MEASURED ON SIX GROUNDS, NOT THREE, and that
+	   is what this block got wrong until it was swept. The three plate grounds
+	   (--nb-surface #ffffff, --nb-bg #fafaf7, --nb-surface-dim #f2f1ea) are
+	   only half of it: --nb-accent-wash is a VEIL laid on any of them, and an
+	   ink measured against the bare plate is measured against a ground the
+	   active row does not have. Every ratio below is the WORST of the six,
+	   painted to a canvas over the composited ground and read back -- these
+	   resolve to color-mix(), which a regex over computed styles skips.
+
+	   Deepening the ink is the fix, and thinning the wash is the REJECTED
+	   alternative, measured: to carry #8a6d24 to 4.5 on wash-over-page the
+	   wash has to drop to 5% alpha, where the fill measures 1.04:1 against
+	   its own card and the selected row stops being marked at all; it still
+	   cannot reach 4.5 on wash-over-recessed at ANY alpha (best 4.20), and it
+	   does nothing for the six candidates that sit on a bare recessed plate
+	   with no wash under them. A wash is a signal, and a signal is not the
+	   thing to spend. ---------------------------------------------------- */
 	--nb-bg: #fafaf7; /* warm off-white page, never stark white */
 	--nb-surface: #ffffff; /* raised paper: cards, table sticky column */
 	--nb-surface-dim: #f2f1ea; /* recessed paper: pickers, forms, staged rows */
@@ -138,7 +156,15 @@
 	--nb-boundary: #8e8467;
 	--nb-masthead: #211f1a; /* dark header band: the emblem + ProfileMenu are drawn for dark ground */
 	--nb-accent: var(--gold); /* the platform thread: aged brass, sparingly */
-	--nb-accent-ink: #8a6d24; /* brass deepened for links / active text on light */
+	/* Brass deepened for links / active text on light. hsl(43 59% 31%) --
+	   #8a6d24's own hue (42.9deg) and saturation (58.6%), LIGHTNESS ONLY, from
+	   34.1%. At 34.1% it measured 4.89 / 4.68 / 4.32 on the three plate
+	   grounds and 4.45 / 4.25 / 3.95 with the wash over them: three of six
+	   under the bar, which is what put 15 distinct candidates below 4.5:1.
+	   Now 5.69 / 5.44 / 5.02 bare and 5.17 / 4.94 / 4.59 washed -- worst 4.59.
+	   What it cost: the thread reads a little more present on paper (4.89 ->
+	   5.69 on the card). It is the same brass; nothing desaturated. */
+	--nb-accent-ink: #7e6320;
 	--nb-accent-wash: rgba(200, 168, 72, 0.13); /* active-state fill */
 	/* The eyebrow -- the meta line that sits above a heading. On the light and
 	   dark palettes it IS the accent, which is why this was written inline as
@@ -147,9 +173,18 @@
 	   Splitting it costs those two palettes nothing: both resolve it straight
 	   back to their own accent-ink, so what they render is unchanged. */
 	--nb-meta-accent: var(--nb-accent-ink);
-	--nb-ok: color-mix(in srgb, var(--teal) 72%, #0e2417); /* success text on light */
-	--nb-error: color-mix(in srgb, var(--crimson) 76%, #2b100d); /* error text on light */
-	--nb-warn: color-mix(in srgb, var(--amber) 78%, #2b1a08); /* warning text on light */
+	/* Status text on light, measured on the same six grounds as the accent
+	   ink above and moved by the ONE dial this plate already turns -- how much
+	   of the dark end each mix carries. The mix is the derived value; the
+	   semantic token it starts from is the identity and does not move.
+	     ok    72% -> 62%:  worst 3.95 -> 4.64 (it failed the recessed plate at 4.33)
+	     error 76% -> 72%:  worst 4.28 -> 4.57
+	     warn  78% -> 62%:  worst 3.50 -> 4.64 (it failed FOUR of the six, from 4.33 down)
+	   What it cost: each reads a shade heavier on paper. The hue identity is
+	   untouched, which is the part that carries the meaning. */
+	--nb-ok: color-mix(in srgb, var(--teal) 62%, #0e2417); /* success text on light */
+	--nb-error: color-mix(in srgb, var(--crimson) 72%, #2b100d); /* error text on light */
+	--nb-warn: color-mix(in srgb, var(--amber) 62%, #2b1a08); /* warning text on light */
 
 	/* Folder colours (0088). A student's own filing tags, so this is the one
 	   --nb-* set that is DECORATIVE rather than semantic -- it must never be
