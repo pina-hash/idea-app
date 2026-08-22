@@ -74,6 +74,7 @@
 	 */
 	let writesFail = $state(false);
 	let historyReady = $state(true);
+	let coalescingReady = $state(true);
 	/** The "self" side of every deleted-note fixture below (0119). */
 	const VIEWER_ID = 'u-self';
 	/**
@@ -211,10 +212,23 @@
 		note_id: string,
 		revision: number,
 		content: NoteDoc,
-		created_at: string
+		created_at: string,
+		updated_at: string | null = null
 	): NotebookNoteRow {
-		return { id, entry_id, note_id, revision, content, created_at };
+		return { id, entry_id, note_id, revision, content, created_at, updated_at };
 	}
+
+	/**
+	 * 0129's `autosave` COLUMN, which is server-side bookkeeping and reaches no
+	 * payload -- so it is modelled here as a set of row ids rather than a field
+	 * on NotebookNoteRow. A row in it is the replaceable head of its chain: the
+	 * next autosave writes over it instead of appending.
+	 *
+	 * Sealing empties it for an entry; turning an entry in seals it. Both are
+	 * mirrored below, because a harness missing one of them would make a drive
+	 * that "proves" coalescing prove nothing about where it stops.
+	 */
+	const replaceable = new Set<string>();
 
 	/** Shorthand for a plain-paragraph document. */
 	const p = (...text: string[]): NoteDoc => text.map((t) => ({ type: 'p', runs: [{ text: t }] }));
@@ -725,7 +739,7 @@
 	 * actually have.
 	 */
 	const entries = $derived(
-		photosReady && sessionsReady && draftsReady && historyReady
+		photosReady && sessionsReady && draftsReady && historyReady && coalescingReady
 			? rawEntries
 			: rawEntries.map((entry) => ({
 					...entry,
@@ -739,9 +753,14 @@
 					// null -- narrower rungs never asked for the column), and no
 					// reviewed_at on the entry.
 					reviewed_at: historyReady ? entry.reviewed_at : undefined,
-					notes: historyReady
-						? entry.notes
-						: entry.notes.map((n) => ({ ...n, deleted_at: undefined, deleted_by: undefined }))
+					// 0129 unapplied: no updated_at on a revision either (undefined,
+					// never null -- a narrower rung cannot ask for the column), so
+					// nothing in the history claims a revision kept being written.
+					notes: entry.notes
+						.map((n) =>
+							historyReady ? n : { ...n, deleted_at: undefined, deleted_by: undefined }
+						)
+						.map((n) => (coalescingReady ? n : { ...n, updated_at: undefined }))
 				}))
 	);
 	const sessions = $derived(account === 'student' && sessionsReady ? SESSIONS : []);
@@ -970,7 +989,9 @@
 				payload.custom_label
 			)} session_id=${JSON.stringify(payload.session_id ?? null)} section_id=${JSON.stringify(
 				payload.section_id ?? null
-			)} folder_id=${JSON.stringify(payload.folder_id)} content=<editor doc>`
+			)} folder_id=${JSON.stringify(payload.folder_id)} autosave=${JSON.stringify(
+				payload.autosave === true
+			)} content=<editor doc>`
 		];
 		const doc = await normalize(payload.content);
 		if ('error' in doc) return { ok: false, error: doc.error };
@@ -1002,6 +1023,11 @@
 			photos: [],
 			notes: [note(noteId, id, noteId, 1, doc, new Date().toISOString())]
 		};
+		// 0129: an autosave's own create leaves revision 1 REPLACEABLE, so the
+		// whole writing session that follows lands on this one row. A draft
+		// turned in at creation is content somebody else can read and is never
+		// marked, which is the RPC's own `p_autosave and v_submitted is null`.
+		if (payload.autosave === true && !submitted) replaceable.add(noteId);
 		update((list) => [entry, ...list]);
 		// The chain the text landed in, exactly as the route passes it back from
 		// notebook_create_note_entry. Without it the composer's autosave cannot
@@ -1038,12 +1064,22 @@
 	}
 
 	/** notebook_add_note: a brand new chain (revision 1) on an existing entry. */
-	async function addNote(entryId: string, content: TiptapNode): Promise<NoteSaveResult> {
+	async function addNote(
+		entryId: string,
+		content: TiptapNode,
+		autosave = false
+	): Promise<NoteSaveResult> {
 		if (writesFail) return { ok: false, error: 'The server is unreachable (dev harness).' };
-		log = [...log, `POST /api/notebook/add-note  entry_id=${JSON.stringify(entryId)}`];
+		log = [
+			...log,
+			`POST /api/notebook/add-note  entry_id=${JSON.stringify(entryId)} autosave=${autosave}`
+		];
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
+		const owner = current().find((e) => e.id === entryId);
+		if (!owner) return { ok: false, error: 'That entry does not exist or is not yours.' };
 		const noteId = `n-new-${++seq}`;
+		if (autosave && owner.submitted_at === null) replaceable.add(noteId);
 		update((list) =>
 			list.map((e) =>
 				e.id === entryId
@@ -1055,39 +1091,85 @@
 	}
 
 	/**
-	 * notebook_edit_note: appends a revision. Mirrors the RPC's own refusal on
-	 * a session-linked entry, so the error path is drivable here too -- the UI
-	 * never offers the control on those entries, but this proves what would
-	 * happen if it did.
+	 * notebook_edit_note: REPLACES the head revision in place when 0129 says it
+	 * may, and appends one otherwise.
+	 *
+	 * THE REFUSAL THIS USED TO CARRY IS GONE, and it should have gone in 0116.
+	 * That migration removed the session-linked refusal from the real RPC -- a
+	 * check-in note became editable, which is what lets the composer autosave
+	 * into a check-in draft at all -- and this harness kept refusing it, so a
+	 * drive through here would have "proved" a failure the deployed database
+	 * does not produce. A harness that is stricter than the thing it stands in
+	 * for is the same defect as one that is looser.
+	 *
+	 * The predicate mirrors `_notebook_note_coalescable`: the head has to be
+	 * replaceable, the chain live, and the entry still a draft.
 	 */
-	async function editNote(noteId: string, content: TiptapNode): Promise<NoteSaveResult> {
+	async function editNote(
+		noteId: string,
+		content: TiptapNode,
+		autosave = false
+	): Promise<NoteSaveResult> {
 		if (writesFail) return { ok: false, error: 'The server is unreachable (dev harness).' };
-		log = [...log, `POST /api/notebook/edit-note  note_id=${JSON.stringify(noteId)}`];
+		log = [
+			...log,
+			`POST /api/notebook/edit-note  note_id=${JSON.stringify(noteId)} autosave=${autosave}`
+		];
 		const owner = current().find((e) => e.notes.some((n) => n.note_id === noteId));
 		if (!owner) return { ok: false, error: 'That note does not exist.' };
-		if (owner.session_id !== null) {
-			return {
-				ok: false,
-				error:
-					'A note on a scheduled check-in cannot be edited. Add another note to this entry instead.'
-			};
-		}
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
-		const latest = Math.max(...owner.notes.filter((n) => n.note_id === noteId).map((n) => n.revision));
+		const revisions = owner.notes.filter((n) => n.note_id === noteId);
+		const latest = Math.max(...revisions.map((n) => n.revision));
+		const head = revisions.find((n) => n.revision === latest)!;
+		if (head.deleted_at) {
+			return { ok: false, error: 'That note has been deleted. Restore it before editing it.' };
+		}
+		const now = new Date().toISOString();
+
+		if (autosave && replaceable.has(head.id) && owner.submitted_at === null) {
+			log = [...log, `  -> coalesced into revision ${head.revision}`];
+			update((list) =>
+				list.map((e) =>
+					e.id === owner.id
+						? {
+								...e,
+								notes: e.notes.map((n) =>
+									n.id === head.id ? { ...n, content: doc, updated_at: now } : n
+								)
+							}
+						: e
+				)
+			);
+			return { ok: true, noteId };
+		}
+
+		const newId = `${noteId}-r${latest + 1}`;
+		if (autosave && owner.submitted_at === null) replaceable.add(newId);
 		update((list) =>
 			list.map((e) =>
 				e.id === owner.id
 					? {
 							...e,
-							notes: [
-								...e.notes,
-								note(`${noteId}-r${latest + 1}`, e.id, noteId, latest + 1, doc, new Date().toISOString())
-							]
+							notes: [...e.notes, note(newId, e.id, noteId, latest + 1, doc, now)]
 						}
 					: e
 			)
 		);
+		return { ok: true, noteId };
+	}
+
+	/**
+	 * notebook_seal_notes: an explicit save STAMPS A BOUNDARY on every note of
+	 * an entry, so the next autosave starts a revision rather than writing over
+	 * the version the student just chose to keep.
+	 */
+	async function sealNotes(entryId: string): Promise<EntryActionResult> {
+		const entry = current().find((e) => e.id === entryId);
+		if (!entry) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		let sealed = 0;
+		for (const n of entry.notes) if (replaceable.delete(n.id)) sealed += 1;
+		log = [...log, `RPC notebook_seal_notes p_entry_id=${JSON.stringify(entryId)} sealed=${sealed}`];
 		return { ok: true };
 	}
 
@@ -1317,6 +1399,9 @@
 				error: 'This entry has nothing in it to turn in. Add a photo or write a note first.'
 			};
 		}
+		// 0129: turning in SEALS. From here the entry's notes are content
+		// somebody else can read, and nothing may replace one in place.
+		for (const n of found.notes) replaceable.delete(n.id);
 		updateAll((list) =>
 			list.map((e) => (e.id === entryId ? { ...e, submitted_at: new Date().toISOString() } : e))
 		);
@@ -1393,6 +1478,10 @@
 	<label><input type="checkbox" bind:checked={deletionReady} data-testid="sim-0117" /> 0116/0117 deletion readable</label>
 	<label><input type="checkbox" bind:checked={draftsReady} data-testid="sim-0118" /> 0118 applied</label>
 	<label><input type="checkbox" bind:checked={historyReady} data-testid="sim-0119" /> 0119 applied</label>
+	<label
+		><input type="checkbox" bind:checked={coalescingReady} data-testid="sim-0129" /> 0129 applied
+		(autosave coalesces)</label
+	>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
 	<!-- Mirrors /classroom/view-as/<email>/notebook exactly: readOnly plus NO
@@ -1442,12 +1531,14 @@
 		uploadReady={viewAs ? false : uploadReady}
 		readOnly={viewAs}
 		{historyReady}
+		{coalescingReady}
 		viewerId={VIEWER_ID}
 		createEntry={viewAs ? undefined : createEntry}
 		addPhoto={viewAs ? undefined : addPhoto}
 		createNote={viewAs ? undefined : createNote}
 		addNote={viewAs ? undefined : addNote}
 		editNote={viewAs ? undefined : editNote}
+		sealNotes={viewAs || !coalescingReady ? undefined : sealNotes}
 		folderTransports={!viewAs && foldersReady ? folderTransports : undefined}
 		setPinned={!viewAs && pinsReady ? setPinned : undefined}
 		deleteEntry={viewAs ? undefined : deleteEntry}

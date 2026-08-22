@@ -48,6 +48,8 @@ import type { RequestHandler } from './$types';
  *   section_id    which class the entry is for (optional; with a session it
  *                 must be one that check-in is posted to)
  *   submitted     false makes a DRAFT (0118); omitted or true turns it in
+ *   autosave      true marks the first revision REPLACEABLE (0129): the next
+ *                 autosave writes over it instead of appending
  */
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
@@ -134,6 +136,15 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	 * needs 0118, and that is the one caller that names it.
 	 */
 	if (body.submitted === false) args.p_submitted = false;
+	/**
+	 * p_autosave follows p_submitted's rule, for p_submitted's reason: on a
+	 * project still on 0128 this parameter does not exist, and naming it
+	 * unconditionally would leave PostgREST unable to resolve the function and
+	 * break every note. The composer asks for it only when the notes select
+	 * carrying `updated_at` came back, which is the same migration -- so the one
+	 * call that needs 0129 is the only one that names it.
+	 */
+	if (body.autosave === true) args.p_autosave = true;
 
 	const { data, error } = await supabase.rpc('notebook_create_note_entry', args);
 	if (error) {

@@ -532,6 +532,22 @@
 	}
 
 	/**
+	 * A revision that kept being written into after it was started (0129): the
+	 * autosave replaces the head in place, so one line in the history can span
+	 * ten minutes of writing. The event sits at `created_at` -- when the
+	 * revision was STARTED -- and this is what says the writing carried on,
+	 * rather than a second line pretending to be a second version.
+	 *
+	 * Absent `updated_at` is a read from a narrower rung of the ladder and
+	 * says nothing, which is correct on a project with no column to stamp.
+	 */
+	function stillWritten(event: NotebookEvent): string {
+		const changed = event.note?.updated_at;
+		if (!changed || changed === event.note?.created_at) return '';
+		return `, still being written at ${shortWhen(changed)}`;
+	}
+
+	/**
 	 * One line per event kind (0119). `entryTimeline` itself states no kind
 	 * beyond what a stamp already on the row can prove, so this only labels
 	 * what it hands back -- it invents nothing (a title change or a re-file has
@@ -545,11 +561,11 @@
 				return `Added ${event.photo?.original_filename ?? 'a photo'}`;
 			case 'note_written':
 				return event.note
-					? `Wrote a note: "${docSummary(event.note.content, 50)}"`
+					? `Wrote a note: "${docSummary(event.note.content, 50)}"${stillWritten(event)}`
 					: 'Wrote a note';
 			case 'note_edited':
 				return event.note
-					? `Edited a note: "${docSummary(event.note.content, 50)}"`
+					? `Edited a note: "${docSummary(event.note.content, 50)}"${stillWritten(event)}`
 					: 'Edited a note';
 			case 'entry_submitted':
 				return 'Turned in';

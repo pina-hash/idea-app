@@ -96,6 +96,17 @@ export interface NotebookNoteRow {
 	content: NoteDoc;
 	created_at: string;
 	/**
+	 * When this revision last absorbed an autosave, or null if it never has
+	 * (0129). `created_at` says when the revision was STARTED and a replacement
+	 * never moves it, so the two together are what a history reads.
+	 *
+	 * OPTIONAL, and absence means what it means everywhere else in this file: a
+	 * read from a narrower rung of the select ladder, where the column does not
+	 * exist and no revision can have been replaced. Both read as "never
+	 * changed", which is why every rung below the coalescing one keeps working.
+	 */
+	updated_at?: string | null;
+	/**
 	 * When this note was removed, or null (0119). Soft: the row survives, which
 	 * is the only reason a restore can exist at all.
 	 *
@@ -136,8 +147,20 @@ export interface NoteThread {
 	history: NotebookNoteRow[];
 	/** When the note was first written (revision 1). */
 	createdAt: string;
-	/** When it last changed, or null if it never has. */
+	/** When a LATER REVISION was started, or null if there has never been one. */
 	editedAt: string | null;
+	/**
+	 * When the note's text last changed at all (0129) -- the head's
+	 * `updated_at` if an autosave has replaced it in place, and its
+	 * `created_at` otherwise.
+	 *
+	 * KEPT APART FROM `editedAt`, because they answer different questions and
+	 * coalescing is what made the difference visible. `editedAt` is "somebody
+	 * made a new version of this", which is an event worth a line in a history;
+	 * a replacement is the same version still being written, and reporting it
+	 * as an edit is the noise this whole change exists to remove.
+	 */
+	changedAt: string;
 	revisions: number;
 	/**
 	 * When the note was removed, or null (0119). Always null on a thread from
@@ -174,6 +197,7 @@ function buildThreads(rows: NotebookNoteRow[]): NoteThread[] {
 			history: ordered.slice(0, -1).reverse(),
 			createdAt: root.created_at,
 			editedAt: ordered.length > 1 ? current.created_at : null,
+			changedAt: current.updated_at ?? current.created_at,
 			revisions: ordered.length,
 			deletedAt: current.deleted_at ?? null,
 			deletedBy: current.deleted_by ?? null

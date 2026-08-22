@@ -451,6 +451,25 @@ with its own answer for the rows already stored.
   all. Editing INSERTS a superseding row; the chain is `supersedes_id` + a unique
   `(logical_id, revision)`, so "current" is a plain `max()` and two concurrent
   edits collide on the constraint instead of silently losing one.
+  - **THE ONE NARROWING, AND IT IS ABOUT WHAT NOBODY HAS READ YET (0129).** A
+    revision an AUTOSAVE wrote may be replaced in place by the next autosave,
+    because otherwise a debounce mints a revision per keystroke burst and a
+    ten-minute writing session turns in a version list dozens long -- which
+    makes the history the chain exists for unreadable and gives a whole-chain
+    delete far more to walk. **The grants do not move**: there is still no
+    UPDATE grant and no UPDATE policy, and the replacement happens inside a
+    SECURITY DEFINER RPC. **The licence comes from the AUDIENCE, not from the
+    convenience**: the row must be the head of its chain, written by the
+    caller themselves, live, and on a DRAFT -- which 0118 makes invisible to
+    staff -- so what append-only protects, the version somebody else saw, is
+    never what gets overwritten. `notebook_entry_notes.autosave` means
+    REPLACEABLE, not "was an autosave"; **an explicit save and a turn-in STAMP
+    A BOUNDARY** (`notebook_seal_notes`, and `notebook_submit_entry` does it
+    itself so no client can forget), and the predicate refuses a submitted
+    entry as a redundant second layer. `created_at` says when the revision was
+    STARTED and a replacement never moves it; `updated_at` says when it last
+    absorbed one. **Do not extend this to a surface whose writes are visible
+    to anyone but their author.**
 - **SOFT-DELETING A REVISION CHAIN MARKS EVERY ROW IN IT, never just the head.**
   Where "current" is a `max()` over a chain, stamping only the newest row promotes
   the one beneath it: a read filtering `deleted_at is null` then answers with the
@@ -585,6 +604,13 @@ narrower on failure, ending on a select that works on the oldest supported schem
   `deletionReady`), starting FALSE and turned on only by a rung that actually
   included it succeeding. The UI turns off exactly what is missing and says so; it
   never blanks the page.
+  - **A RUNG CAN ALSO BE WHAT LICENSES NAMING A NEW RPC PARAMETER**, and that
+    is the tidiest form of the deploy-ordering rule: a column and the parameter
+    that goes with it land in the same migration, so a rung that came back
+    PROVES the parameter exists. `coalescingReady` (0129) is the case --
+    `updated_at` on the note embed is what says `p_autosave` is safe to send.
+    Better than a `PGRST202` retry, which spends a failed round trip to learn
+    the same thing.
 - **A FILTER on a new column has the same problem as selecting it** -- PostgREST
   rejects a filter naming an unknown column. Apply it only on the rung that has
   the column, or try-then-fall-back.
@@ -935,8 +961,14 @@ inside the function fails closed rather than falling through to a weaker path.
     DRAFT entry, which is invisible at both read sites until it is turned in,
     so the revisions it mints are the author's own history and not a thread
     filling up in front of a reader. **Autosave into a record the moment it
-    becomes visible to anyone else is the thing this rule refuses**, and the
-    revision-per-write cost is real either way: see `docs/HISTORY.md`.
+    becomes visible to anyone else is the thing this rule refuses.**
+    - **AND THE REVISION-PER-WRITE COST IS PAID AT THE DATABASE, not by
+      debouncing harder (0129).** A revision the autosave wrote is REPLACED
+      by the next one rather than superseded; a deliberate save stamps a
+      boundary. See the append-only rule under "State modelling" for what
+      makes that safe and what it must never be extended to. A surface whose
+      writes ARE visible to someone else has neither half: it appends, and it
+      is `autosave: false`.
   - **`markDirty` driven from an `$effect` must be `untrack`ed.** It reads the
     phase it may then write, so a tracked call re-runs the effect on every
     transition and turns `saved` straight back into `dirty`. A dirty signal

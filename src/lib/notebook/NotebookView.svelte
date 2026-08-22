@@ -138,12 +138,14 @@
 		homeHref = '/',
 		masthead = true,
 		historyReady = true,
+		coalescingReady = false,
 		viewerId,
 		createEntry,
 		addPhoto,
 		createNote,
 		addNote,
 		editNote,
+		sealNotes,
 		folderTransports,
 		setPinned,
 		deleteEntry,
@@ -282,6 +284,20 @@
 		 */
 		historyReady?: boolean;
 		/**
+		 * Whether an autosave COALESCES into the head revision rather than
+		 * appending one (0129). False leaves this surface behaving exactly as it
+		 * did before -- it still autosaves, it simply mints a revision per burst
+		 * -- because the parameter that asks for a replacement does not exist on
+		 * a project without the migration, and naming it there would break every
+		 * note save rather than only the coalescing.
+		 *
+		 * IT IS THE GATE FOR BOTH HALVES, and that is why it lives here rather
+		 * than in each transport: the flag on a write and the boundary stamped by
+		 * a click are one capability, and a surface that sent one without the
+		 * other would leave a draft whose head nothing can ever seal.
+		 */
+		coalescingReady?: boolean;
+		/**
 		 * The signed-in caller's own id (0119). Threaded down to each card's
 		 * EntryNotes, which is the only thing that reads it -- see
 		 * NotebookEntryCard's own doc for why.
@@ -290,8 +306,15 @@
 		createEntry?: (form: FormData) => Promise<CreateEntryResult>;
 		addPhoto?: (form: FormData) => Promise<AddPhotoResult>;
 		createNote?: (payload: NotePayload) => Promise<CreateEntryResult>;
-		addNote?: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
-		editNote?: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		addNote?: (entryId: string, doc: TiptapNode, autosave?: boolean) => Promise<NoteSaveResult>;
+		editNote?: (noteId: string, doc: TiptapNode, autosave?: boolean) => Promise<NoteSaveResult>;
+		/**
+		 * Stamping a revision boundary on an entry's notes (0129,
+		 * notebook_seal_notes). Omitted removes nothing a student can see: the
+		 * autosave keeps working and an explicit save simply stops freezing the
+		 * version it saved, which is the pre-0129 behaviour.
+		 */
+		sealNotes?: (entryId: string) => Promise<EntryActionResult>;
 		/** Folder writes (0088). Omitted when foldersReady is false. */
 		folderTransports?: FolderTransports;
 		/** The one pin write (0091). Omitted when pinsReady is false. */
@@ -1036,7 +1059,7 @@
 	 * implementation, called by the autosave and by both buttons, so "add the
 	 * first note, edit it after that" cannot come to mean two things.
 	 */
-	async function persistNote(entryId: string): Promise<NoteSaveResult> {
+	async function persistNote(entryId: string, auto: boolean): Promise<NoteSaveResult> {
 		const doc = noteDraft as TiptapNode;
 		if (noteChainUnknown) {
 			return {
@@ -1044,7 +1067,17 @@
 				error: 'Your writing could not be added to this entry. Save it from the entry itself.'
 			};
 		}
-		const result = savedNoteId && editNote ? await editNote(savedNoteId, doc) : await addNote!(entryId, doc);
+		/**
+		 * `auto` says WHERE this write came from, and it reaches the RPC only
+		 * where the migration that understands it is applied (0129). A write from
+		 * a button is never one, which is what makes a click a boundary: the
+		 * revision it lands is one nothing may write across.
+		 */
+		const asAutosave = auto && coalescingReady;
+		const result =
+			savedNoteId && editNote
+				? await editNote(savedNoteId, doc, asAutosave)
+				: await addNote!(entryId, doc, asAutosave);
 		if (!result.ok) return result;
 		if (!savedNoteId) {
 			savedNoteId = result.noteId ?? null;
@@ -1092,14 +1125,19 @@
 				folder_id: folderChoice,
 				session_id: selectedSession,
 				section_id: selectedSession ? sectionForPick() : null,
-				submitted: false
+				submitted: false,
+				// The very first autosave is a CREATE, and its revision is the one
+				// a ten-minute writing session keeps rewriting. Unmarked, that
+				// session would end with two revisions and the first would be a
+				// snapshot of whatever had been typed 800ms in.
+				autosave: coalescingReady
 			});
 			if (!saved.ok) return { ok: false, retryable: true, message: saved.error };
 			rememberDraft(saved.entryId, saved.noteId, true);
 			return { ok: true };
 		}
 		if (noteDue) {
-			const wrote = await persistNote(savedDraftId);
+			const wrote = await persistNote(savedDraftId, true);
 			// A chain this cannot name never gets here -- `noteDue` is false while
 			// `noteChainUnknown` is set, which is what fails that case closed rather
 			// than retrying it into a second note. Everything reaching this line is
@@ -1131,6 +1169,8 @@
 			session_id: selectedSession,
 			section_id: selectedSession ? sectionForPick() : null,
 			submitted
+			// No `autosave`: this is a button. The revision it creates is a
+			// boundary, so the next autosave writes past it rather than over it.
 		});
 		if (!saved.ok) {
 			errorMsg = saved.error;
@@ -1205,7 +1245,7 @@
 		let noteFailed = false;
 		if (noteUnsaved) {
 			progress = 'Saving your note...';
-			const savedNote = await persistNote(created.entryId);
+			const savedNote = await persistNote(created.entryId, false);
 			noteFailed = !savedNote.ok;
 		}
 
@@ -1283,13 +1323,31 @@
 		// revision saying the same thing.
 		if (noteUnsaved) {
 			progress = 'Saving your note...';
-			const savedNote = await persistNote(entryId);
+			const savedNote = await persistNote(entryId, false);
 			noteFailed = !savedNote.ok;
 		}
 		if (labelDue) {
 			const titled = await persistLabel(entryId);
 			if (!titled.ok) errorMsg = titled.error;
 		}
+		/**
+		 * THE CLICK STAMPS A REVISION BOUNDARY (0129), and it does so
+		 * UNCONDITIONALLY rather than only when there was nothing to write.
+		 *
+		 * The common case is the one that needs it: the autosave already sent
+		 * exactly these words, so `noteUnsaved` is false and this click has
+		 * nothing to send -- and without a stamp the head stays replaceable and
+		 * the next keystroke writes straight over the version the student meant
+		 * to keep. Where the write above DID land a revision, that revision is
+		 * already a boundary and this is a no-op; branching on which case it is
+		 * would be two spellings of one rule, and the cheaper one is the one
+		 * that can stop matching.
+		 *
+		 * A failure here is SILENT on purpose. Nothing a student can see depends
+		 * on it, the words are saved either way, and a red line about revision
+		 * granularity beside a successful save would be a report of nothing.
+		 */
+		if (coalescingReady && sealNotes) await sealNotes(entryId);
 		const failed: number[] = [];
 		const failedEnhanced: number[] = [];
 		for (let i = 0; i < staged.length; i++) {

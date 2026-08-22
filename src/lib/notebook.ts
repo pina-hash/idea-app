@@ -704,4 +704,16 @@ export interface NotePayload {
 	 * where 0118 has not been applied yet.
 	 */
 	submitted?: boolean;
+	/**
+	 * This write came from the AUTOSAVE rather than from a button (0129), so
+	 * the revision it creates may be replaced in place by the next one.
+	 *
+	 * Named on the RPC only when the coalescing capability came back -- see
+	 * `NOTEBOOK_COALESCE_SELECT` in $lib/notebook-selects. A project without
+	 * 0129 has no such parameter, and naming it would leave PostgREST unable to
+	 * resolve the function at all: every note save broken, not just the
+	 * coalescing. Omitted, the call matches either version and the autosave
+	 * behaves exactly as it did before, appending a revision per burst.
+	 */
+	autosave?: boolean;
 }

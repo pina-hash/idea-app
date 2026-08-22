@@ -87,6 +87,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * because a read that actually included it came back, never by default.
 	 */
 	const ready: Record<string, boolean> = {
+		coalescing: false,
 		history: false,
 		drafts: false,
 		deletion: false,
@@ -147,6 +148,18 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * flag at all.
 	 */
 	const historyReady = ready.history;
+	/**
+	 * Whether an autosave COALESCES into the head revision instead of appending
+	 * one (0129). False means the notebook behaves exactly as it did before:
+	 * every autosave mints a revision, which is worse but is not broken -- so
+	 * this is what decides whether the composer names `p_autosave` at all, and
+	 * naming it on a project without the migration is what WOULD break it.
+	 *
+	 * It is also the only rung that carries `updated_at`, so a false here leaves
+	 * every revision reading as "never changed", which is correct where nothing
+	 * could have changed one.
+	 */
+	const coalescingReady = ready.coalescing;
 
 	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
 		const row = r as unknown as Record<string, unknown>;
@@ -531,6 +544,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 		initialCheckIn,
 		viewerId: claims.sub,
 		historyReady,
+		coalescingReady,
 		draftsReady,
 		deletionReady,
 		photosReady,

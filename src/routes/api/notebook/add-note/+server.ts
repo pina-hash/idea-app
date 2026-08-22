@@ -18,6 +18,7 @@ import type { RequestHandler } from './$types';
  * JSON body:
  *   entry_id  uuid of the entry to extend (required)
  *   content   the editor's document (required; normalized before storage)
+ *   autosave  true marks the revision REPLACEABLE (0129)
  */
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
@@ -42,10 +43,16 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: note.error }, { status: 400 });
 	}
 
-	const { data, error } = await supabase.rpc('notebook_add_note', {
-		p_entry_id: entryId,
-		p_content: note.doc
-	});
+	/**
+	 * p_autosave is named ONLY when the caller asked for it (0129), which is the
+	 * deploy-ordering rule every other optional parameter in these routes
+	 * follows: on a project still on 0128 the function has no such parameter and
+	 * naming it would leave PostgREST unable to resolve the call at all.
+	 */
+	const args: Record<string, unknown> = { p_entry_id: entryId, p_content: note.doc };
+	if (body.autosave === true) args.p_autosave = true;
+
+	const { data, error } = await supabase.rpc('notebook_add_note', args);
 	if (error) {
 		return json({ error: error.message }, { status: 400 });
 	}

@@ -140,6 +140,31 @@ export const NOTEBOOK_HISTORY_SELECT = `id, session_id, section_id, custom_label
 	 folder_id, pinned_at, deleted_at, submitted_at`;
 
 /**
+ * + coalesced autosave revisions (0129): `updated_at` on each note revision,
+ * which is when a head last absorbed an autosave and null when it never has.
+ *
+ * A NEW WIDEST RUNG, WRITTEN OUT IN FULL for the reason the deletion and
+ * history rungs are: it widens the NOTE EMBED, whose field list sits in the
+ * middle of the string, and a rung below must never be rewritten.
+ *
+ * ITS OWN RUNG, AND IT CARRIES A SECOND JOB. Reaching it is also what says the
+ * write RPCs take `p_autosave` at all -- the column and the parameter land in
+ * the same migration, so a project that has one has the other. The composer
+ * names that parameter ONLY when this rung came back, which is what lets a
+ * deployment sitting between 0128 and 0129 keep autosaving exactly as it did
+ * before: appending a revision per burst, which is worse but is not broken.
+ *
+ * IT DOES NOT CARRY `autosave` ITSELF. The flag is bookkeeping the database
+ * uses to decide what the next write does; no surface renders it, and a column
+ * that reaches a payload reaches a console, an export and a screenshot.
+ */
+export const NOTEBOOK_COALESCE_SELECT = `id, session_id, section_id, custom_label,
+	 upload_timestamp, status, flag_reason, instructor_comment, reviewed_at,
+	 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename, removed_at, created_at ),
+	 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at, updated_at, deleted_at, deleted_by ),
+	 folder_id, pinned_at, deleted_at, submitted_at`;
+
+/**
  * Widest first; each entry names the capability its rung adds, so the load can
  * report exactly what it lost rather than one boolean for all of it.
  *
@@ -167,6 +192,7 @@ export const NOTEBOOK_DELETED_SELECT =
 	'id, session_id, custom_label, upload_timestamp, deleted_at, deleted_by';
 
 export const NOTEBOOK_ENTRY_SELECTS = [
+	{ select: NOTEBOOK_COALESCE_SELECT, capability: 'coalescing', excludeDeleted: true },
 	{ select: NOTEBOOK_HISTORY_SELECT, capability: 'history', excludeDeleted: true },
 	{ select: NOTEBOOK_DRAFT_SELECT, capability: 'drafts', excludeDeleted: true },
 	{ select: NOTEBOOK_DELETION_SELECT, capability: 'deletion', excludeDeleted: true },

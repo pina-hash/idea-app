@@ -65,18 +65,48 @@
 		return { ok: true };
 	}
 
-	async function addNote(entryId: string, doc: TiptapNode): Promise<NoteSaveResult> {
+	/**
+	 * `autosave` (0129) is forwarded, never decided here: the composer knows
+	 * whether a write came from the debounce or from a button, and the DATABASE
+	 * decides whether that makes it a replacement. It reaches the RPC only when
+	 * the coalescing capability came back -- see NotebookView, which is where
+	 * that gate lives, so a caller cannot forget it in one transport and
+	 * remember it in another.
+	 */
+	async function addNote(
+		entryId: string,
+		doc: TiptapNode,
+		autosave = false
+	): Promise<NoteSaveResult> {
 		return readOk(
-			await post('/api/notebook/add-note', { entry_id: entryId, content: doc }),
+			await post('/api/notebook/add-note', { entry_id: entryId, content: doc, autosave }),
 			'The note failed to save.'
 		);
 	}
 
-	async function editNote(noteId: string, doc: TiptapNode): Promise<NoteSaveResult> {
+	async function editNote(
+		noteId: string,
+		doc: TiptapNode,
+		autosave = false
+	): Promise<NoteSaveResult> {
 		return readOk(
-			await post('/api/notebook/edit-note', { note_id: noteId, content: doc }),
+			await post('/api/notebook/edit-note', { note_id: noteId, content: doc, autosave }),
 			'The change failed to save.'
 		);
+	}
+
+	/**
+	 * STAMPING A REVISION BOUNDARY (0129, notebook_seal_notes). Straight to the
+	 * RPC rather than through a route, on the rule the folder writes already
+	 * follow: it is one call with one uuid and no server-side work to do first.
+	 *
+	 * A refusal is REPORTED, not retried -- the machine's backoff belongs to the
+	 * network, and a server that considered this and said no will say no again.
+	 */
+	async function sealNotes(entryId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_seal_notes', { p_entry_id: entryId });
+		if (error) return { ok: false, error: error.message || 'Could not save that version.' };
+		return { ok: true };
 	}
 
 	/**
@@ -237,12 +267,14 @@
 	deletedEntries={data.deletedEntries}
 	uploadReady={data.uploadReady}
 	historyReady={data.historyReady}
+	coalescingReady={data.coalescingReady}
 	viewerId={data.viewerId}
 	{createEntry}
 	{addPhoto}
 	{createNote}
 	{addNote}
 	{editNote}
+	{sealNotes}
 	{folderTransports}
 	{setPinned}
 	{deleteEntry}

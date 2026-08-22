@@ -11,7 +11,13 @@
  *
  *   the entry   upload_timestamp, submitted_at, reviewed_at, deleted_at
  *   a photo     created_at, removed_at
- *   a note      created_at (per revision), revision, deleted_at
+ *   a note      created_at (per revision), revision, updated_at, deleted_at
+ *
+ * 0129 added `updated_at` to that list rather than a table: a revision the
+ * autosave kept replacing in place is still ONE event, at the moment it was
+ * started, and the extra stamp is what lets the line say the writing carried
+ * on. An event log would have been the obvious way to record a replacement,
+ * and is exactly what this file refuses.
  *
  * A log table would be a SECOND record of those same facts, free to disagree
  * with them -- a write that forgets to log, a log row for a write that rolled

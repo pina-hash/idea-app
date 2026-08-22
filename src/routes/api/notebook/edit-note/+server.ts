@@ -18,6 +18,10 @@ import type { RequestHandler } from './$types';
  *   note_id  the LOGICAL note (notebook_entry_notes.note_id), not a
  *            particular revision (required)
  *   content  the editor's document (required; normalized before storage)
+ *   autosave true REPLACES the head revision in place instead of appending a
+ *            new one (0129), when the head is itself a replaceable autosave
+ *            revision by this caller on a draft. The database decides; this
+ *            only forwards the intent.
  */
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
@@ -42,10 +46,18 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: note.error }, { status: 400 });
 	}
 
-	const { data, error } = await supabase.rpc('notebook_edit_note', {
-		p_note_id: noteId,
-		p_content: note.doc
-	});
+	/**
+	 * p_autosave (0129) is what turns an APPEND into a REPLACEMENT of the head,
+	 * and it is named only when the caller asked for it -- both because a
+	 * project still on 0128 has no such parameter (PostgREST would fail to
+	 * resolve the function and break every note edit) and because the entry
+	 * card's own note editor must never send it: that surface mints a revision
+	 * an instructor may already have read.
+	 */
+	const args: Record<string, unknown> = { p_note_id: noteId, p_content: note.doc };
+	if (body.autosave === true) args.p_autosave = true;
+
+	const { data, error } = await supabase.rpc('notebook_edit_note', args);
 	if (error) {
 		return json({ error: error.message }, { status: 400 });
 	}

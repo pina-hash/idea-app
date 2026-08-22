@@ -110,7 +110,8 @@ const FULL_CHAIN = [
 	'0116_notebook_soft_delete.sql',
 	'0117_notebook_soft_delete_restore.sql',
 	'0118_notebook_draft_state.sql',
-	'0119_notebook_note_delete.sql'
+	'0119_notebook_note_delete.sql',
+	'0129_notebook_note_coalesce.sql'
 ];
 
 /**
@@ -126,7 +127,11 @@ const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter(
 		m !== '0116_notebook_soft_delete.sql' &&
 		m !== '0117_notebook_soft_delete_restore.sql' &&
 		m !== '0118_notebook_draft_state.sql' &&
-		m !== '0119_notebook_note_delete.sql'
+		m !== '0119_notebook_note_delete.sql' &&
+		// 0129 reads both `submitted_at` (0118) and `deleted_at` (0119), so it
+		// cannot stand on a chain missing either -- a state short of 0116 is
+		// short of everything above it, not of one file in the middle.
+		m !== '0129_notebook_note_coalesce.sql'
 );
 
 /**
@@ -138,7 +143,10 @@ const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter(
  * handed-in work as nothing handed in.
  */
 const PRE_DRAFT_CHAIN = FULL_CHAIN.filter(
-	(m) => m !== '0118_notebook_draft_state.sql' && m !== '0119_notebook_note_delete.sql'
+	(m) =>
+		m !== '0118_notebook_draft_state.sql' &&
+		m !== '0119_notebook_note_delete.sql' &&
+		m !== '0129_notebook_note_coalesce.sql'
 );
 
 /**
@@ -148,7 +156,19 @@ const PRE_DRAFT_CHAIN = FULL_CHAIN.filter(
  * the shape most likely to take a working page down with it. A pre-0119 project
  * must degrade to exactly the notebook it had, with every note live.
  */
-const PRE_HISTORY_CHAIN = FULL_CHAIN.filter((m) => m !== '0119_notebook_note_delete.sql');
+const PRE_HISTORY_CHAIN = FULL_CHAIN.filter(
+	(m) => m !== '0119_notebook_note_delete.sql' && m !== '0129_notebook_note_coalesce.sql'
+);
+
+/**
+ * Short of 0129 ONLY: everything up to and including the entry history,
+ * coalesced autosave revisions not. Its own state and its own database,
+ * because the coalescing rung widens the NOTE EMBED again -- and because what
+ * it gates is not a control but a PARAMETER the composer sends. A project
+ * without it must come back with the capability off, so the composer never
+ * names `p_autosave` on a function that does not take one.
+ */
+const PRE_COALESCE_CHAIN = FULL_CHAIN.filter((m) => m !== '0129_notebook_note_coalesce.sql');
 
 /**
  * A project with the notebook's DEPENDENCIES but not one notebook migration --
@@ -189,6 +209,7 @@ let keptPhotoId: string; // its live sibling: the control
 interface LoadResult {
 	configured: boolean;
 	historyReady: boolean;
+	coalescingReady: boolean;
 	draftsReady: boolean;
 	deletionReady: boolean;
 	photosReady: boolean;
@@ -353,6 +374,48 @@ describe('the shipped select strings against the real schema', () => {
 	});
 
 	/**
+	 * THE ENTRY LADDER NARROWS STRICTLY TOO, asserted as the rule rather than as
+	 * a list -- the same property the posting ladder is held to below, and the
+	 * one the whole ladder doctrine rests on: every rung is the one beneath it
+	 * plus something, at the top level AND inside each embed, so degrading one
+	 * step can never cost an unrelated capability.
+	 *
+	 * It was missing here, which is how a rung that widens an embed could have
+	 * been written narrower than the one under it and cost photos to gain a note
+	 * column. 0129 added a rung above the history one, which is exactly the move
+	 * this catches when it goes wrong.
+	 */
+	it('widens strictly from the narrowest entry rung to the widest', () => {
+		const rungs = NOTEBOOK_ENTRY_SELECTS.map((r) => selectShape(r.select));
+		expect(rungs.length).toBeGreaterThan(1);
+		let compared = 0;
+		for (let i = 0; i + 1 < rungs.length; i++) {
+			const wide = rungs[i];
+			const narrow = rungs[i + 1];
+			for (const c of narrow.scalars) expect(wide.scalars).toContain(c);
+			for (const [table, columns] of narrow.embeds) {
+				expect(
+					wide.embeds.has(table),
+					`the rung above dropped the ${table} embed the one below it carries`
+				).toBe(true);
+				for (const c of columns) expect(wide.embeds.get(table)!).toContain(c);
+			}
+			const size = (shape: { scalars: string[]; embeds: Map<string, string[]> }) =>
+				shape.scalars.length + [...shape.embeds.values()].reduce((n, c) => n + c.length, 0);
+			expect(size(wide)).toBeGreaterThan(size(narrow));
+			compared += 1;
+		}
+		// A generated sweep asserts its own case count, or a parser returning
+		// nothing passes it without comparing a thing.
+		expect(compared).toBe(NOTEBOOK_ENTRY_SELECTS.length - 1);
+		// And the newest rung is the widest, carrying the column that says the
+		// coalescing migration is applied.
+		expect(NOTEBOOK_ENTRY_SELECTS[0].capability).toBe('coalescing');
+		expect(NOTEBOOK_ENTRY_SELECTS[0].select).toContain('created_at, updated_at, deleted_at');
+		expect(NOTEBOOK_ENTRY_SELECTS[1].select).not.toContain('updated_at');
+	});
+
+	/**
 	 * The instructor console's per-entry read (`/notebook/review`), which named
 	 * its three embeds inline in the route and so had none of the coverage
 	 * above -- the same position the feed's ladder was in on the day 0098 broke
@@ -461,6 +524,7 @@ describe('the real load against the full chain (0069 through 0116)', () => {
 		// The headline: this is the assertion that was false in production.
 		expect(result.configured).toBe(true);
 		expect(result.historyReady).toBe(true);
+		expect(result.coalescingReady).toBe(true);
 		expect(result.draftsReady).toBe(true);
 		expect(result.deletionReady).toBe(true);
 		expect(result.photosReady).toBe(true);
@@ -798,6 +862,84 @@ describe('note deletion (0119) reaches the feed, and degrades to nothing without
 		expect(entry.reviewed_at).toBeUndefined();
 
 		// Everything below the new rung is unaffected, 0118's included.
+		expect(result.draftsReady).toBe(true);
+		expect(result.deletionReady).toBe(true);
+		expect(result.photosReady).toBe(true);
+		expect(result.notesReady).toBe(true);
+		expect(result.foldersReady).toBe(true);
+		expect(result.pinsReady).toBe(true);
+		// And the rung ABOVE it is off too, which it has to be: the coalescing
+		// rung is wider still, so it cannot have come back on a database missing
+		// the one beneath it.
+		expect(result.coalescingReady).toBe(false);
+	}, 180_000);
+});
+
+describe('coalesced revisions (0129) reach the feed, and degrade to nothing without them', () => {
+	let preCoalesce: TestDb;
+
+	afterAll(async () => {
+		await preCoalesce?.stop();
+	});
+
+	it('carries updated_at through, so the history can say the writing carried on', async () => {
+		// Written the way the composer writes it: a create that marks its own
+		// revision replaceable, then an autosave that lands on the same row.
+		const noteId = await db.asUser(alice.id, async (q) => {
+			const { rows } = await q<{ result: { note_id: string } }>(
+				`select public.notebook_create_note_entry($1::jsonb, $2, null, null, null, false, true) as result`,
+				[JSON.stringify([{ type: 'p', runs: [{ text: 'Half a sentence' }] }]), 'Being written']
+			);
+			return rows[0].result.note_id;
+		});
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_edit_note($1::uuid, $2::jsonb, true)', [
+				noteId,
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Half a sentence, then the rest' }] }])
+			])
+		);
+
+		const result = await runLoad(db, fks, alice);
+		const entry = result.entries.find((e) => e.notes.some((n) => n.note_id === noteId));
+		expect(entry).toBeDefined();
+		// ONE revision, not two, and it carries both stamps.
+		const thread = noteThreads(entry!.notes).find((t) => t.noteId === noteId)!;
+		expect(thread.revisions).toBe(1);
+		expect(thread.editedAt).toBeNull();
+		expect(thread.current.updated_at).toBeTruthy();
+		expect(thread.changedAt).toBe(thread.current.updated_at);
+		expect(thread.changedAt).not.toBe(thread.createdAt);
+	});
+
+	it('degrades to a notebook where nothing has been rewritten, on a project without 0129', async () => {
+		preCoalesce = await startTestDb(PRE_COALESCE_CHAIN);
+		const keys = await loadForeignKeys(preCoalesce);
+		const student = await createUser(preCoalesce, 'alice@boscotech.net', 'Alice Alvarez');
+		await preCoalesce.asUser(student.id, (q) =>
+			q('select public.notebook_create_note_entry($1::jsonb, $2, null, null)', [
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Written once.' }] }]),
+				'Pre-0129 entry'
+			])
+		);
+		const result = await runLoad(preCoalesce, keys, student);
+
+		expect(result.configured).toBe(true);
+		// THE FLAG THAT DECIDES WHETHER THE COMPOSER NAMES `p_autosave`. False
+		// here is what keeps a deployment sitting between 0128 and 0129 saving
+		// notes at all: the parameter does not exist there, and naming it would
+		// leave PostgREST unable to resolve the function.
+		expect(result.coalescingReady).toBe(false);
+		expect(result.entries).toHaveLength(1);
+
+		// ABSENT, NOT NULL, the same direction 0119's own degrade guards: a
+		// narrower rung never asked for the column, and a null would be a claim.
+		const entry = result.entries[0];
+		expect(entry.notes).toHaveLength(1);
+		expect(entry.notes[0].updated_at).toBeUndefined();
+		expect(noteThreads(entry.notes)[0].changedAt).toBe(entry.notes[0].created_at);
+
+		// Everything below the rung is untouched.
+		expect(result.historyReady).toBe(true);
 		expect(result.draftsReady).toBe(true);
 		expect(result.deletionReady).toBe(true);
 		expect(result.photosReady).toBe(true);
