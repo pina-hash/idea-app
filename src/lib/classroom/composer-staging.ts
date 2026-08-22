@@ -336,16 +336,59 @@ export interface ComposerDraft {
 	checkIn: CheckInDraft | null;
 }
 
+/**
+ * THE DRAFT REDUCED TO WHAT A CHANGE TO IT WOULD MEAN.
+ *
+ * Two different questions are asked of a composer and BOTH are this same
+ * comparison against a different reference, which is why there is one function
+ * rather than two rules that can stop agreeing:
+ *
+ *   "is there work in here"   -> does this differ from an EMPTY draft
+ *   "has this been edited"    -> does this differ from what it OPENED ON
+ *
+ * The second one is why the signature exists at all. `composerHasWork` was
+ * doing double duty as the dirty signal, and a composer opened on an EXISTING
+ * item is full of that item's own title and body from the first frame -- so it
+ * reported dirty before anybody had typed, and the navigation guard asked
+ * whether to discard work nobody had done. See `$lib/edit-baseline`.
+ *
+ * NORMALIZED THE WAY `composerHasWork` ALWAYS READ THE DRAFT, field for field:
+ * text is trimmed, a link with no URL is not a link, and a staged deck, spec or
+ * check-in counts as present rather than by its contents. Anything looser makes
+ * the two answers disagree -- an empty link row a person added and did not fill
+ * in would read as an edit while still not counting as work.
+ */
+export function composerDraftSignature(draft: ComposerDraft): string {
+	const urls = (rows: { url: string }[]) =>
+		rows.map((r) => r.url.trim()).filter((u) => u !== '');
+	return JSON.stringify({
+		title: draft.title.trim(),
+		bodyText: draft.bodyText.trim(),
+		files: draft.files,
+		instructorFiles: draft.instructorFiles,
+		links: urls(draft.links),
+		instructorLinks: urls(draft.instructorLinks),
+		deck: draft.deck ? 1 : 0,
+		spec: draft.spec != null ? 1 : 0,
+		checkIn: draft.checkIn ? 1 : 0
+	});
+}
+
+/** A draft holding nothing: the reference "is there work in here" asks against. */
+export const EMPTY_COMPOSER_DRAFT: ComposerDraft = {
+	title: '',
+	bodyText: '',
+	files: 0,
+	instructorFiles: 0,
+	links: [],
+	instructorLinks: [],
+	deck: null,
+	spec: null,
+	checkIn: null
+};
+
 export function composerHasWork(draft: ComposerDraft): boolean {
-	if (draft.title.trim() !== '') return true;
-	if (draft.bodyText.trim() !== '') return true;
-	if (draft.files > 0 || draft.instructorFiles > 0) return true;
-	if (draft.deck) return true;
-	if (draft.spec != null) return true;
-	if (draft.checkIn) return true;
-	if (draft.links.some((r) => r.url.trim() !== '')) return true;
-	if (draft.instructorLinks.some((r) => r.url.trim() !== '')) return true;
-	return false;
+	return composerDraftSignature(draft) !== composerDraftSignature(EMPTY_COMPOSER_DRAFT);
 }
 
 /** The one wording, so the close confirm and the navigation confirm agree. */

@@ -139,6 +139,10 @@
 		font-size: 1rem;
 	}
 	.updates-all {
+		/* 17.9px measured, on the student home page. 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--gold);
@@ -200,7 +204,7 @@
 		gap: 0.55rem;
 		padding: 1rem 1.05rem 0.9rem;
 		background: var(--surface-1);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		text-decoration: none;
 		color: var(--text-1);

@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
@@ -11,7 +12,8 @@
 	import {
 		COMPOSER_DISCARD_WARNING,
 		applyStagedExtras,
-		composerHasWork,
+		composerDraftSignature,
+		type ComposerDraft,
 		saveTarget,
 		stagedDeckIssue,
 		stagedSpecKind
@@ -572,6 +574,33 @@
 		return parts.join(' ');
 	}
 
+	/** Everything a person could have put in here, in one place. */
+	const draft = $derived<ComposerDraft>({
+		title,
+		bodyText: tiptapText(bodyDoc),
+		files: staged.length,
+		instructorFiles: instructorStaged.length,
+		links,
+		instructorLinks,
+		deck: stagedDeck,
+		spec: stagedSpec,
+		checkIn: stagedCheckIn
+	});
+
+	/**
+	 * WHAT THIS COMPOSER OPENED ON, seeded once the editor has reported its own
+	 * serialization of the body (`onready`, below) and re-seeded after a create
+	 * that fully landed, which resets every field back to a fresh post.
+	 *
+	 * WITHOUT IT `dirty` MEANT "IS THERE CONTENT IN HERE", and in edit mode that
+	 * is true from the first frame: the composer opens holding the item's own
+	 * title and body. So a composer opened on an existing item and closed again
+	 * asked whether to discard work nobody had done -- and a warning that fires
+	 * when nothing is wrong is a warning people learn to click through, which
+	 * costs the one case it exists for. See `$lib/edit-baseline`.
+	 */
+	const baseline = new EditBaseline();
+
 	/**
 	 * WORK THAT WOULD BE LOST, pushed up on every change.
 	 *
@@ -579,19 +608,7 @@
 	 * unmount it, so whoever owns its lifetime asks the question. Kept as one
 	 * derived + one effect so the answer can never lag the fields it reads.
 	 */
-	const dirty = $derived(
-		composerHasWork({
-			title,
-			bodyText: tiptapText(bodyDoc),
-			files: staged.length,
-			instructorFiles: instructorStaged.length,
-			links,
-			instructorLinks,
-			deck: stagedDeck,
-			spec: stagedSpec,
-			checkIn: stagedCheckIn
-		})
-	);
+	const dirty = $derived(baseline.changed(composerDraftSignature(draft)));
 	$effect(() => {
 		ondirtychange?.(dirty);
 	});
@@ -980,7 +997,17 @@
 				{compact}
 				disabled={busy}
 				onchange={(doc) => (bodyDoc = doc)}
-				onready={(doc) => (bodyDoc = doc)}
+				onready={(doc) => {
+					// THE BASELINE, NOT AN EDIT. Seeding Tiptap emits a transaction
+					// of its own, so `bodyDoc` arriving here is the stored body
+					// normalized -- what the composer opened on, by definition.
+					// Taken from the editor's serialization rather than `seedDoc`
+					// so that normalization can never read as an unsaved change.
+					bodyDoc = doc;
+					baseline.seed(
+						composerDraftSignature({ ...untrack(() => draft), bodyText: tiptapText(doc) })
+					);
+				}}
 				placeholder={editingKind === 'post'
 					? 'Share something with your class...'
 					: 'What this is, and what to do with it...'}
@@ -1416,7 +1443,7 @@
 	}
 	input {
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -1445,7 +1472,7 @@
 	.kind {
 		appearance: none;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: var(--font-mono);

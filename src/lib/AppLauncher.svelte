@@ -544,7 +544,16 @@
 		   there, FRC at 3.35 being the worst. --acc-line is the CTA pill
 		   outline, which decorates a LABEL whose own text already clears
 		   4.5:1 and is not a control anyone can operate on its own; raising
-		   it to the edge weight would draw every card as a wireframe. */
+		   it to the edge weight would draw every card as a wireframe.
+
+		   --acc-edge IS THE --boundary CONTRACT WITH AN IDENTITY COLOUR IN IT,
+		   and it is the only place in the app that needs its own spelling of
+		   it. The shared token (design-system/colors.css) is the neutral answer
+		   every other load-bearing boundary takes; this one cannot take it,
+		   because a launcher card's edge carries the app's brand and swapping
+		   in a neutral grey would delete eleven deliberate identity decisions
+		   to satisfy a rule the accent already satisfies. Same floor, same
+		   measurement method, colour supplied by the card. */
 		--acc-edge: color-mix(in srgb, var(--acc-ink) 75%, transparent);
 		--acc-edge-strong: var(--acc-ink);
 		--acc-line: color-mix(in srgb, var(--acc-ink) 20%, transparent);

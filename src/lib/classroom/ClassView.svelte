@@ -1129,6 +1129,11 @@
 	   at the far end of the row, which is where a destination belongs beside
 	   two things that open panels. */
 	.manage-link {
+		/* 17.4px measured. A student's own way into their notebook from the
+		   class page, so it takes the floor (IDEA_INTERFACE_STANDARDS 10). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		flex: none;
 		margin-left: auto;
 		align-self: center;
@@ -1206,7 +1211,10 @@
 		cursor: pointer;
 		text-align: left;
 		font: inherit;
-		min-height: 40px;
+		/* 40px measured. A unit header is how a student opens the work for that
+		   unit, so it takes the 44px floor (IDEA_INTERFACE_STANDARDS 10). Block
+		   padding carries it; the type is untouched. */
+		min-height: 44px;
 	}
 	.group-caret {
 		flex: none;
@@ -1241,7 +1249,7 @@
 		padding: 0;
 	}
 	.row-wrap {
-		border-top: 1px solid var(--hairline);
+		border-top: 1px solid var(--boundary);
 	}
 	.row-wrap:first-child {
 		border-top: none;
@@ -1269,8 +1277,12 @@
 	.row-expand {
 		appearance: none;
 		flex: none;
+		/* 30x40 measured. The WIDTH stays 30px on purpose: this sits at the
+		   end of a row whose whole body is already a link to the same item,
+		   so a 44px-wide box would eat into the target beside it. The height
+		   is the floor (IDEA_INTERFACE_STANDARDS 10). */
 		width: 30px;
-		min-height: 40px;
+		min-height: 44px;
 		display: grid;
 		place-items: center;
 		background: none;
@@ -1464,7 +1476,7 @@
 	.menu-trigger:hover,
 	.menu-trigger[aria-expanded='true'] {
 		color: var(--text-1);
-		border-color: var(--hairline);
+		border-color: var(--boundary);
 		background: var(--surface-2);
 	}
 	.menu {
@@ -1477,7 +1489,7 @@
 		display: flex;
 		flex-direction: column;
 		background: var(--surface-1);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		box-shadow: 0 10px 26px rgb(0 0 0 / 45%);
 	}
@@ -1518,7 +1530,7 @@
 		flex-direction: column;
 		gap: 0.2rem;
 		padding: 0.4rem 0.55rem 0.35rem;
-		border-top: 1px solid var(--hairline);
+		border-top: 1px solid var(--boundary);
 		margin-top: 0.25rem;
 	}
 	.menu-unit-label {

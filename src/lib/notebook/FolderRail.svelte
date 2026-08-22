@@ -136,6 +136,10 @@
 		flex: 0 0 auto;
 	}
 	.tab {
+		/* 31px measured. The notebook is the most student-facing surface there
+		   is and these are how a student filters their own entries, so 44px is
+		   the floor at every width (IDEA_INTERFACE_STANDARDS 10). Padding carries it. */
+		min-height: 44px;
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-2);
@@ -194,6 +198,11 @@
 		color: var(--nb-accent-ink);
 	}
 	.manage {
+		/* 28px measured. 44px floor (IDEA_INTERFACE_STANDARDS 10); it sits at the end of the rail on
+		   its own, so it can grow rather than reach. */
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
 		flex: 0 0 auto;
 		border: none;
 		background: none;

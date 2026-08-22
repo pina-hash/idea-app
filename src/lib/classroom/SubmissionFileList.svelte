@@ -147,7 +147,7 @@
 	.file-remove {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: var(--font-mono);

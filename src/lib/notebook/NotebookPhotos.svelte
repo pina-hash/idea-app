@@ -316,7 +316,7 @@
 		width: 4.5rem;
 		height: 4.5rem;
 		padding: 0;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		background: var(--surface-2);
 		overflow: hidden;

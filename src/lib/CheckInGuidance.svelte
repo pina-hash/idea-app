@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import {
 		GUIDANCE_WORD_TARGET,
@@ -84,27 +85,17 @@
 	let current = $state<TiptapNode | null>(null);
 
 	/**
-	 * THE LAST DOCUMENT THE SERVER IS KNOWN TO HOLD, serialized. It is what
-	 * every incoming change is COMPARED against before anything is called dirty.
+	 * THE LAST DOCUMENT THE SERVER IS KNOWN TO HOLD. Every incoming change is
+	 * COMPARED against it before anything is called dirty.
 	 *
-	 * WITHOUT THIS THE FIELD AUTOSAVES ITSELF FOREVER, and that is not a
-	 * hypothetical -- it is what this component did the first time it was driven
-	 * in a browser. Seeding Tiptap emits a transaction of its own (ProseMirror
-	 * normalizes what it is handed), `onchange` fired with a document nobody had
-	 * typed, `markDirty` armed the debounce, the write landed, the resulting
-	 * re-render produced another transaction, and the counter on the harness
-	 * passed 150 saves in a few seconds. In the review console, where each save
-	 * refetches the section, it wedged the renderer outright.
-	 *
-	 * So: COMPARE BEFORE STAMPING. It is the same rule the "Updated" badge
-	 * follows -- a save that changed nothing is not an edit -- applied to the
-	 * signal rather than to the badge, and the comparison is against the
-	 * EDITOR'S OWN serialization at mount, so a harmless normalization of the
-	 * stored document can never read as an unsaved change.
+	 * WITHOUT THIS THE FIELD AUTOSAVES ITSELF FOREVER -- 151 writes in a few
+	 * seconds, measured here first. `$lib/edit-baseline` carries the full
+	 * account and is now the ONE implementation of the comparison; this
+	 * component, `EntryNotes` and `ContentComposer` all read it, because three
+	 * copies of "has this actually been edited" is three things that can stop
+	 * agreeing.
 	 */
-	let baseline: string | null = null;
-
-	const serialize = (doc: TiptapNode | null) => JSON.stringify(doc ?? null);
+	const baseline = new EditBaseline();
 
 	const words = $derived(guidanceWordCount(current));
 	const countState = $derived(guidanceState(words));
@@ -154,7 +145,7 @@
 		placeholder="What should they photograph, and what should they write about it?"
 		onready={(doc) => {
 			current = doc;
-			baseline = serialize(doc);
+			baseline.seed(doc);
 			onchange(doc);
 			// The baseline, NOT a write: what is on screen is what the server
 			// already holds. Without this the field opens `clean` and the first
@@ -162,13 +153,12 @@
 			save?.markSaved();
 		}}
 		onchange={(doc) => {
-			const next = serialize(doc);
 			current = doc;
 			onchange(doc);
 			// A transaction that did not change the document is not an edit. See
-			// `baseline` for what happens when this is skipped.
-			if (next === baseline) return;
-			baseline = next;
+			// `$lib/edit-baseline` for what happens when this is skipped.
+			if (!baseline.changed(doc)) return;
+			baseline.advance(doc);
 			save?.markDirty();
 		}}
 	/>

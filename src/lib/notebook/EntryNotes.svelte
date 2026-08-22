@@ -10,6 +10,7 @@
 	} from '$lib/notebook-notes';
 	import type { EntryActionResult, NoteSaveResult } from '$lib/notebook';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import { untrack } from 'svelte';
 
@@ -115,8 +116,8 @@
 	 * earlier version that says exactly the same thing, which is noise in the
 	 * one place an instructor goes to see what actually changed.
 	 */
-	let baseline = $state<string | null>(null);
-	const changed = $derived(draft !== null && baseline !== null && JSON.stringify(draft) !== baseline);
+	const baseline = new EditBaseline();
+	const changed = $derived(draft !== null && baseline.changed(draft));
 
 	/**
 	 * THE LABEL REPORTS THE ACKNOWLEDGEMENT. It used to be driven by a `busy`
@@ -145,7 +146,7 @@
 			// this line, so a failed write keeps every word of it on screen.
 			editingId = null;
 			draft = null;
-			baseline = null;
+			baseline.clear();
 			return { ok: true } as const;
 		}
 	});
@@ -206,14 +207,14 @@
 	function startEdit(noteId: string) {
 		editingId = noteId;
 		draft = null;
-		baseline = null;
+		baseline.clear();
 		save.reset();
 	}
 
 	function cancelEdit() {
 		editingId = null;
 		draft = null;
-		baseline = null;
+		baseline.clear();
 		save.reset();
 	}
 
@@ -308,7 +309,7 @@
 						<NoteEditor
 							value={thread.current.content}
 							onchange={(doc) => (draft = doc)}
-							onready={(doc) => (baseline = JSON.stringify(doc))}
+							onready={(doc) => baseline.seed(doc)}
 							disabled={busy}
 							autofocus
 							label="Edit note"

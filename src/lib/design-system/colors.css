@@ -76,6 +76,36 @@
 	--surface-1: #101312; /* cards and panels */
 	--surface-2: #161a18; /* inputs, recessed rows, toolbars */
 	--hairline: rgba(255, 255, 255, 0.08); /* dividers and quiet borders */
+	/* A LOAD-BEARING BOUNDARY AND A DECORATIVE ONE ARE TWO TOKENS
+	   (IDEA_INTERFACE_STANDARDS 10), and this is the load-bearing one.
+
+	   WHY NOT JUST RAISE --hairline. It is drawn 155 times in the source and
+	   382 times on screen across the classroom, the portal and all three
+	   notebook plates, and almost all of it is decoration -- a rule between
+	   two paragraphs in a card, a table cell edge, the frame on a thumbnail.
+	   Raising the one token draws every one of those at full strength and
+	   turns a tuned surface into a wireframe. So the distinction is made at
+	   the POINT OF USE: a boundary that is the only thing separating two
+	   adjacent interactive rows, the outer edge of a control, or the edge of
+	   a card sitting on the page plate takes this; everything else keeps
+	   --hairline and is not measured.
+
+	   THE VALUE IS --text-3's OWN HUE AND SATURATION, LIGHTNESS ONLY
+	   (hsl(138 5.2% 46%) against #5c665f's 38%) -- desaturating is how a room
+	   quietly stops being itself. Measured by painting each colour onto each
+	   ground in a canvas and reading the composited pixel, because these
+	   resolve to color(srgb ...) and a regex over computed styles reports the
+	   plate instead of the real ground:
+
+	     surface-0 4.44  surface-1 4.23  surface-2 3.98
+	     bg0 4.02        bg1 3.42        bg2 3.21
+
+	   Worst case 3.21 against a 3:1 floor. --plate is not in that list because
+	   nothing in the app renders on it; a boundary that lands there needs its
+	   own measurement (#2c3c2c would put this at 2.66). --text-3 itself was the
+	   obvious candidate and does NOT clear: 2.95 on --surface-2, which is where
+	   the grading console's option controls sit. */
+	--boundary: #6f7b73;
 	--text-1: #e7eae8; /* body copy and headings */
 	--text-2: #9aa49d; /* secondary text, labels, meta */
 	--text-3: #5c665f; /* tertiary: separators, disabled, decorative */
@@ -100,6 +130,12 @@
 	--nb-ink-hover: #3a352c; /* the ink button, pressed-on-hover */
 	--nb-hairline: #e8e5dd; /* barely-there borders */
 	--nb-hairline-strong: #d8d4c9;
+	/* The load-bearing boundary on this plate (light). See --boundary in the
+	   :root block for why this is a second token rather than a raised
+	   hairline. hsl(44 16% 48%) -- --nb-hairline-strong's own hue and
+	   saturation, lightness only (82% -> 48%). Measured on this plate:
+	   nb-bg 3.56, nb-surface 4.03, nb-surface-dim 3.28. */
+	--nb-boundary: #8e8467;
 	--nb-masthead: #211f1a; /* dark header band: the emblem + ProfileMenu are drawn for dark ground */
 	--nb-accent: var(--gold); /* the platform thread: aged brass, sparingly */
 	--nb-accent-ink: #8a6d24; /* brass deepened for links / active text on light */
@@ -235,6 +271,11 @@
 		--nb-ink-hover: #ded8c7;
 		--nb-hairline: #2e2a21;
 		--nb-hairline-strong: #423c31;
+		/* The load-bearing boundary on this plate (dark (system)). See --boundary in the
+		   :root block for why this is a second token rather than a raised
+		   hairline. hsl(39 15% 40%), from #423c31's 22%. Measured on this
+		   plate: nb-bg 3.50, nb-surface 3.20, nb-surface-dim 3.69. */
+		--nb-boundary: #756b57;
 		--nb-masthead: #0f0d09;
 		--nb-accent-ink: var(--nb-accent);
 		--nb-accent-wash: rgba(200, 168, 72, 0.18);
@@ -315,6 +356,11 @@
 	--nb-ink-hover: #ded8c7;
 	--nb-hairline: #2e2a21;
 	--nb-hairline-strong: #423c31;
+	/* The load-bearing boundary on this plate (dark (opt-in)). See --boundary in the
+	   :root block for why this is a second token rather than a raised
+	   hairline. The same value as the system-dark block above; the two
+	   palettes are byte-identical by design. */
+	--nb-boundary: #756b57;
 	--nb-masthead: #0f0d09;
 	--nb-accent-ink: var(--nb-accent);
 	--nb-accent-wash: rgba(200, 168, 72, 0.18);
@@ -437,6 +483,11 @@
 	--nb-ink-hover: #ccdcd2;
 	--nb-hairline: #232f28;
 	--nb-hairline-strong: #324139;
+	/* The load-bearing boundary on this plate (idea). See --boundary in the
+	   :root block for why this is a second token rather than a raised
+	   hairline. hsl(148 13% 39%), from #324139's 22%. Measured on this
+	   plate: nb-bg 3.48, nb-surface 3.25, nb-surface-dim 3.63. */
+	--nb-boundary: #577063;
 	--nb-masthead: #060e09;
 	/* Green leads: links, active states, status text. */
 	--nb-accent: #6cf4b5;

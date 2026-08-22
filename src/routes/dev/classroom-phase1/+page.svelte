@@ -455,6 +455,21 @@
 		| 'history'
 		| 'export'
 		| 'migrated';
+	/**
+	 * THE DIRTY SIGNAL, WHICH IS THE WHOLE POINT OF THE EDIT VIEW.
+	 *
+	 * `ondirtychange` is what the section layout's `beforeNavigate` guard reads,
+	 * so a harness that mounts the composer WITHOUT it is not standing in for the
+	 * real page -- it is mounting the same component with the mechanism under
+	 * test removed. It was missing here, which is how a composer that reported
+	 * dirty from the first frame in edit mode went unnoticed: nothing on this
+	 * page was asking.
+	 *
+	 * Read it beside the composer: opening the edit view must show `clean`, and
+	 * typing one character must show `dirty`.
+	 */
+	let composerDirty = $state(false);
+
 	let view = $state<View>('compose');
 	const VIEWS: { id: View; label: string }[] = [
 		{ id: 'compose', label: 'Composer (create)' },
@@ -1052,11 +1067,16 @@
 					schedule field is empty, so the primary button reads <strong>Post now</strong>. Set a
 					future time and it reads <strong>Schedule</strong>.
 				</p>
+				<p class="note">
+					Dirty signal:
+					<strong data-testid="composer-dirty">{composerDirty ? 'dirty' : 'clean'}</strong>
+				</p>
 				<ContentComposer
 					mode="create"
 					{sections}
 					initialTargets={['s-1']}
 					transports={composerTransports}
+					ondirtychange={(d) => (composerDirty = d)}
 					onsaved={(info) => note('onsaved', info)}
 				/>
 			</section>
@@ -1067,6 +1087,13 @@
 					Opens with the stored document in the editor, not the flattened text. Saving without
 					touching the instructor links must NOT log `setInstructorResources`.
 				</p>
+				<p class="note">
+					Dirty signal:
+					<strong data-testid="composer-dirty">{composerDirty ? 'dirty' : 'clean'}</strong>
+					-- must read <strong>clean</strong> on arrival. It reported `dirty` from the first
+					frame before the composer compared against what it opened on: the item's own title
+					and body are content, and content was being read as unsaved work.
+				</p>
 				{#key editItem.id}
 					<ContentComposer
 						mode="edit"
@@ -1074,6 +1101,7 @@
 						{sections}
 						transports={composerTransports}
 						compact
+						ondirtychange={(d) => (composerDirty = d)}
 						onsaved={(info) => note('onsaved', info)}
 						oncancel={() => note('oncancel', {})}
 					/>
@@ -1390,7 +1418,7 @@
 	.viewbtn {
 		appearance: none;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
@@ -1454,7 +1482,7 @@
 		gap: var(--space-3);
 		flex-wrap: wrap;
 		padding: 0.45rem 0;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 	}
 	.content-row:last-child {
 		border-bottom: none;

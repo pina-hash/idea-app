@@ -384,7 +384,7 @@
 	.filter {
 		appearance: none;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: var(--font-mono);
@@ -429,7 +429,7 @@
 		box-sizing: border-box;
 		padding: 0 0.6rem;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-sm, 4px);
 		color: var(--text-1);
 		font-family: var(--font-display);

@@ -1186,7 +1186,7 @@
 	/* An expanded entry is a raised card; a collapsed one is a row in a list,
 	   so a long feed reads as a list rather than as a stack of boxes. */
 	.entry.open {
-		border-color: var(--hairline);
+		border-color: var(--boundary);
 		background: var(--surface-1);
 		box-shadow: var(--nb-shadow);
 		padding: var(--space-1) var(--space-4) var(--space-4);
@@ -1201,9 +1201,12 @@
 	   out to a thumb-sized one -- this is the control a student taps repeatedly
 	   while sorting a backlog on a phone. */
 	.pick {
+		/* 18.4px measured in select mode. The WIDTH was already thought about
+		   (2.75rem = 44px); the height was not. 44px floor (IDEA_INTERFACE_STANDARDS 10). */
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		min-height: 44px;
 		min-width: 2.75rem;
 		padding: 0 var(--space-1);
 		cursor: pointer;

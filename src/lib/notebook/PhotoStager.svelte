@@ -524,7 +524,12 @@
 		cursor: default;
 	}
 	.in-app-camera {
-		display: block;
+		/* 20.5px measured. This is the recovery a student reaches for when the
+		   lens opened the wrong way, on a phone, one-handed -- the single worst
+		   place to miss a tap. 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		display: flex;
+		align-items: center;
+		min-height: 44px;
 		margin-top: var(--space-2);
 		padding: 0;
 		background: none;
@@ -546,7 +551,14 @@
 	/* The native capture path where it has been demoted (Android): still a
 	   real control, deliberately not a peer of the two buttons above it. */
 	.native-fallback {
-		display: block;
+		/* 34.5px measured at 375px, where it wraps to two lines. This is the
+		   second recovery when the in-app camera is not the answer either --
+		   on a phone, in a workshop -- so it takes the 44px floor
+		   (IDEA_INTERFACE_STANDARDS 10). `flex` rather than `block` so the
+		   floor centres the wrapped label instead of stranding it at the top. */
+		display: flex;
+		align-items: center;
+		min-height: 44px;
 		margin-top: var(--space-2);
 		color: var(--text-3);
 		font-size: 0.8rem;

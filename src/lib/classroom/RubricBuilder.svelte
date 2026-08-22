@@ -394,7 +394,7 @@
 		flex: 1 1 12rem;
 		min-width: 0;
 		background: var(--surface-0);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -414,7 +414,7 @@
 	.crit-ops button {
 		appearance: none;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		font-size: 0.7rem;
@@ -451,7 +451,7 @@
 	}
 	.level-row input {
 		background: var(--surface-0);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -461,7 +461,7 @@
 	.level-remove {
 		appearance: none;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		cursor: pointer;

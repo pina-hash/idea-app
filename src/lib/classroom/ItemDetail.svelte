@@ -1095,7 +1095,7 @@
 	.ci-row + .ci-row {
 		margin-top: var(--space-3);
 		padding-top: var(--space-3);
-		border-top: 1px solid var(--hairline);
+		border-top: 1px solid var(--boundary);
 	}
 	.ci-head {
 		display: inline-flex;

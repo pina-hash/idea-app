@@ -203,7 +203,7 @@
 			<legend class="field-label">Colour <span class="optional">(optional)</span></legend>
 			<button
 				type="button"
-				class="swatch none"
+				class="swatch none tap-reach-44"
 				class:selected={draftColor === null}
 				aria-pressed={draftColor === null}
 				title="No colour"
@@ -214,7 +214,7 @@
 			{#each FOLDER_COLORS as color (color)}
 				<button
 					type="button"
-					class="swatch"
+					class="swatch tap-reach-44"
 					class:selected={draftColor === color}
 					aria-pressed={draftColor === color}
 					style="--dot: var(--nb-folder-{color})"
@@ -260,6 +260,11 @@
 		font-size: 1.02rem;
 	}
 	.close {
+		/* 20.5px measured. 44px floor (IDEA_INTERFACE_STANDARDS 10); it sits alone in the panel header
+		   so it can grow. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		border: none;
 		background: none;
 		font: inherit;
@@ -304,7 +309,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		padding: var(--space-2) var(--space-1);
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 		font-size: 0.9rem;
 	}
 	.row.editing {
@@ -332,6 +337,13 @@
 		gap: var(--space-2);
 	}
 	.row-actions button {
+		/* 19.4px measured. Edit and Delete sit `--space-2` apart on one line,
+		   so a 44px-WIDE reach on each would overlap and the wrong one would
+		   take the tap; the height is what grows, and the two keep their own
+		   columns. 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		border: none;
 		background: none;
 		padding: 0;
@@ -358,6 +370,13 @@
 		color: var(--text-2);
 	}
 	.link {
+		/* 26.9px measured. Cancel sits beside the Save button in the folder
+		   editor's action row, so it grows rather than reaches -- the row has
+		   the height already and there is nothing above or below to overlap.
+		   44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		border: none;
 		background: none;
 		padding: 0;
@@ -423,6 +442,13 @@
 		font-weight: 400;
 	}
 	.swatch {
+		/* 1.5rem = 24px measured, and the CIRCLE is the point -- a folder
+		   colour reads as a dot, so the drawn size stays. The hit area is
+		   expanded instead (see `.tap-reach-44` in src/app.css). The swatches
+		   sit ~8px apart on one wrapping row, so the reach is HEIGHT ONLY:
+		   seven overlapping 44px-wide targets would make most of them
+		   unpickable (IDEA_INTERFACE_STANDARDS 10). */
+		--tap-reach-w: 0px;
 		width: 1.5rem;
 		height: 1.5rem;
 		border-radius: 50%;

@@ -356,7 +356,7 @@
 		align-items: center;
 		gap: 0.8rem;
 		text-decoration: none;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		padding: 0.6rem;
 		background: var(--surface-2);
@@ -424,7 +424,7 @@
 	.deck-remove {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: var(--font-mono);
@@ -489,7 +489,7 @@
 	.deck-cancel {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--text-2);
 		font: inherit;

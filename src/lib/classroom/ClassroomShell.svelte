@@ -173,7 +173,7 @@
 			{#each crumbs as crumb, i (crumb.label + i)}
 				<li>
 					{#if crumb.href}
-						<a href={crumb.href}>{crumb.label}</a>
+						<a class="tap-reach-44" href={crumb.href}>{crumb.label}</a>
 						<span class="crumb-sep" aria-hidden="true">/</span>
 					{:else}
 						<span aria-current="page">{crumb.label}</span>
@@ -220,12 +220,15 @@
 		max-width: 100%;
 		padding: 0.34rem 0.6rem;
 		background: var(--surface-1);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		cursor: pointer;
 		font: inherit;
-		min-height: 34px;
+		/* 34.4px measured. The class switcher is in the header of every
+		   classroom page, student or not. 44px floor
+		   (IDEA_INTERFACE_STANDARDS 10). */
+		min-height: 44px;
 	}
 	.sw-trigger:hover,
 	.sw-trigger.on {
@@ -265,7 +268,7 @@
 		overflow-y: auto;
 		padding: 0.3rem;
 		background: var(--surface-1);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		box-shadow: 0 10px 30px rgb(0 0 0 / 45%);
 	}
@@ -340,6 +343,14 @@
 		min-width: 0;
 	}
 	.crumbs a {
+		/* 17.4px measured. It CANNOT grow: the crumb list is `align-items:
+		   baseline` and sits above every classroom page, so a 44px box adds
+		   26px of chrome to the top of the whole section and breaks the
+		   baseline the separators align on. The hit area is expanded instead
+		   -- see `.tap-reach-44` in src/app.css. Height only, so two crumbs
+		   sitting 0.35rem apart on the same line keep their own taps
+		   (IDEA_INTERFACE_STANDARDS 10). */
+		--tap-reach-w: 0px;
 		color: var(--text-2);
 		text-decoration: none;
 	}
@@ -370,13 +381,15 @@
 		border-bottom: 1px solid var(--hairline);
 	}
 	.sec-tab {
+		/* 40px measured, on every classroom page a student opens. 44px floor
+		   (IDEA_INTERFACE_STANDARDS 10); `box-sizing` below is what keeps the 2px underline inside it. */
 		padding: 0.5rem 0.9rem;
 		border-bottom: 2px solid transparent;
 		color: var(--text-2);
 		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		text-decoration: none;
-		min-height: 40px;
+		min-height: 44px;
 		box-sizing: border-box;
 	}
 	.sec-tab:hover {

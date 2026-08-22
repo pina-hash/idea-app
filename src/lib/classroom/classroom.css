@@ -156,7 +156,7 @@ body:has(.cr-root) {
 /* --- Cards and panels ---------------------------------------------------- */
 .cr-root .card {
 	background: var(--surface-1);
-	border: 1px solid var(--hairline);
+	border: 1px solid var(--boundary);
 }
 
 /* --- The mono micro-label ------------------------------------------------
@@ -217,6 +217,56 @@ body:has(.cr-root) {
 	padding-block: var(--space-2);
 	display: inline-flex;
 	align-items: center;
+}
+
+/* THE ASSIGNMENT SURFACE IS WHERE A STUDENT WORKS, so 44px is not a phone
+   allowance here -- it is the floor at every width
+   (IDEA_INTERFACE_STANDARDS 10, "on every student-facing surface at every
+   width"). Measured before: Add row 22.9px, the photo and file pickers
+   27.6px, a checklist row 22.5px, Submit 39.4px.
+
+   Scoped to `.engine-host` for the same reason `.cr-console` above is: it is
+   the wrapper ItemDetail puts around the work surface and nothing else, so
+   the ten other `.btn.tiny` call sites that genuinely want a chip beside a
+   heading are untouched. BOTH of its mounts are covered on purpose -- the
+   teacher's readonly preview goes through the same render path as the
+   student's engine, and a preview that measures differently from the thing
+   it previews is not a preview.
+
+   `min-height` and block padding only, never a fixed height: rounding to
+   reach a floor rounds both ways, and a sweep that snaps to the nearest
+   token takes a 43px control to 41px and calls it done. Type size and
+   horizontal rhythm are untouched. */
+.cr-root .engine-host .btn,
+.cr-root .engine-host .btn.tiny,
+.cr-root .engine-host .btn.secondary.tiny,
+.cr-root .engine-host .check-item {
+	min-height: 44px;
+	padding-block: var(--space-2);
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+/* The row-op squares inside a table (move, duplicate, delete) are a fixed
+   1.45rem = 23.2px and CANNOT grow: they sit in a table row beside the cell
+   inputs, and a 44px button there would double the height of every row in
+   the table. The hit area is expanded instead, with the pseudo-element
+   technique documented at `.tap-reach-44` in src/app.css -- a pseudo-element
+   of a button is hit-tested as the button, so the target grows and the
+   layout does not. They sit ~4px apart horizontally, which is inside the
+   44px reach, so the reach is HEIGHT ONLY and the width is left alone rather
+   than having three overlapping targets fight over one tap. */
+.cr-root .engine-host .row-ops button {
+	position: relative;
+}
+.cr-root .engine-host .row-ops button::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 0;
+	right: 0;
+	transform: translateY(-50%);
+	height: 44px;
 }
 .cr-root .btn.danger,
 .cr-root .btn.tiny.danger {
@@ -327,7 +377,7 @@ body:has(.cr-root) {
 	width: 100%;
 	box-sizing: border-box;
 	background: var(--surface-0);
-	border: 1px solid var(--hairline);
+	border: 1px solid var(--boundary);
 	border-radius: var(--radius-card);
 	color: var(--text-1);
 	font-family: var(--font-mono);

@@ -1090,13 +1090,16 @@
 		gap: var(--space-2);
 		background: var(--surface-2);
 		/* THE BOUNDARY IS THE AFFORDANCE on an option control, so it is measured
-		   like one. `--hairline` measured 1.22:1 against the card it sits on --
-		   the row's own fill is 1.06:1, so with a boundary that faint there is
+		   like one: `--hairline` was 1.22:1 against the card it sits on, and the
+		   row's own fill is 1.06:1, so with a boundary that faint there was
 		   nothing saying where one option ends and the next begins.
-		   `--text-3` (the room's existing separator ink, not a new colour) is
-		   3.13:1, which is the non-text threshold. Scoped to the console's two
-		   option controls; the shared token is untouched. */
-		border: 1px solid var(--text-3);
+
+		   This was a LOCAL `--text-3` override, taken at the time as 3.13:1.
+		   That number was measured against `--surface-1`; these controls fill
+		   themselves with `--surface-2`, where the same ink is 2.95:1 and does
+		   not clear the 3:1 floor at all. It now reads the shared token, which
+		   is measured against every ground it can land on (4.62:1 here). */
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -1348,7 +1351,7 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		padding: var(--space-2) 0 var(--space-3);
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 		border-left: 2px solid transparent;
 	}
 	/* WHICH CRITERION THE KEYS ACT ON, said in the interface rather than left
@@ -1411,8 +1414,8 @@
 		min-width: 0;
 		text-align: left;
 		background: var(--surface-2);
-		/* Same measurement as the roster row above: 1.22:1 -> 3.13:1. */
-		border: 1px solid var(--text-3);
+		/* Same boundary as the roster row above, and the same token. */
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -1555,7 +1558,7 @@
 	.score-input input {
 		width: 4.2rem;
 		background: var(--surface-0);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-mono);
@@ -1591,7 +1594,7 @@
 		width: 100%;
 		box-sizing: border-box;
 		background: var(--surface-0);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);

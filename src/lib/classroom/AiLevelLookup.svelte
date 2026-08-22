@@ -73,7 +73,7 @@
 		min-width: 0;
 		box-sizing: border-box;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);

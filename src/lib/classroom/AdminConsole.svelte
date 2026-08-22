@@ -364,7 +364,7 @@
 		gap: 0.5rem;
 		flex-wrap: wrap;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 	}
 	.section-links li:last-child {
 		border-bottom: none;
@@ -402,7 +402,7 @@
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 	}
 	.course-row:last-child {
 		border-bottom: none;
@@ -442,7 +442,7 @@
 	input,
 	select {
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);

@@ -109,7 +109,7 @@
 	}
 	.filter input {
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -131,7 +131,7 @@
 		gap: 0.7rem;
 		flex-wrap: wrap;
 		padding: 0.5rem 0.2rem;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 		text-decoration: none;
 		color: var(--text-1);
 	}

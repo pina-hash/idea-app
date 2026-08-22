@@ -240,9 +240,19 @@ describe('one page gutter, read by everything', () => {
 		expect(pane).toMatch(/padding:\s*var\(--space-5\)/);
 		// And a boundary, so that inset reads as the pane's rather than as a
 		// stray indent against the trail above it.
-		// The line is a per-room hook now (paper wants a lighter one than the
-		// plate), with the classroom's own token as the fallback.
-		expect(pane).toMatch(/border:\s*1px solid var\(--cr-pane-line, var\(--hairline\)\)/);
+		//
+		// WHAT IS PINNED IS THE MECHANISM, NOT THE TOKEN. The line is a per-room
+		// hook (paper wants a lighter one than the plate) with a fallback, so a
+		// room that declares nothing still gets an edge. This spelled the
+		// fallback out as `--hairline` and broke the day the pane edge was
+		// correctly reclassified as load-bearing -- a legitimate change should
+		// not have to edit an assertion about padding.
+		expect(pane).toMatch(/border:\s*1px solid var\(--cr-pane-line,\s*var\(--[a-z-]+\)\)/);
+		// The pane edge is the ONLY thing separating the navigation column from
+		// the page, so its fallback is the load-bearing token and not the
+		// decorative one (IDEA_INTERFACE_STANDARDS 10). `--hairline` measured
+		// 1.18:1 against the plate behind it.
+		expect(pane).not.toMatch(/var\(--cr-pane-line,\s*var\(--hairline\)\)/);
 	});
 
 	it('the gap between the panes comes from the scale', () => {

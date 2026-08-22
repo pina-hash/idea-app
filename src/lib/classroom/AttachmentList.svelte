@@ -117,7 +117,7 @@
 					</a>
 				{/if}
 				<span class="attach-meta">
-					<a class="attach-name" href={srcOf(a)} target="_blank" rel="noopener noreferrer">
+					<a class="attach-name tap-reach-44" href={srcOf(a)} target="_blank" rel="noopener noreferrer">
 						{#if !isImageAttachment(a)}
 							<span class="attach-glyph" aria-hidden="true">{fileKindLabel(a.filename, a.mime_type)}</span>
 						{/if}
@@ -198,6 +198,13 @@
 	.attach-name {
 		display: inline-flex;
 		align-items: center;
+		/* 22.5px measured, and it CANNOT grow: it is the filename inside an
+		   attachment row that already carries a size, a type chip and a remove
+		   button on the same line, and a 44px box would wrap the row. The hit
+		   area is expanded instead -- see `.tap-reach-44` in src/app.css.
+		   Height only; the remove button sits within 44px horizontally
+		   (IDEA_INTERFACE_STANDARDS 10). */
+		--tap-reach-w: 0px;
 		gap: 0.4rem;
 		color: var(--text-1);
 		text-decoration: none;
@@ -236,7 +243,7 @@
 	.attach-ref {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: var(--font-mono);
@@ -256,7 +263,7 @@
 	.attach-remove {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: var(--font-mono);

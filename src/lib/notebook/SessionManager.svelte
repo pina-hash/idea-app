@@ -580,7 +580,7 @@
 		gap: var(--space-4);
 		flex-wrap: wrap;
 		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		background: var(--surface-2);
 	}

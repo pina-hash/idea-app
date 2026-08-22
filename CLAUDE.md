@@ -755,10 +755,41 @@ inside the function fails closed rather than falling through to a weaker path.
 - **Every control carries a visible word, not only a glyph.** A `title` tooltip is
   not discoverable and a phone cannot hover.
 - **Colour is never the only signal** -- glyph AND word, or an icon beside the hue.
-- **44px minimum tap targets** on anything a phone touches. The documented
-  exception is a control inside a locked density contract, where inflating it would
-  break a real invariant to satisfy a guideline written for standalone controls --
-  say so rather than breaking the contract.
+- **44px minimum tap targets** on anything a phone touches, AND on every
+  student-facing surface at every width, with 24px as the absolute floor
+  everywhere else (`IDEA_INTERFACE_STANDARDS` 10). The documented exception is a
+  control inside a locked density contract, where inflating it would break a real
+  invariant to satisfy a guideline written for standalone controls -- say so
+  rather than breaking the contract.
+  - **THE FLOOR IS `min-height`, NEVER A HEIGHT, and never a snap to the nearest
+    token.** Rounding to reach a floor rounds BOTH ways: a mechanical sweep that
+    snaps takes a 43px control to 41px and reports success. The notebook's plate
+    switch was a fixed `height: 2.4rem` for exactly that reason -- it could not
+    round up.
+  - **TWO MECHANISMS, AND THEY ARE IN `src/app.css`: `.tap-44` grows a control
+    that owns its row; `.tap-reach-44` expands the HIT AREA of one sitting inside
+    a line of text**, with a pseudo-element, so the target grows and the writing
+    around it does not reflow. Most reaches must set `--tap-reach-w: 0px` and grow
+    in height only -- Edit beside Delete, seven colour swatches, two breadcrumbs
+    are all closer than 44px horizontally, and overlapping reaches hand the tap to
+    the wrong control. Verify a reach by HIT-TESTING it (`elementFromPoint` down
+    the control's full span), never by reading the computed height.
+  - **THEY LIVE IN THE GLOBAL SHEET BECAUSE SVELTE PRUNES A SCOPED `::after`.**
+    Written inside a component's own `<style>`, `.swatch::after` was dropped from
+    the compiled output entirely while `.swatch` beside it was kept -- silently,
+    with no `svelte-check` warning and no unused-selector notice. A rule that
+    cannot be pruned is the fix; a rule you verified by eye is not. This is why a
+    reach is a class in the markup rather than a rule in the component.
+  - **AN INLINE LINK INSIDE AUTHORED PROSE IS THE ONE THING LEFT ALONE**
+    (`ItemBody`'s `.item-link`, 19px). Prose lines sit ~24px apart, so a 44px
+    reach on one link overlaps the lines above and below and steals their taps;
+    WCAG 2.5.8 exempts an inline target in a sentence for the same reason. Say so
+    rather than raising it.
+  - **A CONTROL WRAPPED IN A `<label>` IS MEASURED AT THE LABEL**, which is what a
+    finger hits -- but only once the label's full height has been hit-tested to
+    the pair. A 22px input inside a 44px label is fine; a 22px input inside a 44px
+    label that something else overlaps is not, and only the hit test tells them
+    apart.
 - **A destructive action names what it costs**, with the real counts, before the
   confirm. Two-step inline confirm (arm, then confirm) for anything irreversible;
   a server-side typed-name confirmation for anything that destroys a term of work.
@@ -822,6 +853,23 @@ inside the function fails closed rather than falling through to a weaker path.
     wedged the renderer outright). Compare against the EDITOR'S OWN
     serialization at mount (`onready`), not against the value handed in, or a
     harmless normalization reads as an unsaved change.
+  - **`$lib/edit-baseline` IS THAT COMPARISON, AND THERE IS ONE OF IT.**
+    `EditBaseline` holds what a surface opened on (`seed`), answers whether the
+    current value has moved off it (`changed`), and adopts a new reference after a
+    write (`advance`); `changed` is FALSE before anything is seeded, because a
+    surface whose editor has not reported yet has by definition had nothing typed
+    into it. `CheckInGuidance`, `EntryNotes` and `ContentComposer` all read it.
+    Three copies of "has this actually been edited" is three things that can stop
+    agreeing.
+  - **THE EDITOR IS ONLY THE LOUDEST CASE. ANY `dirty` DERIVED FROM THE PRESENCE
+    OF STATE HAS THE SAME BUG.** `ContentComposer` reported dirty from the first
+    frame in edit mode because its draft carries the item's own title and body:
+    `composerHasWork` was answering "is there content in here" and being read as
+    "has this been edited". Both questions are now the SAME comparison against a
+    different reference -- `composerDraftSignature` differs from an EMPTY draft,
+    or differs from the SEEDED one -- so the two answers cannot drift apart. A
+    guard that fires when nothing is wrong is a guard people learn to click
+    through, which costs the one case it exists for.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
@@ -1351,6 +1399,40 @@ the source of truth; **do not invent colours or swap fonts.**
   `--font-display`, `--font-mono`, `--font-title` (Orbitron), `--font-hero`. Each
   resolves to exactly the string it replaced, so pointing a rule at one is a
   rename, not a restyle.
+- **A BOUNDARY THAT CARRIES MEANING AND ONE THAT DECORATES ARE TWO TOKENS**
+  (`IDEA_INTERFACE_STANDARDS` 10), and the distinction is made AT THE POINT OF
+  USE. `--boundary` is the load-bearing one and clears 3:1 against every ground
+  it can land on; `--hairline` is decoration and is not measured.
+  - **`--boundary` IS TAKEN BY THREE THINGS AND NOTHING ELSE:** the outer edge
+    of an interactive control, a divider that is the ONLY separator between two
+    adjacent interactive rows, and the edge of a card sitting on the page plate
+    (`--bg1` on `--bg0` is 1.18:1, one region to the eye). Everything else --
+    a rule between two paragraphs in a card, a table cell edge, the frame on a
+    thumbnail, a static chip -- keeps `--hairline`.
+  - **DO NOT RAISE `--hairline`. That is the rejected alternative, and it is one
+    line.** It is drawn on ~190 elements in the classroom alone, almost all of it
+    decoration; raising the one token draws every one of them at full strength
+    and turns a tuned surface into a wireframe, which nothing on screen reports.
+    `tests/boundary-token.test.ts` reddens on it, and on a decorative rule swept
+    onto the load-bearing token.
+  - **IT IS PER ROOM, LIKE `--hairline` IS.** `.nb-root` aliases it to
+    `--nb-boundary`, which each notebook plate declares for itself. The `:root`
+    value is measured against dark green plate and is 1.29:1 on paper.
+  - **THE VALUE MOVES IN LIGHTNESS ONLY**, on the room's own hue and saturation
+    -- `--boundary` is `--text-3`'s hue at 46% instead of 38%. `--text-3` itself
+    was the obvious candidate and does NOT clear: 2.95:1 on `--surface-2`, which
+    is exactly where the grading console's option controls sit, so the local
+    override that had been taken as "3.13:1" had been measured against the wrong
+    ground.
+  - **THE LAUNCHER'S `--acc-edge` IS THE SAME CONTRACT WITH AN IDENTITY COLOUR
+    IN IT**, and is the one place that spells it separately: a card's edge
+    carries the app's brand, and swapping in a neutral grey would delete eleven
+    deliberate identity decisions to satisfy a rule the accent already meets.
+  - **MEASURE BY PAINTING TO A CANVAS AND READING THE PIXEL BACK.** These
+    resolve to `color(srgb ...)` and `color-mix(...)`, which a regex over
+    computed styles skips silently and then reports the plate instead of the
+    real ground. Composite the colour over its ground and read the composited
+    value; an alpha rule's ratio depends on what is behind it.
 - **Shared classes** live in `src/app.css`. The `.legacy-index` theme is scoped
   under that wrapper so it never affects the app shell.
 - **The animated emblem** is `src/lib/brand/AnimatedLogo.svelte`, prop-driven so
@@ -1383,13 +1465,12 @@ the source of truth; **do not invent colours or swap fonts.**
     the same saturation at 68% lightness instead of 52%. **Lightness only --
     desaturating is how a brand quietly stops being itself.** If a colour cannot
     clear while staying recognisable, say so and stop.
-  - **A LOAD-BEARING BOUNDARY AND A DECORATIVE ONE ARE TWO TOKENS**
-    (`IDEA_INTERFACE_STANDARDS` 10). `--acc-edge` draws the card edge, which is
-    the only thing separating a card from the page (`--bg1` on `--bg0` measures
-    1.18:1, one region to the eye), so it clears 3:1. `--acc-line` outlines the
-    CTA pill, which decorates a label nobody can operate on its own, and stays
-    faint. Raising one hairline to satisfy the other draws every card as a
-    wireframe.
+  - **`--acc-edge` IS THE SHARED `--boundary` CONTRACT WITH THIS CARD'S
+    IDENTITY COLOUR IN IT** (see the `--boundary` rule above for the contract
+    itself). It draws the card edge, the only thing separating a card from the
+    page, so it clears 3:1. `--acc-line` outlines the CTA pill, which decorates
+    a label nobody can operate on its own, and stays faint. This is the ONE
+    place the neutral token cannot be used: the edge carries the brand.
   - **A HOVER FILL IS PINNED, NEVER MIXED FROM THE INK ABOVE IT.** The CTA
     pill's hover background was `color-mix(ink 12%)`, so lightening the ink
     lightened its own ground with it: sweeping FRC from 80% to 40% brand red

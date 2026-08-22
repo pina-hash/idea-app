@@ -604,7 +604,7 @@
 		/* A grid item's automatic minimum is its min-content, which a nowrap
 		   row would push past a phone's width. */
 		min-width: 0;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		padding: var(--space-2) var(--space-3);
 		background: var(--surface-1);

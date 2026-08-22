@@ -1487,7 +1487,7 @@
 				{#if deletionReady && deletedEntries.length > 0}
 					<button
 						type="button"
-						class="inline-link deleted-link"
+						class="inline-link deleted-link tap-reach-44"
 						data-testid="filter-deleted-empty"
 						onclick={() => (showingDeleted = true)}
 					>
@@ -1630,14 +1630,14 @@
 							: `${visible.length} of ${entries.length}`}
 					</span>
 					{#if narrowed}
-						<button type="button" class="inline-link" onclick={clearQuery}>Clear</button>
+						<button type="button" class="inline-link tap-reach-44" onclick={clearQuery}>Clear</button>
 					{/if}
 					<!-- Nothing to expand above the breakpoint: the rows there open
 					     into the pane beside them rather than in place. -->
 					{#if !wide}
 						<button
 							type="button"
-							class="inline-link"
+							class="inline-link tap-reach-44"
 							data-testid="expand-toggle"
 							onclick={() => (expanded.size ? collapseAll() : expandAll())}
 						>
@@ -1647,7 +1647,7 @@
 					{#if foldersReady && folderTransports}
 						<button
 							type="button"
-							class="inline-link"
+							class="inline-link tap-reach-44"
 							data-testid="select-toggle"
 							onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
 						>
@@ -1731,7 +1731,7 @@
 						{folderBusy ? 'Moving...' : 'Move'}
 					</button>
 					{#if picked.size}
-						<button type="button" class="inline-link" onclick={() => picked.clear()}>
+						<button type="button" class="inline-link tap-reach-44" onclick={() => picked.clear()}>
 							Clear selection
 						</button>
 					{/if}
@@ -1744,7 +1744,7 @@
 			{#if visible.length === 0}
 				<p class="note empty-state" data-testid="no-matches">
 					Nothing here matches what you are looking for.
-					<button type="button" class="inline-link" onclick={clearQuery}>Clear the filters</button>
+					<button type="button" class="inline-link tap-reach-44" onclick={clearQuery}>Clear the filters</button>
 				</p>
 			{:else}
 				{#each groups as group (group.key)}
@@ -2004,7 +2004,7 @@
 							{/if}
 							<button
 								type="button"
-								class="inline-link"
+								class="inline-link tap-reach-44"
 								onclick={() => (managerOpen = true)}
 								disabled={busy}>Manage folders</button
 							>
@@ -2425,7 +2425,7 @@
 		gap: var(--space-1);
 		text-align: left;
 		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		background: var(--surface-2);
 		color: var(--text-1);
@@ -2542,6 +2542,13 @@
 		color: var(--text-3);
 	}
 	.inline-link {
+		/* 20-20.5px measured, at eleven call sites. It CANNOT grow: several of
+		   these sit mid-sentence in a hint or an empty-state line ("Clear the
+		   filters"), and a 44px box there reflows the writing around it. The
+		   hit area is expanded instead -- see `.tap-reach-44` in src/app.css.
+		   Height only, so two on the same line keep their own taps
+		   (IDEA_INTERFACE_STANDARDS 10). */
+		--tap-reach-w: 0px;
 		border: none;
 		background: none;
 		padding: 0;
@@ -2571,6 +2578,9 @@
 		border-bottom: 1px solid var(--hairline);
 	}
 	.search {
+		/* 22px measured (the label is the target; the input inside it has no
+		   border of its own). 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		min-height: 44px;
 		flex: 1 1 14rem;
 		min-width: 0;
 		display: flex;
@@ -2609,6 +2619,10 @@
 		flex-wrap: wrap;
 	}
 	.chip-toggle {
+		/* 29.4px measured. 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
 		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
@@ -2665,9 +2679,12 @@
 		white-space: nowrap;
 	}
 	.sort select {
+		/* 28px measured. 44px floor (IDEA_INTERFACE_STANDARDS 10). `min-height` on a select is honoured
+		   without changing its display, which inline-flex would not be. */
+		min-height: 44px;
 		font-size: 0.78rem;
 		padding: var(--space-1) var(--space-2);
-		border-color: var(--hairline);
+		border-color: var(--boundary);
 		background: var(--surface-1);
 		color: var(--text-2);
 	}
@@ -2753,7 +2770,7 @@
 		gap: var(--space-3);
 		flex-wrap: wrap;
 		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
 	}

@@ -220,6 +220,69 @@ a:hover {
 	text-shadow: var(--glow-cyan);
 }
 
+/* --- Tap targets ----------------------------------------------------------
+   44px wherever a control can be touched, and on EVERY student-facing surface
+   at every width (IDEA_INTERFACE_STANDARDS 10). Two mechanisms, because a
+   control that owns its row and one sitting inside a line of text want
+   opposite things.
+
+   THEY ARE OPT-IN CLASSES RATHER THAN A SWEEP OVER `.btn`, and that is the
+   whole point. A blanket rule cannot tell a student's photo picker from an
+   instructor console's chip, and this repo has ~50 controls under the floor
+   across both. Written in the markup, the set that was raised is greppable,
+   testable, and cannot pick up a control nobody measured.
+
+   NEITHER ONE SETS A HEIGHT, ONLY A FLOOR. Snapping a control to a size
+   rounds both ways: a mechanical sweep that "snaps to the nearest token" can
+   take a 43px control to 41px and report success. `min-height`/`max()` can
+   only ever grow the box. ---------------------------------------------- */
+
+/* GROW: for a control that owns its row -- a button, a picker, a checkbox
+   row, a tab. The block padding is what carries the height, so type size and
+   horizontal rhythm are untouched. */
+.tap-44 {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	/* A grid/flex child must still be allowed to shrink. An item's automatic
+	   minimum is its min-content, so without this a control in a narrow row
+	   pushes the whole page wider than the viewport. */
+	min-width: 0;
+}
+
+/* REACH: for a small control sitting INSIDE a line of text or a table header,
+   where growing the box would reflow the writing around it. The hit area is
+   expanded with a pseudo-element instead -- a pseudo-element of a button is
+   hit-tested as the button, so the target grows and the layout does not.
+   Centred on the control so it reaches equally in every direction.
+
+   IT LIVES HERE, IN THE GLOBAL SHEET, AND NOT IN EACH COMPONENT'S OWN STYLE
+   BLOCK, and that is not a preference. Svelte's CSS analyser PRUNES a scoped
+   `.x::after` rule it cannot match against the template, silently and with no
+   svelte-check warning: written inside FolderManager, `.swatch::after` was
+   dropped from the compiled output entirely while `.swatch` beside it was
+   kept, and the only way to find out was to read the served stylesheet back
+   and hit-test the element. Every reach rule was verified that way. A plain
+   global sheet is not analysed and cannot be pruned.
+
+   THE WIDTH IS A KNOB BECAUSE MOST REACHES MUST NOT USE IT. Two controls
+   sitting less than 44px apart on one line -- Edit beside Delete, seven
+   colour swatches in a row, two breadcrumbs -- would overlap, and the wrong
+   one takes the tap. Those set `--tap-reach-w: 0px` and grow in height only,
+   which is free: nothing is stacked that close vertically. */
+.tap-reach-44 {
+	position: relative;
+}
+.tap-reach-44::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: max(100%, var(--tap-reach-w, 44px));
+	height: max(100%, 44px);
+}
+
 /* --- Buttons --- */
 .btn {
 	display: inline-flex;

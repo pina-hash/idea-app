@@ -397,7 +397,7 @@
 
 <style>
 	.rt-editor {
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
 		overflow: hidden;
@@ -465,7 +465,7 @@
 		gap: var(--space-1);
 		padding: var(--space-1);
 		background: var(--surface-1);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 	}
@@ -474,7 +474,7 @@
 		max-width: 52vw;
 		min-width: 0;
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		color: var(--text-1);
 		font-family: var(--font-display);

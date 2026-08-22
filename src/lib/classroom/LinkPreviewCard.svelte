@@ -98,7 +98,7 @@
 		align-items: center;
 		gap: 0.7rem;
 		padding: 0.5rem 0.6rem;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
 		text-decoration: none;

@@ -98,10 +98,18 @@
 	--text-2: var(--nb-ink-soft);
 	--text-3: var(--nb-ink-faint);
 	--hairline: var(--nb-hairline);
+	/* The load-bearing boundary, aliased the same way and for the same reason:
+	   a notebook component asks for --boundary exactly as a classroom one does,
+	   and gets whichever PLATE is showing. Without this line the room would
+	   inherit the :root value, which is measured against dark green plate and
+	   is 1.29:1 on paper. */
+	--boundary: var(--nb-boundary);
 
 	/* The shell's two per-room hooks. Paper wants a warmer, lighter bar and a
-	   hairline frame than the classroom's plate does. */
-	--cr-pane-line: var(--hairline);
+	   hairline frame than the classroom's plate does. The pane edge is the only
+	   thing separating the navigation column from the page, so it is a
+	   load-bearing boundary rather than a quiet rule. */
+	--cr-pane-line: var(--boundary);
 
 	/* The shared Disclosure's two hooks ($lib/Disclosure.svelte). Every other
 	   interactive thing in this room takes the brass accent; the portal's mint
@@ -373,6 +381,13 @@ body:has(.nb-root) {
 	border: 1px solid var(--nb-hairline-strong);
 	border-radius: var(--radius-control);
 	padding: var(--space-2) var(--space-3);
+	/* 44px is the floor on EVERY control in this room, not just the ones a
+	   phone reaches: the notebook is student-facing at every width
+	   (IDEA_INTERFACE_STANDARDS 10). Measured before this line, the entry's
+	   folder select was 42px and the search field 22px. A floor rather than a
+	   height -- a control that is already taller keeps its size, and a sweep
+	   that snapped to the nearest token would have taken the 42px one DOWN. */
+	min-height: 44px;
 }
 .nb-root input::placeholder,
 .nb-root textarea::placeholder {

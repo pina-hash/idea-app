@@ -414,7 +414,7 @@
 		   sets the same custom property the page measure travels on rather than
 		   needing a rule that reaches inside a component. */
 		--cr-measure: none;
-		border: 1px solid var(--cr-pane-line, var(--hairline));
+		border: 1px solid var(--cr-pane-line, var(--boundary));
 		border-radius: var(--radius-card);
 		padding: var(--space-5);
 	}

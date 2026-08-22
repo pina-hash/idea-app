@@ -730,7 +730,7 @@
 	input,
 	textarea {
 		background: var(--surface-2);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -775,7 +775,7 @@
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		padding: 0.35rem 0;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 	}
 	.roster-row:last-child {
 		border-bottom: none;
@@ -810,7 +810,7 @@
 	}
 	.csv-import {
 		margin-top: 0.7rem;
-		border: 1px dashed var(--hairline);
+		border: 1px dashed var(--boundary);
 		border-radius: var(--radius-card);
 		padding: 0.5rem 0.7rem;
 	}

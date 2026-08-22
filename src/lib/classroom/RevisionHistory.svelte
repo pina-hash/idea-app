@@ -248,7 +248,7 @@
 		gap: 0.4rem;
 	}
 	.rev {
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		padding: 0.45rem 0.55rem;
 		display: flex;

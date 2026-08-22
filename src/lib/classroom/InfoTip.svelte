@@ -69,7 +69,7 @@
 		     hover/focus affordance -- so it is reset to look like plain text. -->
 		<button
 			type="button"
-			class="info-tip-trigger"
+			class="info-tip-trigger tap-reach-44"
 			aria-describedby={tipId}
 			bind:this={triggerEl}
 			onpointerenter={() => (hovered = true)}
@@ -111,6 +111,14 @@
 		align-items: center;
 		gap: 0.3rem;
 		cursor: help;
+		/* 16.4px measured in a table header, 20.4px beside a module chip, and
+		   it CANNOT grow: it wraps the label it explains and sits inside that
+		   label's own line, so a 44px box here reflows the heading around it.
+		   The hit area is expanded instead -- see `.tap-reach-44` in
+		   src/app.css for the technique and why a pseudo-element is the right
+		   shape of fix. Height only: two of these can sit in adjacent table
+		   headers, and a 44px-wide reach on each would overlap. */
+		--tap-reach-w: 0px;
 		/* Reset: this is a <button> for keyboard focus, styled to read as the
 		   plain label/chip it wraps. */
 		appearance: none;

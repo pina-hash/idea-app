@@ -134,7 +134,7 @@
 		width: 5rem;
 		box-sizing: border-box;
 		background: var(--surface-0);
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-mono);

@@ -162,7 +162,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		border-top: 1px solid var(--hairline);
+		border-top: 1px solid var(--boundary);
 	}
 	.grade-row:first-child {
 		border-top: none;
@@ -207,6 +207,12 @@
 		flex-wrap: wrap;
 	}
 	.grade-open {
+		/* 27.6px measured. 44px floor (IDEA_INTERFACE_STANDARDS 10). This one is on the instructor's
+		   Grades tab rather than a student surface -- it is raised because it
+		   was named directly, and it is the row's primary action either way. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		flex: none;
 	}
 	.chip {

@@ -153,8 +153,12 @@
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-1);
-		min-width: 2.4rem;
-		height: 2.4rem;
+		/* 2.4rem = 38.4px measured. A FIXED height was the whole defect: it
+		   cannot round up, and 44px is the floor a student's own plate switch
+		   has to clear (IDEA_INTERFACE_STANDARDS 10). Stated as min-width/min-height so the control can
+		   still grow with its label. */
+		min-width: 2.75rem;
+		min-height: 44px;
 		padding: 0 var(--space-2);
 		border: 1px solid rgba(234, 230, 216, 0.32);
 		border-radius: var(--radius-control);

@@ -297,7 +297,7 @@
 		gap: 0.5rem;
 		flex-wrap: wrap;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid var(--boundary);
 	}
 	.unit-row:last-child {
 		border-bottom: none;
