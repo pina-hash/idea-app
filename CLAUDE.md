@@ -71,9 +71,58 @@ teaching the function two more shapes would mean re-proving all of them twice.
 one allowed absolute path are read from the values the checks enforce, so a rule
 change rewrites the document in the same commit. **Do not write the contract
 down anywhere else** -- a second statement of the rules is the one that drifts.
+**THE "EXTRA FILES" PARAGRAPH IS SORTED BY PUTTING EACH CANDIDATE THROUGH THE
+REAL PREDICATES**, so the document cannot claim an outcome the code does not
+produce. It used to read "Do not produce a README, a package.json, a lockfile,
+a config file, or a build script. They are not used and several of them are
+refused" -- vague, and also WRONG: `package.json` and `package-lock.json` are
+`.json`, which is on the allowlist, so they upload perfectly happily and a
+student who deleted them on that advice deleted them for nothing.
+
 It is addressed to an AI TOOL rather than to a reader, because that is what will
 be pasted it; imperative, specific, and using the same spellings the failure
 messages use.
+
+**THE JS SCANNER READS INLINE `<script>` BLOCKS TOO, AND IT IS ONE SCANNER.**
+`scanJs` only ever saw `.js` files, which meant every JavaScript rule was
+switched off for the submission shape where ALL the JavaScript is inline -- a
+single HTML file, which is now first-class and will be the most common upload.
+`scanHtml` feeds it the body of every `<script>` WITHOUT a `src` (the ones with
+a `src` are already judged as references) and hands it a LINE OFFSET.
+  - **THE OFFSET IS A PARAMETER, NOT A SECOND SCANNER.** It moves the number
+    INSIDE the sentence, not just the `line` field: the messages are built from
+    `where(path, line)`, so a caller correcting only the field would leave a
+    student reading a line number and looking at the wrong line.
+  - **THE BLOCK IS LOCATED OVER A CARRIAGE-RETURN-STRIPPED COPY OF BOTH SIDES.**
+    An HTML parser normalizes CRLF to LF in the DOM, so on a file saved by a
+    Windows editor the text the parser returns is not a substring of the source
+    and every lookup fails silently. Line numbers are counts of `
+`, so
+    stripping the carriage returns cannot move one.
+  - **A CALL AT COLUMN 0 USED TO BE REPORTED ONE LINE EARLY, IN `.js` FILES
+    TOO.** The patterns open with `(?:^|[^\w$.])` so `prefetch` and `this.fetch`
+    do not match, which makes the match START at the character before the call --
+    and at column 0 that character is the previous line's newline. Measured: a
+    `fetch` on line 3 answered "app.js line 2". Statements at column 0 are most
+    of the statements anybody writes, so it was wrong more often than right. The
+    lookup now uses the identifier's own index.
+
+**AN EXTENSION IS ALLOWED, IGNORED, OR REFUSED, AND THE THREE ARE DIFFERENT
+DECISIONS.** `FOUNDRY_ALLOWED_EXTENSIONS` is served; `FOUNDRY_IGNORED_EXTENSIONS`
+is dropped on the way in with a note, exactly as `isOsNoise` is; everything else
+stops the upload.
+  - **`.ico` IS ALLOWED.** A favicon is inert, every scaffold emits one, and
+    refusing an upload over it teaches a student only that the platform is
+    arbitrary.
+  - **`.md` IS IGNORED, NOT REFUSED.** A README is among the most common things
+    a generation tool emits and it cannot execute or be served, so failing a
+    whole upload over one is the wrong trade.
+  - **KEEP THE IGNORED LIST SHORT AND INERT.** An extension belongs there only
+    if dropping it changes nothing about the app. A `.ts` or a `.scss` is a
+    SOURCE file and a bundle carrying one means the student shipped the wrong
+    folder -- that stays a refusal, because the refusal is what tells them. An
+    extension may never be on both lists: one branch would be unreachable and
+    nobody would know which.
 
 **A REFUSAL IS RENDERED VERBATIM, AND FIXING ITS WORDING MEANS EDITING
 `preflight.ts`.** `FoundryIssues.svelte` never rewrites, shortens or re-tones a
@@ -1685,6 +1734,26 @@ belong wherever the app's own behaviour is documented.
 - **`cannon-es`: a static body keeps a stale world AABB** computed while its
   quaternion was identity, and raycasts (unlike contacts) are AABB-culled. Call
   `updateAABB()` after rotating a static ground plane.
+- **DOCKER AND THE SUPABASE CLI LIVE IN WSL, NOT ON THE WINDOWS SIDE, AND THE
+  WINDOWS CHECK LIES ABOUT IT.** `docker` and `supabase` are not on the Windows
+  PATH and `supabase status` run from Windows cannot see a stack running inside
+  WSL -- it returns an error that reads as "nothing is running", which is how a
+  session concluded the local stack was unavailable and skipped a verification
+  it could have run. **The check is `wsl docker ps`**, and the stack comes up
+  with `wsl -- bash -lc "cd /mnt/c/idea-app && supabase start"`.
+  - **ANOTHER PROJECT'S STACK IS USUALLY ALREADY UP, AND IT MUST BE LEFT
+    ALONE.** `supabase/config.toml` here is deliberately shifted off the 543xx
+    defaults to 544xx (api 54421, db 54422, studio 54423) for exactly that
+    reason, and the containers are namespaced `supabase_*_idea-app`, so both
+    run side by side. Check `wsl docker ps` before starting anything and stop
+    only `idea-app`.
+  - **THE EDGE RUNTIME SERVES FUNCTIONS FROM `supabase start` ALREADY**, at
+    `http://127.0.0.1:54421/functions/v1/<name>`; a separate `functions serve`
+    is not needed. Both are reachable from the Windows side at 127.0.0.1.
+  - **PROVE WHICH CODE IS LIVE WITH A BEHAVIOURAL MARKER**, per the caching
+    trap below: pick a fixture whose answer CHANGED in the edit you are
+    testing and check the new answer comes back, rather than assuming a fresh
+    `supabase start` cleared the module cache.
 - **`supabase functions serve` DOES NOT RELOAD A FILE OUTSIDE
   `supabase/functions`, and its Deno cache outlives the container.** The CLI
   bind-mounts each `src/lib` file an Edge Function imports, so the import
