@@ -7,5 +7,12 @@
 			"permanent": true,
 			"has": [{ "type": "host", "value": "idea-app-sage.vercel.app" }]
 		}
+	],
+	"rewrites": [
+		{
+			"source": "/robots.txt",
+			"destination": "/__hostprobe",
+			"has": [{ "type": "query", "key": "rwtest" }]
+		}
 	]
 }
