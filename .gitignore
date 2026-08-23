@@ -31,3 +31,8 @@ idea-feedback-*.md
 
 # Supabase CLI scratch (project ref, cached version). Never committed.
 supabase/.temp/
+
+# tools/run-tests.mjs's JSON report, read once and deleted in its own
+# `finally`. This is a backstop for a run a CI timeout kills outright, which
+# skips that finally block.
+.vitest-result-*.json

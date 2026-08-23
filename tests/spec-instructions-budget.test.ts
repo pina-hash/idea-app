@@ -61,13 +61,28 @@ const MATERIALS = path.join(ROOT, 'materials');
  * else, and the moment one of them is genuinely edited this test says so and
  * the entry has to be re-earned or dropped.
  *
+ * THE HASH IS OF THE CONTENT, NOT OF THE CHECKOUT -- `md5()` below
+ * normalizes CRLF to LF before hashing, and the value here is what that
+ * normalized read produces, which is also exactly `git show HEAD:<path>`'s
+ * own bytes (git stores these files LF). This bit a real CI run: git's
+ * `core.autocrlf` is a per-checkout SETTING, not a property of the file, so
+ * a Windows checkout with autocrlf on translates these to CRLF on disk and a
+ * RAW-byte hash of the working tree read a different value than the one
+ * committed here, which had been computed the same CRLF way. Every Linux
+ * checkout -- including CI -- reads LF and disagreed, so this test was
+ * failing on every real CI run once CI got far enough to reach it, while
+ * passing silently on the machine that produced the wrong constant.
+ * Normalizing removes the checkout as a variable; regenerate this value with
+ * `git show HEAD:<path> | md5sum`, never by hashing a possibly-translated
+ * working-tree file directly.
+ *
  * THE LIST MAY NOT GROW PAST THREE. Asserted below, so a fourth over-budget
  * spec is a standards conversation rather than a one-line addition here.
  */
 const EXEMPT: Record<string, string> = {
-	'materials/idea209h/a/assignment.json': '3620df29a1e5eee6e7a538514730c607',
-	'materials/idea209h/lab-1-checkpoint-1/assignment.json': '3620df29a1e5eee6e7a538514730c607',
-	'materials/idea209h/test/assignment.json': '3620df29a1e5eee6e7a538514730c607'
+	'materials/idea209h/a/assignment.json': 'fec592042fd3b70443fe913ca49d4baa',
+	'materials/idea209h/lab-1-checkpoint-1/assignment.json': 'fec592042fd3b70443fe913ca49d4baa',
+	'materials/idea209h/test/assignment.json': 'fec592042fd3b70443fe913ca49d4baa'
 };
 
 const MAX_EXEMPTIONS = 3;
@@ -95,8 +110,18 @@ function repoPath(full: string): string {
 	return path.relative(ROOT, full).split(path.sep).join('/');
 }
 
+/**
+ * CRLF-NORMALIZED, so the hash reflects the CONTENT rather than the
+ * checkout. `core.autocrlf` is a per-machine git setting, not a property of
+ * the file: a Windows checkout with it on reads these files back as CRLF
+ * while git stores (and every Linux checkout, CI included, reads) LF. A raw
+ * byte hash disagrees with itself across that boundary for a file nobody
+ * touched, which is exactly the false failure `readFileSync` this way
+ * produced before it was normalized here.
+ */
 function md5(full: string): string {
-	return createHash('md5').update(readFileSync(full)).digest('hex');
+	const normalized = readFileSync(full, 'utf8').replace(/\r\n/g, '\n');
+	return createHash('md5').update(normalized, 'utf8').digest('hex');
 }
 
 /**

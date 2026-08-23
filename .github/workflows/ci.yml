@@ -6,6 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # PLACEHOLDER VALUES, COMMITTED HERE ON PURPOSE -- never a real credential.
+  #
+  # `svelte-check` type-checks against `$env/static/public`, which
+  # `svelte-kit sync` GENERATES from whatever PUBLIC_-prefixed vars are in
+  # process.env at sync time (.svelte-kit/ambient.d.ts). It does not read
+  # their VALUES, only their PRESENCE -- src/routes/+layout.ts and
+  # src/hooks.server.ts import PUBLIC_SUPABASE_URL and
+  # PUBLIC_SUPABASE_ANON_KEY by name, and with neither set the generated
+  # module exports nothing, which is a type error at both import sites
+  # ("has no exported member ..."), not a missing-value error. A fake URL and
+  # a fake key satisfy the type checker exactly as well as real ones, and
+  # nothing in `npm run check` or `npm test` makes a network call that would
+  # need the real project -- the test suite talks to an embedded Postgres,
+  # never to Supabase.
+  PUBLIC_SUPABASE_URL: 'https://ci-placeholder.supabase.co'
+  PUBLIC_SUPABASE_ANON_KEY: 'ci-placeholder-anon-key'
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -36,6 +54,39 @@ jobs:
         continue-on-error: true
         run: npm run check
 
+      # THE FULL SUITE RUNS HERE, DATABASE TESTS INCLUDED, and that is a
+      # deliberate reading of "no credential" rather than an oversight of the
+      # constraint. Every DB-backed test in tests/ (`tests/db/harness.ts`)
+      # runs against `embedded-postgres`, a real Postgres binary vitest boots
+      # itself in-process (tests/db/cluster.ts, globalSetup) and tears down at
+      # the end of the run. It is not Supabase, not a hosted database, and not
+      # a service reachable over the network: the binary is a public,
+      # unauthenticated npm optionalDependency
+      # (@embedded-postgres/linux-x64, already pinned in package-lock.json)
+      # fetched by the `npm ci` step above the same way any other dependency
+      # is, and every migration it applies is the repo's own file, verbatim,
+      # from supabase/migrations. Nothing here is a live key standing in for
+      # one; it is the same fixture `npm test` already uses locally.
+      #
+      # THE COST: measured directly on a GitHub-hosted runner (not
+      # extrapolated from a local machine), on the run that first exercised
+      # this step end to end -- 94 files, 2258 tests, one shared embedded
+      # Postgres cluster booted once, took 45s (vitest's own reported
+      # duration; ~47s wall-clock including step overhead). That is
+      # comfortably inside a normal job budget and is not expected to become
+      # the slow part of this pipeline.
+      #
+      # THIS STEP RUNS `npm test`, NOT `vitest` DIRECTLY, and that is load
+      # bearing rather than a style choice: importing `embedded-postgres`
+      # (which `tests/db/cluster.ts`'s globalSetup does, in the main vitest
+      # process) registers an `async-exit-hook` `beforeExit` handler that
+      # unconditionally calls `process.exit(0)`, clobbering whatever exit
+      # code vitest itself wanted to report. Measured directly: a deliberately
+      # failing test suite still exits 0. `npm test` (`tools/run-tests.mjs`)
+      # reads vitest's own JSON report instead of trusting the process exit
+      # code, so this step's `outcome` below is meaningful. See the comment at
+      # the top of that file for the full story -- this was found, and fixed,
+      # in the same session that got this workflow green for the first time.
       - name: Test suite
         id: test
         if: always()
