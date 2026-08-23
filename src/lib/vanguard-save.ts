@@ -37,8 +37,20 @@ export const PROGRESSION_KEYS = [
 	'vanguard_scores',
 	'vanguard_games',
 	'vanguard_tutdone',
-	'vanguard_lastInitials'
+	'vanguard_lastInitials',
+	'vanguard_ach',
+	'vanguard_ach_best',
+	'vanguard_ach_title'
 ];
+
+/**
+ * Progression keys that USED TO BE CLASSIFIED AS PREFERENCES, so every save
+ * written before this commit still carries them inside a per-device-class pref
+ * bucket. `mergeIntoStored` folds any such copy back into progression before
+ * the bucket is replaced, and the seed skips them when it applies a bucket, so
+ * a stale per-device value can neither shadow nor silently drop the synced one.
+ */
+export const MIGRATED_PREF_KEYS = ['vanguard_ach', 'vanguard_ach_best', 'vanguard_ach_title'];
 
 /** Telemetry / device identity: stays local, never synced. */
 export const DEVICE_LOCAL_KEYS = ['vanguard_did'];
@@ -132,6 +144,73 @@ function mergeScores(aStr?: string, bStr?: string): string | undefined {
 	return JSON.stringify(out);
 }
 
+/**
+ * Which of two unlock stamps to keep for an achievement earned on BOTH devices.
+ *
+ * The earlier stamp wins: it is when the player actually first earned the badge,
+ * and the panel prints it as the earn date. A value that is not a positive
+ * number is not a stamp at all (a hand-edited save, a legacy `true`), so it
+ * loses to any side that has a real one and is only kept when neither does.
+ * Which stamp survives never changes WHETHER the id is unlocked -- that is the
+ * union, and the union is the part that cannot lose a real unlock.
+ */
+function earlierStamp(av: unknown, bv: unknown): unknown {
+	const an = num(av);
+	const bn = num(bv);
+	if (an > 0 && bn > 0) return an <= bn ? av : bv;
+	if (an > 0) return av;
+	if (bn > 0) return bv;
+	return av;
+}
+
+/**
+ * Merge two `vanguard_ach` JSON strings as a UNION OF UNLOCKED IDS, never an
+ * overwrite. The game writes `{ [achId]: Date.now() }` and only ever ADDS keys
+ * (`achEvalRun` skips an id it already holds), so an id present on either side
+ * is an achievement somebody really earned and must survive the merge; the two
+ * sides are otherwise independent, because two devices playing offline each
+ * unlock their own set.
+ * The mirror in `src/routes/vanguard/+server.ts` must stay behaviourally identical.
+ */
+function mergeAch(aStr?: string, bStr?: string): string | undefined {
+	if (aStr == null && bStr == null) return undefined;
+	const a = parseObj(aStr) ?? {};
+	const b = parseObj(bStr) ?? {};
+	const out: Record<string, unknown> = {};
+	for (const k of Object.keys(a)) out[k] = a[k];
+	for (const k of Object.keys(b)) {
+		out[k] = Object.prototype.hasOwnProperty.call(out, k) ? earlierStamp(out[k], b[k]) : b[k];
+	}
+	return JSON.stringify(out);
+}
+
+/**
+ * Merge two `vanguard_ach_best` JSON strings by PER-FIELD MAXIMUM.
+ *
+ * A ONE-LEVEL NUMERIC WALK, because that is the shape the game writes. `achBest`
+ * is declared flat -- `{bestScore, bestSector, bestParries, bestPerfect,
+ * bestMeltUses, bestBosses, totalGames, qualGames}` -- and every field is
+ * assigned through `Math.max(...)` of two numbers in `achEvalRun`. There is no
+ * nesting to recurse into, and a recursive walk would only invent behaviour for
+ * a shape that never occurs. The union of both key sets is taken so a field
+ * added to the game later still merges (as a max) without this list being
+ * touched; a non-numeric value reads as 0 through `num`, exactly as elsewhere.
+ * These are the progress bars on locked achievements, so a low side must never
+ * pull a high one down.
+ * The mirror in `src/routes/vanguard/+server.ts` must stay behaviourally identical.
+ */
+function mergeAchBest(aStr?: string, bStr?: string): string | undefined {
+	if (aStr == null && bStr == null) return undefined;
+	const a = parseObj(aStr) ?? {};
+	const b = parseObj(bStr) ?? {};
+	const out: Record<string, number> = {};
+	for (const k of Object.keys(a).concat(Object.keys(b))) {
+		if (Object.prototype.hasOwnProperty.call(out, k)) continue;
+		out[k] = Math.max(num(a[k]), num(b[k]));
+	}
+	return JSON.stringify(out);
+}
+
 /** Merge the two progression maps per the rules above. */
 export function mergeProgression(
 	a: Record<string, string> = {},
@@ -158,6 +237,22 @@ export function mergeProgression(
 	// Last-used initials: cross-device, last writer to cloud wins (b = incoming).
 	if (b.vanguard_lastInitials != null || a.vanguard_lastInitials != null) {
 		out.vanguard_lastInitials = b.vanguard_lastInitials ?? a.vanguard_lastInitials;
+	}
+
+	const ach = mergeAch(a.vanguard_ach, b.vanguard_ach);
+	if (ach != null) out.vanguard_ach = ach;
+
+	const achBest = mergeAchBest(a.vanguard_ach_best, b.vanguard_ach_best);
+	if (achBest != null) out.vanguard_ach_best = achBest;
+
+	// The WORN title is a choice, not an earning: there is nothing to union and
+	// no maximum to take, so it follows the `vanguard_lastInitials` rule above --
+	// cross-device, last writer to cloud wins (b = incoming) -- rather than a
+	// third rule invented for one key. The game already refuses to display a
+	// title whose achievement is not unlocked on this device (`achGetTitle`), so
+	// the union above is what makes an incoming title mean anything.
+	if (b.vanguard_ach_title != null || a.vanguard_ach_title != null) {
+		out.vanguard_ach_title = b.vanguard_ach_title ?? a.vanguard_ach_title;
 	}
 
 	return out;
@@ -225,6 +320,25 @@ export function mergeIntoStored(
 ): StoredSave {
 	const stored = normalizeStored(storedData);
 	const { progression, prefs } = splitSnapshot(snapshot);
+	// The three achievement keys were preferences until they became progression,
+	// so every save written before that carries a copy in a pref bucket. Fold
+	// those in FIRST and as the OLDER side (a), so the badges a second device
+	// earned before the reclassification are unioned in rather than dropped when
+	// its bucket is replaced below -- and so a stale bucket can never win the
+	// last-writer rule against the progression already stored.
+	for (const bucket of [stored.prefs.mobile, stored.prefs.desktop]) {
+		if (!bucket) continue;
+		const carried: Record<string, string> = {};
+		for (const k of MIGRATED_PREF_KEYS) {
+			if (typeof bucket[k] === 'string') {
+				carried[k] = bucket[k];
+				delete bucket[k];
+			}
+		}
+		if (Object.keys(carried).length) {
+			stored.progression = mergeProgression(carried, stored.progression);
+		}
+	}
 	stored.progression = mergeProgression(stored.progression, progression);
 	stored.prefs[deviceClass] = { ...prefs, _ts: nowIso };
 	// lastInitials is progression now; evict any stale copy older builds left in

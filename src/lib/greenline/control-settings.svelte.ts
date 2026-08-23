@@ -29,7 +29,8 @@ export type ControlAction =
 	| 'useAbilityPrimary'
 	| 'useAbilitySecondary'
 	| 'cycleCamera'
-	| 'lookBack';
+	| 'lookBack'
+	| 'horn';
 // Phase 8g retired the dedicated 'fire' / 'oil' / 'tether' actions: EMP, Oil
 // Slick, and the Grappling Hook are equippable weapons now, fired through the
 // two weapon-slot actions like everything else. A stored bindings map that
@@ -70,7 +71,12 @@ export const CONTROL_ACTIONS: {
 	// the dedicated EMP / oil / tether inputs. Mouse-drag free-look is not a
 	// binding (it reads the pointer directly), so it is not in this registry.
 	{ id: 'cycleCamera', label: 'Cycle camera view', group: 'camera', kind: 'edge' },
-	{ id: 'lookBack', label: 'Look back', group: 'camera', kind: 'held' }
+	{ id: 'lookBack', label: 'Look back', group: 'camera', kind: 'held' },
+	// The horn is DRIVING, not combat: it costs nothing, hits nothing, and is
+	// the one input in the registry that only other people experience. Which of
+	// the two sounds it makes is a garage cosmetic (Cosmetics.horn), not a
+	// binding, so there is one action here however many horns ship.
+	{ id: 'horn', label: 'Horn', group: 'driving', kind: 'edge' }
 ];
 
 const ACTION_IDS = CONTROL_ACTIONS.map((a) => a.id);
@@ -98,7 +104,10 @@ const KEY_DEFAULTS: Record<ControlAction, string> = {
 	useAbilitySecondary: 'KeyV',
 	// F cycles the camera view, Q glances behind — both freed by Phase 8g.
 	cycleCamera: 'KeyF',
-	lookBack: 'KeyQ'
+	lookBack: 'KeyQ',
+	// H for horn: unused by every other default, and the letter everyone
+	// already reaches for.
+	horn: 'KeyH'
 };
 
 /**
@@ -125,7 +134,11 @@ const PAD_DEFAULTS: Record<ControlAction, PadBinding | null> = {
 	// RB(5) cycles camera, LB(4) glances behind — the old EMP / tether buttons,
 	// free since Phase 8g. X(2) stays unused.
 	cycleCamera: { kind: 'button', index: 5 },
-	lookBack: { kind: 'button', index: 4 }
+	lookBack: { kind: 'button', index: 4 },
+	// Unbound on pad, like resetRound: X(2) is the only free button left and
+	// leaving it free is better than spending the last one on a horn. Bindable
+	// from the settings overlay by anyone who wants it.
+	horn: null
 };
 
 const KEY_STORE = 'greenline_control_keys';

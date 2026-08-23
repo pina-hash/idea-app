@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './brand/brand';
 	import { uiSounds, playUiSfx } from './ui-sfx';
+	import { playSfx } from './sfx';
 	import {
 		abilityCapacityFor,
 		abilityCostUsed,
@@ -9,7 +10,9 @@
 		archetypeById,
 		ARCHETYPES,
 		COSMETIC_COLORS,
+		COSMETIC_HORNS,
 		COSMETIC_PATTERNS,
+		DEFAULT_HORN_ID,
 		describeEffects,
 		describeStats,
 		mountCapacityFor,
@@ -36,6 +39,9 @@
 		type WeaponSocketId
 	} from './combat';
 	import { ABILITIES, ABILITY_NONE, type AbilitySlotId } from './abilities';
+	// The horn picker prints the key the horn is actually bound to, read from the
+	// live bindings rather than from the default, so a rebind is reflected here.
+	import { controlSettings, keyLabel } from './control-settings.svelte';
 	import {
 		colorItemId,
 		CURRENCY_NAME,
@@ -463,7 +469,7 @@
 	const TAB_UI: { id: GarageTab; label: string; hint: string }[] = [
 		{ id: 'build', label: 'BUILD', hint: 'chassis and bodywork' },
 		{ id: 'combat', label: 'COMBAT', hint: 'weapons and abilities' },
-		{ id: 'livery', label: 'LIVERY', hint: 'color, number, decal' },
+		{ id: 'livery', label: 'LIVERY', hint: 'color, number, horn, decal' },
 		{ id: 'garage', label: 'GARAGE', hint: 'saved builds and track' }
 	];
 	const hasLivery = $derived(!!oncosmetic);
@@ -1041,6 +1047,30 @@
 					{#if confirmPurchase?.startsWith('pattern:')}
 						{@render purchaseStrip(confirmPurchase)}
 					{/if}
+				</div>
+				<div class="gg-livery-group">
+					<div class="gg-livery-label">Horn</div>
+					<div class="gg-patterns">
+						{#each COSMETIC_HORNS as h (h.id)}
+							<button
+								type="button"
+								class="gg-pattern"
+								class:sel={(livery?.horn ?? DEFAULT_HORN_ID) === h.id}
+								onclick={() => {
+									oncosmetic?.({ horn: h.id });
+									// The horn IS the confirmation, so it replaces the click cue
+									// (data-sfx="none") rather than sounding under it. A picker
+									// you cannot hear is a picker you have to guess at.
+									playSfx(h.sfx);
+								}}
+								data-sfx="none"
+								title={h.hint}
+							>
+								{h.name}
+							</button>
+						{/each}
+					</div>
+					<div class="gg-num-hint">{keyLabel(controlSettings.keyboard.horn)} in a race</div>
 				</div>
 				<div class="gg-livery-group gg-livery-num">
 					<div class="gg-livery-label">Car number</div>

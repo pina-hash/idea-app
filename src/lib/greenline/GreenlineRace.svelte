@@ -145,6 +145,7 @@
 	import {
 		archetypeById,
 		defaultLoadout,
+		hornSfxFor,
 		neutralStats,
 		normalizeCosmetics,
 		parseLoadout,
@@ -5324,6 +5325,40 @@
 					playSfx('env_draft_engage', { position: pos });
 				};
 
+				// ---- Driver horn ----
+				// The one input in the game that does nothing to anybody: no damage, no
+				// meter, no cooldown on anything else. Which of the two recordings it
+				// makes is a garage cosmetic on the build (Cosmetics.horn), read here
+				// per press, so changing it in the garage changes the next blast with
+				// no wiring in between.
+				//
+				// TWO THINGS KEEP IT OFF THE WEAPONS BUS AS A SPAM CHANNEL. The 600ms
+				// gate is the first; the second is that a car has ONE horn, so a press
+				// while a blast is still sounding RESTARTS it rather than stacking a
+				// second voice. Without that the 4-second siren would layer up to seven
+				// deep against a soft cap of eight and start stealing real weapon
+				// voices; with it the horn holds exactly one voice however hard the key
+				// is hit. It rides the car's position like every other cue the player's
+				// own machine makes.
+				const HORN_COOLDOWN_MS = 600;
+				let hornReadyAtMs = 0;
+				let hornVoice: VoiceHandle | null = null;
+				const soundHorn = (): boolean => {
+					if (inputBlocked || paused) return false;
+					const t = gameNow();
+					if (t < hornReadyAtMs) return false;
+					hornReadyAtMs = t + HORN_COOLDOWN_MS;
+					if (hornVoice) {
+						hornVoice.stop();
+						hornVoice = null;
+					}
+					const b = player.body.position;
+					hornVoice = playSfx(hornSfxFor(playerLoadout.cosmetics), {
+						position: { x: b.x, y: b.y + 0.4, z: b.z }
+					});
+					return hornVoice !== null;
+				};
+
 				// Trigger-zone cue: the boost pad's propulsive surge, distinct from
 				// nitro's ignition burst.
 				const zoneSfx = (kind: 'boost', x?: number, z?: number) => {
@@ -5764,6 +5799,7 @@
 							else if (action === 'useAbilityPrimary') abilityPrimaryQueued = true;
 							else if (action === 'useAbilitySecondary') abilitySecondaryQueued = true;
 							else if (action === 'cycleCamera') cycleCameraView();
+							else if (action === 'horn') soundHorn();
 						}
 						return;
 					}
@@ -6097,6 +6133,17 @@
 					cycleCamera: () => {
 						cycleCameraView();
 						return CAMERA_VIEWS[camViewIdx].name;
+					},
+					// The horn, drivable without a key so a scripted drive can assert
+					// WHICH sound the equipped cosmetic plays and that the call really
+					// returned a voice -- audio is the one thing a screenshot cannot
+					// show. Returns the roster id it asked for, whether the cooldown let
+					// it through, and whether a voice actually started.
+					horn: () => {
+						const ref = hornSfxFor(playerLoadout.cosmetics);
+						const readyIn = Math.max(0, Math.round(hornReadyAtMs - gameNow()));
+						const played = soundHorn();
+						return { ref, played, wasReadyInMs: readyIn, cooldownMs: HORN_COOLDOWN_MS };
 					},
 					setCameraView: (i: number) => {
 						camViewIdx = ((i % CAMERA_VIEWS.length) + CAMERA_VIEWS.length) % CAMERA_VIEWS.length;
@@ -6868,6 +6915,7 @@
 								else if (a === 'useAbilitySecondary') abilitySecondaryQueued = true;
 								else if (a === 'resetRound') resetRound();
 								else if (a === 'cycleCamera') cycleCameraView();
+								else if (a === 'horn') soundHorn();
 							}
 							prevPadEdge[a] = down;
 						}
