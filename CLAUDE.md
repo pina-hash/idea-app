@@ -35,9 +35,81 @@ Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), and the portal
 shell (`/`, `/dashboard`, `/admin`).
 
-**FOUNDRY HAS ITS DATA LAYER (0130/0131), ITS INGEST FUNCTION AND ITS BUNDLE
-PROXY. THERE IS STILL NO GALLERY AND NO SUBMIT SURFACE.** Several things about
-it are rules rather than history.
+**FOUNDRY HAS ITS DATA LAYER (0130/0131), ITS INGEST FUNCTION, ITS BUNDLE PROXY
+AND ITS SUBMIT SURFACE (`/foundry/submit`, `/foundry/mine`, `/foundry/contract`).
+THERE IS STILL NO GALLERY, NO PUBLIC DETAIL VIEW AND NO REVIEW QUEUE.** Several
+things about it are rules rather than history.
+
+**THE STUDENT HANDS OVER ONE OF THREE SHAPES AND THE BROWSER MAKES THEM ALL A
+ZIP** -- a `.zip` passes through untouched, a folder is zipped client-side, a
+single HTML file is packed as `index.html`. `src/lib/foundry/normalize.ts` does
+it and `src/lib/foundry/zip-write.ts` is the writer, which is the deliberate
+mirror of `zip.ts`'s reader. The point is that `foundry-ingest` keeps ONE input
+shape, so every structural assertion already proven against it stays proven;
+teaching the function two more shapes would mean re-proving all of them twice.
+  - **NORMALIZING JUDGES NOTHING.** It decides what was handed over and packs
+    it; whether the result is a legal bundle is the preflight's question, asked
+    afterwards on the zip it produced. That separation is what stops
+    "normalize" becoming a second, softer copy of the rules.
+  - **THE WRAPPER DIRECTORY IS NOT STRIPPED THERE.** `stripWrapperDirectory`
+    inside `planStructure` is the ONE implementation of that repair and it runs
+    on both sides; doing it again while packing would be a second copy that
+    could stop agreeing about when it applies. A picked folder therefore
+    carries its own name into the zip and the preflight reports removing it,
+    exactly as it does for a right-click-Compress archive.
+  - **FOLDER NOISE IS A WIDER SET THAN ZIP NOISE, AND THE TWO PREDICATES STAY
+    APART.** `isOsNoise` is what a zipper added unasked and is dropped on both
+    paths; `folderNoiseLabel` adds `.git` and `node_modules`, which only a
+    dragged development folder carries. Folding them together would change what
+    the SERVER does with an uploaded zip, where `node_modules` means the student
+    zipped the wrong folder and the honest answer is the refusal they already
+    get. Every drop is reported by category, never silently.
+
+**THE BUILD CONTRACT IS GENERATED FROM THE PREFLIGHT CONSTANTS, IN
+`preflight.ts` ITSELF** (`foundryBuildContract()`), and rendered at
+`/foundry/contract`. Every cap, the extension list, the entry filename and the
+one allowed absolute path are read from the values the checks enforce, so a rule
+change rewrites the document in the same commit. **Do not write the contract
+down anywhere else** -- a second statement of the rules is the one that drifts.
+It is addressed to an AI TOOL rather than to a reader, because that is what will
+be pasted it; imperative, specific, and using the same spellings the failure
+messages use.
+
+**A REFUSAL IS RENDERED VERBATIM, AND FIXING ITS WORDING MEANS EDITING
+`preflight.ts`.** `FoundryIssues.svelte` never rewrites, shortens or re-tones a
+sentence -- the same string is produced by the browser preflight and by
+`foundry-ingest`, and a student reads one of them before uploading and the other
+after. Each message is copyable on its own and the list is copyable at once,
+because the next thing that happens to a failure is being pasted back into
+whatever generated the app.
+  - **THE SENTENCES ALREADY CARRY THEIR OWN LOCATION.** Nearly every one starts
+    from `where(path, line)` and the structural ones lead with the filename, so
+    a surface adding a file/line chip beside them prints it twice -- and a copy
+    button that prefixes it again puts the stutter on the clipboard. `locationOf`
+    adds a location only to the issues whose sentence lacks one.
+  - **AN EXAMPLE IN A MESSAGE MUST BE VALID IN THE LANGUAGE IT WILL BE PASTED
+    INTO.** `relativeExample` returns `url("bg.png")` for a CSS refusal and
+    `src="logo.png"` for an HTML one. It returned the attribute form for both
+    until the browser pass put `url="bg.png"` on screen -- offered to a student,
+    inside a stylesheet, as the thing to write instead.
+  - **TWO STUDENT-FACING SENTENCES LIVE IN THE INGEST FUNCTION, AND THEY ARE
+    PINNED BY TEXT** in `tests/foundry-preflight-parity.test.ts`: a storage
+    object gone missing between upload and invoke, and a file the function could
+    not decode. Both describe moments the browser never reaches. A THIRD one
+    reddens that sweep and has to earn its place.
+
+**PREFLIGHT PASSING IS NOT SUBMISSION.** A pass uploads the zip, creates the
+version and runs ingest, and the version stays a DRAFT; submitting for review is
+a separate press on `/foundry/mine`. The surface says so in words, because a
+student who reads "uploaded" as "submitted" walks away believing a review is
+queued when nothing is.
+
+**THE UPLOAD PATH IS KEYED TO A PER-UPLOAD UUID, NOT TO THE VERSION ID, AND
+THAT IS FORCED.** `foundry_create_version` takes the zip path as an INPUT, so
+the row -- and therefore its id -- does not exist until after the object has to
+be named. The path is `<uid>/<uuid>.zip`, which is what the bucket policy allows
+and is one-to-one with the version it becomes. Changing it to the version id
+means changing that RPC's signature, which is a migration.
 
 **`foundry-bundles` HAS NO STORAGE POLICY, AND THAT IS THE MECHANISM** --
 `storage.objects` has RLS on, so a bucket no policy names denies every

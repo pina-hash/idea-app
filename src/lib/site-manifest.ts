@@ -90,6 +90,12 @@ export const APPS: SiteApp[] = [
 		]
 	},
 	{
+		id: 'foundry',
+		label: 'Foundry',
+		prefixes: ['src/routes/foundry/', 'src/lib/foundry/', 'supabase/functions/foundry-ingest/'],
+		contains: ['foundry']
+	},
+	{
 		id: 'notebook',
 		label: 'Notebook',
 		prefixes: [

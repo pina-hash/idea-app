@@ -278,6 +278,37 @@ export function isOsNoise(name: string): boolean {
 }
 
 /**
+ * NOISE IN A PICKED FOLDER, which is a WIDER set than noise in a zip, and the
+ * difference is deliberate.
+ *
+ * `isOsNoise` is what a ZIPPER added without being asked, and it is dropped on
+ * both paths. This adds the two things a DEVELOPMENT FOLDER carries that a zip
+ * of the same work usually would not: `.git`, because a student drags the
+ * project folder rather than a copy of its output, and `node_modules`, because
+ * a generated app that once ran a package manager still has one sitting there.
+ * Neither is the student's app, both are enormous, and either would blow the
+ * file cap long before anything about the app was looked at.
+ *
+ * IT IS NOT FOLDED INTO `isOsNoise`, because that would change what the SERVER
+ * does with an uploaded zip: a zip containing `node_modules` is a student who
+ * zipped the wrong folder, and the honest answer to that is the refusal they
+ * already get, not a silent drop of half their archive. Here the folder is
+ * being read file by file in front of them and the drop is reported before
+ * anything is uploaded, which is a different situation with a different right
+ * answer.
+ *
+ * Returns the LABEL to report, so the caller can say what went and why rather
+ * than emitting a count of anonymous omissions.
+ */
+export function folderNoiseLabel(path: string): string | null {
+	if (isOsNoise(path)) return 'operating system files';
+	const segments = path.split('/');
+	if (segments.includes('.git')) return '.git';
+	if (segments.includes('node_modules')) return 'node_modules';
+	return null;
+}
+
+/**
  * Removes a single wrapper directory when the whole app sits inside one.
  *
  * A FOLDER-OF-ONE IS THE SINGLE MOST COMMON SHAPE A PERSON UPLOADS -- right
@@ -371,12 +402,23 @@ export function classifyReference(value: string): RefVerdict {
 	return { kind: 'ok' };
 }
 
-/** A relative example in the same shape as the thing being refused. */
+/**
+ * A relative example in the same shape as the thing being refused.
+ *
+ * THE SHAPE HAS TO BE VALID IN THE LANGUAGE IT WILL BE PASTED INTO. An HTML
+ * reference is an attribute, so `src="logo.png"` is right; a CSS reference is a
+ * `url()` function, and `url="bg.png"` -- which this produced for every CSS
+ * refusal until it was read back out of a browser -- is not CSS at all. It
+ * would be pasted into a stylesheet, or into the tool that wrote the
+ * stylesheet, and produce a second broken thing. The `attr` a CSS scan passes
+ * is the literal string `url`, which is what makes the two cases separable
+ * here rather than at every call site.
+ */
 function relativeExample(attr: string, value: string): string {
 	const base = value.split(/[?#]/)[0];
 	const guess = base.slice(base.lastIndexOf('/') + 1) || 'file.css';
 	const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : 'file.css';
-	return `${attr}="${named}"`;
+	return attr === 'url' ? `url("${named}")` : `${attr}="${named}"`;
 }
 
 /* -------------------------------------------------------------------------
@@ -890,4 +932,135 @@ export function largeAssetWarning(path: string, bytes: number): FoundryIssue {
 		null,
 		`${path} is ${formatBytes(bytes)}. Files this large make your app slow to open, especially on a school laptop. Compress it or use a smaller one.`
 	);
+}
+
+/* -------------------------------------------------------------------------
+ * The build contract.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * THE STUDENT-FACING BUILD CONTRACT, GENERATED FROM THE RULES ABOVE.
+ *
+ * It lives in THIS module, beside the checks, because a contract kept anywhere
+ * else is a second statement of the same rules and would drift the first time
+ * a cap moved. Every number and every list below is read from the constants
+ * the preflight actually enforces -- the extension list, the two caps, the
+ * entry filename, the one allowed absolute path -- so a change to a rule
+ * rewrites the document in the same commit, with nothing to remember.
+ *
+ * IT IS ADDRESSED TO A TOOL, NOT TO A READER. Nearly every app here is
+ * generated, and this text's real job is to be pasted into whatever is doing
+ * the generating. So it is imperative, specific, and free of encouragement:
+ * "Do not" rather than "please avoid", concrete filenames rather than
+ * categories, and the failure stated next to the rule so a model can tell what
+ * it is being kept away from. Prose for a human would be a worse document for
+ * the one use it actually gets.
+ *
+ * WHAT IT MUST NOT BECOME is a second vocabulary. It says `index.html`, not
+ * "the entry file"; it says `/_platform/fonts.css`, not "the platform font
+ * stylesheet". The failure messages in this module are written the same way
+ * for the same reason, and the two have to sound like one document because a
+ * student will read one straight after the other.
+ */
+export function foundryBuildContract(): string {
+	const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
+	const exts = FOUNDRY_ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(' ');
+
+	return `BUILD CONTRACT -- IDEA Foundry
+
+You are building a self-contained web app that will be published to IDEA
+Foundry and run inside a locked-down sandbox. Follow every rule below. An app
+that breaks one of them is refused at upload with a message naming the file and
+the line.
+
+OUTPUT SHAPE
+- Produce ONE folder.
+- Put ${FOUNDRY_ENTRY_FILE} at the TOP LEVEL of that folder. Not in a subfolder.
+- Everything else the app needs goes in that same folder, or in subfolders of it.
+- Do not produce a README, a package.json, a lockfile, a config file, or a build
+  script. They are not used and several of them are refused.
+
+TECHNOLOGY
+- Vanilla HTML, CSS and JavaScript only.
+- No build step. Nothing is compiled, bundled, transpiled or installed. The
+  files you write are the files that run.
+- No frameworks that require a build (React with JSX, Vue SFCs, Svelte,
+  TypeScript). If you want a framework, it must run from plain script tags you
+  have written into the folder yourself -- but you cannot download one, so in
+  practice write plain JavaScript.
+- ES modules work: <script type="module" src="app.js"></script> with relative
+  paths.
+
+PATHS
+- Every path in every file is RELATIVE. Write src="art/logo.png", not
+  src="/art/logo.png".
+- A path starting with a forward slash is refused. There is exactly one
+  exception, below.
+- Do not use ../ to climb above the folder. Nothing exists up there.
+- Paths are case-sensitive. art/Logo.png and art/logo.png are different files.
+
+NO NETWORK AT RUNTIME
+- The app runs with all network access blocked. Every request it makes fails.
+- Do not use fetch, XMLHttpRequest, WebSocket or EventSource.
+- Do not load a script, stylesheet, image, font, video or audio file from
+  another site. No CDN. No unpkg, jsdelivr, cdnjs, skypack or esm.sh.
+- Do not use Google Fonts. Neither the stylesheet
+  (fonts.googleapis.com) nor the font files (fonts.gstatic.com) will load.
+- Do not embed an <iframe> pointing at another site, and do not open one.
+- Everything the app needs must be a file inside the folder.
+
+FONTS
+- ${PLATFORM_FONTS_PATH} is the ONE absolute path you may reference, and the one
+  exception to the relative-paths rule. Link it exactly as written:
+      <link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">
+- It provides three families. Use them by name:
+      font-family: 'Rajdhani', sans-serif;         body and display
+      font-family: 'Orbitron', sans-serif;         titles
+      font-family: 'Share Tech Mono', monospace;   code and metadata
+- You may also ship your own .woff2 or .ttf file in the folder and @font-face it
+  with a relative path.
+
+STORAGE
+- localStorage and sessionStorage exist and work, so code that uses them will
+  not throw.
+- They are IN MEMORY. Nothing is written to disk, and everything is lost on
+  reload.
+- Do not build anything whose value depends on data surviving a reload -- a save
+  slot, a high-score table, a multi-session tracker. Within one session they are
+  fine.
+- Cookies and IndexedDB are not available.
+
+SANDBOX
+The app runs in a sandboxed frame with no access to the page around it. The
+following do nothing, and code that depends on them will appear broken:
+- window.parent, window.top, window.opener
+- window.open
+- navigating away: link clicks to other sites, location assignment, form
+  submission to a URL
+- downloads, including <a download> and any script-driven file save
+- the clipboard, the camera, the microphone, geolocation and notifications
+Build the app so everything happens inside its own page.
+
+FILE TYPES
+- Allowed extensions, and nothing else:
+      ${exts}
+- A file with any other extension is refused. That includes .map, .md, .ts,
+  .jsx, .scss, .zip, .mp4 and .ico.
+- Do not include hidden or tooling files: .DS_Store, Thumbs.db, __MACOSX, .git,
+  node_modules. If they are in the folder they are dropped before upload and
+  reported.
+
+SIZE
+- At most ${FOUNDRY_LIMITS.maxFiles} files.
+- At most ${mb(FOUNDRY_LIMITS.maxTotalBytes)} for everything unpacked, and at most ${mb(FOUNDRY_LIMITS.maxZipBytes)} for the zip.
+- A single file over ${mb(FOUNDRY_LIMITS.warnAssetBytes)} is allowed but warned about. Compress large images and
+  audio before including them.
+
+BEFORE YOU FINISH
+- Open ${FOUNDRY_ENTRY_FILE} directly from the filesystem, with no server running, and
+  confirm the app works. If it needs a server, it will not run here.
+- Confirm every src and href in every file is either relative or exactly
+  ${PLATFORM_FONTS_PATH}.
+- Confirm there is no fetch, no XMLHttpRequest, and no reference to any other
+  website anywhere in the code.`;
 }
