@@ -35,8 +35,10 @@ Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), and the portal
 shell (`/`, `/dashboard`, `/admin`).
 
-**FOUNDRY IS DATA LAYER ONLY SO FAR (0130): three tables, three buckets, eleven
-RPCs, NO ROUTES AND NO UI.** Two things about it are rules rather than history.
+**FOUNDRY HAS ITS DATA LAYER (0130/0131), ITS INGEST FUNCTION AND ITS BUNDLE
+PROXY. THERE IS STILL NO GALLERY AND NO SUBMIT SURFACE.** Several things about
+it are rules rather than history.
+
 **`foundry-bundles` HAS NO STORAGE POLICY, AND THAT IS THE MECHANISM** --
 `storage.objects` has RLS on, so a bucket no policy names denies every
 `authenticated` and `anon` request by default and only `service_role` reaches
@@ -46,6 +48,71 @@ NOTHING ELSE** -- a new read of `student_apps` calls that predicate rather than
 writing its own `hidden_at is null`, and its two widening flags are gated on
 `is_admin()` inside the function, which is why the admin populations are a
 parameter on one list rather than a second list function.
+
+### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
+
+**A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
+are served from `PUBLIC_FOUNDRY_APPS_HOST` (`apps.ideabosco.com`), which is the
+same Vercel project and the same deployment as `ideabosco.com`.
+
+- **TWO ORIGINS, NOT ONE HOST PLUS A HEADER, and the difference is subresource
+  cookies.** A header governs scripting and document origin; it does not govern
+  whether a subresource request carries credentials. A bundle containing
+  `<img src="/api/whatever">` served same-host reaches the real backend with the
+  viewer's cookies attached. Served cross-site it reaches a host that reaches
+  nothing. No header achieves this and no header ever will.
+- **`src/lib/foundry/host.ts` IS THE ONE COPY OF THE HOST RULE**, it is pure,
+  and the apps host is an **ALLOWLIST** (`appsHostAllows`): `/r/*` and
+  `/_platform/*`, everything else a bodyless 404 answered in
+  `hooks.server.ts` before the router sees it. A route added later is
+  unreachable there BY DEFAULT. The branch is sequenced FIRST, ahead of the
+  Supabase client, so no path on that host can read a session or write a
+  refreshed cookie. **`/r/*` and `/_platform/*` 404 on the MAIN host** -- without
+  that half the split is a convention, not a boundary.
+- **`event.url.host` IS THE VALUE TO BRANCH ON, and it was measured on Vercel,
+  not assumed.** It tracks the requested host, is not rewritten upstream, and a
+  client-supplied `X-Forwarded-Host` does not move it. See `host.ts` for the
+  probe.
+- **THE HOOK CANNOT REACH VERCEL'S FILESYSTEM.** `static/` and `_app/immutable/*`
+  are served without invoking the function, so they answer on the apps host
+  whatever the hook says (measured: `apps.ideabosco.com/robots.txt` is 200).
+  Closing that needs a platform-level rule, not a hook.
+- **`allow-scripts` AND `allow-same-origin` TOGETHER CANCEL THE SANDBOX
+  ENTIRELY** -- a frame with both can reach its own origin, strip the sandbox
+  attribute off itself in the parent document and reload unsandboxed.
+  **`allow-same-origin` must never appear on a Foundry frame**, and
+  `$lib/foundry/AppFrame.svelte` is the ONE place the attribute is written down.
+  A second copy is a frame that looks identical and isolates nothing.
+- **THE CSP `sandbox` DIRECTIVE AND THE IFRAME `sandbox` ATTRIBUTE ARE NOT
+  REDUNDANT.** The attribute covers a document the portal frames; the directive
+  covers the document however it was reached, so a student who navigates
+  straight to a bundle URL lands in the same opaque origin. Neither replaces the
+  other and both must stay.
+- **`'self'` IS NOT A USABLE CSP SOURCE FOR A SANDBOXED DOCUMENT.** It is the
+  only origin-relative source expression, and an opaque origin is same-origin
+  with nothing -- so a source list must NAME THE BUNDLE ORIGIN LITERALLY (taken
+  from the request's own URL). Equally, **`default-src` alone forbids inline
+  script**, which kills the storage shim and essentially every generated app;
+  `script-src`/`style-src` are stated explicitly with `'unsafe-inline'`. The
+  isolation here is the opaque origin, `connect-src 'none'` and
+  `frame-ancestors` -- never a restriction on how the student's own script runs.
+- **THE TOKEN IS NOT THE LAST WORD ON ACCESS.** The proxy reads
+  `foundry-bundles` with the service-role key, which bypasses RLS, so every rule
+  RLS would have enforced is re-checked in `$lib/server/foundry-bundle.ts` on
+  every request: the version belongs to the app, it is still the app's
+  `published_version_id`, and the app is not hidden. A token lives 30 minutes
+  and an app can be withdrawn inside that window.
+- **THE FILE LIST IS THE ALLOWLIST.** A served path must have a row in
+  `student_app_files` for that exact version and that exact string, so path
+  traversal has nothing to traverse to and nothing is ever resolved against a
+  filesystem.
+- **`/r/{token}/` KEEPS ITS TRAILING SLASH.** The route sets
+  `trailingSlash = 'ignore'` and redirects the bare root itself: `/r/<token>` has
+  `/r/` as its base URL, so every relative asset in every bundle would resolve
+  outside the bundle.
+- **EVERY REFUSAL ON THAT HOST IS THE SAME BODYLESS 404.** A bad signature, an
+  expired token, another app's file, a missing row, a hidden app and an ordinary
+  app route are indistinguishable from outside.
 
 ---
 
@@ -265,20 +332,30 @@ Read via `$env/static/public`: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
 
 Read via `$env/dynamic/public` (runtime, so a missing value never breaks the
 build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
-`PUBLIC_FSP_PULSE_APPS_SCRIPT_URL`, `PUBLIC_VAPID_PUBLIC_KEY`.
+`PUBLIC_FSP_PULSE_APPS_SCRIPT_URL`, `PUBLIC_VAPID_PUBLIC_KEY`,
+`PUBLIC_FOUNDRY_APPS_HOST` (the bundle host, no scheme; UNSET FAILS CLOSED --
+nothing is the apps host, so no bundle is served anywhere rather than being
+served from the main origin) and `PUBLIC_FOUNDRY_APP_ORIGIN` (the CSP
+`frame-ancestors` value; unset means `'none'`).
 
 **SERVER-ONLY**, read via `$env/dynamic/private` (runtime; never in the client
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly THREE modules: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FOUR modules: the GREENLINE
   community-track publish endpoint (which must run the game's real track
   validation in Node before any row is written), the tournament push sender, and
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
-  anything in it). Nothing else may read it, and **it must never gain a
-  `PUBLIC_` prefix**. Unset, the feedback route answers a structured
+  anything in it), and the Foundry bundle proxy's source module
+  (`src/lib/server/foundry-bundle.ts`). The FOURTH one is forced by the origin
+  split rather than chosen: the apps host is a different site, so the viewer's
+  cookies never arrive and there is no session to read a row under, and
+  `foundry-bundles` carries no storage policy at all, so `service_role` is the
+  only role that reaches it. That is why every rule RLS would have enforced is
+  re-checked explicitly in that module. Nothing else may read it, and **it must
+  never gain a `PUBLIC_` prefix**. Unset, the feedback route answers a structured
   `not_configured` refusal rather than a retryable failure: a missing
   environment variable does not fix itself in eight seconds of backoff.
 - **`GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
@@ -295,6 +372,14 @@ build break):
 - **`VAPID_PRIVATE_KEY`** (+ optional `VAPID_SUBJECT`) -- signs Web Push. Read
   ONLY by `src/lib/server/push.ts`. Must come from ONE generated pair with
   `PUBLIC_VAPID_PUBLIC_KEY`; rotating orphans every existing subscription.
+- **`FOUNDRY_TOKEN_SECRET`** -- signs the bundle tokens that authorize a read on
+  the apps host. Read ONLY by `src/lib/server/foundry-token.ts`. Unset in
+  DEVELOPMENT mints a per-process secret (tokens work, and die with the
+  process); unset in PRODUCTION is not papered over -- the mint answers a
+  structured `not_configured` and the proxy refuses every token -- because a
+  per-instance secret across many serverless instances mints tokens that verify
+  on one instance and nowhere else.
+
 - **`GITHUB_EXPORT_TOKEN`** -- the classroom GitHub export. Read ONLY by
   `src/lib/server/classroom-export.ts`; never reaches a caller, a message, or a
   log line. Unset is SILENT: no attempt, no recorded failure, no chip.
@@ -1315,6 +1400,24 @@ belong wherever the app's own behaviour is documented.
   Interpolability CAN be: `el.animate([from, to])`, `pause()`, then set
   `currentTime` and read the computed value at several points -- a smooth ramp
   proves the two values interpolate, a jump at 50% proves they are discrete.
+- **IT BLOCKS EVERY SUBRESOURCE REQUEST MADE FROM AN OPAQUE ORIGIN**, which
+  means a sandboxed iframe's own stylesheet, script, image and font requests all
+  fail with `net::ERR_BLOCKED_BY_CLIENT` and NO `securitypolicyviolation` event.
+  That reads exactly like a CSP mistake and is not one -- it cost a wrong
+  diagnosis here (a bundle rendering in Times New Roman with its stylesheet
+  sitting in `document.styleSheets` looking loaded). **The discriminator is to
+  fetch the IDENTICAL URL from an ordinary page in the same browser**: 200 there
+  and blocked in the sandbox is the instrument, not the policy. A real CSP
+  refusal fires `securitypolicyviolation` and names the directive. Consequence:
+  **a sandboxed bundle's subresource behaviour cannot be verified in this pane
+  at all**, and neither can what its requests carry.
+- **Cross-origin iframe navigations to a localhost/loopback dev server are
+  blocked INTERMITTENTLY**, same `ERR_BLOCKED_BY_CLIENT`, while the identical
+  URL loads fine as a top-level navigation. A frame created programmatically
+  right after a fresh page load is the shape that worked; repeated reloads of
+  the same frame are the shape that did not. Read the network log rather than
+  trusting `load` -- **`load` fires on a blocked navigation too**, so a frame
+  that never loaded looks like one that did.
 - **`IntersectionObserver` NEVER FIRES AT ALL, for anything.** `loading="lazy"`
   images never request, and neither does any hand-written observer: `AppLauncher`
   stamps `opacity:0` inline on every card at mount and clears it from an IO
