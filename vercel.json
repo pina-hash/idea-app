@@ -1,6 +1,5 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
-	"buildCommand": "npm test -- --no-file-parallelism && npm run build",
 	"redirects": [
 		{
 			"source": "/(.*)",
