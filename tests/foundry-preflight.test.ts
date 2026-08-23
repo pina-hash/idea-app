@@ -46,7 +46,8 @@ import {
 	planStructure,
 	scanCss,
 	scanJs,
-	stripWrapperDirectory
+	stripWrapperDirectory,
+	versionIsIngestable
 } from '$lib/foundry/preflight.ts';
 import { bundlePathOk } from '$lib/bundle-path.ts';
 import { ByteBudget, ZipBudgetError, inflateEntry, readCentralDirectory } from '$lib/foundry/zip.ts';
@@ -328,6 +329,33 @@ describe('structure', () => {
 	});
 });
 
+/* --------------------------------------------------------- invocation gate */
+
+describe('invocation eligibility', () => {
+	/*
+	 * 0131 gave foundry-uploads the SELECT policy it was missing, and that
+	 * policy's side effect is that an own-prefix overwrite of the UPLOADED ZIP
+	 * is now reachable where it previously failed on RLS. This predicate is the
+	 * ONLY thing left refusing a re-run against a version somebody has already
+	 * reviewed -- there is no second gate -- which is what makes it
+	 * load-bearing rather than a convenience check.
+	 */
+	it('permits draft and refuses every reviewed status', () => {
+		expect(versionIsIngestable('draft')).toBe(true);
+		expect(versionIsIngestable('submitted')).toBe(false);
+		expect(versionIsIngestable('approved')).toBe(false);
+		expect(versionIsIngestable('rejected')).toBe(false);
+	});
+
+	it('refuses anything that is not exactly the known statuses', () => {
+		// Defence in depth: an unrecognised status refuses rather than
+		// defaulting open.
+		expect(versionIsIngestable('')).toBe(false);
+		expect(versionIsIngestable('DRAFT')).toBe(false);
+		expect(versionIsIngestable('draft ')).toBe(false);
+	});
+});
+
 /* ------------------------------------------------------------- references */
 
 describe('reference classification', () => {
@@ -337,16 +365,23 @@ describe('reference classification', () => {
 		}
 	});
 
+	it('permits mailto: and tel:, which carry no network request', () => {
+		expect(classifyReference('mailto:a@b.c').kind).toBe('ok');
+		expect(classifyReference('mailto:a@b.c?subject=Hi').kind).toBe('ok');
+		expect(classifyReference('tel:555-1234').kind).toBe('ok');
+		expect(classifyReference('tel:+1-555-555-1234').kind).toBe('ok');
+	});
+
 	it('permits the one absolute path, and no other', () => {
 		expect(classifyReference('/_platform/fonts.css').kind).toBe('ok');
 		expect(classifyReference('/assets/logo.png').kind).toBe('absolute');
 		expect(classifyReference('/').kind).toBe('absolute');
 	});
 
-	it('refuses every scheme and the protocol-relative form', () => {
+	it('refuses every network scheme and the protocol-relative form', () => {
 		expect(classifyReference('https://cdn.example.com/x.js').kind).toBe('scheme');
 		expect(classifyReference('//cdn.example.com/x.js').kind).toBe('scheme');
-		expect(classifyReference('mailto:a@b.c').kind).toBe('scheme');
+		expect(classifyReference('ftp://files.example.com/x.zip').kind).toBe('scheme');
 	});
 
 	it('names Google Fonts specifically, because the fix is different', () => {
@@ -393,6 +428,17 @@ describe('content scanning', () => {
 	it('does not report a url() sitting inside a CSS comment', () => {
 		const css = '/* background: url("https://example.com/x.png"); */\nbody { color: red; }\n';
 		expect(scanCss('styles.css', css).failures).toEqual([]);
+	});
+
+	it('names the refused scheme in the message, not just the URL', () => {
+		// A student pasting this back into an AI tool needs the specific thing
+		// to remove named plainly -- not buried in a URL, and not described
+		// generically as "an address".
+		const css = ".x { background: url('ftp://files.example.com/bg.png'); }\n";
+		const { failures } = scanCss('styles.css', css);
+		expect(failures).toHaveLength(1);
+		expect(failures[0].message).toContain('ftp:');
+		expect(failures[0].message).toMatch(/remove the ftp: link/i);
 	});
 });
 

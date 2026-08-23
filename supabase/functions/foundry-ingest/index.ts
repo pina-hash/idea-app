@@ -54,6 +54,7 @@ import {
 	scanJs,
 	uncompressedCapMessage,
 	unreadableZipMessage,
+	versionIsIngestable,
 	type FoundryIssue
 } from '../../../src/lib/foundry/preflight.ts';
 import {
@@ -194,7 +195,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 			}
 		]);
 	}
-	if (version.status !== 'draft') {
+	if (!versionIsIngestable(version.status)) {
 		return refused('not_draft', [
 			{
 				file: null,

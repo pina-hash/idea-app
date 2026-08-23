@@ -130,6 +130,32 @@ export function isTextExtension(ext: string): boolean {
 }
 
 /* -------------------------------------------------------------------------
+ * Invocation eligibility.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Whether a version's CURRENT status permits running ingest against it again.
+ * Only `draft`. `submitted`, `approved` and `rejected` have already been
+ * reviewed, or are waiting to be, and re-extracting over any of them is how a
+ * bundle gets swapped for a different one after somebody signed off on it.
+ *
+ * THIS IS LOAD-BEARING, NOT DEFENSIVE. 0131 added the SELECT policy
+ * `foundry-uploads` was missing, and that policy's side effect is that an
+ * own-prefix overwrite of the UPLOADED ZIP is now reachable where it
+ * previously failed on RLS (0130's UPDATE policy could not find the row to
+ * act on without it). So a student CAN now replace the zip sitting at
+ * `zip_path` after their version has already been reviewed. The only thing
+ * that stops that swapped zip from ever being served is that re-running
+ * ingest is unreachable off `draft` -- there is no second gate. The ingest
+ * function checks this BEFORE it downloads, purges or writes anything, so a
+ * refusal here leaves the version's existing `student_app_files` rows and
+ * `foundry-bundles` objects exactly as they were.
+ */
+export function versionIsIngestable(status: string): boolean {
+	return status === 'draft';
+}
+
+/* -------------------------------------------------------------------------
  * Issues.
  * ---------------------------------------------------------------------- */
 
@@ -303,11 +329,17 @@ export type RefProblem = Exclude<RefVerdict, { kind: 'ok' }>;
 const GOOGLE_FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 /**
+ * Schemes that carry no network request and so are not this gate's concern.
+ * `data:` is inlined, and always was. `mailto:` and `tel:` open the device's
+ * mail or phone app rather than fetching anything -- refusing them read as
+ * arbitrary, because nothing about the sandbox or the CSP objects to either.
+ */
+const NO_NETWORK_SCHEMES = ['data:', 'mailto:', 'tel:'];
+
+/**
  * Decides what a `src`, `href` or `url()` value is.
  *
- * `data:` is permitted, and it is the only scheme that is: an inlined image
- * carries no request, which is the whole property this gate is protecting. A
- * fragment or a query with no path is the current document and is fine.
+ * A fragment or a query with no path is the current document and is fine.
  */
 export function classifyReference(value: string): RefVerdict {
 	const v = (value ?? '').trim();
@@ -316,7 +348,7 @@ export function classifyReference(value: string): RefVerdict {
 	if (v === PLATFORM_FONTS_PATH) return { kind: 'ok' };
 
 	const lower = v.toLowerCase();
-	if (lower.startsWith('data:')) return { kind: 'ok' };
+	if (NO_NETWORK_SCHEMES.some((s) => lower.startsWith(s))) return { kind: 'ok' };
 
 	// Protocol-relative: inherits the page's scheme and is still the network.
 	if (v.startsWith('//')) {
@@ -494,7 +526,7 @@ function referenceMessage(
 	if (verdict.scheme === 'http' || verdict.scheme === 'https') {
 		return `${at} loads ${value} from the internet. That is blocked: your app runs with no network access, so nothing will load from that address. Download the file into your app folder and point at it with a relative path, like ${relativeExample(attr, value)}.`;
 	}
-	return `${at} uses ${value}, which is a ${verdict.scheme}: address. Your app can only open files that are inside its own folder. Remove it, or replace it with a file you have included and a relative path, like ${relativeExample(attr, value)}.`;
+	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can only open files that are inside its own folder, so remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(attr, value)}.`;
 }
 
 /* -------------------------------------------------------------------------
