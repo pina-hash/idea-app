@@ -116,7 +116,7 @@ function injectionScript(
 	var native = localStorage.setItem.bind(localStorage);
 
 	// --- merge logic (keep aligned with src/lib/vanguard-save.ts) ---
-	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone', 'vanguard_lastInitials'];
+	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone', 'vanguard_lastInitials', 'vanguard_ach', 'vanguard_ach_best', 'vanguard_ach_title'];
 	var DEVICE_LOCAL_KEYS = ['vanguard_did'];
 	function num(v) { var n = v === true ? 1 : v === false ? 0 : Number(v); return isFinite(n) ? n : 0; }
 	function parseObj(s) { if (typeof s !== 'string') return null; try { var v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; } catch (e) { return null; } }
@@ -138,6 +138,23 @@ function injectionScript(
 	}
 	function parseScores(s) { if (typeof s !== 'string') return []; try { var v = JSON.parse(s); if (!Array.isArray(v)) return []; return v.filter(function (e) { return e && typeof e === 'object' && typeof e.score === 'number'; }).map(function (e) { return { name: String(e.name == null ? '' : e.name), score: Number(e.score) }; }); } catch (e) { return []; } }
 	function mergeScores(as, bs) { if (as == null && bs == null) return undefined; var all = parseScores(as).concat(parseScores(bs)).sort(function (x, y) { return y.score - x.score; }); var seen = {}, out = []; for (var i = 0; i < all.length; i++) { var e = all[i], key = e.name + '|' + e.score; if (seen[key]) continue; seen[key] = 1; out.push(e); if (out.length >= 10) break; } return JSON.stringify(out); }
+	// Achievements. Union of unlocked ids (never an overwrite), per-field max on
+	// the flat bests object. Behaviourally identical to mergeAch / mergeAchBest /
+	// earlierStamp in vanguard-save.ts; see those for why each walk is what it is.
+	function earlierStamp(av, bv) { var an = num(av), bn = num(bv); if (an > 0 && bn > 0) return an <= bn ? av : bv; if (an > 0) return av; if (bn > 0) return bv; return av; }
+	function mergeAch(as, bs) {
+		if (as == null && bs == null) return undefined;
+		var a = parseObj(as) || {}, b = parseObj(bs) || {}, out = {}, k;
+		for (k in a) { if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k]; }
+		for (k in b) { if (Object.prototype.hasOwnProperty.call(b, k)) out[k] = Object.prototype.hasOwnProperty.call(out, k) ? earlierStamp(out[k], b[k]) : b[k]; }
+		return JSON.stringify(out);
+	}
+	function mergeAchBest(as, bs) {
+		if (as == null && bs == null) return undefined;
+		var a = parseObj(as) || {}, b = parseObj(bs) || {}, out = {}, keys = Object.keys(a).concat(Object.keys(b));
+		for (var i = 0; i < keys.length; i++) { var k = keys[i]; if (Object.prototype.hasOwnProperty.call(out, k)) continue; out[k] = Math.max(num(a[k]), num(b[k])); }
+		return JSON.stringify(out);
+	}
 	function mergeProgression(a, b) {
 		a = a || {}; b = b || {}; var out = {};
 		var build = mergeBuild(a.vanguard_build, b.vanguard_build); if (build != null) out.vanguard_build = build;
@@ -146,6 +163,9 @@ function injectionScript(
 		if (a.vanguard_tutdone === '1' || b.vanguard_tutdone === '1') out.vanguard_tutdone = '1';
 		else if (a.vanguard_tutdone != null || b.vanguard_tutdone != null) out.vanguard_tutdone = (a.vanguard_tutdone != null ? a.vanguard_tutdone : b.vanguard_tutdone);
 		if (b.vanguard_lastInitials != null || a.vanguard_lastInitials != null) out.vanguard_lastInitials = (b.vanguard_lastInitials != null ? b.vanguard_lastInitials : a.vanguard_lastInitials);
+		var ach = mergeAch(a.vanguard_ach, b.vanguard_ach); if (ach != null) out.vanguard_ach = ach;
+		var achBest = mergeAchBest(a.vanguard_ach_best, b.vanguard_ach_best); if (achBest != null) out.vanguard_ach_best = achBest;
+		if (b.vanguard_ach_title != null || a.vanguard_ach_title != null) out.vanguard_ach_title = (b.vanguard_ach_title != null ? b.vanguard_ach_title : a.vanguard_ach_title);
 		return out;
 	}
 	function deviceClass() {
@@ -166,9 +186,21 @@ function injectionScript(
 		// seed so any device shows the most recently used initials.
 		var _ci = cloud && cloud.progression && cloud.progression.vanguard_lastInitials;
 		if (_ci != null) merged.vanguard_lastInitials = _ci;
+		// The worn title follows the same rule for the same reason: without this,
+		// mergeProgression's last-writer wins would hand the seed back to whatever
+		// this device happens to hold and a title chosen on another device would
+		// never arrive. The badge itself is unioned above, so a title seeded here
+		// is one this account has really earned.
+		var _ct = cloud && cloud.progression && cloud.progression.vanguard_ach_title;
+		if (_ct != null) merged.vanguard_ach_title = _ct;
 		for (var mk in merged) { if (Object.prototype.hasOwnProperty.call(merged, mk)) { try { native(mk, merged[mk]); } catch (e) {} } }
 		var pb = cloud && cloud.prefs && cloud.prefs[DEVICE];
-		if (pb) { for (var pk in pb) { if (pk !== '_ts' && pk !== 'vanguard_lastInitials' && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
+		// A pref bucket may still hold keys that have since become PROGRESSION (the
+		// three achievement keys, lastInitials): applied here they would overwrite
+		// the merged value that was just seeded, since this loop runs second. Skip
+		// every progression key rather than naming them one at a time -- the server
+		// folds those stale copies into progression on the next push.
+		if (pb) { for (var pk in pb) { if (pk !== '_ts' && PROGRESSION_KEYS.indexOf(pk) === -1 && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
 	}
 
 	// 1. Seed: merge the cloud save into localStorage BEFORE the game reads it.
