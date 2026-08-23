@@ -27012,3 +27012,121 @@ slot.
 - **No `classroom-updates.json` entry.** Nothing here changes what a class sees.
 - **`npm run build` was not run** (the pre-existing Windows EPERM in the Vercel
   adapter's `closeBundle`).
+
+### Follow-up: reconciling 0130 against the live project, and why `db push` was refused
+
+**2026-08-23, same day.** `0130_foundry.sql` was applied by hand in the SQL
+editor. This pass was asked to reconcile the CLI's migration history with it.
+**Nothing was pushed, and the history was left as it was.** What follows is why,
+and what the live schema actually holds.
+
+**The divergence is not about 0130.** The project was not linked at all
+(`supabase migration list --linked` answered `LegacyProjectNotLinkedError`).
+After linking to `ifxbufvugkzfxhwcwqhf` (`idea-app`, us-east-1, Postgres
+17.6.1.127), the list came back with an **empty `remote` column for every one of
+the 130 local files**, not just for 0130. The reason is one level down again:
+
+```
+ERROR: 42P01: relation "supabase_migrations.schema_migrations" does not exist
+```
+
+There is no history table on the remote, because the CLI has never been used
+against this project -- which is exactly what `CLAUDE.md` has always said
+("Applied MANUALLY in the Supabase SQL editor. There is no migration runner").
+
+**So `supabase db push` would not have recorded one row.** `--dry-run` printed a
+plan of **all 130 migrations**, `0001_profiles.sql` through `0130_foundry.sql`,
+to be applied to the live database that already has every one of them applied.
+That would replay the one-time imports and backfills (`0084_coin_legacy_import`,
+`0100_coin_legacy_reimport`) over real student data. `migration repair` -- the
+tool actually built for "schema present, history absent" -- was explicitly off
+the table, and writing the same rows by hand is that tool under another name,
+so it was not done either. **The push was refused and reported instead.** This
+is now a rule in `CLAUDE.md` rather than only a note here.
+
+**0130 itself would survive a second application**, which was the question
+asked. Read top to bottom: every `create table` and `create index` is `if not
+exists`, both `add constraint`s sit inside `do $$` blocks guarded on
+`pg_constraint`, every function is `create or replace`, every one of the 10
+`create policy` statements is preceded by its own `drop policy if exists` (13
+drops, 10 creates), and every `insert`/`update` touching the three tables is
+inside a function body that only runs when a caller invokes the RPC. It was also
+re-pasted over the applied schema in the previous session with no error.
+
+Two statements are worth quoting rather than waving past, since the standard was
+"no DROP touches anything the migration does not itself create, and nothing
+rewrites a row":
+
+```sql
+drop policy if exists "foundry bundles read" on storage.objects;
+drop policy if exists "foundry bundles write" on storage.objects;
+drop policy if exists "foundry bundles own folder" on storage.objects;
+```
+
+These three drop policies **0130 does not create** -- they were written to clear
+anything an earlier draft might have left on the bundles bucket. Checked against
+the live project: no policy by any of those names exists (there are 7 foundry
+policies on `storage.objects`, 4 covers and 3 uploads, and **none** naming
+`foundry-bundles`), so today they are no-ops. The hazard is narrow and fails
+CLOSED: if a later migration ever creates a policy by one of those exact names, a
+re-paste of 0130 deletes it silently, which removes client access to a bucket
+that is meant to have none.
+
+```sql
+insert into storage.buckets (id, name, public)
+values ('foundry-uploads', 'foundry-uploads', false)
+on conflict (id) do update set public = false;
+```
+
+This (and the two beside it) **does rewrite a row** on a second application. It
+rewrites a row the file itself creates, to a literal equal to what the file
+declares, so it converges rather than drifting; the live values already read
+`false / true / false` as intended.
+
+**There is no data to lose, measured rather than assumed:** `student_apps` 0
+rows, `student_app_versions` 0, `student_app_files` 0, and 0 objects under any
+`foundry-*` bucket.
+
+### What the live schema actually holds
+
+Read directly with `supabase db query --linked`, not from a CLI summary.
+
+- **Three tables**, all with `relrowsecurity = true`: `student_apps`,
+  `student_app_versions`, `student_app_files`.
+- **18 functions, every one with exactly one `pg_proc` row** -- 13 `foundry_*`
+  (the 11 RPCs plus `foundry_can_read_app` / `foundry_can_read_version`) and 5
+  `_foundry_*` (`_norm`, `_slug_ok`, `_app_in_population`, and the two trigger
+  functions). No overload anywhere, and every identity signature matches the
+  file. This is the signature trap, checked on the real project.
+- **The partial unique index**, verbatim from `pg_get_indexdef`:
+  `CREATE UNIQUE INDEX student_app_versions_one_submitted_idx ON
+  public.student_app_versions USING btree (app_id) WHERE (status =
+  'submitted'::text)`. The five other indexes on that table are present too.
+- **The composite foreign key**, verbatim from `pg_get_constraintdef`:
+  `FOREIGN KEY (published_version_id, id) REFERENCES student_app_versions(id,
+  app_id)` -- the pair, not a single column.
+- **Both triggers**, both `tgenabled = 'O'` (enabled):
+  `foundry_published_version_check BEFORE INSERT OR UPDATE OF
+  published_version_id ON public.student_apps`, and
+  `foundry_version_status_check BEFORE UPDATE OF status ON
+  public.student_app_versions`.
+- **Three buckets**: `foundry-bundles` public=false, `foundry-covers`
+  public=true, `foundry-uploads` public=false.
+- **`foundry-bundles` carries no policy**, which is the design and is now
+  confirmed on production rather than only in the file.
+- **Table policies and grants**: one SELECT policy per table, all
+  `{authenticated}`; SELECT is the only privilege held by `authenticated` and
+  `anon` holds nothing at all.
+
+### NOT verified
+
+- **No write was made to the live project by this session.** Every remote
+  statement was a read; nothing was pushed, repaired, inserted or altered.
+- **The RPCs were not called on production.** Behaviour is still only proven on
+  the embedded-Postgres fixture; what was checked here is that the schema
+  objects exist and are shaped correctly.
+- **Storage was not exercised on production.** The bucket rows and the absence
+  of a bundles policy were read from the catalog; no object was uploaded.
+- **The CLI history is still empty and remains so.** Any future `supabase db
+  push`, `db pull` or `db diff` against this project will still see 130
+  unapplied migrations. That is a standing decision, not an oversight.

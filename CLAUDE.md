@@ -319,6 +319,19 @@ against production. Every claim about live data must say so.
 
 - SQL lives in `supabase/migrations/`, sequentially numbered `0001_*.sql`.
 - **Applied MANUALLY in the Supabase SQL editor.** There is no migration runner.
+  - **NEVER RUN `supabase db push` AGAINST THIS PROJECT.** It is not a way to
+    record one file. The remote has **no `supabase_migrations.schema_migrations`
+    table at all** (measured 2026-08-23: the relation does not exist), because
+    the CLI has never been used here, so `db push` treats every local file as
+    unapplied -- `--dry-run` planned all **130** of them, 0001 through 0130,
+    against the live database that already has every one applied. That would
+    replay one-time imports and backfills (`0084`, `0100`) over real student
+    data. `supabase migration list --linked` showing an empty `remote` column
+    for a file is therefore the NORMAL state and is not a finding.
+  - **The CLI is still useful read-only.** `supabase db query --linked "<sql>"`
+    verifies what a hand-applied file actually did, against the real project,
+    and is the right way to confirm an apply landed. Linking writes
+    `supabase/.temp/`, which is gitignored.
 - **Migrations are an immutable applied record.** Never rewrite an applied file
   to change behaviour; write a new one. (This is why the `is_teacher()` naming
   trap exists.)

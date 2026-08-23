@@ -28,3 +28,6 @@ npm-debug.log*
 # Dev-harness feedback exports (not source)
 idea-feedback-*.json
 idea-feedback-*.md
+
+# Supabase CLI scratch (project ref, cached version). Never committed.
+supabase/.temp/
