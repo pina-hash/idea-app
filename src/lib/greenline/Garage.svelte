@@ -469,7 +469,7 @@
 	const TAB_UI: { id: GarageTab; label: string; hint: string }[] = [
 		{ id: 'build', label: 'BUILD', hint: 'chassis and bodywork' },
 		{ id: 'combat', label: 'COMBAT', hint: 'weapons and abilities' },
-		{ id: 'livery', label: 'LIVERY', hint: 'color, number, decal' },
+		{ id: 'livery', label: 'LIVERY', hint: 'color, number, horn, decal' },
 		{ id: 'garage', label: 'GARAGE', hint: 'saved builds and track' }
 	];
 	const hasLivery = $derived(!!oncosmetic);
