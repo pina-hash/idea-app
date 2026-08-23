@@ -67,7 +67,31 @@ export function makeDomHtmlReader(parser: MinimalDomParser): HtmlReader {
 			}
 		}
 
+		/*
+		 * INLINE SCRIPTS, WITHOUT THE ONES CARRYING A `src`.
+		 *
+		 * A `<script src="...">` is already a reference and is judged as one
+		 * above, by the same rule that judges a stylesheet or an image; its body
+		 * is empty, so scanning it would find nothing and reporting it a second
+		 * time would be worse than that.
+		 *
+		 * `textContent` on a `<script>` is the RAW text, not entity-decoded --
+		 * script is a raw-text element in the HTML spec and both parsers honour
+		 * that -- which is what lets `scanHtml` find it back in the source to
+		 * work out which line it starts on.
+		 */
+		const inlineScripts: string[] = [];
+		for (const el of doc.querySelectorAll('script')) {
+			if (el.getAttribute('src') !== null) continue;
+			const text = el.textContent ?? '';
+			if (text.trim() !== '') inlineScripts.push(text);
+		}
+
 		const titleEl = doc.querySelector('title');
-		return { refs, title: titleEl === null ? null : (titleEl.textContent ?? '') };
+		return {
+			refs,
+			title: titleEl === null ? null : (titleEl.textContent ?? ''),
+			inlineScripts
+		};
 	};
 }

@@ -78,10 +78,49 @@ export const FOUNDRY_ALLOWED_EXTENSIONS = [
 	'wav',
 	'ogg',
 	'woff2',
-	'ttf'
+	'ttf',
+	/*
+	 * A FAVICON IS INERT, AND REFUSING AN UPLOAD OVER ONE TEACHES NOTHING.
+	 * Every scaffold emits `favicon.ico` and every browser asks for it
+	 * unprompted; a student who has done nothing wrong reading "this platform
+	 * cannot serve .ico" learns only that the platform is arbitrary. It is a
+	 * bitmap container with no script surface, served with a real type below.
+	 */
+	'ico'
 ] as const;
 
 export type FoundryExtension = (typeof FOUNDRY_ALLOWED_EXTENSIONS)[number];
+
+/**
+ * IGNORED RATHER THAN REFUSED: dropped on the way in, reported, upload
+ * continues.
+ *
+ * A README is among the most common things a generation tool emits, and it
+ * cannot execute, cannot be navigated to and cannot be served. Failing an
+ * entire upload over one is the wrong trade: the student did nothing wrong,
+ * the file is inert, and the only thing the refusal achieves is a round trip
+ * to delete it.
+ *
+ * THIS IS THE SAME TREATMENT `isOsNoise` GETS AND FOR THE SAME REASON -- the
+ * file is not part of the app and its presence says nothing about the app.
+ * What separates the two lists is provenance rather than policy: OS noise is
+ * what a ZIPPER added unasked, and this is what the AUTHOR added on purpose
+ * and does not need here.
+ *
+ * KEEP THIS LIST SHORT AND INERT. An extension belongs here only if it can
+ * neither run nor be served, so dropping it changes nothing about the app. A
+ * `.ts` or a `.scss` is a SOURCE file, and a bundle containing one means the
+ * student shipped the wrong folder -- that stays a refusal, because the
+ * refusal is the thing that tells them.
+ */
+export const FOUNDRY_IGNORED_EXTENSIONS = ['md'] as const;
+
+const IGNORED = new Set<string>(FOUNDRY_IGNORED_EXTENSIONS);
+
+/** Whether a path is dropped-and-reported rather than refused. */
+export function isIgnoredExtension(path: string): boolean {
+	return IGNORED.has(extensionOf(path));
+}
 
 const ALLOWED = new Set<string>(FOUNDRY_ALLOWED_EXTENSIONS);
 
@@ -109,7 +148,10 @@ const MIME_BY_EXT: Record<string, string> = {
 	wav: 'audio/wav',
 	ogg: 'audio/ogg',
 	woff2: 'font/woff2',
-	ttf: 'font/ttf'
+	ttf: 'font/ttf',
+	// The IANA-registered name. `image/x-icon` is the older de-facto spelling
+	// and both work; this one is the one that is actually registered.
+	ico: 'image/vnd.microsoft.icon'
 };
 
 /** Lowercased extension with no dot, or '' when the name carries none. */
@@ -477,6 +519,14 @@ export interface HtmlRef {
 export interface HtmlFacts {
 	refs: HtmlRef[];
 	title: string | null;
+	/**
+	 * The text of every `<script>` WITHOUT a `src`, in document order.
+	 *
+	 * The ones WITH a `src` are already covered as references, by the same rule
+	 * that covers a stylesheet or an image; scanning their (empty) bodies would
+	 * find nothing and reporting them twice would be worse than finding nothing.
+	 */
+	inlineScripts: string[];
 }
 
 /**
@@ -492,6 +542,14 @@ export interface HtmlScan {
 	/** True when the parser could not read the page at all. See below. */
 	parseFailed?: boolean;
 	parseError?: string;
+}
+
+/** The first line with something on it, used as a fallback locator. */
+function firstRealLine(text: string): string {
+	for (const line of text.split('\n')) {
+		if (line.trim() !== '') return line;
+	}
+	return '';
 }
 
 export function scanHtml(path: string, source: string, read: HtmlReader): HtmlScan {
@@ -513,6 +571,43 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 			parseFailed: true,
 			parseError: err instanceof Error ? err.message : String(err)
 		};
+	}
+
+	/*
+	 * INLINE SCRIPTS, SCANNED WITH THE SAME SCANNER THE .js FILES GET.
+	 *
+	 * A single HTML file is a first-class submission shape, and in that shape
+	 * ALL of the JavaScript is inline -- so without this every JS rule is
+	 * switched off for what will be the most common upload. The scanner is
+	 * `scanJs`, unchanged, handed a line offset.
+	 *
+	 * THE OFFSET IS FOUND BY LOCATING THE SCRIPT'S TEXT IN THE SOURCE, over a
+	 * CARRIAGE-RETURN-STRIPPED COPY of both. An HTML parser normalizes CRLF to
+	 * LF in the DOM, so on a file saved by a Windows editor the text the parser
+	 * hands back is not a substring of the source at all and every lookup
+	 * fails silently. Stripping a carriage return from both sides cannot change a line
+	 * number, because line numbers are counts of `
+`.
+	 *
+	 * A BLOCK THAT CANNOT BE LOCATED IS STILL SCANNED, at the offset of the
+	 * last one that could be, and never at zero: zero would report line numbers
+	 * measured from the top of the block as though they were measured from the
+	 * top of the file, which is a confidently wrong line for a student to go
+	 * and look at. `LineFinder` advances a cursor per needle, so two identical
+	 * blocks resolve to their own positions in order.
+	 */
+	const scriptFinder = new LineFinder(source.replace(/\r/g, ''));
+	let lastKnownStart = 1;
+	for (const raw of facts.inlineScripts) {
+		const text = raw.replace(/\r/g, '');
+		if (text.trim() === '') continue;
+		const start = scriptFinder.find(text) ?? scriptFinder.find(firstRealLine(text));
+		if (start !== null) lastKnownStart = start;
+		// `start` is the line the script's TEXT begins on, and that text's own
+		// line 1 is that same line -- so the shift is `start - 1`.
+		const result = scanJs(path, text, (start ?? lastKnownStart) - 1);
+		failures.push(...result.failures);
+		warnings.push(...result.warnings);
 	}
 
 	const finder = new LineFinder(source);
@@ -670,7 +765,26 @@ export function scanCss(path: string, source: string): { failures: FoundryIssue[
  */
 const NETWORK_APIS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'];
 
-export function scanJs(path: string, source: string): {
+/**
+ * `lineOffset` IS WHAT LETS ONE SCANNER SERVE TWO CALLERS.
+ *
+ * A `.js` file is scanned as itself and the offset is 0. An INLINE `<script>`
+ * is scanned as a fragment, and its line 1 is somewhere down the middle of an
+ * HTML file -- so every line this produces has to be moved by the distance
+ * between them. It is a parameter rather than a second scanner because the
+ * alternative is two copies of every rule and every sentence in here, which is
+ * the exact failure the whole module is arranged to prevent.
+ *
+ * IT MOVES THE NUMBER INSIDE THE MESSAGE, NOT JUST THE `line` FIELD. The
+ * sentences are built from `where(path, line)`, so a caller that corrected only
+ * the field would leave the student reading "index.html line 3" and looking at
+ * the wrong line of a file they have to go and find.
+ */
+export function scanJs(
+	path: string,
+	source: string,
+	lineOffset = 0
+): {
 	failures: FoundryIssue[];
 	warnings: FoundryIssue[];
 } {
@@ -687,7 +801,7 @@ export function scanJs(path: string, source: string): {
 		// with a message of its own.
 		if (verdict.kind === 'ok') return;
 		if (verdict.kind === 'absolute') return;
-		const line = lineAt(source, index);
+		const line = lineAt(source, index) + lineOffset;
 		const key = `${line}:${value}`;
 		if (seen.has(key)) return;
 		seen.add(key);
@@ -714,14 +828,32 @@ export function scanJs(path: string, source: string): {
 	];
 	for (const re of patterns) {
 		for (let m = re.exec(text); m !== null; m = re.exec(text)) {
-			pushImport(m[1], m.index);
+			// The SPECIFIER'S own index, not the match's. See the note on the
+			// network-API loop below: the pattern opens with the character
+			// BEFORE the keyword, and at column 0 that character is the previous
+			// line's newline.
+			pushImport(m[1], m.index + m[0].lastIndexOf(m[1]));
 		}
 	}
 
 	for (const api of NETWORK_APIS) {
 		const re = new RegExp(`(?:^|[^\\w$.])(${api})\\s*[('\`"]`, 'g');
 		for (let m = re.exec(text); m !== null; m = re.exec(text)) {
-			const line = lineAt(source, m.index);
+			/*
+			 * THE IDENTIFIER'S INDEX, NOT THE MATCH'S, AND THE DIFFERENCE IS A
+			 * WHOLE LINE.
+			 *
+			 * The pattern has to open with `(?:^|[^\w$.])` so `prefetch` and
+			 * `this.fetch` do not match -- which means the match STARTS at the
+			 * character before the call. When the call is at column 0, that
+			 * character is the newline ending the PREVIOUS line, and the reported
+			 * line was one too early: measured on a plain .js file, a `fetch` on
+			 * line 3 answered "app.js line 2". Statements at column 0 are most of
+			 * the statements anybody writes, so this was wrong more often than it
+			 * was right, and it sends a student to the wrong line of their own
+			 * file. `m[0].indexOf(m[1])` steps over that leading character.
+			 */
+			const line = lineAt(source, m.index + m[0].indexOf(m[1])) + lineOffset;
 			const key = `${line}:${api}`;
 			if (seen.has(key)) continue;
 			seen.add(key);
@@ -753,6 +885,8 @@ export interface StructurePlan {
 	files: PlannedFile[];
 	strippedWrapper: string | null;
 	droppedOsNoise: number;
+	/** Files dropped for their EXTENSION rather than for being zipper noise. */
+	droppedIgnored: number;
 	failures: FoundryIssue[];
 	notes: string[];
 }
@@ -787,11 +921,21 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 	}
 
 	let droppedOsNoise = 0;
+	let droppedIgnored = 0;
 	const kept: { name: string; index: number; declaredSize: number }[] = [];
 	entries.forEach((entry, index) => {
 		if (entry.directory) return;
 		if (isOsNoise(entry.name)) {
 			droppedOsNoise++;
+			return;
+		}
+		/*
+		 * BEFORE `judgeEntryName`, deliberately. Judging it first would push a
+		 * README down the path that ends in the extension refusal below, and the
+		 * whole point of this list is that it does not end there.
+		 */
+		if (isIgnoredExtension(entry.name)) {
+			droppedIgnored++;
 			return;
 		}
 		const judged = judgeEntryName(entry.name, entry.irregular);
@@ -810,11 +954,23 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 		);
 	}
 
+	// Same shape as the note above: what went, and why it was not part of the
+	// app. The extension is named because unlike operating-system noise this is
+	// a file the student wrote on purpose and may be looking for afterwards.
+	if (droppedIgnored > 0) {
+		const kinds = FOUNDRY_IGNORED_EXTENSIONS.map((e) => `.${e}`).join(', ');
+		notes.push(
+			droppedIgnored === 1
+				? `One ${kinds} file was left out. It cannot be part of a published app, and leaving it in would have stopped the upload.`
+				: `${droppedIgnored} ${kinds} files were left out. They cannot be part of a published app, and leaving them in would have stopped the upload.`
+		);
+	}
+
 	// A traversal attempt is a security refusal and nothing else is reported
 	// beside it. Continuing to talk about titles and file sizes under it would
 	// bury the one line that matters.
 	if (failures.some((f) => f.message.includes('points outside'))) {
-		return { files: [], strippedWrapper: null, droppedOsNoise, failures, notes };
+		return { files: [], strippedWrapper: null, droppedOsNoise, droppedIgnored, failures, notes };
 	}
 
 	if (kept.length === 0 && failures.length === 0) {
@@ -825,7 +981,7 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 				'That zip has no files in it. It needs to contain your app, with index.html at the top level.'
 			)
 		);
-		return { files: [], strippedWrapper: null, droppedOsNoise, failures, notes };
+		return { files: [], strippedWrapper: null, droppedOsNoise, droppedIgnored, failures, notes };
 	}
 
 	const { paths, stripped } = stripWrapperDirectory(kept.map((k) => k.name));
@@ -877,7 +1033,7 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 		}
 	}
 
-	return { files, strippedWrapper: stripped, droppedOsNoise, failures, notes };
+	return { files, strippedWrapper: stripped, droppedOsNoise, droppedIgnored, failures, notes };
 }
 
 function entryRejectionIssue(name: string, rejection: EntryRejection): FoundryIssue {
@@ -965,6 +1121,52 @@ export function largeAssetWarning(path: string, bytes: number): FoundryIssue {
 export function foundryBuildContract(): string {
 	const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 	const exts = FOUNDRY_ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(' ');
+	const ignoredExts = FOUNDRY_IGNORED_EXTENSIONS.map((e) => `.${e}`).join(', ');
+
+	/**
+	 * THE THREE OUTCOMES, WORKED OUT BY ASKING THE RULES RATHER THAN BY
+	 * DESCRIBING THEM.
+	 *
+	 * This paragraph used to read "Do not produce a README, a package.json, a
+	 * lockfile, a config file, or a build script. They are not used and several
+	 * of them are refused." It was the one vague line in an otherwise exact
+	 * document, and it was also WRONG: `package.json` and `package-lock.json`
+	 * are `.json`, which is on the allowlist, so they upload perfectly happily.
+	 * A student who deleted them on that advice deleted them for nothing, and a
+	 * tool told "several of them are refused" cannot act on it at all.
+	 *
+	 * So each candidate is put through the SAME predicates the upload uses --
+	 * `isIgnoredExtension` and the allowlist -- and sorted by what actually
+	 * happens to it. The document cannot claim an outcome the code does not
+	 * produce, because it is not claiming anything: it is reporting.
+	 */
+	const CANDIDATES = [
+		'README.md',
+		'package.json',
+		'package-lock.json',
+		'vite.config.js',
+		'build.sh',
+		'app.ts',
+		'styles.scss',
+		'bundle.js.map'
+	];
+	const outcome = (name: string): 'ignored' | 'refused' | 'kept' => {
+		if (isIgnoredExtension(name)) return 'ignored';
+		return ALLOWED.has(extensionOf(name)) ? 'kept' : 'refused';
+	};
+	const named = (kind: 'ignored' | 'refused' | 'kept') =>
+		CANDIDATES.filter((c) => outcome(c) === kind).join(', ');
+
+	const extraFileRules = [
+		`      Dropped, and you are told:  ${named('ignored')}`,
+		`      Refused, upload stops:     ${named('refused')}`,
+		`      Uploaded but never used:   ${named('kept')}`,
+		'  The last group is harmless and still pointless. Leave them out.'
+	].join('\n');
+
+	const refusedExamples = CANDIDATES.filter((c) => outcome(c) === 'refused')
+		.map((c) => `.${extensionOf(c)}`)
+		.join(', ');
 
 	return `BUILD CONTRACT -- IDEA Foundry
 
@@ -977,8 +1179,8 @@ OUTPUT SHAPE
 - Produce ONE folder.
 - Put ${FOUNDRY_ENTRY_FILE} at the TOP LEVEL of that folder. Not in a subfolder.
 - Everything else the app needs goes in that same folder, or in subfolders of it.
-- Do not produce a README, a package.json, a lockfile, a config file, or a build
-  script. They are not used and several of them are refused.
+- Extra files are handled in one of three ways, and it is worth knowing which:
+${extraFileRules}
 
 TECHNOLOGY
 - Vanilla HTML, CSS and JavaScript only.
@@ -1044,11 +1246,13 @@ Build the app so everything happens inside its own page.
 FILE TYPES
 - Allowed extensions, and nothing else:
       ${exts}
-- A file with any other extension is refused. That includes .map, .md, .ts,
-  .jsx, .scss, .zip, .mp4 and .ico.
-- Do not include hidden or tooling files: .DS_Store, Thumbs.db, __MACOSX, .git,
-  node_modules. If they are in the folder they are dropped before upload and
-  reported.
+- A file with any other extension is refused, and the whole upload stops.
+  Refused examples: ${refusedExamples}.
+- These are DROPPED rather than refused. Leave them in if you like; they are
+  removed on the way in and you are told what went:
+      ${ignoredExts} files
+      .DS_Store, Thumbs.db, desktop.ini, __MACOSX, and ._ sidecar files
+      .git and node_modules, when you upload a folder rather than a zip
 
 SIZE
 - At most ${FOUNDRY_LIMITS.maxFiles} files.

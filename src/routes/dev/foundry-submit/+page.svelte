@@ -125,9 +125,33 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		];
 	}
 
-	/** Shape 3: one HTML file, deliberately not called index.html. */
+	/**
+	 * Shape 3: one HTML file, deliberately not called index.html, and carrying
+	 * its JavaScript INLINE -- which is what this shape always looks like.
+	 *
+	 * The `fetch` is the point. Until inline scripts were scanned, every JS rule
+	 * was switched off for exactly this upload, so a single page could call the
+	 * network and pass every check. The warning it now earns is the proof that
+	 * it does not.
+	 */
+	const SINGLE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tide Clock</title>
+<link rel="stylesheet" href="/_platform/fonts.css">
+</head>
+<body>
+<h1>Tide Clock</h1>
+<script>
+  const el = document.querySelector('h1');
+  fetch('https://api.example.com/tides').then((r) => r.json());
+<\/script>
+</body>
+</html>`;
+
 	function fixtureSingle(): File[] {
-		return [file('my-page.html', GOOD_HTML)];
+		return [file('my-page.html', SINGLE_HTML)];
 	}
 
 	/* ---------------------------------------------------------- transports */
@@ -391,6 +415,41 @@ fetch('https://api.example.com/data').then((r) => r.json());
 	 * what the parity check reads: the message text, with nothing rendered
 	 * around it that could be doing the formatting.
 	 */
+	/**
+	 * A DRIVING HOOK FOR THE BROWSER/SERVER PARITY COMPARISON.
+	 *
+	 * It takes the SAME `{ path: text }` fixture map the server-side script
+	 * feeds to `foundry-ingest`, builds a zip from it, and runs the browser
+	 * preflight -- so the two sides are compared on identical input rather than
+	 * on two hand-made versions of the same idea. Dev-only, because the route it
+	 * lives on is dev-only.
+	 *
+	 * The specific question it exists to answer is whether deno-dom and the
+	 * browser's own DOMParser find the same references in the same HTML, which
+	 * is the one part of the preflight the two runtimes genuinely do differently.
+	 */
+	$effect(() => {
+		(window as unknown as Record<string, unknown>).__foundryParity = async (
+			fixtures: Record<string, Record<string, string>>
+		) => {
+			const enc2 = new TextEncoder();
+			const out: Record<string, unknown> = {};
+			for (const [name, files] of Object.entries(fixtures)) {
+				const zipBytes = await buildZip(
+					Object.entries(files).map(([path, text]) => ({ path, bytes: enc2.encode(text) }))
+				);
+				const v = await preflightZipInBrowser(new Blob([zipBytes as BlobPart]));
+				out[name] = {
+					ok: v.ok,
+					failures: v.failures.map((f) => f.message),
+					warnings: v.warnings.map((w) => w.message),
+					notes: v.notes
+				};
+			}
+			return out;
+		};
+	});
+
 	let rawOut = $state('');
 
 	async function rawRun(kind: 'zip-bad' | 'folder' | 'single') {
