@@ -1558,13 +1558,35 @@ belong wherever the app's own behaviour is documented.
   Route real hardware input through a same-origin popup it opens and scripts.
 - **A rolling performance counter measures your own instrumentation.** Stop every
   sampler and wait past the window before reading it.
-- **No real Chrome is connected in this setup.** Prior sessions checked
-  (`mcp__claude-in-chrome__list_connected_browsers`) and found nothing attached --
-  claude-in-chrome needs the user to install and connect the Chrome extension on
-  their own machine first; there is no way to attach one from inside a session.
-  Until then, treat every claude-in-chrome call as unavailable and fall back to the
-  `mcp__Claude_Browser__*` pane (with the limits above) or to headless/pixel-level
-  reads.
+- **A REAL CHROME IS CONNECTED NOW, so CHECK rather than assume either way.**
+  This line used to say none was, on the strength of prior sessions finding
+  nothing attached; `mcp__claude-in-chrome__list_connected_browsers` returned a
+  live local browser on 2026-08-23 and the Foundry host verification ran through
+  it. It is the user's own Chrome, so it carries their real sessions -- which is
+  what makes it the only way to read a signed-in page or a Vercel deployment
+  behind SSO. It can go away again; ask the tool, and fall back to the
+  `mcp__Claude_Browser__*` pane (with the limits above) when it is not there.
+  - **IT COMPOSITES AND SCREENSHOTS, WHICH THE PANE DOES NOT** -- it is the
+    right instrument for anything visual, and for a live WebGL canvas.
+  - **A SCRIPTED `fetch`/XHR SWEEP IS BLOCKED ON AN ORIGIN HOLDING AUTH
+    COOKIES.** `javascript_tool` answers `[BLOCKED: Cookie/query string data]`
+    when the script returns response bodies, headers or URLs from such a page --
+    status codes and byte lengths alone get through, and top-level navigation is
+    never blocked. Measuring a protected Vercel preview therefore means
+    navigating per path and reading `location.href` plus a body length, where
+    an empty response lands on `chrome-error://chromewebdata/`.
+    **READ THE STARTING PAGE BEFORE TRUSTING THAT SIGNAL**: a navigation Chrome
+    turns into a DOWNLOAD (any `.woff2`, and anything else it will not render)
+    leaves the tab on the PREVIOUS page, so a font that served correctly looks
+    like a failure if the tab was already on an error page. It cost a wrong
+    diagnosis here. The download also lands in the working directory, so sweep
+    for stray files before committing.
+  - **A SANDBOXED, OPAQUE-ORIGIN DOCUMENT CANNOT LOAD ITS OWN FONTS HERE, AND
+    THAT IS NOT A BUG IN THE PAGE.** A `FontFace` load from a Foundry bundle's
+    own origin fails `NetworkError` because an opaque origin makes the request
+    cross-origin and the response carries no CORS header. Confirmed identical on
+    production, so it says nothing about whether the route serves; measure that
+    with an ordinary request instead.
 
 ### Machine and toolchain
 
