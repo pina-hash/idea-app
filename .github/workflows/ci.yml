@@ -68,15 +68,25 @@ jobs:
       # from supabase/migrations. Nothing here is a live key standing in for
       # one; it is the same fixture `npm test` already uses locally.
       #
-      # THE COST, measured locally on this machine before enabling it here:
-      # the full suite (94 files, 2258 tests, one shared Postgres cluster
-      # booted once) took 114s. CI's shared runners are typically slower on
-      # disk and first-download I/O than a warm local machine, so budget
-      # roughly 2-4x that under load -- call it 4-8 minutes for this step
-      # alone, on top of `npm ci` and `svelte-kit sync`. That is the number to
-      # watch if this step becomes the slow part of the pipeline; it is not
-      # expected to, since GitHub-hosted runners are not otherwise time-boxed
-      # here.
+      # THE COST: measured directly on a GitHub-hosted runner (not
+      # extrapolated from a local machine), on the run that first exercised
+      # this step end to end -- 94 files, 2258 tests, one shared embedded
+      # Postgres cluster booted once, took 45s (vitest's own reported
+      # duration; ~47s wall-clock including step overhead). That is
+      # comfortably inside a normal job budget and is not expected to become
+      # the slow part of this pipeline.
+      #
+      # THIS STEP RUNS `npm test`, NOT `vitest` DIRECTLY, and that is load
+      # bearing rather than a style choice: importing `embedded-postgres`
+      # (which `tests/db/cluster.ts`'s globalSetup does, in the main vitest
+      # process) registers an `async-exit-hook` `beforeExit` handler that
+      # unconditionally calls `process.exit(0)`, clobbering whatever exit
+      # code vitest itself wanted to report. Measured directly: a deliberately
+      # failing test suite still exits 0. `npm test` (`tools/run-tests.mjs`)
+      # reads vitest's own JSON report instead of trusting the process exit
+      # code, so this step's `outcome` below is meaningful. See the comment at
+      # the top of that file for the full story -- this was found, and fixed,
+      # in the same session that got this workflow green for the first time.
       - name: Test suite
         id: test
         if: always()
