@@ -50,8 +50,6 @@ const OWNER_EMAIL = 'apina@boscotech.edu';
 
 let db: TestDb;
 let owner: SeededUser;
-let student: SeededUser;
-let other: SeededUser;
 let admin: SeededUser;
 
 /**
@@ -103,8 +101,6 @@ beforeAll(async () => {
 
 	owner = await createUser(db, OWNER_EMAIL, 'Owner Account');
 	admin = await createUser(db, 'reviewer@boscotech.edu', 'Reviewing Admin');
-	student = await createUser(db, 'student@boscotech.net', 'App Author');
-	other = await createUser(db, 'other@boscotech.net', 'Somebody Else');
 
 	// The owner grants admin, through the real RPC.
 	await db.asUser(owner.id, (q) =>
