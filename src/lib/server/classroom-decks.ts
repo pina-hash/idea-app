@@ -86,6 +86,7 @@ import {
  * than duplicated so the server's defense-in-depth check says exactly what
  * the client's up-front refusal already said.
  */
+import { bundlePathOk as deckPathOk, normalizeBundlePath as normalizeDeckPath } from '$lib/bundle-path';
 export { DECK_UPLOAD_MAX_ZIP_BYTES, deckUploadSizeIssue } from '$lib/classroom/deck';
 
 /**
@@ -140,51 +141,13 @@ export function deckUploadName(uploadId: string): string {
 }
 
 /**
- * MIRRORS `_classroom_deck_path_ok` in migration 0101 -- one rule, written in
- * two languages because both layers must be able to refuse independently.
- * CHANGE BOTH TOGETHER.
- *
- * A legal deck path is relative, forward-slashed, contained, and names a plain
- * file. A leading dot on a SEGMENT NAME is explicitly fine: `.thumbnail` and
- * `.image-slots.state.json` are both real, required files.
+ * The path rule and the entry normalizer both live in `$lib/bundle-path` now,
+ * because the Foundry ingest Edge Function (Deno) and the Foundry browser
+ * preflight need the same rule and neither can import from `$lib/server`.
+ * There is ONE implementation; these are its deck-facing names, kept so no
+ * deck call site had to move.
  */
-export function deckPathOk(path: string): boolean {
-	return (
-		typeof path === 'string' &&
-		path.length >= 1 &&
-		path.length <= 400 &&
-		path === path.trim() &&
-		!path.startsWith('/') &&
-		!path.includes('\\') &&
-		!path.includes('\0') &&
-		!/(^|\/)\.\.(\/|$)/.test(path) &&
-		// A segment that IS "." -- never a name that merely starts with one.
-		!/(^|\/)\.(\/|$)/.test(path) &&
-		!path.includes('//') &&
-		!path.endsWith('/') &&
-		!path.includes(':')
-	);
-}
-
-/**
- * The archive's own name for an entry, made comparable before it is judged.
- *
- * Backslashes become slashes FIRST, on purpose: some Windows zippers write
- * `a\b.png`, and a reader that passed those through would either break the
- * deck or -- worse -- let `..\..\x` through a rule that only looks for `../`.
- * Converting and then validating is strictly safer than either accepting or
- * rejecting a backslash outright.
- *
- * Returns null for anything that is not a legal deck path once normalized.
- */
-export function normalizeDeckPath(name: string): string | null {
-	let p = (name ?? '').replace(/\\/g, '/').trim();
-	// A zip may store "./index.html"; that is the same file, not a "." segment.
-	while (p.startsWith('./')) p = p.slice(2);
-	p = p.replace(/\/{2,}/g, '/');
-	if (!deckPathOk(p)) return null;
-	return p;
-}
+export { deckPathOk, normalizeDeckPath };
 
 /**
  * Strips the wrapper directory a zip was made from ("MyDeck/index.html" ->

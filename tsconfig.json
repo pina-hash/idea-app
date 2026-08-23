@@ -9,6 +9,10 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		// Foundry shares modules between Vite and the Deno Edge Function; Deno
+		// requires an explicit extension on a relative import, so those files
+		// spell it and this lets tsc read the same specifier.
+		"allowImportingTsExtensions": true
 	}
 }
