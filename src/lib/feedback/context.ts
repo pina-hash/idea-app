@@ -88,15 +88,21 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'vanguard',
 		label: 'VANGUARD',
-		relocatedTo: "the game's own inline feedback composer on the title, pause and game-over screens",
+		relocatedTo: "VANGUARD's own Report button, beside the IDEA link at the top right",
 		// VANGUARD is served as legacy HTML from a +server.ts endpoint and
 		// renders no layout at all, so this rule excludes nothing the shell
 		// mount could ever have reached. It stands so that a VANGUARD surface
 		// which DOES render the shell inherits the exclusion rather than
-		// discovering it in front of a class. The game carries its own report
-		// control (`buildFeedbackComposer` in src/lib/legacy/vanguard/index.html,
-		// mounted into #fbTitle/#fbPause/#fbOver) -- a separate channel, wired to
-		// VANGUARD's own Apps Script backend, not to app_feedback.
+		// discovering it in front of a class. The game now carries a real
+		// report control -- injected into the served HTML by
+		// src/routes/vanguard/+server.ts, opening a "REPORT A PROBLEM" panel --
+		// that reaches the SAME feedback system as everything else: signed in
+		// posts through /api/vanguard-feedback (the RLS-scoped insert, as the
+		// caller), signed out through the shared anonymous route. It is not the
+		// game's older, unrelated in-game "Bug or idea?" composer
+		// (`buildFeedbackComposer`, mounted on the title/pause/game-over
+		// screens), which still exists and still files to VANGUARD's own Apps
+		// Script backend, not to app_feedback.
 		match: under('/vanguard'),
 		samples: ['/vanguard']
 	},

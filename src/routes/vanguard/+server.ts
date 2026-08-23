@@ -1,5 +1,15 @@
 import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
+import { version as buildId } from '$app/environment';
+import { deploy } from 'virtual:site-versions';
 import { vanguardHtml } from '$lib/legacy';
+import {
+	ANONYMOUS_FEEDBACK_ENDPOINT,
+	FEEDBACK_CONTACT_MAX,
+	FEEDBACK_KINDS,
+	FEEDBACK_MAX_LEN,
+	FEEDBACK_REFUSALS
+} from '$lib/feedback/feedback';
+import { describeBuild } from '$lib/feedback/context';
 import { normalizeStored, type StoredSave } from '$lib/vanguard-save';
 import { injectVersionBadge } from '$lib/version-badge';
 import { isAdmin } from '$lib/server/admin';
@@ -48,11 +58,40 @@ function injectionScript(
 	isAdminUser: boolean,
 	cloud: StoredSave,
 	profile: PlayerProfile,
-	runStates: unknown
+	runStates: unknown,
+	role: string | null
 ): string {
 	const cloudJson = escapeForScript(JSON.stringify(cloud));
 	const profileJson = escapeForScript(JSON.stringify(profile));
 	const runStatesJson = escapeForScript(JSON.stringify(Array.isArray(runStates) ? runStates : []));
+
+	// --- REPORT A PROBLEM: everything the injected box needs, resolved here ----
+	// Every value below already exists in exactly one place in the app, so the
+	// bootstrap is handed them rather than growing its own copy: the kind list
+	// and the refusal wording come from $lib/feedback/feedback.ts (the same
+	// strings the Svelte box shows), and the build stamp from the same
+	// `describeBuild` the root layout uses, so a VANGUARD report and a notebook
+	// report name the build the same way and mean the same thing by it.
+	const build = describeBuild(deploy, buildId);
+	const feedbackJson = escapeForScript(
+		JSON.stringify({
+			kinds: FEEDBACK_KINDS,
+			refusals: FEEDBACK_REFUSALS,
+			maxLen: FEEDBACK_MAX_LEN,
+			contactMax: FEEDBACK_CONTACT_MAX,
+			// Signed in goes to the authenticated route, which performs the
+			// RLS-scoped insert as the caller. Signed out goes to the anonymous
+			// route, unchanged. The two never swap.
+			endpoint: signedIn ? '/api/vanguard-feedback' : ANONYMOUS_FEEDBACK_ENDPOINT,
+			role: role ?? null,
+			build: {
+				value: build.value,
+				source: build.source,
+				means: build.means,
+				historyComplete: build.complete
+			}
+		})
+	);
 
 	const coopUrlJson = escapeForScript(JSON.stringify(PUBLIC_SUPABASE_URL ?? ''));
 	const coopKeyJson = escapeForScript(JSON.stringify(PUBLIC_SUPABASE_ANON_KEY ?? ''));
@@ -116,7 +155,7 @@ function injectionScript(
 	var native = localStorage.setItem.bind(localStorage);
 
 	// --- merge logic (keep aligned with src/lib/vanguard-save.ts) ---
-	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone', 'vanguard_lastInitials'];
+	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone', 'vanguard_lastInitials', 'vanguard_ach', 'vanguard_ach_best', 'vanguard_ach_title'];
 	var DEVICE_LOCAL_KEYS = ['vanguard_did'];
 	function num(v) { var n = v === true ? 1 : v === false ? 0 : Number(v); return isFinite(n) ? n : 0; }
 	function parseObj(s) { if (typeof s !== 'string') return null; try { var v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; } catch (e) { return null; } }
@@ -138,6 +177,23 @@ function injectionScript(
 	}
 	function parseScores(s) { if (typeof s !== 'string') return []; try { var v = JSON.parse(s); if (!Array.isArray(v)) return []; return v.filter(function (e) { return e && typeof e === 'object' && typeof e.score === 'number'; }).map(function (e) { return { name: String(e.name == null ? '' : e.name), score: Number(e.score) }; }); } catch (e) { return []; } }
 	function mergeScores(as, bs) { if (as == null && bs == null) return undefined; var all = parseScores(as).concat(parseScores(bs)).sort(function (x, y) { return y.score - x.score; }); var seen = {}, out = []; for (var i = 0; i < all.length; i++) { var e = all[i], key = e.name + '|' + e.score; if (seen[key]) continue; seen[key] = 1; out.push(e); if (out.length >= 10) break; } return JSON.stringify(out); }
+	// Achievements. Union of unlocked ids (never an overwrite), per-field max on
+	// the flat bests object. Behaviourally identical to mergeAch / mergeAchBest /
+	// earlierStamp in vanguard-save.ts; see those for why each walk is what it is.
+	function earlierStamp(av, bv) { var an = num(av), bn = num(bv); if (an > 0 && bn > 0) return an <= bn ? av : bv; if (an > 0) return av; if (bn > 0) return bv; return av; }
+	function mergeAch(as, bs) {
+		if (as == null && bs == null) return undefined;
+		var a = parseObj(as) || {}, b = parseObj(bs) || {}, out = {}, k;
+		for (k in a) { if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k]; }
+		for (k in b) { if (Object.prototype.hasOwnProperty.call(b, k)) out[k] = Object.prototype.hasOwnProperty.call(out, k) ? earlierStamp(out[k], b[k]) : b[k]; }
+		return JSON.stringify(out);
+	}
+	function mergeAchBest(as, bs) {
+		if (as == null && bs == null) return undefined;
+		var a = parseObj(as) || {}, b = parseObj(bs) || {}, out = {}, keys = Object.keys(a).concat(Object.keys(b));
+		for (var i = 0; i < keys.length; i++) { var k = keys[i]; if (Object.prototype.hasOwnProperty.call(out, k)) continue; out[k] = Math.max(num(a[k]), num(b[k])); }
+		return JSON.stringify(out);
+	}
 	function mergeProgression(a, b) {
 		a = a || {}; b = b || {}; var out = {};
 		var build = mergeBuild(a.vanguard_build, b.vanguard_build); if (build != null) out.vanguard_build = build;
@@ -146,6 +202,9 @@ function injectionScript(
 		if (a.vanguard_tutdone === '1' || b.vanguard_tutdone === '1') out.vanguard_tutdone = '1';
 		else if (a.vanguard_tutdone != null || b.vanguard_tutdone != null) out.vanguard_tutdone = (a.vanguard_tutdone != null ? a.vanguard_tutdone : b.vanguard_tutdone);
 		if (b.vanguard_lastInitials != null || a.vanguard_lastInitials != null) out.vanguard_lastInitials = (b.vanguard_lastInitials != null ? b.vanguard_lastInitials : a.vanguard_lastInitials);
+		var ach = mergeAch(a.vanguard_ach, b.vanguard_ach); if (ach != null) out.vanguard_ach = ach;
+		var achBest = mergeAchBest(a.vanguard_ach_best, b.vanguard_ach_best); if (achBest != null) out.vanguard_ach_best = achBest;
+		if (b.vanguard_ach_title != null || a.vanguard_ach_title != null) out.vanguard_ach_title = (b.vanguard_ach_title != null ? b.vanguard_ach_title : a.vanguard_ach_title);
 		return out;
 	}
 	function deviceClass() {
@@ -166,9 +225,21 @@ function injectionScript(
 		// seed so any device shows the most recently used initials.
 		var _ci = cloud && cloud.progression && cloud.progression.vanguard_lastInitials;
 		if (_ci != null) merged.vanguard_lastInitials = _ci;
+		// The worn title follows the same rule for the same reason: without this,
+		// mergeProgression's last-writer wins would hand the seed back to whatever
+		// this device happens to hold and a title chosen on another device would
+		// never arrive. The badge itself is unioned above, so a title seeded here
+		// is one this account has really earned.
+		var _ct = cloud && cloud.progression && cloud.progression.vanguard_ach_title;
+		if (_ct != null) merged.vanguard_ach_title = _ct;
 		for (var mk in merged) { if (Object.prototype.hasOwnProperty.call(merged, mk)) { try { native(mk, merged[mk]); } catch (e) {} } }
 		var pb = cloud && cloud.prefs && cloud.prefs[DEVICE];
-		if (pb) { for (var pk in pb) { if (pk !== '_ts' && pk !== 'vanguard_lastInitials' && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
+		// A pref bucket may still hold keys that have since become PROGRESSION (the
+		// three achievement keys, lastInitials): applied here they would overwrite
+		// the merged value that was just seeded, since this loop runs second. Skip
+		// every progression key rather than naming them one at a time -- the server
+		// folds those stale copies into progression on the next push.
+		if (pb) { for (var pk in pb) { if (pk !== '_ts' && PROGRESSION_KEYS.indexOf(pk) === -1 && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
 	}
 
 	// 1. Seed: merge the cloud save into localStorage BEFORE the game reads it.
@@ -331,6 +402,245 @@ function injectionScript(
 		return b;
 	}
 
+	// --- REPORT A PROBLEM -------------------------------------------------------
+	// The shell mounts the portal's report control on Svelte layouts. VANGUARD
+	// renders none, so until now the one surface a class spends a whole period
+	// inside was the one surface with no way to say anything about it. Injected
+	// here, at serve time, for the same reason the cloud save is: the game file
+	// on disk is never modified.
+	//
+	// IT DOES NOT COMPETE FOR INPUT, AND IT ADDS NO GLOBAL LISTENER. The game
+	// already knows what a modal is: stage's pointerdown, mousedown and wheel
+	// handlers all bail on '.fbovl', and 'typingInField()' bails the global
+	// keydown handler on '.fbinline'. The panel wears the first class and the
+	// text fields wear the second, so the game's OWN handlers stand down -- the
+	// same way its in-game composer is left alone -- instead of a second listener
+	// racing them for the same events.
+	var FB = ${feedbackJson};
+	var fbPanel = null, fbText = null, fbContact = null, fbSendBtn = null, fbStatusEl = null;
+	var fbKind = 'bug', fbMetaCaptured = {}, fbSending = false;
+
+	function fbWords(reason) {
+		return FB.refusals[reason] || ('The server refused that report (' + reason + ').');
+	}
+	// What the game is doing right now. __ideaGameInfo is injected beside the
+	// game's own VERSION constant (see the GET handler): the game body is one
+	// IIFE, so VERSION, gameMode and sector are closure-scoped and unreachable
+	// from out here without it. Absent for any reason, the report still files --
+	// with those three fields null rather than with nothing.
+	function fbGame() {
+		try { return (typeof window.__ideaGameInfo === 'function' && window.__ideaGameInfo()) || {}; }
+		catch (e) { return {}; }
+	}
+	// The captureMeta fields, assembled the same way and read off the page at the
+	// moment the box OPENS. A field a person has to fill in is a field that
+	// arrives empty, so nothing here is asked for.
+	function fbMeta() {
+		var g = fbGame(), vp = null, ua = null;
+		try { vp = window.innerWidth + 'x' + window.innerHeight; } catch (e) {}
+		try { ua = (navigator.userAgent || '').trim() || null; } catch (e) {}
+		return {
+			route: '/vanguard',
+			path: (location && location.pathname) || '/vanguard/',
+			role: FB.role,
+			section: null,
+			viewport: vp,
+			userAgent: ua,
+			at: new Date().toISOString(),
+			build: FB.build,
+			// The three the game knows and the portal cannot: which build of the
+			// GAME (not of the site), which mode is being played, and how far in.
+			gameVersion: g.version == null ? null : String(g.version),
+			mode: g.mode == null ? null : String(g.mode),
+			sector: typeof g.sector === 'number' ? g.sector : null,
+			screen: g.state == null ? null : String(g.state)
+		};
+	}
+
+	function fbSetStatus(text, bad) {
+		if (!fbStatusEl) return;
+		fbStatusEl.textContent = text || '';
+		fbStatusEl.style.color = bad ? '#FF8C00' : '#4A7A52';
+	}
+
+	function fbField(placeholder, maxLen, rows) {
+		var t = document.createElement('textarea');
+		// 'fbinline' is the game's own marker for "somebody is typing in this":
+		// typingInField() reads it and the global keydown handler stands down, so
+		// a W in a sentence never steers the ship.
+		t.className = 'fbinline';
+		t.rows = rows;
+		t.maxLength = maxLen;
+		t.placeholder = placeholder;
+		t.style.cssText = 'width:100%;box-sizing:border-box;resize:vertical;font:inherit;font-size:12px;line-height:1.4;color:#E8FFE8;background:rgba(0,20,6,0.9);border:1px solid rgba(0,255,65,0.3);border-radius:3px;padding:7px 9px;';
+		t.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+		t.addEventListener('keydown', function (e) { e.stopPropagation(); });
+		t.addEventListener('keyup', function (e) { e.stopPropagation(); });
+		return t;
+	}
+
+	function fbClose() {
+		if (fbPanel) fbPanel.style.display = 'none';
+	}
+
+	function fbSend() {
+		if (fbSending) return;
+		var msg = ((fbText && fbText.value) || '').trim();
+		if (!msg) { fbSetStatus('Write a little about what you noticed.', true); return; }
+		if (msg.length > FB.maxLen) { fbSetStatus(fbWords('message_too_long'), true); return; }
+		var contact = ((fbContact && fbContact.value) || '').trim();
+		if (contact.length > FB.contactMax) { fbSetStatus(fbWords('contact_too_long'), true); return; }
+
+		var payload = {
+			app: 'vanguard',
+			context: '/vanguard',
+			kind: fbKind,
+			message: msg,
+			meta: fbMetaCaptured
+		};
+		// Only the anonymous path has anywhere to put this, and only it asks.
+		if (!SIGNED_IN) payload.contact = contact || null;
+
+		fbSending = true;
+		if (fbSendBtn) fbSendBtn.disabled = true;
+		fbSetStatus('Sending...', false);
+		fetch(FB.endpoint, {
+			method: 'POST', headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(payload)
+		}).then(function (r) {
+			return r.json().then(function (j) { return { ok: r.ok, body: j }; },
+				function () { return { ok: r.ok, body: null }; });
+		}).then(function (res) {
+			fbSending = false;
+			if (fbSendBtn) fbSendBtn.disabled = false;
+			var b = res.body || {};
+			if (res.ok && b.ok === true) {
+				if (fbText) fbText.value = '';
+				if (fbContact) fbContact.value = '';
+				fbSetStatus('Sent. Thank you.', false);
+				setTimeout(fbClose, 1200);
+				return;
+			}
+			// A 'reason' means the far side CONSIDERED this and said no, so it is
+			// reported once in the words that reason has, rather than re-sent. No
+			// reason at all is the only outcome sending again can fix.
+			var reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+			if (reason) fbSetStatus(fbWords(reason), true);
+			else fbSetStatus('That did not send. It can be re-sent.', true);
+		}).catch(function () {
+			fbSending = false;
+			if (fbSendBtn) fbSendBtn.disabled = false;
+			fbSetStatus('That did not send. Check your connection.', true);
+		});
+	}
+
+	function fbBuildPanel() {
+		if (fbPanel) return fbPanel;
+		var host = document.body || document.documentElement;
+		if (!host) return null;
+
+		var panel = document.createElement('div');
+		// '.fbovl' is what the game's pointer, mouse and wheel handlers already
+		// look for before they touch gameplay. The inline styles below win over
+		// the class's own rules, so borrowing the marker costs no layout.
+		panel.className = 'fbovl';
+		panel.id = 'idea-vanguard-feedback';
+		panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(2,10,4,0.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font-family:"Share Tech Mono",ui-monospace,monospace;';
+
+		var card = document.createElement('div');
+		card.style.cssText = 'width:100%;max-width:420px;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:14px 16px;background:rgba(2,10,4,0.97);border:1px solid rgba(0,255,65,0.35);border-radius:6px;color:#E8FFE8;box-shadow:0 10px 40px rgba(0,0,0,0.6);';
+
+		var head = document.createElement('div');
+		head.textContent = 'REPORT A PROBLEM';
+		head.style.cssText = 'font-size:12px;font-weight:700;letter-spacing:0.12em;color:#00FF41;text-shadow:0 0 8px rgba(0,255,65,0.4);';
+		card.appendChild(head);
+
+		var note = document.createElement('div');
+		note.textContent = SIGNED_IN
+			? 'Something confusing, broken, or missing? Where you are in the game, your browser and the build are attached automatically.'
+			: 'Something confusing, broken, or missing? You are not signed in, so this report carries no name. Where you are in the game, your browser and the build are attached automatically.';
+		note.style.cssText = 'font-size:11px;line-height:1.45;color:#9FB8A6;';
+		card.appendChild(note);
+
+		var kinds = document.createElement('div');
+		kinds.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+		var kindBtns = [];
+		function paintKinds() {
+			for (var i = 0; i < kindBtns.length; i++) {
+				var on = kindBtns[i].getAttribute('data-kind') === fbKind;
+				kindBtns[i].style.background = on ? 'rgba(0,240,255,0.18)' : 'none';
+				kindBtns[i].style.color = on ? '#00F0FF' : '#9FB8A6';
+				kindBtns[i].style.borderColor = on ? 'rgba(0,240,255,0.7)' : 'rgba(0,240,255,0.25)';
+			}
+		}
+		for (var ki = 0; ki < FB.kinds.length; ki++) {
+			(function (k) {
+				var b = document.createElement('button');
+				b.type = 'button';
+				b.textContent = k.label;
+				b.title = k.hint;
+				b.setAttribute('data-kind', k.id);
+				b.style.cssText = 'font:inherit;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;border:1px solid rgba(0,240,255,0.25);border-radius:2px;padding:4px 9px;cursor:pointer;';
+				b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+				b.addEventListener('click', function (e) { e.stopPropagation(); fbKind = k.id; paintKinds(); });
+				kindBtns.push(b);
+				kinds.appendChild(b);
+			})(FB.kinds[ki]);
+		}
+		paintKinds();
+		card.appendChild(kinds);
+
+		fbText = fbField('What happened?', FB.maxLen, 4);
+		card.appendChild(fbText);
+
+		if (!SIGNED_IN) {
+			var cLabel = document.createElement('div');
+			cLabel.textContent = 'A way to reach you (optional)';
+			cLabel.style.cssText = 'font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#4A7A52;';
+			card.appendChild(cLabel);
+			fbContact = fbField('An email, a first name, or when to ask you', FB.contactMax, 1);
+			card.appendChild(fbContact);
+		}
+
+		fbStatusEl = document.createElement('div');
+		fbStatusEl.style.cssText = 'font-size:11px;line-height:1.4;color:#4A7A52;min-height:15px;';
+		card.appendChild(fbStatusEl);
+
+		var row = document.createElement('div');
+		row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+		var cancel = mkBtn('Close', function (e) { e.stopPropagation(); fbClose(); });
+		cancel.style.color = '#9FB8A6';
+		cancel.style.borderColor = 'rgba(159,184,166,0.35)';
+		cancel.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+		fbSendBtn = mkBtn('Send', function (e) { e.stopPropagation(); fbSend(); });
+		fbSendBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+		row.appendChild(cancel);
+		row.appendChild(fbSendBtn);
+		card.appendChild(row);
+
+		// Clicks inside the card are the card's; a click on the backdrop closes,
+		// and neither ever reaches the game (the panel is a '.fbovl').
+		card.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+		panel.addEventListener('pointerdown', function (e) { e.stopPropagation(); fbClose(); });
+
+		panel.appendChild(card);
+		host.appendChild(panel);
+		fbPanel = panel;
+		return panel;
+	}
+
+	function fbOpen() {
+		var panel = fbBuildPanel();
+		if (!panel) return;
+		fbMetaCaptured = fbMeta();
+		fbSetStatus('', false);
+		panel.style.display = 'flex';
+		// Focus lands in the field immediately: the game's typingInField() gate
+		// keys off the FOCUSED element, so this is what keeps a sentence from
+		// being read as movement while the box is open.
+		try { if (fbText) fbText.focus(); } catch (e) {}
+	}
+
 	// --- top nav: return to the IDEA home page + signed-in identity, so a player
 	//     can leave the game and confirm their account. Matches the IDEA green /
 	//     cyan Share Tech Mono chrome; fixed top-right, above the game canvas.
@@ -386,6 +696,20 @@ function injectionScript(
 			link.style.cssText = 'font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#00F0FF;text-decoration:none;border:1px solid rgba(0,240,255,0.35);border-radius:2px;padding:2px 6px;';
 			nav.appendChild(link);
 		}
+
+		// The report affordance, in the chrome this endpoint already owns rather
+		// than floating a second control of its own. It sits beside the way out of
+		// the game for the same reason the home link does: it is the portal's
+		// furniture, not the game's, and a player looking for either looks here.
+		var fbSep = document.createElement('span');
+		fbSep.style.cssText = 'width:1px;height:14px;background:rgba(0,255,65,0.25);';
+		nav.appendChild(fbSep);
+		var report = mkBtn('Report', function (e) { e.stopPropagation(); fbOpen(); });
+		report.title = 'Report a problem with VANGUARD';
+		// The nav is a sibling of the game's stage, so this never reaches its
+		// handlers -- stopped here anyway, the way every button in the game does.
+		report.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+		nav.appendChild(report);
 
 		host.appendChild(nav);
 	}
@@ -445,6 +769,9 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	// One saved in-progress run per mode (0037). We inject the snapshots so the
 	// game's title screen can render a RESUME card for each.
 	let runStates: unknown[] = [];
+	// The one captureMeta field that is not readable from the page: it is on the
+	// profile row, and the profile row is already being read.
+	let role: string | null = null;
 
 	if (claims) {
 		signedIn = true;
@@ -463,6 +790,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		// tool), which belongs to the same privileged tier as everything else.
 		// DEV mode is gated behind the same flag (see below).
 		isAdminUser = await isAdmin(supabase, claims.sub);
+		role = (p?.role as string | null) ?? null;
 		profile = {
 			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
 			avatarUrl: p?.avatar_url || ''
@@ -471,6 +799,26 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	}
 
 	let htmlContent = vanguardHtml;
+
+	// WHAT THE GAME KNOWS AND THE PAGE CANNOT ASK IT.
+	//
+	// The whole game body is one IIFE, so VERSION, gameMode and sector are
+	// closure-scoped: nothing outside can read them, and a report that had to
+	// leave them out would be a report that cannot say which build of the game
+	// broke or where in a run it happened. This adds a reader for exactly those
+	// three (plus which screen is up) beside the declaration of the first, at
+	// SERVE TIME -- the same technique as the tune-mode strip below, and the same
+	// promise: the file on disk is never modified.
+	//
+	// It reads, and it is the only thing it does. No setter, no game function is
+	// exposed, so nothing here can change what a run does.
+	htmlContent = htmlContent.replace(
+		/const VERSION='(\d+)';/,
+		(match) =>
+			match +
+			" window.__ideaGameInfo=function(){ try{ return { version:VERSION, mode:gameMode, sector:sector, state:state }; }catch(e){ return { version:VERSION, mode:null, sector:null, state:null }; } };"
+	);
+
 	if (!isAdminUser) {
 		// Strip the query param check that forces tune mode, and strip both DEV
 		// and TUNE from the mode allowlist -- DEV is a title-screen button, not
@@ -497,7 +845,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	}
 
 	const html = injectVersionBadge(
-		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, isAdminUser, cloud, profile, runStates)}`),
+		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, isAdminUser, cloud, profile, runStates, role)}`),
 		'vanguard'
 	);
 

@@ -779,7 +779,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <button class="obtn" id="histClose">CLOSE</button>
   </div>
 
-  <!-- ACHIEVEMENTS: local cosmetic tracking + earned title (sync is a deferred follow-up) -->
+  <!-- ACHIEVEMENTS: cosmetic tracking + earned title; the three keys sync per account -->
   <div class="ovl hidden" id="ovlAch" style="background:rgba(2,10,4,.96);z-index:13;gap:10px">
     <h2 class="ovh">ACHIEVEMENTS</h2>
     <div id="achBody" class="histwrap"></div>
@@ -6091,7 +6091,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
- {ver:'213',date:'2026',items:['Gate VANGUARD\'s DEV mode behind the admin check TUNE already uses, and correct two stale HISTORY claims']},
+ {ver:'212',date:'2026',items:['REPORT: tell us about a bug or an idea from inside the game - the button sits with the IDEA link at the top right, and it fills in your build, your mode and your sector for you']},
  {ver:'211',date:'2026',items:['Every faction now gets a fair turn at opening a run, and MSET\'s TORCH spreads its three shots wider so you can slip between them']},
  {ver:'210',date:'2026',items:['Run history: hover or tap any chart to read that run\'s details, and TIME PLAYED now shows hours']},
  {ver:'209',date:'2026',items:['VANGUARD: new RICOCHET upgrade in the weapons shop, your shots now skip off the side walls and off enemy hulls instead of dying, hunting down a fresh target and hitting again']},
@@ -6377,10 +6377,15 @@ function closeHist(){ _hsTipHide(); el('ovlHist').classList.add('hidden'); }
 { const b=el('histBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); openHist(); }); }
 { const bo=el('histBtnOver'); if(bo) bo.addEventListener('click',e=>{ e.stopPropagation(); openHist(); }); }
 
-/* ===== ACHIEVEMENTS: local cosmetic tracking + panel + earned title =====
-   Persistence is LOCAL ('vanguard_ach' / 'vanguard_ach_best' / 'vanguard_ach_title');
-   cross-device sync is a deferred follow-up (no portal hook exists yet). Evaluated
-   once per ranked run in endRun; never affects gameplay, scoring, or submission. */
+/* ===== ACHIEVEMENTS: cosmetic tracking + panel + earned title =====
+   Persistence is localStorage ('vanguard_ach' / 'vanguard_ach_best' /
+   'vanguard_ach_title'), and all three are PROGRESSION in the portal cloud save,
+   so a signed-in player carries them between devices: the badges union, the
+   bests take a per-field maximum, and the worn title follows the last writer.
+   Nothing here has to know that -- the portal wraps localStorage.setItem.
+   Evaluated once per ranked run in endRun; never affects gameplay, scoring, or
+   submission. Removing a title (removeItem) is not wrapped, so clearing one is
+   still a local-only change. */
 const ACH_BADGE=svgI('<path d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 5H5.5A2.5 2.5 0 0 0 8 8M16 5h2.5A2.5 2.5 0 0 1 16 8"/><path d="M12 12v4M9 20h6M10 16h4v4h-4z"/>');
 const ACH_LOCK=svgI('<rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>');
 function _achRankMin(g){ const r=STYLE_RANKS.find(k=>k.g===g); return r?r.min:1e9; }

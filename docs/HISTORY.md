@@ -22286,17 +22286,23 @@ Serve-time injection is the convention for adding anything to legacy HTML, so
 VANGUARD is reachable in principle. It is not done here: it needs a session in a
 page that has none, and the brief said to name it and leave it.
 
-**Superseded.** Neither is still true. `src/routes/vanguard/history/+server.ts`
-was the standalone run-history portal page; it is now a bare `308` to
-`/vanguard/` (retired in favor of the in-game RUN HISTORY panel) and no longer
-belongs in this list of legacy-HTML endpoints -- it renders no HTML at all. And
-"it needs a session in a page that has none" turned out not to be the blocker:
-the game gained its own inline report control (`buildFeedbackComposer` in
-`src/lib/legacy/vanguard/index.html`, mounted on the title, pause and
-game-over screens) that needs no session, because it does not write to
-`app_feedback` -- it posts to VANGUARD's own Apps Script backend the same way
-the leaderboard and run history already do. See the `vanguard` exclusion rule
-in `src/lib/feedback/context.ts` for where that leaves the shell's own
+**Superseded.** Neither is still true, both by the same later bundle (VANGUARD
+achievements sync and report a problem). `src/routes/vanguard/history/+server.ts`
+was the standalone run-history portal page; it was retired to a bare `308` to
+`/vanguard/` once the in-game RUN HISTORY panel replaced it, and that redirect
+file is now gone outright -- there is no `history` route under `/vanguard` at
+all. And "it needs a session in a page that has none" turned out not to be the
+blocker: `src/routes/vanguard/+server.ts` now injects a REPORT control (a
+"REPORT A PROBLEM" panel, opened from a button beside the IDEA link at the top
+right) that reaches `app_feedback` the same way every other surface does --
+signed in through `/api/vanguard-feedback` (an RLS-scoped insert performed
+server-side, as the caller, because the page has a session cookie but no
+browser Supabase client), signed out through the shared anonymous route. This
+is a different, newer control from the game's own long-standing inline "Bug or
+idea?" composer (`buildFeedbackComposer`, mounted on the title/pause/game-over
+screens), which still posts to VANGUARD's own Apps Script backend and was never
+connected to `app_feedback`. See the `vanguard` exclusion rule in
+`src/lib/feedback/context.ts` for where that leaves the shell's own
 affordance.
 
 ### CONTEXT IS CAPTURED, NOT TYPED
