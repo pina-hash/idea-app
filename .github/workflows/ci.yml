@@ -6,6 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # PLACEHOLDER VALUES, COMMITTED HERE ON PURPOSE -- never a real credential.
+  #
+  # `svelte-check` type-checks against `$env/static/public`, which
+  # `svelte-kit sync` GENERATES from whatever PUBLIC_-prefixed vars are in
+  # process.env at sync time (.svelte-kit/ambient.d.ts). It does not read
+  # their VALUES, only their PRESENCE -- src/routes/+layout.ts and
+  # src/hooks.server.ts import PUBLIC_SUPABASE_URL and
+  # PUBLIC_SUPABASE_ANON_KEY by name, and with neither set the generated
+  # module exports nothing, which is a type error at both import sites
+  # ("has no exported member ..."), not a missing-value error. A fake URL and
+  # a fake key satisfy the type checker exactly as well as real ones, and
+  # nothing in `npm run check` or `npm test` makes a network call that would
+  # need the real project -- the test suite talks to an embedded Postgres,
+  # never to Supabase.
+  PUBLIC_SUPABASE_URL: 'https://ci-placeholder.supabase.co'
+  PUBLIC_SUPABASE_ANON_KEY: 'ci-placeholder-anon-key'
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -36,6 +54,29 @@ jobs:
         continue-on-error: true
         run: npm run check
 
+      # THE FULL SUITE RUNS HERE, DATABASE TESTS INCLUDED, and that is a
+      # deliberate reading of "no credential" rather than an oversight of the
+      # constraint. Every DB-backed test in tests/ (`tests/db/harness.ts`)
+      # runs against `embedded-postgres`, a real Postgres binary vitest boots
+      # itself in-process (tests/db/cluster.ts, globalSetup) and tears down at
+      # the end of the run. It is not Supabase, not a hosted database, and not
+      # a service reachable over the network: the binary is a public,
+      # unauthenticated npm optionalDependency
+      # (@embedded-postgres/linux-x64, already pinned in package-lock.json)
+      # fetched by the `npm ci` step above the same way any other dependency
+      # is, and every migration it applies is the repo's own file, verbatim,
+      # from supabase/migrations. Nothing here is a live key standing in for
+      # one; it is the same fixture `npm test` already uses locally.
+      #
+      # THE COST, measured locally on this machine before enabling it here:
+      # the full suite (94 files, 2258 tests, one shared Postgres cluster
+      # booted once) took 114s. CI's shared runners are typically slower on
+      # disk and first-download I/O than a warm local machine, so budget
+      # roughly 2-4x that under load -- call it 4-8 minutes for this step
+      # alone, on top of `npm ci` and `svelte-kit sync`. That is the number to
+      # watch if this step becomes the slow part of the pipeline; it is not
+      # expected to, since GitHub-hosted runners are not otherwise time-boxed
+      # here.
       - name: Test suite
         id: test
         if: always()
