@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # adapter-vercel (node_modules/@sveltejs/adapter-vercel/utils.js,
+      # resolved via package-lock.json) hard-rejects any Node major outside
+      # 20, 22 or 24 -- confirmed by running the build against Node 26
+      # locally, which fails with "Unsupported Node.js version". 24 is the
+      # newest of the three the adapter accepts.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      # Both steps below run even if the first fails, so one push reports
+      # both failures rather than only the earlier one.
+      - name: Type and a11y check
+        id: check
+        continue-on-error: true
+        run: npm run check
+
+      - name: Test suite
+        id: test
+        if: always()
+        continue-on-error: true
+        run: npm test
+
+      - name: Fail the job if either step failed
+        if: always()
+        run: |
+          echo "check: ${{ steps.check.outcome }}"
+          echo "test:  ${{ steps.test.outcome }}"
+          if [ "${{ steps.check.outcome }}" != "success" ] || [ "${{ steps.test.outcome }}" != "success" ]; then
+            exit 1
+          fi
