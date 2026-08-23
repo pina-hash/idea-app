@@ -816,7 +816,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='211';
+const VERSION='213';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -6091,6 +6091,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'213',date:'2026',items:['Gate VANGUARD\'s DEV mode behind the admin check TUNE already uses, and correct two stale HISTORY claims']},
  {ver:'211',date:'2026',items:['Every faction now gets a fair turn at opening a run, and MSET\'s TORCH spreads its three shots wider so you can slip between them']},
  {ver:'210',date:'2026',items:['Run history: hover or tap any chart to read that run\'s details, and TIME PLAYED now shows hours']},
  {ver:'209',date:'2026',items:['VANGUARD: new RICOCHET upgrade in the weapons shop, your shots now skip off the side walls and off enemy hulls instead of dying, hunting down a fresh target and hitting again']},

@@ -88,12 +88,15 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'vanguard',
 		label: 'VANGUARD',
-		relocatedTo: 'the VANGUARD menu (not built, see docs/HISTORY.md)',
+		relocatedTo: "the game's own inline feedback composer on the title, pause and game-over screens",
 		// VANGUARD is served as legacy HTML from a +server.ts endpoint and
-		// renders no layout at all, so today this rule excludes nothing that was
-		// ever included. It stands so that a VANGUARD surface which DOES render
-		// the shell inherits the exclusion rather than discovering it in front of
-		// a class.
+		// renders no layout at all, so this rule excludes nothing the shell
+		// mount could ever have reached. It stands so that a VANGUARD surface
+		// which DOES render the shell inherits the exclusion rather than
+		// discovering it in front of a class. The game carries its own report
+		// control (`buildFeedbackComposer` in src/lib/legacy/vanguard/index.html,
+		// mounted into #fbTitle/#fbPause/#fbOver) -- a separate channel, wired to
+		// VANGUARD's own Apps Script backend, not to app_feedback.
 		match: under('/vanguard'),
 		samples: ['/vanguard']
 	},

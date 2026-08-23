@@ -461,6 +461,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		const p = profileRes.data;
 		// Admin-only since 0067: this flag unlocks the game's TUNE mode (a dev
 		// tool), which belongs to the same privileged tier as everything else.
+		// DEV mode is gated behind the same flag (see below).
 		isAdminUser = await isAdmin(supabase, claims.sub);
 		profile = {
 			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
@@ -471,16 +472,22 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 
 	let htmlContent = vanguardHtml;
 	if (!isAdminUser) {
-		// Strip the query param check that forces tune mode
+		// Strip the query param check that forces tune mode, and strip both DEV
+		// and TUNE from the mode allowlist -- DEV is a title-screen button, not
+		// only a query param, so dropping it from the allowlist alone (leaving
+		// the button clickable) would not gate it. A stale 'dev'/'tune' value
+		// already sitting in this device's localStorage is also caught here,
+		// since it is restored through this same allowlist on load.
 		htmlContent = htmlContent
 			.replace(
 				"if(m!=='normal'&&m!=='hardcore'&&m!=='dev'&&m!=='tune') m='normal';",
-				"if(m!=='normal'&&m!=='hardcore'&&m!=='dev') m='normal';"
+				"if(m!=='normal'&&m!=='hardcore') m='normal';"
 			)
 			.replace(
 				"try{ if(/[?&]tune=1\\b/.test(location.search)) m='tune'; }catch(e){}",
 				"/* tune mode disabled */"
-			);
+			)
+			.replace('<button class="modebtn" data-m="dev">DEV</button>', '');
 
 		// Completely slice out the TUNE balancing panel script block (keeps closing IIFE brace/paren)
 		htmlContent = htmlContent.replace(

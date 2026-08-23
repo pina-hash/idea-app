@@ -22271,7 +22271,7 @@ rule the shell would have floated a second, worse control over a live 3D race.
 These serve HTML a person reads and never render a Svelte layout, so the shell
 mount cannot reach them. Named here and left alone:
 
-- `src/routes/vanguard/+server.ts` and `src/routes/vanguard/history/+server.ts`
+- `src/routes/vanguard/+server.ts`
 - `src/routes/assignments/[slug]/+server.ts`
 - `src/routes/frc/[domain]/[unit]/quiz/+server.ts`
 - the dev endpoints: `src/routes/dev/coins/+server.ts`,
@@ -22285,6 +22285,19 @@ mount cannot reach them. Named here and left alone:
 Serve-time injection is the convention for adding anything to legacy HTML, so
 VANGUARD is reachable in principle. It is not done here: it needs a session in a
 page that has none, and the brief said to name it and leave it.
+
+**Superseded.** Neither is still true. `src/routes/vanguard/history/+server.ts`
+was the standalone run-history portal page; it is now a bare `308` to
+`/vanguard/` (retired in favor of the in-game RUN HISTORY panel) and no longer
+belongs in this list of legacy-HTML endpoints -- it renders no HTML at all. And
+"it needs a session in a page that has none" turned out not to be the blocker:
+the game gained its own inline report control (`buildFeedbackComposer` in
+`src/lib/legacy/vanguard/index.html`, mounted on the title, pause and
+game-over screens) that needs no session, because it does not write to
+`app_feedback` -- it posts to VANGUARD's own Apps Script backend the same way
+the leaderboard and run history already do. See the `vanguard` exclusion rule
+in `src/lib/feedback/context.ts` for where that leaves the shell's own
+affordance.
 
 ### CONTEXT IS CAPTURED, NOT TYPED
 
