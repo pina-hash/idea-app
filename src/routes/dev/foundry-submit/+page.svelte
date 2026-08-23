@@ -1,0 +1,599 @@
+<script lang="ts">
+	/**
+	 * THE SUBMIT AND MY-APPS HARNESS.
+	 *
+	 * It mounts the REAL `FoundrySubmit` and `FoundryMine` -- not a copy of
+	 * their markup -- with the transports answered in memory, so the whole
+	 * create -> cover -> upload -> version -> ingest orchestration can be driven
+	 * with no network, no Supabase project and no signed-in session.
+	 *
+	 * THE IN-MEMORY INGEST IS THE REAL PREFLIGHT, and that is what makes this a
+	 * harness rather than a mock. It runs `preflightZipInBrowser` over the SAME
+	 * normalized zip the surface would have uploaded, so the file list, the
+	 * warnings and the notes it hands back are produced by the code the server
+	 * runs, from the same module, with the same wording. What it does NOT do is
+	 * the two things only a server can: the incremental uncompressed cap and the
+	 * storage write. A harness missing a guard the real page has makes a passing
+	 * drive prove nothing, so both omissions are stated on the page itself.
+	 *
+	 * THE FIXTURES ARE BUILT HERE, in the browser, as real `File` objects, so
+	 * each of the three input shapes can be driven without a file picker: a zip,
+	 * a folder with noise in it, and a single HTML file that is not called
+	 * index.html.
+	 */
+	import FoundryContract from '$lib/foundry/FoundryContract.svelte';
+	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
+	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
+	import { normalizeFoundryInput } from '$lib/foundry/normalize';
+	import { foundryBuildContract } from '$lib/foundry/preflight';
+	import { preflightZipInBrowser } from '$lib/foundry/preflight-browser';
+	import { buildZip } from '$lib/foundry/zip-write';
+	import type {
+		FoundryApp,
+		FoundryAppSummary,
+		FoundryMineTransports,
+		FoundrySubmitTransports,
+		IngestOutcome
+	} from '$lib/foundry/transports';
+
+	const enc = new TextEncoder();
+
+	/* ------------------------------------------------------------ fixtures */
+
+	const GOOD_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tide Clock</title>
+<link rel="stylesheet" href="/_platform/fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Tide Clock</h1>
+<img src="art/wave.png" alt="A wave">
+<script src="app.js"><\/script>
+</body>
+</html>`;
+
+	const BAD_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Broken</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+</head>
+<body>
+<img src="/art/logo.png" alt="Logo">
+<script>
+fetch('https://api.example.com/data').then((r) => r.json());
+<\/script>
+</body>
+</html>`;
+
+	const GOOD_CSS = `body { font-family: 'Rajdhani', sans-serif; background: #0b0f0c; }`;
+	const GOOD_JS = `document.querySelector('h1').addEventListener('click', () => {
+	localStorage.setItem('taps', String(Number(localStorage.getItem('taps') ?? 0) + 1));
+});`;
+
+	function png(): Uint8Array {
+		// A real 1x1 PNG, so the extension allowlist and the mime table are
+		// exercised on actual bytes rather than on a renamed text file.
+		const b64 =
+			'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+		const bin = atob(b64);
+		const out = new Uint8Array(bin.length);
+		for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+		return out;
+	}
+
+	function file(path: string, bytes: Uint8Array | string, type = ''): File {
+		const data = typeof bytes === 'string' ? enc.encode(bytes) : bytes;
+		const name = path.slice(path.lastIndexOf('/') + 1);
+		const f = new File([data as BlobPart], name, { type });
+		Object.defineProperty(f, 'webkitRelativePath', { value: path, configurable: true });
+		return f;
+	}
+
+	/** Shape 1: a real zip, uploaded as-is. */
+	async function fixtureZip(html: string, name = 'tide-clock.zip'): Promise<File[]> {
+		const bytes = await buildZip([
+			{ path: 'index.html', bytes: enc.encode(html) },
+			{ path: 'style.css', bytes: enc.encode(GOOD_CSS) },
+			{ path: 'app.js', bytes: enc.encode(GOOD_JS) },
+			{ path: 'art/wave.png', bytes: png() }
+		]);
+		const f = new File([bytes as BlobPart], name, { type: 'application/zip' });
+		return [f];
+	}
+
+	/** Shape 2: a folder, with the noise a real one carries. */
+	function fixtureFolder(): File[] {
+		return [
+			file('tide-clock/index.html', GOOD_HTML),
+			file('tide-clock/style.css', GOOD_CSS),
+			file('tide-clock/app.js', GOOD_JS),
+			file('tide-clock/art/wave.png', png(), 'image/png'),
+			file('tide-clock/.DS_Store', 'noise'),
+			file('tide-clock/art/.DS_Store', 'noise'),
+			file('tide-clock/Thumbs.db', 'noise'),
+			file('tide-clock/__MACOSX/._index.html', 'noise'),
+			file('tide-clock/.git/config', '[core]'),
+			file('tide-clock/.git/HEAD', 'ref: refs/heads/main'),
+			file('tide-clock/node_modules/left-pad/index.js', 'module.exports = 1;'),
+			file('tide-clock/node_modules/left-pad/package.json', '{}')
+		];
+	}
+
+	/** Shape 3: one HTML file, deliberately not called index.html. */
+	function fixtureSingle(): File[] {
+		return [file('my-page.html', GOOD_HTML)];
+	}
+
+	/* ---------------------------------------------------------- transports */
+
+	let uploads = $state<{ path: string; size: number }[]>([]);
+	let created = $state<string[]>([]);
+	let lastZip = $state<Blob | null>(null);
+
+	const submitTransports: FoundrySubmitTransports = {
+		uid: '00000000-0000-4000-8000-00000000dev0',
+		existingApps: [{ id: 'app-1', slug: 'tide-clock', title: 'Tide Clock' }],
+
+		async createApp(input) {
+			created = [...created, `app ${input.slug}`];
+			return { ok: true, appId: 'app-new', slug: input.slug };
+		},
+
+		async uploadZip(zip, path) {
+			lastZip = zip;
+			uploads = [...uploads, { path, size: zip.size }];
+			return { ok: true };
+		},
+
+		async createVersion() {
+			created = [...created, 'version'];
+			return { ok: true, versionId: 'version-new', ordinal: 2 };
+		},
+
+		/**
+		 * THE REAL PREFLIGHT, over the zip the surface actually produced. Not a
+		 * canned response: a fixture that fails here fails for the reason the
+		 * server would give, in the server's words.
+		 */
+		async ingest(): Promise<IngestOutcome> {
+			const empty: IngestOutcome = {
+				ok: false,
+				failures: [],
+				warnings: [],
+				notes: [],
+				fileCount: 0,
+				totalBytes: 0,
+				strippedWrapper: null,
+				files: [],
+				message: null
+			};
+			if (!lastZip) return { ...empty, message: 'Nothing was uploaded.' };
+			const verdict = await preflightZipInBrowser(lastZip);
+			return {
+				ok: verdict.ok,
+				failures: verdict.failures,
+				warnings: verdict.warnings,
+				notes: verdict.notes,
+				fileCount: verdict.files.length,
+				totalBytes: lastZip.size,
+				strippedWrapper: verdict.strippedWrapper,
+				files: verdict.files.map((path) => ({ path, size: 0 })),
+				message: null
+			};
+		},
+
+		async uploadCover(f) {
+			uploads = [...uploads, { path: `covers/${f.name}`, size: f.size }];
+			return { ok: true, path: `dev/${f.name}` };
+		},
+
+		async saveField(_appId, field) {
+			created = [...created, `field ${field}`];
+			return { ok: true };
+		}
+	};
+
+	/* ------------------------------------------------- my-apps fixture data */
+
+	let mineApps = $state<FoundryAppSummary[]>([
+		{
+			id: 'app-1',
+			slug: 'tide-clock',
+			title: 'Tide Clock',
+			tagline: 'A clock that reads the tide table.',
+			cover_path: null,
+			published_version_id: 'v-2',
+			published_ordinal: 2,
+			version_count: 6,
+			submitted_version_id: 'v-4',
+			metadata_flagged_at: '2026-08-20T10:00:00Z',
+			hidden_at: null,
+			updated_at: '2026-08-22T09:00:00Z'
+		},
+		{
+			id: 'app-2',
+			slug: 'gear-ratio',
+			title: 'Gear Ratio Calculator',
+			tagline: null,
+			cover_path: null,
+			published_version_id: null,
+			published_ordinal: null,
+			version_count: 1,
+			submitted_version_id: null,
+			metadata_flagged_at: null,
+			hidden_at: null,
+			updated_at: '2026-08-18T09:00:00Z'
+		}
+	]);
+
+	const fullApp: FoundryApp = {
+		id: 'app-1',
+		slug: 'tide-clock',
+		title: 'Tide Clock',
+		tagline: 'A clock that reads the tide table.',
+		description: 'Shows the next high and low tide for Long Beach.',
+		cover_path: null,
+		build_notes:
+			'Generated with Claude, then I rewrote the tide maths by hand because the first version had the moon phase wrong. The CSS is mine.',
+		published_version_id: 'v-2',
+		metadata_flagged_at: '2026-08-20T10:00:00Z',
+		hidden_at: null,
+		created_at: '2026-07-01T09:00:00Z',
+		updated_at: '2026-08-22T09:00:00Z',
+		versions: [
+			/*
+			 * TWO DRAFTS ON PURPOSE. One has files and can be submitted; the
+			 * other has file_count 0, which is what a version whose ingest never
+			 * finished looks like, and `draftIsSubmittable` has to refuse it --
+			 * submitting an empty bundle puts a reviewer in front of nothing.
+			 */
+			{
+				id: 'v-6',
+				ordinal: 6,
+				status: 'draft',
+				byte_size: 0,
+				file_count: 0,
+				created_at: '2026-08-23T08:00:00Z',
+				reviewed_at: null,
+				review_note: null,
+				reject_reason: null,
+				manifest: {}
+			},
+			{
+				id: 'v-5',
+				ordinal: 5,
+				status: 'draft',
+				byte_size: 44000,
+				file_count: 7,
+				created_at: '2026-08-23T07:00:00Z',
+				reviewed_at: null,
+				review_note: null,
+				reject_reason: null,
+				manifest: {}
+			},
+			{
+				id: 'v-4',
+				ordinal: 4,
+				status: 'submitted',
+				byte_size: 41000,
+				file_count: 6,
+				created_at: '2026-08-22T09:00:00Z',
+				reviewed_at: null,
+				review_note: null,
+				reject_reason: null,
+				manifest: {}
+			},
+			{
+				id: 'v-3',
+				ordinal: 3,
+				status: 'rejected',
+				byte_size: 39000,
+				file_count: 6,
+				created_at: '2026-08-15T09:00:00Z',
+				reviewed_at: '2026-08-16T09:00:00Z',
+				review_note:
+					'The tide table only covers July. Extend it or say on the page which month it is for.',
+				reject_reason: 'incomplete',
+				manifest: {}
+			},
+			{
+				id: 'v-2',
+				ordinal: 2,
+				status: 'approved',
+				byte_size: 38000,
+				file_count: 5,
+				created_at: '2026-08-01T09:00:00Z',
+				reviewed_at: '2026-08-02T09:00:00Z',
+				review_note: null,
+				reject_reason: null,
+				manifest: {}
+			},
+			{
+				id: 'v-1',
+				ordinal: 1,
+				status: 'approved',
+				byte_size: 21000,
+				file_count: 3,
+				created_at: '2026-07-01T09:00:00Z',
+				reviewed_at: '2026-07-02T09:00:00Z',
+				review_note: null,
+				reject_reason: null,
+				manifest: {}
+			}
+		]
+	};
+
+	let selectedApp = $state<FoundryApp | null>(null);
+	let mineLog = $state<string[]>([]);
+
+	const mineTransports: FoundryMineTransports = {
+		submitVersion: async (id) => {
+			mineLog = [...mineLog, `submit ${id}`];
+			return { ok: true };
+		},
+		withdrawVersion: async (id) => {
+			mineLog = [...mineLog, `withdraw ${id}`];
+			return { ok: true };
+		},
+		rollback: async (appId, id) => {
+			mineLog = [...mineLog, `publish ${id} on ${appId}`];
+			return { ok: true };
+		},
+		saveField: async (_appId, field, value) => {
+			mineLog = [...mineLog, `set ${field} = ${value.slice(0, 40)}`];
+			return { ok: true };
+		},
+		uploadCover: async (f) => {
+			mineLog = [...mineLog, `cover ${f.name}`];
+			return { ok: true, path: `dev/${f.name}` };
+		}
+	};
+
+	/* ------------------------------------------------------------ driving */
+
+	let surface = $state<'submit' | 'mine' | 'contract'>('submit');
+	let submitKey = $state(0);
+	let driveNote = $state('');
+
+	async function drive(kind: 'zip' | 'zip-bad' | 'folder' | 'single') {
+		const files =
+			kind === 'zip'
+				? await fixtureZip(GOOD_HTML)
+				: kind === 'zip-bad'
+					? await fixtureZip(BAD_HTML, 'broken.zip')
+					: kind === 'folder'
+						? fixtureFolder()
+						: fixtureSingle();
+
+		// Hand them to the surface the same way a drop would: through the
+		// component's own input. `DataTransfer` is constructible in a browser,
+		// so this exercises the real change handler rather than a shortcut.
+		const dt = new DataTransfer();
+		for (const f of files) dt.items.add(f);
+		const input = document.querySelector<HTMLInputElement>('[data-fdy-input]');
+		if (!input) {
+			driveNote = 'No file input on screen. Is the surface showing its drop zone?';
+			return;
+		}
+		input.files = dt.files;
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		driveNote = `Handed ${files.length} file${files.length === 1 ? '' : 's'} to the surface (${kind}).`;
+	}
+
+	/**
+	 * A direct run of normalize + preflight, printed as raw strings. This is
+	 * what the parity check reads: the message text, with nothing rendered
+	 * around it that could be doing the formatting.
+	 */
+	let rawOut = $state('');
+
+	async function rawRun(kind: 'zip-bad' | 'folder' | 'single') {
+		const files =
+			kind === 'zip-bad'
+				? await fixtureZip(BAD_HTML, 'broken.zip')
+				: kind === 'folder'
+					? fixtureFolder()
+					: fixtureSingle();
+		const norm = await normalizeFoundryInput(files);
+		if (!norm.ok || !norm.zip) {
+			rawOut = `NORMALIZE REFUSED: ${norm.problem}`;
+			return;
+		}
+		const v = await preflightZipInBrowser(norm.zip);
+		rawOut = JSON.stringify(
+			{
+				shape: norm.shape,
+				zipBytes: norm.zip.size,
+				normalizeNotes: norm.notes,
+				ok: v.ok,
+				strippedWrapper: v.strippedWrapper,
+				files: v.files,
+				notes: v.notes,
+				failures: v.failures,
+				warnings: v.warnings
+			},
+			null,
+			2
+		);
+	}
+</script>
+
+<svelte:head><title>dev // foundry submit</title></svelte:head>
+
+<div class="h-root">
+	<header class="h-head">
+		<h1>Foundry submit harness</h1>
+		<p>
+			The real components with in-memory transports. Ingest is the REAL browser preflight over
+			the zip the surface produced, so refusals are the shared module's own sentences. It does
+			NOT do the incremental uncompressed cap or any storage write; both are server-only and
+			the real surface gets them from <code>foundry-ingest</code>.
+		</p>
+	</header>
+
+	<nav class="h-tabs">
+		<button class="btn" class:on={surface === 'submit'} onclick={() => (surface = 'submit')}>
+			Submit
+		</button>
+		<button class="btn" class:on={surface === 'mine'} onclick={() => (surface = 'mine')}>
+			My apps
+		</button>
+		<button class="btn" class:on={surface === 'contract'} onclick={() => (surface = 'contract')}>
+			Contract
+		</button>
+	</nav>
+
+	{#if surface === 'submit'}
+		<section class="h-drive">
+			<h2>Drive an input shape</h2>
+			<div class="h-buttons">
+				<button class="btn" onclick={() => drive('zip')} data-drive="zip">Zip (passes)</button>
+				<button class="btn" onclick={() => drive('zip-bad')} data-drive="zip-bad">
+					Zip (fails preflight)
+				</button>
+				<button class="btn" onclick={() => drive('folder')} data-drive="folder">
+					Folder (with noise)
+				</button>
+				<button class="btn" onclick={() => drive('single')} data-drive="single">
+					Single HTML (not index.html)
+				</button>
+				<button
+					class="btn"
+					onclick={() => {
+						submitKey += 1;
+						uploads = [];
+						created = [];
+						lastZip = null;
+						driveNote = '';
+					}}
+				>
+					Reset surface
+				</button>
+			</div>
+			{#if driveNote}<p class="h-note" data-testid="drive-note">{driveNote}</p>{/if}
+
+			<h2>Raw normalize + preflight output</h2>
+			<div class="h-buttons">
+				<button class="btn" onclick={() => rawRun('zip-bad')} data-raw="zip-bad">
+					Raw: failing zip
+				</button>
+				<button class="btn" onclick={() => rawRun('folder')} data-raw="folder">Raw: folder</button>
+				<button class="btn" onclick={() => rawRun('single')} data-raw="single">
+					Raw: single HTML
+				</button>
+			</div>
+			{#if rawOut}<pre class="h-raw" data-testid="raw-out">{rawOut}</pre>{/if}
+
+			{#if uploads.length > 0 || created.length > 0}
+				<p class="h-note">
+					Uploaded: {uploads.map((u) => `${u.path} (${u.size}B)`).join(', ') || 'nothing'}
+					&middot; Wrote: {created.join(', ') || 'nothing'}
+				</p>
+			{/if}
+		</section>
+
+		{#key submitKey}
+			<FoundrySubmit transports={submitTransports} />
+		{/key}
+	{:else if surface === 'contract'}
+		<FoundryContract contract={foundryBuildContract()} />
+	{:else}
+		<section class="h-drive">
+			<h2>My apps</h2>
+			<p class="h-note">
+				Selection is driven here rather than by the URL, so the harness needs no router. The
+				component is the same one the route mounts.
+			</p>
+			{#if mineLog.length > 0}
+				<p class="h-note" data-testid="mine-log">{mineLog.join(' | ')}</p>
+			{/if}
+		</section>
+
+		<FoundryMine
+			apps={mineApps}
+			selected={selectedApp}
+			transports={mineTransports}
+			now={new Date('2026-08-23T12:00:00Z')}
+			onSelect={(slug) => {
+				selectedApp = slug === 'tide-clock' ? fullApp : null;
+			}}
+		/>
+	{/if}
+</div>
+
+<style>
+	.h-root {
+		padding: 1rem;
+	}
+
+	.h-head h1 {
+		font-family: var(--font-display);
+		margin: 0 0 0.35rem;
+	}
+
+	.h-head p {
+		color: var(--text-2);
+		max-width: 68ch;
+		line-height: 1.5;
+		margin: 0 0 1rem;
+	}
+
+	.h-tabs {
+		display: flex;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.h-tabs .on {
+		border-color: var(--green);
+		color: var(--green);
+	}
+
+	.h-drive {
+		border: 1px solid var(--hairline);
+		border-radius: 8px;
+		padding: 0.75rem;
+		margin-bottom: 1rem;
+	}
+
+	.h-drive h2 {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		margin: 0 0 0.5rem;
+	}
+
+	.h-buttons {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.5rem;
+	}
+
+	.h-note {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		color: var(--cyan);
+		margin: 0.35rem 0;
+	}
+
+	.h-raw {
+		background: var(--bg2);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 0.75rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		max-height: 24rem;
+		overflow: auto;
+		white-space: pre-wrap;
+	}
+</style>

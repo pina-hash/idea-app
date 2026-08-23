@@ -186,7 +186,11 @@ const authedPrefixes = [
 	'/frc',
 	'/greenline',
 	'/notebook',
-	'/classroom'
+	'/classroom',
+	// Foundry is the signed-in tier: any account may publish, and every surface
+	// under it is about the caller's own work. A redirect is correct because
+	// the section's existence is not the secret.
+	'/foundry'
 ];
 
 const authGuard: Handle = async ({ event, resolve }) => {
