@@ -1,9 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it, beforeEach } from 'vitest';
 import { render } from 'svelte/server';
 
 import {
 	appsHostAllows,
 	isFoundryAppsHost,
+	isFoundryHostNamespace,
 	isFoundryPlatformPath,
 	isFoundryProxyPath,
 	normalizeHost
@@ -77,10 +81,32 @@ describe('host branch', () => {
 		expect(normalizeHost(undefined)).toBe('');
 	});
 
-	it('allows exactly the two bundle-host prefixes and nothing else', () => {
-		for (const p of ['/r', '/r/', '/r/tok/index.html', '/_platform', '/_platform/fonts.css']) {
+	/**
+	 * THE PREVIOUS VERSION OF THIS TEST ASSERTED `appsHostAllows('/r')` IS
+	 * TRUE, AND THAT ASSERTION CERTIFIED A HOLE. A bare `/r` passed the
+	 * allowlist, the hook handed it to the SvelteKit router, no route exists
+	 * there, and the root `+error.svelte` answered -- the entire portal booting
+	 * on the bundle origin with a root-layout session read behind it. The test
+	 * was green throughout, because it was asserting the behaviour rather than
+	 * the property.
+	 */
+	it('allows only paths the proxy actually serves: /r/{token}/{path}', () => {
+		for (const p of [
+			'/r/tok/',
+			'/r/tok/index.html',
+			'/r/tok/nested/asset.png',
+			'/_platform',
+			'/_platform/fonts.css'
+		]) {
 			expect(appsHostAllows(p)).toBe(true);
 		}
+
+		// The neighbours of the served shape. None of these names a file in a
+		// bundle, so none of them may reach the router.
+		for (const p of ['/r', '/r/', '/r/tok', '/rx', '/r-other', '/r//', '/r//index.html']) {
+			expect(appsHostAllows(p)).toBe(false);
+		}
+
 		// The app, its API, its auth endpoints, its static paths.
 		for (const p of [
 			'/',
@@ -98,12 +124,84 @@ describe('host branch', () => {
 		}
 	});
 
+	/**
+	 * THE PROPERTY, NOT THE URL LIST: nothing the apps host allows is a PAGE,
+	 * so nothing on it can run the root `+layout.server.ts` load.
+	 *
+	 * Both allowed prefixes resolve to `+server.ts` endpoints, and SvelteKit
+	 * does not run layout loads for endpoints -- that is what makes "no session
+	 * is read on the bundle origin" structural rather than a property of which
+	 * paths happen to exist today. This reads the route directory off disk, so
+	 * adding a `+page.svelte` under either prefix reddens it.
+	 */
+	it('no path the apps host allows resolves to a page', () => {
+		const routes = fs
+			.readdirSync('src/routes', { recursive: true, encoding: 'utf8' })
+			.map((f) => f.split(path.sep).join('/'));
+
+		const allowedRouteFiles = routes.filter(
+			(f) => f.startsWith('r/') || f.startsWith('_platform/')
+		);
+
+		// Positive control: the sweep found the two route trees at all.
+		expect(allowedRouteFiles.some((f) => f.startsWith('r/'))).toBe(true);
+		expect(allowedRouteFiles.some((f) => f.startsWith('_platform/'))).toBe(true);
+
+		const pages = allowedRouteFiles.filter((f) => /\+(page|layout)[.@]/.test(f));
+		expect(pages).toEqual([]);
+
+		const endpoints = allowedRouteFiles.filter((f) => f.endsWith('+server.ts'));
+		expect(endpoints.length).toBe(2);
+	});
+
+	/**
+	 * THE MAIN HOST REFUSES THE WHOLE NAMESPACE, not just the served shape.
+	 *
+	 * Narrowing `isFoundryProxyPath` to `/r/{token}/` and letting the main-host
+	 * branch read it opened exactly one path: a bare `/r` matches no route on
+	 * either host, so on the main host it stopped being intercepted and fell to
+	 * the router. Measured in dev before this predicate existed: 404 with
+	 * 171,045 bytes, against `/nope`'s 171,048. This is what keeps a route
+	 * added at `/r/<anything>` from shipping reachable on the session-bearing
+	 * origin.
+	 */
+	it('refuses the whole bundle namespace on the main host, shape or not', () => {
+		for (const p of [
+			'/r',
+			'/r/',
+			'/r/tok',
+			'/r/tok/',
+			'/r/tok/index.html',
+			'/r/anything',
+			'/_platform',
+			'/_platform/fonts.css'
+		]) {
+			expect(isFoundryHostNamespace(p)).toBe(true);
+		}
+
+		// It is a namespace, not a substring: the main host's own routes stay
+		// reachable. `/reference/...` is a real public route.
+		for (const p of ['/', '/reference/abc', '/rx', '/r-other', '/_platformer', '/robots.txt']) {
+			expect(isFoundryHostNamespace(p)).toBe(false);
+		}
+
+		// The asymmetry is the point, so assert it rather than implying it:
+		// the namespace is strictly WIDER than what the apps host allows.
+		expect(isFoundryHostNamespace('/r')).toBe(true);
+		expect(appsHostAllows('/r')).toBe(false);
+	});
+
 	it('does not let a lookalike prefix through the allowlist', () => {
 		// `/reference/...` is a real public route and starts with the two
 		// characters the proxy prefix does.
 		expect(isFoundryProxyPath('/reference/abc')).toBe(false);
 		expect(isFoundryProxyPath('/rr/abc')).toBe(false);
 		expect(isFoundryPlatformPath('/_platformer')).toBe(false);
+		// A lookalike with the right first segment but no token segment.
+		expect(isFoundryProxyPath('/r')).toBe(false);
+		expect(isFoundryProxyPath('/r/')).toBe(false);
+		// Positive control, so the four negatives above cannot pass vacuously.
+		expect(isFoundryProxyPath('/r/tok/')).toBe(true);
 	});
 });
 

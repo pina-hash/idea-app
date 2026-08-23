@@ -73,10 +73,43 @@ same Vercel project and the same deployment as `ideabosco.com`.
   not assumed.** It tracks the requested host, is not rewritten upstream, and a
   client-supplied `X-Forwarded-Host` does not move it. See `host.ts` for the
   probe.
-- **THE HOOK CANNOT REACH VERCEL'S FILESYSTEM.** `static/` and `_app/immutable/*`
-  are served without invoking the function, so they answer on the apps host
-  whatever the hook says (measured: `apps.ideabosco.com/robots.txt` is 200).
-  Closing that needs a platform-level rule, not a hook.
+- **THE HOOK ONLY BINDS REQUESTS THAT REACH THE FUNCTION, AND ON THE APPS HOST
+  A BUILD STEP IS WHAT MAKES THAT EVERY REQUEST.** Vercel answers `static/` and
+  `_app/immutable/*` off its filesystem without invoking the function at all,
+  so the hook used to govern whichever subset the platform handed it -- measured
+  on production, `apps.ideabosco.com/coins/index.html` served 200 with 177,019
+  bytes of `text/html`, alongside `/robots.txt`, `/push-sw.js`,
+  `/manifest.webmanifest` and the entire client build.
+  `scripts/foundry-edge-routes.mjs` runs after `vite build` (it is the second
+  half of the `build` script) and inserts ONE host-matched route at the FRONT of
+  the generated Build Output route table, sending every apps-host request to the
+  function. It names no paths: the hook stays the only place that decides what
+  the bundle host serves.
+  - **IT CANNOT BE DONE FROM `vercel.json`, AND THAT WAS MEASURED ON TWO PROBE
+    DEPLOYMENTS RATHER THAN ASSUMED.** A `routes` entry carrying `status: 404`
+    fires but does NOT suppress the body -- `/robots.txt` answered 404 with its
+    own 142 bytes and `/coins/index.html` answered 404 with all 175,996 of its,
+    which is exactly the shape of a fix that looks right and changes nothing. A
+    `routes` entry carrying `dest` does shadow the file, but Vercel merges
+    `vercel.json` routes AFTER the framework's, and `adapter-vercel` emits
+    `{ src: '/_app/immutable/.+', headers: {...} }` with no `continue`, which
+    terminates the pre-filesystem phase -- so that route closed `static/` and
+    left the whole client build open. Only an edit ahead of the adapter's own
+    routes reaches it.
+  - **THE ONE RESIDUE: `_app/immutable/*` refuses with 9 bytes, not zero.** The
+    adapter's own post-filesystem rule answers those paths `404` and Vercel
+    supplies its default `Not Found` body. No asset is served (measured on one
+    deployment: 3,183 bytes on a non-apps host, 9 on the apps host), but that
+    one prefix is distinguishable from the hook's bodyless refusal. It reveals
+    only that a path is under `_app/immutable`.
+  - **THE SUITE CANNOT SEE WHETHER VERCEL HONOURS ANY OF THIS.**
+    `tests/foundry-edge-routes.test.ts` asserts the script puts its route at the
+    front of a real adapter-shaped config and fails the build loudly otherwise,
+    which is the half whose regression would be silent. That the platform then
+    obeys the route table is **verified by request against a real deployment,
+    not by the suite** -- and a preview only proves it if the preview is itself
+    the apps host (point `PUBLIC_FOUNDRY_APPS_HOST` at the preview's own alias),
+    because a host-matched route is inert on a hostname it does not match.
 - **`allow-scripts` AND `allow-same-origin` TOGETHER CANCEL THE SANDBOX
   ENTIRELY** -- a frame with both can reach its own origin, strip the sandbox
   attribute off itself in the parent document and reload unsandboxed.
@@ -106,13 +139,44 @@ same Vercel project and the same deployment as `ideabosco.com`.
   `student_app_files` for that exact version and that exact string, so path
   traversal has nothing to traverse to and nothing is ever resolved against a
   filesystem.
-- **`/r/{token}/` KEEPS ITS TRAILING SLASH.** The route sets
-  `trailingSlash = 'ignore'` and redirects the bare root itself: `/r/<token>` has
-  `/r/` as its base URL, so every relative asset in every bundle would resolve
-  outside the bundle.
+- **`/r/{token}/` KEEPS ITS TRAILING SLASH.** `/r/<token>` has `/r/` as its base
+  URL, so every relative asset in every bundle would resolve outside the bundle.
+  The mint and the harness only ever hand out the slash form, and the hook now
+  REFUSES the slashless one outright, so the route's own `trailingSlash =
+  'ignore'` plus its 307 to the slash form are a second layer rather than the
+  live path. Refusing it also closed a small oracle: the route verified the
+  token BEFORE redirecting, so a good token answered 307 where a bad one
+  answered 404.
+- **THE TWO HOSTS ASK DIFFERENT QUESTIONS, AND THAT IS TWO PREDICATES RATHER
+  THAN TWO COPIES OF ONE.** `appsHostAllows` is the SHAPE the proxy serves
+  (`/r/{token}/{path}`, `/_platform/*`) and governs the apps host, so nothing
+  else there reaches the router. `isFoundryHostNamespace` is the PREFIX and
+  governs the main host, so the whole `/r` and `/_platform` namespace is refused
+  there whether or not it names a file. Using the shape for both was measured to
+  open one path: a bare `/r` matches no route on either host, so on the main
+  host it fell to the router and rendered the ordinary 404 page. Harmless in
+  itself -- `/nope` renders the same page -- but it would let a route added at
+  `/r/<anything>` ship reachable on the session-bearing origin.
+  - **A PREFIX TEST ON THE APPS HOST IS WHAT PUT THE PORTAL ON THE BUNDLE
+    ORIGIN.** `isFoundryProxyPath` used to match `pathname === '/r'`, so `/r`
+    passed the allowlist, reached the router, matched nothing, and was answered
+    by the root `+error.svelte`: 33 client modules loaded from
+    `apps.ideabosco.com` and `userProfile` in the inlined payload, which is the
+    root `+layout.server.ts` key and so proof that a session read ran on the one
+    origin that exists to prevent it. **NO PATH THE APPS HOST ALLOWS MAY RESOLVE
+    TO A PAGE** -- both prefixes are `+server.ts` endpoints, and SvelteKit does
+    not run layout loads for endpoints, which is what makes this structural
+    rather than a fact about today's routes. `tests/foundry-proxy.test.ts`
+    reads the route directory and reddens if a `+page`/`+layout` appears under
+    either prefix.
 - **EVERY REFUSAL ON THAT HOST IS THE SAME BODYLESS 404.** A bad signature, an
   expired token, another app's file, a missing row, a hidden app and an ordinary
-  app route are indistinguishable from outside.
+  app route are indistinguishable from outside. Two exceptions, both measured
+  and both stated rather than papered over: `_app/immutable/*` refuses with
+  Vercel's own 9-byte `Not Found` (see the build-step bullet above), and a path
+  with a trailing slash is normalized by SvelteKit with a 308 BEFORE any hook
+  runs -- which is universal (`/nope/` does it too), so it distinguishes nothing
+  about Foundry.
 
 ---
 

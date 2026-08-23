@@ -4,7 +4,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { env as publicEnv } from '$env/dynamic/public';
-import { appsHostAllows, isFoundryAppsHost } from '$lib/foundry/host';
+import { appsHostAllows, isFoundryAppsHost, isFoundryHostNamespace } from '$lib/foundry/host';
 
 /**
  * THE ORIGIN SPLIT, AND IT RUNS FIRST.
@@ -32,16 +32,23 @@ import { appsHostAllows, isFoundryAppsHost } from '$lib/foundry/host';
  * bundle. Without that half, the split would be a convention rather than a
  * boundary: the bundle would simply be available on both.
  *
- * WHAT THIS HOOK CANNOT REACH, stated because it is a real gap rather than an
- * oversight: files served straight off Vercel's filesystem -- `static/` and
- * the build's own `_app/immutable/*` -- never invoke this function at all, so
- * they answer on the apps host regardless of what is written here. Measured
- * against production: `apps.ideabosco.com/robots.txt` and `/push-sw.js` both
- * answer 200 today. They are public, sessionless bytes and a bundle cannot
- * fetch them (`connect-src 'none'`), so the leak is duplicate content rather
- * than reach -- but it is a leak, and closing it needs a platform-level rule
- * in `vercel.json` rather than a hook. See `docs/HISTORY.md` for where that
- * stands.
+ * THE TWO BRANCHES ASK DIFFERENT QUESTIONS AND USE DIFFERENT PREDICATES.
+ * `appsHostAllows` is the SHAPE the proxy serves (`/r/{token}/{path}`), so on
+ * the bundle host nothing else reaches the router. `isFoundryHostNamespace` is
+ * the PREFIX, so on the main host the whole `/r` and `/_platform` namespace is
+ * refused whether or not it names a file. See `$lib/foundry/host.ts` for why
+ * one predicate could not do both jobs.
+ *
+ * EVERY PATH ON THE APPS HOST REACHES THIS FUNCTION, and that is no longer
+ * true by luck. Vercel answers `static/` and `_app/immutable/*` off its
+ * filesystem WITHOUT INVOKING the function, so this hook used to bind only the
+ * subset of requests the platform happened to hand it -- measured against
+ * production, `apps.ideabosco.com/coins/index.html` served 200 with 177,019
+ * bytes of text/html. `scripts/foundry-edge-routes.mjs` now inserts a
+ * host-matched route at the FRONT of the generated Build Output route table
+ * that sends every apps-host request here first. It could not be done from
+ * `vercel.json`; that script's header carries the measurements that settled
+ * it.
  */
 const foundryHostBranch: Handle = async ({ event, resolve }) => {
 	const onAppsHost = isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
@@ -57,7 +64,7 @@ const foundryHostBranch: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	if (appsHostAllows(pathname)) {
+	if (isFoundryHostNamespace(pathname)) {
 		return new Response(null, {
 			status: 404,
 			headers: { 'cache-control': 'private, no-store' }

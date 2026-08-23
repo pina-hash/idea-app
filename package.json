@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node scripts/foundry-edge-routes.mjs",
     "preview": "vite preview",
     "test": "node tools/run-tests.mjs",
     "test:watch": "vitest",

@@ -78,12 +78,45 @@ export function isFoundryAppsHost(
 	return normalizeHost(requestHost) === configured;
 }
 
-/** `/r` and anything under it. */
+/**
+ * THE SHAPE THE PROXY ACTUALLY SERVES, NOT THE PREFIX IT SITS UNDER.
+ *
+ * `/r/{token}/{path}`, where `{path}` may be empty -- the bundle ROOT
+ * (`/r/{token}/`) is the entry file. So a proxy path is a `/r` with a
+ * non-empty token segment AND the slash that follows it. Nothing else.
+ *
+ * THIS USED TO BE A PREFIX TEST, AND THAT WAS A HOLE, measured on production
+ * rather than reasoned about. `pathname === "/r"` passed the allowlist, the
+ * apps host handed it to the SvelteKit router, the router has no route at
+ * `/r`, and SvelteKit answered with the root `+error.svelte` -- the whole
+ * portal, booting on the bundle origin: 33 client modules fetched from
+ * `apps.ideabosco.com`, and `userProfile` in the inlined payload, which is the
+ * root `+layout.server.ts` key and therefore proof that a session read was
+ * attempted on the one origin that exists so that cannot happen.
+ *
+ * MATCHING THE SERVED SHAPE IS WHAT CLOSES IT, rather than naming `/r` as a
+ * special case. The hook now refuses every `/r` that is not a request for a
+ * file in a bundle, so the router is never reached and there is no shape left
+ * for a future route under `/r` to become reachable through.
+ *
+ * IT IS A SHAPE TEST AND NOT A TOKEN TEST, deliberately. The token's charset,
+ * its signature and its expiry are `$lib/server/foundry-token`'s to judge, and
+ * a second copy of "what a valid token looks like" here is the copy that stops
+ * matching. This asks only whether the URL could name a bundle file; the proxy
+ * decides whether it does, and refuses identically either way.
+ *
+ * The slashless `/r/{token}` is refused too, and that closes a small oracle
+ * with it: the route verified the token BEFORE redirecting it to the slash
+ * form, so a good token answered 307 where a bad one answered 404, which is
+ * the one place on that host where two refusals did not look alike.
+ */
 export function isFoundryProxyPath(pathname: string): boolean {
-	return (
-		pathname === FOUNDRY_PROXY_PREFIX ||
-		pathname.startsWith(FOUNDRY_PROXY_PREFIX + "/")
-	);
+	const prefix = FOUNDRY_PROXY_PREFIX + "/";
+	if (!pathname.startsWith(prefix)) return false;
+	// The token segment must be non-empty AND followed by its slash, so
+	// `/r/`, `/r/{token}` and `/r//...` (an empty token) all fall out here.
+	const afterPrefix = pathname.slice(prefix.length);
+	return afterPrefix.indexOf("/") > 0;
 }
 
 /** `/_platform` and anything under it. */
@@ -104,4 +137,35 @@ export function isFoundryPlatformPath(pathname: string): boolean {
  */
 export function appsHostAllows(pathname: string): boolean {
 	return isFoundryProxyPath(pathname) || isFoundryPlatformPath(pathname);
+}
+
+/**
+ * THE MAIN HOST ASKS A DIFFERENT QUESTION, AND IT IS THE BROADER ONE.
+ *
+ * `appsHostAllows` asks "does this URL name a file the proxy serves", because
+ * on the bundle host anything else must never reach the router. Here the
+ * question is "does this path belong to the bundle host AT ALL", because on
+ * the session-bearing origin the whole `/r` and `/_platform` namespace is
+ * somebody else's -- so it is answered by PREFIX, and the prefix is wider than
+ * the served shape on purpose.
+ *
+ * TWO PREDICATES IS NOT TWO COPIES OF ONE RULE. Tying the main-host denial to
+ * the served shape was measured to open exactly one path: narrowing
+ * `isFoundryProxyPath` to `/r/{token}/` left a bare `/r` matching no route on
+ * either host, so on the main host it stopped being intercepted and rendered
+ * the ordinary 404 page (171,045 bytes in dev) instead of the bodyless refusal
+ * it had always given. Harmless in itself -- `/nope` renders the same 171,048
+ * bytes -- but it means a route added at `/r/<anything>` later would ship
+ * REACHABLE on the main host, which is the half of the split that makes it a
+ * boundary rather than a convention.
+ *
+ * So each host gets the predicate its own job needs, and both are strictly
+ * tighter than the single prefix test that used to serve both.
+ */
+export function isFoundryHostNamespace(pathname: string): boolean {
+	return (
+		pathname === FOUNDRY_PROXY_PREFIX ||
+		pathname.startsWith(FOUNDRY_PROXY_PREFIX + "/") ||
+		isFoundryPlatformPath(pathname)
+	);
 }
