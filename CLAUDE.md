@@ -54,7 +54,7 @@ parameter on one list rather than a second list function.
 ```bash
 npm run dev                             # dev server
 npx svelte-check                        # type + a11y check
-npx vitest run --no-file-parallelism    # full suite (see the parallelism trap)
+npm test                                # full suite (see the parallelism trap)
 npm run build                           # see the Windows EPERM trap below
 ```
 
@@ -1401,11 +1401,19 @@ belong wherever the app's own behaviour is documented.
 
 ### Machine and toolchain
 
-- **`npm test` must run with `--no-file-parallelism`.** DB files used to starve each
-  other's `beforeAll` because each booted its own embedded Postgres; they now share
-  ONE cluster (see Testing), which is the fix for that, not more concurrency. The
-  flag stays: a shared cluster is a shared resource, and serial files are what keep
-  each file's own database the only isolation question worth answering.
+- **The `test` script in `package.json` carries `--no-file-parallelism` itself**
+  (`vitest run --no-file-parallelism`), so plain `npm test` is always the safe
+  invocation -- there is no bare, parallel form to reach for by mistake. DB files
+  used to starve each other's `beforeAll` because each booted its own embedded
+  Postgres; they now share ONE cluster (see Testing), which is the fix for that,
+  not more concurrency. Serial files are what keep each file's own database the
+  only isolation question worth answering: run in parallel, multiple worker
+  processes race the `create role ... if not exists` guards in
+  `tests/db/supabase-stub.sql` against that one shared cluster and fail
+  nondeterministically (confirmed: two different failure signatures across two
+  cold runs), independent of code correctness. **Do not add a parallel `test`
+  variant** -- it is broken, not faster, and a second script offering it is a
+  second way to hit this.
 - **`npm run build` dies on Windows in the Vercel adapter's `closeBundle` with
   `EPERM`** writing a path Windows cannot create. Machine-level and PRE-EXISTING,
   not a code failure; Vercel builds on Linux and is unaffected. It does NOT stop
@@ -1435,8 +1443,9 @@ belong wherever the app's own behaviour is documented.
 
 ## Testing
 
-`npx vitest run --no-file-parallelism` (config `vitest.config.ts`, specs in
-`tests/`). This is the **only** automated suite, and it is deliberately narrow.
+`npm test` (config `vitest.config.ts`, specs in `tests/`; the script itself carries
+`--no-file-parallelism`, see the parallelism trap under Machine and toolchain).
+This is the **only** automated suite, and it is deliberately narrow.
 
 - **Automated tests are the exception, not the default.** New work is verified by
   dev harnesses and browser passes. **Add a test only for a guarantee whose
