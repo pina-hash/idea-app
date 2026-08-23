@@ -381,6 +381,7 @@ of its own is documented inside the one listed.
 | 0127 | `0127_app_feedback_console_anonymous.sql` | [The anonymous report path, wired end to end (`0127`)](#the-anonymous-report-path-wired-end-to-end-0127) |
 | 0128 | `0128_classroom_instructor_copy.sql` | [The instructor working copy, and a roster leak that was not about it (`0128`)](#the-instructor-working-copy-and-a-roster-leak-that-was-not-about-it-0128) |
 | 0129 | `0129_notebook_note_coalesce.sql` | [Autosave stops minting a revision per keystroke burst (`0129`)](#autosave-stops-minting-a-revision-per-keystroke-burst-0129) |
+| 0130 | `0130_foundry.sql` | [IDEA Foundry, data layer (`0130`, migration ONLY)](#idea-foundry-data-layer-0130-migration-only) |
 
 ---
 
@@ -26810,3 +26811,204 @@ ratio that moved, moved up.**
   under consideration would have reached it; the rest of those rooms were not.
 - **The `--dim` and `--frc-gray` failures named above are left standing**, with
   their numbers, for a bundle that can measure the room properly.
+
+---
+
+## IDEA Foundry, data layer (`0130`, migration ONLY)
+
+**2026-08-23.** A new subsystem: students publish the static web apps they have
+built. This bundle is the DATA LAYER and nothing else -- three tables, their
+policies, three Storage buckets, eleven RPCs and a security suite. There is no
+route, no component and no UI, and the extraction Edge Function that unpacks an
+uploaded zip is a separate deployment that does not exist yet.
+
+### The shape
+
+`student_apps` (owner, slug, title, tagline, description, cover, build notes,
+published version, metadata flag, hidden stamp) -> `student_app_versions` (one
+upload attempt with a review state) -> `student_app_files` (one row per
+extracted file).
+
+`student_app_files` is the bundle proxy's lookup index rather than a jsonb
+manifest, which is 0101's deck argument applied again: a serving route resolves
+one (version, relative path) pair per request and a page pulls dozens of files,
+so it wants an indexed lookup and not a document fetched and scanned per file.
+It is also what keeps the serving route from ever LISTING storage.
+
+`build_notes` is REQUIRED and non-empty. It is the column the surface exists to
+collect -- a published app with no account of how it was made is a screenshot.
+
+### The three rules that are schema rather than function
+
+1. **At most one submitted version per app** is a PARTIAL UNIQUE INDEX
+   (`student_app_versions_one_submitted_idx`), not a count-then-insert. The
+   second submit fails in the database, whoever is calling.
+2. **`published_version_id` belongs to its own app** is a COMPOSITE FOREIGN KEY
+   `(published_version_id, id) -> (id, app_id)`, the
+   make-the-invalid-state-unrepresentable convention 0069 and 0088 already use.
+   MATCH SIMPLE is what makes the nullable column work: with nothing published
+   the pair carries a null and the constraint is not checked at all.
+3. **It points at an APPROVED version** is a trigger, in BOTH directions -- one
+   refuses publishing something not approved, the other refuses moving a
+   published version out of approved. Closing only the first leaves "approve,
+   publish, then un-approve" wide open.
+
+The RPCs check the same things. That redundancy is deliberate, and it was
+verified by opening each layer SEPARATELY rather than assuming: with
+`foundry_published_version_check` disabled the composite key still refuses a
+foreign version with `23503`, and with the trigger back the same write refuses
+with the trigger's own message.
+
+### Liveness is one predicate
+
+0116 stamped `deleted_at` and then had to chase every list in the notebook for a
+filter. Here `_foundry_app_in_population(owner, hidden_at, published_version_id,
+include_hidden, include_unpublished)` is the single expression of "which apps
+does this caller mean", and the RLS policy, `foundry_list_apps` and
+`foundry_get_app` all call it. There is no inline `hidden_at is null` in the
+file outside that function and the partial indexes.
+
+**Both widening flags are gated on `is_admin()` INSIDE the predicate**, which is
+what makes "admins additionally see submitted and hidden" a parameter rather
+than a second function: a student passing `true, true` reads exactly what a
+student passing nothing reads, measured, so there is no second projection to
+keep in step.
+
+**A hidden app is invisible to its OWNER too.** Hiding is a staff act; an owner
+who could still list around it would not have been hidden.
+
+**A version is narrower than its app.** The review trail -- what was rejected,
+why, how many attempts -- is between the student and the staff who reviewed it,
+so a non-owner reading a published app gets the build and not the paperwork
+(`zip_path`, `reviewed_by`, `review_note`, `reject_reason` all null). Asserted
+with the owner's read of the same row as the positive control.
+
+**No email leaves either read RPC.** The owner is a uuid plus the display and
+full name already on their profile, asserted by sweeping the serialized payload
+for `@` with a positive control first that the payload really is that app's.
+
+### `_classroom_deck_path_ok` is REUSED, not cloned
+
+Its name lies exactly the way `_classroom_doc_ok`'s does: it is a pure text
+predicate naming no table, no column and no policy -- relative,
+forward-slashed, contained, no traversal, no scheme, no drive letter. That is
+precisely the rule a bundle path needs, for precisely the same reason (a proxy
+resolves the stored string against a browser's request). A `_foundry_` copy is
+the thing that would quietly stop matching, and it would have been frozen at
+0101 while the original moved. The cost is that the test chain carries the
+classroom canonical-items migrations under it; that is the right trade.
+
+### Storage
+
+`foundry-uploads` private, write-only under the owner's own prefix (a raw zip is
+an input, not an artifact anybody reads back). `foundry-covers` public read,
+owner writes own prefix. `foundry-bundles` private with **NO POLICY OF ANY
+KIND**, which is the mechanism rather than an omission: `storage.objects` has
+RLS on, so a bucket no policy names denies every `authenticated` and `anon`
+request by default and only `service_role` can touch it. Any policy added there
+later, for any reason, is what opens it.
+
+The bundle path is `<app_id>/<version_id>/<path>`. Pruning is not built here,
+but that layout means a whole version is one prefix delete and a whole app is
+one prefix above it, so neither ever needs a file-by-file walk.
+
+### Judgement calls worth recording
+
+- **The slug is refused BY NAME** in `foundry_update_app_metadata`, not omitted
+  from the whitelist. `/foundry/<slug>` is a printed, QR-coded address and the
+  permanent-contract rule applies; the caller gets a sentence saying so rather
+  than the generic unknown-field message.
+- **`foundry_set_published_version` takes no null.** Taking an app off the site
+  is `foundry_set_app_hidden`, which is an admin act with a record of who did
+  it; allowing null would give an owner a quiet second way to do the same thing
+  with nothing recorded.
+- **A rejected version cannot be resubmitted.** The reviewer's answer stands on
+  the row they answered; a fix is a new upload with its own ordinal.
+- **Approving a build does not clear `metadata_flagged_at`.** Approving a BUILD
+  is not reviewing the copy around it.
+- **The flag is stamped only on a REAL change to an already published app**, and
+  is not re-taken while already set -- the first unreviewed edit is when the
+  drift started. A no-op save returns `changed: false` and stamps nothing.
+- **Every emptiness gate goes through `_foundry_norm`**, one private
+  `regexp_replace` stripping all leading and trailing whitespace, because
+  `btrim` strips spaces only and would admit a value of newlines and tabs --
+  the exact thing a required `build_notes` exists to refuse. Verified:
+  whitespace-only build notes and a whitespace-only reject note are both
+  refused.
+- **`hidden_by` and `hidden_reason` are additions to the requested column list**,
+  taken from 0116's `deleted_at`/`deleted_by` pair. A soft delete with no record
+  of who did it or why is a stamp nobody can act on.
+
+### Measured refusals
+
+Every one is the message Postgres actually produced, against the real migration
+files on a real embedded Postgres.
+
+| check | code | message |
+|---|---|---|
+| non-owner submits another's version | `P0001` | `That version does not exist.` |
+| author reviews their own | `P0001` | `Only an administrator can review a Foundry submission.` |
+| domain `teacher`, no admin grant, reviews | `P0001` | `Only an administrator can review a Foundry submission.` |
+| second version set to `submitted` | `23505` | `duplicate key value violates unique constraint "student_app_versions_one_submitted_idx"` |
+| publish a draft (RPC) | `P0001` | `Only an approved version can be published (that one is draft).` |
+| publish a draft (direct, past RLS and the RPC) | `P0001` | same, from the trigger |
+| publish another app's approved version (RPC) | `P0001` | `That version does not belong to this app.` |
+| the same, direct | `P0001` | `A published version must belong to the app publishing it.` |
+| the same, trigger disabled | `23503` | `violates foreign key constraint "student_apps_published_version_fkey"` |
+| client writes `foundry-bundles` (student) | `42501` | `new row violates row-level security policy for table "objects"` |
+| client writes `foundry-bundles` (admin) | `42501` | same -- `is_admin()` opens nothing there |
+| client writes another's prefix in `foundry-uploads` | `42501` | same |
+| sixth app | `P0001` | `You already have 5 apps in Foundry, which is the limit...` |
+| whitespace-only `build_notes` | `P0001` | `Say how you built it and which tools you used...` |
+
+Positive controls beside each: the owner's identical submit lands
+(`status: submitted`), the admin's identical review lands
+(`status: approved, published: true`), the RPC withdraws the other submission in
+the same transaction and leaves exactly one row submitted, its own approved
+version publishes, `service_role` writes and reads `foundry-bundles`, an
+own-prefix write to `foundry-uploads` succeeds, and hiding an app frees a cap
+slot.
+
+### Also verified
+
+- **The file re-applies.** The whole of `0130_foundry.sql` was pasted over the
+  already-applied schema in the same session and succeeded with no error.
+- **The circular reference does not block a hard delete.** Deleting an app that
+  publishes a version succeeds and cascades its versions away (0 rows left) --
+  the app row is gone by the time the deferred key check runs.
+- **`pg_proc` holds exactly one row for each of the thirteen `foundry_*`
+  functions** (eleven RPCs plus the two read predicates), the signature-trap
+  assertion, with the full name list pinned so an accidental overload reddens.
+- **Only `SELECT` is granted to `anon`/`authenticated`** on all three tables, and
+  nothing at all to `anon` -- swept from `information_schema.role_table_grants`
+  with a non-empty-result control first.
+
+### Verified
+
+- `svelte-check`: **0 errors, 37 warnings**, re-derived after `npx svelte-kit
+  sync`. Breakdown unchanged: 31 `state_referenced_locally`, 5
+  `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files.
+- Full suite: **89 files, 2151 tests, all passing**, including the new
+  `tests/foundry-policies.test.ts` (16 tests).
+
+### NOT verified
+
+- **Nothing was applied to the live Supabase project.** The local `.env` is a
+  placeholder; every claim above is against the embedded Postgres with the real
+  migration files applied unmodified. `0130_foundry.sql` still has to be pasted
+  into the SQL editor by hand.
+- **No storage round trip.** The bucket policies were exercised against the
+  `storage.objects` STUB, which the test grants to `authenticated` and
+  `service_role` to match a real project (the stub ships no grants, so without
+  that the denials would have been "permission denied for table objects" and
+  would have proved nothing about the policy). No object was ever uploaded to
+  real Supabase Storage.
+- **No UI, no route, no browser pass.** There is nothing to render yet.
+- **The extraction Edge Function does not exist.** `student_app_files` has a
+  schema, a policy and a `service_role` grant and no writer.
+- **Concurrency was reasoned about, not raced.** The five-app cap's lock on the
+  owner's profile row and the ordinal's lock on the app row were not exercised
+  with two simultaneous connections.
+- **No `classroom-updates.json` entry.** Nothing here changes what a class sees.
+- **`npm run build` was not run** (the pre-existing Windows EPERM in the Vercel
+  adapter's `closeBundle`).

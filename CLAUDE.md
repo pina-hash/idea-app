@@ -32,7 +32,20 @@ IDEA Classroom (`/classroom`), the digital notebook (`/notebook`), the IDEA Coin
 economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
-programme), and the portal shell (`/`, `/dashboard`, `/admin`).
+programme), IDEA Foundry (student-published static web apps), and the portal
+shell (`/`, `/dashboard`, `/admin`).
+
+**FOUNDRY IS DATA LAYER ONLY SO FAR (0130): three tables, three buckets, eleven
+RPCs, NO ROUTES AND NO UI.** Two things about it are rules rather than history.
+**`foundry-bundles` HAS NO STORAGE POLICY, AND THAT IS THE MECHANISM** --
+`storage.objects` has RLS on, so a bucket no policy names denies every
+`authenticated` and `anon` request by default and only `service_role` reaches
+it. Any policy added there, for any reason, is what opens it; the proxy reads it
+server side. And **LIVENESS GOES THROUGH `_foundry_app_in_population` AND
+NOTHING ELSE** -- a new read of `student_apps` calls that predicate rather than
+writing its own `hidden_at is null`, and its two widening flags are gated on
+`is_admin()` inside the function, which is why the admin populations are a
+parameter on one list rather than a second list function.
 
 ---
 
