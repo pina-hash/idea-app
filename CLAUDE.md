@@ -1905,7 +1905,33 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
 - **State plainly what was NOT verified**, and why -- the live Supabase project, a
   real Drive round trip, a signed-in session, screenshots. "Not verified" is a
   result; silence is not.
-- **Commit and push every session.** Do not leave work uncommitted.
+- **Single-item work commits straight to main.** A one-file fix, a copy change,
+  or any bounded update that is correct on arrival needs no branch.
+- **Work that should not be live while it is being built goes on a short-lived
+  branch named `lane/<short-thing>`.** Every push to `main` deploys
+  `ideabosco.com`, which students use during class.
+- **Before merging:** pull the latest `main` into the branch and resolve every
+  conflict ON THE BRANCH, never on `main`. Merge with `--no-ff` so the feature
+  reverts as one commit. Delete the branch once the merge lands.
+- **Verify the branch on its Vercel preview URL before merging.** A branch never
+  opened in a browser bought nothing over pushing to `main`.
+- **If a session ends with a branch still open, report the branch name and what
+  is unfinished on it.** An unmerged branch is invisible work.
+- **Never force-push `main`.** Not `--force`, not `-f`, not
+  `--force-with-lease`. The repo holds the only archive of exported material
+  revisions.
+- **Never put a migration on a branch.** There is one production database, so a
+  migration is global regardless of which branch its file lives on. Migration
+  work happens on `main`.
+- **Never write to `materials/` from a branch.** The app writes export commits
+  there with no human involved; a branch that touches it will conflict with an
+  export.
+- **Only one Claude Code session per working directory, ever.** Use a git
+  worktree for a parallel lane -- two sessions in one directory share a working
+  tree, and each will commit the other's half-finished edits.
+- **Commit and push every session.** Do not leave work uncommitted -- merged to
+  `main` where the work is single-item, or landed on its `lane/` branch with
+  the branch's status reported.
 - **Interactive/visual verification:** when a task involves interactive or visual
   UI (custom viewers, canvas/three.js, animations, drag/pan/zoom, pop-out/PiP,
   complex forms -- anything whose correctness is invisible to type-checking), you
