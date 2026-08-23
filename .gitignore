@@ -24,3 +24,7 @@ npm-debug.log*
 
 # Legacy static site clone (temp, never committed)
 .legacy-src/
+
+# Dev-harness feedback exports (not source)
+idea-feedback-*.json
+idea-feedback-*.md
