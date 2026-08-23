@@ -382,6 +382,7 @@ of its own is documented inside the one listed.
 | 0128 | `0128_classroom_instructor_copy.sql` | [The instructor working copy, and a roster leak that was not about it (`0128`)](#the-instructor-working-copy-and-a-roster-leak-that-was-not-about-it-0128) |
 | 0129 | `0129_notebook_note_coalesce.sql` | [Autosave stops minting a revision per keystroke burst (`0129`)](#autosave-stops-minting-a-revision-per-keystroke-burst-0129) |
 | 0130 | `0130_foundry.sql` | [IDEA Foundry, data layer (`0130`, migration ONLY)](#idea-foundry-data-layer-0130-migration-only) |
+| 0131 | `0131_foundry_service_role_writes.sql` | [Foundry, unblocking the ingest function (`0131`)](#foundry-unblocking-the-ingest-function-0131) |
 
 ---
 
@@ -27130,3 +27131,468 @@ Read directly with `supabase db query --linked`, not from a CLI summary.
 - **The CLI history is still empty and remains so.** Any future `supabase db
   push`, `db pull` or `db diff` against this project will still see 130
   unapplied migrations. That is a standing decision, not an oversight.
+
+---
+
+## IDEA Foundry, the ingest Edge Function (code only, NO migration)
+
+`supabase/functions/foundry-ingest` plus the shared preflight rules in
+`src/lib/foundry/`. Takes a zip a student has already uploaded to
+`foundry-uploads`, preflights it, and on a pass extracts it into
+`foundry-bundles` and `student_app_files`. Built on `lane/foundry-ingest`,
+merged `--no-ff`. **No migration ships in this bundle**, and the function was
+NOT deployed: a functions deploy is live in production immediately regardless of
+which branch it came from, and nothing calls this yet.
+
+### What was built
+
+- **`src/lib/bundle-path.ts`** -- the path rule, extracted out of
+  `$lib/server/classroom-decks` so three callers on three runtimes can share ONE
+  implementation: the deck proxy (Node), the ingest function (Deno) and the
+  browser preflight. `classroom-decks.ts` now imports it and re-exports it under
+  its original deck names, so no deck call site moved and its 63 tests pass
+  unchanged. It is still the mirror of 0101's `_classroom_deck_path_ok`.
+- **`src/lib/foundry/preflight.ts`** -- the ONE copy of every cap, extension,
+  reference rule and student-facing sentence. The function and the browser both
+  import it, so a rule cannot be enforced two ways or worded two ways.
+- **`src/lib/foundry/zip.ts`** -- a dependency-free reader on
+  `DecompressionStream`, which is a Web API both Deno and the browser have and
+  `$lib/server/deck-zip` (Node's `inflateRawSync`, random-access Drive source)
+  cannot use. It owns the incremental uncompressed cap.
+- **`src/lib/foundry/html-dom.ts`** -- the HTML walk, given its parser. The
+  browser passes `DOMParser`, the function passes deno-dom. A REAL parser rather
+  than a regex over attributes, because a false positive here reads to a student
+  as arbitrary rejection.
+- **`src/lib/foundry/preflight-browser.ts`** -- the pre-upload check. UX only.
+
+### Load-bearing decisions
+
+- **Two clients, two jobs.** The caller's JWT establishes identity and nothing
+  is read through it: `foundry_can_read_version` legitimately returns other
+  people's published versions, so a successful read proves nothing about
+  ownership. Ownership is compared against the row the service-role client reads.
+- **The zip path is re-pinned to the owner in the function.**
+  `foundry_create_version` validates `p_zip_path` as a legal path but does NOT
+  require it to sit under the caller's own prefix, and this function reads that
+  bucket with service_role, which bypasses the storage policy that would
+  otherwise be the only thing enforcing it. Without the check a student could
+  name another student's upload prefix at create time and have their zip
+  extracted into their own app.
+- **A refusal a student reads is a 200 with `ok:false`.** The preflight
+  considered the upload and answered; a client treating that as a transport
+  failure would retry it five times.
+- **The purge happens at the START OF THE WRITE, not at the top.** "Refused,
+  nothing written" means nothing deleted either, so a failing re-run leaves the
+  previous extraction intact; only a run that has passed every check clears the
+  old set.
+- **Everything is inflated before anything is written**, which is what lets a
+  hard fail leave the bucket untouched and the budget abort partway with nothing
+  to undo. The ceiling is 25 MB.
+- **OS noise is dropped and REPORTED.** `__MACOSX/`, `.DS_Store`, `Thumbs.db`,
+  `._*`. None would pass the extension allowlist, so leaving them in would refuse
+  most zips a Mac has ever made, over files the student cannot see in Finder. A
+  leading dot is NOT noise on its own -- decks depend on that.
+
+### Three bugs found by verification, each of which presented as a clean pass
+
+1. **The zip reader was not decompressing.** The compression method sits at
+   central-directory offset +10; it was read at +8, which is the general-purpose
+   flags, which are 0, which means STORED. So every deflated entry came back as
+   its own compressed bytes. Every structural check passed (the NAMES were
+   fine), the extension check passed, and the content scanners found no CDN
+   links because they were scanning deflate output. Caught only by downloading a
+   stored `index.html` and finding 184 bytes of binary where 289 bytes of HTML
+   should have been.
+2. **The JS comment blanker did not track string literals.** Every URL contains
+   `//`, so an import of `"https://esm.sh/y"` had its second half blanked and the
+   student-facing message quoted the next line of their program back at them.
+3. **A null document was treated as an empty page.** deno-dom's
+   `parseFromString` is typed `Document | null`; returning an empty facts object
+   for a null document switches every HTML rule off at once while reporting a
+   clean pass. It now throws, `scanHtml` reports `parseFailed`, and the student
+   is told that page could not be checked.
+
+### What was measured
+
+Against a LOCAL Supabase stack (`supabase start`, all 130 migrations applied,
+the real Storage service and the real 0130 policies -- not the embedded-Postgres
+stub, which ships no storage grants and would only ever refuse an arrangement
+the test built itself). 42 assertions, 0 failures.
+
+- **Storage boundaries.** A student-context write to `foundry-bundles` is
+  refused with `new row violates row-level security policy` (403); the
+  service-role write succeeds; a student writes their OWN `foundry-uploads`
+  prefix and is refused on another student's with the same message; a read-back
+  of their own upload is refused.
+- **Fixtures, each a genuine zip:** a clean vanilla app (6 rows, 6 objects,
+  correct content types, version still `draft`); the same app inside one wrapper
+  folder (stripped and reported); zip-slip at `../../evil.txt` (refused, 0 rows,
+  0 objects); a symlink entry (refused); an absolute-path asset, a CDN script,
+  Google Fonts and a URL import (each refused with a quoted line number); 501
+  files (refused); a 33 KB zip unpacking to 30 MB (refused, aborted at
+  `big24.txt`, which is partway); pass-then-re-run (exactly one file set, 5 not
+  11); another student invoking the version (404, byte-identical to a missing
+  id); no JWT (401).
+- **`svelte-check`: 0 errors, 37 warnings** (31 `state_referenced_locally`, 5
+  `css_unused_selector`, 1 `perf_avoid_nested_class`) -- the documented
+  baseline, unmoved.
+- **Mutation proof.** Disabling the traversal check in `bundlePathOk`
+  PERMISSIVELY reddened exactly the containment test and the SQL-mirror test;
+  `src/lib/bundle-path.ts` was restored md5-identically and re-verified green.
+
+### THE BLOCKER, and it is 0130's rather than this code's
+
+**`service_role` holds no EXECUTE on `_classroom_deck_path_ok` or
+`_foundry_norm`, and CHECK constraints on all three Foundry tables call them.**
+0130 revokes both from `public` and never grants them onward. The RPCs escape
+this by being SECURITY DEFINER; the DIRECT service-role writes that 0130
+explicitly designs the extraction function to be the only source of do not. The
+observed errors are `permission denied for function _classroom_deck_path_ok` on
+the `student_app_files` insert and `permission denied for function
+_foundry_norm` on the `student_app_versions` update. So 0130's `grant ... to
+service_role` on those tables is dead for any column carrying such a CHECK.
+
+The next migration must ship this, and the function cannot be deployed until it
+does:
+
+    grant execute on function public._classroom_deck_path_ok(text) to service_role;
+    grant execute on function public._foundry_norm(text) to service_role;
+
+Applied to the LOCAL stack only, so verification could proceed. No migration
+file was created in this lane.
+
+### A second 0130 finding, not blocking, not fixed here
+
+**`foundry-uploads` has INSERT, UPDATE and DELETE policies but NO SELECT policy,
+which makes the UPDATE and DELETE ones inert.** Storage has to find an object
+before it can replace or remove it, and PostgreSQL applies SELECT policies to a
+WHERE-qualified UPDATE, so a student gets exactly ONE write per path, forever:
+`upsert` is refused, `update` is refused, and `remove` reports success while the
+object survives. Measured directly -- with the JWT claims set in SQL, a student
+sees 0 rows in that bucket and 2 in `foundry-covers`.
+
+The consequence for the flow is real: a student cannot replace a fixed zip at
+the same path, so every upload attempt needs its OWN path and a fixed zip is a
+NEW version rather than a re-run of the old one. The function's idempotency is
+unaffected and was verified by replacing the bytes with service_role. Whether to
+add a narrow owner-scoped SELECT policy is a decision for the next lane; the "a
+zip is an input, not an artifact" argument in 0130's header is what would have
+to move.
+
+### NOT verified
+
+- **The function was never deployed and has never run on the live project.**
+  Everything here is the local stack.
+- **The browser preflight was not driven in a browser.** It shares every rule
+  with the server path, which was exercised end to end, but the `DOMParser`
+  reader and `preflightZipInBrowser` itself have not been mounted in a page --
+  there is no Foundry UI yet to mount them in.
+- **The build contract document was not supplied.** The messages were written
+  against the requirements as stated in the prompt (one folder with index.html
+  at the top level, vanilla HTML/CSS/JS, relative paths, no network,
+  `/_platform/fonts.css`, in-memory localStorage, the sandbox blocking
+  `window.parent` / `window.open` / navigation / downloads). They should be read
+  against the real document before students see them.
+- **`mailto:` and `tel:` are refused** as schemes, per the stated rule. They
+  carry no network load, so this may be worth loosening once the document is in
+  hand.
+- **`supabase functions serve` does not reload files outside
+  `supabase/functions`,** and its Deno module cache lives on a Docker volume
+  whose mtimes a Windows bind mount does not invalidate. Three separate
+  measurements were taken against a stale bundle before this was found. Removing
+  the container AND the `supabase_edge_runtime_<project>` volume is what actually
+  picks up a change in `src/lib`.
+
+---
+
+## Foundry, unblocking the ingest function (`0131`)
+
+Two additive fixes to 0130. No drops, no data touched. Written and applied on
+`main`; the ingest function is still NOT deployed.
+
+### FIX 1 -- service_role could not satisfy the Foundry CHECK constraints
+
+A CHECK constraint's function is evaluated as the WRITING role. `service_role`
+bypasses RLS; it does not bypass function grants. 0130 revoked its three private
+predicates from `public` and granted them onward to nobody, so the three tables
+it explicitly grants `service_role` insert/update/delete on were unwritable by
+the one caller they exist to be written by. The RPCs never showed it, because
+SECURITY DEFINER runs their checks as the owner.
+
+**The sweep found three, not two.** The whole `public` schema was swept for the
+shape -- a helper reachable from a write-time expression (CHECK, index predicate
+or expression, column default, generated column) that `service_role` cannot
+execute. RLS policies were excluded deliberately: service_role bypasses RLS, so
+a policy function is not reachable by it. Both Foundry triggers are SECURITY
+DEFINER, so trigger bodies are clean.
+
+| function | reachable from | done |
+| --- | --- | --- |
+| `_classroom_deck_path_ok(text)` | 6 CHECKs; 3 on service_role-writable tables | granted |
+| `_foundry_norm(text)` | 7 CHECKs on `student_apps` / `student_app_versions` | granted |
+| `_foundry_slug_ok(text)` | `student_apps.slug` | granted -- NOT in the original report |
+| `coin_semester_key(timestamptz)` | DEFAULT on `coin_transactions.semester_key` | NOT granted |
+
+`_foundry_slug_ok` is the same shape and was latent rather than blocking: the
+extraction function never writes `student_apps`, but the next direct writer of
+that table would have failed identically, one function later. It was also
+MASKED -- a service-role insert into `student_apps` fails on `_foundry_norm`
+first, so granting only the two reported functions would have surfaced the third
+as a fresh bug.
+
+`coin_semester_key` matches the shape (granted to `authenticated`, not to
+`service_role`) but `service_role` holds no insert or update on
+`coin_transactions`, so there is no writer for the gap to open under. Granting
+execute to a role that cannot write the table widens reach for nobody. It
+belongs in whatever migration first gives that table a service-role writer.
+
+### FIX 2 -- foundry-uploads had no SELECT policy, making UPDATE and DELETE inert
+
+Storage has to FIND an object before it can act on one, and PostgreSQL applies
+SELECT policies to a WHERE-qualified UPDATE. With no SELECT policy naming the
+bucket an owner saw none of their own objects, so `remove()` reported SUCCESS
+while the object survived -- the worst of the three, because it is silent. The
+new policy is scoped exactly like the three write policies 0130 already carries.
+
+**Single-write-per-path stays the model**: a fixed zip is a new version under a
+new path. **But 0130's UPDATE policy plus this SELECT policy does make an
+own-prefix overwrite technically possible**, where it previously failed. That is
+measured, not assumed. The model is now a client convention rather than
+something the database refuses; making it a refusal again would mean dropping
+the UPDATE policy, which is a removal and does not belong in an additive
+migration.
+
+### What was measured
+
+Against the LOCAL stack (all 130 migrations, real Storage service). The local
+grants applied ad hoc during the previous bundle were REVOKED first, so the
+"before" is genuinely what 0130 leaves behind rather than a measurement of the
+earlier session's own change.
+
+Before / after / reverted, same probe each time:
+
+- `insert student_app_files` -- `permission denied for function
+  _classroom_deck_path_ok` / SUCCEEDED / same error again.
+- `update student_app_versions` -- `permission denied for function
+  _foundry_norm` / SUCCEEDED / same error again.
+- `insert student_apps` -- `permission denied for function _foundry_norm` /
+  SUCCEEDED / same error again.
+- owner sees own uploads -- 0 / 4 / 0.
+- owner deletes own upload -- object SURVIVED / GONE / SURVIVED.
+- owner deletes another owner's -- survives in all three.
+- owner overwrites another owner's path -- refused in all three.
+- owner overwrites OWN path -- refused / SUCCEEDED / refused.
+
+The stated reversal was RUN, not just written: it restores the prior behaviour
+exactly, and the migration was then re-applied. The file re-applies cleanly (the
+second paste reports the policy already present and re-grants as a no-op).
+
+The full ingest harness was re-run against the migrated stack with no ad-hoc
+grants in place: **39 of 42 assertions pass**, and the 3 that do not are the
+ones that ASSERTED THE DEFECT -- that a student cannot read, overwrite or delete
+their own upload. They are inverted by FIX 2 on purpose.
+
+`svelte-check`: 0 errors, 37 warnings (31/5/1), baseline unmoved. Full suite: 90
+files, 2182 tests, all passing.
+
+### Tests
+
+`tests/foundry-policies.test.ts` gains 0131 to its chain and three assertions.
+The important one asserts the RULE rather than the three names: every function
+reachable from a CHECK on a table `service_role` may INSERT into must be
+executable by `service_role`. Spelling out the current three would pass forever
+the moment a fourth is added without a grant, which is exactly how this recurs.
+
+**Mutation proof.** Commenting out the `_foundry_slug_ok` grant makes the
+migration REFUSE TO APPLY -- its own verification block raises with the missing
+function named, which is a safety net worth having. With that block also
+neutered, the generalized assertion fails with `_foundry_slug_ok (via
+student_apps)` and the direct-write test fails beside it. The file was restored
+md5-identically (`5c99b44fa4a1618704bc0ff716dce49f`) and re-verified green.
+
+### NOT verified
+
+- **Not applied to the live project.** The CLI cannot push here (the remote has
+  no migration history table, so `db push` would plan all 131 files); the SQL is
+  printed for the SQL editor.
+- **The ingest function is still not deployed.** 0131 is what unblocks it; the
+  deploy is a separate, later step.
+- **The overwrite consequence was measured, not designed for.** No client
+  currently overwrites, and nothing was added to stop one.
+
+---
+
+## Foundry, deploying the ingest function and a production round trip
+
+`foundry-ingest` is DEPLOYED to `ifxbufvugkzfxhwcwqhf` (idea-app), version 1,
+ACTIVE, `verify_jwt: true`. It was the FIRST function on the project -- the
+functions list was empty beforehand, so nothing was replaced, and `--prune` was
+deliberately not used (it deletes remote functions absent locally). No migration
+ships with this; 0131 was already applied.
+
+### 0131 was verified on production BEFORE deploying, not assumed
+
+Read-only, through `supabase db query --linked`:
+`_classroom_deck_path_ok`, `_foundry_norm` and `_foundry_slug_ok` all report
+`has_function_privilege('service_role', ..., 'EXECUTE') = true`, and
+`storage.objects` carries eight foundry policies including `foundry uploads read
+own folder` (SELECT). `foundry-bundles` still carries NONE, which is the
+mechanism.
+
+### The deploy resolved the imports that live outside supabase/functions
+
+This was the open question from the previous bundle, and the answer is that the
+CLI handles it: the upload log names `src/lib/foundry/preflight.ts`,
+`src/lib/bundle-path.ts`, `src/lib/foundry/html-dom.ts` and
+`src/lib/foundry/zip.ts` alongside the two files in the function's own
+directory. The shared-module layout survives a real deploy.
+
+`--use-api` was used because there is no Docker on the Windows side; the WSL
+CLI has Docker but no access token, and the Windows CLI has the token.
+
+**One warning, benign and checked rather than ignored:** `WARN: Skipping import
+path outside source root: /_platform/fonts.css`. That is the CLI's import
+scanner reading the STRING CONSTANT `PLATFORM_FONTS_PATH` as if it were an
+import specifier. It is a literal in a message, not an import, and nothing is
+missing from the bundle.
+
+### The round trip, on production
+
+A throwaway owner, app and version were created for it and removed afterwards.
+**Creating a production auth account was necessary and is worth naming**: the
+function derives identity from the caller's JWT, so an invocation cannot be made
+without a real signed-in user, and no existing account could be used without
+credentials.
+
+What was found, rather than that it matched:
+
+- The account was created with `role=student` (the `@boscotech.net` domain rule
+  in `role_for_email`) and `pathway=null`, and a `profiles` row appeared for it
+  without any explicit insert -- the 0001 trigger.
+- `foundry_create_app` and `foundry_create_version` both landed through the real
+  RPCs; the version came back `ordinal=1 status=draft`.
+- A 252-byte single-file zip uploaded to the owner's own `foundry-uploads`
+  prefix.
+- The invocation answered **HTTP 200** with
+  `{"ok":true,"entry":"index.html","fileCount":1,"totalBytes":190,"strippedWrapper":null,"warnings":[],"notes":[],"status":"draft"}`
+  -- so the version stayed DRAFT, which is the whole point: preflight passing is
+  not submission.
+- One `student_app_files` row: `index.html`, `text/html; charset=utf-8`, 190
+  bytes. The content type is the one that matters -- a wrong one stops a browser
+  executing the file.
+- One object at
+  `foundry-bundles/<app_id>/<version_id>/index.html`, which is the
+  prune-friendly layout 0130 specifies.
+- **The stored bytes were downloaded and compared to the source: identical.**
+  That is the assertion the previous bundle's zip-reader bug would have failed,
+  and it is the reason it is made here rather than inferred from a byte count.
+- The manifest carried `zipBytes: 252`, `totalBytes: 190`, `fileCount: 1`,
+  `droppedOsNoise: 0`, `strippedWrapper: null`, and empty `failures`,
+  `warnings` and `notes`.
+
+### Cleanup, and how it was proven
+
+Objects were removed BEFORE the rows, because deleting the rows first would lose
+the paths and the bucket has no cascade behind it. Then the file rows, the app
+(which cascades to its version), and the auth user.
+
+Proven twice, through two different interfaces, because one interface agreeing
+with itself is not evidence:
+
+- Through the Storage API: 0 objects under both the app-id and the user-id
+  prefix, in all three foundry buckets.
+- Independently through SQL on the live database: **0 rows in `storage.objects`
+  for any `foundry-%` bucket at all**, 0 rows in each of `student_apps`,
+  `student_app_versions` and `student_app_files`, 0 matching `auth.users`, and
+  no surviving `profiles` row.
+
+A census before and after agrees: every one of those counts was 0 before the
+run and 0 after it. Production held no Foundry data before this and holds none
+now.
+
+### NOT verified
+
+- **No student has used this.** The round trip is one synthetic single-file app.
+  Nothing exercised a wrapper strip, a refusal, the cap or the idempotent re-run
+  ON PRODUCTION -- those were proven on the local stack, against the real
+  Storage service, but against a different copy of the policies.
+- **No UI calls this yet.** There is still no Foundry route or component.
+- **The browser preflight has still never run in a browser.**
+
+---
+
+## Foundry preflight, three small corrections (no migration, no deploy)
+
+### 1. mailto: and tel: are permitted references now
+
+Both carry no network request -- they hand off to the device's mail or phone
+app -- so refusing them alongside http:/https:/ftp:/etc. read as arbitrary.
+`data:` was previously the one hardcoded exception in `classifyReference`; it
+is now one of three in a named `NO_NETWORK_SCHEMES` list, so a fourth one (if
+ever needed) is a one-line addition rather than a second special case.
+
+### 2. The scheme message names the scheme in the INSTRUCTION, not only the description
+
+Old: `"...uses tel:555-1234, which is a tel: address. ... Remove it, or..."`
+-- the actionable sentence said "Remove it", leaving the pronoun to resolve
+against an object two clauses back. New:
+
+    index.html line 6 uses ftp://files.example.com/x.zip, a ftp: link. Your
+    app can only open files that are inside its own folder, so remove the
+    ftp: link, or replace it with a file you have included and a relative
+    path, like href="x.zip".
+
+The scheme now appears twice -- once naming what the value is, once naming
+what to remove -- so a student pasting this into an AI tool has the specific
+scheme to delete named in the sentence that tells them to delete it, not just
+implied by an earlier clause.
+
+### 3. The draft-only invocation gate is now a named, tested, mutation-proven rule
+
+Extracted `versionIsIngestable(status): boolean` into `src/lib/foundry/
+preflight.ts` (the one module both the Deno function and any future test
+import), and `foundry-ingest/index.ts` now calls it instead of an inline
+`!== 'draft'` comparison.
+
+**Why this stopped being a convenience check.** 0131 added the SELECT policy
+`foundry-uploads` was missing, and that policy's side effect is that an
+own-prefix OVERWRITE of the uploaded zip is now reachable where it previously
+failed on RLS. So a student CAN replace the bytes at `zip_path` after their
+version has been reviewed. The draft gate is the ONLY thing left stopping a
+swapped zip from ever being extracted and served -- there is no second gate.
+
+**Unit-tested and mutation-proven.** `tests/foundry-preflight.test.ts` asserts
+`draft` -> true and `submitted`/`approved`/`rejected` -> false, plus a
+defence-in-depth case (`''`, `'DRAFT'`, `'draft '` all refuse). Mutating the
+predicate to `return true` reddened exactly those two tests and nothing else;
+`preflight.ts` was restored md5-identical
+(`99636864732c1c34a4462c83d5aa2ccb`) and re-verified green.
+
+**Also proven against the REAL running function and the REAL local Storage
+service**, not only the pure predicate (scratchpad scripts, not committed --
+this is the class of proof the local stack exists for, per prior bundles):
+
+- A version ingested once for real, then forced to each of `submitted`,
+  `approved`, `rejected`. Re-invocation for all three: HTTP 200,
+  `{"ok":false,"reason":"not_draft"}`, message names the actual status. The
+  version's `student_app_files` rows, its `foundry-bundles` object list, and
+  the SHA-256 of every stored byte were identical before and after the
+  refused attempt, in each of the three cases -- 24 assertions, 0 failures.
+- **The concrete 0131 scenario, driven end to end:** a version ingested,
+  approved, then its zip overwritten in place with different content (which
+  now succeeds, exactly as 0131's own header warns). Re-invoking is still
+  refused with the same `not_draft` message, and the SERVED bundle was
+  downloaded and confirmed to still read "Original" -- the swapped "SWAPPED"
+  content never reached `foundry-bundles`. This is the failure this rule
+  exists to prevent, reproduced and shown blocked.
+
+`svelte-check`: 0 errors, 37 warnings (31/5/1), unmoved. Full suite: 90 files,
+2186 tests (2182 + 4 new), all passing.
+
+### NOT verified / not done
+
+- **The deployed function on production was NOT updated.** These three fixes
+  are in the repo only; `foundry-ingest` on `ifxbufvugkzfxhwcwqhf` is still the
+  version deployed in the previous bundle, which does not have them. No
+  redeploy was requested and none was made.
+- **No migration.** Nothing here touches the database schema.

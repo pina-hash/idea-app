@@ -625,6 +625,18 @@ with its own answer for the rows already stored.
 - **A volatile expression like `now()` cannot appear in an index predicate**, so
   "currently active" cannot be a partial unique index on its own; pair
   `revoked_at is null` in the index with a lazily-stamped close on the row.
+- **A CHECK CONSTRAINT'S FUNCTION RUNS AS THE WRITING ROLE, so `service_role`
+  needs EXECUTE on it.** `service_role` bypasses RLS; it does NOT bypass
+  function grants. A private predicate `revoke`d from `public` and granted only
+  to `authenticated` therefore makes a table UNWRITABLE by a server holding the
+  service key, with `permission denied for function <name>`, even though the
+  table's own `grant insert ... to service_role` is right there. The RPCs do not
+  show this, because SECURITY DEFINER runs their checks as the owner -- so the
+  hole only opens for the one caller that writes DIRECTLY, which is exactly the
+  Edge Function a table like `student_app_files` exists to be written by. 0130
+  shipped with this (`_classroom_deck_path_ok`, `_foundry_norm`). Grant the
+  predicate to every role that writes the column, not just to the ones that read
+  it.
 - **When re-signing a function to change one term, DIFF IT AGAINST THE SOURCE.**
   A plausible reconstruction from memory is how error semantics quietly change.
 
@@ -1404,6 +1416,17 @@ belong wherever the app's own behaviour is documented.
 - **`cannon-es`: a static body keeps a stale world AABB** computed while its
   quaternion was identity, and raycasts (unlike contacts) are AABB-culled. Call
   `updateAABB()` after rotating a static ground plane.
+- **`supabase functions serve` DOES NOT RELOAD A FILE OUTSIDE
+  `supabase/functions`, and its Deno cache outlives the container.** The CLI
+  bind-mounts each `src/lib` file an Edge Function imports, so the import
+  resolves -- but the compiled module is cached in the
+  `supabase_edge_runtime_<project>` Docker volume, and a Windows bind mount's
+  mtimes do not invalidate it. Editing shared code then re-running measures the
+  OLD bundle, silently and plausibly: three separate measurements were taken
+  against a stale one before this was found. Killing the CLI is not enough
+  either, because the container keeps serving. **Remove the container AND the
+  volume, then restart**, and prove which code is live by returning a marker
+  from the function rather than by assuming.
 - **`cannon-es`: `wheelInfo.isInContact` is not readable from game code** --
   `updateWheelTransformWorld` clears it every frame. Use
   `vehicle.numWheelsOnGround`.

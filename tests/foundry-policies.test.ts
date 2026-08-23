@@ -42,7 +42,8 @@ const MIGRATIONS = [
 	'0085_classroom_canonical_items.sql',
 	'0090_classroom_instructor_materials.sql',
 	'0101_classroom_decks.sql',
-	'0130_foundry.sql'
+	'0130_foundry.sql',
+	'0131_foundry_service_role_writes.sql'
 ] as const;
 
 /** The pinned owner constant from 0067. is_admin() self-heals to it. */
@@ -686,6 +687,65 @@ describe('0130 // storage', () => {
 		expect(service).toBe(1);
 	});
 
+	it("lets an owner see and delete their OWN upload, and nobody else's (0131)", async () => {
+		// 0130 gave foundry-uploads INSERT, UPDATE and DELETE policies and no
+		// SELECT policy, which made the UPDATE and DELETE ones INERT: Storage
+		// has to find an object before it can act on one, and PostgreSQL applies
+		// SELECT policies to a WHERE-qualified UPDATE. The visible symptom was a
+		// delete that reported success while the object survived, which is the
+		// worst kind of wrong because nothing anywhere says so.
+		const student = await author();
+		const other = await author();
+
+		await db.sql(
+			`insert into storage.objects (bucket_id, name, owner) values ('foundry-uploads', $1, $2)`,
+			[`${student.id}/mine.zip`, student.id]
+		);
+		await db.sql(
+			`insert into storage.objects (bucket_id, name, owner) values ('foundry-uploads', $1, $2)`,
+			[`${other.id}/theirs.zip`, other.id]
+		);
+
+		const visible = await db.asUser(student.id, async (q) => {
+			const { rows } = await q<{ name: string }>(
+				`select name from storage.objects where bucket_id = 'foundry-uploads' order by name`
+			);
+			return rows.map((r) => r.name);
+		});
+		// Exactly their own, and the other row is the positive control that says
+		// the policy is scoping rather than the bucket simply being empty.
+		expect(visible).toEqual([`${student.id}/mine.zip`]);
+
+		const deletedOwn = await db.asUser(student.id, async (q) => {
+			const { rowCount } = await q(
+				`delete from storage.objects where bucket_id = 'foundry-uploads' and name = $1`,
+				[`${student.id}/mine.zip`]
+			);
+			return rowCount;
+		});
+		expect(deletedOwn).toBe(1);
+
+		const deletedOther = await db.asUser(student.id, async (q) => {
+			const { rowCount } = await q(
+				`delete from storage.objects where bucket_id = 'foundry-uploads' and name = $1`,
+				[`${other.id}/theirs.zip`]
+			);
+			return rowCount;
+		});
+		expect(deletedOther).toBe(0);
+
+		// And the row really is still there, rather than merely unreported.
+		// Scoped to this test's own two names: earlier tests in this file leave
+		// their own uploads behind, and a whole-bucket listing would count them.
+		const survivors = await db.sql<{ name: string }>(
+			`select name from storage.objects
+			  where bucket_id = 'foundry-uploads' and name = any($1::text[])
+			  order by name`,
+			[[`${student.id}/mine.zip`, `${other.id}/theirs.zip`]]
+		);
+		expect(survivors.rows.map((r) => r.name)).toEqual([`${other.id}/theirs.zip`]);
+	});
+
 	it('declares the three buckets with the intended visibility', async () => {
 		const { rows } = await db.sql<{ id: string; public: boolean }>(
 			`select id, public from storage.buckets where id like 'foundry-%' order by id`
@@ -743,5 +803,103 @@ describe('0130 // no client write grants', () => {
 			'foundry_withdraw_version'
 		]);
 		expect(rows.filter((r) => r.n !== '1')).toEqual([]);
+	});
+});
+
+describe('0131 // service_role can satisfy the write-time predicates', () => {
+	/*
+	 * A CHECK CONSTRAINT'S FUNCTION IS EVALUATED AS THE WRITING ROLE.
+	 * service_role bypasses RLS; it does NOT bypass function grants. 0130
+	 * revoked its three private predicates from `public` and granted them
+	 * onward to nobody, so every Foundry table was unwritable by the one caller
+	 * it was designed to be written by -- and NOTHING said so until an
+	 * extraction ran, wrote its bytes to the bucket, and failed on the index
+	 * insert with `permission denied for function _classroom_deck_path_ok`.
+	 *
+	 * THE RULE IS ASSERTED, NOT THE THREE NAMES. Spelling out the current
+	 * predicates would pass forever the moment a fourth one is added to a CHECK
+	 * without a grant, which is the exact way this recurs.
+	 */
+	it('can execute EVERY function reachable from a CHECK on a table it may write', async () => {
+		const { rows } = await db.sql<{ fn: string; svc: boolean; tbl: string }>(`
+			select p.proname as fn,
+			       has_function_privilege('service_role', p.oid, 'EXECUTE') as svc,
+			       c.conrelid::regclass::text as tbl
+			  from pg_constraint c
+			  join pg_proc p
+			    on position(p.proname || '(' in pg_get_constraintdef(c.oid)) > 0
+			  join pg_namespace pn on pn.oid = p.pronamespace
+			 where c.contype = 'c'
+			   and c.connamespace = 'public'::regnamespace
+			   and pn.nspname = 'public'
+			   and has_table_privilege('service_role', c.conrelid, 'INSERT')
+			 group by 1, 2, 3
+			 order by 1, 3
+		`);
+
+		// The sweep found something: a zero-row result would pass vacuously and
+		// is indistinguishable from a query that matches nothing.
+		expect(rows.length).toBeGreaterThan(0);
+		expect(new Set(rows.map((r) => r.fn))).toEqual(
+			new Set(['_classroom_deck_path_ok', '_foundry_norm', '_foundry_slug_ok'])
+		);
+
+		const ungranted = rows.filter((r) => !r.svc).map((r) => `${r.fn} (via ${r.tbl})`);
+		expect(ungranted).toEqual([]);
+	});
+
+	it('actually writes the three tables directly, which is what the grants are for', async () => {
+		const student = await author();
+		const app = await db.asUser(student.id, (q) =>
+			q<{ foundry_create_app: { app_id: string } }>(
+				`select public.foundry_create_app($1, $2, $3) as foundry_create_app`,
+				['svc-write-probe', 'Service Write Probe', 'Built to exercise the direct write path.']
+			)
+		);
+		const appId = app.rows[0].foundry_create_app.app_id;
+
+		const version = await db.asUser(student.id, (q) =>
+			q<{ foundry_create_version: { version_id: string } }>(
+				`select public.foundry_create_version($1, $2) as foundry_create_version`,
+				[appId, `${student.id}/probe.zip`]
+			)
+		);
+		const versionId = version.rows[0].foundry_create_version.version_id;
+
+		// student_app_files.path -> _classroom_deck_path_ok
+		const inserted = await db.asServiceRole(async (q) => {
+			const { rowCount } = await q(
+				`insert into public.student_app_files (version_id, path, content_type, byte_size)
+				 values ($1, 'index.html', 'text/html; charset=utf-8', 42)`,
+				[versionId]
+			);
+			return rowCount;
+		});
+		expect(inserted).toBe(1);
+
+		// An UPDATE re-evaluates EVERY check on the row, which is what pulls
+		// _foundry_norm in even though the manifest is the only column moving.
+		const updated = await db.asServiceRole(async (q) => {
+			const { rowCount } = await q(
+				`update public.student_app_versions
+				    set manifest = '{"ok": true}'::jsonb, file_count = 1, byte_size = 42
+				  where id = $1`,
+				[versionId]
+			);
+			return rowCount;
+		});
+		expect(updated).toBe(1);
+
+		// student_apps.slug -> _foundry_slug_ok, which the extraction function
+		// never reaches but the next direct writer of this table would.
+		const appRow = await db.asServiceRole(async (q) => {
+			const { rowCount } = await q(
+				`insert into public.student_apps (owner, slug, title, build_notes)
+				 values ($1, 'svc-direct-write', 'Direct', 'Written by service_role.')`,
+				[student.id]
+			);
+			return rowCount;
+		});
+		expect(appRow).toBe(1);
 	});
 });
