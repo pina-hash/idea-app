@@ -28083,3 +28083,74 @@ Both are now in `CLAUDE.md`.
 - **The mint endpoint's refusals are unexercised.** They need a session and real
   rows; the harness mints directly, and says so.
 - **No migration, and no Edge Function change.**
+
+### Verified on PRODUCTION, after the merge landed
+
+The "NOT verified" list above was written before the merge, on the assumption
+that the Vercel environment carried none of the new variables. That assumption
+was wrong and the corrected record is here rather than by editing the list, so
+the sequence stays legible.
+
+**`PUBLIC_FOUNDRY_APPS_HOST` and `PUBLIC_FOUNDRY_APP_ORIGIN` were already set in
+the Vercel project**, so the origin split went live with the deploy rather than
+waiting. It was noticed because `apps.ideabosco.com/` answered **404** instead
+of the 200 it had answered an hour earlier -- which is the host branch working.
+
+Driven against the real deployment:
+
+| request | result |
+| --- | --- |
+| `apps.ideabosco.com/_platform/fonts.css` | 200 `text/css; charset=utf-8`, 1370 bytes |
+| `apps.ideabosco.com/_platform/fonts/rajdhani-400.woff2` | 200 `font/woff2`, **14976 bytes** |
+| `apps.ideabosco.com/classroom` | 404, len 0 |
+| `apps.ideabosco.com/auth/callback?code=x` | 404, len 0 |
+| `apps.ideabosco.com/api/feedback` | 404, len 0 |
+| `apps.ideabosco.com/dashboard`, `/admin` | 404, len 0 |
+| `ideabosco.com/_platform/fonts.css` | 404, len 0 |
+| `ideabosco.com/r/abc/index.html` | 404, len 0 |
+| `POST ideabosco.com/api/foundry/token` signed out | 401 `{"ok":false,"reason":"signed_out"}` |
+| `POST apps.ideabosco.com/api/foundry/token` | 404 (the mint does not exist there) |
+| `ideabosco.com/`, `/coins/index.html`, `/robots.txt` | 200 -- the main host is unaffected |
+
+**The woff2 answering 200 with 14976 bytes settles a real unknown**: `read()`
+from `$app/server` over a `?url` import does work through `adapter-vercel`, and
+the font files are genuinely copied into the serverless function. That could not
+be checked locally in any way that proved anything about the deployed bundle.
+
+The production CSP, verbatim off the wire (one line in reality):
+
+```
+content-security-policy: sandbox allow-scripts allow-modals allow-pointer-lock;
+default-src https://apps.ideabosco.com data: blob:;
+script-src https://apps.ideabosco.com data: blob: 'unsafe-inline' 'unsafe-eval';
+style-src https://apps.ideabosco.com data: blob: 'unsafe-inline';
+connect-src 'none'; frame-ancestors https://ideabosco.com
+```
+
+alongside `cache-control: private, no-store`, `x-content-type-options: nosniff`,
+and no `set-cookie`.
+
+**AND THE STATIC-FILE GAP IS CONFIRMED IN PRODUCTION, WITH THE SPLIT LIVE.**
+`apps.ideabosco.com/robots.txt` (200), `/push-sw.js` (200) and
+`/coins/index.html` (200, 177019 bytes of the legacy Coin Ledger) all still
+serve on the bundle host, because Vercel's filesystem answers them without
+invoking the function. This is exactly the gap the host-branch section
+describes, no longer a prediction. A visitor who types that URL gets the Coin
+Ledger on the bundle origin; a bundle still cannot fetch any of it
+(`connect-src 'none'`), and none of it carries a session. Closing it remains a
+platform-routing change that wants the `rewrites`-versus-filesystem measurement
+this session could not run.
+
+### Still NOT verified after the production pass
+
+- **Whether `FOUNDRY_TOKEN_SECRET` is set cannot be determined from outside, by
+  design.** The mint checks the session BEFORE the secret, so a signed-out
+  request answers 401 either way; and the proxy answers the same bodyless 404
+  for "no secret" as for "bad token", which is the no-oracle rule working. It
+  has to be confirmed in the Vercel project settings.
+- **No real bundle has been served on any host.** There is no published app
+  yet, so nothing has been streamed out of `foundry-bundles` and the Supabase
+  read path in `resolveBundleFile` -- including its `student_apps!inner` embed
+  -- has still never run.
+- **The preview deployment was never reachable** (Deployment Protection), so
+  nothing was checked there beyond the build succeeding.
