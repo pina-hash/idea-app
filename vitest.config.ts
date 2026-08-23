@@ -39,6 +39,13 @@ export default defineConfig({
 			'$env/dynamic/private': fileURLToPath(
 				new URL('./tests/stubs/env-dynamic-private.ts', import.meta.url)
 			),
+			// The Foundry host branch and the bundle proxy read the apps host and
+			// the app origin at call time through this module, so without a
+			// stand-in neither the real hook helper nor the real route handler can
+			// be imported here.
+			'$env/dynamic/public': fileURLToPath(
+				new URL('./tests/stubs/env-dynamic-public.ts', import.meta.url)
+			),
 			'$app/environment': fileURLToPath(
 				new URL('./tests/stubs/app-environment.ts', import.meta.url)
 			),

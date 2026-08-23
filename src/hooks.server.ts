@@ -3,6 +3,69 @@ import { type Handle, type HandleServerError, redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { env as publicEnv } from '$env/dynamic/public';
+import { appsHostAllows, isFoundryAppsHost } from '$lib/foundry/host';
+
+/**
+ * THE ORIGIN SPLIT, AND IT RUNS FIRST.
+ *
+ * `apps.ideabosco.com` is the same Vercel project and the same deployment as
+ * `ideabosco.com`, so without this hook it serves the whole app: every route,
+ * every API endpoint, the auth callback. This is what makes it serve student
+ * bundles and nothing else.
+ *
+ * IT IS AN ALLOWLIST, NOT A BLOCKLIST, which is the only version of this that
+ * stays true. `appsHostAllows` names the two prefixes that exist on that host
+ * and everything else is a bodyless 404 -- so a route added next month is
+ * unreachable there by DEFAULT, rather than reachable until somebody remembers
+ * to add it to a list. The 404 is answered HERE, so an unrecognised path is
+ * never handed to the SvelteKit router at all.
+ *
+ * IT RUNS BEFORE THE SUPABASE CLIENT IS CREATED, deliberately. A request on
+ * the bundle host must not cause a session to be read or a refreshed auth
+ * cookie to be written; there are no cookies on that origin and there must
+ * never be any. Sequencing this first means no code path on that host can
+ * create one, rather than no code path happening to.
+ *
+ * AND THE PROXY IS UNREACHABLE ON THE MAIN HOST. `/r/*` and `/_platform/*` 404
+ * there, so there is no URL on the session-bearing origin that serves a
+ * bundle. Without that half, the split would be a convention rather than a
+ * boundary: the bundle would simply be available on both.
+ *
+ * WHAT THIS HOOK CANNOT REACH, stated because it is a real gap rather than an
+ * oversight: files served straight off Vercel's filesystem -- `static/` and
+ * the build's own `_app/immutable/*` -- never invoke this function at all, so
+ * they answer on the apps host regardless of what is written here. Measured
+ * against production: `apps.ideabosco.com/robots.txt` and `/push-sw.js` both
+ * answer 200 today. They are public, sessionless bytes and a bundle cannot
+ * fetch them (`connect-src 'none'`), so the leak is duplicate content rather
+ * than reach -- but it is a leak, and closing it needs a platform-level rule
+ * in `vercel.json` rather than a hook. See `docs/HISTORY.md` for where that
+ * stands.
+ */
+const foundryHostBranch: Handle = async ({ event, resolve }) => {
+	const onAppsHost = isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
+	const { pathname } = event.url;
+
+	if (onAppsHost) {
+		if (!appsHostAllows(pathname)) {
+			return new Response(null, {
+				status: 404,
+				headers: { 'cache-control': 'private, no-store' }
+			});
+		}
+		return resolve(event);
+	}
+
+	if (appsHostAllows(pathname)) {
+		return new Response(null, {
+			status: 404,
+			headers: { 'cache-control': 'private, no-store' }
+		});
+	}
+
+	return resolve(event);
+};
 
 /**
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
@@ -132,7 +195,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle: Handle = sequence(legacyRedirects, supabase, authGuard);
+export const handle: Handle = sequence(foundryHostBranch, legacyRedirects, supabase, authGuard);
 
 /**
  * THE MINIMUM THAT MAKES A SERVER ERROR AND A REPORT ABOUT IT THE SAME EVENT.

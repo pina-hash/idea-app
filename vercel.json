@@ -5,14 +5,12 @@
 			"source": "/(.*)",
 			"destination": "https://ideabosco.com/$1",
 			"permanent": true,
-			"has": [{ "type": "host", "value": "idea-app-sage.vercel.app" }]
-		}
-	],
-	"rewrites": [
-		{
-			"source": "/robots.txt",
-			"destination": "/__hostprobe",
-			"has": [{ "type": "query", "key": "rwtest" }]
+			"has": [
+				{
+					"type": "host",
+					"value": "idea-app-sage.vercel.app"
+				}
+			]
 		}
 	]
 }
