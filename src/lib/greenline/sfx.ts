@@ -105,6 +105,12 @@ const SFX = {
 	wpn_cluster_impact_direct: { files: takes('sfx_wpn_cluster_impact_direct', 4), bus: 'impacts', gain: 0.46 },
 	wpn_cluster_impact_splash: { files: takes('sfx_wpn_cluster_impact_splash', 4), bus: 'impacts', gain: 0.3, jitter: [0.9, 1.12] },
 	wpn_turret_fire: { files: takes('sfx_wpn_turret_fire', 7), bus: 'weapons', gain: 0.24, jitter: [0.93, 1.08] },
+	// ORPHANED, AND IT DESCRIBES A MECHANIC THIS GAME DOES NOT HAVE. The
+	// Auto-Turret has no aim state to rotate: updateTurret picks the nearest
+	// target outside the forward blind arc and hit-scans it instantly (combat.ts,
+	// "no trigger, no aim"), and its mesh in rig-visual.ts is fixed geometry that
+	// nothing turns. There is no angle to threshold, so the id stays unplayed
+	// rather than being justified by inventing a swivelling turret.
 	wpn_turret_swivel: { files: takes('sfx_wpn_turret_swivel', 2), bus: 'weapons', gain: 0.16, jitter: [0.94, 1.06] },
 	wpn_shield_activate: { files: takes('sfx_wpn_shield_activate', 1), bus: 'weapons', gain: 0.34 },
 	wpn_shield_hum: { files: takes('sfx_wpn_shield_hum', 2), bus: 'weapons', loop: true, gain: 0.16, fadeIn: 0.12 },
@@ -131,6 +137,15 @@ const SFX = {
 	abl_jump: { files: takes('sfx_abl_jump', 3), bus: 'weapons', gain: 0.34, jitter: [0.95, 1.08] },
 	abl_flip: { files: takes('sfx_abl_flip', 4), bus: 'weapons', gain: 0.36 },
 	abl_repair_activate: { files: takes('sfx_abl_repair_activate', 1), bus: 'weapons', gain: 0.32 },
+	// ORPHANED, because Overcharge Repair HAS NO ACTIVE WINDOW to play across:
+	// it applies its whole heal in the frame it is used (abilities.ts activates
+	// it through combat.repair() and sets no *UntilMs, unlike nitro, grip and
+	// air), so there is no interval between an activate and a complete to fill.
+	// The sustained repair the game does have is the PIT BOX, which is
+	// continuous while the car is stopped in the zone -- and it already has its
+	// own bed (env_pit_repair_loop) plus the abl_repair_complete chime on
+	// release. Giving the ability a duration to hang this on would be a
+	// balance change, not a sound pass.
 	abl_repair_loop: { files: takes('sfx_abl_repair_loop', 2), bus: 'weapons', loop: true, gain: 0.22, fadeIn: 0.1 },
 	abl_repair_complete: { files: takes('sfx_abl_repair_complete', 1), bus: 'weapons', gain: 0.34 },
 	abl_grip_activate: { files: takes('sfx_abl_grip_activate', 4), bus: 'weapons', gain: 0.3 },
@@ -220,10 +235,18 @@ const SFX = {
 	result_leaderboard_new_record: { files: takes('sfx_result_leaderboard_new_record', 1), bus: 'ui', gain: 0.8, spatial: false },
 
 	// ---- Fun / misc ----
-	// Loaded and playable, but nothing triggers them: the game has no horn or
-	// siren action bound (see the control registry), and inventing one is a
-	// gameplay change this pass deliberately did not make.
-	fun_siren: { files: takes('sfx_fun_siren', 1), bus: 'weapons', loop: true, gain: 0.3, fadeIn: 0.2 },
+	// The driver horn, which the control registry now has an action for (HORN,
+	// default H). Which of the two a car sounds is a garage cosmetic, so both are
+	// reachable from one binding.
+	//
+	// BOTH ARE ONE-SHOTS, and the siren stopped being declared a loop when it
+	// gained a trigger: a horn is a press, not a state, and a looping siren would
+	// need an owner to stop it that a momentary key does not have. The weapons
+	// bus is right for them (a machine's own action) and its soft cap of 8 is
+	// never approached, because the race holds ONE horn voice per car -- a press
+	// during a blast restarts it. Without that the 4-second siren against a 600ms
+	// gate would stack seven deep and start stealing real weapon voices.
+	fun_siren: { files: takes('sfx_fun_siren', 1), bus: 'weapons', gain: 0.3 },
 	fun_horn: { files: takes('sfx_fun_horn', 1), bus: 'weapons', gain: 0.4 }
 } satisfies Record<string, SfxDef>;
 

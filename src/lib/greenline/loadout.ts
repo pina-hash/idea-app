@@ -27,6 +27,7 @@ import {
 	type WeaponSocketId
 } from './combat';
 import { ABILITY_NONE, abilityById } from './abilities';
+import type { SfxRef } from './sfx';
 
 /** The stat surface parts may touch. Multipliers, neutral = 1. */
 export type StatKey =
@@ -171,6 +172,45 @@ export interface Cosmetics {
 	 * is unreadable to non-owners until approved.
 	 */
 	decal?: string;
+	/**
+	 * Which horn the car sounds (COSMETIC_HORNS id). Unset = the stock horn, so
+	 * every build saved before this -- and every build whose driver never opens
+	 * the picker -- has a horn without carrying a field for it. Rides the parts
+	 * jsonb exactly as the colour override does, so there is no migration and no
+	 * new data model.
+	 *
+	 * Cosmetic in the strict sense the rest of this type means it: the horn has
+	 * no range, no damage and no meter, and nothing in the sim reads it.
+	 */
+	horn?: string;
+}
+
+/**
+ * The horns. Two, because two are what exist as recordings; the picker renders
+ * this list, so a third is a line here and a file on disk.
+ *
+ * `sfx` is a roster id from ./sfx.ts, imported as a TYPE ONLY -- this module is
+ * pure data with no browser dependency (the curriculum.ts convention stated at
+ * the top of the file), and sfx.ts reaches Web Audio. The type import is erased
+ * at build time, so nothing here can drag the audio engine into a server render
+ * while the ids still have to be real.
+ */
+export const COSMETIC_HORNS: { id: string; name: string; hint: string; sfx: SfxRef }[] = [
+	{ id: 'horn', name: 'Air Horn', hint: 'One short blast', sfx: 'fun_horn' },
+	{ id: 'siren', name: 'Siren', hint: 'A longer wail', sfx: 'fun_siren' }
+];
+
+/** What a car with no horn chosen sounds. */
+export const DEFAULT_HORN_ID = 'horn';
+
+/**
+ * The roster id a build's horn plays. An unset, unknown or dropped value falls
+ * to the stock horn rather than to silence: a horn that does nothing reads as a
+ * broken key, and the point of the default is that every car has one.
+ */
+export function hornSfxFor(cosmetics: Cosmetics | undefined): SfxRef {
+	const id = cosmetics?.horn ?? DEFAULT_HORN_ID;
+	return (COSMETIC_HORNS.find((h) => h.id === id) ?? COSMETIC_HORNS[0]).sfx;
 }
 
 /**
@@ -236,7 +276,18 @@ export function normalizeCosmetics(raw: unknown): Cosmetics | undefined {
 		if (d && d.length <= 220 && !/\s/.test(d) && !d.toLowerCase().startsWith('data:'))
 			out.decal = d;
 	}
-	return out.color || out.pattern || out.number != null || out.decal ? out : undefined;
+	// The stock horn is stored as ABSENCE, like the 'none' pattern above: an
+	// unknown id and an explicit default both normalize away, so a build that
+	// never touched the picker round-trips clean.
+	if (
+		typeof r.horn === 'string' &&
+		r.horn !== DEFAULT_HORN_ID &&
+		COSMETIC_HORNS.some((h) => h.id === r.horn)
+	)
+		out.horn = r.horn;
+	return out.color || out.pattern || out.number != null || out.decal || out.horn
+		? out
+		: undefined;
 }
 
 /**
