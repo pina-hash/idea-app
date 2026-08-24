@@ -560,11 +560,40 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	try {
 		facts = read(source);
 	} catch (err) {
-		// A page the PARSER cannot read is not a refusal -- the browser will
-		// still render it, and the CSP is what actually contains it. But it is
-		// reported rather than swallowed: a reader that quietly returns nothing
-		// turns every HTML rule in here off at once and every upload starts
-		// passing, which looks exactly like an app with no problems in it.
+		/*
+		 * A PAGE THE PARSER CANNOT READ IS A HARD FAIL, AND IT USED TO BE A
+		 * WARNING. That is what let a bundle through with four CDN script tags
+		 * in its head, and the trail is worth keeping because the old reasoning
+		 * sounded right: the browser will still render the page, the CSP is
+		 * what actually contains it, so a parse failure is not evidence of
+		 * anything WRONG with the file. All true, and all beside the point.
+		 *
+		 * Every HTML rule in here runs off `facts`. When the read throws, this
+		 * function returned zero failures -- which is the same answer it gives
+		 * for a perfect file. `foundry-ingest` turned that into a warning
+		 * reading "Your app was still saved", extraction ran, the version
+		 * reached the review queue, a reviewer read a soft note and approved
+		 * it, and the app was blank because the four scripts it needs were
+		 * never going to load. MEASURED: with the reader stubbed to fail the
+		 * way deno-dom does on a cold start, this exact file produced 0
+		 * failures and 1 warning and would have been published.
+		 *
+		 * "We checked it and found nothing" and "we could not check it" have to
+		 * be different ANSWERS, not different log lines. So the second one
+		 * refuses. A student can upload again; nobody can approve an unchecked
+		 * bundle.
+		 *
+		 * `parseFailed` is still reported alongside, because the caller logs it
+		 * and because it is the difference between a file that is wrong and a
+		 * parser that is broken.
+		 */
+		failures.push(
+			issue(
+				path,
+				null,
+				`${path} could not be read by the checker, so it has not been published. That is usually a problem on our end rather than a mistake in your file. Upload it again, and if it happens a second time tell your teacher, because nothing can be published until the check runs.`
+			)
+		);
 		return {
 			failures,
 			warnings,

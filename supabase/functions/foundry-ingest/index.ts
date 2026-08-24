@@ -347,16 +347,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
 			if (ext === 'html') {
 				const r = scanHtml(file.path, text, readHtml);
 				if (r.parseFailed) {
-					// Loud in the log, because every HTML rule is off while this is
-					// true, and said out loud to the student too: "we checked it and
-					// found nothing" and "we could not check it" are different
-					// answers, and only one of them is worth acting on.
+					// STILL LOUD IN THE LOG, but no longer a warning beside a pass:
+					// `scanHtml` now returns a hard failure for this, so the refusal
+					// below is what the student gets. The log line is for us -- it is
+					// the only place the parser's own error text survives, and a
+					// cold-start parser failure is an operational problem rather than
+					// a student one.
 					console.error(`foundry-ingest: HTML parser failed on ${file.path}: ${r.parseError}`);
-					warnings.push({
-						file: file.path,
-						line: null,
-						message: `${file.path} could not be checked automatically, so the checks for blocked links and page title were skipped for it. Your app was still saved. If it does not work when you open it, check that every link and image in this file points at a file inside your app folder.`
-					});
 				}
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);
