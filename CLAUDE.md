@@ -85,7 +85,7 @@ messages use.
 
 **A FOUNDRY AUTHOR'S CLASS COMES FROM THE ROSTER, PROJECTED INSIDE THE DEFINER
 (0132), AND NEVER FROM `profiles.section_id`.** `foundry_list_apps` and
-`foundry_get_app` return `owner_class`: the author's section in the IDEA course,
+`foundry_get_app` return `owner_class`: the TITLE of the author's IDEA course,
 or NULL. Both tables behind it stay shut -- `profiles` is own-row-or-admin and
 `classroom_enrollments` is own-rows-or-manager -- so a student browsing the
 gallery learns a name and a class and gains no other reach.
@@ -98,12 +98,34 @@ gallery learns a name and a class and gains no other reach.
   - **NULL IS A NORMAL ANSWER AND RENDERS AS NOTHING** -- no placeholder, no
     fallback, no empty label. An app outlives an enrollment, a roster import
     lags a term, a student transfers, an alumnus keeps a published app.
-  - **THE COURSE IS PINNED IN `_foundry_idea_course_code()`**, a one-line
-    constant in the `admin_owner_email()` shape, chosen over a config table for
-    a single row. Changing it is a NEW migration. If IDEA is ever taught under
-    SEVERAL codes at once the signature is wrong, not the literal: a student
-    could hold two matching enrollments and "their class" stops being one
-    value. 0132's own comment carries both cases.
+  - **WHICH COURSES COUNT IS A PREDICATE, `_foundry_is_idea_course(code)`, AND
+    A PINNED CONSTANT IS THE WRONG SHAPE.** The code, uppercased and
+    whitespace-stripped, begins with IDEA. That covers `IDEA209H` and
+    `IDEA 100` (the space is INSIDE the code, so `btrim` does not touch it) and
+    every `IDEAnnn` the A-G work adds later, with no second migration. **What
+    breaks it is an IDEA course whose code does not START with IDEA**, and it
+    breaks SILENTLY -- the student simply projects null -- which is why 0132's
+    last section prints the codes it matched at apply time. The rejected
+    alternative was the one 0132 shipped with first: a constant `'IDEA'`,
+    matching NEITHER real course, so every author would have projected null and
+    the gallery would have shown no class for anyone.
+  - **A STUDENT MAY HOLD TWO IDEA ENROLLMENTS, SO THE RESOLUTION IS A TOTAL
+    ORDER**: prefer a course still `active`, then the most recent enrollment by
+    its OWN `created_at`, then the section's `created_at`, then `s.id`.
+    `created_at` and NOT `updated_at`, because every roster upsert stamps
+    `updated_at` and re-importing last year's file would make last year's class
+    the newest. The section fallback is load-bearing rather than defensive:
+    `now()` is TRANSACTION time and a roster import writes a whole file in one
+    transaction, so two enrollments from one import tie exactly. A card must not
+    change its class between two page loads.
+  - **THE COURSE `active` FLAG IS A PREFERENCE; THE ENROLLMENT `active` FLAG IS
+    A FILTER.** A roster row says whether the student is still in the class (0082
+    soft-deletes by clearing it); a retired course says the school stopped
+    teaching it, which is not a claim about whether they took it.
+  - **IT PROJECTS THE COURSE TITLE, NEVER THE SECTION LABEL AND NEVER THE
+    BLOCK.** "Engineering I Honors" means something to someone browsing a
+    gallery; "Block 3" is internal scheduling, tells a viewer nothing, and does
+    not even distinguish two IDEA courses from one another.
   - **THE uuid/email BRIDGE IS `_notebook_email_for_user`, THE 0094 ONE.**
     `student_apps.owner` is a uuid and enrollments are email-keyed. That helper
     is a pure lookup with no notebook in it; its prefix says where it was born,
