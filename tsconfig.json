@@ -14,5 +14,20 @@
 		// requires an explicit extension on a relative import, so those files
 		// spell it and this lets tsc read the same specifier.
 		"allowImportingTsExtensions": true
-	}
+	},
+	/*
+	 * THE COMMITTED THIRD-PARTY LIBRARY BUILDS ARE NOT OURS TO TYPE-CHECK.
+	 *
+	 * `checkJs` is on, and `src/lib/foundry/vendor/` holds five minified npm
+	 * builds -- React, ReactDOM, Babel standalone, Lucide and Tailwind -- which
+	 * are served as bytes and never imported as modules. Checked, they produced
+	 * 20,729 errors and buried the 0/37 baseline entirely; the errors are all
+	 * about code nobody here wrote and nobody here may edit.
+	 *
+	 * They are still IMPORTED, with `?url`, which asks Vite for a path and does
+	 * not type-check the target -- so excluding them costs nothing that was
+	 * being checked. `tests/foundry-vendor.test.ts` is what asserts the files
+	 * are present, non-empty, and the ones the registry claims.
+	 */
+	"exclude": ["src/lib/foundry/vendor/**"]
 }

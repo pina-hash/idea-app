@@ -112,18 +112,60 @@ const workingReader: HtmlReader = (): HtmlFacts => ({
 });
 
 describe('scanHtml on the student’s file', () => {
-	it('refuses all four, naming each URL and the line it is on', () => {
+	/*
+	 * THIS ASSERTION MOVED, AND IT MOVED BECAUSE THE ANSWER DID.
+	 *
+	 * It read "refuses all four, naming each URL and the line it is on", and
+	 * that was the whole fix at the time: four tags that had silently passed
+	 * now stopped the upload. The platform now HOSTS all four of those
+	 * libraries, so the four are repointed at our copies instead and the upload
+	 * passes -- which is a better outcome for the same student and a worse one
+	 * to state loosely, because "passes" is exactly what it did when it was
+	 * broken.
+	 *
+	 * So the assertion is generalized rather than dropped, to the thing that
+	 * must never regress whichever way the rule goes: NO CDN SCRIPT TAG IS EVER
+	 * SILENTLY LEFT ALONE. Each of the four is either refused or repaired, is
+	 * named either way, carries its own line, and -- the half a refusal never
+	 * needed -- is GONE from the bytes that will be served.
+	 */
+	it('leaves none of the four alone: each is named, at its own line', () => {
 		const scan = scanHtml('index.html', source, workingReader);
 		expect(scan.parseFailed ?? false).toBe(false);
-		expect(scan.failures).toHaveLength(4);
+
+		// Every one of them accounted for, by exactly one channel.
+		expect(scan.failures.length + scan.rewriteNotes.length, 'one answer each').toBe(4);
 
 		for (const [i, url] of CDN_SCRIPTS.entries()) {
-			expect(scan.failures[i].message, url).toContain(url);
-			expect(scan.failures[i].message, url).toContain('from the internet');
+			const said = [...scan.failures.map((f) => f.message), ...scan.rewriteNotes].filter((m) =>
+				m.includes(url)
+			);
+			expect(said, `${url} is named exactly once`).toHaveLength(1);
 			// The line number is what sends a student to the right tag; a
 			// message without one is a scavenger hunt through their own file.
-			expect(scan.failures[i].line, `${url} line`).toBe(7 + i);
+			expect(said[0], `${url} line`).toContain(`index.html line ${7 + i}`);
 		}
+	});
+
+	it('rewrites the served bytes and changes nothing else about them', () => {
+		const scan = scanHtml('index.html', source, workingReader);
+		expect(scan.rewritten, 'the repaired file').not.toBeNull();
+		const out = scan.rewritten as string;
+
+		// The CDN is gone.
+		for (const url of CDN_SCRIPTS) expect(out, url).not.toContain(url);
+		// Replaced by paths this platform serves, one per tag.
+		expect((out.match(/\/_platform\/lib\//g) ?? []).length, 'hosted paths').toBe(4);
+
+		/*
+		 * NOTHING ELSE MOVED, asserted as a byte count rather than by eye. Only
+		 * the four attribute values differ, so the two files agree line for
+		 * line and everything outside those four spans is identical -- which is
+		 * what "never reserialize the document" means in a number.
+		 */
+		expect(out.split('\n').length, 'line count').toBe(source.split('\n').length);
+		const strip = (s: string) => s.split(/https:\/\/unpkg\.com\/\S+?"|\/_platform\/lib\/\S+?"/).join('|');
+		expect(strip(out), 'every byte outside the four values').toBe(strip(source));
 	});
 });
 
