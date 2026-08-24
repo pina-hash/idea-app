@@ -281,6 +281,96 @@ writing its own `hidden_at is null`, and its two widening flags are gated on
 `is_admin()` inside the function, which is why the admin populations are a
 parameter on one list rather than a second list function.
 
+### CLASSROOM FILES -- any type, 200 MB, and the three things that make that safe
+
+**A CLASSROOM ATTACHMENT AND A STUDENT HAND-IN ACCEPT EVERY FILE TYPE, AND
+THERE IS NO ALLOWLIST ANYWHERE TO ADD ONE TO** (0133). The bytes go browser to
+a PRIVATE Supabase bucket against a signed upload URL our server mints, and
+come back through a short-lived signed download URL; the app carries the
+AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
+4 MiB to 200 MB and made a 60 MB SLDASM an ordinary hand-in.
+
+- **THREE PROPERTIES PAY FOR THE MISSING LIST, and if one is ever weakened the
+  PROPERTY comes back rather than the list.** The buckets are private (no
+  public URL exists for any object); every read is a signed URL carrying
+  `download=<name>`, so the response is `Content-Disposition: attachment` on
+  the SUPABASE origin and not ours; and every object is stored as
+  `application/octet-stream`. A bucket that refused `.exe` and served `.svg`
+  inline would have the safety exactly backwards. **`File.type` is never read
+  and never stored** -- it is a guess the uploader chooses, and it decides what
+  a browser does with the response.
+  - **CONSEQUENCE, AND IT IS DELIBERATE: a storage-backed image does not render
+    inline anywhere.** A posted diagram is a download row, not a thumbnail.
+    `INLINE_TYPES` still exists and now governs ONLY Drive-backed rows written
+    before 0133, which the old twelve-type allowlist had already filtered.
+    Adding a type there can only weaken the legacy path.
+- **THE KEY LAYOUT IS THE AUTHORIZATION.** `<owner_id>/<uuid>.<ext>`, where the
+  owner is the classroom item or the submission, and every storage policy reads
+  the FIRST PATH SEGMENT and asks the classroom's own existing predicate about
+  it (`classroom_can_read_item`, `_classroom_manages_item`,
+  `classroom_can_review_submission`). There is no second authorization model:
+  nothing about who may see a handout is restated in the migration.
+  `_classroom_storage_prefix_uuid` is the ONE reader of that layout and returns
+  NULL for anything that is not a bare uuid in segment 1, with every caller
+  written so NULL FAILS CLOSED.
+  - **NOTHING A PERSON TYPED APPEARS IN A KEY**, which takes filename
+    sanitization off the security surface entirely rather than making it
+    careful. The name goes in `filename`, verbatim, and is what every surface
+    shows. The extension is kept, lowercased, because it is the only part a
+    tool downstream reads.
+  - **AND THE WRITE RPC RE-CHECKS THAT THE KEY NAMES ITS OWN ROW.** The storage
+    policy answered a question about the OBJECT; the row is a second decision,
+    so a caller holding a key minted for one item cannot hang it off another.
+- **`drive_file_id` AND `storage_key` SIT SIDE BY SIDE WITH A CHECK THAT EXACTLY
+  ONE IS PRESENT, and nothing was backfilled.** A row is a storage row if and
+  only if `storage_key` is set; everything posted before 0133 keeps its Drive
+  handle and keeps serving through the same route, and the ONE place that
+  branches is the serve route. Do not write a migration that moves them: the
+  branch is cheaper than the move and the move can only lose bytes.
+- **ONE UPLOAD PATH AND ONE COMPONENT, BOTH SIDES.**
+  `$lib/classroom/file-upload.ts` does sign -> PUT -> record for an instructor
+  attachment and a student hand-in alike, gated by a `role` that changes only
+  the wording; `FileUploadPanel.svelte` is the picker, the per-file progress,
+  the per-file error and the Retry, mounted by ContentComposer (staged, uploads
+  on save), AssignmentEngine (immediate) and SpecRenderer per imageZone. **Two
+  implementations of "upload a file" is two sets of failure semantics** -- which
+  is precisely how the student side ended up with a loop that stopped at the
+  first failure and silently abandoned every file after it, with nothing left
+  staged to retry.
+- **NO `accept` ON A PLAIN PICKER, ON EITHER SIDE.** The ONE exemption is a
+  CAMERA button, which keeps `accept="image/*" capture="environment"` because
+  `capture` is what makes a phone open its camera at all and an unfiltered
+  capture input opens a file browser instead -- and it only ever sits BESIDE an
+  unfiltered picker, so it gates nothing. The deck zip input keeps `.zip`
+  because that is what the FEATURE consumes, not a policy about what a person
+  may hand in. `tests/classroom-attachment-mime.test.ts` sweeps for both.
+- **A REFUSAL NAMES ITS GATE AND "Upload failed" IS NEVER THE WHOLE MESSAGE.**
+  `$lib/classroom/upload-errors.ts` is the one vocabulary, shared by the sign
+  routes and the browser uploader: a size refusal states the size AND the
+  limit, an expired signed URL says the LINK is stale and the file is fine, an
+  RLS denial says whose permission was missing. **A TRANSIENT CONFLICT IS NOT A
+  REFUSAL** -- `classifyRpcError` whitelists the transient SQLSTATEs as
+  retryable and leaves every considered refusal alone, verbatim, because
+  retrying "Only a student enrolled in this class..." is how a UI asks the same
+  question five times.
+- **A FAILED FILE NEVER ABORTS THE POST, AND STAYS STAGED.** The item is
+  created first, every file is attempted, only what LANDED is cleared, and the
+  failure list names each one. Saving again retries exactly the rest.
+- **AN AVAILABILITY FLAG MUST NAME THE DEPENDENCY IT ACTUALLY HAS.**
+  `attachmentsEnabled` was `driveConfigured()`, which after 0133 would have
+  removed the file picker from every item and the hand-in from every assignment
+  on a deployment with no Google credentials, with the bucket sitting there
+  unused. Student-facing files are unconditional now;
+  `instructorAttachmentsEnabled` carries the Drive dependency ALONE, because
+  instructor-only material is the one classroom path still uploading through
+  the site (0133 gave it no bucket: its read rule is manager-only, so it cannot
+  share a prefix whose objects the whole class may read).
+- **A PUBLIC MATERIAL'S STORAGE-BACKED ATTACHMENT 404s, and that is a stated
+  gap.** `classroom_public_attachment` (0092) projects `drive_file_id` only and
+  the storage policies are `to authenticated`, so no signed URL can be minted
+  with no session. Everything already on a public material is Drive-backed and
+  unaffected. Closing it is a migration, not a rendering decision.
+
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
 **A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
@@ -1008,6 +1098,23 @@ with its own answer for the rows already stored.
     private function the whole file calls. Not `btrim(x, E' \t\n\r\f\v')`: an
     escape Postgres does not recognise in an `E''` string is kept as the bare
     LETTER, so that trim set silently also strips `v` from both ends.
+- **A LAZY "CREATE THE ROW IF IT IS MISSING" IS A RACE THE MOMENT ITS CALLER
+  BECOMES CONCURRENT.** `select ... ; if not found then insert` is correct under
+  one caller and wrong under two: READ COMMITTED gives each its own snapshot,
+  several read nothing, several insert, and the losers get a unique violation
+  the caller then has to interpret. **`on conflict (...) do nothing` plus a
+  RE-READ** is the fix, and the re-read is not tidiness -- `insert ...
+  returning ... into` leaves the target NULL when the conflict fires, so the
+  re-read is the branch that actually finds the winner's row. **RE-ASK ANY
+  STATE QUESTION AFTER IT**: between the first select and the insert the winner
+  may have changed the row's state, and the correct answer is then the ordinary
+  refusal rather than writing anyway. A count-then-insert is NOT the
+  alternative here -- there is no parent row to `for update` before the first
+  caller holds one -- so the unique index IS the serialization point and the
+  only question is who apologises for it. 0134 is this, exposed by 0133 making
+  the student file uploads concurrent (latent since 0086); the test that proves
+  it is a PAIRED measurement across two chains, because a burst that happens
+  not to overlap passes on the broken code too.
 - **A volatile expression like `now()` cannot appear in an index predicate**, so
   "currently active" cannot be a partial unique index on its own; pair
   `revoked_at is null` in the index with a lazily-stamped close on the row.
@@ -1124,6 +1231,16 @@ inside the function fails closed rather than falling through to a weaker path.
   Anything outside the allowlist is served `application/octet-stream` + `nosniff`.
   Prefer the STORED mime over the upstream's (Drive reports `.js` and `.json` as
   `text/plain`).
+- **SUPABASE'S SIGNED-URL `download` OPTION DOUBLE-ENCODES ANYTHING THAT NEEDS
+  ESCAPING.** The value is escaped into the URL's query string and escaped
+  AGAIN into the header, so `Estudio (final) café.SLDPRT` arrives as
+  `filename=Estudio%20%2528final%2529%20caf%25C3%25A9.SLDPRT` (`%2528` is an
+  encoded `%28`) and the browser saves a name full of literal percent escapes.
+  Measured: every name that was `[A-Za-z0-9.-]` came back clean and every other
+  one did not. **Hand it an ASCII-only value** (`downloadFilename` folds
+  diacritics rather than dropping them) and keep the real name in its own
+  column for display. This is not visible without fetching the URL and reading
+  the header.
 - **Cache a private proxied asset `private, max-age=60`** -- the bytes are
   immutable but WHO may read them is not.
 - **A long-running server job is STAGED and client-driven**, each stage bounded by
@@ -1131,8 +1248,16 @@ inside the function fails closed rather than falling through to a weaker path.
   (named deterministically) rather than repeating it. A serverless function has a
   duration limit that no amount of memory tuning addresses.
 - **A file the platform will not accept is refused BEFORE the request is made**,
-  with the same message the server would give (Vercel caps a serverless request
-  body at ~4.5 MB).
+  with the same message the server would give, and the message states the LIMIT
+  as well as the size -- "too large" with no number is a guessing game.
+  - **THE ~4.5 MB FIGURE THIS FILE CITES IS HISTORICAL.** Vercel now accepts
+    request bodies up to 100 MB, so on every path that still POSTs bytes to our
+    own function (the deck zip, instructor-only material) the binding limit is
+    the app's OWN constant and not the platform. Do not raise one of those
+    constants without measuring: they were chosen against the old cap, the
+    bytes are still buffered whole in the function, and the right answer for
+    anything large is the browser-to-bucket path in the classroom-files
+    section rather than a bigger buffer.
 - **Best-effort instrumentation must never be able to affect the thing it measures.**
   Telemetry, exports and analytics are wrapped so a throw, a batching bug or a network
   failure cannot crash or abort the run, the save, or the grade.
@@ -2445,6 +2570,19 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   in a real browser through it before finishing. Report what you verified.
   `svelte-check` passing is necessary but not sufficient. **Harness routes stay in
   the repo as regression tools.**
+- **A SIGNED-IN SURFACE CAN BE VERIFIED LOCALLY NOW, AND `/dev/login` IS HOW.**
+  Production sign-in is Google OAuth against a real Bosco Tech account, which
+  cannot happen against a local stack, so until this existed nothing behind a
+  session was checkable locally at all -- and anything gated on an unapplied
+  migration was checkable nowhere. It is a password sign-in through the SAME
+  browser Supabase client the app uses, so the session and cookies are the real
+  ones; it 404s in production and no Bosco Tech account has a password anyway.
+  The stack is `wsl -- bash -lc "cd /mnt/c/idea-app && supabase start"` (544xx,
+  see the toolchain traps), a migration is applied with
+  `docker exec -i supabase_db_idea-app psql -U postgres -d postgres < <file>`
+  exactly as it will be by hand, and users are made through the auth admin API.
+  **Point `.env` at the local stack for the pass and restore it byte-identically
+  afterwards (md5-check it), the way a mutation proof is restored.**
 - **A harness must mirror the whole mechanism it stands in for.** A harness missing
   a guard the real page has makes a passing drive prove nothing.
 - **Prefer measuring to reasoning.** Where a claim can be measured -- a width, a

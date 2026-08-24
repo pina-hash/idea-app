@@ -60,14 +60,19 @@
 			onProgress(i / steps);
 		}
 
-		// ALTERNATE fails every other file, which is the case the old student-side
-		// loop got wrong: it stopped at the first failure and abandoned the rest.
+		// ALTERNATE fails the files whose name ends in an ODD digit -- the case the
+		// old student-side loop got wrong: it stopped at the first failure and
+		// abandoned every file after it. Keyed on the NAME rather than on a
+		// counter, because the calls are concurrent and a counter makes which
+		// file fails depend on scheduling, which is the one thing a harness for a
+		// failure case must not do.
+		const trailing = Number(file.name.match(/(\d)(?=\.[^.]*$|$)/)?.[1] ?? 0);
 		const fails =
 			mode === 'too_large' ||
 			mode === 'expired' ||
 			mode === 'denied' ||
 			mode === 'not_configured' ||
-			(mode === 'alternate' && attempt % 2 === 1);
+			(mode === 'alternate' && trailing % 2 === 1);
 
 		if (!fails) {
 			landed = [...landed, { name: file.name, at: new Date().toLocaleTimeString() }];
