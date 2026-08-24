@@ -463,19 +463,92 @@ describe('the attachment row', () => {
 		expect(gone.orphaned).toBe(true);
 	});
 
-	test('exactly one overload of each widened RPC exists', async () => {
-		// Two overloads differing only by a defaulted trailing parameter make
-		// PostgREST unable to resolve the call at all, so this is the assertion
-		// that says the drop actually ran.
-		for (const name of ['classroom_add_attachment', 'classroom_add_submission_file']) {
-			const { rows } = await db.sql<{ n: string }>(
-				`select count(*)::text as n from pg_proc p
+	test('both arities of each widened RPC exist, and the wide one takes no defaults', async () => {
+		// GENERALIZED FROM "exactly one overload exists". That assertion was
+		// the right one while 0133 dropped the deployed arity; it stopped being
+		// the right one when 0133 became additive, and deleting it would have
+		// thrown away the only check standing between us and the PostgREST
+		// trap. The RULE it was standing in for is what is asserted now:
+		//
+		//   NO CALL MAY BE RESOLVABLE BY MORE THAN ONE OVERLOAD.
+		//
+		// Two overloads differing only by a DEFAULTED trailing parameter are
+		// exactly that failure -- a payload naming the narrow key set binds to
+		// both, and PostgREST refuses to choose. What separates them here is
+		// that the wide form declares no defaults, so the narrow key set can
+		// only reach the narrow form and the wide key set can only reach the
+		// wide one. Asserting the count alone would pass on the arrangement
+		// that breaks every upload.
+		for (const [name, narrow, wide] of [
+			[
+				'classroom_add_attachment',
+				'p_item_id uuid, p_drive_file_id text, p_filename text, p_mime_type text,' +
+					' p_size_bytes bigint',
+				'p_item_id uuid, p_drive_file_id text, p_filename text, p_mime_type text,' +
+					' p_size_bytes bigint, p_storage_key text'
+			],
+			[
+				'classroom_add_submission_file',
+				'p_item_id uuid, p_drive_file_id text, p_filename text, p_mime_type text,' +
+					' p_size_bytes bigint, p_block_id text, p_caption text',
+				'p_item_id uuid, p_drive_file_id text, p_filename text, p_mime_type text,' +
+					' p_size_bytes bigint, p_block_id text, p_caption text, p_storage_key text'
+			]
+		] as const) {
+			const { rows } = await db.sql<{
+				args: string;
+				nargs: number;
+				ndefaults: number;
+			}>(
+				`select pg_get_function_identity_arguments(p.oid) as args,
+				        p.pronargs::int as nargs,
+				        p.pronargdefaults::int as ndefaults
+				 from pg_proc p
 				 join pg_namespace n on n.oid = p.pronamespace
-				 where n.nspname = 'public' and p.proname = $1`,
+				 where n.nspname = 'public' and p.proname = $1
+				 order by p.pronargs`,
 				[name]
 			);
-			expect(Number(rows[0].n), `${name} overloads`).toBe(1);
+
+			expect(rows.map((r) => r.args), `${name} arities`).toEqual([narrow, wide]);
+
+			// The narrow form is 0085's/0086's exactly, trailing defaults and
+			// all, so a caller that omits p_size_bytes still resolves to it.
+			// The wide form must have none.
+			const wideRow = rows[rows.length - 1];
+			expect(wideRow.ndefaults, `${name}(${wide}) defaulted parameters`).toBe(0);
+			expect(wideRow.nargs, `${name} wide parameter count`).toBe(wide.split(',').length);
 		}
+	});
+
+	test('the deployed arity still writes a Drive-backed row, and still refuses a blank id', async () => {
+		// THE WHOLE POINT OF THE WRAPPER: the client running in production
+		// names these five keys and nothing else. If this ever stops working,
+		// applying 0133 takes uploads down until a deploy lands.
+		const created = await rpc<{ ok: boolean; attachment_id: string; drive_file_id: string }>(
+			teacherA.id,
+			`public.classroom_add_attachment($1::uuid, 'legacy-drive-xyz', 'handout.pdf', 'application/pdf', 4096)`,
+			[posted]
+		);
+		expect(created.ok).toBe(true);
+		expect(created.drive_file_id).toBe('legacy-drive-xyz');
+
+		const { rows } = await db.sql<{ storage_key: string | null; drive_file_id: string }>(
+			'select storage_key, drive_file_id from public.classroom_attachments where id = $1',
+			[created.attachment_id]
+		);
+		expect(rows[0].storage_key).toBeNull();
+		expect(rows[0].drive_file_id).toBe('legacy-drive-xyz');
+
+		// 0085's refusal text, verbatim, in 0085's position.
+		const err = await captureError(() =>
+			rpc(
+				teacherA.id,
+				`public.classroom_add_attachment($1::uuid, '  ', 'handout.pdf', 'application/pdf', 4096)`,
+				[posted]
+			)
+		);
+		expect(err.message).toBe('A Drive file id is required.');
 	});
 });
 

@@ -750,12 +750,46 @@ Two ways that bites, both seen here:
 Re-defaulting a parameter that already exists is NOT this trap and needs no drop.
 Assert `pg_proc` holds exactly one row for the function in the test.
 
+**THE EXCEPTION, AND IT IS THE ONE THAT MATTERS WHEN A CLIENT IS ALREADY
+DEPLOYED: where the RUNNING client calls the old arity, dropping it is not
+available, and the answer is to KEEP BOTH and remove the DEFAULTS from the wide
+one.** A drop and a deploy are mutually blocking -- apply first and every call
+breaks until the client ships, ship first and every call breaks until it is
+applied -- so there is no correct order, and the way out is that there is no
+drop. What makes the surviving pair safe is not the drop, it is that no payload
+can bind to both:
+
+- the WIDE form declares **no defaults at all** (Postgres forbids a required
+  parameter after a defaulted one, so this is all-or-nothing), which means the
+  old key set cannot reach it;
+- the NARROW form keeps its original signature verbatim, defaults included, and
+  has no parameter for the new key, so the new key set cannot reach it;
+- the narrow form becomes a THIN WRAPPER that calls through with the new
+  argument null, so there is still exactly one copy of the rule -- and it
+  re-raises its OWN original refusal text ahead of delegating, so a client that
+  has not been redeployed sees the errors it has always seen.
+
+The smallest call the wide form accepts is then strictly larger than the largest
+call the narrow one accepts, so the pair is unambiguous under ANY resolution
+rule rather than under a particular one. Assert that structurally -- both
+arities present, `pronargdefaults = 0` on the wide one -- not just the count: a
+count of two passes on exactly the arrangement that breaks every call. Removing
+a default through `create or replace` is REFUSED by Postgres, so the wide form
+is `drop function`ed at its OWN exact (new) signature first, which keeps the
+file re-appliable over a machine that took an earlier draft.
+
 ### DEPLOY ORDERING
 
 **Apply a migration by hand BEFORE deploying a client that names a new
 parameter.** The drops mean the old arities stop existing the moment it runs and
 the new ones do not exist until it does. Where the client can degrade instead, it
 names the new parameter ONLY when the feature is actually being used.
+
+**Where the widening is ADDITIVE in the sense above, there is no ordering at
+all** -- both arities answer throughout, so the migration and the deploy are
+independent events and either may go first. Prefer that shape for any RPC a
+deployed client already calls; the ordering rule above is what you are left with
+when you cannot have it.
 
 **A VALIDATION GATE WIDENS IN ITS OWN BUNDLE, BEFORE ANYTHING CAN EMIT THE WIDER
 SHAPE, and the asymmetry is the whole argument.** A gate accepting a shape

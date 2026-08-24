@@ -103,17 +103,31 @@ grant execute on function public.classroom_open_submission(uuid) to authenticate
 -- ---------------------------------------------------------------------------
 -- The same four lines inside the write RPC. Re-signed at 0133's arity, with
 -- every other check diffed against that file rather than remembered.
+--
+-- NO DEFAULTS, FOR 0133'S REASON, NOT AS A STYLE CHOICE. 0133 leaves both the
+-- deployed 7-argument form and this widened 8-argument one in place, and what
+-- keeps that pair resolvable is that the wide one requires every argument. A
+-- `default null` restored on any parameter here would re-create exactly the
+-- ambiguous pair 0133 went to trouble to avoid, from a file that reads like it
+-- only touches a race. The 7-argument wrapper 0133 created is NOT re-created
+-- here and does not need to be: it delegates, so it picks up this body.
+--
+-- The drop names the 8-argument form only, so this file re-pastes over a
+-- machine that took 0133's earlier draft (Postgres refuses to remove a
+-- parameter default through `create or replace`).
 -- ---------------------------------------------------------------------------
+
+drop function if exists public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text, text);
 
 create or replace function public.classroom_add_submission_file(
 	p_item_id uuid,
-	p_drive_file_id text default null,
-	p_filename text default null,
-	p_mime_type text default null,
-	p_size_bytes bigint default null,
-	p_block_id text default null,
-	p_caption text default null,
-	p_storage_key text default null
+	p_drive_file_id text,
+	p_filename text,
+	p_mime_type text,
+	p_size_bytes bigint,
+	p_block_id text,
+	p_caption text,
+	p_storage_key text
 )
 returns jsonb
 language plpgsql
@@ -225,14 +239,28 @@ grant execute on function public.classroom_add_submission_file(uuid, text, text,
 do $$
 declare
 	v_overloads integer;
+	v_defaulted integer;
 	v_dupes integer;
 begin
+	-- 0133 leaves TWO arities: the deployed 7-argument form and the widened
+	-- 8-argument one. Both must still be here, and the widened one must still
+	-- carry no defaults -- this file re-created it, so this file is where that
+	-- could have been undone.
 	select count(*) into v_overloads from pg_proc p
 	join pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = 'classroom_add_submission_file';
-	if v_overloads <> 1 then
-		raise exception '0134: classroom_add_submission_file has % overloads, expected 1. Apply 0133 first.', v_overloads;
+	if v_overloads <> 2 then
+		raise exception '0134: classroom_add_submission_file has % overload(s), expected 2. Apply 0133 first.', v_overloads;
 	end if;
+
+	select count(*) into v_defaulted from pg_proc p
+	join pg_namespace n on n.oid = p.pronamespace
+	where n.nspname = 'public' and p.proname = 'classroom_add_submission_file'
+		and p.pronargs = 8 and p.pronargdefaults > 0;
+	if v_defaulted <> 0 then
+		raise exception '0134: the 8-argument classroom_add_submission_file declares defaults; that is the ambiguous pair 0133 avoids.';
+	end if;
+	raise notice '0134: classroom_add_submission_file has 2 arities; the widened one declares no defaults.';
 
 	-- The constraint this race collided with must still be there: it is what
 	-- makes `on conflict (item_id, student_email)` legal at all.
