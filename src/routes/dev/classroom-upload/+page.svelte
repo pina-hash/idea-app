@@ -33,7 +33,15 @@
 
 	const ITEM_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 
-	type Mode = 'ok' | 'slow' | 'too_large' | 'expired' | 'denied' | 'not_configured' | 'alternate';
+	type Mode =
+		| 'ok'
+		| 'slow'
+		| 'too_large'
+		| 'too_large_one'
+		| 'expired'
+		| 'denied'
+		| 'not_configured'
+		| 'alternate';
 
 	let mode = $state<Mode>('ok');
 	let role = $state<'attachment' | 'submission'>('attachment');
@@ -72,7 +80,7 @@
 			mode === 'expired' ||
 			mode === 'denied' ||
 			mode === 'not_configured' ||
-			(mode === 'alternate' && trailing % 2 === 1);
+			((mode === 'alternate' || mode === 'too_large_one') && trailing % 2 === 1);
 
 		if (!fails) {
 			landed = [...landed, { name: file.name, at: new Date().toLocaleTimeString() }];
@@ -83,7 +91,14 @@
 			};
 		}
 
-		if (mode === 'too_large') {
+		// THE ONE-OVERSIZED-FILE CASE, which the all-or-nothing modes cannot
+		// express: a hand-in where a good file and a file over the cap are
+		// staged together. Keyed on the trailing digit like `alternate`, so
+		// which file fails is a property of the NAME rather than of the order
+		// concurrent calls happen to finish in. The refusal is the real
+		// `tooLarge`, so the sentence under the file is the one a real 200 MB
+		// refusal produces, limit and all.
+		if (mode === 'too_large' || mode === 'too_large_one') {
 			return { ok: false, ...tooLarge(file.size * 500, CLASSROOM_UPLOAD_MAX_BYTES) };
 		}
 		const gate = mode === 'alternate' ? 'denied' : GATE_FOR[mode];
@@ -111,6 +126,7 @@
 		['slow', 'lands slowly (watch progress)'],
 		['alternate', 'every other file is refused'],
 		['too_large', 'size refusal'],
+		['too_large_one', 'one file is too large, the rest land'],
 		['expired', 'expired signed URL'],
 		['denied', 'RLS denial'],
 		['not_configured', 'bucket missing']
