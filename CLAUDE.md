@@ -435,14 +435,28 @@ same Vercel project and the same deployment as `ideabosco.com`.
   `student_app_files` for that exact version and that exact string, so path
   traversal has nothing to traverse to and nothing is ever resolved against a
   filesystem.
-- **`/r/{token}/` KEEPS ITS TRAILING SLASH.** `/r/<token>` has `/r/` as its base
-  URL, so every relative asset in every bundle would resolve outside the bundle.
-  The mint and the harness only ever hand out the slash form, and the hook now
-  REFUSES the slashless one outright, so the route's own `trailingSlash =
-  'ignore'` plus its 307 to the slash form are a second layer rather than the
-  live path. Refusing it also closed a small oracle: the route verified the
-  token BEFORE redirecting, so a good token answered 307 where a bad one
-  answered 404.
+- **`/r/{token}/` KEEPS ITS TRAILING SLASH, AND THE SLASHLESS FORM IS
+  REDIRECTED, NEVER REFUSED.** `/r/<token>` has `/r/` as its base URL, so every
+  relative asset in every bundle would resolve outside the bundle -- which is
+  why the entry is never SERVED at the slashless spelling. But the frame
+  requests the bundle ROOT and nothing else, so **the slashless form is the one
+  shape the whole system has to survive**: anything that normalizes a trailing
+  slash anywhere between the browser and the function delivers it.
+  `isFoundryProxyPath` used to refuse it outright, which meant a bodyless 404
+  with the database never consulted, and a blank frame for every published app.
+  **A path that names a non-empty token is allowed through even with no slash**;
+  what stays refused is every shape naming no token at all (`/r`, `/r/`,
+  `/r//...`), which are the ones that used to reach the router.
+  - **THE 307 RUNS BEFORE THE TOKEN IS VERIFIED, and that is what closes the
+    oracle** the old refusal was standing in for: verifying first made a good
+    token answer 307 where a garbage one answered 404, the one place on that
+    host where two outcomes did not look alike. Redirecting first makes every
+    slashless root answer 307 and judges the token on the request that follows.
+  - **THE TEST HAS TO DRIVE THE HOOK AND THE ROUTE TOGETHER.** Handing `params`
+    straight to the route skips `appsHostAllows`, which is where this lived, and
+    that is why a suite with a bundle-root test in it stayed green for the whole
+    life of the bug. `tests/foundry-proxy.test.ts` composes the real
+    `foundryHostBranch` with the real handler and asserts all three spellings.
 - **THE TWO HOSTS ASK DIFFERENT QUESTIONS, AND THAT IS TWO PREDICATES RATHER
   THAN TWO COPIES OF ONE.** `appsHostAllows` is the SHAPE the proxy serves
   (`/r/{token}/{path}`, `/_platform/*`) and governs the apps host, so nothing

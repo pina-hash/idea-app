@@ -90,9 +90,28 @@ export const load: PageServerLoad = async ({ url }) => {
 		frameSrc: at(good),
 		cases: [
 			{
-				label: 'valid token, entry file',
+				label: 'valid token, bare prefix WITH its slash (what the frame asks for)',
 				expect: 'serves the hostile probe page',
 				url: at(good)
+			},
+			{
+				/*
+				 * THE SHAPE THAT BLANKED EVERY PUBLISHED APP, kept here as a case
+				 * rather than only as a unit test. The frame asks for the bare
+				 * prefix and nothing else; anything that normalizes the trailing
+				 * slash away turns that into this, and the hook used to answer it
+				 * with a bodyless 404. A regression here is invisible in the frame
+				 * above -- it renders fine until the slash is gone -- so the
+				 * slashless spelling has to be a case somebody can click.
+				 */
+				label: 'valid token, bare prefix WITHOUT its slash',
+				expect: '307 to the slash form, which then serves the probe page',
+				url: `${base}${FOUNDRY_PROXY_PREFIX}/${good}`
+			},
+			{
+				label: 'valid token, entry file named explicitly',
+				expect: 'serves the hostile probe page',
+				url: at(good, 'index.html')
 			},
 			{
 				label: 'valid token, a real relative asset',
