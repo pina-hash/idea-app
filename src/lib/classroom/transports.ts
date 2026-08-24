@@ -47,6 +47,7 @@ import {
 import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
 import { postFormWithProgress } from './upload-progress';
+import { uploadClassroomFile } from './file-upload';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -311,23 +312,27 @@ export async function itemsForSection(
 	};
 }
 
+/**
+ * THE INSTRUCTOR HALF OF THE ONE UPLOAD PATH.
+ *
+ * There is deliberately almost nothing here: sign, PUT, record, and the
+ * classification of whatever went wrong all live in $lib/classroom/file-upload,
+ * which the STUDENT half calls too. This used to be a multipart POST that put
+ * the whole file through our own serverless function on its way to Drive --
+ * which is where the 4 MB ceiling came from, and why a `.SLDPRT` was refused
+ * for its type. Neither is true any more.
+ */
 async function uploadAttachment(
 	itemId: string,
 	file: File,
 	onProgress?: (fraction: number) => void
 ): Promise<TxResult<undefined>> {
-	const form = new FormData();
-	form.set('file', file, file.name);
-	form.set('item_id', itemId);
-	try {
-		const { status, body } = await postFormWithProgress('/api/classroom/attachment', form, onProgress);
-		if (status < 200 || status >= 300) {
-			return { ok: false, message: (body?.error as string | undefined) ?? `Upload failed (${status}).` };
-		}
-		return { ok: true, data: undefined };
-	} catch (e) {
-		return { ok: false, message: (e as Error).message || 'Upload failed.' };
-	}
+	const res = await uploadClassroomFile({ role: 'attachment', itemId, file, onProgress });
+	// The message already NAMES its gate (size and the limit, an expired link,
+	// a refusal). It is rendered verbatim; nothing here re-tones it.
+	return res.ok
+		? { ok: true, data: undefined }
+		: { ok: false, message: res.message, gate: res.gate, retryable: res.retryable };
 }
 
 async function deleteAttachment(id: string): Promise<TxResult<undefined>> {
@@ -869,26 +874,26 @@ export function createEngineTransports(supabase: SupabaseClient): AssignmentEngi
 			if (error) return fail(error);
 			return opResult(res);
 		},
+		/**
+		 * THE STUDENT HALF, AND IT IS THE SAME FUNCTION. What used to be a
+		 * second multipart POST with its own error wording is now one call into
+		 * $lib/classroom/file-upload with `role: 'submission'` -- so a hand-in
+		 * and a handout cannot end up describing the same refusal differently,
+		 * and a 60 MB assembly is as ordinary here as it is there.
+		 */
 		async uploadSubmissionFile(itemId, file, blockId = null, caption = null, onProgress) {
-			const form = new FormData();
-			form.set('file', file, file.name);
-			form.set('item_id', itemId);
-			if (blockId) form.set('block_id', blockId);
-			if (caption) form.set('caption', caption);
-			try {
-				const { status, body: raw } = await postFormWithProgress(
-					'/api/classroom/submission-file',
-					form,
-					onProgress
-				);
-				const body = raw as { error?: string; reason?: string; file?: SubmissionFileRow } | null;
-				if (status < 200 || status >= 300) {
-					return { ok: false, message: body?.error ?? `Upload failed (${status}).` };
-				}
-				return { ok: true, data: { file: body?.file, reason: body?.reason } };
-			} catch (e) {
-				return { ok: false, message: (e as Error).message || 'Upload failed.' };
+			const res = await uploadClassroomFile({
+				role: 'submission',
+				itemId,
+				file,
+				blockId,
+				caption,
+				onProgress
+			});
+			if (!res.ok) {
+				return { ok: false, message: res.message, gate: res.gate, retryable: res.retryable };
 			}
+			return { ok: true, data: { file: res.row as SubmissionFileRow | undefined } };
 		},
 		async deleteSubmissionFile(fileId) {
 			try {

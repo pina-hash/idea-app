@@ -1,74 +1,191 @@
 /**
- * Classroom attachments: the media-type policy and the Drive naming, shared by
- * the upload route and the serving proxy. Server-only ($lib/server, so none of
- * this can be bundled into the client) -- the caps and allowlists here are
- * enforcement, not advice.
+ * Classroom attachments: WHERE the bytes go, WHAT a key looks like, and the
+ * one content type anything uploaded is ever stored or served as.
  *
- * The BYTES live in the school's Google shared drive through the existing
- * notebook Drive module (one OAuth egress point, one token cache,
- * supportsAllDrives on every call), in a CLASSROOM SUBFOLDER of the notebook
- * folder so the admin browsing that folder by eye is not looking at student
- * notebook pages and lesson handouts interleaved.
+ * Server-only ($lib/server, so none of this can be bundled into the client).
+ *
+ * ---------------------------------------------------------------------------
+ * THERE IS NO TYPE ALLOWLIST HERE ANY MORE, AND THAT IS THE POINT.
+ *
+ * This module used to hold two twelve-entry maps -- one keyed on `File.type`,
+ * one on the filename extension -- and refuse anything outside them. It was
+ * written for a world where the bytes were served back FROM THE APP'S OWN
+ * ORIGIN, where a `text/html` response runs as same-origin script and an SVG
+ * is that same problem wearing an image extension. In that world the list was
+ * the whole of the defence, so it had to be narrow.
+ *
+ * It also refused `.SLDPRT`, `.SLDASM`, `.STEP`, `.DXF`, `.f3d`, `.dwg`,
+ * `.ino` and every archive -- which is to say, essentially everything an
+ * engineering class actually produces. A student handing in a CAD part was
+ * told their file "must be an image, PDF, text, CSV, or an Office document".
+ *
+ * The world changed with 0133. Bytes now live in a PRIVATE Supabase bucket,
+ * they are read back through a short-lived signed URL on a DIFFERENT ORIGIN,
+ * that URL carries `Content-Disposition: attachment`, and every object is
+ * stored as `application/octet-stream`. Nothing a person uploaded is rendered
+ * inline by us, anywhere. THAT is what makes the type list unnecessary rather
+ * than merely inconvenient, and it is why removing the list is safe here and
+ * would not have been before. If any of those three properties is ever
+ * weakened, the list does not come back -- the property does.
+ *
+ * ---------------------------------------------------------------------------
+ * ONE CONTENT TYPE, ALWAYS, AND IT IS NOT THE BROWSER'S GUESS.
+ *
+ * `File.type` is a guess: it comes from the OS's extension mapping, it is
+ * REQUIRED to be empty when the platform has no mapping (the HEIC-off-an-
+ * iPhone lesson), and it is chosen by whoever is uploading. Storing it would
+ * mean a person picks the content type a browser later sees. So nothing here
+ * reads it. Every object is stored and served as octet-stream, and the
+ * original filename -- which IS worth keeping, verbatim -- rides in its own
+ * column and is what a person sees in a list.
  */
 
 import { ensureDriveSubfolder } from './notebook-drive';
+import { randomUUID } from 'node:crypto';
 
-/** Vercel serverless rejects request bodies past ~4.5 MB; stay safely under. */
-export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+// ---------------------------------------------------------------------------
+// The storage path (0133)
+// ---------------------------------------------------------------------------
+
+export const CLASSROOM_ATTACHMENTS_BUCKET = 'classroom-attachments';
+export const SUBMISSION_FILES_BUCKET = 'submission-files';
+
+/**
+ * 200 MiB, matching `file_size_limit` on both buckets in 0133.
+ *
+ * Duplicated in the sense that Storage enforces it too -- deliberately. The
+ * bucket limit is the BOUNDARY and cannot be talked past; this constant exists
+ * so a 300 MB pick can be refused in the browser, before a person waits out an
+ * upload that was never going to land. The two are asserted equal in
+ * tests/classroom-attachment-mime.test.ts.
+ */
+export const MAX_STORAGE_BYTES = 209715200;
+
+/**
+ * THE ONE CONTENT TYPE. See the header. Never `file.type`, never a lookup, and
+ * never a per-file decision.
+ */
+export const STORAGE_CONTENT_TYPE = 'application/octet-stream';
+
+/** How long a download URL lives. Long enough to click, short enough that a
+ *  copied link is not a permanent grant -- WHO may read an object changes
+ *  (an item is unpublished, a student transfers) and a signed URL cannot be
+ *  withdrawn inside its own lifetime. */
+export const DOWNLOAD_URL_TTL_SECONDS = 120;
+
+/** How long the browser has to start the upload after the URL is minted. */
+export const UPLOAD_URL_TTL_SECONDS = 2 * 60 * 60;
+
+/**
+ * The lowercased extension of a filename, WITHOUT the dot, or '' when there is
+ * none. Deliberately tolerant: a file with no extension at all is a perfectly
+ * ordinary thing to hand in (a Makefile, a `.gitignore`, a dumped log), and it
+ * is not this function's business to have an opinion about it.
+ *
+ * Bounded at 12 characters because it becomes part of a storage key and an
+ * unbounded tail is somebody's idea of a path.
+ */
+export function fileExtension(filename: string | null | undefined): string {
+	const m = (filename ?? '').toLowerCase().match(/\.([a-z0-9]{1,12})$/);
+	return m ? m[1] : '';
+}
+
+/**
+ * THE STORAGE KEY, and it is OPAQUE ON PURPOSE.
+ *
+ *   <owner_id>/<uuid>.<ext>
+ *
+ * The owner id is the classroom item (attachments) or the submission
+ * (hand-ins), and 0133's policies read exactly that first segment to decide
+ * who may write and who may read. Everything after it is a fresh uuid.
+ *
+ * NOTHING A PERSON TYPED APPEARS IN A KEY. That is what takes filename
+ * sanitization off the security surface entirely rather than making it
+ * careful: there is no traversal to escape, no encoding to get wrong, no
+ * accent to normalize, no collision between two people's `report.pdf`. The
+ * name they typed is stored beside the key and is what they see.
+ *
+ * The extension is kept because it is the only part of a name that a tool
+ * downstream reads, and losing it means a downloaded `.SLDPRT` opens in
+ * nothing. It is lowercased; the DISPLAY name keeps its original case.
+ */
+export function storageObjectKey(ownerId: string, filename: string): string {
+	const ext = fileExtension(filename);
+	return `${ownerId}/${randomUUID()}${ext ? `.${ext}` : ''}`;
+}
+
+/**
+ * The `download` value handed to `createSignedUrl`, which is what turns the
+ * response into `Content-Disposition: attachment`.
+ *
+ * IT IS ASCII-ONLY, AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE.
+ * The first version passed the name through almost untouched -- spaces,
+ * parentheses and accents included -- on the reasoning that the name somebody
+ * typed is the name they should get back. Measured against a real Supabase
+ * project, `Estudio (final) café.SLDPRT` came back as
+ *
+ *   content-disposition: attachment; filename=Estudio%20%2528final%2529%20caf%25C3%25A9.SLDPRT
+ *
+ * `%2528` is a percent-encoded `%28`: the value is encoded on its way into the
+ * signed URL's query string and encoded AGAIN on its way into the header, so a
+ * browser saves the file with literal percent escapes in its name. Every
+ * fixture whose name was `[A-Za-z0-9.-]` came back clean; every one that was
+ * not came back mangled. The two encoding layers are not ours to fix, so what
+ * is ours is to hand over a value that survives both.
+ *
+ * WHAT IS LOST IS ONLY THE SAVED FILENAME, and only its punctuation. The name
+ * the person typed is stored verbatim in `filename` and is what every surface
+ * in the app shows them -- which is the half that matters and the half the
+ * opaque storage key exists to protect. Diacritics are folded to their base
+ * letters rather than dropped (`café` -> `cafe`, not `caf_`), because a
+ * transliteration is still readable and a hole is not.
+ */
+export function downloadFilename(filename: string | null | undefined): string {
+	const cleaned = (filename ?? '')
+		// Fold diacritics: decompose, then drop the combining marks.
+		.normalize('NFD')
+		.replace(/[̀-ͯ]/g, '')
+		// Everything a browser or a header would have to escape becomes one
+		// underscore. Spaces, parentheses, quotes, both path separators and every
+		// control character are all in here by construction rather than by name.
+		.replace(/[^A-Za-z0-9._-]+/g, '_')
+		.replace(/_{2,}/g, '_')
+		.replace(/^_+|_+$/g, '')
+		.slice(0, 200);
+	return cleaned || 'download';
+}
+
+// ---------------------------------------------------------------------------
+// The Drive path, which is now LEGACY READS plus one live writer
+// ---------------------------------------------------------------------------
+
+/**
+ * The cap on anything still travelling THROUGH the function to Drive.
+ *
+ * This is a platform number, not a policy one: those bytes are buffered whole
+ * in a serverless request. It applies to exactly one live upload path now --
+ * instructor-only material (`/api/classroom/instructor-attachment`), which
+ * 0133 did not give a bucket because its read rule is manager-only and it
+ * therefore cannot share the `classroom-attachments` prefix. Student-facing
+ * attachments and hand-ins no longer touch it.
+ */
+export const MAX_DRIVE_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
 /** The subfolder created (once) inside the notebook folder. */
 export const CLASSROOM_FOLDER_NAME = 'IDEA Classroom attachments';
 
 /**
- * What a teacher may upload. Deliberately broader than the notebook's
- * image-only set (a handout is a PDF far more often than a photo) and
- * deliberately narrower than "anything": no SVG (it is a script container that
- * a browser will happily execute when served inline), no HTML, no archives, no
- * executables.
- */
-const UPLOAD_TYPES: Record<string, string> = {
-	'image/jpeg': 'jpg',
-	'image/png': 'png',
-	'image/webp': 'webp',
-	'image/gif': 'gif',
-	'image/heic': 'heic',
-	'image/heif': 'heif',
-	'application/pdf': 'pdf',
-	'text/plain': 'txt',
-	'text/csv': 'csv',
-	'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-	'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx'
-};
-
-/**
- * The same allowlist keyed by extension, for a file the platform could not
- * type. `File.type` is REQUIRED to be empty when the OS has no mapping (the
- * notebook's readPhotoForm lesson, learned on real iPhone HEICs), so keying on
- * it alone rejects perfectly good uploads.
- */
-const EXT_TYPES: Record<string, string> = {
-	jpg: 'image/jpeg',
-	jpeg: 'image/jpeg',
-	png: 'image/png',
-	webp: 'image/webp',
-	gif: 'image/gif',
-	heic: 'image/heic',
-	heif: 'image/heif',
-	pdf: 'application/pdf',
-	txt: 'text/plain',
-	csv: 'text/csv',
-	docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-	xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-	pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-};
-
-/**
- * What the proxy will echo back under its own declared type AND render inline.
- * Everything else is served as application/octet-stream with a download
- * disposition, because these bytes come from the app's own origin: a response
- * typed text/html there would run as same-origin script, and an inline SVG is
- * the same problem wearing an image extension.
+ * What the DRIVE proxy will echo back under its own declared type and render
+ * inline. This set is now about ONE thing only: attachments posted before
+ * 0133, which were filtered by the old twelve-type allowlist on the way in and
+ * are therefore known to be images and PDFs. It is what keeps every handout
+ * already on a class page rendering exactly as it does today.
+ *
+ * IT DOES NOT APPLY TO ANYTHING NEW. A storage-backed object is served by
+ * Supabase, on another origin, as octet-stream with an attachment
+ * disposition, and never passes through here. Do not add to this set to make
+ * a new type render inline -- that is the property the missing allowlist is
+ * paid for by.
  */
 export const INLINE_TYPES: ReadonlySet<string> = new Set([
 	'image/jpeg',
@@ -88,45 +205,40 @@ export function isPreviewableImage(mime: string): boolean {
 export interface AttachmentField {
 	file: File;
 	ext: string;
-	/** Store the bytes under THIS, never `file.type` (see EXT_TYPES above). */
+	/** ALWAYS octet-stream. See the header. */
 	mimeType: string;
 	filename: string;
 }
 
-function resolveMime(file: File): { ext: string; mimeType: string } | null {
-	const declared = file.type.trim().toLowerCase();
-	const byType = UPLOAD_TYPES[declared];
-	if (byType) return { ext: byType, mimeType: declared };
-	const ext = file.name?.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
-	const mimeType = ext ? EXT_TYPES[ext] : undefined;
-	if (mimeType) return { ext: UPLOAD_TYPES[mimeType], mimeType };
-	return null;
-}
-
-/** Validates the "file" form field: present, non-empty, capped, allowed type. */
+/**
+ * Validates the "file" form field on the one remaining multipart upload:
+ * present, non-empty, and inside the Drive-path size cap.
+ *
+ * THE TYPE CHECK IS GONE. What used to live here refused a file for what it
+ * was; nothing does now, on either side. A `.SLDPRT`, a `.zip`, a file with no
+ * extension at all and a file the browser could not type all pass, and are all
+ * stored and served as octet-stream.
+ */
 export function readAttachmentForm(form: FormData): AttachmentField | { error: string; status: number } {
 	const file = form.get('file');
 	if (!(file instanceof File) || file.size === 0) {
 		return { error: 'Attach a file as the "file" form field.', status: 400 };
 	}
-	if (file.size > MAX_ATTACHMENT_BYTES) {
+	if (file.size > MAX_DRIVE_ATTACHMENT_BYTES) {
 		return {
-			error: `Attachments are capped at ${Math.floor(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB.`,
+			error:
+				`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. Instructor-only files are ` +
+				`capped at ${Math.floor(MAX_DRIVE_ATTACHMENT_BYTES / 1024 / 1024)} MB because they ` +
+				'still upload through the site. Student-facing files on this item are not.',
 			status: 413
 		};
 	}
-	const resolved = resolveMime(file);
-	if (!resolved) {
-		return {
-			error: 'Attachments must be an image, PDF, text, CSV, or an Office document.',
-			status: 400
-		};
-	}
+	const ext = fileExtension(file.name);
 	// A pasted screenshot arrives as a blob with a generic name ("image.png" or
 	// nothing at all); give it something a teacher can recognise in a list.
 	const raw = (file.name ?? '').trim();
-	const filename = raw && raw !== 'blob' ? raw.slice(0, 300) : `pasted-image.${resolved.ext}`;
-	return { file, ext: resolved.ext, mimeType: resolved.mimeType, filename };
+	const filename = raw && raw !== 'blob' ? raw.slice(0, 300) : `pasted-image.${ext || 'png'}`;
+	return { file, ext, mimeType: STORAGE_CONTENT_TYPE, filename };
 }
 
 /** The classroom subfolder id, created on first use. */
@@ -135,9 +247,10 @@ export function classroomFolderId(): Promise<string> {
 }
 
 /**
- * Student submission files get their OWN subfolder beside the handouts one --
- * the same "not interleaved when browsed by eye" doctrine that split classroom
- * attachments off the notebook pages in the first place.
+ * Student submission files got their OWN subfolder beside the handouts one.
+ * Nothing writes here since 0133 -- hand-ins go to the `submission-files`
+ * bucket -- but the folder and this helper stay for the rows that are already
+ * in it.
  */
 export const SUBMISSIONS_FOLDER_NAME = 'IDEA Classroom submissions';
 
@@ -154,6 +267,8 @@ export function submissionsFolderId(): Promise<string> {
  * handouts folder (rather than merely a different upload flow writing into
  * the same place) is what makes an admin browsing by eye unable to confuse
  * the two.
+ *
+ * THIS IS THE ONE PATH STILL WRITING TO DRIVE. See MAX_DRIVE_ATTACHMENT_BYTES.
  */
 export const INSTRUCTOR_MATERIALS_FOLDER_NAME = 'Instructor only';
 
@@ -198,5 +313,5 @@ export function attachmentDriveFilename(opts: {
 		slug(opts.ownerKind, 12, 'item'),
 		slug(stem, 40, 'file'),
 		opts.shortId
-	].join('_') + `.${opts.ext}`;
+	].join('_') + (opts.ext ? `.${opts.ext}` : '');
 }

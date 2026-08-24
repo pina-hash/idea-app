@@ -13,6 +13,7 @@
 
 import { formatSectionLabel } from '$lib/section-label';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
+import type { UploadGate } from '$lib/classroom/upload-errors';
 
 // ---------------------------------------------------------------------------
 // Row types (mirroring 0085's tables; embeds normalized by the helpers below)
@@ -505,13 +506,20 @@ export function resolveFigureSrc(
 	return { ok: true, src: ref, attachmentId: null };
 }
 
-/** A staged (not yet uploaded) file the composer can preview inline. */
+/**
+ * A staged (not yet uploaded) file a composer can preview inline.
+ *
+ * KEYED ON THE FILENAME EXTENSION ALONE. It used to read `File.type` first and
+ * fall back to the extension only for an empty one -- which was the right shape
+ * when a type allowlist decided what could be uploaded at all. Nothing branches
+ * on an uploaded file's type any more (0133: every object is stored and served
+ * as octet-stream, so there is no type to branch on and no gate to inform), and
+ * `File.type` is legitimately EMPTY for the most common camera output anyway.
+ * An extension that turns out not to decode simply shows no thumbnail, from the
+ * img element's own onerror; nothing is refused either way.
+ */
 export function isPreviewableFile(file: File): boolean {
-	const type = (file.type ?? '').toLowerCase();
-	if (type.startsWith('image/')) return true;
-	// A camera capture can legitimately carry an EMPTY type (the File API
-	// requires it when the platform cannot tell) -- the notebook's HEIC lesson.
-	return type === '' && /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name ?? '');
+	return /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i.test(file.name ?? '');
 }
 
 export function formatBytes(size: number | null | undefined): string {
@@ -537,9 +545,20 @@ const MIME_KIND_LABELS: [prefix: string, label: string][] = [
 	['video/', 'VIDEO'],
 	['audio/', 'AUDIO']
 ];
-/** Filename extension -> the same badge, for a file whose mime type is empty
- *  or generic (application/octet-stream) -- the notebook camera lesson: a
- *  browser can legitimately fail to type a file. */
+/**
+ * Filename extension -> the same badge.
+ *
+ * THIS IS NOW THE PRIMARY PATH, NOT THE FALLBACK. Since 0133 every uploaded
+ * object is STORED as application/octet-stream -- never the browser's guess --
+ * so the mime map above answers for Drive-backed rows written before it and
+ * this map answers for everything since. Which means an extension missing here
+ * is not a rare edge, it is a file reading "FILE" on a class page.
+ *
+ * The CAD and maker formats are here because they are what an engineering class
+ * actually hands in, and the platform refused every one of them until 0133.
+ * A badge is DISPLAY ONLY: nothing is gated on it, nothing is served from it,
+ * and an extension nobody listed still uploads and still downloads.
+ */
 const EXT_KIND_LABELS: Record<string, string> = {
 	pdf: 'PDF',
 	doc: 'DOC',
@@ -550,11 +569,46 @@ const EXT_KIND_LABELS: Record<string, string> = {
 	ppt: 'PPT',
 	pptx: 'PPT',
 	zip: 'ZIP',
+	'7z': 'ZIP',
+	rar: 'ZIP',
 	txt: 'TXT',
+	md: 'TXT',
+	log: 'TXT',
 	mp4: 'VIDEO',
 	mov: 'VIDEO',
 	mp3: 'AUDIO',
-	wav: 'AUDIO'
+	wav: 'AUDIO',
+	// SolidWorks, which is what GAUNTLET and the design classes run.
+	sldprt: 'CAD',
+	sldasm: 'CAD',
+	slddrw: 'CAD',
+	// Neutral interchange, and the two the school's other tools emit.
+	step: 'CAD',
+	stp: 'CAD',
+	iges: 'CAD',
+	igs: 'CAD',
+	x_t: 'CAD',
+	f3d: 'CAD',
+	f3z: 'CAD',
+	ipt: 'CAD',
+	iam: 'CAD',
+	// Drawings.
+	dwg: 'CAD',
+	dxf: 'CAD',
+	// Print and mesh.
+	stl: 'MESH',
+	obj: 'MESH',
+	'3mf': 'MESH',
+	gcode: 'MESH',
+	// Firmware and code a robotics class hands in.
+	ino: 'CODE',
+	py: 'CODE',
+	cpp: 'CODE',
+	h: 'CODE',
+	java: 'CODE',
+	js: 'CODE',
+	ts: 'CODE',
+	json: 'CODE'
 };
 
 /**
@@ -1188,7 +1242,17 @@ export function parseSectionRosterCsv(
 // never throws -- so a surface renders refusals inline.
 // ---------------------------------------------------------------------------
 
-export type TxResult<T = undefined> = { ok: true; data: T } | { ok: false; message: string };
+/**
+ * A transport's answer. The failure branch carries two OPTIONAL extras that
+ * only the file-upload transports set (0133): `gate` names WHICH refusal this
+ * was -- a size cap, an expired signed URL, an RLS denial -- and `retryable`
+ * says whether saving again with the same file is worth doing. Optional
+ * because nothing else on this interface has three ways to fail, and a
+ * required field would make every other transport invent a value for it.
+ */
+export type TxResult<T = undefined> =
+	| { ok: true; data: T }
+	| { ok: false; message: string; gate?: UploadGate; retryable?: boolean };
 
 export interface ImportRowResult {
 	row: number;

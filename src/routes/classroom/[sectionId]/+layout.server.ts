@@ -414,7 +414,26 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		section,
 		canManage,
 		sections,
-		attachmentsEnabled: driveConfigured(),
+		/**
+		 * STUDENT-FACING FILES DO NOT DEPEND ON DRIVE ANY MORE (0133).
+		 *
+		 * This was `driveConfigured()`, and leaving it that way would have been a
+		 * silent, total outage of the thing this bundle exists to build: a
+		 * deployment without the Google OAuth credentials would offer no file
+		 * picker on any item and no hand-in on any assignment, with the private
+		 * Supabase bucket sitting right there unused. Nothing in the picker, the
+		 * signed upload URL, the row or the download touches Drive.
+		 */
+		attachmentsEnabled: true,
+		/**
+		 * INSTRUCTOR-ONLY MATERIAL STILL DOES. 0133 gave it no bucket -- its read
+		 * rule is manager-only, so it cannot share the `classroom-attachments`
+		 * prefix, whose objects are readable by the whole class -- so answer keys
+		 * and facilitation notes still upload through the site to Drive, at the
+		 * 4 MiB ceiling that implies. Absence removes that control and only that
+		 * one.
+		 */
+		instructorAttachmentsEnabled: driveConfigured(),
 		items,
 		units,
 		work,

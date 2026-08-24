@@ -5,6 +5,7 @@
 	import { SaveState } from '$lib/save-state.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
+	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
@@ -98,6 +99,7 @@
 		referenceTransports = null,
 		checkInTransports = null,
 		attachmentsEnabled = true,
+		instructorAttachmentsEnabled = true,
 		compact = false,
 		onsaved,
 		ondirtychange = null,
@@ -134,6 +136,16 @@
 		checkInTransports?: ClassCheckInTransports | null;
 		/** False when Drive is unconfigured: the file controls hide entirely. */
 		attachmentsEnabled?: boolean;
+		/**
+		 * WHETHER THE INSTRUCTOR-ONLY FILE PICKER IS OFFERED, separately from the
+		 * student-facing one. They are two different upload mechanisms now
+		 * (0133): student-facing files go browser-to-bucket and need nothing
+		 * configured, instructor-only material still goes through the site to
+		 * Drive and needs the OAuth credentials. One flag for both would mean an
+		 * unconfigured Drive silently removing the picker this bundle exists to
+		 * build.
+		 */
+		instructorAttachmentsEnabled?: boolean;
 		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
 		onsaved: (info: { kind: ClassroomItemKind; published: boolean; text: string }) => void;
@@ -298,59 +310,46 @@
 	// round-trip; the parent reloads on `onsaved` and remounts on a new target.
 	// svelte-ignore state_referenced_locally
 	let existing = $state([...(item?.attachments ?? [])]);
-	let staged = $state<File[]>([]);
+	/**
+	 * HOW MANY STUDENT-FACING FILES ARE STAGED, and nothing else about them.
+	 *
+	 * The files themselves, their previews, their per-file progress, their
+	 * per-file error and their Retry all live in FileUploadPanel now -- the same
+	 * component the assignment engine mounts for a hand-in. What the composer
+	 * still needs is the COUNT, because `composerDraftSignature` reads it: a
+	 * staged file is work somebody would mind losing.
+	 */
+	let stagedFileCount = $state(0);
+	let filePanel = $state<FileUploadPanel | null>(null);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
 	/**
-	 * Live upload progress (0..1) for a staged file, keyed by its position in
-	 * `staged`/`instructorStaged` AT THE MOMENT the upload batch starts --
-	 * both arrays are only reassigned once the whole batch settles, so an
-	 * index is a stable key for the duration of the upload itself.
+	 * Live upload progress (0..1) for a staged INSTRUCTOR-ONLY file, keyed by its
+	 * position in `instructorStaged` AT THE MOMENT the upload batch starts -- the
+	 * array is only reassigned once the whole batch settles, so an index is a
+	 * stable key for the duration of the upload itself.
+	 *
+	 * The student-facing files report their own progress inside
+	 * FileUploadPanel, per file, exactly as a hand-in does.
 	 */
 	let uploadProgress = $state<Record<string, number>>({});
 
 	/**
-	 * Object URLs for staged files, so a picked or pasted image shows as a
-	 * PICTURE before anything is saved -- a filename says nothing about whether
-	 * the right page is in frame (the notebook's staged-thumbnail lesson).
+	 * Object URLs for staged INSTRUCTOR-ONLY files. The student-facing ones moved
+	 * into FileUploadPanel with everything else about them; instructor-only
+	 * material still uploads through the site to Drive (0133 gave it no bucket,
+	 * because its read rule is manager-only and it cannot share the
+	 * classroom-attachments prefix), so it keeps its own staging here.
 	 *
-	 * Kept in a plain, NON-reactive Map: the effect that fills it reads `staged`
-	 * and writes here, and routing the URLs through reactive state as well would
-	 * have it re-trigger on its own writes.
+	 * Kept in a plain, NON-reactive Map: the effect that fills it reads
+	 * `instructorStaged` and writes here, and routing the URLs through reactive
+	 * state as well would have it re-trigger on its own writes.
 	 */
-	const previewUrls = new Map<File, string>();
-	let previewRev = $state(0);
-
-	$effect(() => {
-		let made = false;
-		for (const file of staged) {
-			if (!previewUrls.has(file) && isPreviewableFile(file)) {
-				previewUrls.set(file, URL.createObjectURL(file));
-				made = true;
-			}
-		}
-		for (const [file, url] of previewUrls) {
-			if (!staged.includes(file)) {
-				URL.revokeObjectURL(url);
-				previewUrls.delete(file);
-				made = true;
-			}
-		}
-		if (made) previewRev += 1;
-	});
 
 	onDestroy(() => {
-		for (const url of previewUrls.values()) URL.revokeObjectURL(url);
-		previewUrls.clear();
 		for (const url of instructorPreviewUrls.values()) URL.revokeObjectURL(url);
 		instructorPreviewUrls.clear();
 	});
-
-	function previewOf(file: File): string | null {
-		// previewRev is read so the template re-evaluates when the map changes.
-		void previewRev;
-		return previewUrls.get(file) ?? null;
-	}
 
 	// --- Instructor-only materials (0090) ----------------------------------
 	// Same staging shape as the student-facing files above, kept as its OWN
@@ -393,7 +392,7 @@
 	}
 
 	function stageInstructorFiles(files: FileList | File[] | null) {
-		if (!files || !attachmentsEnabled) return;
+		if (!files || !instructorAttachmentsEnabled) return;
 		const next = Array.from(files).filter((f) => f.size > 0);
 		if (next.length) instructorStaged = [...instructorStaged, ...next];
 	}
@@ -428,18 +427,24 @@
 	const targetIds = $derived(sections.filter((s) => targets[s.id]).map((s) => s.id));
 	const linkIds = $derived(linkableSections.filter((s) => linkTargets[s.id]).map((s) => s.id));
 
-	function stageFiles(files: FileList | File[] | null) {
-		if (!files || !attachmentsEnabled) return;
-		const next = Array.from(files).filter((f) => f.size > 0);
-		if (next.length) staged = [...staged, ...next];
-	}
-
-	function pickFiles(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		stageFiles(input.files);
-		// Clear so picking the SAME file twice in a row still fires change.
-		input.value = '';
-	}
+	/**
+	 * The panel's upload transport, bound to the STUDENT-FACING attachment side.
+	 *
+	 * It is `transports.uploadAttachment` -- injected, so the dev harness answers
+	 * in memory -- adapted to the panel's outcome shape. The `gate` and
+	 * `retryable` the transport now carries come straight through, which is what
+	 * lets the panel offer Retry only where retrying could work.
+	 */
+	const uploadStagedFile: PanelUpload = async ({ itemId: target, file, onProgress }) => {
+		const res = await transports.uploadAttachment(target, file, onProgress);
+		if (res.ok) return { ok: true, storageKey: '' };
+		return {
+			ok: false,
+			gate: res.gate ?? 'server',
+			message: res.message,
+			retryable: res.retryable ?? false
+		};
+	};
 
 	/**
 	 * Ctrl+V of a screenshot. The clipboard carries a pasted image as an
@@ -467,7 +472,7 @@
 		}
 		if (!images.length) return;
 		event.preventDefault();
-		staged = [...staged, ...images];
+		filePanel?.add(images);
 		pasteHint = `${images.length} pasted image${images.length === 1 ? '' : 's'} attached.`;
 		setTimeout(() => (pasteHint = null), 4000);
 	}
@@ -578,7 +583,7 @@
 	const draft = $derived<ComposerDraft>({
 		title,
 		bodyText: tiptapText(bodyDoc),
-		files: staged.length,
+		files: stagedFileCount,
 		instructorFiles: instructorStaged.length,
 		links,
 		instructorLinks,
@@ -745,7 +750,7 @@
 		// so saving again retries the rest rather than asking a teacher to go and
 		// find the same file a second time.
 		const itemId = res.data.itemId;
-		const hadFiles = staged.length > 0 || instructorStaged.length > 0;
+		const hadFiles = stagedFileCount > 0 || instructorStaged.length > 0;
 		const hadDeck = !!stagedDeck;
 		const hadSpec = stagedSpec != null;
 		const hadCheckIn = stagedCheckIn != null;
@@ -765,20 +770,18 @@
 		}
 
 		/**
-		 * Uploads run CONCURRENTLY, and both lists at once.
+		 * BOTH LISTS AT ONCE, AND EVERY FILE IN EACH ATTEMPTED.
 		 *
-		 * They were sequential, so attaching five photos to an assignment took
-		 * five round trips end to end -- each one a whole multipart POST plus a
-		 * Drive write -- with the save button spinning throughout. They are
-		 * independent writes against an item that already exists, so nothing
-		 * about them was ordered; the loop was just the shape it was written in.
+		 * The student-facing files are FileUploadPanel's job: `runAll` uploads
+		 * them concurrently, catches each one individually so a throw cannot
+		 * reject the batch and discard the others' results, keeps whatever failed
+		 * staged with its own message and its own Retry, and returns one line per
+		 * failure. That is the identical component and the identical guarantee a
+		 * student gets on a hand-in.
 		 *
-		 * Every upload is individually caught, so one that THROWS cannot reject
-		 * the batch and discard the results of the others -- that would lose the
-		 * per-file reporting this whole block exists for, and take the "anything
-		 * that fails stays staged" guarantee with it. `Promise.all` preserves
-		 * order, so the failure list still reads in the order the files were
-		 * picked.
+		 * The instructor-only list still runs here, because it still uploads
+		 * through the site to Drive. It is the one upload path in the classroom
+		 * that 0133 left alone.
 		 */
 		const settle = async (file: File, run: Promise<{ ok: boolean; message?: string }>) => {
 			try {
@@ -788,17 +791,8 @@
 			}
 		};
 		uploadProgress = {};
-		const [fileResults, instructorResults] = await Promise.all([
-			Promise.all(
-				staged.map((f, i) =>
-					settle(
-						f,
-						transports.uploadAttachment(itemId, f, (frac) => {
-							uploadProgress = { ...uploadProgress, [`file:${i}`]: frac };
-						})
-					)
-				)
-			),
+		const [fileFailures, instructorResults] = await Promise.all([
+			filePanel ? filePanel.runAll(itemId) : Promise.resolve([]),
 			Promise.all(
 				instructorStaged.map((f, i) =>
 					settle(
@@ -812,10 +806,7 @@
 		]);
 		uploadProgress = {};
 
-		for (const { file, res: up } of fileResults) {
-			if (!up.ok) failures.push(`${file.name}: ${up.message}`);
-		}
-		staged = fileResults.filter((r) => !r.res.ok).map((r) => r.file);
+		failures.push(...fileFailures);
 
 		for (const { file, res: up } of instructorResults) {
 			if (!up.ok) failures.push(`instructor file "${file.name}": ${up.message}`);
@@ -1063,43 +1054,22 @@
 			<p class="hint">
 				Attach a file, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste a screenshot straight in.
 			</p>
-			<input type="file" multiple class="file-input" onchange={pickFiles} />
+			<!-- THE SHARED PANEL. Same component, same failure semantics and same
+			     words as a student's hand-in; `autoStart` is false here because on
+			     a create there is no item id to upload against until the save call
+			     returns. No `accept` on its picker: any file type, either side. -->
+			<FileUploadPanel
+				bind:this={filePanel}
+				role="attachment"
+				itemId={item?.id ?? createdItemId}
+				upload={uploadStagedFile}
+				label="Files"
+				hint="Any file type, up to 200 MB each. Uploads when you save."
+				showPreviews
+				oncountchange={(n) => (stagedFileCount = n)}
+			/>
 			{#if pasteHint}
 				<p class="feedback ok">{pasteHint}</p>
-			{/if}
-			{#if staged.length}
-				<ul class="staged">
-					{#each staged as f, i (i)}
-						{@const url = previewOf(f)}
-						{@const progress = uploadProgress[`file:${i}`]}
-						<li class="staged-item" class:has-preview={!!url}>
-							{#if url}
-								<!-- object-fit: contain, never cover: cropping to fill would
-								     hide the cut-off edge this preview exists to catch. -->
-								<img class="staged-thumb" src={url} alt={f.name} />
-							{/if}
-							<span class="staged-meta">
-								<span class="staged-name">{f.name}</span>
-								<span class="staged-size">{formatBytes(f.size)}</span>
-								{#if busy && progress !== undefined}
-									<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin="0" aria-valuemax="100">
-										<span class="upload-bar-fill" style={`width: ${Math.round(progress * 100)}%`}></span>
-									</span>
-									<span class="upload-pct">{Math.round(progress * 100)}%</span>
-								{:else}
-									<button
-										type="button"
-										class="btn secondary tiny"
-										onclick={() => (staged = staged.filter((_, j) => j !== i))}
-									>
-										&times;
-									</button>
-								{/if}
-							</span>
-						</li>
-					{/each}
-				</ul>
-				<p class="hint">Uploads when you save.</p>
 			{/if}
 			{#if mode === 'edit' && existing.length}
 				<!-- The composer is manager-only by construction, so the reference is
@@ -1257,7 +1227,7 @@
 			</button>
 		</div>
 
-		{#if attachmentsEnabled}
+		{#if instructorAttachmentsEnabled}
 			<input type="file" multiple class="file-input" onchange={pickInstructorFiles} />
 			{#if instructorStaged.length}
 				<ul class="staged">

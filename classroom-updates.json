@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-08-24",
+			"title": "Hand in any kind of file, up to 200 MB",
+			"body": "File uploads used to refuse almost everything an engineering class actually makes. A SolidWorks part, an assembly, a STEP file, a DXF, a Fusion file, a DWG, an Arduino sketch, a zip: all of them came back saying your file had to be an image, a PDF, text, a CSV or an Office document. That is gone. There is no list any more. Hand in whatever the work is, and the limit per file is 200 MB instead of 4 MB, so a full assembly fits. It is the same everywhere: files your teacher attaches to a post, files you attach to an assignment, and photos you add to a photo block. Files now go straight from your computer to storage instead of through the site, so a big one uploads much faster and you get a progress bar per file while it does. If one file out of several fails, the rest still go, that one stays on screen with the actual reason it failed, and there is a Retry button beside it. Your assignment or post is saved either way, so nothing you typed is ever lost to a file problem. Files download rather than opening in the browser, which is what makes accepting any file type safe. Everything already posted still opens exactly as it did.",
+			"tags": [
+				"files",
+				"assignments"
+			]
+		},
+		{
+			"date": "2026-08-24",
 			"title": "IDEA Foundry is open: browse the apps other students have published",
 			"body": "There is a new card on the home screen called IDEA Foundry, and behind it is a gallery of the web apps students have built and published. Pick one from the list and you get its description, the author's name and class, and what they wrote about how they built it, which is the part worth reading. Press Launch app to run it. Every app opens in a sandbox on a separate address, so nothing it does can reach your account, your notebook or your coins. There is a Stop app button beside it the whole time it is running: if an app freezes or you just want it gone, press that and it closes on the spot, without you having to close the tab. If you have published something yourself, My apps is still where you manage it. If you have not, the build contract page says exactly what an app has to look like before you can upload it.",
 			"tags": [
