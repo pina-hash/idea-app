@@ -83,6 +83,37 @@ It is addressed to an AI TOOL rather than to a reader, because that is what will
 be pasted it; imperative, specific, and using the same spellings the failure
 messages use.
 
+**A FOUNDRY AUTHOR'S CLASS COMES FROM THE ROSTER, PROJECTED INSIDE THE DEFINER
+(0132), AND NEVER FROM `profiles.section_id`.** `foundry_list_apps` and
+`foundry_get_app` return `owner_class`: the author's section in the IDEA course,
+or NULL. Both tables behind it stay shut -- `profiles` is own-row-or-admin and
+`classroom_enrollments` is own-rows-or-manager -- so a student browsing the
+gallery learns a name and a class and gains no other reach.
+  - **`profiles.section_id` IS REFUSED FOR THIS, AND IT IS THE EASY WRONG
+    ANSWER** because it sits on the row these functions already join. 0003 added
+    it as a value the student SELF-SELECTS, free-form text, "intentionally not a
+    FK", validated by nothing. Rendering it under a published app presents a
+    student's own claim as a roster fact. It must not appear on any Foundry
+    surface.
+  - **NULL IS A NORMAL ANSWER AND RENDERS AS NOTHING** -- no placeholder, no
+    fallback, no empty label. An app outlives an enrollment, a roster import
+    lags a term, a student transfers, an alumnus keeps a published app.
+  - **THE COURSE IS PINNED IN `_foundry_idea_course_code()`**, a one-line
+    constant in the `admin_owner_email()` shape, chosen over a config table for
+    a single row. Changing it is a NEW migration. If IDEA is ever taught under
+    SEVERAL codes at once the signature is wrong, not the literal: a student
+    could hold two matching enrollments and "their class" stops being one
+    value. 0132's own comment carries both cases.
+  - **THE uuid/email BRIDGE IS `_notebook_email_for_user`, THE 0094 ONE.**
+    `student_apps.owner` is a uuid and enrollments are email-keyed. That helper
+    is a pure lookup with no notebook in it; its prefix says where it was born,
+    not what it does, and copying it under a `_foundry_` name would be a second
+    implementation of the one mapping this codebase is most careful about. No
+    view, ever -- a granted email-to-uuid view is a school directory.
+  - **THE NAME IS `display_name` WHEN SET, `full_name` OTHERWISE, NEVER BOTH.**
+    Do NOT use `profileDisplayName` on a public surface: its third rung is the
+    email address.
+
 **THE JS SCANNER READS INLINE `<script>` BLOCKS TOO, AND IT IS ONE SCANNER.**
 `scanJs` only ever saw `.js` files, which meant every JavaScript rule was
 switched off for the submission shape where ALL the JavaScript is inline -- a
