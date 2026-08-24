@@ -50,7 +50,15 @@ import { appsHostAllows, isFoundryAppsHost, isFoundryHostNamespace } from '$lib/
  * `vercel.json`; that script's header carries the measurements that settled
  * it.
  */
-const foundryHostBranch: Handle = async ({ event, resolve }) => {
+/**
+ * EXPORTED SO A TEST CAN DRIVE THE REAL BRANCH, not a copy of its decision.
+ * `tests/foundry-proxy.test.ts` composes this with the real route handler, so
+ * "what does the apps host do with this URL" is answered by the two pieces
+ * production actually runs. Re-spelling `appsHostAllows` inside a test would
+ * be a second copy of the allowlist, and the copy is the one that stops
+ * matching -- which is exactly how the bundle root came to 404 unnoticed.
+ */
+export const foundryHostBranch: Handle = async ({ event, resolve }) => {
 	const onAppsHost = isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
 	const { pathname } = event.url;
 

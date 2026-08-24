@@ -61,11 +61,6 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 		return foundryNotFound();
 	}
 
-	const verdict = verifyFoundryToken(params.token ?? '', dev);
-	if (!verdict.ok) return foundryNotFound();
-
-	const { appId, versionId, kind } = verdict.claims;
-
 	/**
 	 * The path exactly as the browser asked for it, percent-decoding undone
 	 * ONCE. `params.path` arrives decoded from SvelteKit; a stored path is a
@@ -77,15 +72,24 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	const path = params.path ?? '';
 
 	/**
-	 * THE BUNDLE ROOT KEEPS ITS TRAILING SLASH, and this is the redirect that
-	 * enforces it now that SvelteKit's own normalization is off.
+	 * THE BUNDLE ROOT KEEPS ITS TRAILING SLASH, and this redirect runs BEFORE
+	 * THE TOKEN IS VERIFIED, which is the half that used to be wrong.
 	 *
 	 * `/r/<token>` and `/r/<token>/` name the same file -- the entry -- but they
 	 * are DIFFERENT BASE URLS to the browser, and only the second one makes a
 	 * bundle's `<img src="logo.png">` resolve inside the bundle. Serving the
 	 * entry at the slashless form would produce an app that renders and then
 	 * loses every asset, which reads as a broken upload rather than a broken
-	 * proxy.
+	 * proxy. So the slashless form is redirected, never served.
+	 *
+	 * IT IS SEQUENCED AHEAD OF `verifyFoundryToken` SO THE REDIRECT DISCLOSES
+	 * NOTHING. Verifying first meant a good token answered 307 where a garbage
+	 * one answered 404 -- the one place on this host where two outcomes did not
+	 * look alike, and the reason the hook used to refuse this shape outright.
+	 * Refusing it there is what blanked every published app the moment anything
+	 * upstream normalized the trailing slash away. Redirecting first closes the
+	 * oracle at the place it was actually open: the answer is now 307 for every
+	 * slashless root, and the token is judged on the request that follows.
 	 *
 	 * 307, not 308: this is routing, not a permanent address, and the mint hands
 	 * out the slash form anyway. Only the root is redirected -- a real file path
@@ -100,6 +104,11 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 			}
 		});
 	}
+
+	const verdict = verifyFoundryToken(params.token ?? '', dev);
+	if (!verdict.ok) return foundryNotFound();
+
+	const { appId, versionId, kind } = verdict.claims;
 
 	/**
 	 * THE KIND COMES FROM THE SIGNED BYTES, never from the request. A review
