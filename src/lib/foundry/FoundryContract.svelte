@@ -14,6 +14,8 @@
 	 * project is a placeholder with no session in it, so without this the page
 	 * could not be opened in a browser at all.
 	 */
+	import { FOUNDRY_STARTER_PATH } from './vendor.ts';
+
 	let { contract }: { contract: string } = $props();
 
 	let copied = $state(false);
@@ -48,6 +50,14 @@
 			<button type="button" class="btn fdy-primary tap-44" onclick={copyAll}>
 				{copied ? 'Copied' : 'Copy everything'}
 			</button>
+			<!--
+				A DOWNLOAD, NOT A SECOND COPY BUTTON. The contract is pasted into
+				a tool; the starter is saved and edited. Two different actions on
+				two different things, so they read as two controls.
+			-->
+			<a class="btn tap-44" href={FOUNDRY_STARTER_PATH} download="index.html">
+				Download starter file
+			</a>
 			<a class="btn tap-44" href="/foundry/submit">Upload an app</a>
 		</div>
 	</header>

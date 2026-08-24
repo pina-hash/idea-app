@@ -21,7 +21,10 @@
 	 * a folder with noise in it, and a single HTML file that is not called
 	 * index.html.
 	 */
+	import AppFrame from '$lib/foundry/AppFrame.svelte';
 	import FoundryContract from '$lib/foundry/FoundryContract.svelte';
+	import { inflateEntry, readCentralDirectory } from '$lib/foundry/zip';
+	import { extensionOf, isTextExtension } from '$lib/foundry/preflight';
 	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
 	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
 	import { normalizeFoundryInput } from '$lib/foundry/normalize';
@@ -35,6 +38,8 @@
 		FoundrySubmitTransports,
 		IngestOutcome
 	} from '$lib/foundry/transports';
+
+	let { data } = $props();
 
 	const enc = new TextEncoder();
 
@@ -463,6 +468,105 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		};
 	});
 
+	/* ------------------------------------------------- the acceptance drive */
+
+	/**
+	 * THE WHOLE PIPELINE OVER THE FILE THAT STARTED THIS, AND THEN THE FRAME.
+	 *
+	 * Normalize the picked file, preflight the zip it produced, take the
+	 * REWRITTEN html the preflight handed back, and serve it from the apps host
+	 * through the real proxy so the real `AppFrame` can run it. Every step is
+	 * the shipping code: `normalizeFoundryInput`, `preflightZipInBrowser` (and
+	 * therefore `scanHtml`, and therefore the vendor rewrite), the real token
+	 * mint, the real `/r/{token}/` route, the real CSP and the real sandbox.
+	 *
+	 * WHAT IS NOT REAL, and it is one thing: the bytes go into the in-memory
+	 * dev fixture rather than into `foundry-bundles` through `foundry-ingest`,
+	 * because the local project is a placeholder. The ROUTE that reads them, and
+	 * everything it enforces on the way out, is untouched.
+	 *
+	 * TEXT FILES ONLY. The drive posts JSON, so a bundle carrying a PNG would
+	 * lose it. The fixture is a single HTML file, which is the shape this drive
+	 * is about; a binary asset would need a different transport and is said here
+	 * rather than left to be discovered.
+	 */
+	let runSrc = $state('');
+	let runNote = $state('');
+	let runNotes = $state<string[]>([]);
+	let runFiles = $state<string[]>([]);
+	let runBusy = $state(false);
+	let runRewritten = $state('');
+
+	async function runFixture() {
+		runBusy = true;
+		runSrc = '';
+		runNotes = [];
+		runFiles = [];
+		runRewritten = '';
+		try {
+			// The real file, unmodified, handed over the way a picked file is.
+			const picked = file('approved-react-app.html', data.reactAppFixture);
+
+			const norm = await normalizeFoundryInput([picked]);
+			if (!norm.ok || !norm.zip) {
+				runNote = `NORMALIZE REFUSED: ${norm.problem}`;
+				return;
+			}
+
+			const verdict = await preflightZipInBrowser(norm.zip);
+			runNotes = [...norm.notes, ...verdict.notes];
+			runFiles = verdict.files;
+			if (!verdict.ok) {
+				runNote = `PREFLIGHT REFUSED:\n${verdict.failures.map((f) => f.message).join('\n\n')}`;
+				return;
+			}
+
+			// Every text file out of the zip the surface would have uploaded,
+			// with the rewritten copy standing in wherever the preflight
+			// produced one. Read back out of the zip rather than kept aside, so
+			// what is served is what was actually packed.
+			const bytes = new Uint8Array(await norm.zip.arrayBuffer());
+			const records = readCentralDirectory(bytes);
+			const dec = new TextDecoder('utf-8');
+			const out: { path: string; text: string }[] = [];
+			let skipped = 0;
+			for (const [i, r] of (records ?? []).entries()) {
+				if (r.directory) continue;
+				const path = r.name;
+				if (!isTextExtension(extensionOf(path))) {
+					skipped++;
+					continue;
+				}
+				const rewritten = verdict.rewritten[path];
+				out.push({
+					path,
+					text: rewritten ?? dec.decode(await inflateEntry(bytes, records![i], path))
+				});
+			}
+			runRewritten = verdict.rewritten['index.html'] ?? '';
+
+			const res = await fetch('/dev/foundry-run', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ files: out })
+			});
+			const payload = await res.json();
+			if (!payload.ok || !payload.configured) {
+				runNote =
+					'PUBLIC_FOUNDRY_APPS_HOST or FOUNDRY_TOKEN_SECRET is not usable, so there is no bundle origin to serve from.';
+				return;
+			}
+			runSrc = payload.src;
+			runNote = `Served ${payload.count} file${payload.count === 1 ? '' : 's'} from the apps host${
+				skipped > 0 ? `; ${skipped} binary file(s) not carried by this drive` : ''
+			}.`;
+		} catch (e) {
+			runNote = `DRIVE FAILED: ${(e as Error).message}`;
+		} finally {
+			runBusy = false;
+		}
+	}
+
 	let rawOut = $state('');
 
 	async function rawRun(kind: 'zip-bad' | 'folder' | 'single') {
@@ -561,6 +665,53 @@ fetch('https://api.example.com/data').then((r) => r.json());
 				</button>
 			</div>
 			{#if rawOut}<pre class="h-raw" data-testid="raw-out">{rawOut}</pre>{/if}
+		</section>
+
+		<section class="h-panel">
+			<h2>Acceptance drive: the approved React app, end to end</h2>
+			<p class="h-note">
+				<code>tests/fixtures/foundry/approved-react-app.html</code> -- the real file that was
+				approved and rendered blank -- unmodified, through normalize, the real preflight, the
+				real token mint and the real bundle proxy, into the real
+				<code>AppFrame</code>. What renders below is the rewrite working or not working;
+				nothing else on this page can tell you that.
+			</p>
+			<div class="h-buttons">
+				<button class="btn" onclick={runFixture} disabled={runBusy} data-drive="react-fixture">
+					{runBusy ? 'Running...' : 'Run the React fixture'}
+				</button>
+			</div>
+
+			{#if runNote}<p class="h-note" data-testid="run-note">{runNote}</p>{/if}
+
+			{#if runNotes.length > 0}
+				<p class="h-note">What the student is told:</p>
+				<ul class="h-run-notes" data-testid="run-notes">
+					{#each runNotes as note, i (i)}<li>{note}</li>{/each}
+				</ul>
+			{/if}
+
+			{#if runFiles.length > 0}
+				<p class="h-note" data-testid="run-files">
+					Extracted: {runFiles.join(', ')}
+				</p>
+			{/if}
+
+			{#if runSrc}
+				<h3>Running in the sandboxed frame</h3>
+				<AppFrame
+					src={runSrc}
+					title="Study Timer (rewritten)"
+					height="60vh"
+					loading="eager"
+					notice="Served from the apps host through the real proxy. sandbox=allow-scripts, never allow-same-origin."
+				/>
+			{/if}
+
+			{#if runRewritten}
+				<h3>The head of the file that was served</h3>
+				<pre class="h-raw" data-testid="run-head">{runRewritten.slice(0, 700)}</pre>
+			{/if}
 
 			{#if uploads.length > 0 || created.length > 0}
 				<p class="h-note">
@@ -654,6 +805,17 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--cyan);
+		margin: 0.35rem 0;
+	}
+
+	.h-run-notes {
+		margin: 0 0 var(--space-3, 0.75rem);
+		padding-left: 1.2rem;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		color: var(--text-2, #b9c4ba);
+	}
+	.h-run-notes li {
 		margin: 0.35rem 0;
 	}
 
