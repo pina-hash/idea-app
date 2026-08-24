@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-08-24",
+			"title": "Public reference documents open their files again",
+			"body": "A reference document your teacher publishes for anyone to read can be opened without signing in, and now the files attached to it open that way too. Before this, a file attached to a public document the new way came back as not found unless you happened to be signed in and enrolled in that class, which made a QR code on a handout useless to anybody else. Only documents your teacher has actually published as public work this way. Assignments, hand-ins and anything a teacher keeps to themselves still need you to be signed in, exactly as before.",
+			"tags": [
+				"files",
+				"reference"
+			]
+		},
+		{
+			"date": "2026-08-24",
 			"title": "Hand in any kind of file, up to 200 MB",
 			"body": "File uploads used to refuse almost everything an engineering class actually makes. A SolidWorks part, an assembly, a STEP file, a DXF, a Fusion file, a DWG, an Arduino sketch, a zip: all of them came back saying your file had to be an image, a PDF, text, a CSV or an Office document. That is gone. There is no list any more. Hand in whatever the work is, and the limit per file is 200 MB instead of 4 MB, so a full assembly fits. It is the same everywhere: files your teacher attaches to a post, files you attach to an assignment, and photos you add to a photo block. Files now go straight from your computer to storage instead of through the site, so a big one uploads much faster and you get a progress bar per file while it does. If one file out of several fails, the rest still go, that one stays on screen with the actual reason it failed, and there is a Retry button beside it. Your assignment or post is saved either way, so nothing you typed is ever lost to a file problem. Files download rather than opening in the browser, which is what makes accepting any file type safe. Everything already posted still opens exactly as it did.",
 			"tags": [
