@@ -16,15 +16,15 @@
       },
       {
         "label": "Developing",
-        "short": "2-3 samples, or 1 type missing",
+        "short": "2-3 samples, or yes/no magnetism",
         "points": 2,
-        "descriptor": "Two or three samples carry all three observations, or all four are present with one observation type missing throughout."
+        "descriptor": "Two or three samples carry all three observations, or all four are present with one observation type missing throughout, or magnetism is recorded as a yes or no rather than on the three-setting scale."
       },
       {
         "label": "Absent",
-        "short": "Under 2, or yes/no magnetism",
+        "short": "Under 2 samples",
         "points": 0,
-        "descriptor": "Fewer than two samples are observed, or magnetism is recorded as a yes or no rather than on the three-setting scale."
+        "descriptor": "Fewer than two samples are observed, or no magnetic response is recorded at all."
       }
     ],
     "points": 5,
@@ -36,15 +36,15 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All metals, stream described",
+        "short": "All metals, color named",
         "points": 3,
-        "descriptor": "Every metal sample carries a spark result with the stream described, and samples that produced no sparks are recorded as such rather than left blank."
+        "descriptor": "Every metal sample carries a spark result with the color named, and samples that produced no sparks are recorded as such rather than left blank."
       },
       {
         "label": "Proficient",
-        "short": "Undescribed, or blank no-spark",
+        "short": "Color unnamed, or blank",
         "points": 2,
-        "descriptor": "Every metal sample carries a spark result, with the stream not described on one or more, or a no-spark result left blank."
+        "descriptor": "Every metal sample carries a spark result, with the color unnamed on one or more, or a no-spark result left blank."
       },
       {
         "label": "Absent",

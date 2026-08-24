@@ -8,7 +8,7 @@
     "dueDate": "2026-08-24",
     "totalPoints": 15,
     "assignmentId": "idea209h-u1lab-02",
-    "buildVersion": "v3",
+    "buildVersion": "v4",
     "headerFields": [
       "studentName",
       "date",
@@ -28,7 +28,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Same six samples, same numbers, bare stock. Friday you used density. Today, appearance. Sample 3 is the same material it was Friday.\n\nSamples 5 and 6 are bonus, no points. Best-explained identifications earn IDEA Coins.\n\n### Before the grinder\n\n- Face shield over safety glasses. You are watching the spark stream.\n- One person at the machine, everyone else behind the line.\n- No gloves. No loose sleeves, lanyards, hair, or earbuds.\n- Face of the wheel, never the side. Light pressure.\n- Metal only. Polycarbonate never goes to the grinder.\n- Samples come off hot. No instructor in the room means no machine.\n\n### Color\n\nLay them side by side. Aluminum is the dullest silver, stainless brighter, titanium darker and grayer. Brass is yellow. Clear plastic is obvious.\n\n### Magnetism\n\n**NOT** no attraction · **SLIGHT** a weak pull that will not hold the magnet · **STRONG** it sticks.\n\nNot yes or no. The middle setting is what separates 304 stainless from 1018 steel.\n\n### Oxidation\n\nRed or brown rust is steel. White crusty film is aluminum. Green, blue, or dark tarnish is brass. Stainless and titanium ideally show none. Write \"none\" rather than leaving it blank.\n\n### Sparks\n\nMetal only. Light contact, watch the stream.\n\n| Stream | Material |\n|---|---|\n| Bright yellow, long, branching | Steel |\n| Bright white, brighter than steel | Titanium |\n| Short, sparse, dull orange-red | 304 stainless |\n| None | Aluminum, brass, all plastics |\n\n**No sparks is a result.** Record it."
+          "content": "Same six samples, same numbers, bare stock. Friday you used density. Today, appearance. Sample 3 is the same material it was Friday. Your Checkpoint 1 hypothesis is what this lab tests, so have it in front of you.\n\nSamples 5 and 6 are bonus, no points. Best-explained identifications earn IDEA Coins.\n\n### Color\n\nLay them side by side. Aluminum is the dullest silver, stainless brighter, titanium darker and grayer. Brass is yellow. Clear plastic is obvious.\n\n### Magnetism\n\n**NOT** no attraction · **SLIGHT** a weak pull that will not hold the magnet · **STRONG** it sticks.\n\nNot yes or no. The middle setting is what separates 304 stainless from 1018 steel.\n\n### Oxidation\n\nRed or brown rust is steel. White crusty film is aluminum. Green, blue, or dark tarnish is brass. Stainless and titanium ideally show none. Write \"none\" rather than leaving it blank.\n\n### Sparks\n\nMetal only. Grinder or belt sander, either works. Light contact, watch the stream.\n\n| Stream | Material |\n|---|---|\n| Bright yellow | Steel |\n| Bright white, brighter than steel | Titanium |\n| Dull orange-red, sparse | 304 stainless |\n| None | Aluminum, brass, all plastics |\n\n**Color is the tell.** Stream length runs shorter on the sander than the grinder for the same material, so judge the color, not the size.\n\n**No sparks is a result.** Record it."
         },
         {
           "id": "t3",
@@ -57,7 +57,7 @@
             },
             {
               "key": "sparks",
-              "tip": "Color and character of the stream, or none. Metal samples only.",
+              "tip": "Color of the stream, or none. Metal only: write N/A for polycarbonate.",
               "label": "Sparks"
             }
           ],
@@ -86,15 +86,15 @@
             },
             {
               "label": "Developing",
-              "short": "2-3 samples, or 1 type missing",
+              "short": "2-3 samples, or yes/no magnetism",
               "points": 2,
-              "descriptor": "Two or three samples carry all three observations, or all four are present with one observation type missing throughout."
+              "descriptor": "Two or three samples carry all three observations, or all four are present with one observation type missing throughout, or magnetism is recorded as a yes or no rather than on the three-setting scale."
             },
             {
               "label": "Absent",
-              "short": "Under 2, or yes/no magnetism",
+              "short": "Under 2 samples",
               "points": 0,
-              "descriptor": "Fewer than two samples are observed, or magnetism is recorded as a yes or no rather than on the three-setting scale."
+              "descriptor": "Fewer than two samples are observed, or no magnetic response is recorded at all."
             }
           ],
           "criterion": "Color, oxidation, and magnetic response"
@@ -104,15 +104,15 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "All metals, stream described",
+              "short": "All metals, color named",
               "points": 3,
-              "descriptor": "Every metal sample carries a spark result with the stream described, and samples that produced no sparks are recorded as such rather than left blank."
+              "descriptor": "Every metal sample carries a spark result with the color named, and samples that produced no sparks are recorded as such rather than left blank."
             },
             {
               "label": "Proficient",
-              "short": "Undescribed, or blank no-spark",
+              "short": "Color unnamed, or blank",
               "points": 2,
-              "descriptor": "Every metal sample carries a spark result, with the stream not described on one or more, or a no-spark result left blank."
+              "descriptor": "Every metal sample carries a spark result, with the color unnamed on one or more, or a no-spark result left blank."
             },
             {
               "label": "Absent",
@@ -130,7 +130,7 @@
       "id": "m2",
       "intro": "Set today's appearance evidence against Friday's density hypothesis for every required sample, name the observation that decided it, and give a refined identification.",
       "title": "Evidence and Refined ID",
-      "aiNote": "AI may help you reason through evidence that conflicts, and check whether your logic holds. The verdict and the refined identification have to be your own, and you have to be able to defend why one observation outweighed another.",
+      "aiNote": "AI may help you check whether your reasoning holds, not produce it. The verdict and the refined identification have to be your own, and you have to be able to defend why one observation outweighed another.",
       "blocks": [
         {
           "type": "instructions",
@@ -163,7 +163,7 @@
             },
             {
               "key": "refined",
-              "tip": "Your identification now, citing both a density result and an appearance result.",
+              "tip": "Material, then one density fact and one appearance fact. Example: 6061 aluminum, 2.71 g/cm3, not magnetic, no sparks.",
               "label": "Refined ID"
             }
           ],
