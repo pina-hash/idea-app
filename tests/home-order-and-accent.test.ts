@@ -324,6 +324,53 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		}
 	});
 
+	/**
+	 * THE FOUNDRY CARD, WHICH IS THE NEWEST ONE AND THEREFORE THE ONE MOST
+	 * LIKELY TO BE ADDED WRONG.
+	 *
+	 * The rule this file exists for is that a card QUOTES ITS OWN ROOM or
+	 * declares nothing: a pair invented for an app that has no colours of its
+	 * own is inventing an identity for the app. /foundry is built on the
+	 * portal's own console register -- --green for the launch control, --cyan
+	 * for the author line -- so those two ARE its colours, and the card takes
+	 * them BY TOKEN rather than as re-typed hex, which is what makes "quotes its
+	 * room" checkable rather than a claim in a comment.
+	 */
+	it('gives Foundry the tokens of its own room, not a pair invented for the card', () => {
+		const rule = ruleFor('foundry');
+		expect(rule, 'the foundry card declares no rule at all').not.toBe('');
+		expect(rule).toContain('--acc-primary: var(--green);');
+		expect(rule).toContain('--acc-secondary: var(--cyan);');
+		// A hex literal here would be the invented-identity case: the same colour
+		// re-typed is a value that stops tracking the token it came from.
+		expect(rule).not.toMatch(/--acc-primary:\s*#/);
+		expect(rule).not.toMatch(/--acc-secondary:\s*#/);
+	});
+
+	it('gives the Foundry card an animated mark that hides nothing at rest', () => {
+		// EVERY app mark in $lib/marks animates under
+		// prefers-reduced-motion: no-preference AND is fully visible with the
+		// animation cancelled -- a base state that hides an element waiting for a
+		// frame is invisible to a reduced-motion reader. FRC is the documented
+		// exception and does not animate at all.
+		const mark = readFileSync('src/lib/marks/FoundryMark.svelte', 'utf8');
+		expect(mark).toContain('prefers-reduced-motion: no-preference');
+		expect(mark).toMatch(/animation:\s*fd-/);
+
+		// Nothing may sit at opacity 0 or a transform OUTSIDE a keyframe: that is
+		// what "hidden at rest" looks like. The keyframes themselves legitimately
+		// pass through opacity 0 mid-cycle.
+		const styleBody = mark.slice(mark.indexOf('<style>'));
+		const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+		expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
+
+		// And the launcher actually renders it, rather than falling through to
+		// the generic inline fallback glyph.
+		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+		expect(launcher).toContain("id === 'foundry'");
+		expect(launcher).toContain('<FoundryMark />');
+	});
+
 	it('never moves an identity colour for contrast, only the ink', () => {
 		// FRC is the one card whose brand colour cannot carry text on --bg1: pure
 		// #ED1C24 measured 3.41:1 there. The fix moved --acc-ink and left FIRST red

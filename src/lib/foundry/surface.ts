@@ -138,3 +138,69 @@ export function statusSummary(versions: FoundryVersion[]): Record<FoundryVersion
 	for (const v of versions) out[v.status] += 1;
 	return out;
 }
+
+/**
+ * THE AUTHOR'S NAME ON A PUBLIC FOUNDRY SURFACE: two rungs, never three.
+ *
+ * `display_name` when the student has chosen one, `full_name` otherwise, and
+ * NOTHING after that. `displayName()` in `$lib/profile` is the portal's own
+ * three-rung helper and its third rung is the EMAIL ADDRESS -- correct for a
+ * profile menu the account holder is looking at, and a disclosure on a gallery
+ * card every signed-in student can read. The two must not be confused, which is
+ * why this is a separate function with a Foundry-specific name rather than a
+ * call to that one with a flag.
+ *
+ * NULL IS THE ANSWER WHEN THERE IS NO NAME, and the surfaces render nothing for
+ * it. An empty string would be a rendered blank where a name goes; a fallback
+ * like "Unknown" would be a label invented for a row whose profile has simply
+ * not been filled in yet.
+ *
+ * SAMPLED AGAINST PRODUCTION: of ten students checked, none had chosen a
+ * display name, so `full_name` is the NORMAL path here and not an exceptional
+ * fallback. That is the reason this is pinned by a test rather than by a
+ * comment -- the rung that runs every time is the rung a refactor is most
+ * likely to "simplify" away, and its regression is a name that quietly becomes
+ * an email address in front of the whole school.
+ */
+export function foundryAuthorName(owner: {
+	owner_display_name?: string | null;
+	owner_full_name?: string | null;
+}): string | null {
+	const chosen = (owner.owner_display_name ?? '').trim();
+	if (chosen) return chosen;
+	const full = (owner.owner_full_name ?? '').trim();
+	return full || null;
+}
+
+/**
+ * The author's class, or null. A pass-through with the trimming done once.
+ *
+ * It exists so that no surface writes `owner_class ?? ''` and then renders a
+ * label beside an empty string. `owner_class` is null for an app that outlives
+ * its author's enrollment, for a roster import that lags a term, for a
+ * transfer, and for an alumnus -- all normal states (0132), none of which is a
+ * reason to render a placeholder, a colon, or an empty chip.
+ */
+export function foundryAuthorClass(owner: { owner_class?: string | null }): string | null {
+	const label = (owner.owner_class ?? '').trim();
+	return label || null;
+}
+
+/**
+ * The one line under a gallery card's title: the name, then the class, joined
+ * only when BOTH are there.
+ *
+ * Returning the assembled string rather than leaving each surface to write
+ * `{name}{cls ? ' · ' + cls : ''}` is the point: that expression is where a
+ * stray separator survives a null and a card reads "Ana Reyes ·".
+ */
+export function foundryAuthorLine(owner: {
+	owner_display_name?: string | null;
+	owner_full_name?: string | null;
+	owner_class?: string | null;
+}): string {
+	const name = foundryAuthorName(owner);
+	const cls = foundryAuthorClass(owner);
+	if (name && cls) return `${name} · ${cls}`;
+	return name ?? cls ?? '';
+}

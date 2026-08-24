@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-24",
+			"title": "IDEA Foundry is open: browse the apps other students have published",
+			"body": "There is a new card on the home screen called IDEA Foundry, and behind it is a gallery of the web apps students have built and published. Pick one from the list and you get its description, the author's name and class, and what they wrote about how they built it, which is the part worth reading. Press Launch app to run it. Every app opens in a sandbox on a separate address, so nothing it does can reach your account, your notebook or your coins. There is a Stop app button beside it the whole time it is running: if an app freezes or you just want it gone, press that and it closes on the spot, without you having to close the tab. If you have published something yourself, My apps is still where you manage it. If you have not, the build contract page says exactly what an app has to look like before you can upload it.",
+			"tags": [
+				"foundry"
+			]
+		},
+		{
 			"date": "2026-08-22",
 			"title": "Small text around the class pages is easier to read",
 			"body": "A sweep of every classroom screen turned up six bits of text that were too faint against the background behind them, and all six are fixed. The slash between the crumbs at the top of a class page was drawn so lightly it was very nearly invisible, so the trail back to your classes was hard to follow; it now shows up properly. On the People tab, a student who has been removed from the roster had their name and email dimmed almost to nothing, and the excused mark in the notebook tally was the faintest thing in the row: the strike through the name is what says removed now, and both read clearly. In the grading console a removed student's whole row was dimmed far enough that the Not submitted chip was hard to make out. And on an assignment, the line telling you a section is locked until your teacher approves it was dimmed along with the section it was explaining, which is the one line that has to be readable. Nothing moved and no colour changed family.",
