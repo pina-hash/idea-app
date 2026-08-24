@@ -232,6 +232,10 @@ fetch('https://api.example.com/data').then((r) => r.json());
 			title: 'Tide Clock',
 			tagline: 'A clock that reads the tide table.',
 			cover_path: null,
+			// A student who HAS chosen a display name: the rung that wins.
+			owner_display_name: 'Ana R.',
+			owner_full_name: 'Ana Reyes',
+			owner_class: 'Engineering I Honors',
 			published_version_id: 'v-2',
 			published_ordinal: 2,
 			version_count: 6,
@@ -246,6 +250,11 @@ fetch('https://api.example.com/data').then((r) => r.json());
 			title: 'Gear Ratio Calculator',
 			tagline: null,
 			cover_path: null,
+			// The normal shape, measured against production: no display name, and
+			// no class -- which must render as nothing at all.
+			owner_display_name: null,
+			owner_full_name: 'Sam Cruz',
+			owner_class: null,
 			published_version_id: null,
 			published_ordinal: null,
 			version_count: 1,
@@ -258,6 +267,10 @@ fetch('https://api.example.com/data').then((r) => r.json());
 
 	const fullApp: FoundryApp = {
 		id: 'app-1',
+		owner: '00000000-0000-4000-8000-000000000001',
+		owner_display_name: 'Ana R.',
+		owner_full_name: 'Ana Reyes',
+		owner_class: 'Engineering I Honors',
 		slug: 'tide-clock',
 		title: 'Tide Clock',
 		tagline: 'A clock that reads the tide table.',

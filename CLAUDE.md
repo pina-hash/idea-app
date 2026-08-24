@@ -35,10 +35,58 @@ Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), and the portal
 shell (`/`, `/dashboard`, `/admin`).
 
-**FOUNDRY HAS ITS DATA LAYER (0130/0131), ITS INGEST FUNCTION, ITS BUNDLE PROXY
-AND ITS SUBMIT SURFACE (`/foundry/submit`, `/foundry/mine`, `/foundry/contract`).
-THERE IS STILL NO GALLERY, NO PUBLIC DETAIL VIEW AND NO REVIEW QUEUE.** Several
-things about it are rules rather than history.
+**FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the ingest
+function, the bundle proxy, the submit surface (`/foundry/submit`,
+`/foundry/mine`, `/foundry/contract`), the GALLERY (`/foundry`) and the REVIEW
+QUEUE (`/foundry/review`, admin only). Several things about it are rules rather
+than history.
+
+**THE GALLERY, THE DETAIL VIEW AND THE REVIEW QUEUE ARE ONE RENDER PATH, AND
+`FoundryDetail` HAS NO STAFF BRANCH IN IT.** `/foundry/review` mounts the
+IDENTICAL `FoundryDetail` the gallery mounts and puts `FoundryInspector` in the
+column BESIDE it -- it is not a second gallery with extra columns, and there is
+no `staff` flag inside the detail component to forget. "What does a student see"
+is answerable by reading that one file straight through. The only prop that
+differs is `versionId`: the gallery runs `published_version_id`, the queue runs
+the SUBMITTED version, which by definition is not published yet.
+  - **`AppStage` IS THE LIFECYCLE AND `AppFrame` IS THE SANDBOX**, and both
+    surfaces mount the same two. Nothing frames a bundle on load: a gallery that
+    started every app in the list would run every app in the list.
+  - **THE STOP CONTROL UNMOUNTS THE FRAME, AND NOTHING ON THAT PATH MAY USE
+    `requestAnimationFrame`.** Measured against a bundle running `while (true)`:
+    the child's heartbeat stops dead, the parent's `setTimeout(100)` fires at
+    995ms (late but alive), and the parent's rAF NEVER FIRES. So the parent is
+    degraded rather than unaffected -- what survives is the task queue, which is
+    all a click handler and a synchronous state change need. A teardown
+    scheduled on an animation frame would never run in exactly the case it
+    exists for.
+  - **THE SOURCE VIEWER SHOWS THE STORED BYTES, never the uploaded archive.**
+    Ingest decides what comes out of a zip (a wrapper stripped, OS noise
+    dropped, ignored extensions removed), so a reviewer reading the upload is
+    reviewing something nobody will execute. The tree is built from
+    `student_app_files`, which IS the proxy's allowlist.
+  - **THE METADATA FLAG CANNOT SAY WHICH FIELD MOVED, AND MUST NOT CLAIM TO.**
+    `metadata_flagged_at` is a timestamp; there is no metadata history table and
+    the version manifest carries build facts only. The panel reports the two
+    timestamps that ARE known and names the fields capable of having moved. A
+    per-field diff is a migration, not a rendering decision.
+  - **A REJECTION NEEDS A CATEGORY AND A NOTE.** The note is the DATABASE's rule
+    (0130 raises without one); the fixed reason list is the console's, so
+    rejections are countable and read the same in front of two reviewers. One
+    predicate (`reviewCanSend`) drives both the control and the handler --
+    two spellings of "is this ready" is what produces a click that does nothing.
+    The control is `aria-disabled`, never `disabled`, so it can explain itself.
+
+**A BUNDLE TOKEN CARRIES A KIND IN ITS SIGNED BYTES, AND `review` LIFTS EXACTLY
+ONE CHECK.** Byte 0 of the payload was always a signed discriminator; it now
+holds `published` (1) or `review` (2). A review token lets an ADMIN read one
+named version of an app whether or not it is published, because the queue has to
+RUN the build it is deciding about. Everything else still holds: the version must
+belong to the app, the app must not be hidden, and the mint re-reads the version
+row rather than trusting the body. **Do not turn the publication re-check into a
+parameter** -- it is what makes a thirty-minute token withdrawable inside its own
+lifetime, and the licence has to be unforgeable, which is why it is in the
+signature rather than in the request.
 
 **THE STUDENT HANDS OVER ONE OF THREE SHAPES AND THE BROWSER MAKES THEM ALL A
 ZIP** -- a `.zip` passes through untouched, a folder is zipped client-side, a
@@ -132,9 +180,19 @@ gallery learns a name and a class and gains no other reach.
     not what it does, and copying it under a `_foundry_` name would be a second
     implementation of the one mapping this codebase is most careful about. No
     view, ever -- a granted email-to-uuid view is a school directory.
-  - **THE NAME IS `display_name` WHEN SET, `full_name` OTHERWISE, NEVER BOTH.**
-    Do NOT use `profileDisplayName` on a public surface: its third rung is the
-    email address.
+  - **THE NAME IS `display_name` WHEN SET, `full_name` OTHERWISE, NEVER BOTH,
+    and `foundryAuthorName` is the ONE implementation.** Do NOT use
+    `displayName()` from `$lib/profile` on a Foundry surface: its third rung is
+    the EMAIL ADDRESS, which on a gallery every signed-in student can read is a
+    disclosure. Sampled against production, ten students, none had chosen a
+    display name -- so `full_name` is the NORMAL path and not an exceptional
+    fallback, which makes the first rung the one dropped by accident and the
+    third the one added by accident. `tests/foundry-author-name.test.ts` pins
+    both directions and sweeps every Foundry surface for that import.
+  - **A NULL NAME OR CLASS RENDERS NOTHING, AND THE SEPARATOR LIVES INSIDE THE
+    BRANCH.** `foundryAuthorLine` joins them only when both are there; written
+    inline at two call sites, that expression is where a card ends up reading
+    "Ana Reyes ·".
 
 **THE JS SCANNER READS INLINE `<script>` BLOCKS TOO, AND IT IS ONE SCANNER.**
 `scanJs` only ever saw `.js` files, which meant every JavaScript rule was
@@ -434,13 +492,16 @@ it is not required to browse.
     report, rate limited per address inside the database. It answers its own
     responses, so it is not in `authedPrefixes`, and it reads no session.
 - **Signed-in tier (any role):** `/gauntlet`, `/frc`, `/greenline`, `/notebook`,
-  `/classroom`. `hooks.server.ts` redirects anonymous users off a LIST of authed
-  prefixes.
+  `/classroom`, `/foundry` (the gallery included: a launch mints a token that
+  NAMES the viewer, so there is no anonymous read of a student bundle).
+  `hooks.server.ts` redirects anonymous users off a LIST of authed prefixes.
 - **Admin tier:** `/dashboard`, `/coin-desk`, `/admin`, `/greenline/moderation`,
   the notebook Drive connect flow, GAUNTLET authoring / room hosting, FRC
   completion overrides and gate reviews, the FSP FRC-interest roster, GREENLINE
   decal + community-track moderation, tournament deletion, the all-users feedback
-  read, VANGUARD's TUNE mode.
+  read, VANGUARD's TUNE mode, the Foundry review queue (`/foundry/review`) and
+  the Foundry source reader (`POST /api/foundry/source`) -- both of which answer
+  404 to everyone else, because the existence of a review lane is not public.
 - **The homepage `/` IS the student dashboard.** Students have no separate one;
   `/dashboard` is admin-only.
   - **ITS SECTION ORDER TURNS ON WHAT THE VIEWER MANAGES, never on their role.**
@@ -586,8 +647,10 @@ build break):
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
-  anything in it), and the Foundry bundle proxy's source module
-  (`src/lib/server/foundry-bundle.ts`). The FOURTH one is forced by the origin
+  anything in it), and the Foundry bundle module
+  (`src/lib/server/foundry-bundle.ts`, which serves the proxy AND backs the
+  review queue's source viewer -- one reader per credential, so the source
+  reads live there rather than in the route that fronts them). The FOURTH one is forced by the origin
   split rather than chosen: the apps host is a different site, so the viewer's
   cookies never arrive and there is no session to read a row under, and
   `foundry-bundles` carries no storage policy at all, so `service_role` is the

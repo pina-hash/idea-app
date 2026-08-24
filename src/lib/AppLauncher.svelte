@@ -14,6 +14,7 @@
 	import CoinDeskMark from '$lib/marks/CoinDeskMark.svelte';
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
 	import AdminMark from '$lib/marks/AdminMark.svelte';
+	import FoundryMark from '$lib/marks/FoundryMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
@@ -281,6 +282,8 @@
 		<DashboardMark />
 	{:else if id === 'admin'}
 		<AdminMark />
+	{:else if id === 'foundry'}
+		<FoundryMark />
 	{:else if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
@@ -750,6 +753,29 @@
 		   for legibility and the identity stays exactly the room's. */
 		--acc-primary: #0fbe7a;
 		--acc-secondary: #e0ac4e;
+	}
+	/* IDEA FOUNDRY. The card QUOTES ITS OWN ROOM, which is the only honest
+	   source for a pair: /foundry is built on the portal's own console register
+	   -- .cr-root surfaces, --green for the launch control, --cyan for the
+	   author line -- so those two ARE its colours rather than a pair invented
+	   for the card. Molten copper was the tempting alternative and is exactly
+	   what the rule refuses: it would be inventing an identity for an app that
+	   already has one.
+
+	   --acc-ink is NOT re-pinned: --green already carries text on --bg1
+	   everywhere else on this page, so there is nothing for the ink to
+	   correct. */
+	.app-card[data-app='foundry'] {
+		--acc-primary: var(--green);
+		--acc-secondary: var(--cyan);
+		/* Horizontal hairlines at 7px: the lines of content inside the window in
+		   the mark, and distinct from GAUNTLET's blueprint grid and GREENLINE's
+		   diagonals so the three do not read as one family. */
+		--card-texture: repeating-linear-gradient(
+			to bottom,
+			rgba(0, 240, 255, 0.035) 0 1px,
+			transparent 1px 7px
+		);
 	}
 	.app-card[data-app='dashboard'],
 	.app-card[data-app='admin'] {

@@ -168,6 +168,55 @@ try {
 </body>
 </html>`;
 
+/**
+ * A BUNDLE THAT WEDGES ITS OWN TAB, on purpose.
+ *
+ * It is the SUBMITTED version of app A -- the one waiting for review -- because
+ * that is where an unvetted build is actually met, and because it is the exact
+ * case the stop control exists for: review catches an infinite loop unreliably
+ * (a reviewer who approved a build did not necessarily reach the path that
+ * spins), so a viewer needs a way out that does not cost them the tab.
+ *
+ * IT REPORTS AND THEN HANGS, in that order, with the spin deferred one turn of
+ * the event loop. Without the defer the parse never finishes, nothing is
+ * painted and nothing is posted, so what gets tested is a blank frame rather
+ * than a running one that stopped responding -- and those two need different
+ * fixes. The 1500ms delay is long enough that the harness can see it alive
+ * first.
+ *
+ * NOTHING HERE IS A SECOND PROXY OR A SECOND FRAME: it is bytes, served by the
+ * same route, framed by the same component. Only the bytes are hostile.
+ */
+const SPINNER_HTML = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Runaway build</title></head>
+<body>
+<h1>Runaway build</h1>
+<p id="state">starting</p>
+<script>
+function say(s) {
+  document.getElementById('state').textContent = s;
+  try { if (window.top !== window.self) window.parent.postMessage({ foundrySpinner: s }, '*'); } catch (e) {}
+}
+say('alive');
+/*
+ * A HEARTBEAT, BECAUSE "IS THIS FRAME WEDGED" HAS TO BE MEASURABLE FROM
+ * OUTSIDE. The parent cannot reach into a cross-origin, opaque-origin document
+ * to ask, and a frame that has stopped responding looks exactly like one that
+ * is idle. A beat every 200ms turns that into an observation: the beats stop,
+ * and the number they stopped at says when.
+ */
+var beat = 0;
+setInterval(function () { beat += 1; say('beat ' + beat); }, 200);
+setTimeout(function () {
+  say('spinning');
+  // The whole point. This never returns, and the heartbeat above dies with it.
+  while (true) { Math.sqrt(Math.random()); }
+}, 1500);
+<\/script>
+</body>
+</html>`;
+
 const STYLE_CSS = `body { font-family: 'Rajdhani', system-ui, sans-serif; margin: 2rem; }
 h1 { font-family: 'Orbitron', sans-serif; }
 li { font-family: 'Share Tech Mono', monospace; }`;
@@ -214,7 +263,10 @@ const versions = new Map<string, FixtureVersion>([
 		{
 			appId: FIXTURE_APP_A,
 			entry: FOUNDRY_ENTRY_FILE,
-			files: new Map([file(FOUNDRY_ENTRY_FILE, '<!doctype html><title>stale</title>')])
+			files: new Map([
+				file(FOUNDRY_ENTRY_FILE, SPINNER_HTML),
+				file('notes.txt', 'The build the reviewer is deciding about.')
+			])
 		}
 	],
 	[

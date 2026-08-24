@@ -5,6 +5,7 @@ import { dev } from '$app/environment';
 import { bundlePathOk } from '$lib/bundle-path';
 import { FOUNDRY_ENTRY_FILE } from '$lib/foundry/preflight';
 import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
+import type { FoundryTokenKind } from './foundry-token';
 
 /**
  * RESOLVING ONE FILE OF ONE BUNDLE: the rows, then the bytes.
@@ -31,6 +32,22 @@ import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture'
  * inside that window, and without this re-read the withdrawn bundle keeps
  * serving until the token expires. It is also what makes "a token for an app
  * whose published version has moved" a refusal rather than a stale hit.
+ *
+ * A REVIEW TOKEN LIFTS (2) AND ONLY (2), and the licence arrives in the signed
+ * bytes rather than as a parameter this module trusts a caller for -- see
+ * `FOUNDRY_TOKEN_KIND_BYTES` in `./foundry-token`. The review queue has to RUN
+ * the build it is deciding about, and a submitted version is by definition not
+ * the published one; without this the only way to see a submission running
+ * would be to approve it first, which is the decision the queue exists to make.
+ * (1) and (3) still hold: a review token still cannot cross to another app's
+ * files, and a hidden app is off the site for staff too (0130's own rule, and
+ * the mint says the same thing).
+ *
+ * IT IS ALSO THE ONE READER OF THE BUNDLE BUCKET FOR THE SOURCE VIEWER.
+ * `listBundleFiles` and `readBundleFileText` are here rather than in the review
+ * route for the credential rule: `SUPABASE_SERVICE_ROLE_KEY` has one reader per
+ * service and this module is Foundry's. They re-check the same way, and they
+ * are called only from an admin-gated route.
  *
  * THE FILE LIST IS THE ALLOWLIST, which is what makes path traversal a
  * non-event. A served path must have a ROW in `student_app_files` for that
@@ -101,10 +118,16 @@ function entryFor(manifest: unknown): string {
 export async function resolveBundleFile(
 	appId: string,
 	versionId: string,
-	requestedPath: string
+	requestedPath: string,
+	/**
+	 * What the TOKEN licensed, never what the caller would like. `published`
+	 * is the default so a caller that has not thought about it gets the strict
+	 * rule rather than the widened one.
+	 */
+	kind: FoundryTokenKind = 'published'
 ): Promise<FoundryBundleResult> {
 	if (dev && isFixtureApp(appId)) {
-		return resolveFromFixture(appId, versionId, requestedPath);
+		return resolveFromFixture(appId, versionId, requestedPath, kind);
 	}
 
 	const client = admin();
@@ -130,7 +153,7 @@ export async function resolveBundleFile(
 
 	if (row.app_id !== appId) return { ok: false, reason: 'no_such_version' };
 	if (row.student_apps.hidden_at) return { ok: false, reason: 'hidden' };
-	if (row.student_apps.published_version_id !== versionId) {
+	if (kind !== 'review' && row.student_apps.published_version_id !== versionId) {
 		return { ok: false, reason: 'not_published' };
 	}
 
@@ -168,7 +191,8 @@ export async function resolveBundleFile(
 function resolveFromFixture(
 	appId: string,
 	versionId: string,
-	requestedPath: string
+	requestedPath: string,
+	kind: FoundryTokenKind = 'published'
 ): FoundryBundleResult {
 	const version = fixtureVersion(versionId);
 	if (!version || version.appId !== appId) return { ok: false, reason: 'no_such_version' };
@@ -176,7 +200,9 @@ function resolveFromFixture(
 	const app = fixtureApp(appId);
 	if (!app) return { ok: false, reason: 'no_such_version' };
 	if (app.hiddenAt) return { ok: false, reason: 'hidden' };
-	if (app.publishedVersionId !== versionId) return { ok: false, reason: 'not_published' };
+	if (kind !== 'review' && app.publishedVersionId !== versionId) {
+		return { ok: false, reason: 'not_published' };
+	}
 
 	const path = requestedPath || version.entry;
 	if (!bundlePathOk(path)) return { ok: false, reason: 'bad_path' };
@@ -188,4 +214,154 @@ function resolveFromFixture(
 		ok: true,
 		file: { contentType: file.contentType, body: file.bytes, byteLength: file.bytes.byteLength }
 	};
+}
+
+/* -------------------------------------------------------------------------
+ * THE SOURCE VIEWER'S READS.
+ *
+ * The review queue shows the bytes that are ACTUALLY IN `foundry-bundles`,
+ * not a re-render of what the student uploaded and not the zip they sent. The
+ * difference is the whole point: the student handed over an archive, the
+ * ingest function decided what came out of it (a wrapper directory stripped,
+ * OS noise dropped, ignored extensions removed), and what a viewer will run is
+ * the result. A reviewer looking at the upload is reviewing something nobody
+ * will ever execute.
+ *
+ * THEY LIVE HERE FOR THE CREDENTIAL RULE, not for convenience. `foundry-bundles`
+ * has no storage policy, so `service_role` is the only role that reaches it,
+ * and this module is that key's one Foundry reader. A second reader in a route
+ * would be a second egress point for the same secret.
+ *
+ * THEY ARE NOT SELF-AUTHORIZING AND DO NOT PRETEND TO BE. Neither takes a
+ * token; both bypass RLS by construction. The caller is `/api/foundry/source`,
+ * which is admin-gated and answers 404 to everyone else -- the same shape the
+ * rest of the site uses for a surface whose existence is not public.
+ * ---------------------------------------------------------------------- */
+
+export type FoundryBundleEntry = { path: string; contentType: string; byteSize: number };
+
+/**
+ * Every file the proxy would serve for one version, in path order.
+ *
+ * The rows, not the bucket: `student_app_files` IS the allowlist the proxy
+ * resolves against, so a tree built from it shows exactly the set of paths
+ * that can be reached, and an object sitting in the bucket with no row is
+ * unreachable and correctly absent.
+ */
+export async function listBundleFiles(versionId: string): Promise<FoundryBundleEntry[] | null> {
+	if (dev) {
+		const version = fixtureVersion(versionId);
+		if (version) {
+			return [...version.files.entries()]
+				.map(([path, f]) => ({
+					path,
+					contentType: f.contentType,
+					byteSize: f.bytes.byteLength
+				}))
+				.sort((a, b) => a.path.localeCompare(b.path));
+		}
+	}
+
+	const client = admin();
+	if (!client) return null;
+
+	const { data, error } = await client
+		.from('student_app_files')
+		.select('path, content_type, byte_size')
+		.eq('version_id', versionId)
+		.order('path');
+
+	if (error || !data) return null;
+	return (data as { path: string; content_type: string; byte_size: number | null }[]).map((r) => ({
+		path: r.path,
+		contentType: r.content_type,
+		byteSize: r.byte_size ?? 0
+	}));
+}
+
+/** The largest file the source viewer will read into a response. */
+export const FOUNDRY_SOURCE_MAX_BYTES = 512 * 1024;
+
+export type FoundrySourceResult =
+	| { ok: true; path: string; contentType: string; byteSize: number; text: string }
+	| { ok: false; reason: FoundryBundleRefusal | 'too_large' | 'not_text' };
+
+/**
+ * One file's bytes, decoded as text.
+ *
+ * REFUSES A BINARY TYPE RATHER THAN MOJIBAKE. A PNG decoded as UTF-8 is a
+ * screenful of replacement characters that looks like a corrupted upload; the
+ * viewer says "this is an image, N bytes" instead, which is the true answer.
+ *
+ * REFUSES A FILE OVER THE CAP RATHER THAN TRUNCATING IT. A reviewer reading a
+ * silently truncated file would be deciding about bytes they were not shown.
+ * The cap is per FILE and is far under the 25 MB bundle cap; a source file
+ * over half a megabyte is minified or generated, which the reviewer needs to
+ * know rather than scroll.
+ */
+export async function readBundleFileText(
+	appId: string,
+	versionId: string,
+	path: string
+): Promise<FoundrySourceResult> {
+	if (!bundlePathOk(path)) return { ok: false, reason: 'bad_path' };
+
+	const files = await listBundleFiles(versionId);
+	if (!files) return { ok: false, reason: 'not_configured' };
+	const row = files.find((f) => f.path === path);
+	if (!row) return { ok: false, reason: 'no_such_file' };
+
+	if (!isTextContentType(row.contentType)) return { ok: false, reason: 'not_text' };
+	if (row.byteSize > FOUNDRY_SOURCE_MAX_BYTES) return { ok: false, reason: 'too_large' };
+
+	if (dev) {
+		const version = fixtureVersion(versionId);
+		const file = version?.files.get(path);
+		if (version && file) {
+			return {
+				ok: true,
+				path,
+				contentType: row.contentType,
+				byteSize: row.byteSize,
+				text: new TextDecoder().decode(file.bytes)
+			};
+		}
+	}
+
+	const client = admin();
+	if (!client) return { ok: false, reason: 'not_configured' };
+
+	const { data: blob, error } = await client.storage
+		.from('foundry-bundles')
+		.download(`${appId}/${versionId}/${path}`);
+	if (error || !blob) return { ok: false, reason: 'storage_failed' };
+
+	return {
+		ok: true,
+		path,
+		contentType: row.contentType,
+		byteSize: row.byteSize,
+		text: await blob.text()
+	};
+}
+
+/**
+ * Which stored types the viewer will decode.
+ *
+ * Keyed on the STORED type, which the ingest function wrote from its own fixed
+ * table -- never sniffed from the bytes, and never inferred from the extension
+ * a second time here.
+ */
+const TEXTUAL = new Set([
+	'text/html',
+	'text/css',
+	'text/javascript',
+	'application/json',
+	'text/plain',
+	'image/svg+xml'
+]);
+
+export function isTextContentType(stored: string | null | undefined): boolean {
+	const base = (stored ?? '').split(';')[0].trim().toLowerCase();
+	return TEXTUAL.has(base);
 }

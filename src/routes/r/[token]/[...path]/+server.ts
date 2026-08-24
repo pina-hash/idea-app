@@ -64,7 +64,7 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	const verdict = verifyFoundryToken(params.token ?? '', dev);
 	if (!verdict.ok) return foundryNotFound();
 
-	const { appId, versionId } = verdict.claims;
+	const { appId, versionId, kind } = verdict.claims;
 
 	/**
 	 * The path exactly as the browser asked for it, percent-decoding undone
@@ -101,7 +101,12 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 		});
 	}
 
-	const found = await resolveBundleFile(appId, versionId, path);
+	/**
+	 * THE KIND COMES FROM THE SIGNED BYTES, never from the request. A review
+	 * token lifts the publication re-check and nothing else; a `published` one
+	 * -- which is every token a student can hold -- keeps it.
+	 */
+	const found = await resolveBundleFile(appId, versionId, path, kind);
 	if (!found.ok) return foundryNotFound();
 
 	const contentType = servableContentType(found.file.contentType);

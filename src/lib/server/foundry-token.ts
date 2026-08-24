@@ -21,7 +21,7 @@ import { env } from '$env/dynamic/private';
  * THE PAYLOAD IS BINARY AND FIXED-WIDTH, 53 bytes, so there is no parser and
  * no separator to get wrong:
  *
- *   [0]      version byte (1)
+ *   [0]      KIND byte (see below)
  *   [1..17)  app id, 16 raw bytes
  *   [17..33) version id, 16 raw bytes
  *   [33..49) viewer id, 16 raw bytes
@@ -46,7 +46,42 @@ import { env } from '$env/dynamic/private';
  * yes.
  */
 
-const TOKEN_VERSION = 1;
+/**
+ * THE KIND BYTE, WHICH IS THE OLD VERSION BYTE WITH ITS REAL JOB WRITTEN DOWN.
+ *
+ * Byte 0 has always been a signed discriminator that verification checks after
+ * the signature and refuses if it does not recognise. It held one value and
+ * was called a version. It now holds two, and calling it a version while it
+ * discriminates PURPOSE would be a name that says the wrong thing.
+ *
+ *   published (1)  what every token has always been, unchanged byte for byte:
+ *                  the viewer may read the app's CURRENTLY PUBLISHED version.
+ *                  `resolveBundleFile` re-checks that equality on every request.
+ *   review    (2)  a reviewer may read ONE NAMED version of an app whether or
+ *                  not it is the published one. It exists because the review
+ *                  queue has to run the build it is deciding about, and a
+ *                  submitted version is by definition not published yet.
+ *
+ * WHY A SECOND KIND RATHER THAN RELAXING THE CHECK. The publication re-check in
+ * `$lib/server/foundry-bundle` is the thing that makes a thirty-minute token
+ * withdrawable inside its own lifetime; a flag that turned it off for everyone
+ * would trade that for one surface's convenience. Instead the licence is IN THE
+ * SIGNED BYTES, so a published token cannot be edited into a review one, and
+ * the mint is the single place that decides who may hold one (admins only, and
+ * it re-reads the row to say so).
+ *
+ * NO WIDTH CHANGE. Adding a field would have moved every offset in the layout
+ * above and made every already-minted token malformed. Byte 0 was already a
+ * signed value with exactly this job.
+ */
+export const FOUNDRY_TOKEN_KIND_BYTES = { published: 1, review: 2 } as const;
+
+export type FoundryTokenKind = keyof typeof FOUNDRY_TOKEN_KIND_BYTES;
+
+const KIND_BY_BYTE = new Map<number, FoundryTokenKind>(
+	Object.entries(FOUNDRY_TOKEN_KIND_BYTES).map(([k, b]) => [b, k as FoundryTokenKind])
+);
+
 const PAYLOAD_BYTES = 53;
 const SIGNATURE_BYTES = 32;
 
@@ -57,6 +92,8 @@ export type FoundryTokenClaims = {
 	appId: string;
 	versionId: string;
 	viewerId: string;
+	/** What this token licenses. See {@link FOUNDRY_TOKEN_KIND_BYTES}. */
+	kind: FoundryTokenKind;
 	/** Seconds since the epoch. */
 	expiresAt: number;
 };
@@ -133,6 +170,8 @@ export function mintFoundryToken(
 		appId: string;
 		versionId: string;
 		viewerId: string;
+		/** Defaults to `published`, which is what every existing caller means. */
+		kind?: FoundryTokenKind;
 		ttlSeconds?: number;
 		nowSeconds?: number;
 	},
@@ -153,7 +192,7 @@ export function mintFoundryToken(
 	if (!Number.isInteger(expiry) || expiry < 0 || expiry > 0xffffffff) return null;
 
 	const payload = Buffer.alloc(PAYLOAD_BYTES);
-	payload[0] = TOKEN_VERSION;
+	payload[0] = FOUNDRY_TOKEN_KIND_BYTES[input.kind ?? 'published'];
 	app.copy(payload, 1);
 	version.copy(payload, 17);
 	viewer.copy(payload, 33);
@@ -204,9 +243,12 @@ export function verifyFoundryToken(
 	if (signature.length !== expected.length) return { ok: false, reason: 'bad_signature' };
 	if (!timingSafeEqual(signature, expected)) return { ok: false, reason: 'bad_signature' };
 
-	// The version byte is checked AFTER the signature deliberately: an unsigned
-	// value has not earned a distinct answer.
-	if (payload[0] !== TOKEN_VERSION) return { ok: false, reason: 'bad_version' };
+	// The kind byte is checked AFTER the signature deliberately: an unsigned
+	// value has not earned a distinct answer. An UNRECOGNISED kind is refused
+	// rather than defaulted -- a token whose first byte we do not understand
+	// must not quietly become the most permissive thing we do understand.
+	const kind = KIND_BY_BYTE.get(payload[0]);
+	if (!kind) return { ok: false, reason: 'bad_version' };
 
 	const expiresAt = payload.readUInt32BE(49);
 	const now = nowSeconds ?? Math.floor(Date.now() / 1000);
@@ -218,6 +260,7 @@ export function verifyFoundryToken(
 			appId: bytesToUuid(payload.subarray(1, 17)),
 			versionId: bytesToUuid(payload.subarray(17, 33)),
 			viewerId: bytesToUuid(payload.subarray(33, 49)),
+			kind,
 			expiresAt
 		}
 	};

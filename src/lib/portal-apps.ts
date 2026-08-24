@@ -141,6 +141,17 @@ export const PORTAL_APPS: PortalApp[] = [
 		cta: 'Play'
 	},
 	{
+		id: 'foundry',
+		title: 'IDEA // FOUNDRY',
+		sub: 'Web apps built and published by students. Open one, or publish your own.',
+		icon: 'foundry',
+		href: '/foundry',
+		cta: 'Browse',
+		// Signed-in: the gallery mints a token per launch, and a token names the
+		// viewer. There is no anonymous read of a student bundle.
+		requiresAuth: true
+	},
+	{
 		id: 'tournaments',
 		title: 'Tournaments',
 		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
