@@ -90,19 +90,19 @@
         "label": "Complete",
         "short": "Correct diameter, both steps shown",
         "points": 5,
-        "descriptor": "The allowable stress and the required area are both shown with the yield value for the identified material substituted, and the reported diameter is the next whole millimeter above the calculated value."
+        "descriptor": "The allowable stress and the required area both appear as values derived from the yield strength for the identified material, and the reported diameter is the next whole millimeter above the calculated value. Arithmetic arranged as load times factor of safety divided by yield strength counts as the required area, provided the allowable stress is also stated."
       },
       {
         "label": "Proficient",
         "short": "Both steps shown, one error",
         "points": 4,
-        "descriptor": "The allowable stress and the required area are both shown with substituted values, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
+        "descriptor": "The allowable stress and the required area both appear, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
       },
       {
         "label": "Developing",
         "short": "Allowable stress only",
         "points": 2,
-        "descriptor": "The allowable stress is shown with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress."
+        "descriptor": "The allowable stress appears with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress or its algebraic equivalent."
       },
       {
         "label": "Absent",
