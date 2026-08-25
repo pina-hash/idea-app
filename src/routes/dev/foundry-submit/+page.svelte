@@ -26,6 +26,7 @@
 	import { inflateEntry, readCentralDirectory } from '$lib/foundry/zip';
 	import { extensionOf, isTextExtension } from '$lib/foundry/preflight';
 	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
+	import '$lib/foundry/forge.css';
 	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
 	import { normalizeFoundryInput } from '$lib/foundry/normalize';
 	import { foundryBuildContract } from '$lib/foundry/preflight';
@@ -183,6 +184,12 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		async createVersion() {
 			created = [...created, 'version'];
 			return { ok: true, versionId: 'version-new', ordinal: 2 };
+		},
+
+		/** The on-page submit press, recorded like every other write here. */
+		async submitVersion(versionId) {
+			created = [...created, `submitted ${versionId}`];
+			return { ok: true };
 		},
 
 		/**
@@ -602,7 +609,7 @@ fetch('https://api.example.com/data').then((r) => r.json());
 
 <svelte:head><title>dev // foundry submit</title></svelte:head>
 
-<div class="h-root">
+<div class="fg-root h-root">
 	<header class="h-head">
 		<h1>Foundry submit harness</h1>
 		<p>

@@ -1,0 +1,218 @@
+/* ==========================================================================
+   THE FORGE -- IDEA Foundry's own room, scoped under `.fg-root`.
+
+   WHAT THE ROOM SAYS. Foundry is where students' work gets made, judged and
+   finished, and the visual language is a forge: molten metal poured, worked,
+   cooled, finished. Green stays the driving colour and stays the FINISHED
+   state; amber and orange are HEAT, and heat means in progress. That gives
+   status a real language instead of a coloured dot:
+
+     draft      cold iron   dark, unlit, matte
+     submitted  heating     amber, glowing, alive
+     approved   struck      cooled to green, finished
+     rejected   quenched    desaturated grey, cooled wrong
+     hidden     shelved     flat, no heat at all
+
+   A SIBLING ROOM, NOT A RESKIN. This sits beside GAUNTLET's CAD viewport and
+   VANGUARD's arcade the way `.nb-root` sits beside `.cr-root`: one wrapper
+   class, opaque, at z-index 1 so `.bg-fx` never shows through, neutralizing
+   the app-shell globals that would leak (the green `// ` h2 prefix, the link
+   glow). It is on the platform's TYPE, RADIUS and SPACING exactly as the
+   classroom is -- Rajdhani, Share Tech Mono, Orbitron for the wordmark,
+   `--radius-*`, `--space-*` -- because a shared type and corner scale is most
+   of what makes two rooms read as one product. Only the plate and the heat
+   are the forge's own.
+
+   THE ALIAS MECHANISM IS `.nb-root`'s, stated there and repeated here because
+   it is load-bearing: the room points the SHARED vocabulary (`--surface-*`,
+   `--text-*`, `--boundary`, `--hairline`, `--bg*`, `--white`, `--dim`) at its
+   own `--fg-*` plate, source and target ON THE SAME ELEMENT, which is what
+   keeps the var()-resolves-where-declared trap off it. Every Foundry
+   component already reads the shared names with portal fallbacks, so the
+   whole module re-plates with no component edits -- and the same components
+   mounted OUTSIDE the room (SSR tests, harnesses without the wrapper) render
+   on the portal tokens exactly as before.
+
+   THE SEMANTIC ACCENTS DO NOT MOVE. `--green`, `--cyan`, `--amber`, `--teal`,
+   `--crimson`, `--ice` keep their platform values and their platform roles;
+   the forge's heat scale is a NEW namespaced set beside them, not a
+   re-pointing of `--amber`. Re-pointing a semantic token inside a room is how
+   a component mounted in two rooms stops meaning the same thing in both.
+
+   EVERY INK BELOW IS MEASURED against the three grounds it can land on
+   (bar 4.5:1 for text, 3:1 for a load-bearing boundary), WCAG 2.x relative
+   luminance, computed at design time:
+
+     ink #ece8e0        16.00 / 15.40 / 14.59   (bg / surface / surface-2)
+     ink-2 #a39d92       7.26 /  6.99 /  6.62
+     heat-ink #f0a355    9.38 /  9.03 /  8.55
+     cold-ink #a7a49e    7.86 /  7.57 /  7.17
+     quench-ink #9fb0b5  8.71 /  8.38 /  7.94
+     shelf-ink #8f8b84   5.77 /  5.55 /  5.26
+     boundary #80796d    4.54 /  4.37 /  4.14   (bar 3.0)
+     heat-ember #c65a1d  4.54 /  4.38 /  4.14   (bar 3.0)
+     --green #78b870     8.28 /  7.97 /  7.55   (unchanged, re-measured here)
+     --cyan #5abda8      8.64 /  8.32 /  7.88   (unchanged, re-measured here)
+
+   Status chip inks are additionally measured against their own PINNED fills
+   (the fill is never mixed from the ink -- the color-mix trap hands contrast
+   straight back): draft 7.13, submitted 8.05, approved 6.87, live 7.97,
+   rejected 7.87, hidden 5.55. Chip EDGES are decoration by the standard's own
+   list ("a static chip") and are not measured; the state is carried by the
+   ink, the glyph, the word and (for heat) the glow, never by the edge alone.
+   ========================================================================== */
+
+@import '../shell/split.css';
+
+.fg-root {
+	position: relative;
+	z-index: 1;
+	background: var(--fg-bg);
+	min-height: 100vh;
+
+	/* --- The iron plate ---------------------------------------------------
+	   Near-black with a faint WARM cast -- worked metal under a banked fire --
+	   where the classroom register is green-neutral and the portal plate is
+	   green. The warmth is the room's identity and it is deliberately faint:
+	   this is cold iron, and the heat scale below is what glows, not the
+	   walls. -------------------------------------------------------------- */
+	--fg-bg: #0d0c0a; /* page base: iron black */
+	--fg-surface: #14110d; /* cards and panels: worked steel */
+	--fg-surface-2: #1b1712; /* inputs, recessed rows, toolbars */
+
+	/* --- Inks ------------------------------------------------------------- */
+	--fg-ink: #ece8e0; /* body copy and headings: warm bone */
+	--fg-ink-2: #a39d92; /* secondary text, labels, meta */
+	--fg-ink-3: #635d52; /* tertiary: decorative only, never body copy */
+	--fg-hairline: rgba(255, 255, 255, 0.08); /* decoration, deliberately unmeasured */
+	/* The load-bearing boundary on this plate. Same two-token contract as
+	   `--boundary` in the register (IDEA_INTERFACE_STANDARDS 10): control
+	   edges, the only rule between two interactive rows, a card edge on the
+	   page plate. --fg-ink-3's own warmth, lightness only. */
+	--fg-boundary: #80796d;
+
+	/* --- THE HEAT SCALE ---------------------------------------------------
+	   One physical story: metal goes white-hot at the core, amber where it
+	   flows, ember where it cools, crust where it has cooled. Heat means IN
+	   PROGRESS, everywhere in this room, and nothing else may wear it.
+	     core   the brightest point in a pour; never text
+	     heat   the working molten amber; never text (6.1:1 but reserved)
+	     ink    heat AS TEXT, measured 9.03 on the card
+	     ember  the cooling edge; doubles as a measured boundary (4.38)
+	     crust  cooled surface; fills and beds, never text
+	     glow   the halo, always translucent, always decoration            */
+	--fg-heat-core: #ffd9a3;
+	--fg-heat: #f6952f;
+	--fg-heat-ink: #f0a355;
+	--fg-heat-ember: #c65a1d;
+	--fg-heat-crust: #572a10;
+	--fg-heat-glow: rgba(246, 149, 47, 0.35);
+
+	/* --- THE STATUS LANGUAGE ----------------------------------------------
+	   Each state is a trio -- ink, PINNED fill, edge -- read by ForgeStatus
+	   and by nothing else. The fills are pinned colours, never a color-mix of
+	   the ink above them (the notebook's cell-fill lesson: a fill derived from
+	   its own ink moves with it and hands the contrast back). Green is the
+	   FINISHED state and stays the platform's own --green; "live" is finished
+	   twice over, so it is the same green on a deeper bed with the strongest
+	   edge. ---------------------------------------------------------------- */
+	--fg-st-draft-ink: #a7a49e; /* cold iron: dark, unlit, matte */
+	--fg-st-draft-fill: #191817;
+	--fg-st-draft-edge: #4a4741;
+	--fg-st-heat-ink: var(--fg-heat-ink); /* submitted: heating, alive */
+	--fg-st-heat-fill: #2a1a0c;
+	--fg-st-heat-edge: var(--fg-heat-ember);
+	--fg-st-done-ink: var(--green); /* approved: struck and cooled to green */
+	--fg-st-done-fill: #142415;
+	--fg-st-done-edge: #3b5c3b;
+	--fg-st-live-ink: #8fd287; /* live: the finished thing, on the gallery */
+	--fg-st-live-fill: #16301b;
+	--fg-st-live-edge: var(--green);
+	--fg-st-quench-ink: #9fb0b5; /* rejected: quenched, cooled wrong */
+	--fg-st-quench-fill: #16191b;
+	--fg-st-quench-edge: #3f4a4f;
+	--fg-st-shelf-ink: #8f8b84; /* hidden: shelved, flat, no heat at all */
+	--fg-st-shelf-fill: transparent;
+	--fg-st-shelf-edge: #4a4741;
+
+	/* --- MOTION VOCABULARY ------------------------------------------------
+	   The pour is layers of one slow drift at three co-prime periods, so the
+	   stream never visibly loops; the ember is a slow breath, not a blink.
+	   Everything that reads one of these is transform/opacity only (the
+	   compositor's properties) and sits behind
+	   `prefers-reduced-motion: no-preference`; the still frame underneath is
+	   a complete molten gradient, never a blank box. ----------------------- */
+	--fg-flow-1: 23s; /* the core stream */
+	--fg-flow-2: 13s; /* the bright billows riding it */
+	--fg-flow-3: 37s; /* the slag drifting on top */
+	--fg-ember: 3.4s; /* the submitted state's breathing glow */
+
+	/* --- The shared vocabulary, aliased onto this plate -------------------
+	   Source and target on the SAME element (the .nb-root rule). Everything a
+	   Foundry component or a shared shell reads resolves to the forge. ----- */
+	--surface-0: var(--fg-bg);
+	--surface-1: var(--fg-surface);
+	--surface-2: var(--fg-surface-2);
+	--text-1: var(--fg-ink);
+	--text-2: var(--fg-ink-2);
+	--text-3: var(--fg-ink-3);
+	--boundary: var(--fg-boundary);
+	--hairline: var(--fg-hairline);
+	--bg0: var(--fg-bg);
+	--bg1: var(--fg-surface);
+	--bg2: var(--fg-surface-2);
+	--white: var(--fg-ink);
+	--dim: var(--fg-ink-2);
+}
+
+/* The scanline + vignette overlay is a sibling of this wrapper's ancestor, so
+   no scoped rule can reach it -- suppressed from the document instead, the
+   same `:has()` form .cr-root, .nb-root and .frc-root use. */
+body:has(.fg-root) .bg-fx {
+	display: none;
+}
+
+/* THE CANVAS ITSELF. A body background propagates to the canvas -- the paint
+   behind overscroll, the collapsed last margin, the retracted URL bar -- and
+   `body` is an ANCESTOR of .fg-root, so it cannot see the alias above. The
+   literal is --fg-bg's value; change them together. */
+body:has(.fg-root) {
+	background: #0d0c0a;
+}
+
+/* --- Typography: the platform's own, with the shell chrome neutralized ----
+   Orbitron is the wordmark and the page title only; below that Rajdhani for
+   reading and Share Tech Mono for chrome, exactly the classroom's ladder. The
+   app shell's glowing green `// ` h2 prefix is terminal chrome and this is a
+   room someone reads in; same neutralization as .cr-root, .nb-root and
+   .frc-root. ---------------------------------------------------------------- */
+.fg-root h1 {
+	font-family: var(--font-title);
+	font-weight: 700;
+	letter-spacing: 0.01em;
+}
+.fg-root h2,
+.fg-root h3,
+.fg-root h4 {
+	font-family: var(--font-display);
+	font-weight: 600;
+	color: var(--text-1);
+}
+.fg-root h2::before {
+	content: none;
+}
+
+/* Links are cyan here, not green: green is spent on primary actions and the
+   finished state. The shell's hover glow goes with it. Real buttons that
+   happen to be anchors keep their own treatment. */
+.fg-root a {
+	color: var(--cyan);
+}
+.fg-root a:hover {
+	text-shadow: none;
+	text-decoration: underline;
+}
+.fg-root a.btn {
+	color: var(--green);
+	text-decoration: none;
+}

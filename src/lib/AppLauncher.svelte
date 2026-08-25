@@ -45,6 +45,17 @@
 	// Admin, not teacher (0067): the launcher's gated tools are admin surfaces.
 	const isAdmin = $derived(page.data.isAdmin === true);
 
+	/**
+	 * The Foundry review queue's size, on the Foundry card, for admins only. A
+	 * queue nobody is reminded of goes stale; this is the same number the
+	 * Foundry shell's Review tab carries. The home load answers it null for
+	 * everyone who is not an admin (that is the real gate -- the data never
+	 * arrives), and the isAdmin check here is the markup's second layer.
+	 */
+	const foundryPending = $derived(
+		isAdmin ? ((page.data.foundryReviewPending as number | null | undefined) ?? null) : null
+	);
+
 	let prefs = $state<HomepagePrefs>({});
 	$effect(() => {
 		prefs = readHomepagePrefs(profile?.preferences);
@@ -337,6 +348,9 @@
 					<span class="app-title">{app.title}</span>
 					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
+					{#if app.id === 'foundry' && foundryPending !== null && foundryPending > 0}
+						<span class="review-count">{foundryPending} to review</span>
+					{/if}
 				</span>
 				{#if !compact}<span class="app-sub">{app.sub}</span>{/if}
 			</span>
@@ -370,6 +384,11 @@
 					<span class="app-title">{app.title}</span>
 					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
+					{#if app.id === 'foundry' && foundryPending !== null && foundryPending > 0}
+						<!-- The word rides the number: a bare count on a card is a
+						     mystery, and colour is never the only signal. -->
+						<span class="review-count">{foundryPending} to review</span>
+					{/if}
 				</span>
 				{#if !compact}
 					<span class="app-sub">
@@ -823,6 +842,21 @@
 		flex-wrap: wrap;
 		gap: 0.4rem;
 	}
+	/* The admin-only review reminder on the Foundry card. --amber is the
+	   portal's own warning copper and measures 4.90:1 on --bg1 / 4.60 on
+	   --bg2, so the count is read, not just noticed. */
+	.review-count {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--amber);
+		border: 1px solid rgba(208, 128, 48, 0.55);
+		border-radius: 999px;
+		padding: 0.05rem 0.45rem;
+		white-space: nowrap;
+	}
+
 	.legacy-badge {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.5rem;

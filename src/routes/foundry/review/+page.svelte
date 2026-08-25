@@ -140,9 +140,10 @@
 	<title>Foundry review</title>
 </svelte:head>
 
-<div class="cr-root fdy-rev-page">
+<!-- The room wrapper (.fg-root) and the masthead live in the /foundry layout. -->
+<div class="fdy-rev-page">
 	<header class="fdy-rev-head">
-		<h1>Foundry review</h1>
+		<h1>Review queue</h1>
 		<p>
 			Read the source beside the running build. Approving publishes it immediately; sending it
 			back needs a reason and a note the student can act on.
