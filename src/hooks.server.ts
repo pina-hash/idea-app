@@ -257,12 +257,57 @@ const foundryHostRefusal = () =>
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
-	if (isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
+	/**
+	 * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	 *
+	 * THE FIRST STATEMENT IN `handle`, BEFORE ANY BRANCH. The previous round
+	 * logged four handler lines and ZERO hook lines, which was read as "the
+	 * hook never ran" -- but the only hook line on the allowed path sits AFTER
+	 * `await resolve(event)`, so its absence is equally consistent with the
+	 * hook running, entering the apps branch, and `resolve` throwing or never
+	 * returning. Those are different bugs and the old instrumentation could not
+	 * tell them apart. This line fires before anything can throw, so its
+	 * presence or absence answers "did `handle` run" on its own.
+	 *
+	 * It is gated to the Foundry namespace and the apps host so it cannot flood
+	 * the log with every main-host request. Both halves are needed: with
+	 * `PUBLIC_FOUNDRY_APPS_HOST` unreadable at runtime `isFoundryAppsHost` is
+	 * false for a real apps-host request, and only the pathname test would
+	 * catch it.
+	 */
+	const onAppsHost = isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
+	if (onAppsHost || isFoundryHostNamespace(pathname)) {
+		foundryProbe(
+			'hook-enter',
+			event,
+			`appsHost=${onAppsHost ? 'yes' : 'no'} allow=${appsHostAllows(pathname) ? 'yes' : 'no'}`
+		);
+	}
+
+	if (onAppsHost) {
 		if (!appsHostAllows(pathname)) {
 			foundryProbe('hook', event, 'branch=apps allow=no status=404-refusal');
 			return foundryHostRefusal();
 		}
-		const response = await resolve(event);
+		/**
+		 * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+		 *
+		 * `resolve` is wrapped only so a THROW is distinguishable from a
+		 * response, which is the other reading of a missing post-resolve line.
+		 * The error is re-thrown unchanged so `handleError` still mints its
+		 * correlation id and the caller still gets exactly what it got before.
+		 */
+		let response: Response;
+		try {
+			response = await resolve(event);
+		} catch (err) {
+			foundryProbe(
+				'hook-throw',
+				event,
+				`branch=apps allow=yes error=${err instanceof Error ? err.name : typeof err}`
+			);
+			throw err;
+		}
 		foundryProbe('hook', event, `branch=apps allow=yes status=${response.status}`);
 		return response;
 	}

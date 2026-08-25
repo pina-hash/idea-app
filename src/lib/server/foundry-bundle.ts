@@ -93,6 +93,69 @@ function admin() {
 	});
 }
 
+/* -------------------------------------------------------------------------
+ * TEMPORARY PROBES. REMOVE THEM IN THE LANE THAT FIXES THE CAUSE.
+ *
+ * Everything past the route's first statement was unmeasured: the token, the
+ * row lookups and the storage read all fold into one bodyless 404, which is
+ * correct for a caller and useless for a diagnosis. These lines name which of
+ * them refused, on the deployment that is actually running.
+ *
+ * THE CREDENTIAL IS REPORTED AS A SHAPE AND THE VARIABLE NAME IS REPORTED
+ * BESIDE IT. Presence and length only; the value is never logged, never
+ * returned and never put in a message. The NAME matters because Supabase now
+ * markets `SUPABASE_SECRET_KEYS` in place of the legacy service-role key, so
+ * "which variable does this client read" is a real question with a real wrong
+ * answer, and reading it out of the code is what has been wrong four times.
+ * ---------------------------------------------------------------------- */
+
+const SERVICE_ROLE_ENV_NAME = 'SUPABASE_SERVICE_ROLE_KEY';
+
+function probe(detail: string) {
+	console.log(`[foundry-probe] bundle ${detail}`);
+}
+
+/** A compact, value-free rendering of whatever the client handed back. */
+function describeError(e: unknown): string {
+	if (!e) return 'none';
+	const o = e as Record<string, unknown>;
+	const parts = ['message', 'code', 'status', 'statusCode', 'name', 'details', 'hint']
+		.map((k) => (o[k] === undefined || o[k] === null ? null : `${k}=${String(o[k])}`))
+		.filter(Boolean);
+	const text = parts.length ? parts.join(' ') : String(e);
+	return JSON.stringify(text.slice(0, 400));
+}
+
+/**
+ * THE SERVICE-ROLE CLIENT'S FIRST REAL CALL, MADE AN EXPLICIT MEASUREMENT.
+ *
+ * A plain authenticated read against `foundry-bundles` with the key exactly as
+ * configured. It answers the question the whole lane turns on -- does this
+ * credential still authenticate against this project -- rather than leaving it
+ * to be inferred from a download that could fail for six other reasons. A
+ * rotated or replaced key fails HERE, with the platform's own words.
+ *
+ * It lists one object at the bucket root and reads no bytes.
+ */
+async function probeServiceRoleRead(client: NonNullable<ReturnType<typeof admin>>) {
+	const key = env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	probe(
+		`credential env=${SERVICE_ROLE_ENV_NAME} set=${key.length > 0 ? 'yes' : 'no'}` +
+			` len=${key.length} url.host=${(() => {
+				try {
+					return new URL(PUBLIC_SUPABASE_URL).host;
+				} catch {
+					return '<unparseable>';
+				}
+			})()}`
+	);
+	const { data, error } = await client.storage.from('foundry-bundles').list('', { limit: 1 });
+	probe(
+		`credential-read bucket=foundry-bundles ok=${error ? 'no' : 'yes'}` +
+			` entries=${data ? data.length : -1} error=${describeError(error)}`
+	);
+}
+
 export function foundryBundleSourceConfigured(): boolean {
 	if (dev) return true;
 	return Boolean(env.SUPABASE_SERVICE_ROLE_KEY);
@@ -131,7 +194,14 @@ export async function resolveBundleFile(
 	}
 
 	const client = admin();
-	if (!client) return { ok: false, reason: 'not_configured' };
+	if (!client) {
+		// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+		probe(`not_configured env=${SERVICE_ROLE_ENV_NAME} set=no`);
+		return { ok: false, reason: 'not_configured' };
+	}
+
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	await probeServiceRoleRead(client);
 
 	// One row, carrying both halves of the publication rule: the version's own
 	// app, and that app's currently published version and hidden stamp. The
@@ -143,6 +213,12 @@ export async function resolveBundleFile(
 		.eq('id', versionId)
 		.maybeSingle();
 
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	probe(
+		`version-lookup app=${appId} version=${versionId} kind=${kind}` +
+			` row=${version ? 'found' : 'empty'} error=${describeError(versionError)}`
+	);
+
 	if (versionError || !version) return { ok: false, reason: 'no_such_version' };
 
 	const row = version as unknown as {
@@ -151,6 +227,14 @@ export async function resolveBundleFile(
 		student_apps: { published_version_id: string | null; hidden_at: string | null };
 	};
 
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	probe(
+		`version-row app.matches=${row.app_id === appId ? 'yes' : 'no'}` +
+			` hidden=${row.student_apps.hidden_at ? 'yes' : 'no'}` +
+			` published.matches=${row.student_apps.published_version_id === versionId ? 'yes' : 'no'}` +
+			` published.set=${row.student_apps.published_version_id ? 'yes' : 'no'}`
+	);
+
 	if (row.app_id !== appId) return { ok: false, reason: 'no_such_version' };
 	if (row.student_apps.hidden_at) return { ok: false, reason: 'hidden' };
 	if (kind !== 'review' && row.student_apps.published_version_id !== versionId) {
@@ -158,6 +242,18 @@ export async function resolveBundleFile(
 	}
 
 	const path = requestedPath || entryFor(row.manifest);
+
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	// JSON-quoted, with its length beside it: a trailing space, a stray slash or
+	// a percent-decode that did not happen are all invisible unquoted, and any
+	// of them makes the `.eq('path', ...)` match nothing while the row is
+	// plainly there.
+	probe(
+		`path requested=${JSON.stringify(requestedPath)} resolved=${JSON.stringify(path)}` +
+			` len=${path.length} fromManifest=${requestedPath ? 'no' : 'yes'}` +
+			` ok=${bundlePathOk(path) ? 'yes' : 'no'}`
+	);
+
 	if (!bundlePathOk(path)) return { ok: false, reason: 'bad_path' };
 
 	const { data: fileRow, error: fileError } = await client
@@ -167,13 +263,26 @@ export async function resolveBundleFile(
 		.eq('path', path)
 		.maybeSingle();
 
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	probe(
+		`file-lookup version=${versionId} path=${JSON.stringify(path)}` +
+			` row=${fileRow ? 'found' : 'empty'} error=${describeError(fileError)}`
+	);
+
 	if (fileError || !fileRow) return { ok: false, reason: 'no_such_file' };
 
 	const stored = fileRow as { content_type: string; byte_size: number | null };
 
+	const objectKey = `${appId}/${versionId}/${path}`;
 	const { data: blob, error: downloadError } = await client.storage
 		.from('foundry-bundles')
-		.download(`${appId}/${versionId}/${path}`);
+		.download(objectKey);
+
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	probe(
+		`storage-read key=${JSON.stringify(objectKey)} ok=${downloadError || !blob ? 'no' : 'yes'}` +
+			` bytes=${blob ? blob.size : -1} error=${describeError(downloadError)}`
+	);
 
 	if (downloadError || !blob) return { ok: false, reason: 'storage_failed' };
 
