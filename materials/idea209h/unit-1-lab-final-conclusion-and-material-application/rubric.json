@@ -1,0 +1,118 @@
+[
+  {
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Four numbers, every method cited",
+        "points": 4,
+        "descriptor": "A final material or material class is named for four or more sample numbers, and every row cites each method the row records for that number, with an untested day written as not tested."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four numbers, one or two incomplete",
+        "points": 3,
+        "descriptor": "A final material or material class is named for four or more sample numbers, and one or two rows leave out a method that row records for that number."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or three, or uncited",
+        "points": 1,
+        "descriptor": "A final material or material class is named for four numbers with three or more rows leaving out a recorded method, or a final material is named for only two or three sample numbers."
+      },
+      {
+        "label": "Absent",
+        "short": "Fewer than two named",
+        "points": 0,
+        "descriptor": "A final material is named for fewer than two sample numbers, or not attempted."
+      }
+    ],
+    "points": 4,
+    "criterion": "Final Identification and Conclusion: Final identification from both evidence methods",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both candidates and deciding observation",
+        "points": 3,
+        "descriptor": "Every sample number whose density result and appearance result pointed at different materials is named, both candidate materials are stated for each, and the single observation that decided it is stated for each. A number narrowed only to a material class is named with its remaining candidates and the test that would separate them. Where nothing conflicted, the two materials density alone could not separate are named along with the observation that separated them."
+      },
+      {
+        "label": "Proficient",
+        "short": "Candidates named, decision missing",
+        "points": 2,
+        "descriptor": "At least one conflict is named with both candidate materials stated, and the deciding observation is either missing or stated for some but not all of the conflicts named."
+      },
+      {
+        "label": "Absent",
+        "short": "No conflict named",
+        "points": 0,
+        "descriptor": "No conflict is named, or a conflict is asserted without naming both candidate materials, or not attempted."
+      }
+    ],
+    "points": 3,
+    "criterion": "Final Identification and Conclusion: Conflict named and resolved",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Four samples, other candidate excluded",
+        "points": 3,
+        "descriptor": "For every sample number in the table, the conclusion states what the cited observation rules out, rather than restating the observation itself as the reason."
+      },
+      {
+        "label": "Proficient",
+        "short": "One to three samples reasoned",
+        "points": 2,
+        "descriptor": "The conclusion states what the cited observation rules out for some but not all of the sample numbers in the table, and restates the observation as the reason for the rest."
+      },
+      {
+        "label": "Absent",
+        "short": "Results restated, no reasoning",
+        "points": 0,
+        "descriptor": "The conclusion restates observations as reasons for every sample number with no statement of what any observation rules out, or not attempted."
+      }
+    ],
+    "points": 3,
+    "criterion": "Final Identification and Conclusion: Conclusion reasoned rather than asserted",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Correct diameter, both steps shown",
+        "points": 5,
+        "descriptor": "The allowable stress and the required area are both shown with the yield value for the identified material substituted, and the reported diameter is the next whole millimeter above the calculated value."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both steps shown, one error",
+        "points": 4,
+        "descriptor": "The allowable stress and the required area are both shown with substituted values, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
+      },
+      {
+        "label": "Developing",
+        "short": "Allowable stress only",
+        "points": 2,
+        "descriptor": "The allowable stress is shown with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress."
+      },
+      {
+        "label": "Absent",
+        "short": "No substituted values shown",
+        "points": 0,
+        "descriptor": "Neither the allowable stress nor the required area is shown with substituted values, or not attempted."
+      }
+    ],
+    "points": 5,
+    "criterion": "Material Application: Tensile Sizing: Rod sized at the stated factor of safety, work shown",
+    "incomplete": false
+  }
+]
