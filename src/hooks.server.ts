@@ -153,6 +153,36 @@ const authGuard: Handle = async ({ event, resolve }) => {
  */
 const mainHostChain: Handle = sequence(legacyRedirects, supabase, authGuard);
 
+/**
+ * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+ *
+ * Production has answered 404 for a published bundle across several rounds of
+ * this, and every round so far was settled by READING the source and reasoning
+ * about what the deployment must therefore do. Production runs the built
+ * adapter output, not `src/`, and each time the reading was wrong. This line
+ * and the one at the top of the proxy handler measure the two facts that are
+ * still open: whether the SvelteKit router matched the route at all, and what
+ * status the hook's own `resolve(event)` handed back.
+ *
+ * THE PATHNAME IS REDACTED WITH `redactProxyPath`, the same one `handleError`
+ * uses, because on this host the pathname CONTAINS a live bundle token. Its
+ * RAW LENGTH is logged beside it unredacted -- a token segment is ~114
+ * characters, longer than anything any local fixture has used, so a truncation
+ * or a re-encode anywhere upstream would show up here as a length that does
+ * not match what was requested and would explain a router miss on its own.
+ *
+ * The host is logged as received alongside the configured value, so the
+ * `isFoundryAppsHost` comparison is measured rather than inferred.
+ */
+const foundryProbe = (stage: string, event: { url: URL }, detail: string) => {
+	const { pathname } = event.url;
+	console.log(
+		`[foundry-probe] ${stage} host=${event.url.host}` +
+			` configured=${publicEnv.PUBLIC_FOUNDRY_APPS_HOST ?? '<unset>'}` +
+			` path=${redactProxyPath(pathname)} rawlen=${pathname.length} ${detail}`
+	);
+};
+
 /** The one refusal the bundle host ever gives: bodyless, cacheable by nobody. */
 const foundryHostRefusal = () =>
 	new Response(null, {
@@ -228,11 +258,19 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
 	if (isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
-		if (!appsHostAllows(pathname)) return foundryHostRefusal();
-		return resolve(event);
+		if (!appsHostAllows(pathname)) {
+			foundryProbe('hook', event, 'branch=apps allow=no status=404-refusal');
+			return foundryHostRefusal();
+		}
+		const response = await resolve(event);
+		foundryProbe('hook', event, `branch=apps allow=yes status=${response.status}`);
+		return response;
 	}
 
-	if (isFoundryHostNamespace(pathname)) return foundryHostRefusal();
+	if (isFoundryHostNamespace(pathname)) {
+		foundryProbe('hook', event, 'branch=main-namespace status=404-refusal');
+		return foundryHostRefusal();
+	}
 
 	return mainHostChain({ event, resolve });
 };
