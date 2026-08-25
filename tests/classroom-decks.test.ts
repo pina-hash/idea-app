@@ -78,7 +78,8 @@ const MIGRATIONS = [
 	'0101_classroom_decks.sql',
 	'0102_classroom_deck_uploads.sql',
 	'0104_classroom_edit_visibility.sql',
-	'0105_classroom_deck_ingest.sql'
+	'0105_classroom_deck_ingest.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 let db: TestDb;

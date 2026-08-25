@@ -78,7 +78,8 @@ const MIGRATIONS = [
 	'0094_notebook_classroom_sections.sql',
 	'0095_classroom_leveled_rubrics.sql',
 	'0097_notebook_documentation_check.sql',
-	'0098_notebook_session_postings.sql'
+	'0098_notebook_session_postings.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 const MIGRATION_0097 = readFileSync(

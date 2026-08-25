@@ -1118,21 +1118,33 @@ service_role=X/postgres` and **`anon` is true**.
   database carries, which is the whole point -- a narrowing that works under one
   privilege configuration and silently does nothing under the other is not a
   narrowing.
-- **THE TEST FIXTURE DOES NOT CARRY THOSE DEFAULTS, so it CERTIFIES this bug.**
-  `tests/db/supabase-stub.sql` sets no default privileges, so in the fixture the
-  `from public` form appears to work and every assertion about `anon` passes
-  VACUOUSLY. Measured: adding the three lines reddens **41 assertions across 32
-  files** that past sessions wrote deliberately, and **94 of the 96 functions**
-  one 15-migration chain intends to be authenticated-only still hold `anon`
-  EXECUTE on a real project. **That is a known, unfixed, repo-wide finding** --
-  written up in `docs/HISTORY.md` under the 0136 correction, with the stub patch
-  ready. Do not "fix" it by loosening an assertion, and do not sweep the grants
-  blind: several functions ARE granted to `anon` deliberately (the public coin
-  ledger, the anonymous feedback path).
-- **What limits it today** is that every affected write RPC opens with `if
-  v_uid is null then raise` and `auth.uid()` is null for `anon`, so what is
-  reachable is a function that refuses. It is a gate weakened from "refused at
-  the grant" to "refused in the body", not an open door.
+- **THE FIXTURE NOW CARRIES THOSE DEFAULTS, AND 0137 IS WHAT MAKES IT GREEN.**
+  `tests/db/supabase-stub.sql` used to set no default privileges, so the
+  `from public` form appeared to work and every assertion about `anon` passed
+  VACUOUSLY -- 41 of them, across 32 files, written deliberately by past
+  sessions. The three lines are in the stub now and **0137
+  (`0137_anon_execute_sweep.sql`) is the migration that closes the gap**:
+  `anon` went from 360 of 369 functions to the 18 deliberate public surfaces,
+  and 88 private helpers lost `authenticated` with it.
+- **0137 GOES LAST IN EVERY TEST CHAIN, INCLUDING THE HARNESS DEFAULT**, because
+  it is a sweep over whatever the chain above it created. **A migration applied
+  BY HAND after the chain needs the sweep re-applied after it** -- a
+  `create or replace` under the project's default privileges hands the new
+  function a fresh `anon` grant, so `notebook-session-postings`, `coin-medium`
+  and `classroom-leveled-rubrics` each re-run it. A "world as it was" half
+  filters it out instead.
+- **A NEW FUNCTION IS NOT COVERED BY 0137 AND MUST REVOKE FOR ITSELF.** The
+  sweep is a one-time repair of what was already there; anything created after
+  it arrives granted to `anon` again unless its own migration names the roles.
+- **DO NOT SWEEP THE GRANTS BLIND.** The partition is the whole job and 0137's
+  header carries it: 18 functions are granted to `anon` DELIBERATELY (the public
+  coin ledger, the public reference viewer and its attachments, short links, the
+  unauthenticated GAUNTLET run path), and `is_teacher` must keep
+  `authenticated` because it is named inside RLS policies, where a function is
+  evaluated as the QUERYING role -- revoking it breaks the read rather than
+  narrowing it (the 0070 lesson 0109 writes down). **`service_role` is never
+  touched**, because a CHECK constraint's function runs as the WRITING role
+  (0131).
 - **ASSERT THE ACL, NOT THE SELF-CHECK'S VERDICT.** A migration's own guard
   passing tells you the guard ran; reading `proacl` and
   `has_function_privilege` back tells you what is actually granted.

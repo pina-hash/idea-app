@@ -74,7 +74,8 @@ const MIGRATIONS = [
 	'0101_classroom_decks.sql',
 	'0130_foundry.sql',
 	'0131_foundry_service_role_writes.sql',
-	'0132_foundry_author_class.sql'
+	'0132_foundry_author_class.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 let db: TestDb;

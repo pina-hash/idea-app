@@ -74,7 +74,8 @@ const CHAIN = [
 	'0117_notebook_soft_delete_restore.sql',
 	'0118_notebook_draft_state.sql',
 	'0119_notebook_note_delete.sql',
-	'0121_notebook_review_acknowledged.sql'
+	'0121_notebook_review_acknowledged.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 /** The same chain stopping one short: what section 6 applies 0121 over. */

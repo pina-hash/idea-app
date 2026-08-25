@@ -60,10 +60,18 @@ const CHAIN_BEFORE = MIGRATIONS.filter(
 		// 0114 lands later still, and recreates notebook_create_entry against
 		// 0098's own section resolver -- the migration this half exists to be
 		// "before". Its guarantees are pinned by notebook-text-only-entry.
-		m !== '0114_notebook_note_entry_session.sql'
+		m !== '0114_notebook_note_entry_session.sql' &&
+		// 0137 lands 39 migrations later still. A "world as it was" that carried
+		// a sweep from the future would not be that world; it is re-applied by
+		// hand below, after 0098.
+		m !== '0137_anon_execute_sweep.sql'
 );
 const POSTINGS_SQL = readFileSync(
 	fileURLToPath(new URL(`../supabase/migrations/${POSTINGS_FILE}`, import.meta.url)),
+	'utf8'
+);
+const SWEEP_SQL = readFileSync(
+	fileURLToPath(new URL('../supabase/migrations/0137_anon_execute_sweep.sql', import.meta.url)),
 	'utf8'
 );
 
@@ -219,6 +227,11 @@ beforeAll(async () => {
 
 	// ---- 0098, over the top of all of it. -----------------------------------
 	await db.sql(POSTINGS_SQL);
+
+	// ---- and the sweep over the top of THAT. --------------------------------
+	// 0098's two RPCs do not exist until the line above, so the sweep that
+	// closes them has to run after it rather than in the chain.
+	await db.sql(SWEEP_SQL);
 }, 180_000);
 
 afterAll(async () => {

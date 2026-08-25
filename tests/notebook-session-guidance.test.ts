@@ -105,7 +105,8 @@ const CHAIN = [
 	'0118_notebook_draft_state.sql',
 	'0120_notebook_session_item_link.sql',
 	'0122_rich_text_nested_lists.sql',
-	'0123_notebook_session_guidance.sql'
+	'0123_notebook_session_guidance.sql',
+	'0137_anon_execute_sweep.sql'
 ];
 
 const MIGRATION_0123 = readFileSync(
