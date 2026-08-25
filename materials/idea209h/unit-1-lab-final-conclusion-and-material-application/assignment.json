@@ -8,7 +8,7 @@
     "dueDate": "2026-08-25",
     "totalPoints": 15,
     "assignmentId": "idea209h-u1lab-03",
-    "buildVersion": "v1",
+    "buildVersion": "v2",
     "headerFields": [
       "studentName",
       "date",
@@ -22,13 +22,13 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Close the lab. Settle the identification for all four required samples using the evidence you already collected, and say why that evidence is enough.",
+      "intro": "Close the lab. Settle what each sample number is, using the evidence you actually collected, and say why that evidence is enough.",
       "title": "Final Identification and Conclusion",
       "aiNote": "AI may check whether your reasoning holds together or tighten how a sentence reads. The identifications, the conflict you name, and the observation you say decided it all come from your own Checkpoint 1 and Checkpoint 2 data, and you have to be able to defend each one.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Your Checkpoint 1 and Checkpoint 2 submissions are both still open to you. Pull them up before you start writing. Everything below asks you to cite them.\n\n### What a final identification needs\n\nTwo kinds of evidence, not one. For each of the four required samples, name the material and cite both a density result from Friday and an appearance result from Monday. A row citing only one kind is a hypothesis, not a conclusion.\n\n### When your two results disagree\n\nA conflict is not a mistake. It is the normal outcome when one test cannot separate two candidates.\n\n- Density cannot separate 1018 steel from 304 stainless. They sit within a few percent of each other.\n- Density cannot separate 6061 from most other aluminum alloys.\n- Magnetism separates steel from stainless immediately.\n- The spark test separates steel from titanium, which density handles poorly.\n\nName every sample where your density result and your appearance result pointed at different materials. For each one, name both candidates and the single observation that decided it. If none of your samples conflicted, name the two materials density alone could not have separated and the observation that separated them.\n\n### Reasoning, not restating\n\n\"It was magnetic\" is not a reason. \"It was strongly magnetic, and of the two candidates density left open, only 1018 steel is strongly magnetic\" is. The difference is whether you said what the observation rules out.\n\nSamples 5 and 6 are bonus. They are worth no lab points and they earn coins."
+          "content": "Your Checkpoint 1 and Checkpoint 2 submissions are both still open to you. Pull them up before you start writing.\n\n### The number is the material\n\nThe set letter is only which copy you held. Friday was sets A and B, Monday sets C and D. Sample 3 in set B is the same material as sample 3 in set D. Put the number in the table and the set letter inside each evidence column.\n\n### What a final identification needs\n\nCite every method you ran on that number. If you tested a number on only one of the two days, write \"not tested\" in the other column and cite what you have. Four numbers minimum.\n\n### When your two results disagree\n\nA conflict is not a mistake. It is what one test failing to separate two candidates looks like.\n\n- Density alone separates the plastic, aluminum, titanium, and brass cleanly.\n- Density cannot separate the steels from each other, or reliably from the stainless.\n- Magnetism separates stainless from carbon steel immediately.\n\nMore than one sample is a steel. If your evidence reaches \"a carbon steel\" but not which one, write exactly that, say what you ruled out, and name the test that would settle it. That is a complete answer and earns full credit.\n\n### Reasoning, not restating\n\n\"It was magnetic\" is not a reason. \"It was strongly magnetic, and of the two candidates density left open, only the carbon steel is strongly magnetic\" is. The difference is saying what the observation rules out.\n\nEvery number past your fourth earns coins."
         },
         {
           "id": "t1",
@@ -36,28 +36,28 @@
           "points": 4,
           "columns": [
             {
-              "key": "sample",
-              "tip": "Set letter and number as it appears on the tag, for example B-3.",
-              "label": "Sample"
-            },
-            {
-              "key": "material",
-              "tip": "One material name. Not two, and not a range.",
-              "label": "Final material"
+              "key": "number",
+              "tip": "The number on the tag, 1 to 7. The number is the material. The set letter is only which copy.",
+              "label": "Sample number"
             },
             {
               "key": "density",
-              "tip": "Your measured density and the published value you matched it to, both with units.",
-              "label": "Density evidence"
+              "tip": "Set letter you tested, your measured density, and the published value you matched it to. Write 'not tested' if you did not run this number Friday.",
+              "label": "Density evidence (Fri, set A or B)"
             },
             {
               "key": "appearance",
-              "tip": "The observation from Monday that supports this material. Name which test it came from.",
-              "label": "Appearance evidence"
+              "tip": "Set letter you tested, and what you observed. Write 'not tested' if you did not run this number Monday.",
+              "label": "Appearance evidence (Mon, set C or D)"
+            },
+            {
+              "key": "material",
+              "tip": "One material. If your evidence only reaches a class, such as a carbon steel, write the class.",
+              "label": "Final material"
             }
           ],
           "minRows": 4,
-          "printRows": 6,
+          "printRows": 7,
           "rowImages": false,
           "statusColumn": false
         },
@@ -65,7 +65,7 @@
           "id": "f1",
           "type": "textField",
           "points": 3,
-          "prompt": "Name every sample where your density result and your appearance result pointed at different materials. For each one, name both candidate materials and the single observation that decided it. If none of your samples conflicted, name the two materials density alone could not have separated and the observation that separated them.",
+          "prompt": "Name every sample number where your density result and your appearance result pointed at different materials. For each, name both candidate materials and the single observation that decided it. If a number is narrowed only to a class such as a carbon steel, name the candidates still open and the test that would separate them. If nothing conflicted, name the two materials density alone could not have separated.",
           "maxSentences": 6,
           "minSentences": 3
         },
@@ -73,7 +73,7 @@
           "id": "f2",
           "type": "textField",
           "points": 3,
-          "prompt": "For each of the four required samples, state what the observation you cited rules out. Do not restate the observation itself as the reason.",
+          "prompt": "For each sample number in your table, state what the observation you cited rules out. Do not restate the observation itself as the reason.",
           "maxSentences": 8,
           "minSentences": 4
         }
@@ -85,27 +85,27 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "All four, both evidence types",
+              "short": "Four numbers, every method cited",
               "points": 4,
-              "descriptor": "A final material is named for all four required samples, and each one cites a density result from Checkpoint 1 and an appearance result from Checkpoint 2."
+              "descriptor": "A final material or material class is named for four or more sample numbers, and every row cites each method the row records for that number, with an untested day written as not tested."
             },
             {
               "label": "Proficient",
-              "short": "All four, one or two single-sourced",
+              "short": "Four numbers, one or two incomplete",
               "points": 3,
-              "descriptor": "A final material is named for all four required samples, and one or two of them cite only one kind of evidence."
+              "descriptor": "A final material or material class is named for four or more sample numbers, and one or two rows leave out a method that row records for that number."
             },
             {
               "label": "Developing",
-              "short": "Two or three named, or single-sourced",
+              "short": "Two or three, or uncited",
               "points": 1,
-              "descriptor": "A final material is named for all four required samples with three or four of them citing only one kind of evidence, or a final material is named for only two or three required samples."
+              "descriptor": "A final material or material class is named for four numbers with three or more rows leaving out a recorded method, or a final material is named for only two or three sample numbers."
             },
             {
               "label": "Absent",
               "short": "Fewer than two named",
               "points": 0,
-              "descriptor": "A final material is named for fewer than two required samples, or not attempted."
+              "descriptor": "A final material is named for fewer than two sample numbers, or not attempted."
             }
           ],
           "criterion": "Final identification from both evidence methods"
@@ -117,7 +117,7 @@
               "label": "Complete",
               "short": "Both candidates and deciding observation",
               "points": 3,
-              "descriptor": "Every sample whose density result and appearance result pointed at different materials is named, both candidate materials are stated for each, and the single observation that decided it is stated for each. Where no sample produced a conflict, the two materials density alone could not separate are named along with the observation that separated them."
+              "descriptor": "Every sample number whose density result and appearance result pointed at different materials is named, both candidate materials are stated for each, and the single observation that decided it is stated for each. A number narrowed only to a material class is named with its remaining candidates and the test that would separate them. Where nothing conflicted, the two materials density alone could not separate are named along with the observation that separated them."
             },
             {
               "label": "Proficient",
@@ -141,19 +141,19 @@
               "label": "Complete",
               "short": "Four samples, other candidate excluded",
               "points": 3,
-              "descriptor": "For all four required samples, the conclusion states what the cited observation rules out, rather than restating the observation itself as the reason."
+              "descriptor": "For every sample number in the table, the conclusion states what the cited observation rules out, rather than restating the observation itself as the reason."
             },
             {
               "label": "Proficient",
               "short": "One to three samples reasoned",
               "points": 2,
-              "descriptor": "The conclusion states what the cited observation rules out for one, two, or three required samples, and restates the observation as the reason for the rest."
+              "descriptor": "The conclusion states what the cited observation rules out for some but not all of the sample numbers in the table, and restates the observation as the reason for the rest."
             },
             {
               "label": "Absent",
               "short": "Results restated, no reasoning",
               "points": 0,
-              "descriptor": "The conclusion restates observations as reasons for every required sample with no statement of what any observation rules out, or not attempted."
+              "descriptor": "The conclusion restates observations as reasons for every sample number with no statement of what any observation rules out, or not attempted."
             }
           ],
           "criterion": "Conclusion reasoned rather than asserted"
@@ -169,7 +169,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "You identified four materials. Now you use one of them.\n\n### The problem\n\nA vertical tie rod in a shop lifting fixture carries a static tensile load of **12,000 N**. Design it to a **factor of safety of 3.0 against yield**. The rod is solid and round.\n\nPick any one of your four identified samples and size the rod for that material. Report the diameter as a whole number of millimeters.\n\n### Published yield strengths\n\n| Material | Yield strength | MatWeb entry |\n|---|---|---|\n| 1018 steel | 370 MPa | AISI 1018 Steel, cold drawn |\n| 6061 aluminum | 276 MPa | Aluminum 6061-T6 |\n| 304 stainless | 215 MPa | AISI Type 304 Stainless Steel |\n| Polycarbonate | 62 MPa | Polycarbonate, Molded |\n\n### The method\n\n    allowable stress = yield strength / factor of safety\n    required area = load / allowable stress\n    diameter = square root of (4 x required area / pi)\n\n1 MPa is 1 N/mm2. A load in newtons divided by a stress in MPa gives an area in mm2 with no conversion. If your area comes out in the millions, check that first.\n\n### Rounding\n\nRound the diameter up to the next whole millimeter. Rounding down makes the real stress higher than the allowable stress you just calculated, which spends the factor of safety you were told to design to."
+          "content": "You identified four materials. Now you use one of them.\n\n### The problem\n\nA vertical tie rod in a shop lifting fixture carries a static tensile load of **12,000 N**. Design it to a **factor of safety of 3.0 against yield**. The rod is solid and round.\n\n![Tie rod in tension. The whole 12,000 N passes through the circular cross-section at A-A.](attachment:u1lab-03-tie-rod.png)\n\nReport the diameter as a whole number of millimeters.\n\n### Published yield strengths\n\n| Material | Yield strength | MatWeb entry |\n|---|---|---|\n| 1018 steel | 370 MPa | AISI 1018 Steel, cold drawn |\n| 6061 aluminum | 276 MPa | Aluminum 6061-T6 |\n| 304 stainless | 215 MPa | AISI Type 304 Stainless Steel |\n| Polycarbonate | 62 MPa | Polycarbonate, Molded |\n| Brass | 310 MPa | Free-Cutting Brass C36000, H02 |\n| Titanium | 880 MPa | Ti-6Al-4V, Annealed |\n\nPick a sample you identified as one of these six. If a sample only got you as far as \"a carbon steel,\" there is no yield strength to look up, which is the real cost of an identification that did not close.\n\n### The method\n\n    allowable stress = yield strength / factor of safety\n    required area = load / allowable stress\n    diameter = square root of (4 x required area / pi)\n\n1 MPa is 1 N/mm2. A load in newtons divided by a stress in MPa gives an area in mm2 with no conversion.\n\n### Rounding\n\nRound up to the next whole millimeter. Rounding down makes the real stress higher than the allowable stress you just calculated, which spends the factor of safety you were told to design to."
         },
         {
           "id": "t2",
@@ -178,7 +178,7 @@
           "columns": [
             {
               "key": "sample",
-              "tip": "Set letter and number of the sample you chose.",
+              "tip": "Sample number and the set letter you tested.",
               "label": "Sample"
             },
             {
