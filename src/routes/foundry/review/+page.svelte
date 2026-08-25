@@ -22,6 +22,7 @@
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { rejectReasonLabel } from '$lib/foundry/review';
 	import type { FoundryReviewTransports } from '$lib/foundry/transports';
+	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
 
 	let { data } = $props();
 
@@ -29,7 +30,7 @@
 	const now = new Date();
 
 	function coverUrl(path: string): string {
-		return data.supabase.storage.from('foundry-covers').getPublicUrl(path).data.publicUrl;
+		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 	}
 
 	async function post(url: string, body: unknown): Promise<Record<string, unknown> | null> {
@@ -111,6 +112,61 @@
 			if (error) return { ok: false, message: error.message };
 			await invalidateAll();
 			return { ok: true };
+		},
+
+		/**
+		 * SHELVE, and its reverse. One RPC with a boolean, because they are one
+		 * decision: `foundry_set_app_hidden` re-checks `is_admin()` in its own
+		 * body, so this goes straight from the browser client like the decision
+		 * above it. Nothing is destroyed and the same call with `false` puts it
+		 * back, which is what makes it a different act from the one below.
+		 */
+		async setHidden(appId, hidden, reason) {
+			const { error } = await data.supabase.rpc('foundry_set_app_hidden', {
+				p_app_id: appId,
+				p_hidden: hidden,
+				p_reason: reason || null
+			});
+			if (error) return { ok: false, message: error.message };
+			await invalidateAll();
+			return { ok: true };
+		},
+
+		/**
+		 * DELETE, which is the one write on this surface that cannot go straight
+		 * to an RPC. Rows come out of Postgres and bytes come out of Storage, and
+		 * `foundry-bundles` carries no storage policy at all -- so this client
+		 * cannot remove a bundle byte, and the own-folder policies on the other
+		 * two buckets are pinned to `auth.uid()`, which an admin deleting a
+		 * student's app does not satisfy. `/api/foundry/delete` calls the same
+		 * definer RPC AS THIS CALLER and sweeps the objects with the service key.
+		 *
+		 * `storageProblem` rides a SUCCESS: the rows are gone before the sweep
+		 * runs, so a partial sweep is a completed delete with orphaned bytes.
+		 */
+		async deleteApp(appId) {
+			try {
+				const res = await fetch('/api/foundry/delete', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ appId })
+				});
+				const payload = (await res.json().catch(() => null)) as {
+					ok?: boolean;
+					message?: string;
+					storageProblem?: string | null;
+				} | null;
+				if (!payload?.ok) {
+					return { ok: false, message: payload?.message ?? 'That did not work. Try again.' };
+				}
+				await invalidateAll();
+				return { ok: true, storageProblem: payload.storageProblem ?? null };
+			} catch (err) {
+				return {
+					ok: false,
+					message: err instanceof Error ? err.message : 'That did not work. Try again.'
+				};
+			}
 		}
 	};
 
@@ -141,6 +197,7 @@
 		{coverUrl}
 		onSelect={select}
 		onDecided={() => invalidateAll()}
+		onDeleted={() => select(null)}
 		{now}
 	/>
 </div>

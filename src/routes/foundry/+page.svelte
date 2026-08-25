@@ -13,11 +13,12 @@
 
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
 	import type { FoundryGalleryTransports } from '$lib/foundry/transports';
+	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
 
 	let { data } = $props();
 
 	function coverUrl(path: string): string {
-		return data.supabase.storage.from('foundry-covers').getPublicUrl(path).data.publicUrl;
+		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 	}
 
 	const transports: FoundryGalleryTransports = {};

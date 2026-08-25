@@ -34,11 +34,30 @@
 	/** What the decision transport was last handed, rendered so a drive can read it. */
 	let lastDecision = $state<string>('(none yet)');
 
+	/**
+	 * DELETION AND SHELVING, DRIVEN FOR REAL. The transports move this page's
+	 * own state, so the review surface has to clear the selection, drop the
+	 * queue row and re-render the shelved list -- not merely log a call.
+	 */
+	let removed = $state<string[]>([]);
+	let hidden = $state<Record<string, string | null>>({});
+
+	const liveApps = $derived(
+		data.apps
+			.filter((a) => !removed.includes(a.id))
+			.map((a) => (a.id in hidden ? { ...a, hidden_at: hidden[a.id] } : a))
+	);
+
 	/** The shell's Review tab count, from the same arithmetic the queue uses. */
-	const pending = $derived(queueOrder(data.apps).length);
+	const pending = $derived(queueOrder(liveApps).length);
 
 	const gallerySelected = $derived(gallerySlug ? (data.details[gallerySlug] ?? null) : null);
-	const reviewSelected = $derived(reviewSlug ? (data.details[reviewSlug] ?? null) : null);
+	const reviewSelected = $derived.by(() => {
+		if (!reviewSlug) return null;
+		const detail = data.details[reviewSlug] ?? null;
+		if (!detail || removed.includes(detail.id)) return null;
+		return detail.id in hidden ? { ...detail, hidden_at: hidden[detail.id] } : detail;
+	});
 
 	const galleryTransports: FoundryGalleryTransports = {};
 
@@ -59,6 +78,22 @@
 		async clearMetadataFlag(appId) {
 			lastDecision = JSON.stringify({ clearedFlagFor: appId });
 			return { ok: true };
+		},
+		async setHidden(appId, hide, reason) {
+			lastDecision = JSON.stringify({ setHidden: appId, hidden: hide, reason });
+			hidden = { ...hidden, [appId]: hide ? '2026-08-24T12:00:00Z' : null };
+			return { ok: true };
+		},
+		async deleteApp(appId) {
+			lastDecision = JSON.stringify({ deleted: appId });
+			removed = [...removed, appId];
+			// One of the two answers the partial-sweep case, so the sentence that
+			// rides a SUCCESS is reachable in this harness.
+			return {
+				ok: true,
+				storageProblem:
+					appId === data.appBId ? '3 stored files could not be removed.' : null
+			};
 		}
 	};
 </script>
@@ -124,10 +159,11 @@
 			<button type="button" class="hbtn" onclick={() => (reviewSlug = null)}>deselect</button>
 		</h2>
 		<ReviewQueue
-			apps={data.apps}
+			apps={liveApps}
 			selected={reviewSelected}
 			transports={reviewTransports}
 			onSelect={(slug) => (reviewSlug = slug)}
+			onDeleted={() => (reviewSlug = null)}
 			{now}
 		/>
 	</section>

@@ -29,6 +29,7 @@
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
 
+	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryInspector from './FoundryInspector.svelte';
 	import MoltenSeam from './MoltenSeam.svelte';
@@ -47,6 +48,7 @@
 		coverUrl = (path: string) => path,
 		onSelect,
 		onDecided,
+		onDeleted,
 		now
 	}: {
 		apps: FoundryAppSummary[];
@@ -55,13 +57,32 @@
 		coverUrl?: (path: string) => string;
 		onSelect: (slug: string | null) => void;
 		onDecided?: () => void;
+		/** The app no longer exists, so nothing is selected. See FoundryInspector. */
+		onDeleted?: () => void;
 		/** Threaded from the caller: a component that reads its own clock
 		    silently disagrees with the ranking it is rendering. */
 		now: Date;
 	} = $props();
 
 	const queue = $derived(queueOrder(apps));
+	/**
+	 * THE SHELVED LIST, which exists because hiding without it is a one-way
+	 * door. `foundry_set_app_hidden` is reversible by design, but a hidden app
+	 * is not in the queue (it has nothing waiting) and is not on the gallery,
+	 * so with no second list there is no surface anywhere from which an admin
+	 * could reach one to restore it. The route asks for hidden apps for exactly
+	 * this; `_foundry_app_in_population` gates that widening on `is_admin()`
+	 * inside itself, so a student passing the same flag still sees nothing.
+	 */
+	const shelved = $derived(apps.filter((a) => a.hidden_at !== null));
 	const underReview = $derived(selected ? versionUnderReview(selected) : null);
+	/**
+	 * The fallback the inspector is mounted on when nothing is submitted. The
+	 * versions array is ordered newest first by `foundry_get_app`, so this is
+	 * the most recent build -- which is the one a reviewer looking at a shelved
+	 * or withdrawn app wants to read.
+	 */
+	const newestVersion = $derived(selected?.versions[0] ?? null);
 
 	function waited(iso: string): string {
 		const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000);
@@ -110,6 +131,12 @@
 							>
 								<span class="fdy-q-title">{app.title}</span>
 								<span class="fdy-q-by">{foundryAuthorLine(app)}</span>
+								{#if app.hidden_at}
+									<!-- A hidden app CAN still have a submission waiting: hiding
+									     does not move a version's status. Deciding about one
+									     without knowing it is shelved is the trap this closes. -->
+									<span class="fdy-q-chip"><ForgeStatus tone="shelved" word="Hidden" /></span>
+								{/if}
 								<span class="fdy-q-wait">
 									waiting {waited(app.updated_at)}
 									{#if app.metadata_flagged_at}
@@ -120,6 +147,36 @@
 						</li>
 					{/each}
 				</ul>
+			{/if}
+
+			{#if shelved.length > 0}
+				<section class="fdy-q-shelf" aria-label="Shelved apps">
+					<h3>Shelved</h3>
+					<p class="fdy-q-empty">
+						Hidden, files kept. Open one to read it and put it back.
+					</p>
+					<ul class="fdy-q-list" data-testid="foundry-shelved">
+						{#each shelved as app (app.id)}
+							<li>
+								<a
+									class="fdy-q-row tap-44"
+									class:selected={selected?.slug === app.slug}
+									href="/foundry/review?app={app.slug}"
+									data-app-slug={app.slug}
+									onclick={(e) => {
+										if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+										e.preventDefault();
+										onSelect(app.slug);
+									}}
+								>
+									<span class="fdy-q-title">{app.title}</span>
+									<span class="fdy-q-by">{foundryAuthorLine(app)}</span>
+									<span class="fdy-q-chip"><ForgeStatus tone="shelved" word="Hidden" /></span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				</section>
 			{/if}
 		</div>
 	{/snippet}
@@ -155,12 +212,34 @@
 							version={underReview}
 							{transports}
 							onDecided={() => onDecided?.()}
+							onDeleted={() => onDeleted?.()}
 						/>
 					{:else}
+						<!--
+							NOTHING SUBMITTED IS NOT NOTHING TO DO. A shelved app, or one
+							whose submission was withdrawn, still needs Restore and Delete
+							reachable -- so the inspector is mounted with no version to
+							decide about rather than replaced by a sentence. `version` is
+							required, so it is handed the app's own newest version; every
+							control the inspector draws from it (the file tree, the source,
+							the decision form) is transport-gated and the review transports
+							for those are still present, which is correct: reading the
+							bytes of a withdrawn build is exactly what a reviewer deciding
+							whether to delete it needs.
+						-->
 						<p class="fdy-q-empty">
-							Nothing is submitted for this app. It may have been withdrawn or already
-							decided.
+							Nothing is submitted for this app. It may have been withdrawn, already
+							decided, or shelved.
 						</p>
+						{#if newestVersion}
+							<FoundryInspector
+								app={selected}
+								version={newestVersion}
+								{transports}
+								onDecided={() => onDecided?.()}
+								onDeleted={() => onDeleted?.()}
+							/>
+						{/if}
 					{/if}
 				</div>
 			</div>
@@ -254,6 +333,28 @@
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--text-2, var(--dim));
+	}
+
+	.fdy-q-chip {
+		margin-top: 0.2rem;
+	}
+
+	.fdy-q-shelf {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
+		border-top: 1px solid var(--hairline);
+		padding-top: var(--space-3, 0.75rem);
+		min-width: 0;
+	}
+
+	.fdy-q-shelf h3 {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--fg-st-shelf-ink, var(--text-2));
 	}
 
 	.fdy-q-flag {

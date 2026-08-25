@@ -25,9 +25,11 @@
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
 	import {
 		FOUNDRY_METADATA_FIELDS,
+		deleteAppCostLine,
 		draftIsSubmittable,
 		metadataIsLive,
 		rollbackTargets,
+		versionIsDeletable,
 		versionLabel
 	} from './surface.ts';
 	import type { FoundryApp, FoundryAppSummary, FoundryMineTransports } from './transports.ts';
@@ -94,6 +96,70 @@
 		}
 	}
 
+	/* -------------------------------------------------------------- deleting
+	 *
+	 * A DELETE DOES NOT GO THROUGH `run`, and the difference is the refresh.
+	 * `run` re-reads the app it just wrote to, which for a deleted app is a
+	 * read of something that no longer exists -- so the surface would ask the
+	 * server about a row it had just removed and render whatever came back.
+	 * These clear the selection instead, which is the honest next state: there
+	 * is no app to be looking at.
+	 *
+	 * A FAILED OBJECT SWEEP IS NOT A FAILED DELETE. `storageProblem` arrives on
+	 * a SUCCESSFUL outcome and is shown as a note beside the confirmation, not
+	 * in the problem list: the app is gone either way, and what was left behind
+	 * is bytes nothing serves. Presenting a completed delete as an error is how
+	 * a student presses it again.
+	 */
+
+	/**
+	 * TWO NOTES, BECAUSE THE TWO DELETES END IN DIFFERENT PLACES, and this is a
+	 * defect a browser pass found rather than a distinction anyone predicted.
+	 *
+	 * A VERSION delete leaves the app open, so its acknowledgement belongs in
+	 * the detail pane beside the list it just changed. An APP delete UNMOUNTS
+	 * that pane -- there is no app to be looking at any more -- so an
+	 * acknowledgement rendered there is destroyed by the very act it reports:
+	 * measured, the card vanished from the list and nothing anywhere said a
+	 * word. `removedNote` therefore lives in the LIST pane, which is what is on
+	 * screen afterwards at every width (`narrow="swap"` shows the list exactly
+	 * when no detail is open).
+	 */
+	let deleteNote = $state<string | null>(null);
+	let removedNote = $state<string | null>(null);
+
+	async function removeApp() {
+		if (!app || !transports.deleteApp) return;
+		const target = app;
+		problems = [];
+		deleteNote = null;
+		removedNote = null;
+		busy = 'Deleting';
+		try {
+			const result = await transports.deleteApp(target.id);
+			if (!result.ok) {
+				note(result.message);
+				return;
+			}
+			removedNote = result.storageProblem
+				? `"${target.title}" is deleted. ${result.storageProblem} An instructor can clear them up; nothing on the site can reach them.`
+				: `"${target.title}" is deleted.`;
+			// The app is gone, so nothing is selected. The route's own load then
+			// answers with a list that no longer has it in.
+			onSelect(null);
+		} catch (err) {
+			note(err instanceof Error ? err.message : 'That did not work.');
+		} finally {
+			busy = null;
+		}
+	}
+
+	async function removeVersion(versionId: string, ordinal: number) {
+		if (!transports.deleteVersion) return;
+		const ok = await run('Deleting', () => transports.deleteVersion!(versionId));
+		if (ok) deleteNote = `Version ${ordinal} is deleted.`;
+	}
+
 	/* ------------------------------------------------------------- editing */
 
 	let editing = $state<string | null>(null);
@@ -136,6 +202,12 @@
 				<a class="btn fdy-new tap-44" href="/foundry/submit">New app</a>
 			</header>
 
+			{#if removedNote}
+				<!-- The app this reports is gone, so the detail pane it was deleted from
+				     is gone with it. This pane is what is still on screen. -->
+				<p class="fdy-deleted" role="status">{removedNote}</p>
+			{/if}
+
 			{#if apps.length === 0}
 				<div class="fdy-empty">
 					<p>You have not published anything yet.</p>
@@ -160,7 +232,10 @@
 								class="fdy-card tap-44"
 								class:fdy-card-on={app?.id === row.id}
 								aria-current={app?.id === row.id ? 'true' : undefined}
-								onclick={() => onSelect(row.slug)}
+								onclick={() => {
+									removedNote = null;
+									onSelect(row.slug);
+								}}
 							>
 								{#if row.cover_path}
 									<img class="fdy-card-cover" src={coverUrl(row.cover_path)} alt="" />
@@ -220,6 +295,13 @@
 				<p class="fdy-busy" role="status">{busy}&hellip;</p>
 			{:else if saidAt}
 				<p class="fdy-saved" role="status">Saved at {saidAt}</p>
+			{/if}
+
+			{#if deleteNote}
+				<!-- A COMPLETED DELETE, INCLUDING ONE WHOSE FILE SWEEP WAS PARTIAL.
+				     It is not in the problem list, because nothing went wrong with
+				     the thing the student asked for. -->
+				<p class="fdy-deleted" role="status">{deleteNote}</p>
 			{/if}
 
 			<FoundryIssues title="Something went wrong" tone="failure" issues={problems} />
@@ -395,7 +477,55 @@
 									{/if}
 								{/if}
 
-								{#if transports.rollback && targets.some((t) => t.id === v.id)}
+								{#if transports.deleteVersion && versionIsDeletable(v, app.published_version_id)}
+								<!--
+									TWO STEPS, AND THE SECOND ONE NAMES THE VERSION. There is
+									no undo and no restore, so a single press cannot be the
+									whole interaction (IDEA_INTERFACE_STANDARDS 10).
+								-->
+								{#if armed === `d${v.id}`}
+									<span class="fdy-arm">
+										<span class="fdy-arm-word">
+											Delete v{v.ordinal} and its files? There is no undo.
+										</span>
+										<button
+											type="button"
+											class="btn fdy-danger tap-44"
+											disabled={busy !== null}
+											onclick={async () => {
+												armed = null;
+												await removeVersion(v.id, v.ordinal);
+											}}
+										>
+											Yes, delete v{v.ordinal}
+										</button>
+										<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+											Keep it
+										</button>
+									</span>
+								{:else}
+									<button
+										type="button"
+										class="btn fdy-danger-quiet tap-44"
+										onclick={() => (armed = `d${v.id}`)}
+									>
+										Delete
+									</button>
+								{/if}
+							{:else if transports.deleteVersion}
+								<!--
+									THE LIVE BUILD, AND SAYING SO BEATS AN ABSENT CONTROL.
+									Every other version in this list has a Delete beside it, so
+									the one that has none reads as a bug unless the reason is
+									on screen. `foundry_delete_version` refuses this exact case.
+								-->
+								<span class="fdy-hint">
+									The live build cannot be deleted on its own. Make another approved version
+									live first, or delete the whole app.
+								</span>
+							{/if}
+
+							{#if transports.rollback && targets.some((t) => t.id === v.id)}
 									{#if armed === `r${v.id}`}
 										<button
 											type="button"
@@ -435,6 +565,53 @@
 
 				<a class="btn tap-44" href={`/foundry/submit?app=${app.id}`}>Upload a new version</a>
 			</section>
+
+			<!-- ------------------------------------------------- deleting the app -->
+			{#if transports.deleteApp}
+				{@const appId = app.id}
+				<!--
+					LAST ON THE PAGE, AND IT SAYS WHAT IT COSTS BEFORE IT IS ARMED.
+					The counts are real and come from `deleteAppCostLine`, which both
+					this surface and the review console read -- one sentence, so the
+					same act cannot be described two ways.
+
+					HIDE IS NOT OFFERED HERE. It is a staff decision (0130's
+					`foundry_set_app_hidden` is admin only), and a student who wants
+					their app off the gallery for a while has no such control -- so
+					this block does not pretend otherwise. What it does say is that
+					deleting is the only removal they own, and that it is permanent.
+				-->
+				<section class="fdy-block fdy-danger-block" aria-label="Delete this app">
+					<h3>Delete this app</h3>
+					<p class="fdy-danger-line">{deleteAppCostLine(app)}</p>
+					{#if armed === `app${appId}`}
+						<div class="fdy-row-actions">
+							<button
+								type="button"
+								class="btn fdy-danger tap-44"
+								disabled={busy !== null}
+								onclick={async () => {
+									armed = null;
+									await removeApp();
+								}}
+							>
+								Yes, delete &ldquo;{app.title}&rdquo;
+							</button>
+							<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+								Keep it
+							</button>
+						</div>
+					{:else}
+						<button
+							type="button"
+							class="btn fdy-danger-quiet tap-44"
+							onclick={() => (armed = `app${appId}`)}
+						>
+							Delete this app
+						</button>
+					{/if}
+				</section>
+			{/if}
 		</article>
 	{/if}
 </ClassSplit>
@@ -777,6 +954,68 @@
 	.fdy-danger {
 		border-color: var(--crimson);
 		color: var(--crimson);
+	}
+
+	/*
+	 * THE UNARMED CONTROL IS QUIET AND THE ARMED ONE IS CRIMSON. `--crimson` is
+	 * reserved for live / rec / error status, and a resting Delete sitting in a
+	 * list of ordinary controls is none of those -- it is only an error state
+	 * once it is one press from happening. So the resting control takes the
+	 * room's own boundary and its secondary ink, and the confirm takes the
+	 * warning colour with the word beside it.
+	 */
+	.fdy-danger-quiet {
+		border-color: var(--boundary);
+		color: var(--text-2, var(--dim));
+	}
+
+	.fdy-danger-quiet:hover,
+	.fdy-danger-quiet:focus-visible {
+		border-color: var(--crimson);
+		color: var(--crimson);
+	}
+
+	/* The forge reading: shelved metal, flat and no heat. A destructive block is
+	   not IN PROGRESS, so nothing in it may wear the heat scale. */
+	.fdy-danger-block {
+		border-top-color: var(--fg-st-shelf-edge, var(--boundary));
+	}
+
+	.fdy-danger-block h3 {
+		color: var(--fg-st-shelf-ink, var(--text-2));
+	}
+
+	.fdy-danger-line {
+		margin: 0 0 var(--space-3, 0.75rem);
+		max-width: 68ch;
+		line-height: 1.5;
+		font-size: 0.92rem;
+		color: var(--text-1, var(--white));
+	}
+
+	/* The armed confirm keeps its words on one line with the buttons where
+	   there is room, and wraps rather than ellipsising where there is not. */
+	.fdy-arm {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2, 0.5rem);
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+
+	.fdy-arm-word {
+		font-size: 0.85rem;
+		color: var(--text-1, var(--white));
+		max-width: 34ch;
+	}
+
+	.fdy-deleted {
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		color: var(--fg-st-shelf-ink, var(--dim));
+		margin: 0 0 var(--space-2, 0.5rem);
+		max-width: 68ch;
+		line-height: 1.5;
 	}
 
 	.fdy-back {

@@ -3,7 +3,11 @@ import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 import { bundlePathOk } from '$lib/bundle-path';
-import { FOUNDRY_BUNDLE_BUCKET } from '$lib/foundry/bundle-url';
+import {
+	FOUNDRY_BUNDLE_BUCKET,
+	FOUNDRY_COVER_BUCKET,
+	FOUNDRY_UPLOAD_BUCKET
+} from '$lib/foundry/bundle-url';
 import { servableFoundryType } from '$lib/foundry/preflight';
 import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
 
@@ -11,27 +15,24 @@ import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture'
  * THE REVIEW QUEUE'S SOURCE READS: what is ACTUALLY sitting in the bundle
  * bucket for one version.
  *
- * WHAT USED TO BE HERE AND IS NOT ANY MORE. This module also resolved one file
- * of one bundle for a token-authenticated proxy, and re-checked, on every
- * request, three things RLS would otherwise have enforced: that the version
- * belonged to the app, that it was still the app's `published_version_id`, and
- * that the app was not hidden. There is no proxy now -- `foundry-bundles` is
- * public (0135) and a frame points straight at the object URL -- so those
- * three checks are not enforced anywhere and the bucket's contents are
- * readable by anyone who knows both uuids. That is stated in 0135's header and
- * is deliberate; it is repeated here so nobody reads this file's remaining
- * caution as the whole story.
+ * `foundry-bundles` IS PRIVATE AND CARRIES NO STORAGE POLICY AT ALL, which is
+ * what makes `service_role` its only reader, its only writer and its only
+ * deleter. (An earlier draft of this header said the bucket was public. It was
+ * true for one lane and is not true now: the serving route reads it server
+ * side with the service key precisely so a draft, a rejected build, a
+ * superseded build and a hidden app's build are not one guessed pair of uuids
+ * from the open internet.)
  *
- * THE SERVICE-ROLE CLIENT IS STILL UNAVOIDABLE FOR THESE TWO FUNCTIONS, and
- * this module is still the ONE Foundry reader of that key. A public bucket is
- * readable by uuid; it is not LISTABLE by a client, and `student_app_files` is
- * granted to nobody, so enumerating a version's files -- which is what a
- * reviewer needs before they can read anything -- takes the service role.
+ * SO THE SERVICE-ROLE CLIENT IS UNAVOIDABLE FOR EVERYTHING IN THIS FILE, and
+ * this module is still the ONE Foundry reader of that key: the source viewer's
+ * two reads, the serving route's read, and the delete sweep at the bottom.
  *
- * THEY ARE NOT SELF-AUTHORIZING AND DO NOT PRETEND TO BE. Neither takes a
- * token; both bypass RLS by construction. The caller is `/api/foundry/source`,
- * which is admin-gated and answers 404 to everyone else -- the same shape the
- * rest of the site uses for a surface whose existence is not public.
+ * NONE OF THEM IS SELF-AUTHORIZING AND NONE PRETENDS TO BE. They take no token
+ * and bypass RLS by construction, so each one's caller carries the check: the
+ * source reads answer to `/api/foundry/source`, which is admin-gated and 404s
+ * everyone else; the serving read re-checks every rule RLS would have enforced
+ * in its own body; and the sweep only ever removes paths a SECURITY DEFINER
+ * function already handed back to the caller who was allowed to ask for them.
  *
  * THE FILE LIST IS THE ROWS, NOT THE BUCKET. `student_app_files` is what the
  * ingest function wrote, so a tree built from it is the set of paths a bundle
@@ -57,6 +58,13 @@ function admin() {
 		auth: { persistSession: false, autoRefreshToken: false }
 	});
 }
+
+/**
+ * The service-role client, as a name. `ReturnType<typeof createClient>` is not
+ * assignable to the generic default the helpers below would otherwise infer,
+ * so the shape is stated once here rather than spelled at each call site.
+ */
+type AdminClient = NonNullable<ReturnType<typeof admin>>;
 
 export function foundryBundleSourceConfigured(): boolean {
 	if (dev) return true;
@@ -316,5 +324,235 @@ export async function serveBundleFile(
 		ok: true,
 		bytes: new Uint8Array(await blob.arrayBuffer()),
 		contentType: servableFoundryType(row.content_type)
+	};
+}
+
+
+/* -------------------------------------------------------------------------
+ * THE DELETE SWEEP: removing the objects a delete RPC just orphaned.
+ *
+ * WHY THIS IS HERE AND NOT ANYWHERE ELSE. `foundry-bundles` carries NO storage
+ * policy at all, so RLS denies every `anon` and `authenticated` request to it
+ * by default and `service_role` is its only reader AND its only deleter. A
+ * browser client therefore cannot remove a single bundle byte, whoever is
+ * signed in. `foundry-uploads` and `foundry-covers` DO have own-folder delete
+ * policies, so an owner could remove their own zip and cover from the
+ * browser -- but an ADMIN deleting a student's app could not, because those
+ * policies are pinned to `auth.uid()`. One sweep with one role is the honest
+ * shape; two half-paths keyed on who is asking is two things to keep right.
+ *
+ * THIS MODULE IS STILL THE ONE FOUNDRY READER OF THE SERVICE KEY. The sweep is
+ * a third function in it, not a second module and not a second client.
+ *
+ * IT IS NOT AN AUTHORIZATION BOUNDARY AND MUST NEVER BECOME ONE. Every path it
+ * touches comes from a plan the DATABASE returned, from a SECURITY DEFINER
+ * function that checked `auth.uid()` and `is_admin()` in its own body against
+ * the caller's own session. This function asks no question about who is
+ * calling, because by the time it runs the rows are already gone and the only
+ * question left is which bytes to remove. A caller that hands it a plan it did
+ * not get from the RPC is the bug, and there is exactly one such caller.
+ *
+ * THE BUNDLE SIDE LISTS THE PREFIX RATHER THAN READING THE ROWS, and it has to:
+ * the rows are deleted, and the plan carries version IDS rather than a file
+ * list precisely so an app with fifty versions does not return twenty-five
+ * thousand strings. Listing is also STRICTLY MORE COMPLETE than the rows would
+ * have been -- an ingest that failed between uploading an object and writing
+ * its row leaves an object no row ever named, and a row-driven sweep would
+ * walk straight past it and call the job done.
+ *
+ * WHAT IT REPORTS IS RE-LISTED, NOT PARSED. After removing, it looks again and
+ * reports whatever is still there. See `removeAndVerify` for why that is worth
+ * the extra round trip: the rows that named these objects are already gone, so
+ * a wrong answer here is unrecoverable from anywhere.
+ *
+ * NOTHING HERE THROWS. A sweep that fails reports what it could not remove;
+ * the app is already deleted and an exception at this point would turn a
+ * completed delete into an error message.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * What `foundry_delete_app` / `foundry_delete_version` hand back, as the
+ * server reads it. The database names the paths; this module names the
+ * buckets.
+ */
+export type FoundryDeletePlan = {
+	/** Bundle objects live at `<appId>/<versionId>/<path>`. */
+	appId: string;
+	/** Every version whose bundle prefix is to be swept. */
+	versionIds: string[];
+	/** Whole paths in `foundry-uploads`. */
+	zipPaths: string[];
+	/** A whole path in `foundry-covers`, or null when another app still names it. */
+	coverPath: string | null;
+};
+
+export type FoundrySweepResult = {
+	bundles: number;
+	uploads: number;
+	covers: number;
+	/**
+	 * NULL means every object the plan named is gone. A sentence means some
+	 * are not, and `orphaned` says which -- the rows are already deleted, so
+	 * this list is the only remaining record of them.
+	 */
+	problem: string | null;
+	/** `<bucket>/<path>` for everything that survived, for a log line. */
+	orphaned: string[];
+};
+
+/** Storage refuses an unbounded `remove()`; this is well inside every limit. */
+const REMOVE_BATCH = 100;
+
+/** One directory of a bucket, one page at a time, as full object names. */
+async function listDir(
+	client: AdminClient,
+	bucket: string,
+	dir: string
+): Promise<{ names: string[]; prefixes: string[] }> {
+	const names: string[] = [];
+	const prefixes: string[] = [];
+	let offset = 0;
+	for (;;) {
+		const { data, error } = await client.storage.from(bucket).list(dir, { limit: 100, offset });
+		if (error || !data || data.length === 0) break;
+		for (const entry of data) {
+			const full = dir ? `${dir}/${entry.name}` : entry.name;
+			// Storage reports a PREFIX as a row with no id.
+			if (entry.id === null) prefixes.push(full);
+			else names.push(full);
+		}
+		if (data.length < 100) break;
+		offset += data.length;
+	}
+	return { names, prefixes };
+}
+
+/**
+ * Everything under one prefix of a bucket, walked because Storage lists one
+ * level at a time. Returns full object names.
+ *
+ * A bundle is at most 500 files (the preflight's own cap), so this terminates
+ * far inside the guard; the counter only exists so a malformed listing cannot
+ * spin.
+ */
+async function listPrefix(client: AdminClient, bucket: string, prefix: string): Promise<string[]> {
+	const out: string[] = [];
+	const queue: string[] = [prefix];
+	for (let guard = 0; queue.length > 0 && guard < 2000; guard += 1) {
+		const dir = queue.shift() as string;
+		const page = await listDir(client, bucket, dir);
+		out.push(...page.names);
+		queue.push(...page.prefixes);
+	}
+	return out;
+}
+
+/**
+ * Remove a set of exact keys, then RE-LIST to find out what actually went.
+ *
+ * WHY THE SECOND LOOK, when `remove()` already answers with the objects it
+ * deleted. Because that answer is a shape rather than a measurement: it is a
+ * `FileObject[]` whose `name` this code would have to match back against the
+ * key it sent, and a mismatch in that spelling (a basename where a full key
+ * was expected, say) would silently turn every delete into either a false
+ * "nothing was removed" or, far worse in the other direction, a claimed clean
+ * sweep. The rows that named these objects are already gone when this runs, so
+ * a wrong answer here is not recoverable from anywhere.
+ *
+ * Listing the container again asks the question directly: what is still there.
+ * It costs one extra round trip per bucket group and it makes "the objects are
+ * gone" a thing this function MEASURED rather than parsed.
+ *
+ * A KEY THAT WAS NEVER THERE COUNTS AS GONE, which is correct: an ingest that
+ * failed before uploading, or a re-run of a sweep that already succeeded, both
+ * produce exactly that and neither is an orphan.
+ */
+async function removeAndVerify(
+	client: AdminClient,
+	bucket: string,
+	keys: string[]
+): Promise<{ removed: number; left: string[] }> {
+	if (keys.length === 0) return { removed: 0, left: [] };
+
+	for (let i = 0; i < keys.length; i += REMOVE_BATCH) {
+		// The refusal is not read here: what matters is the state afterwards,
+		// and a partial batch failure shows up in the re-list either way.
+		await client.storage.from(bucket).remove(keys.slice(i, i + REMOVE_BATCH));
+	}
+
+	// One listing per distinct directory, rather than one per key.
+	const dirs = new Set(keys.map((k) => k.slice(0, k.lastIndexOf('/')).replace(/^\/+/, '')));
+	const survivors = new Set<string>();
+	for (const dir of dirs) {
+		const page = await listDir(client, bucket, dir);
+		for (const name of page.names) survivors.add(name);
+	}
+
+	const left = keys.filter((k) => survivors.has(k));
+	return { removed: keys.length - left.length, left: left.map((k) => `${bucket}/${k}`) };
+}
+
+/**
+ * Remove every object a delete plan names.
+ *
+ * CALLED AFTER THE ROWS ARE ALREADY GONE, which is the whole ordering argument
+ * (0136's header has it in full): rows first means a failure here leaves an
+ * ORPHANED OBJECT, which nothing serves and nothing lists; objects first would
+ * mean a failure leaves a LIVE APP POINTING AT BYTES THAT NO LONGER EXIST,
+ * which the student finds for us.
+ */
+export async function sweepFoundryObjects(plan: FoundryDeletePlan): Promise<FoundrySweepResult> {
+	const empty: FoundrySweepResult = {
+		bundles: 0,
+		uploads: 0,
+		covers: 0,
+		problem: null,
+		orphaned: []
+	};
+
+	const client = admin();
+	if (!client) {
+		return {
+			...empty,
+			problem: 'Bundle storage is not configured on this deployment, so no files were removed.',
+			orphaned: [
+				...plan.versionIds.map((v) => `${FOUNDRY_BUNDLE_BUCKET}/${plan.appId}/${v}/*`),
+				...plan.zipPaths.map((z) => `${FOUNDRY_UPLOAD_BUCKET}/${z}`),
+				...(plan.coverPath ? [`${FOUNDRY_COVER_BUCKET}/${plan.coverPath}`] : [])
+			]
+		};
+	}
+
+	const orphaned: string[] = [];
+
+	let bundles = 0;
+	for (const versionId of plan.versionIds) {
+		// THE PREFIX, NOT THE ROWS. The rows are already deleted, and listing is
+		// strictly more complete than they were: an ingest that failed between
+		// uploading an object and writing its row leaves an object no row ever
+		// named, and a row-driven sweep would walk past it and call it done.
+		const keys = await listPrefix(client, FOUNDRY_BUNDLE_BUCKET, `${plan.appId}/${versionId}`);
+		const r = await removeAndVerify(client, FOUNDRY_BUNDLE_BUCKET, keys);
+		bundles += r.removed;
+		orphaned.push(...r.left);
+	}
+
+	const zips = await removeAndVerify(client, FOUNDRY_UPLOAD_BUCKET, plan.zipPaths);
+	orphaned.push(...zips.left);
+
+	const covers = plan.coverPath
+		? await removeAndVerify(client, FOUNDRY_COVER_BUCKET, [plan.coverPath])
+		: { removed: 0, left: [] as string[] };
+	orphaned.push(...covers.left);
+
+	return {
+		bundles,
+		uploads: zips.removed,
+		covers: covers.removed,
+		problem:
+			orphaned.length === 0
+				? null
+				: `${orphaned.length} stored ${orphaned.length === 1 ? 'file' : 'files'} could not be removed.`,
+		orphaned
 	};
 }

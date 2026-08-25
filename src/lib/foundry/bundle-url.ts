@@ -59,6 +59,19 @@
 export const FOUNDRY_BUNDLE_BUCKET = 'foundry-bundles';
 
 /**
+ * The other two buckets Foundry owns, named here beside the first so the three
+ * are stated once rather than as a literal at each of the seven call sites
+ * that reach one. They are plain strings and this module is pure, so a route,
+ * a component and the server-side delete sweep all name the same bucket.
+ *
+ *   uploads  the raw zip, under the OWNER's own prefix (`<uid>/<uuid>.zip`),
+ *            which is the whole of what its storage policies permit.
+ *   covers   the public card image, same own-prefix rule.
+ */
+export const FOUNDRY_UPLOAD_BUCKET = 'foundry-uploads';
+export const FOUNDRY_COVER_BUCKET = 'foundry-covers';
+
+/**
  * The path segment the serving route is mounted at.
  *
  * SHORT ON PURPOSE: it is in front of every relative asset request a bundle

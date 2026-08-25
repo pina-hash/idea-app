@@ -104,8 +104,44 @@ export interface FoundryMineTransports {
 	saveField?: (appId: string, field: string, value: string) => Promise<FoundryOutcome>;
 	/** Cover replacement, same bucket and same own-folder rule as creation. */
 	uploadCover?: (file: File) => Promise<FoundryOutcome<{ path: string }>>;
+	/**
+	 * `foundry_delete_app`, through `/api/foundry/delete`. REAL DELETION -- the
+	 * app, every version, every file row and every stored object -- and there
+	 * is no undo, which is why the surface confirms in two steps and names the
+	 * app before it calls this.
+	 *
+	 * A ROUTE RATHER THAN AN RPC, unlike every other write on this surface,
+	 * because a delete is two systems: the rows come out of Postgres and the
+	 * bytes come out of Storage, and `foundry-bundles` carries no storage
+	 * policy at all, so no browser client can remove a single bundle byte. The
+	 * route calls the RPC as the CALLER (so the database is still the
+	 * boundary) and sweeps the objects with the service key afterwards.
+	 */
+	deleteApp?: (appId: string) => Promise<FoundryOutcome<FoundryDeleteReport>>;
+	/**
+	 * `foundry_delete_version`, same route. Refused for the version the app
+	 * currently PUBLISHES -- that one is the app as far as every visitor is
+	 * concerned, and the way to remove it is to make another approved version
+	 * live first, or to delete the whole app.
+	 */
+	deleteVersion?: (versionId: string) => Promise<FoundryOutcome<FoundryDeleteReport>>;
 	/** Re-read one app after a write, so the surface never renders a stale row. */
 	refresh?: (slug: string) => Promise<FoundryApp | null>;
+}
+
+/**
+ * WHAT A COMPLETED DELETE HANDS BACK, and the one field that is not a count.
+ *
+ * `storageProblem` is NULL on a clean sweep and a sentence when the rows went
+ * and some bytes did not. It is never a failure: `ok` is already true, because
+ * the app IS deleted -- the rows are the app. What is left behind is an
+ * ORPHANED OBJECT, which nothing serves (the serving route's allowlist is
+ * `student_app_files`, and that row is gone) and no client can list. The
+ * surface says so in one line rather than either lying about it or presenting
+ * a completed delete as an error.
+ */
+export interface FoundryDeleteReport {
+	storageProblem?: string | null;
 }
 
 /* -------------------------------------------------------------------------
@@ -240,6 +276,20 @@ export interface FoundryReviewTransports extends FoundryGalleryTransports {
 	}) => Promise<FoundryOutcome>;
 	/** `foundry_clear_metadata_flag`. Absent removes only that one control. */
 	clearMetadataFlag?: (appId: string) => Promise<FoundryOutcome>;
+	/**
+	 * `foundry_set_app_hidden`. SHELVED BUT KEPT: off the gallery, off the
+	 * serving route, files intact, and this same call with `hidden = false`
+	 * puts it back. Admin only in the RPC's own body.
+	 */
+	setHidden?: (appId: string, hidden: boolean, reason: string) => Promise<FoundryOutcome>;
+	/**
+	 * `foundry_delete_app`, through `/api/foundry/delete`. GONE: the app, every
+	 * version, every file row and every stored object, with no undo and nothing
+	 * to restore from. It is deliberately a DIFFERENT transport from
+	 * `setHidden` rather than a flag on it, because they are different
+	 * decisions and the surface has to be able to state the difference.
+	 */
+	deleteApp?: (appId: string) => Promise<FoundryOutcome<FoundryDeleteReport>>;
 	/** Re-read one app after a decision, so the queue never renders a stale row. */
 	refresh?: (slug: string) => Promise<FoundryApp | null>;
 }

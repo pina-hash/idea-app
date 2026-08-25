@@ -107,6 +107,77 @@ export function draftIsSubmittable(version: FoundryVersion): boolean {
 }
 
 /**
+ * WHETHER A VERSION CAN BE DELETED ON ITS OWN, as one predicate the control's
+ * presence and the sentence beside it both read.
+ *
+ * The rule is the RPC's (`foundry_delete_version`, 0136) and it is one clause:
+ * NOT the version the app currently publishes. Everything else -- a draft that
+ * was a mistake, a rejected build, a superseded approved one, even a
+ * submission still in the queue -- is the student's clutter and goes.
+ *
+ * THE LIVE ONE IS REFUSED BECAUSE OF WHAT IT WOULD LEAVE BEHIND, not because
+ * of who is asking: an app still listed, still on the gallery, still resolved
+ * by the serving route, and pointing at a version that no longer exists. An
+ * ADMIN is refused it too. The way to remove a live build is to make another
+ * approved version live first, or to delete the whole app -- which is allowed,
+ * and takes the live build with it, because the thing being removed is the app.
+ *
+ * MIRRORING THE RPC RATHER THAN REPLACING IT. The database refuses what it
+ * refuses; this decides whether to offer the control at all, so a student is
+ * never shown a button whose only possible answer is a refusal.
+ */
+export function versionIsDeletable(
+	version: Pick<FoundryVersion, 'id'>,
+	publishedVersionId: string | null
+): boolean {
+	return version.id !== publishedVersionId;
+}
+
+/**
+ * WHAT DELETING A WHOLE APP COSTS, in the numbers a student needs in front of
+ * them before they press a button with no undo.
+ *
+ * A destructive action names what it costs with the REAL counts, and these
+ * come off the payload the surface is already rendering rather than a second
+ * read. `live` and `submitted` are called out separately from the count
+ * because they are the two facts that change the answer: one means the thing
+ * on the gallery goes with it, the other means a review somebody is part-way
+ * through goes with it.
+ */
+export function deleteAppCost(app: FoundryApp): {
+	versions: number;
+	live: boolean;
+	submitted: boolean;
+} {
+	return {
+		versions: app.versions.length,
+		live: app.published_version_id !== null,
+		submitted: app.versions.some((v) => v.status === 'submitted')
+	};
+}
+
+/**
+ * That cost as the one sentence both surfaces show, so /foundry/mine and
+ * /foundry/review cannot end up describing the same act differently.
+ *
+ * No em dashes, and the numbers are real rather than "everything".
+ */
+export function deleteAppCostLine(app: FoundryApp): string {
+	const cost = deleteAppCost(app);
+	// An app with no versions is an ordinary state (created, never uploaded to),
+	// and "0 versions and every file stored for them" is not a sentence.
+	let line =
+		cost.versions === 0
+			? 'This removes the app. Nothing has been uploaded to it yet.'
+			: cost.versions === 1
+				? 'This removes the app, its 1 version, and every file stored for it.'
+				: `This removes the app, all ${cost.versions} versions, and every file stored for them.`;
+	if (cost.live) line += ' The build that is live on the gallery goes with it.';
+	if (cost.submitted) line += ' A build waiting for review goes with it.';
+	return `${line} There is no undo.`;
+}
+
+/**
  * WHICH METADATA FIELDS GO LIVE IMMEDIATELY, stated as data rather than as a
  * branch in the markup.
  *

@@ -12,12 +12,13 @@ import type { RequestHandler } from './$types';
  * THE REVIEW QUEUE'S SOURCE READS. Main host, admin only.
  *
  * WHY A ROUTE AT ALL, when almost every other Foundry call goes straight from
- * the browser client to an RPC: `foundry-bundles` is readable by uuid now
- * (0135) but it is not LISTABLE by a client, and `student_app_files` carries
- * no client grant, so a reviewer cannot enumerate a version's files from the
- * browser at all. `service_role` is the only role that can, and that key has
- * exactly one Foundry reader (`$lib/server/foundry-bundle`). This route is the
- * front door to that reader and holds no credential of its own.
+ * the browser client to an RPC: `foundry-bundles` carries no storage policy at
+ * all, so a client cannot read it, list it or delete from it, and
+ * `student_app_files` carries no client grant either -- a reviewer cannot
+ * enumerate a version's files from the browser by any route. `service_role` is
+ * the only role that can, and that key has exactly one Foundry reader
+ * (`$lib/server/foundry-bundle`). This route is the front door to that reader
+ * and holds no credential of its own.
  *
  * IT ANSWERS ITS OWN 404, so it is deliberately not in `authedPrefixes` -- a
  * route group's guard does not run for endpoints, and a redirect would be a
