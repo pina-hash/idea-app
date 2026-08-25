@@ -5,19 +5,30 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	FOUNDRY_BUNDLE_BUCKET,
-	FOUNDRY_SERVE_FUNCTION,
+	FOUNDRY_BUNDLE_PREFIX,
 	foundryBundleUrl
 } from '../src/lib/foundry/bundle-url.ts';
+import {
+	FOUNDRY_SANDBOX_FLAGS,
+	foundryBundleCsp
+} from '../src/lib/foundry/bundle-headers.ts';
 import { injectStorageShim, FOUNDRY_STORAGE_SHIM_TAG } from '../src/lib/foundry/storage-shim.ts';
 import { servableFoundryType } from '../src/lib/foundry/preflight.ts';
 
 /**
- * WHERE A BUNDLE IS SERVED FROM, AND THE PROOF THAT THE OLD ANSWER IS GONE.
+ * WHERE A BUNDLE IS SERVED FROM, AND THE PROOF THAT THE OLD ANSWERS ARE GONE.
  *
- * The token proxy on `apps.ideabosco.com` never once served a bundle in
- * production. It is removed rather than fixed, and a Supabase Edge Function
- * (`supabase/functions/foundry-serve`) serves the bytes instead. Three things
- * are worth a test here and none of them fails visibly:
+ * There have been three. A TOKEN PROXY on a second Vercel host never once
+ * served a bundle in production, and its signed token, its `hooks.server.ts`
+ * host branch and its build-step route rewriting are what failed. A SUPABASE
+ * EDGE FUNCTION replaced it and deployed correctly, but the hosted gateway
+ * rewrites `text/html` to `text/plain` and replaces the function's own CSP
+ * with `default-src 'none'; sandbox`, so a bundle rendered as its own source
+ * and would have rendered blank even with the type corrected. What serves a
+ * bundle now is an ORDINARY SVELTEKIT ROUTE at `/b/<app>/<version>/<path>`, on
+ * the apps origin, where we set the headers ourselves.
+ *
+ * Four things are worth a test here and none of them fails visibly:
  *
  *   1. THE URL SHAPE, because it is assembled in one place and consumed by an
  *      `iframe src`. A wrong segment order or a missing trailing slash
@@ -32,11 +43,16 @@ import { servableFoundryType } from '../src/lib/foundry/preflight.ts';
  *   3. THE SHIM INJECTION, which is the one piece of the old proxy that came
  *      back, because an opaque origin still has no storage area and reading
  *      `localStorage` there still throws.
+ *
+ *   4. THE SANDBOX FLAGS BEING ONE STRING. The frame attribute and the CSP
+ *      `sandbox` directive have to agree, and they are written in different
+ *      files for different consumers -- which is exactly the shape that drifts.
  */
 
 const REPO = path.resolve(import.meta.dirname, '..');
-const ORIGIN = 'https://example-ref.supabase.co';
-const MOUNT = `${ORIGIN}/functions/v1/${FOUNDRY_SERVE_FUNCTION}`;
+const ORIGIN = 'https://apps.ideabosco.com';
+const MOUNT = `${ORIGIN}${FOUNDRY_BUNDLE_PREFIX}`.replace(/\/$/, '');
+const ROUTE_FILE = 'src/routes/b/[appId]/[versionId]/[...path]/+server.ts';
 const APP = '11111111-1111-4111-8111-111111111111';
 const VERSION = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
 
@@ -64,7 +80,7 @@ describe('the frame src is the serving function URL', () => {
 	 * here, because the three live in different runtimes and nothing
 	 * type-checks across those boundaries.
 	 */
-	it('agrees with the prefix ingest writes and the one foundry-serve reads', () => {
+	it('agrees with the prefix ingest writes and the one the serving read uses', () => {
 		const ingest = fs.readFileSync(
 			path.join(REPO, 'supabase/functions/foundry-ingest/index.ts'),
 			'utf8'
@@ -73,61 +89,53 @@ describe('the frame src is the serving function URL', () => {
 		expect(ingest).toContain('const prefix = `${app.id}/${version.id}`');
 		expect(ingest).toContain('.upload(`${prefix}/${file.path}`');
 
-		const serve = fs.readFileSync(
-			path.join(REPO, `supabase/functions/${FOUNDRY_SERVE_FUNCTION}/index.ts`),
-			'utf8'
-		);
-		expect(serve).toContain("const BUNDLE_BUCKET = '" + FOUNDRY_BUNDLE_BUCKET + "'");
+		const serve = fs.readFileSync(path.join(REPO, 'src/lib/server/foundry-bundle.ts'), 'utf8');
+		expect(serve).toContain('.from(FOUNDRY_BUNDLE_BUCKET)');
 		expect(serve).toContain('.download(`${appId}/${versionId}/${path}`)');
+		// And the constant it names is the one ingest's literal has to match.
+		expect(FOUNDRY_BUNDLE_BUCKET).toBe('foundry-bundles');
 	});
 
 	/**
-	 * THE FUNCTION MUST NOT KNOW WHERE IT IS MOUNTED, and this is the assertion
-	 * that keeps it that way.
+	 * BOTH URL FORMS HAVE TO REACH THE HANDLER, AND NEITHER SVELTEKIT DEFAULT
+	 * ALLOWS THAT.
 	 *
-	 * The first version anchored on the literal `/functions/v1/foundry-serve`
-	 * and refused every single request: the edge runtime strips its own mount,
-	 * so the isolate sees `/foundry-serve/<app>/<version>/`. It failed as the
-	 * same bodyless 404 a real refusal produces, from a function that was
-	 * otherwise entirely correct -- which is exactly the shape of bug that ate
-	 * five lanes of this feature's life. Hosted Supabase, a custom domain and
-	 * any future rewrite are each free to present a different prefix again, so
-	 * the rule names no prefix and this refuses to let one back in.
+	 * `'never'` (the default) 308s `/b/<app>/<version>/` to the SLASHLESS form,
+	 * which is precisely the broken one: `.../<version>` has `.../<app>/` as its
+	 * base URL, so every relative asset in every bundle resolves one level too
+	 * high and the app renders unstyled and scriptless. `'always'` breaks the
+	 * other direction, sending `.../style.css` to `.../style.css/`. Only
+	 * `'ignore'` hands both forms to the route, which then issues the one
+	 * redirect that is correct.
+	 *
+	 * This fails SILENTLY and cosmetically -- a bundle that loads and looks
+	 * wrong -- so it is worth pinning in the file rather than in a comment.
 	 */
-	it('hardcodes no mount prefix anywhere in the serving function', () => {
-		const serve = fs.readFileSync(
-			path.join(REPO, `supabase/functions/${FOUNDRY_SERVE_FUNCTION}/index.ts`),
-			'utf8'
-		);
-		// Only the explanation of why the prefix is not read may mention it, and
-		// an explanation is a comment. Strip the comments and nothing is left.
-		const code = serve.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-		expect(code).not.toContain('/functions/v1');
-		// POSITIVE CONTROL: the comment stripper left the code behind. Without
-		// this, a stripper that ate the file would report a clean result.
-		expect(code).toContain('Deno.serve');
-		expect(code).toContain('function parse(');
+	it('opts the serving route out of SvelteKit trailing-slash normalization', () => {
+		const route = fs.readFileSync(path.join(REPO, ROUTE_FILE), 'utf8');
+		expect(route).toMatch(/export const trailingSlash = 'ignore';/);
+		// And it still redirects the bare, slashless root itself.
+		expect(route).toContain('trailingSlashRedirect');
 	});
 
 	/**
-	 * AND IT MUST BE CALLABLE WITHOUT A JWT, because an `iframe src` carries no
-	 * Authorization header and no apikey. Removing this line would make every
-	 * launch 401 with nothing in the app to explain it -- the function would be
-	 * deployed, correct, and unreachable.
+	 * THE SUPABASE EDGE FUNCTION IS GONE, CONFIG AND ALL.
 	 *
-	 * `foundry-ingest` must NOT have it: its whole first act is establishing
-	 * which student is calling. Both directions, so the config cannot be read
-	 * as "Foundry functions are open".
+	 * It was deployed and it ran; what defeated it was the hosted gateway, which
+	 * no function code can reach. Leaving the directory or its `verify_jwt`
+	 * block behind would leave a second, deployable way to serve the same bytes
+	 * -- one that demonstrably cannot serve them.
 	 */
-	it('declares verify_jwt = false for the serving function and not for ingest', () => {
+	it('keeps no foundry-serve function, and ingest still verifies its JWT', () => {
+		expect(fs.existsSync(path.join(REPO, 'supabase/functions/foundry-serve'))).toBe(false);
 		const toml = fs.readFileSync(path.join(REPO, 'supabase/config.toml'), 'utf8');
-		expect(toml).toContain(`[functions.${FOUNDRY_SERVE_FUNCTION}]`);
-
-		const block = toml.slice(toml.indexOf(`[functions.${FOUNDRY_SERVE_FUNCTION}]`));
-		const body = block.slice(0, block.indexOf('\n[', 1));
-		expect(body).toMatch(/^verify_jwt\s*=\s*false$/m);
-
+		expect(toml).not.toContain('[functions.foundry-serve]');
 		expect(toml).not.toContain('[functions.foundry-ingest]');
+		// POSITIVE CONTROL: ingest itself is still here, so the sweep above is
+		// reading a real config rather than reporting on an empty tree.
+		expect(fs.existsSync(path.join(REPO, 'supabase/functions/foundry-ingest/index.ts'))).toBe(
+			true
+		);
 	});
 
 	it('trims a trailing slash on the origin rather than doubling it', () => {
@@ -158,12 +166,24 @@ describe('the frame src is the serving function URL', () => {
 		expect(foundryBundleUrl(ORIGIN, APP, VERSION)).not.toBeNull();
 	});
 
-	it('holds no token, no expiry and no second host', () => {
+	/**
+	 * THE URL CARRIES NO SECRET, WHICH IS WHAT MAKES IT PASTEABLE.
+	 *
+	 * It names the apps origin now, so "does not contain ideabosco" is no longer
+	 * the right assertion and would fail on a correct URL. What still has to
+	 * hold is that there is nothing in it a mint produced: no token segment, no
+	 * signature, no expiry. That is the RULE the old spelling was standing in
+	 * for.
+	 */
+	it('holds no token, no signature and no expiry', () => {
 		const url = foundryBundleUrl(ORIGIN, APP, VERSION)!;
 		expect(url.startsWith(ORIGIN + '/')).toBe(true);
+		expect(url).toBe(`${ORIGIN}/b/${APP}/${VERSION}/`);
 		expect(url).not.toContain('/r/');
 		expect(url).not.toContain('token');
-		expect(url).not.toContain('ideabosco');
+		expect(url).not.toContain('sig');
+		expect(url).not.toContain('exp');
+		expect(url).not.toContain('?');
 	});
 });
 
@@ -238,7 +258,12 @@ describe('nothing of the token proxy survives', () => {
 		'src/lib/foundry/host.ts',
 		'src/lib/server/foundry-token.ts',
 		'src/lib/server/foundry-serve.ts',
-		'scripts/foundry-edge-routes.mjs'
+		'scripts/foundry-edge-routes.mjs',
+		// AND THE EDGE FUNCTION THAT REPLACED THE PROXY. It deployed and it ran;
+		// the hosted gateway rewrote its content type and overrode its CSP, which
+		// is not reachable from function code. A dormant copy would be a second
+		// deployable path that cannot work.
+		'supabase/functions/foundry-serve'
 	];
 
 	it('has removed every file and directory the proxy owned', () => {
@@ -247,7 +272,7 @@ describe('nothing of the token proxy survives', () => {
 		// POSITIVE CONTROL: the sweep is looking in the right place. Without
 		// this, a wrong REPO root would report a clean removal of everything.
 		expect(fs.existsSync(path.join(REPO, 'src/lib/foundry/bundle-url.ts'))).toBe(true);
-		expect(fs.existsSync(path.join(REPO, 'supabase/functions/foundry-serve/index.ts'))).toBe(true);
+		expect(fs.existsSync(path.join(REPO, ROUTE_FILE))).toBe(true);
 	});
 
 	/**
@@ -268,7 +293,15 @@ describe('nothing of the token proxy survives', () => {
 			'PUBLIC_FOUNDRY_APPS_HOST',
 			'PUBLIC_FOUNDRY_APP_ORIGIN',
 			'FOUNDRY_TOKEN_SECRET',
-			'foundry-edge-routes'
+			'foundry-edge-routes',
+			// THE EDGE FUNCTION'S OWN NAME AND ITS ONE SECRET. `FOUNDRY_APP_ORIGIN`
+			// was the Supabase function secret that became `frame-ancestors`; the
+			// gateway was replacing that CSP wholesale, so it had never taken
+			// effect. The route sets `frame-ancestors` from
+			// PUBLIC_FOUNDRY_PORTAL_ORIGIN now, which is a different name on a
+			// different platform and does not match this string.
+			'FOUNDRY_APP_ORIGIN',
+			'functions/v1/foundry-serve'
 		];
 
 		const files: string[] = [];
@@ -318,5 +351,90 @@ describe('nothing of the token proxy survives', () => {
 			scripts: Record<string, string>;
 		};
 		expect(pkg.scripts.build).toBe('vite build');
+	});
+});
+
+/**
+ * THE SANDBOX FLAGS AND THE CSP, which are the half of this that the Supabase
+ * gateway was silently overriding and that nothing downstream touches now.
+ */
+describe('the sandbox is one string, and the CSP names the bundle origin', () => {
+	/**
+	 * THE FRAME ATTRIBUTE AND THE CSP DIRECTIVE MUST CARRY THE SAME FLAGS, and
+	 * they are consumed in different files by different things -- an HTML
+	 * attribute and a response header. That is the shape that drifts. It used to
+	 * be two literals in two runtimes with nothing able to compare them.
+	 */
+	it('is read from one constant by the frame and by the policy', () => {
+		const frame = fs.readFileSync(path.join(REPO, 'src/lib/foundry/AppFrame.svelte'), 'utf8');
+		expect(frame).toContain('sandbox={FOUNDRY_SANDBOX_FLAGS}');
+		expect(frame).toContain("from './bundle-headers.ts'");
+		// The attribute is not spelled out a second time anywhere in that file.
+		expect(frame).not.toContain('sandbox="allow-');
+
+		expect(foundryBundleCsp('https://apps.example.com', '')).toContain(
+			`sandbox ${FOUNDRY_SANDBOX_FLAGS}`
+		);
+	});
+
+	/**
+	 * `allow-same-origin` WITH `allow-scripts` CANCELS THE SANDBOX OUTRIGHT -- a
+	 * document given both reaches its own origin, strips the attribute off
+	 * itself in the parent and reloads unsandboxed. Asserted on the constant
+	 * itself so it cannot be added in either consumer.
+	 */
+	it('never grants allow-same-origin', () => {
+		expect(FOUNDRY_SANDBOX_FLAGS).not.toContain('allow-same-origin');
+		expect(foundryBundleCsp('https://apps.example.com', 'https://example.com')).not.toContain(
+			'allow-same-origin'
+		);
+		// POSITIVE CONTROL: the flags string is non-empty and does grant scripts,
+		// so the two absences above are real rather than an empty comparison.
+		expect(FOUNDRY_SANDBOX_FLAGS).toContain('allow-scripts');
+	});
+
+	/**
+	 * `'self'` IS NOT A USABLE SOURCE FOR A SANDBOXED DOCUMENT. It is the only
+	 * origin-relative source expression and an opaque origin is same-origin with
+	 * nothing, so every source list has to NAME the bundle origin literally. A
+	 * policy that used `'self'` would refuse the bundle's own stylesheet, which
+	 * looks exactly like a bad upload.
+	 */
+	it('names the bundle origin literally and never uses self', () => {
+		const csp = foundryBundleCsp('https://apps.example.com', '');
+		expect(csp).not.toContain("'self'");
+		for (const directive of ['default-src', 'script-src', 'style-src', 'img-src', 'font-src']) {
+			const line = csp.split('; ').find((d) => d.startsWith(directive + ' '));
+			expect(line, directive).toContain('https://apps.example.com');
+		}
+	});
+
+	/**
+	 * INLINE SCRIPT AND STYLE ARE PERMITTED ON PURPOSE. `default-src` alone
+	 * forbids both, which kills the storage shim and essentially every generated
+	 * app. And the NETWORK IS OPEN, because the build contract tells students a
+	 * CDN works: a policy that refused one would make the contract lie.
+	 */
+	it('permits inline script and an https CDN', () => {
+		const csp = foundryBundleCsp('https://apps.example.com', '');
+		expect(csp).toMatch(/script-src [^;]*'unsafe-inline'/);
+		expect(csp).toMatch(/style-src [^;]*'unsafe-inline'/);
+		for (const directive of ['script-src', 'connect-src', 'img-src', 'font-src']) {
+			const line = csp.split('; ').find((d) => d.startsWith(directive + ' '));
+			expect(line, directive).toContain('https:');
+		}
+	});
+
+	/**
+	 * `frame-ancestors` IS UNSET-MEANS-UNRESTRICTED. On a feature whose history
+	 * is silently serving nothing, a variable whose absence blanks every frame is
+	 * the worse failure -- and a framed bundle is sandboxed, holds no session and
+	 * reaches nothing of ours.
+	 */
+	it('omits frame-ancestors when no portal origin is configured', () => {
+		expect(foundryBundleCsp('https://apps.example.com', '')).not.toContain('frame-ancestors');
+		expect(foundryBundleCsp('https://apps.example.com', 'https://ideabosco.com')).toContain(
+			'frame-ancestors https://ideabosco.com'
+		);
 	});
 });

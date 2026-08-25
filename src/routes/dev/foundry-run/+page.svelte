@@ -43,7 +43,7 @@
 	<AppStage
 		appId={data.appId}
 		versionId={data.versionId}
-		storageOrigin={data.origin}
+		appsOrigin={data.origin}
 		title={data.title}
 		height="60vh"
 		runningLabel="Running {data.title}"

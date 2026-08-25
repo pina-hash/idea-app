@@ -36,8 +36,8 @@ programme), IDEA Foundry (student-published static web apps), and the portal
 shell (`/`, `/dashboard`, `/admin`).
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
-`foundry-ingest` function, the `foundry-serve` function that puts a bundle's
-bytes in front of a browser, the submit surface (`/foundry/submit`,
+`foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
+front of a browser, the submit surface (`/foundry/submit`,
 `/foundry/mine`, `/foundry/contract`), the GALLERY (`/foundry`) and the REVIEW
 QUEUE (`/foundry/review`, admin only). Several things about it are rules rather
 than history.
@@ -65,7 +65,7 @@ the SUBMITTED version, which by definition is not published yet.
     Ingest decides what comes out of a zip (a wrapper stripped, OS noise
     dropped, ignored extensions removed), so a reviewer reading the upload is
     reviewing something nobody will execute. The tree is built from
-    `student_app_files`, which IS `foundry-serve`'s allowlist.
+    `student_app_files`, which IS the serving route's allowlist.
   - **THE METADATA FLAG CANNOT SAY WHICH FIELD MOVED, AND MUST NOT CLAIM TO.**
     `metadata_flagged_at` is a timestamp; there is no metadata history table and
     the version manifest carries build facts only. The panel reports the two
@@ -79,10 +79,11 @@ the SUBMITTED version, which by definition is not published yet.
     The control is `aria-disabled`, never `disabled`, so it can explain itself.
 
 **A BUNDLE URL CARRIES NO TOKEN, AND THE PUBLICATION GATE IS THE VERSION'S OWN
-STATUS.** `foundryBundleUrl(origin, appId, versionId)` is the whole frame src:
-plain, stable, unexpiring, and safe to log, screenshot and paste into a bug
-report. `foundry-serve` decides on every request whether to answer -- **a
-version serves when it is the app's `published_version_id` OR its status is
+STATUS.** `foundryBundleUrl(appsOrigin, appId, versionId)` is the whole frame
+src -- `<apps origin>/b/<app id>/<version id>/` -- plain, stable, unexpiring,
+and safe to log, screenshot and paste into a bug report. `serveBundleFile` in
+`$lib/server/foundry-bundle.ts` decides on every request whether to answer --
+**a version serves when it is the app's `published_version_id` OR its status is
 `submitted`**, and never when the app is hidden.
   - **`submitted` IS WHAT REPLACED THE REVIEW-KIND TOKEN.** The queue has to RUN
     the build it is deciding about, and a submitted version is by definition not
@@ -318,7 +319,7 @@ means changing that RPC's signature, which is a migration.
 **`foundry-bundles` HAS NO STORAGE POLICY, AND THAT IS THE MECHANISM** --
 `storage.objects` has RLS on, so a bucket no policy names denies every
 `authenticated` and `anon` request by default and only `service_role` reaches
-it. Any policy added there, for any reason, is what opens it; `foundry-serve`
+it. Any policy added there, for any reason, is what opens it; the serving route
 reads it server side with that key. **MAKING IT PUBLIC IS THE OBVIOUS WRONG
 ANSWER AND WAS TRIED**: it would put every extracted version -- drafts,
 rejected builds, superseded builds, the builds of hidden apps -- one guessed
@@ -481,16 +482,29 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
 **A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
-are served by the **`foundry-serve` Supabase Edge Function**, which answers on
-the Supabase project's own domain and not on `ideabosco.com`.
+are served by an **ordinary SvelteKit route**,
+`src/routes/b/[appId]/[versionId]/[...path]/+server.ts`, answering on
+**`apps.ideabosco.com`** -- a second domain on the same Vercel project -- and
+never on `ideabosco.com`.
 
 - **TWO ORIGINS, NOT ONE HOST PLUS A HEADER, and the difference is subresource
   cookies.** A header governs scripting and document origin; it does not govern
   whether a subresource request carries credentials. A bundle containing
   `<img src="/api/whatever">` served same-host reaches the real backend with the
   viewer's cookies attached. Served cross-site it reaches a host that reaches
-  nothing. No header achieves this and no header ever will. The split is now
-  free rather than engineered: the function is simply somewhere else.
+  nothing. No header achieves this and no header ever will.
+  - **AND THE ABSENCE IS STRUCTURAL, NOT BEHAVIOURAL, WHICH IS THE WHOLE
+    ARGUMENT FOR A SECOND ORIGIN OVER A SANDBOX ON THE MAIN HOST.**
+    `@supabase/ssr`'s `DEFAULT_COOKIE_OPTIONS` sets `path`, `sameSite: 'lax'`
+    and `httpOnly: false` and NO `Domain`, and `hooks.server.ts` adds none -- so
+    the session cookies are host-only on `ideabosco.com` and simply do not
+    exist on the apps host. Serving from the main host under a sandbox would
+    instead rest on the browser computing a null site-for-cookies for an
+    opaque-origin initiator: probably true today, subtle, varying by browser,
+    and no help against a `SameSite=None` cookie added later. An absence cannot
+    regress. **`httpOnly: false` is why it matters more than it looks** -- those
+    tokens are readable by `document.cookie`, so the host a student's code runs
+    on is the question.
 - **THERE USED TO BE A SECOND VERCEL HOST AND IT NEVER SERVED A BUNDLE.**
   `apps.ideabosco.com`, a host branch sequenced first in `hooks.server.ts`, an
   allowlist module, signed HMAC read tokens, a mint endpoint and a build step
@@ -502,8 +516,20 @@ the Supabase project's own domain and not on `ideabosco.com`.
   namespace, a host branch or `scripts/foundry-edge-routes.mjs`;
   `tests/foundry-bundle-url.test.ts` sweeps for every one of those names and
   reddens.
-- **SUPABASE STORAGE WILL NOT SERVE HTML AS HTML, EVER, AND THAT IS WHY THERE
-  IS A FUNCTION AT ALL.** `normalizeContentType` in storage-api's renderer
+- **NOTHING SUPABASE-HOSTED WILL SERVE HTML, AND THAT IS TWO MEASUREMENTS, NOT
+  ONE.** Storage was the first and the hosted **Edge Function gateway** is the
+  second: a deployed, correct `foundry-serve` answered
+  `Content-Type: text/plain` AND
+  `content-security-policy: default-src 'none'; sandbox` -- the gateway
+  REPLACED the function's own policy, so correcting the type alone would still
+  have rendered a blank page, and `frame-ancestors` had never once taken
+  effect. Different codebases, different languages, identical refusal: it is a
+  platform posture against arbitrary HTML on `*.supabase.co`, not a bug in
+  either, and **no function code can reach it.** That is why the bytes come off
+  a host whose headers we set. **Do not try a Supabase custom domain on the
+  strength of a guess** -- whether the control is hostname-conditional was
+  never measured, and the storage twin is unconditional.
+- **STORAGE'S OWN REWRITE, MEASURED FIRST.** `normalizeContentType` in storage-api's renderer
   rewrites any `text/html` content type to `text/plain`, unconditionally, with
   no bucket flag and no configuration. Measured on a real object: stored
   `text/html; charset=utf-8`, served `text/plain; charset=UTF-8` on the public,
@@ -513,25 +539,34 @@ the Supabase project's own domain and not on `ideabosco.com`.
   `Text/Html` a working bypass and a deliberate circumvention of somebody
   else's abuse control that one upstream `.toLowerCase()` would silently break.
   Do not.
-- **THE FUNCTION KNOWS NOTHING ABOUT WHERE IT IS MOUNTED, AND THAT IS LOAD
-  BEARING.** The edge runtime strips its own mount, so `url.pathname` inside
-  the isolate is `/foundry-serve/<app>/<version>/` and not the
-  `/functions/v1/...` the browser asked for -- anchoring on the literal prefix
-  refused every request, with the same bodyless 404 a real failure produces.
-  `parse()` walks the segments and takes the FIRST place two uuids sit next to
-  each other, so no prefix is read at all. **Neither is `url.origin` usable**:
-  inside the isolate it is the runtime's internal address
-  (`http://127.0.0.1:8081` measured locally) and `SUPABASE_URL` is the internal
-  gateway (`http://kong:8000`), so the public origin comes from the request's
-  `x-forwarded-*` headers, degrading to `url.origin`. Both were measured, both
-  produced a plausible wrong answer first, and both are the same lesson: **a
-  platform fact from the old proxy does not transfer to the new one.**
+- **THE ROUTE OPTS OUT OF TRAILING-SLASH NORMALIZATION, AND BOTH SVELTEKIT
+  DEFAULTS ARE WRONG FOR IT.** `'never'` 308s `/b/<app>/<version>/` to the
+  slashless form, which is the broken one -- `.../<version>` has `.../<app>/`
+  as its base URL, so every relative asset resolves one level too high and the
+  app renders unstyled and scriptless, reading as a bad upload. `'always'`
+  breaks the other direction, sending `.../style.css` to `.../style.css/`. Only
+  `export const trailingSlash = 'ignore'` hands both forms to the handler, which
+  then issues the ONE correct redirect: bare root, no slash, 307 with a
+  RELATIVE `Location` so it stays right on any host.
+- **THE HOST CHECK IS IN THE ROUTE AND IS NOT THE DELETED HOST BRANCH.** The
+  branch that burned two lanes sat in `hooks.server.ts` and decided what an
+  entire host could serve, ahead of routing, on every request to the site. This
+  is one route declining to answer on an origin it is not for, inside its own
+  handler. It is what stops the main host quietly becoming a second,
+  cookie-carrying way to the same bytes. **Unset means any host**, so local dev
+  and previews need no configuration; production pins
+  `PUBLIC_FOUNDRY_APPS_ORIGIN`.
 - **`allow-scripts` AND `allow-same-origin` TOGETHER CANCEL THE SANDBOX
   ENTIRELY** -- a frame with both can reach its own origin, strip the sandbox
   attribute off itself in the parent document and reload unsandboxed.
   **`allow-same-origin` must never appear on a Foundry frame**, and
-  `$lib/foundry/AppFrame.svelte` is the ONE place the attribute is written down.
-  A second copy is a frame that looks identical and isolates nothing.
+  `FOUNDRY_SANDBOX_FLAGS` in `$lib/foundry/bundle-headers.ts` is the ONE place
+  the flags are written down. **That moved out of `AppFrame.svelte`, which used
+  to hold the only copy**, because the SERVING side has to send the identical
+  set as a CSP `sandbox` directive -- and a second spelling in another file is a
+  frame and a document that drift apart with nothing able to compare them.
+  `AppFrame` reads the constant; a second copy is a frame that looks identical
+  and isolates nothing.
 - **THE CSP `sandbox` DIRECTIVE AND THE IFRAME `sandbox` ATTRIBUTE ARE NOT
   REDUNDANT.** The attribute covers a document the portal frames; the directive
   covers the document however it was reached, so a student who navigates
@@ -554,10 +589,20 @@ the Supabase project's own domain and not on `ideabosco.com`.
   a feature whose history is silently serving nothing, a variable whose absence
   blanks every frame is the worse failure -- and a framed bundle is sandboxed,
   holds no session and reaches nothing of ours, so another site embedding one
-  gains a copy of a student's app and no more. Production pins it with the
-  `FOUNDRY_APP_ORIGIN` **Supabase function secret**, not a Vercel variable.
+  gains a copy of a student's app and no more. Production pins it with
+  `PUBLIC_FOUNDRY_PORTAL_ORIGIN`. **The old `FOUNDRY_APP_ORIGIN` Supabase
+  function secret is retired and never worked**: the gateway was replacing that
+  CSP wholesale, so the value was read, sent, and discarded.
+- **THE PUBLICATION GATE IS NOT A SESSION CHECK, AND THAT IS FORCED RATHER THAN
+  CHOSEN.** There IS no session on the apps host -- that absence is the point of
+  the split -- so "require a signed-in caller" is not available there without
+  either `Domain`-scoping the session cookie onto the apps host, which hands
+  every bundle the credentials the split exists to withhold, or putting a signed
+  token back on every request, which is the machinery this feature spent five
+  lanes removing. The licence comes from the VERSION'S OWN STATUS. Anyone
+  proposing to add a session check here has to answer that first.
 - **THE SERVICE-ROLE READ IS NOT THE LAST WORD ON ACCESS.** It bypasses RLS, so
-  every rule RLS would have enforced is re-checked in the function on every
+  every rule RLS would have enforced is re-checked in the route on every
   request: the version belongs to the app, the app is not hidden, and the
   version is published or submitted.
 - **THE FILE LIST IS THE ALLOWLIST.** A served path must have a row in
@@ -669,8 +714,10 @@ it is not required to browse.
     report, rate limited per address inside the database. It answers its own
     responses, so it is not in `authedPrefixes`, and it reads no session.
 - **Signed-in tier (any role):** `/gauntlet`, `/frc`, `/greenline`, `/notebook`,
-  `/classroom`, `/foundry` (the gallery included: a launch mints a token that
-  NAMES the viewer, so there is no anonymous read of a student bundle).
+  `/classroom`, `/foundry` (the SURFACES; the bundle BYTES are a separate
+  question -- they are served from the apps origin, which holds no session at
+  all, so the publication gate there is the version's own status and the two
+  uuids in the URL. See the origin split).
   `hooks.server.ts` redirects anonymous users off a LIST of authed prefixes.
 - **Admin tier:** `/dashboard`, `/coin-desk`, `/admin`, `/greenline/moderation`,
   the notebook Drive connect flow, GAUNTLET authoring / room hosting, FRC
@@ -820,15 +867,15 @@ build break):
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
-  anything in it), and Foundry -- which is TWO readers of one credential for
-  one subsystem, and the split is forced rather than chosen.
-  `src/lib/server/foundry-bundle.ts` backs the review queue's source viewer on
-  the main host; `supabase/functions/foundry-serve` serves the bundle bytes and
-  runs in a different runtime on a different origin, so it cannot import the
-  first. Both exist because `foundry-bundles` carries no storage policy at all,
-  which makes `service_role` the only role that reaches it, and both re-check
-  explicitly every rule RLS would otherwise have enforced. Nothing else may
-  read it, and **it must never gain a `PUBLIC_` prefix**. Unset, the feedback
+  anything in it), and Foundry -- which is now ONE reader again,
+  `src/lib/server/foundry-bundle.ts`, backing both the review queue's source
+  viewer and the serving route. **It was two while an Edge Function served the
+  bytes in a different runtime and could not import the first**; deleting the
+  function collapsed that split, and a second reader should not come back. It
+  exists because `foundry-bundles` carries no storage policy at all, which makes
+  `service_role` the only role that reaches it, and it re-checks explicitly
+  every rule RLS would otherwise have enforced. Nothing else may read it, and
+  **it must never gain a `PUBLIC_` prefix**. Unset, the feedback
   route answers a structured `not_configured` refusal rather than a retryable
   failure: a missing environment variable does not fix itself in eight seconds
   of backoff.
@@ -852,15 +899,20 @@ build break):
 
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
 `COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and
-`FOUNDRY_TOKEN_SECRET`.** Nothing reads any of them.
+`FOUNDRY_TOKEN_SECRET`.** Nothing reads any of them. **Retired on the Supabase
+side too: the `FOUNDRY_APP_ORIGIN` function secret** (`supabase secrets unset`),
+which never took effect because the gateway replaced that CSP wholesale.
 
-**FOUNDRY'S ONLY CONFIGURATION IS A SUPABASE FUNCTION SECRET, NOT A VERCEL
-VARIABLE.** `foundry-serve` gets `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` from the platform, so the one optional value is
-`FOUNDRY_APP_ORIGIN` (`supabase secrets set`), which becomes the CSP
-`frame-ancestors`; unset means unrestricted. **The function deploys separately
-from the app and must go FIRST** -- `supabase functions deploy foundry-serve` --
-because the client names its URL the moment it ships.
+**FOUNDRY READS TWO PUBLIC VERCEL VARIABLES, BOTH VIA `$env/dynamic/public`.**
+`PUBLIC_FOUNDRY_APPS_ORIGIN` is the origin bundles are served from
+(`https://apps.ideabosco.com`); the serving route 404s a bundle path arriving on
+any other origin, and **unset removes the launch control everywhere rather than
+falling back to the current origin** -- that fallback would serve student
+bundles off the main, cookie-carrying host, silently, which is the one failure
+nobody would notice. `PUBLIC_FOUNDRY_PORTAL_ORIGIN` becomes the CSP
+`frame-ancestors`; unset means unrestricted. **There is no separate deploy step
+any more** -- the route ships with the app, which is the ordering problem the
+Edge Function created and this removes.
 
 **ONE MODULE KNOWS EACH CREDENTIAL.** A secret has exactly one reader, which is
 the single egress point for that service. Do not add a second.

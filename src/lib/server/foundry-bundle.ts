@@ -3,7 +3,9 @@ import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 import { bundlePathOk } from '$lib/bundle-path';
-import { fixtureVersion } from './foundry-dev-fixture';
+import { FOUNDRY_BUNDLE_BUCKET } from '$lib/foundry/bundle-url';
+import { servableFoundryType } from '$lib/foundry/preflight';
+import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
 
 /**
  * THE REVIEW QUEUE'S SOURCE READS: what is ACTUALLY sitting in the bundle
@@ -166,7 +168,7 @@ export async function readBundleFileText(
 	if (!client) return { ok: false, reason: 'not_configured' };
 
 	const { data: blob, error } = await client.storage
-		.from('foundry-bundles')
+		.from(FOUNDRY_BUNDLE_BUCKET)
 		.download(`${appId}/${versionId}/${path}`);
 	if (error || !blob) return { ok: false, reason: 'storage_failed' };
 
@@ -198,4 +200,121 @@ const TEXTUAL = new Set([
 export function isTextContentType(stored: string | null | undefined): boolean {
 	const base = (stored ?? '').split(';')[0].trim().toLowerCase();
 	return TEXTUAL.has(base);
+}
+
+/* -------------------------------------------------------------------------
+ * THE SERVING READ.
+ *
+ * `/b/<app>/<version>/<path>` reaches this for every byte of every bundle. It
+ * uses the same service-role client the source viewer does, for the same
+ * reason: `foundry-bundles` carries NO storage policy at all, so RLS denies
+ * every `anon` and `authenticated` request by default and the service role is
+ * its only reader. Keeping the bucket shut is what stops a draft, a rejected
+ * build, a superseded build or a hidden app's build from sitting one guessed
+ * pair of uuids from the open internet.
+ *
+ * WHICH MEANS EVERY RULE RLS WOULD HAVE ENFORCED IS RE-CHECKED HERE, ON EVERY
+ * REQUEST, EXPLICITLY. A service-role read bypasses RLS by construction, so
+ * the three checks below are not defence in depth -- they are the only copy:
+ *
+ *   1. the version named in the URL belongs to the app named in the URL;
+ *   2. the app is not hidden;
+ *   3. the version is the app's `published_version_id`, or it is SUBMITTED and
+ *      therefore in front of a reviewer right now.
+ *
+ * (3) IS THE PUBLICATION GATE, AND IT IS NOT A SESSION CHECK. That is forced
+ * rather than chosen. These bytes are served on the APPS ORIGIN, and the
+ * portal's cookies are host-only on the main host -- `@supabase/ssr` sets no
+ * `Domain` and `hooks.server.ts` adds none -- so there is no session on this
+ * host to read. There cannot be one without either `Domain`-scoping the
+ * session cookie onto the apps host, which hands every student bundle the
+ * credentials the second origin exists to withhold, or putting a signed token
+ * back on every request, which is the machinery five lanes were spent
+ * removing. So the licence comes from the VERSION'S OWN STATUS, exactly as it
+ * did from the Edge Function this replaces.
+ *
+ * WHAT THAT COSTS: a student who knows their own version uuid can hand somebody
+ * a link to a build that is submitted but not yet approved. WHAT IT BUYS: a
+ * draft, a rejected version, a rolled-back one and a hidden app all stop
+ * serving in the same statement that changes them, which no expiring token
+ * could do.
+ *
+ * THE FILE LIST IS THE ALLOWLIST. A served path must have a ROW in
+ * `student_app_files` for that exact version and that exact string, so there is
+ * no directory to walk, no prefix to escape from, and nothing is ever resolved
+ * against a filesystem. `bundlePathOk` runs first anyway, as an independent
+ * second refusal.
+ * ---------------------------------------------------------------------- */
+
+export type FoundryServeResult = { ok: true; bytes: Uint8Array; contentType: string } | { ok: false };
+
+/** Every refusal is the same bodyless 404 upstream, so this carries no reason. */
+const REFUSED: FoundryServeResult = { ok: false };
+
+/**
+ * One file of one bundle, if and only if that bundle may currently be served.
+ *
+ * IN DEV, WITH NO REAL PROJECT, the rows and bytes come from
+ * `./foundry-dev-fixture` instead -- the same route, the same gate, the same
+ * headers, the same shim injection, only a different source of bytes. The
+ * local `.env` names a placeholder Supabase project, so without this none of
+ * the serving path could be run locally at all and every claim about it would
+ * be a claim about code that had never executed.
+ */
+export async function serveBundleFile(
+	appId: string,
+	versionId: string,
+	path: string
+): Promise<FoundryServeResult> {
+	if (!bundlePathOk(path)) return REFUSED;
+
+	if (dev && isFixtureApp(appId)) {
+		const version = fixtureVersion(versionId);
+		const app = fixtureApp(appId);
+		if (!version || !app || version.appId !== appId) return REFUSED;
+		if (app.hiddenAt !== null) return REFUSED;
+		if (app.publishedVersionId !== versionId) return REFUSED;
+		const file = version.files.get(path);
+		if (!file) return REFUSED;
+		return { ok: true, bytes: file.bytes, contentType: file.contentType };
+	}
+
+	const client = admin();
+	if (!client) return REFUSED;
+
+	const { data: version, error: versionErr } = await client
+		.from('student_app_versions')
+		.select('id, app_id, status')
+		.eq('id', versionId)
+		.maybeSingle<{ id: string; app_id: string; status: string }>();
+	if (versionErr || !version || version.app_id !== appId) return REFUSED;
+
+	const { data: app, error: appErr } = await client
+		.from('student_apps')
+		.select('id, published_version_id, hidden_at')
+		.eq('id', appId)
+		.maybeSingle<{ id: string; published_version_id: string | null; hidden_at: string | null }>();
+	if (appErr || !app || app.hidden_at !== null) return REFUSED;
+
+	const live = app.published_version_id === version.id || version.status === 'submitted';
+	if (!live) return REFUSED;
+
+	const { data: row, error: rowErr } = await client
+		.from('student_app_files')
+		.select('path, content_type')
+		.eq('version_id', versionId)
+		.eq('path', path)
+		.maybeSingle<{ path: string; content_type: string | null }>();
+	if (rowErr || !row) return REFUSED;
+
+	const { data: blob, error: dlErr } = await client.storage
+		.from(FOUNDRY_BUNDLE_BUCKET)
+		.download(`${appId}/${versionId}/${path}`);
+	if (dlErr || !blob) return REFUSED;
+
+	return {
+		ok: true,
+		bytes: new Uint8Array(await blob.arrayBuffer()),
+		contentType: servableFoundryType(row.content_type)
+	};
 }
