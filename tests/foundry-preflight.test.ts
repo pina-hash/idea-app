@@ -38,6 +38,7 @@ import { zipSync, strToU8 } from 'fflate';
 import {
 	FOUNDRY_ALLOWED_EXTENSIONS,
 	FOUNDRY_LIMITS,
+	PLATFORM_FONTS_URL,
 	classifyReference,
 	extensionOf,
 	foundryMime,
@@ -372,61 +373,114 @@ describe('reference classification', () => {
 		expect(classifyReference('tel:+1-555-555-1234').kind).toBe('ok');
 	});
 
-	it('permits the one absolute path, and no other', () => {
-		expect(classifyReference('/_platform/fonts.css').kind).toBe('ok');
+	/**
+	 * THERE IS NO PERMITTED ABSOLUTE PATH ANY MORE, INCLUDING THE ONE THERE
+	 * USED TO BE. `/_platform/fonts.css` resolved while bundles were served
+	 * from a host of ours; they come off the Supabase project host now, where
+	 * a leading slash resolves to Supabase. So the exception is gone and the
+	 * platform sheet is referenced by its whole URL -- which classifies as an
+	 * ordinary https reference and needs no case of its own.
+	 */
+	it('refuses every absolute path, the old platform exception included', () => {
+		expect(classifyReference('/_platform/fonts.css').kind).toBe('absolute');
 		expect(classifyReference('/assets/logo.png').kind).toBe('absolute');
 		expect(classifyReference('/').kind).toBe('absolute');
+		// POSITIVE CONTROL: the whole URL for the same stylesheet is fine, so
+		// the three above are about the leading slash and not about the path.
+		expect(classifyReference(PLATFORM_FONTS_URL).kind).toBe('ok');
 	});
 
-	it('refuses every network scheme and the protocol-relative form', () => {
-		expect(classifyReference('https://cdn.example.com/x.js').kind).toBe('scheme');
-		expect(classifyReference('//cdn.example.com/x.js').kind).toBe('scheme');
-		expect(classifyReference('ftp://files.example.com/x.zip').kind).toBe('scheme');
-	});
-
-	it('names Google Fonts specifically, because the fix is different', () => {
-		expect(classifyReference('https://fonts.googleapis.com/css2?family=Inter').kind).toBe(
-			'google-fonts'
+	/**
+	 * THE RELAXATION, ASSERTED AS A RULE RATHER THAN AS A LIST OF HOSTS.
+	 * There is no CSP on a bundle now, so every http(s) reference works and
+	 * refusing one would be refusing something that runs. Google Fonts is
+	 * called out because it had a refusal of its very own, with its own
+	 * sentence, and it is the case most likely to be re-added by reflex.
+	 */
+	it('allows http, https, the protocol-relative form and Google Fonts', () => {
+		expect(classifyReference('https://cdn.example.com/x.js').kind).toBe('ok');
+		expect(classifyReference('http://cdn.example.com/x.js').kind).toBe('ok');
+		expect(classifyReference('//cdn.example.com/x.js').kind).toBe('ok');
+		expect(classifyReference('https://unpkg.com/react@18/umd/react.production.min.js').kind).toBe(
+			'ok'
 		);
-		expect(classifyReference('//fonts.gstatic.com/s/x.woff2').kind).toBe('google-fonts');
+		expect(classifyReference('https://fonts.googleapis.com/css2?family=Inter').kind).toBe('ok');
+		expect(classifyReference('//fonts.gstatic.com/s/x.woff2').kind).toBe('ok');
+	});
+
+	it('still refuses a scheme that is neither the web nor an inline value', () => {
+		expect(classifyReference('ftp://files.example.com/x.zip').kind).toBe('scheme');
+		expect(classifyReference('file:///C:/Users/me/app/index.html').kind).toBe('scheme');
+		// POSITIVE CONTROL for the schemes that carry no request of their own.
+		expect(classifyReference('data:image/png;base64,AAAA').kind).toBe('ok');
+		expect(classifyReference('mailto:someone@example.com').kind).toBe('ok');
 	});
 });
 
 describe('content scanning', () => {
-	it('quotes the student\'s ACTUAL import, not the wreckage of a comment strip', () => {
-		// Every URL contains "//". A blanker that does not track strings turns
-		// this message into a quotation of the next line of their program.
-		const js = 'import confetti from "https://esm.sh/canvas-confetti@1.9.3";\nconst x = 1;\n';
-		const { failures } = scanJs('app.js', js);
-		expect(failures).toHaveLength(1);
-		expect(failures[0].message).toContain('https://esm.sh/canvas-confetti@1.9.3');
-		expect(failures[0].message).not.toContain('const x');
-		expect(failures[0].line).toBe(1);
+	/**
+	 * THE COMMENT BLANKER STILL HAS TO TRACK STRINGS, and the probe moved
+	 * because the old one stopped being a refusal. Every URL contains "//",
+	 * so a blanker that treats one inside a string literal as the start of a
+	 * line comment erases the REST OF THAT LINE -- and here the rest of the
+	 * line is the thing being looked for, so the symptom is silence.
+	 */
+	it('does not treat // inside a string literal as the start of a comment', () => {
+		const js = 'const src = "https://esm.sh/x"; localStorage.setItem("a", src);\n';
+		const scan = scanJs('app.js', js);
+		expect(scan.warnings).toHaveLength(1);
+		expect(scan.warnings[0].line).toBe(1);
+		// And the https reference on the same line is not itself a problem.
+		expect(scan.failures).toEqual([]);
 	});
 
 	it('ignores an import that is genuinely inside a comment', () => {
-		const js = '// import x from "https://esm.sh/y";\nconst a = 1;\n';
+		const js = '// import x from "/lib/y.js";\nconst a = 1;\n';
 		expect(scanJs('app.js', js).failures).toEqual([]);
+		// POSITIVE CONTROL: the same line uncommented IS a failure, so the
+		// empty array above is the comment handling and not a dead rule.
+		expect(scanJs('app.js', 'import x from "/lib/y.js";\n').failures).toHaveLength(1);
 	});
 
-	it('treats a network call as a warning and an import as a failure', () => {
-		const js = 'const r = await fetch("/api/x");\n';
-		const scan = scanJs('app.js', js);
-		expect(scan.failures).toEqual([]);
-		expect(scan.warnings).toHaveLength(1);
-		expect(scan.warnings[0].message).toContain('fetch');
+	/**
+	 * THE TWO SEVERITIES, WITH THE PROBES THE RELAXATION LEFT BEHIND. A
+	 * `fetch` used to be the warning and a remote import the failure; both
+	 * work now. Storage is the warning (the app runs, and that one thing
+	 * throws without the shim) and an absolute import is the failure (it
+	 * cannot resolve at all).
+	 */
+	it('treats storage as a warning and an absolute import as a failure', () => {
+		const warned = scanJs('app.js', "const s = localStorage.getItem('x');\n");
+		expect(warned.failures).toEqual([]);
+		expect(warned.warnings).toHaveLength(1);
+		expect(warned.warnings[0].message).toContain('localStorage');
+
+		const refused = scanJs('app.js', 'import x from "/lib/x.js";\n');
+		expect(refused.failures).toHaveLength(1);
+		expect(refused.warnings).toEqual([]);
+
+		// AND A `fetch` IS NOW NEITHER. Asserted rather than merely absent,
+		// because "we stopped warning about it" is the whole change and an
+		// empty result somewhere else would not say so.
+		const quiet = scanJs('app.js', 'const r = await fetch("https://api.example.com/x");\n');
+		expect(quiet.failures).toEqual([]);
+		expect(quiet.warnings).toEqual([]);
 	});
 
-	it('finds a blocked url() in CSS and reports its line', () => {
-		const css = 'body { color: red; }\n.x { background: url("https://example.com/bg.png"); }\n';
+	it('finds a refused url() in CSS and reports its line', () => {
+		const css = 'body { color: red; }\n.x { background: url("/assets/bg.png"); }\n';
 		const { failures } = scanCss('styles.css', css);
 		expect(failures).toHaveLength(1);
 		expect(failures[0].line).toBe(2);
-		expect(failures[0].message).toContain('https://example.com/bg.png');
+		expect(failures[0].message).toContain('/assets/bg.png');
+		// POSITIVE CONTROL for the relaxation: the same declaration pointing at
+		// a real site is fine, so the failure above is the leading slash.
+		const remote = 'body { color: red; }\n.x { background: url("https://example.com/bg.png"); }\n';
+		expect(scanCss('styles.css', remote).failures).toEqual([]);
 	});
 
 	it('does not report a url() sitting inside a CSS comment', () => {
-		const css = '/* background: url("https://example.com/x.png"); */\nbody { color: red; }\n';
+		const css = '/* background: url("/assets/x.png"); */\nbody { color: red; }\n';
 		expect(scanCss('styles.css', css).failures).toEqual([]);
 	});
 

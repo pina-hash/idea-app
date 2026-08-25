@@ -28,6 +28,16 @@ import {
  * fixtures are for, and why the offending line sits well down the file after
  * several earlier blocks rather than in the first one.
  *
+ * THE PROBES MOVED WHEN THE NETWORK RULES DID, AND THE ARITHMETIC DID NOT.
+ * These fixtures used to plant a `fetch` and a CDN import, because those were
+ * the warning and the failure `scanJs` produced. Neither is a problem now that
+ * bundles are served from public Storage with no CSP of ours: a `fetch` works
+ * and a CDN import works. So the probes are the two things that DID survive --
+ * `localStorage`, which still throws in an opaque origin and is now the
+ * warning, and an ABSOLUTE-PATH import, which still cannot resolve and is
+ * still the failure. Every line-number assertion below is unchanged, because
+ * the offset arithmetic is what this file is about and it did not move.
+ *
  * THE READER IS STUBBED, AND THAT IS THE SEAM RATHER THAN A BYPASS. `scanHtml`
  * takes its `HtmlReader` as a parameter precisely because the two runtimes
  * parse differently; handing it facts is how both real callers work. The
@@ -43,7 +53,8 @@ function readerFor(scripts: string[], refs: HtmlFacts['refs'] = []): HtmlReader 
 
 const SCRIPT_A = '\n\tconst A = 1;\n';
 const SCRIPT_B = '\n\tconst B = 2;\n';
-const SCRIPT_C = "\n\t// a comment about the tide table\n\tconst C = 3;\n\tfetch('https://api.example.com/tides');\n";
+const SCRIPT_C =
+	"\n\t// a comment about the tide table\n\tconst C = 3;\n\tconst saved = localStorage.getItem('tides');\n";
 
 /**
  * Line numbers are marked in the comment beside the fixture so a reader can
@@ -67,14 +78,14 @@ const PAGE = [
 	'<script>', //                                                  15
 	'\t// a comment about the tide table', //                       16
 	'\tconst C = 3;', //                                            17
-	"\tfetch('https://api.example.com/tides');", //  <-- THE ONE     18
+	"\tconst saved = localStorage.getItem('tides');", //  <-- THE ONE 18
 	'</script>', //                                                 19
 	'</body>', //                                                   20
 	'</html>' //                                                    21
 ].join('\n');
 
 describe('inline scripts are scanned, with the file s own line numbers', () => {
-	it('reports the network call at its line in the HTML file, not in the block', () => {
+	it('reports the storage call at its line in the HTML file, not in the block', () => {
 		const scan = scanHtml(
 			'index.html',
 			PAGE,
@@ -86,11 +97,11 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 
 		const warning = scan.warnings[0]!;
 		expect(warning.file).toBe('index.html');
-		// 18, not 4. The fetch is the fourth line of the third block.
+		// 18, not 4. The call is the fourth line of the third block.
 		expect(warning.line).toBe(18);
 		// And the SENTENCE carries it too, which is the half a caller correcting
 		// only the `line` field would leave wrong.
-		expect(warning.message).toContain('index.html line 18 uses fetch.');
+		expect(warning.message).toContain('index.html line 18 uses localStorage.');
 	});
 
 	/**
@@ -101,12 +112,12 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	it('the same script as a .js file reports its own line 4', () => {
 		const direct = scanJs('app.js', SCRIPT_C);
 		expect(direct.warnings[0]!.line).toBe(4);
-		expect(direct.warnings[0]!.message).toContain('app.js line 4 uses fetch.');
+		expect(direct.warnings[0]!.message).toContain('app.js line 4 uses localStorage.');
 	});
 
-	it('refuses a URL import from an inline script, at the right line', () => {
-		const script = "\nimport confetti from 'https://cdn.skypack.dev/canvas-confetti';\n";
-		const page = ['<!doctype html>', '<head></head>', '<body>', '<script type="module">', "import confetti from 'https://cdn.skypack.dev/canvas-confetti';", '</script>', '</body>'].join('\n');
+	it('refuses an absolute-path import from an inline script, at the right line', () => {
+		const script = "\nimport confetti from '/lib/canvas-confetti.js';\n";
+		const page = ['<!doctype html>', '<head></head>', '<body>', '<script type="module">', "import confetti from '/lib/canvas-confetti.js';", '</script>', '</body>'].join('\n');
 		const scan = scanHtml('index.html', page, readerFor([script]));
 		expect(scan.failures).toHaveLength(1);
 		// Line 5: doctype, head, body, the opening <script>, then the import.
@@ -120,14 +131,32 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	 * nothing is reported twice.
 	 */
 	it('does not double-report a script that carries a src', () => {
-		const page = '<!doctype html>\n<script src="https://cdn.example.com/x.js"></script>\n';
+		const page = '<!doctype html>\n<script src="/lib/x.js"></script>\n';
 		const scan = scanHtml(
 			'index.html',
 			page,
-			readerFor([], [{ tag: 'script', attr: 'src', value: 'https://cdn.example.com/x.js' }])
+			readerFor([], [{ tag: 'script', attr: 'src', value: '/lib/x.js' }])
 		);
 		expect(scan.failures).toHaveLength(1);
-		expect(scan.failures[0]!.message).toContain('from the internet');
+		expect(scan.failures[0]!.message).toContain('starts with a forward slash');
+	});
+
+	/**
+	 * THE OTHER HALF OF THAT PAIR, AND IT IS THE RELAXATION ITSELF: the same
+	 * script tag pointing at a real CDN is now simply fine. Asserted here rather
+	 * than only in the classifier test, because a `<script src>` from unpkg is
+	 * the single most common thing an AI tool writes.
+	 */
+	it('says nothing at all about a CDN script tag', () => {
+		const src = 'https://unpkg.com/react@18/umd/react.production.min.js';
+		const page = `<!doctype html>\n<script src="${src}"></script>\n`;
+		const scan = scanHtml(
+			'index.html',
+			page,
+			readerFor([], [{ tag: 'script', attr: 'src', value: src }])
+		);
+		expect(scan.failures).toEqual([]);
+		expect(scan.warnings).toEqual([]);
 	});
 
 	/**
@@ -144,8 +173,8 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	});
 
 	it('scans every block, not just the first', () => {
-		const noisy = "\nfetch('a');\n";
-		const page = ['<script>', "fetch('a');", '</script>', '<p>x</p>', '<script>', "fetch('a');", '</script>'].join('\n');
+		const noisy = '\nlocalStorage.clear();\n';
+		const page = ['<script>', 'localStorage.clear();', '</script>', '<p>x</p>', '<script>', 'localStorage.clear();', '</script>'].join('\n');
 		const scan = scanHtml('index.html', page, readerFor([noisy, noisy]));
 		// Two identical blocks resolve to their own positions, because
 		// `LineFinder` advances a cursor per needle.
@@ -156,26 +185,36 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	 * A PRE-EXISTING OFF-BY-ONE, FOUND BY THIS LANE AND FIXED IN THE SHARED
 	 * MODULE, WHICH MEANS IT WAS WRONG IN `.js` FILES TOO.
 	 *
-	 * The patterns open with `(?:^|[^\w$.])` so `prefetch` and `this.fetch` do
-	 * not match, which makes the match START at the character before the call.
-	 * At column 0 that character is the previous line's newline, so a `fetch` on
-	 * line 3 was reported as "app.js line 2". Statements at column 0 are most of
-	 * the statements anybody writes, so it was wrong more often than right.
+	 * The patterns open with `(?:^|[^\w$.])` so `prefetch` and `myLocalStorage`
+	 * do not match, which makes the match START at the character before the
+	 * identifier. At column 0 that character is the previous line's newline, so
+	 * a call on line 3 was reported as "app.js line 2". Statements at column 0
+	 * are most of the statements anybody writes, so it was wrong more often
+	 * than right.
 	 */
 	it('reports a call at column 0 on its own line, in a plain .js file', () => {
-		const source = "const a = 1;\nconst b = 2;\nfetch('https://x.example');\n";
+		const source = "const a = 1;\nconst b = 2;\nlocalStorage.setItem('a', '1');\n";
 		const warning = scanJs('app.js', source).warnings[0]!;
 		expect(warning.line).toBe(3);
-		expect(warning.message).toContain('app.js line 3 uses fetch.');
+		expect(warning.message).toContain('app.js line 3 uses localStorage.');
 
 		// Positive control: indented calls were always right and still are, so
 		// the fix moved the broken case rather than shifting everything.
-		const indented = "const a = 1;\nconst b = 2;\n  fetch('https://x.example');\n";
+		const indented = "const a = 1;\nconst b = 2;\n  localStorage.setItem('a', '1');\n";
 		expect(scanJs('app.js', indented).warnings[0]!.line).toBe(3);
 	});
 
+	/**
+	 * AND THE LEADING-CLASS EXCLUSION STILL BITES, which is what makes the
+	 * index arithmetic above load-bearing rather than incidental.
+	 */
+	it('does not fire on an identifier that merely ends in the name', () => {
+		const source = 'const myLocalStorage = {};\nmyLocalStorage.x = 1;\n';
+		expect(scanJs('app.js', source).warnings).toEqual([]);
+	});
+
 	it('reports an import at column 0 on its own line', () => {
-		const source = "const a = 1;\nimport x from 'https://cdn.example/x.js';\n";
+		const source = "const a = 1;\nimport x from '/lib/x.js';\n";
 		const failure = scanJs('app.js', source).failures[0]!;
 		expect(failure.line).toBe(2);
 		expect(failure.message).toContain('app.js line 2 imports from');

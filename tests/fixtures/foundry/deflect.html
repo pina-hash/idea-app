@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deflect</title>
+<style>
+	:root { color-scheme: dark; }
+	html, body {
+		margin: 0;
+		height: 100%;
+		background: #0b1410;
+		color: #d7e4da;
+		font-family: 'Rajdhani', system-ui, sans-serif;
+		overflow: hidden;
+	}
+	#wrap {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		gap: 0.75rem;
+	}
+	h1 { margin: 0; font-size: 1.4rem; letter-spacing: 0.08em; text-transform: uppercase; }
+	#score { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 1rem; color: #7fd6a2; }
+	canvas { border: 1px solid #2c4437; border-radius: 6px; background: #07100c; touch-action: none; }
+	p { margin: 0; font-size: 0.85rem; color: #7f9186; }
+</style>
+</head>
+<body>
+<div id="wrap">
+	<h1>Deflect</h1>
+	<p>Move the mouse, or drag, to keep the ball up.</p>
+	<canvas id="c" width="480" height="320"></canvas>
+	<div id="score">score 0</div>
+</div>
+<script>
+	/*
+	 * ZERO EXTERNAL REFERENCES ON PURPOSE. No script, stylesheet, font, image
+	 * or fetch leaves this file, so when it renders, the ONLY thing being
+	 * proved is that the bytes arrived from Storage and executed in the frame.
+	 * Anything it needed from elsewhere would make a blank frame ambiguous.
+	 */
+	var c = document.getElementById('c');
+	var ctx = c.getContext('2d');
+	var scoreEl = document.getElementById('score');
+
+	var paddle = { x: c.width / 2, w: 88, h: 10 };
+	var ball = { x: c.width / 2, y: 60, vx: 2.4, vy: 2.8, r: 7 };
+	var score = 0;
+	var alive = true;
+
+	function place(clientX) {
+		var box = c.getBoundingClientRect();
+		paddle.x = Math.max(paddle.w / 2, Math.min(c.width - paddle.w / 2, clientX - box.left));
+	}
+	c.addEventListener('mousemove', function (e) { place(e.clientX); });
+	c.addEventListener('touchmove', function (e) {
+		if (e.touches[0]) { place(e.touches[0].clientX); e.preventDefault(); }
+	}, { passive: false });
+	c.addEventListener('click', function () {
+		if (!alive) { alive = true; score = 0; ball.x = c.width / 2; ball.y = 60; ball.vy = 2.8; }
+	});
+
+	function step() {
+		if (alive) {
+			ball.x += ball.vx;
+			ball.y += ball.vy;
+			if (ball.x < ball.r || ball.x > c.width - ball.r) ball.vx *= -1;
+			if (ball.y < ball.r) ball.vy *= -1;
+
+			var top = c.height - 24;
+			if (ball.y > top - ball.r && ball.vy > 0) {
+				if (Math.abs(ball.x - paddle.x) < paddle.w / 2 + ball.r) {
+					ball.vy *= -1;
+					ball.y = top - ball.r;
+					score += 1;
+					scoreEl.textContent = 'score ' + score;
+				} else if (ball.y > c.height) {
+					alive = false;
+					scoreEl.textContent = 'score ' + score + ' — click to restart';
+				}
+			}
+		}
+
+		ctx.fillStyle = '#07100c';
+		ctx.fillRect(0, 0, c.width, c.height);
+		ctx.fillStyle = '#7fd6a2';
+		ctx.fillRect(paddle.x - paddle.w / 2, c.height - 24, paddle.w, paddle.h);
+		ctx.beginPath();
+		ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+		ctx.fillStyle = alive ? '#e4b23c' : '#8a3b3b';
+		ctx.fill();
+		requestAnimationFrame(step);
+	}
+	step();
+</script>
+</body>
+</html>

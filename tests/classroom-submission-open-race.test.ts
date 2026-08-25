@@ -83,7 +83,7 @@ async function build(migrations: readonly string[]): Promise<Fixture> {
 		await rpc(teacher.id, 'public.classroom_set_enrollment($1::uuid, $2, $3, $4)', [
 			section.section_id,
 			s.email,
-			s.name ?? s.email,
+			s.email,
 			true
 		]);
 	}

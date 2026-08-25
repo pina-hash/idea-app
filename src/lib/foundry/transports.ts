@@ -33,7 +33,7 @@ export interface IngestOutcome {
 	fileCount: number;
 	totalBytes: number;
 	strippedWrapper: string | null;
-	/** The files the proxy will serve, once the version is published. */
+	/** The files that will be served from the bundle bucket for this version. */
 	files: { path: string; size: number }[];
 	/** A transport-level problem, as opposed to a preflight refusal. */
 	message: string | null;
@@ -172,28 +172,34 @@ export interface FoundryAppSummary extends FoundryAuthor {
  * THE READING SURFACES: the gallery, the detail view and the review queue.
  * ---------------------------------------------------------------------- */
 
-/** What the mint hands back, plus what the surface needs to unmount it again. */
-export interface FoundryLaunch {
-	/** The absolute `/r/{token}/` URL on the apps host. Built by the mint. */
-	src: string;
-	versionId: string;
-	/** Seconds. The surface says so rather than letting a frame die silently. */
-	expiresInSeconds: number;
-}
-
+/**
+ * THE READING SURFACES NEED NO LAUNCH TRANSPORT, AND THAT IS THE WHOLE SHAPE
+ * OF THIS CHANGE.
+ *
+ * There used to be a `launch` here: it called an API route, which read the
+ * session, re-read the version row, decided whether this person could open
+ * this app and signed that decision into a thirty-minute token. The frame src
+ * was the token URL.
+ *
+ * `foundry-bundles` is a PUBLIC bucket now (0135) and the frame points at the
+ * Storage object URL, which `foundryBundleUrl` builds from the two ids and
+ * nothing else. There is no decision left to carry, no secret to reach and no
+ * round trip to make, so a transport for it would be an injection point with
+ * nothing injected -- and an interface member nobody can implement wrongly is
+ * better than one three surfaces have to implement identically.
+ *
+ * `AppStage` builds the URL itself and renders no launch control when it
+ * cannot. Absence is still the mechanism; what is absent is now a URL rather
+ * than a transport.
+ */
 export interface FoundryGalleryTransports {
 	/**
-	 * MINTS A TOKEN AND RETURNS THE FRAME SRC. There is no default and no
-	 * fallback: absent, the launch control does not render and the detail view
-	 * is a description of an app nobody can start. That is the correct read-only
-	 * shape for a surface rendered without a session or in a harness that has no
-	 * mint.
-	 *
-	 * It is a TRANSPORT rather than a fetch inside the component because the
-	 * decision it carries -- may this person open this app -- is the route's,
-	 * and because the dev harness answers it from a fixture.
+	 * Deliberately empty. The gallery and the detail view make no server calls
+	 * of their own -- the route loads their data and the frame src is derived.
+	 * The interface stays so `FoundryReviewTransports` still has something to
+	 * extend and so a future read-side call has a home.
 	 */
-	launch?: (input: { appId: string; versionId: string }) => Promise<FoundryOutcome<FoundryLaunch>>;
+	readonly _?: never;
 }
 
 /** One file of a stored bundle, as the review inspector lists it. */

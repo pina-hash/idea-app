@@ -1,7 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { env as publicEnv } from '$env/dynamic/public';
-import { FOUNDRY_PROXY_PREFIX, normalizeHost } from '$lib/foundry/host';
+import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import {
 	FIXTURE_APP_A,
 	FIXTURE_APP_B,
@@ -15,7 +14,6 @@ import {
 	readBundleFileText,
 	type FoundryBundleEntry
 } from '$lib/server/foundry-bundle';
-import { mintFoundryToken } from '$lib/server/foundry-token';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
 
@@ -33,26 +31,23 @@ import type { PageServerLoad } from './$types';
  * WHAT IS MIRRORED AND WHAT IS NOT, said plainly, because a harness missing a
  * guard the real page has makes a passing drive prove nothing:
  *
- *   MIRRORED  the components themselves; the tokens (real HMAC over the real
- *             payload layout, real expiry in the signed bytes, verified by the
- *             real `verifyFoundryToken` on the way back in); the REVIEW kind,
- *             minted here for a version that is NOT published, which is the
- *             whole reason that kind exists; the proxy, the CSP, the shim, the
- *             MIME allowlist and the iframe sandbox, all of which the frame's
- *             src goes through untouched; the file list and the source bytes,
- *             read through the same `$lib/server/foundry-bundle` functions the
- *             real source route calls.
+ *   MIRRORED  the components themselves; the launch and stop lifecycle; the
+ *             iframe sandbox attribute; the split geometry; the file list and
+ *             the source bytes, read through the same
+ *             `$lib/server/foundry-bundle` functions the real source route
+ *             calls.
  *
+ *   NOT       A RUNNING BUNDLE, and this is the one that changed. `AppStage`
+ *             builds its frame src from `PUBLIC_SUPABASE_URL` and the two ids,
+ *             and the local `.env` points at a placeholder project holding
+ *             none of these fixture objects -- so the frame mounts and 404s.
+ *             The controls around it are real; the bytes are not. Running a
+ *             bundle for real needs a project that has actually ingested one.
  *   NOT       the ADMIN GATE. `/foundry/review` 404s a non-admin in its load
  *             and `/api/foundry/source` 404s one in its handler; both need a
  *             real session, so neither runs here. The review surface below is
  *             reachable in dev by anybody, which is true of every `/dev` route
  *             and is why they all 404 in production.
- *   NOT       the mint ROUTE. Its session read and its row read need a real
- *             project, so the tokens here are minted directly. Its own
- *             refusals -- hidden app, nothing published, a non-admin asking for
- *             a review token -- are unexercised locally and are called out in
- *             the report.
  *   NOT       `foundry_review_version`. The decision transport below records
  *             the call and answers ok; no row moves, because there is no row.
  */
@@ -78,17 +73,6 @@ function summary(over: Partial<FoundryAppSummary> & { id: string; slug: string; 
 
 export const load: PageServerLoad = async () => {
 	if (!dev) error(404, 'Not found');
-
-	const appsHost = normalizeHost(publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
-	const nowSeconds = Math.floor(Date.now() / 1000);
-
-	const srcFor = (appId: string, versionId: string, kind: 'published' | 'review') => {
-		const token = mintFoundryToken(
-			{ appId, versionId, viewerId: FIXTURE_VIEWER, kind, nowSeconds },
-			true
-		);
-		return token && appsHost ? `http://${appsHost}${FOUNDRY_PROXY_PREFIX}/${token}/` : '';
-	};
 
 	/**
 	 * THE THREE AUTHOR SHAPES THE SURFACES HAVE TO RENDER, and the null one is
@@ -227,8 +211,11 @@ export const load: PageServerLoad = async () => {
 	}
 
 	return {
-		configured: Boolean(appsHost),
-		appsHost,
+		/**
+		 * The origin `AppStage` will build a frame src from, echoed so a drive can
+		 * read what it is pointed at rather than inferring it from a 404.
+		 */
+		bundleOrigin: PUBLIC_SUPABASE_URL,
 		apps,
 		details,
 		files: {
@@ -236,31 +223,6 @@ export const load: PageServerLoad = async () => {
 			[FIXTURE_VERSION_A_STALE]: staleFiles,
 			[FIXTURE_VERSION_B_LIVE]: bFiles
 		} as Record<string, FoundryBundleEntry[]>,
-		sources,
-		/**
-		 * The frame sources, minted per (app, version). The REVIEW one names
-		 * A_STALE, which is not the app's published version -- a `published`
-		 * token for it resolves to `not_published` and 404s, which is exactly the
-		 * refusal the review kind exists to lift and is worth driving both ways.
-		 */
-		srcs: ({
-			[`${FIXTURE_APP_A}:${FIXTURE_VERSION_A_LIVE}`]: srcFor(
-				FIXTURE_APP_A,
-				FIXTURE_VERSION_A_LIVE,
-				'published'
-			),
-			[`${FIXTURE_APP_B}:${FIXTURE_VERSION_B_LIVE}`]: srcFor(
-				FIXTURE_APP_B,
-				FIXTURE_VERSION_B_LIVE,
-				'published'
-			),
-			[`${FIXTURE_APP_A}:${FIXTURE_VERSION_A_STALE}`]: srcFor(
-				FIXTURE_APP_A,
-				FIXTURE_VERSION_A_STALE,
-				'review'
-			)
-		}) as Record<string, string>,
-		/** The same unpublished version with a PUBLISHED token: must 404. */
-		staleWithPublishedToken: srcFor(FIXTURE_APP_A, FIXTURE_VERSION_A_STALE, 'published')
+		sources
 	};
 };

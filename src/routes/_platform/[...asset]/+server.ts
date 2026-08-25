@@ -1,7 +1,4 @@
 import { read } from '$app/server';
-import { env as publicEnv } from '$env/dynamic/public';
-import { foundryNotFound, foundryResponseHeaders } from '$lib/server/foundry-serve';
-import { isFoundryAppsHost } from '$lib/foundry/host';
 import type { RequestHandler } from './$types';
 
 import orbitron400 from '@fontsource/orbitron/files/orbitron-latin-400-normal.woff2?url';
@@ -12,37 +9,43 @@ import rajdhani700 from '@fontsource/rajdhani/files/rajdhani-latin-700-normal.wo
 import shareTechMono400 from '@fontsource/share-tech-mono/files/share-tech-mono-latin-400-normal.woff2?url';
 
 /**
- * PLATFORM ASSETS: the one absolute path a bundle is allowed to reference.
+ * PLATFORM ASSETS: the platform's own three type families, served to student
+ * bundles.
  *
  *   /_platform/fonts.css
  *   /_platform/fonts/<file>.woff2
  *
- * It sits OUTSIDE the token prefix on purpose. A student writes
- * `<link rel="stylesheet" href="/_platform/fonts.css">` into a file they
- * authored before their app had an id, let alone a token, and that line has to
- * keep meaning the same thing in every version of every app forever. Under the
- * token prefix it could not: the URL would change every thirty minutes.
+ * IT IS ON THE MAIN HOST NOW, AND IT IS REFERENCED BY ABSOLUTE URL. There used
+ * to be a second origin for bundles and this pair 404'd anywhere else, so a
+ * student could write the root-relative `/_platform/fonts.css` and have it
+ * resolve. A bundle is served off the Supabase project host now, where a
+ * leading slash resolves to Supabase and not to us -- so the root-relative
+ * form CANNOT work, whatever we serve, and the build contract names the whole
+ * URL instead. See `FOUNDRY_PLATFORM_ORIGIN` in `$lib/foundry/preflight`.
  *
- * SELF-HOSTED, BECAUSE `connect-src 'none'` MEANS IT HAS TO BE. Nothing in a
- * bundle can reach Google Fonts or any other host, which is exactly why the
- * preflight refuses a `fonts.googleapis.com` link by name and points the
- * student here instead. The three faces are the platform's own
- * (`Orbitron`, `Rajdhani`, `Share Tech Mono`) so a student's app looks like it
- * belongs to the site it is published on.
+ * `Access-Control-Allow-Origin: *` IS LOAD-BEARING AND IS NOT DECORATION. The
+ * bundle document sits in an OPAQUE origin, so its `Origin` header is the
+ * string `null` and every request it makes is cross-origin -- including a
+ * request back to the origin the bytes came from. A cross-origin
+ * `<link rel="stylesheet">` loads without CORS, but a `@font-face` `src:` does
+ * NOT: a font fetch is CORS-mode by specification and fails outright without
+ * this header. That is measured behaviour rather than a reading of the spec:
+ * an opaque-origin `FontFace` load of a same-host woff2 with no CORS header
+ * fails `NetworkError`, on production and locally alike.
  *
- * THE BYTES COME OUT OF THE FUNCTION BUNDLE, not out of `static/`. That is not
- * a preference: a file in `static/` is served by Vercel's filesystem on EVERY
- * host, which would put `/_platform/fonts/...` on the main host too and take
- * it out of reach of the host branch entirely. Serving them from a route is
- * what makes "on the main host, `/_platform/*` returns 404" true. `read()`
- * from `$app/server` is the supported way to get an imported asset's bytes
- * server-side, and adapter-vercel wires it up (it hands `createReadableStream`
- * to `server.init`) and copies the assets into the function.
+ * SELF-HOSTED STILL, EVEN THOUGH THE NETWORK IS OPEN AGAIN. A bundle may reach
+ * Google Fonts now and the contract says so. These stay because a school
+ * network is the performance budget here, and because an app that uses the
+ * platform's own faces looks like it belongs to the site it is published on.
+ *
+ * THE BYTES COME OUT OF THE FUNCTION BUNDLE rather than out of `static/`.
+ * `read()` from `$app/server` is the supported way to get an imported asset's
+ * bytes server-side, and adapter-vercel wires it up and copies the assets into
+ * the function. Keeping them out of `static/` also keeps the six files off
+ * every other surface's asset manifest.
  *
  * SIX FILES, NOT THIRTY. One weight per role that the platform's own type
- * scale actually uses, latin subset only. The performance budget here is a
- * six-to-eight-year-old school desktop on a school network, and every weight
- * added is a download every bundle pays for under `no-store`.
+ * scale actually uses, latin subset only.
  */
 
 const FONT_FILES: Record<string, string> = {
@@ -55,13 +58,17 @@ const FONT_FILES: Record<string, string> = {
 };
 
 /**
- * `font-display: swap` rather than the default `auto`: under `no-store` these
- * are fetched on every load, and a student's app rendering nothing for three
- * seconds while a face arrives reads as a broken app, not as a slow font.
+ * `font-display: swap` rather than the default `auto`: a student's app
+ * rendering nothing for three seconds while a face arrives reads as a broken
+ * app, not as a slow font.
  *
- * The `src` paths are absolute rather than relative to the stylesheet. Both
- * resolve to the same place; the absolute form is the one a student can read
- * off the stylesheet and go and fetch by hand when they are debugging.
+ * THE `src` PATHS STAY ROOT-RELATIVE AND THAT IS CORRECT EVEN CROSS-ORIGIN. A
+ * URL inside a stylesheet resolves against the STYLESHEET'S OWN URL, never
+ * against the document's, so `/_platform/fonts/x.woff2` in a sheet served from
+ * `https://ideabosco.com/_platform/fonts.css` resolves back to this host
+ * whatever origin framed it. Only the `<link href>` a student writes has to
+ * carry the whole URL, which is why the contract names one absolute URL and
+ * this file names none.
  */
 /*
  * CSS COMMENTS DO NOT NEST, so the banner below is one flat block. An inner
@@ -70,8 +77,7 @@ const FONT_FILES: Record<string, string> = {
  * and drops the faces silently.
  */
 const FONTS_CSS = `/* IDEA Foundry platform fonts.
-   Self-hosted: a published app has no network access, so these are the only
-   fonts available to it. Use them by name:
+   Self-hosted by the IDEA portal. Use them by name:
      font-family: 'Rajdhani', sans-serif;         body and display
      font-family: 'Orbitron', sans-serif;         titles
      font-family: 'Share Tech Mono', monospace;   code and metadata
@@ -120,17 +126,45 @@ const FONTS_CSS = `/* IDEA Foundry platform fonts.
 }
 `;
 
-const handler: RequestHandler = async ({ params, url, request }) => {
-	if (!isFoundryAppsHost(url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
-		return foundryNotFound();
-	}
+/**
+ * ONE SET OF RESPONSE HEADERS FOR BOTH ASSETS.
+ *
+ * `access-control-allow-origin: *` for the reason in the banner: the reader is
+ * an opaque origin, so even a same-host font fetch is cross-origin and a font
+ * fetch without CORS simply fails.
+ *
+ * `cache-control` is PUBLIC now. Under the proxy these rode `no-store`,
+ * because who may read a bundle was a per-request decision; these six files
+ * are the platform's own type and are the same bytes for everybody. A day
+ * rather than a year because the URLs carry no content hash, so a swapped face
+ * has to be able to reach a machine that already cached one.
+ *
+ * `x-content-type-options: nosniff` so a font can never be sniffed into
+ * anything else, and `cross-origin-resource-policy: cross-origin` because the
+ * default `same-origin` would have a bundle's request refused by the browser
+ * before the CORS header was ever consulted.
+ */
+function platformHeaders(contentType: string): Headers {
+	return new Headers({
+		'content-type': contentType,
+		'access-control-allow-origin': '*',
+		'cross-origin-resource-policy': 'cross-origin',
+		'cache-control': 'public, max-age=86400',
+		'x-content-type-options': 'nosniff'
+	});
+}
 
-	const appOrigin = publicEnv.PUBLIC_FOUNDRY_APP_ORIGIN ?? '';
+/** A bodyless 404, so an unknown asset name reveals nothing about the map. */
+function notFound(): Response {
+	return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
+}
+
+const handler: RequestHandler = async ({ params, request }) => {
 	const asset = params.asset ?? '';
 
 	if (asset === 'fonts.css') {
 		const bytes = new TextEncoder().encode(FONTS_CSS);
-		const headers = foundryResponseHeaders('text/css; charset=utf-8', appOrigin, url.origin);
+		const headers = platformHeaders('text/css; charset=utf-8');
 		headers.set('content-length', String(bytes.byteLength));
 		return new Response(request.method === 'HEAD' ? null : bytes, { headers });
 	}
@@ -140,13 +174,13 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 		// nothing is resolved against a filesystem, so `fonts/../../x` is simply
 		// a key that is not in the map.
 		const file = FONT_FILES[asset.slice('fonts/'.length)];
-		if (!file) return foundryNotFound();
-		const headers = foundryResponseHeaders('font/woff2', appOrigin, url.origin);
+		if (!file) return notFound();
+		const headers = platformHeaders('font/woff2');
 		if (request.method === 'HEAD') return new Response(null, { headers });
 		return new Response(read(file).body, { headers });
 	}
 
-	return foundryNotFound();
+	return notFound();
 };
 
 export const GET = handler;

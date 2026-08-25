@@ -2,12 +2,16 @@
 	/**
 	 * THE ROUTE OWNS THE TRANSPORTS; the component owns the arrangement.
 	 *
-	 * Two of these go through API routes rather than straight to Supabase, and
-	 * each for the reason the repo gives for having a route at all:
+	 * The source reads go through an API route rather than straight to Supabase,
+	 * for the reason the repo gives for having a route at all: `foundry-bundles`
+	 * is readable by uuid but is not LISTABLE and its rows are not granted to a
+	 * client, so only the service-role key can enumerate a version's files and
+	 * hand back their bytes.
 	 *
-	 *   launch  mints a signed token, which needs a secret.
-	 *   files / source  read `foundry-bundles`, which has no storage policy, so
-	 *           only the service-role key reaches it.
+	 * Running the build needs no transport at all now. `AppStage` derives the
+	 * frame src from the app and version ids, and the queue runs the SUBMITTED
+	 * version by handing it that id -- which is the whole of what used to
+	 * require a review-kind token.
 	 *
 	 * The decision itself is one RPC with a handful of scalars and goes straight
 	 * from the browser client, because `foundry_review_version` re-checks
@@ -38,26 +42,6 @@
 	}
 
 	const transports: FoundryReviewTransports = {
-		async launch({ appId, versionId }) {
-			try {
-				const body = await post('/api/foundry/token', { appId, versionId, purpose: 'review' });
-				if (!body?.ok) {
-					if (body?.reason === 'not_configured') {
-						return { ok: false, message: 'Bundle tokens are not configured on this deployment.' };
-					}
-					return { ok: false, message: 'That build could not be opened.' };
-				}
-				return {
-					ok: true,
-					src: body.src as string,
-					versionId: body.versionId as string,
-					expiresInSeconds: body.expiresInSeconds as number
-				};
-			} catch {
-				return { ok: false, message: 'That build could not be opened. Check your connection.' };
-			}
-		},
-
 		async listFiles(versionId) {
 			try {
 				const body = await post('/api/foundry/source', { versionId });

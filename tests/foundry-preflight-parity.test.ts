@@ -6,7 +6,7 @@ import {
 	FOUNDRY_ALLOWED_EXTENSIONS,
 	FOUNDRY_ENTRY_FILE,
 	FOUNDRY_LIMITS,
-	PLATFORM_FONTS_PATH,
+	PLATFORM_FONTS_URL,
 	foundryBuildContract,
 	isIgnoredExtension,
 	planStructure,
@@ -254,17 +254,39 @@ describe('the sentences, pinned', () => {
 		expect(html.failures[0]!.message).toContain('like src="logo.png"');
 	});
 
-	it('warns rather than refuses on a blocked network call, and says the app still runs', () => {
-		const js = scanJs('app.js', "fetch('data.json');");
+	/**
+	 * STORAGE WARNS RATHER THAN REFUSES, AND ITS SENTENCE CARRIES THE FIX.
+	 * This slot used to belong to `fetch`, whose sentence promised the rest
+	 * of the app still worked. That promise cannot be made here and is not:
+	 * unshimmed storage takes the whole script down, so the sentence names
+	 * the snippet and the file it goes in instead.
+	 */
+	it('warns rather than refuses on storage, and names the fix and the file', () => {
+		const js = scanJs('app.js', "localStorage.getItem('save');");
 		expect(js.failures).toEqual([]);
 		expect(js.warnings).toHaveLength(1);
-		expect(js.warnings[0]!.message).toContain('Everything else in your app will still work.');
+		expect(js.warnings[0]!.message).toContain('storage snippet from the build contract');
+		expect(js.warnings[0]!.message).toContain(FOUNDRY_ENTRY_FILE);
+		expect(js.warnings[0]!.message).toContain('lost when the page reloads');
 	});
 
-	it('refuses a Google Fonts stylesheet by name and points at the platform sheet', () => {
-		const css = scanCss('style.css', "@import url('https://fonts.googleapis.com/css2?family=Inter');");
-		expect(css.failures[0]!.message).toContain('loads a font from Google Fonts');
-		expect(css.failures[0]!.message).toContain(PLATFORM_FONTS_PATH);
+	/**
+	 * THE PLATFORM SHEET IS STILL POINTED AT BY NAME, but from the other
+	 * direction. A Google Fonts link used to be the refusal that recommended
+	 * it; Google Fonts works now, and what is refused is the ROOT-RELATIVE
+	 * spelling of the platform sheet itself -- which is exactly the line a
+	 * student who read last term's contract will have written.
+	 */
+	it('refuses the root-relative platform sheet and hands back the whole URL', () => {
+		const css = scanCss('style.css', "@import url('/_platform/fonts.css');");
+		expect(css.failures).toHaveLength(1);
+		expect(css.failures[0]!.message).toContain('starts with a forward slash');
+		expect(css.failures[0]!.message).toContain(PLATFORM_FONTS_URL);
+
+		// POSITIVE CONTROL: a Google Fonts import is now silent, in the same
+		// scanner, so the failure above is about the slash.
+		const gf = scanCss('style.css', "@import url('https://fonts.googleapis.com/css2?family=Inter');");
+		expect(gf.failures).toEqual([]);
 	});
 });
 
@@ -333,8 +355,8 @@ describe('the build contract is generated from the rules it describes', () => {
 
 	it('spells the entry file and the one absolute path exactly as the checks do', () => {
 		expect(contract).toContain(FOUNDRY_ENTRY_FILE);
-		expect(contract).toContain(PLATFORM_FONTS_PATH);
-		expect(contract).toContain(`<link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">`);
+		expect(contract).toContain(PLATFORM_FONTS_URL);
+		expect(contract).toContain(`<link rel="stylesheet" href="${PLATFORM_FONTS_URL}">`);
 	});
 
 	/**

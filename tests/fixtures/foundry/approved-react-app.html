@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop Order Tracker</title>
+<link rel="stylesheet" href="https://ideabosco.com/_platform/fonts.css">
+<style>
+	:root { color-scheme: dark; }
+	body {
+		margin: 0;
+		padding: 1.25rem;
+		background: #0b1410;
+		color: #d7e4da;
+		font-family: 'Rajdhani', system-ui, sans-serif;
+	}
+	h1 { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; margin: 0 0 0.25rem; }
+	.sub { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 0.8rem; color: #7f9186; margin: 0 0 1rem; }
+	.row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+	input {
+		flex: 1; min-width: 0; padding: 0.5rem 0.6rem; font: inherit;
+		background: #07100c; color: inherit; border: 1px solid #2c4437; border-radius: 6px;
+	}
+	button {
+		padding: 0.5rem 0.9rem; font: inherit; cursor: pointer;
+		background: transparent; color: #7fd6a2; border: 1px solid #7fd6a2; border-radius: 6px;
+	}
+	ul { list-style: none; margin: 0; padding: 0; }
+	li {
+		display: flex; align-items: center; gap: 0.6rem;
+		padding: 0.5rem 0.6rem; border: 1px solid #2c4437; border-radius: 6px; margin-bottom: 0.4rem;
+	}
+	li.done .name { text-decoration: line-through; color: #7f9186; }
+	.name { flex: 1; min-width: 0; }
+	.stage { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 0.75rem; color: #e4b23c; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!--
+	THE CDN SHAPE, WRITTEN THE WAY A STUDENT'S AI TOOL WRITES IT. React,
+	ReactDOM and Babel from unpkg, plus a type="text/babel" script with JSX in
+	it. Every one of these four lines was a refusal until the proxy was
+	removed; all four are the ordinary case now, and this file exists to prove
+	it renders rather than to assert it in prose.
+-->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+
+<script type="text/babel">
+	const { useState } = React;
+
+	const STAGES = ['queued', 'cutting', 'welding', 'done'];
+
+	function App() {
+		const [orders, setOrders] = useState([
+			{ id: 1, name: 'Drivetrain plates', stage: 1 },
+			{ id: 2, name: 'Intake rollers', stage: 0 }
+		]);
+		const [draft, setDraft] = useState('');
+
+		function add(e) {
+			e.preventDefault();
+			const name = draft.trim();
+			if (!name) return;
+			setOrders((o) => [...o, { id: Date.now(), name, stage: 0 }]);
+			setDraft('');
+		}
+
+		function advance(id) {
+			setOrders((o) =>
+				o.map((x) => (x.id === id ? { ...x, stage: Math.min(STAGES.length - 1, x.stage + 1) } : x))
+			);
+		}
+
+		return (
+			<div>
+				<h1>Shop Order Tracker</h1>
+				<p className="sub">React 18 and Babel, loaded from unpkg at runtime.</p>
+				<form className="row" onSubmit={add}>
+					<input
+						value={draft}
+						onChange={(e) => setDraft(e.target.value)}
+						placeholder="New part"
+						aria-label="New part"
+					/>
+					<button type="submit">Add</button>
+				</form>
+				<ul>
+					{orders.map((o) => (
+						<li key={o.id} className={o.stage === STAGES.length - 1 ? 'done' : ''}>
+							<span className="name">{o.name}</span>
+							<span className="stage">{STAGES[o.stage]}</span>
+							<button type="button" onClick={() => advance(o.id)}>
+								Advance
+							</button>
+						</li>
+					))}
+				</ul>
+			</div>
+		);
+	}
+
+	ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

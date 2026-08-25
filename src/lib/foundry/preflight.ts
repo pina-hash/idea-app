@@ -19,14 +19,30 @@
  *
  * THESE MESSAGES ARE WRITTEN AGAINST THE BUILD CONTRACT students are given:
  * one folder with index.html at the top level; vanilla HTML, CSS and JS with no
- * build step; every path relative and never starting with a forward slash; no
- * network at runtime; fonts from `/_platform/fonts.css`, which is the one
- * allowed absolute path; localStorage present but in memory and cleared on
- * reload; the sandbox blocking `window.parent`, `window.open`, navigation and
- * downloads. If that document's wording moves, these move with it.
+ * build step; every path relative and never starting with a forward slash;
+ * localStorage present but in memory and cleared on reload; the sandbox
+ * blocking `window.parent`, `window.open`, navigation and downloads. If that
+ * document's wording moves, these move with it.
+ *
+ * THE NETWORK IS NO LONGER A RULE, AND THAT IS THE LARGEST THING THIS MODULE
+ * HAS EVER STOPPED SAYING. A bundle used to be served through a proxy of ours
+ * that sent `connect-src 'none'` and named every source list itself, so a CDN
+ * script, a Google Fonts link and a `fetch` were all dead on arrival and were
+ * refused here with sentences explaining why. Bundles are served straight off
+ * public Supabase Storage now; there is no header of ours on the response and
+ * no source list, so all three WORK. React and Babel from unpkg -- which is
+ * what a student's AI tool writes when asked for a React app -- is now the
+ * ordinary case rather than the refused one. Refusing it would be refusing
+ * something that runs.
+ *
+ * WHAT DID NOT RELAX: containment. Path traversal, an absolute path, a
+ * disallowed extension and the caps are all still refusals, because none of
+ * them is about the network. The isolation that used to be spelled in a CSP is
+ * now entirely the frame's OPAQUE ORIGIN -- see `./bundle-url.ts`.
  *
  * THE HTML AND CSS SCAN IS A USABILITY GATE, NOT A SECURITY BOUNDARY. Runtime
- * safety is the sandbox and the CSP, which land in the next lane. That is why
+ * safety is the sandbox attribute and the opaque origin, neither of which this
+ * module can affect. That is why
  * the HTML side takes a REAL PARSER (injected, because Deno and the browser
  * have different ones) rather than running a regex over attributes: a regex
  * over attributes produces false positives, and a false positive here reads to
@@ -35,6 +51,7 @@
  */
 
 import { bundlePathOk } from '../bundle-path.ts';
+import { FOUNDRY_STORAGE_SHIM_TAG } from './storage-shim.ts';
 
 /* -------------------------------------------------------------------------
  * Caps and vocabulary.
@@ -50,8 +67,29 @@ export const FOUNDRY_LIMITS = {
 	warnAssetBytes: 5 * 1024 * 1024
 } as const;
 
-/** The only absolute path an app may reference. */
-export const PLATFORM_FONTS_PATH = '/_platform/fonts.css';
+/**
+ * WHERE THE PLATFORM FONTS LIVE, AS A WHOLE URL AND NOT AS A PATH.
+ *
+ * It used to be the root-relative `/_platform/fonts.css`, and it used to be
+ * the ONE absolute path an app was allowed to write, because bundles were
+ * served from a host of ours where that path resolved. They are served off the
+ * Supabase project host now, where a leading slash resolves to Supabase and
+ * finds nothing -- so the root-relative form cannot be made to work by
+ * anything we serve, and a contract that still promised it would be promising
+ * a stylesheet that silently never arrives.
+ *
+ * So the contract names the whole URL. Nothing has to be special-cased for it
+ * any more: an `https://` reference is simply allowed now, like every other
+ * one, which is why `classifyReference` no longer mentions this constant at
+ * all. The canonical origin is hardcoded here for the same reason the OG tags
+ * and the sitemap hardcode it -- `ideabosco.com` is the canonical host and a
+ * runtime-read origin would put a preview URL in a document students paste
+ * into a tool.
+ */
+export const FOUNDRY_PLATFORM_ORIGIN = 'https://ideabosco.com';
+
+/** The stylesheet a bundle links to get Rajdhani, Orbitron and Share Tech Mono. */
+export const PLATFORM_FONTS_URL = `${FOUNDRY_PLATFORM_ORIGIN}/_platform/fonts.css`;
 
 /** The entry file, at the top level of the bundle. */
 export const FOUNDRY_ENTRY_FILE = 'index.html';
@@ -390,55 +428,58 @@ export function stripWrapperDirectory(paths: string[]): {
  * Reference classification, shared by HTML and CSS.
  * ---------------------------------------------------------------------- */
 
-export type RefVerdict =
-	| { kind: 'ok' }
-	| { kind: 'absolute' }
-	| { kind: 'scheme'; scheme: string }
-	| { kind: 'google-fonts' };
+export type RefVerdict = { kind: 'ok' } | { kind: 'absolute' } | { kind: 'scheme'; scheme: string };
 
 /** A verdict that is actually a problem. Every message builder takes one. */
 export type RefProblem = Exclude<RefVerdict, { kind: 'ok' }>;
 
-const GOOGLE_FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
-
 /**
- * Schemes that carry no network request and so are not this gate's concern.
- * `data:` is inlined, and always was. `mailto:` and `tel:` open the device's
- * mail or phone app rather than fetching anything -- refusing them read as
- * arbitrary, because nothing about the sandbox or the CSP objects to either.
+ * Schemes that are simply fine, and the reason each is on the list.
+ *
+ * `http`/`https` ARE ON IT NOW, and that is the relaxation. A bundle is served
+ * from public Storage with no CSP of ours on it, so a CDN script tag, a Google
+ * Fonts stylesheet and an `<img>` from another site all load exactly as they
+ * would on any web page. Refusing them was correct while the proxy sent
+ * `connect-src 'none'`; it is now refusing something that works, which is the
+ * worst kind of gate -- it teaches a student that the platform is arbitrary,
+ * and it fails the single most common thing an AI tool produces.
+ *
+ * `data:` is inlined and always was. `mailto:` and `tel:` open the device's
+ * mail or phone app rather than fetching anything. `blob:` is a URL the app
+ * minted for its own bytes.
  */
-const NO_NETWORK_SCHEMES = ['data:', 'mailto:', 'tel:'];
+const ALLOWED_SCHEMES = ['http:', 'https:', 'data:', 'mailto:', 'tel:', 'blob:'];
 
 /**
  * Decides what a `src`, `href` or `url()` value is.
  *
  * A fragment or a query with no path is the current document and is fine.
+ *
+ * WHAT IS LEFT TO REFUSE, now that the network is not a rule:
+ *
+ *   absolute   a leading slash. It resolves against the ORIGIN the bundle is
+ *              served from, which is the Supabase project host, where the
+ *              app's own folder is nowhere near the root. It has never
+ *              resolved to anything useful and now it cannot be made to: there
+ *              is no longer an exception for `/_platform`, because that path
+ *              is on a different host and is written as a whole URL instead.
+ *   scheme     anything else -- `file:`, `ftp:`, `chrome:`. A `file:` path is
+ *              a real and common mistake (an app that worked because the
+ *              author opened it off their desktop) and is worth naming.
  */
 export function classifyReference(value: string): RefVerdict {
 	const v = (value ?? '').trim();
 	if (v === '') return { kind: 'ok' };
 	if (v.startsWith('#') || v.startsWith('?')) return { kind: 'ok' };
-	if (v === PLATFORM_FONTS_PATH) return { kind: 'ok' };
 
 	const lower = v.toLowerCase();
-	if (NO_NETWORK_SCHEMES.some((s) => lower.startsWith(s))) return { kind: 'ok' };
+	if (ALLOWED_SCHEMES.some((sch) => lower.startsWith(sch))) return { kind: 'ok' };
 
-	// Protocol-relative: inherits the page's scheme and is still the network.
-	if (v.startsWith('//')) {
-		const host = v.slice(2).split('/')[0].toLowerCase();
-		if (GOOGLE_FONT_HOSTS.includes(host)) return { kind: 'google-fonts' };
-		return { kind: 'scheme', scheme: 'https' };
-	}
+	// Protocol-relative inherits the page's scheme, which is https here.
+	if (v.startsWith('//')) return { kind: 'ok' };
 
 	const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(v);
-	if (scheme) {
-		const name = scheme[1].toLowerCase();
-		if (name === 'http' || name === 'https') {
-			const host = v.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '').split('/')[0].toLowerCase();
-			if (GOOGLE_FONT_HOSTS.includes(host)) return { kind: 'google-fonts' };
-		}
-		return { kind: 'scheme', scheme: name };
-	}
+	if (scheme) return { kind: 'scheme', scheme: scheme[1].toLowerCase() };
 
 	if (v.startsWith('/')) return { kind: 'absolute' };
 	return { kind: 'ok' };
@@ -654,16 +695,10 @@ function referenceMessage(
 	verdict: RefProblem
 ): string {
 	const at = where(path, line);
-	if (verdict.kind === 'google-fonts') {
-		return `${at} loads a font from Google Fonts. That is blocked: your app runs with no network access, so the font will never arrive. Delete this link and use the platform fonts instead, with <link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">. That is the one absolute path your app is allowed to use.`;
-	}
 	if (verdict.kind === 'absolute') {
-		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the whole site rather than your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(attr, value)}. The only absolute path allowed is ${PLATFORM_FONTS_PATH}.`;
+		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the web address your app is served from, which is not your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(attr, value)}. If you meant the IDEA platform fonts, write the whole address: ${PLATFORM_FONTS_URL}`;
 	}
-	if (verdict.scheme === 'http' || verdict.scheme === 'https') {
-		return `${at} loads ${value} from the internet. That is blocked: your app runs with no network access, so nothing will load from that address. Download the file into your app folder and point at it with a relative path, like ${relativeExample(attr, value)}.`;
-	}
-	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can only open files that are inside its own folder, so remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(attr, value)}.`;
+	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can open a file inside its own folder or an address on the web, and a ${verdict.scheme}: link is neither, so it will not load. Remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(attr, value)}, or with a full https:// address.`;
 }
 
 /* -------------------------------------------------------------------------
@@ -758,12 +793,27 @@ export function scanCss(path: string, source: string): { failures: FoundryIssue[
  * ---------------------------------------------------------------------- */
 
 /**
- * Network APIs the runtime CSP blocks. Finding one is a WARNING and not a
- * refusal, and the wording says so explicitly: the app will run, and that one
- * feature will not work. Refusing here would block a perfectly good app over a
- * feature its author may already know is dead.
+ * THE NETWORK-API LIST IS GONE, and its absence is the point. `fetch`,
+ * `XMLHttpRequest`, `WebSocket` and `EventSource` each earned a warning here
+ * while the proxy sent `connect-src 'none'`, because the call really was dead.
+ * There is no CSP on a bundle now, so all four work, and a warning about them
+ * would be telling a student their working code is broken.
+ *
+ * WHAT REPLACED IT IS ABOUT STORAGE, WHICH DID NOT RELAX. The frame is an
+ * opaque origin, so `window.localStorage` is not merely empty -- THE GETTER
+ * THROWS a `SecurityError`, and the first line of a generated app that reads
+ * saved state takes the whole document down before anything renders. The
+ * proxy used to inject a shim into every HTML response; there is no proxy to
+ * inject anything now, so the shim is in the build contract for the student to
+ * paste at the top of `index.html`, and this warning is what points at it.
+ *
+ * IT IS UNCONDITIONAL AND IT IS NOT A FALSE POSITIVE WHEN THE SHIM IS THERE.
+ * The sentence says two things -- paste the shim, and nothing survives a
+ * reload -- and the second half is true of a correctly shimmed app as well.
+ * Detecting the shim to suppress it would trade a true sentence for a
+ * heuristic, and would have to run over the whole bundle rather than one file.
  */
-const NETWORK_APIS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'];
+const STORAGE_APIS = ['localStorage', 'sessionStorage'] as const;
 
 /**
  * `lineOffset` IS WHAT LETS ONE SCANNER SERVE TWO CALLERS.
@@ -799,8 +849,20 @@ export function scanJs(
 		// that resolves with no build step. It is left alone deliberately: this
 		// gate is about URLs, and a bare specifier fails loudly in the browser
 		// with a message of its own.
+		//
+		// AN `https://` SPECIFIER IS NOW `ok` AND FALLS OUT HERE. `import ... from
+		// "https://esm.sh/react"` is an ordinary module import that works, and it
+		// is one of the two shapes an AI tool writes when asked for React.
 		if (verdict.kind === 'ok') return;
-		if (verdict.kind === 'absolute') return;
+		/*
+		 * AN ABSOLUTE SPECIFIER IS REFUSED HERE NOW, AND IT USED TO BE SKIPPED.
+		 * While every remote import was already a failure, letting `/lib/x.js`
+		 * fall through cost nothing visible -- a student writing one had a CDN
+		 * import somewhere too and was refused for that. With remote imports
+		 * allowed, this is the ONLY broken import shape left, and skipping it
+		 * would mean the one import that genuinely cannot resolve is the one
+		 * nothing says anything about.
+		 */
 		const line = lineAt(source, index) + lineOffset;
 		const key = `${line}:${value}`;
 		if (seen.has(key)) return;
@@ -813,7 +875,7 @@ export function scanJs(
 			issue(
 				path,
 				line,
-				`${at} imports from ${value}. That is blocked: your app runs with no network access, so the import will fail and your script will stop before it starts. Download the file into your app folder and import it with a relative path, like import ... from "./${named}".`
+				`${at} imports from ${value}, which is a ${verdict.kind === 'scheme' ? `${verdict.scheme}: link` : 'path starting with a forward slash'} and will not resolve. Import a file from inside your app folder with a relative path, like import ... from "./${named}", or use a full https:// address.`
 			)
 		);
 	};
@@ -829,42 +891,48 @@ export function scanJs(
 	for (const re of patterns) {
 		for (let m = re.exec(text); m !== null; m = re.exec(text)) {
 			// The SPECIFIER'S own index, not the match's. See the note on the
-			// network-API loop below: the pattern opens with the character
-			// BEFORE the keyword, and at column 0 that character is the previous
-			// line's newline.
+			// storage loop below: the pattern opens with the character BEFORE
+			// the keyword, and at column 0 that character is the previous line's
+			// newline.
 			pushImport(m[1], m.index + m[0].lastIndexOf(m[1]));
 		}
 	}
 
-	for (const api of NETWORK_APIS) {
-		const re = new RegExp(`(?:^|[^\\w$.])(${api})\\s*[('\`"]`, 'g');
-		for (let m = re.exec(text); m !== null; m = re.exec(text)) {
-			/*
-			 * THE IDENTIFIER'S INDEX, NOT THE MATCH'S, AND THE DIFFERENCE IS A
-			 * WHOLE LINE.
-			 *
-			 * The pattern has to open with `(?:^|[^\w$.])` so `prefetch` and
-			 * `this.fetch` do not match -- which means the match STARTS at the
-			 * character before the call. When the call is at column 0, that
-			 * character is the newline ending the PREVIOUS line, and the reported
-			 * line was one too early: measured on a plain .js file, a `fetch` on
-			 * line 3 answered "app.js line 2". Statements at column 0 are most of
-			 * the statements anybody writes, so this was wrong more often than it
-			 * was right, and it sends a student to the wrong line of their own
-			 * file. `m[0].indexOf(m[1])` steps over that leading character.
-			 */
-			const line = lineAt(source, m.index + m[0].indexOf(m[1])) + lineOffset;
-			const key = `${line}:${api}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			warnings.push(
-				issue(
-					path,
-					line,
-					`${where(path, line)} uses ${api}. Your app runs with no network access, so that call will fail when it runs. Everything else in your app will still work. Put the data you need directly into your files, or take the call out.`
-				)
-			);
-		}
+	/*
+	 * THE IDENTIFIER'S INDEX, NOT THE MATCH'S, AND THE DIFFERENCE IS A WHOLE
+	 * LINE.
+	 *
+	 * The pattern opens with `(?:^|[^\w$.])` so `myLocalStorage` does not match
+	 * -- which means the match STARTS at the character before the identifier.
+	 * When the statement is at column 0 that character is the newline ending the
+	 * PREVIOUS line, and the reported line is one too early: measured on a plain
+	 * .js file, a call on line 3 answered "app.js line 2" before this was fixed.
+	 * Statements at column 0 are most of the statements anybody writes, so it was
+	 * wrong more often than right. `m[0].indexOf(m[1])` steps over that leading
+	 * character.
+	 *
+	 * ONE REGEX FOR BOTH NAMES rather than one per name, so the two cannot be
+	 * spelled differently, and `m[1]` reports which was found.
+	 *
+	 * `window.localStorage` is deliberately NOT matched, for the same reason
+	 * `this.fetch` was not: the leading class excludes a preceding dot. That is a
+	 * miss rather than a bug -- this is advice, and the shim it points at fixes
+	 * both spellings.
+	 */
+	const storageRe = /(?:^|[^\w$.])(localStorage|sessionStorage)\b/g;
+	for (let m = storageRe.exec(text); m !== null; m = storageRe.exec(text)) {
+		const api = m[1];
+		const line = lineAt(source, m.index + m[0].indexOf(api)) + lineOffset;
+		const key = `${line}:${api}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		warnings.push(
+			issue(
+				path,
+				line,
+				`${where(path, line)} uses ${api}. Your app runs in a sandbox with no storage area, so reading ${api} throws an error and stops your script unless the storage snippet from the build contract is the first thing in ${FOUNDRY_ENTRY_FILE}. Even with it, nothing is written to disk: everything is lost when the page reloads.`
+			)
+		);
 	}
 
 	return { failures, warnings };
@@ -1183,58 +1251,77 @@ OUTPUT SHAPE
 ${extraFileRules}
 
 TECHNOLOGY
-- Vanilla HTML, CSS and JavaScript only.
-- No build step. Nothing is compiled, bundled, transpiled or installed. The
-  files you write are the files that run.
-- No frameworks that require a build (React with JSX, Vue SFCs, Svelte,
-  TypeScript). If you want a framework, it must run from plain script tags you
-  have written into the folder yourself -- but you cannot download one, so in
-  practice write plain JavaScript.
+- HTML, CSS and JavaScript. The files you write are the files that run.
+- There is NO BUILD STEP. Nothing is compiled, bundled, transpiled or
+  installed on the way in.
+- Do not write a .ts, .jsx or .scss file. Those extensions are refused and the
+  whole upload stops. Ship the .js and .css a build would have made.
+- A framework is fine as long as it arrives at runtime. React with JSX works by
+  loading React, ReactDOM and Babel from a CDN and marking your own script
+  type="text/babel". Vue works the same way from its browser build.
 - ES modules work: <script type="module" src="app.js"></script> with relative
-  paths.
+  paths, and a full https:// address as a specifier works too.
 
 PATHS
-- Every path in every file is RELATIVE. Write src="art/logo.png", not
+- Every path to a file of your own is RELATIVE. Write src="art/logo.png", not
   src="/art/logo.png".
-- A path starting with a forward slash is refused. There is exactly one
-  exception, below.
+- A path starting with a forward slash is REFUSED, with no exceptions. It is
+  read against the address your app is served from, which is not this site and
+  is not your folder, so it can never find anything.
+- An address on another site is written in full, with https:// in front of it.
 - Do not use ../ to climb above the folder. Nothing exists up there.
 - Paths are case-sensitive. art/Logo.png and art/logo.png are different files.
 
-NO NETWORK AT RUNTIME
-- The app runs with all network access blocked. Every request it makes fails.
-- Do not use fetch, XMLHttpRequest, WebSocket or EventSource.
-- Do not load a script, stylesheet, image, font, video or audio file from
-  another site. No CDN. No unpkg, jsdelivr, cdnjs, skypack or esm.sh.
-- Do not use Google Fonts. Neither the stylesheet
-  (fonts.googleapis.com) nor the font files (fonts.gstatic.com) will load.
-- Do not embed an <iframe> pointing at another site, and do not open one.
-- Everything the app needs must be a file inside the folder.
+THE NETWORK
+- The app is on the open web. Loading a script, stylesheet, image, font or data
+  file from another site WORKS, and so do fetch, XMLHttpRequest, WebSocket and
+  EventSource.
+- A CDN is fine. React and Babel from unpkg, a charting library from jsdelivr,
+  a font from Google Fonts: all of these load as written.
+- There is no build step, so a library has to be usable from a plain script
+  tag or as an ES module. React with JSX works only if you also load Babel and
+  mark the script type="text/babel", which is slower but is allowed.
+- Anything you load from another site is out of your control. If that site is
+  down or the school network blocks it, your app is broken and nothing here
+  will have warned you. A file you ship inside your own folder never has that
+  problem, so prefer one where you can.
 
 FONTS
-- ${PLATFORM_FONTS_PATH} is the ONE absolute path you may reference, and the one
-  exception to the relative-paths rule. Link it exactly as written:
-      <link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">
+- ${PLATFORM_FONTS_URL} gives you the three IDEA
+  families. Link it with the WHOLE address, exactly as written:
+      <link rel="stylesheet" href="${PLATFORM_FONTS_URL}">
 - It provides three families. Use them by name:
       font-family: 'Rajdhani', sans-serif;         body and display
       font-family: 'Orbitron', sans-serif;         titles
       font-family: 'Share Tech Mono', monospace;   code and metadata
-- You may also ship your own .woff2 or .ttf file in the folder and @font-face it
-  with a relative path.
+- Do not write href="/_platform/fonts.css". A path starting with a forward
+  slash is read against the address your app is served from, which is not this
+  site, so it will not be found. That is refused at upload.
+- Google Fonts works too, and so does shipping your own .woff2 or .ttf in the
+  folder and @font-face-ing it with a relative path.
 
-STORAGE
-- localStorage and sessionStorage exist and work, so code that uses them will
-  not throw.
-- They are IN MEMORY. Nothing is written to disk, and everything is lost on
-  reload.
-- Do not build anything whose value depends on data surviving a reload -- a save
-  slot, a high-score table, a multi-session tracker. Within one session they are
-  fine.
-- Cookies and IndexedDB are not available.
+STORAGE -- READ THIS ONE, IT IS THE MOST COMMON WAY AN APP ARRIVES BROKEN
+- The app runs in a sandbox with NO STORAGE AREA. localStorage is not empty
+  there: READING IT THROWS. A line like
+      var saved = localStorage.getItem('state');
+  stops your whole script before anything is drawn, and the page is blank.
+- Fix it by making this the FIRST thing inside <head> in ${FOUNDRY_ENTRY_FILE}, before
+  any other script or stylesheet. Paste it exactly:
+
+${FOUNDRY_STORAGE_SHIM_TAG}
+
+- With that in place localStorage and sessionStorage behave normally for the
+  rest of the page, but they are IN MEMORY. Nothing is written to disk and
+  everything is lost on reload.
+- Do not build anything whose value depends on data surviving a reload -- a
+  save slot, a high-score table, a multi-session tracker. Within one session
+  they are fine.
+- Cookies and IndexedDB are not available at all, and no snippet fixes those.
 
 SANDBOX
-The app runs in a sandboxed frame with no access to the page around it. The
-following do nothing, and code that depends on them will appear broken:
+The app runs in a sandboxed frame with no access to the page around it.
+- Do not write anything that reaches outside the app's own page. The following
+  all do nothing, and code that depends on them will appear broken:
 - window.parent, window.top, window.opener
 - window.open
 - navigating away: link clicks to other sites, location assignment, form
@@ -1261,10 +1348,10 @@ SIZE
   audio before including them.
 
 BEFORE YOU FINISH
-- Open ${FOUNDRY_ENTRY_FILE} directly from the filesystem, with no server running, and
-  confirm the app works. If it needs a server, it will not run here.
-- Confirm every src and href in every file is either relative or exactly
-  ${PLATFORM_FONTS_PATH}.
-- Confirm there is no fetch, no XMLHttpRequest, and no reference to any other
-  website anywhere in the code.`;
+- Open ${FOUNDRY_ENTRY_FILE} directly from the filesystem and confirm the app works, or
+  works apart from the things it loads from other sites.
+- Confirm no src, href or url() in any file starts with a forward slash.
+- Confirm nothing uses ../ to climb above the folder.
+- If the app touches localStorage or sessionStorage at all, confirm the storage
+  snippet above is the first thing inside <head> in ${FOUNDRY_ENTRY_FILE}.`;
 }

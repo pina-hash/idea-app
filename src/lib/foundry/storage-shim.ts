@@ -10,9 +10,9 @@
  * ever see. That shape -- read saved state at the top of the script -- is the
  * single most common thing an AI tool writes.
  *
- * So the proxy defines both storages as in-memory objects before any student
- * code runs. The data does not survive a reload, which the build contract
- * already tells students, and it is per-frame, which is what a sandbox means.
+ * So both storages are defined as in-memory objects before any student code
+ * runs. The data does not survive a reload, which the build contract tells
+ * students, and it is per-frame, which is what a sandbox means.
  *
  * IT IS A PROXY, NOT A PLAIN OBJECT WITH FIVE METHODS, because half of the
  * real Storage interface is the index properties: `localStorage.score = 5`,
@@ -38,10 +38,19 @@
  * the one outcome worse than no shim is a shim that throws at the top of the
  * head and takes the document with it.
  *
- * IT IS INJECTED, NOT REWRITTEN IN. The proxy inserts this as the first
- * element inside `<head>` and touches nothing else in the document -- see
- * `$lib/server/foundry-serve`. Parse-and-reserialize would mangle bundles in
- * ways nobody asked for.
+ * IT IS PASTED BY THE STUDENT NOW, NOT INJECTED BY US, AND THAT IS FORCED
+ * RATHER THAN CHOSEN. A proxy of ours used to serve every bundle and inserted
+ * this as the first element inside `<head>` on the way past. Bundles come
+ * straight off public Supabase Storage now -- nothing of ours touches the
+ * bytes between the upload and the browser -- so there is no longer a moment
+ * at which anything could be injected.
+ *
+ * WHICH MAKES `foundryBuildContract()` THE ONLY DELIVERY MECHANISM, and the
+ * reason the shim source stays in its own module rather than being typed into
+ * the contract text: the contract embeds THIS string, the preflight's storage
+ * warning points at the contract, and there is still exactly one copy of the
+ * shim in the repo. It is ES5 for the same reason as before, and it is
+ * self-contained so that pasting it cannot go half right.
  *
  * NOTE ON `instanceof Storage`: the shim is not a real `Storage`, so
  * `localStorage instanceof Storage` is false. Giving it the real prototype
