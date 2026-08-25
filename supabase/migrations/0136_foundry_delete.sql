@@ -99,8 +99,10 @@
 -- NEITHER FUNCTION TAKES AN IDENTITY PARAMETER. The caller is `auth.uid()`, so
 -- "can only act as themselves" is a property of the SIGNATURE and not a check
 -- that could be got wrong. Both are SECURITY DEFINER with `set search_path =
--- ''`, revoked from public and granted to `authenticated`, exactly as 0130's
--- nine write RPCs are.
+-- ''` and granted to `authenticated` alone, following 0130's nine write RPCs
+-- in every respect EXCEPT the revoke, which names the roles rather than only
+-- `public` -- see the section below for why 0130's form does not close a
+-- function on this project.
 --
 -- NOT-FOUND AND NOT-YOURS ANSWER IDENTICALLY, so an id cannot be probed by
 -- watching which refusal comes back. That is 0130's rule and it is kept.
