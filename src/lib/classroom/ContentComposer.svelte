@@ -32,7 +32,6 @@
 		ITEM_KINDS,
 		formatBytes,
 		instructorAttachmentSrc,
-		isPreviewableFile,
 		isoToLocalInput,
 		localInputToIso,
 		sectionTitle,
@@ -323,85 +322,31 @@
 	let filePanel = $state<FileUploadPanel | null>(null);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
-	/**
-	 * Live upload progress (0..1) for a staged INSTRUCTOR-ONLY file, keyed by its
-	 * position in `instructorStaged` AT THE MOMENT the upload batch starts -- the
-	 * array is only reassigned once the whole batch settles, so an index is a
-	 * stable key for the duration of the upload itself.
-	 *
-	 * The student-facing files report their own progress inside
-	 * FileUploadPanel, per file, exactly as a hand-in does.
-	 */
-	let uploadProgress = $state<Record<string, number>>({});
-
-	/**
-	 * Object URLs for staged INSTRUCTOR-ONLY files. The student-facing ones moved
-	 * into FileUploadPanel with everything else about them; instructor-only
-	 * material still uploads through the site to Drive (0133 gave it no bucket,
-	 * because its read rule is manager-only and it cannot share the
-	 * classroom-attachments prefix), so it keeps its own staging here.
-	 *
-	 * Kept in a plain, NON-reactive Map: the effect that fills it reads
-	 * `instructorStaged` and writes here, and routing the URLs through reactive
-	 * state as well would have it re-trigger on its own writes.
-	 */
-
-	onDestroy(() => {
-		for (const url of instructorPreviewUrls.values()) URL.revokeObjectURL(url);
-		instructorPreviewUrls.clear();
-	});
-
-	// --- Instructor-only materials (0090) ----------------------------------
-	// Same staging shape as the student-facing files above, kept as its OWN
-	// state rather than a flag on the shared arrays: this section is teacher
-	// eyes only, so its data must never end up in the same list a student-
-	// facing renderer could iterate by accident.
+	// --- Instructor-only materials (0090, 0135) ----------------------------
+	//
+	// KEPT AS ITS OWN STATE rather than a flag on the student-facing arrays:
+	// this section is teacher eyes only, so its data must never end up in the
+	// same list a student-facing renderer could iterate by accident.
+	//
+	// THE STAGING, THE PREVIEWS, THE PROGRESS BAR AND THE FAILURE HANDLING ARE
+	// ALL GONE FROM HERE, and that is the point of the change. This section used
+	// to own a `File[]`, a non-reactive object-URL map, a revision counter, an
+	// `onDestroy` to revoke the URLs, a `uploadProgress` record keyed by array
+	// index, and its own markup for all of it -- a second implementation of
+	// FileUploadPanel that had drifted into being worse than the original: no
+	// per-file error, no Retry, and a failure list rebuilt by hand on every save.
+	// It existed because instructor-only material had no bucket (0133 gave it
+	// none, its read rule being manager-only). 0135 gave it one, so it mounts the
+	// same panel as everything else.
 	// svelte-ignore state_referenced_locally
 	let instructorLinks = $state<{ label: string; url: string }[]>(
 		(item?.instructorLinks ?? []).map((r) => ({ label: r.label, url: r.url }))
 	);
 	// svelte-ignore state_referenced_locally
 	let instructorExisting = $state([...(item?.instructorAttachments ?? [])]);
-	let instructorStaged = $state<File[]>([]);
+	let instructorPanel = $state<FileUploadPanel | null>(null);
+	let instructorStagedCount = $state(0);
 	let instructorRemovingId = $state<string | null>(null);
-
-	const instructorPreviewUrls = new Map<File, string>();
-	let instructorPreviewRev = $state(0);
-
-	$effect(() => {
-		let made = false;
-		for (const file of instructorStaged) {
-			if (!instructorPreviewUrls.has(file) && isPreviewableFile(file)) {
-				instructorPreviewUrls.set(file, URL.createObjectURL(file));
-				made = true;
-			}
-		}
-		for (const [file, url] of instructorPreviewUrls) {
-			if (!instructorStaged.includes(file)) {
-				URL.revokeObjectURL(url);
-				instructorPreviewUrls.delete(file);
-				made = true;
-			}
-		}
-		if (made) instructorPreviewRev += 1;
-	});
-
-	function instructorPreviewOf(file: File): string | null {
-		void instructorPreviewRev;
-		return instructorPreviewUrls.get(file) ?? null;
-	}
-
-	function stageInstructorFiles(files: FileList | File[] | null) {
-		if (!files || !instructorAttachmentsEnabled) return;
-		const next = Array.from(files).filter((f) => f.size > 0);
-		if (next.length) instructorStaged = [...instructorStaged, ...next];
-	}
-
-	function pickInstructorFiles(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		stageInstructorFiles(input.files);
-		input.value = '';
-	}
 
 	async function removeInstructorExisting(a: { id: string }) {
 		if (instructorRemovingId) return;
@@ -437,6 +382,20 @@
 	 */
 	const uploadStagedFile: PanelUpload = async ({ itemId: target, file, onProgress }) => {
 		const res = await transports.uploadAttachment(target, file, onProgress);
+		if (res.ok) return { ok: true, storageKey: '' };
+		return {
+			ok: false,
+			gate: res.gate ?? 'server',
+			message: res.message,
+			retryable: res.retryable ?? false
+		};
+	};
+
+	/** The same adapter against the instructor-only transport. Two lines rather
+	 *  than a role parameter, because the two call different transports and a
+	 *  surface that could choose is a surface that could choose wrong. */
+	const uploadInstructorStagedFile: PanelUpload = async ({ itemId: target, file, onProgress }) => {
+		const res = await transports.uploadInstructorAttachment(target, file, onProgress);
 		if (res.ok) return { ok: true, storageKey: '' };
 		return {
 			ok: false,
@@ -584,7 +543,7 @@
 		title,
 		bodyText: tiptapText(bodyDoc),
 		files: stagedFileCount,
-		instructorFiles: instructorStaged.length,
+		instructorFiles: instructorStagedCount,
 		links,
 		instructorLinks,
 		deck: stagedDeck,
@@ -750,7 +709,7 @@
 		// so saving again retries the rest rather than asking a teacher to go and
 		// find the same file a second time.
 		const itemId = res.data.itemId;
-		const hadFiles = stagedFileCount > 0 || instructorStaged.length > 0;
+		const hadFiles = stagedFileCount > 0 || instructorStagedCount > 0;
 		const hadDeck = !!stagedDeck;
 		const hadSpec = stagedSpec != null;
 		const hadCheckIn = stagedCheckIn != null;
@@ -770,48 +729,26 @@
 		}
 
 		/**
-		 * BOTH LISTS AT ONCE, AND EVERY FILE IN EACH ATTEMPTED.
+		 * BOTH LISTS AT ONCE, AND EVERY FILE IN EACH ATTEMPTED -- now through ONE
+		 * mechanism rather than two.
 		 *
-		 * The student-facing files are FileUploadPanel's job: `runAll` uploads
-		 * them concurrently, catches each one individually so a throw cannot
-		 * reject the batch and discard the others' results, keeps whatever failed
-		 * staged with its own message and its own Retry, and returns one line per
-		 * failure. That is the identical component and the identical guarantee a
-		 * student gets on a hand-in.
+		 * `runAll` uploads a panel's files concurrently, catches each one
+		 * individually so a throw cannot reject the batch and discard the others'
+		 * results, keeps whatever failed staged with its own message and its own
+		 * Retry, and returns one line per failure. Two panels, the same guarantee,
+		 * and the same guarantee a student gets on a hand-in.
 		 *
-		 * The instructor-only list still runs here, because it still uploads
-		 * through the site to Drive. It is the one upload path in the classroom
-		 * that 0133 left alone.
+		 * The instructor list used to be a hand-rolled `Promise.all` over a `File[]`
+		 * with its own `settle` wrapper and its own failure-line formatting. It is
+		 * the second copy that no longer exists.
 		 */
-		const settle = async (file: File, run: Promise<{ ok: boolean; message?: string }>) => {
-			try {
-				return { file, res: await run };
-			} catch (e) {
-				return { file, res: { ok: false, message: (e as Error).message || 'Upload failed.' } };
-			}
-		};
-		uploadProgress = {};
-		const [fileFailures, instructorResults] = await Promise.all([
+		const [fileFailures, instructorFailures] = await Promise.all([
 			filePanel ? filePanel.runAll(itemId) : Promise.resolve([]),
-			Promise.all(
-				instructorStaged.map((f, i) =>
-					settle(
-						f,
-						transports.uploadInstructorAttachment(itemId, f, (frac) => {
-							uploadProgress = { ...uploadProgress, [`instructor:${i}`]: frac };
-						})
-					)
-				)
-			)
+			instructorPanel ? instructorPanel.runAll(itemId) : Promise.resolve([])
 		]);
-		uploadProgress = {};
 
 		failures.push(...fileFailures);
-
-		for (const { file, res: up } of instructorResults) {
-			if (!up.ok) failures.push(`instructor file "${file.name}": ${up.message}`);
-		}
-		instructorStaged = instructorResults.filter((r) => !r.res.ok).map((r) => r.file);
+		failures.push(...instructorFailures.map((line) => `instructor ${line}`));
 
 		/**
 		 * The instructor links are written only when they actually CHANGED.
@@ -1228,39 +1165,20 @@
 		</div>
 
 		{#if instructorAttachmentsEnabled}
-			<input type="file" multiple class="file-input" onchange={pickInstructorFiles} />
-			{#if instructorStaged.length}
-				<ul class="staged">
-					{#each instructorStaged as f, i (i)}
-						{@const url = instructorPreviewOf(f)}
-						{@const progress = uploadProgress[`instructor:${i}`]}
-						<li class="staged-item" class:has-preview={!!url}>
-							{#if url}
-								<img class="staged-thumb" src={url} alt={f.name} />
-							{/if}
-							<span class="staged-meta">
-								<span class="staged-name">{f.name}</span>
-								<span class="staged-size">{formatBytes(f.size)}</span>
-								{#if busy && progress !== undefined}
-									<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin="0" aria-valuemax="100">
-										<span class="upload-bar-fill" style={`width: ${Math.round(progress * 100)}%`}></span>
-									</span>
-									<span class="upload-pct">{Math.round(progress * 100)}%</span>
-								{:else}
-									<button
-										type="button"
-										class="btn secondary tiny"
-										onclick={() => (instructorStaged = instructorStaged.filter((_, j) => j !== i))}
-									>
-										&times;
-									</button>
-								{/if}
-							</span>
-						</li>
-					{/each}
-				</ul>
-				<p class="hint">Uploads when you save.</p>
-			{/if}
+			<!-- THE SAME PANEL AS EVERYTHING ELSE. Same component, same per-file
+			     progress, same per-file message and Retry, same 200 MB, no `accept`
+			     -- the only thing that differs is which transport it is handed, and
+			     therefore which bucket and which table the bytes end up in. -->
+			<FileUploadPanel
+				bind:this={instructorPanel}
+				role="instructor"
+				itemId={item?.id ?? createdItemId}
+				upload={uploadInstructorStagedFile}
+				label="Instructor-only files"
+				hint="Any file type, up to 200 MB each. Uploads when you save."
+				showPreviews
+				oncountchange={(n) => (instructorStagedCount = n)}
+			/>
 			{#if mode === 'edit' && instructorExisting.length}
 				<AttachmentList
 					attachments={instructorExisting}
@@ -1533,49 +1451,6 @@
 		border: none;
 		background: none;
 	}
-	.staged {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.6rem;
-	}
-	.staged-item {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-		min-width: 0;
-		max-width: 100%;
-	}
-	.staged-item.has-preview {
-		width: 9.5rem;
-	}
-	.staged-thumb {
-		display: block;
-		width: 100%;
-		height: 6.5rem;
-		object-fit: contain;
-		background: var(--surface-1);
-		border: 1px solid var(--hairline);
-		border-radius: var(--radius-card);
-	}
-	.staged-meta {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		flex-wrap: wrap;
-		min-width: 0;
-	}
-	.staged-name {
-		font-size: 0.78rem;
-		overflow-wrap: anywhere;
-	}
-	.staged-size {
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		color: var(--text-2);
-	}
 	.upload-bar {
 		display: inline-block;
 		width: 4.5rem;
@@ -1618,12 +1493,6 @@
 		display: block;
 		width: 100%;
 		margin-top: var(--space-1);
-	}
-	.upload-pct {
-		font-family: var(--font-mono);
-		font-size: 0.6rem;
-		color: var(--text-2);
-		min-width: 2.2rem;
 	}
 	.target-picker {
 		margin: 0.6rem 0;
@@ -1687,9 +1556,6 @@
 	@media (max-width: 560px) {
 		.resource-row {
 			grid-template-columns: 1fr;
-		}
-		.staged-item.has-preview {
-			width: calc(50% - 0.3rem);
 		}
 	}
 </style>

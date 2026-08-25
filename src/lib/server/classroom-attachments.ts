@@ -51,7 +51,21 @@ export const CLASSROOM_ATTACHMENTS_BUCKET = 'classroom-attachments';
 export const SUBMISSION_FILES_BUCKET = 'submission-files';
 
 /**
- * 200 MiB, matching `file_size_limit` on both buckets in 0133.
+ * The answer-key bucket (0135), and it is a THIRD bucket rather than a prefix
+ * inside the first one for a reason that is not organisational: a policy on
+ * `classroom-attachments` admits everyone who can READ THE ITEM, and an
+ * instructor-only file must reach only `classroom_can_read_instructor_material`
+ * -- the teacher of record of some section it is posted to, or an admin. Sharing
+ * the prefix would have handed every enrolled student the answer key.
+ *
+ * IT HAS NO `anon` POLICY AND MUST NEVER GAIN ONE. 0135 asserts that at apply
+ * time: the public-material policy names `classroom-attachments` alone, and this
+ * bucket is not reachable without a session under any circumstances.
+ */
+export const INSTRUCTOR_ATTACHMENTS_BUCKET = 'instructor-attachments';
+
+/**
+ * 200 MiB, matching `file_size_limit` on all three buckets (0133, 0135).
  *
  * Duplicated in the sense that Storage enforces it too -- deliberately. The
  * bucket limit is the BOUNDARY and cannot be talked past; this constant exists
@@ -156,18 +170,33 @@ export function downloadFilename(filename: string | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
-// The Drive path, which is now LEGACY READS plus one live writer
+// The Drive path, which is now LEGACY READS ONLY
+//
+// NO ATTACHMENT, ANSWER KEY OR HAND-IN UPLOADS THROUGH THE FUNCTION ANY MORE.
+// 0133 moved the first and the third into private buckets and 0135 moved the
+// second, so all three write straight to storage against a signed URL. What
+// this section still does, and must keep doing, is SERVE the rows written
+// before those migrations: nothing was backfilled and nothing was moved, so
+// every handout already on a class page resolves through `downloadDriveFile`
+// and `INLINE_TYPES` exactly as it always has.
+//
+// THE WRITE-SIDE HELPERS BELOW NOW HAVE NO CALLER IN `src/` AT ALL --
+// `MAX_DRIVE_ATTACHMENT_BYTES`, `readAttachmentForm`, `attachmentDriveFilename`,
+// `instructorMaterialsFolderId`, `submissionsFolderId` and the two folder-name
+// constants. They are left standing ONLY because removing them is a deletion
+// bundle with its own test changes, not because anything reaches them. Do not
+// write a new route against one: a multipart POST to our own function is the
+// 4 MiB shape these two migrations exist to end.
 // ---------------------------------------------------------------------------
 
 /**
- * The cap on anything still travelling THROUGH the function to Drive.
+ * The cap on anything travelling THROUGH the function to Drive.
  *
- * This is a platform number, not a policy one: those bytes are buffered whole
- * in a serverless request. It applies to exactly one live upload path now --
- * instructor-only material (`/api/classroom/instructor-attachment`), which
- * 0133 did not give a bucket because its read rule is manager-only and it
- * therefore cannot share the `classroom-attachments` prefix. Student-facing
- * attachments and hand-ins no longer touch it.
+ * A platform number, not a policy one: those bytes are buffered whole in a
+ * serverless request. NOTHING IS SUBJECT TO IT ANY MORE. It was the
+ * instructor-only ceiling until 0135 gave that material a bucket of its own;
+ * the live cap on all three paths is `MAX_STORAGE_BYTES` above, which Storage
+ * itself enforces.
  */
 export const MAX_DRIVE_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
@@ -211,13 +240,18 @@ export interface AttachmentField {
 }
 
 /**
- * Validates the "file" form field on the one remaining multipart upload:
- * present, non-empty, and inside the Drive-path size cap.
+ * Validated the "file" form field on a multipart upload: present, non-empty,
+ * and inside the Drive-path size cap.
  *
- * THE TYPE CHECK IS GONE. What used to live here refused a file for what it
- * was; nothing does now, on either side. A `.SLDPRT`, a `.zip`, a file with no
- * extension at all and a file the browser could not type all pass, and are all
- * stored and served as octet-stream.
+ * ITS LAST CALLER IS GONE (see the section header). It read the form on
+ * `/api/classroom/instructor-attachment`, which is now a JSON record endpoint
+ * for an object the browser has already written to storage. Kept only pending
+ * a deletion bundle; nothing may call it again.
+ *
+ * THE TYPE CHECK WAS ALREADY GONE before that. What used to live here refused a
+ * file for what it was; nothing does now, anywhere. A `.SLDPRT`, a `.zip`, a
+ * file with no extension at all and a file the browser could not type all pass,
+ * and are all stored and served as octet-stream.
  */
 export function readAttachmentForm(form: FormData): AttachmentField | { error: string; status: number } {
 	const file = form.get('file');

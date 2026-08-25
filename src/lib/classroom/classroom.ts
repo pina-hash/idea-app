@@ -339,7 +339,11 @@ export function registerLocalAttachmentUrl(attachmentId: string, url: string): v
 	localAttachmentUrls.set(attachmentId, url);
 }
 
-/** Mirrors the server's INLINE_TYPES image half: what gets a thumbnail. */
+/**
+ * The recorded types that mean "picture", for a DRIVE-backed row. Mirrors the
+ * server's INLINE_TYPES image half, which is the allowlist every such row was
+ * filtered through on the way in.
+ */
 const PREVIEW_TYPES = new Set([
 	'image/jpeg',
 	'image/png',
@@ -349,8 +353,32 @@ const PREVIEW_TYPES = new Set([
 	'image/heif'
 ]);
 
+/**
+ * Does this attachment get a thumbnail.
+ *
+ * THE FILENAME IS ASKED FIRST NOW, AND IT HAD TO BE. This was `PREVIEW_TYPES`
+ * alone, which is a question about `mime_type` -- and since 0133 the record
+ * route stores `application/octet-stream` for every attachment it writes, on
+ * purpose, so nothing ever branches on a type the uploader chose. A mime-only
+ * predicate therefore answers FALSE for every handout uploaded from now on, and
+ * a diagram a teacher attaches to an assignment renders as a download row
+ * instead of a picture. Same defect as `isSubmissionFileImage` had, one table
+ * over; `fileKindLabel` beside it already moved to the extension for exactly
+ * this reason.
+ *
+ * IT IS A UNION RATHER THAN A REPLACEMENT, which is the whole reason no select
+ * had to change for this. Every Drive-backed row keeps thumbnailing on the
+ * recorded type it has always thumbnailed on -- the extension can only ever ADD
+ * a row to the set -- so there is no pre-0133 case to re-prove and no
+ * `storage_key` needed in `ITEM_SELECT`, whose four-rung ladder every classroom
+ * read goes through.
+ *
+ * A NAME THAT LIES COSTS NOTHING. A renamed zip called `.png` gets an `<img>`
+ * that fails to decode, and AttachmentList's `onerror` drops it back to the
+ * ordinary file row. Nothing is refused, served differently, or gated on this.
+ */
 export function isImageAttachment(a: ClassroomAttachment): boolean {
-	return PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
+	return isImageFilename(a.filename) || PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -507,19 +535,36 @@ export function resolveFigureSrc(
 }
 
 /**
- * A staged (not yet uploaded) file a composer can preview inline.
+ * WHAT NAME READS AS A PICTURE. THE ONE COPY, and every surface that decides
+ * whether to draw a thumbnail calls it.
  *
- * KEYED ON THE FILENAME EXTENSION ALONE. It used to read `File.type` first and
- * fall back to the extension only for an empty one -- which was the right shape
- * when a type allowlist decided what could be uploaded at all. Nothing branches
- * on an uploaded file's type any more (0133: every object is stored and served
- * as octet-stream, so there is no type to branch on and no gate to inform), and
- * `File.type` is legitimately EMPTY for the most common camera output anyway.
- * An extension that turns out not to decode simply shows no thumbnail, from the
- * img element's own onerror; nothing is refused either way.
+ * KEYED ON THE FILENAME EXTENSION ALONE, because since 0133 there is nothing
+ * else honest to key on: every stored object is `application/octet-stream` by
+ * the route's own hand, so `mime_type` on a storage-backed row answers the same
+ * for a photograph and for a 60 MB assembly. `File.type` is worse again -- it is
+ * the uploader's guess, and it is legitimately EMPTY for a HEIC off an iPhone.
+ *
+ * IT DECIDES NOTHING ABOUT ACCESS AND REFUSES NOTHING. A name that turns out not
+ * to decode simply loses its thumbnail through the img element's own `onerror`,
+ * and the file downloads exactly as it would have.
+ *
+ * There were THREE copies of this regex on this branch (here, FileUploadPanel's
+ * `PREVIEWABLE_EXT`, and about to be a fourth for submission files). Three
+ * spellings of "is this a picture" is three things that stop agreeing about
+ * `.avif`.
+ */
+const IMAGE_FILENAME_RE = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i;
+
+export function isImageFilename(name: string | null | undefined): boolean {
+	return IMAGE_FILENAME_RE.test(name ?? '');
+}
+
+/**
+ * A staged (not yet uploaded) file a composer can preview inline. The same rule
+ * as an already-uploaded one, asked of the handle instead of the row.
  */
 export function isPreviewableFile(file: File): boolean {
-	return /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i.test(file.name ?? '');
+	return isImageFilename(file.name);
 }
 
 export function formatBytes(size: number | null | undefined): string {

@@ -232,8 +232,22 @@
 		return 'id' in block && block.id ? block.id : `b-${index}`;
 	}
 
+	/**
+	 * A thumbnail that did not decode falls back to the download row, exactly as
+	 * SubmissionFileList's does -- the SAME failure, so the same answer.
+	 *
+	 * IT IS AN ORDINARY OUTCOME, NOT AN ERROR STATE. The image decision is made
+	 * from a filename extension (`isSubmissionFileImage`), which is a claim about
+	 * what a file is called and not a promise about what is inside it: a `.png`
+	 * that is really a renamed zip, a truncated upload, or a signed URL that
+	 * expired between the payload and the fetch all land here. A broken-image
+	 * glyph tells a student nothing and offers them nothing; a link they can open
+	 * is what they actually needed.
+	 */
+	let brokenThumbs = $state<Record<string, boolean>>({});
+
 	function isImage(f: SubmissionFileRow): boolean {
-		return isSubmissionFileImage(f);
+		return isSubmissionFileImage(f) && !brokenThumbs[f.id];
 	}
 
 	/**
@@ -433,7 +447,24 @@
 								{#each zone as f (f.id)}
 									<figure class="zone-item">
 										{#if isImage(f)}
-											<img src={submissionFileSrc(f.id)} alt={f.caption ?? f.filename} loading="lazy" />
+											<!-- Clickable to the full-size file. The src and the href are
+											     the SAME proxy URL: for a storage-backed hand-in it 302s to
+											     a short-lived signed URL (0133), and for a Drive-backed one
+											     it streams the bytes as it always has. Neither this
+											     component nor the student knows which. -->
+											<a
+												class="zone-shot"
+												href={submissionFileSrc(f.id)}
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												<img
+													src={submissionFileSrc(f.id)}
+													alt={f.caption ?? f.filename}
+													loading="lazy"
+													onerror={() => (brokenThumbs = { ...brokenThumbs, [f.id]: true })}
+												/>
+											</a>
 										{:else}
 											<a class="zone-file" href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">{f.filename}</a>
 										{/if}
@@ -790,6 +821,15 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
+	}
+	/* The thumbnail's own anchor: a block so it does not collapse to a text
+	   line box around the picture, and line-height 0 so no descender gap sits
+	   under it. Its hit area is the whole thumbnail (9rem minimum column width
+	   by up to 12rem tall), which clears the 44px floor by a wide margin. */
+	.zone-shot {
+		display: block;
+		line-height: 0;
+		border-radius: var(--radius-card);
 	}
 	.zone-item img {
 		width: 100%;

@@ -85,6 +85,19 @@ const ENDPOINTS: Record<UploadRole, { sign: string; record: string }> = {
 	submission: {
 		sign: '/api/classroom/submission-file/sign',
 		record: '/api/classroom/submission-file'
+	},
+	/**
+	 * The answer-key path (0135). A THIRD pair of routes rather than a flag on
+	 * `attachment`, because they write a different TABLE into a different BUCKET
+	 * under a different read rule -- `classroom_can_read_instructor_material`,
+	 * which is manager-only and is exactly why instructor-only material could not
+	 * share the `classroom-attachments` prefix in 0133. Everything above this
+	 * constant is identical for all three: same three steps, same refusals, same
+	 * words, same 200 MiB.
+	 */
+	instructor: {
+		sign: '/api/classroom/instructor-attachment/sign',
+		record: '/api/classroom/instructor-attachment'
 	}
 };
 

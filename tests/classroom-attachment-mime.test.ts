@@ -55,7 +55,16 @@ import {
 } from '../src/lib/server/classroom-attachments';
 import { CLASSROOM_UPLOAD_MAX_BYTES } from '../src/lib/classroom/file-upload';
 import { classifyUploadError, tooLarge } from '../src/lib/classroom/upload-errors';
-import { isPreviewableFile } from '../src/lib/classroom/classroom';
+import {
+	isImageAttachment,
+	isImageFilename,
+	isPreviewableFile
+} from '../src/lib/classroom/classroom';
+import { isSubmissionFileImage, type SubmissionFileRow } from '../src/lib/classroom/assignment-spec';
+import {
+	SUBMISSION_FILE_SELECT,
+	SUBMISSION_FILE_SELECT_STORAGE
+} from '../src/lib/classroom/transports';
 
 function formWith(file: File): FormData {
 	const form = new FormData();
@@ -431,5 +440,148 @@ describe('what may be served inline', () => {
 			expect(src, path).toContain('createSignedUrl(');
 			expect(src, path).toContain('download: downloadFilename(');
 		}
+	});
+});
+
+
+// ---------------------------------------------------------------------------
+// WHAT GETS A THUMBNAIL, once mime_type stopped meaning anything
+// ---------------------------------------------------------------------------
+
+/** A hand-in row, with only the fields the predicate reads spelled out. */
+function fileRow(over: Partial<SubmissionFileRow>): SubmissionFileRow {
+	return {
+		id: 'f1',
+		submission_id: 's1',
+		block_id: 'zone1',
+		caption: null,
+		filename: 'thing.bin',
+		mime_type: STORAGE_CONTENT_TYPE,
+		...over
+	};
+}
+
+describe('a storage-backed picture is still a picture', () => {
+	it('THE REGRESSION: an octet-stream row with an image key IS an image', () => {
+		// This is the whole defect. Every hand-in written since 0133 carries
+		// `application/octet-stream` because the record route writes that
+		// literal, so the old mime-first predicate answered false for every
+		// photograph a student has ever uploaded through it -- and an imageZone,
+		// which is the photo-evidence block, rendered a column of download links.
+		expect(
+			isSubmissionFileImage(fileRow({ storage_key: 'sub-1/abc.jpg', filename: 'IMG_0042.JPG' }))
+		).toBe(true);
+		expect(isSubmissionFileImage(fileRow({ storage_key: 'sub-1/abc.png' }))).toBe(true);
+		expect(isSubmissionFileImage(fileRow({ storage_key: 'sub-1/abc.heic' }))).toBe(true);
+	});
+
+	it('a CAD file with the same mime type is not', () => {
+		for (const key of ['sub-1/abc.sldprt', 'sub-1/abc.sldasm', 'sub-1/abc.zip', 'sub-1/abc']) {
+			expect(isSubmissionFileImage(fileRow({ storage_key: key })), key).toBe(false);
+		}
+	});
+
+	it('the KEY decides, not a mime_type that disagrees with it', () => {
+		// A row cannot get a thumbnail by claiming a type: once there is a key,
+		// the recorded type is not consulted at all. (The record routes make this
+		// unreachable in production -- they write the literal -- but the
+		// predicate must not be the thing relying on that.)
+		expect(
+			isSubmissionFileImage(
+				fileRow({ storage_key: 'sub-1/abc.sldprt', mime_type: 'image/png' })
+			),
+			'a lying mime cannot promote a CAD file'
+		).toBe(false);
+	});
+
+	it('a DRIVE-backed row is unchanged, which is what nothing was backfilled means', () => {
+		// storage_key NULL: the column was selected and this row predates 0133,
+		// so its recorded type is real and is the thing it has always been
+		// thumbnailed by.
+		expect(
+			isSubmissionFileImage(
+				fileRow({ storage_key: null, mime_type: 'image/jpeg', filename: 'photo.jpg' })
+			)
+		).toBe(true);
+		expect(
+			isSubmissionFileImage(fileRow({ storage_key: null, mime_type: 'application/pdf' }))
+		).toBe(false);
+	});
+
+	it('storage_key UNDEFINED is a third state, not a synonym for null', () => {
+		// The degraded rung: the column was never selected, so there is nothing
+		// to read and mime_type is the only signal there is -- which is correct,
+		// because on a pre-0133 schema every row is Drive-backed.
+		expect(isSubmissionFileImage(fileRow({ mime_type: 'image/jpeg' }))).toBe(true);
+		expect(isSubmissionFileImage(fileRow({ mime_type: STORAGE_CONTENT_TYPE }))).toBe(false);
+	});
+
+	it('an ATTACHMENT gets the same treatment, by filename', () => {
+		// Same defect, one table over: a teacher's handout is stored
+		// octet-stream too. Fixed as a UNION so no Drive row can lose a
+		// thumbnail it has today, and so no select had to change for it.
+		expect(
+			isImageAttachment({ id: 'a', filename: 'diagram.png', mime_type: STORAGE_CONTENT_TYPE })
+		).toBe(true);
+		expect(
+			isImageAttachment({ id: 'a', filename: 'assembly.sldasm', mime_type: STORAGE_CONTENT_TYPE })
+		).toBe(false);
+		// The Drive rows keep answering on their recorded type, including one
+		// whose name says nothing.
+		expect(isImageAttachment({ id: 'a', filename: 'scan', mime_type: 'image/heic' })).toBe(true);
+		expect(isImageAttachment({ id: 'a', filename: 'notes.pdf', mime_type: 'application/pdf' })).toBe(
+			false
+		);
+	});
+
+	it('there is ONE image-extension rule, and the sweep says so', () => {
+		// It was about to be a fourth copy. `isImageFilename` is the rule;
+		// isPreviewableFile is it asked of a File handle, FileUploadPanel imports
+		// it, and the submission predicate calls it. A regex written out again
+		// anywhere in the classroom module is what this catches.
+		expect(isImageFilename('IMG_0042.HEIC')).toBe(true);
+		expect(isPreviewableFile(new File([new Uint8Array([1])], 'IMG_0042.HEIC', { type: '' }))).toBe(
+			true
+		);
+
+		const surfaces = [
+			'src/lib/classroom/classroom.ts',
+			'src/lib/classroom/FileUploadPanel.svelte',
+			'src/lib/classroom/assignment-spec.ts',
+			'src/lib/classroom/SpecRenderer.svelte',
+			'src/lib/classroom/SubmissionFileList.svelte',
+			'src/lib/classroom/AttachmentList.svelte',
+			'src/lib/classroom/ContentComposer.svelte'
+		];
+		let copies = 0;
+		for (const path of surfaces) {
+			for (const _ of readFileSync(path, 'utf8').matchAll(/jpe\?g\|png/g)) copies += 1;
+		}
+		// Exactly one: the declaration in classroom.ts.
+		expect(copies, 'copies of the image-extension regex').toBe(1);
+	});
+});
+
+describe('the hand-in select ladder', () => {
+	it('the storage rung strictly widens the base one', () => {
+		expect(SUBMISSION_FILE_SELECT_STORAGE.startsWith(SUBMISSION_FILE_SELECT)).toBe(true);
+		expect(SUBMISSION_FILE_SELECT_STORAGE).toContain('storage_key');
+		expect(SUBMISSION_FILE_SELECT, 'the base rung must survive a pre-0133 schema').not.toContain(
+			'storage_key'
+		);
+	});
+
+	it('BOTH call sites go through the ladder, and no third one bypasses it', () => {
+		// The regression this guards is a new read of the table written inline
+		// with the base select: it would work, return files, and silently show no
+		// thumbnails on whatever surface it fed.
+		const src = readFileSync('src/lib/classroom/transports.ts', 'utf8');
+		const ladderCalls = [...src.matchAll(/selectSubmissionFiles\(supabase, itemId\)/g)].length;
+		expect(ladderCalls, 'call sites on the ladder').toBe(2);
+
+		// `classroom_submission_files` may be named by the ladder's own query
+		// builder and by nothing else in this module.
+		const tableReads = [...src.matchAll(/from\('classroom_submission_files'\)/g)].length;
+		expect(tableReads, 'direct reads of the table').toBe(1);
 	});
 });

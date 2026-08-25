@@ -46,7 +46,6 @@ import {
 } from './revisions';
 import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
-import { postFormWithProgress } from './upload-progress';
 import { uploadClassroomFile } from './file-upload';
 import {
 	normalizeItemRow,
@@ -359,22 +358,12 @@ async function uploadInstructorAttachment(
 	file: File,
 	onProgress?: (fraction: number) => void
 ): Promise<TxResult<undefined>> {
-	const form = new FormData();
-	form.set('file', file, file.name);
-	form.set('item_id', itemId);
-	try {
-		const { status, body } = await postFormWithProgress(
-			'/api/classroom/instructor-attachment',
-			form,
-			onProgress
-		);
-		if (status < 200 || status >= 300) {
-			return { ok: false, message: (body?.error as string | undefined) ?? `Upload failed (${status}).` };
-		}
-		return { ok: true, data: undefined };
-	} catch (e) {
-		return { ok: false, message: (e as Error).message || 'Upload failed.' };
-	}
+	const res = await uploadClassroomFile({ role: 'instructor', itemId, file, onProgress });
+	// The message already NAMES its gate. Rendered verbatim; nothing here
+	// re-tones it -- the same contract the other two roles have.
+	return res.ok
+		? { ok: true, data: undefined }
+		: { ok: false, message: res.message, gate: res.gate, retryable: res.retryable };
 }
 
 async function deleteInstructorAttachment(id: string): Promise<TxResult<undefined>> {
@@ -668,6 +657,14 @@ export const deckTransports: DeckTransports = {
 	}
 };
 
+/**
+ * NO `storage_key` HERE, DELIBERATELY. Nothing on the client needs it: the kind
+ * badge and the thumbnail decision both read the FILENAME (`fileKindLabel`,
+ * `isImageAttachment`), the serve route resolves the backing itself, and the
+ * delete RPC reports which handle the row carried. Selecting a column no caller
+ * reads would buy a rung -- and one more way for this select to fail on a
+ * pre-0135 deployment -- for nothing.
+ */
 const INSTRUCTOR_ATTACHMENT_SELECT = 'id, item_id, filename, mime_type, size_bytes, sort_order';
 const INSTRUCTOR_RESOURCE_SELECT = 'id, item_id, label, url, sort_order';
 
@@ -836,8 +833,78 @@ async function selectSubmissions(supabase: SupabaseClient, itemId: string, one: 
 	return full.error ? await run(SUBMISSION_SELECT_BASE) : full;
 }
 
-const SUBMISSION_FILE_SELECT =
+/**
+ * The oldest schema this app supports for a hand-in file: 0086's own columns.
+ * This is the rung that must keep working on a deployment sitting anywhere
+ * before 0133, and it is the answer to "what did we always have".
+ */
+export const SUBMISSION_FILE_SELECT =
 	'id, submission_id, block_id, caption, filename, mime_type, size_bytes, sort_order';
+
+/**
+ * + 0133's storage key. ITS OWN RUNG, and the capability it reports is
+ * `storageReady`.
+ *
+ * WHAT IT BUYS IS A THUMBNAIL, WHICH IS NOT COSMETIC HERE. Every storage-backed
+ * hand-in carries `mime_type = 'application/octet-stream'` -- the record route
+ * writes that literal deliberately, so nothing ever branches on a type the
+ * uploader chose. So without this column there is NOTHING in the payload that
+ * can tell a photograph from a CAD assembly, and `isSubmissionFileImage`
+ * answers false for every hand-in ever made through 0133. An imageZone, which
+ * is the block a student submits photo evidence into, then renders a column of
+ * download links. That is the regression this rung exists to prevent, and it
+ * would arrive silently: nothing errors, the files are all there, they are just
+ * no longer pictures.
+ *
+ * WHY A RUNG RATHER THAN JUST ADDING THE COLUMN. Migrations here are pasted in
+ * by hand, so a deployment sitting between 0132 and 0133 is a real state, and
+ * PostgREST refuses the ENTIRE select for one unknown column -- naming
+ * `storage_key` unconditionally would blank every hand-in on every assignment
+ * until 0133 landed, which is a far worse failure than a missing thumbnail.
+ */
+export const SUBMISSION_FILE_SELECT_STORAGE = `${SUBMISSION_FILE_SELECT}, storage_key`;
+
+/** The embedded parent, which is how both call sites scope to one item. */
+function submissionFileQuery(supabase: SupabaseClient, itemId: string, columns: string) {
+	return supabase
+		.from('classroom_submission_files')
+		.select(`${columns}, classroom_submissions!inner(item_id)`)
+		.eq('classroom_submissions.item_id', itemId)
+		.order('sort_order');
+}
+
+export interface SubmissionFilesResult {
+	rows: SubmissionFileRow[];
+	/**
+	 * Did the payload actually come back WITH `storage_key`. Starts false and is
+	 * turned on only by the wide rung succeeding -- never inferred from the rows,
+	 * because an item with no hand-ins yet returns an empty array on both rungs
+	 * and would otherwise report whichever the code guessed.
+	 */
+	storageReady: boolean;
+	error: unknown;
+}
+
+/**
+ * The hand-in files for one item, widest-first. THE ONE LADDER, called by both
+ * the student engine load and the grading console, so the two surfaces cannot
+ * end up on different rungs and disagree about which files are pictures.
+ */
+async function selectSubmissionFiles(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<SubmissionFilesResult> {
+	const wide = await submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT_STORAGE);
+	if (!wide.error) {
+		return { rows: (wide.data ?? []) as unknown as SubmissionFileRow[], storageReady: true, error: null };
+	}
+	const narrow = await submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT);
+	return {
+		rows: (narrow.data ?? []) as unknown as SubmissionFileRow[],
+		storageReady: false,
+		error: narrow.error
+	};
+}
 
 function opResult(res: unknown): { ok: true; data: EngineOpResult } {
 	return { ok: true, data: (res ?? { ok: true }) as EngineOpResult };
@@ -945,11 +1012,7 @@ export async function loadStudentEngineData(
 				.from('classroom_responses')
 				.select('item_id, student_email, block_id, value, updated_at')
 				.eq('item_id', itemId),
-			supabase
-				.from('classroom_submission_files')
-				.select(`${SUBMISSION_FILE_SELECT}, classroom_submissions!inner(item_id)`)
-				.eq('classroom_submissions.item_id', itemId)
-				.order('sort_order'),
+			selectSubmissionFiles(supabase, itemId),
 			supabase
 				.from('classroom_module_approvals')
 				.select('item_id, student_email, module_id, approved_by, approved_at')
@@ -965,7 +1028,11 @@ export async function loadStudentEngineData(
 			? normalizeSubmissionRow(submissionRes.data as unknown as Record<string, unknown>)
 			: null,
 		responses: (responsesRes.data ?? []) as ResponseRow[],
-		files: (filesRes.data ?? []) as SubmissionFileRow[],
+		files: filesRes.rows,
+		// The capability, reported rather than assumed: false means this payload
+		// cannot tell a storage-backed picture from a CAD file, so the surface
+		// says thumbnails are unavailable instead of silently showing none.
+		filesStorageReady: filesRes.storageReady,
 		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
 	};
 }
@@ -1209,11 +1276,7 @@ export function createTeacherEngineTransports(
 						.from('classroom_responses')
 						.select('item_id, student_email, block_id, value, updated_at')
 						.eq('item_id', itemId),
-					supabase
-						.from('classroom_submission_files')
-						.select(`${SUBMISSION_FILE_SELECT}, classroom_submissions!inner(item_id)`)
-						.eq('classroom_submissions.item_id', itemId)
-						.order('sort_order'),
+					selectSubmissionFiles(supabase, itemId),
 					supabase
 						.from('classroom_module_approvals')
 						.select('item_id, student_email, module_id, approved_by, approved_at')
@@ -1228,7 +1291,12 @@ export function createTeacherEngineTransports(
 						normalizeSubmissionRow
 					),
 					responses: (responsesRes.data ?? []) as ResponseRow[],
-					files: (filesRes.data ?? []) as SubmissionFileRow[],
+					files: filesRes.rows,
+					// Same rung, same flag as the student's own view. Both surfaces
+					// read ONE ladder, so a teacher grading and the student who
+					// handed the file in can never be looking at different answers
+					// about which of these are pictures.
+					filesStorageReady: filesRes.storageReady,
 					approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
 				}
 			};

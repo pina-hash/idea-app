@@ -13,6 +13,15 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-25",
+			"title": "Photos you hand in show as photos again",
+			"body": "When files moved to the new storage, a photo you added to a photo block stopped showing as a picture and turned into a row you had to click to see. That is fixed. A picture shows as a picture again, in the photo blocks on an assignment, in your extra files, and in the view your teacher grades from, and clicking it opens the full size version. Anything that is not a picture, a part file, an assembly, a zip, still shows as a file row with its type beside it, which is what you want: nobody needs a preview of a SolidWorks assembly. If a picture cannot be shown for any reason it falls back to that same file row rather than a broken image, so there is always something to click. Nothing changed about who can see your work, and files still download rather than opening as a page in the browser.",
+			"tags": [
+				"files",
+				"assignments"
+			]
+		},
+		{
 			"date": "2026-08-24",
 			"title": "Public reference documents open their files again",
 			"body": "A reference document your teacher publishes for anyone to read can be opened without signing in, and now the files attached to it open that way too. Before this, a file attached to a public document the new way came back as not found unless you happened to be signed in and enrolled in that class, which made a QR code on a handout useless to anybody else. Only documents your teacher has actually published as public work this way. Assignments, hand-ins and anything a teacher keeps to themselves still need you to be signed in, exactly as before.",

@@ -41,8 +41,18 @@ export interface UploadRefusal {
 	retryable: boolean;
 }
 
-/** Which side of the classroom is uploading. Only the wording differs. */
-export type UploadRole = 'attachment' | 'submission';
+/**
+ * Which side of the classroom is uploading. Only the wording differs -- the
+ * gates themselves are storage's and the RPC's, per role, in the database.
+ *
+ * `instructor` is the answer-key path (0135's `instructor-attachments` bucket).
+ * It is a THIRD role rather than a flag on `attachment` because the two refuse
+ * for genuinely different reasons and a person needs to be told which: a
+ * student-facing handout is refused when the caller does not manage every class
+ * the item is posted to, and an instructor-only file is refused by a bucket no
+ * student role can reach at all.
+ */
+export type UploadRole = 'attachment' | 'submission' | 'instructor';
 
 export function formatBytesShort(size: number): string {
 	if (size < 1024) return `${size} B`;
@@ -73,7 +83,11 @@ const DENIED_REASON: Record<UploadRole, string> = {
 	submission:
 		'Storage refused this file because of who is asking. It can only go on your own ' +
 		'submission, and only while that submission is still open -- if it was turned in ' +
-		'while this was uploading, unsubmit and try again.'
+		'while this was uploading, unsubmit and try again.',
+	instructor:
+		'Storage refused this instructor-only file because of who is asking. It can only go ' +
+		'on an item you are the teacher of record for, in every class it is posted to. If ' +
+		'somebody unposted it, or added a class you do not teach, that is what changed.'
 };
 
 /**

@@ -88,14 +88,34 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 	 * answers only for an attachment whose item is a published, public material.
 	 * So `?public=1` can only ever NARROW what this route will hand over.
 	 *
-	 * IT IS DRIVE-ONLY, AND THAT IS A STATED GAP RATHER THAN AN OVERSIGHT.
-	 * `classroom_public_attachment` projects `drive_file_id` and nothing else,
-	 * and 0133's storage policies are `to authenticated` -- so a signed URL
-	 * cannot be minted with no session even if the row were readable. A
-	 * storage-backed attachment on a public material therefore 404s here until
-	 * a later migration widens that RPC and adds an anon-readable policy keyed
-	 * on the same "published public material" predicate. Every attachment
-	 * already on a public material is Drive-backed and unaffected.
+	 * IT SERVES BOTH BACKINGS NOW (0135). It used to be Drive-only, and that was
+	 * a real hole rather than a cosmetic one: an attachment uploaded the 0133 way
+	 * onto a public reference document 404'd for exactly the audience the
+	 * document was published for -- a parent following a printed QR code, a
+	 * student who is not enrolled in that section, anyone signed out. The two
+	 * halves that were missing are both 0135's and both are the database's:
+	 *
+	 *   - `classroom_public_attachment` now projects `storage_key` beside
+	 *     `drive_file_id`, so this route can see there is one.
+	 *   - a SECOND permissive select policy on `storage.objects` admits `anon`
+	 *     and `authenticated` to an object in `classroom-attachments` whose key
+	 *     prefix names a material that is public and live
+	 *     (`classroom_attachment_object_is_public`), so the mint below succeeds
+	 *     with no session.
+	 *
+	 * NOTHING ELSE MOVED, AND THE NEGATIVES ARE THE POINT. The policy names ONE
+	 * bucket: `submission-files` and `instructor-attachments` have no `anon`
+	 * policy of any kind, so a student's hand-in and an answer key are still
+	 * unreachable without a session -- and an attachment on a private item, an
+	 * unpublished one, or one scheduled for later is refused by the predicate
+	 * before this route is involved at all. Both halves ask the SAME three
+	 * conditions, so "public" has one definition and this file restates none of
+	 * it.
+	 *
+	 * THE SIGNED-IN BRANCH IS INCLUDED IN THAT POLICY ON PURPOSE: being signed in
+	 * is not the same as being enrolled, and a visitor with a Google account
+	 * reading a public document would otherwise be the only person who could not
+	 * open its files.
 	 */
 	const wantsPublic = url.searchParams.get('public') === '1';
 
@@ -109,14 +129,56 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 	}
 
 	if (wantsPublic) {
-		if (!driveConfigured()) {
-			return json({ error: 'File attachments are not configured on this deployment.' }, { status: 503 });
-		}
 		const { data, error } = await supabase.rpc('classroom_public_attachment', {
 			p_attachment_id: id
 		});
-		const row = (data ?? null) as { drive_file_id?: string; filename?: string; mime_type?: string } | null;
-		if (error || !row?.drive_file_id) {
+		const row = (data ?? null) as {
+			drive_file_id?: string | null;
+			// Absent, not null, on a deployment sitting before 0135: that version
+			// of the RPC projects four keys and this is not one of them. Either
+			// way the Drive branch below is what answers, which is what every
+			// attachment on a public material was until 0133.
+			storage_key?: string | null;
+			filename?: string;
+			mime_type?: string;
+		} | null;
+		if (error || !row) {
+			return new Response('Not found', { status: 404 });
+		}
+
+		if (row.storage_key) {
+			// Minted on the SAME client the request arrived on -- with no session
+			// that is the `anon` role, which is exactly the role 0135's public
+			// policy admits. There is no service-role client here and there must
+			// not be: the moment one appears, this route becomes the authorization
+			// boundary instead of the database.
+			const name = row.filename ?? 'attachment';
+			const { data: signed, error: signError } = await supabase.storage
+				.from(CLASSROOM_ATTACHMENTS_BUCKET)
+				.createSignedUrl(row.storage_key, DOWNLOAD_URL_TTL_SECONDS, {
+					// Still a download, on this branch too. A public document does
+					// not make a person's uploaded bytes safe to render as a
+					// document; it only makes them readable.
+					download: downloadFilename(name)
+				});
+			// The ROW resolved through the public RPC, so this attachment IS
+			// public. Storage refusing to sign means the object is gone or the
+			// policy disagrees -- 404, because "not there" and "not yours" answer
+			// identically everywhere else on this route.
+			if (signError || !signed?.signedUrl) {
+				return new Response('Not found', { status: 404 });
+			}
+			redirect(302, signed.signedUrl);
+		}
+
+		// Drive needs its credentials; storage did not, which is why this check
+		// moved DOWN. It used to sit at the top of the branch and 503 a
+		// storage-backed public attachment on any deployment with no Drive token
+		// -- refusing a file it never needed Drive to serve.
+		if (!driveConfigured()) {
+			return json({ error: 'File attachments are not configured on this deployment.' }, { status: 503 });
+		}
+		if (!row.drive_file_id) {
 			return new Response('Not found', { status: 404 });
 		}
 		return serveDriveFile(row.drive_file_id, row.filename ?? 'attachment', row.mime_type ?? '');

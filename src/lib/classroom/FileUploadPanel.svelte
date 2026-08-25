@@ -37,6 +37,7 @@
 	 */
 	import type { UploadOutcome, UploadedFileRow } from '$lib/classroom/file-upload';
 	import { formatBytesShort } from '$lib/classroom/upload-errors';
+	import { isImageFilename } from '$lib/classroom/classroom';
 
 	export interface PanelUpload {
 		(args: {
@@ -58,8 +59,9 @@
 	}
 
 	interface Props {
-		/** Wording only. The transport decides what actually happens. */
-		role: 'attachment' | 'submission';
+		/** Wording only. The transport decides what actually happens, and the
+		 *  database decides whether it may. */
+		role: 'attachment' | 'submission' | 'instructor';
 		/** Known up front on the student side; null in a composer creating an
 		 *  item, where it does not exist until the save call returns. */
 		itemId?: string | null;
@@ -109,8 +111,11 @@
 	 * a HEIC off an iPhone. An extension that turns out not to be a picture
 	 * simply fails to decode and the `onerror` drops the thumbnail; nothing is
 	 * refused either way.
+	 *
+	 * THE RULE ITSELF IS `isImageFilename`, IMPORTED. It used to be a private
+	 * regex here, byte-identical to the one in classroom.ts -- which is exactly
+	 * the arrangement where one of them gains a format and the other does not.
 	 */
-	const PREVIEWABLE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i;
 
 	/** Non-reactive on purpose: the effect that fills it reads `entries` and
 	 *  writing the URLs into reactive state as well would re-trigger it on its
@@ -123,7 +128,7 @@
 		const held = entries.map((e) => e.file);
 		let made = false;
 		for (const file of held) {
-			if (!previewUrls.has(file) && PREVIEWABLE_EXT.test(file.name)) {
+			if (!previewUrls.has(file) && isImageFilename(file.name)) {
 				previewUrls.set(file, URL.createObjectURL(file));
 				made = true;
 			}
