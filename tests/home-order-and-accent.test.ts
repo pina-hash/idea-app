@@ -369,6 +369,17 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 		expect(launcher).toContain("id === 'foundry'");
 		expect(launcher).toContain('<FoundryMark />');
+
+		// THE MARK STOPS WHEN NOBODY CAN SEE IT (the MoltenSeam contract, scaled
+		// down to a card): an IntersectionObserver plus a visibilitychange
+		// listener set data-paused, which pauses the animation. The regression
+		// is silent in the worst way -- a mark that quietly stops pausing looks
+		// identical on screen and only shows up as compositor work on hidden
+		// tabs and scrolled-away grids, which nobody files a bug about.
+		expect(mark).toContain('IntersectionObserver');
+		expect(mark).toContain('visibilitychange');
+		expect(mark).toContain('data-paused');
+		expect(mark).toContain('animation-play-state: paused');
 	});
 
 	it('never moves an identity colour for contrast, only the ink', () => {

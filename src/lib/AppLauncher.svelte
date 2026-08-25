@@ -787,9 +787,11 @@
 	.app-card[data-app='foundry'] {
 		--acc-primary: var(--green);
 		--acc-secondary: var(--cyan);
-		/* Horizontal hairlines at 7px: the lines of content inside the window in
-		   the mark, and distinct from GAUNTLET's blueprint grid and GREENLINE's
-		   diagonals so the three do not read as one family. */
+		/* Horizontal hairlines at 7px: the casting channel's flow lines (the
+		   room's molten seam runs horizontally under every Foundry masthead),
+		   and distinct from GAUNTLET's blueprint grid and GREENLINE's diagonals
+		   so the three do not read as one family. The value predates the forge
+		   mark and did not move; only what it quotes did. */
 		--card-texture: repeating-linear-gradient(
 			to bottom,
 			rgba(0, 240, 255, 0.035) 0 1px,
