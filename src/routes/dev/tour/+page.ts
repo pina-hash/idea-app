@@ -85,6 +85,9 @@ export const load: PageLoad = async ({ url }) => {
 		classroomReady: true,
 		feedSections: (profile ? [HARNESS_SECTION] : []) as ClassroomSection[],
 		feedItems: [] as ClassroomItem[],
-		feedSubmissions: [] as FeedSubmission[]
+		feedSubmissions: [] as FeedSubmission[],
+		// The home page's data shape carries this now (the launcher's admin-only
+		// review badge). Null is the not-an-admin answer, so no badge renders.
+		foundryReviewPending: null as number | null
 	};
 };

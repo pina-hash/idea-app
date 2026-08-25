@@ -20,6 +20,7 @@
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
 
+	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
 	import {
@@ -169,17 +170,29 @@
 								<span class="fdy-card-text">
 									<span class="fdy-card-title">{row.title}</span>
 									{#if row.tagline}<span class="fdy-card-tag">{row.tagline}</span>{/if}
+									<!-- The heat language: finished green, heating amber, cold iron,
+									     shelved. Each state is a chip with its own glyph and word,
+									     never a bare coloured dot. -->
 									<span class="fdy-card-meta">
 										{#if row.published_version_id}
-											<span class="fdy-dot fdy-live" aria-hidden="true"></span>Live
-											&middot; v{row.published_ordinal}
+											<!-- The ordinal can be null in a degraded payload; "Live" alone is
+											     then the whole truth, never "Live vnull". -->
+											<ForgeStatus
+												tone="live"
+												word={row.published_ordinal != null ? `Live v${row.published_ordinal}` : 'Live'}
+											/>
 										{:else}
-											<span class="fdy-dot fdy-quiet" aria-hidden="true"></span>Not published
+											<ForgeStatus tone="quiet" word="Not published" />
 										{/if}
-										&middot; {row.version_count}
-										{row.version_count === 1 ? 'version' : 'versions'}
+										<span class="fdy-card-facts">
+											{row.version_count}
+											{row.version_count === 1 ? 'version' : 'versions'}
+										</span>
 										{#if row.submitted_version_id}
-											&middot; <span class="fdy-waiting">in review</span>
+											<ForgeStatus tone="waiting" word="In review" />
+										{/if}
+										{#if row.hidden_at}
+											<ForgeStatus tone="shelved" word="Hidden by staff" />
 										{/if}
 									</span>
 								</span>
@@ -210,6 +223,13 @@
 			{/if}
 
 			<FoundryIssues title="Something went wrong" tone="failure" issues={problems} />
+
+			{#if app.hidden_at}
+				<p class="fdy-shelved">
+					<ForgeStatus tone="shelved" word="Hidden by staff" />
+					This app is off the gallery. Talk to your instructor about what to change.
+				</p>
+			{/if}
 
 			{#if app.metadata_flagged_at}
 				<p class="fdy-flagged">
@@ -319,10 +339,7 @@
 							<div class="fdy-version-main">
 								<p class="fdy-version-line">
 									<span class="fdy-ordinal">v{v.ordinal}</span>
-									<span class="fdy-status" data-tone={label.tone}>
-										<span class="fdy-dot" data-tone={label.tone} aria-hidden="true"></span>
-										{label.word}
-									</span>
+									<ForgeStatus tone={label.tone} word={label.word} />
 									<span class="fdy-version-meta">
 										{fmt(v.created_at)} &middot; {v.file_count}
 										{v.file_count === 1 ? 'file' : 'files'} &middot; {formatBytes(v.byte_size)}
@@ -515,8 +532,7 @@
 		white-space: nowrap;
 	}
 
-	.fdy-card-tag,
-	.fdy-card-meta {
+	.fdy-card-tag {
 		font-size: 0.82rem;
 		color: var(--text-2);
 		overflow: hidden;
@@ -524,37 +540,23 @@
 		white-space: nowrap;
 	}
 
+	/* A wrapping row of status chips, not an ellipsised line: a chip cut in
+	   half says less than no chip, and a second state is worth a second line
+	   exactly when there is one. The dot rules that used to live here moved
+	   into ForgeStatus, which is the ONE spelling of the heat language. */
 	.fdy-card-meta {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.35rem;
 		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		color: var(--text-2);
+		min-width: 0;
 	}
 
-	/* Colour is never the only signal: every dot sits beside its own word. */
-	.fdy-dot {
-		display: inline-block;
-		width: 0.5rem;
-		height: 0.5rem;
-		border-radius: 50%;
-		margin-right: 0.35rem;
-		background: var(--dim);
-		vertical-align: baseline;
-	}
-
-	.fdy-dot[data-tone='live'],
-	.fdy-live {
-		background: var(--green);
-	}
-	.fdy-dot[data-tone='waiting'] {
-		background: var(--teal);
-	}
-	.fdy-dot[data-tone='ok'] {
-		background: var(--cyan);
-	}
-	.fdy-dot[data-tone='refused'] {
-		background: var(--amber);
-	}
-
-	.fdy-waiting {
-		color: var(--teal);
+	.fdy-card-facts {
+		white-space: nowrap;
 	}
 
 	.fdy-empty {
@@ -698,21 +700,6 @@
 		color: var(--white);
 	}
 
-	.fdy-status {
-		font-family: var(--font-mono);
-		font-size: 0.85rem;
-	}
-
-	.fdy-status[data-tone='live'] {
-		color: var(--green);
-	}
-	.fdy-status[data-tone='waiting'] {
-		color: var(--teal);
-	}
-	.fdy-status[data-tone='refused'] {
-		color: var(--amber);
-	}
-
 	.fdy-version-meta {
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
@@ -739,6 +726,19 @@
 		max-width: 62ch;
 		line-height: 1.45;
 		margin: 0.25rem 0 0;
+	}
+
+	.fdy-shelved {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		border-left: 3px solid var(--fg-st-shelf-edge, var(--hairline));
+		background: var(--bg1);
+		padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+		margin: 0 0 var(--space-3, 0.75rem);
+		font-size: 0.9rem;
+		max-width: 68ch;
 	}
 
 	.fdy-flagged {

@@ -324,9 +324,11 @@ whatever generated the app.
 
 **PREFLIGHT PASSING IS NOT SUBMISSION.** A pass uploads the zip, creates the
 version and runs ingest, and the version stays a DRAFT; submitting for review is
-a separate press on `/foundry/mine`. The surface says so in words, because a
-student who reads "uploaded" as "submitted" walks away believing a review is
-queued when nothing is.
+a separate, deliberate press, offered on `/foundry/submit` once ingest succeeds
+(the optional `submitVersion` transport) and still available on `/foundry/mine`.
+It is never a side effect of the upload finishing. The surface says so in words,
+because a student who reads "uploaded" as "submitted" walks away believing a
+review is queued when nothing is.
 
 **THE UPLOAD PATH IS KEYED TO A PER-UPLOAD UUID, NOT TO THE VERSION ID, AND
 THAT IS FORCED.** `foundry_create_version` takes the zip path as an INPUT, so
@@ -2690,6 +2692,25 @@ properly. That is a bundle, not a line.
     folder colours, `--nb-cell-*` and `--nb-shot-*`.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
+- **`.fg-root` -- the Foundry FORGE** (`src/lib/foundry/forge.css`, mounted by
+  `src/routes/foundry/+layout.svelte` with the persistent `FoundryShell`).
+  Molten metal poured, worked, cooled, finished: GREEN stays the driving colour
+  and the FINISHED state; the `--fg-heat-*` scale (amber/orange) means IN
+  PROGRESS and nothing else may wear it. The five status trios
+  (`--fg-st-*-ink/-fill/-edge`) are the heat language -- draft cold iron,
+  submitted heating, approved cooled green, rejected quenched grey, hidden
+  shelved flat -- read ONLY through `ForgeStatus.svelte`, whose tone vocabulary
+  is `versionLabel`'s own plus `shelved`; fills are PINNED, never mixed from the
+  ink. `MoltenSeam.svelte` is the signature pour (CSS conveyor layers,
+  transform-only, paused offscreen and on a hidden tab, still-gradient under
+  reduced motion) and belongs ONLY where heat belongs: the shell header, the
+  review queue while something waits, the submitted state. The room aliases the
+  shared vocabulary onto its own plate the `.nb-root` way (source and target on
+  `.fg-root` itself) and does NOT re-point the semantic accents. It is in
+  `split.css`'s room lists like `.cd-root`. `$lib/foundry/nav.ts` is the one
+  statement of the IA (contract and starter resolve to the `submit` tab); the
+  shell's Review tab renders for admins only, with the pending count asked only
+  for admins in the layout load -- null, never zero, for everyone else.
 - **`.glb` -- GREENLINE brand** (`Greenline Art Direction Reference.html`,
   direction "1A / IMPACT"). Chrome/steel dominant; **GREEN is surgical** (one
   signature thread, the player's own machine); **AMBER is impact state only**, never
