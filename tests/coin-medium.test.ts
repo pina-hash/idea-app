@@ -160,6 +160,14 @@ beforeAll(async () => {
 		readFileSync(join(repoRoot, 'supabase', 'migrations', '0096_coin_medium.sql'), 'utf8')
 	);
 
+	// 0096 is applied by hand here rather than as part of the chain, so the
+	// anon/private sweep has to follow it by hand too: it closes whatever
+	// functions exist when it runs, and 0096's do not exist until the line
+	// above. Applying it here is what keeps this file's grant assertions true.
+	await db.sql(
+		readFileSync(join(repoRoot, 'supabase', 'migrations', '0137_anon_execute_sweep.sql'), 'utf8')
+	);
+
 	// ---- Sections + roster for the bulk tests.
 	await rpc('coin_admin_upsert_section', 'public.coin_admin_upsert_section($1, $2, null, true, null)', [
 		'bulk-section',

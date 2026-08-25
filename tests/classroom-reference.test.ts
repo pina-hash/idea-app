@@ -48,7 +48,8 @@ const MIGRATIONS = [
 	'0086_classroom_assignment_engine.sql',
 	'0090_classroom_instructor_materials.sql',
 	'0092_classroom_reference_specs.sql',
-	'0095_classroom_leveled_rubrics.sql'
+	'0095_classroom_leveled_rubrics.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 let db: TestDb;

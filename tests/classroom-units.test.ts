@@ -85,7 +85,8 @@ const CHAIN = [
 	'0104_classroom_edit_visibility.sql',
 	'0108_classroom_rich_body.sql',
 	'0109_classroom_scheduled_posting.sql',
-	'0111_classroom_units.sql'
+	'0111_classroom_units.sql',
+	'0137_anon_execute_sweep.sql'
 ];
 
 let db: TestDb;

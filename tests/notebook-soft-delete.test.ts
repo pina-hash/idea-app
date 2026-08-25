@@ -64,7 +64,8 @@ const CHAIN = [
 	'0099_notebook_view_as.sql',
 	'0106_notebook_instructor_student_access.sql',
 	'0114_notebook_note_entry_session.sql',
-	'0116_notebook_soft_delete.sql'
+	'0116_notebook_soft_delete.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 const MIGRATION_0116 = readFileSync(

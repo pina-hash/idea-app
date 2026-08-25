@@ -76,7 +76,14 @@ beforeAll(async () => {
 	// nothing in the notebook chain needs -- inserted after 0070 (whose
 	// is_admin()/current_user_email() it depends on) and before this
 	// migration's own target, 0077.
-	db = await startTestDb([...MIGRATIONS, '0073_coin_sections.sql', '0077_coin_contracts.sql']);
+	// 0137 is filtered out of the spread and re-appended, so the sweep still
+	// runs LAST -- over 0073's and 0077's functions too, not before them.
+	db = await startTestDb([
+		...MIGRATIONS.filter((m) => m !== '0137_anon_execute_sweep.sql'),
+		'0073_coin_sections.sql',
+		'0077_coin_contracts.sql',
+		'0137_anon_execute_sweep.sql'
+	]);
 
 	owner = await createUser(db, 'apina@boscotech.edu', 'Site Owner');
 	studentA = await createUser(db, 'alice@boscotech.net', 'Alice Alvarez');

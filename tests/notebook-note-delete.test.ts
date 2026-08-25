@@ -56,7 +56,8 @@ const CHAIN = [
 	'0116_notebook_soft_delete.sql',
 	'0117_notebook_soft_delete_restore.sql',
 	'0118_notebook_draft_state.sql',
-	'0119_notebook_note_delete.sql'
+	'0119_notebook_note_delete.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 let db: TestDb;
