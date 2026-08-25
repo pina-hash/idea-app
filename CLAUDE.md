@@ -1078,6 +1078,14 @@ against production. Every claim about live data must say so.
 - **Migrations are an immutable applied record.** Never rewrite an applied file
   to change behaviour; write a new one. (This is why the `is_teacher()` naming
   trap exists.)
+  - **A FILE THAT RAISED AND ROLLED ITSELF BACK IS NOT AN APPLIED RECORD**, and
+    is corrected IN PLACE. The rule exists so a file is never changed out from
+    under a database that already ran it; a migration whose own self-check
+    raised left nothing behind, so there is no such database. A follow-up file
+    correcting one nobody can apply would leave a permanently failing migration
+    in the chain, which is worse. 0136 is the case. **Confirm the rollback was
+    total before relying on this** -- a file that failed partway with DDL
+    already committed is the opposite situation and needs a new file.
 - **Idempotent where practical** (`create or replace`, `if not exists`,
   `drop ... if exists` before `create`). **Re-pasting a migration is ordinary** --
   someone re-pastes, or a first attempt failed partway and gets retried -- so a
@@ -1090,6 +1098,44 @@ against production. Every claim about live data must say so.
   rewrites every genuine row, silently.
 - **Report counts with `raise notice`** so the operator can check them against
   what the deployed app actually holds.
+
+### `revoke ... FROM public` DOES NOT CLOSE A FUNCTION ON THIS PROJECT
+
+**A hosted Supabase project bootstraps `alter default privileges in schema
+public grant execute on functions to anon, authenticated, service_role`**, which
+writes a DIRECT grant to each of those roles into every new function's `proacl`
+AT CREATION TIME. That is not the SQL default -- the SQL default is one grant to
+`PUBLIC` -- so `revoke all on function f from public` removes exactly that one
+entry and the function stays granted to `anon`. Measured on the catalog, same
+body, same revoke: without the defaults `proacl` comes out
+`postgres=X/postgres | authenticated=X/postgres` and `anon` is false; WITH them
+it comes out `postgres=X/postgres | anon=X/postgres | authenticated=X/postgres |
+service_role=X/postgres` and **`anon` is true**.
+
+- **A NARROWING MUST NAME THE ROLES**: `revoke all on function f(...) from
+  public, anon, authenticated, service_role;` then grant back only what should
+  hold it. That end state is independent of whatever default privileges the
+  database carries, which is the whole point -- a narrowing that works under one
+  privilege configuration and silently does nothing under the other is not a
+  narrowing.
+- **THE TEST FIXTURE DOES NOT CARRY THOSE DEFAULTS, so it CERTIFIES this bug.**
+  `tests/db/supabase-stub.sql` sets no default privileges, so in the fixture the
+  `from public` form appears to work and every assertion about `anon` passes
+  VACUOUSLY. Measured: adding the three lines reddens **41 assertions across 32
+  files** that past sessions wrote deliberately, and **94 of the 96 functions**
+  one 15-migration chain intends to be authenticated-only still hold `anon`
+  EXECUTE on a real project. **That is a known, unfixed, repo-wide finding** --
+  written up in `docs/HISTORY.md` under the 0136 correction, with the stub patch
+  ready. Do not "fix" it by loosening an assertion, and do not sweep the grants
+  blind: several functions ARE granted to `anon` deliberately (the public coin
+  ledger, the anonymous feedback path).
+- **What limits it today** is that every affected write RPC opens with `if
+  v_uid is null then raise` and `auth.uid()` is null for `anon`, so what is
+  reachable is a function that refuses. It is a gate weakened from "refused at
+  the grant" to "refused in the body", not an open door.
+- **ASSERT THE ACL, NOT THE SELF-CHECK'S VERDICT.** A migration's own guard
+  passing tells you the guard ran; reading `proacl` and
+  `has_function_privilege` back tells you what is actually granted.
 
 ### THE SIGNATURE TRAP
 

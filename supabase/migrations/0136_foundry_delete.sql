@@ -106,12 +106,62 @@
 -- watching which refusal comes back. That is 0130's rule and it is kept.
 --
 -- ---------------------------------------------------------------------------
+-- `revoke ... FROM public` IS NOT ENOUGH ON A SUPABASE PROJECT, AND THIS FILE
+-- LEARNED THAT THE HARD WAY: the first draft raised its own self-check on
+-- production and rolled itself back entirely.
+--
+-- A hosted project bootstraps
+--
+--   alter default privileges in schema public
+--     grant execute on functions to anon, authenticated, service_role;
+--
+-- which writes a DIRECT grant to each of those three roles into every new
+-- function's `proacl` AT CREATION TIME. That is not the SQL default. The SQL
+-- default is one grant to PUBLIC, and `revoke all on function f from public`
+-- removes exactly that one entry and nothing else -- so on a real project the
+-- function comes out of `create` already granted to `anon`, the revoke does
+-- not touch it, and it stays granted.
+--
+-- Measured on this database's own catalog, on a function created each way and
+-- then put through the identical `revoke ... from public`:
+--
+--   no default privileges configured
+--     proacl  postgres=X/postgres | authenticated=X/postgres
+--     anon    false
+--
+--   WITH the Supabase defaults
+--     proacl  postgres=X/postgres | anon=X/postgres
+--             | authenticated=X/postgres | service_role=X/postgres
+--     anon    TRUE
+--
+--   revoking from the roles as well as from public
+--     proacl  postgres=X/postgres | authenticated=X/postgres
+--     anon    false
+--
+-- So both revokes below NAME THE ROLES. That end state is independent of
+-- whatever default privileges the database happens to carry, which is the
+-- point: a narrowing that only works under one privilege configuration is a
+-- narrowing that silently does nothing under the other.
+--
+-- 0130's OWN WRITE RPCs USE THE `from public` FORM AND ARE THEREFORE STILL
+-- GRANTED TO `anon` ON PRODUCTION. That is a real finding and it is NOT fixed
+-- here: those functions are live and students call them today, and re-granting
+-- eleven applied functions is its own migration with its own verification. It
+-- is written up in docs/HISTORY.md under this bundle. What limits it is that
+-- every one of them opens with `if v_uid is null then raise` -- `auth.uid()`
+-- is null for an `anon` caller -- so the exposure is a reachable function that
+-- refuses, not an unauthorized write. It should still be closed.
+--
+-- ---------------------------------------------------------------------------
 -- WHAT UNDOES THIS MIGRATION. It creates two functions and nothing else -- no
 -- table, no column, no policy, no row, no grant to a role that did not already
 -- hold one. So the reversal is exact and loses nothing:
 --
 --   drop function if exists public.foundry_delete_version(uuid);
 --   drop function if exists public.foundry_delete_app(uuid);
+--
+-- Dropping a function takes its ACL with it, so the revokes below need no
+-- separate undo.
 --
 -- After that, deletion stops existing again and `foundry_set_app_hidden` is
 -- once more the only way anything leaves the gallery, which is the state 0130
@@ -228,7 +278,10 @@ begin
 end;
 $$;
 
-revoke all on function public.foundry_delete_app(uuid) from public;
+-- REVOKED FROM THE ROLES THAT ACTUALLY HOLD IT, NOT ONLY FROM `public`.
+-- See the header section on default privileges: `revoke ... from public`
+-- alone leaves `anon` a direct EXECUTE on a real Supabase project.
+revoke all on function public.foundry_delete_app(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.foundry_delete_app(uuid) to authenticated;
 
 
@@ -331,7 +384,10 @@ begin
 end;
 $$;
 
-revoke all on function public.foundry_delete_version(uuid) from public;
+-- REVOKED FROM THE ROLES THAT ACTUALLY HOLD IT, NOT ONLY FROM `public`.
+-- See the header section on default privileges: `revoke ... from public`
+-- alone leaves `anon` a direct EXECUTE on a real Supabase project.
+revoke all on function public.foundry_delete_version(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.foundry_delete_version(uuid) to authenticated;
 
 
