@@ -85,6 +85,7 @@ export const load: PageLoad = async ({ url }) => {
 		classroomReady: true,
 		feedSections: (profile ? [HARNESS_SECTION] : []) as ClassroomSection[],
 		feedItems: [] as ClassroomItem[],
-		feedSubmissions: [] as FeedSubmission[]
+		feedSubmissions: [] as FeedSubmission[],
+		feedManagerEmails: {} as Record<string, string[]>
 	};
 };

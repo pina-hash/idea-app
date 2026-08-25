@@ -1,5 +1,5 @@
 import { normalizeItemRow, normalizeSectionRow, sortSections } from '$lib/classroom/classroom';
-import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
+import { SECTION_SELECT, loadSectionRoster, selectItemsWithDoc } from '$lib/classroom/transports';
 import type { FeedSubmission } from '$lib/classroom/feed';
 import type { PageServerLoad } from './$types';
 
@@ -34,7 +34,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			classroomReady: true,
 			feedSections: [],
 			feedItems: [],
-			feedSubmissions: [] as FeedSubmission[]
+			feedSubmissions: [] as FeedSubmission[],
+			feedManagerEmails: {} as Record<string, string[]>
 		};
 	}
 
@@ -47,7 +48,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			classroomReady: false,
 			feedSections: [],
 			feedItems: [],
-			feedSubmissions: [] as FeedSubmission[]
+			feedSubmissions: [] as FeedSubmission[],
+			feedManagerEmails: {} as Record<string, string[]>
 		};
 	}
 
@@ -60,7 +62,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			classroomReady: true,
 			feedSections: [],
 			feedItems: [],
-			feedSubmissions: [] as FeedSubmission[]
+			feedSubmissions: [] as FeedSubmission[],
+			feedManagerEmails: {} as Record<string, string[]>
 		};
 	}
 
@@ -89,10 +92,26 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		submissions = (subRows ?? []) as FeedSubmission[];
 	}
 
+	// Who, on the rosters this caller MANAGES, can manage the class they are
+	// enrolled in (0136). One round trip for every one of them -- the null
+	// section is what that spelling means -- and a student receives nothing at
+	// all, because this is a management read. It keeps an instructor's own
+	// hand-in out of their own to-grade count; without 0136 it answers empty
+	// and the tally is the one it has always been.
+	const managed = await loadSectionRoster(supabase, null);
+	const feedManagerEmails: Record<string, string[]> = {};
+	if (managed.ok) {
+		for (const row of managed.data.rows) {
+			if (row.manages !== true) continue;
+			(feedManagerEmails[row.section_id] ??= []).push(row.student_email);
+		}
+	}
+
 	return {
 		classroomReady: true,
 		feedSections: sections,
 		feedItems: items,
-		feedSubmissions: submissions
+		feedSubmissions: submissions,
+		feedManagerEmails
 	};
 };

@@ -17,6 +17,7 @@
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		assignmentStandings,
+		splitRoster,
 		isScheduled,
 		registerLocalAttachmentUrl,
 		studentWorkMap
@@ -181,17 +182,32 @@
 		'Ximena Ferreira'
 	];
 
+	/**
+	 * Enrollments carrying 0136's `manages` flag, because the two rows that
+	 * matter for the Roster area are the two the flag distinguishes.
+	 *
+	 *   * TEACHER is the reported defect: the section's own teacher of record,
+	 *     sitting on their own roster. Their row must be labelled and must be
+	 *     absent from the grading roster, the FACTS CSV and the Grades count.
+	 *   * `dara` is the removable case (no work attached anywhere in this
+	 *     harness), `alice` is the refused one -- she has submissions and
+	 *     responses in the fixture below, which is what makes the refusal path
+	 *     drivable here at all rather than only against a database.
+	 */
 	let enrollments = $state<ClassroomEnrollment[]>([
-		{ section_id: 's-1', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true },
-		{ section_id: 's-1', student_email: 'ben@boscotech.net', display_name: 'Ben Okafor', active: false },
-		{ section_id: 's-1', student_email: 'carla@boscotech.net', display_name: 'Carla Cardenas', active: true },
+		{ section_id: 's-1', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true, manages: false },
+		{ section_id: 's-1', student_email: 'ben@boscotech.net', display_name: 'Ben Okafor', active: false, manages: false },
+		{ section_id: 's-1', student_email: 'carla@boscotech.net', display_name: 'Carla Cardenas', active: true, manages: false },
+		{ section_id: 's-1', student_email: 'dara@boscotech.net', display_name: 'Dara Nwosu', active: true, manages: false },
+		{ section_id: 's-1', student_email: TEACHER, display_name: 'T. Vargas', active: true, manages: true },
 		...FILLER_NAMES.map((name, i) => ({
 			section_id: 's-1',
 			student_email: `${name.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '')}${i}@boscotech.net`,
 			display_name: name,
-			active: true
+			active: true,
+			manages: false
 		})),
-		{ section_id: 's-2', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true }
+		{ section_id: 's-2', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true, manages: false }
 	]);
 
 	/**
@@ -593,6 +609,52 @@
 				};
 			}
 			return { ok: true, data: enrollments.filter((e) => e.section_id === sectionId) };
+		},
+		/**
+		 * The RPC's own shape, both branches. It counts against the SAME fixture
+		 * arrays the rest of this harness renders from, so "alice is refused"
+		 * is a consequence of her having work here rather than a hard-coded
+		 * answer -- delete her submission from the fixture and she becomes
+		 * removable, exactly as she would in the database.
+		 */
+		async removeEnrollment(sectionId, email) {
+			note('removeEnrollment', { sectionId, email });
+			const norm = email.trim().toLowerCase();
+			if (!enrollments.some((e) => e.section_id === sectionId && e.student_email === norm)) {
+				return { ok: true, data: { ok: false, reason: 'not_enrolled', student_email: norm } };
+			}
+			const itemIds = new Set(inSection(sectionId, true).map((i) => i.id));
+			const counts = {
+				responses: engResponses.filter(
+					(r) => r.student_email === norm && itemIds.has(r.item_id)
+				).length,
+				submissions: engSubmissions.filter(
+					(s) => s.student_email === norm && itemIds.has(s.item_id)
+				).length,
+				approvals: engApprovals.filter(
+					(a) => a.student_email === norm && itemIds.has(a.item_id)
+				).length,
+				notebook_entries: 0
+			};
+			const total =
+				counts.responses + counts.submissions + counts.approvals + counts.notebook_entries;
+			if (total > 0) {
+				return {
+					ok: true,
+					data: {
+						ok: false,
+						reason: 'work_attached',
+						section_id: sectionId,
+						student_email: norm,
+						total,
+						counts
+					}
+				};
+			}
+			enrollments = enrollments.filter(
+				(e) => !(e.section_id === sectionId && e.student_email === norm)
+			);
+			return { ok: true, data: { ok: true, section_id: sectionId, student_email: norm } };
 		},
 		async setEnrollment(sectionId, email, name, active) {
 			note('setEnrollment', { sectionId, email, name, active });
@@ -2259,8 +2321,10 @@
 				.map((s) => ({ item_id: s.item_id, state: s.state, score: s.score }))
 		)
 	);
+	// Through the REAL splitRoster, so the harness's Grades denominator cannot
+	// disagree with the one the page computes.
 	const rosterSize = (sectionId: string) =>
-		enrollments.filter((e) => e.section_id === sectionId && e.active).length;
+		splitRoster(enrollments.filter((e) => e.section_id === sectionId && e.active)).students.length;
 
 	// The shell view drives the REAL nav module off a pathname picked here.
 	const SHELL_PATHS = [
@@ -2288,6 +2352,14 @@
 	// has to report that in place rather than pretend. The summary itself is
 	// computed by the REAL gridSummary/summarize/cellDisplay in the component.
 	let notebookApplied = $state(true);
+	/**
+	 * Is 0136 applied? The panel's `removalReady`, so the DEGRADED state is
+	 * drivable here: with this off the roster rows carry no status the flag
+	 * could give them and there is no Remove control at all, which is exactly
+	 * what a project sitting between two hand-applied migrations must look
+	 * like. A button that would answer PGRST202 is the thing this prevents.
+	 */
+	let peopleRemovalReady = $state(true);
 	/**
 	 * Fault injection for the one path the fixture cannot otherwise reach: the
 	 * console lists a section whose grid the RPC then REFUSES (its teacher of
@@ -2417,6 +2489,10 @@
 	<label class="harness-toggle">
 		<input type="checkbox" bind:checked={notebookRefuses} data-testid="sim-notebook-refuses" />
 		grid refuses this section
+	</label>
+	<label class="harness-toggle">
+		<input type="checkbox" bind:checked={peopleRemovalReady} data-testid="sim-removal" />
+		enrollment removal applied (0136)
 	</label>
 	<label class="harness-toggle">
 		<input type="checkbox" bind:checked={checkInsApplied} data-testid="sim-check-ins" />
@@ -2686,6 +2762,7 @@
 	<PeoplePanel
 		section={section1}
 		roster={enrollments.filter((e) => e.section_id === 's-1')}
+		removalReady={peopleRemovalReady}
 		{transports}
 		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
 	/>

@@ -58,6 +58,7 @@
 			submissions: (data.feedSubmissions ?? []) as FeedSubmission[],
 			myEmail: (claims?.email as string | undefined) ?? '',
 			isAdmin,
+			managerEmails: (data.feedManagerEmails ?? {}) as Record<string, string[]>,
 			now
 		})
 	);

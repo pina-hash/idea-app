@@ -62,6 +62,104 @@ export interface ClassroomEnrollment {
 	display_name: string;
 	active: boolean;
 	updated_at?: string;
+	/**
+	 * Can this person MANAGE the section they are enrolled in (0136)?
+	 *
+	 * Projected by `classroom_section_roster`, never derived here: admin-ness is
+	 * keyed on `app_admins`, which is admin-only readable, so a browser has no
+	 * way to ask. UNDEFINED is the degraded rung talking -- a project without
+	 * 0136 applied cannot answer, and "cannot tell" must not read as "yes".
+	 */
+	manages?: boolean;
+}
+
+/**
+ * THE ONE PLACE A MANAGER STOPS BEING A STUDENT.
+ *
+ * An instructor with an enrollment row in their own section is an ordinary
+ * thing to find: they added themselves to see the class the way a student does,
+ * or a roster import swept them in. What is NOT ordinary is what it looked
+ * like -- a row on the check-in grid with a LEFT badge and cells nobody can
+ * check, a row in the grading roster, a line in the FACTS CSV, and one more
+ * head in the Grades denominator -- and until 0136 there was no affordance
+ * anywhere to remove it.
+ *
+ * THE SIGNAL IS THE DATABASE'S, and this function only sorts by it. Every
+ * caller reads `manages` off the row rather than asking "is this the teacher of
+ * record" for itself; a second spelling of that question is what stops matching
+ * the first.
+ *
+ * IT IS SEPARATE FROM THE OFF-ROSTER COUNT ON PURPOSE. An off-roster email is a
+ * finding -- somebody's work arrived attached to no enrollment, which is either
+ * a cross-section read or a real enrollment mistake. A manager exclusion is not
+ * a finding at all: it is the roster working. Two labels, two sentences,
+ * because only one of them is a problem.
+ */
+export interface RosterSplit {
+	/** Roster rows that are somebody's student row. Order is preserved. */
+	students: ClassroomEnrollment[];
+	/** The addresses dropped because they can manage the section, sorted. */
+	managers: string[];
+}
+
+export function splitRoster(rows: readonly ClassroomEnrollment[]): RosterSplit {
+	const students: ClassroomEnrollment[] = [];
+	const managers = new Set<string>();
+	for (const row of rows) {
+		if (row.manages === true) managers.add(row.student_email);
+		else students.push(row);
+	}
+	return { students, managers: [...managers].sort() };
+}
+
+/** The counts `classroom_remove_enrollment` refuses with, one per work kind. */
+export interface EnrollmentWorkCounts {
+	responses: number;
+	submissions: number;
+	approvals: number;
+	notebook_entries: number;
+}
+
+/** What `classroom_remove_enrollment` answers, verbatim. */
+export type EnrollmentRemoval =
+	| { ok: true; section_id: string; student_email: string }
+	| {
+			ok: false;
+			reason: 'work_attached';
+			section_id: string;
+			student_email: string;
+			total: number;
+			counts: EnrollmentWorkCounts;
+	  }
+	| { ok: false; reason: 'not_enrolled'; student_email: string };
+
+/** Human words for one work kind, singular and plural. */
+const WORK_LABELS: Record<keyof EnrollmentWorkCounts, [string, string]> = {
+	responses: ['saved answer', 'saved answers'],
+	submissions: ['hand-in', 'hand-ins'],
+	approvals: ['module approval', 'module approvals'],
+	notebook_entries: ['notebook entry', 'notebook entries']
+};
+
+/**
+ * The refusal, as a sentence somebody can act on. NONZERO COUNTS ONLY: "0
+ * hand-ins" is noise in a list whose whole job is to say what is in the way.
+ *
+ * The order is the order the counts are declared in, which is roughly the order
+ * a teacher would go looking. A soft-deleted notebook entry is counted among
+ * the entries deliberately (0116/0117 make it restorable, so it is work that
+ * can still come back) and the sentence says so, because "1 notebook entry"
+ * against an empty-looking notebook is otherwise unexplainable.
+ */
+export function enrollmentWorkSummary(counts: EnrollmentWorkCounts): string {
+	const parts: string[] = [];
+	for (const key of Object.keys(WORK_LABELS) as (keyof EnrollmentWorkCounts)[]) {
+		const n = counts[key] ?? 0;
+		if (n > 0) parts.push(`${n} ${WORK_LABELS[key][n === 1 ? 0 : 1]}`);
+	}
+	if (parts.length === 0) return '';
+	if (parts.length === 1) return parts[0];
+	return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
 /** A URL attached to an item (0085 classroom_item_resources). */
@@ -1509,6 +1607,18 @@ export interface ClassroomPeopleTransports {
 		newEmail: string | null,
 		name: string | null
 	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
+	/**
+	 * Delete an enrollment outright (0136). The FIRST removal path this schema
+	 * has ever had: `setEnrollment` writes an `active` flag, which archives a
+	 * student and is the right answer for one who left mid-term, and leaves the
+	 * row on every roster read that does not filter on it.
+	 *
+	 * OPTIONAL, so its ABSENCE removes the Remove control down through the
+	 * panel (the omitted-transport convention). That is what a project sitting
+	 * on a pre-0136 schema gets: Deactivate, exactly as before, and no button
+	 * that would answer PGRST202.
+	 */
+	removeEnrollment?: (sectionId: string, email: string) => Promise<TxResult<EnrollmentRemoval>>;
 	importRoster(rows: RosterRow[]): Promise<TxResult<ImportSummary>>;
 }
 

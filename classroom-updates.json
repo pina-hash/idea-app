@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-08-25",
+			"title": "Your class list only shows students",
+			"body": "Teachers sometimes add their own account to a class so they can see it the way you do. Until now that account turned up everywhere a student would: on the check-in grid, in the grading list, and in the count of how many people are in the class. It does not any more, so the number on the Grades page and the names on the check-in grid are the class itself. Nothing about your own work changed, and nothing you have handed in moved. Your teacher can also now take a name off a class list for good, which only goes through when nothing at all has been handed in or written under it.",
+			"tags": [
+				"classroom",
+				"grades"
+			]
+		},
+		{
+			"date": "2026-08-25",
 			"title": "Photos you hand in show as photos again",
 			"body": "When files moved to the new storage, a photo you added to a photo block stopped showing as a picture and turned into a row you had to click to see. That is fixed. A picture shows as a picture again, in the photo blocks on an assignment, in your extra files, and in the view your teacher grades from, and clicking it opens the full size version. Anything that is not a picture, a part file, an assembly, a zip, still shows as a file row with its type beside it, which is what you want: nobody needs a preview of a SolidWorks assembly. If a picture cannot be shown for any reason it falls back to that same file row rather than a broken image, so there is always something to click. Nothing changed about who can see your work, and files still download rather than opening as a page in the browser.",
 			"tags": [

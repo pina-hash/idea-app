@@ -33,6 +33,7 @@
 <PeoplePanel
 	section={data.section}
 	roster={data.roster}
+	removalReady={data.removalReady}
 	{transports}
 	{loadNotebookGrid}
 	onchanged={() => invalidateAll()}

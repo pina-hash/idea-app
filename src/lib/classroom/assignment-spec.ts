@@ -1253,7 +1253,7 @@ export function filesByBlockCount(files: SubmissionFileRow[]): Map<string, numbe
 // never throws -- so refusals render inline.
 // ---------------------------------------------------------------------------
 
-import { isImageFilename } from './classroom';
+import { isImageFilename, splitRoster } from './classroom';
 import type { ClassroomEnrollment, TxResult } from './classroom';
 
 /** The structured answer the 0086 RPCs give back (ok or a named refusal). */
@@ -1413,6 +1413,13 @@ export interface StudentWorkRows {
 	 * section's roster, sorted and deduped. Reported, never silently dropped.
 	 */
 	offRoster: string[];
+	/**
+	 * Roster rows dropped because that person can MANAGE this section (0136),
+	 * sorted. A SEPARATE LIST FROM `offRoster`, and the separation is the
+	 * point: an off-roster email is a finding, a manager exclusion is the
+	 * roster working. Only one of the two is an error.
+	 */
+	managers: string[];
 }
 
 /**
@@ -1440,7 +1447,14 @@ export function studentWorkRows(data: GradingData): StudentWorkRows {
 	const byEmail = new Map<string, StudentWork>();
 	const rows: StudentWork[] = [];
 	const offRoster = new Set<string>();
-	for (const e of [...data.roster].sort((a, b) =>
+	// THE MANAGER SPLIT IS THE DATABASE'S ANSWER, sorted here and nowhere else
+	// (splitRoster is the one implementation). It runs BEFORE the loop because
+	// it also has to keep a manager's own work out of `offRoster`: their
+	// responses are legitimately in this payload, and calling them off-roster
+	// would report the fix as a problem.
+	const { students, managers } = splitRoster(data.roster);
+	const isManager = new Set(managers);
+	for (const e of [...students].sort((a, b) =>
 		a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })
 	)) {
 		if (byEmail.has(e.student_email)) continue;
@@ -1460,7 +1474,8 @@ export function studentWorkRows(data: GradingData): StudentWorkRows {
 	const onRoster = (email: string): StudentWork | null => {
 		const row = byEmail.get(email);
 		if (row) return row;
-		offRoster.add(email);
+		// A manager's own work is dropped, and is NOT a finding.
+		if (!isManager.has(email)) offRoster.add(email);
 		return null;
 	};
 	const submissionOwner = new Map<string, string>();
@@ -1477,7 +1492,7 @@ export function studentWorkRows(data: GradingData): StudentWorkRows {
 		if (owner) onRoster(owner)?.files.push(f);
 	}
 	for (const a of data.approvals) onRoster(a.student_email)?.approvals.push(a);
-	return { rows, offRoster: [...offRoster].sort() };
+	return { rows, offRoster: [...offRoster].sort(), managers };
 }
 
 // ---------------------------------------------------------------------------
