@@ -36,9 +36,26 @@ import { FOUNDRY_ENTRY_FILE, foundryMime } from '$lib/foundry/preflight';
 
 export const FIXTURE_APP_A = '11111111-1111-4111-8111-111111111111';
 export const FIXTURE_APP_B = '22222222-2222-4222-8222-222222222222';
+/**
+ * THE SCRATCH APP: an empty bundle the submit harness FILLS IN at run time.
+ *
+ * A and B are fixed bytes, written here, standing for cases the proxy has to
+ * refuse or serve. C holds nothing until a harness puts something in it, and
+ * that is what it is for: the submit harness normalizes a real upload in the
+ * browser, runs the real preflight over it, and posts the RESULTING files
+ * here -- so what the frame then renders is the output of the pipeline in that
+ * run, in that browser, rather than a second copy of it computed some other
+ * way.
+ *
+ * That distinction is the whole value of the acceptance drive. A fixture built
+ * from the same source file by a different code path would prove the rewrite
+ * agrees with itself.
+ */
+export const FIXTURE_APP_C = '33333333-3333-4333-8333-333333333333';
 export const FIXTURE_VERSION_A_LIVE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
 export const FIXTURE_VERSION_A_STALE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
 export const FIXTURE_VERSION_B_LIVE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
+export const FIXTURE_VERSION_C_LIVE = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
 export const FIXTURE_VIEWER = '99999999-9999-4999-8999-999999999999';
 
 /**
@@ -143,6 +160,28 @@ attempt('external-script-global', function () {
 // itself, which cannot be blocked by an instrument.
 report('own-relative-stylesheet', document.styleSheets.length + ' sheets, body font=' +
   String(getComputedStyle(document.body).fontFamily).slice(0, 40));
+/*
+ * DID THE FONT FILE ACTUALLY ARRIVE, as opposed to being asked for.
+ *
+ * NO BACKTICKS IN THIS COMMENT, and that is not a style note: this whole page
+ * is a template literal in foundry-dev-fixture.ts, so one backtick here ends
+ * the string early and the module stops parsing. It cost a broken harness once.
+ *
+ * The getComputedStyle reading above reports the DECLARED STACK and says
+ * nothing about whether the face loaded -- it reads "Rajdhani, system-ui" just
+ * as happily when the woff2 was refused and the text is being drawn in
+ * system-ui. The two were being conflated, and the difference is the whole
+ * question: a bundle runs in an OPAQUE ORIGIN, every @font-face fetch is made
+ * in CORS mode with no way to opt out, and an opaque origin is same-origin with
+ * nothing -- so the platform fonts load only if /_platform/ answers with an
+ * Access-Control-Allow-Origin header. document.fonts.load resolves with the
+ * faces it actually got, so an empty array is a refusal and a non-empty one is
+ * bytes on the wire.
+ */
+document.fonts.load('16px Rajdhani', 'Ag').then(
+  function (faces) { report('platform-font-loaded', faces.length > 0 ? 'YES ' + faces.length + ' face(s)' : 'NO faces resolved'); },
+  function (e) { report('platform-font-loaded', 'FAILED ' + (e && e.name ? e.name : 'Error')); }
+);
 var img = document.getElementById('apiprobe');
 report('img-api-src-resolved-to', img.src);
 function imgVerdict() {
@@ -279,8 +318,47 @@ const versions = new Map<string, FixtureVersion>([
 				file('b-only.json', '{"owner":"app B"}')
 			])
 		}
+	],
+	[
+		FIXTURE_VERSION_C_LIVE,
+		{
+			appId: FIXTURE_APP_C,
+			entry: FOUNDRY_ENTRY_FILE,
+			// Empty until a harness fills it. Until then every path under it is
+			// the same bodyless 404 as any other missing file, which is the
+			// correct answer for a version that genuinely has no files.
+			files: new Map<string, FixtureFile>([
+				file(
+					FOUNDRY_ENTRY_FILE,
+					'<!doctype html><title>Nothing loaded yet</title><p>Drive the submit harness to put a bundle here.'
+				)
+			])
+		}
 	]
 ]);
+
+/**
+ * Replaces the scratch app's file set with one the harness just produced.
+ *
+ * IN MEMORY, AND DEV ONLY. It is called from a `+server.ts` that returns 404
+ * unless `dev`, and it reaches nothing but this module's own Map -- there is no
+ * Storage write, no row, and nothing that survives a restart of the dev server.
+ *
+ * IT IS A SOURCE OF BYTES, NOT A SECOND PROXY, exactly like the two fixed
+ * bundles above. The same route serves them, the same token verification lets
+ * them through, the same publication re-check applies, the same headers and the
+ * same CSP go out. Only where the bytes came from is different.
+ */
+export function setFixtureBundle(files: { path: string; text: string }[]): number {
+	const next = new Map<string, FixtureFile>();
+	for (const f of files) next.set(...file(f.path, f.text));
+	versions.set(FIXTURE_VERSION_C_LIVE, {
+		appId: FIXTURE_APP_C,
+		entry: FOUNDRY_ENTRY_FILE,
+		files: next
+	});
+	return next.size;
+}
 
 const apps = new Map<string, FixtureApp>([
 	[
@@ -300,6 +378,16 @@ const apps = new Map<string, FixtureApp>([
 			slug: 'app-b',
 			title: 'App B',
 			publishedVersionId: FIXTURE_VERSION_B_LIVE,
+			hiddenAt: null
+		}
+	],
+	[
+		FIXTURE_APP_C,
+		{
+			id: FIXTURE_APP_C,
+			slug: 'harness-run',
+			title: 'Harness run',
+			publishedVersionId: FIXTURE_VERSION_C_LIVE,
 			hiddenAt: null
 		}
 	]

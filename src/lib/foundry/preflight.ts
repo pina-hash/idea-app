@@ -18,12 +18,13 @@
  * even less.
  *
  * THESE MESSAGES ARE WRITTEN AGAINST THE BUILD CONTRACT students are given:
- * one folder with index.html at the top level; vanilla HTML, CSS and JS with no
- * build step; every path relative and never starting with a forward slash; no
- * network at runtime; fonts from `/_platform/fonts.css`, which is the one
- * allowed absolute path; localStorage present but in memory and cleared on
- * reload; the sandbox blocking `window.parent`, `window.open`, navigation and
- * downloads. If that document's wording moves, these move with it.
+ * one folder with index.html at the top level; HTML, CSS and JS with no build
+ * step, React with JSX included by way of the hosted libraries; every path
+ * relative except the platform ones; no network at runtime; fonts from
+ * `/_platform/fonts.css` and libraries from `/_platform/lib/*`, which are the
+ * only absolute paths allowed; localStorage present but in memory and cleared
+ * on reload; the sandbox blocking `window.parent`, `window.open`, navigation
+ * and downloads. If that document's wording moves, these move with it.
  *
  * THE HTML AND CSS SCAN IS A USABILITY GATE, NOT A SECURITY BOUNDARY. Runtime
  * safety is the sandbox and the CSP, which land in the next lane. That is why
@@ -35,6 +36,19 @@
  */
 
 import { bundlePathOk } from '../bundle-path.ts';
+import {
+	FOUNDRY_PLATFORM_LIBRARIES,
+	FOUNDRY_STARTER_PATH,
+	PLATFORM_LIB_PREFIX,
+	classifyVendorReference,
+	identifyCdnReference,
+	isPlatformLibraryPath,
+	platformLibraryFor,
+	platformLibraryHelp,
+	platformLibraryPath,
+	vendorRewriteNote,
+	type PlatformLibrary
+} from './vendor.ts';
 
 /* -------------------------------------------------------------------------
  * Caps and vocabulary.
@@ -419,6 +433,14 @@ export function classifyReference(value: string): RefVerdict {
 	if (v === '') return { kind: 'ok' };
 	if (v.startsWith('#') || v.startsWith('?')) return { kind: 'ok' };
 	if (v === PLATFORM_FONTS_PATH) return { kind: 'ok' };
+	/*
+	 * A HOSTED LIBRARY PATH IS FINE, AND IT HAS TO BE FOR THE REWRITE TO
+	 * TERMINATE. The ingest rewrite turns a CDN tag into one of these, and the
+	 * result is checked again -- on a re-upload, or by a student who downloads
+	 * the starter file and submits it unchanged. Without this the platform's
+	 * own repair would be refused by the platform's own absolute-path rule.
+	 */
+	if (isPlatformLibraryPath(v)) return { kind: 'ok' };
 
 	const lower = v.toLowerCase();
 	if (NO_NETWORK_SCHEMES.some((s) => lower.startsWith(s))) return { kind: 'ok' };
@@ -456,10 +478,45 @@ export function classifyReference(value: string): RefVerdict {
  * is the literal string `url`, which is what makes the two cases separable
  * here rather than at every call site.
  */
-function relativeExample(attr: string, value: string): string {
+/**
+ * THE FALLBACK NAME COMES FROM THE TAG, because a URL frequently has no
+ * filename to take one from and `file.css` was being offered for all of them.
+ *
+ * Measured on the fixture this lane exists for: `<script src="https://unpkg.com/lucide@latest">`
+ * has no extension anywhere in it, so the guess failed and the message told a
+ * student to write `src="file.css"` -- a stylesheet name, in a script tag,
+ * for an icon library. Every one of those three is wrong, and the sentence was
+ * going to be pasted back into the tool that generated the app.
+ *
+ * A tag knows what kind of file it wants, so it is the tag that answers.
+ */
+function fallbackName(tag: string): string {
+	switch (tag.toLowerCase()) {
+		case 'script':
+			return 'library.js';
+		case 'link':
+			return 'styles.css';
+		case 'img':
+			return 'image.png';
+		case 'video':
+			return 'clip.mp4';
+		case 'audio':
+			return 'sound.mp3';
+		case 'source':
+			return 'media.mp4';
+		case 'iframe':
+			return 'page.html';
+		default:
+			// The CSS `url()` case, where `tag` is empty. A stylesheet's own
+			// url() is nearly always an image or a font, never another sheet.
+			return 'image.png';
+	}
+}
+
+function relativeExample(tag: string, attr: string, value: string): string {
 	const base = value.split(/[?#]/)[0];
-	const guess = base.slice(base.lastIndexOf('/') + 1) || 'file.css';
-	const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : 'file.css';
+	const guess = base.slice(base.lastIndexOf('/') + 1);
+	const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : fallbackName(tag);
 	return attr === 'url' ? `url("${named}")` : `${attr}="${named}"`;
 }
 
@@ -496,6 +553,101 @@ export class LineFinder {
 		for (let i = 0; i < at; i++) if (this.source.charCodeAt(i) === 10) line++;
 		return line;
 	}
+}
+
+/** Where an attribute's value sits in the source, exactly. */
+export interface AttrSpan {
+	/** Index of the value's first character. */
+	start: number;
+	/** Index one past the value's last character. */
+	end: number;
+	line: number;
+}
+
+/**
+ * FINDS AN ATTRIBUTE'S VALUE AS AN ATTRIBUTE, not as a run of text that
+ * happens to match.
+ *
+ * `LineFinder` answers "roughly where is this string", which is enough to put
+ * a line number in a sentence and points at the first of two identical
+ * mistakes in the worst case. That is not enough to EDIT with. The rewrite
+ * replaces bytes in a file a student wrote, so the span it replaces has to be
+ * the attribute value and provably nothing else -- a URL sitting in a comment,
+ * in a code sample, or in the text of the page must never be silently
+ * rewritten.
+ *
+ * So the search is for the value PRECEDED BY `="`, `='` or a bare `=`, which
+ * an attribute value is by construction and a run of prose is not. Each value
+ * carries its own cursor, so two identical script tags resolve to their own
+ * positions in document order rather than both to the first.
+ *
+ * WHEN IT FINDS NOTHING THE CALLER MUST NOT GUESS. The parser saw the
+ * reference, so it is really there -- entity-encoded, or spelled in some way
+ * this does not match. `scanHtml` falls back to refusing it, which is the
+ * fail-closed direction: an app that is refused can be uploaded again, where
+ * an app rewritten at the wrong offset is a corrupted file nobody inspected.
+ */
+export class AttrFinder {
+	private readonly source: string;
+	private readonly cursors = new Map<string, number>();
+	constructor(source: string) {
+		this.source = source;
+	}
+
+	find(value: string): AttrSpan | null {
+		if (!value) return null;
+		const from = this.cursors.get(value) ?? 0;
+		const span = this.search(value, from) ?? (from === 0 ? null : this.search(value, 0));
+		if (!span) return null;
+		this.cursors.set(value, span.end);
+		return span;
+	}
+
+	private search(value: string, from: number): AttrSpan | null {
+		for (let at = this.source.indexOf(value, from); at >= 0; ) {
+			const before = at === 0 ? '' : this.source[at - 1];
+			const quoted = before === '"' || before === "'";
+			// A quoted value must be CLOSED by the same quote, or what was
+			// matched is a prefix of a longer value.
+			const closes = quoted
+				? this.source[at + value.length] === before
+				: /[\s/>]/.test(this.source[at + value.length] ?? '>');
+			const opens = quoted ? this.source[at - 2] === '=' : before === '=';
+			if (opens && closes) {
+				return { start: at, end: at + value.length, line: lineAt(this.source, at) };
+			}
+			at = this.source.indexOf(value, at + 1);
+		}
+		return null;
+	}
+}
+
+/**
+ * Applies a set of replacements to a source string and touches nothing else.
+ *
+ * NEVER A RESERIALIZATION. The document is not re-emitted from a parse tree:
+ * every byte outside a replaced span survives exactly, so a student's
+ * indentation, their comments, their attribute order, their doctype quirks and
+ * their line endings all come back out unchanged. A parser round trip would
+ * normalize some of that silently, and the file that ran would not be the file
+ * they wrote.
+ *
+ * LINE NUMBERS SURVIVE, which is why the callers may report them against the
+ * ORIGINAL file: a replacement carrying a newline is refused outright, so no
+ * edit can move the line any later text sits on.
+ */
+export function applyEdits(source: string, edits: { start: number; end: number; text: string }[]) {
+	if (edits.length === 0) return source;
+	const ordered = [...edits].sort((a, b) => a.start - b.start);
+	let out = '';
+	let at = 0;
+	for (const e of ordered) {
+		if (e.start < at) continue; // overlapping: keep the first, drop the rest
+		if (e.text.includes('\n')) continue;
+		out += source.slice(at, e.start) + e.text;
+		at = e.end;
+	}
+	return out + source.slice(at);
 }
 
 function lineAt(source: string, index: number): number {
@@ -539,6 +691,26 @@ export type HtmlReader = (html: string) => HtmlFacts;
 export interface HtmlScan {
 	failures: FoundryIssue[];
 	warnings: FoundryIssue[];
+	/**
+	 * Sentences describing every reference that was repointed at a hosted
+	 * library, one per rewrite, each carrying its own file and line.
+	 *
+	 * NOTES RATHER THAN WARNINGS, because nothing is wrong: the upload passes,
+	 * the app runs, and the note is how the student learns their file is not
+	 * byte-for-byte what they uploaded.
+	 */
+	rewriteNotes: string[];
+	/**
+	 * The repaired source, or null when nothing was repaired.
+	 *
+	 * THE CALLER DECIDES WHAT TO DO WITH IT, and the two callers do different
+	 * things: `foundry-ingest` stores these bytes, and the browser preflight
+	 * only reports that it would. That split is deliberate -- the browser
+	 * preflight writes nothing anywhere, and a preflight that quietly edited
+	 * the file about to be uploaded would make the upload and the check
+	 * disagree about what was checked.
+	 */
+	rewritten: string | null;
 	/** True when the parser could not read the page at all. See below. */
 	parseFailed?: boolean;
 	parseError?: string;
@@ -555,19 +727,52 @@ function firstRealLine(text: string): string {
 export function scanHtml(path: string, source: string, read: HtmlReader): HtmlScan {
 	const failures: FoundryIssue[] = [];
 	const warnings: FoundryIssue[] = [];
+	const rewriteNotes: string[] = [];
+	const edits: { start: number; end: number; text: string }[] = [];
 
 	let facts: HtmlFacts;
 	try {
 		facts = read(source);
 	} catch (err) {
-		// A page the PARSER cannot read is not a refusal -- the browser will
-		// still render it, and the CSP is what actually contains it. But it is
-		// reported rather than swallowed: a reader that quietly returns nothing
-		// turns every HTML rule in here off at once and every upload starts
-		// passing, which looks exactly like an app with no problems in it.
+		/*
+		 * A PAGE THE PARSER CANNOT READ IS A HARD FAIL, AND IT USED TO BE A
+		 * WARNING. That is what let a bundle through with four CDN script tags
+		 * in its head, and the trail is worth keeping because the old reasoning
+		 * sounded right: the browser will still render the page, the CSP is
+		 * what actually contains it, so a parse failure is not evidence of
+		 * anything WRONG with the file. All true, and all beside the point.
+		 *
+		 * Every HTML rule in here runs off `facts`. When the read throws, this
+		 * function returned zero failures -- which is the same answer it gives
+		 * for a perfect file. `foundry-ingest` turned that into a warning
+		 * reading "Your app was still saved", extraction ran, the version
+		 * reached the review queue, a reviewer read a soft note and approved
+		 * it, and the app was blank because the four scripts it needs were
+		 * never going to load. MEASURED: with the reader stubbed to fail the
+		 * way deno-dom does on a cold start, this exact file produced 0
+		 * failures and 1 warning and would have been published.
+		 *
+		 * "We checked it and found nothing" and "we could not check it" have to
+		 * be different ANSWERS, not different log lines. So the second one
+		 * refuses. A student can upload again; nobody can approve an unchecked
+		 * bundle.
+		 *
+		 * `parseFailed` is still reported alongside, because the caller logs it
+		 * and because it is the difference between a file that is wrong and a
+		 * parser that is broken.
+		 */
+		failures.push(
+			issue(
+				path,
+				null,
+				`${path} could not be read by the checker, so it has not been published. That is usually a problem on our end rather than a mistake in your file. Upload it again, and if it happens a second time tell your teacher, because nothing can be published until the check runs.`
+			)
+		);
 		return {
 			failures,
 			warnings,
+			rewriteNotes,
+			rewritten: null,
 			parseFailed: true,
 			parseError: err instanceof Error ? err.message : String(err)
 		};
@@ -611,11 +816,68 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	}
 
 	const finder = new LineFinder(source);
+	const attrs = new AttrFinder(source);
 	for (const ref of facts.refs) {
 		const verdict = classifyReference(ref.value);
 		if (verdict.kind === 'ok') continue;
+
+		/*
+		 * THE REWRITE IS TRIED BEFORE THE REFUSAL, AND ONLY A LOCATED SPAN
+		 * EARNS ONE.
+		 *
+		 * `classifyVendorReference` says whether this is a CDN copy of a
+		 * library we host. `AttrFinder` says whether the value can be found as
+		 * an attribute value, which is the only thing that may be edited. Both
+		 * have to answer yes: a library we host whose tag cannot be located
+		 * safely falls through to the refusal it would have got anyway, which
+		 * is the fail-closed direction. A student can upload again; nobody can
+		 * inspect a file that was edited at the wrong offset.
+		 */
+		const vendor = classifyVendorReference(ref.tag, ref.attr, ref.value);
+		if (vendor !== null) {
+			const span = attrs.find(ref.value);
+			if (span !== null && tagCarriesIntegrity(source, span)) {
+				/*
+				 * A SUBRESOURCE INTEGRITY HASH IS A HASH OF SOMEBODY ELSE'S
+				 * BYTES, AND WE ARE ABOUT TO SERVE OURS.
+				 *
+				 * cdnjs puts `integrity` in the snippet it tells people to
+				 * copy, so this arrives in real files. Repointing the src and
+				 * leaving the hash gives the browser our copy, a digest that
+				 * cannot match it, and a refusal -- which is a BLANK APP under
+				 * a note claiming we fixed it, the exact failure this lane
+				 * exists to end.
+				 *
+				 * Deleting the attribute would work and is not what happens
+				 * here. The rewrite's licence is to change ONE attribute VALUE
+				 * and nothing else about the file; taking a second attribute
+				 * out is a different and larger permission, and the moment
+				 * this edit stops being "swap one URL" is the moment nobody
+				 * can say what it did. So the tag is refused instead, and the
+				 * refusal names the hash as the reason, which costs the
+				 * student one line and a re-upload and cannot fail silently.
+				 */
+				const line = span.line;
+				failures.push(
+					issue(
+						path,
+						line,
+						`${where(path, line)} loads ${vendor.library.label} from ${ref.value} with an integrity="..." checksum on it. ${vendor.library.label} is hosted here and that tag would otherwise have been repointed at our copy automatically, but the checksum is of the file on the other site and would not match ours, so your browser would refuse to run it. Delete the integrity="..." attribute from this tag, and the crossorigin attribute with it if there is one. Then upload again.`
+					)
+				);
+				continue;
+			}
+			if (span !== null) {
+				edits.push({ start: span.start, end: span.end, text: vendor.to });
+				rewriteNotes.push(vendorRewriteNote(path, span.line, vendor));
+				continue;
+			}
+		}
+
 		const line = finder.find(ref.value);
-		failures.push(issue(path, line, referenceMessage(path, line, ref.attr, ref.value, verdict)));
+		failures.push(
+			issue(path, line, referenceMessage(path, line, ref.tag, ref.attr, ref.value, verdict))
+		);
 	}
 
 	if (path === FOUNDRY_ENTRY_FILE) {
@@ -639,16 +901,66 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 		}
 	}
 
-	return { failures, warnings };
+	return {
+		failures,
+		warnings,
+		rewriteNotes,
+		rewritten: edits.length === 0 ? null : applyEdits(source, edits)
+	};
 }
 
 function where(path: string, line: number | null): string {
 	return line === null ? path : `${path} line ${line}`;
 }
 
+/**
+ * Whether the tag containing a located attribute value also carries
+ * `integrity`.
+ *
+ * READ OFF THE SOURCE RATHER THAN OFF THE PARSE, deliberately. `HtmlFacts`
+ * carries the references a page makes and nothing about the tags around them,
+ * and widening it would mean changing the reader interface and both
+ * implementations of it -- deno-dom's and the browser's -- to answer one
+ * question about one case. The span being tested is the span about to be
+ * edited, so reading the bytes on either side of it is reading exactly the
+ * thing in question.
+ *
+ * The walk is bounded by the enclosing angle brackets, so an `integrity` on the
+ * NEXT tag cannot be mistaken for this one's. A tag with no `>` after it is
+ * malformed and answers true, which refuses rather than edits.
+ */
+function tagCarriesIntegrity(source: string, span: AttrSpan): boolean {
+	const open = source.lastIndexOf('<', span.start);
+	if (open < 0) return true;
+	const close = source.indexOf('>', span.end);
+	if (close < 0) return true;
+	return /\sintegrity\s*=/i.test(source.slice(open, close));
+}
+
+/**
+ * Whether a refusal should carry the list of libraries this platform hosts.
+ *
+ * TWO CASES, AND BOTH ARE "THEY WERE REACHING FOR A LIBRARY". A reference to
+ * one of the CDNs we understand is a library request by definition, whatever
+ * tag it is on -- a prebuilt `tailwind.min.css` off jsdelivr is the shape that
+ * cannot be rewritten but is exactly the student who needs to hear that a
+ * Tailwind build IS available. And a `<script src>` pointing anywhere on the
+ * internet is a library request too, even from a host nobody here has heard
+ * of.
+ *
+ * It is NOT appended to everything. An `<img>` from an image host and a
+ * `fetch` to an API are not library problems, and a paragraph about React
+ * under them is noise in a list a student is trying to work through.
+ */
+function wantsLibraryHelp(tag: string, value: string): boolean {
+	if (identifyCdnReference(value) !== null) return true;
+	return tag.toLowerCase() === 'script';
+}
+
 function referenceMessage(
 	path: string,
 	line: number | null,
+	tag: string,
 	attr: string,
 	value: string,
 	verdict: RefProblem
@@ -658,12 +970,13 @@ function referenceMessage(
 		return `${at} loads a font from Google Fonts. That is blocked: your app runs with no network access, so the font will never arrive. Delete this link and use the platform fonts instead, with <link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">. That is the one absolute path your app is allowed to use.`;
 	}
 	if (verdict.kind === 'absolute') {
-		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the whole site rather than your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(attr, value)}. The only absolute path allowed is ${PLATFORM_FONTS_PATH}.`;
+		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the whole site rather than your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(tag, attr, value)}. The only absolute paths allowed are ${PLATFORM_FONTS_PATH} and the platform libraries under ${PLATFORM_LIB_PREFIX}.`;
 	}
 	if (verdict.scheme === 'http' || verdict.scheme === 'https') {
-		return `${at} loads ${value} from the internet. That is blocked: your app runs with no network access, so nothing will load from that address. Download the file into your app folder and point at it with a relative path, like ${relativeExample(attr, value)}.`;
+		const head = `${at} loads ${value} from the internet. That is blocked: your app runs with no network access, so nothing will load from that address. Download the file into your app folder and point at it with a relative path, like ${relativeExample(tag, attr, value)}.`;
+		return wantsLibraryHelp(tag, value) ? `${head} ${platformLibraryHelp()}` : head;
 	}
-	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can only open files that are inside its own folder, so remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(attr, value)}.`;
+	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can only open files that are inside its own folder, so remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(tag, attr, value)}.`;
 }
 
 /* -------------------------------------------------------------------------
@@ -733,7 +1046,12 @@ export function scanCss(path: string, source: string): { failures: FoundryIssue[
 		const verdict = classifyReference(value);
 		if (verdict.kind === 'ok') return;
 		const line = lineAt(source, index);
-		failures.push(issue(path, line, referenceMessage(path, line, attr, value, verdict)));
+		// A stylesheet has no TAG, and that empty string is load-bearing rather
+		// than a placeholder: it is what makes `relativeExample` produce the
+		// `url("image.png")` form here and an attribute form in HTML, and what
+		// keeps the platform-library paragraph off a CSS refusal, where none of
+		// the five hosted libraries could be the answer.
+		failures.push(issue(path, line, referenceMessage(path, line, '', attr, value, verdict)));
 	};
 
 	// url( ... ) with or without quotes.
@@ -809,11 +1127,38 @@ export function scanJs(
 		const file = value.split(/[?#]/)[0];
 		const guess = file.slice(file.lastIndexOf('/') + 1) || 'library.js';
 		const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : `${guess}.js`;
+
+		/*
+		 * AN IMPORT OF A LIBRARY WE HOST IS STILL A FAILURE, AND THE MESSAGE IS
+		 * WHERE THE DIFFERENCE IS PAID BACK.
+		 *
+		 * We host UMD and IIFE builds -- the shape a `<script src>` consumes,
+		 * which is what makes them usable with no build step. An
+		 * `import React from "https://esm.sh/react"` wants an ES module with a
+		 * default export, and pointing it at our copy would give `React` the
+		 * value `undefined` at the first line that used it. A silent wrong
+		 * answer is worse than a refusal, so the reference is refused and told
+		 * exactly which two lines to write instead.
+		 */
+		const cdn = identifyCdnReference(value);
+		const hosted = cdn ? platformLibraryFor(cdn) : null;
+		if (hosted !== null) {
+			const global = hosted.global ?? hosted.label;
+			failures.push(
+				issue(
+					path,
+					line,
+					`${at} imports ${hosted.label} from ${value}. That is blocked: your app runs with no network access. ${hosted.label} IS hosted here, but as a plain script rather than a module, so load it in your HTML with <script src="${platformLibraryPath(hosted)}"></script> and then use ${global} directly instead of importing it.`
+				)
+			);
+			return;
+		}
+
 		failures.push(
 			issue(
 				path,
 				line,
-				`${at} imports from ${value}. That is blocked: your app runs with no network access, so the import will fail and your script will stop before it starts. Download the file into your app folder and import it with a relative path, like import ... from "./${named}".`
+				`${at} imports from ${value}. That is blocked: your app runs with no network access, so the import will fail and your script will stop before it starts. Download the file into your app folder and import it with a relative path, like import ... from "./${named}". ${platformLibraryHelp()}`
 			)
 		);
 	};
@@ -1118,6 +1463,121 @@ export function largeAssetWarning(path: string, bytes: number): FoundryIssue {
  * for the same reason, and the two have to sound like one document because a
  * student will read one straight after the other.
  */
+/**
+ * THE STARTER FILE: a complete, working `index.html` with every platform script
+ * tag already in it and one marked spot to paste a component into.
+ *
+ * WHAT IT IS FOR. The shape a student's own wrapper was reaching for. Almost
+ * every generated React app arrives as one HTML file with four CDN tags in the
+ * head, and the student's job -- which nobody told them about -- was to know
+ * which four tags to write instead. This is those tags, correct, in order,
+ * with the fonts linked and a `#root` div already there.
+ *
+ * IT IS GENERATED FROM THE REGISTRY, not typed out. A version bump or a new
+ * library rewrites this file in the same commit, exactly as it rewrites the
+ * contract. A starter that has drifted from what is served is worse than none:
+ * it is a file the platform handed out that the platform then refuses.
+ *
+ * AND IT PASSES ITS OWN PREFLIGHT. `tests/foundry-starter.test.ts` puts it
+ * through `scanHtml` and asserts zero failures and zero rewrites -- zero
+ * REWRITES specifically, because a starter that had to be repaired on the way
+ * in would mean the paths written here are not the paths we serve.
+ */
+export function foundryStarterFile(): string {
+	const tag = (pkg: string) => {
+		const lib = FOUNDRY_PLATFORM_LIBRARIES.find((l) => l.pkg === pkg) as PlatformLibrary;
+		return `<script src="${platformLibraryPath(lib)}"></script>`;
+	};
+	const optional = FOUNDRY_PLATFORM_LIBRARIES.filter(
+		(l) => l.pkg !== 'react' && l.pkg !== 'react-dom' && l.pkg !== '@babel/standalone'
+	)
+		.map(
+			(l) =>
+				`<!-- ${l.label} ${l.version}. ${l.note}\n     <script src="${platformLibraryPath(l)}"></script> -->`
+		)
+		.join('\n');
+
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Your app's name, in the browser tab and in the Foundry listing. -->
+<title>My App</title>
+
+<!-- The platform fonts. Rajdhani, Orbitron and Share Tech Mono. -->
+<link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">
+
+<!--
+  The platform libraries. These paths are served by IDEA Foundry and are the
+  only absolute paths your app may use. Do not replace them with a CDN address:
+  your app runs with no network access, so a CDN tag loads nothing.
+-->
+${tag('react')}
+${tag('react-dom')}
+${tag('@babel/standalone')}
+
+<!-- Also available. Uncomment the one you want. -->
+${optional}
+
+<style>
+  body {
+    margin: 0;
+    font-family: 'Rajdhani', system-ui, sans-serif;
+    background: #0b0f0c;
+    color: #e8efe9;
+  }
+  h1 { font-family: 'Orbitron', sans-serif; }
+  .app { max-width: 46rem; margin: 0 auto; padding: 2rem 1rem; }
+  button {
+    font: inherit;
+    min-height: 44px;
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    border: 1px solid #3d5f47;
+    background: #16211a;
+    color: inherit;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<!-- React renders into this. -->
+<div id="root"></div>
+
+<!--
+  type="text/babel" is what makes JSX work with no build step: Babel finds this
+  block, compiles it in the browser, and runs the result.
+-->
+<script type="text/babel">
+
+  const { useState } = React;
+
+  // ---------------------------------------------------------------------
+  // PASTE YOUR COMPONENT HERE. Replace App with whatever you have written.
+  // ---------------------------------------------------------------------
+  function App() {
+    const [count, setCount] = useState(0);
+    return (
+      <div className="app">
+        <h1>My App</h1>
+        <p>Everything works. Replace this component with your own.</p>
+        <button onClick={() => setCount(count + 1)}>Clicked {count} times</button>
+      </div>
+    );
+  }
+  // ---------------------------------------------------------------------
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+</body>
+</html>
+`;
+}
+
 export function foundryBuildContract(): string {
 	const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 	const exts = FOUNDRY_ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(' ');
@@ -1168,6 +1628,21 @@ export function foundryBuildContract(): string {
 		.map((c) => `.${extensionOf(c)}`)
 		.join(', ');
 
+	/*
+	 * THE LIBRARY TABLE IS READ OFF THE REGISTRY, like every other figure in
+	 * this document. A version bumped in `vendor.ts` rewrites these lines in
+	 * the same commit, and a library added there appears here having been typed
+	 * nowhere. A second written-down list is the one that goes stale.
+	 */
+	const libraryLines = FOUNDRY_PLATFORM_LIBRARIES.map(
+		(l) =>
+			`      ${platformLibraryPath(l)}\n          ${l.label} ${l.version}. ${l.note}${
+				l.global ? ` Global: ${l.global}.` : ''
+			}`
+	).join('\n');
+	const byPkg = (pkg: string) =>
+		FOUNDRY_PLATFORM_LIBRARIES.find((l) => l.pkg === pkg) as PlatformLibrary;
+
 	return `BUILD CONTRACT -- IDEA Foundry
 
 You are building a self-contained web app that will be published to IDEA
@@ -1183,15 +1658,40 @@ OUTPUT SHAPE
 ${extraFileRules}
 
 TECHNOLOGY
-- Vanilla HTML, CSS and JavaScript only.
-- No build step. Nothing is compiled, bundled, transpiled or installed. The
-  files you write are the files that run.
-- No frameworks that require a build (React with JSX, Vue SFCs, Svelte,
-  TypeScript). If you want a framework, it must run from plain script tags you
-  have written into the folder yourself -- but you cannot download one, so in
-  practice write plain JavaScript.
+- No build step. Nothing is compiled, bundled, transpiled or installed on our
+  side. The files you write are the files that run.
+- Plain HTML, CSS and JavaScript always work.
+- React with JSX also works, with no build step, using the hosted libraries
+  below. Write your JSX inside <script type="text/babel"> and Babel compiles it
+  in the browser.
 - ES modules work: <script type="module" src="app.js"></script> with relative
-  paths.
+  paths. You cannot import from a URL, though -- see LIBRARIES.
+- Anything that needs npm, a bundler, a dev server or a compile step of its own
+  does not work. That rules out Vue SFCs, Svelte components, TypeScript files
+  and Next.js.
+
+LIBRARIES
+- These are hosted here and ready to use. Reference them EXACTLY as written;
+  these paths are absolute on purpose and are allowed:
+${libraryLines}
+- Load them with a plain <script src="..."></script> tag in your HTML. They are
+  classic scripts, not modules: each one leaves a global behind, and that global
+  is what you use. Do NOT write import ... from "..." for any of them.
+- The usual React starting point, in one file:
+      <script src="${platformLibraryPath(byPkg('react'))}"></script>
+      <script src="${platformLibraryPath(byPkg('react-dom'))}"></script>
+      <script src="${platformLibraryPath(byPkg('@babel/standalone'))}"></script>
+      <div id="root"></div>
+      <script type="text/babel">
+        function App() { return <h1>Hello</h1>; }
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+      </script>
+- If you write a CDN tag for one of these anyway -- unpkg, jsdelivr, cdnjs,
+  esm.sh or cdn.tailwindcss.com -- it is repointed at the hosted copy on the way
+  in and you are told, file and line. The versions above are what you get.
+- Any OTHER library has to be a file inside your own folder, referenced with a
+  relative path. There is no way to download one at runtime.
+- ${FOUNDRY_STARTER_PATH} is a ready-made starting file with all of this already in it.
 
 PATHS
 - Every path in every file is RELATIVE. Write src="art/logo.png", not
@@ -1205,7 +1705,10 @@ NO NETWORK AT RUNTIME
 - The app runs with all network access blocked. Every request it makes fails.
 - Do not use fetch, XMLHttpRequest, WebSocket or EventSource.
 - Do not load a script, stylesheet, image, font, video or audio file from
-  another site. No CDN. No unpkg, jsdelivr, cdnjs, skypack or esm.sh.
+  another site. The ONE exception is the hosted libraries under LIBRARIES
+  below: a CDN script tag for one of those is repointed at our copy on the way
+  in. Everything else from a CDN -- skypack, a font file, an image, a library
+  we do not host -- is refused and the upload stops.
 - Do not use Google Fonts. Neither the stylesheet
   (fonts.googleapis.com) nor the font files (fonts.gstatic.com) will load.
 - Do not embed an <iframe> pointing at another site, and do not open one.
@@ -1263,8 +1766,7 @@ SIZE
 BEFORE YOU FINISH
 - Open ${FOUNDRY_ENTRY_FILE} directly from the filesystem, with no server running, and
   confirm the app works. If it needs a server, it will not run here.
-- Confirm every src and href in every file is either relative or exactly
-  ${PLATFORM_FONTS_PATH}.
-- Confirm there is no fetch, no XMLHttpRequest, and no reference to any other
-  website anywhere in the code.`;
+- Confirm every src and href in every file is relative, or ${PLATFORM_FONTS_PATH},
+  or one of the ${PLATFORM_LIB_PREFIX} paths above.
+- Confirm there is no fetch, no XMLHttpRequest, and no import from a URL.`;
 }

@@ -55,11 +55,22 @@ const stripComments = (src: string) =>
 
 /**
  * The only student-facing sentences that may live outside the shared module.
- * Both describe a moment the browser never reaches; see the sweep below.
+ * It describes a moment the browser never reaches; see the sweep below.
+ *
+ * THERE USED TO BE TWO. The second read "could not be checked automatically, so
+ * the checks for blocked links and page title were skipped for it. Your app was
+ * still saved" -- the sentence `foundry-ingest` produced when the HTML parser
+ * failed. It is not reworded and it has not moved: the BEHAVIOUR it described is
+ * gone. A page the parser cannot read is a hard failure now, raised inside
+ * `scanHtml` where both callers get it, because that sentence was the sound a
+ * silent pass makes. It sat beside zero failures on a bundle with four CDN
+ * script tags in its head, which was then extracted, reviewed and approved.
+ *
+ * Removing the entry rather than the assertion is the point of the check below:
+ * the list must name exactly what is really there.
  */
 const SERVER_ONLY_SENTENCES = [
-	'The uploaded file could not be found. Upload your zip again and then run the check.',
-	'could not be checked automatically, so the checks for blocked links and page title were skipped for it. Your app was still saved. If it does not work when you open it, check that every link and image in this file points at a file inside your app folder.'
+	'The uploaded file could not be found. Upload your zip again and then run the check.'
 ];
 
 /** Every function that turns a finding into words a student reads. */

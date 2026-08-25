@@ -41,6 +41,14 @@
 		},
 		{
 			"date": "2026-08-24",
+			"title": "Apps built with React now run in Foundry, and there is a starter file",
+			"body": "If you built your app with an AI tool, it very likely starts with a few script tags pointing at React, Babel, Lucide or Tailwind on the internet. Those never loaded here, because a published app runs with no network access, so the app went up and then showed a blank page. IDEA Foundry now hosts those libraries itself. Upload your app exactly as your tool wrote it: the check finds those script tags, points them at our copies instead, and tells you which lines it changed. Nothing else in your file is touched. React with JSX works with no build step now, so you do not have to rewrite anything into plain JavaScript. If a tag asks for a library we do not host, the upload is still refused, and the message now lists what IS available and how to write it. There is also a starter file on the build contract page and on the upload page: download it and you get an index.html with all of it already wired up and a marked spot to paste your component into.",
+			"tags": [
+				"foundry"
+			]
+		},
+		{
+			"date": "2026-08-24",
 			"title": "IDEA Foundry is open: browse the apps other students have published",
 			"body": "There is a new card on the home screen called IDEA Foundry, and behind it is a gallery of the web apps students have built and published. Pick one from the list and you get its description, the author's name and class, and what they wrote about how they built it, which is the part worth reading. Press Launch app to run it. Every app opens in a sandbox on a separate address, so nothing it does can reach your account, your notebook or your coins. There is a Stop app button beside it the whole time it is running: if an app freezes or you just want it gone, press that and it closes on the spot, without you having to close the tab. If you have published something yourself, My apps is still where you manage it. If you have not, the build contract page says exactly what an app has to look like before you can upload it.",
 			"tags": [

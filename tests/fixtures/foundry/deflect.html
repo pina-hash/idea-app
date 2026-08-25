@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deflect</title>
+<style>
+  :root { --ink: #e8f0e4; --bg: #0b0f0c; --accent: #4ade80; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: ui-monospace, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; text-transform: uppercase; }
+  #hud { font-size: 13px; color: var(--accent); min-height: 1.2em; }
+  canvas { border: 1px solid #24422c; background: #050806; max-width: 100%; touch-action: none; }
+  .hint { font-size: 11px; opacity: 0.6; }
+</style>
+</head>
+<body>
+<h1>Deflect</h1>
+<div id="hud">score 0</div>
+<canvas id="stage" width="480" height="320"></canvas>
+<p class="hint">move the paddle with the mouse or arrow keys</p>
+<script>
+(function () {
+  'use strict';
+  var canvas = document.getElementById('stage');
+  var hud = document.getElementById('hud');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+
+  var paddle = { x: W / 2 - 40, y: H - 18, w: 80, h: 8, speed: 6 };
+  var ball = { x: W / 2, y: H / 2, vx: 2.4, vy: -2.8, r: 5 };
+  var bricks = [];
+  var score = 0;
+  var keys = Object.create(null);
+
+  var COLS = 8, ROWS = 4, PAD = 6;
+  var bw = (W - PAD * (COLS + 1)) / COLS;
+  var bh = 14;
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      bricks.push({
+        x: PAD + c * (bw + PAD),
+        y: 34 + r * (bh + PAD),
+        w: bw,
+        h: bh,
+        alive: true,
+        hue: 120 + r * 18
+      });
+    }
+  }
+
+  document.addEventListener('keydown', function (e) { keys[e.key] = true; });
+  document.addEventListener('keyup', function (e) { keys[e.key] = false; });
+  canvas.addEventListener('pointermove', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var scale = canvas.width / rect.width;
+    paddle.x = (e.clientX - rect.left) * scale - paddle.w / 2;
+  });
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function hits(b, box) {
+    return b.x + b.r > box.x && b.x - b.r < box.x + box.w &&
+           b.y + b.r > box.y && b.y - b.r < box.y + box.h;
+  }
+
+  function reset() {
+    ball.x = W / 2; ball.y = H / 2;
+    ball.vx = (Math.random() < 0.5 ? -1 : 1) * 2.4;
+    ball.vy = -2.8;
+  }
+
+  function step() {
+    if (keys['ArrowLeft']) paddle.x -= paddle.speed;
+    if (keys['ArrowRight']) paddle.x += paddle.speed;
+    paddle.x = clamp(paddle.x, 0, W - paddle.w);
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = -ball.vx; }
+    if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.vx = -ball.vx; }
+    if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy = -ball.vy; }
+    if (ball.y - ball.r > H) { score = 0; reset(); }
+
+    if (ball.vy > 0 && hits(ball, paddle)) {
+      ball.vy = -Math.abs(ball.vy);
+      var off = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+      ball.vx = clamp(ball.vx + off * 1.4, -5, 5);
+    }
+
+    for (var i = 0; i < bricks.length; i++) {
+      var b = bricks[i];
+      if (!b.alive) continue;
+      if (hits(ball, b)) {
+        b.alive = false;
+        ball.vy = -ball.vy;
+        score += 10;
+        break;
+      }
+    }
+
+    var left = 0;
+    for (var j = 0; j < bricks.length; j++) { if (bricks[j].alive) left++; }
+    if (left === 0) {
+      for (var k = 0; k < bricks.length; k++) bricks[k].alive = true;
+      reset();
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#050806';
+    ctx.fillRect(0, 0, W, H);
+
+    for (var i = 0; i < bricks.length; i++) {
+      var b = bricks[i];
+      if (!b.alive) continue;
+      ctx.fillStyle = 'hsl(' + b.hue + ', 45%, 42%)';
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+    }
+
+    ctx.fillStyle = '#4ade80';
+    ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fillStyle = '#e8f0e4';
+    ctx.fill();
+
+    hud.textContent = 'score ' + score;
+  }
+
+  function loop() {
+    step();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

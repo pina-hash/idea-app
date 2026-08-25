@@ -34,6 +34,7 @@
 	import { preflightZipInBrowser, type BrowserPreflightResult } from './preflight-browser.ts';
 	import { FOUNDRY_LIMITS, formatBytes, type FoundryIssue } from './preflight.ts';
 	import { slugLooksOk, suggestSlug } from './surface.ts';
+	import { FOUNDRY_STARTER_PATH } from './vendor.ts';
 	import type { FoundrySubmitTransports, IngestOutcome } from './transports.ts';
 
 	let {
@@ -471,6 +472,17 @@
 		<p class="fdy-hint fdy-contract-link">
 			Building it with an AI tool? <a href="/foundry/contract">Read the build contract</a> and
 			paste it in first. It is what these checks are written against.
+		</p>
+		<!--
+			THE STARTER SITS BESIDE THE CONTRACT, not on the contract page alone.
+			This is the surface a student is standing on when they discover their
+			app is missing its libraries, and a file they can start from is a more
+			useful answer at that moment than a document about the rules.
+		-->
+		<p class="fdy-hint fdy-contract-link">
+			Using React? <a href={FOUNDRY_STARTER_PATH} download="index.html">Download the starter
+				file</a>
+			-- an index.html with the platform libraries already linked and a marked spot for your component.
 		</p>
 
 		{#if phase === 'idle'}

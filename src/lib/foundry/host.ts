@@ -105,18 +105,41 @@ export function isFoundryAppsHost(
  * matching. This asks only whether the URL could name a bundle file; the proxy
  * decides whether it does, and refuses identically either way.
  *
- * The slashless `/r/{token}` is refused too, and that closes a small oracle
- * with it: the route verified the token BEFORE redirecting it to the slash
- * form, so a good token answered 307 where a bad one answered 404, which is
- * the one place on that host where two refusals did not look alike.
+ * THE SLASHLESS `/r/{token}` IS ALLOWED THROUGH, AND REFUSING IT WAS A BUG
+ * THAT BLANKED EVERY PUBLISHED APP. It used to be refused here on the grounds
+ * that it closed a small oracle -- the route verified the token BEFORE
+ * redirecting to the slash form, so a good token answered 307 where a bad one
+ * answered 404. The oracle was real; refusing the path was the wrong lever.
+ *
+ * The frame requests the bundle ROOT and nothing else, so anything that
+ * normalizes a trailing slash anywhere between the browser and this function
+ * delivers `/r/{token}` -- and this predicate then answered a BODYLESS 404
+ * before the route's own 307 could run. Measured against the real adapter
+ * output: `/r/{token}/` and `/r/{token}/index.html` both serve 200, and
+ * `/r/{token}` answered 404 with the database never consulted, which is this
+ * line and only this line.
+ *
+ * THE ORACLE IS CLOSED WHERE IT WAS OPENED INSTEAD: the route now redirects
+ * the slashless form to the slash form BEFORE it verifies anything, so a good
+ * token and a garbage one both answer 307 and the redirect discloses nothing.
+ * See `src/routes/r/[token]/[...path]/+server.ts`.
+ *
+ * What stays refused is every shape that names no token at all: `/r`, `/r/`
+ * and `/r//...`. Those are the shapes that used to reach the router and get
+ * answered by the portal's own error page.
  */
 export function isFoundryProxyPath(pathname: string): boolean {
 	const prefix = FOUNDRY_PROXY_PREFIX + "/";
 	if (!pathname.startsWith(prefix)) return false;
-	// The token segment must be non-empty AND followed by its slash, so
-	// `/r/`, `/r/{token}` and `/r//...` (an empty token) all fall out here.
 	const afterPrefix = pathname.slice(prefix.length);
-	return afterPrefix.indexOf("/") > 0;
+	const slash = afterPrefix.indexOf("/");
+	// `/r/{token}` with nothing after it: the bundle root, spelled without its
+	// slash. Allowed so the route can redirect it; refused when the token
+	// segment is empty, which is the bare `/r/`.
+	if (slash === -1) return afterPrefix.length > 0;
+	// `/r/{token}/...`: the token segment must be non-empty, so `/r//...`
+	// falls out here.
+	return slash > 0;
 }
 
 /** `/_platform` and anything under it. */

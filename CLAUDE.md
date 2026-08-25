@@ -77,6 +77,70 @@ the SUBMITTED version, which by definition is not published yet.
     two spellings of "is this ready" is what produces a click that does nothing.
     The control is `aria-disabled`, never `disabled`, so it can explain itself.
 
+**THE PLATFORM HOSTS THE RUNTIME LIBRARIES, AND A CDN TAG FOR ONE OF THEM IS
+REWRITTEN RATHER THAN REFUSED.** `src/lib/foundry/vendor.ts` is the registry --
+what we host, its pinned version, the global it defines, and every name that
+means it -- and the bytes are committed under `src/lib/foundry/vendor/`, served
+from `/_platform/lib/<file>.js` on the apps host. Refusing these was correct and
+useless: a student cannot download a library into a folder they never had, and
+the tool that wrote the app writes the same tag again.
+  - **THE REGISTRY AND THE BYTES ARE TWO HALVES OF ONE FACT.** A library listed
+    with no file behind it rewrites a tag to a path that 404s -- the upload
+    PASSES, the note says we fixed it, and the app is blank, which is the exact
+    failure this exists to end. `tests/foundry-vendor.test.ts` asserts both
+    directions, and `.gitattributes` marks them `-text` so `core.autocrlf` does
+    not rewrite the published bytes out from under the recorded versions.
+  - **VERSIONS ARE PINNED AND COMMITTED, NEVER FETCHED AT BUILD TIME.** A build
+    that reaches the network can fail, or worse succeed differently, and
+    `lucide@latest` in a student's file is the moving target this ends.
+  - **IT IS SCRIPT REFERENCES ONLY, AND `import` SPECIFIERS ARE NOT REWRITTEN.**
+    Everything hosted is a UMD or IIFE build consumed from a `<script src>`.
+    Repointing a `<link rel="stylesheet">` would hand the browser JavaScript
+    where a stylesheet belongs; repointing `import React from "https://esm.sh/react"`
+    would bind `undefined` and fail hundreds of lines later. Both stay refusals,
+    and both messages name the script-tag form instead.
+  - **THE REWRITE EDITS ONE ATTRIBUTE VALUE AND NEVER RESERIALIZES.**
+    `AttrFinder` locates the value as an attribute (preceded by `="`, `='` or a
+    bare `=`), `applyEdits` splices it, and a replacement carrying a newline is
+    refused -- so indentation, comments, attribute order and line endings all
+    survive and every line number stays true of the file the student has open.
+    **A span that cannot be located safely FALLS THROUGH TO THE REFUSAL**: an
+    app that is refused can be uploaded again, where one edited at the wrong
+    offset is a corrupted file nobody inspected.
+  - **A TAG CARRYING `integrity` IS REFUSED, NOT REWRITTEN.** The hash is of the
+    other site's bytes and cannot match ours, so the browser would refuse the
+    script at runtime -- a blank app under a note claiming we fixed it. cdnjs
+    puts `integrity` in its copy-paste snippet, so this arrives in real files.
+  - **A VERSION MISMATCH IS SAID OUT LOUD.** `cdn.tailwindcss.com` IS the v3
+    Play CDN and we serve v4, so a bare reference to it reports the change.
+    `versionSatisfied` compares a range as a range: reduced to a string prefix,
+    `^18.2.0` did not match 18.3.1 and every satisfied caret raised a false
+    alarm.
+  - **`/foundry/starter` IS GENERATED FROM THE SAME REGISTRY** and must pass its
+    own preflight with ZERO rewrites -- a starter that had to be repaired means
+    the paths we hand out are not the paths we serve. Never commit a copy of it.
+
+**A PLATFORM ASSET ANSWERS `Access-Control-Allow-Origin`, AND WITHOUT IT HALF OF
+THEM DO NOT LOAD AT ALL.** A bundle runs in an OPAQUE ORIGIN, which is
+same-origin with nothing, so a request it makes to its own host is CROSS-origin.
+A `<script src>` carrying `crossorigin` -- which React's own published CDN
+snippet has, so the generated apps all carry it -- and EVERY `@font-face` fetch,
+which has no attribute to leave off, are made in CORS mode and need the header
+back. Measured in a real Chrome with Babel as the control: `babel.js` and
+`lucide.js` (same route, same origin, no `crossorigin` attribute) loaded and
+Babel compiled the page, while `react.js` and `react-dom.js` were discarded and
+the console read `ReferenceError: React is not defined`. The platform FONTS were
+in the same position and had never worked inside a bundle at all.
+  - **IT BELONGS TO `/_platform/*` AND MUST NOT SPREAD TO `/r/*`.** Those are a
+    student's own bytes behind a thirty-minute token, and the apps host
+    answering no CORS headers there is load-bearing -- the proxy harness reads
+    "fetch blocked (CORS)" as its own outcome, which is the origin split
+    working.
+  - **`*` DISCLOSES NOTHING HERE**: pinned npm builds and six font files,
+    identical for every viewer, already reachable by anyone who reaches the
+    host. `*` forbids credentialed requests by definition, and this host sets no
+    cookie and receives none.
+
 **A BUNDLE TOKEN CARRIES A KIND IN ITS SIGNED BYTES, AND `review` LIFTS EXACTLY
 ONE CHECK.** Byte 0 of the payload was always a signed discriminator; it now
 holds `published` (1) or `review` (2). A review token lets an ADMIN read one
@@ -519,14 +583,28 @@ same Vercel project and the same deployment as `ideabosco.com`.
   `student_app_files` for that exact version and that exact string, so path
   traversal has nothing to traverse to and nothing is ever resolved against a
   filesystem.
-- **`/r/{token}/` KEEPS ITS TRAILING SLASH.** `/r/<token>` has `/r/` as its base
-  URL, so every relative asset in every bundle would resolve outside the bundle.
-  The mint and the harness only ever hand out the slash form, and the hook now
-  REFUSES the slashless one outright, so the route's own `trailingSlash =
-  'ignore'` plus its 307 to the slash form are a second layer rather than the
-  live path. Refusing it also closed a small oracle: the route verified the
-  token BEFORE redirecting, so a good token answered 307 where a bad one
-  answered 404.
+- **`/r/{token}/` KEEPS ITS TRAILING SLASH, AND THE SLASHLESS FORM IS
+  REDIRECTED, NEVER REFUSED.** `/r/<token>` has `/r/` as its base URL, so every
+  relative asset in every bundle would resolve outside the bundle -- which is
+  why the entry is never SERVED at the slashless spelling. But the frame
+  requests the bundle ROOT and nothing else, so **the slashless form is the one
+  shape the whole system has to survive**: anything that normalizes a trailing
+  slash anywhere between the browser and the function delivers it.
+  `isFoundryProxyPath` used to refuse it outright, which meant a bodyless 404
+  with the database never consulted, and a blank frame for every published app.
+  **A path that names a non-empty token is allowed through even with no slash**;
+  what stays refused is every shape naming no token at all (`/r`, `/r/`,
+  `/r//...`), which are the ones that used to reach the router.
+  - **THE 307 RUNS BEFORE THE TOKEN IS VERIFIED, and that is what closes the
+    oracle** the old refusal was standing in for: verifying first made a good
+    token answer 307 where a garbage one answered 404, the one place on that
+    host where two outcomes did not look alike. Redirecting first makes every
+    slashless root answer 307 and judges the token on the request that follows.
+  - **THE TEST HAS TO DRIVE THE HOOK AND THE ROUTE TOGETHER.** Handing `params`
+    straight to the route skips `appsHostAllows`, which is where this lived, and
+    that is why a suite with a bundle-root test in it stayed green for the whole
+    life of the bug. `tests/foundry-proxy.test.ts` composes the real
+    `foundryHostBranch` with the real handler and asserts all three spellings.
 - **THE TWO HOSTS ASK DIFFERENT QUESTIONS, AND THAT IS TWO PREDICATES RATHER
   THAN TWO COPIES OF ONE.** `appsHostAllows` is the SHAPE the proxy serves
   (`/r/{token}/{path}`, `/_platform/*`) and governs the apps host, so nothing
@@ -2036,12 +2114,22 @@ belong wherever the app's own behaviour is documented.
     like a failure if the tab was already on an error page. It cost a wrong
     diagnosis here. The download also lands in the working directory, so sweep
     for stray files before committing.
-  - **A SANDBOXED, OPAQUE-ORIGIN DOCUMENT CANNOT LOAD ITS OWN FONTS HERE, AND
-    THAT IS NOT A BUG IN THE PAGE.** A `FontFace` load from a Foundry bundle's
-    own origin fails `NetworkError` because an opaque origin makes the request
-    cross-origin and the response carries no CORS header. Confirmed identical on
-    production, so it says nothing about whether the route serves; measure that
-    with an ordinary request instead.
+  - **A SANDBOXED, OPAQUE-ORIGIN DOCUMENT FAILING TO LOAD ITS OWN FONTS WAS A
+    REAL BUG, NOT AN INSTRUMENT ARTEFACT, AND THIS ENTRY USED TO SAY THE
+    OPPOSITE.** It read "CANNOT LOAD ITS OWN FONTS HERE, AND THAT IS NOT A BUG
+    IN THE PAGE" -- a `FontFace` load failing `NetworkError` because an opaque
+    origin makes the request cross-origin and the response carries no CORS
+    header. Every clause of that was true; the conclusion was not. "Confirmed
+    identical on production" was read as evidence for the instrument when it was
+    evidence AGAINST it: the opaque origin is the same in production, so the
+    same failure in both places means the page, not the tool. The missing header
+    was ours, `/_platform/*` now sends `Access-Control-Allow-Origin: *`, and the
+    hostile fixture reports `platform-font-loaded YES 1 face(s)` from inside the
+    frame. **The lesson that survives is the diagnostic one:** a CORS failure
+    from an opaque origin looks exactly like this pane's subresource blocking,
+    and the discriminator is a same-route control -- one asset fetched WITHOUT
+    `crossorigin` alongside one fetched with it. If the plain one loads, the
+    tool is fine and the header is missing.
 
 ### Machine and toolchain
 

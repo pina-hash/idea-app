@@ -295,10 +295,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
 	const failures: FoundryIssue[] = [...plan.failures];
 	const warnings: FoundryIssue[] = [];
 
+	/*
+	 * REWRITE NOTES ARE COLLECTED SEPARATELY AND REPORTED TOGETHER.
+	 *
+	 * The structural notes are everything decided from the table of contents
+	 * before a byte was unpacked -- a wrapper directory removed, OS noise
+	 * dropped. These are decided file by file during the inflate loop below.
+	 * They are two different moments and one list to the student, so `notes()`
+	 * is what every exit hands out and nothing reaches past it after this
+	 * point.
+	 */
+	const rewriteNotes: string[] = [];
+	const notes = () => [...plan.notes, ...rewriteNotes];
+
 	if (failures.length > 0) {
-		const m = failManifest(failures, warnings, plan.notes);
+		const m = failManifest(failures, warnings, notes());
 		await recordManifest(m);
-		return refused('preflight_failed', failures, { warnings, notes: plan.notes });
+		return refused('preflight_failed', failures, { warnings, notes: notes() });
 	}
 
 	// -------------------------------------------------------------- inflate
@@ -323,18 +336,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
 				const m = failManifest(
 					[{ file: err.path, line: null, message: uncompressedCapMessage(err.path) }],
 					warnings,
-					plan.notes
+					notes()
 				);
 				await recordManifest(m);
-				return refused('preflight_failed', m.failures, { warnings, notes: plan.notes });
+				return refused('preflight_failed', m.failures, { warnings, notes: notes() });
 			}
 			const message =
 				err instanceof ZipReadError
 					? `${file.path} could not be unpacked from the zip. Re-make the zip and upload it again.`
 					: `${file.path} could not be read from the zip. Re-make the zip and upload it again.`;
-			const m = failManifest([{ file: file.path, line: null, message }], warnings, plan.notes);
+			const m = failManifest([{ file: file.path, line: null, message }], warnings, notes());
 			await recordManifest(m);
-			return refused('preflight_failed', m.failures, { warnings, notes: plan.notes });
+			return refused('preflight_failed', m.failures, { warnings, notes: notes() });
 		}
 
 		if (content.byteLength > FOUNDRY_LIMITS.warnAssetBytes) {
@@ -346,17 +359,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
 			const text = decoder.decode(content);
 			if (ext === 'html') {
 				const r = scanHtml(file.path, text, readHtml);
+
+				/*
+				 * THE ONE PLACE A STUDENT'S BYTES ARE EDITED, AND IT IS HERE
+				 * RATHER THAN IN THE SCANNER ON PURPOSE.
+				 *
+				 * `scanHtml` DECIDES the repair and returns the repaired text;
+				 * this decides to KEEP it. The browser preflight calls the same
+				 * function and throws the repaired text away, because it writes
+				 * nothing anywhere -- so the rule lives in one place and only
+				 * the side that owns the bucket acts on it.
+				 *
+				 * The rewrite replaces CDN script URLs with the paths this
+				 * platform serves the same libraries from. Every other byte
+				 * survives: it is a splice over the original text, never a
+				 * reserialization of a parse tree, so indentation, comments,
+				 * attribute order and line endings all come back unchanged and
+				 * the line numbers in the notes below still point at the right
+				 * lines of the file the student has open.
+				 */
+				if (r.rewritten !== null) {
+					content = new TextEncoder().encode(r.rewritten);
+				}
+				rewriteNotes.push(...r.rewriteNotes);
+
 				if (r.parseFailed) {
-					// Loud in the log, because every HTML rule is off while this is
-					// true, and said out loud to the student too: "we checked it and
-					// found nothing" and "we could not check it" are different
-					// answers, and only one of them is worth acting on.
+					// STILL LOUD IN THE LOG, but no longer a warning beside a pass:
+					// `scanHtml` now returns a hard failure for this, so the refusal
+					// below is what the student gets. The log line is for us -- it is
+					// the only place the parser's own error text survives, and a
+					// cold-start parser failure is an operational problem rather than
+					// a student one.
 					console.error(`foundry-ingest: HTML parser failed on ${file.path}: ${r.parseError}`);
-					warnings.push({
-						file: file.path,
-						line: null,
-						message: `${file.path} could not be checked automatically, so the checks for blocked links and page title were skipped for it. Your app was still saved. If it does not work when you open it, check that every link and image in this file points at a file inside your app folder.`
-					});
 				}
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);
@@ -373,9 +407,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 	}
 
 	if (failures.length > 0) {
-		const m = failManifest(failures, warnings, plan.notes);
+		const m = failManifest(failures, warnings, notes());
 		await recordManifest(m);
-		return refused('preflight_failed', failures, { warnings, notes: plan.notes });
+		return refused('preflight_failed', failures, { warnings, notes: notes() });
 	}
 
 	// --------------------------------------------------------------- write
@@ -434,7 +468,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 			contentType: f.contentType
 		})),
 		warnings,
-		notes: plan.notes,
+		notes: notes(),
 		failures: [] as FoundryIssue[]
 	};
 	await recordManifest(manifest);
@@ -447,7 +481,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 		totalBytes,
 		strippedWrapper: plan.strippedWrapper,
 		warnings,
-		notes: plan.notes,
+		notes: notes(),
 		// Still a draft. Submitting is a separate, deliberate act.
 		status: 'draft'
 	});
