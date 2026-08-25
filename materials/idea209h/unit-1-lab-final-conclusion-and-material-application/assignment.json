@@ -1,0 +1,265 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Unit 1 Lab, Final: Conclusion and Material Application",
+    "course": "IDEA209H",
+    "dueDate": "2026-08-25",
+    "totalPoints": 15,
+    "assignmentId": "idea209h-u1lab-03",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Labs"
+  },
+  "print": {
+    "linesPerSentence": 2
+  },
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Close the lab. Settle the identification for all four required samples using the evidence you already collected, and say why that evidence is enough.",
+      "title": "Final Identification and Conclusion",
+      "aiNote": "AI may check whether your reasoning holds together or tighten how a sentence reads. The identifications, the conflict you name, and the observation you say decided it all come from your own Checkpoint 1 and Checkpoint 2 data, and you have to be able to defend each one.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your Checkpoint 1 and Checkpoint 2 submissions are both still open to you. Pull them up before you start writing. Everything below asks you to cite them.\n\n### What a final identification needs\n\nTwo kinds of evidence, not one. For each of the four required samples, name the material and cite both a density result from Friday and an appearance result from Monday. A row citing only one kind is a hypothesis, not a conclusion.\n\n### When your two results disagree\n\nA conflict is not a mistake. It is the normal outcome when one test cannot separate two candidates.\n\n- Density cannot separate 1018 steel from 304 stainless. They sit within a few percent of each other.\n- Density cannot separate 6061 from most other aluminum alloys.\n- Magnetism separates steel from stainless immediately.\n- The spark test separates steel from titanium, which density handles poorly.\n\nName every sample where your density result and your appearance result pointed at different materials. For each one, name both candidates and the single observation that decided it. If none of your samples conflicted, name the two materials density alone could not have separated and the observation that separated them.\n\n### Reasoning, not restating\n\n\"It was magnetic\" is not a reason. \"It was strongly magnetic, and of the two candidates density left open, only 1018 steel is strongly magnetic\" is. The difference is whether you said what the observation rules out.\n\nSamples 5 and 6 are bonus. They are worth no lab points and they earn coins."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 4,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Set letter and number as it appears on the tag, for example B-3.",
+              "label": "Sample"
+            },
+            {
+              "key": "material",
+              "tip": "One material name. Not two, and not a range.",
+              "label": "Final material"
+            },
+            {
+              "key": "density",
+              "tip": "Your measured density and the published value you matched it to, both with units.",
+              "label": "Density evidence"
+            },
+            {
+              "key": "appearance",
+              "tip": "The observation from Monday that supports this material. Name which test it came from.",
+              "label": "Appearance evidence"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Name every sample where your density result and your appearance result pointed at different materials. For each one, name both candidate materials and the single observation that decided it. If none of your samples conflicted, name the two materials density alone could not have separated and the observation that separated them.",
+          "maxSentences": 6,
+          "minSentences": 3
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 3,
+          "prompt": "For each of the four required samples, state what the observation you cited rules out. Do not restate the observation itself as the reason.",
+          "maxSentences": 8,
+          "minSentences": 4
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All four, both evidence types",
+              "points": 4,
+              "descriptor": "A final material is named for all four required samples, and each one cites a density result from Checkpoint 1 and an appearance result from Checkpoint 2."
+            },
+            {
+              "label": "Proficient",
+              "short": "All four, one or two single-sourced",
+              "points": 3,
+              "descriptor": "A final material is named for all four required samples, and one or two of them cite only one kind of evidence."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or three named, or single-sourced",
+              "points": 1,
+              "descriptor": "A final material is named for all four required samples with three or four of them citing only one kind of evidence, or a final material is named for only two or three required samples."
+            },
+            {
+              "label": "Absent",
+              "short": "Fewer than two named",
+              "points": 0,
+              "descriptor": "A final material is named for fewer than two required samples, or not attempted."
+            }
+          ],
+          "criterion": "Final identification from both evidence methods"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both candidates and deciding observation",
+              "points": 3,
+              "descriptor": "Every sample whose density result and appearance result pointed at different materials is named, both candidate materials are stated for each, and the single observation that decided it is stated for each. Where no sample produced a conflict, the two materials density alone could not separate are named along with the observation that separated them."
+            },
+            {
+              "label": "Proficient",
+              "short": "Candidates named, decision missing",
+              "points": 2,
+              "descriptor": "At least one conflict is named with both candidate materials stated, and the deciding observation is either missing or stated for some but not all of the conflicts named."
+            },
+            {
+              "label": "Absent",
+              "short": "No conflict named",
+              "points": 0,
+              "descriptor": "No conflict is named, or a conflict is asserted without naming both candidate materials, or not attempted."
+            }
+          ],
+          "criterion": "Conflict named and resolved"
+        },
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Four samples, other candidate excluded",
+              "points": 3,
+              "descriptor": "For all four required samples, the conclusion states what the cited observation rules out, rather than restating the observation itself as the reason."
+            },
+            {
+              "label": "Proficient",
+              "short": "One to three samples reasoned",
+              "points": 2,
+              "descriptor": "The conclusion states what the cited observation rules out for one, two, or three required samples, and restates the observation as the reason for the rest."
+            },
+            {
+              "label": "Absent",
+              "short": "Results restated, no reasoning",
+              "points": 0,
+              "descriptor": "The conclusion restates observations as reasons for every required sample with no statement of what any observation rules out, or not attempted."
+            }
+          ],
+          "criterion": "Conclusion reasoned rather than asserted"
+        }
+      ],
+      "aiLevel": 2
+    },
+    {
+      "id": "m2",
+      "intro": "Use one of the materials you just identified. Size a tie rod for a stated load at a stated factor of safety, and show the two steps that get you there.",
+      "title": "Material Application: Tensile Sizing",
+      "aiNote": "AI may check your arithmetic or explain why a step works. Setting the problem up is what is graded here, so which formula you use, which values you substitute, and which way you round all have to be yours to defend.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You identified four materials. Now you use one of them.\n\n### The problem\n\nA vertical tie rod in a shop lifting fixture carries a static tensile load of **12,000 N**. Design it to a **factor of safety of 3.0 against yield**. The rod is solid and round.\n\nPick any one of your four identified samples and size the rod for that material. Report the diameter as a whole number of millimeters.\n\n### Published yield strengths\n\n| Material | Yield strength | MatWeb entry |\n|---|---|---|\n| 1018 steel | 370 MPa | AISI 1018 Steel, cold drawn |\n| 6061 aluminum | 276 MPa | Aluminum 6061-T6 |\n| 304 stainless | 215 MPa | AISI Type 304 Stainless Steel |\n| Polycarbonate | 62 MPa | Polycarbonate, Molded |\n\n### The method\n\n    allowable stress = yield strength / factor of safety\n    required area = load / allowable stress\n    diameter = square root of (4 x required area / pi)\n\n1 MPa is 1 N/mm2. A load in newtons divided by a stress in MPa gives an area in mm2 with no conversion. If your area comes out in the millions, check that first.\n\n### Rounding\n\nRound the diameter up to the next whole millimeter. Rounding down makes the real stress higher than the allowable stress you just calculated, which spends the factor of safety you were told to design to."
+        },
+        {
+          "id": "t2",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Set letter and number of the sample you chose.",
+              "label": "Sample"
+            },
+            {
+              "key": "material",
+              "tip": "The material you identified for that sample.",
+              "label": "Material"
+            },
+            {
+              "key": "yield",
+              "tip": "From the table in the instructions, with units.",
+              "label": "Yield strength"
+            },
+            {
+              "key": "allow",
+              "tip": "Yield strength divided by the factor of safety, with units.",
+              "label": "Allowable stress"
+            },
+            {
+              "key": "area",
+              "tip": "Load divided by allowable stress, with units.",
+              "label": "Required area"
+            },
+            {
+              "key": "dia",
+              "tip": "Rounded up to the next whole millimeter.",
+              "label": "Diameter"
+            }
+          ],
+          "minRows": 1,
+          "printRows": 3,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "f3",
+          "type": "textField",
+          "points": 2,
+          "prompt": "Write out both divisions with your own numbers substituted. Then state in one sentence what happens to your factor of safety if you round the diameter down instead of up.",
+          "maxSentences": 4,
+          "minSentences": 2
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "c4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Correct diameter, both steps shown",
+              "points": 5,
+              "descriptor": "The allowable stress and the required area are both shown with the yield value for the identified material substituted, and the reported diameter is the next whole millimeter above the calculated value."
+            },
+            {
+              "label": "Proficient",
+              "short": "Both steps shown, one error",
+              "points": 4,
+              "descriptor": "The allowable stress and the required area are both shown with substituted values, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
+            },
+            {
+              "label": "Developing",
+              "short": "Allowable stress only",
+              "points": 2,
+              "descriptor": "The allowable stress is shown with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress."
+            },
+            {
+              "label": "Absent",
+              "short": "No substituted values shown",
+              "points": 0,
+              "descriptor": "Neither the allowable stress nor the required area is shown with substituted values, or not attempted."
+            }
+          ],
+          "criterion": "Rod sized at the stated factor of safety, work shown"
+        }
+      ],
+      "aiLevel": 2
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
