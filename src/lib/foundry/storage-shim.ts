@@ -38,19 +38,23 @@
  * the one outcome worse than no shim is a shim that throws at the top of the
  * head and takes the document with it.
  *
- * IT IS PASTED BY THE STUDENT NOW, NOT INJECTED BY US, AND THAT IS FORCED
- * RATHER THAN CHOSEN. A proxy of ours used to serve every bundle and inserted
- * this as the first element inside `<head>` on the way past. Bundles come
- * straight off public Supabase Storage now -- nothing of ours touches the
- * bytes between the upload and the browser -- so there is no longer a moment
- * at which anything could be injected.
+ * IT ARRIVES TWO WAYS, ON PURPOSE, AND IT IS ONE STRING.
  *
- * WHICH MAKES `foundryBuildContract()` THE ONLY DELIVERY MECHANISM, and the
- * reason the shim source stays in its own module rather than being typed into
- * the contract text: the contract embeds THIS string, the preflight's storage
- * warning points at the contract, and there is still exactly one copy of the
- * shim in the repo. It is ES5 for the same reason as before, and it is
- * self-contained so that pasting it cannot go half right.
+ * `injectShim` below puts it into every HTML response the `foundry-serve`
+ * function sends, as the first element inside `<head>`, touching nothing else
+ * in the document -- parse-and-reserialize would mangle bundles in ways nobody
+ * asked for. That rescues every app whose author never read the contract,
+ * which is most of them, and every app already published.
+ *
+ * `foundryBuildContract()` ALSO EMBEDS IT, verbatim, for the student to paste.
+ * That copy is not redundant: the contract tells a student to open
+ * `index.html` off their own filesystem and check the app works before
+ * uploading, and an app that behaves one way there and another way here is an
+ * app they cannot debug. Running twice is harmless -- both run before any
+ * student code, and the second replaces an empty store with an empty store.
+ *
+ * Two DELIVERIES, one SOURCE. There is exactly one copy of the shim text in
+ * the repo and both sides read it from here.
  *
  * NOTE ON `instanceof Storage`: the shim is not a real `Storage`, so
  * `localStorage instanceof Storage` is false. Giving it the real prototype
@@ -124,3 +128,35 @@ install('sessionStorage');
  * beats it.
  */
 export const FOUNDRY_STORAGE_SHIM_TAG = `<script>${FOUNDRY_STORAGE_SHIM_JS}</script>`;
+
+/**
+ * Insert the shim as the first element inside `<head>`.
+ *
+ * FAILING THAT, straight after `<html>` or the doctype, and failing that, the
+ * very front of the document. A page with no `<head>` is ORDINARY rather than
+ * exotic -- browsers synthesize one -- so those are the common case for a
+ * hand-written file, not defensive padding.
+ *
+ * IT INSERTS AND DOES NOT REWRITE. Nothing else in the document is touched, so
+ * a bundle is byte-identical either side of the injection point.
+ */
+export function injectStorageShim(html: string): string {
+	const head = /<head\b[^>]*>/i.exec(html);
+	if (head) {
+		const at = head.index + head[0].length;
+		return html.slice(0, at) + FOUNDRY_STORAGE_SHIM_TAG + html.slice(at);
+	}
+
+	const htmlTag = /<html\b[^>]*>/i.exec(html);
+	if (htmlTag) {
+		const at = htmlTag.index + htmlTag[0].length;
+		return html.slice(0, at) + FOUNDRY_STORAGE_SHIM_TAG + html.slice(at);
+	}
+
+	const doctype = /^<!doctype[^>]*>/i.exec(html);
+	if (doctype) {
+		return html.slice(0, doctype[0].length) + FOUNDRY_STORAGE_SHIM_TAG + html.slice(doctype[0].length);
+	}
+
+	return FOUNDRY_STORAGE_SHIM_TAG + html;
+}

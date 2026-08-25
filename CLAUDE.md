@@ -35,8 +35,9 @@ Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), and the portal
 shell (`/`, `/dashboard`, `/admin`).
 
-**FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the ingest
-function, the bundle proxy, the submit surface (`/foundry/submit`,
+**FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
+`foundry-ingest` function, the `foundry-serve` function that puts a bundle's
+bytes in front of a browser, the submit surface (`/foundry/submit`,
 `/foundry/mine`, `/foundry/contract`), the GALLERY (`/foundry`) and the REVIEW
 QUEUE (`/foundry/review`, admin only). Several things about it are rules rather
 than history.
@@ -64,7 +65,7 @@ the SUBMITTED version, which by definition is not published yet.
     Ingest decides what comes out of a zip (a wrapper stripped, OS noise
     dropped, ignored extensions removed), so a reviewer reading the upload is
     reviewing something nobody will execute. The tree is built from
-    `student_app_files`, which IS the proxy's allowlist.
+    `student_app_files`, which IS `foundry-serve`'s allowlist.
   - **THE METADATA FLAG CANNOT SAY WHICH FIELD MOVED, AND MUST NOT CLAIM TO.**
     `metadata_flagged_at` is a timestamp; there is no metadata history table and
     the version manifest carries build facts only. The panel reports the two
@@ -77,16 +78,26 @@ the SUBMITTED version, which by definition is not published yet.
     two spellings of "is this ready" is what produces a click that does nothing.
     The control is `aria-disabled`, never `disabled`, so it can explain itself.
 
-**A BUNDLE TOKEN CARRIES A KIND IN ITS SIGNED BYTES, AND `review` LIFTS EXACTLY
-ONE CHECK.** Byte 0 of the payload was always a signed discriminator; it now
-holds `published` (1) or `review` (2). A review token lets an ADMIN read one
-named version of an app whether or not it is published, because the queue has to
-RUN the build it is deciding about. Everything else still holds: the version must
-belong to the app, the app must not be hidden, and the mint re-reads the version
-row rather than trusting the body. **Do not turn the publication re-check into a
-parameter** -- it is what makes a thirty-minute token withdrawable inside its own
-lifetime, and the licence has to be unforgeable, which is why it is in the
-signature rather than in the request.
+**A BUNDLE URL CARRIES NO TOKEN, AND THE PUBLICATION GATE IS THE VERSION'S OWN
+STATUS.** `foundryBundleUrl(origin, appId, versionId)` is the whole frame src:
+plain, stable, unexpiring, and safe to log, screenshot and paste into a bug
+report. `foundry-serve` decides on every request whether to answer -- **a
+version serves when it is the app's `published_version_id` OR its status is
+`submitted`**, and never when the app is hidden.
+  - **`submitted` IS WHAT REPLACED THE REVIEW-KIND TOKEN.** The queue has to RUN
+    the build it is deciding about, and a submitted version is by definition not
+    the published one. The old design signed an admin's licence into the token
+    bytes; the licence now comes from the row. It costs one thing -- a student
+    who knows their own version uuid can hand somebody a link to a build that is
+    submitted but unapproved -- and buys immediacy: a DRAFT and a REJECTED
+    version, a rolled-back one and a hidden app all stop serving in the same
+    statement that changes them, where a thirty-minute token could not.
+    Verified in both directions against the real RPCs and the real function.
+  - **DO NOT REINTRODUCE A SIGNED TOKEN TO NARROW THAT.** It is the machinery
+    this lane removed, and the narrowing it buys is one link a student could
+    equally send as a zip. If the exposure ever has to close, close it by
+    dropping `submitted` from the gate and giving the queue a different way to
+    run a build -- not by putting a signature back on every request.
 
 **THE STUDENT HANDS OVER ONE OF THREE SHAPES AND THE BROWSER MAKES THEM ALL A
 ZIP** -- a `.zip` passes through untouched, a folder is zipped client-side, a
@@ -113,12 +124,43 @@ teaching the function two more shapes would mean re-proving all of them twice.
     zipped the wrong folder and the honest answer is the refusal they already
     get. Every drop is reported by category, never silently.
 
+**THE NETWORK IS NOT A PREFLIGHT RULE, AND UNDOING THAT IS THE EASY WRONG
+INSTINCT.** A bundle is served with no `connect-src` restriction, so a CDN
+script, a Google Fonts stylesheet, a remote ES-module specifier and a `fetch`
+all WORK. `classifyReference` returns `ok` for http, https and the
+protocol-relative form; `scanJs` no longer mentions `fetch`, `XMLHttpRequest`,
+`WebSocket` or `EventSource` at all. React and Babel from unpkg -- which is
+what a student's AI tool writes when asked for a React app -- is the ORDINARY
+case, and refusing it taught a student only that the platform is arbitrary.
+  - **WHAT STILL REFUSES IS CONTAINMENT, NOT REACH**: a path starting with a
+    forward slash, a `..` that climbs out, a scheme that is neither the web nor
+    an inline value (`file:`, `ftp:`), a disallowed extension, and the caps.
+  - **THERE IS NO ALLOWED ABSOLUTE PATH ANY MORE, INCLUDING THE ONE THERE USED
+    TO BE.** `/_platform/fonts.css` resolved while bundles came off a host of
+    ours; they come off the Supabase project host now, where a leading slash
+    resolves to Supabase. So the exception is GONE and the contract names the
+    whole URL (`FOUNDRY_PLATFORM_ORIGIN` in `preflight.ts`), with a refusal
+    message that hands the URL back to anyone who wrote the old form. The route
+    moved to the MAIN host and serves `access-control-allow-origin: *`, which
+    is load-bearing rather than decorative: an opaque origin makes even a
+    same-host font fetch cross-origin, and a `@font-face` request is CORS-mode
+    by specification. Measured in a real browser from a genuine opaque origin
+    -- the sheet loads, `cssRules` throws `SecurityError` (so it really is
+    cross-origin), and `document.fonts.check('16px Rajdhani')` is true.
+  - **STORAGE DID NOT RELAX AND IS THE ONE WARNING LEFT.** `localStorage` still
+    throws in an opaque origin, so touching it earns a warning naming the shim
+    and the entry file. It is a WARNING and not a refusal, and it is
+    unconditional -- the sentence also says nothing survives a reload, which is
+    true of a correctly shimmed app too, so suppressing it by detecting the
+    shim would trade a true sentence for a heuristic.
+
 **THE BUILD CONTRACT IS GENERATED FROM THE PREFLIGHT CONSTANTS, IN
 `preflight.ts` ITSELF** (`foundryBuildContract()`), and rendered at
-`/foundry/contract`. Every cap, the extension list, the entry filename and the
-one allowed absolute path are read from the values the checks enforce, so a rule
-change rewrites the document in the same commit. **Do not write the contract
-down anywhere else** -- a second statement of the rules is the one that drifts.
+`/foundry/contract`. Every cap, the extension list, the entry filename, the
+platform fonts URL and the storage shim are read from the values and the module
+the checks actually use, so a rule change rewrites the document in the same
+commit. **Do not write the contract down anywhere else** -- a second statement
+of the rules is the one that drifts.
 **THE "EXTRA FILES" PARAGRAPH IS SORTED BY PUTTING EACH CANDIDATE THROUGH THE
 REAL PREDICATES**, so the document cannot claim an outcome the code does not
 produce. It used to read "Do not produce a README, a package.json, a lockfile,
@@ -274,8 +316,13 @@ means changing that RPC's signature, which is a migration.
 **`foundry-bundles` HAS NO STORAGE POLICY, AND THAT IS THE MECHANISM** --
 `storage.objects` has RLS on, so a bucket no policy names denies every
 `authenticated` and `anon` request by default and only `service_role` reaches
-it. Any policy added there, for any reason, is what opens it; the proxy reads it
-server side. And **LIVENESS GOES THROUGH `_foundry_app_in_population` AND
+it. Any policy added there, for any reason, is what opens it; `foundry-serve`
+reads it server side with that key. **MAKING IT PUBLIC IS THE OBVIOUS WRONG
+ANSWER AND WAS TRIED**: it would put every extracted version -- drafts,
+rejected builds, superseded builds, the builds of hidden apps -- one guessed
+pair of uuids from the open internet, and it does not even work (see the
+Storage `text/html` rule below). And **LIVENESS GOES THROUGH
+`_foundry_app_in_population` AND
 NOTHING ELSE** -- a new read of `student_apps` calls that predicate rather than
 writing its own `hidden_at is null`, and its two widening flags are gated on
 `is_admin()` inside the function, which is why the admin populations are a
@@ -284,64 +331,51 @@ parameter on one list rather than a second list function.
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
 **A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
-are served from `PUBLIC_FOUNDRY_APPS_HOST` (`apps.ideabosco.com`), which is the
-same Vercel project and the same deployment as `ideabosco.com`.
+are served by the **`foundry-serve` Supabase Edge Function**, which answers on
+the Supabase project's own domain and not on `ideabosco.com`.
 
 - **TWO ORIGINS, NOT ONE HOST PLUS A HEADER, and the difference is subresource
   cookies.** A header governs scripting and document origin; it does not govern
   whether a subresource request carries credentials. A bundle containing
   `<img src="/api/whatever">` served same-host reaches the real backend with the
   viewer's cookies attached. Served cross-site it reaches a host that reaches
-  nothing. No header achieves this and no header ever will.
-- **`src/lib/foundry/host.ts` IS THE ONE COPY OF THE HOST RULE**, it is pure,
-  and the apps host is an **ALLOWLIST** (`appsHostAllows`): `/r/*` and
-  `/_platform/*`, everything else a bodyless 404 answered in
-  `hooks.server.ts` before the router sees it. A route added later is
-  unreachable there BY DEFAULT. The branch is sequenced FIRST, ahead of the
-  Supabase client, so no path on that host can read a session or write a
-  refreshed cookie. **`/r/*` and `/_platform/*` 404 on the MAIN host** -- without
-  that half the split is a convention, not a boundary.
-- **`event.url.host` IS THE VALUE TO BRANCH ON, and it was measured on Vercel,
-  not assumed.** It tracks the requested host, is not rewritten upstream, and a
-  client-supplied `X-Forwarded-Host` does not move it. See `host.ts` for the
-  probe.
-- **THE HOOK ONLY BINDS REQUESTS THAT REACH THE FUNCTION, AND ON THE APPS HOST
-  A BUILD STEP IS WHAT MAKES THAT EVERY REQUEST.** Vercel answers `static/` and
-  `_app/immutable/*` off its filesystem without invoking the function at all,
-  so the hook used to govern whichever subset the platform handed it -- measured
-  on production, `apps.ideabosco.com/coins/index.html` served 200 with 177,019
-  bytes of `text/html`, alongside `/robots.txt`, `/push-sw.js`,
-  `/manifest.webmanifest` and the entire client build.
-  `scripts/foundry-edge-routes.mjs` runs after `vite build` (it is the second
-  half of the `build` script) and inserts ONE host-matched route at the FRONT of
-  the generated Build Output route table, sending every apps-host request to the
-  function. It names no paths: the hook stays the only place that decides what
-  the bundle host serves.
-  - **IT CANNOT BE DONE FROM `vercel.json`, AND THAT WAS MEASURED ON TWO PROBE
-    DEPLOYMENTS RATHER THAN ASSUMED.** A `routes` entry carrying `status: 404`
-    fires but does NOT suppress the body -- `/robots.txt` answered 404 with its
-    own 142 bytes and `/coins/index.html` answered 404 with all 175,996 of its,
-    which is exactly the shape of a fix that looks right and changes nothing. A
-    `routes` entry carrying `dest` does shadow the file, but Vercel merges
-    `vercel.json` routes AFTER the framework's, and `adapter-vercel` emits
-    `{ src: '/_app/immutable/.+', headers: {...} }` with no `continue`, which
-    terminates the pre-filesystem phase -- so that route closed `static/` and
-    left the whole client build open. Only an edit ahead of the adapter's own
-    routes reaches it.
-  - **THE ONE RESIDUE: `_app/immutable/*` refuses with 9 bytes, not zero.** The
-    adapter's own post-filesystem rule answers those paths `404` and Vercel
-    supplies its default `Not Found` body. No asset is served (measured on one
-    deployment: 3,183 bytes on a non-apps host, 9 on the apps host), but that
-    one prefix is distinguishable from the hook's bodyless refusal. It reveals
-    only that a path is under `_app/immutable`.
-  - **THE SUITE CANNOT SEE WHETHER VERCEL HONOURS ANY OF THIS.**
-    `tests/foundry-edge-routes.test.ts` asserts the script puts its route at the
-    front of a real adapter-shaped config and fails the build loudly otherwise,
-    which is the half whose regression would be silent. That the platform then
-    obeys the route table is **verified by request against a real deployment,
-    not by the suite** -- and a preview only proves it if the preview is itself
-    the apps host (point `PUBLIC_FOUNDRY_APPS_HOST` at the preview's own alias),
-    because a host-matched route is inert on a hostname it does not match.
+  nothing. No header achieves this and no header ever will. The split is now
+  free rather than engineered: the function is simply somewhere else.
+- **THERE USED TO BE A SECOND VERCEL HOST AND IT NEVER SERVED A BUNDLE.**
+  `apps.ideabosco.com`, a host branch sequenced first in `hooks.server.ts`, an
+  allowlist module, signed HMAC read tokens, a mint endpoint and a build step
+  that rewrote the generated Build Output route table -- five lanes of
+  diagnosis, production logs showing the hook entering, allowing the request
+  and returning 404, and a handler probe that fired on one deployment and not
+  the next for identical requests. **It is deleted, not disabled.** Do not
+  reintroduce `PUBLIC_FOUNDRY_APPS_HOST`, `FOUNDRY_TOKEN_SECRET`, a `/r`
+  namespace, a host branch or `scripts/foundry-edge-routes.mjs`;
+  `tests/foundry-bundle-url.test.ts` sweeps for every one of those names and
+  reddens.
+- **SUPABASE STORAGE WILL NOT SERVE HTML AS HTML, EVER, AND THAT IS WHY THERE
+  IS A FUNCTION AT ALL.** `normalizeContentType` in storage-api's renderer
+  rewrites any `text/html` content type to `text/plain`, unconditionally, with
+  no bucket flag and no configuration. Measured on a real object: stored
+  `text/html; charset=utf-8`, served `text/plain; charset=UTF-8` on the public,
+  the authenticated AND the signed-URL path. A framed bundle would render its
+  own source as text. **Framing a Storage object URL directly is therefore not
+  an option and never will be** -- the check is case-sensitive, which makes
+  `Text/Html` a working bypass and a deliberate circumvention of somebody
+  else's abuse control that one upstream `.toLowerCase()` would silently break.
+  Do not.
+- **THE FUNCTION KNOWS NOTHING ABOUT WHERE IT IS MOUNTED, AND THAT IS LOAD
+  BEARING.** The edge runtime strips its own mount, so `url.pathname` inside
+  the isolate is `/foundry-serve/<app>/<version>/` and not the
+  `/functions/v1/...` the browser asked for -- anchoring on the literal prefix
+  refused every request, with the same bodyless 404 a real failure produces.
+  `parse()` walks the segments and takes the FIRST place two uuids sit next to
+  each other, so no prefix is read at all. **Neither is `url.origin` usable**:
+  inside the isolate it is the runtime's internal address
+  (`http://127.0.0.1:8081` measured locally) and `SUPABASE_URL` is the internal
+  gateway (`http://kong:8000`), so the public origin comes from the request's
+  `x-forwarded-*` headers, degrading to `url.origin`. Both were measured, both
+  produced a plausible wrong answer first, and both are the same lesson: **a
+  platform fact from the old proxy does not transfer to the new one.**
 - **`allow-scripts` AND `allow-same-origin` TOGETHER CANCEL THE SANDBOX
   ENTIRELY** -- a frame with both can reach its own origin, strip the sandbox
   attribute off itself in the parent document and reload unsandboxed.
@@ -351,64 +385,57 @@ same Vercel project and the same deployment as `ideabosco.com`.
 - **THE CSP `sandbox` DIRECTIVE AND THE IFRAME `sandbox` ATTRIBUTE ARE NOT
   REDUNDANT.** The attribute covers a document the portal frames; the directive
   covers the document however it was reached, so a student who navigates
-  straight to a bundle URL lands in the same opaque origin. Neither replaces the
-  other and both must stay.
+  straight to a bundle URL lands in the same opaque origin. Measured both ways
+  against a real served bundle: `window.origin` is `"null"` framed AND on a
+  direct navigation, and `document.cookie`, `indexedDB` and every reach at the
+  parent throw `SecurityError` in both.
 - **`'self'` IS NOT A USABLE CSP SOURCE FOR A SANDBOXED DOCUMENT.** It is the
   only origin-relative source expression, and an opaque origin is same-origin
-  with nothing -- so a source list must NAME THE BUNDLE ORIGIN LITERALLY (taken
-  from the request's own URL). Equally, **`default-src` alone forbids inline
-  script**, which kills the storage shim and essentially every generated app;
-  `script-src`/`style-src` are stated explicitly with `'unsafe-inline'`. The
-  isolation here is the opaque origin, `connect-src 'none'` and
-  `frame-ancestors` -- never a restriction on how the student's own script runs.
-- **THE TOKEN IS NOT THE LAST WORD ON ACCESS.** The proxy reads
-  `foundry-bundles` with the service-role key, which bypasses RLS, so every rule
-  RLS would have enforced is re-checked in `$lib/server/foundry-bundle.ts` on
-  every request: the version belongs to the app, it is still the app's
-  `published_version_id`, and the app is not hidden. A token lives 30 minutes
-  and an app can be withdrawn inside that window.
+  with nothing -- so a source list must NAME THE BUNDLE ORIGIN LITERALLY.
+  Equally, **`default-src` alone forbids inline script**, which kills the
+  storage shim and essentially every generated app; `script-src`/`style-src`
+  are stated explicitly with `'unsafe-inline'`. **The network is deliberately
+  open now** (`https:` on every fetching directive), because the build contract
+  tells students a CDN works and a policy that refused one would make the
+  contract lie. The isolation is the opaque origin and `frame-ancestors`, never
+  a restriction on how the student's own script runs.
+- **`frame-ancestors` IS UNSET-MEANS-UNRESTRICTED, WHICH REVERSES THE OLD
+  RULE.** The proxy defaulted a missing app origin to `'none'`, fail-closed. On
+  a feature whose history is silently serving nothing, a variable whose absence
+  blanks every frame is the worse failure -- and a framed bundle is sandboxed,
+  holds no session and reaches nothing of ours, so another site embedding one
+  gains a copy of a student's app and no more. Production pins it with the
+  `FOUNDRY_APP_ORIGIN` **Supabase function secret**, not a Vercel variable.
+- **THE SERVICE-ROLE READ IS NOT THE LAST WORD ON ACCESS.** It bypasses RLS, so
+  every rule RLS would have enforced is re-checked in the function on every
+  request: the version belongs to the app, the app is not hidden, and the
+  version is published or submitted.
 - **THE FILE LIST IS THE ALLOWLIST.** A served path must have a row in
   `student_app_files` for that exact version and that exact string, so path
   traversal has nothing to traverse to and nothing is ever resolved against a
-  filesystem.
-- **`/r/{token}/` KEEPS ITS TRAILING SLASH.** `/r/<token>` has `/r/` as its base
-  URL, so every relative asset in every bundle would resolve outside the bundle.
-  The mint and the harness only ever hand out the slash form, and the hook now
-  REFUSES the slashless one outright, so the route's own `trailingSlash =
-  'ignore'` plus its 307 to the slash form are a second layer rather than the
-  live path. Refusing it also closed a small oracle: the route verified the
-  token BEFORE redirecting, so a good token answered 307 where a bad one
-  answered 404.
-- **THE TWO HOSTS ASK DIFFERENT QUESTIONS, AND THAT IS TWO PREDICATES RATHER
-  THAN TWO COPIES OF ONE.** `appsHostAllows` is the SHAPE the proxy serves
-  (`/r/{token}/{path}`, `/_platform/*`) and governs the apps host, so nothing
-  else there reaches the router. `isFoundryHostNamespace` is the PREFIX and
-  governs the main host, so the whole `/r` and `/_platform` namespace is refused
-  there whether or not it names a file. Using the shape for both was measured to
-  open one path: a bare `/r` matches no route on either host, so on the main
-  host it fell to the router and rendered the ordinary 404 page. Harmless in
-  itself -- `/nope` renders the same page -- but it would let a route added at
-  `/r/<anything>` ship reachable on the session-bearing origin.
-  - **A PREFIX TEST ON THE APPS HOST IS WHAT PUT THE PORTAL ON THE BUNDLE
-    ORIGIN.** `isFoundryProxyPath` used to match `pathname === '/r'`, so `/r`
-    passed the allowlist, reached the router, matched nothing, and was answered
-    by the root `+error.svelte`: 33 client modules loaded from
-    `apps.ideabosco.com` and `userProfile` in the inlined payload, which is the
-    root `+layout.server.ts` key and so proof that a session read ran on the one
-    origin that exists to prevent it. **NO PATH THE APPS HOST ALLOWS MAY RESOLVE
-    TO A PAGE** -- both prefixes are `+server.ts` endpoints, and SvelteKit does
-    not run layout loads for endpoints, which is what makes this structural
-    rather than a fact about today's routes. `tests/foundry-proxy.test.ts`
-    reads the route directory and reddens if a `+page`/`+layout` appears under
-    either prefix.
-- **EVERY REFUSAL ON THAT HOST IS THE SAME BODYLESS 404.** A bad signature, an
-  expired token, another app's file, a missing row, a hidden app and an ordinary
-  app route are indistinguishable from outside. Two exceptions, both measured
-  and both stated rather than papered over: `_app/immutable/*` refuses with
-  Vercel's own 9-byte `Not Found` (see the build-step bullet above), and a path
-  with a trailing slash is normalized by SvelteKit with a 308 BEFORE any hook
-  runs -- which is universal (`/nope/` does it too), so it distinguishes nothing
-  about Foundry.
+  filesystem. `bundlePathOk` runs first anyway, as an independent second
+  refusal.
+- **THE BUNDLE ROOT KEEPS ITS TRAILING SLASH.** `.../<version>` has
+  `.../<app>/` as its base URL, so every relative asset in every bundle would
+  resolve one level too high -- an app that renders unstyled and scriptless,
+  which reads as a bad upload rather than a bad URL. `foundryBundleUrl` only
+  produces the slash form and the function 307s the other one. **That redirect
+  sends a RELATIVE `Location`**, because the only absolute URL the isolate can
+  build is its own unreachable internal one. And **the redirect keys on whether
+  the path was DERIVED, never on `path === 'index.html'`** -- keyed the second
+  way, an explicit request for `.../index.html` bounced to `.../index.html/`.
+- **EVERY REFUSAL IS THE SAME BODYLESS 404.** A malformed URL, an unknown app,
+  an unpublished version, another app's file, a missing row and a hidden app
+  are indistinguishable from outside.
+- **THE STORAGE SHIM IS INJECTED AGAIN, AND IT IS ALSO IN THE CONTRACT.** An
+  opaque origin has no storage area and the `localStorage` GETTER THROWS, so
+  the first line of a generated app that reads saved state takes the page down
+  before anything renders. `injectStorageShim` in
+  `$lib/foundry/storage-shim.ts` puts it first inside `<head>` on the way past;
+  `foundryBuildContract()` embeds the same string for the student to paste, so
+  the app behaves identically opened off their own filesystem. **Two
+  deliveries, one source** -- there is exactly one copy of the shim text in the
+  repo and running it twice is harmless.
 
 ---
 
@@ -631,34 +658,30 @@ Read via `$env/static/public`: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
 
 Read via `$env/dynamic/public` (runtime, so a missing value never breaks the
 build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
-`PUBLIC_FSP_PULSE_APPS_SCRIPT_URL`, `PUBLIC_VAPID_PUBLIC_KEY`,
-`PUBLIC_FOUNDRY_APPS_HOST` (the bundle host, no scheme; UNSET FAILS CLOSED --
-nothing is the apps host, so no bundle is served anywhere rather than being
-served from the main origin) and `PUBLIC_FOUNDRY_APP_ORIGIN` (the CSP
-`frame-ancestors` value; unset means `'none'`).
+`PUBLIC_FSP_PULSE_APPS_SCRIPT_URL` and `PUBLIC_VAPID_PUBLIC_KEY`.
 
 **SERVER-ONLY**, read via `$env/dynamic/private` (runtime; never in the client
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FOUR modules: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FOUR places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
-  validation in Node before any row is written), the tournament push sender, and
+  validation in Node before any row is written), the tournament push sender,
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
-  anything in it), and the Foundry bundle module
-  (`src/lib/server/foundry-bundle.ts`, which serves the proxy AND backs the
-  review queue's source viewer -- one reader per credential, so the source
-  reads live there rather than in the route that fronts them). The FOURTH one is forced by the origin
-  split rather than chosen: the apps host is a different site, so the viewer's
-  cookies never arrive and there is no session to read a row under, and
-  `foundry-bundles` carries no storage policy at all, so `service_role` is the
-  only role that reaches it. That is why every rule RLS would have enforced is
-  re-checked explicitly in that module. Nothing else may read it, and **it must
-  never gain a `PUBLIC_` prefix**. Unset, the feedback route answers a structured
-  `not_configured` refusal rather than a retryable failure: a missing
-  environment variable does not fix itself in eight seconds of backoff.
+  anything in it), and Foundry -- which is TWO readers of one credential for
+  one subsystem, and the split is forced rather than chosen.
+  `src/lib/server/foundry-bundle.ts` backs the review queue's source viewer on
+  the main host; `supabase/functions/foundry-serve` serves the bundle bytes and
+  runs in a different runtime on a different origin, so it cannot import the
+  first. Both exist because `foundry-bundles` carries no storage policy at all,
+  which makes `service_role` the only role that reaches it, and both re-check
+  explicitly every rule RLS would otherwise have enforced. Nothing else may
+  read it, and **it must never gain a `PUBLIC_` prefix**. Unset, the feedback
+  route answers a structured `not_configured` refusal rather than a retryable
+  failure: a missing environment variable does not fix itself in eight seconds
+  of backoff.
 - **`GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
   `GOOGLE_DRIVE_REFRESH_TOKEN`** -- Drive storage for notebook photos, classroom
   attachments and decks. Auth is **OAuth on behalf of a real Bosco Tech account,
@@ -673,20 +696,21 @@ build break):
 - **`VAPID_PRIVATE_KEY`** (+ optional `VAPID_SUBJECT`) -- signs Web Push. Read
   ONLY by `src/lib/server/push.ts`. Must come from ONE generated pair with
   `PUBLIC_VAPID_PUBLIC_KEY`; rotating orphans every existing subscription.
-- **`FOUNDRY_TOKEN_SECRET`** -- signs the bundle tokens that authorize a read on
-  the apps host. Read ONLY by `src/lib/server/foundry-token.ts`. Unset in
-  DEVELOPMENT mints a per-process secret (tokens work, and die with the
-  process); unset in PRODUCTION is not papered over -- the mint answers a
-  structured `not_configured` and the proxy refuses every token -- because a
-  per-instance secret across many serverless instances mints tokens that verify
-  on one instance and nowhere else.
-
 - **`GITHUB_EXPORT_TOKEN`** -- the classroom GitHub export. Read ONLY by
   `src/lib/server/classroom-export.ts`; never reaches a caller, a message, or a
   log line. Unset is SILENT: no attempt, no recorded failure, no chip.
 
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
-`COIN_LEDGER_URL`.** Nothing reads them.
+`COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and
+`FOUNDRY_TOKEN_SECRET`.** Nothing reads any of them.
+
+**FOUNDRY'S ONLY CONFIGURATION IS A SUPABASE FUNCTION SECRET, NOT A VERCEL
+VARIABLE.** `foundry-serve` gets `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` from the platform, so the one optional value is
+`FOUNDRY_APP_ORIGIN` (`supabase secrets set`), which becomes the CSP
+`frame-ancestors`; unset means unrestricted. **The function deploys separately
+from the app and must go FIRST** -- `supabase functions deploy foundry-serve` --
+because the client names its URL the moment it ships.
 
 **ONE MODULE KNOWS EACH CREDENTIAL.** A secret has exactly one reader, which is
 the single egress point for that service. Do not add a second.

@@ -139,7 +139,10 @@ function galleryHtml(over: { selected?: FoundryApp | null } = {}) {
 
 describe('the frame cancels nothing', () => {
 	const FRAME = render(AppFrame, {
-		props: { src: 'https://example-ref.supabase.co/storage/v1/object/public/foundry-bundles/a/v-1/index.html', title: 'Tide Clock' }
+		props: {
+			src: 'https://example-ref.supabase.co/functions/v1/foundry-serve/a/v-1/',
+			title: 'Tide Clock'
+		}
 	}).body;
 
 	it('grants scripts, modals and pointer lock and NOTHING else', () => {

@@ -379,6 +379,23 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# ---------------------------------------------------------------------------
+# `foundry-serve` answers with a student bundle's bytes and is reached by an
+# `iframe src`, which carries no Authorization header and no apikey. It has to
+# be callable without a JWT or nothing can ever load one.
+#
+# THAT IS NOT AN OPEN DOOR. The function re-checks, on every request, that the
+# version belongs to the app, that the app is not hidden, and that the version
+# is either published or submitted for review -- see its own header. The
+# `foundry-bundles` bucket stays private and this function's service-role
+# client remains its only reader.
+#
+# `foundry-ingest` deliberately has NO block here: it keeps the default
+# verify_jwt = true, because its whole first act is establishing which student
+# is calling.
+[functions.foundry-serve]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

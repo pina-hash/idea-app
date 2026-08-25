@@ -205,6 +205,29 @@ export function foundryMime(path: string): string {
 }
 
 /** Text files are the ones worth scanning and worth decoding as UTF-8. */
+/**
+ * WHAT THE SERVING FUNCTION MAY PUT ON A RESPONSE, as a MIME ALLOWLIST rather
+ * than an echo of anything.
+ *
+ * A stored type reaches this from `student_app_files.content_type`, which the
+ * ingest function wrote from `foundryMime` -- a fixed table over the extension
+ * allowlist. So in practice every value is already one of these. The check is
+ * here because "in practice" is not the standard for a header that decides
+ * whether bytes a student uploaded are executed as script: anything not in the
+ * table is served `application/octet-stream`, which with `nosniff` means the
+ * browser will not run it as anything at all.
+ *
+ * IT LIVES BESIDE `foundryMime` BECAUSE IT IS THE SAME TABLE READ BACKWARDS.
+ * A second list of servable types, kept anywhere else, is the list that stops
+ * agreeing with the one the extensions produce.
+ */
+const SERVABLE_TYPES = new Set(Object.values(MIME_BY_EXT));
+
+export function servableFoundryType(stored: string | null | undefined): string {
+	const value = (stored ?? '').trim();
+	return SERVABLE_TYPES.has(value) ? value : 'application/octet-stream';
+}
+
 export function isTextExtension(ext: string): boolean {
 	return ext === 'html' || ext === 'css' || ext === 'js' || ext === 'json' || ext === 'txt';
 }
