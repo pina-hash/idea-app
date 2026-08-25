@@ -509,10 +509,31 @@ same Vercel project and the same deployment as `ideabosco.com`.
   and the apps host is an **ALLOWLIST** (`appsHostAllows`): `/r/*` and
   `/_platform/*`, everything else a bodyless 404 answered in
   `hooks.server.ts` before the router sees it. A route added later is
-  unreachable there BY DEFAULT. The branch is sequenced FIRST, ahead of the
-  Supabase client, so no path on that host can read a session or write a
-  refreshed cookie. **`/r/*` and `/_platform/*` 404 on the MAIN host** -- without
-  that half the split is a convention, not a boundary.
+  unreachable there BY DEFAULT. **`/r/*` and `/_platform/*` 404 on the MAIN
+  host** -- without that half the split is a convention, not a boundary.
+  - **THE APPS HOST IS NOT A SEQUENCE MEMBER'S PROBLEM, IT IS AN EARLY RETURN,
+    AND THAT USED TO BE STATED WRONG HERE.** This line read "the branch is
+    sequenced FIRST, ahead of the Supabase client, so no path on that host can
+    read a session or write a refreshed cookie", and the guarantee held only
+    for the paths the branch REFUSED. `handle` was
+    `sequence(foundryHostBranch, legacyRedirects, supabase, authGuard)`, and in
+    a `sequence` member `resolve(event)` means RUN THE NEXT MEMBER -- so every
+    request the bundle host actually SERVED went on to have a Supabase client
+    created against that origin's cookies and a live `getClaims()` round trip
+    performed by `authGuard`. `handle` is now a plain function: on the apps
+    host it answers the refusal or returns `resolve(event)` -- the ROUTER --
+    and the other three members live in a `mainHostChain` sequence the bundle
+    host never enters. **Do not fix a downstream member's behaviour on that
+    host by naming `/r` in its own exemption list**: that leaves the next
+    middleware free to reintroduce the same failure, and this has now happened
+    twice. Nothing after the hook runs there, so there is nothing to exempt.
+  - **`handleError` REDACTS THE PATHNAME IT LOGS**, because on this host the
+    pathname CONTAINS a credential (`/r/{token}/{path}`, thirty minutes of read
+    access to a student's app) and a function log is not the place for one.
+    `redactProxyPath` in `host.ts` is the one implementation -- it lives beside
+    `isFoundryProxyPath` so there is a single description of where the token
+    sits, and it returns any non-proxy path verbatim so an ordinary correlation
+    line stays readable.
 - **`event.url.host` IS THE VALUE TO BRANCH ON, and it was measured on Vercel,
   not assumed.** It tracks the requested host, is not rewritten upstream, and a
   client-supplied `X-Forwarded-Host` does not move it. See `host.ts` for the

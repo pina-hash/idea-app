@@ -10,7 +10,8 @@ import {
 	isFoundryHostNamespace,
 	isFoundryPlatformPath,
 	isFoundryProxyPath,
-	normalizeHost
+	normalizeHost,
+	redactProxyPath
 } from '../src/lib/foundry/host';
 import { mintFoundryToken, verifyFoundryToken } from '../src/lib/server/foundry-token';
 import {
@@ -30,7 +31,8 @@ import {
 } from '../src/lib/server/foundry-dev-fixture';
 import { setDev } from './stubs/app-environment';
 import { GET as proxyGet } from '../src/routes/r/[token]/[...path]/+server';
-import { foundryHostBranch } from '../src/hooks.server';
+import { with_request_store } from '@sveltejs/kit/internal/server';
+import { handle, handleError } from '../src/hooks.server';
 
 /**
  * THE FOUNDRY ORIGIN SPLIT, and specifically the parts of it whose regression
@@ -101,7 +103,7 @@ describe('host branch', () => {
 			// what blanked every published app, because that is the shape the
 			// frame's own request becomes if anything upstream normalizes the
 			// trailing slash away. The route never SERVES this spelling -- see
-			// 'the bundle root, through the hook and the route together' below,
+			// 'the bundle root, through the whole handle sequence' below,
 			// which asserts the 307 and follows it to the entry file.
 			'/r/tok',
 			'/_platform',
@@ -484,24 +486,33 @@ describe('the real proxy route handler, against the dev fixture', () => {
 
 
 /**
- * THE BUNDLE ROOT, WHICH IS THE ONLY URL THE FRAME EVER REQUESTS -- AND THE
- * ONE SHAPE NOTHING USED TO EXERCISE.
+ * THE BUNDLE ROOT, WHICH IS THE ONLY URL THE FRAME EVER REQUESTS -- DRIVEN
+ * THROUGH THE WHOLE HANDLE SEQUENCE, WHICH IS THE GAP THAT HID TWO BUGS.
  *
- * Every other test in this file, and every verification drive, asked for an
- * explicit filename or handed `params` straight to the route. Both skip the
- * HOOK, and the hook is where the bundle root was being refused: the frame
- * asks for `/r/{token}/`, anything that normalizes the trailing slash away
- * delivers `/r/{token}`, and `isFoundryProxyPath` answered false for that --
- * a bodyless 404 with the database never consulted. Every published app was
- * blank and nothing in the suite could see it, because nothing in the suite
- * ever put a URL through the hook and the route together.
+ * The first was the shape: every other test in this file, and every
+ * verification drive, asked for an explicit filename or handed `params`
+ * straight to the route, and both skip the hook entirely.
  *
- * So this block composes THE TWO PIECES PRODUCTION COMPOSES: the real
- * `foundryHostBranch` with the real route handler as its `resolve`. The only
- * thing standing in for SvelteKit is the param split, which is written to the
- * route pattern `/r/[token]/[...path]` and nothing else.
+ * The second was the CONTINUATION, and the shape of the test is what hid it.
+ * This block used to compose `foundryHostBranch` with the route handler as its
+ * `resolve` -- which reads as "the hook, then the route, exactly as
+ * `sequence()` runs them" and is not that at all. In a `sequence` member,
+ * `resolve` means THE NEXT MEMBER, so supplying our own silently stood in for
+ * `legacyRedirects`, `supabase` and `authGuard` and asserted them out of
+ * existence. In production those three ran on every bundle request the host
+ * branch ALLOWED: a Supabase client created against the bundle origin's
+ * cookies, and a live session read against the Auth server -- on the one
+ * origin whose entire purpose is that neither can happen.
+ *
+ * So what is driven here is the REAL EXPORTED `handle`, and `resolve` stands
+ * in for SvelteKit's router and nothing else. The instrumented event below is
+ * the other half: it counts every observation a downstream member would have
+ * to make (a `locals` assignment, a cookie read, a cookie write, a response
+ * header), so "nothing after the hook ran" is a MEASUREMENT rather than a
+ * reading of the composition. The positive controls prove those counters can
+ * move at all.
  */
-describe('the bundle root, through the hook and the route together', () => {
+describe('the bundle root, through the whole handle sequence', () => {
 	/** `/r/[token]/[...path]`, split the way the route pattern splits it. */
 	const paramsFor = (pathname: string) => {
 		const rest = pathname.slice('/r/'.length);
@@ -511,19 +522,110 @@ describe('the bundle root, through the hook and the route together', () => {
 			: { token: rest.slice(0, cut), path: rest.slice(cut + 1) };
 	};
 
-	/** The hook first, then the route, exactly as `sequence()` runs them. */
-	const request = async (host: string, pathname: string): Promise<Response> => {
-		const url = new URL(`https://${host}${pathname}`);
-		const event = {
-			params: paramsFor(pathname),
-			url,
-			request: new Request(url, { method: 'GET' })
-		};
-		return (await foundryHostBranch({
-			event: event as never,
-			resolve: (async (e: typeof event) => proxyGet(e as never)) as never
-		} as never)) as Response;
+	/**
+	 * SvelteKit's own no-op span, spelled out rather than imported: with no
+	 * OpenTelemetry exporter configured, `record_span` calls `fn` with one of
+	 * these and returns its result, which is exactly what production does.
+	 */
+	const noopSpan = {
+		setAttributes: () => noopSpan,
+		setAttribute: () => noopSpan,
+		recordException: () => {},
+		setStatus: () => noopSpan,
+		end: () => {},
+		addEvent: () => noopSpan,
+		updateName: () => noopSpan,
+		isRecording: () => false,
+		spanContext: () => ({ traceId: '', spanId: '', traceFlags: 0 }),
+		addLink: () => noopSpan,
+		addLinks: () => noopSpan
 	};
+	const recordSpan = async ({ fn }: { fn: (span: unknown) => unknown }) => fn(noopSpan);
+
+	/** Every way a sequence member downstream of the host branch would show up. */
+	type Observed = {
+		cookieReads: number;
+		cookieWrites: number;
+		headerSets: number;
+		routerCalls: number;
+	};
+
+	/**
+	 * The real `handle`, with the ROUTER stood in for and nothing else.
+	 *
+	 * `resolve` dispatches to the real proxy handler for a proxy path and
+	 * answers a plain page for anything else, which is what SvelteKit does once
+	 * the hook hands the request over. A thrown `redirect()` is returned as its
+	 * own response, the way `respond.js` catches it.
+	 */
+	const drive = async (host: string, pathname: string) => {
+		const url = new URL(`https://${host}${pathname}`);
+		const seen: Observed = { cookieReads: 0, cookieWrites: 0, headerSets: 0, routerCalls: 0 };
+		const locals: Record<string, unknown> = {};
+		const event = {
+			url,
+			params: paramsFor(pathname),
+			request: new Request(url, { method: 'GET' }),
+			route: { id: null },
+			locals,
+			cookies: {
+				getAll: () => {
+					seen.cookieReads++;
+					return [];
+				},
+				get: () => {
+					seen.cookieReads++;
+					return undefined;
+				},
+				set: () => {
+					seen.cookieWrites++;
+				},
+				delete: () => {
+					seen.cookieWrites++;
+				}
+			},
+			setHeaders: () => {
+				seen.headerSets++;
+			}
+		};
+
+		const resolve = async (e: typeof event) => {
+			seen.routerCalls++;
+			return isFoundryProxyPath(e.url.pathname)
+				? await proxyGet(e as never)
+				: new Response('the portal', { status: 200 });
+		};
+
+		let response: Response;
+		try {
+			/**
+			 * `sequence()` reads SvelteKit's per-request store, which `respond.js`
+			 * installs around `hooks.handle` -- so driving the real top-level
+			 * handle means installing it here too. The tracing stub is the whole
+			 * of it: `record_span` with OpenTelemetry absent is a passthrough,
+			 * which is what it already is in production.
+			 */
+			response = (await with_request_store(
+				{
+					event: event as never,
+					state: { tracing: { record_span: recordSpan } } as never
+				},
+				() => handle({ event: event as never, resolve: resolve as never })
+			)) as Response;
+		} catch (thrown) {
+			const r = thrown as { status?: number; location?: string };
+			if (typeof r?.status === 'number' && typeof r?.location === 'string') {
+				response = new Response(null, { status: r.status, headers: { location: r.location } });
+			} else {
+				throw thrown;
+			}
+		}
+		return { response, seen, locals };
+	};
+
+	/** The bundle-root request, with only the response kept. */
+	const request = async (host: string, pathname: string): Promise<Response> =>
+		(await drive(host, pathname)).response;
 
 	const live = () => {
 		setDev(true);
@@ -562,10 +664,10 @@ describe('the bundle root, through the hook and the route together', () => {
 
 		// And following it lands on the entry file, so the shape resolves end to
 		// end rather than merely being redirected somewhere.
-		const followed = await request(APPS_HOST, new URL(
-			res.headers.get('location') as string,
-			`https://${APPS_HOST}`
-		).pathname);
+		const followed = await request(
+			APPS_HOST,
+			new URL(res.headers.get('location') as string, `https://${APPS_HOST}`).pathname
+		);
 		expect(followed.status).toBe(200);
 		expect(await followed.text()).toContain("install('localStorage')");
 	});
@@ -594,6 +696,150 @@ describe('the bundle root, through the hook and the route together', () => {
 			const res = await request('ideabosco.com', pathname);
 			expect(res.status, `pathname ${pathname}`).toBe(404);
 			expect(await res.text(), `pathname ${pathname}`).toBe('');
+		}
+	});
+
+	/**
+	 * THE ONE THAT WOULD HAVE CAUGHT IT.
+	 *
+	 * A signed-out GET to the bundle root has to reach the proxy handler AND be
+	 * seen by nothing else. The second half is the half whose regression is
+	 * silent: bundles keep serving perfectly while a session read runs on the
+	 * bundle origin behind them, which is what production was doing.
+	 *
+	 * `locals` is the definitive instrument, because both members that could
+	 * touch a session write to it unconditionally and before anything else they
+	 * do: `supabase` assigns `locals.supabase`, `authGuard` assigns
+	 * `locals.claims`. A key present means that member ran, whatever it went on
+	 * to answer.
+	 */
+	it('reaches the proxy handler, and NO other sequence member observes the request', async () => {
+		const { response, seen, locals } = await drive(APPS_HOST, `/r/${live()}/`);
+
+		// It reached the router, and the router's answer is the entry file.
+		expect(seen.routerCalls).toBe(1);
+		expect(response.status).toBe(200);
+		expect(await response.text()).toContain("install('localStorage')");
+
+		// And nothing else in the sequence touched it.
+		expect(Object.keys(locals)).toEqual([]);
+		expect(seen.cookieReads).toBe(0);
+		expect(seen.cookieWrites).toBe(0);
+		expect(seen.headerSets).toBe(0);
+	});
+
+	it('observes nothing on a REFUSED apps-host path either, and never reaches the router', async () => {
+		const { response, seen, locals } = await drive(APPS_HOST, '/classroom');
+		expect(response.status).toBe(404);
+		expect(await response.text()).toBe('');
+		expect(seen.routerCalls).toBe(0);
+		expect(Object.keys(locals)).toEqual([]);
+		expect(seen.cookieReads).toBe(0);
+	});
+
+	/**
+	 * THE POSITIVE CONTROLS. Without these the four zeros above pass on an
+	 * event nobody could observe in the first place, which is the shape of a
+	 * green test that certifies nothing.
+	 */
+	it('POSITIVE CONTROL: the same event on the MAIN host IS observed by the rest of the sequence', async () => {
+		const { response, seen, locals } = await drive('ideabosco.com', '/');
+
+		expect(response.status).toBe(200);
+		expect(seen.routerCalls).toBe(1);
+		// `supabase` created the client; `authGuard` resolved the claims. Both
+		// wrote to `locals`, which is the counter the apps-host case reads as
+		// empty.
+		expect(Object.keys(locals).sort()).toEqual(['claims', 'supabase']);
+		// Signed out, so there is no session -- but the cookies were read to
+		// find that out, which is the read that must never happen on the
+		// bundle origin.
+		expect(locals.claims).toBeNull();
+		expect(seen.cookieReads).toBeGreaterThan(0);
+	});
+
+	it('POSITIVE CONTROL: `legacyRedirects` still runs on the main host, and never on the apps host', async () => {
+		const onMain = await drive('ideabosco.com', '/IDEA');
+		expect(onMain.response.status).toBe(308);
+		expect(onMain.response.headers.get('location')).toBe('/');
+
+		// The same path on the bundle host is refused by the allowlist before
+		// any of that: no redirect, no router, nothing observed.
+		const onApps = await drive(APPS_HOST, '/IDEA');
+		expect(onApps.response.status).toBe(404);
+		expect(await onApps.response.text()).toBe('');
+		expect(onApps.seen.routerCalls).toBe(0);
+		expect(Object.keys(onApps.locals)).toEqual([]);
+	});
+});
+
+/**
+ * THE TOKEN MUST NOT REACH A LOG LINE, AND `handleError` IS THE ONE PLACE THAT
+ * WRITES A PATHNAME DOWN.
+ *
+ * On the bundle host the pathname IS the credential: `/r/{token}/{path}`, and
+ * that token is thirty minutes of read access to a student's app. A 500 on the
+ * proxy would otherwise have put a live one in the Vercel function log, where
+ * it is greppable by anyone with access to the log and outlives the request by
+ * however long the log is kept.
+ *
+ * This drives the real `handleError` and reads what it actually printed, rather
+ * than asserting the helper in isolation: the helper being correct while the
+ * call site interpolates `event.url.pathname` beside it is exactly the shape of
+ * this leak.
+ */
+describe('handleError never writes a bundle token down', () => {
+	it('redacts the token from the logged pathname, and leaves every other path alone', () => {
+		const token = 'a'.repeat(114);
+		const lines: string[] = [];
+		const realError = console.error;
+		console.error = (...args: unknown[]) => {
+			lines.push(args.map(String).join(' '));
+		};
+		try {
+			handleError({
+				error: new Error('boom'),
+				event: {
+					url: new URL(`https://${APPS_HOST}/r/${token}/assets/app.js`),
+					request: { method: 'GET' },
+					route: { id: '/r/[token]/[...path]' }
+				},
+				status: 500,
+				message: 'Internal Error'
+			} as never);
+
+			handleError({
+				error: new Error('boom'),
+				event: {
+					url: new URL('https://ideabosco.com/classroom/abc'),
+					request: { method: 'GET' },
+					route: { id: '/classroom/[sectionId]' }
+				},
+				status: 500,
+				message: 'Internal Error'
+			} as never);
+		} finally {
+			console.error = realError;
+		}
+
+		expect(lines.length).toBe(2);
+		// Positive control: the line was written and still says where it happened.
+		expect(lines[0]).toContain('/r/<token:114>/assets/app.js');
+		expect(lines[0]).toContain('route=/r/[token]/[...path]');
+		// And the credential is not in it, anywhere.
+		expect(lines[0]).not.toContain(token);
+		// An ordinary path is untouched, so the correlation line stays readable.
+		expect(lines[1]).toContain('/classroom/abc');
+	});
+
+	it('redacts by SHAPE, so a token of any length and any path under it is covered', () => {
+		expect(redactProxyPath('/r/abc/')).toBe('/r/<token:3>/');
+		expect(redactProxyPath('/r/abc')).toBe('/r/<token:3>');
+		expect(redactProxyPath('/r/abc/nested/thing.png')).toBe('/r/<token:3>/nested/thing.png');
+		// Not a proxy path: returned verbatim, because a correlation line that
+		// mangles ordinary routes is a correlation line nobody can read.
+		for (const p of ['/', '/classroom', '/reference/abc', '/_platform/lib/react.js']) {
+			expect(redactProxyPath(p)).toBe(p);
 		}
 	});
 });
