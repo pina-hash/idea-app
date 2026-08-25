@@ -36,7 +36,7 @@
 	import { preflightZipInBrowser, type BrowserPreflightResult } from './preflight-browser.ts';
 	import { FOUNDRY_LIMITS, formatBytes, type FoundryIssue } from './preflight.ts';
 	import { slugLooksOk, suggestSlug } from './surface.ts';
-	import { FOUNDRY_STARTER_PATH } from './vendor.ts';
+	import { FOUNDRY_STARTER_PATH } from './preflight.ts';
 	import type { FoundrySubmitTransports, IngestOutcome } from './transports.ts';
 
 	let {

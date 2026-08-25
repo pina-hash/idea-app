@@ -114,22 +114,22 @@ const APPS: FoundryAppSummary[] = [
 
 const noop = () => {};
 
-/** A launch transport, so the stage renders its control rather than its absence. */
-const LAUNCHER = {
-	launch: async () => ({
-		ok: true as const,
-		src: 'https://apps.example/r/tok/',
-		versionId: 'v-1',
-		expiresInSeconds: 1800
-	})
-};
+/**
+ * NO LAUNCH TRANSPORT EXISTS ANY MORE, and the stage renders its control on the
+ * strength of being able to BUILD a src instead. `PUBLIC_SUPABASE_URL` comes
+ * from the placeholder stand-in in tests/stubs, which is all `foundryBundleUrl`
+ * needs to answer non-null -- so an empty transports object is now the shape
+ * that produces a launch control, where it used to be the shape that removed
+ * one. Kept as a named constant so the two spellings do not drift.
+ */
+const NO_TRANSPORTS = {};
 
 function galleryHtml(over: { selected?: FoundryApp | null } = {}) {
 	return render(FoundryGallery, {
 		props: {
 			apps: APPS,
 			selected: over.selected ?? null,
-			transports: LAUNCHER,
+			transports: NO_TRANSPORTS,
 			onSelect: noop
 		}
 	}).body;
@@ -139,7 +139,10 @@ function galleryHtml(over: { selected?: FoundryApp | null } = {}) {
 
 describe('the frame cancels nothing', () => {
 	const FRAME = render(AppFrame, {
-		props: { src: 'https://apps.example/r/tok/', title: 'Tide Clock' }
+		props: {
+			src: 'https://example-ref.supabase.co/functions/v1/foundry-serve/a/v-1/',
+			title: 'Tide Clock'
+		}
 	}).body;
 
 	it('grants scripts, modals and pointer lock and NOTHING else', () => {
@@ -231,7 +234,7 @@ describe('a null class renders as nothing at all', () => {
 					owner_full_name: null,
 					owner_class: null
 				}),
-				transports: LAUNCHER
+				transports: NO_TRANSPORTS
 			}
 		}).body;
 		expect(html).toContain('Nameless'); // positive control
@@ -242,7 +245,7 @@ describe('a null class renders as nothing at all', () => {
 		const withAuthor = render(FoundryDetail, {
 			props: {
 				app: app({ id: 'd', slug: 'named', title: 'Named', ...NAMED_WITH_CLASS }),
-				transports: LAUNCHER
+				transports: NO_TRANSPORTS
 			}
 		}).body;
 		expect(withAuthor).toContain('fdy-detail-by');
@@ -282,7 +285,6 @@ describe('the review queue is the student page plus an inspector', () => {
 	];
 
 	const REVIEW_TRANSPORTS = {
-		...LAUNCHER,
 		listFiles: async () => ({ ok: true as const, files: [] }),
 		readFile: async () => ({ ok: true as const, text: '', path: '', byteSize: 0 }),
 		decide: async () => ({ ok: true as const })
@@ -378,7 +380,7 @@ describe('the review queue is the student page plus an inspector', () => {
 
 	it('removes each inspector control when its transport is absent', () => {
 		// ABSENCE IS THE MECHANISM: read-only is structural, not a flag.
-		const readOnly = queueHtml({ selected: IN_QUEUE, transports: LAUNCHER });
+		const readOnly = queueHtml({ selected: IN_QUEUE, transports: NO_TRANSPORTS });
 		expect(readOnly).toContain('data-testid="foundry-inspector"'); // positive control
 		expect(readOnly).not.toContain('Send decision');
 		expect(readOnly).not.toContain('Files in the stored bundle');

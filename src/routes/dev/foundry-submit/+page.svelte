@@ -497,19 +497,15 @@ fetch('https://api.example.com/data').then((r) => r.json());
 	 * is about; a binary asset would need a different transport and is said here
 	 * rather than left to be discovered.
 	 */
-	let runSrc = $state('');
 	let runNote = $state('');
 	let runNotes = $state<string[]>([]);
 	let runFiles = $state<string[]>([]);
 	let runBusy = $state(false);
-	let runRewritten = $state('');
 
 	async function runFixture() {
 		runBusy = true;
-		runSrc = '';
 		runNotes = [];
 		runFiles = [];
-		runRewritten = '';
 		try {
 			// The real file, unmodified, handed over the way a picked file is.
 			const picked = file('approved-react-app.html', data.reactAppFixture);
@@ -528,45 +524,24 @@ fetch('https://api.example.com/data').then((r) => r.json());
 				return;
 			}
 
-			// Every text file out of the zip the surface would have uploaded,
-			// with the rewritten copy standing in wherever the preflight
-			// produced one. Read back out of the zip rather than kept aside, so
-			// what is served is what was actually packed.
-			const bytes = new Uint8Array(await norm.zip.arrayBuffer());
-			const records = readCentralDirectory(bytes);
-			const dec = new TextDecoder('utf-8');
-			const out: { path: string; text: string }[] = [];
-			let skipped = 0;
-			for (const [i, r] of (records ?? []).entries()) {
-				if (r.directory) continue;
-				const path = r.name;
-				if (!isTextExtension(extensionOf(path))) {
-					skipped++;
-					continue;
-				}
-				const rewritten = verdict.rewritten[path];
-				out.push({
-					path,
-					text: rewritten ?? dec.decode(await inflateEntry(bytes, records![i], path))
-				});
-			}
-			runRewritten = verdict.rewritten['index.html'] ?? '';
-
-			const res = await fetch('/dev/foundry-run', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ files: out })
-			});
-			const payload = await res.json();
-			if (!payload.ok || !payload.configured) {
-				runNote =
-					'PUBLIC_FOUNDRY_APPS_HOST or FOUNDRY_TOKEN_SECRET is not usable, so there is no bundle origin to serve from.';
-				return;
-			}
-			runSrc = payload.src;
-			runNote = `Served ${payload.count} file${payload.count === 1 ? '' : 's'} from the apps host${
-				skipped > 0 ? `; ${skipped} binary file(s) not carried by this drive` : ''
-			}.`;
+			/*
+			 * THE FRAME USED TO GO HERE, AND IT CANNOT ANY MORE.
+			 *
+			 * This harness ran the bundle it had just preflighted by POSTing the
+			 * file set to `/dev/foundry-run`, which wrote it into the in-memory dev
+			 * fixture and minted a real token for the proxy to serve it through.
+			 * There is no proxy and no token: a bundle is served by the
+			 * `foundry-serve` Edge Function, which reads rows and objects that only
+			 * exist once something has actually been ingested. A file set that has
+			 * only been PREFLIGHTED has neither, so there is nothing to point a
+			 * frame at.
+			 *
+			 * `/dev/foundry-run?app=&version=` runs a bundle that HAS been
+			 * published, against a project that holds it. This half of the drive is
+			 * the preflight verdict, which is what this harness is for.
+			 */
+			runNote =
+				`Preflight passed: ${verdict.files.length} file(s). Publish it to run it -- see /dev/foundry-run.`;
 		} catch (e) {
 			runNote = `DRIVE FAILED: ${(e as Error).message}`;
 		} finally {
@@ -702,22 +677,6 @@ fetch('https://api.example.com/data').then((r) => r.json());
 				<p class="h-note" data-testid="run-files">
 					Extracted: {runFiles.join(', ')}
 				</p>
-			{/if}
-
-			{#if runSrc}
-				<h3>Running in the sandboxed frame</h3>
-				<AppFrame
-					src={runSrc}
-					title="Study Timer (rewritten)"
-					height="60vh"
-					loading="eager"
-					notice="Served from the apps host through the real proxy. sandbox=allow-scripts, never allow-same-origin."
-				/>
-			{/if}
-
-			{#if runRewritten}
-				<h3>The head of the file that was served</h3>
-				<pre class="h-raw" data-testid="run-head">{runRewritten.slice(0, 700)}</pre>
 			{/if}
 
 			{#if uploads.length > 0 || created.length > 0}

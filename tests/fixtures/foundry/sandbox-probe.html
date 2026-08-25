@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundry sandbox probe</title>
+<style>
+	body { font: 13px/1.5 ui-monospace, monospace; background: #0b1410; color: #d7e4da; margin: 0; padding: 12px; }
+	h1 { font-size: 1rem; margin: 0 0 0.5rem; }
+	ul { list-style: none; margin: 0; padding: 0; }
+	li { padding: 2px 0; border-bottom: 1px solid #1c2b23; }
+	b { color: #e4b23c; }
+	.ok { color: #7fd6a2; }
+	.bad { color: #d97a7a; }
+</style>
+</head>
+<body>
+<h1>Foundry sandbox probe</h1>
+<p id="where">origin: (script did not run)</p>
+<ul id="out"></ul>
+<script>
+/*
+ * A BUNDLE THAT TRIES EVERY ESCAPE AND REPORTS ITS OWN RESULT.
+ *
+ * Every line here is something the sandbox is supposed to stop, and each one
+ * writes what happened into the page AND posts it to whoever framed it. A
+ * bundle that silently does nothing is indistinguishable from one whose script
+ * never ran, which is the failure this fixture exists to make impossible.
+ *
+ * It reports window.origin too, which is how "did this land in an opaque
+ * origin" is answered for a DIRECT navigation, where there is no parent to ask
+ * and only the CSP sandbox directive is doing the work.
+ */
+var out = document.getElementById('out'), collected = {};
+function report(name, verdict) {
+	var li = document.createElement('li');
+	li.className = verdict.indexOf('BLOCKED') === 0 ? 'ok' : 'bad';
+	li.setAttribute('data-probe', name);
+	li.setAttribute('data-verdict', verdict);
+	li.innerHTML = '<b>' + name + '</b>: ' + verdict;
+	out.appendChild(li);
+	collected[name] = verdict;
+	// postMessage is the ONE channel a sandboxed frame keeps. Nothing is granted
+	// by it: a frame may always message its parent, the parent chooses whether
+	// to listen, and the message arrives with origin "null". Anything a bundle
+	// sends is untrusted and must only ever be rendered as text.
+	try { if (window.top !== window.self) window.parent.postMessage({ probe: collected }, '*'); } catch (e) {}
+}
+function attempt(name, fn) {
+	try { report(name, 'REACHED ' + String(fn())); }
+	catch (e) { report(name, 'BLOCKED ' + (e && e.name ? e.name : 'Error')); }
+}
+
+var framed = window.top !== window.self;
+document.getElementById('where').textContent =
+	'origin: ' + String(window.origin) + ' | framed: ' + framed;
+report('window.origin', String(window.origin));
+report('inline-script', 'RAN');
+attempt('window.parent.location.href', function () { return window.parent.location.href; });
+attempt('window.top.document.title', function () { return window.top.document.title; });
+attempt('window.parent.localStorage', function () { return window.parent.localStorage.length; });
+attempt('document.cookie', function () { return JSON.stringify(document.cookie); });
+attempt('indexedDB.open', function () { indexedDB.open('x'); return 'opened'; });
+attempt('window.open', function () {
+	var w = window.open('https://example.com/');
+	return w === null ? 'null (blocked)' : 'window returned';
+});
+
+/*
+ * TOP NAVIGATION IS ONLY A TEST WHEN THERE IS A TOP TO ESCAPE FROM. A
+ * top-level document setting top.location is navigating ITSELF, which the HTML
+ * spec permits regardless of sandboxing. Run unconditionally it would carry the
+ * direct-navigation drive off to example.com before a single result could be
+ * read, which reads exactly like an escape and is not one.
+ */
+if (framed) {
+	attempt('set top.location', function () { window.top.location = 'https://example.com/'; return 'set'; });
+} else {
+	report('set top.location', 'BLOCKED (not run: nothing to escape from)');
+}
+
+// THE SHIM IS THE ONE THING THAT SHOULD WORK. It is injected by foundry-serve
+// and is also in the build contract; without it this line throws and takes the
+// rest of the page with it, which is the whole reason it exists.
+attempt('localStorage via the shim', function () {
+	localStorage.setItem('n', 5);
+	return 'set 5, read back ' + JSON.stringify(localStorage.getItem('n')) +
+		', length ' + localStorage.length +
+		', keys ' + JSON.stringify(Object.keys(localStorage));
+});
+</script>
+</body>
+</html>

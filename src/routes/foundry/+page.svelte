@@ -2,10 +2,12 @@
 	/**
 	 * THE ROUTE OWNS THE TRANSPORTS; the component owns the arrangement.
 	 *
-	 * The one transport here is the MINT, and it is an API route rather than a
-	 * direct client call because it is the one place a session decides "may this
-	 * person open this app" and then signs that decision into a token. That is
-	 * exactly the case the repo says needs a server: a credential is involved.
+	 * THERE ARE NONE LEFT ON THIS SURFACE. The gallery's only server call was
+	 * the token mint, which existed because a proxy of ours served the bundle
+	 * and a signed decision had to reach it. Bundles come straight off public
+	 * Storage now and `AppStage` derives the frame src from the two ids, so the
+	 * object below is empty and is passed only so the component's contract does
+	 * not change shape between here and the review queue.
 	 */
 	import { goto } from '$app/navigation';
 
@@ -18,43 +20,7 @@
 		return data.supabase.storage.from('foundry-covers').getPublicUrl(path).data.publicUrl;
 	}
 
-	const transports: FoundryGalleryTransports = {
-		async launch({ appId, versionId }) {
-			try {
-				const res = await fetch('/api/foundry/token', {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ appId, versionId })
-				});
-				const body = await res.json().catch(() => null);
-				if (!res.ok || !body?.ok) {
-					/**
-					 * THE MINT'S REFUSALS ARE DELIBERATELY INDISTINGUISHABLE FROM EACH
-					 * OTHER on the wire -- an app that does not exist, one that is
-					 * hidden, and one with nothing published all answer 404 -- so this
-					 * does not try to explain which happened. `not_configured` IS worth
-					 * telling apart, because it is the one a viewer cannot fix by
-					 * reloading and staff can fix by setting a variable.
-					 */
-					if (body?.reason === 'not_configured') {
-						return { ok: false, message: 'Apps cannot be opened right now. Tell a teacher.' };
-					}
-					if (body?.reason === 'signed_out') {
-						return { ok: false, message: 'Sign in to open an app.' };
-					}
-					return { ok: false, message: 'That app is not available.' };
-				}
-				return {
-					ok: true,
-					src: body.src as string,
-					versionId: body.versionId as string,
-					expiresInSeconds: body.expiresInSeconds as number
-				};
-			} catch {
-				return { ok: false, message: 'That app could not be started. Check your connection.' };
-			}
-		}
-	};
+	const transports: FoundryGalleryTransports = {};
 
 	function select(slug: string | null) {
 		const target = slug ? `/foundry?app=${encodeURIComponent(slug)}` : '/foundry';

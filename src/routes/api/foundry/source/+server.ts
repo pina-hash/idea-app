@@ -1,5 +1,4 @@
 import { json } from '@sveltejs/kit';
-import { env as publicEnv } from '$env/dynamic/public';
 import { isAdmin } from '$lib/server/admin';
 import {
 	FOUNDRY_SOURCE_MAX_BYTES,
@@ -7,16 +6,16 @@ import {
 	listBundleFiles,
 	readBundleFileText
 } from '$lib/server/foundry-bundle';
-import { isFoundryAppsHost } from '$lib/foundry/host';
 import type { RequestHandler } from './$types';
 
 /**
  * THE REVIEW QUEUE'S SOURCE READS. Main host, admin only.
  *
  * WHY A ROUTE AT ALL, when almost every other Foundry call goes straight from
- * the browser client to an RPC: the bytes live in `foundry-bundles`, which has
- * NO storage policy of any kind, so no client -- not even an admin's -- can
- * reach them. `service_role` is the only role that does, and that key has
+ * the browser client to an RPC: `foundry-bundles` is readable by uuid now
+ * (0135) but it is not LISTABLE by a client, and `student_app_files` carries
+ * no client grant, so a reviewer cannot enumerate a version's files from the
+ * browser at all. `service_role` is the only role that can, and that key has
  * exactly one Foundry reader (`$lib/server/foundry-bundle`). This route is the
  * front door to that reader and holds no credential of its own.
  *
@@ -49,12 +48,9 @@ function notFound() {
 	return json({ ok: false, reason: 'not_found' }, { status: 404 });
 }
 
-export const POST: RequestHandler = async ({ request, url, locals: { supabase, claims } }) => {
-	// This route does not exist on the bundle host, the same both-ends argument
-	// the proxy and the mint each make about their own.
-	if (isFoundryAppsHost(url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
-		return new Response(null, { status: 404 });
-	}
+export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
+	// There is one host now. The bundle-host refusal that used to sit here went
+	// with the second origin it was refusing on.
 	if (!claims) return notFound();
 	if (!(await isAdmin(supabase, claims.sub))) return notFound();
 	if (!foundryBundleSourceConfigured()) {

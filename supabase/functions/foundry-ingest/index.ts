@@ -305,8 +305,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 	 * is what every exit hands out and nothing reaches past it after this
 	 * point.
 	 */
-	const rewriteNotes: string[] = [];
-	const notes = () => [...plan.notes, ...rewriteNotes];
+	const notes = () => plan.notes;
 
 	if (failures.length > 0) {
 		const m = failManifest(failures, warnings, notes());
@@ -378,10 +377,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 				 * the line numbers in the notes below still point at the right
 				 * lines of the file the student has open.
 				 */
-				if (r.rewritten !== null) {
-					content = new TextEncoder().encode(r.rewritten);
-				}
-				rewriteNotes.push(...r.rewriteNotes);
 
 				if (r.parseFailed) {
 					// STILL LOUD IN THE LOG, but no longer a warning beside a pass:

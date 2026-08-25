@@ -4,8 +4,16 @@
 	 *
 	 * Selection is local state here rather than the URL, because the point is to
 	 * drive both surfaces on one screen without a router round trip between
-	 * clicks. Everything else -- the components, the tokens, the frame, the
-	 * source reads -- is the shipping path.
+	 * clicks. Everything else -- the components, the frame, the source reads --
+	 * is the shipping path.
+	 *
+	 * WHAT THIS HARNESS CANNOT SHOW ANY MORE, said plainly: a RUNNING BUNDLE.
+	 * `AppStage` now derives its frame src from `PUBLIC_SUPABASE_URL` and the
+	 * two ids, and the local `.env` points at a placeholder project that holds
+	 * none of these fixture objects, so pressing Launch mounts a frame at a URL
+	 * that 404s. The launch control, the stop control, the geometry and the
+	 * whole review layout are still real; the bytes are not. Running a bundle
+	 * for real needs a Supabase project that has actually ingested one.
 	 */
 	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
@@ -32,20 +40,9 @@
 	const gallerySelected = $derived(gallerySlug ? (data.details[gallerySlug] ?? null) : null);
 	const reviewSelected = $derived(reviewSlug ? (data.details[reviewSlug] ?? null) : null);
 
-	function srcFor(appId: string, versionId: string): string {
-		return data.srcs[`${appId}:${versionId}`] ?? '';
-	}
-
-	const galleryTransports: FoundryGalleryTransports = {
-		async launch({ appId, versionId }) {
-			const src = srcFor(appId, versionId);
-			if (!src) return { ok: false, message: 'PUBLIC_FOUNDRY_APPS_HOST is not set.' };
-			return { ok: true, src, versionId, expiresInSeconds: 1800 };
-		}
-	};
+	const galleryTransports: FoundryGalleryTransports = {};
 
 	const reviewTransports: FoundryReviewTransports = {
-		launch: galleryTransports.launch,
 		async listFiles(versionId) {
 			const files = data.files[versionId] ?? [];
 			return { ok: true, files };
@@ -77,22 +74,18 @@
 	<FoundryShell active="gallery" isAdmin={true} reviewPending={pending}>
 	<header>
 		<h1>Foundry gallery / review harness</h1>
-		{#if !data.configured}
-			<p class="warn">
-				PUBLIC_FOUNDRY_APPS_HOST is not set, so no frame can load. Set it in .env to the loopback
-				alias you are serving on (for example <code>127.0.0.1:5173</code>) and reload.
-			</p>
-		{:else}
-			<p class="note">Apps host: <code>{data.appsHost}</code></p>
-		{/if}
-		<p class="note">
-			Last decision handed to the transport: <code data-testid="last-decision">{lastDecision}</code>
+		<p class="warn">
+			Launching mounts a real frame at a real Storage URL, and that URL 404s here: the local
+			.env points at a placeholder Supabase project which holds none of these fixture objects.
+			The controls, the layout and the source reader are the shipping path; the bytes are not.
 		</p>
 		<p class="note">
-			The unpublished build with a PUBLISHED token (must 404, the review kind is what lifts it):
-			<a href={data.staleWithPublishedToken} data-testid="stale-published-token" target="_blank"
-				rel="noreferrer">open it</a
+			Bundle origin the stage will build from: <code data-testid="bundle-origin"
+				>{data.bundleOrigin}</code
 			>
+		</p>
+		<p class="note">
+			Last decision handed to the transport: <code data-testid="last-decision">{lastDecision}</code>
 		</p>
 	</header>
 

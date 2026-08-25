@@ -42,18 +42,42 @@
 	 * scheduled on an animation frame would never run in exactly the case it
 	 * exists for, and would look like a dead button.
 	 *
-	 * RE-LAUNCHING MINTS A FRESH TOKEN rather than reusing the last src. A token
-	 * lives thirty minutes and an app can be withdrawn inside that window, so a
-	 * remembered URL is a URL that may have stopped being allowed. It costs one
-	 * round trip on a deliberate press.
+	 * THE SRC IS DERIVED, NOT FETCHED, AND THERE IS NO ROUND TRIP HERE ANY MORE.
+	 * Launching used to call a transport that minted a signed thirty-minute
+	 * token against a proxy of ours. The proxy is gone and `foundry-bundles` is
+	 * a public bucket (0135), so the src is `foundryBundleUrl(origin, appId,
+	 * versionId)` and nothing else, and pressing Launch is a synchronous state
+	 * change -- which is also the only kind of work the wedged-bundle
+	 * measurement above proves still runs.
+	 *
+	 * ABSENCE IS STILL THE MECHANISM; WHAT IS ABSENT IS THE URL. A deployment
+	 * with no Supabase origin, or an app with no version to point at, gives
+	 * `null` from that builder, and this renders no launch control at all
+	 * rather than a button that opens `about:blank`.
 	 */
+	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+
 	import AppFrame from './AppFrame.svelte';
-	import type { FoundryGalleryTransports, FoundryLaunch } from './transports.ts';
+	import { foundryBundleUrl } from './bundle-url.ts';
+	import type { FoundryGalleryTransports } from './transports.ts';
 
 	let {
 		appId,
 		versionId,
 		title,
+		/**
+		 * THE ONE ENVIRONMENT READ ON THIS PATH, AND IT IS A BUILD CONSTANT
+		 * RATHER THAN DATA. The bundle bucket lives on the Supabase project
+		 * origin, which is the same string for every viewer and every app and is
+		 * already inlined into the client bundle for the database client. Passing
+		 * it down as a prop would mean threading one unchanging constant through
+		 * the route, the gallery and the detail view -- four files to say one
+		 * thing -- and this component would still not be fetching anything.
+		 *
+		 * It stays overridable so the pure builder can be pointed elsewhere from
+		 * a harness without the component reaching for a different mechanism.
+		 */
+		storageOrigin = PUBLIC_SUPABASE_URL,
 		transports = {},
 		height = '70vh',
 		/**
@@ -68,15 +92,17 @@
 		appId: string;
 		versionId: string;
 		title: string;
+		storageOrigin?: string;
 		transports?: FoundryGalleryTransports;
 		height?: string;
 		runningLabel?: string;
 		loading?: 'lazy' | 'eager';
 	} = $props();
 
-	let launch = $state<FoundryLaunch | null>(null);
-	let starting = $state(false);
-	let problem = $state<string | null>(null);
+	/** The frame src, or null when this app cannot be pointed at anything. */
+	const src = $derived(foundryBundleUrl(storageOrigin, appId, versionId));
+
+	let running = $state(false);
 
 	/**
 	 * A CHANGE OF SUBJECT STOPS WHATEVER IS RUNNING. Selecting another app while
@@ -91,36 +117,18 @@
 		// whole body.
 		void appId;
 		void versionId;
-		launch = null;
-		problem = null;
+		running = false;
 	});
 
-	async function start() {
-		if (!transports.launch || starting) return;
-		starting = true;
-		problem = null;
-		try {
-			const result = await transports.launch({ appId, versionId });
-			if (!result.ok) {
-				problem = result.message;
-				return;
-			}
-			launch = { src: result.src, versionId: result.versionId, expiresInSeconds: result.expiresInSeconds };
-		} catch (err) {
-			// A transport that throws is still a refusal the viewer has to read.
-			problem = err instanceof Error ? err.message : 'That app could not be started.';
-		} finally {
-			starting = false;
-		}
+	function start() {
+		if (!src) return;
+		running = true;
 	}
 
 	function stop() {
-		launch = null;
+		running = false;
 	}
 
-	const minutes = $derived(
-		launch ? Math.max(1, Math.round(launch.expiresInSeconds / 60)) : 0
-	);
 </script>
 
 <!--
@@ -132,13 +140,12 @@
 	the live build, and it is what a screenshot of a review session carries.
 -->
 <div class="fdy-stage" data-version={versionId} data-app={appId}>
-	{#if launch}
+	{#if running && src}
 		<div class="fdy-stage-bar">
 			<span class="fdy-running" aria-live="polite">
 				<span class="fdy-dot" aria-hidden="true"></span>
 				{runningLabel || 'Running'}
 			</span>
-			<span class="fdy-stage-note">Closes itself after {minutes} minutes.</span>
 			<!--
 				A REAL BUTTON WITH A WORD ON IT, not a glyph and not a corner X. It is
 				the control a viewer reaches for when an app has stopped responding,
@@ -146,25 +153,20 @@
 			-->
 			<button type="button" class="btn fdy-stop tap-44" onclick={stop}>Stop app</button>
 		</div>
-		<AppFrame src={launch.src} {title} {height} {loading} />
+		<AppFrame {src} {title} {height} {loading} />
 	{:else}
 		<div class="fdy-stage-idle">
-			{#if transports.launch}
-				<button type="button" class="btn fdy-launch tap-44" onclick={start} disabled={starting}>
-					{starting ? 'Starting...' : 'Launch app'}
-				</button>
+			{#if src}
+				<button type="button" class="btn fdy-launch tap-44" onclick={start}>Launch app</button>
 				<p class="fdy-stage-note">
 					It opens in a sandbox on a separate address, so it cannot reach anything of yours.
 				</p>
 			{:else}
 				<!--
-					ABSENCE IS THE MECHANISM. No launch transport, no control -- and the
-					surface says why rather than rendering a button that cannot work.
+					ABSENCE IS THE MECHANISM. Nothing to point a frame at, no control --
+					and the surface says so rather than rendering a button that cannot work.
 				-->
 				<p class="fdy-stage-note">This app cannot be started from here.</p>
-			{/if}
-			{#if problem}
-				<p class="fdy-stage-problem" role="alert">{problem}</p>
 			{/if}
 		</div>
 	{/if}
@@ -207,13 +209,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2, var(--dim));
-	}
-
-	.fdy-stage-problem {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: 0.85rem;
-		color: var(--crimson);
 	}
 
 	.fdy-stop {
