@@ -142,6 +142,20 @@ export function foundryTokensConfigured(isDev: boolean): boolean {
 	return secret(isDev) !== null;
 }
 
+/**
+ * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+ *
+ * THE SHAPE OF THE CONFIGURED SECRET, NEVER THE SECRET. Presence and length
+ * only -- enough to tell "unset in this runtime" from "set but not the value
+ * the mint signed with", and nothing else. The mint answers 200 in the same
+ * deployment, so if verification fails here the two are reading different
+ * values and the length is what would say so.
+ */
+export function foundryTokenSecretShape(): { set: boolean; len: number } {
+	const configured = (env.FOUNDRY_TOKEN_SECRET ?? '').trim();
+	return { set: configured.length > 0, len: configured.length };
+}
+
 function uuidToBytes(uuid: string): Buffer | null {
 	if (typeof uuid !== 'string' || !UUID_RE.test(uuid)) return null;
 	return Buffer.from(uuid.replace(/-/g, ''), 'hex');

@@ -8,7 +8,7 @@ import {
 	isHtmlContentType,
 	servableContentType
 } from '$lib/server/foundry-serve';
-import { verifyFoundryToken } from '$lib/server/foundry-token';
+import { foundryTokenSecretShape, verifyFoundryToken } from '$lib/server/foundry-token';
 import { isFoundryAppsHost, redactProxyPath } from '$lib/foundry/host';
 import type { RequestHandler } from './$types';
 
@@ -80,6 +80,21 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	);
 
 	if (!isFoundryAppsHost(url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
+		/**
+		 * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+		 *
+		 * A LIVE CANDIDATE RATHER THAN A FORMALITY. This branch is unreachable
+		 * only while the hook runs first -- the hook makes the same comparison
+		 * with the same inputs -- and the previous round's log is consistent
+		 * with the hook not running at all. If that is what happened, and
+		 * `PUBLIC_FOUNDRY_APPS_HOST` is not readable from `$env/dynamic/public`
+		 * in the deployed function, this line is the 404 and nothing further in
+		 * the handler ever ran.
+		 */
+		console.log(
+			`[foundry-probe] handler host-check host=${url.host}` +
+				` configured=${publicEnv.PUBLIC_FOUNDRY_APPS_HOST ?? '<unset>'} match=no status=404`
+		);
 		return foundryNotFound();
 	}
 
@@ -128,7 +143,24 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	}
 
 	const verdict = verifyFoundryToken(params.token ?? '', dev);
-	if (!verdict.ok) return foundryNotFound();
+	if (!verdict.ok) {
+		/**
+		 * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+		 *
+		 * The refusal REASON plus the shape of the secret this process reads.
+		 * The mint answers 200 in the same deployment and signs with the same
+		 * variable, so a `bad_signature` here means the two are reading
+		 * different values -- which the length would say on its own. The secret
+		 * itself is never logged.
+		 */
+		const shape = foundryTokenSecretShape();
+		console.log(
+			`[foundry-probe] handler token reason=${verdict.reason}` +
+				` secret.set=${shape.set ? 'yes' : 'no'} secret.len=${shape.len}` +
+				` token.len=${(params.token ?? '').length} status=404`
+		);
+		return foundryNotFound();
+	}
 
 	const { appId, versionId, kind } = verdict.claims;
 
@@ -138,6 +170,13 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	 * -- which is every token a student can hold -- keeps it.
 	 */
 	const found = await resolveBundleFile(appId, versionId, path, kind);
+
+	// TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	console.log(
+		`[foundry-probe] handler resolve ok=${found.ok ? 'yes' : 'no'}` +
+			` reason=${found.ok ? 'none' : found.reason}`
+	);
+
 	if (!found.ok) return foundryNotFound();
 
 	const contentType = servableContentType(found.file.contentType);
