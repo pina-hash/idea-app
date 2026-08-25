@@ -9,7 +9,7 @@ import {
 	servableContentType
 } from '$lib/server/foundry-serve';
 import { verifyFoundryToken } from '$lib/server/foundry-token';
-import { isFoundryAppsHost } from '$lib/foundry/host';
+import { isFoundryAppsHost, redactProxyPath } from '$lib/foundry/host';
 import type { RequestHandler } from './$types';
 
 /**
@@ -57,6 +57,28 @@ import type { RequestHandler } from './$types';
 export const trailingSlash = 'ignore';
 
 const handler: RequestHandler = async ({ params, url, request }) => {
+	/**
+	 * TEMPORARY PROBE. REMOVE IT IN THE LANE THAT FIXES THE CAUSE.
+	 *
+	 * THE FIRST STATEMENT IN THE HANDLER, BEFORE ANY WORK, so that its presence
+	 * or absence in the function log is the answer on its own: if this line is
+	 * there and the hook's companion line reports a 200, something after both is
+	 * rewriting the response; if this line is missing and the hook reports a
+	 * 404, the router never matched and the built route manifest as DEPLOYED is
+	 * the next thing to read.
+	 *
+	 * The token is logged as a LENGTH only -- it is 30 minutes of read access to
+	 * a student's app and a function log is not the place for one -- and the
+	 * pathname goes through `redactProxyPath`, the same redaction `handleError`
+	 * uses. `rawlen` is the UNREDACTED length of the pathname as received, which
+	 * is what would report a truncation or a re-encode upstream.
+	 */
+	console.log(
+		`[foundry-probe] handler path=${redactProxyPath(url.pathname)} rawlen=${url.pathname.length}` +
+			` host=${url.host} token.len=${(params.token ?? '').length}` +
+			` param.path=${JSON.stringify(params.path ?? '')}`
+	);
+
 	if (!isFoundryAppsHost(url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
 		return foundryNotFound();
 	}
