@@ -5,6 +5,8 @@ import { dev } from '$app/environment';
 import { bundlePathOk } from '$lib/bundle-path';
 import { FOUNDRY_ENTRY_FILE } from '$lib/foundry/preflight';
 import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
+// TEMPORARY: bundle-proxy diagnostic. Remove with `$lib/server/foundry-probe`.
+import { foundryProbe, presence } from './foundry-probe';
 import type { FoundryTokenKind } from './foundry-token';
 
 /**
@@ -131,7 +133,20 @@ export async function resolveBundleFile(
 	}
 
 	const client = admin();
-	if (!client) return { ok: false, reason: 'not_configured' };
+	if (!client) {
+		/**
+		 * TEMPORARY. `SUPABASE_SERVICE_ROLE_KEY` reported as presence and length
+		 * only -- never a byte of it. `PUBLIC_SUPABASE_URL` is a public value
+		 * (it is in the client bundle) and is logged whole, because "which
+		 * project is this deployment talking to" is one of the things being
+		 * asked. Remove with `$lib/server/foundry-probe`.
+		 */
+		foundryProbe('resolve.refused.not-configured', {
+			serviceKeyPresence: presence(env.SUPABASE_SERVICE_ROLE_KEY),
+			supabaseUrl: PUBLIC_SUPABASE_URL ?? null
+		});
+		return { ok: false, reason: 'not_configured' };
+	}
 
 	// One row, carrying both halves of the publication rule: the version's own
 	// app, and that app's currently published version and hidden stamp. The
@@ -143,7 +158,25 @@ export async function resolveBundleFile(
 		.eq('id', versionId)
 		.maybeSingle();
 
-	if (versionError || !version) return { ok: false, reason: 'no_such_version' };
+	if (versionError || !version) {
+		/**
+		 * TEMPORARY, AND THE ERROR/EMPTY SPLIT IS THE POINT. A PostgREST failure
+		 * (a `PGRST200` on the `student_apps` embed, say, which is what a
+		 * repointed foreign key produces and which fails the WHOLE select) and a
+		 * version row that genuinely is not there are the same refusal here and
+		 * are completely different diagnoses.
+		 */
+		foundryProbe('resolve.refused.no-such-version', {
+			versionId,
+			appId,
+			queryErrored: Boolean(versionError),
+			code: versionError?.code ?? null,
+			message: versionError?.message ?? null,
+			details: versionError?.details ?? null,
+			hint: versionError?.hint ?? null
+		});
+		return { ok: false, reason: 'no_such_version' };
+	}
 
 	const row = version as unknown as {
 		app_id: string;
@@ -151,14 +184,28 @@ export async function resolveBundleFile(
 		student_apps: { published_version_id: string | null; hidden_at: string | null };
 	};
 
-	if (row.app_id !== appId) return { ok: false, reason: 'no_such_version' };
-	if (row.student_apps.hidden_at) return { ok: false, reason: 'hidden' };
+	if (row.app_id !== appId) {
+		foundryProbe('resolve.refused.app-mismatch', { tokenAppId: appId, rowAppId: row.app_id });
+		return { ok: false, reason: 'no_such_version' };
+	}
+	if (row.student_apps.hidden_at) {
+		foundryProbe('resolve.refused.hidden', { appId, hiddenAt: row.student_apps.hidden_at });
+		return { ok: false, reason: 'hidden' };
+	}
 	if (kind !== 'review' && row.student_apps.published_version_id !== versionId) {
+		foundryProbe('resolve.refused.not-published', {
+			appId,
+			tokenVersionId: versionId,
+			publishedVersionId: row.student_apps.published_version_id
+		});
 		return { ok: false, reason: 'not_published' };
 	}
 
 	const path = requestedPath || entryFor(row.manifest);
-	if (!bundlePathOk(path)) return { ok: false, reason: 'bad_path' };
+	if (!bundlePathOk(path)) {
+		foundryProbe('resolve.refused.bad-path', { requestedPath, resolvedPath: path });
+		return { ok: false, reason: 'bad_path' };
+	}
 
 	const { data: fileRow, error: fileError } = await client
 		.from('student_app_files')
@@ -167,7 +214,31 @@ export async function resolveBundleFile(
 		.eq('path', path)
 		.maybeSingle();
 
-	if (fileError || !fileRow) return { ok: false, reason: 'no_such_file' };
+	if (fileError || !fileRow) {
+		/**
+		 * TEMPORARY, AND THIS IS THE BRANCH THE EXACT PATH STRING MATTERS FOR.
+		 * The row is confirmed to exist for `index.html`, so a lookup that finds
+		 * nothing is asking for something other than what is stored -- the
+		 * resolved path is logged verbatim, JSON-quoted, so a stray slash, a
+		 * leftover `./`, a percent-decode or trailing whitespace is visible
+		 * rather than inferred. `entryUsed` says whether it came from the
+		 * request or from the version manifest's own entry.
+		 */
+		foundryProbe('resolve.refused.no-such-file', {
+			versionId,
+			requestedPath,
+			resolvedPath: path,
+			resolvedPathLength: path.length,
+			entryUsed: requestedPath === '',
+			manifestEntry: entryFor(row.manifest),
+			queryErrored: Boolean(fileError),
+			code: fileError?.code ?? null,
+			message: fileError?.message ?? null,
+			details: fileError?.details ?? null,
+			hint: fileError?.hint ?? null
+		});
+		return { ok: false, reason: 'no_such_file' };
+	}
 
 	const stored = fileRow as { content_type: string; byte_size: number | null };
 
@@ -175,7 +246,20 @@ export async function resolveBundleFile(
 		.from('foundry-bundles')
 		.download(`${appId}/${versionId}/${path}`);
 
-	if (downloadError || !blob) return { ok: false, reason: 'storage_failed' };
+	if (downloadError || !blob) {
+		/**
+		 * TEMPORARY. The object KEY is three uuids and a relative path -- no
+		 * credential -- and it is what tells "the bucket has no such object"
+		 * apart from "the read was refused".
+		 */
+		foundryProbe('resolve.refused.storage-failed', {
+			storageKey: `${appId}/${versionId}/${path}`,
+			message: (downloadError as { message?: string } | null)?.message ?? null,
+			name: (downloadError as { name?: string } | null)?.name ?? null,
+			status: (downloadError as { statusCode?: unknown } | null)?.statusCode ?? null
+		});
+		return { ok: false, reason: 'storage_failed' };
+	}
 
 	return {
 		ok: true,
