@@ -10,6 +10,7 @@
 	 */
 	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
 	import type { FoundrySubmitTransports, IngestOutcome } from '$lib/foundry/transports';
+	import { FOUNDRY_COVER_BUCKET, FOUNDRY_UPLOAD_BUCKET } from '$lib/foundry/bundle-url';
 
 	let { data } = $props();
 
@@ -48,7 +49,7 @@
 
 		async uploadZip(zip, path) {
 			const { error } = await data.supabase.storage
-				.from('foundry-uploads')
+				.from(FOUNDRY_UPLOAD_BUCKET)
 				.upload(path, zip, { contentType: 'application/zip', upsert: false });
 			if (error) return fail(error);
 			return { ok: true };
@@ -131,7 +132,7 @@
 			const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() || 'png';
 			const path = `${data.uid}/${crypto.randomUUID()}.${ext}`;
 			const { error } = await data.supabase.storage
-				.from('foundry-covers')
+				.from(FOUNDRY_COVER_BUCKET)
 				.upload(path, file, { contentType: file.type || undefined, upsert: false });
 			if (error) return fail(error);
 			return { ok: true, path };

@@ -16,6 +16,7 @@
 	 * mounting of this component is therefore structural rather than a flag, and
 	 * the dev harness gets exactly the controls it hands transports for.
 	 */
+	import ForgeStatus from './ForgeStatus.svelte';
 	import { formatBytes } from './preflight.ts';
 	import {
 		FOUNDRY_REJECT_REASONS,
@@ -26,6 +27,7 @@
 		type FoundryDecision,
 		type FoundryTreeNode
 	} from './review.ts';
+	import { deleteAppCostLine } from './surface.ts';
 	import type {
 		FoundryApp,
 		FoundryBundleFileRow,
@@ -37,13 +39,20 @@
 		app,
 		version,
 		transports = {},
-		onDecided
+		onDecided,
+		onDeleted
 	}: {
 		app: FoundryApp;
 		/** The version being decided about. */
 		version: FoundryVersion;
 		transports?: FoundryReviewTransports;
 		onDecided?: () => void;
+		/**
+		 * The app no longer exists, so there is nothing left to be looking at.
+		 * Distinct from `onDecided`, which re-reads the app: re-reading a
+		 * deleted one asks the server about a row that has just been removed.
+		 */
+		onDeleted?: () => void;
 	} = $props();
 
 	let files = $state<FoundryBundleFileRow[]>([]);
@@ -165,6 +174,73 @@
 		} catch (e) {
 			sendProblem = e instanceof Error ? e.message : 'That did not work.';
 		}
+	}
+
+	/* --------------------------------------------------------- taking it off
+	 *
+	 * HIDE AND DELETE ARE TWO DECISIONS AND THE PANEL SAYS SO IN WORDS. They
+	 * are separate transports rather than one call with a flag for exactly that
+	 * reason: a single "remove" control with a mode picker is how a reviewer
+	 * ends up destroying something they meant to shelve for a week.
+	 *
+	 * BOTH ARM BEFORE THEY FIRE, and the delete's confirm names the app. Hide
+	 * is reversible and still arms, because a hidden app is off the gallery
+	 * immediately and a student notices within the hour.
+	 */
+
+	let armed = $state<'hide' | 'restore' | 'delete' | null>(null);
+	let hideReason = $state('');
+	let shelfBusy = $state(false);
+	let shelfProblem = $state<string | null>(null);
+	let shelfNote = $state<string | null>(null);
+
+	async function shelf(work: () => Promise<{ ok: boolean; message?: string }>, said: string) {
+		if (shelfBusy) return false;
+		shelfBusy = true;
+		shelfProblem = null;
+		shelfNote = null;
+		try {
+			const r = await work();
+			if (!r.ok) {
+				shelfProblem = r.message ?? 'That did not work.';
+				return false;
+			}
+			shelfNote = said;
+			return true;
+		} catch (e) {
+			shelfProblem = e instanceof Error ? e.message : 'That did not work.';
+			return false;
+		} finally {
+			shelfBusy = false;
+		}
+	}
+
+	async function setHidden(hidden: boolean) {
+		if (!transports.setHidden) return;
+		const ok = await shelf(
+			() => transports.setHidden!(app.id, hidden, hideReason.trim()),
+			hidden ? 'Hidden. It is off the gallery and the files are kept.' : 'Restored.'
+		);
+		if (ok) {
+			hideReason = '';
+			onDecided?.();
+		}
+	}
+
+	async function removeApp() {
+		if (!transports.deleteApp) return;
+		const title = app.title;
+		const ok = await shelf(async () => {
+			const r = await transports.deleteApp!(app.id);
+			if (!r.ok) return r;
+			// A PARTIAL OBJECT SWEEP IS NOT A FAILED DELETE. The rows are gone
+			// before the sweep runs, so this rides the success.
+			shelfNote = r.storageProblem
+				? `"${title}" is deleted. ${r.storageProblem} Nothing on the site can reach them.`
+				: `"${title}" is deleted.`;
+			return { ok: true };
+		}, `"${title}" is deleted.`);
+		if (ok) onDeleted?.();
 	}
 
 	function stamp(iso: string | null): string {
@@ -341,6 +417,132 @@
 				{#if sentAt}<span class="fdy-sent">Sent at {sentAt}.</span>{/if}
 			</div>
 			{#if sendProblem}<p class="fdy-insp-problem" role="alert">{sendProblem}</p>{/if}
+		</section>
+	{/if}
+
+	{#if transports.setHidden || transports.deleteApp}
+		<!--
+			TAKING IT OFF THE GALLERY: the two ways, side by side, with the
+			difference in words rather than in the reader's memory.
+
+			THIS IS NOT A DECISION ABOUT THE BUILD. Approve and Send back answer
+			the version above; these answer the APP, so they sit in their own
+			section below the decision rather than as two more radio buttons in it.
+			A reviewer who has just rejected a build has not thereby said anything
+			about whether the app should exist.
+
+			ForgeStatus IS THE CHIP, and both states already have a tone in the
+			heat language: shelved for hidden, quenched for what is being removed.
+			Neither wears heat, because heat means IN PROGRESS.
+		-->
+		<section class="fdy-insp-section fdy-shelf" data-testid="foundry-app-actions">
+			<h4>Taking it off the gallery</h4>
+
+			<dl class="fdy-shelf-diff">
+				<div>
+					<dt><ForgeStatus tone="shelved" word="Hide" /></dt>
+					<dd>
+						Shelved but kept. It comes off the gallery and stops serving straight away, the
+						student keeps every version and every file, and you can put it back with Restore.
+						Use this while something is being sorted out.
+					</dd>
+				</div>
+				<div>
+					<dt><ForgeStatus tone="refused" word="Delete" /></dt>
+					<dd>
+						Gone. The app, every version and every stored file are removed and there is
+						nothing to restore from. Use this only when the work should not exist.
+					</dd>
+				</div>
+			</dl>
+
+			{#if shelfNote}<p class="fdy-shelf-said" role="status">{shelfNote}</p>{/if}
+			{#if shelfProblem}<p class="fdy-insp-problem" role="alert">{shelfProblem}</p>{/if}
+
+			{#if transports.setHidden}
+				{#if app.hidden_at}
+					<p class="fdy-insp-note">
+						This app is hidden. It is off the gallery and its files are still here.
+					</p>
+					{#if armed === 'restore'}
+						<div class="fdy-shelf-row">
+							<button
+								type="button"
+								class="btn tap-44"
+								disabled={shelfBusy}
+								onclick={async () => {
+									armed = null;
+									await setHidden(false);
+								}}
+							>
+								Yes, put it back on the gallery
+							</button>
+							<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+								Leave it hidden
+							</button>
+						</div>
+					{:else}
+						<button type="button" class="btn tap-44" onclick={() => (armed = 'restore')}>
+							Restore
+						</button>
+					{/if}
+				{:else if armed === 'hide'}
+					<label class="fdy-note-label">
+						<span class="fdy-label">Why (the student does not see this)</span>
+						<textarea class="fdy-note" rows="2" bind:value={hideReason}></textarea>
+					</label>
+					<div class="fdy-shelf-row">
+						<button
+							type="button"
+							class="btn fdy-shelve tap-44"
+							disabled={shelfBusy}
+							onclick={async () => {
+								armed = null;
+								await setHidden(true);
+							}}
+						>
+							Yes, hide &ldquo;{app.title}&rdquo;
+						</button>
+						<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+							Cancel
+						</button>
+					</div>
+				{:else}
+					<button type="button" class="btn tap-44" onclick={() => (armed = 'hide')}>
+						Hide this app
+					</button>
+				{/if}
+			{/if}
+
+			{#if transports.deleteApp}
+				<p class="fdy-shelf-cost">{deleteAppCostLine(app)}</p>
+				{#if armed === 'delete'}
+					<div class="fdy-shelf-row">
+						<button
+							type="button"
+							class="btn fdy-danger tap-44"
+							disabled={shelfBusy}
+							onclick={async () => {
+								armed = null;
+								await removeApp();
+							}}
+						>
+							Yes, delete &ldquo;{app.title}&rdquo; permanently
+						</button>
+						<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+							Keep it
+						</button>
+					</div>
+				{:else}
+					<button
+						type="button"
+						class="btn fdy-danger-quiet tap-44"
+						onclick={() => (armed = 'delete')}
+					>
+						Delete this app
+					</button>
+				{/if}
+			{/if}
 		</section>
 	{/if}
 </div>
@@ -544,6 +746,103 @@
 		background: var(--surface-2, var(--bg2));
 		color: var(--text-1, var(--white));
 		font-family: var(--font-display);
+	}
+
+	/* ----------------------------------------------------- hide beside delete */
+
+	.fdy-shelf {
+		gap: var(--space-3, 0.75rem);
+		padding: var(--space-3, 0.75rem);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-md, 8px);
+		align-items: flex-start;
+	}
+
+	/*
+	 * ONE COLUMN AT EVERY WIDTH, AND THAT IS MEASURED RATHER THAN CHOSEN.
+	 *
+	 * This was written as two columns above 34rem, on the reasoning that the
+	 * panel exists to be COMPARED and a comparison reads best side by side. In
+	 * a real browser the rule never fired: this panel sits in the inspector
+	 * column, which is itself a fraction of the split's detail pane, so its
+	 * inner width is 418px at a 1440px viewport and about 541px at 1920 -- both
+	 * under the 544px the query asked for. It was dead code that no unused
+	 * selector warning would have caught, which is the same mistake
+	 * `.fdy-q-work` in ReviewQueue documents making at 58rem against the
+	 * viewport figure.
+	 *
+	 * LOWERING THE THRESHOLD WAS THE REJECTED FIX. At 418px two columns are
+	 * ~200px each, which is four or five words a line for a forty-word
+	 * definition -- worse to compare than reading them in sequence. So the rule
+	 * is gone rather than tuned, and the two definitions stack. If this panel
+	 * ever gets a genuinely wide home, measure it there before adding one back.
+	 */
+	.fdy-shelf-diff {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-3, 0.75rem);
+		margin: 0;
+		width: 100%;
+		min-width: 0;
+	}
+
+	.fdy-shelf-diff dt {
+		margin: 0 0 0.3rem;
+	}
+
+	.fdy-shelf-diff dd {
+		margin: 0;
+		font-size: 0.85rem;
+		line-height: 1.45;
+		color: var(--text-2, var(--dim));
+	}
+
+	.fdy-shelf-row {
+		display: flex;
+		gap: var(--space-2, 0.5rem);
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.fdy-shelf-cost {
+		margin: 0;
+		font-size: 0.85rem;
+		line-height: 1.45;
+		color: var(--text-1, var(--white));
+		max-width: 62ch;
+	}
+
+	.fdy-shelf-said {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		color: var(--fg-st-shelf-ink, var(--dim));
+		max-width: 62ch;
+		line-height: 1.5;
+	}
+
+	.fdy-shelve {
+		border-color: var(--fg-st-shelf-edge, var(--boundary));
+		color: var(--fg-st-shelf-ink, var(--text-2));
+	}
+
+	.fdy-danger {
+		border-color: var(--crimson);
+		color: var(--crimson);
+	}
+
+	/* Quiet at rest, crimson once it is one press from happening: `--crimson` is
+	   reserved for live / rec / error status, and a resting Delete is none of
+	   those. */
+	.fdy-danger-quiet {
+		border-color: var(--boundary);
+		color: var(--text-2, var(--dim));
+	}
+
+	.fdy-danger-quiet:hover,
+	.fdy-danger-quiet:focus-visible {
+		border-color: var(--crimson);
+		color: var(--crimson);
 	}
 
 	.fdy-send-row {

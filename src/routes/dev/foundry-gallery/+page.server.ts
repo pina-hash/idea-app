@@ -216,6 +216,8 @@ export const load: PageServerLoad = async () => {
 		 * read what it is pointed at rather than inferring it from a 404.
 		 */
 		bundleOrigin: PUBLIC_SUPABASE_URL,
+		/** So the harness's delete transport can key its partial-sweep answer. */
+		appBId: FIXTURE_APP_B,
 		apps,
 		details,
 		files: {

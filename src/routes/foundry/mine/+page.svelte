@@ -20,6 +20,7 @@
 
 	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
 	import type { FoundryApp, FoundryMineTransports, FoundryOutcome } from '$lib/foundry/transports';
+	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
 
 	let { data } = $props();
 
@@ -42,6 +43,45 @@
 		return { ok: true };
 	}
 
+	/**
+	 * DELETION IS THE ONE WRITE ON THIS SURFACE THAT IS NOT A DIRECT RPC, and
+	 * the reason is Storage rather than authorization. `foundry-bundles` carries
+	 * no storage policy at all, so this browser client cannot remove a single
+	 * bundle byte no matter who is signed in; `foundry-uploads` and
+	 * `foundry-covers` have own-folder policies, which an admin deleting a
+	 * student's app could not satisfy either. `/api/foundry/delete` calls the
+	 * same definer RPC as the CALLER -- so the database is still the boundary --
+	 * and sweeps the objects with the service key afterwards.
+	 *
+	 * `storageProblem` RIDES A SUCCESS. The rows are gone before the sweep runs,
+	 * so a partial sweep is a completed delete with bytes left behind, not a
+	 * failure. It is passed straight through for the surface to say so.
+	 */
+	async function callDelete(
+		body: { appId: string } | { versionId: string }
+	): Promise<FoundryOutcome<{ storageProblem?: string | null }>> {
+		try {
+			const res = await fetch('/api/foundry/delete', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			const payload = (await res.json().catch(() => null)) as {
+				ok?: boolean;
+				message?: string;
+				storageProblem?: string | null;
+			} | null;
+			if (!payload?.ok) {
+				// The RPC's own sentence, written for the student who will read it.
+				return { ok: false, message: payload?.message ?? 'That did not work. Try again.' };
+			}
+			await invalidateAll();
+			return { ok: true, storageProblem: payload.storageProblem ?? null };
+		} catch (err) {
+			return fail(err);
+		}
+	}
+
 	const transports: FoundryMineTransports = {
 		submitVersion: (versionId) => callRpc('foundry_submit_version', { p_version_id: versionId }),
 		withdrawVersion: (versionId) =>
@@ -54,6 +94,8 @@
 				p_field: field,
 				p_value: value
 			}),
+		deleteApp: (appId) => callDelete({ appId }),
+		deleteVersion: (versionId) => callDelete({ versionId }),
 
 		async uploadCover(file) {
 			// Own folder only, which is the whole of what the bucket's policy
@@ -63,7 +105,7 @@
 			const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() || 'png';
 			const path = `${data.uid}/${crypto.randomUUID()}.${ext}`;
 			const { error } = await data.supabase.storage
-				.from('foundry-covers')
+				.from(FOUNDRY_COVER_BUCKET)
 				.upload(path, file, { contentType: file.type || undefined, upsert: false });
 			if (error) return fail(error);
 			return { ok: true, path };
@@ -84,7 +126,7 @@
 	 * has taken a dependency on the bucket layout.
 	 */
 	function coverUrl(path: string): string {
-		return data.supabase.storage.from('foundry-covers').getPublicUrl(path).data.publicUrl;
+		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 	}
 
 	function select(slug: string | null) {

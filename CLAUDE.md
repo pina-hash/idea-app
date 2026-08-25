@@ -78,6 +78,66 @@ the SUBMITTED version, which by definition is not published yet.
     two spellings of "is this ready" is what produces a click that does nothing.
     The control is `aria-disabled`, never `disabled`, so it can explain itself.
 
+**HIDE AND DELETE ARE TWO DECISIONS AND NEITHER MAY ABSORB THE OTHER.**
+`foundry_set_app_hidden` (0130) is ADMIN ONLY and shelves: off the gallery, off
+the serving route, files intact, reversible by the same call with `false`.
+`foundry_delete_app` / `foundry_delete_version` (0136) are the OWNER's as well
+as an admin's and are real deletion, with no undo and nothing to restore from.
+One "remove" verb would be either a delete a student cannot trust or a hide
+staff cannot reverse, so the review console renders the two as a definition list
+and states the difference in words. Both confirm in two steps and the delete
+confirm names the app.
+  - **THE OWNER IS THE HALF THAT MATTERS.** Before 0136 there was no path of any
+    kind by which a student could remove their own app. Deleting your own app
+    takes its PUBLISHED version with it, because the thing being removed is the
+    app; deleting a single version is refused for the published one, for an
+    admin too, because what that would leave behind is a live app pointing at a
+    version that does not exist. `versionIsDeletable` mirrors that rule so no
+    control is offered whose only possible answer is a refusal, and the live row
+    SAYS why rather than merely lacking a button.
+  - **A HIDDEN APP IS NOT THE OWNER'S TO DELETE.** 0130 already refuses their
+    EDIT of one; a hidden app is under discussion with staff, and the refusal
+    names who to ask. An admin can delete it and an admin can restore it.
+
+**ROWS FIRST, THEN OBJECTS, AND A FAILED SWEEP IS NOT A FAILED DELETE.** There
+is no transaction between Postgres and Storage, so one write can land alone and
+something has to be the acceptable failure. Objects-first leaves a LIVE APP
+whose every file 404s, which reads as a corrupted upload and which the student
+finds. Rows-first leaves an ORPHANED OBJECT: bytes in a private bucket that no
+row names, that nothing serves (the serving route's allowlist IS
+`student_app_files`) and that no client can list. So the RPC deletes the rows
+and RETURNS the paths it just orphaned -- they only exist while the rows do --
+and `POST /api/foundry/delete` sweeps them with the service role.
+  - **`ok` IS TRUE THE MOMENT THE RPC RETURNS.** A partial sweep adds
+    `storageProblem`, a sentence shown beside the confirmation, and a server log
+    line naming every survivor, which is the only remaining record of them.
+    Reporting a completed delete as an error is how somebody presses it again.
+  - **THE ROUTE IS NOT THE AUTHORIZATION BOUNDARY**, even though it holds the
+    key: it calls the RPC on `locals.supabase`, the CALLER's own client, so
+    `auth.uid()` and `is_admin()` are the real thing and the service role only
+    ever removes paths the database itself just handed back. It exists because
+    `foundry-bundles` has no storage policy (no browser client can delete a
+    bundle byte) and the other two buckets' policies are pinned to `auth.uid()`
+    (an admin deleting a student's app cannot satisfy them).
+  - **THE SWEEP RE-LISTS RATHER THAN PARSING `remove()`'s ANSWER.** Matching a
+    returned `FileObject[]` back against the keys sent would fail silently in
+    one of two directions, and a claimed clean sweep is unrecoverable once the
+    rows that named the objects are gone. It removes, then LISTS again and
+    reports what is still there. It lists the bundle PREFIX rather than the
+    rows, which is strictly more complete: a half-finished ingest leaves objects
+    no row ever named.
+
+**THE REVIEW LOAD ASKS FOR HIDDEN APPS, AND MUST KEEP DOING SO.** Hiding is
+reversible, but a hidden app is on no other surface -- not the gallery, not its
+owner's list, not the queue -- so without `p_include_hidden` the Hide control is
+a ONE-WAY DOOR with a Restore nothing can ever be selected to press. `queueOrder`
+still filters on `submitted_version_id`, so the queue is unchanged; the shelved
+apps get their own list below it, and a queue row that is ALSO hidden carries a
+shelved chip, because hiding does not move a version's status and deciding about
+a shelved app without knowing it is shelved is the trap. The widening is not the
+route's to grant: `_foundry_app_in_population` gates both flags on `is_admin()`
+inside itself.
+
 **A BUNDLE URL CARRIES NO TOKEN, AND THE PUBLICATION GATE IS THE VERSION'S OWN
 STATUS.** `foundryBundleUrl(appsOrigin, appId, versionId)` is the whole frame
 src -- `<apps origin>/b/<app id>/<version id>/` -- plain, stable, unexpiring,
@@ -868,8 +928,9 @@ build break):
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
   anything in it), and Foundry -- which is now ONE reader again,
-  `src/lib/server/foundry-bundle.ts`, backing both the review queue's source
-  viewer and the serving route. **It was two while an Edge Function served the
+  `src/lib/server/foundry-bundle.ts`, backing the review queue's source viewer,
+  the serving route AND the delete sweep (three callers, one module, one
+  client). **It was two while an Edge Function served the
   bytes in a different runtime and could not import the first**; deleting the
   function collapsed that split, and a second reader should not come back. It
   exists because `foundry-bundles` carries no storage policy at all, which makes
@@ -1488,6 +1549,16 @@ inside the function fails closed rather than falling through to a weaker path.
   **The list is then responsible for USING the width** -- a fixed-width column
   centred in the room it was just given is the same defect one level in. ClassView
   lays its unit groups out in `auto-fit` columns for exactly this.
+- **A BREAKPOINT INSIDE A NESTED PANE IS DEAD CODE UNTIL IT IS MEASURED THERE,
+  and nothing warns.** A container query whose threshold the container never
+  reaches simply never fires: no unused-selector notice, no `svelte-check`
+  warning, and a layout that looks deliberate because the fallback is the one
+  you also wrote. Measured twice now -- `.fdy-q-work` at 58rem against the
+  viewport figure when the pane was 857px, and the Foundry review inspector's
+  own panel at 34rem when its container is **418px at 1440 and about 541px at
+  1920**. Drive the real surface and read the CONTAINER's width before choosing
+  a number, and when the measurement says the wide arrangement never has room,
+  DELETE the rule rather than lowering it into columns too narrow to read.
 - **A column count comes from measuring the content, not from round numbers.**
   Drive the pane across a range and count what actually breaks (ellipsised titles,
   wrapped rows); the column is the width above which the content stops gaining.
@@ -1622,6 +1693,21 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A partial failure KEEPS what did not land** and names it; only what succeeded
   is cleared. A retry after a partial create UPDATES the record already made, or
   it produces a duplicate.
+- **AN ACKNOWLEDGEMENT MUST SURVIVE THE ACT IT REPORTS, AND A DESTRUCTIVE ONE
+  USUALLY DOES NOT WHERE IT WAS WRITTEN.** "Saved" renders where the work is,
+  because the work is still there; "deleted" cannot, because the pane holding
+  it is what was just deleted. Measured on `/foundry/mine`: the confirmation
+  lived inside the detail pane, the app delete unmounted that pane, and the
+  card simply vanished from the list with nothing anywhere saying a word. So a
+  delete's note belongs on the surface that is on screen AFTERWARDS -- for a
+  master-detail split under `narrow="swap"`, the LIST, which is exactly what
+  shows at every width once no detail is open. Two outcomes ending in two
+  places is two notes, not one moved.
+- **A CONTROL THAT IS ABSENT FOR A REASON SAYS THE REASON, where every sibling
+  row has one.** A version list whose live build alone has no Delete reads as a
+  bug; one sentence in its place is the difference between a rule and a defect.
+  It is the `aria-disabled` argument for the case where there is nothing to
+  disable.
 - **EVERY SURFACE REPORTS ITS OWN DEFECTS, AND THE AFFORDANCE IS MOUNTED ONCE IN
   THE ROOT LAYOUT.** `SiteFeedback.svelte` sits in `src/routes/+layout.svelte`;
   there are no layout resets in `src/routes`, so that mount is what makes

@@ -122,10 +122,30 @@
 	const summaries = apps.map(summary);
 
 	let selectedSlug = $state<string | null>('ember-clock');
-	const selected = $derived(apps.find((a) => a.slug === selectedSlug) ?? null);
 
 	let log = $state<string[]>([]);
 	const note = (line: string) => (log = [...log, line]);
+
+	/**
+	 * DELETION, DRIVEN FOR REAL AGAINST THE FIXTURE. The transports remove the
+	 * row from this page's own arrays, so the surface has to do everything a
+	 * real delete makes it do -- clear the selection, stop rendering the card,
+	 * re-render the version list -- rather than merely logging a call.
+	 *
+	 * `storageProblem` is exercised on ONE of them (Cold Start), because the
+	 * partial-sweep sentence is a real outcome of the shipping path and a
+	 * harness that only ever answers the clean case never renders it.
+	 */
+	let removed = $state<string[]>([]);
+	let removedVersions = $state<string[]>([]);
+
+	const liveApps = $derived(apps.filter((a) => !removed.includes(a.id)));
+	const liveSummaries = $derived(liveApps.map(summary));
+	const selectedLive = $derived(() => {
+		const found = liveApps.find((a) => a.slug === selectedSlug);
+		if (!found) return null;
+		return { ...found, versions: found.versions.filter((v) => !removedVersions.includes(v.id)) };
+	});
 </script>
 
 <svelte:head><title>Forge identity harness</title></svelte:head>
@@ -170,13 +190,27 @@
 			<section>
 				<h2 class="h-label">My apps, every lifecycle state at once</h2>
 				<FoundryMine
-					apps={summaries}
-					{selected}
+					apps={liveSummaries}
+					selected={selectedLive()}
 					transports={{
 						submitVersion: async (id) => (note(`submit ${id}`), { ok: true }),
 						withdrawVersion: async (id) => (note(`withdraw ${id}`), { ok: true }),
 						rollback: async (_a, id) => (note(`publish ${id}`), { ok: true }),
-						saveField: async (_a, f) => (note(`set ${f}`), { ok: true })
+						saveField: async (_a, f) => (note(`set ${f}`), { ok: true }),
+						deleteApp: async (id) => {
+							note(`delete app ${id}`);
+							removed = [...removed, id];
+							// One fixture answers the partial-sweep case, so the sentence
+							// that rides a SUCCESS is on screen somewhere in this harness.
+							return id === 'app-cold'
+								? { ok: true, storageProblem: '2 stored files could not be removed.' }
+								: { ok: true, storageProblem: null };
+						},
+						deleteVersion: async (id) => {
+							note(`delete version ${id}`);
+							removedVersions = [...removedVersions, id];
+							return { ok: true, storageProblem: null };
+						}
 					}}
 					onSelect={(slug) => (selectedSlug = slug)}
 					{now}
@@ -184,6 +218,10 @@
 			</section>
 
 			<p class="h-log" data-testid="log">{log.join(' | ') || '(no writes yet)'}</p>
+			<p class="h-log" data-testid="removed">
+				removed: {removed.join(', ') || '(none)'} / versions: {removedVersions.join(', ') ||
+					'(none)'}
+			</p>
 
 			<!-- Tall spacer so the header seam can be scrolled fully offscreen for
 			     the pause measurement. -->
