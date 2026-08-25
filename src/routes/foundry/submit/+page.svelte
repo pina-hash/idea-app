@@ -10,6 +10,7 @@
 	 */
 	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
 	import type { FoundrySubmitTransports, IngestOutcome } from '$lib/foundry/transports';
+	import { FOUNDRY_COVER_BUCKET, FOUNDRY_UPLOAD_BUCKET } from '$lib/foundry/bundle-url';
 
 	let { data } = $props();
 
@@ -48,7 +49,7 @@
 
 		async uploadZip(zip, path) {
 			const { error } = await data.supabase.storage
-				.from('foundry-uploads')
+				.from(FOUNDRY_UPLOAD_BUCKET)
 				.upload(path, zip, { contentType: 'application/zip', upsert: false });
 			if (error) return fail(error);
 			return { ok: true };
@@ -113,11 +114,25 @@
 			}
 		},
 
+		/**
+		 * The same RPC /foundry/mine calls, offered here so the deliberate
+		 * submit press happens on the page the upload was made on. The RPC
+		 * re-checks everything (ownership, one submitted version per app, a
+		 * finished ingest) inside its own body; this is only the wire.
+		 */
+		async submitVersion(versionId) {
+			const { error } = await data.supabase.rpc('foundry_submit_version', {
+				p_version_id: versionId
+			});
+			if (error) return fail(error);
+			return { ok: true };
+		},
+
 		async uploadCover(file) {
 			const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() || 'png';
 			const path = `${data.uid}/${crypto.randomUUID()}.${ext}`;
 			const { error } = await data.supabase.storage
-				.from('foundry-covers')
+				.from(FOUNDRY_COVER_BUCKET)
 				.upload(path, file, { contentType: file.type || undefined, upsert: false });
 			if (error) return fail(error);
 			return { ok: true, path };
@@ -140,10 +155,12 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
+<!-- The room wrapper (.fg-root) and the masthead live in the /foundry layout;
+     the shell's tabs are the way to My apps, so the header link that used to
+     stand in for navigation is gone rather than duplicated. -->
 <div class="fdy-page">
 	<header class="fdy-page-head">
 		<h1>Publish an app</h1>
-		<a class="btn tap-44" href="/foundry/mine">My apps</a>
 	</header>
 
 	<FoundrySubmit {transports} initialAppId={data.initialAppId} />
@@ -166,9 +183,5 @@
 		margin: 0;
 		font-family: var(--font-display);
 		font-size: 1.7rem;
-	}
-
-	.fdy-page-head a {
-		margin-left: auto;
 	}
 </style>

@@ -2,12 +2,16 @@
 	/**
 	 * THE ROUTE OWNS THE TRANSPORTS; the component owns the arrangement.
 	 *
-	 * Two of these go through API routes rather than straight to Supabase, and
-	 * each for the reason the repo gives for having a route at all:
+	 * The source reads go through an API route rather than straight to Supabase,
+	 * for the reason the repo gives for having a route at all: `foundry-bundles`
+	 * is readable by uuid but is not LISTABLE and its rows are not granted to a
+	 * client, so only the service-role key can enumerate a version's files and
+	 * hand back their bytes.
 	 *
-	 *   launch  mints a signed token, which needs a secret.
-	 *   files / source  read `foundry-bundles`, which has no storage policy, so
-	 *           only the service-role key reaches it.
+	 * Running the build needs no transport at all now. `AppStage` derives the
+	 * frame src from the app and version ids, and the queue runs the SUBMITTED
+	 * version by handing it that id -- which is the whole of what used to
+	 * require a review-kind token.
 	 *
 	 * The decision itself is one RPC with a handful of scalars and goes straight
 	 * from the browser client, because `foundry_review_version` re-checks
@@ -18,6 +22,7 @@
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { rejectReasonLabel } from '$lib/foundry/review';
 	import type { FoundryReviewTransports } from '$lib/foundry/transports';
+	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
 
 	let { data } = $props();
 
@@ -25,7 +30,7 @@
 	const now = new Date();
 
 	function coverUrl(path: string): string {
-		return data.supabase.storage.from('foundry-covers').getPublicUrl(path).data.publicUrl;
+		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 	}
 
 	async function post(url: string, body: unknown): Promise<Record<string, unknown> | null> {
@@ -38,26 +43,6 @@
 	}
 
 	const transports: FoundryReviewTransports = {
-		async launch({ appId, versionId }) {
-			try {
-				const body = await post('/api/foundry/token', { appId, versionId, purpose: 'review' });
-				if (!body?.ok) {
-					if (body?.reason === 'not_configured') {
-						return { ok: false, message: 'Bundle tokens are not configured on this deployment.' };
-					}
-					return { ok: false, message: 'That build could not be opened.' };
-				}
-				return {
-					ok: true,
-					src: body.src as string,
-					versionId: body.versionId as string,
-					expiresInSeconds: body.expiresInSeconds as number
-				};
-			} catch {
-				return { ok: false, message: 'That build could not be opened. Check your connection.' };
-			}
-		},
-
 		async listFiles(versionId) {
 			try {
 				const body = await post('/api/foundry/source', { versionId });
@@ -127,6 +112,61 @@
 			if (error) return { ok: false, message: error.message };
 			await invalidateAll();
 			return { ok: true };
+		},
+
+		/**
+		 * SHELVE, and its reverse. One RPC with a boolean, because they are one
+		 * decision: `foundry_set_app_hidden` re-checks `is_admin()` in its own
+		 * body, so this goes straight from the browser client like the decision
+		 * above it. Nothing is destroyed and the same call with `false` puts it
+		 * back, which is what makes it a different act from the one below.
+		 */
+		async setHidden(appId, hidden, reason) {
+			const { error } = await data.supabase.rpc('foundry_set_app_hidden', {
+				p_app_id: appId,
+				p_hidden: hidden,
+				p_reason: reason || null
+			});
+			if (error) return { ok: false, message: error.message };
+			await invalidateAll();
+			return { ok: true };
+		},
+
+		/**
+		 * DELETE, which is the one write on this surface that cannot go straight
+		 * to an RPC. Rows come out of Postgres and bytes come out of Storage, and
+		 * `foundry-bundles` carries no storage policy at all -- so this client
+		 * cannot remove a bundle byte, and the own-folder policies on the other
+		 * two buckets are pinned to `auth.uid()`, which an admin deleting a
+		 * student's app does not satisfy. `/api/foundry/delete` calls the same
+		 * definer RPC AS THIS CALLER and sweeps the objects with the service key.
+		 *
+		 * `storageProblem` rides a SUCCESS: the rows are gone before the sweep
+		 * runs, so a partial sweep is a completed delete with orphaned bytes.
+		 */
+		async deleteApp(appId) {
+			try {
+				const res = await fetch('/api/foundry/delete', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ appId })
+				});
+				const payload = (await res.json().catch(() => null)) as {
+					ok?: boolean;
+					message?: string;
+					storageProblem?: string | null;
+				} | null;
+				if (!payload?.ok) {
+					return { ok: false, message: payload?.message ?? 'That did not work. Try again.' };
+				}
+				await invalidateAll();
+				return { ok: true, storageProblem: payload.storageProblem ?? null };
+			} catch (err) {
+				return {
+					ok: false,
+					message: err instanceof Error ? err.message : 'That did not work. Try again.'
+				};
+			}
 		}
 	};
 
@@ -140,9 +180,10 @@
 	<title>Foundry review</title>
 </svelte:head>
 
-<div class="cr-root fdy-rev-page">
+<!-- The room wrapper (.fg-root) and the masthead live in the /foundry layout. -->
+<div class="fdy-rev-page">
 	<header class="fdy-rev-head">
-		<h1>Foundry review</h1>
+		<h1>Review queue</h1>
 		<p>
 			Read the source beside the running build. Approving publishes it immediately; sending it
 			back needs a reason and a note the student can act on.
@@ -156,6 +197,7 @@
 		{coverUrl}
 		onSelect={select}
 		onDecided={() => invalidateAll()}
+		onDeleted={() => select(null)}
 		{now}
 	/>
 </div>

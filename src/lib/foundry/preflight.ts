@@ -18,16 +18,31 @@
  * even less.
  *
  * THESE MESSAGES ARE WRITTEN AGAINST THE BUILD CONTRACT students are given:
- * one folder with index.html at the top level; HTML, CSS and JS with no build
- * step, React with JSX included by way of the hosted libraries; every path
- * relative except the platform ones; no network at runtime; fonts from
- * `/_platform/fonts.css` and libraries from `/_platform/lib/*`, which are the
- * only absolute paths allowed; localStorage present but in memory and cleared
- * on reload; the sandbox blocking `window.parent`, `window.open`, navigation
- * and downloads. If that document's wording moves, these move with it.
+ * one folder with index.html at the top level; vanilla HTML, CSS and JS with no
+ * build step; every path relative and never starting with a forward slash;
+ * localStorage present but in memory and cleared on reload; the sandbox
+ * blocking `window.parent`, `window.open`, navigation and downloads. If that
+ * document's wording moves, these move with it.
+ *
+ * THE NETWORK IS NO LONGER A RULE, AND THAT IS THE LARGEST THING THIS MODULE
+ * HAS EVER STOPPED SAYING. A bundle used to be served through a proxy of ours
+ * that sent `connect-src 'none'` and named every source list itself, so a CDN
+ * script, a Google Fonts link and a `fetch` were all dead on arrival and were
+ * refused here with sentences explaining why. Bundles are served straight off
+ * public Supabase Storage now; there is no header of ours on the response and
+ * no source list, so all three WORK. React and Babel from unpkg -- which is
+ * what a student's AI tool writes when asked for a React app -- is now the
+ * ordinary case rather than the refused one. Refusing it would be refusing
+ * something that runs.
+ *
+ * WHAT DID NOT RELAX: containment. Path traversal, an absolute path, a
+ * disallowed extension and the caps are all still refusals, because none of
+ * them is about the network. The isolation that used to be spelled in a CSP is
+ * now entirely the frame's OPAQUE ORIGIN -- see `./bundle-url.ts`.
  *
  * THE HTML AND CSS SCAN IS A USABILITY GATE, NOT A SECURITY BOUNDARY. Runtime
- * safety is the sandbox and the CSP, which land in the next lane. That is why
+ * safety is the sandbox attribute and the opaque origin, neither of which this
+ * module can affect. That is why
  * the HTML side takes a REAL PARSER (injected, because Deno and the browser
  * have different ones) rather than running a regex over attributes: a regex
  * over attributes produces false positives, and a false positive here reads to
@@ -36,19 +51,7 @@
  */
 
 import { bundlePathOk } from '../bundle-path.ts';
-import {
-	FOUNDRY_PLATFORM_LIBRARIES,
-	FOUNDRY_STARTER_PATH,
-	PLATFORM_LIB_PREFIX,
-	classifyVendorReference,
-	identifyCdnReference,
-	isPlatformLibraryPath,
-	platformLibraryFor,
-	platformLibraryHelp,
-	platformLibraryPath,
-	vendorRewriteNote,
-	type PlatformLibrary
-} from './vendor.ts';
+import { FOUNDRY_STORAGE_SHIM_JS, FOUNDRY_STORAGE_SHIM_TAG } from './storage-shim.ts';
 
 /* -------------------------------------------------------------------------
  * Caps and vocabulary.
@@ -64,8 +67,29 @@ export const FOUNDRY_LIMITS = {
 	warnAssetBytes: 5 * 1024 * 1024
 } as const;
 
-/** The only absolute path an app may reference. */
-export const PLATFORM_FONTS_PATH = '/_platform/fonts.css';
+/**
+ * WHERE THE PLATFORM FONTS LIVE, AS A WHOLE URL AND NOT AS A PATH.
+ *
+ * It used to be the root-relative `/_platform/fonts.css`, and it used to be
+ * the ONE absolute path an app was allowed to write, because bundles were
+ * served from a host of ours where that path resolved. They are served off the
+ * Supabase project host now, where a leading slash resolves to Supabase and
+ * finds nothing -- so the root-relative form cannot be made to work by
+ * anything we serve, and a contract that still promised it would be promising
+ * a stylesheet that silently never arrives.
+ *
+ * So the contract names the whole URL. Nothing has to be special-cased for it
+ * any more: an `https://` reference is simply allowed now, like every other
+ * one, which is why `classifyReference` no longer mentions this constant at
+ * all. The canonical origin is hardcoded here for the same reason the OG tags
+ * and the sitemap hardcode it -- `ideabosco.com` is the canonical host and a
+ * runtime-read origin would put a preview URL in a document students paste
+ * into a tool.
+ */
+export const FOUNDRY_PLATFORM_ORIGIN = 'https://ideabosco.com';
+
+/** The stylesheet a bundle links to get Rajdhani, Orbitron and Share Tech Mono. */
+export const PLATFORM_FONTS_URL = `${FOUNDRY_PLATFORM_ORIGIN}/_platform/fonts.css`;
 
 /** The entry file, at the top level of the bundle. */
 export const FOUNDRY_ENTRY_FILE = 'index.html';
@@ -181,6 +205,29 @@ export function foundryMime(path: string): string {
 }
 
 /** Text files are the ones worth scanning and worth decoding as UTF-8. */
+/**
+ * WHAT THE SERVING FUNCTION MAY PUT ON A RESPONSE, as a MIME ALLOWLIST rather
+ * than an echo of anything.
+ *
+ * A stored type reaches this from `student_app_files.content_type`, which the
+ * ingest function wrote from `foundryMime` -- a fixed table over the extension
+ * allowlist. So in practice every value is already one of these. The check is
+ * here because "in practice" is not the standard for a header that decides
+ * whether bytes a student uploaded are executed as script: anything not in the
+ * table is served `application/octet-stream`, which with `nosniff` means the
+ * browser will not run it as anything at all.
+ *
+ * IT LIVES BESIDE `foundryMime` BECAUSE IT IS THE SAME TABLE READ BACKWARDS.
+ * A second list of servable types, kept anywhere else, is the list that stops
+ * agreeing with the one the extensions produce.
+ */
+const SERVABLE_TYPES = new Set(Object.values(MIME_BY_EXT));
+
+export function servableFoundryType(stored: string | null | undefined): string {
+	const value = (stored ?? '').trim();
+	return SERVABLE_TYPES.has(value) ? value : 'application/octet-stream';
+}
+
 export function isTextExtension(ext: string): boolean {
 	return ext === 'html' || ext === 'css' || ext === 'js' || ext === 'json' || ext === 'txt';
 }
@@ -404,63 +451,58 @@ export function stripWrapperDirectory(paths: string[]): {
  * Reference classification, shared by HTML and CSS.
  * ---------------------------------------------------------------------- */
 
-export type RefVerdict =
-	| { kind: 'ok' }
-	| { kind: 'absolute' }
-	| { kind: 'scheme'; scheme: string }
-	| { kind: 'google-fonts' };
+export type RefVerdict = { kind: 'ok' } | { kind: 'absolute' } | { kind: 'scheme'; scheme: string };
 
 /** A verdict that is actually a problem. Every message builder takes one. */
 export type RefProblem = Exclude<RefVerdict, { kind: 'ok' }>;
 
-const GOOGLE_FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
-
 /**
- * Schemes that carry no network request and so are not this gate's concern.
- * `data:` is inlined, and always was. `mailto:` and `tel:` open the device's
- * mail or phone app rather than fetching anything -- refusing them read as
- * arbitrary, because nothing about the sandbox or the CSP objects to either.
+ * Schemes that are simply fine, and the reason each is on the list.
+ *
+ * `http`/`https` ARE ON IT NOW, and that is the relaxation. A bundle is served
+ * from public Storage with no CSP of ours on it, so a CDN script tag, a Google
+ * Fonts stylesheet and an `<img>` from another site all load exactly as they
+ * would on any web page. Refusing them was correct while the proxy sent
+ * `connect-src 'none'`; it is now refusing something that works, which is the
+ * worst kind of gate -- it teaches a student that the platform is arbitrary,
+ * and it fails the single most common thing an AI tool produces.
+ *
+ * `data:` is inlined and always was. `mailto:` and `tel:` open the device's
+ * mail or phone app rather than fetching anything. `blob:` is a URL the app
+ * minted for its own bytes.
  */
-const NO_NETWORK_SCHEMES = ['data:', 'mailto:', 'tel:'];
+const ALLOWED_SCHEMES = ['http:', 'https:', 'data:', 'mailto:', 'tel:', 'blob:'];
 
 /**
  * Decides what a `src`, `href` or `url()` value is.
  *
  * A fragment or a query with no path is the current document and is fine.
+ *
+ * WHAT IS LEFT TO REFUSE, now that the network is not a rule:
+ *
+ *   absolute   a leading slash. It resolves against the ORIGIN the bundle is
+ *              served from, which is the Supabase project host, where the
+ *              app's own folder is nowhere near the root. It has never
+ *              resolved to anything useful and now it cannot be made to: there
+ *              is no longer an exception for `/_platform`, because that path
+ *              is on a different host and is written as a whole URL instead.
+ *   scheme     anything else -- `file:`, `ftp:`, `chrome:`. A `file:` path is
+ *              a real and common mistake (an app that worked because the
+ *              author opened it off their desktop) and is worth naming.
  */
 export function classifyReference(value: string): RefVerdict {
 	const v = (value ?? '').trim();
 	if (v === '') return { kind: 'ok' };
 	if (v.startsWith('#') || v.startsWith('?')) return { kind: 'ok' };
-	if (v === PLATFORM_FONTS_PATH) return { kind: 'ok' };
-	/*
-	 * A HOSTED LIBRARY PATH IS FINE, AND IT HAS TO BE FOR THE REWRITE TO
-	 * TERMINATE. The ingest rewrite turns a CDN tag into one of these, and the
-	 * result is checked again -- on a re-upload, or by a student who downloads
-	 * the starter file and submits it unchanged. Without this the platform's
-	 * own repair would be refused by the platform's own absolute-path rule.
-	 */
-	if (isPlatformLibraryPath(v)) return { kind: 'ok' };
 
 	const lower = v.toLowerCase();
-	if (NO_NETWORK_SCHEMES.some((s) => lower.startsWith(s))) return { kind: 'ok' };
+	if (ALLOWED_SCHEMES.some((sch) => lower.startsWith(sch))) return { kind: 'ok' };
 
-	// Protocol-relative: inherits the page's scheme and is still the network.
-	if (v.startsWith('//')) {
-		const host = v.slice(2).split('/')[0].toLowerCase();
-		if (GOOGLE_FONT_HOSTS.includes(host)) return { kind: 'google-fonts' };
-		return { kind: 'scheme', scheme: 'https' };
-	}
+	// Protocol-relative inherits the page's scheme, which is https here.
+	if (v.startsWith('//')) return { kind: 'ok' };
 
 	const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(v);
-	if (scheme) {
-		const name = scheme[1].toLowerCase();
-		if (name === 'http' || name === 'https') {
-			const host = v.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '').split('/')[0].toLowerCase();
-			if (GOOGLE_FONT_HOSTS.includes(host)) return { kind: 'google-fonts' };
-		}
-		return { kind: 'scheme', scheme: name };
-	}
+	if (scheme) return { kind: 'scheme', scheme: scheme[1].toLowerCase() };
 
 	if (v.startsWith('/')) return { kind: 'absolute' };
 	return { kind: 'ok' };
@@ -564,91 +606,7 @@ export interface AttrSpan {
 	line: number;
 }
 
-/**
- * FINDS AN ATTRIBUTE'S VALUE AS AN ATTRIBUTE, not as a run of text that
- * happens to match.
- *
- * `LineFinder` answers "roughly where is this string", which is enough to put
- * a line number in a sentence and points at the first of two identical
- * mistakes in the worst case. That is not enough to EDIT with. The rewrite
- * replaces bytes in a file a student wrote, so the span it replaces has to be
- * the attribute value and provably nothing else -- a URL sitting in a comment,
- * in a code sample, or in the text of the page must never be silently
- * rewritten.
- *
- * So the search is for the value PRECEDED BY `="`, `='` or a bare `=`, which
- * an attribute value is by construction and a run of prose is not. Each value
- * carries its own cursor, so two identical script tags resolve to their own
- * positions in document order rather than both to the first.
- *
- * WHEN IT FINDS NOTHING THE CALLER MUST NOT GUESS. The parser saw the
- * reference, so it is really there -- entity-encoded, or spelled in some way
- * this does not match. `scanHtml` falls back to refusing it, which is the
- * fail-closed direction: an app that is refused can be uploaded again, where
- * an app rewritten at the wrong offset is a corrupted file nobody inspected.
- */
-export class AttrFinder {
-	private readonly source: string;
-	private readonly cursors = new Map<string, number>();
-	constructor(source: string) {
-		this.source = source;
-	}
 
-	find(value: string): AttrSpan | null {
-		if (!value) return null;
-		const from = this.cursors.get(value) ?? 0;
-		const span = this.search(value, from) ?? (from === 0 ? null : this.search(value, 0));
-		if (!span) return null;
-		this.cursors.set(value, span.end);
-		return span;
-	}
-
-	private search(value: string, from: number): AttrSpan | null {
-		for (let at = this.source.indexOf(value, from); at >= 0; ) {
-			const before = at === 0 ? '' : this.source[at - 1];
-			const quoted = before === '"' || before === "'";
-			// A quoted value must be CLOSED by the same quote, or what was
-			// matched is a prefix of a longer value.
-			const closes = quoted
-				? this.source[at + value.length] === before
-				: /[\s/>]/.test(this.source[at + value.length] ?? '>');
-			const opens = quoted ? this.source[at - 2] === '=' : before === '=';
-			if (opens && closes) {
-				return { start: at, end: at + value.length, line: lineAt(this.source, at) };
-			}
-			at = this.source.indexOf(value, at + 1);
-		}
-		return null;
-	}
-}
-
-/**
- * Applies a set of replacements to a source string and touches nothing else.
- *
- * NEVER A RESERIALIZATION. The document is not re-emitted from a parse tree:
- * every byte outside a replaced span survives exactly, so a student's
- * indentation, their comments, their attribute order, their doctype quirks and
- * their line endings all come back out unchanged. A parser round trip would
- * normalize some of that silently, and the file that ran would not be the file
- * they wrote.
- *
- * LINE NUMBERS SURVIVE, which is why the callers may report them against the
- * ORIGINAL file: a replacement carrying a newline is refused outright, so no
- * edit can move the line any later text sits on.
- */
-export function applyEdits(source: string, edits: { start: number; end: number; text: string }[]) {
-	if (edits.length === 0) return source;
-	const ordered = [...edits].sort((a, b) => a.start - b.start);
-	let out = '';
-	let at = 0;
-	for (const e of ordered) {
-		if (e.start < at) continue; // overlapping: keep the first, drop the rest
-		if (e.text.includes('\n')) continue;
-		out += source.slice(at, e.start) + e.text;
-		at = e.end;
-	}
-	return out + source.slice(at);
-}
 
 function lineAt(source: string, index: number): number {
 	let line = 1;
@@ -691,32 +649,25 @@ export type HtmlReader = (html: string) => HtmlFacts;
 export interface HtmlScan {
 	failures: FoundryIssue[];
 	warnings: FoundryIssue[];
-	/**
-	 * Sentences describing every reference that was repointed at a hosted
-	 * library, one per rewrite, each carrying its own file and line.
-	 *
-	 * NOTES RATHER THAN WARNINGS, because nothing is wrong: the upload passes,
-	 * the app runs, and the note is how the student learns their file is not
-	 * byte-for-byte what they uploaded.
-	 */
-	rewriteNotes: string[];
-	/**
-	 * The repaired source, or null when nothing was repaired.
-	 *
-	 * THE CALLER DECIDES WHAT TO DO WITH IT, and the two callers do different
-	 * things: `foundry-ingest` stores these bytes, and the browser preflight
-	 * only reports that it would. That split is deliberate -- the browser
-	 * preflight writes nothing anywhere, and a preflight that quietly edited
-	 * the file about to be uploaded would make the upload and the check
-	 * disagree about what was checked.
-	 */
-	rewritten: string | null;
 	/** True when the parser could not read the page at all. See below. */
 	parseFailed?: boolean;
 	parseError?: string;
 }
 
 /** The first line with something on it, used as a fallback locator. */
+/**
+ * Whether an inline script IS the platform storage shim.
+ *
+ * Whitespace-normalized on both sides: the shim is handed out as one line per
+ * statement, and an editor or a formatter that reindents a pasted block would
+ * otherwise turn a recognised shim into an unrecognised one -- which fails in
+ * the direction of two confusing warnings rather than a hole, but fails.
+ */
+function isStorageShim(text: string): boolean {
+	const flat = (v: string) => v.replace(/\s+/g, '');
+	return flat(text) === flat(FOUNDRY_STORAGE_SHIM_JS);
+}
+
 function firstRealLine(text: string): string {
 	for (const line of text.split('\n')) {
 		if (line.trim() !== '') return line;
@@ -727,8 +678,6 @@ function firstRealLine(text: string): string {
 export function scanHtml(path: string, source: string, read: HtmlReader): HtmlScan {
 	const failures: FoundryIssue[] = [];
 	const warnings: FoundryIssue[] = [];
-	const rewriteNotes: string[] = [];
-	const edits: { start: number; end: number; text: string }[] = [];
 
 	let facts: HtmlFacts;
 	try {
@@ -771,8 +720,6 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 		return {
 			failures,
 			warnings,
-			rewriteNotes,
-			rewritten: null,
 			parseFailed: true,
 			parseError: err instanceof Error ? err.message : String(err)
 		};
@@ -806,6 +753,22 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	for (const raw of facts.inlineScripts) {
 		const text = raw.replace(/\r/g, '');
 		if (text.trim() === '') continue;
+		/*
+		 * THE STORAGE SHIM IS NOT STUDENT CODE AND MUST NOT BE SCANNED.
+		 *
+		 * It DEFINES `localStorage` and `sessionStorage`; it does not use
+		 * them. Scanned like anything else it earns two storage warnings whose
+		 * own advice is "paste the storage snippet at the top of index.html" --
+		 * addressed to a student who has done exactly that, about the snippet
+		 * itself. Every correctly built app would carry it, which is the shape
+		 * of warning people learn to scroll past.
+		 *
+		 * IT IS AN IDENTITY TEST, NOT A HEURISTIC. The block is compared
+		 * against the one shim string in the repo, whitespace-normalized only
+		 * so an editor that reindents a pasted block does not defeat it. A
+		 * script that merely LOOKS like the shim is scanned normally.
+		 */
+		if (isStorageShim(text)) continue;
 		const start = scriptFinder.find(text) ?? scriptFinder.find(firstRealLine(text));
 		if (start !== null) lastKnownStart = start;
 		// `start` is the line the script's TEXT begins on, and that text's own
@@ -816,63 +779,9 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	}
 
 	const finder = new LineFinder(source);
-	const attrs = new AttrFinder(source);
 	for (const ref of facts.refs) {
 		const verdict = classifyReference(ref.value);
 		if (verdict.kind === 'ok') continue;
-
-		/*
-		 * THE REWRITE IS TRIED BEFORE THE REFUSAL, AND ONLY A LOCATED SPAN
-		 * EARNS ONE.
-		 *
-		 * `classifyVendorReference` says whether this is a CDN copy of a
-		 * library we host. `AttrFinder` says whether the value can be found as
-		 * an attribute value, which is the only thing that may be edited. Both
-		 * have to answer yes: a library we host whose tag cannot be located
-		 * safely falls through to the refusal it would have got anyway, which
-		 * is the fail-closed direction. A student can upload again; nobody can
-		 * inspect a file that was edited at the wrong offset.
-		 */
-		const vendor = classifyVendorReference(ref.tag, ref.attr, ref.value);
-		if (vendor !== null) {
-			const span = attrs.find(ref.value);
-			if (span !== null && tagCarriesIntegrity(source, span)) {
-				/*
-				 * A SUBRESOURCE INTEGRITY HASH IS A HASH OF SOMEBODY ELSE'S
-				 * BYTES, AND WE ARE ABOUT TO SERVE OURS.
-				 *
-				 * cdnjs puts `integrity` in the snippet it tells people to
-				 * copy, so this arrives in real files. Repointing the src and
-				 * leaving the hash gives the browser our copy, a digest that
-				 * cannot match it, and a refusal -- which is a BLANK APP under
-				 * a note claiming we fixed it, the exact failure this lane
-				 * exists to end.
-				 *
-				 * Deleting the attribute would work and is not what happens
-				 * here. The rewrite's licence is to change ONE attribute VALUE
-				 * and nothing else about the file; taking a second attribute
-				 * out is a different and larger permission, and the moment
-				 * this edit stops being "swap one URL" is the moment nobody
-				 * can say what it did. So the tag is refused instead, and the
-				 * refusal names the hash as the reason, which costs the
-				 * student one line and a re-upload and cannot fail silently.
-				 */
-				const line = span.line;
-				failures.push(
-					issue(
-						path,
-						line,
-						`${where(path, line)} loads ${vendor.library.label} from ${ref.value} with an integrity="..." checksum on it. ${vendor.library.label} is hosted here and that tag would otherwise have been repointed at our copy automatically, but the checksum is of the file on the other site and would not match ours, so your browser would refuse to run it. Delete the integrity="..." attribute from this tag, and the crossorigin attribute with it if there is one. Then upload again.`
-					)
-				);
-				continue;
-			}
-			if (span !== null) {
-				edits.push({ start: span.start, end: span.end, text: vendor.to });
-				rewriteNotes.push(vendorRewriteNote(path, span.line, vendor));
-				continue;
-			}
-		}
 
 		const line = finder.find(ref.value);
 		failures.push(
@@ -901,61 +810,14 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 		}
 	}
 
-	return {
-		failures,
-		warnings,
-		rewriteNotes,
-		rewritten: edits.length === 0 ? null : applyEdits(source, edits)
-	};
+	return { failures, warnings };
 }
 
 function where(path: string, line: number | null): string {
 	return line === null ? path : `${path} line ${line}`;
 }
 
-/**
- * Whether the tag containing a located attribute value also carries
- * `integrity`.
- *
- * READ OFF THE SOURCE RATHER THAN OFF THE PARSE, deliberately. `HtmlFacts`
- * carries the references a page makes and nothing about the tags around them,
- * and widening it would mean changing the reader interface and both
- * implementations of it -- deno-dom's and the browser's -- to answer one
- * question about one case. The span being tested is the span about to be
- * edited, so reading the bytes on either side of it is reading exactly the
- * thing in question.
- *
- * The walk is bounded by the enclosing angle brackets, so an `integrity` on the
- * NEXT tag cannot be mistaken for this one's. A tag with no `>` after it is
- * malformed and answers true, which refuses rather than edits.
- */
-function tagCarriesIntegrity(source: string, span: AttrSpan): boolean {
-	const open = source.lastIndexOf('<', span.start);
-	if (open < 0) return true;
-	const close = source.indexOf('>', span.end);
-	if (close < 0) return true;
-	return /\sintegrity\s*=/i.test(source.slice(open, close));
-}
 
-/**
- * Whether a refusal should carry the list of libraries this platform hosts.
- *
- * TWO CASES, AND BOTH ARE "THEY WERE REACHING FOR A LIBRARY". A reference to
- * one of the CDNs we understand is a library request by definition, whatever
- * tag it is on -- a prebuilt `tailwind.min.css` off jsdelivr is the shape that
- * cannot be rewritten but is exactly the student who needs to hear that a
- * Tailwind build IS available. And a `<script src>` pointing anywhere on the
- * internet is a library request too, even from a host nobody here has heard
- * of.
- *
- * It is NOT appended to everything. An `<img>` from an image host and a
- * `fetch` to an API are not library problems, and a paragraph about React
- * under them is noise in a list a student is trying to work through.
- */
-function wantsLibraryHelp(tag: string, value: string): boolean {
-	if (identifyCdnReference(value) !== null) return true;
-	return tag.toLowerCase() === 'script';
-}
 
 function referenceMessage(
 	path: string,
@@ -966,17 +828,10 @@ function referenceMessage(
 	verdict: RefProblem
 ): string {
 	const at = where(path, line);
-	if (verdict.kind === 'google-fonts') {
-		return `${at} loads a font from Google Fonts. That is blocked: your app runs with no network access, so the font will never arrive. Delete this link and use the platform fonts instead, with <link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">. That is the one absolute path your app is allowed to use.`;
-	}
 	if (verdict.kind === 'absolute') {
-		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the whole site rather than your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(tag, attr, value)}. The only absolute paths allowed are ${PLATFORM_FONTS_PATH} and the platform libraries under ${PLATFORM_LIB_PREFIX}.`;
+		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the web address your app is served from, which is not your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(tag, attr, value)}. If you meant the IDEA platform fonts, write the whole address: ${PLATFORM_FONTS_URL}`;
 	}
-	if (verdict.scheme === 'http' || verdict.scheme === 'https') {
-		const head = `${at} loads ${value} from the internet. That is blocked: your app runs with no network access, so nothing will load from that address. Download the file into your app folder and point at it with a relative path, like ${relativeExample(tag, attr, value)}.`;
-		return wantsLibraryHelp(tag, value) ? `${head} ${platformLibraryHelp()}` : head;
-	}
-	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can only open files that are inside its own folder, so remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(tag, attr, value)}.`;
+	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can open a file inside its own folder or an address on the web, and a ${verdict.scheme}: link is neither, so it will not load. Remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(tag, attr, value)}, or with a full https:// address.`;
 }
 
 /* -------------------------------------------------------------------------
@@ -1076,12 +931,27 @@ export function scanCss(path: string, source: string): { failures: FoundryIssue[
  * ---------------------------------------------------------------------- */
 
 /**
- * Network APIs the runtime CSP blocks. Finding one is a WARNING and not a
- * refusal, and the wording says so explicitly: the app will run, and that one
- * feature will not work. Refusing here would block a perfectly good app over a
- * feature its author may already know is dead.
+ * THE NETWORK-API LIST IS GONE, and its absence is the point. `fetch`,
+ * `XMLHttpRequest`, `WebSocket` and `EventSource` each earned a warning here
+ * while the proxy sent `connect-src 'none'`, because the call really was dead.
+ * There is no CSP on a bundle now, so all four work, and a warning about them
+ * would be telling a student their working code is broken.
+ *
+ * WHAT REPLACED IT IS ABOUT STORAGE, WHICH DID NOT RELAX. The frame is an
+ * opaque origin, so `window.localStorage` is not merely empty -- THE GETTER
+ * THROWS a `SecurityError`, and the first line of a generated app that reads
+ * saved state takes the whole document down before anything renders. The
+ * proxy used to inject a shim into every HTML response; there is no proxy to
+ * inject anything now, so the shim is in the build contract for the student to
+ * paste at the top of `index.html`, and this warning is what points at it.
+ *
+ * IT IS UNCONDITIONAL AND IT IS NOT A FALSE POSITIVE WHEN THE SHIM IS THERE.
+ * The sentence says two things -- paste the shim, and nothing survives a
+ * reload -- and the second half is true of a correctly shimmed app as well.
+ * Detecting the shim to suppress it would trade a true sentence for a
+ * heuristic, and would have to run over the whole bundle rather than one file.
  */
-const NETWORK_APIS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'];
+const STORAGE_APIS = ['localStorage', 'sessionStorage'] as const;
 
 /**
  * `lineOffset` IS WHAT LETS ONE SCANNER SERVE TWO CALLERS.
@@ -1117,8 +987,20 @@ export function scanJs(
 		// that resolves with no build step. It is left alone deliberately: this
 		// gate is about URLs, and a bare specifier fails loudly in the browser
 		// with a message of its own.
+		//
+		// AN `https://` SPECIFIER IS NOW `ok` AND FALLS OUT HERE. `import ... from
+		// "https://esm.sh/react"` is an ordinary module import that works, and it
+		// is one of the two shapes an AI tool writes when asked for React.
 		if (verdict.kind === 'ok') return;
-		if (verdict.kind === 'absolute') return;
+		/*
+		 * AN ABSOLUTE SPECIFIER IS REFUSED HERE NOW, AND IT USED TO BE SKIPPED.
+		 * While every remote import was already a failure, letting `/lib/x.js`
+		 * fall through cost nothing visible -- a student writing one had a CDN
+		 * import somewhere too and was refused for that. With remote imports
+		 * allowed, this is the ONLY broken import shape left, and skipping it
+		 * would mean the one import that genuinely cannot resolve is the one
+		 * nothing says anything about.
+		 */
 		const line = lineAt(source, index) + lineOffset;
 		const key = `${line}:${value}`;
 		if (seen.has(key)) return;
@@ -1128,37 +1010,11 @@ export function scanJs(
 		const guess = file.slice(file.lastIndexOf('/') + 1) || 'library.js';
 		const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : `${guess}.js`;
 
-		/*
-		 * AN IMPORT OF A LIBRARY WE HOST IS STILL A FAILURE, AND THE MESSAGE IS
-		 * WHERE THE DIFFERENCE IS PAID BACK.
-		 *
-		 * We host UMD and IIFE builds -- the shape a `<script src>` consumes,
-		 * which is what makes them usable with no build step. An
-		 * `import React from "https://esm.sh/react"` wants an ES module with a
-		 * default export, and pointing it at our copy would give `React` the
-		 * value `undefined` at the first line that used it. A silent wrong
-		 * answer is worse than a refusal, so the reference is refused and told
-		 * exactly which two lines to write instead.
-		 */
-		const cdn = identifyCdnReference(value);
-		const hosted = cdn ? platformLibraryFor(cdn) : null;
-		if (hosted !== null) {
-			const global = hosted.global ?? hosted.label;
-			failures.push(
-				issue(
-					path,
-					line,
-					`${at} imports ${hosted.label} from ${value}. That is blocked: your app runs with no network access. ${hosted.label} IS hosted here, but as a plain script rather than a module, so load it in your HTML with <script src="${platformLibraryPath(hosted)}"></script> and then use ${global} directly instead of importing it.`
-				)
-			);
-			return;
-		}
-
 		failures.push(
 			issue(
 				path,
 				line,
-				`${at} imports from ${value}. That is blocked: your app runs with no network access, so the import will fail and your script will stop before it starts. Download the file into your app folder and import it with a relative path, like import ... from "./${named}". ${platformLibraryHelp()}`
+				`${at} imports from ${value}, which is a ${verdict.kind === 'scheme' ? `${verdict.scheme}: link` : 'path starting with a forward slash'} and will not resolve. Import a file from inside your app folder with a relative path, like import ... from "./${named}", or use a full https:// address.`
 			)
 		);
 	};
@@ -1174,42 +1030,48 @@ export function scanJs(
 	for (const re of patterns) {
 		for (let m = re.exec(text); m !== null; m = re.exec(text)) {
 			// The SPECIFIER'S own index, not the match's. See the note on the
-			// network-API loop below: the pattern opens with the character
-			// BEFORE the keyword, and at column 0 that character is the previous
-			// line's newline.
+			// storage loop below: the pattern opens with the character BEFORE
+			// the keyword, and at column 0 that character is the previous line's
+			// newline.
 			pushImport(m[1], m.index + m[0].lastIndexOf(m[1]));
 		}
 	}
 
-	for (const api of NETWORK_APIS) {
-		const re = new RegExp(`(?:^|[^\\w$.])(${api})\\s*[('\`"]`, 'g');
-		for (let m = re.exec(text); m !== null; m = re.exec(text)) {
-			/*
-			 * THE IDENTIFIER'S INDEX, NOT THE MATCH'S, AND THE DIFFERENCE IS A
-			 * WHOLE LINE.
-			 *
-			 * The pattern has to open with `(?:^|[^\w$.])` so `prefetch` and
-			 * `this.fetch` do not match -- which means the match STARTS at the
-			 * character before the call. When the call is at column 0, that
-			 * character is the newline ending the PREVIOUS line, and the reported
-			 * line was one too early: measured on a plain .js file, a `fetch` on
-			 * line 3 answered "app.js line 2". Statements at column 0 are most of
-			 * the statements anybody writes, so this was wrong more often than it
-			 * was right, and it sends a student to the wrong line of their own
-			 * file. `m[0].indexOf(m[1])` steps over that leading character.
-			 */
-			const line = lineAt(source, m.index + m[0].indexOf(m[1])) + lineOffset;
-			const key = `${line}:${api}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			warnings.push(
-				issue(
-					path,
-					line,
-					`${where(path, line)} uses ${api}. Your app runs with no network access, so that call will fail when it runs. Everything else in your app will still work. Put the data you need directly into your files, or take the call out.`
-				)
-			);
-		}
+	/*
+	 * THE IDENTIFIER'S INDEX, NOT THE MATCH'S, AND THE DIFFERENCE IS A WHOLE
+	 * LINE.
+	 *
+	 * The pattern opens with `(?:^|[^\w$.])` so `myLocalStorage` does not match
+	 * -- which means the match STARTS at the character before the identifier.
+	 * When the statement is at column 0 that character is the newline ending the
+	 * PREVIOUS line, and the reported line is one too early: measured on a plain
+	 * .js file, a call on line 3 answered "app.js line 2" before this was fixed.
+	 * Statements at column 0 are most of the statements anybody writes, so it was
+	 * wrong more often than right. `m[0].indexOf(m[1])` steps over that leading
+	 * character.
+	 *
+	 * ONE REGEX FOR BOTH NAMES rather than one per name, so the two cannot be
+	 * spelled differently, and `m[1]` reports which was found.
+	 *
+	 * `window.localStorage` is deliberately NOT matched, for the same reason
+	 * `this.fetch` was not: the leading class excludes a preceding dot. That is a
+	 * miss rather than a bug -- this is advice, and the shim it points at fixes
+	 * both spellings.
+	 */
+	const storageRe = /(?:^|[^\w$.])(localStorage|sessionStorage)\b/g;
+	for (let m = storageRe.exec(text); m !== null; m = storageRe.exec(text)) {
+		const api = m[1];
+		const line = lineAt(source, m.index + m[0].indexOf(api)) + lineOffset;
+		const key = `${line}:${api}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		warnings.push(
+			issue(
+				path,
+				line,
+				`${where(path, line)} uses ${api}. Your app runs in a sandbox with no storage area, so reading ${api} throws an error and stops your script unless the storage snippet from the build contract is the first thing in ${FOUNDRY_ENTRY_FILE}. Even with it, nothing is written to disk: everything is lost when the page reloads.`
+			)
+		);
 	}
 
 	return { failures, warnings };
@@ -1464,62 +1326,76 @@ export function largeAssetWarning(path: string, bytes: number): FoundryIssue {
  * student will read one straight after the other.
  */
 /**
- * THE STARTER FILE: a complete, working `index.html` with every platform script
- * tag already in it and one marked spot to paste a component into.
+ * The portal route that hands out a ready-made starting file. Named here rather
+ * than in the route, because the build contract and the submit surface both
+ * point at it and a path spelled in three places is a path that moves in one of
+ * them.
+ */
+export const FOUNDRY_STARTER_PATH = '/foundry/starter';
+
+/**
+ * THE STARTER FILE: a complete, working `index.html` with the storage shim,
+ * the platform fonts, React and Babel already in it, and one marked spot to
+ * paste a component into.
  *
  * WHAT IT IS FOR. The shape a student's own wrapper was reaching for. Almost
- * every generated React app arrives as one HTML file with four CDN tags in the
- * head, and the student's job -- which nobody told them about -- was to know
- * which four tags to write instead. This is those tags, correct, in order,
- * with the fonts linked and a `#root` div already there.
+ * every generated React app arrives as one HTML file with a few CDN tags in
+ * the head, and the two things nobody told the student about are that
+ * `localStorage` throws in the sandbox and that the platform has its own
+ * fonts. Both are here, correct, in order.
  *
- * IT IS GENERATED FROM THE REGISTRY, not typed out. A version bump or a new
- * library rewrites this file in the same commit, exactly as it rewrites the
- * contract. A starter that has drifted from what is served is worse than none:
- * it is a file the platform handed out that the platform then refuses.
+ * THE SHIM IS THE FIRST THING IN `<head>` AND THAT IS THE POINT. It is the
+ * same string `foundry-serve` injects and the same string the build contract
+ * hands out; a student who starts from this file gets an app that behaves
+ * identically opened off their own filesystem, which is what the contract
+ * tells them to check before uploading.
+ *
+ * THE LIBRARY TAGS ARE CDN TAGS NOW, and used not to be. The platform hosted
+ * its own copies under `/_platform/lib/` and rewrote CDN references at ingest,
+ * because the sandbox sent `connect-src 'none'` and every CDN tag was dead on
+ * arrival. There is no such restriction any more: a CDN tag simply works, so
+ * hosting a second copy of React bought nothing and cost a rewrite pass, a
+ * registry, five committed bundles and a rule that a student's own tag would
+ * be silently edited.
  *
  * AND IT PASSES ITS OWN PREFLIGHT. `tests/foundry-starter.test.ts` puts it
- * through `scanHtml` and asserts zero failures and zero rewrites -- zero
- * REWRITES specifically, because a starter that had to be repaired on the way
- * in would mean the paths written here are not the paths we serve.
+ * through `scanHtml` and asserts zero failures -- a starter the platform hands
+ * out and then refuses is worse than no starter at all.
  */
 export function foundryStarterFile(): string {
-	const tag = (pkg: string) => {
-		const lib = FOUNDRY_PLATFORM_LIBRARIES.find((l) => l.pkg === pkg) as PlatformLibrary;
-		return `<script src="${platformLibraryPath(lib)}"></script>`;
-	};
-	const optional = FOUNDRY_PLATFORM_LIBRARIES.filter(
-		(l) => l.pkg !== 'react' && l.pkg !== 'react-dom' && l.pkg !== '@babel/standalone'
-	)
-		.map(
-			(l) =>
-				`<!-- ${l.label} ${l.version}. ${l.note}\n     <script src="${platformLibraryPath(l)}"></script> -->`
-		)
-		.join('\n');
-
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!--
+  THE STORAGE SHIM. Leave this exactly where it is: first inside <head>, before
+  every other script and stylesheet.
+
+  Your app runs in a sandbox with no storage area, where READING localStorage
+  throws an error and stops your whole script before anything is drawn. This
+  gives you a localStorage and a sessionStorage that work normally for the rest
+  of the page. They are IN MEMORY: nothing is written to disk and everything is
+  lost when the page reloads.
+-->
+${FOUNDRY_STORAGE_SHIM_TAG}
+
 <!-- Your app's name, in the browser tab and in the Foundry listing. -->
 <title>My App</title>
 
 <!-- The platform fonts. Rajdhani, Orbitron and Share Tech Mono. -->
-<link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">
+<link rel="stylesheet" href="${PLATFORM_FONTS_URL}">
 
 <!--
-  The platform libraries. These paths are served by IDEA Foundry and are the
-  only absolute paths your app may use. Do not replace them with a CDN address:
-  your app runs with no network access, so a CDN tag loads nothing.
+  React and Babel, from a CDN. Your app is on the open web, so these load
+  normally. Anything else you want works the same way: write the whole https://
+  address. A file you ship inside your own folder is more reliable on a school
+  network, so prefer one where you can.
 -->
-${tag('react')}
-${tag('react-dom')}
-${tag('@babel/standalone')}
-
-<!-- Also available. Uncomment the one you want. -->
-${optional}
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
 
 <style>
   body {
@@ -1628,21 +1504,6 @@ export function foundryBuildContract(): string {
 		.map((c) => `.${extensionOf(c)}`)
 		.join(', ');
 
-	/*
-	 * THE LIBRARY TABLE IS READ OFF THE REGISTRY, like every other figure in
-	 * this document. A version bumped in `vendor.ts` rewrites these lines in
-	 * the same commit, and a library added there appears here having been typed
-	 * nowhere. A second written-down list is the one that goes stale.
-	 */
-	const libraryLines = FOUNDRY_PLATFORM_LIBRARIES.map(
-		(l) =>
-			`      ${platformLibraryPath(l)}\n          ${l.label} ${l.version}. ${l.note}${
-				l.global ? ` Global: ${l.global}.` : ''
-			}`
-	).join('\n');
-	const byPkg = (pkg: string) =>
-		FOUNDRY_PLATFORM_LIBRARIES.find((l) => l.pkg === pkg) as PlatformLibrary;
-
 	return `BUILD CONTRACT -- IDEA Foundry
 
 You are building a self-contained web app that will be published to IDEA
@@ -1658,86 +1519,77 @@ OUTPUT SHAPE
 ${extraFileRules}
 
 TECHNOLOGY
-- No build step. Nothing is compiled, bundled, transpiled or installed on our
-  side. The files you write are the files that run.
-- Plain HTML, CSS and JavaScript always work.
-- React with JSX also works, with no build step, using the hosted libraries
-  below. Write your JSX inside <script type="text/babel"> and Babel compiles it
-  in the browser.
+- HTML, CSS and JavaScript. The files you write are the files that run.
+- There is NO BUILD STEP. Nothing is compiled, bundled, transpiled or
+  installed on the way in.
+- Do not write a .ts, .jsx or .scss file. Those extensions are refused and the
+  whole upload stops. Ship the .js and .css a build would have made.
+- A framework is fine as long as it arrives at runtime. React with JSX works by
+  loading React, ReactDOM and Babel from a CDN and marking your own script
+  type="text/babel". Vue works the same way from its browser build.
 - ES modules work: <script type="module" src="app.js"></script> with relative
-  paths. You cannot import from a URL, though -- see LIBRARIES.
-- Anything that needs npm, a bundler, a dev server or a compile step of its own
-  does not work. That rules out Vue SFCs, Svelte components, TypeScript files
-  and Next.js.
-
-LIBRARIES
-- These are hosted here and ready to use. Reference them EXACTLY as written;
-  these paths are absolute on purpose and are allowed:
-${libraryLines}
-- Load them with a plain <script src="..."></script> tag in your HTML. They are
-  classic scripts, not modules: each one leaves a global behind, and that global
-  is what you use. Do NOT write import ... from "..." for any of them.
-- The usual React starting point, in one file:
-      <script src="${platformLibraryPath(byPkg('react'))}"></script>
-      <script src="${platformLibraryPath(byPkg('react-dom'))}"></script>
-      <script src="${platformLibraryPath(byPkg('@babel/standalone'))}"></script>
-      <div id="root"></div>
-      <script type="text/babel">
-        function App() { return <h1>Hello</h1>; }
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-      </script>
-- If you write a CDN tag for one of these anyway -- unpkg, jsdelivr, cdnjs,
-  esm.sh or cdn.tailwindcss.com -- it is repointed at the hosted copy on the way
-  in and you are told, file and line. The versions above are what you get.
-- Any OTHER library has to be a file inside your own folder, referenced with a
-  relative path. There is no way to download one at runtime.
-- ${FOUNDRY_STARTER_PATH} is a ready-made starting file with all of this already in it.
+  paths, and a full https:// address as a specifier works too.
 
 PATHS
-- Every path in every file is RELATIVE. Write src="art/logo.png", not
+- Every path to a file of your own is RELATIVE. Write src="art/logo.png", not
   src="/art/logo.png".
-- A path starting with a forward slash is refused. There is exactly one
-  exception, below.
+- A path starting with a forward slash is REFUSED, with no exceptions. It is
+  read against the address your app is served from, which is not this site and
+  is not your folder, so it can never find anything.
+- An address on another site is written in full, with https:// in front of it.
 - Do not use ../ to climb above the folder. Nothing exists up there.
 - Paths are case-sensitive. art/Logo.png and art/logo.png are different files.
 
-NO NETWORK AT RUNTIME
-- The app runs with all network access blocked. Every request it makes fails.
-- Do not use fetch, XMLHttpRequest, WebSocket or EventSource.
-- Do not load a script, stylesheet, image, font, video or audio file from
-  another site. The ONE exception is the hosted libraries under LIBRARIES
-  below: a CDN script tag for one of those is repointed at our copy on the way
-  in. Everything else from a CDN -- skypack, a font file, an image, a library
-  we do not host -- is refused and the upload stops.
-- Do not use Google Fonts. Neither the stylesheet
-  (fonts.googleapis.com) nor the font files (fonts.gstatic.com) will load.
-- Do not embed an <iframe> pointing at another site, and do not open one.
-- Everything the app needs must be a file inside the folder.
+THE NETWORK
+- The app is on the open web. Loading a script, stylesheet, image, font or data
+  file from another site WORKS, and so do fetch, XMLHttpRequest, WebSocket and
+  EventSource.
+- A CDN is fine. React and Babel from unpkg, a charting library from jsdelivr,
+  a font from Google Fonts: all of these load as written.
+- There is no build step, so a library has to be usable from a plain script
+  tag or as an ES module. React with JSX works only if you also load Babel and
+  mark the script type="text/babel", which is slower but is allowed.
+- Anything you load from another site is out of your control. If that site is
+  down or the school network blocks it, your app is broken and nothing here
+  will have warned you. A file you ship inside your own folder never has that
+  problem, so prefer one where you can.
 
 FONTS
-- ${PLATFORM_FONTS_PATH} is the ONE absolute path you may reference, and the one
-  exception to the relative-paths rule. Link it exactly as written:
-      <link rel="stylesheet" href="${PLATFORM_FONTS_PATH}">
+- ${PLATFORM_FONTS_URL} gives you the three IDEA
+  families. Link it with the WHOLE address, exactly as written:
+      <link rel="stylesheet" href="${PLATFORM_FONTS_URL}">
 - It provides three families. Use them by name:
       font-family: 'Rajdhani', sans-serif;         body and display
       font-family: 'Orbitron', sans-serif;         titles
       font-family: 'Share Tech Mono', monospace;   code and metadata
-- You may also ship your own .woff2 or .ttf file in the folder and @font-face it
-  with a relative path.
+- Do not write href="/_platform/fonts.css". A path starting with a forward
+  slash is read against the address your app is served from, which is not this
+  site, so it will not be found. That is refused at upload.
+- Google Fonts works too, and so does shipping your own .woff2 or .ttf in the
+  folder and @font-face-ing it with a relative path.
 
-STORAGE
-- localStorage and sessionStorage exist and work, so code that uses them will
-  not throw.
-- They are IN MEMORY. Nothing is written to disk, and everything is lost on
-  reload.
-- Do not build anything whose value depends on data surviving a reload -- a save
-  slot, a high-score table, a multi-session tracker. Within one session they are
-  fine.
-- Cookies and IndexedDB are not available.
+STORAGE -- READ THIS ONE, IT IS THE MOST COMMON WAY AN APP ARRIVES BROKEN
+- The app runs in a sandbox with NO STORAGE AREA. localStorage is not empty
+  there: READING IT THROWS. A line like
+      var saved = localStorage.getItem('state');
+  stops your whole script before anything is drawn, and the page is blank.
+- Fix it by making this the FIRST thing inside <head> in ${FOUNDRY_ENTRY_FILE}, before
+  any other script or stylesheet. Paste it exactly:
+
+${FOUNDRY_STORAGE_SHIM_TAG}
+
+- With that in place localStorage and sessionStorage behave normally for the
+  rest of the page, but they are IN MEMORY. Nothing is written to disk and
+  everything is lost on reload.
+- Do not build anything whose value depends on data surviving a reload -- a
+  save slot, a high-score table, a multi-session tracker. Within one session
+  they are fine.
+- Cookies and IndexedDB are not available at all, and no snippet fixes those.
 
 SANDBOX
-The app runs in a sandboxed frame with no access to the page around it. The
-following do nothing, and code that depends on them will appear broken:
+The app runs in a sandboxed frame with no access to the page around it.
+- Do not write anything that reaches outside the app's own page. The following
+  all do nothing, and code that depends on them will appear broken:
 - window.parent, window.top, window.opener
 - window.open
 - navigating away: link clicks to other sites, location assignment, form
@@ -1764,9 +1616,10 @@ SIZE
   audio before including them.
 
 BEFORE YOU FINISH
-- Open ${FOUNDRY_ENTRY_FILE} directly from the filesystem, with no server running, and
-  confirm the app works. If it needs a server, it will not run here.
-- Confirm every src and href in every file is relative, or ${PLATFORM_FONTS_PATH},
-  or one of the ${PLATFORM_LIB_PREFIX} paths above.
-- Confirm there is no fetch, no XMLHttpRequest, and no import from a URL.`;
+- Open ${FOUNDRY_ENTRY_FILE} directly from the filesystem and confirm the app works, or
+  works apart from the things it loads from other sites.
+- Confirm no src, href or url() in any file starts with a forward slash.
+- Confirm nothing uses ../ to climb above the folder.
+- If the app touches localStorage or sessionStorage at all, confirm the storage
+  snippet above is the first thing inside <head> in ${FOUNDRY_ENTRY_FILE}.`;
 }

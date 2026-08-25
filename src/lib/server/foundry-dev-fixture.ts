@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
+
 import { FOUNDRY_ENTRY_FILE, foundryMime } from '$lib/foundry/preflight';
 
 /**
@@ -280,7 +283,15 @@ type FixtureApp = {
 	id: string;
 	slug: string;
 	title: string;
-	publishedVersionId: string;
+	/**
+	 * NULL IS A REAL FIXTURE STATE, not a placeholder. An app whose first build
+	 * is still in review, one whose build was rejected, and one rolled back to
+	 * nothing all look like this -- and on the DIRECT PAGE (`/a/<app>/`) it is
+	 * the case that has to answer with the same bodyless 404 as an app id that
+	 * does not exist. Without a fixture for it that refusal could only be
+	 * asserted against an unknown id, which is a different code path.
+	 */
+	publishedVersionId: string | null;
 	hiddenAt: string | null;
 };
 
@@ -393,14 +404,202 @@ const apps = new Map<string, FixtureApp>([
 	]
 ]);
 
+/* -------------------------------------------------------------------------
+ * THE ACCEPTANCE FIXTURES, read from the files the repo already keeps.
+ *
+ * `tests/fixtures/foundry/*.html` are the bundles this feature is accepted
+ * against: `deflect.html` (a canvas app with ZERO external references),
+ * `approved-react-app.html` (React, ReactDOM and Babel from unpkg, JSX
+ * transpiled in the browser) and `sandbox-probe.html` (the isolation probes).
+ * They are READ OFF DISK rather than pasted in here, so the bytes the harness
+ * runs are byte-identical to the bytes every other check uses. A second copy
+ * inline is the one that quietly stops matching.
+ *
+ * DEV ONLY AND LAZY. Nothing reaches this unless `dev` is true and the app id
+ * is one of these, so the read never happens on a deployment, where the
+ * directory does not exist. A file that cannot be read registers NOTHING,
+ * which makes its id an unknown app and therefore the same bodyless 404 as any
+ * other -- never a broken dev server.
+ * ---------------------------------------------------------------------- */
+
+export const FIXTURE_APP_DEFLECT = '44444444-4444-4444-8444-444444444444';
+export const FIXTURE_VERSION_DEFLECT = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
+export const FIXTURE_APP_REACT = '55555555-5555-4555-8555-555555555555';
+export const FIXTURE_VERSION_REACT = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1';
+export const FIXTURE_APP_PROBE = '66666666-6666-4666-8666-666666666666';
+export const FIXTURE_VERSION_PROBE = 'ffffffff-ffff-4fff-8fff-fffffffffff1';
+
+/**
+ * ONE FILE PER SERVABLE EXTENSION, so the content type on every kind of
+ * response can be read off a real fetch rather than off the table it came from.
+ *
+ * A STYLESHEET SERVED AS `text/plain` IS IGNORED SILENTLY AND A SCRIPT SERVED
+ * AS `text/plain` DOES NOT EXECUTE, which is why this is not just about the
+ * entry document: the bug that produced this route had more surfaces than the
+ * one that was visible. The binary members carry a real 1x1 PNG and short
+ * placeholder byte strings -- the served type is derived from the EXTENSION by
+ * `foundryMime`, never sniffed from the bytes, so what matters here is that a
+ * row exists for each name.
+ */
+export const FIXTURE_APP_TYPES = '77777777-7777-4777-8777-777777777777';
+export const FIXTURE_VERSION_TYPES = '77777777-7777-4777-8777-777777777771';
+
+/**
+ * THE THREE FIXTURES THE DIRECT PAGE NEEDS, and each of them exists because
+ * `/a/<app>/` has a refusal or a measurement that nothing else can produce.
+ *
+ *   PLAYFIELD  the acceptance case's SHAPE. `wide-playfield.html` is a fixed
+ *              960x640 game that scales to fit and reports the scale it got, so
+ *              "the app has more room" is a number read from the same bundle in
+ *              the gallery frame, in full screen and on the direct page. It is
+ *              a stand-in and says so: blockbast's own bytes are in the
+ *              production bucket and nothing here can reach them.
+ *   HIDDEN     an app that IS published and IS shelved. Every other fixture app
+ *              is visible, so without this the "a hidden app 404s" claim could
+ *              only be made about code, never measured. Its entry document says
+ *              in words that serving it is the failure, because a fixture that
+ *              proves a refusal has to be recognisable when the refusal stops
+ *              happening.
+ *   UNPUBLISHED  an app with a version and NO `published_version_id`, which is
+ *              the one refusal `/a/` has that `/b/` does not: `/b/` is handed a
+ *              version id and this app's build is reachable through it, while
+ *              `/a/` has nothing to resolve and must answer 404.
+ */
+export const FIXTURE_APP_PLAYFIELD = '99999999-9999-4999-8999-999999999991';
+export const FIXTURE_VERSION_PLAYFIELD = '99999999-9999-4999-8999-999999999992';
+export const FIXTURE_APP_HIDDEN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaf1';
+export const FIXTURE_VERSION_HIDDEN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaf2';
+export const FIXTURE_APP_UNPUBLISHED = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbf1';
+export const FIXTURE_VERSION_UNPUBLISHED = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbf2';
+
+const PNG_1X1 = Uint8Array.from(
+	atob(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+	),
+	(c) => c.charCodeAt(0)
+);
+
+function binaryFile(path: string, bytes: Uint8Array): [string, FixtureFile] {
+	return [path, { bytes, contentType: foundryMime(path) }];
+}
+
+const FILE_FIXTURES: { appId: string; versionId: string; name: string }[] = [
+	{ appId: FIXTURE_APP_DEFLECT, versionId: FIXTURE_VERSION_DEFLECT, name: 'deflect.html' },
+	{ appId: FIXTURE_APP_REACT, versionId: FIXTURE_VERSION_REACT, name: 'approved-react-app.html' },
+	{ appId: FIXTURE_APP_PROBE, versionId: FIXTURE_VERSION_PROBE, name: 'sandbox-probe.html' },
+	{ appId: FIXTURE_APP_PLAYFIELD, versionId: FIXTURE_VERSION_PLAYFIELD, name: 'wide-playfield.html' }
+];
+
+function registerTypeFixture(): void {
+	versions.set(FIXTURE_VERSION_TYPES, {
+		appId: FIXTURE_APP_TYPES,
+		entry: FOUNDRY_ENTRY_FILE,
+		files: new Map([
+			file(FOUNDRY_ENTRY_FILE, '<!doctype html><title>types</title><p>one file per extension'),
+			file('style.css', 'body { color: #0f0; }'),
+			file('app.js', 'export const ok = true;'),
+			file('data.json', '{"ok":true}'),
+			file('mark.svg', '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'),
+			file('notes.txt', 'plain text'),
+			binaryFile('pixel.png', PNG_1X1),
+			binaryFile('face.woff2', new TextEncoder().encode('wOF2 placeholder, not a real font')),
+			binaryFile('icon.ico', new TextEncoder().encode('ico placeholder'))
+		])
+	});
+	apps.set(FIXTURE_APP_TYPES, {
+		id: FIXTURE_APP_TYPES,
+		slug: 'served-types',
+		title: 'Served types',
+		publishedVersionId: FIXTURE_VERSION_TYPES,
+		hiddenAt: null
+	});
+}
+
+/**
+ * THE TWO REFUSAL FIXTURES FOR THE DIRECT PAGE.
+ *
+ * Both are registered rather than read off disk, because what is being fixtured
+ * is a ROW STATE and not a bundle: the bytes exist only so that a refusal can be
+ * told apart from an empty version.
+ */
+function registerRefusalFixtures(): void {
+	versions.set(FIXTURE_VERSION_HIDDEN, {
+		appId: FIXTURE_APP_HIDDEN,
+		entry: FOUNDRY_ENTRY_FILE,
+		files: new Map([
+			file(
+				FOUNDRY_ENTRY_FILE,
+				'<!doctype html><title>shelved</title><p id="leak">A SHELVED APP SERVED ITS BYTES. This document is only reachable if the hidden check stopped running.'
+			)
+		])
+	});
+	apps.set(FIXTURE_APP_HIDDEN, {
+		id: FIXTURE_APP_HIDDEN,
+		slug: 'shelved-app',
+		title: 'Shelved app',
+		publishedVersionId: FIXTURE_VERSION_HIDDEN,
+		hiddenAt: '2026-08-24T12:00:00Z'
+	});
+
+	versions.set(FIXTURE_VERSION_UNPUBLISHED, {
+		appId: FIXTURE_APP_UNPUBLISHED,
+		entry: FOUNDRY_ENTRY_FILE,
+		files: new Map([
+			file(
+				FOUNDRY_ENTRY_FILE,
+				'<!doctype html><title>in review</title><p id="leak">AN APP WITH NOTHING PUBLISHED SERVED ITS BYTES on the direct page.'
+			)
+		])
+	});
+	apps.set(FIXTURE_APP_UNPUBLISHED, {
+		id: FIXTURE_APP_UNPUBLISHED,
+		slug: 'nothing-published',
+		title: 'Nothing published',
+		publishedVersionId: null,
+		hiddenAt: null
+	});
+}
+
+let fileFixturesLoaded = false;
+
+function loadFileFixtures(): void {
+	if (fileFixturesLoaded) return;
+	fileFixturesLoaded = true;
+	registerTypeFixture();
+	registerRefusalFixtures();
+	for (const f of FILE_FIXTURES) {
+		let html: string;
+		try {
+			html = readFileSync(resolvePath(process.cwd(), 'tests/fixtures/foundry', f.name), 'utf8');
+		} catch {
+			continue;
+		}
+		versions.set(f.versionId, {
+			appId: f.appId,
+			entry: FOUNDRY_ENTRY_FILE,
+			files: new Map([file(FOUNDRY_ENTRY_FILE, html)])
+		});
+		apps.set(f.appId, {
+			id: f.appId,
+			slug: f.name.replace(/\.html$/, ''),
+			title: f.name,
+			publishedVersionId: f.versionId,
+			hiddenAt: null
+		});
+	}
+}
+
 export function isFixtureApp(appId: string): boolean {
+	loadFileFixtures();
 	return apps.has(appId);
 }
 
 export function fixtureApp(appId: string): FixtureApp | null {
+	loadFileFixtures();
 	return apps.get(appId) ?? null;
 }
 
 export function fixtureVersion(versionId: string): FixtureVersion | null {
+	loadFileFixtures();
 	return versions.get(versionId) ?? null;
 }

@@ -1,13 +1,14 @@
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { env as publicEnv } from '$env/dynamic/public';
-import { FOUNDRY_PROXY_PREFIX, normalizeHost } from '$lib/foundry/host';
+import { env } from '$env/dynamic/public';
 import {
 	FIXTURE_APP_A,
 	FIXTURE_APP_B,
+	FIXTURE_APP_PLAYFIELD,
 	FIXTURE_VERSION_A_LIVE,
 	FIXTURE_VERSION_A_STALE,
 	FIXTURE_VERSION_B_LIVE,
+	FIXTURE_VERSION_PLAYFIELD,
 	FIXTURE_VIEWER
 } from '$lib/server/foundry-dev-fixture';
 import {
@@ -15,7 +16,6 @@ import {
 	readBundleFileText,
 	type FoundryBundleEntry
 } from '$lib/server/foundry-bundle';
-import { mintFoundryToken } from '$lib/server/foundry-token';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
 
@@ -33,26 +33,26 @@ import type { PageServerLoad } from './$types';
  * WHAT IS MIRRORED AND WHAT IS NOT, said plainly, because a harness missing a
  * guard the real page has makes a passing drive prove nothing:
  *
- *   MIRRORED  the components themselves; the tokens (real HMAC over the real
- *             payload layout, real expiry in the signed bytes, verified by the
- *             real `verifyFoundryToken` on the way back in); the REVIEW kind,
- *             minted here for a version that is NOT published, which is the
- *             whole reason that kind exists; the proxy, the CSP, the shim, the
- *             MIME allowlist and the iframe sandbox, all of which the frame's
- *             src goes through untouched; the file list and the source bytes,
- *             read through the same `$lib/server/foundry-bundle` functions the
- *             real source route calls.
+ *   MIRRORED  the components themselves; the launch and stop lifecycle; the
+ *             iframe sandbox attribute; the split geometry; the file list and
+ *             the source bytes, read through the same
+ *             `$lib/server/foundry-bundle` functions the real source route
+ *             calls.
  *
+ *   MIRRORED  A RUNNING BUNDLE, WHICH IT DID NOT USED TO BE. `AppStage` builds
+ *             its frame src from `PUBLIC_FOUNDRY_APPS_ORIGIN` and the two ids,
+ *             and the fixture bundles are served by the REAL `/b/` route out of
+ *             `$lib/server/foundry-dev-fixture` -- so pointing that variable at
+ *             this dev server (a second spelling of its own address, so the
+ *             frame is genuinely cross-origin) runs the fixture bundles for
+ *             real, through the real route, with the real headers. Leaving it
+ *             unset removes the launch control entirely, which is the shipping
+ *             behaviour and not a harness quirk.
  *   NOT       the ADMIN GATE. `/foundry/review` 404s a non-admin in its load
  *             and `/api/foundry/source` 404s one in its handler; both need a
  *             real session, so neither runs here. The review surface below is
  *             reachable in dev by anybody, which is true of every `/dev` route
  *             and is why they all 404 in production.
- *   NOT       the mint ROUTE. Its session read and its row read need a real
- *             project, so the tokens here are minted directly. Its own
- *             refusals -- hidden app, nothing published, a non-admin asking for
- *             a review token -- are unexercised locally and are called out in
- *             the report.
  *   NOT       `foundry_review_version`. The decision transport below records
  *             the call and answers ok; no row moves, because there is no row.
  */
@@ -78,17 +78,6 @@ function summary(over: Partial<FoundryAppSummary> & { id: string; slug: string; 
 
 export const load: PageServerLoad = async () => {
 	if (!dev) error(404, 'Not found');
-
-	const appsHost = normalizeHost(publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
-	const nowSeconds = Math.floor(Date.now() / 1000);
-
-	const srcFor = (appId: string, versionId: string, kind: 'published' | 'review') => {
-		const token = mintFoundryToken(
-			{ appId, versionId, viewerId: FIXTURE_VIEWER, kind, nowSeconds },
-			true
-		);
-		return token && appsHost ? `http://${appsHost}${FOUNDRY_PROXY_PREFIX}/${token}/` : '';
-	};
 
 	/**
 	 * THE THREE AUTHOR SHAPES THE SURFACES HAVE TO RENDER, and the null one is
@@ -126,6 +115,26 @@ export const load: PageServerLoad = async () => {
 			owner_class: null,
 			published_version_id: FIXTURE_VERSION_B_LIVE,
 			updated_at: '2026-08-21T09:00:00Z'
+		}),
+		/**
+		 * THE ROOM-TO-RUN CASE, and the reason it is in this harness rather than
+		 * only in the run harness: how much room an app gets is a property of the
+		 * SURFACE around it -- a frame, in a detail pane, in a two-pane split, in
+		 * the portal shell -- so measuring it anywhere else measures a different
+		 * page. The bundle reports the scale it was given on `<html data-scale>`,
+		 * which makes the gallery frame, full screen and the direct page three
+		 * readings of one number instead of three screenshots.
+		 */
+		summary({
+			id: FIXTURE_APP_PLAYFIELD,
+			slug: 'wide-playfield',
+			title: 'Wide playfield',
+			tagline: 'A fixed 960x640 game that reports how much room it was given.',
+			owner_display_name: null,
+			owner_full_name: 'Wren Alvarez',
+			owner_class: 'Engineering II',
+			published_version_id: FIXTURE_VERSION_PLAYFIELD,
+			updated_at: '2026-08-23T09:00:00Z'
 		})
 	];
 
@@ -152,6 +161,7 @@ export const load: PageServerLoad = async () => {
 	const liveFiles = (await listBundleFiles(FIXTURE_VERSION_A_LIVE)) ?? [];
 	const staleFiles = (await listBundleFiles(FIXTURE_VERSION_A_STALE)) ?? [];
 	const bFiles = (await listBundleFiles(FIXTURE_VERSION_B_LIVE)) ?? [];
+	const playfieldFiles = (await listBundleFiles(FIXTURE_VERSION_PLAYFIELD)) ?? [];
 
 	const bytesOf = (files: { byteSize: number }[]) =>
 		files.reduce((n, f) => n + f.byteSize, 0);
@@ -198,6 +208,21 @@ export const load: PageServerLoad = async () => {
 			'A page that tries, on load, to read its parent, navigate the top frame, open a window, fetch across origins and reach the portal API. Each attempt reports its own result on the page.',
 			'Written by hand for this harness. Nothing generated, nothing borrowed.'
 		),
+		'wide-playfield': detail(
+			apps[2],
+			[
+				version(
+					FIXTURE_VERSION_PLAYFIELD,
+					1,
+					'approved',
+					playfieldFiles.length,
+					bytesOf(playfieldFiles),
+					'2026-08-23T10:00:00Z'
+				)
+			],
+			'A brick game on a fixed 960x640 playfield that scales to whatever box it is given, and writes the scale it got onto the document so three surfaces can be compared as numbers rather than described.',
+			'Written by hand for this harness, as a stand-in for the published app this feature was asked for.'
+		),
 		'app-b': detail(
 			apps[1],
 			[version(FIXTURE_VERSION_B_LIVE, 1, 'approved', bFiles.length, bytesOf(bFiles), '2026-08-19T10:00:00Z')],
@@ -227,40 +252,24 @@ export const load: PageServerLoad = async () => {
 	}
 
 	return {
-		configured: Boolean(appsHost),
-		appsHost,
+		/**
+		 * The origin `AppStage` and `FoundryDetail` will build from, echoed so a
+		 * drive can read what they are pointed at rather than inferring it from a
+		 * 404 or a missing control. EMPTY IS A REAL ANSWER and is what the shipping
+		 * default does when nothing is configured: no launch control and no share
+		 * link.
+		 */
+		bundleOrigin: env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? '',
+		/** So the harness's delete transport can key its partial-sweep answer. */
+		appBId: FIXTURE_APP_B,
 		apps,
 		details,
 		files: {
 			[FIXTURE_VERSION_A_LIVE]: liveFiles,
 			[FIXTURE_VERSION_A_STALE]: staleFiles,
-			[FIXTURE_VERSION_B_LIVE]: bFiles
+			[FIXTURE_VERSION_B_LIVE]: bFiles,
+			[FIXTURE_VERSION_PLAYFIELD]: playfieldFiles
 		} as Record<string, FoundryBundleEntry[]>,
-		sources,
-		/**
-		 * The frame sources, minted per (app, version). The REVIEW one names
-		 * A_STALE, which is not the app's published version -- a `published`
-		 * token for it resolves to `not_published` and 404s, which is exactly the
-		 * refusal the review kind exists to lift and is worth driving both ways.
-		 */
-		srcs: ({
-			[`${FIXTURE_APP_A}:${FIXTURE_VERSION_A_LIVE}`]: srcFor(
-				FIXTURE_APP_A,
-				FIXTURE_VERSION_A_LIVE,
-				'published'
-			),
-			[`${FIXTURE_APP_B}:${FIXTURE_VERSION_B_LIVE}`]: srcFor(
-				FIXTURE_APP_B,
-				FIXTURE_VERSION_B_LIVE,
-				'published'
-			),
-			[`${FIXTURE_APP_A}:${FIXTURE_VERSION_A_STALE}`]: srcFor(
-				FIXTURE_APP_A,
-				FIXTURE_VERSION_A_STALE,
-				'review'
-			)
-		}) as Record<string, string>,
-		/** The same unpublished version with a PUBLISHED token: must 404. */
-		staleWithPublishedToken: srcFor(FIXTURE_APP_A, FIXTURE_VERSION_A_STALE, 'published')
+		sources
 	};
 };

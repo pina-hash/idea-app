@@ -47,11 +47,14 @@
 /* --- The rooms ------------------------------------------------------------
    Two wrappers mount this shell -- `.cr-root` (classroom + reference) and
    `.nb-root` (the notebook) -- and these are the properties the geometry
-   below reads out of whichever one it finds itself in.
+   below reads out of whichever one it finds itself in. `.cd-root` (coin desk)
+   and `.fg-root` (the Foundry forge, $lib/foundry/forge.css) joined the same
+   way: a room gets a class HERE, never a second split.
    ------------------------------------------------------------------------ */
 .cr-root,
 .nb-root,
-.cd-root {
+.cd-root,
+.fg-root {
 	/* THE PAGE GUTTER, and it is ONE number for a whole module.
 	   The breadcrumb row, the tab bar, every single-column page and both panes
 	   of the split read this, so "the chrome lines up with the content" is a
@@ -109,6 +112,12 @@
 	--cr-thumb: var(--text-3);
 	--cr-thumb-hover: var(--text-2);
 }
+/* The forge aliases the register's vocabulary onto its own plate
+   (forge.css), so the same two names resolve to the forge's neutrals. */
+.fg-root {
+	--cr-thumb: var(--text-3);
+	--cr-thumb-hover: var(--text-2);
+}
 .nb-root {
 	--cr-thumb: var(--nb-hairline-strong);
 	--cr-thumb-hover: var(--nb-ink-faint);
@@ -119,7 +128,9 @@
 .nb-root,
 .nb-root *,
 .cd-root,
-.cd-root * {
+.cd-root *,
+.fg-root,
+.fg-root * {
 	scrollbar-width: thin;
 }
 
@@ -128,7 +139,9 @@
 .nb-root ::-webkit-scrollbar,
 .nb-root::-webkit-scrollbar,
 .cd-root ::-webkit-scrollbar,
-.cd-root::-webkit-scrollbar {
+.cd-root::-webkit-scrollbar,
+.fg-root ::-webkit-scrollbar,
+.fg-root::-webkit-scrollbar {
 	width: 10px;
 	height: 10px;
 }
@@ -137,7 +150,9 @@
 .nb-root ::-webkit-scrollbar-track,
 .nb-root::-webkit-scrollbar-track,
 .cd-root ::-webkit-scrollbar-track,
-.cd-root::-webkit-scrollbar-track {
+.cd-root::-webkit-scrollbar-track,
+.fg-root ::-webkit-scrollbar-track,
+.fg-root::-webkit-scrollbar-track {
 	background: transparent;
 }
 .cr-root ::-webkit-scrollbar-thumb,
@@ -145,7 +160,9 @@
 .nb-root ::-webkit-scrollbar-thumb,
 .nb-root::-webkit-scrollbar-thumb,
 .cd-root ::-webkit-scrollbar-thumb,
-.cd-root::-webkit-scrollbar-thumb {
+.cd-root::-webkit-scrollbar-thumb,
+.fg-root ::-webkit-scrollbar-thumb,
+.fg-root::-webkit-scrollbar-thumb {
 	background: var(--cr-thumb);
 	border-radius: 999px;
 	/* Inset from the track so the thumb reads as a bar rather than a fill,
@@ -158,7 +175,9 @@
 .nb-root ::-webkit-scrollbar-thumb:hover,
 .nb-root::-webkit-scrollbar-thumb:hover,
 .cd-root ::-webkit-scrollbar-thumb:hover,
-.cd-root::-webkit-scrollbar-thumb:hover {
+.cd-root::-webkit-scrollbar-thumb:hover,
+.fg-root ::-webkit-scrollbar-thumb:hover,
+.fg-root::-webkit-scrollbar-thumb:hover {
 	background: var(--cr-thumb-hover);
 	background-clip: padding-box;
 }
@@ -167,14 +186,17 @@
 .nb-root ::-webkit-scrollbar-corner,
 .nb-root::-webkit-scrollbar-corner,
 .cd-root ::-webkit-scrollbar-corner,
-.cd-root::-webkit-scrollbar-corner {
+.cd-root::-webkit-scrollbar-corner,
+.fg-root ::-webkit-scrollbar-corner,
+.fg-root::-webkit-scrollbar-corner {
 	background: transparent;
 }
 
 @media (min-width: 1024px) {
 	.cr-root,
 	.nb-root,
-	.cd-root {
+	.cd-root,
+	.fg-root {
 		--cr-gutter: 2rem;
 	}
 }

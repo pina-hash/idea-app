@@ -385,6 +385,10 @@ of its own is documented inside the one listed.
 | 0131 | `0131_foundry_service_role_writes.sql` | [Foundry, unblocking the ingest function (`0131`)](#foundry-unblocking-the-ingest-function-0131) |
 | 0132 | `0132_foundry_author_class.sql` | [The Foundry author's class, projected inside the definer (`0132`)](#the-foundry-authors-class-projected-inside-the-definer-0132) |
 | 0132 | `0132_foundry_author_class.sql` (corrected in place) | [The IDEA course was a predicate all along (`0132`, corrected IN PLACE)](#the-idea-course-was-a-predicate-all-along-0132-corrected-in-place) |
+| 0133 | `0133_classroom_storage_attachments.sql` | [Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)](#any-file-type-up-to-200-mb-straight-to-storage-0133-0134-laneattach-any-type) |
+| 0134 | `0134_classroom_submission_open_race.sql` | [Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)](#any-file-type-up-to-200-mb-straight-to-storage-0133-0134-laneattach-any-type) |
+| 0135 | `0135_classroom_instructor_storage_and_public_attachments.sql` | [The storage bundle stops blocking its own deploy (`0133` amended, `0135`, `lane/attach-any-type`)](#the-storage-bundle-stops-blocking-its-own-deploy-0133-amended-0135-laneattach-any-type) |
+| 0136 | `0136_foundry_delete.sql` | [A student can delete their own app, and an admin can delete any (`0136`, `lane/foundry-manage`)](#a-student-can-delete-their-own-app-and-an-admin-can-delete-any-0136-lanefoundry-manage) |
 
 ---
 
@@ -29417,3 +29421,2206 @@ of what is served.
   tested.
 - The `integrity` refusal is verified through the shared module and the browser
   preflight. No bundle carrying a real, correct SRI hash was served.
+
+---
+
+## The bundle root, which is the only URL the frame ever requests
+
+`lane/foundry-entry-path`. No SQL.
+
+Every app ever published rendered blank. The frame's `src` is
+`https://apps.ideabosco.com/r/{token}/` -- the bundle root, no filename -- and
+that document request answered a bodyless 404. Measured on production before
+any of this: the mint returned 200 for the published app "breakout", the frame
+requested the root, the response was 404 at 0.3 kB (a transfer size, so a
+bodyless refusal rather than a CSP block), and `student_app_files` held exactly
+one correct row for the version. Data right, token right, document refused.
+
+### What it was
+
+`isFoundryProxyPath` required a slash AFTER the token segment:
+
+    return afterPrefix.indexOf("/") > 0;
+
+So `/r/{token}/` passed and `/r/{token}` did not. The route already had a 307
+from the slashless form to the slash form and it could never run, because the
+HOOK answered first with `foundryNotFound()`. Anything that normalizes a
+trailing slash anywhere between the browser and the function therefore turned
+the frame's one request into a refusal, with the database never consulted.
+
+The refusal was added deliberately, to close a real oracle: the route verified
+the token BEFORE redirecting, so a good token answered 307 where a bad one
+answered 404 -- the one place on that host where two outcomes did not look
+alike. The oracle was real; refusing the path was the wrong lever, and the cost
+of the wrong lever was every published app.
+
+### What it is now
+
+Two changes, and the second is what makes the first safe.
+
+- `isFoundryProxyPath` allows `/r/{token}` when the token segment is non-empty.
+  Every shape naming no token -- `/r`, `/r/`, `/r//...` -- is still refused, and
+  those are the ones that used to reach the router and get answered by the
+  portal's own error page on the bundle origin (the hole 0133 closed).
+- The route's 307 moved AHEAD of `verifyFoundryToken`. Every slashless root now
+  answers 307 whatever the token is, so the redirect discloses nothing and the
+  token is judged on the request that follows.
+
+The entry is still never SERVED at the slashless spelling. `/r/<token>` has
+`/r/` as its base URL, so a bundle's `<img src="logo.png">` would resolve
+outside the bundle; the redirect is what makes the shape work without giving up
+the base-URL rule.
+
+### Why nothing caught it, which is the part that matters
+
+There WAS a bundle-root test, and it passed throughout. It called the route
+handler directly with hand-built `params`:
+
+    proxyGet({ params: { token, path: '' }, url, request })
+
+That skips the hook entirely, and the hook is where the refusal lived. Every
+other test and every verification drive named an explicit filename. So the
+suite asserted the route resolves an empty path to the entry -- which was true,
+and never the question.
+
+`tests/foundry-proxy.test.ts` now has a block that composes the REAL
+`foundryHostBranch` with the REAL route handler as its `resolve`, the way
+`sequence()` runs them, and drives all three spellings: the root with its slash,
+the root without it (asserting the 307 AND following it to the entry file), and
+the explicit `index.html`. The only thing standing in for SvelteKit is the param
+split, written to the route pattern and nothing else. It also asserts a garbage
+token answers the slashless root identically, and that all three spellings 404
+on the main host. `foundryHostBranch` is exported from `hooks.server.ts` for
+exactly this -- re-spelling `appsHostAllows` inside a test would be a second
+copy of the allowlist, which is how this went unseen in the first place.
+
+The pre-existing allowlist assertion listed `/r/tok` among the shapes that must
+be refused. It was generalized rather than deleted: the rule is now "a `/r` path
+is allowed only when it names a non-empty token segment", with the slashless
+root moved into the allowed list beside a comment pointing at the block that
+asserts it is redirected rather than served.
+
+The dev harness at `/dev/foundry-proxy` already framed the bare prefix (its
+`at(token)` defaults to an empty path), so the frame itself was right. What it
+lacked was the slashless spelling as a clickable case; it has one now, plus the
+explicit-filename case, so a regression here is visible locally instead of only
+in production.
+
+### Measured
+
+- Mutation, both directions, restored byte-identically and re-verified green.
+  Reverting `isFoundryProxyPath` to refuse the slashless root reddens 3 tests;
+  breaking the empty-path-to-entry resolution in `resolveBundleFile` reddens 3
+  (including the pre-existing bundle-root test, which is the positive control
+  that the new block is not the only thing watching).
+- Against the REAL adapter output, not just dev -- `npm run build`, then the
+  generated function driven with Supabase stubbed at the `fetch` boundary and
+  only the one row that exists answering:
+
+      /r/{token}/           200  6134b  db asked for index.html
+      /r/{token}            307         -> follows to 200 6134b, shim injected
+      /r/{token}/index.html 200  6134b  db asked for index.html
+      main host, all three: 404  0b
+
+  Before the change the same harness gave `/r/{token}` 404 with the database
+  never consulted, which is the bug reproduced in the production artifact.
+- Full suite 107 files / 2444 tests green. `svelte-check` 0 errors, 37 warnings
+  (31 `state_referenced_locally`, 5 `css_unused_selector`, 1
+  `perf_avoid_nested_class`) -- the baseline, unmoved.
+- `tests/fixtures/foundry/deflect.html` is the zero-reference control this lane
+  was diagnosed against: one self-contained file, inline style, inline script,
+  canvas, `requestAnimationFrame`, no `src`/`href`/`@import`/`fetch`/`import`
+  anywhere. It separates the serve path from every library and asset question.
+
+### NOT verified
+
+- **Nothing here was verified on production.** The session could not reach
+  `ideabosco.com` or `apps.ideabosco.com` at all -- the egress proxy answered
+  403 to CONNECT for both -- so there was no mint, no live header read, no
+  console, and no browser. Every measurement above is against the built adapter
+  output on this machine.
+- Which layer was actually eating the trailing slash on Vercel is therefore
+  still unestablished. The fix does not depend on knowing: the slashless form
+  now resolves wherever it comes from. But if the normalization happens at the
+  edge and is a REDIRECT rather than a rewrite, the 307 could in principle meet
+  it in a loop -- the adapter's own route regexes all carry `/?`, which argues
+  it passes trailing slashes through rather than stripping them, but that is an
+  argument and not a measurement.
+- The zip round trip was proven byte-clean in Node, not in Deno, and the real
+  path is a Chrome `CompressionStream` writer against a Deno
+  `DecompressionStream` reader.
+
+## Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)
+
+**The report that started it: a SolidWorks part attached to an assignment
+failed, and the assignment "did not post at all".** The first half was fully
+explained; the second half was not, and is recorded here unresolved rather than
+smoothed over.
+
+### Phase 1: where the bytes actually were
+
+Audited before writing anything, because the premise offered ("are they
+committed into the repo through the GitHub API?") was not what this codebase
+does. Traced from the file input to the resting place:
+
+`<input type=file>` (ContentComposer:1066) -> `stageFiles` -> on Post,
+`runSubmit` creates the item FIRST, then `transports.uploadAttachment` ->
+`postFormWithProgress` (an XHR multipart POST) -> `/api/classroom/attachment`
+-> the whole file buffered into a `Uint8Array` -> `uploadDriveFile` builds a
+`multipart/related` body IN FUNCTION MEMORY -> Google Drive, shared-drive
+subfolder `IDEA Classroom attachments`. The Drive file id lands in
+`classroom_attachments.drive_file_id`.
+
+**They were never in the repo.** `classroom-export.ts` (the `GITHUB_EXPORT_TOKEN`
+job that pushes on every item save) contains no reference to attachments,
+`drive_file_id` or uploads; it writes authored material TEXT under `materials/`
+only. So there was no base64 step and no repo-size ceiling. What there was: the
+bytes crossing the serverless function twice, fully buffered, which is where
+`MAX_ATTACHMENT_BYTES = 4 MiB` came from.
+
+**Eighteen gates were enumerated with file and line.** The one that refused the
+`.SLDPRT` was `resolveMime` (`classroom-attachments.ts:96`) falling through both
+twelve-entry allowlists to a 400: *"Attachments must be an image, PDF, text,
+CSV, or an Office document."* Also found: `accept="image/*"` on the imageZone
+pickers and on the student camera button; no client-side size or type check
+anywhere (`stageFiles` filters `size > 0` only); the filename never becoming a
+path (it is slugged for a Drive DISPLAY name and stored verbatim in a column
+nothing resolves against).
+
+**The non-posting is NOT explained by the attachment path and is not claimed to
+be.** The composer creates the item before any upload, catches each upload
+individually, keeps failed files staged, reports each by name, sets
+`createdItemId` so a retry updates rather than duplicating, and calls `onsaved`
+even on failure so the list refreshes. Candidates that could not be
+distinguished from source: no class selected (`saveTarget` refuses), or the
+`Saved, but 1 thing did not: ...` message being read as a failed post. Left open.
+
+**A student submission path already existed and was a SECOND implementation.**
+Same policy module, different component, different failure semantics:
+`AssignmentEngine.uploadFiles` was a `for` loop that `return`ed on the FIRST
+failure, so files 2..n were never attempted, nothing was re-staged (the input
+had already been cleared, so the `File` handles were gone), and there was no
+retry. That defect was independent of file types.
+
+### 0133: two private buckets, and why no allowlist is safe there
+
+`classroom-attachments` and `submission-files`, both `public = false`, both
+`allowed_mime_types = null`, both `file_size_limit = 209715200`.
+
+**The type list was REPLACED, not widened, and three properties are what pay for
+its absence:** the buckets are private (no public URL exists), every read is a
+signed URL carrying `download=<name>` so the response is
+`Content-Disposition: attachment` on a DIFFERENT origin, and every object is
+stored as `application/octet-stream` so a browser is never handed a content type
+an uploader chose. A bucket that refused `.exe` and served `.svg` inline would
+have had the safety exactly backwards. If any of the three is ever weakened, the
+property comes back, not the list.
+
+**The key layout IS the authorization.** `<owner_id>/<uuid>.<ext>`, where the
+owner is the item (attachments) or the submission (hand-ins), and every policy
+reads the first path segment and asks the classroom's OWN existing predicate
+about it -- `classroom_can_read_item`, `_classroom_manages_item`,
+`classroom_can_review_submission`. Nothing about who may see a handout is
+restated in the migration. The rest of the key is opaque: nothing a person typed
+appears in a path, which takes filename sanitization off the security surface
+entirely rather than making it careful.
+
+`_classroom_storage_prefix_uuid(text)` is the ONE reader of that layout, used by
+the policies and by the write RPCs, and returns NULL for anything that is not a
+bare uuid in segment 1 -- every caller is written so NULL fails closed.
+
+**`storage_key` sits BESIDE `drive_file_id` with a CHECK that exactly one is
+present.** Nothing was backfilled and nothing moved: every attachment already
+posted keeps its Drive handle and keeps serving through the same route, and
+`tests/classroom-attachment-route.test.ts` (20 tests over the Drive path,
+written before this bundle) passes unchanged, which is the evidence for that.
+
+**Deliberately NOT in scope: `classroom_instructor_attachments`.** Its read rule
+is manager-only, so an answer key cannot share the `classroom-attachments`
+prefix -- whose objects are readable by the whole class -- and a third bucket was
+not authorized. Instructor-only material keeps the Drive path and its 4 MiB
+ceiling, and now has its OWN availability flag (below).
+
+### 0134: the race the browser pass exposed
+
+**Found by driving the real UI, not by reading.** Nine files picked at once
+became nine concurrent `classroom_open_submission` calls. A student's submission
+row is created lazily by the first thing they touch; under READ COMMITTED
+several callers read it as missing, several inserted, and the losers came back
+with raw SQLSTATE 23505 on
+`classroom_submissions_item_id_student_email_key`. **Measured: 7 of 9 files
+landed, 2 stranded with a database error on screen.**
+
+The race had been latent since 0086 and 0133 is what fired it: before 0133 the
+student side uploaded one file at a time, so the lazy insert could never race
+itself. Concurrency is the entire point of 0133, so the fix belongs in the
+database: `on conflict (item_id, student_email) do nothing` plus a RE-READ in
+both functions that create a submission lazily, with the lock state re-checked
+after the re-read (the winner may have been a `submit_assignment`). A
+count-then-insert was not available -- there is no parent row to lock before the
+first caller holds one -- so the unique index IS the serialization point and the
+only question was who apologises for it.
+
+`tests/classroom-submission-open-race.test.ts` is built as a PAIRED
+MEASUREMENT: two databases on one cluster, one chain stopping at 0133 and one
+with 0134 over it, the same burst fired at both. **The 0133 control produced 25
+unique violations across 10 rounds of 4; the 0134 database produced 0, with
+every caller returning the same submission id.** Without the control a burst
+that happened not to overlap would pass on the broken code too.
+
+### 0134's sibling finding: retryable is not the same as refused
+
+The route was flattening EVERY RPC error into `gate: 'denied',
+retryable: false`, so the two stranded files were offered no Retry -- a
+transient conflict presented as a permanent refusal.
+`classifyRpcError` now whitelists the transient SQLSTATEs (23505, 40001, 40P01,
+55P03, 57014, 53300) as retryable and leaves everything else as the considered
+refusal it is, verbatim. Almost every raise on this path IS deliberate ("Only a
+student enrolled in this class..."), and retrying those is how a UI ends up
+asking the same question five times.
+
+### The code half
+
+**One upload path, both sides.** `$lib/classroom/file-upload.ts` does sign ->
+PUT -> record, and `transports.uploadAttachment` and
+`transports.uploadSubmissionFile` are both three lines around it. Two
+implementations of "upload a file" was two sets of failure semantics, which is
+how the student side ended up abandoning files.
+
+**One component, both sides.** `FileUploadPanel.svelte` is mounted by
+ContentComposer (staged, uploads on save), AssignmentEngine (immediate) and
+SpecRenderer per imageZone. It owns the picker, per-file progress, the per-file
+error, Retry and Remove. `SpecRenderer`'s `onupload`/`uploadingProgress` props
+are gone, replaced by `itemId` + `upload` + `onuploaded`; absence of `upload`
+removes every zone control, which is the same presence-gates-the-control
+mechanism `fileNotice` uses one level up.
+
+**`putFileWithProgress` is hand-rolled rather than `uploadToSignedUrl`,** and
+the reason is measurable: storage-js's helper uses `fetch`, which cannot report
+upload progress in any browser. For a 60 MB assembly on school wifi that is
+several minutes with nothing on screen, and the thing a person does when a page
+looks hung is press the button again.
+
+**`accept` is gone from every plain picker.** The ONE exemption is the camera
+button, which keeps `accept="image/*" capture="environment"` because `capture` is
+what makes a phone open its camera and an unfiltered capture input opens a file
+browser instead -- and it only ever sits BESIDE an unfiltered picker. The deck
+zip input keeps `.zip` because that is a statement about what the FEATURE
+consumes, not a policy about what a person may hand in; it is exempt by its own
+`data-testid` rather than by "contains .zip".
+
+**`isPreviewableFile` no longer reads `File.type`.** It was the last client
+branch on it, and it is also the read that is legitimately EMPTY for the most
+common camera output. Extension only; an extension that turns out not to decode
+simply shows no thumbnail.
+
+**`attachmentsEnabled: driveConfigured()` was a total silent outage waiting to
+happen**, and it is what blocked the first local verification attempt. A
+deployment without the Google OAuth credentials would have offered no file
+picker on any item and no hand-in on any assignment, with the private bucket
+sitting there unused. Student-facing files are now unconditional and
+`instructorAttachmentsEnabled` carries the Drive dependency alone.
+
+### The download filename, corrected by measurement
+
+The first version passed the name through almost untouched, on the reasoning
+that the name somebody typed is the name they should get back. Measured against
+a real project, `Estudio (final) café.SLDPRT` came back as
+
+    content-disposition: attachment; filename=Estudio%20%2528final%2529%20caf%25C3%25A9.SLDPRT
+
+`%2528` is a percent-encoded `%28`: the value is escaped into the signed URL's
+query string and escaped AGAIN into the header, so a browser saves a name full
+of literal percent escapes. Every fixture whose name was `[A-Za-z0-9.-]` came
+back clean. `downloadFilename` is now ASCII-only by construction, with
+diacritics FOLDED rather than dropped (`café` -> `cafe`), and the fix was
+re-measured: `filename=Estudio_final_cafe.SLDPRT`. **What is lost is only the
+saved filename's punctuation; the DISPLAY name is stored verbatim and is what
+every surface shows.**
+
+### Phase 4: what was measured, and how
+
+Verified against a REAL Supabase project -- the repo's own local stack on 544xx,
+with 0133 and 0134 applied by hand through `psql` exactly as production will be.
+Another project's stack (`fll-app-skt`) was running on 54321/54322 and was left
+strictly alone. A dev-only `/dev/login` route was added to make this possible at
+all: production sign-in is Google OAuth, so until now NOTHING behind a session
+could be verified locally.
+
+Every fixture picked through the real `<input type=file>` in a real Chrome, on
+the real composer and the real hand-in surface.
+
+| fixture | bytes | instructor | student | stored key tail | display name |
+|---|---|---|---|---|---|
+| `bracket.SLDPRT` | 2,048 | yes | yes | `<uuid>.sldprt` | verbatim |
+| `chassis.SLDASM` | 12,582,912 | yes | yes | `<uuid>.sldasm` | verbatim |
+| `full-robot.SLDASM` | 62,914,560 | yes | yes | `<uuid>.sldasm` | verbatim |
+| `assembly.STEP` | 40,960 | yes | yes | `<uuid>.step` | verbatim |
+| `plate.DXF` | 20,480 | yes | yes | `<uuid>.dxf` | verbatim |
+| `part.f3d` | 131,072 | yes | yes | `<uuid>.f3d` | verbatim |
+| `sketch.dwg` | 65,536 | yes | yes | `<uuid>.dwg` | verbatim |
+| `firmware.ino` | 3,072 | yes | yes | `<uuid>.ino` | verbatim |
+| `bundle.zip` | 245 | yes | yes | `<uuid>.zip` | verbatim |
+| `noextension` | 5,120 | yes | yes | `<uuid>` (no ext) | verbatim |
+| `Estudio (final) café.SLDPRT` | 6,144 | yes | yes | `<uuid>.sldprt` | verbatim, accent intact |
+
+Every row: `mime_type = application/octet-stream`, `drive_file_id = null`, and
+the object's own recorded size matching the row's. Every download: `HTTP 200`,
+`content-type: application/octet-stream`, `content-disposition: attachment`.
+
+**The transport fix is proved by the 12 MB and 60 MB rows existing at all** --
+both are far past the old 4 MiB refusal -- and by where the requests went: 11
+XHRs to `127.0.0.1:54421` (the Supabase origin) against 11 JSON POSTs to
+`/api/classroom/attachment`, and the app route answering
+`/api/classroom/attachment/<id>` with a redirect whose final host is
+`127.0.0.1:54421`, returning 62,914,560 bytes for the 60 MB file. `maxUploading
+AtOnce: 11` with per-file percentages on screen.
+
+**A student cannot read another student's submission file, measured four ways.**
+Bruno (same class) and Carla (another section) each: 0 of 11 rows readable; 0 of
+3 objects readable while HOLDING Alice's exact storage keys (refused
+`Object not found`, indistinguishable from a nonexistent key); writes into
+Alice's prefix refused by RLS; and through the app route, `404` with a 9-byte
+`Not found` body for Alice's real file ids -- byte-identical to the answer for a
+made-up uuid, so an id cannot be probed. Positive controls on the same keys:
+Alice 3/3, teacher of record 3/3 and 11/11 rows. **The teacher of record can
+READ Alice's objects and cannot WRITE into her prefix** (refused by RLS) --
+reviewing is not authoring. `mreed` (Period 9) reads 0.
+
+**An induced failure does not abort the post.** A 250 MB file alongside a good
+one: the item was created and published with the good file attached (confirmed
+in the table), and the report read *"Saved, but 1 thing did not:
+way-too-big.SLDASM: That file is 250.0 MB, and the limit is 200 MB. Nothing
+about retrying will change that..."*, with that file still staged, carrying its
+own error, and NO Retry offered -- correct, since retrying cannot help. The
+other three gates were driven on `/dev/classroom-upload`, which mounts the real
+panel with an in-memory transport: `expired` renders the stale-link sentence AND
+offers Retry; `denied` and `not_configured` render their own sentences and do
+not.
+
+**Layout, measured rather than described.** 1440x900: no horizontal overflow
+(`scrollWidth` 1425), panel 902px, rows 902x119, every tap target exactly 44px
+high. 375x812: no horizontal overflow (`scrollWidth` 375), panel 317px, rows
+317x157, the long filename ellipsising correctly, and every control hit-tested
+at the top, middle and bottom of its 44px box -- 7 controls, 21 points, all
+true.
+
+**Not verified:** the live production Supabase project (0133 and 0134 are not
+applied there; `.env` here is a placeholder and was pointed at the local stack
+for this pass and restored byte-identically, md5 checked), a real Google Drive
+round trip (the instructor-only path was exercised only in the "Drive not
+configured, so the control is absent" direction), the Vercel preview
+deployment's own behaviour, and tus resumable uploads -- which were NOT added,
+because the 60 MB fixture landed on the ordinary single-request path and the
+instruction was not to add tus speculatively.
+
+### Deferred, and stated rather than hidden
+
+- **A public material's storage-backed attachment 404s.**
+  `classroom_public_attachment` (0092) projects `drive_file_id` and nothing
+  else, and 0133's storage policies are `to authenticated`, so a signed URL
+  cannot be minted with no session. Every attachment already on a public
+  material is Drive-backed and unaffected. Fixing it is a migration widening
+  that RPC plus an anon-readable policy keyed on the same
+  published-public-material predicate.
+- **Instructor-only material still uploads through the site to Drive**, at
+  4 MiB. It needs a third bucket, because its read rule is manager-only.
+- **A storage-backed image does not render inline anywhere**, by design. That is
+  the third of the three properties, and it means a teacher posting a diagram
+  now gets a download row rather than a thumbnail. Worth revisiting only with a
+  measurement of whether `<img>` ignores `Content-Disposition` on that origin.
+- **Nothing was backfilled.** Drive-backed rows will keep needing the Drive
+  credentials and the proxy for as long as they exist.
+
+## The storage bundle stops blocking its own deploy (`0133` amended, `0135`, `lane/attach-any-type`)
+
+Four things, three of which were defects in the bundle above rather than new
+features. The SQL and its tests are on `main`; the build change and the harness
+are on `lane/attach-any-type`. NOTHING was merged to `main` from the lane.
+
+### `0133` widened two RPCs and dropped the arities production calls
+
+**The bundle above could not be deployed in either order, and nobody noticed
+because both halves were correct on their own.** `0133` dropped
+`classroom_add_attachment(uuid,text,text,text,bigint)` and
+`classroom_add_submission_file(uuid,text,text,text,bigint,text,text)` and
+recreated each one parameter wider. The client running on `main` names exactly
+the old key sets, verified by reading the two routes. So applying the SQL took
+every upload down until the storage client shipped, and shipping the client
+first took every upload down until the SQL was applied. There is no ordering
+that avoids an outage, and the migration's own header documented the ordering as
+though there were.
+
+`0133` has never been applied to production, so it was amended IN PLACE rather
+than corrected by a follow-up. It now drops nothing a deployed client names.
+
+**THE HARD PART IS NOT KEEPING BOTH ARITIES, IT IS KEEPING THEM RESOLVABLE.**
+CLAUDE.md's signature trap says two overloads differing only by a DEFAULTED
+trailing parameter make PostgREST unable to resolve the call at all, so the
+naive additive fix (keep the old one, give the new parameter `default null`)
+reproduces the exact outage it was meant to avoid, from a file that reads like
+it is being careful. What separates the pair here is that the WIDE form declares
+**no defaults at all**:
+
+- the 5-key payload the deployed client sends binds only to the narrow form,
+  because the wide one needs `p_storage_key` and has no default to supply it;
+- the 6-key payload the storage client sends binds only to the wide form,
+  because the narrow one has no `p_storage_key` to bind.
+
+The smallest call the wide form accepts is strictly larger than the largest call
+the narrow one accepts, so the pair is unambiguous under ANY resolution rule
+rather than under a particular one, which is the property worth having in a
+component nobody here can step through. Postgres forbids a required parameter
+after a defaulted one, so "no defaults on the wide form" is all-or-nothing
+rather than a choice about the last parameter.
+
+The narrow forms became thin wrappers that call through with a null key, and
+each **re-raises its own original refusal text** (`A Drive file id is
+required.`) ahead of delegating. The wide body's "attach exactly one of" is the
+right sentence for a caller with a choice and the wrong one for a caller without
+one, and a client that has not been redeployed should see the errors it has
+always seen.
+
+`0134` re-creates the wide hand-in RPC, so it carries the same no-defaults
+signature and the same guard; a restored `default null` there would have re-armed
+the trap from a file that reads like it only touches a race.
+
+**Measured, and printed rather than compared:** after applying and re-applying
+both files, `pg_proc` holds `classroom_add_attachment` at 5 args
+(`ndefaults=1`) and 6 args (`ndefaults=0`), and `classroom_add_submission_file`
+at 7 args (`ndefaults=3`) and 8 args (`ndefaults=0`), identical before and after
+the second apply.
+
+**Re-apply is load-bearing here, not decoration.** Postgres REFUSES to remove a
+parameter default through `create or replace` ("cannot remove parameter defaults
+from existing function"), so a machine holding an earlier draft of `0133` would
+reject the amended file. Both files therefore `drop function if exists` at their
+OWN new signature first, a form that has never existed outside a dev database.
+No drop in either file names an arity any client calls.
+
+**What undoes `0133`:** drop the six functions and six storage policies it
+creates, delete the two buckets and their objects, drop the two widened arities
+(no client redeploy needed, since the deployed ones never went away), restore
+the `0085`/`0086` bodies for the four RPCs, and drop the `storage_key` columns
+and their CHECKs. The full list is in the file's own footer.
+
+### `0135`: the third bucket, the public read, and a duplicate that raised
+
+- **Instructor-only attachments were left on the 4 MiB Drive ceiling**, which
+  `0133` called a stated gap. It is the wrong gap: an answer key is where a
+  large CAD file most belongs. The reason `0133` gave was real --
+  `classroom_can_read_instructor_material` is manager-only, so those objects
+  cannot share the `classroom-attachments` prefix without becoming readable by
+  every enrolled student -- and the answer is the third bucket that reason
+  implies. The WRITE predicate is `0133`'s, reused rather than copied: "does the
+  caller manage the item named by the key's first segment" is the same question
+  with the same answer, and a second copy under an instructor-flavoured name is
+  the thing that stops matching. Only the READ predicate is new.
+- **A public reference document 404'd on a storage-backed attachment.**
+  `classroom_public_attachment` projected `drive_file_id` only and every `0133`
+  storage policy was `to authenticated`, so a signed-out visitor following a
+  printed QR code got nothing. Both halves are fixed. The payload widening is a
+  DISCLOSURE DECISION and is argued in the file: the key adds the item id the
+  caller already holds, a uuid that names nothing, and an extension the filename
+  already carried. No person, no email, no other item, and it is not itself a
+  capability without a policy that admits the caller. The policy names ONE
+  bucket and asks the same three conditions (`material`, `is_public`,
+  `_classroom_item_live`) the public payload already applies, so there is one
+  definition of "public". The signed-in branch is included because being signed
+  in is not being enrolled: a visitor with a Google account would otherwise be
+  the only person who could not read a public document.
+- **Duplicating an item that held a storage-backed attachment RAISED**, measured
+  rather than reasoned about: `new row for relation "classroom_attachments"
+  violates check constraint "classroom_attachments_one_handle"`.
+  `classroom_duplicate_item` copies attachment rows BY NAME and its column list
+  predates `storage_key`, so the copy carried neither handle. Adding the same
+  CHECK to the instructor table would have shipped a second copy of the break.
+  `0108`'s body is re-signed with `storage_key` added to two INSERT lists,
+  diffed against that file rather than reconstructed.
+- **The copy is by reference, so the read predicate had to widen with it.** A
+  copied key still names the ORIGINAL item in its first segment, so a
+  prefix-only read would have listed a file the copy's section could not open.
+  `classroom_can_read_attachment_object` now ORs in "may the caller read the item
+  of any row that names this object". INSERT and DELETE stay on the prefix
+  deliberately: writing is a claim about a key with no row yet, and a manager of
+  a COPY must not be able to delete bytes the original still serves.
+
+**Mutation proof**, in the permissive direction, restored md5-identical after
+each:
+
+- widening the anon policy to all three buckets: the MIGRATION's own guard
+  refused to apply, so the file fails closed and the tests never ran;
+- dropping `is_public` and the live check from the public predicate: reddened
+  exactly the three assertions that should catch it (private item signed out,
+  unpublished item signed out, and the pre-copy control);
+- pointing the instructor read predicate at `classroom_can_read_item`: reddened
+  the enrolled-student denial and nothing else.
+
+### The `/dev/*` harnesses were compiled into production
+
+Reported as an authentication bypass. **It was not one, and the reason is worth
+recording so it is not re-litigated:** `dev` from `$app/environment` is not an
+environment variable, and SvelteKit replaces it with the literal `false` during
+`vite build`. The compiled `/dev/login` load is an unconditional
+`error(404, "Not found")` with the branch folded away. Nothing about that can be
+misconfigured on a deploy, and every `/dev/*` path was verified to answer 404
+when served from a real production build.
+
+**What WAS wrong is that the guard has to run, which means the module has to
+exist to run it.** A production build compiled 105 dev route entry files
+totalling **720,149 bytes** of harness, fixtures and components into the server
+bundle, all unreachable. A guard that has to fire is one that can be edited,
+forgotten on a new harness, or routed around.
+
+A Vite plugin gated on `apply: 'build'` -- a property of which command is
+running, not of any runtime value -- now replaces each route entry's SOURCE with
+a 404 stub before the compiler sees it. Same 105 paths, **19,150 bytes**, every
+one a stub. `vite dev` never invokes the plugin, and the harnesses were confirmed
+to still work.
+
+**SvelteKit 2.66 has no route-filter config** (no `kit.routes`, no
+`excludeRoutes`), so the route PATHS still appear in the manifest. That is stated
+rather than glossed: the path answering 404 with an empty stub and the path not
+existing are the same answer to a caller, and erasing the difference would mean
+mutating the working tree mid-build.
+
+The rule lives in `src/lib/dev-routes.ts`, not in `vite.config.ts`, for the
+reason the site-version rules do: a build config is the one file a test cannot
+reach. The sweep asserts its own case count so a glob that matched nothing cannot
+pass as coverage.
+
+### Measured, on the student hand-in failure path
+
+Through the real `FileUploadPanel` in the upload harness, hand-in side:
+
+- **one oversized file staged beside a good one:** 2 picked, 1 landed, 1 failed.
+  The failed file stayed staged with a Remove button and the real refusal
+  sentence, limit named: "That file is 2.0 MB, and the limit is 200 MB. Nothing
+  about retrying will change that". Retry buttons offered: **0**, which is
+  correct, because a size refusal is not retryable. The file that landed was
+  cleared and the one that did not was kept.
+- **nine files where the third fails:** 9 picked, 9 attempted, 8 landed, 1
+  failed. Files four through nine all landed. The old `AssignmentEngine` loop
+  stopped at the first failure and abandoned everything after it; that is gone.
+
+The harness gained a mode for the first case, because every existing failure mode
+was all-or-nothing and the one-bad-file case could not be reproduced at all.
+Failure is keyed on the FILENAME rather than a counter, since the calls are
+concurrent and a counter makes which file fails depend on scheduling.
+
+**Not shown by the harness:** that the submission ROW is created. The transport
+is faked at the documented injection point, so there is no submission to inspect.
+That property is covered at the database level by
+`tests/classroom-submission-open-race.test.ts` instead.
+
+### NOT DONE, and not attempted
+
+- **Thumbnails for storage-backed images are still missing.**
+  `isSubmissionFileImage` branches on `mime_type`, and the storage path stores
+  `application/octet-stream` for every file on purpose, so every storage-backed
+  image renders as a download row. The fix is an extension-based predicate, but
+  `SUBMISSION_FILE_SELECT` does not carry `storage_key`, so it needs a select
+  LADDER rung and a capability flag across two call sites first. Started and
+  deliberately stopped rather than half-landed.
+- **Instructor uploads still go through the Drive route.** `0135` gives them a
+  bucket and additive RPCs, so the database half is ready and inert. Nothing
+  emits the wider shape yet, which is the correct direction for a gate to precede
+  its producer.
+- **The public serve route was not changed.** `0135` makes a public item's object
+  readable without a session and projects the key, but
+  `/api/classroom/attachment/[attachment_id]` still answers 401 without a
+  session, so the gap is closed in the database and still open in the route.
+- **Nothing was verified against the live Supabase project.** The local `.env` is
+  a placeholder, there is no WSL distro or Docker on this machine, and no local
+  stack was running. Every SQL claim here is against embedded Postgres with the
+  real migration files applied unmodified. **No real PostgREST was exercised**, so
+  the overload-ambiguity claim is taken from CLAUDE.md, where it is recorded as
+  having bitten twice; what is asserted instead is the structural property that
+  makes the question moot.
+
+---
+
+## The three that gated the merge: thumbnails, the public serve route, and the last Drive upload
+
+**Branch:** `lane/attach-any-type`. **Migrations:** none. 0133, 0134 and 0135
+were already applied to production by hand; everything here is the code half
+that had been left explicitly undone, listed as "NOT DONE, and not attempted"
+at the end of the previous entry.
+
+### Why all three gated the merge rather than following it
+
+None of them is a defect on `main`. Each is a defect that comes into existence
+AT the merge, because each is a place where the app still asks a question that
+0133 made meaningless.
+
+The shared cause is one line of 0133's design: **every stored object is
+`application/octet-stream`, written by the route's own hand, so that nothing
+ever branches on a type the uploader chose.** That is correct, and it silently
+invalidated every predicate in the client that asked `mime_type` what a file is.
+
+### 1. Thumbnails
+
+`isSubmissionFileImage` was `mime_type.startsWith('image/')`. Against a
+storage-backed row that is false for a photograph and false for a 60 MB
+assembly, so an `imageZone` -- which IS the photo-evidence block, and is what
+Checkpoint 1 grades -- rendered a column of download links.
+
+**Measured, on `/dev/classroom` in a real Chromium, before and after, with the
+predicate reverted in place and restored md5-identical between the two runs:**
+
+| | zone items | thumbnails decoded | download rows | plain hand-ins | plain thumbnails |
+|---|---|---|---|---|---|
+| mime-only predicate | 4 | **0** | 4 | 2 | **0** |
+| extension predicate | 4 | **2** | 2 | 2 | **1** |
+
+3 of the 6 seeded files are genuinely pictures and all 3 decode; the other 3
+(a `.SLDPRT`, a `.SLDASM`, and a `.png` whose bytes are not a PNG) are download
+rows. The third of those is the fallback path: the element is rendered, fails to
+decode, and `onerror` drops it back to the row.
+
+**The load-bearing decisions:**
+
+- **No server change, and that was a measurement rather than a guess.** The
+  obvious reading of 0133's "nothing a person uploaded is ever rendered inline"
+  is that a thumbnail needs an inline branch on the serve route. It does not.
+  Measured in Chromium: an `<img>` whose response is
+  `application/octet-stream` + `Content-Disposition: attachment` + `nosniff`,
+  reached through a 302 to a signed URL, decodes -- `naturalWidth` 8 on an 8x5
+  PNG, identical to the plain `image/png` control, and identical again through
+  the redirect. Five cases, five decodes. So the `src` is the SAME proxy URL as
+  the link beside it, the disposition rule is untouched, and the CLAUDE.md rule
+  that said otherwise was conflating "navigated to as a document" with "decoded
+  by an image element". That rule is edited in place.
+- **Three states of `storage_key`, not two.** A string means storage-backed and
+  the key's extension decides. NULL means the column was selected and this row
+  is Drive-backed, so its recorded type is real and is the thing it has always
+  been thumbnailed by -- nothing was backfilled, so that branch stays. UNDEFINED
+  means the column was not selected at all, which is the degraded rung, and
+  there `mime_type` is both the only signal and the correct one, because on a
+  pre-0133 schema every row is Drive-backed.
+- **The rung is its own rung.** `SUBMISSION_FILE_SELECT_STORAGE` adds
+  `storage_key` and nothing else; `selectSubmissionFiles` is ONE ladder called
+  by the student engine load and by `loadGrading`, so the two surfaces cannot
+  end up on different rungs and disagree about which files are pictures. The
+  capability is reported as `filesStorageReady` on both payloads, turned on only
+  by the wide rung succeeding -- never inferred from the rows, because an
+  assignment with no hand-ins returns an empty array on both rungs.
+- **`isImageAttachment` had the identical defect and is fixed as a UNION.** A
+  teacher's handout is stored octet-stream too. Asking the filename FIRST and
+  keeping the recorded type as an OR means every Drive row keeps the thumbnail
+  it has today, which is what let this move with no change to `ITEM_SELECT` --
+  whose four-rung ladder every classroom read goes through, and which would have
+  needed a fifth rung spelled out in full to widen the embedded attachment
+  select. This is beyond the letter of the item as scoped and is called out as
+  such; the alternative was shipping two predicates that answer differently
+  about the same question.
+- **One image-extension rule.** There were two byte-identical copies of the
+  regex (`classroom.ts`, `FileUploadPanel`) and this was about to add a third.
+  `isImageFilename` is now the rule and both call it; the test counts the copies
+  and fails at two.
+
+### 2. The public serve route
+
+`?public=1` resolved the row through `classroom_public_attachment` and then read
+`drive_file_id` only, so a storage-backed attachment on a published public
+material answered 404 to exactly the audience it was published for -- and
+answered perfectly for any signed-in teacher checking it, because they never
+take that branch.
+
+Both halves of the fix are 0135's and both are the database's: the RPC projects
+`storage_key`, and a second permissive policy admits `anon` to an object in
+`classroom-attachments` whose prefix names a public, live material. The route
+mints on the caller's own client, which with no session IS the `anon` role.
+
+**One thing moved that was not in the brief:** `driveConfigured()` used to gate
+the whole public branch, so a deployment with no Google credentials would 503 a
+storage-backed public attachment -- refusing a file it never needed Drive to
+serve. It is now below the storage branch.
+
+**Proved at the route, with live positive controls beside every negative**
+(`tests/classroom-storage-routes.test.ts`, real handlers, real Postgres, real
+policies, `anon` for signed-out):
+
+| case | result | control |
+|---|---|---|
+| signed out, `?public=1`, public material | **302** to a signed URL | -- |
+| signed out, `?public=1`, PRIVATE material | **404**, 0 storage calls | manager 302 on the same row |
+| signed out, `?public=1`, UNPUBLISHED public material | **404**, 0 storage calls | manager 302 on the same row |
+| signed out, no flag | **401** | -- |
+| signed-in visitor, enrolled in nothing, `?public=1` | **302** | same visitor, no flag: **404** |
+| enrolled student, no flag, both materials | **302, 302** | -- |
+| legacy Drive-backed public attachment | **200**, bytes byte-for-byte | 0 storage calls |
+| every storage call made on the public branch | bucket = `classroom-attachments`, count > 0 | swept, not spot-checked |
+
+The database half was already proven by `tests/classroom-instructor-storage.test.ts`
+(0135); what is new here is that the ROUTES ask.
+
+### 3. Instructor-only uploads
+
+The last multipart POST through the function. An answer key was capped at 4 MiB
+and filtered by a twelve-type allowlist, on the one surface no student ever
+sees -- so the SLDASM the assignment is built from, the full-resolution scan of
+the marked exemplar and the setup video were all refused.
+
+It now takes the same three steps as everything else: `/sign` mints into
+`instructor-attachments`, the browser PUTs, `/record` writes the row through
+0135's widened RPC with `application/octet-stream` and the key. `ContentComposer`
+mounts a second `FileUploadPanel` in the instructor section and its hand-rolled
+staging is deleted -- a `File[]`, a non-reactive object-URL map, a revision
+counter, an `onDestroy` to revoke them, a `uploadProgress` record keyed by array
+index, its own markup and its own failure-line formatting: a second
+implementation of the panel that had drifted into being worse than the original,
+with no per-file error and no Retry.
+
+**Measured in a real Chromium, on `/dev/classroom`'s composer:**
+
+- both panels present (`data-role` `attachment` and `instructor`), legacy
+  `ul.staged` markup count **0**;
+- the instructor picker carries **no `accept`** and is `multiple`;
+- staged: `Bracket answer key.SLDPRT` (4 KB), `Full assembly.SLDASM`
+  (**62,914,560 bytes**) and `exemplar.png` (85 B) -- **3 staged, 0 refusals, 1
+  thumbnail**. Both of the first two were refused outright by the old path;
+- on save, **3** `uploadInstructorAttachment` calls, one per file, concurrently,
+  0 errors, and the panel unmounts with the created item.
+
+Route-level, against the real policies: a manager mints, an enrolled student is
+refused (`gate: denied`), a signed-out caller gets 401, 300 MB is refused with
+`gate: too_large` naming the 200 MB cap, and a key naming another item is
+refused before the database sees it. **The count:** over a set of four
+instructor rows on one item, the manager reads **4**, an enrolled student reads
+**0**, a teacher of another section **0**, a signed-in visitor **0**, signed out
+**0** -- the last of those refused one layer earlier, at the GRANT, since `anon`
+holds no SELECT on that table at all.
+
+**`instructorAttachmentsEnabled` stopped being `driveConfigured()`.** Leaving it
+would have been the same silent outage 0133 fixed for student-facing files, one
+surface over: no answer-key picker at all on a deployment with no Google
+credentials, with the bucket sitting there working.
+
+### The harness was the thing hiding all of this
+
+`/dev/classroom` seeded hand-in rows as `image/svg+xml` with no `storage_key` --
+a shape the record route can no longer produce. So it exercised the pre-0133
+branch of the predicate and could not have shown the regression. It now seeds
+what 0133 actually writes, and seeds all three outcomes side by side (a picture,
+a CAD file, a picture whose bytes do not decode) on both the student's own view
+and the graded one. Its `uploadSubmissionFile` stopped passing `file.type`
+through for the same reason. **A harness fed input its real producer cannot emit
+proves nothing about the real producer.**
+
+### What was NOT verified
+
+- **Nothing against the live Supabase project.** The local `.env` is a
+  placeholder (`example-ref`), so no signed URL was ever minted by real
+  storage-api, no real `Content-Disposition` header was read back, and the
+  double-encoding measurement recorded in the previous entry was not repeated.
+  Every SQL claim here is against embedded Postgres with the real migration
+  files applied unmodified; the storage shim evaluates the real policies as the
+  real roles, but it is a shim.
+- **The `<img>` measurement was against a local server, not against Supabase.**
+  What was measured is that Chromium decodes those headers, which is a fact
+  about the browser; that Supabase sends exactly those headers is taken from the
+  previous bundle's measurement.
+- **No visual/screenshot review.** Every geometry claim is a computed-style,
+  `naturalWidth` or hit-test read.
+- **The three-way `?public=1` behaviour was probed against the running dev
+  server only as a status code** (401 -> 404 for a signed-out public request on
+  an id the placeholder project cannot resolve). That shows the branch is
+  reachable; it does not show a real public attachment serving. The route test
+  is what shows that.
+
+### Deferred
+
+- **The dead Drive write helpers are still there.** `readAttachmentForm`,
+  `MAX_DRIVE_ATTACHMENT_BYTES`, `attachmentDriveFilename`,
+  `instructorMaterialsFolderId`, `submissionsFolderId`,
+  `INSTRUCTOR_MATERIALS_FOLDER_NAME` and `SUBMISSIONS_FOLDER_NAME` have no
+  caller in `src/` at all now. They are left standing because removing them
+  deletes passing tests and is a deletion bundle of its own, and because the
+  instruction for this branch was explicitly not to remove the Drive path. Their
+  comments are corrected to say they are dead rather than claiming a caller.
+  `postFormWithProgress` WAS removed, because its last caller was the instructor
+  upload and a dormant helper for the shape this bundle just deleted is an
+  invitation to write the 4 MiB path again.
+- **The Drive READ path stays and must.** Nothing was backfilled, so every
+  attachment, hand-in and answer key posted before its migration still resolves
+  through `downloadDriveFile` and `INLINE_TYPES`. `GOOGLE_DRIVE_REFRESH_TOKEN`
+  is still required for those rows, for the notebook photo upload, for classroom
+  DECKS (which still POST their zip through the function) and for the
+  delete-content sweep. It is no longer required for any classroom UPLOAD.
+
+---
+
+## Nothing runs after the hook on the bundle host (`lane/foundry-host-shortcircuit`, code only)
+
+The lane before this one instrumented the bundle path so a production 404 could
+say which check refused it. The probe answered, and it eliminated every
+candidate on the list:
+
+```
+FOUNDRY_PROBE {"stage":"hook.apps-host.allowed","path":"/r/<token:114>/",
+               "requestHost":"apps.ideabosco.com","method":"GET"}
+responseStatusCode 404
+```
+
+`proxy.enter` did not log. The host branch allowed the request and the route
+handler never ran.
+
+### What the sequence was read to be doing, member by member
+
+The prime suspect was `authGuard` -- signed out on an origin that carries no
+cookies by design, and known to answer 404 rather than redirect for some
+prefixes. Read rather than reasoned about, for a signed-out `GET /r/{token}/`
+on `apps.ideabosco.com`:
+
+1. **`foundryHostBranch`** -- `isFoundryAppsHost` true, `appsHostAllows` true
+   (the shape is `/r/{token}/`, token non-empty, slash present). Logged
+   `hook.apps-host.allowed` and returned `resolve(event)`.
+2. **`legacyRedirects`** -- strips trailing slashes to `/r/{token}`, which is
+   not a key in `legacyPaths`. Passes through. Its only possible answer is a
+   308 to a legacy target.
+3. **`supabase`** -- assigns `event.locals.supabase`, a server client bound to
+   this origin's cookies, and installs a `setAll` that calls
+   `event.setHeaders`. It has no refusal at all.
+4. **`authGuard`** -- **ELIMINATED.** `authedPrefixes` is `/dashboard`,
+   `/gauntlet`, `/frc`, `/greenline`, `/notebook`, `/classroom`, `/foundry`.
+   `/r/...` matches none of them, so `needsAuth` is false; and the only refusal
+   this member can produce for any path is `redirect(303, '/')`. It cannot
+   answer 404.
+
+**No member of the sequence can produce a 404 for that URL.** Nor can routing:
+`parse_route_id('/r/[token]/[...path]')` compiles to
+`^\/r\/([^/]+?)(?:\/([^]*))?\/?$`, which was run against a 114-character token
+with the trailing slash and matched with `path` empty, so `route` is not null;
+and `render_endpoint` answers 405 for a missing method, never 404. **So the
+production 404's source is NOT in the handle sequence, and this lane did not
+identify it.** What the reading did find is a different, real defect that fits
+the same instrument:
+
+**`@supabase/ssr` 0.12 hands `setAll` a `Cache-Control: private, no-cache,
+no-store, must-revalidate, max-age=0`**, and the `supabase` member passes it
+straight to `event.setHeaders`. That is the one thing in the sequence that
+stamps a header onto whatever response comes out -- including a response the
+Foundry code never produced. Its value is not the hook's own
+`private, no-store`, so it does not prove which branch answered; what it does
+prove is that member ran.
+
+### The defect that was found, which is the one worth the bundle
+
+`export const handle = sequence(foundryHostBranch, legacyRedirects, supabase,
+authGuard)` meant the host branch could only ever REFUSE. In a `sequence`
+member, `resolve(event)` does not mean "hand this to the router" -- it means
+"run the next member". So an ALLOWED apps-host request, which is every request
+the bundle host actually serves, went on to have a Supabase client created for
+it against that origin's cookies, and then a live `getClaims()` round trip
+performed against the Auth server by `authGuard`.
+
+`CLAUDE.md` said the opposite, in as many words: "The branch is sequenced
+FIRST, ahead of the Supabase client, so no path on that host can read a session
+or write a refreshed cookie." True of the paths the branch refused. False of
+every path it served. That line is corrected in place.
+
+`handle` is now a plain function rather than a sequence: on the apps host it
+either answers the bodyless 404 or returns `resolve(event)` -- SvelteKit's own
+resolve, the router -- and the other three members live in a `mainHostChain`
+sequence the bundle host never enters. **An exemption list inside `authGuard`
+was the rejected alternative**, and rejected on the record rather than on
+taste: it fixes the member that happens to be wrong today and leaves the next
+middleware free to reintroduce the same failure, which is now twice a component
+downstream of the hook has quietly changed what that host does.
+
+### Why the suite was green through all of it
+
+`tests/foundry-proxy.test.ts` composed `foundryHostBranch` with the route
+handler as its `resolve`, under a comment reading "the hook first, then the
+route, exactly as `sequence()` runs them". It is not that. Supplying your own
+`resolve` to a sequence member silently stands in for every member after it, so
+the test asserted the three downstream members out of existence -- the exact
+thing that was wrong.
+
+The replacement drives the REAL exported `handle`, with `resolve` standing in
+for the router and nothing else, over an INSTRUMENTED event: `locals` starts
+empty, and `cookies.getAll`/`get`/`set`/`delete` and `setHeaders` count their
+calls. `locals` is the definitive instrument, because both members that can
+touch a session write to it unconditionally and first -- `supabase` assigns
+`locals.supabase`, `authGuard` assigns `locals.claims` -- so a key present
+means that member ran whatever it went on to answer.
+
+Measured on the bundle root, signed out, apps host: **1 router call, 200, the
+entry file with the storage shim in it; `locals` keys `[]`, 0 cookie reads, 0
+cookie writes, 0 header sets.** Two positive controls stop those zeros being
+vacuous: the same event on the main host gives **`locals` keys
+`['claims','supabase']`, `claims` null, cookie reads > 0**, and `/IDEA` on the
+main host still 308s to `/` while `/IDEA` on the apps host is a bodyless 404
+with the router never called.
+
+**Proven to bite.** Reinstating the continuation (the allowed branch calling
+`mainHostChain` instead of `resolve`) reddens exactly one test, on exactly the
+right assertion -- `expected [ 'supabase', 'claims' ] to deeply equal []` --
+while the bundle still serves 200, which is what the silent version of this
+looks like. `src/hooks.server.ts` was restored and md5-checked
+(`a2732008b5a37833d7d40636b0dab43e`) and the file is green again.
+
+Driving the real `handle` costs one SvelteKit internal: `sequence()` reads the
+per-request store that `respond.js` installs around `hooks.handle`, so the test
+installs it the same way, with a `record_span` passthrough (which is what
+`record_span` already is with no OpenTelemetry exporter configured).
+`tests/kit-internal.d.ts` declares that one function, because the package ships
+that entry point with `types` pointing at a file that is not a module.
+
+### The token was in the error log
+
+`handleError` logged `event.url.pathname` beside the correlation id and the
+stack. On the bundle host that pathname CONTAINS the credential --
+`/r/{token}/{path}`, thirty minutes of read access to a student's app -- so a
+500 on the proxy put a live token in the Vercel function log, greppable and
+outliving the request. It now logs `redactProxyPath(event.url.pathname)`.
+
+`redactProxyPath` moved out of the deleted probe module into
+`src/lib/foundry/host.ts`, beside `isFoundryProxyPath`: one module describes
+where the token sits in a URL, and a second regex somewhere else is the copy
+that stops matching. Non-proxy paths are returned verbatim, so an ordinary
+correlation line still reads normally. The test drives the real `handleError`
+and reads what it actually printed rather than asserting the helper alone --
+the helper being right while the call site interpolates the raw pathname beside
+it is exactly the shape of this leak.
+
+### The instrumentation is gone
+
+Every `FOUNDRY_PROBE` line is removed: `src/lib/server/foundry-probe.ts` is
+deleted, and with it the calls in `src/hooks.server.ts`,
+`src/routes/r/[token]/[...path]/+server.ts` (including `proxy.enter`,
+`proxy.serving` and the four refusal probes) and
+`src/lib/server/foundry-bundle.ts` (all seven). The route's
+`$env/dynamic/private` import, which existed only for the token-secret presence
+probe, went with them. The unrelated `foundryProbe` postMessage key in
+`src/lib/server/foundry-dev-fixture.ts` and `/dev/foundry-proxy` is a different
+thing and was left alone.
+
+### What was NOT verified
+
+- **Nothing on production.** This session cannot reach `ideabosco.com` or
+  `apps.ideabosco.com`, cannot deploy, and cannot read a Vercel function log.
+  Whether the production 404 is fixed by this bundle is UNKNOWN -- the reading
+  above says the sequence is not what answered it, so the honest expectation is
+  that the 404 has another cause still to be found. What this bundle does fix
+  with certainty is the session read on the bundle origin, which is asserted in
+  the suite.
+- **No browser pass.** No bundle was framed, no app was launched.
+- **The live Supabase project was not touched.** The local `.env` is the
+  placeholder (`example-ref`); the proxy tests run against the in-memory dev
+  fixture, which is what `resolveBundleFile` uses under `dev`.
+- **No migration**, no SQL, no database change of any kind.
+
+## The forge: Foundry's own room, its navigation, and submit on the page it is made on (`lane/foundry-forge`, code only)
+
+Foundry had six routes and no identity: four of them sat on the classroom's
+console register, two sat bare on the portal shell, nothing tied them together
+(no masthead, no way back, no way between the surfaces except links scattered
+in page bodies), the review queue was reachable only by typing its URL, and a
+student who uploaded on `/foundry/submit` had to go to `/foundry/mine` to
+submit the thing they had just made. This lane gives the module a room of its
+own -- THE FORGE -- a persistent shell, an admin entry with a pending count,
+and the submit press on the submit page. The proxy, the hook, the `/r` route,
+the token, ingest and preflight are untouched (a separate lane was diagnosing
+a production 404 in exactly those files), and `AppFrame`'s contract did not
+move.
+
+### The identity, and where its rules live
+
+The visual language is a forge: molten metal poured, worked, cooled, finished.
+Green stays the driving colour and stays the FINISHED state; amber and orange
+are HEAT, and heat means IN PROGRESS. That gives status a real language
+instead of a coloured dot, and the mapping is now a rule in `CLAUDE.md`'s
+sibling -- the room stylesheet itself:
+
+    draft      cold iron    dark, unlit, matte
+    submitted  heating      amber, glowing, alive
+    approved   struck       cooled to green, finished
+    rejected   quenched     desaturated grey, cooled wrong
+    hidden     shelved      flat, no heat at all
+
+`src/lib/foundry/forge.css` is the room (`.fg-root`), the `.nb-root` mechanism
+one room over: namespaced `--fg-*` tokens (iron plate, inks, the heat scale,
+the five status trios, the motion vocabulary) with the SHARED vocabulary
+(`--surface-*`, `--text-*`, `--boundary`, `--hairline`, `--bg*`, `--white`,
+`--dim`) aliased onto the plate, source and target on the same element. Every
+Foundry component already read the shared names with portal fallbacks, so the
+whole module re-plated with no component edits, and the same components
+mounted outside the room (SSR tests, harnesses without the wrapper) render on
+the portal tokens exactly as before. The semantic accents (`--green`,
+`--cyan`, `--amber`, `--teal`, `--crimson`, `--ice`) were deliberately NOT
+re-pointed; the heat scale is a new set beside them. `.fg-root` joined
+`split.css`'s room lists (gutter, scrollbars) the way `.cd-root` did -- a
+class there, never a second split. The launcher card's accent pair stays
+`var(--green)`/`var(--cyan)` (pinned by test, and still honest: green is
+still the room's driving colour and cyan its metadata ink).
+
+Every ink was measured against every ground it can land on (WCAG 2.x, canvas
+composite in the browser as well as design-time arithmetic; the two agreed):
+ink 15.40 on the card, ink-2 6.99, heat-ink 9.03, boundary 4.37 against a 3.0
+bar, and the six chip inks on their own PINNED fills 7.13 / 8.05 / 6.87 /
+7.97 / 7.87 / 5.55, worst case the shelved chip at 5.55 against a 4.5 bar.
+The fills are pinned colours, never a color-mix of the ink (the notebook's
+cell-fill lesson). Chip EDGES are decoration by the standard's own list and
+are unmeasured; the state is carried by ink + glyph + word + (for heat) glow.
+
+### The molten seam, and what was measured about it
+
+`MoltenSeam.svelte` is the signature: a casting channel with a layered pour.
+The still base is a complete molten gradient (crust, ember, amber, white-hot
+core); three conveyor layers drift over it (stream 23s, billows 13s, slag 37s
+per tile -- co-prime, so the combined surface repeats on the order of minutes),
+each an element one tile wider than the channel translated exactly one tile
+per cycle, so the loop is seamless by construction. All three move the same
+direction at different speeds, which is what reads as depth. CSS only, no
+video, no canvas.
+
+- **Only `transform` animates.** Read back off the live animations:
+  three layers, every keyframe property `transform`.
+- **Frame rate, measured**: 60.2 fps over 2 s with the pour on screen
+  (rAF count, 1440x900), and ZERO long tasks (>50 ms) observed by a
+  PerformanceObserver over the same window -- the pour costs the main thread
+  nothing measurable.
+- **It stops when nobody can see it.** An IntersectionObserver plus a
+  `visibilitychange` listener set `data-paused`, which sets
+  `animation-play-state: paused`. Measured: scrolled offscreen ->
+  `data-paused` set and all three playStates `paused`; scrolled back ->
+  `running`; synthetic `visibilityState: 'hidden'` + `visibilitychange` ->
+  `paused`. The DEFAULT is playing, so if the observer never fires the
+  failure mode is "keeps animating", never "never animates".
+- **Reduced motion is the still frame, not a blank.** Under
+  `reducedMotion: reduce` every layer's computed `animation-name` is `none`
+  and the base + layer gradients still paint; screenshots at 1440 and 375
+  read as molten metal, not a flat panel. The submitted chip's ember glow
+  holds statically at its mid opacity (0.55).
+- Where it belongs: the shell's header (the room signature), the review queue
+  exactly while something waits (`variant="channel"` above a non-empty list;
+  an empty queue is COLD, "Nothing is waiting. The forge is cold."), and the
+  submitted state's chip glow. Nowhere else, on purpose.
+
+The scoped-`::after`-pruning trap was checked rather than assumed: the
+waiting chip's `::after` glow survives compilation (computed `content: ""`,
+`animation-name: ...fg-ember-breath`, mid-pulse opacities observed live).
+
+### The navigation, stated
+
+    gallery   /foundry           everyone signed in; the front door
+    mine      /foundry/mine      everyone signed in; the student's shelf
+    submit    /foundry/submit    everyone signed in; the publish flow
+                /foundry/contract  a reference INSIDE the publish flow
+                /foundry/starter   a download INSIDE the publish flow
+    review    /foundry/review    admins only
+
+`src/routes/foundry/+layout.svelte` provides `.fg-root` and mounts
+`FoundryShell` (masthead: emblem home link, FOUNDRY wordmark, tabs, the
+molten seam, ProfileMenu -- the module previously had NO way back to the
+portal and no profile menu anywhere). `$lib/foundry/nav.ts` is the one map;
+the contract and starter resolve to the `submit` tab, and the contract page
+carries "Back to publishing". The URLs themselves are permanent (printed
+handouts keep resolving); only the map changed. The redundant in-body
+cross-links (gallery's "My apps" header button, submit's "My apps" link)
+went away rather than being duplicated by the tabs. Tab heights measured 44.0
+px at 1440 and at 375; no route overflows at either width (scrollWidth ==
+clientWidth at both, on every surface driven).
+
+The REVIEW tab renders for admins only, and the pending count rides the
+layout's server load, which asks ONLY for admins (`await parent()` for
+`isAdmin`, then the same `queueOrder` arithmetic the queue renders, over the
+same admin-widened read, so the tab and the page cannot disagree). Null, not
+zero, for everyone else: a student's payload does not carry the queue's
+state. The markup gate is convenience; the route's 404 and `is_admin()`
+inside the RPCs stay the boundary. `tests/foundry-shell.test.ts` pins both
+directions with the admin render as the positive control (135 assertions
+green across the touched files). The count chip is lit (the submitted trio,
+8.05:1 ink on fill) exactly while work waits and cold iron at zero.
+
+The launcher card carries the same number: `+page.server.ts` on the home
+route resolves `foundryReviewPending` (null unless admin), and the Foundry
+card renders "3 to review" in `--amber` (measured 4.90:1 on the card).
+Driven both directions on the real home page via `/dev/home-order?pending=`:
+admin+3 -> badge, student+3 -> nothing, admin+0 -> nothing.
+
+### Submit on the page it is made on
+
+`FoundrySubmitTransports` gained an optional `submitVersion` (the same
+`foundry_submit_version` RPC `/foundry/mine` calls), and the done state now
+reads: the Draft chip beside "Nobody reviews it until you submit it", then
+one deliberate press -- "Submit for review" -- then the heating chip beside
+"v2 is in the review queue. You can withdraw it from My apps while it
+waits." Preflight passing is still not submission: the press is its own act,
+never a side effect of the upload finishing, and an absent transport removes
+the control (the read-only mounting stays structural). Driven end to end
+through `/dev/foundry-submit` with the real browser preflight: fixture zip ->
+pass -> create+upload -> draft state -> press -> queued state, with the
+transport recording `submitted version-new`.
+
+### Verification, and what is NOT verified
+
+- `npx svelte-kit sync && npx svelte-check`: 0 errors, 37 warnings, the
+  baseline mix exactly (31 state_referenced_locally, 5 css_unused_selector,
+  1 perf_avoid_nested_class). The dots and status-word rules removed from
+  `FoundryMine` were pruned with their markup so no unused-selector warning
+  appeared.
+- Full suite green (`npm test`).
+- Both widths on every surface: the forge harness (`/dev/foundry-forge`,
+  new -- shell in both roles, all six chips, both seam variants, FoundryMine
+  over fixtures holding every lifecycle state at once), the gallery/review
+  harness (now wrapped in the room with the shell mounted, admin view), the
+  submit harness (now in the room, with the on-page submit press). All six
+  ROUTES' content was verified through these harnesses; the routes themselves
+  are thin mounts of the same components inside the same layout.
+- One real bug found by looking at the screenshots: a null
+  `published_ordinal` rendered "Live vnull" on a card; the label now guards
+  it ("Live" alone is the whole truth).
+- **NOT verified**: the real signed-in routes against a live Supabase
+  project. This session ran in a container with no Docker, no local Supabase
+  stack and the placeholder `.env`, so `/dev/login` was not available; the
+  layout's server load (`parent()` + `foundry_list_apps` count) is exercised
+  by types and by the queueOrder unit arithmetic only. Verify on the Vercel
+  preview or a local stack before trusting the pending count end to end.
+- **Environment note**: `tests/db/cluster.ts` now passes
+  `createPostgresUser` when the suite runs as root (the normal state in a
+  remote/CI container; initdb refuses root and the mkdtemp'd data dir was
+  0700-root). Inert on a non-root developer machine.
+
+Deferred: FoundryDetail/gallery card heat treatments beyond the chips (the
+gallery is all finished work, so it stays cooled green by design); a
+`shelved` word in `versionLabel` itself (hidden is an APP state, not a
+version state, and renders from `hidden_at` directly); any per-field diff on
+the metadata flag (still a migration, still not a rendering decision).
+
+## The launcher card joins the forge: the mark is the pour (`lane/foundry-card`, code only)
+
+The brief said the Foundry launcher card carried a game controller; what `main`
+actually carried was the crucible-pouring-into-a-browser-window mark from the
+accent-restoration bundle. Reported rather than silently resolved, because the
+ask stands either way: the browser frame half of that glyph described the
+sandbox MECHANISM (where the work runs) rather than what Foundry is, and the
+forge identity existed by then with nothing on the home screen speaking it.
+
+**The mark is now a crucible pouring into an INGOT MOLD** (`FoundryMark.svelte`):
+the crucible is the build, the mold is the gallery the work is cast into, and
+the tell is ONE DRIP -- every 6.8s, two beats of the forge's ember breath
+(`--fg-ember: 3.4s`; the card renders outside `.fg-root`, so the token cannot
+resolve there and the literal moves with the vocabulary in forge.css). The
+drip detaches, falls, and the melt line glints once as it lands; the event
+occupies 12% of the cycle and the other 88% is stillness, which is what keeps
+it quieter than the shell's seam in a grid beside GAUNTLET, VANGUARD and
+GREENLINE. A short STATIC stream under the spout is what makes the two vessels
+read as one pour rather than two cups -- the first render without it read
+exactly that way, caught by looking at the 128px proposal render rather than
+shipping it.
+
+Green stays the accent (`--acc-primary: var(--green)` / `--acc-secondary:
+var(--cyan)`, unmoved, still pinned by test); heat appears only on the
+pending-review badge, which keeps its measured `--amber` at 4.90:1. The card
+texture bytes did not move; its comment now quotes the room's molten seam
+instead of the deleted window lines.
+
+**Measured the way the seam was measured**, on the real launcher via
+`/dev/home-order`:
+
+- Two animations, `fd-drip` (transform + opacity) and `fd-glint` (opacity),
+  6800ms shared cycle -- keyframe properties read back off the live
+  animations, nothing else animates.
+- 56.0 fps over 2s with the drip running, zero long tasks (>50ms) from a
+  PerformanceObserver over the same window.
+- Pauses offscreen and on a hidden tab (the MoltenSeam mechanism, now pinned
+  for the mark in tests/home-order-and-accent.test.ts): below the fold ->
+  `data-paused` + both playStates `paused`; scrolled into view -> `running`;
+  synthetic `visibilityState: 'hidden'` -> `paused`. The first measurement
+  run reported "paused while visible" and it was the INSTRUMENT's assumption
+  that was wrong: on that harness the launcher sits below the 900px fold, so
+  the mark was correctly paused at load -- the mechanism demonstrating itself.
+- Reduced motion: every part's computed `animation-name` is `none`, all
+  opacities 1, all transforms none -- the full glyph at rest, keyframes start
+  and end there. Grid screenshots at 1440 and 375, normal and reduced, all
+  9 cards settled (settled counts reported per shot, because the launcher's
+  entrance animation otherwise photographs blank cards -- the first grid
+  screenshot did exactly that).
+- Badge both directions on the real page: admin+pending=3 -> "3 to review",
+  student -> nothing, admin+0 -> nothing.
+- svelte-check 0 errors / 37 warnings (baseline mix exact); full suite 110
+  files / 2507 tests green.
+
+**NOT verified**: the live home page against a real session (same container
+limits as the forge bundle). The mark's pause was driven through the harness
+mounting the real AppLauncher; nothing about it reads Supabase.
+---
+
+## The bundle proxy is deleted, and a Supabase Edge Function serves bundles instead (code only, no migration)
+
+**Branch:** `lane/foundry-direct`.
+
+### What this replaced
+
+The Foundry bundle proxy had never once served a bundle in production, across
+five lanes of diagnosis. Production logs showed the host branch in
+`hooks.server.ts` entering, allowing the request and returning 404, with the
+handler probe firing on one deployment and not on the next for identical
+requests. The instruction for this lane was to stop debugging it and remove it.
+
+Deleted outright, not left dormant: `src/routes/r/[token]/[...path]`, the mint
+at `src/routes/api/foundry/token`, `src/lib/server/foundry-token.ts`,
+`src/lib/server/foundry-serve.ts`, `src/lib/foundry/host.ts`, the host branch in
+`hooks.server.ts` (both halves), `scripts/foundry-edge-routes.mjs` and its build
+step, the `/dev/foundry-proxy` harness, and `tests/foundry-proxy.test.ts` +
+`tests/foundry-edge-routes.test.ts`. `PUBLIC_FOUNDRY_APPS_HOST`,
+`PUBLIC_FOUNDRY_APP_ORIGIN` and `FOUNDRY_TOKEN_SECRET` are read by nothing and
+should be deleted from the Vercel project.
+
+There were two items on the deletion list that **did not exist**: there are no
+vendored libraries under `/_platform/lib`, no CDN auto-rewrite, and no
+`foundry-probe` lines outside the dev fixture that went with the dev harness.
+
+### The plan was to frame the Storage object URL. That is impossible.
+
+The instruction was to make `foundry-bundles` public and point the iframe at
+`.../storage/v1/object/public/<bucket>/<app>/<version>/index.html`. Measured
+against a real object on a real Storage instance:
+
+| stored content type | served content type |
+| --- | --- |
+| `text/html; charset=utf-8` | `text/plain; charset=UTF-8` |
+| `Text/Html; charset=utf-8` | `Text/Html; charset=utf-8` |
+| `application/xhtml+xml` | `application/xhtml+xml` |
+
+`normalizeContentType` in storage-api's renderer rewrites any content type
+containing `text/html` to `text/plain`, unconditionally. It is in the shared
+renderer, so the public path, the authenticated path and a signed URL all do it,
+and there is no bucket flag or environment variable for it. A framed bundle
+would have shown its own source as text.
+
+The case-sensitivity of that check IS a working bypass. It was measured and
+**rejected**: it is a deliberate circumvention of somebody else's abuse control,
+and one upstream `.toLowerCase()` would silently break every published app at
+once with nothing in this repo to change -- which is precisely the failure mode
+this lane exists to end.
+
+That measurement was put to the user with the alternatives; they chose the
+Supabase Edge Function.
+
+### What serves a bundle now
+
+`supabase/functions/foundry-serve`, at
+`<supabase origin>/functions/v1/foundry-serve/<app id>/<version id>/<path>`.
+`src/lib/foundry/bundle-url.ts` is the one pure builder and `AppStage` reads
+`PUBLIC_SUPABASE_URL` for the origin.
+
+Because a function can set its own headers, **the bucket stays private** --
+0130's "no policy at all" is untouched and no migration ships with this bundle.
+That is strictly better than the plan: no draft, rejected, superseded or hidden
+build is world-readable.
+
+**The publication gate replaced the review-kind token with the version's own
+status**: a version serves when it is the app's `published_version_id` OR its
+status is `submitted`, and never when the app is hidden. The trade is stated in
+the function's header -- it costs a link a student could share to their own
+submitted-but-unapproved build, and buys immediacy, because a rejection, a
+rollback and a hide all take a build off the web in the same statement that
+records them, which a thirty-minute token could not.
+
+Driven against the local stack through the real RPCs, both directions:
+
+| state | published build | the other build |
+| --- | --- | --- |
+| v2 is a DRAFT | 200 | 404 |
+| v2 SUBMITTED for review | 200 | 200 |
+| v2 REJECTED | 200 | 404 |
+| v3 PUBLISHED, superseding v1 | 200 (v3) | 404 (v1) |
+| app HIDDEN by staff | 404 | 404 |
+| app un-hidden | 200 | 404 |
+
+### Two platform facts that did not transfer, both found the hard way
+
+Both produced a plausible wrong answer first, and both failed as the same
+bodyless 404 a real refusal produces.
+
+1. **The edge runtime strips its own mount.** `url.pathname` inside the isolate
+   is `/foundry-serve/<app>/<version>/`, not the `/functions/v1/...` the browser
+   asked for, so anchoring on the literal prefix refused everything. `parse()`
+   now names no prefix at all: it walks the segments and takes the first place
+   two uuids sit next to each other.
+2. **`url.origin` inside the isolate is the runtime's internal address**
+   (`http://127.0.0.1:8081` measured locally), and `SUPABASE_URL` is the
+   internal gateway (`http://kong:8000`). Either one in a CSP source list names
+   an origin no browser will load from. The public origin comes from
+   `x-forwarded-proto` / `-host` / `-port`, degrading to `url.origin`.
+
+A third, smaller one: keying the trailing-slash redirect on
+`path === 'index.html'` sent an explicit request for `.../index.html` to
+`.../index.html/`. It keys on whether the entry was DERIVED now. And the
+redirect sends a RELATIVE `Location`, because `Response.redirect` demands an
+absolute URL and the only one the isolate can build is its unreachable internal
+one.
+
+### The preflight relaxed, and the contract with it
+
+There is no `connect-src` restriction on a bundle now, so `classifyReference`
+returns `ok` for http, https and the protocol-relative form, and `scanJs` no
+longer mentions `fetch`, `XMLHttpRequest`, `WebSocket` or `EventSource` at all.
+What still refuses is containment: a leading slash, a `..` that climbs out, a
+non-web scheme, a disallowed extension, the caps.
+
+`pushImport` used to SKIP an absolute specifier. With remote imports allowed
+that would have left the only genuinely broken import shape as the one nothing
+said anything about, so it refuses now.
+
+**`/_platform/fonts.css` is no longer an allowed absolute path, because it
+cannot work.** A leading slash resolves against the bundle's own origin, which
+is Supabase. The route moved to the main host with
+`access-control-allow-origin: *` and the contract names the whole URL. The CORS
+header is load-bearing: an opaque origin makes even a same-host font fetch
+cross-origin, and `@font-face` is CORS-mode. Measured in real Chrome from a
+genuine opaque origin -- the sheet loads, `cssRules` throws `SecurityError`
+(proving it really is cross-origin), `document.fonts.load('16px Rajdhani')`
+returns one face and `document.fonts.check` is true. This corrects the note in
+`CLAUDE.md` that read as "an opaque-origin document cannot load fonts": it
+could not load them because nothing sent a CORS header, not because opaque
+origins cannot.
+
+**Storage did not relax**, and is the one warning left: touching `localStorage`
+or `sessionStorage` earns a warning naming the shim and the entry file. It is
+unconditional, because the half of the sentence that says nothing survives a
+reload is true of a correctly shimmed app too.
+
+**The shim is injected again AND is in the contract.** The instruction was to
+put it in the contract "instead", written on the assumption that nothing would
+be serving the bytes. Something is, so both: `injectStorageShim` rescues every
+app whose author never read the contract and every app already published, and
+the contract's copy makes the app behave the same opened off a filesystem,
+which the contract tells students to check. One string, two deliveries.
+
+### Verified
+
+Against a local Supabase stack (`supabase start`, 544xx ports) with the real
+migration chain, both fixtures published through the real flow --
+`foundry_create_app`, an upload to `foundry-uploads`,
+`foundry_create_version`, the real `foundry-ingest` function,
+`foundry_submit_version`, `foundry_review_version`,
+`foundry_set_published_version` -- and then run in the real `AppStage` +
+`AppFrame` through a new dev harness at `/dev/foundry-run`:
+
+- `tests/fixtures/foundry/deflect.html` (canvas, zero external references) --
+  renders and animates.
+- `tests/fixtures/foundry/approved-react-app.html` (React 18, ReactDOM and
+  Babel from unpkg, JSX transpiled in the browser) -- renders and its controls
+  work. Every one of those four lines was a refusal before this bundle.
+
+That the React fixture passed ingest at all is the behavioural marker proving
+the edge runtime was running the edited `preflight.ts` rather than a cached
+copy.
+
+Sandbox, against the real served bundle
+(`tests/fixtures/foundry/sandbox-probe.html`), framed and on a direct
+navigation:
+
+| probe | framed | direct navigation |
+| --- | --- | --- |
+| `window.origin` | `"null"` | `"null"` |
+| `window.parent.location.href` | BLOCKED SecurityError | (is itself) |
+| `window.top.document.title` | BLOCKED SecurityError | (is itself) |
+| `window.parent.localStorage` | BLOCKED SecurityError | (its own, shimmed) |
+| `document.cookie` | BLOCKED SecurityError | BLOCKED SecurityError |
+| `indexedDB.open` | BLOCKED SecurityError | BLOCKED SecurityError |
+| `window.open` | returned `null` | returned `null` |
+| set `top.location` | BLOCKED SecurityError | not run (nothing to escape) |
+| `localStorage` via the shim | works, stringifies, indexes | same |
+
+The parent's own `localStorage` entry was set before the frame mounted and was
+intact and unreadable afterwards; the top URL never moved.
+
+Refusals, by request against the running function: cross-app version, cross-app
+file, missing file, traversal, unknown app, a URL with no uuids -- all 404 with
+no body. The slashless root 307s to the slash form and follows to 200.
+
+`svelte-check` 0 errors / 37 warnings (31 `state_referenced_locally`, 5
+`css_unused_selector`, 1 `perf_avoid_nested_class`). Full suite green.
+
+### NOT verified
+
+- **Nothing here has run on production.** The local stack is a different
+  Supabase instance; `foundry-serve` has never been deployed to the real
+  project and the two platform facts above were measured against the LOCAL edge
+  runtime. Both were written to be independent of the mount and of the internal
+  origin precisely because a hosted runtime may present them differently, but
+  "written to be independent" is not "measured hosted".
+- The `foundry-ingest` function was not redeployed to production either, and it
+  imports the relaxed `preflight.ts`.
+- The fonts measurement was localhost-to-localhost. It is a genuine
+  opaque-origin cross-origin request, which is the hard case, but the real
+  bundle host was not the requesting party.
+- `normalizeFoundryInput` (the browser's File/DataTransfer packing) was not
+  exercised; the verification built the same single-entry zip with `fflate`, as
+  `tests/foundry-preflight.test.ts` already does.
+- The gallery and the review queue were not driven end to end against real
+  published apps -- another session holds those surfaces, and this lane touched
+  them only to delete their dead `launch` transports.
+
+### A finding outside this lane
+
+`svelte-check` on `main` was **1 error**, not 0: `tests/classroom-submission-open-race.test.ts:86`
+read `s.name` off `SeededUser`, which has no such property (from commit
+`6d9e884`). The value was always `undefined` and always fell through to
+`s.email`, so nothing behaved wrongly. Fixed to `s.email` so the baseline this
+lane reports is a real 0. `CLAUDE.md`'s stated baseline of "0 errors, 37
+warnings" is correct again and did not need changing.
+
+### Deferred
+
+- **Deploy ordering is a manual step and it is not optional.**
+  `supabase functions deploy foundry-serve` must run BEFORE the app deploy that
+  names its URL, or every launch 404s.
+- `supabase secrets set FOUNDRY_APP_ORIGIN=https://ideabosco.com` pins CSP
+  `frame-ancestors`. Unset means unrestricted, which reverses the old
+  fail-closed default deliberately.
+- `apps.ideabosco.com` can be removed from the Vercel project. Nothing serves
+  it and nothing links it.
+- A per-subresource function invocation is the running cost of this shape. Not
+  measured; a bundle with many files pays one cold-start-capable call each.
+
+---
+
+## Bundles are served by a SvelteKit route on the apps origin, and the Edge Function is deleted (code only, no migration)
+
+**Branch:** `lane/foundry-serve-vercel`.
+
+### The measurement that decided this
+
+`foundry-serve` was deployed and it was running correctly. Fetched from the
+hosted project, a published bundle came back:
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/plain
+content-security-policy: default-src 'none'; sandbox
+x-content-type-options: nosniff
+x-robots-tag: noindex, nofollow
+sb-gateway-version: 1
+x-served-by: supabase-edge-runtime
+Server: cloudflare
+```
+
+Two things, not one. The gateway rewrote `text/html` to `text/plain`, AND it
+**replaced the function's own CSP** with `default-src 'none'; sandbox` -- so
+correcting the content type alone would still have produced a blank page, and
+`frame-ancestors` (the `FOUNDRY_APP_ORIGIN` function secret) had never once
+taken effect. Neither is reachable from function code.
+
+That the function was deployed and had reached its HTML branch was established
+before the fetch, from the user's own observation that the storage shim was
+present in the rendered text: `injectStorageShim` had exactly one production
+caller, inside `if (contentType.startsWith('text/html'))`, and `foundry-ingest`
+never writes the shim into the stored bytes. So the function WAS setting
+`text/html` and the rewrite was downstream. An undeployed function would have
+produced the gateway's own JSON 404, not a student's HTML.
+
+**Supabase does not serve HTML.** Storage's renderer was the first measurement
+(the previous lane); the Edge Function gateway is the second. Different
+codebases, different languages, identical refusal -- a platform posture against
+arbitrary HTML on `*.supabase.co`, not a bug in either.
+
+**A Supabase custom domain was NOT recommended, because it was not measured.**
+Whether that control is hostname-conditional is unknown; the storage twin is
+unconditional, which is suggestive and not dispositive. It is a paid add-on and
+the session had no network reach to test it.
+
+### The contradiction in the instruction, and what was built instead
+
+The instruction was that the route require a session: "the request must carry a
+session, and the version must be the app's published version, or the caller
+must be an admin previewing a submitted one."
+
+**That is not possible on the apps origin, by exactly the property that makes
+the apps origin worth having.** `@supabase/ssr@0.12.0`'s
+`DEFAULT_COOKIE_OPTIONS` is `{ path, sameSite: 'lax', httpOnly: false }` with
+no `Domain`, and `hooks.server.ts:57` adds none -- so the session cookies are
+host-only on `ideabosco.com` and are never sent to `apps.ideabosco.com`. A
+session check there would 404 every bundle. The rule "moved to where the bytes
+are served" was enforced by the old MINT, which ran on the main host.
+
+The three ways out: `Domain`-scope the cookie onto the apps host (hands every
+student bundle the credentials the split exists to withhold), sign a token
+(the machinery five lanes were spent removing, and forbidden by `CLAUDE.md`),
+or take the licence from the version's own status. **The third is what shipped**
+-- it is the gate the Edge Function already enforced and `CLAUDE.md` already
+documents, so it is the conservative option rather than a new posture. This is
+flagged here because it is a deviation from the written instruction.
+
+### What was deleted, and what was already gone
+
+`supabase/functions/foundry-serve/` entirely, plus its `[functions.foundry-serve]`
+block in `config.toml`.
+
+Six of the seven items on the deletion list **did not exist** -- the token mint,
+`foundry-token.ts`, `server/foundry-serve.ts`, `foundry/host.ts`, the
+`hooks.server.ts` host branch and `scripts/foundry-edge-routes.mjs` were all
+removed by `lane/foundry-direct`. `tests/foundry-bundle-url.test.ts` already
+swept for them and still does; the Edge Function joined that sweep.
+
+### What replaces it
+
+`src/routes/b/[appId]/[versionId]/[...path]/+server.ts`, an ordinary route.
+`serveBundleFile` in `$lib/server/foundry-bundle.ts` does the read, which
+collapses Foundry back to ONE reader of `SUPABASE_SERVICE_ROLE_KEY` (it was two
+only because the function ran in a runtime that could not import the first).
+
+- `export const trailingSlash = 'ignore'`. **Both SvelteKit defaults are wrong
+  here**: `'never'` 308s the slash form to the slashless one, which is the
+  broken one; `'always'` sends `.../style.css` to `.../style.css/`. `'ignore'`
+  hands both to the handler, which issues the one correct 307.
+- The host check lives IN the route, not in `hooks.server.ts`. Unset means any
+  host, so dev and previews need no configuration.
+- `FOUNDRY_SANDBOX_FLAGS` moved out of `AppFrame.svelte` into
+  `bundle-headers.ts`, because the frame attribute and the CSP `sandbox`
+  directive must carry identical flags and used to be two literals in two
+  runtimes with nothing able to compare them.
+- Two new public variables: `PUBLIC_FOUNDRY_APPS_ORIGIN` and
+  `PUBLIC_FOUNDRY_PORTAL_ORIGIN`. The first, unset, **removes the launch control
+  everywhere** rather than falling back to the current origin -- that fallback
+  would serve bundles off the cookie-carrying host, silently.
+
+### Verified
+
+Against the real route on a real dev server, in real Chromium, using the
+in-memory fixture (`$lib/server/foundry-dev-fixture`), which now registers the
+three on-disk acceptance bundles plus one app carrying a file per servable
+extension.
+
+Complete response headers, entry document, apps host, `frame-ancestors` pinned:
+
+```
+HTTP/1.1 200 OK
+cache-control: private, max-age=60
+content-length: 1818
+content-security-policy: sandbox allow-scripts allow-modals allow-pointer-lock;
+  default-src http://apps.localhost:5173 https: data: blob:; script-src ...
+  'unsafe-inline' 'unsafe-eval'; style-src ... 'unsafe-inline'; img-src ...;
+  font-src ...; media-src ...; connect-src ...; base-uri 'none';
+  form-action 'none'; frame-ancestors http://127.0.0.1:5173
+content-type: text/html; charset=utf-8
+referrer-policy: no-referrer
+x-content-type-options: nosniff
+x-robots-tag: noindex, nofollow
+```
+
+Every servable extension, fetched:
+
+| path | content-type |
+| --- | --- |
+| `/` (entry) | `text/html; charset=utf-8` |
+| `style.css` | `text/css; charset=utf-8` |
+| `app.js` | `text/javascript; charset=utf-8` |
+| `data.json` | `application/json; charset=utf-8` |
+| `notes.txt` | `text/plain; charset=utf-8` |
+| `pixel.png` | `image/png` |
+| `mark.svg` | `image/svg+xml` |
+| `face.woff2` | `font/woff2` |
+| `icon.ico` | `image/vnd.microsoft.icon` |
+
+Routing and refusals, by request: bare root 307s to the slash form with a
+relative `Location`; an explicit `index.html` does NOT bounce; unknown app,
+cross-app version, missing file and POST all 404 with a zero-byte body. The
+host gate both directions: with the apps origin pinned elsewhere, the main host
+404s and the apps host 200s.
+
+`deflect.html` **renders and runs** in the real `AppStage` + `AppFrame` --
+canvas animating, score advancing, `window.origin` `"null"`.
+
+Sandbox, against the real served bundle:
+
+| probe | framed | direct navigation |
+| --- | --- | --- |
+| `window.origin` | `"null"` | `"null"` |
+| `window.parent.location.href` | BLOCKED SecurityError | (is itself) |
+| `window.top.document.title` | BLOCKED SecurityError | (is itself) |
+| `window.parent.localStorage` | BLOCKED SecurityError | (its own, shimmed) |
+| `document.cookie` | BLOCKED SecurityError | BLOCKED SecurityError |
+| `indexedDB.open` | BLOCKED SecurityError | BLOCKED SecurityError |
+| `window.open` | returned `null` | returned `null` |
+| set `top.location` | BLOCKED SecurityError | not run (nothing to escape) |
+| `localStorage` via the shim | works | works |
+
+The direct-navigation `"null"` is the CSP `sandbox` directive taking effect --
+the half the Supabase gateway was destroying.
+
+`tests/foundry-serve-route.test.ts` is new: 28 assertions driving the REAL
+handler. `svelte-check` 0 errors / 37 warnings (31 `state_referenced_locally`,
+5 `css_unused_selector`, 1 `perf_avoid_nested_class`).
+
+### NOT verified
+
+- **Nothing has run on production, or against any Supabase project.** The
+  session had no Docker daemon and no network reach past github.com, so there
+  was no local stack and no hosted one. `serveBundleFile`'s Supabase branch --
+  the version/app/file reads and the Storage download -- **has never executed**.
+  Only its dev-fixture branch has. Everything above about headers, routing,
+  refusals and the sandbox is about code paths shared by both.
+- **The acceptance flow was NOT the real publish flow.** No `foundry_create_app`,
+  no upload, no `foundry-ingest`, no review, no publication. The bytes came from
+  the in-memory fixture.
+- **`approved-react-app.html` did NOT render.** All four unpkg tags failed with
+  `ERR_TUNNEL_CONNECTION_FAILED` -- the session's egress proxy blocks
+  `unpkg.com`. **No `securitypolicyviolation` fired**, which is the documented
+  discriminator: the CSP permitted the scripts and the network refused them. The
+  fixture is unverified either way on this lane.
+- Google Fonts is blocked in the same way, so `/_platform` font loading from an
+  opaque origin was not re-checked.
+- The traversal refusal was measured at the route (`tests/foundry-serve-route.test.ts`)
+  but NOT through the dev server: curl normalizes `..` and Vite's own middleware
+  answered 403 for a raw one. Production normalization is untested.
+- Vercel's own treatment of these headers is untested. The whole premise is that
+  it does not rewrite them the way Supabase does; that is an assumption here.
+- `apps.ideabosco.com` was reported as already configured on the Vercel project.
+  Not confirmed from this session.
+
+---
+
+## A student can delete their own app, and an admin can delete any (`0136`, `lane/foundry-manage`)
+
+**Branch:** `lane/foundry-manage`. **Migration:** `supabase/migrations/0136_foundry_delete.sql`.
+
+### What was missing
+
+0130 shipped `foundry_set_app_hidden`, which is ADMIN ONLY and which HIDES
+rather than deletes. There was no path of any kind by which a student could
+remove their own app: not a control, not an RPC, not a grant. On a school
+platform holding a student's own work that is the half that matters. Shelving
+somebody else's project is a staff judgement; throwing your own away is not.
+
+### Hide and delete both stay, and the interface states the difference
+
+They are different decisions and collapsing them would break one of the two:
+
+- **hide** shelved but kept. Off the gallery, off the serving route, files
+  intact, reversible by the same function that did it.
+- **delete** gone. The app row, every version row, every file row and every
+  stored object. No undo and nothing to restore from.
+
+A single "remove" verb would mean either a delete a student cannot trust (their
+work is still sitting there) or a hide staff cannot reverse. `/foundry/review`
+renders the two as a definition list above the controls, so a reviewer reads
+the difference rather than remembering it.
+
+### The two-system problem, which was the only hard part
+
+Rows live in Postgres, bytes live in Storage, there is no transaction across
+them, and one of the two writes can land alone. Three arrangements, two worse:
+
+| order | what a failure between them leaves |
+| --- | --- |
+| objects, then rows | a **live app whose every file 404s**. Still listed, still on the gallery, still resolved by the serving route. Reads as a corrupted upload, and the student finds it. |
+| one call doing both | not available. The database cannot delete a Storage object; the Storage API cannot join a transaction. |
+| **rows, then objects** | an **orphaned object**. Bytes in a private bucket that no row names, that nothing serves (the serving route's allowlist IS `student_app_files`, and that row is gone), and that no client can list. Costs storage and nothing else. |
+
+So the RPC deletes the rows and RETURNS the paths it just orphaned -- the paths
+only exist while the rows do, so publishing them to the caller is the last thing
+the transaction does -- and the caller removes the objects with the service role.
+
+**A failed sweep is therefore not a failed delete, and nothing on any surface
+says it is.** `ok` is true the moment the RPC returns: the rows are the app. A
+partial sweep adds `storageProblem`, a sentence shown beside the confirmation,
+and a `console.error` naming every surviving object, which is the ONLY remaining
+record of them.
+
+### The RPCs
+
+Both SECURITY DEFINER, `set search_path = ''`, revoked from `public`, granted to
+`authenticated`, taking no identity parameter, and answering not-found and
+not-yours identically -- 0130's conventions throughout.
+
+- `foundry_delete_app(uuid)` -- owner or admin. Takes the published version with
+  it, because the thing being removed is the app. Clears `published_version_id`
+  before the delete so the composite foreign key's ordering is explicit rather
+  than resting on how Postgres sequences a cascade against a self-referencing
+  pair. Reports the app's `cover_path` for removal ONLY when no surviving app
+  names the same object: `cover_path` is free text a student can set through
+  `foundry_update_app_metadata`, so two of their apps CAN name one file, and
+  removing bytes a live app still renders would break that app to tidy this one.
+- `foundry_delete_version(uuid)` -- owner or admin, and never the version the
+  app publishes. It locks the APP row, not the version: "is this the published
+  one" is a fact about `student_apps.published_version_id`, and
+  `foundry_set_published_version` takes that same lock before moving it. It
+  checks `row_count` after the delete, because the version row is read before
+  the app lock and a concurrent double-delete would otherwise return a plan for
+  a row this transaction did not remove.
+
+**A hidden app is not the owner's to delete.** 0130 already refuses an owner's
+EDIT of a hidden app; a hidden app is one staff have shelved and not finished
+with, and a student deleting it removes what is under discussion. An admin can
+delete it, and the refusal names who to ask.
+
+**A submitted version MAY be deleted.** 0130 already lets the owner withdraw a
+submission to a draft with one press, so refusing would be a rule with a
+two-click bypass, and a reviewer's queue row vanishing is a state withdraw
+already produces.
+
+### The route, and why there is one at all
+
+`POST /api/foundry/delete` is the only Foundry write that is not a direct RPC
+from the browser, and the reason is Storage rather than authorization.
+`foundry-bundles` carries no storage policy of any kind, so no browser client
+signed in as anybody can remove a single bundle byte; `foundry-uploads` and
+`foundry-covers` do have delete policies, but they are pinned to `auth.uid()`,
+which an admin deleting a student's app does not satisfy. One server-side sweep
+is the only shape that works for both callers.
+
+**It is not the authorization boundary.** It calls the RPC on
+`locals.supabase` -- the caller's own client -- so `auth.uid()` and `is_admin()`
+inside the definer are the real thing. The service key does one job afterwards:
+removing the paths the database itself just returned.
+
+`$lib/server/foundry-bundle.ts` gains `sweepFoundryObjects` and stays the ONE
+Foundry reader of `SUPABASE_SERVICE_ROLE_KEY`.
+
+### The sweep re-lists rather than parsing `remove()`'s answer
+
+`remove()` returns a `FileObject[]`, which this code would have to match back
+against the keys it sent. A mismatch in that spelling would silently produce
+either a permanent false alarm or -- far worse, and unrecoverable, since the
+rows that named the objects are already gone -- a claimed clean sweep. So
+`removeAndVerify` removes, then LISTS the containers again and reports whatever
+is still there. It costs one extra round trip per bucket group and makes "the
+objects are gone" measured rather than parsed. It also lists the bundle PREFIX
+rather than working from the rows, which is strictly more complete: an ingest
+that failed between uploading an object and writing its row leaves an object no
+row ever named.
+
+### The review surface now asks for hidden apps, and it had to
+
+`/foundry/review`'s load did not pass `p_include_hidden`, on the reasoning that
+a hidden app is off the site and is not something to review back onto it. True
+about the QUEUE and wrong about the SURFACE: hiding is reversible by design, but
+with the flag off a hidden app appears on no surface anywhere -- not the
+gallery, not its owner's list, not the queue. **The moment the console gained a
+Hide control it would have gained a one-way door**, with a Restore nothing could
+ever be selected to press. So the flag is passed, `queueOrder` is unchanged
+(still filtered on `submitted_version_id`), the shelved apps render in their own
+list below the queue, and a queue row for an app that is ALSO hidden carries a
+shelved chip -- hiding does not move a version's status, so a hidden app can
+still have a submission waiting, and deciding about one without knowing it is
+shelved was the trap. The widening is not the route's to grant either way:
+`_foundry_app_in_population` gates both flags on `is_admin()` inside itself.
+
+### Two things the browser pass found
+
+1. **The app-delete acknowledgement was destroyed by the act it reported.** It
+   rendered inside `{#if app}` -- the detail pane -- and deleting the app
+   unmounts that pane. Measured: the card vanished from the list and nothing
+   anywhere said a word. There are two notes now, because the two deletes end in
+   different places: a VERSION delete leaves the app open and its note belongs
+   in the detail; an APP delete leaves the LIST, which is what `narrow="swap"`
+   shows at every width when no detail is open.
+2. **The "hide vs delete" definitions never sat side by side.** The rule was
+   written as two columns above 34rem. Measured, the panel's own container is
+   **418px at a 1440px viewport and about 541px at 1920** -- both under the
+   544px asked for, so the rule was dead code no unused-selector warning would
+   catch. This is the same mistake `.fdy-q-work` already documents making at
+   58rem against the viewport figure. Lowering it was the rejected fix: at 418px
+   two columns are ~200px each, four or five words a line for a forty-word
+   definition, worse to compare than reading them in sequence. The rule is gone
+   rather than tuned.
+
+### Verified
+
+**The boundaries, against a real Postgres with the real migration chain**
+(`tests/foundry-delete.test.ts`, 15 assertions). Every refusal's ACTUAL message,
+and every one paired with a positive control:
+
+| case | what Postgres produced |
+| --- | --- |
+| owner deletes another owner's app | `That app does not exist.` |
+| `@boscotech.edu` teacher, no admin grant, deletes a student's app | `That app does not exist.` |
+| unknown app id | `That app does not exist.` (identical, so an id cannot be probed) |
+| owner deletes their PUBLISHED version | `That is the build your app publishes. Make another approved version live first, or delete the whole app.` |
+| ADMIN deletes that same published version | same sentence: the rule is about what it would leave behind, not who asks |
+| another student deletes a version not theirs | `That version does not exist.` |
+| owner deletes a HIDDEN app | `That app has been hidden by staff, so it is not yours to delete. Ask an instructor.` |
+| signed-out (`anon`) | `permission denied for function foundry_delete_app` -- the GRANT refuses before the body runs |
+| **admin deletes that hidden app** | no refusal |
+| **owner deletes their own app INCLUDING its published version** | no refusal |
+
+**What remains is LISTED, not counted.** After deleting one student's app beside
+a neighbour's, the assertion is the neighbour's exact remaining rows by id:
+one app row (`del-remains-theirs`, still publishing `t1`), one version row
+(`t1`, `zip_path` intact) and two file rows (`assets/app.js`, `index.html`), and
+nothing else in any of the three tables. After deleting one version of three,
+the remaining two are named by id, ordinal and `zip_path`, their four file rows
+by path, and the app still publishes what it published.
+
+**Mutation proof.** Both ownership gates, the published-version gate and the
+hidden gate were opened in the PERMISSIVE direction (`if false`) in one pass:
+**5 of 15 assertions reddened**, exactly the denial ones. The published-version
+case is instructive -- with the RPC's own refusal opened, the COMPOSITE FOREIGN
+KEY refuses instead (`update or delete on table "student_app_versions" violates
+foreign key constraint`), which is the defence in depth working. Restored
+md5-identical (`148c544723b9daa679b01ed10c809401`) and re-verified green.
+
+**The route handler, driven as the route** (`tests/foundry-delete-route.test.ts`,
+8 assertions): a signed-out caller is refused before any RPC is reached (0
+calls); the RPC is called on the CALLER's client exactly once with exactly its
+own argument; the RPC's sentence passes through verbatim; a body naming both or
+neither id, and a non-uuid id, are refused with 0 RPC calls, each paired with a
+positive control that the well-formed body does reach its RPC; and with no
+service key configured -- the WORST partial sweep, nothing removed at all -- the
+route still answers `ok: true` with the row counts and a `storageProblem`.
+
+**Both flows driven in a real Chromium** (Playwright against the dev server, on
+the two dev harnesses, which mount the REAL components):
+
+- Student surface: 5 versions rendered, **4 per-version Delete controls and 1
+  live-build explanation line** -- the live build has no control and says why.
+  Arm, read the confirm ("Delete v5 and its files? There is no undo." /
+  "Yes, delete v5"), cancel, re-arm, confirm: versions 5 to 4, note "Version 5
+  is deleted." Then the app: confirm reads `Yes, delete "Ember Clock"`, cards 3
+  to 2, detail pane unmounted, list note `"Ember Clock" is deleted.` The
+  partial-sweep sentence renders on the fixture wired to produce one.
+- Cost line, real counts: *"This removes the app, all 5 versions, and every file
+  stored for them. The build that is live on the gallery goes with it. A build
+  waiting for review goes with it. There is no undo."*
+- Review surface: hide (with reason) -> note, shelved list 0 to 1 row, queue row
+  gains a Hidden chip; restore -> shelved list back to 0; delete -> work area
+  unmounted, queue 1 to 0 row. Zero page errors.
+
+**Viewport, measured at 1440 and 375 on both surfaces.** No horizontal overflow
+on either at either width (`scrollWidth === clientWidth`, 1440/1440 and
+375/375). Every control this lane added: 0 under 44px (44 to 54px), and 0
+failing its own `elementFromPoint` hit test.
+
+`svelte-check` **0 errors, 37 warnings** (31 `state_referenced_locally`, 5
+`css_unused_selector`, 1 `perf_avoid_nested_class`) -- the documented baseline,
+re-derived after `svelte-kit sync`, unchanged by this bundle.
+
+Full suite: **2503 passed, 2 failed**, both `tests/spec-instructions-budget.test.ts`
+and both **pre-existing** -- confirmed by stashing this branch's whole tree and
+re-running that file alone, where they still fail. They come from a classroom
+export commit and are not this lane's.
+
+### NOT verified
+
+- **Nothing has run against any Supabase project, hosted or local.** No Docker
+  daemon in this session, and the local `.env` names a placeholder project. So:
+  **the object sweep has never executed against real Storage.**
+  `sweepFoundryObjects`'s listing, batched removal and re-list have only run in
+  their not-configured branch. That the objects are gone is, on this lane, a
+  claim about code that has not touched a bucket.
+- **The migration has not been applied to production.** It is verified against
+  the embedded Postgres with the real files applied in order, which is the
+  fixture the suite uses, and against seeded PRE-migration data in the sense
+  that the whole 0130/0131 chain is applied first and the apps, versions and
+  file rows are created through the REAL RPCs before 0136's functions touch
+  them. It has not been pasted into the SQL editor.
+- **The real `/foundry/mine` and `/foundry/review` routes were not driven in a
+  browser**, because both need a session against a real project. What was driven
+  is the two dev harnesses, which mount the identical components with in-memory
+  transports. **The route transports themselves -- `fetch` to
+  `/api/foundry/delete` and back -- were exercised only through the handler
+  test, never from a browser.**
+- **The cover-sharing rule is verified in SQL and nowhere else.** That deleting
+  app A leaves app B's shared cover object in place is asserted on the RPC's
+  returned plan; that the sweep then really does not remove it is not observable
+  without a Storage service.
+- No production data, no real student app, no real bundle was deleted by
+  anything in this session.
+
+## Give published apps room to run: a direct page per app, full screen, and a share link (`lane/foundry-fullpage`, code only, no migration)
+
+**Branch:** `lane/foundry-fullpage`. **Migration:** none.
+
+### The problem
+
+An app in the gallery runs in an iframe, inside a detail pane, inside a two-pane
+split, inside the portal shell -- so it gets what is left after three layers of
+chrome. blockbast, a published student build, has to be zoomed out before it is
+usable. VANGUARD gets a whole page because it is our code on our origin; a
+student's app can never be that, because the origin split exists precisely so a
+bundle never runs where the session cookies live. But it can be a whole page one
+origin over.
+
+Measured on the acceptance fixture at a 1440x900 viewport: the gallery frame
+gives the bundle **870x628**, which is 42.2% of the browser viewport and forces a
+960x640 playfield down to **scale 0.906** with its 14px score readout drawn at
+12.69px. The direct page gives it **1440x900** at **scale 1.000**.
+
+### Three things, and only the first is new machinery
+
+**1. `/a/<app id>/` -- the direct page.** A second SvelteKit route on the apps
+origin serving the published bundle's entry file as the whole document. No
+iframe, no chrome, no wrapper.
+
+**2. Full screen from the gallery**, beside Stop app.
+
+**3. The share link**, surfaced in the detail pane with a copy control and the
+sentence that has to go with it.
+
+### The two mounts differ in ONE thing, and everything else is shared
+
+`/b/<app>/<version>/` names a BUILD, because its callers are deciding about one:
+the gallery frames the published version and the review queue frames the
+submitted one. `/a/<app>/` names an APP and resolves `published_version_id` per
+request. That difference is the whole difference. The host gate, the publication
+re-check, the header set, the shim injection, the trailing-slash repair and the
+one bodyless 404 moved into `$lib/server/foundry-bundle-response.ts`, which both
+routes call.
+
+**This was not tidiness.** The CSP `sandbox` directive is what puts a DIRECTLY
+NAVIGATED bundle in an opaque origin -- the iframe attribute needs a frame to be
+on -- so a second mount with a second, slightly-drifted header set would render
+perfectly and run a student's document with full rights on a host of ours.
+Nothing on screen would say so. `tests/foundry-app-route.test.ts` therefore
+asserts the two responses' header sets are **equal, field for field**, rather
+than listing what `/a/` should contain: a list pins whatever was true the day it
+was written, and this feature has already shipped twice with a header that was
+set and did not arrive.
+
+The module is `foundry-bundle-response.ts` and not the obvious
+`foundry-serve.ts` because that path is a deleted module of the token proxy and
+`tests/foundry-bundle-url.test.ts` sweeps the tree for it. The sweep reddened on
+the first draft, which is the sweep doing its job.
+
+`publishedVersionOf` is a LOOKUP and not a decision: it reads one column and
+returns it, and does not ask whether the app is hidden. `serveBundleFile` asks
+that, as it always has, so the publication gate still has exactly one copy and a
+hidden app's published id gets the same 404 from the same three checks.
+
+**`/a/` is strictly narrower than `/b/`: it never serves a SUBMITTED build.**
+`/b/` does, because the queue has to run the thing it is deciding about. An
+app's own public address does not.
+
+### How relative assets resolve, which decided the path shape
+
+The entry document says `href="style.css"` and nothing rewrites it -- ingest, the
+source viewer and both routes agree a stored byte is served back unchanged. So
+the URL does the work: served at `/a/<app>/`, the base URL is `/a/<app>/`, so
+`style.css` resolves to `/a/<app>/style.css` and arrives at the same handler with
+that tail. `trailingSlash = 'ignore'` and a 307 with a RELATIVE `Location` handle
+the bare form, exactly as `/b/` already did.
+
+**`<base href>` was rejected and it is not a matter of taste: it cannot work.**
+The bundle CSP carries `base-uri 'none'`, so an injected `<base>` element is
+ignored by the browser outright, and the only way to make it take effect is to
+weaken the directive that stops a bundle repointing its own relative URLs.
+
+**A redirect to `/b/<app>/<version>/` was the other rejected shape.** It serves
+the app one hop later, but leaves the VERSION URL in the address bar -- so a
+screenshot, a bookmark or a re-paste of what is on screen carries a link that
+dies at the next publish, which is exactly what this mount exists to avoid.
+
+### Public is the point, and what is public is the work
+
+There is no session on the apps host to check. That absence is the point of the
+split, so "require a signed-in caller" is not available here without either
+`Domain`-scoping the portal's cookies onto that host -- handing every bundle the
+credentials the split exists to withhold -- or putting a signed token back on
+every request, which is the machinery five lanes were spent removing.
+
+**The route reads ONE column of the app row (`published_version_id`) and the
+version's files.** Not the author, not the class, not the build notes, not the
+description, not the version list. A person handed the link gets the app and
+learns nothing about who wrote it that the app itself does not tell them. Those
+fields stay on the gallery, which is signed in.
+
+Every refusal is the same bodyless 404 with `cache-control: no-store`: an
+unknown app, a deleted app (which is an unknown app), a hidden app, an app with
+nothing published, a file with no row, a traversal, an absolute path, a method
+that is not GET or HEAD, and the whole route on any origin but the apps one. So
+an app hidden or deleted after a link was shared stops serving in the same
+statement that hid or deleted it.
+
+### Full screen is a class on the stage, never a second frame
+
+`AppStage` puts `.is-full` on its OWN element -- the one holding the bar AND the
+frame -- and then asks the Fullscreen API. The `<iframe>` is never unmounted and
+its `src` is never rewritten, so a running app keeps its state, its timers and
+its audio. `AppFrame` gained a `fill` prop rather than a `height="100%"`, because
+`height` is written as an inline style and an inline style beats every class
+rule; `fill` drops the inline height and lets the box grow.
+
+**The overlay is the FLOOR and native is the upgrade.** The class goes on first
+and the API is asked second, so a refusal (iOS Safari has no element fullscreen;
+every engine refuses without a gesture) costs nothing and both paths land on the
+same layout. Only the ESCAPE differs, and the hint says which one this viewer
+has: native Escape is the browser's and works with focus inside the bundle, the
+overlay's is a keydown on the window that a focused cross-origin frame never
+delivers to us. That is why the VISIBLE control is the guarantee, why the bar
+does not fade, and why Stop app stays beside it -- an app can still wedge, and
+unmounting the frame is still the only way out of that.
+
+**No `requestAnimationFrame` anywhere on the path**, per the stop control's own
+measurement: a wedged bundle stops the parent's animation frames arriving and
+leaves its task queue alive. Every transition here is a synchronous state change
+and a class.
+
+The stage's own padding and gap are **zero** in the full state. Measured at 375:
+they were 24px of the 812 the viewport has, in the one state whose entire purpose
+is room. The bar keeps its own inset.
+
+### The share link says what it is before it is used
+
+`FoundryDetail` renders the URL as selectable text beside a copy control -- text
+because the Clipboard API can be refused and a copy control is worthless where
+the thing being copied cannot be read by hand -- and states in words that anyone
+with the link can open the app without signing in, and that the page carries no
+name, class or build notes. The surface is signed in and the link is not, which
+is a difference a student cannot see and has no reason to guess.
+
+It keys on `published_version_id`, NOT on the version being shown: the review
+queue shows the SUBMITTED build, and a link offered beside it would point at
+something else. A HIDDEN app gets no link, because `/a/` refuses one and a
+control whose only possible outcome is a refusal must not be offered.
+
+The outcome goes in a live region BESIDE the button rather than rewriting the
+button's label -- a control whose word changes under the pointer gets clicked
+twice, and a screen reader announcing "Copied" as the NAME of a button called
+"Copy link" is announcing the wrong thing.
+
+`FoundryDetail` is now the one reader of `PUBLIC_FOUNDRY_APPS_ORIGIN` on the
+gallery path and hands it down to `AppStage`, because the frame src and the share
+link must name the same origin and two independent reads of one variable is the
+arrangement in which they can differ.
+
+### The fixture, and what it stands in for
+
+`tests/fixtures/foundry/wide-playfield.html` is a fixed 960x640 brick game that
+scales to fit whatever box it is given, never past 1, and **writes the scale it
+got onto `<html data-scale>`**. That is why it is a fixture rather than three
+screenshots: "the app got more room" is an eyeball claim, and a number read from
+the same bundle in three contexts can be compared.
+
+**It is a stand-in and says so in its own header.** blockbast's bytes are in the
+production bundle bucket and nothing in this repository or this session can reach
+them. What it reproduces is the SHAPE of the problem, not the app.
+
+It measures on a timer as well as on `resize`, which was found the hard way: a
+frame created while its container is laid out at 0x0 -- what a master-detail pane
+looks like in the frame it is swapped in -- gets its real size with no resize
+event ever firing inside it, so a load-plus-resize instrument reported
+`scale 0.000` in a 343x568 element and read exactly like a frame that never
+loaded.
+
+Two refusal fixtures were added beside it, because both are cases nothing else
+could produce: a HIDDEN app that is published and shelved, and an app with a
+version and NO `published_version_id`. `FixtureApp.publishedVersionId` widened to
+`string | null` for the second. Both entry documents say in words that serving
+them is the failure, so a fixture proving a refusal is recognisable when the
+refusal stops happening.
+
+### The gallery harness runs bundles for real now
+
+`/dev/foundry-gallery` said, in a comment and in an amber paragraph on the page,
+that launching mounts a frame at a Storage URL that 404s. That had been stale
+since the bytes moved off Supabase: `AppStage` builds from
+`PUBLIC_FOUNDRY_APPS_ORIGIN`, and the fixture bundles are served by the REAL
+`/b/` route. Pointing that variable at the dev server's own address -- 127.0.0.1
+while browsing localhost, so the frame is genuinely cross-origin -- runs them for
+real, with the real headers and the real sandbox. The page and its `bundleOrigin`
+readout were corrected to match, which is what made every measurement below
+possible.
+
+### What was measured
+
+**Headers, fetched rather than read off the code.** `/a/<app>/` and
+`/b/<app>/<version>/` on the same bundle returned byte-identical header sets:
+`content-type: text/html; charset=utf-8`, the full CSP with
+`sandbox allow-scripts allow-modals allow-pointer-lock`, `base-uri 'none'`,
+`form-action 'none'` and `frame-ancestors`, plus `x-content-type-options:
+nosniff`, `referrer-policy: no-referrer`, `cache-control: private, max-age=60`
+and `x-robots-tag: noindex, nofollow`. The bare form 307s with a relative
+`location: <app id>/`.
+
+**Room, in three contexts** (Chromium, the acceptance fixture reporting its own
+scale):
+
+| | 1440x900 | 375x812 |
+| --- | --- | --- |
+| gallery frame | 870x628, 42.2% of viewport, scale 0.906, hud 12.69px | 341x566, 63.4%, scale 0.355, hud 4.97px |
+| full screen | 1440x828, 92.0%, scale 1.000, hud 14.00px | 375x688, 84.7%, scale 0.391, hud 5.47px |
+| direct page | 1440x900, 100%, scale 1.000, hud 14.00px | 375x812, 100%, scale 0.391, hud 5.47px |
+
+**Sandbox probes on the DIRECT page, no frame around it:** `window.origin` is
+`"null"`; `document.cookie` read AND write both throw `SecurityError`;
+`indexedDB.open` throws `SecurityError`; `window.open` returns null; a `fetch` at
+the portal origin fails, and so does a same-path fetch on the apps origin;
+`window.parent === window` and `window.top === window` are true and their
+`location.href` is the page's own, which is a top-level document navigating
+itself and not an escape. The injected storage shim works (`len=1` after a
+round trip).
+
+**Refusals, navigated for real:** a hidden app, an unknown app and an app with
+nothing published each answered 404 with nothing rendered. The direct page on the
+PORTAL origin answered 404 while the identical request on the apps origin
+answered 200.
+
+**Full screen:** native was granted (`data-full=native`); the frame was not
+remounted and the game's score went 10 to 130 across the transition; Stop app
+stayed on screen at 113x44 and Full screen at 182x44. With
+`Element.prototype.requestFullscreen` forced to reject, `data-full=overlay`,
+`document.fullscreenElement` was null, the frame still filled 1440x828 / 375x667,
+Escape returned and the frame was NOT unmounted. Stop app from full screen left
+0 frames and `data-full=no`.
+
+**The copy control:** the live region read "Copied.", the clipboard held exactly
+the rendered URL, and the button is 121x44.
+
+**The share link's absence:** hiding an app in the review console took the share
+links on screen from 2 to 1 while 2 detail panes were still rendering, so the
+missing link is the hidden flag rather than an empty pane.
+
+**No horizontal overflow** at either width (`scrollWidth` 1440 vs 1440, 375 vs
+375).
+
+**Mutation proof.** The hidden-app refusal is a visibility boundary, so the gate
+was opened in the PERMISSIVE direction -- `if (app.hiddenAt !== null) return
+REFUSED` to `if (false)` -- and 3 assertions in `tests/foundry-app-route.test.ts`
+reddened. Restored and md5-verified byte-identical, green again.
+
+**`svelte-check`: 0 errors, 37 warnings** (31 `state_referenced_locally`, 5
+`css_unused_selector`, 1 `perf_avoid_nested_class`) -- the documented baseline,
+re-derived after `svelte-kit sync`. **Suite: 2545 passed, 2 failed**, both in
+`tests/spec-instructions-budget.test.ts` and both pre-existing from a classroom
+export, as the previous lane's entry already records; nothing in this diff
+touches a spec or a material.
+
+### One assertion was generalized rather than deleted
+
+`tests/foundry-bundle-url.test.ts` asserted the serving route contained the
+string `trailingSlashRedirect`, a local function name that moved into the shared
+responder. It is now an `it.each` over BOTH mounts asserting each declares
+`trailingSlash = 'ignore'` and calls `foundryRootRedirect` -- which is a
+strengthening, because the new mount has exactly the same silent failure.
+
+### NOT verified
+
+- **Nothing ran against production, or against any real Supabase project.**
+  Outbound HTTPS in this session is proxied and `ideabosco.com` and
+  `apps.ideabosco.com` are not reachable from it at all (`CONNECT tunnel failed,
+  response 403`). The local `.env` names a placeholder project. So every
+  measurement above is against the in-memory dev fixture served by the real
+  routes on a local dev server, at `127.0.0.1:5173` standing in for the apps
+  origin and `localhost:5173` for the portal.
+- **blockbast itself was never opened, framed or screenshotted.** Its bytes are
+  in the production bucket, which is unreachable here. `wide-playfield.html`
+  reproduces the shape of its problem and is labelled a stand-in in its own
+  header and in the harness. **The acceptance case named in the request has not
+  been run.**
+- **The direct page has never served a real student bundle**, only fixture
+  bytes. In particular no real bundle's relative assets have been resolved
+  through `/a/`; the fixture's were, and so were the four file types in the
+  type fixture.
+- **The isolation claim on a REAL cross-site origin is inherited, not
+  re-measured.** Here the apps origin and the portal origin are two spellings of
+  one dev server, so the frame is cross-origin but not cross-SITE, and the
+  cookie absence that the whole split rests on is a property of the production
+  hosts. What was measured here is the CSP sandbox behaviour on a direct
+  navigation, which is what this lane adds.
+- **The gallery's own `/foundry` route was not driven**, only
+  `/dev/foundry-gallery`, which mounts the identical components in the same page
+  shell. Both real routes need a session against a real project.
+- **`/foundry/mine` did not gain the share link** and was not changed. The
+  request named the detail pane, which is `FoundryDetail` -- the gallery and the
+  review queue. A student managing their own apps arguably wants the link there
+  too; that is a decision, not an oversight, and it is unmade.
+- **No native full screen was driven on Safari or on a phone.** The overlay
+  branch was exercised by forcing the API to reject in Chromium, which is the
+  same branch those take but not the same engine.

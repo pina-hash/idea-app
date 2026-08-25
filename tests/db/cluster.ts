@@ -75,6 +75,16 @@ export async function setup(project: TestProject): Promise<void> {
 		password: 'postgres',
 		port,
 		persistent: false,
+		/**
+		 * Postgres refuses to run as root, and a root shell is the NORMAL state
+		 * in a remote/CI container (measured here: initdb failed with
+		 * "could not access directory ... Permission denied", because the
+		 * package fell back to an existing `postgres` system user that cannot
+		 * read a directory mkdtemp made 0700-root). This is the package's own
+		 * documented answer: create/reuse a postgres user and chown the data
+		 * dir to it. On a developer machine (non-root) it is inert.
+		 */
+		createPostgresUser: typeof process.getuid === 'function' && process.getuid() === 0,
 		onLog: () => {},
 		onError: (messageOrError) => {
 			const text = String(messageOrError);

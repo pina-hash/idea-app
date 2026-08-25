@@ -4,11 +4,23 @@
 	 *
 	 * Selection is local state here rather than the URL, because the point is to
 	 * drive both surfaces on one screen without a router round trip between
-	 * clicks. Everything else -- the components, the tokens, the frame, the
-	 * source reads -- is the shipping path.
+	 * clicks. Everything else -- the components, the frame, the source reads --
+	 * is the shipping path.
+	 *
+	 * IT CAN SHOW A RUNNING BUNDLE, WHICH IT COULD NOT WHILE THE BYTES CAME OFF
+	 * SUPABASE. `AppStage` derives its frame src from
+	 * `PUBLIC_FOUNDRY_APPS_ORIGIN` and the two ids, and the fixture bundles are
+	 * served by the REAL `/b/` route from the in-memory fixture -- so setting
+	 * that variable to this dev server's own address (127.0.0.1 while the portal
+	 * is browsed at localhost, so the frame is genuinely cross-origin) runs them
+	 * for real, with the real headers and the real sandbox. Leave it unset and
+	 * there is no launch control at all, which is the shipping behaviour.
 	 */
+	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
+	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
+	import { queueOrder } from '$lib/foundry/review';
 	import type {
 		FoundryGalleryTransports,
 		FoundryReviewTransports
@@ -23,23 +35,34 @@
 	/** What the decision transport was last handed, rendered so a drive can read it. */
 	let lastDecision = $state<string>('(none yet)');
 
+	/**
+	 * DELETION AND SHELVING, DRIVEN FOR REAL. The transports move this page's
+	 * own state, so the review surface has to clear the selection, drop the
+	 * queue row and re-render the shelved list -- not merely log a call.
+	 */
+	let removed = $state<string[]>([]);
+	let hidden = $state<Record<string, string | null>>({});
+
+	const liveApps = $derived(
+		data.apps
+			.filter((a) => !removed.includes(a.id))
+			.map((a) => (a.id in hidden ? { ...a, hidden_at: hidden[a.id] } : a))
+	);
+
+	/** The shell's Review tab count, from the same arithmetic the queue uses. */
+	const pending = $derived(queueOrder(liveApps).length);
+
 	const gallerySelected = $derived(gallerySlug ? (data.details[gallerySlug] ?? null) : null);
-	const reviewSelected = $derived(reviewSlug ? (data.details[reviewSlug] ?? null) : null);
+	const reviewSelected = $derived.by(() => {
+		if (!reviewSlug) return null;
+		const detail = data.details[reviewSlug] ?? null;
+		if (!detail || removed.includes(detail.id)) return null;
+		return detail.id in hidden ? { ...detail, hidden_at: hidden[detail.id] } : detail;
+	});
 
-	function srcFor(appId: string, versionId: string): string {
-		return data.srcs[`${appId}:${versionId}`] ?? '';
-	}
-
-	const galleryTransports: FoundryGalleryTransports = {
-		async launch({ appId, versionId }) {
-			const src = srcFor(appId, versionId);
-			if (!src) return { ok: false, message: 'PUBLIC_FOUNDRY_APPS_HOST is not set.' };
-			return { ok: true, src, versionId, expiresInSeconds: 1800 };
-		}
-	};
+	const galleryTransports: FoundryGalleryTransports = {};
 
 	const reviewTransports: FoundryReviewTransports = {
-		launch: galleryTransports.launch,
 		async listFiles(versionId) {
 			const files = data.files[versionId] ?? [];
 			return { ok: true, files };
@@ -56,31 +79,51 @@
 		async clearMetadataFlag(appId) {
 			lastDecision = JSON.stringify({ clearedFlagFor: appId });
 			return { ok: true };
+		},
+		async setHidden(appId, hide, reason) {
+			lastDecision = JSON.stringify({ setHidden: appId, hidden: hide, reason });
+			hidden = { ...hidden, [appId]: hide ? '2026-08-24T12:00:00Z' : null };
+			return { ok: true };
+		},
+		async deleteApp(appId) {
+			lastDecision = JSON.stringify({ deleted: appId });
+			removed = [...removed, appId];
+			// One of the two answers the partial-sweep case, so the sentence that
+			// rides a SUCCESS is reachable in this harness.
+			return {
+				ok: true,
+				storageProblem:
+					appId === data.appBId ? '3 stored files could not be removed.' : null
+			};
 		}
 	};
 </script>
 
 <svelte:head><title>Foundry gallery harness</title></svelte:head>
 
-<div class="cr-root harness">
+<!-- THE ROOM AND THE SHELL, exactly as /foundry mounts them: `.fg-root` is
+     the forge wrapper the layout provides in production, and the shell is
+     mounted with the admin view on so the Review tab and its heat can be
+     driven here. The shell renders ONCE, above both surfaces, as it does on
+     any real route. -->
+<div class="fg-root harness">
+	<FoundryShell active="gallery" isAdmin={true} reviewPending={pending}>
 	<header>
 		<h1>Foundry gallery / review harness</h1>
-		{#if !data.configured}
-			<p class="warn">
-				PUBLIC_FOUNDRY_APPS_HOST is not set, so no frame can load. Set it in .env to the loopback
-				alias you are serving on (for example <code>127.0.0.1:5173</code>) and reload.
-			</p>
-		{:else}
-			<p class="note">Apps host: <code>{data.appsHost}</code></p>
-		{/if}
-		<p class="note">
-			Last decision handed to the transport: <code data-testid="last-decision">{lastDecision}</code>
+		<p class="warn">
+			Launching mounts a real frame at the apps origin below. Point
+			PUBLIC_FOUNDRY_APPS_ORIGIN at this dev server (use 127.0.0.1 while
+			browsing localhost, so the frame is genuinely cross-origin) and the
+			fixture bundles run for real through the real route. Unset, there is no
+			launch control and no share link, which is the shipping behaviour.
 		</p>
 		<p class="note">
-			The unpublished build with a PUBLISHED token (must 404, the review kind is what lifts it):
-			<a href={data.staleWithPublishedToken} data-testid="stale-published-token" target="_blank"
-				rel="noreferrer">open it</a
+			Bundle origin the stage will build from: <code data-testid="bundle-origin"
+				>{data.bundleOrigin}</code
 			>
+		</p>
+		<p class="note">
+			Last decision handed to the transport: <code data-testid="last-decision">{lastDecision}</code>
 		</p>
 	</header>
 
@@ -119,13 +162,15 @@
 			<button type="button" class="hbtn" onclick={() => (reviewSlug = null)}>deselect</button>
 		</h2>
 		<ReviewQueue
-			apps={data.apps}
+			apps={liveApps}
 			selected={reviewSelected}
 			transports={reviewTransports}
 			onSelect={(slug) => (reviewSlug = slug)}
+			onDeleted={() => (reviewSlug = null)}
 			{now}
 		/>
 	</section>
+	</FoundryShell>
 </div>
 
 <style>

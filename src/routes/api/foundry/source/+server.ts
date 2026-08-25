@@ -1,5 +1,4 @@
 import { json } from '@sveltejs/kit';
-import { env as publicEnv } from '$env/dynamic/public';
 import { isAdmin } from '$lib/server/admin';
 import {
 	FOUNDRY_SOURCE_MAX_BYTES,
@@ -7,18 +6,19 @@ import {
 	listBundleFiles,
 	readBundleFileText
 } from '$lib/server/foundry-bundle';
-import { isFoundryAppsHost } from '$lib/foundry/host';
 import type { RequestHandler } from './$types';
 
 /**
  * THE REVIEW QUEUE'S SOURCE READS. Main host, admin only.
  *
  * WHY A ROUTE AT ALL, when almost every other Foundry call goes straight from
- * the browser client to an RPC: the bytes live in `foundry-bundles`, which has
- * NO storage policy of any kind, so no client -- not even an admin's -- can
- * reach them. `service_role` is the only role that does, and that key has
- * exactly one Foundry reader (`$lib/server/foundry-bundle`). This route is the
- * front door to that reader and holds no credential of its own.
+ * the browser client to an RPC: `foundry-bundles` carries no storage policy at
+ * all, so a client cannot read it, list it or delete from it, and
+ * `student_app_files` carries no client grant either -- a reviewer cannot
+ * enumerate a version's files from the browser by any route. `service_role` is
+ * the only role that can, and that key has exactly one Foundry reader
+ * (`$lib/server/foundry-bundle`). This route is the front door to that reader
+ * and holds no credential of its own.
  *
  * IT ANSWERS ITS OWN 404, so it is deliberately not in `authedPrefixes` -- a
  * route group's guard does not run for endpoints, and a redirect would be a
@@ -49,12 +49,9 @@ function notFound() {
 	return json({ ok: false, reason: 'not_found' }, { status: 404 });
 }
 
-export const POST: RequestHandler = async ({ request, url, locals: { supabase, claims } }) => {
-	// This route does not exist on the bundle host, the same both-ends argument
-	// the proxy and the mint each make about their own.
-	if (isFoundryAppsHost(url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
-		return new Response(null, { status: 404 });
-	}
+export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
+	// There is one host now. The bundle-host refusal that used to sit here went
+	// with the second origin it was refusing on.
 	if (!claims) return notFound();
 	if (!(await isAdmin(supabase, claims.sub))) return notFound();
 	if (!foundryBundleSourceConfigured()) {

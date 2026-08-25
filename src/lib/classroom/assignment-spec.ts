@@ -235,6 +235,22 @@ export interface SubmissionFileRow {
 	mime_type: string;
 	size_bytes?: number | null;
 	sort_order?: number;
+	/**
+	 * 0133's key, `<submission_id>/<uuid>.<ext>`, or null for a Drive-backed
+	 * hand-in. THE THREE STATES ARE DIFFERENT AND `isSubmissionFileImage`
+	 * reads all three:
+	 *
+	 *   a string  -- storage-backed. The extension is the only honest signal
+	 *                about what this file is; `mime_type` is octet-stream by
+	 *                the route's own hand.
+	 *   null      -- the column was selected and this row is Drive-backed, so
+	 *                `mime_type` is the real recorded type and is trustworthy.
+	 *   undefined -- the column was NOT selected: the payload came off a rung
+	 *                that degraded (`SUBMISSION_FILE_SELECT`, pre-0133). Which
+	 *                is not the same as null, and must not be flattened into
+	 *                it -- see `submissionFilesStorageReady`.
+	 */
+	storage_key?: string | null;
 }
 
 export interface ModuleApprovalRow {
@@ -1190,6 +1206,19 @@ export interface StudentEngineData {
 	submission: SubmissionRow | null;
 	responses: ResponseRow[];
 	files: SubmissionFileRow[];
+	/**
+	 * Did this payload come back with 0133's `storage_key` on each file
+	 * (`SUBMISSION_FILE_SELECT_STORAGE`), or off the degraded rung.
+	 *
+	 * FALSE MEANS "CANNOT TELL", NOT "NO PICTURES". On a pre-0133 schema every
+	 * row is Drive-backed and its recorded `mime_type` still answers, so nothing
+	 * is lost; on a post-0133 schema a false here means the wide select failed
+	 * for some other reason and thumbnails are genuinely unavailable. A surface
+	 * that wants to say so reads this rather than inferring it from an absence of
+	 * thumbnails, which is indistinguishable from a class that handed in no
+	 * photographs.
+	 */
+	filesStorageReady?: boolean;
 	approvals: ModuleApprovalRow[];
 }
 
@@ -1224,6 +1253,7 @@ export function filesByBlockCount(files: SubmissionFileRow[]): Map<string, numbe
 // never throws -- so refusals render inline.
 // ---------------------------------------------------------------------------
 
+import { isImageFilename } from './classroom';
 import type { ClassroomEnrollment, TxResult } from './classroom';
 
 /** The structured answer the 0086 RPCs give back (ok or a named refusal). */
@@ -1260,6 +1290,19 @@ export interface GradingData {
 	submissions: SubmissionRow[];
 	responses: ResponseRow[];
 	files: SubmissionFileRow[];
+	/**
+	 * Did this payload come back with 0133's `storage_key` on each file
+	 * (`SUBMISSION_FILE_SELECT_STORAGE`), or off the degraded rung.
+	 *
+	 * FALSE MEANS "CANNOT TELL", NOT "NO PICTURES". On a pre-0133 schema every
+	 * row is Drive-backed and its recorded `mime_type` still answers, so nothing
+	 * is lost; on a post-0133 schema a false here means the wide select failed
+	 * for some other reason and thumbnails are genuinely unavailable. A surface
+	 * that wants to say so reads this rather than inferring it from an absence of
+	 * thumbnails, which is indistinguishable from a class that handed in no
+	 * photographs.
+	 */
+	filesStorageReady?: boolean;
 	approvals: ModuleApprovalRow[];
 }
 
@@ -1452,9 +1495,37 @@ export function submissionFileSrc(fileId: string): string {
 	return localFileUrls.get(fileId) ?? `/api/classroom/submission-file/${fileId}`;
 }
 
-/** The ONE image-type check for a submission file (SpecRenderer's imageZone
- *  blocks and SubmissionFileList's plain hand-ins both read this, so they can
- *  never disagree about what gets a thumbnail). */
+/**
+ * The ONE image check for a submission file. SpecRenderer's imageZone blocks
+ * and SubmissionFileList's plain hand-ins both read this, so they can never
+ * disagree about what gets a thumbnail -- and the grading console mounts both,
+ * so a teacher and the student see the same decision.
+ *
+ * IT NO LONGER ASKS `mime_type` FIRST, AND THAT WAS A REGRESSION WAITING AT
+ * MERGE. Since 0133 the record route stores `application/octet-stream` for
+ * every hand-in, by its own hand and on purpose -- so a mime-first predicate
+ * answers false for every photograph a student uploads, and an imageZone (which
+ * IS the photo-evidence block, and is what Checkpoint 1 grades) renders a list
+ * of download links instead of the pictures. One click per image, per student,
+ * per zone, at grading time.
+ *
+ * SO THE STORAGE PATH IS KEYED ON THE EXTENSION THE KEY CARRIES. The route
+ * derives that extension server-side from the original filename and it is the
+ * only description of the bytes that nothing in the browser chose.
+ *
+ * THE DRIVE PATH IS UNTOUCHED, deliberately. Those rows were written before
+ * 0133 through a twelve-type allowlist, so their `mime_type` is real, recorded,
+ * and already the thing every one of them has been thumbnailed by. Nothing is
+ * backfilled, so this stays a branch rather than becoming a migration.
+ *
+ * AND THE DEGRADED RUNG ANSWERS SEPARATELY. `storage_key === undefined` means
+ * the payload could not carry keys at all (pre-0133 schema); there `mime_type`
+ * is the only signal there is, and it is the right one, because on that schema
+ * every row is Drive-backed.
+ */
 export function isSubmissionFileImage(f: SubmissionFileRow): boolean {
+	if (typeof f.storage_key === 'string' && f.storage_key) {
+		return isImageFilename(f.storage_key);
+	}
 	return (f.mime_type ?? '').toLowerCase().startsWith('image/');
 }

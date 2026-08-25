@@ -2,6 +2,8 @@
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import RubricView from '$lib/classroom/RubricView.svelte';
 	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
+	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
+	import type { UploadedFileRow } from '$lib/classroom/file-upload';
 	import {
 		DECLARATION_BLOCK_ID,
 		DECLARATION_TEXT,
@@ -180,46 +182,36 @@
 	// ------------------------------------------------------------------
 	// Files
 	// ------------------------------------------------------------------
-	/** Live progress for whichever file is uploading right now (uploads here
-	 *  run one at a time), shown beside the block it belongs to -- the plain
-	 *  "Your files" list (blockId null) or an imageZone in SpecRenderer. */
-	let uploadingProgress = $state<{ blockId: string | null; name: string; fraction: number } | null>(
-		null
-	);
+	/**
+	 * THE UPLOAD TRANSPORT, HANDED TO THE SHARED PANEL.
+	 *
+	 * What used to be here was a `for` loop that awaited each file in turn and
+	 * `return`ed on the first failure -- so file 2 of 5 failing meant files 3, 4
+	 * and 5 were never attempted, with nothing said about them and nothing left
+	 * to retry, because the input had already been cleared and the `File` handles
+	 * were gone. A student's only recourse was to go and find them again.
+	 *
+	 * FileUploadPanel owns all of that now, and it is the SAME component an
+	 * instructor's composer mounts for a handout: every file attempted, whatever
+	 * failed kept with its own reason and its own Retry, progress per file. This
+	 * is the one line of glue left.
+	 */
+	const uploadFile: PanelUpload = async ({ itemId, file, blockId, caption, onProgress }) => {
+		const res = await transports.uploadSubmissionFile(itemId, file, blockId, caption, onProgress);
+		if (res.ok) return { ok: true, storageKey: '', row: res.data.file as UploadedFileRow };
+		return {
+			ok: false,
+			gate: res.gate ?? 'server',
+			message: res.message,
+			retryable: res.retryable ?? false
+		};
+	};
 
-	async function uploadFiles(blockId: string | null, list: File[]) {
+	/** One landed: put it in the list this component owns. */
+	function fileLanded(row: UploadedFileRow | undefined) {
+		if (!row?.id) return;
 		uploadError = null;
-		try {
-			for (const file of list) {
-				uploadingProgress = { blockId, name: file.name, fraction: 0 };
-				const res = await transports.uploadSubmissionFile(item.id, file, blockId, null, (frac) => {
-					uploadingProgress = { blockId, name: file.name, fraction: frac };
-				});
-				if (!res.ok) {
-					uploadError = res.message;
-					return;
-				}
-				if (res.data.reason) {
-					uploadError =
-						res.data.reason === 'locked'
-							? 'This is submitted, so files are locked. Unsubmit to keep working.'
-							: 'That file was not accepted.';
-					return;
-				}
-				if (res.data.file) {
-					engine.files = [...engine.files, res.data.file as SubmissionFileRow];
-				}
-			}
-		} finally {
-			uploadingProgress = null;
-		}
-	}
-
-	function pickFiles(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		const picked = Array.from(input.files ?? []);
-		input.value = '';
-		if (picked.length) void uploadFiles(null, picked);
+		engine.files = [...engine.files, row as SubmissionFileRow];
 	}
 
 	async function removeFile(fileId: string) {
@@ -388,9 +380,10 @@
 				locked={!editable}
 				{approved}
 				{uploadEnabled}
-				{uploadingProgress}
+				itemId={item.id}
+				upload={editable ? uploadFile : null}
+				onuploaded={fileLanded}
 				onvalue={queueSave}
-				onupload={(blockId, list) => uploadFiles(blockId, list)}
 				ondeletefile={removeFile}
 				oncaption={setCaption}
 			/>
@@ -404,27 +397,24 @@
 			files={plainFiles}
 			onremove={editable ? (f) => removeFile(f.id) : null}
 		/>
-		{#if uploadingProgress && uploadingProgress.blockId === null}
-			<p class="upload-status">
-				Uploading {uploadingProgress.name}...
-				<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(uploadingProgress.fraction * 100)} aria-valuemin="0" aria-valuemax="100">
-					<span class="upload-bar-fill" style={`width: ${Math.round(uploadingProgress.fraction * 100)}%`}></span>
-				</span>
-				{Math.round(uploadingProgress.fraction * 100)}%
-			</p>
-		{/if}
 		{#if editable}
 			{#if uploadEnabled}
-				<div class="file-actions">
-					<label class="btn secondary tiny">
-						Take a photo
-						<input type="file" accept="image/*" capture="environment" hidden onchange={pickFiles} />
-					</label>
-					<label class="btn secondary tiny">
-						Choose files
-						<input type="file" multiple hidden onchange={pickFiles} />
-					</label>
-				</div>
+				<!-- THE SHARED PANEL. Same component, same failure semantics and same
+				     words as an instructor attaching a handout. Its plain picker
+				     carries NO `accept`: a `.SLDPRT`, a `.STEP`, a `.zip`, a file
+				     with no extension at all are all ordinary hand-ins, and the
+				     platform used to refuse every one of them. -->
+				<FileUploadPanel
+					role="submission"
+					itemId={item.id}
+					upload={uploadFile}
+					label={spec ? 'Extra files' : 'Your files'}
+					hint="Any file, up to 200 MB each. Uploads as soon as you pick it."
+					autoStart
+					offerCamera
+					showPreviews
+					onuploaded={fileLanded}
+				/>
 			{:else}
 				<p class="note">File uploads are not configured on this deployment.</p>
 			{/if}
@@ -571,14 +561,6 @@
 		margin: 0;
 		font-size: 0.9rem;
 	}
-	.file-actions {
-		display: flex;
-		gap: 0.4rem;
-		flex-wrap: wrap;
-	}
-	.file-actions label {
-		cursor: pointer;
-	}
 	.declaration-card {
 		border-color: var(--gold);
 	}
@@ -626,28 +608,5 @@
 		color: var(--text-2);
 		font-size: 0.82rem;
 		margin: 0 0 0.4rem;
-	}
-	.upload-status {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin: 0.4rem 0;
-		font-size: 0.78rem;
-		color: var(--text-2);
-	}
-	.upload-bar {
-		display: inline-block;
-		width: 6rem;
-		height: 0.4rem;
-		border-radius: 999px;
-		background: var(--surface-2);
-		border: 1px solid var(--hairline);
-		overflow: hidden;
-	}
-	.upload-bar-fill {
-		display: block;
-		height: 100%;
-		background: var(--green);
-		transition: width 0.15s ease-out;
 	}
 </style>

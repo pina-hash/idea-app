@@ -14,7 +14,7 @@
 	 * project is a placeholder with no session in it, so without this the page
 	 * could not be opened in a browser at all.
 	 */
-	import { FOUNDRY_STARTER_PATH } from './vendor.ts';
+	import { FOUNDRY_STARTER_PATH } from './preflight.ts';
 
 	let { contract }: { contract: string } = $props();
 

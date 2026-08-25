@@ -44,22 +44,7 @@ export interface BrowserPreflightResult {
 	/** Bundle-relative paths, after any wrapper directory was removed. */
 	files: string[];
 	strippedWrapper: string | null;
-	/**
-	 * The HTML files whose CDN library tags WOULD be repointed on the way in,
-	 * with the repaired text, keyed by bundle path.
-	 *
-	 * NOTHING IS WRITTEN HERE AND NOTHING IS UPLOADED FROM HERE. This runs
-	 * before the upload starts, over the zip the surface is about to send, and
-	 * the zip it sends is the one the student made. Editing it here would mean
-	 * the file that was checked and the file that was stored were different
-	 * files, checked and stored by different halves of the same rule -- so the
-	 * browser side REPORTS the repair and `foundry-ingest` performs it.
-	 *
-	 * The dev harness reads this to render the repaired app, which is the only
-	 * way that end of the pipeline can be driven with no Supabase behind it.
-	 */
-	rewritten: Record<string, string>;
-}
+	}
 
 /** Text above this is not scanned in the browser; the server still scans it. */
 const BROWSER_SCAN_MAX = 2 * 1024 * 1024;
@@ -79,7 +64,6 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 		notes: [],
 		files: [],
 		strippedWrapper: null,
-		rewritten: {}
 	};
 
 	let bytes: Uint8Array;
@@ -106,8 +90,6 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 
 	const failures = [...plan.failures];
 	const warnings: FoundryIssue[] = [];
-	const rewriteNotes: string[] = [];
-	const rewritten: Record<string, string> = {};
 
 	// The declared total. Advisory here on purpose -- see the header.
 	const declaredTotal = plan.files.reduce((sum, f) => sum + f.declaredSize, 0);
@@ -151,8 +133,6 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 				const r = scanHtml(f.path, text, readHtml);
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);
-				rewriteNotes.push(...r.rewriteNotes);
-				if (r.rewritten !== null) rewritten[f.path] = r.rewritten;
 			} else if (ext === 'css') {
 				failures.push(...scanCss(f.path, text).failures);
 			} else if (ext === 'js') {
@@ -167,9 +147,8 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 		ok: failures.length === 0,
 		failures,
 		warnings,
-		notes: [...plan.notes, ...rewriteNotes],
+		notes: plan.notes,
 		files: plan.files.map((f) => f.path),
-		strippedWrapper: plan.strippedWrapper,
-		rewritten
+		strippedWrapper: plan.strippedWrapper
 	};
 }

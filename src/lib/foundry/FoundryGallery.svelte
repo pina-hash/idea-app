@@ -48,9 +48,10 @@
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="page" detailWidth="roomy">
 	{#snippet nav()}
 		<div class="fdy-gal-pane">
+			<!-- The shell's tabs are the way to My apps now; the header button
+			     that stood in for navigation is gone rather than duplicated. -->
 			<header class="fdy-gal-head">
 				<h2>Published apps</h2>
-				<a class="btn fdy-gal-mine tap-44" href="/foundry/mine">My apps</a>
 			</header>
 
 			{#if apps.length === 0}
