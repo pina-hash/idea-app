@@ -3,12 +3,12 @@
   "meta": {
     "unit": 1,
     "theme": "idea-green",
-    "title": "Unit 1 Lab, Checkpoint 1: Density and Measurement",
+    "title": "Unit 1 Lab, Final: Conclusion and Material Application",
     "course": "IDEA209H",
-    "dueDate": "2026-08-21",
-    "totalPoints": 20,
-    "assignmentId": "idea209h-u1lab-01",
-    "buildVersion": "v2",
+    "dueDate": "2026-08-25",
+    "totalPoints": 15,
+    "assignmentId": "idea209h-u1lab-03",
+    "buildVersion": "v3",
     "headerFields": [
       "studentName",
       "date",
@@ -22,53 +22,60 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Measure the volume and mass of every required sample yourself. Choose the volume technique that fits each sample's geometry and hold the precision your instruments actually give you. Everything you need to do this is written below.",
-      "title": "Measurement",
+      "intro": "Close the lab. Settle what each sample number is, using the evidence you actually collected, and say why that evidence is enough.",
+      "title": "Final Identification and Conclusion",
+      "aiNote": "AI may check whether your reasoning holds together or tighten how a sentence reads. The identifications, the conflict you name, and the observation you say decided it all come from your own Checkpoint 1 and Checkpoint 2 data, and you have to be able to defend each one.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "### What you are doing\n\nSix numbered samples are in front of you. Each one is a real engineering material with its label removed. Your job is to measure each sample carefully enough that its density tells you what it is.\n\nYou are not guessing. Density is mass divided by volume, and every material has its own. Measure well and the number does the identifying for you.\n\n### The six candidates\n\nEvery sample is one of these:\n\n| Status | Material |\n|---|---|\n| Required | ASTM 1018 steel |\n| Required | 6061 aluminum |\n| Required | 304 stainless steel (ASTM A276) |\n| Required | Polycarbonate |\n| Bonus | ASTM B16 brass |\n| Bonus | Ti-6Al-4V titanium |\n\nSamples 5 and 6 are bonus. They earn IDEA Coins, not points. Attempt them only after 1 through 4 are finished.\n\n### Units, before anything else\n\n**Work in grams and centimeters.** Published density is reported in g/cm3. Record mass in kilograms or volume in mm3 and your comparison will be off by a factor of 1000.\n\n1 mL of displaced water = 1 cm3 exactly.\n\n### Step 1. Choose your volume technique\n\nLook at the sample's shape.\n\n- If it is a shape with a volume formula, use the **dimensional** technique. Record DIM.\n- If it is irregular, or too small to measure cleanly, use **displacement**. Record DISP.\n\n### Step 2a. Dimensional technique\n\nMeasure with the caliper, then apply the formula for that shape.\n\n| Shape | What to measure | Volume |\n|---|---|---|\n| Rectangular bar | length L, width W, height H | V = L x W x H |\n| Round rod | diameter D, length L | V = pi x (D/2)^2 x L |\n| Tube | outside D, inside d, length L | V = pi x ((D/2)^2 - (d/2)^2) x L |\n| Sheet or plate | length L, width W, thickness T | V = L x W x T |\n\nMeasure every dimension twice. If two readings disagree, re-seat the caliper and take a third.\n\n### Step 2b. Displacement technique\n\n1. Fill the graduated cylinder partway. Read the starting level and write it down.\n2. Slide the sample in. Do not drop it.\n3. Read the new level.\n4. Volume = ending level minus starting level.\n\nRead at the bottom of the curve the water makes, with your eye level with the line.\n\nIf the sample floats it is less dense than water, which is already useful information. Hold it under with a thin rod and note that you did.\n\n### Step 3. Mass\n\nZero the scale with nothing on it, place the sample, and record the reading in grams.\n\n### Step 4. Significant figures\n\nWrite down every digit the instrument shows you, including trailing zeros.\n\nIf the caliper reads 12.70 mm, write 12.70 mm. Writing 12.7 mm throws away a digit the instrument actually measured. If the scale reads 18.40 g, write 18.40 g.\n\nYour calculated volume should not carry more digits than the measurements it came from.\n\n### Worked example\n\nA round rod. The caliper reads D = 1.270 cm and L = 4.000 cm.\n\n    V = pi x (1.270 / 2)^2 x 4.000\n    V = pi x (0.635)^2 x 4.000\n    V = pi x 0.4032 x 4.000\n    V = 5.067 cm3\n\nThe scale reads 18.24 g.\n\nThat is everything Module 1 needs for one sample. The density itself comes in Module 2."
+          "content": "Your Checkpoint 1 and Checkpoint 2 submissions are both still open to you. Pull them up before you start writing.\n\n### The number is the material\n\nThe set letter is only which copy you held. Friday was sets A and B, Monday sets C and D. Sample 3 in set B is the same material as sample 3 in set D. Put the number in the table and the set letter inside each evidence column.\n\n### What a final identification needs\n\nCite every method you ran on that number. If you tested a number on only one of the two days, write \"not tested\" in the other column and cite what you have. Four numbers minimum.\n\n### When your two results disagree\n\nA conflict is not a mistake. It is what one test failing to separate two candidates looks like.\n\n- Density alone separates the plastic, aluminum, titanium, and brass cleanly.\n- Density cannot separate the steels from each other, or reliably from the stainless.\n- Magnetism separates stainless from carbon steel immediately.\n\nMore than one sample is a steel. If your evidence reaches \"a carbon steel\" but not which one, write exactly that, say what you ruled out, and name the test that would settle it. That is a complete answer and earns full credit.\n\n### Reasoning, not restating\n\n\"It was magnetic\" is not a reason. \"It was strongly magnetic, and of the two candidates density left open, only the carbon steel is strongly magnetic\" is. The difference is saying what the observation rules out.\n\nEvery number past your fourth earns coins."
         },
         {
           "id": "t1",
           "type": "table",
-          "points": 10,
+          "points": 4,
           "columns": [
             {
-              "key": "sample",
-              "tip": "Set letter and number as it appears on the tag, for example B-3. Never write a material name in this column.",
-              "label": "Sample"
+              "key": "number",
+              "tip": "The number on the tag, 1 to 7. The number is the material. The set letter is only which copy.",
+              "label": "Sample number"
             },
             {
-              "key": "shape",
-              "tip": "Rectangular bar, round rod, tube, sheet, or irregular.",
-              "label": "Shape"
+              "key": "density",
+              "tip": "Set letter you tested, your measured density, and the published value you matched it to. Write 'not tested' if you did not run this number Friday.",
+              "label": "Density evidence (Fri, set A or B)"
             },
             {
-              "key": "technique",
-              "tip": "DIM if you used a volume formula, DISP if you used the graduated cylinder.",
-              "label": "Technique"
+              "key": "appearance",
+              "tip": "Set letter you tested, and what you observed. Write 'not tested' if you did not run this number Monday.",
+              "label": "Appearance evidence (Mon, set C or D)"
             },
             {
-              "key": "dims",
-              "tip": "Every number the technique required. For DIM, each dimension the formula needs. For DISP, the starting and ending water levels.",
-              "label": "Measurements taken, with units"
-            },
-            {
-              "key": "volume",
-              "tip": "Your calculated or displaced volume.",
-              "label": "Volume (cm3)"
-            },
-            {
-              "key": "mass",
-              "tip": "From the scale, in grams, carrying every digit it displays.",
-              "label": "Mass (g)"
+              "key": "material",
+              "tip": "One material. If your evidence only reaches a class, such as a carbon steel, write the class.",
+              "label": "Final material"
             }
           ],
           "minRows": 4,
-          "printRows": 6,
+          "printRows": 7,
           "rowImages": false,
           "statusColumn": false
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Name every sample number where your density result and your appearance result pointed at different materials. For each, name both candidate materials and the single observation that decided it. If a number is narrowed only to a class such as a carbon steel, name the candidates still open and the test that would separate them. If nothing conflicted, name the two materials density alone could not have separated.",
+          "maxSentences": 6,
+          "minSentences": 3
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 3,
+          "prompt": "For each sample number in your table, state what the observation you cited rules out. Do not restate the observation itself as the reason.",
+          "maxSentences": 8,
+          "minSentences": 4
         }
       ],
       "points": 10,
@@ -78,181 +85,173 @@
           "levels": [
             {
               "label": "Complete",
-              "points": 6,
-              "descriptor": "All four required samples have a recorded shape, a named volume technique, every measurement that technique needs, a volume in cm3, and a mass in grams."
+              "short": "Four numbers, every method cited",
+              "points": 4,
+              "descriptor": "A final material or material class is named for four or more sample numbers, and every row cites each method the row records for that number, with an untested day written as not tested."
             },
             {
               "label": "Proficient",
-              "points": 4,
-              "descriptor": "All four required samples are measured, with one sample missing its shape, its named technique, or one required dimension."
+              "short": "Four numbers, one or two incomplete",
+              "points": 3,
+              "descriptor": "A final material or material class is named for four or more sample numbers, and one or two rows leave out a method that row records for that number."
             },
             {
               "label": "Developing",
-              "points": 2,
-              "descriptor": "Two or three samples are completely measured, or all four are present with volume or mass missing on more than one."
+              "short": "Two or three, or uncited",
+              "points": 1,
+              "descriptor": "A final material or material class is named for four numbers with three or more rows leaving out a recorded method, or a final material is named for only two or three sample numbers."
             },
             {
               "label": "Absent",
+              "short": "Fewer than two named",
               "points": 0,
-              "descriptor": "Fewer than two samples are measured, or no measurements are recorded."
+              "descriptor": "A final material is named for fewer than two sample numbers, or not attempted."
             }
           ],
-          "criterion": "Dimensional and mass data"
+          "criterion": "Final identification from both evidence methods"
         },
         {
           "id": "c2",
           "levels": [
             {
               "label": "Complete",
-              "points": 4,
-              "descriptor": "Every dimension and mass is recorded to the full resolution the instrument reads, trailing zeros are retained where they are significant, and the calculated volume carries the same precision as its inputs, on all four samples."
+              "short": "Both candidates and deciding observation",
+              "points": 3,
+              "descriptor": "Every sample number whose density result and appearance result pointed at different materials is named, both candidate materials are stated for each, and the single observation that decided it is stated for each. A number narrowed only to a material class is named with its remaining candidates and the test that would separate them. Where nothing conflicted, the two materials density alone could not separate are named along with the observation that separated them."
             },
             {
               "label": "Proficient",
-              "points": 3,
-              "descriptor": "Recorded to instrument resolution on all four samples, with precision dropped or digits added beyond the instrument's reading on one or two individual values."
-            },
-            {
-              "label": "Developing",
-              "points": 1,
-              "descriptor": "Recorded to instrument resolution on two or three samples, or resolution is correct throughout but values are rounded to different precision from one sample to the next."
+              "short": "Candidates named, decision missing",
+              "points": 2,
+              "descriptor": "At least one conflict is named with both candidate materials stated, and the deciding observation is either missing or stated for some but not all of the conflicts named."
             },
             {
               "label": "Absent",
+              "short": "No conflict named",
               "points": 0,
-              "descriptor": "Values are recorded without regard to instrument resolution, or fewer than two samples carry usable precision."
+              "descriptor": "No conflict is named, or a conflict is asserted without naming both candidate materials, or not attempted."
             }
           ],
-          "criterion": "Significant figures and instrument resolution"
-        }
-      ],
-      "aiLevel": 0
-    },
-    {
-      "id": "m2",
-      "intro": "Calculate density from your own measurements, compare each result against a published value you look up yourself, and state a first identification for every required sample based on that comparison.",
-      "title": "Density, Comparison, and Hypothesis",
-      "blocks": [
-        {
-          "type": "instructions",
-          "content": "### Step 5. Calculate density\n\n    density = mass / volume\n\nUse your own numbers from Module 1, and write the division out rather than only the answer.\n\nContinuing the worked example: 18.24 g / 5.067 cm3 = 3.600 g/cm3\n\n### Step 6. Look up the published value\n\nPublished property values come from **MatWeb**, at matweb.com. OnlineMetals, Industrial Metal Supply, and McMaster-Carr sell material and list prices. They are not property databases, and some carry no property data for plastics at all.\n\nFinding a density on MatWeb:\n\n1. Search the material name, for example \"6061-T6 aluminum\".\n2. Open an entry from the results list.\n3. Find the Physical Properties section near the top.\n4. Density is listed in g/cc, which is the same thing as g/cm3.\n5. Write the value down and name the entry you used. Alloys have several entries for different tempers and conditions, and the numbers differ between them.\n\nLook up the candidates your measurement lands near, not all six.\n\n### Step 7. Percent error\n\n    percent error = |measured - published| / published x 100\n\nThe bars mean absolute value, so drop the minus sign if you get one.\n\nContinuing the example, against a published value of 3.55 g/cm3:\n\n    |3.600 - 3.55| / 3.55 x 100 = 0.05 / 3.55 x 100 = 1.4%\n\nA percent error of a few percent means your measurement and the published value agree. A percent error in the hundreds or thousands is a units problem, not a discovery. Check grams and cm3 before you check anything else.\n\n### Step 8. State your hypothesis\n\nFor each sample write which material you think it is, and give both numbers: your measured density and the published density you matched it to.\n\nDensity will not settle everything. Two aluminum alloys sit within a fraction of a percent of each other, and 1018 steel and 304 stainless are within a few percent. If two candidates are both plausible, say so and name both. Monday's lab gives you a second kind of evidence to break the tie.\n\nThe most accurate results in the class earn IDEA Coins."
+          "criterion": "Conflict named and resolved"
         },
-        {
-          "id": "t2",
-          "type": "table",
-          "points": 10,
-          "columns": [
-            {
-              "key": "sample",
-              "tip": "Same identifier you used in Module 1.",
-              "label": "Sample"
-            },
-            {
-              "key": "calc",
-              "tip": "Show the division with your actual numbers, for example 18.24 g / 5.067 cm3.",
-              "label": "Density calculation"
-            },
-            {
-              "key": "density",
-              "tip": "Your result, rounded to the precision your measurements support.",
-              "label": "Measured density (g/cm3)"
-            },
-            {
-              "key": "published",
-              "tip": "The value you looked up for the material you think this is.",
-              "label": "Published density (g/cm3)"
-            },
-            {
-              "key": "source",
-              "tip": "Name the MatWeb entry you used, including the temper or grade, since alloys have several.",
-              "label": "Source"
-            },
-            {
-              "key": "error",
-              "tip": "|measured - published| / published x 100.",
-              "label": "Percent error"
-            },
-            {
-              "key": "hypothesis",
-              "tip": "Which of the six candidates this is, supported by the two density values you just recorded.",
-              "label": "Material ID hypothesis"
-            }
-          ],
-          "minRows": 4,
-          "printRows": 6,
-          "rowImages": false,
-          "statusColumn": false
-        }
-      ],
-      "points": 10,
-      "rubric": [
         {
           "id": "c3",
           "levels": [
             {
               "label": "Complete",
-              "points": 4,
-              "descriptor": "Density is computed for all four required samples, each showing the division using the student's own mass and volume values, with the result in g/cm3."
+              "short": "Four samples, other candidate excluded",
+              "points": 3,
+              "descriptor": "For every sample number in the table, the conclusion states what the cited observation rules out, rather than restating the observation itself as the reason."
             },
             {
               "label": "Proficient",
-              "points": 3,
-              "descriptor": "Density is computed for all four samples with the division shown on two or three of them, or shown on all four with one arithmetic error."
-            },
-            {
-              "label": "Developing",
-              "points": 1,
-              "descriptor": "Density is computed for two or three samples, or all four are given as results with no division shown anywhere."
+              "short": "One to three samples reasoned",
+              "points": 2,
+              "descriptor": "The conclusion states what the cited observation rules out for some but not all of the sample numbers in the table, and restates the observation as the reason for the rest."
             },
             {
               "label": "Absent",
+              "short": "Results restated, no reasoning",
               "points": 0,
-              "descriptor": "Fewer than two densities are computed, or the units are not mass over volume."
+              "descriptor": "The conclusion restates observations as reasons for every sample number with no statement of what any observation rules out, or not attempted."
             }
           ],
-          "criterion": "Density calculation"
+          "criterion": "Conclusion reasoned rather than asserted"
+        }
+      ],
+      "aiLevel": 2
+    },
+    {
+      "id": "m2",
+      "intro": "Use one of the materials you just identified. Size a tie rod for a stated load at a stated factor of safety, and show the two steps that get you there.",
+      "title": "Material Application: Tensile Sizing",
+      "aiNote": "AI may check your arithmetic or explain why a step works. Setting the problem up is what is graded here, so which formula you use, which values you substitute, and which way you round all have to be yours to defend.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### The problem\n\nA vertical tie rod in a shop lifting fixture carries a static tensile load of **12,000 N**. Design it to a **factor of safety of 3.0 against yield**. The rod is solid and round.\n\n![Tie rod in tension. The whole 12,000 N passes through the circular cross-section at A-A.](attachment:u1lab-03-tie-rod.png)\n\n**Work in SI, answer in whole millimeters.** The lecture showed both systems. Here it is newtons, MPa, and millimeters: 1 MPa is 1 N/mm2, so newtons over MPa gives mm2 with nothing to convert.\n\n### Published yield strengths\n\n| Material | Yield strength | MatWeb entry |\n|---|---|---|\n| 1018 steel | 370 MPa | 1018, cold drawn |\n| 6061 aluminum | 276 MPa | 6061-T6 |\n| 304 stainless | 215 MPa | Type 304, annealed |\n| Polycarbonate | 62 MPa | Polycarbonate, molded |\n| Brass | 310 MPa | C36000, half hard |\n| Titanium | 880 MPa | Ti-6Al-4V, annealed |\n\nTemper is part of the material. The same alloy annealed can be under half this strong, so use these values, not the first number a search returns.\n\nPick a sample you identified as one of these six. One that only reached \"a carbon steel\" has no yield strength to look up.\n\n### The method\n\n    allowable stress = yield strength / factor of safety\n    required area = load / allowable stress\n    diameter = square root of (4 x required area / pi)\n\nWrite the allowable stress down even if you reached the area another way. It is where the factor of safety is visible.\n\nAn area under 10 mm2, or in the millions, is a units problem rather than a discovery.\n\n### Rounding\n\nRound up. Rounding down puts the real stress above the allowable stress you just calculated, which spends the factor of safety you were told to design to."
         },
+        {
+          "id": "t2",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Sample number and the set letter you tested.",
+              "label": "Sample"
+            },
+            {
+              "key": "material",
+              "tip": "The material you identified for that sample.",
+              "label": "Material"
+            },
+            {
+              "key": "yield",
+              "tip": "From the table in the instructions, with units.",
+              "label": "Yield strength"
+            },
+            {
+              "key": "allow",
+              "tip": "Yield strength divided by the factor of safety, with units.",
+              "label": "Allowable stress"
+            },
+            {
+              "key": "area",
+              "tip": "Load divided by allowable stress, with units.",
+              "label": "Required area"
+            },
+            {
+              "key": "dia",
+              "tip": "Rounded up to the next whole millimeter.",
+              "label": "Diameter"
+            }
+          ],
+          "minRows": 1,
+          "printRows": 3,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "f3",
+          "type": "textField",
+          "points": 2,
+          "prompt": "Show the arithmetic that got you from the yield strength to the required area, with your own numbers substituted. Then state in one sentence what happens to your factor of safety if you round the diameter down instead of up.",
+          "maxSentences": 4,
+          "minSentences": 2
+        }
+      ],
+      "points": 5,
+      "rubric": [
         {
           "id": "c4",
           "levels": [
             {
               "label": "Complete",
-              "points": 3,
-              "descriptor": "All four required samples are compared against a published value with the source entry named, and percent error is computed for each."
+              "short": "Correct diameter, both steps shown",
+              "points": 5,
+              "descriptor": "The allowable stress and the required area both appear as values derived from the yield strength for the identified material, and the reported diameter is the next whole millimeter above the calculated value. Arithmetic arranged as load times factor of safety divided by yield strength counts as the required area, provided the allowable stress is also stated."
             },
             {
               "label": "Proficient",
+              "short": "Both steps shown, one error",
+              "points": 4,
+              "descriptor": "The allowable stress and the required area both appear, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
+            },
+            {
+              "label": "Developing",
+              "short": "Allowable stress only",
               "points": 2,
-              "descriptor": "All four are compared with percent error computed, with the source unnamed on one or more, or three of the four are complete."
+              "descriptor": "The allowable stress appears with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress or its algebraic equivalent."
             },
             {
               "label": "Absent",
+              "short": "No substituted values shown",
               "points": 0,
-              "descriptor": "Fewer than three samples are compared against a published value, or no percent error is computed."
+              "descriptor": "Neither the allowable stress nor the required area is shown with substituted values, or not attempted."
             }
           ],
-          "criterion": "Published comparison and percent error"
-        },
-        {
-          "id": "c5",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 3,
-              "descriptor": "An identification is named for each of the four required samples, and each names both the measured density and the published density it was matched to."
-            },
-            {
-              "label": "Proficient",
-              "points": 2,
-              "descriptor": "An identification is named for all four samples, with the supporting density values missing on one or more of them."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "Fewer than four samples are identified, or identifications are given with no reference to density."
-            }
-          ],
-          "criterion": "Initial identification hypothesis"
+          "criterion": "Rod sized at the stated factor of safety, work shown"
         }
       ],
       "aiLevel": 2
