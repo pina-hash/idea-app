@@ -8,7 +8,7 @@
     "dueDate": "2026-08-25",
     "totalPoints": 15,
     "assignmentId": "idea209h-u1lab-03",
-    "buildVersion": "v2",
+    "buildVersion": "v3",
     "headerFields": [
       "studentName",
       "date",
@@ -169,7 +169,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "You identified four materials. Now you use one of them.\n\n### The problem\n\nA vertical tie rod in a shop lifting fixture carries a static tensile load of **12,000 N**. Design it to a **factor of safety of 3.0 against yield**. The rod is solid and round.\n\n![Tie rod in tension. The whole 12,000 N passes through the circular cross-section at A-A.](attachment:u1lab-03-tie-rod.png)\n\nReport the diameter as a whole number of millimeters.\n\n### Published yield strengths\n\n| Material | Yield strength | MatWeb entry |\n|---|---|---|\n| 1018 steel | 370 MPa | AISI 1018 Steel, cold drawn |\n| 6061 aluminum | 276 MPa | Aluminum 6061-T6 |\n| 304 stainless | 215 MPa | AISI Type 304 Stainless Steel |\n| Polycarbonate | 62 MPa | Polycarbonate, Molded |\n| Brass | 310 MPa | Free-Cutting Brass C36000, H02 |\n| Titanium | 880 MPa | Ti-6Al-4V, Annealed |\n\nPick a sample you identified as one of these six. If a sample only got you as far as \"a carbon steel,\" there is no yield strength to look up, which is the real cost of an identification that did not close.\n\n### The method\n\n    allowable stress = yield strength / factor of safety\n    required area = load / allowable stress\n    diameter = square root of (4 x required area / pi)\n\n1 MPa is 1 N/mm2. A load in newtons divided by a stress in MPa gives an area in mm2 with no conversion.\n\n### Rounding\n\nRound up to the next whole millimeter. Rounding down makes the real stress higher than the allowable stress you just calculated, which spends the factor of safety you were told to design to."
+          "content": "### The problem\n\nA vertical tie rod in a shop lifting fixture carries a static tensile load of **12,000 N**. Design it to a **factor of safety of 3.0 against yield**. The rod is solid and round.\n\n![Tie rod in tension. The whole 12,000 N passes through the circular cross-section at A-A.](attachment:u1lab-03-tie-rod.png)\n\n**Work in SI, answer in whole millimeters.** The lecture showed both systems. Here it is newtons, MPa, and millimeters: 1 MPa is 1 N/mm2, so newtons over MPa gives mm2 with nothing to convert.\n\n### Published yield strengths\n\n| Material | Yield strength | MatWeb entry |\n|---|---|---|\n| 1018 steel | 370 MPa | 1018, cold drawn |\n| 6061 aluminum | 276 MPa | 6061-T6 |\n| 304 stainless | 215 MPa | Type 304, annealed |\n| Polycarbonate | 62 MPa | Polycarbonate, molded |\n| Brass | 310 MPa | C36000, half hard |\n| Titanium | 880 MPa | Ti-6Al-4V, annealed |\n\nTemper is part of the material. The same alloy annealed can be under half this strong, so use these values, not the first number a search returns.\n\nPick a sample you identified as one of these six. One that only reached \"a carbon steel\" has no yield strength to look up.\n\n### The method\n\n    allowable stress = yield strength / factor of safety\n    required area = load / allowable stress\n    diameter = square root of (4 x required area / pi)\n\nWrite the allowable stress down even if you reached the area another way. It is where the factor of safety is visible.\n\nAn area under 10 mm2, or in the millions, is a units problem rather than a discovery.\n\n### Rounding\n\nRound up. Rounding down puts the real stress above the allowable stress you just calculated, which spends the factor of safety you were told to design to."
         },
         {
           "id": "t2",
@@ -216,7 +216,7 @@
           "id": "f3",
           "type": "textField",
           "points": 2,
-          "prompt": "Write out both divisions with your own numbers substituted. Then state in one sentence what happens to your factor of safety if you round the diameter down instead of up.",
+          "prompt": "Show the arithmetic that got you from the yield strength to the required area, with your own numbers substituted. Then state in one sentence what happens to your factor of safety if you round the diameter down instead of up.",
           "maxSentences": 4,
           "minSentences": 2
         }
@@ -230,19 +230,19 @@
               "label": "Complete",
               "short": "Correct diameter, both steps shown",
               "points": 5,
-              "descriptor": "The allowable stress and the required area are both shown with the yield value for the identified material substituted, and the reported diameter is the next whole millimeter above the calculated value."
+              "descriptor": "The allowable stress and the required area both appear as values derived from the yield strength for the identified material, and the reported diameter is the next whole millimeter above the calculated value. Arithmetic arranged as load times factor of safety divided by yield strength counts as the required area, provided the allowable stress is also stated."
             },
             {
               "label": "Proficient",
               "short": "Both steps shown, one error",
               "points": 4,
-              "descriptor": "The allowable stress and the required area are both shown with substituted values, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
+              "descriptor": "The allowable stress and the required area both appear, and one arithmetic error or a diameter rounded down produces a reported diameter that does not match the identified material."
             },
             {
               "label": "Developing",
               "short": "Allowable stress only",
               "points": 2,
-              "descriptor": "The allowable stress is shown with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress."
+              "descriptor": "The allowable stress appears with substituted values, and the required area, the diameter, or both are missing or are computed from a value other than the allowable stress or its algebraic equivalent."
             },
             {
               "label": "Absent",
