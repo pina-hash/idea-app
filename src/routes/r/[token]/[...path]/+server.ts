@@ -1,7 +1,5 @@
 import { dev } from '$app/environment';
 import { env as publicEnv } from '$env/dynamic/public';
-// TEMPORARY: read only for the secret PRESENCE probe below, never for its value.
-import { env as privateEnv } from '$env/dynamic/private';
 import { resolveBundleFile } from '$lib/server/foundry-bundle';
 import {
 	foundryNotFound,
@@ -12,8 +10,6 @@ import {
 } from '$lib/server/foundry-serve';
 import { verifyFoundryToken } from '$lib/server/foundry-token';
 import { isFoundryAppsHost } from '$lib/foundry/host';
-// TEMPORARY: bundle-proxy diagnostic. Remove with `$lib/server/foundry-probe`.
-import { foundryProbe, presence, redactProxyPath } from '$lib/server/foundry-probe';
 import type { RequestHandler } from './$types';
 
 /**
@@ -61,27 +57,7 @@ import type { RequestHandler } from './$types';
 export const trailingSlash = 'ignore';
 
 const handler: RequestHandler = async ({ params, url, request }) => {
-	/**
-	 * TEMPORARY INSTRUMENTATION. Every refusal below is the same bodyless 404,
-	 * which is correct and is why production cannot be diagnosed by request.
-	 * These lines change no response; they name which branch answered. Remove
-	 * with `$lib/server/foundry-probe`.
-	 */
-	foundryProbe('proxy.enter', {
-		path: redactProxyPath(url.pathname),
-		requestHost: url.host,
-		configuredAppsHost: publicEnv.PUBLIC_FOUNDRY_APPS_HOST ?? null,
-		method: request.method,
-		tokenLen: (params.token ?? '').length,
-		pathParam: params.path ?? '',
-		endsWithSlash: url.pathname.endsWith('/')
-	});
-
 	if (!isFoundryAppsHost(url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST)) {
-		foundryProbe('proxy.refused.host', {
-			requestHost: url.host,
-			configuredAppsHost: publicEnv.PUBLIC_FOUNDRY_APPS_HOST ?? null
-		});
 		return foundryNotFound();
 	}
 
@@ -120,7 +96,6 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	 * is served exactly as asked for.
 	 */
 	if (path === '' && !url.pathname.endsWith('/')) {
-		foundryProbe('proxy.redirect.slashless-root', { path: redactProxyPath(url.pathname) });
 		return new Response(null, {
 			status: 307,
 			headers: {
@@ -131,21 +106,7 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	}
 
 	const verdict = verifyFoundryToken(params.token ?? '', dev);
-	if (!verdict.ok) {
-		/**
-		 * The REASON only -- `malformed`, `bad_version`, `bad_signature`,
-		 * `expired` or `not_configured`. No byte of the token, the payload or
-		 * the signature is written down; `secretPresence` is the length of
-		 * `FOUNDRY_TOKEN_SECRET` and nothing else, which is what separates "this
-		 * environment has no secret" from "the signature did not match".
-		 */
-		foundryProbe('proxy.refused.token', {
-			reason: verdict.reason,
-			tokenLen: (params.token ?? '').length,
-			secretPresence: presence(privateEnv.FOUNDRY_TOKEN_SECRET)
-		});
-		return foundryNotFound();
-	}
+	if (!verdict.ok) return foundryNotFound();
 
 	const { appId, versionId, kind } = verdict.claims;
 
@@ -155,24 +116,7 @@ const handler: RequestHandler = async ({ params, url, request }) => {
 	 * -- which is every token a student can hold -- keeps it.
 	 */
 	const found = await resolveBundleFile(appId, versionId, path, kind);
-	if (!found.ok) {
-		foundryProbe('proxy.refused.resolve', {
-			reason: found.reason,
-			appId,
-			versionId,
-			kind,
-			requestedPath: path
-		});
-		return foundryNotFound();
-	}
-
-	foundryProbe('proxy.serving', {
-		appId,
-		versionId,
-		requestedPath: path,
-		contentType: found.file.contentType,
-		byteLength: found.file.byteLength
-	});
+	if (!found.ok) return foundryNotFound();
 
 	const contentType = servableContentType(found.file.contentType);
 	const headers = foundryResponseHeaders(

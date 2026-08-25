@@ -192,3 +192,26 @@ export function isFoundryHostNamespace(pathname: string): boolean {
 		isFoundryPlatformPath(pathname)
 	);
 }
+
+/**
+ * A PROXY PATHNAME WITH THE TOKEN REPLACED BY ITS LENGTH.
+ *
+ * `/r/<token>/assets/app.js` -> `/r/<token:85>/assets/app.js`. The shape, the
+ * trailing slash and the file path all survive; the credential does not.
+ *
+ * IT LIVES HERE BECAUSE THIS MODULE ALREADY OWNS THE `/r/{token}/{path}`
+ * SHAPE. A second regex somewhere else describing where the token sits is the
+ * copy that stops matching `isFoundryProxyPath`, and the failure mode of that
+ * copy is a bundle token written into a log line.
+ *
+ * ITS ONE CALLER IS `handleError`, which logs `event.url.pathname` beside the
+ * stack so a server log and the report a student files about it join on one
+ * correlation id. On the bundle host that pathname CONTAINS a live token: 30
+ * minutes of read access to somebody's app, sitting in the function log. A
+ * pathname that is not a proxy path is returned unchanged.
+ */
+export function redactProxyPath(pathname: string): string {
+	const m = /^\/r\/([^/]*)(\/.*)?$/.exec(pathname);
+	if (!m) return pathname;
+	return `/r/<token:${m[1].length}>${m[2] ?? ""}`;
+}
