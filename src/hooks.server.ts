@@ -5,6 +5,8 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { env as publicEnv } from '$env/dynamic/public';
 import { appsHostAllows, isFoundryAppsHost, isFoundryHostNamespace } from '$lib/foundry/host';
+// TEMPORARY: bundle-proxy diagnostic. Remove with `$lib/server/foundry-probe`.
+import { foundryProbe, presence, redactProxyPath } from '$lib/server/foundry-probe';
 
 /**
  * THE ORIGIN SPLIT, AND IT RUNS FIRST.
@@ -50,21 +52,60 @@ import { appsHostAllows, isFoundryAppsHost, isFoundryHostNamespace } from '$lib/
  * `vercel.json`; that script's header carries the measurements that settled
  * it.
  */
-const foundryHostBranch: Handle = async ({ event, resolve }) => {
+/**
+ * EXPORTED SO A TEST CAN DRIVE THE REAL BRANCH, not a copy of its decision.
+ * `tests/foundry-proxy.test.ts` composes this with the real route handler, so
+ * "what does the apps host do with this URL" is answered by the two pieces
+ * production actually runs. Re-spelling `appsHostAllows` inside a test would
+ * be a second copy of the allowlist, and the copy is the one that stops
+ * matching -- which is exactly how the bundle root came to 404 unnoticed.
+ */
+export const foundryHostBranch: Handle = async ({ event, resolve }) => {
 	const onAppsHost = isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
 	const { pathname } = event.url;
 
+	/**
+	 * TEMPORARY: the host branch is instrumented too, and it is not on the
+	 * user's candidate list. It refuses with the SAME bodyless 404 and the same
+	 * `cache-control: private, no-store` the proxy does, so "our function
+	 * answered 404 with our own header" does not distinguish this branch from
+	 * any refusal inside the route -- and this branch is the one that fires if
+	 * `event.url.host` reaching the function is not the configured apps host,
+	 * which is precisely the difference between production (behind Cloudflare)
+	 * and a locally driven build. Remove with `$lib/server/foundry-probe`.
+	 */
+	const probing = pathname.startsWith('/r/') || pathname.startsWith('/_platform');
+
 	if (onAppsHost) {
 		if (!appsHostAllows(pathname)) {
+			foundryProbe('hook.apps-host.refused-shape', {
+				path: redactProxyPath(pathname),
+				requestHost: event.url.host
+			});
 			return new Response(null, {
 				status: 404,
 				headers: { 'cache-control': 'private, no-store' }
+			});
+		}
+		if (probing) {
+			foundryProbe('hook.apps-host.allowed', {
+				path: redactProxyPath(pathname),
+				requestHost: event.url.host,
+				method: event.request.method
 			});
 		}
 		return resolve(event);
 	}
 
 	if (isFoundryHostNamespace(pathname)) {
+		foundryProbe('hook.main-host.refused-namespace', {
+			path: redactProxyPath(pathname),
+			requestHost: event.url.host,
+			configuredAppsHost: publicEnv.PUBLIC_FOUNDRY_APPS_HOST ?? null,
+			configuredAppsHostPresence: presence(publicEnv.PUBLIC_FOUNDRY_APPS_HOST),
+			forwardedHost: event.request.headers.get('x-forwarded-host'),
+			xVercelDeploymentUrl: event.request.headers.get('x-vercel-deployment-url')
+		});
 		return new Response(null, {
 			status: 404,
 			headers: { 'cache-control': 'private, no-store' }

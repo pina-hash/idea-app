@@ -30,6 +30,7 @@ import {
 } from '../src/lib/server/foundry-dev-fixture';
 import { setDev } from './stubs/app-environment';
 import { GET as proxyGet } from '../src/routes/r/[token]/[...path]/+server';
+import { foundryHostBranch } from '../src/hooks.server';
 
 /**
  * THE FOUNDRY ORIGIN SPLIT, and specifically the parts of it whose regression
@@ -95,15 +96,25 @@ describe('host branch', () => {
 			'/r/tok/',
 			'/r/tok/index.html',
 			'/r/tok/nested/asset.png',
+			// The bundle root spelled WITHOUT its slash. It is allowed through so
+			// the route can redirect it to the slash form; refusing it here is
+			// what blanked every published app, because that is the shape the
+			// frame's own request becomes if anything upstream normalizes the
+			// trailing slash away. The route never SERVES this spelling -- see
+			// 'the bundle root, through the hook and the route together' below,
+			// which asserts the 307 and follows it to the entry file.
+			'/r/tok',
 			'/_platform',
 			'/_platform/fonts.css'
 		]) {
 			expect(appsHostAllows(p)).toBe(true);
 		}
 
-		// The neighbours of the served shape. None of these names a file in a
-		// bundle, so none of them may reach the router.
-		for (const p of ['/r', '/r/', '/r/tok', '/rx', '/r-other', '/r//', '/r//index.html']) {
+		// THE RULE, rather than a list: a `/r` path is allowed only when it names
+		// a NON-EMPTY token segment. These name no token at all, so none of them
+		// may reach the router -- `/r` and `/r/` are the shapes that used to be
+		// answered by the portal's own error page on the bundle origin.
+		for (const p of ['/r', '/r/', '/rx', '/r-other', '/r//', '/r//index.html']) {
 			expect(appsHostAllows(p)).toBe(false);
 		}
 
@@ -468,5 +479,121 @@ describe('the real proxy route handler, against the dev fixture', () => {
 		expect(res.status).toBe(404);
 		expect(await res.text()).toBe('');
 		expect(res.headers.get('content-security-policy')).toBeNull();
+	});
+});
+
+
+/**
+ * THE BUNDLE ROOT, WHICH IS THE ONLY URL THE FRAME EVER REQUESTS -- AND THE
+ * ONE SHAPE NOTHING USED TO EXERCISE.
+ *
+ * Every other test in this file, and every verification drive, asked for an
+ * explicit filename or handed `params` straight to the route. Both skip the
+ * HOOK, and the hook is where the bundle root was being refused: the frame
+ * asks for `/r/{token}/`, anything that normalizes the trailing slash away
+ * delivers `/r/{token}`, and `isFoundryProxyPath` answered false for that --
+ * a bodyless 404 with the database never consulted. Every published app was
+ * blank and nothing in the suite could see it, because nothing in the suite
+ * ever put a URL through the hook and the route together.
+ *
+ * So this block composes THE TWO PIECES PRODUCTION COMPOSES: the real
+ * `foundryHostBranch` with the real route handler as its `resolve`. The only
+ * thing standing in for SvelteKit is the param split, which is written to the
+ * route pattern `/r/[token]/[...path]` and nothing else.
+ */
+describe('the bundle root, through the hook and the route together', () => {
+	/** `/r/[token]/[...path]`, split the way the route pattern splits it. */
+	const paramsFor = (pathname: string) => {
+		const rest = pathname.slice('/r/'.length);
+		const cut = rest.indexOf('/');
+		return cut === -1
+			? { token: rest, path: '' }
+			: { token: rest.slice(0, cut), path: rest.slice(cut + 1) };
+	};
+
+	/** The hook first, then the route, exactly as `sequence()` runs them. */
+	const request = async (host: string, pathname: string): Promise<Response> => {
+		const url = new URL(`https://${host}${pathname}`);
+		const event = {
+			params: paramsFor(pathname),
+			url,
+			request: new Request(url, { method: 'GET' })
+		};
+		return (await foundryHostBranch({
+			event: event as never,
+			resolve: (async (e: typeof event) => proxyGet(e as never)) as never
+		} as never)) as Response;
+	};
+
+	const live = () => {
+		setDev(true);
+		return mintFoundryToken(
+			{ appId: FIXTURE_APP_A, versionId: FIXTURE_VERSION_A_LIVE, viewerId: FIXTURE_VIEWER },
+			true
+		) as string;
+	};
+
+	beforeEach(() => {
+		process.env.PUBLIC_FOUNDRY_APPS_HOST = APPS_HOST;
+		setDev(true);
+	});
+
+	it('serves the entry file for the bare prefix WITH its slash', async () => {
+		const res = await request(APPS_HOST, `/r/${live()}/`);
+		expect(res.status).toBe(200);
+		expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+		expect(await res.text()).toContain("install('localStorage')");
+	});
+
+	it('serves the entry file for the explicit entry filename', async () => {
+		const res = await request(APPS_HOST, `/r/${live()}/index.html`);
+		expect(res.status).toBe(200);
+		expect(await res.text()).toContain("install('localStorage')");
+	});
+
+	it('redirects the bare prefix WITHOUT its slash, and the redirect serves the entry', async () => {
+		const token = live();
+		const res = await request(APPS_HOST, `/r/${token}`);
+
+		// It must not 404. That refusal is the whole bug: it is what the frame
+		// got whenever the trailing slash was normalized away upstream.
+		expect(res.status).toBe(307);
+		expect(res.headers.get('location')).toBe(`/r/${token}/`);
+
+		// And following it lands on the entry file, so the shape resolves end to
+		// end rather than merely being redirected somewhere.
+		const followed = await request(APPS_HOST, new URL(
+			res.headers.get('location') as string,
+			`https://${APPS_HOST}`
+		).pathname);
+		expect(followed.status).toBe(200);
+		expect(await followed.text()).toContain("install('localStorage')");
+	});
+
+	it('answers the slashless root IDENTICALLY for a garbage token, so the redirect is no oracle', async () => {
+		const good = await request(APPS_HOST, `/r/${live()}`);
+		const junk = await request(APPS_HOST, '/r/not-a-real-token');
+		expect(junk.status).toBe(good.status);
+		expect(junk.status).toBe(307);
+		expect(await junk.text()).toBe('');
+		// The token is judged on the request that follows, not on this one.
+		expect((await request(APPS_HOST, '/r/not-a-real-token/')).status).toBe(404);
+	});
+
+	it('still refuses every shape that names no token at all', async () => {
+		for (const pathname of ['/r', '/r/', '/r//', '/r//index.html']) {
+			const res = await request(APPS_HOST, pathname);
+			expect(res.status, `pathname ${pathname}`).toBe(404);
+			expect(await res.text(), `pathname ${pathname}`).toBe('');
+		}
+	});
+
+	it('404s all three shapes on the MAIN host, where no bundle is ever served', async () => {
+		const token = live();
+		for (const pathname of [`/r/${token}/`, `/r/${token}`, `/r/${token}/index.html`]) {
+			const res = await request('ideabosco.com', pathname);
+			expect(res.status, `pathname ${pathname}`).toBe(404);
+			expect(await res.text(), `pathname ${pathname}`).toBe('');
+		}
 	});
 });

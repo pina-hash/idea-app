@@ -1283,19 +1283,42 @@
 	function approvalsOf(email: string): ModuleApprovalRow[] {
 		return engApprovals.filter((a) => a.item_id === ENGINE_ITEM && a.student_email === email);
 	}
-	function seedFile(email: string, blockId: string | null, caption: string | null, name: string) {
+	/**
+	 * A hand-in row THE WAY 0133 WRITES ONE: `application/octet-stream` for the
+	 * mime type, whatever the file actually is, plus a `storage_key` whose
+	 * extension is the only description of the bytes.
+	 *
+	 * THE HARNESS USED TO SEED `image/svg+xml` AND NO KEY, which is a shape the
+	 * record route can no longer produce -- so it exercised the pre-0133 branch
+	 * of `isSubmissionFileImage` and could not have shown the regression this
+	 * bundle fixes. A harness feeding its component input the real producer
+	 * cannot emit proves nothing about the real producer.
+	 *
+	 * `src` decides what the thumbnail actually resolves to, so the third
+	 * outcome -- an image-named file that does not decode -- is reachable here
+	 * too, which is the one that must fall back to the download row.
+	 */
+	function seedFile(
+		email: string,
+		blockId: string | null,
+		caption: string | null,
+		name: string,
+		src: string | null = SAMPLE_IMG
+	) {
 		const sub = ensureSubmission(email);
+		const ext = (name.toLowerCase().match(/\.([a-z0-9]{1,12})$/) ?? [, ''])[1];
 		const row: SubmissionFileRow = {
 			id: nid('sf'),
 			submission_id: sub.id,
 			block_id: blockId,
 			caption,
 			filename: name,
-			mime_type: 'image/svg+xml',
+			mime_type: 'application/octet-stream',
 			size_bytes: 4200,
-			sort_order: engFiles.filter((f) => f.submission_id === sub.id).length + 1
+			sort_order: engFiles.filter((f) => f.submission_id === sub.id).length + 1,
+			storage_key: `${sub.id}/${nid('obj')}${ext ? `.${ext}` : ''}`
 		};
-		registerLocalSubmissionFileUrl(row.id, SAMPLE_IMG);
+		if (src) registerLocalSubmissionFileUrl(row.id, src);
 		engFiles = [...engFiles, row];
 		return row;
 	}
@@ -1348,8 +1371,31 @@
 				value: { checked: [true] }
 			}
 		];
-		seedFile('carla@boscotech.net', 'z1', 'Front view', 'front-view.svg');
-		seedFile('carla@boscotech.net', 'z1', 'Side view', 'side-view.svg');
+		// THREE OUTCOMES IN THE SAME ZONE, on purpose, because the block has to
+		// do the right thing with all three side by side:
+		//   a picture           -> thumbnail
+		//   a CAD file          -> download row, never a broken image
+		//   a picture that 404s -> download row, from the img's own onerror
+		seedFile('carla@boscotech.net', 'z1', 'Front view', 'front-view.png');
+		seedFile('carla@boscotech.net', 'z1', 'Side view', 'side-view.jpg');
+		seedFile('carla@boscotech.net', 'z1', 'Source part', 'bracket.SLDPRT');
+		seedFile(
+			'carla@boscotech.net',
+			'z1',
+			'Scan that will not decode',
+			'scan.png',
+			'data:image/png;base64,bm90LWFuLWltYWdl'
+		);
+		// And a plain (non-zone) hand-in of each kind, which is what
+		// SubmissionFileList renders in the grading console.
+		seedFile('carla@boscotech.net', null, null, 'notes-photo.jpeg');
+		seedFile('carla@boscotech.net', null, null, 'assembly.SLDASM');
+		// THE STUDENT'S OWN VIEW NEEDS THE SAME THREE OUTCOMES. It renders the
+		// identical two components, so seeding only the graded student would
+		// have left the surface a student actually uses unexercised.
+		seedFile(STUDENT_EMAIL, 'z1', 'My front view', 'alice-front.png');
+		seedFile(STUDENT_EMAIL, 'z1', 'My part file', 'alice-bracket.SLDPRT');
+		seedFile(STUDENT_EMAIL, null, null, 'alice-notes.jpg');
 		engApprovals = [
 			{
 				item_id: ENGINE_ITEM,
@@ -1631,9 +1677,18 @@
 				block_id: blockId ?? null,
 				caption: caption ?? null,
 				filename: file.name,
-				mime_type: file.type || 'application/octet-stream',
+				// NEVER `file.type`. The real record route writes this literal, so
+				// a harness that passed the browser's guess through would be the
+				// one surface where the thumbnail decision still had a mime to
+				// read -- and would hide exactly the bug this bundle fixed.
+				mime_type: 'application/octet-stream',
 				size_bytes: file.size,
-				sort_order: engFiles.filter((f) => f.submission_id === sub.id).length + 1
+				sort_order: engFiles.filter((f) => f.submission_id === sub.id).length + 1,
+				storage_key: `${sub.id}/${nid('obj')}${
+					(file.name.toLowerCase().match(/\.([a-z0-9]{1,12})$/) ?? [, ''])[1]
+						? `.${(file.name.toLowerCase().match(/\.([a-z0-9]{1,12})$/) ?? [, ''])[1]}`
+						: ''
+				}`
 			};
 			registerLocalSubmissionFileUrl(row.id, URL.createObjectURL(file));
 			engFiles = [...engFiles, row];

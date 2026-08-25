@@ -104,6 +104,7 @@
 		canManage = false,
 		transports = null,
 		attachmentsEnabled = true,
+		instructorAttachmentsEnabled = true,
 		basePath = '/classroom',
 		fetchPreview = null,
 		onchanged = null,
@@ -130,6 +131,8 @@
 		canManage?: boolean;
 		transports?: ClassroomComposerTransports | null;
 		attachmentsEnabled?: boolean;
+		/** Instructor-only material still uploads through the site to Drive. */
+		instructorAttachmentsEnabled?: boolean;
 		basePath?: string;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
@@ -496,6 +499,7 @@
 										{sections}
 										transports={transports!}
 										{attachmentsEnabled}
+										{instructorAttachmentsEnabled}
 										compact
 										onsaved={saved}
 										oncancel={() => (editing = false)}

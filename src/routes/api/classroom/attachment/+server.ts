@@ -1,119 +1,99 @@
 import { json } from '@sveltejs/kit';
-import { deleteDriveFile, driveConfigured, uploadDriveFile } from '$lib/server/notebook-drive';
-import {
-	attachmentDriveFilename,
-	classroomFolderId,
-	readAttachmentForm
-} from '$lib/server/classroom-attachments';
+import { CLASSROOM_ATTACHMENTS_BUCKET, MAX_STORAGE_BYTES } from '$lib/server/classroom-attachments';
+import { classifyRpcError } from '$lib/classroom/upload-errors';
 import { UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
 /**
- * Attaches one file to one canonical classroom item.
+ * RECORDS ONE ALREADY-UPLOADED ATTACHMENT AGAINST ONE CANONICAL ITEM.
  *
- * THE ORDER IS: upload to Drive, then call the RPC -- the same shape
- * /api/notebook/upload uses, and for the same reason: the row stores the file
- * id, so the file has to exist first. A refused RPC sweeps the just-uploaded
- * blob back off Drive so a rejected attach leaves nothing behind.
+ * THE BYTES ARE NOT HERE AND WILL NEVER BE HERE AGAIN. This route used to
+ * accept a multipart POST, buffer the file whole, and forward it to Google
+ * Drive -- so the ceiling on a classroom handout was Vercel's request-body
+ * limit rather than anything to do with teaching. Since 0133 the browser PUTs
+ * the bytes straight into the private `classroom-attachments` bucket against a
+ * signed URL minted by ./sign, and all that is left here is the ROW.
  *
- * ONE ITEM, ONE ROW. 0083 took a LIST of owners because a multi-section publish
- * made one content row per section; since 0085 there is a single canonical
- * record, so a handout posted to three classes is one upload and one row. The
- * orphan check on the delete path stays, because DUPLICATING an item copies its
- * attachment rows by reference -- one blob can still back several rows.
+ * THE ORDER IS REVERSED FROM THE OLD ONE, and it has to be: the key names the
+ * item, so the object goes up first and the row follows. A signed upload that
+ * lands and is never recorded leaves an object nothing points at -- which is a
+ * bounded, sweepable cost, and much the better failure than a row pointing at
+ * bytes that are not there.
  *
- * AUTHORIZATION IS THE RPC'S, not this route's: it runs under the caller's own
- * cookie session and classroom_add_attachment re-checks that the caller manages
- * every class the item is posted to. The 401 below is only so an anonymous
- * caller never reaches Drive at all.
+ * AUTHORIZATION IS THE RPC'S, not this route's. `classroom_add_attachment`
+ * runs under the caller's own cookie session, re-checks that they manage every
+ * class the item is posted to, and re-checks that the storage key's own prefix
+ * IS this item -- so a caller holding a key minted for one item cannot hang it
+ * off another. The 401 below only keeps an anonymous caller out of the RPC.
  *
- * multipart/form-data fields:
- *   file     the attachment (required)
- *   item_id  uuid of the canonical item (required)
+ * Body (JSON):
+ *   item_id      uuid of the canonical item (required)
+ *   storage_key  the key ./sign handed out and the browser wrote to (required)
+ *   filename     the ORIGINAL name, verbatim, kept for display (required)
+ *   size_bytes   what the browser reported (optional)
  */
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
 	if (!claims) {
-		return json({ error: 'You must be signed in.' }, { status: 401 });
-	}
-	if (!driveConfigured()) {
-		return json({ error: 'File attachments are not configured on this deployment.' }, { status: 503 });
+		return json({ ok: false, error: 'You must be signed in.' }, { status: 401 });
 	}
 
-	let form: FormData;
+	let body: {
+		item_id?: unknown;
+		storage_key?: unknown;
+		filename?: unknown;
+		size_bytes?: unknown;
+	};
 	try {
-		form = await request.formData();
+		body = (await request.json()) as typeof body;
 	} catch {
-		return json({ error: 'Expected multipart/form-data.' }, { status: 400 });
+		return json({ ok: false, error: 'Expected a JSON body.' }, { status: 400 });
 	}
 
-	const read = readAttachmentForm(form);
-	if ('error' in read) {
-		return json({ error: read.error }, { status: read.status });
-	}
-
-	const itemId = String(form.get('item_id') ?? '').trim();
+	const itemId = String(body.item_id ?? '').trim();
 	if (!UUID_RE.test(itemId)) {
-		return json({ error: 'item_id must be a uuid.' }, { status: 400 });
+		return json({ ok: false, error: 'item_id must be a uuid.' }, { status: 400 });
 	}
 
-	// Best-effort context for the Drive filename only. A failure here degrades
-	// the NAME and nothing else, so it is never allowed to fail the upload.
-	let sectionSlug: string | null = null;
-	let itemKind = 'item';
-	try {
-		const [{ data: posting }, { data: item }] = await Promise.all([
-			supabase
-				.from('classroom_postings')
-				.select('classroom_sections(label, classroom_courses(code))')
-				.eq('item_id', itemId)
-				.limit(1)
-				.maybeSingle(),
-			supabase.from('classroom_items').select('kind').eq('id', itemId).maybeSingle()
-		]);
-		const section = (posting as Record<string, unknown> | null)?.classroom_sections as
-			| { label?: string; classroom_courses?: { code?: string } | { code?: string }[] }
-			| null
-			| undefined;
-		const course = Array.isArray(section?.classroom_courses)
-			? section?.classroom_courses[0]
-			: section?.classroom_courses;
-		sectionSlug = [course?.code, section?.label].filter(Boolean).join('-') || null;
-		itemKind = (item as { kind?: string } | null)?.kind ?? 'item';
-	} catch {
-		sectionSlug = null;
+	const storageKey = String(body.storage_key ?? '').trim();
+	// The shape check here is cheap and stops an obviously wrong key before it
+	// reaches the database; the AUTHORITATIVE check is the RPC's, which compares
+	// the prefix against the item it is being attached to.
+	if (!storageKey.startsWith(`${itemId}/`) || storageKey.length > 400) {
+		return json(
+			{ ok: false, error: 'storage_key must name this item.' },
+			{ status: 400 }
+		);
 	}
 
-	const bytes = new Uint8Array(await read.file.arrayBuffer());
-	let fileId: string;
-	try {
-		fileId = await uploadDriveFile({
-			bytes,
-			mimeType: read.mimeType,
-			filename: attachmentDriveFilename({
-				sectionSlug,
-				ownerKind: itemKind,
-				originalFilename: read.filename,
-				shortId: itemId.slice(0, 8),
-				ext: read.ext
-			}),
-			parentId: await classroomFolderId()
-		});
-	} catch (e) {
-		return json({ error: (e as Error).message || 'Drive upload failed.' }, { status: 502 });
-	}
+	const filename = String(body.filename ?? '').trim().slice(0, 300) || 'attachment';
+	const rawSize = Number(body.size_bytes ?? 0);
+	const sizeBytes = Number.isFinite(rawSize) && rawSize > 0 ? Math.min(rawSize, MAX_STORAGE_BYTES) : null;
 
 	const { data, error } = await supabase.rpc('classroom_add_attachment', {
 		p_item_id: itemId,
-		p_drive_file_id: fileId,
-		p_filename: read.filename,
-		p_mime_type: read.mimeType,
-		p_size_bytes: read.file.size
+		p_drive_file_id: null,
+		p_filename: filename,
+		// ALWAYS octet-stream. Never `file.type`: it is a guess the uploader
+		// chose, and this column is read when a badge is drawn.
+		p_mime_type: 'application/octet-stream',
+		p_size_bytes: sizeBytes,
+		p_storage_key: storageKey
 	});
+
 	if (error) {
-		await deleteDriveFile(fileId);
-		return json({ error: error.message }, { status: 400 });
+		// The row was refused, so the object it points at is now unreferenced.
+		// Sweep it under the caller's OWN session -- 0133's delete policy admits
+		// exactly the people who could have written it, so this can never remove
+		// somebody else's object.
+		await supabase.storage.from(CLASSROOM_ATTACHMENTS_BUCKET).remove([storageKey]);
+		const refusal = classifyRpcError({
+			code: (error as { code?: string }).code,
+			message: error.message,
+			role: 'attachment'
+		});
+		return json({ ok: false, ...refusal, error: refusal.message }, { status: 200 });
 	}
 
-	return json({ ok: true, drive_file_id: fileId, result: data });
+	return json({ ok: true, storage_key: storageKey, result: data });
 };
