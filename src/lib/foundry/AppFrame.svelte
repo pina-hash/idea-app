@@ -2,12 +2,19 @@
 	/**
 	 * THE ONE FRAME A PUBLISHED BUNDLE IS EVER SHOWN IN.
 	 *
-	 * The gallery does not exist yet; when it does, it mounts THIS, and the dev
-	 * harness at /dev/foundry-proxy mounts it too. There is exactly one place
-	 * where the sandbox attribute is written down, because the failure mode of a
-	 * second copy is a frame that looks identical and isolates nothing.
+	 * The gallery, the detail view, the review queue and the dev harnesses all
+	 * mount THIS. There is exactly one place where the sandbox attribute is
+	 * written down, because the failure mode of a second copy is a frame that
+	 * looks identical and isolates nothing.
 	 *
-	 * `allow-same-origin` IS THE ONE FLAG THAT MUST NEVER APPEAR HERE.
+	 * THE FLAGS THEMSELVES LIVE IN `bundle-headers.ts` NOW, and that is the
+	 * change. They used to be written out here as the single copy, which was
+	 * right while the attribute was the only place they appeared -- but the
+	 * SERVING side has to send the same flags as a CSP `sandbox` directive, and
+	 * a second spelling of them over there is a frame and a document that can
+	 * drift apart with nothing to compare them. One constant, two readers.
+	 *
+	 * `allow-same-origin` IS THE ONE FLAG THAT MUST NEVER APPEAR THERE.
 	 * `allow-scripts` and `allow-same-origin` together cancel the sandbox
 	 * outright: a framed document given both can reach into its own origin,
 	 * remove its own sandbox attribute from the parent document and reload
@@ -28,16 +35,18 @@
 	 * `allow-downloads`, `allow-modals`' louder cousins. None of them is needed
 	 * by the build contract and each is a way out of the frame.
 	 *
-	 * THE ATTRIBUTE IS NOT THE ONLY SANDBOX. The proxy sends the same flags as a
-	 * CSP `sandbox` directive on the document itself, so a student who navigates
+	 * THE ATTRIBUTE IS NOT THE ONLY SANDBOX. The serving route sends the same
+	 * flags as a CSP `sandbox` directive on the document, so a student who navigates
 	 * straight to a bundle URL -- outside any frame -- lands in the same opaque
 	 * origin. The attribute cannot cover that case and the directive cannot
 	 * cover a frame the portal renders with different flags, so both are real.
 	 *
-	 * This component fetches nothing and knows nothing about tokens. The route
-	 * that mounts it owns the mint and hands over a `src`, per the
+	 * This component fetches nothing. There is no token and no mint anywhere on
+	 * this path any more; the caller hands over a plain `src`, per the
 	 * presentation-takes-props convention.
 	 */
+	import { FOUNDRY_SANDBOX_FLAGS } from './bundle-headers.ts';
+
 	let {
 		src,
 		title,
@@ -79,7 +88,7 @@
 		{title}
 		class="fdy-frame"
 		style="height: {height};"
-		sandbox="allow-scripts allow-modals allow-pointer-lock"
+		sandbox={FOUNDRY_SANDBOX_FLAGS}
 		referrerpolicy="no-referrer"
 		{loading}
 	></iframe>

@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -16,23 +16,34 @@ import type { PageServerLoad } from './$types';
  * function, review and publication.
  *
  * IT IS THE ONLY WAY TO SEE A BUNDLE RUN WITHOUT A SESSION. `/foundry` is behind
- * the signed-in tier and its gallery needs a real roster; this needs a Supabase
- * project that has ingested something, which the local stack can be
- * (`supabase start`, then publish through the real RPCs).
+ * the signed-in tier and its gallery needs a real roster. Point this at a real
+ * app and version from a Supabase project that has ingested something, or at
+ * one of the in-memory fixtures in `$lib/server/foundry-dev-fixture` -- the
+ * three acceptance bundles are registered there under fixed ids, so the route,
+ * its publication gate, its headers and its shim injection can all be driven
+ * with no database and no Storage.
  *
- * `origin` IS AN OVERRIDE AND `AppStage`'s own default is the shipping path.
- * Passing `?origin=` points the pure URL builder at a different project --
- * the local stack while `.env` still names the placeholder one -- without the
- * component reaching for a second mechanism to be pointed anywhere.
+ * `origin` IS AN OVERRIDE. Passing `?origin=` points the pure URL builder at
+ * another host without the component reaching for a second mechanism to be
+ * pointed anywhere.
+ *
+ * THE DEV DEFAULT IS THIS SERVER'S OWN ORIGIN rather than `AppStage`'s. That
+ * component deliberately renders NO launch control when
+ * PUBLIC_FOUNDRY_APPS_ORIGIN is unset, because serving bundles off the main,
+ * cookie-carrying host silently is the one failure nobody would notice -- so a
+ * harness with nothing configured would show an empty box and prove nothing.
+ * Locally the two hosts are the same host anyway.
  */
 export const load: PageServerLoad = async ({ url }) => {
 	if (!dev) error(404, 'Not found');
+
+	const configured = (env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? '').trim() || url.origin;
 
 	return {
 		appId: url.searchParams.get('app') ?? '',
 		versionId: url.searchParams.get('version') ?? '',
 		title: url.searchParams.get('title') ?? 'Published bundle',
-		origin: url.searchParams.get('origin') ?? PUBLIC_SUPABASE_URL,
-		defaultOrigin: PUBLIC_SUPABASE_URL
+		origin: url.searchParams.get('origin') ?? configured,
+		defaultOrigin: configured
 	};
 };

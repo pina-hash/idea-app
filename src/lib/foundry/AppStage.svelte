@@ -44,18 +44,17 @@
 	 *
 	 * THE SRC IS DERIVED, NOT FETCHED, AND THERE IS NO ROUND TRIP HERE ANY MORE.
 	 * Launching used to call a transport that minted a signed thirty-minute
-	 * token against a proxy of ours. The proxy is gone and `foundry-bundles` is
-	 * a public bucket (0135), so the src is `foundryBundleUrl(origin, appId,
-	 * versionId)` and nothing else, and pressing Launch is a synchronous state
-	 * change -- which is also the only kind of work the wedged-bundle
-	 * measurement above proves still runs.
+	 * token against a proxy of ours. There is no token and no mint: the src is
+	 * `foundryBundleUrl(appsOrigin, appId, versionId)` and nothing else, and
+	 * pressing Launch is a synchronous state change -- which is also the only
+	 * kind of work the wedged-bundle measurement above proves still runs.
 	 *
 	 * ABSENCE IS STILL THE MECHANISM; WHAT IS ABSENT IS THE URL. A deployment
-	 * with no Supabase origin, or an app with no version to point at, gives
-	 * `null` from that builder, and this renders no launch control at all
-	 * rather than a button that opens `about:blank`.
+	 * with no apps origin, or an app with no version to point at, gives `null`
+	 * from that builder, and this renders no launch control at all rather than a
+	 * button that opens `about:blank`.
 	 */
-	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 
 	import AppFrame from './AppFrame.svelte';
 	import { foundryBundleUrl } from './bundle-url.ts';
@@ -66,18 +65,22 @@
 		versionId,
 		title,
 		/**
-		 * THE ONE ENVIRONMENT READ ON THIS PATH, AND IT IS A BUILD CONSTANT
-		 * RATHER THAN DATA. The bundle bucket lives on the Supabase project
-		 * origin, which is the same string for every viewer and every app and is
-		 * already inlined into the client bundle for the database client. Passing
-		 * it down as a prop would mean threading one unchanging constant through
-		 * the route, the gallery and the detail view -- four files to say one
-		 * thing -- and this component would still not be fetching anything.
+		 * THE ONE ENVIRONMENT READ ON THIS PATH. Bundles are served from the APPS
+		 * ORIGIN, a second domain on this same Vercel project, and that string is
+		 * the same for every viewer and every app. Threading it through the route,
+		 * the gallery and the detail view would be four files to say one thing,
+		 * and this component would still not be fetching anything.
+		 *
+		 * UNSET RENDERS NO LAUNCH CONTROL, WHICH IS THE STRICT DIRECTION ON
+		 * PURPOSE. Falling back to the current origin would serve bundles off the
+		 * MAIN host -- the one carrying the portal's session cookies -- and it
+		 * would do it silently, which is the one failure nobody would notice. A
+		 * missing launch button is a bug report on the first day.
 		 *
 		 * It stays overridable so the pure builder can be pointed elsewhere from
 		 * a harness without the component reaching for a different mechanism.
 		 */
-		storageOrigin = PUBLIC_SUPABASE_URL,
+		appsOrigin = env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? '',
 		transports = {},
 		height = '70vh',
 		/**
@@ -92,7 +95,7 @@
 		appId: string;
 		versionId: string;
 		title: string;
-		storageOrigin?: string;
+		appsOrigin?: string;
 		transports?: FoundryGalleryTransports;
 		height?: string;
 		runningLabel?: string;
@@ -100,7 +103,7 @@
 	} = $props();
 
 	/** The frame src, or null when this app cannot be pointed at anything. */
-	const src = $derived(foundryBundleUrl(storageOrigin, appId, versionId));
+	const src = $derived(foundryBundleUrl(appsOrigin, appId, versionId));
 
 	let running = $state(false);
 

@@ -1,53 +1,70 @@
 /**
  * WHERE A PUBLISHED BUNDLE LIVES, as one pure expression.
  *
- * There is no token any more, no second host, no signature and no expiry. The
- * `foundry-serve` Edge Function serves a bundle's bytes from the Supabase
- * project's own domain, and its URL is built from the two ids and nothing
- * else:
+ *   <apps origin>/b/<app id>/<version id>/
  *
- *   <supabase origin>/functions/v1/foundry-serve/<app id>/<version id>/
+ * NOTHING SUPABASE-HOSTED CAN SERVE THIS, AND THAT IS MEASURED RATHER THAN
+ * ASSUMED. Two independent Supabase subsystems refuse to emit HTML:
+ *
+ *   Storage         `text/html` -> `text/plain`, on the public, authenticated
+ *                   and signed-URL paths alike, with no flag for it.
+ *   Edge Functions  the hosted gateway rewrites `text/html` -> `text/plain`
+ *                   AND replaces the function's own CSP with
+ *                   `default-src 'none'; sandbox`, which blanks the page even
+ *                   if the type were corrected.
+ *
+ * Different codebases, different languages, same refusal: it is a platform
+ * posture against serving arbitrary HTML off `*.supabase.co`, not a bug in
+ * either. So the bytes come off a host whose headers we set, which means the
+ * Vercel app itself.
+ *
+ * THE APPS HOST IS A SECOND ORIGIN AND IT WAS NEVER WHAT FAILED. The proxy
+ * that burned five lanes failed on a signed token, a `hooks.server.ts` host
+ * branch and a build step that rewrote the generated route table. None of
+ * those exists here: this is an ordinary SvelteKit route on the same Vercel
+ * project, reached on a second domain that is already configured on it.
+ *
+ * WHAT THE SECOND ORIGIN BUYS, AND WHY IT IS A STRUCTURAL PROPERTY RATHER THAN
+ * A BEHAVIOURAL ONE. The portal's session cookies are set by `@supabase/ssr`
+ * with NO `Domain` attribute (its `DEFAULT_COOKIE_OPTIONS` sets only `path`,
+ * `sameSite: 'lax'` and `httpOnly: false`, and `hooks.server.ts` adds nothing),
+ * so they are HOST-ONLY on `ideabosco.com` and are not sent to
+ * `apps.ideabosco.com` at all. A bundle containing `<img src="/api/whatever">`
+ * therefore reaches a host that holds no session -- because there is no cookie
+ * there to send, not because a browser declined to send one. Serving from the
+ * main host under a sandbox would rest instead on the browser computing a null
+ * site-for-cookies for an opaque-origin initiator, which is a subtler thing
+ * and one that can regress. An absence cannot.
  *
  * SO THE FRAME SRC IS A PLAIN, STABLE URL. It does not expire, so re-launching
  * costs no round trip; it carries no secret, so it can be logged, screenshotted
  * and pasted into a bug report; and there is no mint to be unavailable. What it
- * is NOT is a licence: `foundry-serve` re-checks on every single request that
- * the version belongs to the app, that the app is not hidden, and that the
- * version is published or submitted. A withdrawal takes effect on the next
- * request rather than in thirty minutes.
+ * is NOT is a licence: the route re-checks on every single request that the
+ * version belongs to the app, that the app is not hidden, and that the version
+ * is published or submitted. A withdrawal takes effect on the next request
+ * rather than in thirty minutes.
  *
  * THE TRAILING SLASH IS LOAD-BEARING. `.../<version>` has `.../<app>/` as its
  * base URL, so every relative asset in every bundle would resolve one level too
- * high. This only ever produces the slash form; the function redirects the
- * other one rather than trusting that nothing generates it.
+ * high -- an app that renders unstyled and scriptless, which reads as a bad
+ * upload rather than a bad URL. This only ever produces the slash form; the
+ * route redirects the other one rather than trusting that nothing generates it.
  *
- * WHY NOT THE STORAGE OBJECT URL, which is the obvious answer and was the
- * plan: Supabase Storage's renderer rewrites every `text/html` response to
- * `text/plain`, on the public, authenticated and signed-URL paths alike, with
- * no configuration for it. A framed bundle would render its own source as
- * text. Measured against a real object rather than reasoned about, and the
- * reason `foundry-bundles` is still a private bucket with no policy at all.
- *
- * WHAT ISOLATES THE BUNDLE. The frame keeps `sandbox="allow-scripts
- * allow-modals allow-pointer-lock"` and never `allow-same-origin`, so the
- * document lands in an OPAQUE ORIGIN -- same-origin with nothing, unable to
- * read the parent, and holding no storage area. `foundry-serve` sends the same
- * flags as a CSP `sandbox` directive so a direct navigation lands in the same
- * place. And the bytes come off the Supabase project host rather than off
- * `ideabosco.com`, so a subresource request a bundle makes carries no cookie of
- * the portal's -- there are none on that origin to carry.
- *
- * THIS MODULE IS PURE AND READS NO ENVIRONMENT, exactly as the host rule it
- * replaces was, so the component, the harness and the tests all build a URL
- * with one copy of the rule. The caller supplies the origin.
+ * THIS MODULE IS PURE AND READS NO ENVIRONMENT, so the component, the harness
+ * and the tests all build a URL with one copy of the rule. The caller supplies
+ * the origin.
  */
 
-/** The bucket `foundry-ingest` extracts into and `foundry-serve` reads. */
+/** The bucket `foundry-ingest` extracts into and the serving route reads. */
 export const FOUNDRY_BUNDLE_BUCKET = 'foundry-bundles';
 
-/** The Edge Function that serves a bundle, and the path it is mounted at. */
-export const FOUNDRY_SERVE_FUNCTION = 'foundry-serve';
-const FUNCTION_PREFIX = `/functions/v1/${FOUNDRY_SERVE_FUNCTION}/`;
+/**
+ * The path segment the serving route is mounted at.
+ *
+ * SHORT ON PURPOSE: it is in front of every relative asset request a bundle
+ * makes, and it is the URL a student sees when they open their own app.
+ */
+export const FOUNDRY_BUNDLE_PREFIX = '/b/';
 
 /** Trailing slashes off, so joining cannot produce a doubled one. */
 function trimOrigin(origin: string | null | undefined): string {
@@ -55,24 +72,20 @@ function trimOrigin(origin: string | null | undefined): string {
 }
 
 /**
- * The frame src for one version of one app, or `null` when it cannot be built.
+ * `<apps origin>/b/<app>/<version>/<path>`, or null when it has nothing to
+ * point at.
  *
- * NULL IS THE MECHANISM, not an empty string. A deployment with no Supabase
- * origin configured, or a row with no version to point at, has nowhere to send
- * a frame -- and `AppStage` renders no launch control at all rather than a
- * button that opens `about:blank`.
- *
- * `path` is for a caller that wants one named file rather than the entry, which
- * today is only a test. The default is the bundle ROOT, slash included, which
- * is what the function resolves to the entry file.
+ * NULL IS A REAL ANSWER AND THE CALLER RENDERS THE ABSENCE. A frame whose src
+ * is the empty string loads the CURRENT PAGE into itself, which on a gallery is
+ * a recursive render rather than a missing app.
  */
 export function foundryBundleUrl(
-	supabaseOrigin: string | null | undefined,
+	appsOrigin: string | null | undefined,
 	appId: string | null | undefined,
 	versionId: string | null | undefined,
-	path = ''
+	path = '',
 ): string | null {
-	const origin = trimOrigin(supabaseOrigin);
+	const origin = trimOrigin(appsOrigin);
 	const app = (appId ?? '').trim();
 	const version = (versionId ?? '').trim();
 	if (!origin || !app || !version) return null;
@@ -86,5 +99,5 @@ export function foundryBundleUrl(
 		.map((s) => encodeURIComponent(s))
 		.join('/');
 
-	return `${origin}${FUNCTION_PREFIX}${encodeURIComponent(app)}/${encodeURIComponent(version)}/${tail}`;
+	return `${origin}${FOUNDRY_BUNDLE_PREFIX}${encodeURIComponent(app)}/${encodeURIComponent(version)}/${tail}`;
 }

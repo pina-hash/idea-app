@@ -29,7 +29,7 @@
 // EVERY EXPECTED VALUE COMES FROM THE FIXTURES BELOW, never from what the
 // component returned.
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 
@@ -38,6 +38,18 @@ import FoundryDetail from '$lib/foundry/FoundryDetail.svelte';
 import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 import AppFrame from '$lib/foundry/AppFrame.svelte';
 import { queueOrder, reviewBlockedBecause, reviewCanSend, buildFileTree } from '$lib/foundry/review';
+
+/*
+ * `AppStage` READS THE APPS ORIGIN FROM THE ENVIRONMENT AND RENDERS NO LAUNCH
+ * CONTROL WITHOUT IT, on purpose -- falling back to the current origin would
+ * serve bundles off the main, cookie-carrying host, silently. So these SSR
+ * renders have to supply one or every launch assertion below is really an
+ * assertion about an unset variable. The dynamic-env stub reads process.env
+ * live, which is what makes this the same read a deployment does.
+ */
+beforeAll(() => {
+	process.env.PUBLIC_FOUNDRY_APPS_ORIGIN = 'https://apps.ideabosco.com';
+});
 import type { FoundryApp, FoundryAppSummary, FoundryVersion } from '$lib/foundry/transports';
 
 /* --------------------------------------------------------------- fixtures */
@@ -140,7 +152,7 @@ function galleryHtml(over: { selected?: FoundryApp | null } = {}) {
 describe('the frame cancels nothing', () => {
 	const FRAME = render(AppFrame, {
 		props: {
-			src: 'https://example-ref.supabase.co/functions/v1/foundry-serve/a/v-1/',
+			src: 'https://apps.ideabosco.com/b/a/v-1/',
 			title: 'Tide Clock'
 		}
 	}).body;
@@ -158,10 +170,19 @@ describe('the frame cancels nothing', () => {
 	it('never grants allow-same-origin, in the markup or anywhere in $lib/foundry', () => {
 		expect(FRAME).not.toContain('allow-same-origin');
 
-		// AND THERE IS ONE COPY OF THE ATTRIBUTE. A second frame written
-		// elsewhere would look identical and isolate nothing, so the sweep is
-		// over every Foundry component rather than over this one's output.
+		// AND THERE IS ONE COPY OF THE FLAGS. A second frame written elsewhere
+		// would look identical and isolate nothing, so the sweep is over every
+		// Foundry module rather than over this one's output.
+		//
+		// IT COUNTS DECLARATIONS, NOT ATTRIBUTES, AND THAT IS THE GENERALIZATION.
+		// The flags used to be a literal in AppFrame's markup, so counting
+		// `sandbox="` was the same question; they live in `bundle-headers.ts` now
+		// because the SERVING side has to send the identical set as a CSP
+		// `sandbox` directive, and a `sandbox="allow-..."` count answers zero on
+		// a tree that is correct. What has to stay true either way is that the
+		// grant is written down ONCE.
 		const FILES = [
+			'src/lib/foundry/bundle-headers.ts',
 			'src/lib/foundry/AppFrame.svelte',
 			'src/lib/foundry/AppStage.svelte',
 			'src/lib/foundry/FoundryDetail.svelte',
@@ -169,19 +190,23 @@ describe('the frame cancels nothing', () => {
 			'src/lib/foundry/ReviewQueue.svelte',
 			'src/lib/foundry/FoundryInspector.svelte'
 		];
-		let writes = 0;
+		let declarations = 0;
 		for (const file of FILES) {
 			const src = readFileSync(file, 'utf8');
-			// The word appears in AppFrame's own comment explaining why it is
-			// refused, so the sweep looks for it being WRITTEN as an attribute.
-			expect(src, `${file} writes allow-same-origin into a sandbox`).not.toMatch(
-				/sandbox="[^"]*allow-same-origin/
+			// The word appears in the comments explaining why it is refused, so
+			// the sweep looks for it being GRANTED beside another allow- flag.
+			expect(src, `${file} grants allow-same-origin`).not.toMatch(
+				/allow-scripts[^'"`\n]*allow-same-origin|allow-same-origin[^'"`\n]*allow-scripts/
 			);
-			if (/sandbox="/.test(src)) writes += 1;
+			if (/allow-scripts allow-modals/.test(src)) declarations += 1;
 		}
-		// POSITIVE CONTROL: exactly one file writes the attribute at all. Zero
-		// would mean the sweep is looking at the wrong thing; two is the defect.
-		expect(writes, 'the sandbox attribute is written in more than one place').toBe(1);
+		// POSITIVE CONTROL: exactly one file states the grant at all. Zero would
+		// mean the sweep is looking at the wrong thing; two is the defect.
+		expect(declarations, 'the sandbox flags are written in more than one place').toBe(1);
+		// And the one that states them is the shared constant, not a component.
+		expect(readFileSync('src/lib/foundry/AppFrame.svelte', 'utf8')).toContain(
+			'sandbox={FOUNDRY_SANDBOX_FLAGS}'
+		);
 	});
 
 	it('does not render a frame until something is launched', () => {
@@ -193,6 +218,36 @@ describe('the frame cancels nothing', () => {
 		// POSITIVE CONTROL: the frame component really does emit an <iframe>, so
 		// the zero above is about the stage and not about a broken assertion.
 		expect(FRAME.split('<iframe').length - 1).toBe(1);
+	});
+
+	/**
+	 * NO APPS ORIGIN MEANS NO LAUNCH CONTROL, AND THAT IS THE STRICT DIRECTION.
+	 *
+	 * The alternative -- falling back to the page's own origin -- would serve
+	 * student bundles off `ideabosco.com`, the host carrying the session
+	 * cookies, and it would do it silently on any deployment that forgot the
+	 * variable. That is the one failure nobody would notice. A missing launch
+	 * button is a bug report on the first day.
+	 *
+	 * BOTH DIRECTIONS, because "renders nothing" is also what a broken render
+	 * looks like.
+	 */
+	it('renders no launch control when no apps origin is configured', () => {
+		const selected = app({ id: 'a', slug: 'tide-clock', title: 'Tide Clock' });
+		const configured = galleryHtml({ selected });
+		expect(configured).toContain('Launch app');
+
+		delete process.env.PUBLIC_FOUNDRY_APPS_ORIGIN;
+		try {
+			const bare = galleryHtml({ selected });
+			expect(bare).not.toContain('Launch app');
+			expect(bare).toContain('cannot be started from here');
+			// POSITIVE CONTROL: the same render still produced the app itself, so
+			// the absence above is the launch control and not an empty string.
+			expect(bare).toContain('Tide Clock');
+		} finally {
+			process.env.PUBLIC_FOUNDRY_APPS_ORIGIN = 'https://apps.ideabosco.com';
+		}
 	});
 });
 
