@@ -23,6 +23,8 @@
 		type TextFieldBlock
 	} from '$lib/classroom/assignment-spec';
 	import type { ClassroomAttachment } from '$lib/classroom/classroom';
+	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
+	import type { UploadedFileRow } from '$lib/classroom/file-upload';
 
 	/**
 	 * The student renderer for one assignment spec: modules in order with
@@ -48,10 +50,11 @@
 		readonly = false,
 		fileNotice = null,
 		onvalue = null,
-		onupload = null,
+		itemId = null,
+		upload = null,
+		onuploaded = null,
 		ondeletefile = null,
-		oncaption = null,
-		uploadingProgress = null
+		oncaption = null
 	}: {
 		spec: AssignmentSpec;
 		initialValues: Record<string, ResponseValue>;
@@ -80,12 +83,22 @@
 		 */
 		fileNotice?: string | null;
 		onvalue?: ((blockId: string, value: ResponseValue) => void) | null;
-		onupload?: ((blockId: string, files: File[]) => void | Promise<void>) | null;
+		/** The assignment this spec belongs to. Needed only to upload. */
+		itemId?: string | null;
+		/**
+		 * THE UPLOAD TRANSPORT, and mounting it is what turns an imageZone into a
+		 * working picker. It is the SAME `PanelUpload` an instructor's composer
+		 * hands FileUploadPanel, so a zone and a handout share one component,
+		 * one set of failure semantics and one set of words.
+		 *
+		 * Null removes every zone control -- read-only by construction, not by
+		 * discipline, and the same mechanism `fileNotice` uses one level up.
+		 */
+		upload?: PanelUpload | null;
+		/** One landed, so the parent can add it to the file list it owns. */
+		onuploaded?: ((row: UploadedFileRow | undefined) => void) | null;
 		ondeletefile?: ((fileId: string) => void | Promise<void>) | null;
 		oncaption?: ((fileId: string, caption: string) => void | Promise<void>) | null;
-		/** Live progress for the file uploading right now, whichever block it
-		 *  belongs to (the parent uploads one file at a time). */
-		uploadingProgress?: { blockId: string | null; name: string; fraction: number } | null;
 	} = $props();
 
 	// Local working copy, seeded ONCE per mount by design ($state.snapshot
@@ -215,19 +228,26 @@
 		return gatedIds.has(mod.id) && !approved && !readonly;
 	}
 
-	function pickZoneFiles(block: ImageZoneBlock, event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		const picked = Array.from(input.files ?? []);
-		input.value = '';
-		if (picked.length) void onupload?.(block.id, picked);
-	}
-
 	function blockKey(block: SpecBlock, index: number): string {
 		return 'id' in block && block.id ? block.id : `b-${index}`;
 	}
 
+	/**
+	 * A thumbnail that did not decode falls back to the download row, exactly as
+	 * SubmissionFileList's does -- the SAME failure, so the same answer.
+	 *
+	 * IT IS AN ORDINARY OUTCOME, NOT AN ERROR STATE. The image decision is made
+	 * from a filename extension (`isSubmissionFileImage`), which is a claim about
+	 * what a file is called and not a promise about what is inside it: a `.png`
+	 * that is really a renamed zip, a truncated upload, or a signed URL that
+	 * expired between the payload and the fetch all land here. A broken-image
+	 * glyph tells a student nothing and offers them nothing; a link they can open
+	 * is what they actually needed.
+	 */
+	let brokenThumbs = $state<Record<string, boolean>>({});
+
 	function isImage(f: SubmissionFileRow): boolean {
-		return isSubmissionFileImage(f);
+		return isSubmissionFileImage(f) && !brokenThumbs[f.id];
 	}
 
 	/**
@@ -427,7 +447,24 @@
 								{#each zone as f (f.id)}
 									<figure class="zone-item">
 										{#if isImage(f)}
-											<img src={submissionFileSrc(f.id)} alt={f.caption ?? f.filename} loading="lazy" />
+											<!-- Clickable to the full-size file. The src and the href are
+											     the SAME proxy URL: for a storage-backed hand-in it 302s to
+											     a short-lived signed URL (0133), and for a Drive-backed one
+											     it streams the bytes as it always has. Neither this
+											     component nor the student knows which. -->
+											<a
+												class="zone-shot"
+												href={submissionFileSrc(f.id)}
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												<img
+													src={submissionFileSrc(f.id)}
+													alt={f.caption ?? f.filename}
+													loading="lazy"
+													onerror={() => (brokenThumbs = { ...brokenThumbs, [f.id]: true })}
+												/>
+											</a>
 										{:else}
 											<a class="zone-file" href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">{f.filename}</a>
 										{/if}
@@ -454,30 +491,32 @@
 							</div>
 						{/if}
 						{#if canEdit}
-							{#if uploadEnabled}
-								<div class="zone-actions">
-									<!-- The notebook capture pattern: capture is camera-ONLY on
-									     Android and a capture returns one file, so the camera
-									     input and the multi-select gallery input stay separate. -->
-									<label class="btn secondary tiny">
-										Take a photo
-										<input type="file" accept="image/*" capture="environment" hidden onchange={(e) => pickZoneFiles(block, e)} />
-									</label>
-									<label class="btn secondary tiny">
-										Choose photos
-										<input type="file" accept="image/*" multiple hidden onchange={(e) => pickZoneFiles(block, e)} />
-									</label>
-								</div>
-								{#if uploadingProgress && uploadingProgress.blockId === block.id}
-									<p class="upload-status">
-										Uploading {uploadingProgress.name}...
-										<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(uploadingProgress.fraction * 100)} aria-valuemin="0" aria-valuemax="100">
-											<span class="upload-bar-fill" style={`width: ${Math.round(uploadingProgress.fraction * 100)}%`}></span>
-										</span>
-										{Math.round(uploadingProgress.fraction * 100)}%
-									</p>
-								{/if}
-							{:else}
+							{#if uploadEnabled && upload && itemId}
+								<!-- THE SHARED PANEL, per zone. Same component as the plain
+								     hand-in below it and as an instructor's handout: every file
+								     attempted, whatever fails stays here with its own reason and
+								     its own Retry, progress per file.
+
+								     The plain picker carries NO `accept`. A zone asks for photos
+								     and mostly gets them, but a student whose evidence is a CAD
+								     screenshot exported as something else, or a scan, or a phone
+								     that types nothing, is not helped by a picker that hides
+								     their file -- the block's own count is what says how many
+								     it wants. The camera button beside it keeps `accept` because
+								     `capture` is what makes a phone open its camera at all. -->
+								<FileUploadPanel
+									role="submission"
+									{itemId}
+									blockId={block.id}
+									{upload}
+									label="Evidence"
+									hint="Any file, up to 200 MB each. Uploads as soon as you pick it."
+									autoStart
+									offerCamera
+									showPreviews
+									onuploaded={(row) => onuploaded?.(row)}
+								/>
+							{:else if !uploadEnabled}
 								<p class="note">Photo uploads are not configured on this deployment.</p>
 							{/if}
 						{/if}
@@ -783,6 +822,15 @@
 		flex-direction: column;
 		gap: var(--space-1);
 	}
+	/* The thumbnail's own anchor: a block so it does not collapse to a text
+	   line box around the picture, and line-height 0 so no descender gap sits
+	   under it. Its hit area is the whole thumbnail (9rem minimum column width
+	   by up to 12rem tall), which clears the 44px floor by a wide margin. */
+	.zone-shot {
+		display: block;
+		line-height: 0;
+		border-radius: var(--radius-card);
+	}
 	.zone-item img {
 		width: 100%;
 		max-height: 12rem;
@@ -824,15 +872,6 @@
 	.zone-remove:hover {
 		color: var(--crimson);
 	}
-	.zone-actions {
-		display: flex;
-		gap: 0.4rem;
-		flex-wrap: wrap;
-		margin-top: 0.3rem;
-	}
-	.zone-actions label {
-		cursor: pointer;
-	}
 	.checklist {
 		list-style: none;
 		margin: 0;
@@ -856,29 +895,6 @@
 		color: var(--text-2);
 		font-size: 0.8rem;
 		margin: 0.3rem 0 0;
-	}
-	.upload-status {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin: 0.4rem 0 0;
-		font-size: 0.78rem;
-		color: var(--text-2);
-	}
-	.upload-bar {
-		display: inline-block;
-		width: 6rem;
-		height: 0.4rem;
-		border-radius: 999px;
-		background: var(--surface-2);
-		border: 1px solid var(--hairline);
-		overflow: hidden;
-	}
-	.upload-bar-fill {
-		display: block;
-		height: 100%;
-		background: var(--green);
-		transition: width 0.15s ease-out;
 	}
 	.gate-card {
 		margin-bottom: 0.9rem;

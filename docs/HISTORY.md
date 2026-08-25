@@ -385,6 +385,9 @@ of its own is documented inside the one listed.
 | 0131 | `0131_foundry_service_role_writes.sql` | [Foundry, unblocking the ingest function (`0131`)](#foundry-unblocking-the-ingest-function-0131) |
 | 0132 | `0132_foundry_author_class.sql` | [The Foundry author's class, projected inside the definer (`0132`)](#the-foundry-authors-class-projected-inside-the-definer-0132) |
 | 0132 | `0132_foundry_author_class.sql` (corrected in place) | [The IDEA course was a predicate all along (`0132`, corrected IN PLACE)](#the-idea-course-was-a-predicate-all-along-0132-corrected-in-place) |
+| 0133 | `0133_classroom_storage_attachments.sql` | [Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)](#any-file-type-up-to-200-mb-straight-to-storage-0133-0134-laneattach-any-type) |
+| 0134 | `0134_classroom_submission_open_race.sql` | [Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)](#any-file-type-up-to-200-mb-straight-to-storage-0133-0134-laneattach-any-type) |
+| 0135 | `0135_classroom_instructor_storage_and_public_attachments.sql` | [The storage bundle stops blocking its own deploy (`0133` amended, `0135`, `lane/attach-any-type`)](#the-storage-bundle-stops-blocking-its-own-deploy-0133-amended-0135-laneattach-any-type) |
 
 ---
 
@@ -29545,3 +29548,702 @@ in production.
 - The zip round trip was proven byte-clean in Node, not in Deno, and the real
   path is a Chrome `CompressionStream` writer against a Deno
   `DecompressionStream` reader.
+
+## Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)
+
+**The report that started it: a SolidWorks part attached to an assignment
+failed, and the assignment "did not post at all".** The first half was fully
+explained; the second half was not, and is recorded here unresolved rather than
+smoothed over.
+
+### Phase 1: where the bytes actually were
+
+Audited before writing anything, because the premise offered ("are they
+committed into the repo through the GitHub API?") was not what this codebase
+does. Traced from the file input to the resting place:
+
+`<input type=file>` (ContentComposer:1066) -> `stageFiles` -> on Post,
+`runSubmit` creates the item FIRST, then `transports.uploadAttachment` ->
+`postFormWithProgress` (an XHR multipart POST) -> `/api/classroom/attachment`
+-> the whole file buffered into a `Uint8Array` -> `uploadDriveFile` builds a
+`multipart/related` body IN FUNCTION MEMORY -> Google Drive, shared-drive
+subfolder `IDEA Classroom attachments`. The Drive file id lands in
+`classroom_attachments.drive_file_id`.
+
+**They were never in the repo.** `classroom-export.ts` (the `GITHUB_EXPORT_TOKEN`
+job that pushes on every item save) contains no reference to attachments,
+`drive_file_id` or uploads; it writes authored material TEXT under `materials/`
+only. So there was no base64 step and no repo-size ceiling. What there was: the
+bytes crossing the serverless function twice, fully buffered, which is where
+`MAX_ATTACHMENT_BYTES = 4 MiB` came from.
+
+**Eighteen gates were enumerated with file and line.** The one that refused the
+`.SLDPRT` was `resolveMime` (`classroom-attachments.ts:96`) falling through both
+twelve-entry allowlists to a 400: *"Attachments must be an image, PDF, text,
+CSV, or an Office document."* Also found: `accept="image/*"` on the imageZone
+pickers and on the student camera button; no client-side size or type check
+anywhere (`stageFiles` filters `size > 0` only); the filename never becoming a
+path (it is slugged for a Drive DISPLAY name and stored verbatim in a column
+nothing resolves against).
+
+**The non-posting is NOT explained by the attachment path and is not claimed to
+be.** The composer creates the item before any upload, catches each upload
+individually, keeps failed files staged, reports each by name, sets
+`createdItemId` so a retry updates rather than duplicating, and calls `onsaved`
+even on failure so the list refreshes. Candidates that could not be
+distinguished from source: no class selected (`saveTarget` refuses), or the
+`Saved, but 1 thing did not: ...` message being read as a failed post. Left open.
+
+**A student submission path already existed and was a SECOND implementation.**
+Same policy module, different component, different failure semantics:
+`AssignmentEngine.uploadFiles` was a `for` loop that `return`ed on the FIRST
+failure, so files 2..n were never attempted, nothing was re-staged (the input
+had already been cleared, so the `File` handles were gone), and there was no
+retry. That defect was independent of file types.
+
+### 0133: two private buckets, and why no allowlist is safe there
+
+`classroom-attachments` and `submission-files`, both `public = false`, both
+`allowed_mime_types = null`, both `file_size_limit = 209715200`.
+
+**The type list was REPLACED, not widened, and three properties are what pay for
+its absence:** the buckets are private (no public URL exists), every read is a
+signed URL carrying `download=<name>` so the response is
+`Content-Disposition: attachment` on a DIFFERENT origin, and every object is
+stored as `application/octet-stream` so a browser is never handed a content type
+an uploader chose. A bucket that refused `.exe` and served `.svg` inline would
+have had the safety exactly backwards. If any of the three is ever weakened, the
+property comes back, not the list.
+
+**The key layout IS the authorization.** `<owner_id>/<uuid>.<ext>`, where the
+owner is the item (attachments) or the submission (hand-ins), and every policy
+reads the first path segment and asks the classroom's OWN existing predicate
+about it -- `classroom_can_read_item`, `_classroom_manages_item`,
+`classroom_can_review_submission`. Nothing about who may see a handout is
+restated in the migration. The rest of the key is opaque: nothing a person typed
+appears in a path, which takes filename sanitization off the security surface
+entirely rather than making it careful.
+
+`_classroom_storage_prefix_uuid(text)` is the ONE reader of that layout, used by
+the policies and by the write RPCs, and returns NULL for anything that is not a
+bare uuid in segment 1 -- every caller is written so NULL fails closed.
+
+**`storage_key` sits BESIDE `drive_file_id` with a CHECK that exactly one is
+present.** Nothing was backfilled and nothing moved: every attachment already
+posted keeps its Drive handle and keeps serving through the same route, and
+`tests/classroom-attachment-route.test.ts` (20 tests over the Drive path,
+written before this bundle) passes unchanged, which is the evidence for that.
+
+**Deliberately NOT in scope: `classroom_instructor_attachments`.** Its read rule
+is manager-only, so an answer key cannot share the `classroom-attachments`
+prefix -- whose objects are readable by the whole class -- and a third bucket was
+not authorized. Instructor-only material keeps the Drive path and its 4 MiB
+ceiling, and now has its OWN availability flag (below).
+
+### 0134: the race the browser pass exposed
+
+**Found by driving the real UI, not by reading.** Nine files picked at once
+became nine concurrent `classroom_open_submission` calls. A student's submission
+row is created lazily by the first thing they touch; under READ COMMITTED
+several callers read it as missing, several inserted, and the losers came back
+with raw SQLSTATE 23505 on
+`classroom_submissions_item_id_student_email_key`. **Measured: 7 of 9 files
+landed, 2 stranded with a database error on screen.**
+
+The race had been latent since 0086 and 0133 is what fired it: before 0133 the
+student side uploaded one file at a time, so the lazy insert could never race
+itself. Concurrency is the entire point of 0133, so the fix belongs in the
+database: `on conflict (item_id, student_email) do nothing` plus a RE-READ in
+both functions that create a submission lazily, with the lock state re-checked
+after the re-read (the winner may have been a `submit_assignment`). A
+count-then-insert was not available -- there is no parent row to lock before the
+first caller holds one -- so the unique index IS the serialization point and the
+only question was who apologises for it.
+
+`tests/classroom-submission-open-race.test.ts` is built as a PAIRED
+MEASUREMENT: two databases on one cluster, one chain stopping at 0133 and one
+with 0134 over it, the same burst fired at both. **The 0133 control produced 25
+unique violations across 10 rounds of 4; the 0134 database produced 0, with
+every caller returning the same submission id.** Without the control a burst
+that happened not to overlap would pass on the broken code too.
+
+### 0134's sibling finding: retryable is not the same as refused
+
+The route was flattening EVERY RPC error into `gate: 'denied',
+retryable: false`, so the two stranded files were offered no Retry -- a
+transient conflict presented as a permanent refusal.
+`classifyRpcError` now whitelists the transient SQLSTATEs (23505, 40001, 40P01,
+55P03, 57014, 53300) as retryable and leaves everything else as the considered
+refusal it is, verbatim. Almost every raise on this path IS deliberate ("Only a
+student enrolled in this class..."), and retrying those is how a UI ends up
+asking the same question five times.
+
+### The code half
+
+**One upload path, both sides.** `$lib/classroom/file-upload.ts` does sign ->
+PUT -> record, and `transports.uploadAttachment` and
+`transports.uploadSubmissionFile` are both three lines around it. Two
+implementations of "upload a file" was two sets of failure semantics, which is
+how the student side ended up abandoning files.
+
+**One component, both sides.** `FileUploadPanel.svelte` is mounted by
+ContentComposer (staged, uploads on save), AssignmentEngine (immediate) and
+SpecRenderer per imageZone. It owns the picker, per-file progress, the per-file
+error, Retry and Remove. `SpecRenderer`'s `onupload`/`uploadingProgress` props
+are gone, replaced by `itemId` + `upload` + `onuploaded`; absence of `upload`
+removes every zone control, which is the same presence-gates-the-control
+mechanism `fileNotice` uses one level up.
+
+**`putFileWithProgress` is hand-rolled rather than `uploadToSignedUrl`,** and
+the reason is measurable: storage-js's helper uses `fetch`, which cannot report
+upload progress in any browser. For a 60 MB assembly on school wifi that is
+several minutes with nothing on screen, and the thing a person does when a page
+looks hung is press the button again.
+
+**`accept` is gone from every plain picker.** The ONE exemption is the camera
+button, which keeps `accept="image/*" capture="environment"` because `capture` is
+what makes a phone open its camera and an unfiltered capture input opens a file
+browser instead -- and it only ever sits BESIDE an unfiltered picker. The deck
+zip input keeps `.zip` because that is a statement about what the FEATURE
+consumes, not a policy about what a person may hand in; it is exempt by its own
+`data-testid` rather than by "contains .zip".
+
+**`isPreviewableFile` no longer reads `File.type`.** It was the last client
+branch on it, and it is also the read that is legitimately EMPTY for the most
+common camera output. Extension only; an extension that turns out not to decode
+simply shows no thumbnail.
+
+**`attachmentsEnabled: driveConfigured()` was a total silent outage waiting to
+happen**, and it is what blocked the first local verification attempt. A
+deployment without the Google OAuth credentials would have offered no file
+picker on any item and no hand-in on any assignment, with the private bucket
+sitting there unused. Student-facing files are now unconditional and
+`instructorAttachmentsEnabled` carries the Drive dependency alone.
+
+### The download filename, corrected by measurement
+
+The first version passed the name through almost untouched, on the reasoning
+that the name somebody typed is the name they should get back. Measured against
+a real project, `Estudio (final) café.SLDPRT` came back as
+
+    content-disposition: attachment; filename=Estudio%20%2528final%2529%20caf%25C3%25A9.SLDPRT
+
+`%2528` is a percent-encoded `%28`: the value is escaped into the signed URL's
+query string and escaped AGAIN into the header, so a browser saves a name full
+of literal percent escapes. Every fixture whose name was `[A-Za-z0-9.-]` came
+back clean. `downloadFilename` is now ASCII-only by construction, with
+diacritics FOLDED rather than dropped (`café` -> `cafe`), and the fix was
+re-measured: `filename=Estudio_final_cafe.SLDPRT`. **What is lost is only the
+saved filename's punctuation; the DISPLAY name is stored verbatim and is what
+every surface shows.**
+
+### Phase 4: what was measured, and how
+
+Verified against a REAL Supabase project -- the repo's own local stack on 544xx,
+with 0133 and 0134 applied by hand through `psql` exactly as production will be.
+Another project's stack (`fll-app-skt`) was running on 54321/54322 and was left
+strictly alone. A dev-only `/dev/login` route was added to make this possible at
+all: production sign-in is Google OAuth, so until now NOTHING behind a session
+could be verified locally.
+
+Every fixture picked through the real `<input type=file>` in a real Chrome, on
+the real composer and the real hand-in surface.
+
+| fixture | bytes | instructor | student | stored key tail | display name |
+|---|---|---|---|---|---|
+| `bracket.SLDPRT` | 2,048 | yes | yes | `<uuid>.sldprt` | verbatim |
+| `chassis.SLDASM` | 12,582,912 | yes | yes | `<uuid>.sldasm` | verbatim |
+| `full-robot.SLDASM` | 62,914,560 | yes | yes | `<uuid>.sldasm` | verbatim |
+| `assembly.STEP` | 40,960 | yes | yes | `<uuid>.step` | verbatim |
+| `plate.DXF` | 20,480 | yes | yes | `<uuid>.dxf` | verbatim |
+| `part.f3d` | 131,072 | yes | yes | `<uuid>.f3d` | verbatim |
+| `sketch.dwg` | 65,536 | yes | yes | `<uuid>.dwg` | verbatim |
+| `firmware.ino` | 3,072 | yes | yes | `<uuid>.ino` | verbatim |
+| `bundle.zip` | 245 | yes | yes | `<uuid>.zip` | verbatim |
+| `noextension` | 5,120 | yes | yes | `<uuid>` (no ext) | verbatim |
+| `Estudio (final) café.SLDPRT` | 6,144 | yes | yes | `<uuid>.sldprt` | verbatim, accent intact |
+
+Every row: `mime_type = application/octet-stream`, `drive_file_id = null`, and
+the object's own recorded size matching the row's. Every download: `HTTP 200`,
+`content-type: application/octet-stream`, `content-disposition: attachment`.
+
+**The transport fix is proved by the 12 MB and 60 MB rows existing at all** --
+both are far past the old 4 MiB refusal -- and by where the requests went: 11
+XHRs to `127.0.0.1:54421` (the Supabase origin) against 11 JSON POSTs to
+`/api/classroom/attachment`, and the app route answering
+`/api/classroom/attachment/<id>` with a redirect whose final host is
+`127.0.0.1:54421`, returning 62,914,560 bytes for the 60 MB file. `maxUploading
+AtOnce: 11` with per-file percentages on screen.
+
+**A student cannot read another student's submission file, measured four ways.**
+Bruno (same class) and Carla (another section) each: 0 of 11 rows readable; 0 of
+3 objects readable while HOLDING Alice's exact storage keys (refused
+`Object not found`, indistinguishable from a nonexistent key); writes into
+Alice's prefix refused by RLS; and through the app route, `404` with a 9-byte
+`Not found` body for Alice's real file ids -- byte-identical to the answer for a
+made-up uuid, so an id cannot be probed. Positive controls on the same keys:
+Alice 3/3, teacher of record 3/3 and 11/11 rows. **The teacher of record can
+READ Alice's objects and cannot WRITE into her prefix** (refused by RLS) --
+reviewing is not authoring. `mreed` (Period 9) reads 0.
+
+**An induced failure does not abort the post.** A 250 MB file alongside a good
+one: the item was created and published with the good file attached (confirmed
+in the table), and the report read *"Saved, but 1 thing did not:
+way-too-big.SLDASM: That file is 250.0 MB, and the limit is 200 MB. Nothing
+about retrying will change that..."*, with that file still staged, carrying its
+own error, and NO Retry offered -- correct, since retrying cannot help. The
+other three gates were driven on `/dev/classroom-upload`, which mounts the real
+panel with an in-memory transport: `expired` renders the stale-link sentence AND
+offers Retry; `denied` and `not_configured` render their own sentences and do
+not.
+
+**Layout, measured rather than described.** 1440x900: no horizontal overflow
+(`scrollWidth` 1425), panel 902px, rows 902x119, every tap target exactly 44px
+high. 375x812: no horizontal overflow (`scrollWidth` 375), panel 317px, rows
+317x157, the long filename ellipsising correctly, and every control hit-tested
+at the top, middle and bottom of its 44px box -- 7 controls, 21 points, all
+true.
+
+**Not verified:** the live production Supabase project (0133 and 0134 are not
+applied there; `.env` here is a placeholder and was pointed at the local stack
+for this pass and restored byte-identically, md5 checked), a real Google Drive
+round trip (the instructor-only path was exercised only in the "Drive not
+configured, so the control is absent" direction), the Vercel preview
+deployment's own behaviour, and tus resumable uploads -- which were NOT added,
+because the 60 MB fixture landed on the ordinary single-request path and the
+instruction was not to add tus speculatively.
+
+### Deferred, and stated rather than hidden
+
+- **A public material's storage-backed attachment 404s.**
+  `classroom_public_attachment` (0092) projects `drive_file_id` and nothing
+  else, and 0133's storage policies are `to authenticated`, so a signed URL
+  cannot be minted with no session. Every attachment already on a public
+  material is Drive-backed and unaffected. Fixing it is a migration widening
+  that RPC plus an anon-readable policy keyed on the same
+  published-public-material predicate.
+- **Instructor-only material still uploads through the site to Drive**, at
+  4 MiB. It needs a third bucket, because its read rule is manager-only.
+- **A storage-backed image does not render inline anywhere**, by design. That is
+  the third of the three properties, and it means a teacher posting a diagram
+  now gets a download row rather than a thumbnail. Worth revisiting only with a
+  measurement of whether `<img>` ignores `Content-Disposition` on that origin.
+- **Nothing was backfilled.** Drive-backed rows will keep needing the Drive
+  credentials and the proxy for as long as they exist.
+
+## The storage bundle stops blocking its own deploy (`0133` amended, `0135`, `lane/attach-any-type`)
+
+Four things, three of which were defects in the bundle above rather than new
+features. The SQL and its tests are on `main`; the build change and the harness
+are on `lane/attach-any-type`. NOTHING was merged to `main` from the lane.
+
+### `0133` widened two RPCs and dropped the arities production calls
+
+**The bundle above could not be deployed in either order, and nobody noticed
+because both halves were correct on their own.** `0133` dropped
+`classroom_add_attachment(uuid,text,text,text,bigint)` and
+`classroom_add_submission_file(uuid,text,text,text,bigint,text,text)` and
+recreated each one parameter wider. The client running on `main` names exactly
+the old key sets, verified by reading the two routes. So applying the SQL took
+every upload down until the storage client shipped, and shipping the client
+first took every upload down until the SQL was applied. There is no ordering
+that avoids an outage, and the migration's own header documented the ordering as
+though there were.
+
+`0133` has never been applied to production, so it was amended IN PLACE rather
+than corrected by a follow-up. It now drops nothing a deployed client names.
+
+**THE HARD PART IS NOT KEEPING BOTH ARITIES, IT IS KEEPING THEM RESOLVABLE.**
+CLAUDE.md's signature trap says two overloads differing only by a DEFAULTED
+trailing parameter make PostgREST unable to resolve the call at all, so the
+naive additive fix (keep the old one, give the new parameter `default null`)
+reproduces the exact outage it was meant to avoid, from a file that reads like
+it is being careful. What separates the pair here is that the WIDE form declares
+**no defaults at all**:
+
+- the 5-key payload the deployed client sends binds only to the narrow form,
+  because the wide one needs `p_storage_key` and has no default to supply it;
+- the 6-key payload the storage client sends binds only to the wide form,
+  because the narrow one has no `p_storage_key` to bind.
+
+The smallest call the wide form accepts is strictly larger than the largest call
+the narrow one accepts, so the pair is unambiguous under ANY resolution rule
+rather than under a particular one, which is the property worth having in a
+component nobody here can step through. Postgres forbids a required parameter
+after a defaulted one, so "no defaults on the wide form" is all-or-nothing
+rather than a choice about the last parameter.
+
+The narrow forms became thin wrappers that call through with a null key, and
+each **re-raises its own original refusal text** (`A Drive file id is
+required.`) ahead of delegating. The wide body's "attach exactly one of" is the
+right sentence for a caller with a choice and the wrong one for a caller without
+one, and a client that has not been redeployed should see the errors it has
+always seen.
+
+`0134` re-creates the wide hand-in RPC, so it carries the same no-defaults
+signature and the same guard; a restored `default null` there would have re-armed
+the trap from a file that reads like it only touches a race.
+
+**Measured, and printed rather than compared:** after applying and re-applying
+both files, `pg_proc` holds `classroom_add_attachment` at 5 args
+(`ndefaults=1`) and 6 args (`ndefaults=0`), and `classroom_add_submission_file`
+at 7 args (`ndefaults=3`) and 8 args (`ndefaults=0`), identical before and after
+the second apply.
+
+**Re-apply is load-bearing here, not decoration.** Postgres REFUSES to remove a
+parameter default through `create or replace` ("cannot remove parameter defaults
+from existing function"), so a machine holding an earlier draft of `0133` would
+reject the amended file. Both files therefore `drop function if exists` at their
+OWN new signature first, a form that has never existed outside a dev database.
+No drop in either file names an arity any client calls.
+
+**What undoes `0133`:** drop the six functions and six storage policies it
+creates, delete the two buckets and their objects, drop the two widened arities
+(no client redeploy needed, since the deployed ones never went away), restore
+the `0085`/`0086` bodies for the four RPCs, and drop the `storage_key` columns
+and their CHECKs. The full list is in the file's own footer.
+
+### `0135`: the third bucket, the public read, and a duplicate that raised
+
+- **Instructor-only attachments were left on the 4 MiB Drive ceiling**, which
+  `0133` called a stated gap. It is the wrong gap: an answer key is where a
+  large CAD file most belongs. The reason `0133` gave was real --
+  `classroom_can_read_instructor_material` is manager-only, so those objects
+  cannot share the `classroom-attachments` prefix without becoming readable by
+  every enrolled student -- and the answer is the third bucket that reason
+  implies. The WRITE predicate is `0133`'s, reused rather than copied: "does the
+  caller manage the item named by the key's first segment" is the same question
+  with the same answer, and a second copy under an instructor-flavoured name is
+  the thing that stops matching. Only the READ predicate is new.
+- **A public reference document 404'd on a storage-backed attachment.**
+  `classroom_public_attachment` projected `drive_file_id` only and every `0133`
+  storage policy was `to authenticated`, so a signed-out visitor following a
+  printed QR code got nothing. Both halves are fixed. The payload widening is a
+  DISCLOSURE DECISION and is argued in the file: the key adds the item id the
+  caller already holds, a uuid that names nothing, and an extension the filename
+  already carried. No person, no email, no other item, and it is not itself a
+  capability without a policy that admits the caller. The policy names ONE
+  bucket and asks the same three conditions (`material`, `is_public`,
+  `_classroom_item_live`) the public payload already applies, so there is one
+  definition of "public". The signed-in branch is included because being signed
+  in is not being enrolled: a visitor with a Google account would otherwise be
+  the only person who could not read a public document.
+- **Duplicating an item that held a storage-backed attachment RAISED**, measured
+  rather than reasoned about: `new row for relation "classroom_attachments"
+  violates check constraint "classroom_attachments_one_handle"`.
+  `classroom_duplicate_item` copies attachment rows BY NAME and its column list
+  predates `storage_key`, so the copy carried neither handle. Adding the same
+  CHECK to the instructor table would have shipped a second copy of the break.
+  `0108`'s body is re-signed with `storage_key` added to two INSERT lists,
+  diffed against that file rather than reconstructed.
+- **The copy is by reference, so the read predicate had to widen with it.** A
+  copied key still names the ORIGINAL item in its first segment, so a
+  prefix-only read would have listed a file the copy's section could not open.
+  `classroom_can_read_attachment_object` now ORs in "may the caller read the item
+  of any row that names this object". INSERT and DELETE stay on the prefix
+  deliberately: writing is a claim about a key with no row yet, and a manager of
+  a COPY must not be able to delete bytes the original still serves.
+
+**Mutation proof**, in the permissive direction, restored md5-identical after
+each:
+
+- widening the anon policy to all three buckets: the MIGRATION's own guard
+  refused to apply, so the file fails closed and the tests never ran;
+- dropping `is_public` and the live check from the public predicate: reddened
+  exactly the three assertions that should catch it (private item signed out,
+  unpublished item signed out, and the pre-copy control);
+- pointing the instructor read predicate at `classroom_can_read_item`: reddened
+  the enrolled-student denial and nothing else.
+
+### The `/dev/*` harnesses were compiled into production
+
+Reported as an authentication bypass. **It was not one, and the reason is worth
+recording so it is not re-litigated:** `dev` from `$app/environment` is not an
+environment variable, and SvelteKit replaces it with the literal `false` during
+`vite build`. The compiled `/dev/login` load is an unconditional
+`error(404, "Not found")` with the branch folded away. Nothing about that can be
+misconfigured on a deploy, and every `/dev/*` path was verified to answer 404
+when served from a real production build.
+
+**What WAS wrong is that the guard has to run, which means the module has to
+exist to run it.** A production build compiled 105 dev route entry files
+totalling **720,149 bytes** of harness, fixtures and components into the server
+bundle, all unreachable. A guard that has to fire is one that can be edited,
+forgotten on a new harness, or routed around.
+
+A Vite plugin gated on `apply: 'build'` -- a property of which command is
+running, not of any runtime value -- now replaces each route entry's SOURCE with
+a 404 stub before the compiler sees it. Same 105 paths, **19,150 bytes**, every
+one a stub. `vite dev` never invokes the plugin, and the harnesses were confirmed
+to still work.
+
+**SvelteKit 2.66 has no route-filter config** (no `kit.routes`, no
+`excludeRoutes`), so the route PATHS still appear in the manifest. That is stated
+rather than glossed: the path answering 404 with an empty stub and the path not
+existing are the same answer to a caller, and erasing the difference would mean
+mutating the working tree mid-build.
+
+The rule lives in `src/lib/dev-routes.ts`, not in `vite.config.ts`, for the
+reason the site-version rules do: a build config is the one file a test cannot
+reach. The sweep asserts its own case count so a glob that matched nothing cannot
+pass as coverage.
+
+### Measured, on the student hand-in failure path
+
+Through the real `FileUploadPanel` in the upload harness, hand-in side:
+
+- **one oversized file staged beside a good one:** 2 picked, 1 landed, 1 failed.
+  The failed file stayed staged with a Remove button and the real refusal
+  sentence, limit named: "That file is 2.0 MB, and the limit is 200 MB. Nothing
+  about retrying will change that". Retry buttons offered: **0**, which is
+  correct, because a size refusal is not retryable. The file that landed was
+  cleared and the one that did not was kept.
+- **nine files where the third fails:** 9 picked, 9 attempted, 8 landed, 1
+  failed. Files four through nine all landed. The old `AssignmentEngine` loop
+  stopped at the first failure and abandoned everything after it; that is gone.
+
+The harness gained a mode for the first case, because every existing failure mode
+was all-or-nothing and the one-bad-file case could not be reproduced at all.
+Failure is keyed on the FILENAME rather than a counter, since the calls are
+concurrent and a counter makes which file fails depend on scheduling.
+
+**Not shown by the harness:** that the submission ROW is created. The transport
+is faked at the documented injection point, so there is no submission to inspect.
+That property is covered at the database level by
+`tests/classroom-submission-open-race.test.ts` instead.
+
+### NOT DONE, and not attempted
+
+- **Thumbnails for storage-backed images are still missing.**
+  `isSubmissionFileImage` branches on `mime_type`, and the storage path stores
+  `application/octet-stream` for every file on purpose, so every storage-backed
+  image renders as a download row. The fix is an extension-based predicate, but
+  `SUBMISSION_FILE_SELECT` does not carry `storage_key`, so it needs a select
+  LADDER rung and a capability flag across two call sites first. Started and
+  deliberately stopped rather than half-landed.
+- **Instructor uploads still go through the Drive route.** `0135` gives them a
+  bucket and additive RPCs, so the database half is ready and inert. Nothing
+  emits the wider shape yet, which is the correct direction for a gate to precede
+  its producer.
+- **The public serve route was not changed.** `0135` makes a public item's object
+  readable without a session and projects the key, but
+  `/api/classroom/attachment/[attachment_id]` still answers 401 without a
+  session, so the gap is closed in the database and still open in the route.
+- **Nothing was verified against the live Supabase project.** The local `.env` is
+  a placeholder, there is no WSL distro or Docker on this machine, and no local
+  stack was running. Every SQL claim here is against embedded Postgres with the
+  real migration files applied unmodified. **No real PostgREST was exercised**, so
+  the overload-ambiguity claim is taken from CLAUDE.md, where it is recorded as
+  having bitten twice; what is asserted instead is the structural property that
+  makes the question moot.
+
+---
+
+## The three that gated the merge: thumbnails, the public serve route, and the last Drive upload
+
+**Branch:** `lane/attach-any-type`. **Migrations:** none. 0133, 0134 and 0135
+were already applied to production by hand; everything here is the code half
+that had been left explicitly undone, listed as "NOT DONE, and not attempted"
+at the end of the previous entry.
+
+### Why all three gated the merge rather than following it
+
+None of them is a defect on `main`. Each is a defect that comes into existence
+AT the merge, because each is a place where the app still asks a question that
+0133 made meaningless.
+
+The shared cause is one line of 0133's design: **every stored object is
+`application/octet-stream`, written by the route's own hand, so that nothing
+ever branches on a type the uploader chose.** That is correct, and it silently
+invalidated every predicate in the client that asked `mime_type` what a file is.
+
+### 1. Thumbnails
+
+`isSubmissionFileImage` was `mime_type.startsWith('image/')`. Against a
+storage-backed row that is false for a photograph and false for a 60 MB
+assembly, so an `imageZone` -- which IS the photo-evidence block, and is what
+Checkpoint 1 grades -- rendered a column of download links.
+
+**Measured, on `/dev/classroom` in a real Chromium, before and after, with the
+predicate reverted in place and restored md5-identical between the two runs:**
+
+| | zone items | thumbnails decoded | download rows | plain hand-ins | plain thumbnails |
+|---|---|---|---|---|---|
+| mime-only predicate | 4 | **0** | 4 | 2 | **0** |
+| extension predicate | 4 | **2** | 2 | 2 | **1** |
+
+3 of the 6 seeded files are genuinely pictures and all 3 decode; the other 3
+(a `.SLDPRT`, a `.SLDASM`, and a `.png` whose bytes are not a PNG) are download
+rows. The third of those is the fallback path: the element is rendered, fails to
+decode, and `onerror` drops it back to the row.
+
+**The load-bearing decisions:**
+
+- **No server change, and that was a measurement rather than a guess.** The
+  obvious reading of 0133's "nothing a person uploaded is ever rendered inline"
+  is that a thumbnail needs an inline branch on the serve route. It does not.
+  Measured in Chromium: an `<img>` whose response is
+  `application/octet-stream` + `Content-Disposition: attachment` + `nosniff`,
+  reached through a 302 to a signed URL, decodes -- `naturalWidth` 8 on an 8x5
+  PNG, identical to the plain `image/png` control, and identical again through
+  the redirect. Five cases, five decodes. So the `src` is the SAME proxy URL as
+  the link beside it, the disposition rule is untouched, and the CLAUDE.md rule
+  that said otherwise was conflating "navigated to as a document" with "decoded
+  by an image element". That rule is edited in place.
+- **Three states of `storage_key`, not two.** A string means storage-backed and
+  the key's extension decides. NULL means the column was selected and this row
+  is Drive-backed, so its recorded type is real and is the thing it has always
+  been thumbnailed by -- nothing was backfilled, so that branch stays. UNDEFINED
+  means the column was not selected at all, which is the degraded rung, and
+  there `mime_type` is both the only signal and the correct one, because on a
+  pre-0133 schema every row is Drive-backed.
+- **The rung is its own rung.** `SUBMISSION_FILE_SELECT_STORAGE` adds
+  `storage_key` and nothing else; `selectSubmissionFiles` is ONE ladder called
+  by the student engine load and by `loadGrading`, so the two surfaces cannot
+  end up on different rungs and disagree about which files are pictures. The
+  capability is reported as `filesStorageReady` on both payloads, turned on only
+  by the wide rung succeeding -- never inferred from the rows, because an
+  assignment with no hand-ins returns an empty array on both rungs.
+- **`isImageAttachment` had the identical defect and is fixed as a UNION.** A
+  teacher's handout is stored octet-stream too. Asking the filename FIRST and
+  keeping the recorded type as an OR means every Drive row keeps the thumbnail
+  it has today, which is what let this move with no change to `ITEM_SELECT` --
+  whose four-rung ladder every classroom read goes through, and which would have
+  needed a fifth rung spelled out in full to widen the embedded attachment
+  select. This is beyond the letter of the item as scoped and is called out as
+  such; the alternative was shipping two predicates that answer differently
+  about the same question.
+- **One image-extension rule.** There were two byte-identical copies of the
+  regex (`classroom.ts`, `FileUploadPanel`) and this was about to add a third.
+  `isImageFilename` is now the rule and both call it; the test counts the copies
+  and fails at two.
+
+### 2. The public serve route
+
+`?public=1` resolved the row through `classroom_public_attachment` and then read
+`drive_file_id` only, so a storage-backed attachment on a published public
+material answered 404 to exactly the audience it was published for -- and
+answered perfectly for any signed-in teacher checking it, because they never
+take that branch.
+
+Both halves of the fix are 0135's and both are the database's: the RPC projects
+`storage_key`, and a second permissive policy admits `anon` to an object in
+`classroom-attachments` whose prefix names a public, live material. The route
+mints on the caller's own client, which with no session IS the `anon` role.
+
+**One thing moved that was not in the brief:** `driveConfigured()` used to gate
+the whole public branch, so a deployment with no Google credentials would 503 a
+storage-backed public attachment -- refusing a file it never needed Drive to
+serve. It is now below the storage branch.
+
+**Proved at the route, with live positive controls beside every negative**
+(`tests/classroom-storage-routes.test.ts`, real handlers, real Postgres, real
+policies, `anon` for signed-out):
+
+| case | result | control |
+|---|---|---|
+| signed out, `?public=1`, public material | **302** to a signed URL | -- |
+| signed out, `?public=1`, PRIVATE material | **404**, 0 storage calls | manager 302 on the same row |
+| signed out, `?public=1`, UNPUBLISHED public material | **404**, 0 storage calls | manager 302 on the same row |
+| signed out, no flag | **401** | -- |
+| signed-in visitor, enrolled in nothing, `?public=1` | **302** | same visitor, no flag: **404** |
+| enrolled student, no flag, both materials | **302, 302** | -- |
+| legacy Drive-backed public attachment | **200**, bytes byte-for-byte | 0 storage calls |
+| every storage call made on the public branch | bucket = `classroom-attachments`, count > 0 | swept, not spot-checked |
+
+The database half was already proven by `tests/classroom-instructor-storage.test.ts`
+(0135); what is new here is that the ROUTES ask.
+
+### 3. Instructor-only uploads
+
+The last multipart POST through the function. An answer key was capped at 4 MiB
+and filtered by a twelve-type allowlist, on the one surface no student ever
+sees -- so the SLDASM the assignment is built from, the full-resolution scan of
+the marked exemplar and the setup video were all refused.
+
+It now takes the same three steps as everything else: `/sign` mints into
+`instructor-attachments`, the browser PUTs, `/record` writes the row through
+0135's widened RPC with `application/octet-stream` and the key. `ContentComposer`
+mounts a second `FileUploadPanel` in the instructor section and its hand-rolled
+staging is deleted -- a `File[]`, a non-reactive object-URL map, a revision
+counter, an `onDestroy` to revoke them, a `uploadProgress` record keyed by array
+index, its own markup and its own failure-line formatting: a second
+implementation of the panel that had drifted into being worse than the original,
+with no per-file error and no Retry.
+
+**Measured in a real Chromium, on `/dev/classroom`'s composer:**
+
+- both panels present (`data-role` `attachment` and `instructor`), legacy
+  `ul.staged` markup count **0**;
+- the instructor picker carries **no `accept`** and is `multiple`;
+- staged: `Bracket answer key.SLDPRT` (4 KB), `Full assembly.SLDASM`
+  (**62,914,560 bytes**) and `exemplar.png` (85 B) -- **3 staged, 0 refusals, 1
+  thumbnail**. Both of the first two were refused outright by the old path;
+- on save, **3** `uploadInstructorAttachment` calls, one per file, concurrently,
+  0 errors, and the panel unmounts with the created item.
+
+Route-level, against the real policies: a manager mints, an enrolled student is
+refused (`gate: denied`), a signed-out caller gets 401, 300 MB is refused with
+`gate: too_large` naming the 200 MB cap, and a key naming another item is
+refused before the database sees it. **The count:** over a set of four
+instructor rows on one item, the manager reads **4**, an enrolled student reads
+**0**, a teacher of another section **0**, a signed-in visitor **0**, signed out
+**0** -- the last of those refused one layer earlier, at the GRANT, since `anon`
+holds no SELECT on that table at all.
+
+**`instructorAttachmentsEnabled` stopped being `driveConfigured()`.** Leaving it
+would have been the same silent outage 0133 fixed for student-facing files, one
+surface over: no answer-key picker at all on a deployment with no Google
+credentials, with the bucket sitting there working.
+
+### The harness was the thing hiding all of this
+
+`/dev/classroom` seeded hand-in rows as `image/svg+xml` with no `storage_key` --
+a shape the record route can no longer produce. So it exercised the pre-0133
+branch of the predicate and could not have shown the regression. It now seeds
+what 0133 actually writes, and seeds all three outcomes side by side (a picture,
+a CAD file, a picture whose bytes do not decode) on both the student's own view
+and the graded one. Its `uploadSubmissionFile` stopped passing `file.type`
+through for the same reason. **A harness fed input its real producer cannot emit
+proves nothing about the real producer.**
+
+### What was NOT verified
+
+- **Nothing against the live Supabase project.** The local `.env` is a
+  placeholder (`example-ref`), so no signed URL was ever minted by real
+  storage-api, no real `Content-Disposition` header was read back, and the
+  double-encoding measurement recorded in the previous entry was not repeated.
+  Every SQL claim here is against embedded Postgres with the real migration
+  files applied unmodified; the storage shim evaluates the real policies as the
+  real roles, but it is a shim.
+- **The `<img>` measurement was against a local server, not against Supabase.**
+  What was measured is that Chromium decodes those headers, which is a fact
+  about the browser; that Supabase sends exactly those headers is taken from the
+  previous bundle's measurement.
+- **No visual/screenshot review.** Every geometry claim is a computed-style,
+  `naturalWidth` or hit-test read.
+- **The three-way `?public=1` behaviour was probed against the running dev
+  server only as a status code** (401 -> 404 for a signed-out public request on
+  an id the placeholder project cannot resolve). That shows the branch is
+  reachable; it does not show a real public attachment serving. The route test
+  is what shows that.
+
+### Deferred
+
+- **The dead Drive write helpers are still there.** `readAttachmentForm`,
+  `MAX_DRIVE_ATTACHMENT_BYTES`, `attachmentDriveFilename`,
+  `instructorMaterialsFolderId`, `submissionsFolderId`,
+  `INSTRUCTOR_MATERIALS_FOLDER_NAME` and `SUBMISSIONS_FOLDER_NAME` have no
+  caller in `src/` at all now. They are left standing because removing them
+  deletes passing tests and is a deletion bundle of its own, and because the
+  instruction for this branch was explicitly not to remove the Drive path. Their
+  comments are corrected to say they are dead rather than claiming a caller.
+  `postFormWithProgress` WAS removed, because its last caller was the instructor
+  upload and a dormant helper for the shape this bundle just deleted is an
+  invitation to write the 4 MiB path again.
+- **The Drive READ path stays and must.** Nothing was backfilled, so every
+  attachment, hand-in and answer key posted before its migration still resolves
+  through `downloadDriveFile` and `INLINE_TYPES`. `GOOGLE_DRIVE_REFRESH_TOKEN`
+  is still required for those rows, for the notebook photo upload, for classroom
+  DECKS (which still POST their zip through the function) and for the
+  delete-content sweep. It is no longer required for any classroom UPLOAD.

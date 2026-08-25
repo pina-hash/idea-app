@@ -17,7 +17,6 @@ import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
-import { driveConfigured } from '$lib/server/notebook-drive';
 import type { LayoutServerLoad } from './$types';
 
 /**
@@ -414,7 +413,35 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		section,
 		canManage,
 		sections,
-		attachmentsEnabled: driveConfigured(),
+		/**
+		 * STUDENT-FACING FILES DO NOT DEPEND ON DRIVE ANY MORE (0133).
+		 *
+		 * This was `driveConfigured()`, and leaving it that way would have been a
+		 * silent, total outage of the thing this bundle exists to build: a
+		 * deployment without the Google OAuth credentials would offer no file
+		 * picker on any item and no hand-in on any assignment, with the private
+		 * Supabase bucket sitting right there unused. Nothing in the picker, the
+		 * signed upload URL, the row or the download touches Drive.
+		 */
+		attachmentsEnabled: true,
+		/**
+		 * AND NEITHER DOES INSTRUCTOR-ONLY MATERIAL, SINCE 0135.
+		 *
+		 * This was `driveConfigured()` too, for a reason that was true when it was
+		 * written and is not now: 0133 gave answer keys no bucket, because their
+		 * read rule is manager-only and they cannot share the
+		 * `classroom-attachments` prefix, whose objects the whole class may read.
+		 * 0135 gave them a bucket of their own with three manager-only policies,
+		 * so they take the same signed-URL path as everything else and the 4 MiB
+		 * Drive ceiling is gone with it.
+		 *
+		 * LEAVING THE FLAG WOULD HAVE BEEN THE SAME SILENT OUTAGE the bullet above
+		 * describes, one surface over: a deployment with no Google credentials
+		 * would show no answer-key picker at all, with the bucket sitting there
+		 * working. Nothing in the picker, the signed upload URL, the row or the
+		 * download touches Drive on this path any more.
+		 */
+		instructorAttachmentsEnabled: true,
 		items,
 		units,
 		work,

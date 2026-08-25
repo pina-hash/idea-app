@@ -13,6 +13,7 @@
 
 import { formatSectionLabel } from '$lib/section-label';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
+import type { UploadGate } from '$lib/classroom/upload-errors';
 
 // ---------------------------------------------------------------------------
 // Row types (mirroring 0085's tables; embeds normalized by the helpers below)
@@ -338,7 +339,11 @@ export function registerLocalAttachmentUrl(attachmentId: string, url: string): v
 	localAttachmentUrls.set(attachmentId, url);
 }
 
-/** Mirrors the server's INLINE_TYPES image half: what gets a thumbnail. */
+/**
+ * The recorded types that mean "picture", for a DRIVE-backed row. Mirrors the
+ * server's INLINE_TYPES image half, which is the allowlist every such row was
+ * filtered through on the way in.
+ */
 const PREVIEW_TYPES = new Set([
 	'image/jpeg',
 	'image/png',
@@ -348,8 +353,32 @@ const PREVIEW_TYPES = new Set([
 	'image/heif'
 ]);
 
+/**
+ * Does this attachment get a thumbnail.
+ *
+ * THE FILENAME IS ASKED FIRST NOW, AND IT HAD TO BE. This was `PREVIEW_TYPES`
+ * alone, which is a question about `mime_type` -- and since 0133 the record
+ * route stores `application/octet-stream` for every attachment it writes, on
+ * purpose, so nothing ever branches on a type the uploader chose. A mime-only
+ * predicate therefore answers FALSE for every handout uploaded from now on, and
+ * a diagram a teacher attaches to an assignment renders as a download row
+ * instead of a picture. Same defect as `isSubmissionFileImage` had, one table
+ * over; `fileKindLabel` beside it already moved to the extension for exactly
+ * this reason.
+ *
+ * IT IS A UNION RATHER THAN A REPLACEMENT, which is the whole reason no select
+ * had to change for this. Every Drive-backed row keeps thumbnailing on the
+ * recorded type it has always thumbnailed on -- the extension can only ever ADD
+ * a row to the set -- so there is no pre-0133 case to re-prove and no
+ * `storage_key` needed in `ITEM_SELECT`, whose four-rung ladder every classroom
+ * read goes through.
+ *
+ * A NAME THAT LIES COSTS NOTHING. A renamed zip called `.png` gets an `<img>`
+ * that fails to decode, and AttachmentList's `onerror` drops it back to the
+ * ordinary file row. Nothing is refused, served differently, or gated on this.
+ */
 export function isImageAttachment(a: ClassroomAttachment): boolean {
-	return PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
+	return isImageFilename(a.filename) || PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -505,13 +534,37 @@ export function resolveFigureSrc(
 	return { ok: true, src: ref, attachmentId: null };
 }
 
-/** A staged (not yet uploaded) file the composer can preview inline. */
+/**
+ * WHAT NAME READS AS A PICTURE. THE ONE COPY, and every surface that decides
+ * whether to draw a thumbnail calls it.
+ *
+ * KEYED ON THE FILENAME EXTENSION ALONE, because since 0133 there is nothing
+ * else honest to key on: every stored object is `application/octet-stream` by
+ * the route's own hand, so `mime_type` on a storage-backed row answers the same
+ * for a photograph and for a 60 MB assembly. `File.type` is worse again -- it is
+ * the uploader's guess, and it is legitimately EMPTY for a HEIC off an iPhone.
+ *
+ * IT DECIDES NOTHING ABOUT ACCESS AND REFUSES NOTHING. A name that turns out not
+ * to decode simply loses its thumbnail through the img element's own `onerror`,
+ * and the file downloads exactly as it would have.
+ *
+ * There were THREE copies of this regex on this branch (here, FileUploadPanel's
+ * `PREVIEWABLE_EXT`, and about to be a fourth for submission files). Three
+ * spellings of "is this a picture" is three things that stop agreeing about
+ * `.avif`.
+ */
+const IMAGE_FILENAME_RE = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i;
+
+export function isImageFilename(name: string | null | undefined): boolean {
+	return IMAGE_FILENAME_RE.test(name ?? '');
+}
+
+/**
+ * A staged (not yet uploaded) file a composer can preview inline. The same rule
+ * as an already-uploaded one, asked of the handle instead of the row.
+ */
 export function isPreviewableFile(file: File): boolean {
-	const type = (file.type ?? '').toLowerCase();
-	if (type.startsWith('image/')) return true;
-	// A camera capture can legitimately carry an EMPTY type (the File API
-	// requires it when the platform cannot tell) -- the notebook's HEIC lesson.
-	return type === '' && /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name ?? '');
+	return isImageFilename(file.name);
 }
 
 export function formatBytes(size: number | null | undefined): string {
@@ -537,9 +590,20 @@ const MIME_KIND_LABELS: [prefix: string, label: string][] = [
 	['video/', 'VIDEO'],
 	['audio/', 'AUDIO']
 ];
-/** Filename extension -> the same badge, for a file whose mime type is empty
- *  or generic (application/octet-stream) -- the notebook camera lesson: a
- *  browser can legitimately fail to type a file. */
+/**
+ * Filename extension -> the same badge.
+ *
+ * THIS IS NOW THE PRIMARY PATH, NOT THE FALLBACK. Since 0133 every uploaded
+ * object is STORED as application/octet-stream -- never the browser's guess --
+ * so the mime map above answers for Drive-backed rows written before it and
+ * this map answers for everything since. Which means an extension missing here
+ * is not a rare edge, it is a file reading "FILE" on a class page.
+ *
+ * The CAD and maker formats are here because they are what an engineering class
+ * actually hands in, and the platform refused every one of them until 0133.
+ * A badge is DISPLAY ONLY: nothing is gated on it, nothing is served from it,
+ * and an extension nobody listed still uploads and still downloads.
+ */
 const EXT_KIND_LABELS: Record<string, string> = {
 	pdf: 'PDF',
 	doc: 'DOC',
@@ -550,11 +614,46 @@ const EXT_KIND_LABELS: Record<string, string> = {
 	ppt: 'PPT',
 	pptx: 'PPT',
 	zip: 'ZIP',
+	'7z': 'ZIP',
+	rar: 'ZIP',
 	txt: 'TXT',
+	md: 'TXT',
+	log: 'TXT',
 	mp4: 'VIDEO',
 	mov: 'VIDEO',
 	mp3: 'AUDIO',
-	wav: 'AUDIO'
+	wav: 'AUDIO',
+	// SolidWorks, which is what GAUNTLET and the design classes run.
+	sldprt: 'CAD',
+	sldasm: 'CAD',
+	slddrw: 'CAD',
+	// Neutral interchange, and the two the school's other tools emit.
+	step: 'CAD',
+	stp: 'CAD',
+	iges: 'CAD',
+	igs: 'CAD',
+	x_t: 'CAD',
+	f3d: 'CAD',
+	f3z: 'CAD',
+	ipt: 'CAD',
+	iam: 'CAD',
+	// Drawings.
+	dwg: 'CAD',
+	dxf: 'CAD',
+	// Print and mesh.
+	stl: 'MESH',
+	obj: 'MESH',
+	'3mf': 'MESH',
+	gcode: 'MESH',
+	// Firmware and code a robotics class hands in.
+	ino: 'CODE',
+	py: 'CODE',
+	cpp: 'CODE',
+	h: 'CODE',
+	java: 'CODE',
+	js: 'CODE',
+	ts: 'CODE',
+	json: 'CODE'
 };
 
 /**
@@ -1188,7 +1287,17 @@ export function parseSectionRosterCsv(
 // never throws -- so a surface renders refusals inline.
 // ---------------------------------------------------------------------------
 
-export type TxResult<T = undefined> = { ok: true; data: T } | { ok: false; message: string };
+/**
+ * A transport's answer. The failure branch carries two OPTIONAL extras that
+ * only the file-upload transports set (0133): `gate` names WHICH refusal this
+ * was -- a size cap, an expired signed URL, an RLS denial -- and `retryable`
+ * says whether saving again with the same file is worth doing. Optional
+ * because nothing else on this interface has three ways to fail, and a
+ * required field would make every other transport invent a value for it.
+ */
+export type TxResult<T = undefined> =
+	| { ok: true; data: T }
+	| { ok: false; message: string; gate?: UploadGate; retryable?: boolean };
 
 export interface ImportRowResult {
 	row: number;

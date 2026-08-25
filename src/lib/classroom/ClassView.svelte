@@ -81,6 +81,7 @@
 		transports = null,
 		unitTransports = null,
 		attachmentsEnabled = true,
+		instructorAttachmentsEnabled = true,
 		basePath = '/classroom',
 		notebookHref = null,
 		checkIns = [],
@@ -112,6 +113,9 @@
 		/** Null = units are not offered here (a read-only surface, or pre-0111). */
 		unitTransports?: ClassroomUnitTransports | null;
 		attachmentsEnabled?: boolean;
+		/** Instructor-only material still uploads through the site to Drive, so
+		 *  it has its OWN availability flag -- see the layout load. */
+		instructorAttachmentsEnabled?: boolean;
 		/** Link root: every item href is built from it. */
 		basePath?: string;
 		notebookHref?: string | null;
@@ -780,6 +784,7 @@
 						{sections}
 						transports={transports!}
 						{attachmentsEnabled}
+						{instructorAttachmentsEnabled}
 						compact
 						onsaved={saved}
 						oncancel={() => (editing = null)}
