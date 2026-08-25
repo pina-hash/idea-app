@@ -283,7 +283,15 @@ type FixtureApp = {
 	id: string;
 	slug: string;
 	title: string;
-	publishedVersionId: string;
+	/**
+	 * NULL IS A REAL FIXTURE STATE, not a placeholder. An app whose first build
+	 * is still in review, one whose build was rejected, and one rolled back to
+	 * nothing all look like this -- and on the DIRECT PAGE (`/a/<app>/`) it is
+	 * the case that has to answer with the same bodyless 404 as an app id that
+	 * does not exist. Without a fixture for it that refusal could only be
+	 * asserted against an unknown id, which is a different code path.
+	 */
+	publishedVersionId: string | null;
 	hiddenAt: string | null;
 };
 
@@ -436,6 +444,34 @@ export const FIXTURE_VERSION_PROBE = 'ffffffff-ffff-4fff-8fff-fffffffffff1';
 export const FIXTURE_APP_TYPES = '77777777-7777-4777-8777-777777777777';
 export const FIXTURE_VERSION_TYPES = '77777777-7777-4777-8777-777777777771';
 
+/**
+ * THE THREE FIXTURES THE DIRECT PAGE NEEDS, and each of them exists because
+ * `/a/<app>/` has a refusal or a measurement that nothing else can produce.
+ *
+ *   PLAYFIELD  the acceptance case's SHAPE. `wide-playfield.html` is a fixed
+ *              960x640 game that scales to fit and reports the scale it got, so
+ *              "the app has more room" is a number read from the same bundle in
+ *              the gallery frame, in full screen and on the direct page. It is
+ *              a stand-in and says so: blockbast's own bytes are in the
+ *              production bucket and nothing here can reach them.
+ *   HIDDEN     an app that IS published and IS shelved. Every other fixture app
+ *              is visible, so without this the "a hidden app 404s" claim could
+ *              only be made about code, never measured. Its entry document says
+ *              in words that serving it is the failure, because a fixture that
+ *              proves a refusal has to be recognisable when the refusal stops
+ *              happening.
+ *   UNPUBLISHED  an app with a version and NO `published_version_id`, which is
+ *              the one refusal `/a/` has that `/b/` does not: `/b/` is handed a
+ *              version id and this app's build is reachable through it, while
+ *              `/a/` has nothing to resolve and must answer 404.
+ */
+export const FIXTURE_APP_PLAYFIELD = '99999999-9999-4999-8999-999999999991';
+export const FIXTURE_VERSION_PLAYFIELD = '99999999-9999-4999-8999-999999999992';
+export const FIXTURE_APP_HIDDEN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaf1';
+export const FIXTURE_VERSION_HIDDEN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaf2';
+export const FIXTURE_APP_UNPUBLISHED = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbf1';
+export const FIXTURE_VERSION_UNPUBLISHED = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbf2';
+
 const PNG_1X1 = Uint8Array.from(
 	atob(
 		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -450,7 +486,8 @@ function binaryFile(path: string, bytes: Uint8Array): [string, FixtureFile] {
 const FILE_FIXTURES: { appId: string; versionId: string; name: string }[] = [
 	{ appId: FIXTURE_APP_DEFLECT, versionId: FIXTURE_VERSION_DEFLECT, name: 'deflect.html' },
 	{ appId: FIXTURE_APP_REACT, versionId: FIXTURE_VERSION_REACT, name: 'approved-react-app.html' },
-	{ appId: FIXTURE_APP_PROBE, versionId: FIXTURE_VERSION_PROBE, name: 'sandbox-probe.html' }
+	{ appId: FIXTURE_APP_PROBE, versionId: FIXTURE_VERSION_PROBE, name: 'sandbox-probe.html' },
+	{ appId: FIXTURE_APP_PLAYFIELD, versionId: FIXTURE_VERSION_PLAYFIELD, name: 'wide-playfield.html' }
 ];
 
 function registerTypeFixture(): void {
@@ -478,12 +515,58 @@ function registerTypeFixture(): void {
 	});
 }
 
+/**
+ * THE TWO REFUSAL FIXTURES FOR THE DIRECT PAGE.
+ *
+ * Both are registered rather than read off disk, because what is being fixtured
+ * is a ROW STATE and not a bundle: the bytes exist only so that a refusal can be
+ * told apart from an empty version.
+ */
+function registerRefusalFixtures(): void {
+	versions.set(FIXTURE_VERSION_HIDDEN, {
+		appId: FIXTURE_APP_HIDDEN,
+		entry: FOUNDRY_ENTRY_FILE,
+		files: new Map([
+			file(
+				FOUNDRY_ENTRY_FILE,
+				'<!doctype html><title>shelved</title><p id="leak">A SHELVED APP SERVED ITS BYTES. This document is only reachable if the hidden check stopped running.'
+			)
+		])
+	});
+	apps.set(FIXTURE_APP_HIDDEN, {
+		id: FIXTURE_APP_HIDDEN,
+		slug: 'shelved-app',
+		title: 'Shelved app',
+		publishedVersionId: FIXTURE_VERSION_HIDDEN,
+		hiddenAt: '2026-08-24T12:00:00Z'
+	});
+
+	versions.set(FIXTURE_VERSION_UNPUBLISHED, {
+		appId: FIXTURE_APP_UNPUBLISHED,
+		entry: FOUNDRY_ENTRY_FILE,
+		files: new Map([
+			file(
+				FOUNDRY_ENTRY_FILE,
+				'<!doctype html><title>in review</title><p id="leak">AN APP WITH NOTHING PUBLISHED SERVED ITS BYTES on the direct page.'
+			)
+		])
+	});
+	apps.set(FIXTURE_APP_UNPUBLISHED, {
+		id: FIXTURE_APP_UNPUBLISHED,
+		slug: 'nothing-published',
+		title: 'Nothing published',
+		publishedVersionId: null,
+		hiddenAt: null
+	});
+}
+
 let fileFixturesLoaded = false;
 
 function loadFileFixtures(): void {
 	if (fileFixturesLoaded) return;
 	fileFixturesLoaded = true;
 	registerTypeFixture();
+	registerRefusalFixtures();
 	for (const f of FILE_FIXTURES) {
 		let html: string;
 		try {

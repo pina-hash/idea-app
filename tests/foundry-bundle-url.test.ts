@@ -53,6 +53,14 @@ const REPO = path.resolve(import.meta.dirname, '..');
 const ORIGIN = 'https://apps.ideabosco.com';
 const MOUNT = `${ORIGIN}${FOUNDRY_BUNDLE_PREFIX}`.replace(/\/$/, '');
 const ROUTE_FILE = 'src/routes/b/[appId]/[versionId]/[...path]/+server.ts';
+/**
+ * THE DIRECT PAGE IS A SECOND MOUNT WITH THE SAME SILENT FAILURE, so the
+ * trailing-slash assertion below covers BOTH of them rather than the one that
+ * happened to exist first. `/a/<app>` has `/a/` as its base URL exactly as
+ * `/b/<app>/<version>` has `/b/<app>/`, and gets an app that loads and looks
+ * broken in exactly the same way.
+ */
+const APP_ROUTE_FILE = 'src/routes/a/[appId]/[...path]/+server.ts';
 const APP = '11111111-1111-4111-8111-111111111111';
 const VERSION = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
 
@@ -111,11 +119,16 @@ describe('the frame src is the serving function URL', () => {
 	 * This fails SILENTLY and cosmetically -- a bundle that loads and looks
 	 * wrong -- so it is worth pinning in the file rather than in a comment.
 	 */
-	it('opts the serving route out of SvelteKit trailing-slash normalization', () => {
-		const route = fs.readFileSync(path.join(REPO, ROUTE_FILE), 'utf8');
+	it.each([
+		['the frame src', ROUTE_FILE],
+		['the direct page', APP_ROUTE_FILE]
+	])('opts %s out of SvelteKit trailing-slash normalization', (_label, file) => {
+		const route = fs.readFileSync(path.join(REPO, file), 'utf8');
 		expect(route).toMatch(/export const trailingSlash = 'ignore';/);
-		// And it still redirects the bare, slashless root itself.
-		expect(route).toContain('trailingSlashRedirect');
+		// And it still issues the bare, slashless root redirect itself. Named by
+		// the helper both mounts call rather than by one route's own local
+		// function, which is what this asserted while there was only one route.
+		expect(route).toContain('foundryRootRedirect');
 	});
 
 	/**
@@ -273,6 +286,7 @@ describe('nothing of the token proxy survives', () => {
 		// this, a wrong REPO root would report a clean removal of everything.
 		expect(fs.existsSync(path.join(REPO, 'src/lib/foundry/bundle-url.ts'))).toBe(true);
 		expect(fs.existsSync(path.join(REPO, ROUTE_FILE))).toBe(true);
+		expect(fs.existsSync(path.join(REPO, APP_ROUTE_FILE))).toBe(true);
 	});
 
 	/**

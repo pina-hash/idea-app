@@ -114,3 +114,56 @@ export function foundryBundleUrl(
 
 	return `${origin}${FOUNDRY_BUNDLE_PREFIX}${encodeURIComponent(app)}/${encodeURIComponent(version)}/${tail}`;
 }
+
+/**
+ * THE DIRECT PAGE'S PATH SEGMENT: one app, as the WHOLE DOCUMENT.
+ *
+ *   <apps origin>/a/<app id>/
+ *
+ * WHY A SECOND MOUNT AND NOT A QUERY ON THE FIRST. `/b/` names a VERSION and
+ * `/a/` names an APP, and the difference is which of them a link outlives. A
+ * `/b/` URL stops resolving the day the student publishes again, which is
+ * correct for a frame the gallery builds from a row it just read and wrong for
+ * a link somebody pasted into a message last term. `/a/` resolves the app's
+ * `published_version_id` on every request, so the same link keeps opening
+ * whatever is published now -- and stops opening anything the moment nothing
+ * is.
+ *
+ * IT IS DELIBERATELY PUBLIC, and that is a property of the ORIGIN rather than
+ * a decision this module makes. There is no session on the apps host -- the
+ * portal's cookies are host-only on the main one, which is the whole reason
+ * for the split -- so "require a signed-in caller" is not available here
+ * without handing every bundle the credentials the split exists to withhold.
+ * What becomes public is the WORK: the direct page carries the bundle and
+ * nothing else. The author's name, their class and the build notes are on the
+ * gallery, which is signed-in, and the direct route never reads them.
+ *
+ * THE TRAILING SLASH IS THE SAME LOAD-BEARING SLASH `/b/` HAS. `.../<app>` has
+ * `/a/` as its base URL, so `style.css` in the entry document would resolve to
+ * `/a/style.css` and the app would render unstyled and scriptless -- which
+ * reads as a bad upload rather than a bad URL. This builder only ever produces
+ * the slash form; the route 307s the other one rather than trusting that
+ * nothing generates it.
+ */
+export const FOUNDRY_APP_PREFIX = '/a/';
+
+/**
+ * `<apps origin>/a/<app>/`, or null when there is nothing to point at.
+ *
+ * NULL IS A REAL ANSWER, exactly as it is for `foundryBundleUrl`: a deployment
+ * with no apps origin has no direct page to offer, and a surface renders the
+ * absence rather than a link to `/a/`.
+ *
+ * IT TAKES NO VERSION, ON PURPOSE. Handing one in would make this a second
+ * spelling of `foundryBundleUrl` whose extra argument is ignored, and the
+ * first thing a caller would do with it is wonder which of the two it pins.
+ */
+export function foundryAppUrl(
+	appsOrigin: string | null | undefined,
+	appId: string | null | undefined,
+): string | null {
+	const origin = trimOrigin(appsOrigin);
+	const app = (appId ?? '').trim();
+	if (!origin || !app) return null;
+	return `${origin}${FOUNDRY_APP_PREFIX}${encodeURIComponent(app)}/`;
+}

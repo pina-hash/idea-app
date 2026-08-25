@@ -328,6 +328,47 @@ export async function serveBundleFile(
 }
 
 
+/**
+ * WHICH VERSION AN APP'S DIRECT PAGE (`/a/<app>/`) IS CURRENTLY SHOWING.
+ *
+ * IT IS A LOOKUP, NOT A DECISION, and the distinction is the whole reason it
+ * is three lines rather than thirty. It reads one column and returns it; it
+ * does NOT ask whether the app is hidden, whether the version exists or
+ * whether that version may be served. Every one of those questions is
+ * `serveBundleFile`'s, which the direct route calls straight afterwards with
+ * whatever this returns -- so the publication gate has exactly one copy and a
+ * hidden app's published id is answered with the same bodyless 404 as an
+ * unknown one, from the same three checks, rather than from a second
+ * `hidden_at is null` written here.
+ *
+ * NULL IS A NORMAL ANSWER: an app whose first build is still in review, one
+ * whose build was rejected, one that was rolled back to nothing, and an app id
+ * that does not exist all produce it, and all of them are the same 404.
+ *
+ * IT NEVER RETURNS A SUBMITTED VERSION, which is what makes `/a/` strictly
+ * narrower than `/b/`. `/b/` serves a submitted build because the REVIEW QUEUE
+ * has to run the thing it is deciding about; a direct, shareable, public page
+ * for an app has no such need, and an unapproved build is not what an app's
+ * own address should be pointing at.
+ */
+export async function publishedVersionOf(appId: string): Promise<string | null> {
+	if (dev && isFixtureApp(appId)) {
+		return fixtureApp(appId)?.publishedVersionId ?? null;
+	}
+
+	const client = admin();
+	if (!client) return null;
+
+	const { data, error } = await client
+		.from('student_apps')
+		.select('published_version_id')
+		.eq('id', appId)
+		.maybeSingle<{ published_version_id: string | null }>();
+	if (error || !data) return null;
+	return data.published_version_id;
+}
+
+
 /* -------------------------------------------------------------------------
  * THE DELETE SWEEP: removing the objects a delete RPC just orphaned.
  *

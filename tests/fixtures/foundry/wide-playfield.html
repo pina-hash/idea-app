@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wide playfield</title>
+<!--
+  THE ROOM-TO-RUN FIXTURE, and the stand-in for the acceptance case.
+
+  The app this feature was asked for is blockbast, a published student build
+  that has to be zoomed out before it is usable inside the gallery's detail
+  pane. Its bytes live in the production bundle bucket and nothing in this
+  repository can reach them, so this file reproduces the SHAPE of the problem
+  rather than the app: a fixed 960x640 logical playfield that scales down to
+  whatever box it is given and never scales up past 1.
+
+  IT REPORTS ITS OWN SCALE, which is the whole reason it is a fixture and not a
+  screenshot. "The app got more room" is an eyeball claim; `data-scale` on
+  <html> is a number, readable identically from the gallery frame, from full
+  screen and from the direct page, and the three can be compared. A canvas
+  drawn at scale 0.42 is a canvas whose 14px score readout is six pixels tall,
+  which is what "has to be zoomed out" means in practice.
+-->
+<style>
+  :root { --ink: #e8f0e4; --bg: #0b0f0c; --accent: #4ade80; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: ui-monospace, monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  /* The playfield is a FIXED logical size and is scaled as a whole, exactly the
+     way a generated canvas game is written. Nothing inside it is responsive,
+     which is the point: the room it is given is the only variable. */
+  #field {
+    width: 960px;
+    height: 640px;
+    flex: 0 0 auto;
+    transform-origin: center center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #24422c;
+    background: #050806;
+  }
+  #hud { font-size: 14px; color: var(--accent); }
+  canvas { display: block; background: #05100a; flex: 1 1 auto; }
+  #readout { font-size: 12px; color: #8fb69a; }
+</style>
+</head>
+<body>
+<div id="field">
+  <div id="hud">BLOCKS &mdash; score <span id="score">0</span></div>
+  <canvas id="stage" width="936" height="560"></canvas>
+  <p id="readout">measuring</p>
+</div>
+<script>
+(function () {
+  'use strict';
+  var FIELD_W = 960, FIELD_H = 640;
+  var field = document.getElementById('field');
+  var readout = document.getElementById('readout');
+  var canvas = document.getElementById('stage');
+  var scoreEl = document.getElementById('score');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+
+  /*
+   * FIT THE PLAYFIELD TO THE ROOM, NEVER PAST 1.
+   *
+   * This is what a student writes when their fixed-size game has to survive a
+   * small window, and it is also exactly what makes the problem measurable: the
+   * scale IS how much of the app the viewer is being shown.
+   */
+  function fit() {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var scale = Math.min(vw / FIELD_W, vh / FIELD_H, 1);
+    field.style.transform = 'scale(' + scale + ')';
+    var root = document.documentElement;
+    root.setAttribute('data-scale', scale.toFixed(3));
+    root.setAttribute('data-viewport', vw + 'x' + vh);
+    // The score readout's REAL height on screen, which is the thing a person is
+    // actually complaining about when they say an app needs zooming out.
+    root.setAttribute('data-hud-px', (14 * scale).toFixed(2));
+    readout.textContent =
+      'viewport ' + vw + 'x' + vh + '  playfield ' + FIELD_W + 'x' + FIELD_H +
+      '  scale ' + scale.toFixed(3) + '  hud ' + (14 * scale).toFixed(1) + 'px';
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  /*
+   * AND RE-MEASURE WHENEVER THE BOX MOVES, not only on a `resize` event.
+   *
+   * A frame created while its container is laid out at 0x0 -- which is what a
+   * master-detail pane looks like for the frame in which it is swapped in --
+   * gets its real size without any resize event ever firing inside it, so a
+   * load-plus-resize instrument reports 0x0 forever and reads exactly like a
+   * frame that never loaded. Measured the hard way: at 375 the gallery frame
+   * reported scale 0.000 in a 343x568 element. The game loop is already
+   * running, so this costs a comparison per tick.
+   */
+  var lastW = window.innerWidth, lastH = window.innerHeight;
+  function remeasure() {
+    if (window.innerWidth === lastW && window.innerHeight === lastH) return;
+    lastW = window.innerWidth;
+    lastH = window.innerHeight;
+    fit();
+  }
+
+  /*
+   * A REAL, RUNNING BRICK GAME, so the fixture is a program rather than a
+   * coloured box: the frame has to keep painting across a full-screen
+   * transition for "the app kept its state" to be a thing anyone can observe.
+   * State is deliberately NOT reseeded on resize.
+   */
+  var paddle = { x: W / 2 - 70, y: H - 26, w: 140, h: 12, speed: 12 };
+  var ball = { x: W / 2, y: H / 2, vx: 3.2, vy: -3.6, r: 7 };
+  var bricks = [];
+  var score = 0;
+  var keys = Object.create(null);
+  var COLS = 12, ROWS = 6, PAD = 8;
+  var bw = (W - PAD * (COLS + 1)) / COLS;
+  var bh = 22;
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      bricks.push({
+        x: PAD + c * (bw + PAD), y: 40 + r * (bh + PAD),
+        w: bw, h: bh, alive: true, hue: 110 + r * 14
+      });
+    }
+  }
+
+  document.addEventListener('keydown', function (e) { keys[e.key] = true; });
+  document.addEventListener('keyup', function (e) { keys[e.key] = false; });
+  canvas.addEventListener('pointermove', function (e) {
+    var box = canvas.getBoundingClientRect();
+    if (box.width === 0) return;
+    paddle.x = ((e.clientX - box.left) / box.width) * W - paddle.w / 2;
+  });
+
+  function step() {
+    if (keys.ArrowLeft) paddle.x -= paddle.speed;
+    if (keys.ArrowRight) paddle.x += paddle.speed;
+    paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+
+    ball.x += ball.vx; ball.y += ball.vy;
+    if (ball.x < ball.r || ball.x > W - ball.r) ball.vx *= -1;
+    if (ball.y < ball.r) ball.vy *= -1;
+    if (ball.y > H + 40) { ball.x = W / 2; ball.y = H / 2; ball.vy = -Math.abs(ball.vy); }
+
+    if (ball.y + ball.r > paddle.y && ball.y - ball.r < paddle.y + paddle.h &&
+        ball.x > paddle.x && ball.x < paddle.x + paddle.w && ball.vy > 0) {
+      ball.vy *= -1;
+      ball.vx += ((ball.x - (paddle.x + paddle.w / 2)) / paddle.w) * 2;
+    }
+
+    for (var i = 0; i < bricks.length; i++) {
+      var b = bricks[i];
+      if (!b.alive) continue;
+      if (ball.x > b.x && ball.x < b.x + b.w && ball.y > b.y && ball.y < b.y + b.h) {
+        b.alive = false; ball.vy *= -1; score += 10;
+        scoreEl.textContent = String(score);
+        document.documentElement.setAttribute('data-score', String(score));
+        break;
+      }
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    for (var j = 0; j < bricks.length; j++) {
+      var k = bricks[j];
+      if (!k.alive) continue;
+      ctx.fillStyle = 'hsl(' + k.hue + ' 55% 42%)';
+      ctx.fillRect(k.x, k.y, k.w, k.h);
+    }
+    ctx.fillStyle = '#4ade80';
+    ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /*
+   * A TIMER, NOT requestAnimationFrame, and that is about the INSTRUMENT rather
+   * than about games: the verification pane never ticks rAF, so an rAF loop
+   * here would leave every frame identical and every measurement taken through
+   * it would be of a still image that looks exactly like a running one.
+   */
+  setInterval(function () { remeasure(); step(); }, 16);
+})();
+</script>
+</body>
+</html>

@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-25",
+			"title": "A published app gets a whole page, and a link you can share",
+			"body": "An app in the gallery used to run in a small box inside the page, so anything with a fixed playfield had to be zoomed out before you could use it. Two things change. There is a Full screen button beside Stop app, which hands the running app the whole window and gives it back with Escape or the button, and the app keeps going the whole time. And every published app now has a page of its own: open the app in the gallery and you will find its link under Share this app, with a button to copy it. Anyone you send that link to can open the app without signing in, and the page carries only the app -- your name, your class and your build notes stay in the gallery. If your app is taken down or you delete it, the link stops working straight away.",
+			"tags": [
+				"Foundry"
+			]
+		},
+		{
+			"date": "2026-08-25",
 			"title": "Photos you hand in show as photos again",
 			"body": "When files moved to the new storage, a photo you added to a photo block stopped showing as a picture and turned into a row you had to click to see. That is fixed. A picture shows as a picture again, in the photo blocks on an assignment, in your extra files, and in the view your teacher grades from, and clicking it opens the full size version. Anything that is not a picture, a part file, an assembly, a zip, still shows as a file row with its type beside it, which is what you want: nobody needs a preview of a SolidWorks assembly. If a picture cannot be shown for any reason it falls back to that same file row rather than a broken image, so there is always something to click. Nothing changed about who can see your work, and files still download rather than opening as a page in the browser.",
 			"tags": [

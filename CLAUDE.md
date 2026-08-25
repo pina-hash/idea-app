@@ -53,6 +53,19 @@ the SUBMITTED version, which by definition is not published yet.
   - **`AppStage` IS THE LIFECYCLE AND `AppFrame` IS THE SANDBOX**, and both
     surfaces mount the same two. Nothing frames a bundle on load: a gallery that
     started every app in the list would run every app in the list.
+  - **FULL SCREEN IS A CLASS ON THE STAGE, NEVER A SECOND FRAME.** The control
+    beside Stop app puts `.is-full` on `AppStage`'s own element and then asks
+    the Fullscreen API; the `<iframe>` is never unmounted and its `src` is never
+    rewritten, so a running app keeps its state, its timers and its audio. THE
+    OVERLAY IS THE FLOOR AND NATIVE IS THE UPGRADE -- the class goes on first
+    and the API's rejection (iOS has no element fullscreen; every engine
+    refuses without a gesture) costs nothing, so both paths land on the same
+    layout and only the ESCAPE differs: native Escape is the browser's and
+    works with focus inside the bundle, the overlay's is a keydown a focused
+    cross-origin frame never delivers, so the VISIBLE control is the guarantee
+    and the hint says which one this viewer has. Stop app stays on screen in
+    both, because an app can still wedge and unmounting the frame is still the
+    only way out of that.
   - **THE STOP CONTROL UNMOUNTS THE FRAME, AND NOTHING ON THAT PATH MAY USE
     `requestAnimationFrame`.** Measured against a bundle running `while (true)`:
     the child's heartbeat stops dead, the parent's `setTimeout(100)` fires at
@@ -159,6 +172,56 @@ and safe to log, screenshot and paste into a bug report. `serveBundleFile` in
     equally send as a zip. If the exposure ever has to close, close it by
     dropping `submitted` from the gate and giving the queue a different way to
     run a build -- not by putting a signature back on every request.
+
+**THERE ARE TWO MOUNTS AND THEY DIFFER ONLY IN WHERE THE VERSION ID COMES FROM.**
+`/b/<app>/<version>/` is the FRAME src and names a build, because its callers
+are deciding about one. `/a/<app>/` is the DIRECT PAGE -- `foundryAppUrl`, the
+whole document, no iframe and no chrome -- and names an APP, resolving
+`published_version_id` per request through `publishedVersionOf`. Everything
+downstream of that one difference is `$lib/server/foundry-bundle-response.ts`,
+which both routes call: the host gate, the publication re-check, the header set,
+the shim injection, the trailing-slash repair and the one bodyless 404.
+  - **A SECOND COPY OF THE HEADER SET IS A PAGE THAT ISOLATES NOTHING WHILE
+    LOOKING IDENTICAL.** The CSP `sandbox` directive is what puts a DIRECTLY
+    NAVIGATED bundle in an opaque origin -- the iframe attribute needs a frame
+    to be on -- so a route that served the same bytes with a weaker policy would
+    render perfectly and run a student's document with full rights on a host of
+    ours. `tests/foundry-app-route.test.ts` therefore asserts the two responses'
+    header sets are EQUAL rather than listing what they should contain: a header
+    added to only one of them reddens.
+  - **THE OBVIOUS NAME FOR THAT MODULE IS TAKEN.** `$lib/server/foundry-serve.ts`
+    is a deleted module of the token proxy and `tests/foundry-bundle-url.test.ts`
+    sweeps the tree for it. Do not rename the responder to it.
+  - **`/a/` IS STRICTLY NARROWER THAN `/b/`: IT NEVER SERVES A SUBMITTED BUILD.**
+    `/b/` does, because the review queue has to run the thing it is deciding
+    about. An app's own public address does not, and `publishedVersionOf` reads
+    one column and cannot return one.
+  - **THE PATH SHAPE IS HOW RELATIVE ASSETS RESOLVE, AND `<base href>` CANNOT
+    REPLACE IT.** The document is served at `/a/<app>/`, so `style.css` resolves
+    to `/a/<app>/style.css` and arrives at the same handler. Injecting a `<base>`
+    is not merely uglier, it does not work: the bundle CSP carries
+    `base-uri 'none'`, so the element is ignored, and the only way to make it
+    take effect is to weaken the policy that stops a bundle repointing its own
+    URLs. A redirect to `/b/<app>/<version>/` was the other rejected shape -- it
+    leaves the VERSION URL in the address bar, so a bookmark or a re-paste of
+    what is on screen carries a link that dies at the next publish.
+  - **THE DIRECT PAGE IS PUBLIC AND IS NOT MISSING A SESSION CHECK.** There is
+    no session on the apps host to check -- that absence is the point of the
+    split -- so requiring one means either `Domain`-scoping the portal's cookies
+    onto that host or putting a signed token back on every request. Anyone
+    proposing a gate here answers that first. **WHAT IS PUBLIC IS THE WORK, NOT
+    THE STUDENT**: the route reads one column of the app row and the version's
+    files, and never the author, the class, the build notes, the description or
+    the version list. Those are gallery surfaces and the gallery is signed in.
+    A field added to this route's read is a disclosure decision.
+  - **THE SHARE CONTROL SAYS SO IN WORDS, BEFORE THE LINK.** `FoundryDetail`
+    renders the URL as selectable text beside a copy control, and states that
+    anyone with it can open the app without signing in and that the page carries
+    no name, class or build notes. A student should know what they are handing
+    over before they hand it over. It keys on `published_version_id` and NOT on
+    the version being SHOWN (the review queue shows the submitted one), and a
+    hidden app gets no link at all, because `/a/` refuses one and a control
+    whose only outcome is a refusal must not be offered.
 
 **THE STUDENT HANDS OVER ONE OF THREE SHAPES AND THE BROWSER MAKES THEM ALL A
 ZIP** -- a `.zip` passes through untouched, a folder is zipped client-side, a
@@ -542,10 +605,13 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
 **A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
-are served by an **ordinary SvelteKit route**,
-`src/routes/b/[appId]/[versionId]/[...path]/+server.ts`, answering on
+are served by **two ordinary SvelteKit routes**,
+`src/routes/b/[appId]/[versionId]/[...path]/+server.ts` (the frame src) and
+`src/routes/a/[appId]/[...path]/+server.ts` (the direct page), answering on
 **`apps.ideabosco.com`** -- a second domain on the same Vercel project -- and
-never on `ideabosco.com`.
+never on `ideabosco.com`. Both go through
+`$lib/server/foundry-bundle-response.ts`, which is the one copy of everything
+below; a third mount is a caller of it, never a third handler.
 
 - **TWO ORIGINS, NOT ONE HOST PLUS A HEADER, and the difference is subresource
   cookies.** A header governs scripting and document origin; it does not govern
@@ -929,8 +995,9 @@ build break):
   because the rate limit's key has to come from the request and not from
   anything in it), and Foundry -- which is now ONE reader again,
   `src/lib/server/foundry-bundle.ts`, backing the review queue's source viewer,
-  the serving route AND the delete sweep (three callers, one module, one
-  client). **It was two while an Edge Function served the
+  BOTH serving routes (the frame src and the direct page, which resolve a
+  version differently and then share one responder) AND the delete sweep -- four
+  functions, one module, one client. **It was two while an Edge Function served the
   bytes in a different runtime and could not import the first**; deleting the
   function collapsed that split, and a second reader should not come back. It
   exists because `foundry-bundles` carries no storage policy at all, which makes
@@ -967,10 +1034,13 @@ which never took effect because the gateway replaced that CSP wholesale.
 **FOUNDRY READS TWO PUBLIC VERCEL VARIABLES, BOTH VIA `$env/dynamic/public`.**
 `PUBLIC_FOUNDRY_APPS_ORIGIN` is the origin bundles are served from
 (`https://apps.ideabosco.com`); the serving route 404s a bundle path arriving on
-any other origin, and **unset removes the launch control everywhere rather than
-falling back to the current origin** -- that fallback would serve student
-bundles off the main, cookie-carrying host, silently, which is the one failure
-nobody would notice. `PUBLIC_FOUNDRY_PORTAL_ORIGIN` becomes the CSP
+any other origin, and **unset removes the launch control AND the share link
+everywhere rather than falling back to the current origin** -- that fallback
+would serve student bundles off the main, cookie-carrying host, silently, which
+is the one failure nobody would notice. `FoundryDetail` is the one place it is
+read on the gallery path and hands it down to `AppStage`, because the frame src
+and the share link must name the same origin and two independent reads are how
+they come to differ. `PUBLIC_FOUNDRY_PORTAL_ORIGIN` becomes the CSP
 `frame-ancestors`; unset means unrestricted. **There is no separate deploy step
 any more** -- the route ships with the app, which is the ordering problem the
 Edge Function created and this removes.

@@ -40,8 +40,9 @@
  *
  * IT ARRIVES TWO WAYS, ON PURPOSE, AND IT IS ONE STRING.
  *
- * `injectShim` below puts it into every HTML response the `foundry-serve`
- * function sends, as the first element inside `<head>`, touching nothing else
+ * `injectShim` below puts it into every HTML response the serving routes send
+ * -- the frame src and the direct page alike, through one shared responder --
+ * as the first element inside `<head>`, touching nothing else
  * in the document -- parse-and-reserialize would mangle bundles in ways nobody
  * asked for. That rescues every app whose author never read the contract,
  * which is most of them, and every app already published.

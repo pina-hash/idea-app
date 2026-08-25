@@ -7,13 +7,14 @@
 	 * clicks. Everything else -- the components, the frame, the source reads --
 	 * is the shipping path.
 	 *
-	 * WHAT THIS HARNESS CANNOT SHOW ANY MORE, said plainly: a RUNNING BUNDLE.
-	 * `AppStage` now derives its frame src from `PUBLIC_SUPABASE_URL` and the
-	 * two ids, and the local `.env` points at a placeholder project that holds
-	 * none of these fixture objects, so pressing Launch mounts a frame at a URL
-	 * that 404s. The launch control, the stop control, the geometry and the
-	 * whole review layout are still real; the bytes are not. Running a bundle
-	 * for real needs a Supabase project that has actually ingested one.
+	 * IT CAN SHOW A RUNNING BUNDLE, WHICH IT COULD NOT WHILE THE BYTES CAME OFF
+	 * SUPABASE. `AppStage` derives its frame src from
+	 * `PUBLIC_FOUNDRY_APPS_ORIGIN` and the two ids, and the fixture bundles are
+	 * served by the REAL `/b/` route from the in-memory fixture -- so setting
+	 * that variable to this dev server's own address (127.0.0.1 while the portal
+	 * is browsed at localhost, so the frame is genuinely cross-origin) runs them
+	 * for real, with the real headers and the real sandbox. Leave it unset and
+	 * there is no launch control at all, which is the shipping behaviour.
 	 */
 	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
@@ -110,9 +111,11 @@
 	<header>
 		<h1>Foundry gallery / review harness</h1>
 		<p class="warn">
-			Launching mounts a real frame at a real Storage URL, and that URL 404s here: the local
-			.env points at a placeholder Supabase project which holds none of these fixture objects.
-			The controls, the layout and the source reader are the shipping path; the bytes are not.
+			Launching mounts a real frame at the apps origin below. Point
+			PUBLIC_FOUNDRY_APPS_ORIGIN at this dev server (use 127.0.0.1 while
+			browsing localhost, so the frame is genuinely cross-origin) and the
+			fixture bundles run for real through the real route. Unset, there is no
+			launch control and no share link, which is the shipping behaviour.
 		</p>
 		<p class="note">
 			Bundle origin the stage will build from: <code data-testid="bundle-origin"

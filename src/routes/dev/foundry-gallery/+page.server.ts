@@ -1,12 +1,14 @@
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 import {
 	FIXTURE_APP_A,
 	FIXTURE_APP_B,
+	FIXTURE_APP_PLAYFIELD,
 	FIXTURE_VERSION_A_LIVE,
 	FIXTURE_VERSION_A_STALE,
 	FIXTURE_VERSION_B_LIVE,
+	FIXTURE_VERSION_PLAYFIELD,
 	FIXTURE_VIEWER
 } from '$lib/server/foundry-dev-fixture';
 import {
@@ -37,12 +39,15 @@ import type { PageServerLoad } from './$types';
  *             `$lib/server/foundry-bundle` functions the real source route
  *             calls.
  *
- *   NOT       A RUNNING BUNDLE, and this is the one that changed. `AppStage`
- *             builds its frame src from `PUBLIC_SUPABASE_URL` and the two ids,
- *             and the local `.env` points at a placeholder project holding
- *             none of these fixture objects -- so the frame mounts and 404s.
- *             The controls around it are real; the bytes are not. Running a
- *             bundle for real needs a project that has actually ingested one.
+ *   MIRRORED  A RUNNING BUNDLE, WHICH IT DID NOT USED TO BE. `AppStage` builds
+ *             its frame src from `PUBLIC_FOUNDRY_APPS_ORIGIN` and the two ids,
+ *             and the fixture bundles are served by the REAL `/b/` route out of
+ *             `$lib/server/foundry-dev-fixture` -- so pointing that variable at
+ *             this dev server (a second spelling of its own address, so the
+ *             frame is genuinely cross-origin) runs the fixture bundles for
+ *             real, through the real route, with the real headers. Leaving it
+ *             unset removes the launch control entirely, which is the shipping
+ *             behaviour and not a harness quirk.
  *   NOT       the ADMIN GATE. `/foundry/review` 404s a non-admin in its load
  *             and `/api/foundry/source` 404s one in its handler; both need a
  *             real session, so neither runs here. The review surface below is
@@ -110,6 +115,26 @@ export const load: PageServerLoad = async () => {
 			owner_class: null,
 			published_version_id: FIXTURE_VERSION_B_LIVE,
 			updated_at: '2026-08-21T09:00:00Z'
+		}),
+		/**
+		 * THE ROOM-TO-RUN CASE, and the reason it is in this harness rather than
+		 * only in the run harness: how much room an app gets is a property of the
+		 * SURFACE around it -- a frame, in a detail pane, in a two-pane split, in
+		 * the portal shell -- so measuring it anywhere else measures a different
+		 * page. The bundle reports the scale it was given on `<html data-scale>`,
+		 * which makes the gallery frame, full screen and the direct page three
+		 * readings of one number instead of three screenshots.
+		 */
+		summary({
+			id: FIXTURE_APP_PLAYFIELD,
+			slug: 'wide-playfield',
+			title: 'Wide playfield',
+			tagline: 'A fixed 960x640 game that reports how much room it was given.',
+			owner_display_name: null,
+			owner_full_name: 'Wren Alvarez',
+			owner_class: 'Engineering II',
+			published_version_id: FIXTURE_VERSION_PLAYFIELD,
+			updated_at: '2026-08-23T09:00:00Z'
 		})
 	];
 
@@ -136,6 +161,7 @@ export const load: PageServerLoad = async () => {
 	const liveFiles = (await listBundleFiles(FIXTURE_VERSION_A_LIVE)) ?? [];
 	const staleFiles = (await listBundleFiles(FIXTURE_VERSION_A_STALE)) ?? [];
 	const bFiles = (await listBundleFiles(FIXTURE_VERSION_B_LIVE)) ?? [];
+	const playfieldFiles = (await listBundleFiles(FIXTURE_VERSION_PLAYFIELD)) ?? [];
 
 	const bytesOf = (files: { byteSize: number }[]) =>
 		files.reduce((n, f) => n + f.byteSize, 0);
@@ -182,6 +208,21 @@ export const load: PageServerLoad = async () => {
 			'A page that tries, on load, to read its parent, navigate the top frame, open a window, fetch across origins and reach the portal API. Each attempt reports its own result on the page.',
 			'Written by hand for this harness. Nothing generated, nothing borrowed.'
 		),
+		'wide-playfield': detail(
+			apps[2],
+			[
+				version(
+					FIXTURE_VERSION_PLAYFIELD,
+					1,
+					'approved',
+					playfieldFiles.length,
+					bytesOf(playfieldFiles),
+					'2026-08-23T10:00:00Z'
+				)
+			],
+			'A brick game on a fixed 960x640 playfield that scales to whatever box it is given, and writes the scale it got onto the document so three surfaces can be compared as numbers rather than described.',
+			'Written by hand for this harness, as a stand-in for the published app this feature was asked for.'
+		),
 		'app-b': detail(
 			apps[1],
 			[version(FIXTURE_VERSION_B_LIVE, 1, 'approved', bFiles.length, bytesOf(bFiles), '2026-08-19T10:00:00Z')],
@@ -212,10 +253,13 @@ export const load: PageServerLoad = async () => {
 
 	return {
 		/**
-		 * The origin `AppStage` will build a frame src from, echoed so a drive can
-		 * read what it is pointed at rather than inferring it from a 404.
+		 * The origin `AppStage` and `FoundryDetail` will build from, echoed so a
+		 * drive can read what they are pointed at rather than inferring it from a
+		 * 404 or a missing control. EMPTY IS A REAL ANSWER and is what the shipping
+		 * default does when nothing is configured: no launch control and no share
+		 * link.
 		 */
-		bundleOrigin: PUBLIC_SUPABASE_URL,
+		bundleOrigin: env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? '',
 		/** So the harness's delete transport can key its partial-sweep answer. */
 		appBId: FIXTURE_APP_B,
 		apps,
@@ -223,7 +267,8 @@ export const load: PageServerLoad = async () => {
 		files: {
 			[FIXTURE_VERSION_A_LIVE]: liveFiles,
 			[FIXTURE_VERSION_A_STALE]: staleFiles,
-			[FIXTURE_VERSION_B_LIVE]: bFiles
+			[FIXTURE_VERSION_B_LIVE]: bFiles,
+			[FIXTURE_VERSION_PLAYFIELD]: playfieldFiles
 		} as Record<string, FoundryBundleEntry[]>,
 		sources
 	};

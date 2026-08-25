@@ -63,17 +63,39 @@
 		 * fires IntersectionObserver at all, so a lazy frame there never loads
 		 * and every assertion about it passes vacuously.)
 		 */
-		loading = 'lazy'
+		loading = 'lazy',
+		/**
+		 * TAKE THE WHOLE BOX THE CALLER GIVES ME, instead of `height`.
+		 *
+		 * This is what full screen needs, and it is a PROP rather than a height
+		 * value because the two are different mechanisms and only one of them can
+		 * win: `height` is written as an INLINE STYLE, and an inline style beats
+		 * every class rule -- so a caller trying to reach the full viewport by
+		 * passing `height="100%"` would be resting on a percentage resolving
+		 * against a wrapper whose own height is a flex computation. `fill` drops
+		 * the inline height entirely and lets the box grow, which is the only
+		 * arrangement in which the frame is exactly as tall as whatever is around
+		 * it.
+		 *
+		 * IT MUST NOT REMOUNT THE FRAME. Full screen is a class change on an
+		 * ANCESTOR of this element and a flag on this one; the <iframe> is never
+		 * unmounted and its `src` is never rewritten, so a running app keeps its
+		 * state, its timers and its audio across the transition. An implementation
+		 * that swapped one frame for another would restart every app anybody ever
+		 * maximised.
+		 */
+		fill = false
 	}: {
 		src: string;
 		title: string;
 		height?: string;
 		notice?: string;
 		loading?: 'lazy' | 'eager';
+		fill?: boolean;
 	} = $props();
 </script>
 
-<div class="fdy-frame-wrap">
+<div class="fdy-frame-wrap" class:is-fill={fill}>
 	{#if notice}
 		<p class="fdy-notice">{notice}</p>
 	{/if}
@@ -87,7 +109,7 @@
 		{src}
 		{title}
 		class="fdy-frame"
-		style="height: {height};"
+		style={fill ? '' : `height: ${height};`}
 		sandbox={FOUNDRY_SANDBOX_FLAGS}
 		referrerpolicy="no-referrer"
 		{loading}
@@ -107,6 +129,29 @@
 		font-family: var(--font-mono);
 		font-size: 0.85rem;
 		color: var(--text-2, var(--dim));
+	}
+
+	/*
+		FULL SCREEN IS A BOX CHANGE AND NOTHING ELSE. The wrap grows into whatever
+		the caller's flex column gives it and the frame grows into the wrap; the
+		element, its src and its sandbox attribute are untouched, which is what
+		keeps a running app running across the transition.
+
+		THE BORDER AND THE RADIUS GO. The whole point of the state is room, and a
+		rounded 1px edge at the viewport boundary spends it on separating the frame
+		from nothing.
+	*/
+	.fdy-frame-wrap.is-fill {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+
+	.fdy-frame-wrap.is-fill .fdy-frame {
+		flex: 1 1 auto;
+		min-height: 0;
+		height: auto;
+		border: 0;
+		border-radius: 0;
 	}
 
 	.fdy-frame {
