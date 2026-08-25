@@ -51,7 +51,7 @@
  */
 
 import { bundlePathOk } from '../bundle-path.ts';
-import { FOUNDRY_STORAGE_SHIM_TAG } from './storage-shim.ts';
+import { FOUNDRY_STORAGE_SHIM_JS, FOUNDRY_STORAGE_SHIM_TAG } from './storage-shim.ts';
 
 /* -------------------------------------------------------------------------
  * Caps and vocabulary.
@@ -520,10 +520,45 @@ export function classifyReference(value: string): RefVerdict {
  * is the literal string `url`, which is what makes the two cases separable
  * here rather than at every call site.
  */
-function relativeExample(attr: string, value: string): string {
+/**
+ * THE FALLBACK NAME COMES FROM THE TAG, because a URL frequently has no
+ * filename to take one from and `file.css` was being offered for all of them.
+ *
+ * Measured on the fixture this lane exists for: `<script src="https://unpkg.com/lucide@latest">`
+ * has no extension anywhere in it, so the guess failed and the message told a
+ * student to write `src="file.css"` -- a stylesheet name, in a script tag,
+ * for an icon library. Every one of those three is wrong, and the sentence was
+ * going to be pasted back into the tool that generated the app.
+ *
+ * A tag knows what kind of file it wants, so it is the tag that answers.
+ */
+function fallbackName(tag: string): string {
+	switch (tag.toLowerCase()) {
+		case 'script':
+			return 'library.js';
+		case 'link':
+			return 'styles.css';
+		case 'img':
+			return 'image.png';
+		case 'video':
+			return 'clip.mp4';
+		case 'audio':
+			return 'sound.mp3';
+		case 'source':
+			return 'media.mp4';
+		case 'iframe':
+			return 'page.html';
+		default:
+			// The CSS `url()` case, where `tag` is empty. A stylesheet's own
+			// url() is nearly always an image or a font, never another sheet.
+			return 'image.png';
+	}
+}
+
+function relativeExample(tag: string, attr: string, value: string): string {
 	const base = value.split(/[?#]/)[0];
-	const guess = base.slice(base.lastIndexOf('/') + 1) || 'file.css';
-	const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : 'file.css';
+	const guess = base.slice(base.lastIndexOf('/') + 1);
+	const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : fallbackName(tag);
 	return attr === 'url' ? `url("${named}")` : `${attr}="${named}"`;
 }
 
@@ -561,6 +596,17 @@ export class LineFinder {
 		return line;
 	}
 }
+
+/** Where an attribute's value sits in the source, exactly. */
+export interface AttrSpan {
+	/** Index of the value's first character. */
+	start: number;
+	/** Index one past the value's last character. */
+	end: number;
+	line: number;
+}
+
+
 
 function lineAt(source: string, index: number): number {
 	let line = 1;
@@ -609,6 +655,19 @@ export interface HtmlScan {
 }
 
 /** The first line with something on it, used as a fallback locator. */
+/**
+ * Whether an inline script IS the platform storage shim.
+ *
+ * Whitespace-normalized on both sides: the shim is handed out as one line per
+ * statement, and an editor or a formatter that reindents a pasted block would
+ * otherwise turn a recognised shim into an unrecognised one -- which fails in
+ * the direction of two confusing warnings rather than a hole, but fails.
+ */
+function isStorageShim(text: string): boolean {
+	const flat = (v: string) => v.replace(/\s+/g, '');
+	return flat(text) === flat(FOUNDRY_STORAGE_SHIM_JS);
+}
+
 function firstRealLine(text: string): string {
 	for (const line of text.split('\n')) {
 		if (line.trim() !== '') return line;
@@ -624,11 +683,40 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	try {
 		facts = read(source);
 	} catch (err) {
-		// A page the PARSER cannot read is not a refusal -- the browser will
-		// still render it, and the CSP is what actually contains it. But it is
-		// reported rather than swallowed: a reader that quietly returns nothing
-		// turns every HTML rule in here off at once and every upload starts
-		// passing, which looks exactly like an app with no problems in it.
+		/*
+		 * A PAGE THE PARSER CANNOT READ IS A HARD FAIL, AND IT USED TO BE A
+		 * WARNING. That is what let a bundle through with four CDN script tags
+		 * in its head, and the trail is worth keeping because the old reasoning
+		 * sounded right: the browser will still render the page, the CSP is
+		 * what actually contains it, so a parse failure is not evidence of
+		 * anything WRONG with the file. All true, and all beside the point.
+		 *
+		 * Every HTML rule in here runs off `facts`. When the read throws, this
+		 * function returned zero failures -- which is the same answer it gives
+		 * for a perfect file. `foundry-ingest` turned that into a warning
+		 * reading "Your app was still saved", extraction ran, the version
+		 * reached the review queue, a reviewer read a soft note and approved
+		 * it, and the app was blank because the four scripts it needs were
+		 * never going to load. MEASURED: with the reader stubbed to fail the
+		 * way deno-dom does on a cold start, this exact file produced 0
+		 * failures and 1 warning and would have been published.
+		 *
+		 * "We checked it and found nothing" and "we could not check it" have to
+		 * be different ANSWERS, not different log lines. So the second one
+		 * refuses. A student can upload again; nobody can approve an unchecked
+		 * bundle.
+		 *
+		 * `parseFailed` is still reported alongside, because the caller logs it
+		 * and because it is the difference between a file that is wrong and a
+		 * parser that is broken.
+		 */
+		failures.push(
+			issue(
+				path,
+				null,
+				`${path} could not be read by the checker, so it has not been published. That is usually a problem on our end rather than a mistake in your file. Upload it again, and if it happens a second time tell your teacher, because nothing can be published until the check runs.`
+			)
+		);
 		return {
 			failures,
 			warnings,
@@ -665,6 +753,22 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	for (const raw of facts.inlineScripts) {
 		const text = raw.replace(/\r/g, '');
 		if (text.trim() === '') continue;
+		/*
+		 * THE STORAGE SHIM IS NOT STUDENT CODE AND MUST NOT BE SCANNED.
+		 *
+		 * It DEFINES `localStorage` and `sessionStorage`; it does not use
+		 * them. Scanned like anything else it earns two storage warnings whose
+		 * own advice is "paste the storage snippet at the top of index.html" --
+		 * addressed to a student who has done exactly that, about the snippet
+		 * itself. Every correctly built app would carry it, which is the shape
+		 * of warning people learn to scroll past.
+		 *
+		 * IT IS AN IDENTITY TEST, NOT A HEURISTIC. The block is compared
+		 * against the one shim string in the repo, whitespace-normalized only
+		 * so an editor that reindents a pasted block does not defeat it. A
+		 * script that merely LOOKS like the shim is scanned normally.
+		 */
+		if (isStorageShim(text)) continue;
 		const start = scriptFinder.find(text) ?? scriptFinder.find(firstRealLine(text));
 		if (start !== null) lastKnownStart = start;
 		// `start` is the line the script's TEXT begins on, and that text's own
@@ -678,8 +782,11 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	for (const ref of facts.refs) {
 		const verdict = classifyReference(ref.value);
 		if (verdict.kind === 'ok') continue;
+
 		const line = finder.find(ref.value);
-		failures.push(issue(path, line, referenceMessage(path, line, ref.attr, ref.value, verdict)));
+		failures.push(
+			issue(path, line, referenceMessage(path, line, ref.tag, ref.attr, ref.value, verdict))
+		);
 	}
 
 	if (path === FOUNDRY_ENTRY_FILE) {
@@ -710,18 +817,21 @@ function where(path: string, line: number | null): string {
 	return line === null ? path : `${path} line ${line}`;
 }
 
+
+
 function referenceMessage(
 	path: string,
 	line: number | null,
+	tag: string,
 	attr: string,
 	value: string,
 	verdict: RefProblem
 ): string {
 	const at = where(path, line);
 	if (verdict.kind === 'absolute') {
-		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the web address your app is served from, which is not your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(attr, value)}. If you meant the IDEA platform fonts, write the whole address: ${PLATFORM_FONTS_URL}`;
+		return `${at} points at ${value}, which starts with a forward slash. A leading slash means the top of the web address your app is served from, which is not your app folder, so it will not be found. Use a path relative to the file you are writing in, like ${relativeExample(tag, attr, value)}. If you meant the IDEA platform fonts, write the whole address: ${PLATFORM_FONTS_URL}`;
 	}
-	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can open a file inside its own folder or an address on the web, and a ${verdict.scheme}: link is neither, so it will not load. Remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(attr, value)}, or with a full https:// address.`;
+	return `${at} uses ${value}, a ${verdict.scheme}: link. Your app can open a file inside its own folder or an address on the web, and a ${verdict.scheme}: link is neither, so it will not load. Remove the ${verdict.scheme}: link, or replace it with a file you have included and a relative path, like ${relativeExample(tag, attr, value)}, or with a full https:// address.`;
 }
 
 /* -------------------------------------------------------------------------
@@ -791,7 +901,12 @@ export function scanCss(path: string, source: string): { failures: FoundryIssue[
 		const verdict = classifyReference(value);
 		if (verdict.kind === 'ok') return;
 		const line = lineAt(source, index);
-		failures.push(issue(path, line, referenceMessage(path, line, attr, value, verdict)));
+		// A stylesheet has no TAG, and that empty string is load-bearing rather
+		// than a placeholder: it is what makes `relativeExample` produce the
+		// `url("image.png")` form here and an attribute form in HTML, and what
+		// keeps the platform-library paragraph off a CSS refusal, where none of
+		// the five hosted libraries could be the answer.
+		failures.push(issue(path, line, referenceMessage(path, line, '', attr, value, verdict)));
 	};
 
 	// url( ... ) with or without quotes.
@@ -894,6 +1009,7 @@ export function scanJs(
 		const file = value.split(/[?#]/)[0];
 		const guess = file.slice(file.lastIndexOf('/') + 1) || 'library.js';
 		const named = /\.[a-z0-9]{2,5}$/i.test(guess) ? guess : `${guess}.js`;
+
 		failures.push(
 			issue(
 				path,
@@ -1209,6 +1325,135 @@ export function largeAssetWarning(path: string, bytes: number): FoundryIssue {
  * for the same reason, and the two have to sound like one document because a
  * student will read one straight after the other.
  */
+/**
+ * The portal route that hands out a ready-made starting file. Named here rather
+ * than in the route, because the build contract and the submit surface both
+ * point at it and a path spelled in three places is a path that moves in one of
+ * them.
+ */
+export const FOUNDRY_STARTER_PATH = '/foundry/starter';
+
+/**
+ * THE STARTER FILE: a complete, working `index.html` with the storage shim,
+ * the platform fonts, React and Babel already in it, and one marked spot to
+ * paste a component into.
+ *
+ * WHAT IT IS FOR. The shape a student's own wrapper was reaching for. Almost
+ * every generated React app arrives as one HTML file with a few CDN tags in
+ * the head, and the two things nobody told the student about are that
+ * `localStorage` throws in the sandbox and that the platform has its own
+ * fonts. Both are here, correct, in order.
+ *
+ * THE SHIM IS THE FIRST THING IN `<head>` AND THAT IS THE POINT. It is the
+ * same string `foundry-serve` injects and the same string the build contract
+ * hands out; a student who starts from this file gets an app that behaves
+ * identically opened off their own filesystem, which is what the contract
+ * tells them to check before uploading.
+ *
+ * THE LIBRARY TAGS ARE CDN TAGS NOW, and used not to be. The platform hosted
+ * its own copies under `/_platform/lib/` and rewrote CDN references at ingest,
+ * because the sandbox sent `connect-src 'none'` and every CDN tag was dead on
+ * arrival. There is no such restriction any more: a CDN tag simply works, so
+ * hosting a second copy of React bought nothing and cost a rewrite pass, a
+ * registry, five committed bundles and a rule that a student's own tag would
+ * be silently edited.
+ *
+ * AND IT PASSES ITS OWN PREFLIGHT. `tests/foundry-starter.test.ts` puts it
+ * through `scanHtml` and asserts zero failures -- a starter the platform hands
+ * out and then refuses is worse than no starter at all.
+ */
+export function foundryStarterFile(): string {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!--
+  THE STORAGE SHIM. Leave this exactly where it is: first inside <head>, before
+  every other script and stylesheet.
+
+  Your app runs in a sandbox with no storage area, where READING localStorage
+  throws an error and stops your whole script before anything is drawn. This
+  gives you a localStorage and a sessionStorage that work normally for the rest
+  of the page. They are IN MEMORY: nothing is written to disk and everything is
+  lost when the page reloads.
+-->
+${FOUNDRY_STORAGE_SHIM_TAG}
+
+<!-- Your app's name, in the browser tab and in the Foundry listing. -->
+<title>My App</title>
+
+<!-- The platform fonts. Rajdhani, Orbitron and Share Tech Mono. -->
+<link rel="stylesheet" href="${PLATFORM_FONTS_URL}">
+
+<!--
+  React and Babel, from a CDN. Your app is on the open web, so these load
+  normally. Anything else you want works the same way: write the whole https://
+  address. A file you ship inside your own folder is more reliable on a school
+  network, so prefer one where you can.
+-->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+
+<style>
+  body {
+    margin: 0;
+    font-family: 'Rajdhani', system-ui, sans-serif;
+    background: #0b0f0c;
+    color: #e8efe9;
+  }
+  h1 { font-family: 'Orbitron', sans-serif; }
+  .app { max-width: 46rem; margin: 0 auto; padding: 2rem 1rem; }
+  button {
+    font: inherit;
+    min-height: 44px;
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    border: 1px solid #3d5f47;
+    background: #16211a;
+    color: inherit;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<!-- React renders into this. -->
+<div id="root"></div>
+
+<!--
+  type="text/babel" is what makes JSX work with no build step: Babel finds this
+  block, compiles it in the browser, and runs the result.
+-->
+<script type="text/babel">
+
+  const { useState } = React;
+
+  // ---------------------------------------------------------------------
+  // PASTE YOUR COMPONENT HERE. Replace App with whatever you have written.
+  // ---------------------------------------------------------------------
+  function App() {
+    const [count, setCount] = useState(0);
+    return (
+      <div className="app">
+        <h1>My App</h1>
+        <p>Everything works. Replace this component with your own.</p>
+        <button onClick={() => setCount(count + 1)}>Clicked {count} times</button>
+      </div>
+    );
+  }
+  // ---------------------------------------------------------------------
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+</body>
+</html>
+`;
+}
+
 export function foundryBuildContract(): string {
 	const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 	const exts = FOUNDRY_ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(' ');

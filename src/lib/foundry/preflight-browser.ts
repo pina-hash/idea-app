@@ -44,7 +44,7 @@ export interface BrowserPreflightResult {
 	/** Bundle-relative paths, after any wrapper directory was removed. */
 	files: string[];
 	strippedWrapper: string | null;
-}
+	}
 
 /** Text above this is not scanned in the browser; the server still scans it. */
 const BROWSER_SCAN_MAX = 2 * 1024 * 1024;
@@ -63,7 +63,7 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 		warnings: [],
 		notes: [],
 		files: [],
-		strippedWrapper: null
+		strippedWrapper: null,
 	};
 
 	let bytes: Uint8Array;

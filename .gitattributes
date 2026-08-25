@@ -1,0 +1,18 @@
+# THE COMMITTED THIRD-PARTY LIBRARY BUILDS ARE VERBATIM ARTIFACTS.
+#
+# `src/lib/foundry/vendor/` holds five npm-published files -- React, ReactDOM,
+# Babel standalone, Lucide and Tailwind -- committed so the platform can serve
+# them to student bundles without fetching anything at build time. They are the
+# published bytes and are not ours to reformat.
+#
+# `core.autocrlf` is `true` on this machine, so without this line git rewrites
+# every LF in them to CRLF on checkout and back on commit. Measured: a stash and
+# a pop changed the md5 of all five. That is not a correctness problem for the
+# JavaScript, which runs either way, but it means the file we serve is no longer
+# the file npm published, the byte counts stop matching the versions recorded in
+# `src/lib/foundry/vendor.ts`, and the working tree can end up permanently dirty
+# against its own committed blob.
+#
+# `-text` turns line-ending conversion off in both directions and keeps them
+# byte-identical to the tarballs they came out of.
+src/lib/foundry/vendor/*.js -text

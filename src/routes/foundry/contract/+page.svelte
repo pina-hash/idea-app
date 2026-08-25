@@ -15,11 +15,21 @@
 </svelte:head>
 
 <div class="fdy-page">
+	<!-- The contract is a reference INSIDE the publish flow (the shell marks
+	     the Publish tab active here), so it carries its own way back rather
+	     than being a place someone has to know the URL of. -->
+	<nav class="fdy-crumb" aria-label="Back">
+		<a class="btn tap-44" href="/foundry/submit">Back to publishing</a>
+	</nav>
 	<FoundryContract contract={data.contract} />
 </div>
 
 <style>
 	.fdy-page {
 		padding: var(--space-4, 1rem) var(--cr-gutter, 1rem);
+	}
+
+	.fdy-crumb {
+		margin-bottom: var(--space-3, 0.75rem);
 	}
 </style>

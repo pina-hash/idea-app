@@ -363,28 +363,53 @@ create policy "submission files delete own submission"
 	);
 
 -- ---------------------------------------------------------------------------
--- 5. The write RPCs gain a storage key.
+-- 5. The write RPCs gain a storage key, ADDITIVELY.
 --
--- THE SIGNATURE TRAP. Both functions GAIN a parameter, so the old arity is
--- dropped at its exact argument types first. `create or replace` keys on the
--- parameter list, so merely adding one would leave the old arity callable as a
--- second overload -- and two overloads differing only by a defaulted trailing
--- parameter make PostgREST unable to resolve the call AT ALL.
+-- THIS FILE DROPS NO ARITY ANY DEPLOYED CLIENT CALLS, AND THAT IS THE POINT.
+-- The client running in production calls 0085's and 0086's arities. Had this
+-- file dropped them, applying it would break every upload until the storage
+-- client shipped, and shipping that client first would break every upload
+-- until this was applied. There is no correct order between a drop and a
+-- deploy. So there is no drop: BOTH arities exist afterwards, and either
+-- client works against either state, in either order, with no window.
 --
--- DEPLOY ORDERING: apply this file BY HAND before deploying a client that
--- names `p_storage_key`. The drops mean the old arities stop existing the
--- moment it runs.
+-- THE SIGNATURE TRAP IS REAL, AND IT IS DISARMED BY REMOVING THE DEFAULTS
+-- RATHER THAN BY DROPPING ANYTHING. Two overloads differing only by a
+-- DEFAULTED trailing parameter make PostgREST unable to resolve the call at
+-- all: a body naming just the five old keys would be callable as both, and
+-- PostgREST refuses to choose. So the WIDE form declares NO defaults. Every
+-- one of its parameters is required, which is what separates the two:
+--
+--   * a payload naming the 5 old keys is callable ONLY by the old form -- the
+--     wide one needs `p_storage_key` and has no default to supply it;
+--   * a payload naming all 6 keys is callable ONLY by the wide form -- the old
+--     one has no `p_storage_key` parameter to bind it to.
+--
+-- Every call therefore resolves to exactly ONE candidate. The pair is
+-- unambiguous under any resolution rule rather than under a particular one,
+-- which is the property worth having in a client nobody here can step through.
+-- The cost is that a caller of the wide form passes all six arguments; the
+-- storage route and the wrapper below both do.
+--
+-- Postgres refuses to REMOVE a default through `create or replace` ("cannot
+-- remove parameter defaults from existing function"), so the wide form is
+-- dropped at its OWN exact signature first. That drop can only ever hit the
+-- 6-argument form, which has never existed anywhere but a dev database, and
+-- it is what lets this file be re-pasted over a machine that took its earlier
+-- draft. The 5-argument form is never named by a drop in this file.
+--
+-- DEPLOY ORDERING: none. Apply this whenever; deploy the client whenever.
 -- ---------------------------------------------------------------------------
 
-drop function if exists public.classroom_add_attachment(uuid, text, text, text, bigint);
+drop function if exists public.classroom_add_attachment(uuid, text, text, text, bigint, text);
 
 create or replace function public.classroom_add_attachment(
 	p_item_id uuid,
-	p_drive_file_id text default null,
-	p_filename text default null,
-	p_mime_type text default null,
-	p_size_bytes bigint default null,
-	p_storage_key text default null
+	p_drive_file_id text,
+	p_filename text,
+	p_mime_type text,
+	p_size_bytes bigint,
+	p_storage_key text
 )
 returns jsonb
 language plpgsql
@@ -448,6 +473,41 @@ $$;
 
 revoke all on function public.classroom_add_attachment(uuid, text, text, text, bigint, text) from public;
 grant execute on function public.classroom_add_attachment(uuid, text, text, text, bigint, text) to authenticated;
+
+-- 0085'S ARITY, KEPT ALIVE AS A THIN WRAPPER. This is what the client running
+-- in production calls, and it keeps working unchanged the moment this file is
+-- applied. It supplies a null storage key and delegates, so there is exactly
+-- one copy of the rule about who may attach a file and what a row may hold.
+--
+-- It re-raises 0085's own refusal text for a blank Drive id BEFORE delegating.
+-- The wide form would refuse the same call with "Attach exactly one of a Drive
+-- file id or a storage key", which is the right sentence for a caller that has
+-- a choice and the wrong one for a caller that does not. A client that has not
+-- been redeployed sees exactly the errors it saw before this file ran.
+create or replace function public.classroom_add_attachment(
+	p_item_id uuid,
+	p_drive_file_id text,
+	p_filename text,
+	p_mime_type text,
+	p_size_bytes bigint default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	if btrim(coalesce(p_drive_file_id, '')) = '' then
+		raise exception 'A Drive file id is required.';
+	end if;
+	return public.classroom_add_attachment(
+		p_item_id, p_drive_file_id, p_filename, p_mime_type, p_size_bytes, null::text
+	);
+end;
+$$;
+
+revoke all on function public.classroom_add_attachment(uuid, text, text, text, bigint) from public;
+grant execute on function public.classroom_add_attachment(uuid, text, text, text, bigint) to authenticated;
 
 -- The delete counterpart now reports BOTH handles and which one is orphaned,
 -- because the route has two sweepers and each must be told only about its own.
@@ -549,17 +609,20 @@ $$;
 revoke all on function public.classroom_open_submission(uuid) from public;
 grant execute on function public.classroom_open_submission(uuid) to authenticated;
 
-drop function if exists public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text);
+-- The hand-in RPC takes the same additive treatment as the attachment one:
+-- the wide form declares no defaults, 0086's 7-argument form stays alive as a
+-- wrapper, and the only drop names the 8-argument form so this file re-pastes.
+drop function if exists public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text, text);
 
 create or replace function public.classroom_add_submission_file(
 	p_item_id uuid,
-	p_drive_file_id text default null,
-	p_filename text default null,
-	p_mime_type text default null,
-	p_size_bytes bigint default null,
-	p_block_id text default null,
-	p_caption text default null,
-	p_storage_key text default null
+	p_drive_file_id text,
+	p_filename text,
+	p_mime_type text,
+	p_size_bytes bigint,
+	p_block_id text,
+	p_caption text,
+	p_storage_key text
 )
 returns jsonb
 language plpgsql
@@ -648,6 +711,39 @@ $$;
 revoke all on function public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text, text) from public;
 grant execute on function public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text, text) to authenticated;
 
+-- 0086'S ARITY, KEPT ALIVE AS A THIN WRAPPER, for the reason given above the
+-- attachment one. 0086 raised the blank-Drive-id refusal FIRST, ahead of the
+-- spec and block checks, so the wrapper raises it in that same position: a
+-- caller that sent no file id gets the message it has always got, not a
+-- complaint about an image zone it never reached.
+create or replace function public.classroom_add_submission_file(
+	p_item_id uuid,
+	p_drive_file_id text,
+	p_filename text,
+	p_mime_type text,
+	p_size_bytes bigint default null,
+	p_block_id text default null,
+	p_caption text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	if btrim(coalesce(p_drive_file_id, '')) = '' then
+		raise exception 'A Drive file id is required.';
+	end if;
+	return public.classroom_add_submission_file(
+		p_item_id, p_drive_file_id, p_filename, p_mime_type, p_size_bytes,
+		p_block_id, p_caption, null::text
+	);
+end;
+$$;
+
+revoke all on function public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text) from public;
+grant execute on function public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text) to authenticated;
+
 create or replace function public.classroom_delete_submission_file(p_id uuid)
 returns jsonb
 language plpgsql
@@ -707,24 +803,41 @@ declare
 	v_att integer;
 	v_sub integer;
 	v_overloads integer;
+	v_defaulted integer;
+	v_name text;
 begin
 	select count(*) into v_att from public.classroom_attachments;
 	select count(*) into v_sub from public.classroom_submission_files;
 	raise notice '0133: % existing attachment row(s) and % submission file row(s) keep their Drive id; none moved.', v_att, v_sub;
 
-	select count(*) into v_overloads from pg_proc p
-	join pg_namespace n on n.oid = p.pronamespace
-	where n.nspname = 'public' and p.proname = 'classroom_add_attachment';
-	if v_overloads <> 1 then
-		raise exception '0133: classroom_add_attachment has % overloads, expected 1. PostgREST cannot resolve a defaulted-trailing-parameter pair.', v_overloads;
-	end if;
+	-- BOTH ARITIES MUST EXIST, AND THE WIDE ONE MUST CARRY NO DEFAULTS. Those
+	-- two facts together are the whole safety argument of section 5: two
+	-- overloads is what removes the deploy ordering, and zero defaults on the
+	-- wider one is what stops PostgREST seeing an ambiguous pair. Checking the
+	-- count alone would pass on exactly the arrangement that breaks the client.
+	foreach v_name in array array['classroom_add_attachment', 'classroom_add_submission_file'] loop
+		select count(*) into v_overloads from pg_proc p
+		join pg_namespace n on n.oid = p.pronamespace
+		where n.nspname = 'public' and p.proname = v_name;
+		if v_overloads <> 2 then
+			raise exception '0133: % has % overload(s), expected 2 (the deployed arity and the widened one).', v_name, v_overloads;
+		end if;
 
-	select count(*) into v_overloads from pg_proc p
-	join pg_namespace n on n.oid = p.pronamespace
-	where n.nspname = 'public' and p.proname = 'classroom_add_submission_file';
-	if v_overloads <> 1 then
-		raise exception '0133: classroom_add_submission_file has % overloads, expected 1.', v_overloads;
-	end if;
+		select count(*) into v_defaulted from pg_proc p
+		join pg_namespace n on n.oid = p.pronamespace
+		where n.nspname = 'public' and p.proname = v_name
+			and p.pronargdefaults > 0
+			and p.pronargs = (
+				select max(p2.pronargs) from pg_proc p2
+				join pg_namespace n2 on n2.oid = p2.pronamespace
+				where n2.nspname = 'public' and p2.proname = v_name
+			);
+		if v_defaulted <> 0 then
+			raise exception '0133: the widened % declares defaults. PostgREST cannot resolve a pair that differs only by a defaulted trailing parameter.', v_name;
+		end if;
+
+		raise notice '0133: % has 2 arities; the widened one declares no defaults.', v_name;
+	end loop;
 
 	raise notice '0133: buckets classroom-attachments and submission-files are private, 200 MiB, no mime list.';
 end;
@@ -747,11 +860,15 @@ $$;
 --   drop function public.classroom_can_read_attachment_object(text);
 --   drop function public.classroom_can_write_attachment_object(text);
 --   drop function public._classroom_storage_prefix_uuid(text);
---   -- then restore 0085's and 0086's arities of classroom_add_attachment,
---   -- classroom_delete_attachment, classroom_add_submission_file and
---   -- classroom_delete_submission_file verbatim, dropping the 6/8-arg forms
---   -- first, and only AFTER redeploying a client that does not name
---   -- p_storage_key.
+--   -- The 5- and 7-argument forms were never dropped and never stopped
+--   -- working, so undoing this needs no client redeploy and no window. Drop
+--   -- the two widened forms, which no un-migrated client names:
+--   drop function public.classroom_add_attachment(uuid, text, text, text, bigint, text);
+--   drop function public.classroom_add_submission_file(uuid, text, text, text, bigint, text, text, text);
+--   -- then restore 0085's and 0086's BODIES for classroom_add_attachment and
+--   -- classroom_add_submission_file (they are wrappers now, and their target
+--   -- has just gone), and 0085's/0086's classroom_delete_attachment and
+--   -- classroom_delete_submission_file verbatim.
 --   alter table public.classroom_attachments drop constraint classroom_attachments_one_handle;
 --   alter table public.classroom_attachments drop constraint classroom_attachments_storage_key_shape;
 --   alter table public.classroom_attachments drop column storage_key;

@@ -15,8 +15,11 @@
 	 * whole review layout are still real; the bytes are not. Running a bundle
 	 * for real needs a Supabase project that has actually ingested one.
 	 */
+	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
+	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
+	import { queueOrder } from '$lib/foundry/review';
 	import type {
 		FoundryGalleryTransports,
 		FoundryReviewTransports
@@ -30,6 +33,9 @@
 	let reviewSlug = $state<string | null>('hostile-probe');
 	/** What the decision transport was last handed, rendered so a drive can read it. */
 	let lastDecision = $state<string>('(none yet)');
+
+	/** The shell's Review tab count, from the same arithmetic the queue uses. */
+	const pending = $derived(queueOrder(data.apps).length);
 
 	const gallerySelected = $derived(gallerySlug ? (data.details[gallerySlug] ?? null) : null);
 	const reviewSelected = $derived(reviewSlug ? (data.details[reviewSlug] ?? null) : null);
@@ -59,7 +65,13 @@
 
 <svelte:head><title>Foundry gallery harness</title></svelte:head>
 
-<div class="cr-root harness">
+<!-- THE ROOM AND THE SHELL, exactly as /foundry mounts them: `.fg-root` is
+     the forge wrapper the layout provides in production, and the shell is
+     mounted with the admin view on so the Review tab and its heat can be
+     driven here. The shell renders ONCE, above both surfaces, as it does on
+     any real route. -->
+<div class="fg-root harness">
+	<FoundryShell active="gallery" isAdmin={true} reviewPending={pending}>
 	<header>
 		<h1>Foundry gallery / review harness</h1>
 		<p class="warn">
@@ -119,6 +131,7 @@
 			{now}
 		/>
 	</section>
+	</FoundryShell>
 </div>
 
 <style>

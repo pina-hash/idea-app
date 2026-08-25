@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
 import { defineConfig, type Plugin } from 'vite';
 import { buildSiteVersions, GIT_LOG_FORMAT } from './src/lib/site-versions';
+import { devRouteStub } from './src/lib/dev-routes';
 
 /**
  * Version + changelog substrate: exposes `virtual:site-versions`, generated
@@ -79,8 +80,33 @@ function siteVersionsPlugin(): Plugin {
 	};
 }
 
+/**
+ * THE `/dev/*` HARNESSES ARE NOT COMPILED INTO A PRODUCTION BUILD.
+ *
+ * `apply: 'build'` is the whole gate, and it is a property of WHICH VITE
+ * COMMAND IS RUNNING rather than of any value read at runtime: `vite dev`
+ * never invokes this plugin, `vite build` always does. There is no environment
+ * variable to set correctly on a deploy and nothing to forget.
+ *
+ * `enforce: 'pre'` so the stub is handed back before vite-plugin-svelte's
+ * transform, which is what lets a `.svelte` stub still compile to a component.
+ *
+ * THIS FILE ONLY WIRES IT. Which ids are harnesses and what replaces them is
+ * `src/lib/dev-routes.ts`, where a test can reach it.
+ */
+function stripDevRoutesPlugin(): Plugin {
+	return {
+		name: 'idea-strip-dev-routes',
+		enforce: 'pre',
+		apply: 'build',
+		load(id) {
+			return devRouteStub(id);
+		}
+	};
+}
+
 export default defineConfig({
-	plugins: [siteVersionsPlugin(), sveltekit()],
+	plugins: [siteVersionsPlugin(), stripDevRoutesPlugin(), sveltekit()],
 	server: {
 		port: process.env.PORT ? Number(process.env.PORT) : 5173
 	}

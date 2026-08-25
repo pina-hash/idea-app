@@ -87,6 +87,14 @@ export const load: PageLoad = async ({ url }) => {
 	 */
 	const admin = url.searchParams.get('admin') === '1';
 
+	/**
+	 * `?pending=N` puts N in the launcher's Foundry review badge. Admin-gated
+	 * exactly as the real payload is (the home load answers null for anyone
+	 * else), so `?pending=3` without `?admin=1` is the negative case: no badge.
+	 */
+	const pendingRaw = Number(url.searchParams.get('pending') ?? '');
+	const pending = admin && Number.isFinite(pendingRaw) ? Math.max(0, pendingRaw) : null;
+
 	const isTeacher = role === 'teacher';
 	const me = isTeacher ? TEACHER : STUDENT;
 
@@ -131,6 +139,7 @@ export const load: PageLoad = async ({ url }) => {
 			preferences: {}
 		},
 		isAdmin: admin,
+		foundryReviewPending: pending,
 		harness: { role, classes, rows, admin }
 	};
 };

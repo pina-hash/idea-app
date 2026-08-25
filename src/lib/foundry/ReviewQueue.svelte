@@ -31,6 +31,7 @@
 
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryInspector from './FoundryInspector.svelte';
+	import MoltenSeam from './MoltenSeam.svelte';
 	import { queueOrder, versionUnderReview } from './review.ts';
 	import { foundryAuthorLine } from './surface.ts';
 	import type {
@@ -75,12 +76,19 @@
 		<div class="fdy-q-pane">
 			<header class="fdy-q-head">
 				<h2>Waiting for review</h2>
-				<span class="fdy-q-count">{queue.length}</span>
+				<span class="fdy-q-count" data-hot={queue.length > 0 ? 'true' : undefined}>
+					{queue.length}
+				</span>
 			</header>
 
 			{#if queue.length === 0}
-				<p class="fdy-q-empty">Nothing is waiting. The queue is empty.</p>
+				<!-- No heat on an empty queue: the pour marks work in progress, and
+				     a cold channel is the honest reading of "nothing is waiting". -->
+				<p class="fdy-q-empty">Nothing is waiting. The forge is cold.</p>
 			{:else}
+				<!-- Heat means in progress: the channel pours exactly while
+				     something is waiting to be judged. -->
+				<MoltenSeam variant="channel" />
 				<!--
 					OLDEST FIRST. A newest-first queue is a queue whose bottom never
 					gets read, and the days-waited figure beside each row is what makes
@@ -184,7 +192,13 @@
 	.fdy-q-count {
 		font-family: var(--font-mono);
 		font-size: 0.85rem;
-		color: var(--cyan);
+		color: var(--fg-st-draft-ink, var(--dim));
+	}
+
+	/* The count heats while work waits: the submitted state's own ink
+	   (measured in forge.css, 9.03:1 on the card), not a new colour. */
+	.fdy-q-count[data-hot] {
+		color: var(--fg-st-heat-ink, var(--amber));
 	}
 
 	.fdy-q-empty {

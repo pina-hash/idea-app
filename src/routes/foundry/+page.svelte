@@ -38,9 +38,12 @@
 	/>
 </svelte:head>
 
-<div class="cr-root fdy-page">
+<!-- The room wrapper (.fg-root) and the masthead live in +layout.svelte now,
+     so this page is only its own content. The h1 stopped saying "IDEA
+     Foundry" because the shell's wordmark already does, one line above. -->
+<div class="fdy-page">
 	<header class="fdy-page-head">
-		<h1>IDEA Foundry</h1>
+		<h1>Gallery</h1>
 		<p>
 			Web apps built and published by students. Everything here runs in a sandbox on a separate
 			address, so nothing it does can reach your account.

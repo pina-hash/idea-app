@@ -226,6 +226,7 @@
 		sections={data.sections}
 		canManage={data.canManage}
 		attachmentsEnabled={data.attachmentsEnabled}
+				instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
 		checkIns={data.checkIns}
 		sectionOutstanding={data.sectionOutstanding}
 		work={data.work}
@@ -264,6 +265,7 @@
 				{teacherTransports}
 				{referenceTransports}
 				attachmentsEnabled={data.attachmentsEnabled}
+				instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
 				checkInTransports={liveCheckInTransports}
 				onsaved={composerSaved}
 				ondirtychange={(d) => (composerDirty = d)}

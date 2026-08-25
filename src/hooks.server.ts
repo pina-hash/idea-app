@@ -160,6 +160,13 @@ export const handle: Handle = sequence(legacyRedirects, supabase, authGuard);
  */
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
 	const id = crypto.randomUUID();
+	/**
+	 * THE PATHNAME IS LOGGED WHOLE, and it used to be redacted. A bundle URL
+	 * carried a signed token in its path -- 30 minutes of read access to a
+	 * student's app -- and a function log is not the place for one. There is no
+	 * token any more: a bundle URL is two uuids on somebody else's origin, and
+	 * requests for it never reach this application at all.
+	 */
 	console.error(
 		`[error ${id}] ${status} ${event.request.method} ${event.url.pathname}` +
 			` route=${event.route.id ?? 'none'}`,

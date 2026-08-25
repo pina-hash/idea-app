@@ -18,9 +18,10 @@
 	 *
 	 * PREFLIGHT PASSING IS NOT SUBMISSION, and the surface has to make that
 	 * legible rather than merely true. A pass leaves the version a DRAFT and
-	 * says so; submitting for review is a separate press on /foundry/mine. A
-	 * student who uploads and walks away has saved their work and queued
-	 * nothing.
+	 * says so; submitting for review is a SEPARATE, DELIBERATE PRESS -- offered
+	 * right here once ingest succeeds, so the choice happens on the page the
+	 * work was made on, and still available from /foundry/mine. A student who
+	 * uploads and walks away has saved their work and queued nothing.
 	 *
 	 * NOTHING HERE RESTATES A RULE. The three input shapes are normalized by
 	 * `./normalize.ts`, judged by `./preflight-browser.ts`, and worded by
@@ -29,11 +30,13 @@
 	 */
 	import { untrack } from 'svelte';
 
+	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
 	import { filesFromDataTransfer, normalizeFoundryInput, type NormalizeResult } from './normalize.ts';
 	import { preflightZipInBrowser, type BrowserPreflightResult } from './preflight-browser.ts';
 	import { FOUNDRY_LIMITS, formatBytes, type FoundryIssue } from './preflight.ts';
 	import { slugLooksOk, suggestSlug } from './surface.ts';
+	import { FOUNDRY_STARTER_PATH } from './preflight.ts';
 	import type { FoundrySubmitTransports, IngestOutcome } from './transports.ts';
 
 	let {
@@ -197,6 +200,11 @@
 	 */
 	let createdAppId = $state<string | null>(null);
 	let createdSlug = $state<string | null>(null);
+	/** The version this flow just made, which is what the submit press queues. */
+	let createdVersionId = $state<string | null>(null);
+	let createdOrdinal = $state<number | null>(null);
+	let submitting = $state(false);
+	let submittedForReview = $state(false);
 
 	async function send() {
 		if (!canSend || !normalized?.zip) return;
@@ -282,6 +290,8 @@
 			phase = 'ready';
 			return;
 		}
+		createdVersionId = version.versionId;
+		createdOrdinal = version.ordinal;
 
 		busyLabel = 'Unpacking and checking on the server';
 		const result = await transports.ingest(version.versionId);
@@ -296,6 +306,29 @@
 
 		phase = 'done';
 		if (appSlug && onDone) onDone(appSlug);
+	}
+
+	/**
+	 * THE SECOND PRESS. Queueing for review is its own deliberate act -- one
+	 * button, on this page, never a side effect of the upload finishing. The
+	 * busy flag clears in `finally` so a throw cannot strand the control.
+	 */
+	async function submitForReview() {
+		if (!createdVersionId || !transports.submitVersion || submitting) return;
+		submitting = true;
+		transportProblems = [];
+		try {
+			const result = await transports.submitVersion(createdVersionId);
+			if (!result.ok) {
+				problem(result.message);
+				return;
+			}
+			submittedForReview = true;
+		} catch (err) {
+			problem(err instanceof Error ? err.message : 'That did not work. Try again.');
+		} finally {
+			submitting = false;
+		}
 	}
 
 	const failures = $derived<FoundryIssue[]>([
@@ -472,6 +505,17 @@
 			Building it with an AI tool? <a href="/foundry/contract">Read the build contract</a> and
 			paste it in first. It is what these checks are written against.
 		</p>
+		<!--
+			THE STARTER SITS BESIDE THE CONTRACT, not on the contract page alone.
+			This is the surface a student is standing on when they discover their
+			app is missing its libraries, and a file they can start from is a more
+			useful answer at that moment than a document about the rules.
+		-->
+		<p class="fdy-hint fdy-contract-link">
+			Using React? <a href={FOUNDRY_STARTER_PATH} download="index.html">Download the starter
+				file</a>
+			-- an index.html with the platform libraries already linked and a marked spot for your component.
+		</p>
 
 		{#if phase === 'idle'}
 			<div
@@ -564,15 +608,28 @@
 					Uploaded and unpacked. {ingest.fileCount}
 					{ingest.fileCount === 1 ? 'file' : 'files'}, {formatBytes(ingest.totalBytes)}.
 				</p>
-				<!--
-					THE VERSION IS STILL A DRAFT, said plainly. A student who reads
-					"uploaded" as "submitted" walks away believing a review is
-					queued when nothing is.
-				-->
-				<p class="fdy-draft-note">
-					This is saved as a draft. Nobody reviews it until you submit it, which you do from
-					My apps.
-				</p>
+				{#if submittedForReview}
+					<!-- HEATING: the one confirmation that wears the heat language,
+					     because this is the moment work goes into the fire. -->
+					<p class="fdy-queued">
+						<ForgeStatus tone="waiting" word="Waiting for review" />
+						{#if createdOrdinal !== null}v{createdOrdinal} is in the review queue.{:else}This
+							version is in the review queue.{/if}
+						You can withdraw it from My apps while it waits.
+					</p>
+				{:else}
+					<!--
+						THE VERSION IS STILL A DRAFT, said plainly, WITH THE PRESS BESIDE
+						THE SENTENCE. Checks passing is not submission: a student who
+						reads "uploaded" as "submitted" walks away believing a review is
+						queued when nothing is. The press below is that choice, made
+						deliberately, on the page the work was made on.
+					-->
+					<p class="fdy-draft-note">
+						<ForgeStatus tone="quiet" word="Draft" />
+						This is saved as a draft. Nobody reviews it until you submit it.
+					</p>
+				{/if}
 				<details class="fdy-files">
 					<summary class="tap-44">The {ingest.files.length} files that will be served</summary>
 					<ul>
@@ -581,7 +638,19 @@
 						{/each}
 					</ul>
 				</details>
-				<a class="btn fdy-primary tap-44" href="/foundry/mine">Go to My apps</a>
+				<div class="fdy-done-actions">
+					{#if !submittedForReview && transports.submitVersion && createdVersionId}
+						<button
+							type="button"
+							class="btn fdy-primary tap-44"
+							disabled={submitting}
+							onclick={submitForReview}
+						>
+							{submitting ? 'Submitting...' : 'Submit for review'}
+						</button>
+					{/if}
+					<a class="btn tap-44" href="/foundry/mine">Go to My apps</a>
+				</div>
 			</div>
 		{/if}
 
@@ -817,11 +886,28 @@
 		margin: var(--space-3, 0.75rem) 0 0;
 	}
 
-	.fdy-draft-note {
+	.fdy-draft-note,
+	.fdy-queued {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
 		font-size: 0.9rem;
 		color: var(--text-2);
 		max-width: 62ch;
 		line-height: 1.5;
+		margin: 0;
+	}
+
+	.fdy-queued {
+		color: var(--text-1, var(--white));
+	}
+
+	.fdy-done-actions {
+		display: flex;
+		gap: var(--space-2, 0.5rem);
+		flex-wrap: wrap;
+		align-items: center;
 	}
 
 	.fdy-files {

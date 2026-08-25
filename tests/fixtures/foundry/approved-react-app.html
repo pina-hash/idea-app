@@ -1,109 +1,787 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shop Order Tracker</title>
-<link rel="stylesheet" href="https://ideabosco.com/_platform/fonts.css">
+<title>Study Timer</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
-	:root { color-scheme: dark; }
-	body {
-		margin: 0;
-		padding: 1.25rem;
-		background: #0b1410;
-		color: #d7e4da;
-		font-family: 'Rajdhani', system-ui, sans-serif;
-	}
-	h1 { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; margin: 0 0 0.25rem; }
-	.sub { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 0.8rem; color: #7f9186; margin: 0 0 1rem; }
-	.row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
-	input {
-		flex: 1; min-width: 0; padding: 0.5rem 0.6rem; font: inherit;
-		background: #07100c; color: inherit; border: 1px solid #2c4437; border-radius: 6px;
-	}
-	button {
-		padding: 0.5rem 0.9rem; font: inherit; cursor: pointer;
-		background: transparent; color: #7fd6a2; border: 1px solid #7fd6a2; border-radius: 6px;
-	}
-	ul { list-style: none; margin: 0; padding: 0; }
-	li {
-		display: flex; align-items: center; gap: 0.6rem;
-		padding: 0.5rem 0.6rem; border: 1px solid #2c4437; border-radius: 6px; margin-bottom: 0.4rem;
-	}
-	li.done .name { text-decoration: line-through; color: #7f9186; }
-	.name { flex: 1; min-width: 0; }
-	.stage { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 0.75rem; color: #e4b23c; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0b0f14; color: #e6edf3; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
+  .card { background: #141b23; border: 1px solid #223; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  button { font: inherit; padding: .6rem 1rem; border-radius: 8px; border: 1px solid #2b3a4a; background: #1b2530; color: #e6edf3; cursor: pointer; }
+  button:hover { background: #223041; }
+  .big { font-size: 3rem; font-variant-numeric: tabular-nums; margin: .5rem 0; }
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .muted { color: #8aa0b4; font-size: .9rem; }
+  ul { padding-left: 1.1rem; }
+  li { margin: .25rem 0; }
 </style>
 </head>
 <body>
 <div id="root"></div>
-
-<!--
-	THE CDN SHAPE, WRITTEN THE WAY A STUDENT'S AI TOOL WRITES IT. React,
-	ReactDOM and Babel from unpkg, plus a type="text/babel" script with JSX in
-	it. Every one of these four lines was a refusal until the proxy was
-	removed; all four are the ordinary case now, and this file exists to prove
-	it renders rather than to assert it in prose.
--->
-<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
-
 <script type="text/babel">
-	const { useState } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
-	const STAGES = ['queued', 'cutting', 'welding', 'done'];
+function Timer({ minutes, onDone }) {
+  const [left, setLeft] = useState(minutes * 60);
+  const [running, setRunning] = useState(false);
+  const tick = useRef(null);
+  useEffect(() => {
+    if (!running) return;
+    tick.current = setInterval(() => {
+      setLeft((v) => {
+        if (v <= 1) { clearInterval(tick.current); setRunning(false); onDone && onDone(); return 0; }
+        return v - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick.current);
+  }, [running, onDone]);
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
+  const ss = String(left % 60).padStart(2, '0');
+  return (
+    <div className="card">
+      <div className="muted">Focus block</div>
+      <div className="big">{mm}:{ss}</div>
+      <div className="row">
+        <button onClick={() => setRunning((r) => !r)}>{running ? 'Pause' : 'Start'}</button>
+        <button onClick={() => { setRunning(false); setLeft(minutes * 60); }}>Reset</button>
+      </div>
+    </div>
+  );
+}
 
-	function App() {
-		const [orders, setOrders] = useState([
-			{ id: 1, name: 'Drivetrain plates', stage: 1 },
-			{ id: 2, name: 'Intake rollers', stage: 0 }
-		]);
-		const [draft, setDraft] = useState('');
+function Panel0({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 0</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-		function add(e) {
-			e.preventDefault();
-			const name = draft.trim();
-			if (!name) return;
-			setOrders((o) => [...o, { id: Date.now(), name, stage: 0 }]);
-			setDraft('');
-		}
+function Panel1({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 1</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-		function advance(id) {
-			setOrders((o) =>
-				o.map((x) => (x.id === id ? { ...x, stage: Math.min(STAGES.length - 1, x.stage + 1) } : x))
-			);
-		}
+function Panel2({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 2</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-		return (
-			<div>
-				<h1>Shop Order Tracker</h1>
-				<p className="sub">React 18 and Babel, loaded from unpkg at runtime.</p>
-				<form className="row" onSubmit={add}>
-					<input
-						value={draft}
-						onChange={(e) => setDraft(e.target.value)}
-						placeholder="New part"
-						aria-label="New part"
-					/>
-					<button type="submit">Add</button>
-				</form>
-				<ul>
-					{orders.map((o) => (
-						<li key={o.id} className={o.stage === STAGES.length - 1 ? 'done' : ''}>
-							<span className="name">{o.name}</span>
-							<span className="stage">{STAGES[o.stage]}</span>
-							<button type="button" onClick={() => advance(o.id)}>
-								Advance
-							</button>
-						</li>
-					))}
-				</ul>
-			</div>
-		);
-	}
+function Panel3({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 3</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-	ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+function Panel4({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 4</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel5({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 5</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel6({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 6</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel7({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 7</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel8({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 8</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel9({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 9</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel10({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 10</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel11({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 11</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel12({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 12</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel13({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 13</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel14({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 14</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel15({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 15</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel16({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 16</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel17({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 17</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel18({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 18</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel19({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 19</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel20({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 20</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel21({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 21</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel22({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 22</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel23({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 23</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel24({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 24</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel25({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 25</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel26({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 26</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel27({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 27</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel28({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 28</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel29({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 29</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Panel30({ items, onPick }) {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((a, b) => a + (b.weight || 0), 0);
+  const pretty = useCallback((n) => n.toFixed(1) + ' pts', []);
+  return (
+    <div className="card">
+      <div className="row">
+        <strong>Section 30</strong>
+        <span className="muted">{pretty(total)}</span>
+        <button onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && (
+        <ul>
+          {items.map((it, k) => (
+            <li key={k} onClick={() => onPick && onPick(it)}>{it.label} <span className="muted">{pretty(it.weight || 0)}</span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function App() {
+  const [log, setLog] = useState([]);
+  const items = [{ label: 'Read', weight: 2 }, { label: 'Notes', weight: 3 }, { label: 'Practice', weight: 5 }];
+  return (
+    <div className="wrap">
+      <h1>Study Timer</h1>
+      <Timer minutes={25} onDone={() => setLog((l) => [...l, new Date().toLocaleTimeString()])} />
+      <Panel0 items={items} onPick={(it) => setLog((l) => [...l, it.label])} />
+      <div className="card">
+        <div className="muted">Log</div>
+        <ul>{log.map((e, i) => <li key={i}>{e}</li>)}</ul>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+if (window.lucide) { window.lucide.createIcons(); }
 </script>
 </body>
 </html>

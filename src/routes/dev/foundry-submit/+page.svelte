@@ -21,8 +21,12 @@
 	 * a folder with noise in it, and a single HTML file that is not called
 	 * index.html.
 	 */
+	import AppFrame from '$lib/foundry/AppFrame.svelte';
 	import FoundryContract from '$lib/foundry/FoundryContract.svelte';
+	import { inflateEntry, readCentralDirectory } from '$lib/foundry/zip';
+	import { extensionOf, isTextExtension } from '$lib/foundry/preflight';
 	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
+	import '$lib/foundry/forge.css';
 	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
 	import { normalizeFoundryInput } from '$lib/foundry/normalize';
 	import { foundryBuildContract } from '$lib/foundry/preflight';
@@ -35,6 +39,8 @@
 		FoundrySubmitTransports,
 		IngestOutcome
 	} from '$lib/foundry/transports';
+
+	let { data } = $props();
 
 	const enc = new TextEncoder();
 
@@ -178,6 +184,12 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		async createVersion() {
 			created = [...created, 'version'];
 			return { ok: true, versionId: 'version-new', ordinal: 2 };
+		},
+
+		/** The on-page submit press, recorded like every other write here. */
+		async submitVersion(versionId) {
+			created = [...created, `submitted ${versionId}`];
+			return { ok: true };
 		},
 
 		/**
@@ -463,6 +475,80 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		};
 	});
 
+	/* ------------------------------------------------- the acceptance drive */
+
+	/**
+	 * THE WHOLE PIPELINE OVER THE FILE THAT STARTED THIS, AND THEN THE FRAME.
+	 *
+	 * Normalize the picked file, preflight the zip it produced, take the
+	 * REWRITTEN html the preflight handed back, and serve it from the apps host
+	 * through the real proxy so the real `AppFrame` can run it. Every step is
+	 * the shipping code: `normalizeFoundryInput`, `preflightZipInBrowser` (and
+	 * therefore `scanHtml`, and therefore the vendor rewrite), the real token
+	 * mint, the real `/r/{token}/` route, the real CSP and the real sandbox.
+	 *
+	 * WHAT IS NOT REAL, and it is one thing: the bytes go into the in-memory
+	 * dev fixture rather than into `foundry-bundles` through `foundry-ingest`,
+	 * because the local project is a placeholder. The ROUTE that reads them, and
+	 * everything it enforces on the way out, is untouched.
+	 *
+	 * TEXT FILES ONLY. The drive posts JSON, so a bundle carrying a PNG would
+	 * lose it. The fixture is a single HTML file, which is the shape this drive
+	 * is about; a binary asset would need a different transport and is said here
+	 * rather than left to be discovered.
+	 */
+	let runNote = $state('');
+	let runNotes = $state<string[]>([]);
+	let runFiles = $state<string[]>([]);
+	let runBusy = $state(false);
+
+	async function runFixture() {
+		runBusy = true;
+		runNotes = [];
+		runFiles = [];
+		try {
+			// The real file, unmodified, handed over the way a picked file is.
+			const picked = file('approved-react-app.html', data.reactAppFixture);
+
+			const norm = await normalizeFoundryInput([picked]);
+			if (!norm.ok || !norm.zip) {
+				runNote = `NORMALIZE REFUSED: ${norm.problem}`;
+				return;
+			}
+
+			const verdict = await preflightZipInBrowser(norm.zip);
+			runNotes = [...norm.notes, ...verdict.notes];
+			runFiles = verdict.files;
+			if (!verdict.ok) {
+				runNote = `PREFLIGHT REFUSED:\n${verdict.failures.map((f) => f.message).join('\n\n')}`;
+				return;
+			}
+
+			/*
+			 * THE FRAME USED TO GO HERE, AND IT CANNOT ANY MORE.
+			 *
+			 * This harness ran the bundle it had just preflighted by POSTing the
+			 * file set to `/dev/foundry-run`, which wrote it into the in-memory dev
+			 * fixture and minted a real token for the proxy to serve it through.
+			 * There is no proxy and no token: a bundle is served by the
+			 * `foundry-serve` Edge Function, which reads rows and objects that only
+			 * exist once something has actually been ingested. A file set that has
+			 * only been PREFLIGHTED has neither, so there is nothing to point a
+			 * frame at.
+			 *
+			 * `/dev/foundry-run?app=&version=` runs a bundle that HAS been
+			 * published, against a project that holds it. This half of the drive is
+			 * the preflight verdict, which is what this harness is for.
+			 */
+			runNote =
+				`Preflight passed: ${verdict.files.length} file(s). Publish it to run it -- see /dev/foundry-run.`;
+		} catch (e) {
+			runNote = `DRIVE FAILED: ${(e as Error).message}`;
+		} finally {
+			runBusy = false;
+		}
+	}
+
 	let rawOut = $state('');
 
 	async function rawRun(kind: 'zip-bad' | 'folder' | 'single') {
@@ -498,7 +584,7 @@ fetch('https://api.example.com/data').then((r) => r.json());
 
 <svelte:head><title>dev // foundry submit</title></svelte:head>
 
-<div class="h-root">
+<div class="fg-root h-root">
 	<header class="h-head">
 		<h1>Foundry submit harness</h1>
 		<p>
@@ -561,6 +647,37 @@ fetch('https://api.example.com/data').then((r) => r.json());
 				</button>
 			</div>
 			{#if rawOut}<pre class="h-raw" data-testid="raw-out">{rawOut}</pre>{/if}
+		</section>
+
+		<section class="h-panel">
+			<h2>Acceptance drive: the approved React app, end to end</h2>
+			<p class="h-note">
+				<code>tests/fixtures/foundry/approved-react-app.html</code> -- the real file that was
+				approved and rendered blank -- unmodified, through normalize, the real preflight, the
+				real token mint and the real bundle proxy, into the real
+				<code>AppFrame</code>. What renders below is the rewrite working or not working;
+				nothing else on this page can tell you that.
+			</p>
+			<div class="h-buttons">
+				<button class="btn" onclick={runFixture} disabled={runBusy} data-drive="react-fixture">
+					{runBusy ? 'Running...' : 'Run the React fixture'}
+				</button>
+			</div>
+
+			{#if runNote}<p class="h-note" data-testid="run-note">{runNote}</p>{/if}
+
+			{#if runNotes.length > 0}
+				<p class="h-note">What the student is told:</p>
+				<ul class="h-run-notes" data-testid="run-notes">
+					{#each runNotes as note, i (i)}<li>{note}</li>{/each}
+				</ul>
+			{/if}
+
+			{#if runFiles.length > 0}
+				<p class="h-note" data-testid="run-files">
+					Extracted: {runFiles.join(', ')}
+				</p>
+			{/if}
 
 			{#if uploads.length > 0 || created.length > 0}
 				<p class="h-note">
@@ -654,6 +771,17 @@ fetch('https://api.example.com/data').then((r) => r.json());
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--cyan);
+		margin: 0.35rem 0;
+	}
+
+	.h-run-notes {
+		margin: 0 0 var(--space-3, 0.75rem);
+		padding-left: 1.2rem;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		color: var(--text-2, #b9c4ba);
+	}
+	.h-run-notes li {
 		margin: 0.35rem 0;
 	}
 

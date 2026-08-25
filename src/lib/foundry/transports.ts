@@ -69,6 +69,16 @@ export interface FoundrySubmitTransports {
 	/** Invoke `foundry-ingest` with the draft version id. */
 	ingest(versionId: string): Promise<IngestOutcome>;
 
+	/**
+	 * `foundry_submit_version`, the same RPC /foundry/mine calls -- offered on
+	 * the submit surface too, so the deliberate act of queueing a build for
+	 * review happens on the page it was made on. PREFLIGHT PASSING IS STILL
+	 * NOT SUBMISSION: this only ever runs from its own second press, after
+	 * ingest has succeeded, and absent it removes that control (the harness's
+	 * read-only mounting stays structural).
+	 */
+	submitVersion?: (versionId: string) => Promise<FoundryOutcome>;
+
 	/** Cover image into `foundry-covers`, returning the stored path. */
 	uploadCover(file: File): Promise<FoundryOutcome<{ path: string }>>;
 
