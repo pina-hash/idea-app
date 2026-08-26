@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.2 - 2026-08-26**
+**Version 4.6 - 2026-08-26**
 
 ## These Instructions Evolve
 
@@ -46,9 +46,21 @@ canonical raw URL is:
 
 `https://raw.githubusercontent.com/pina-hash/idea-app/main/docs/standards/<FILENAME>`
 
-That URL is written here rather than constructed at use time, because a URL built by
-editing a path is refused by the fetch tool and a URL sitting in the governing document
-is not.
+**Fetch it with `curl` from the container, not with the web fetch tool.** That tool
+refuses any URL which did not arrive in a prior search or fetch result, and a URL sitting
+in a governing document does not satisfy it: this was tried on 2026-08-26 and refused,
+after this file had asserted the opposite. A web search for the path returns nothing,
+because the path is not indexed. The container's shell has open network access, so the
+whole read side of this protocol is one command:
+
+```
+curl -sfL https://raw.githubusercontent.com/pina-hash/idea-app/main/docs/standards/REGISTER.md
+```
+
+`REGISTER.md` is the cheapest first fetch, since it carries the version and date of all
+sixteen files in one response and answers the staleness question without pulling any
+standard. Pull the individual file only when the register says the local copy is behind,
+or when the file is about to be edited.
 
 **Before editing any standards file, and again immediately before delivering it, fetch
 the mirror and compare the version line and changelog head against the mount.** Twice,
@@ -528,6 +540,15 @@ block, never as a line inside the block itself. It is a note telling Mr. Pina wh
 model and effort level to set in Claude Code before pasting, not part of the prompt
 CC reads.
 
+**Two different conventions both claim the first line, which is why this one gets
+broken.** The canned lane opening is pasted verbatim as the first thing inside the
+block, and the routing header is the last thing outside it, so the two sit adjacent
+with nothing between them and a prompt written in one pass merges them. Observed
+2026-08-26 on four prompts in a single delivery, every one with the header inside. The
+check is positional: the first line inside every block is `Before doing anything else`,
+or for a read-only audit `This is a READ-ONLY audit`. If it starts with `MODEL:`, the
+header is in the wrong place.
+
 No CC prompt ships without it. This is the same call as the adaptive-thinking assessment,
 pointed at CC's model instead of this chat. Pick from the rubric; when a prompt sits
 between two rows, round up.
@@ -812,6 +833,13 @@ costs nothing to keep.
 - **Branch names come from the tool.** Sessions produce `claude/<slug>-<hash>`. Do not
   fight it by insisting on `lane/<thing>`; the naming was never the control, the
   partition was.
+- **A file handed to a session lands under `/root/.claude/uploads/<uuid>/`, never at the
+  repo root.** The filename is prefixed with a hash and may carry a `_1` suffix. A prompt
+  saying "a file has been placed at the repo root" states a precondition that is always
+  false, and a session following the stop-on-false-precondition rule correctly halts on
+  it. Observed 2026-08-26 on the first mirror delivery. Every prompt that consumes an
+  attachment tells the session to locate it under that directory and to report the path
+  it used.
 - **CI is now the only cross-lane check that exists**, because nothing else can see two
   lanes at once. It has to run on every branch for that to mean anything.
 
@@ -901,10 +929,21 @@ stated as a topic ("the notebook work") is not checkable; a boundary stated as p
 
 **Verify on the preview, then merge. A parallel-lane prompt ends:**
 
-> Verify the change in a browser on this branch's Vercel preview URL before merging;
-> a local dev server is not the preview. Then pull the latest `main` into this branch and
-> resolve any conflicts here, not on main. Merge to `main` with `--no-ff`, push, and delete
-> the branch. Never force-push.
+> Pull the latest `main` into this branch and resolve any conflicts here, not on main.
+> Push the branch. Do NOT merge to `main`. Report the Vercel preview URL and the exact
+> checks to run on it, then stop. Never force-push. Do not attempt to delete a remote
+> branch; a cloud session cannot.
+
+**The preview check moved out of the session on 2026-08-26, because no cloud session can
+perform it.** The ending above required a browser check that is structurally unreachable:
+cloud containers carry no browser tool, `/dev/login` is correctly absent from a production
+build so the preview cannot be signed into, and the real routes need a Bosco Tech account
+no session holds. Three lanes ran that day and not one reached a preview; one merged
+without it, one held, one stopped to ask. **A control nobody can execute is not a control,
+it is a step that gets negotiated away under time pressure**, which is the same finding as
+the test-nothing-runs rule. Merging is now Mr. Pina's, after he opens the preview himself.
+The session's job is to push, name the URL, and name the checks in terms specific enough
+to run without rereading the prompt.
 
 The preview line was missing from this ending until 2026-08-23e, while the branch rules
 above required it, so lanes built on branches for the isolation and then merged on the
@@ -1162,6 +1201,34 @@ Read the relevant file before starting any task that touches those domains.
   gate. Remote database work is done by hand in the Supabase SQL editor.
 - **Never print a secret, and never write a command that would.** See the secrets rule in
   Claude Code Prompting. This is listed twice on purpose.
+- **A validator that names which check failed is an oracle, and the name is the
+  entire cost.** A gate returning `{ok:false, reason:'score-rate'}` converts a search
+  over every field at once into an independent search of one field at a time, which is
+  the difference between infeasible and a lunch period. Established 2026-08-25 on the
+  VANGUARD leaderboard: six submissions in seven minutes, each correcting exactly the
+  field the previous rejection named, ending in an accepted 15.7M forgery. The caller
+  learns only that the request was received; the reason goes to the audit log, which is
+  where the person who needs it reads it. This is the permission-gate rule above
+  restated for validators, and it has the same shape: what the gate matches on decides
+  what it is worth, and telling the caller what it matched on gives that away for free.
+- **A consistency check cannot be built on fields the same system publishes.** Where a
+  gate cross-checks a payload against itself, and a read endpoint serves those same
+  fields, the check is satisfied by copying a real record back. The VANGUARD gate
+  compared score against kills, bosses, sector and elapsed time, and the board's own
+  `top` response carries all of them, so the forgery above passed every consistency
+  test by construction: its kills and bosses were a real run's, to the unit. A check is
+  only load-bearing where at least one term is something the server observes and the
+  client cannot assert. Before writing one, list which of its inputs the client
+  controls; if that is all of them, the check filters accidents and nothing else, and
+  it should be described that way rather than as a defense.
+- **A boundary stated as a route does not cover the components the route mounts.** Lane
+  ownership is enforced by the prompt and nothing else, so the boundary has to name what
+  a session can check before it edits. Observed 2026-08-26: a lane owning "the item route
+  `/classroom/[sectionId]/item/[itemId]` page file itself" halted correctly on its second
+  item because the control it was sent to move lives in `ItemDetail.svelte`, a component
+  that route mounts. The halt was right and the prompt was wrong. Name directories and
+  file globs, and where a component tree is split across two lanes, say which files each
+  owns rather than which surface.
 
 ---
 
@@ -1462,6 +1529,30 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-08-26e** - Five changes, all from one day of three parallel lanes plus a second
+  VANGUARD leaderboard forgery. Two Hard Rules from the forgery: a validator that names
+  which check failed is an oracle, and a consistency check cannot be built on fields the
+  same system publishes. A third Hard Rule after a lane halted correctly on a boundary
+  stated as a route rather than as files. The `/root/.claude/uploads/<uuid>/` fact, after a
+  mirror prompt asserted a file would be at the repo root and every future mirror prompt
+  would have halted the same way. A positional check on the routing header, after four
+  prompts shipped with it pasted inside the block. And the canned lane ending is rewritten
+  to move the preview check out of the session: it required a browser no cloud container
+  has, on a deployment no session can sign into, and three lanes proved it unreachable in
+  a single afternoon.
+- **2026-08-26d** - The freshness protocol's read step was wrong and is corrected. 4.1 asserted
+  that writing the raw URL into this document would make it fetchable, on the reasoning that
+  the tool refuses constructed URLs and not ones already in context. Tried on 2026-08-26 and
+  refused: the tool requires a URL to have arrived in a prior search or fetch result, and a
+  web search for the path returns nothing because a raw file path in a repo is not indexed.
+  The whole protocol was therefore unusable from a chat for two versions, which is the
+  argued-not-observed failure this project already has a hard rule about, committed here in
+  the same document that carries the rule. The working path is `curl` from the container,
+  which has open network access, and `REGISTER.md` is named as the cheapest first fetch since
+  it answers the staleness question for all sixteen files in one response without pulling a
+  standard. Verified by fetching it: the mirror at `7eab001` carries all sixteen rows with
+  versions matching what was delivered.
 
 - **2026-08-26c** - The freshness protocol met the repo and one of its rules was wrong on
   arrival. `docs/standards/` already existed, carrying four files, and three of the four
