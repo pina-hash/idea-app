@@ -21,6 +21,14 @@
 			]
 		},
 		{
+			"date": "2026-08-26",
+			"title": "A new post shows up right away",
+			"body": "Posting to a class used to need a page refresh before it showed up in the list. Now it appears the moment it saves, at the top of the class page, with nothing to reload.",
+			"tags": [
+				"classroom"
+			]
+		},
+		{
 			"date": "2026-08-25",
 			"title": "A published app gets a whole page, and a link you can share",
 			"body": "An app in the gallery used to run in a small box inside the page, so anything with a fixed playfield had to be zoomed out before you could use it. Two things change. There is a Full screen button beside Stop app, which hands the running app the whole window and gives it back with Escape or the button, and the app keeps going the whole time. And every published app now has a page of its own: open the app in the gallery and you will find its link under Share this app, with a button to copy it. Anyone you send that link to can open the app without signing in, and the page carries only the app -- your name, your class and your build notes stay in the gallery. If your app is taken down or you delete it, the link stops working straight away.",
