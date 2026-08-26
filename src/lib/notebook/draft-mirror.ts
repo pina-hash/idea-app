@@ -55,12 +55,15 @@ export const NEW_RECORD = 'new';
 /**
  * Past this a mirror is treated as abandoned rather than as lost work.
  *
- * Seven days, not the fifteen minutes `notebook_pending_capture` uses: that
- * marker is about surviving a camera app, and this is about surviving a phone
- * that was put down. Long enough that a weekend cannot expire it, short enough
- * that a shared desktop is not holding a term of somebody's writing.
+ * Twenty-four hours, not seven days. These are shared school lab machines, the
+ * slot holds unsaved writing in plain, unencrypted `localStorage`, and it is
+ * not swept on sign-out -- so the exposure window is the thing this bounds,
+ * not how long a student might plausibly want their draft back. A day is long
+ * enough to survive a phone put down mid-class; it is short enough that the
+ * next student at that machine is not sitting in front of a stranger's
+ * writing for the rest of the week.
  */
-export const DRAFT_MIRROR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const DRAFT_MIRROR_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** How long the composer waits after a keystroke before mirroring. */
 export const DRAFT_MIRROR_DEBOUNCE_MS = 400;
