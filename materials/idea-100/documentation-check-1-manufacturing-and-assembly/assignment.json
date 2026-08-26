@@ -1,0 +1,219 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Documentation Check 1 - Manufacturing and Assembly",
+    "course": "IDEA100",
+    "dueDate": "2026-08-26",
+    "totalPoints": 20,
+    "assignmentId": "idea100-doc-01",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Engineering Documentation"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Phase 2 is closed. This is the check on whether you kept a record of it.",
+      "title": "Phase 2 Record",
+      "aiNote": "No AI on any part of this. A notebook entry is a record of what you actually did, and an AI-assisted one is a record of nothing.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You worked four sessions in Phase 2: the hex core line and the scrap sculpture, twice each, on Aug 18, Aug 19, Aug 24, and Aug 25.\n\nThis is not a writing assignment. It is a check that a record exists. Everything you need is already on the paper you wrote at the machines and the benches.\n\n**Do these four things in order.**\n\n1. Get your paper pages out. Every session you worked in the shop or at the assembly bench should have something written on paper from while it was happening.\n2. Fill the table below, one row per session. Four rows minimum.\n3. Photograph your paper pages and upload them. Flat, in focus, one page per photo. Caption each one with its session date.\n4. Answer the last question about one session of your choice.\n\n**On the raw-data criterion.** It is scored against the paper you wrote during the session, not against what you can remember tonight. If a session has no paper behind it, fill the row honestly and lose those points. Check 2 closes the hook phase, and you will know by then what to keep.\n\n**Anything you cannot explain out loud does not count.** That rule is standing, in every IDEA course, at any time."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 7,
+          "columns": [
+            {
+              "key": "date",
+              "tip": "Aug 18, Aug 19, Aug 24, or Aug 25.",
+              "label": "Session date"
+            },
+            {
+              "key": "work",
+              "tip": "Hex core line, or scrap sculpture.",
+              "label": "What you worked on"
+            },
+            {
+              "key": "station",
+              "tip": "Mill, lathe, bandsaw, belt sander, tap, drill press, hand drill.",
+              "label": "Station or tool"
+            },
+            {
+              "key": "value",
+              "tip": "A dimension, a count, a setting, a fastener size. A real number off your paper.",
+              "label": "One value you recorded"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 5,
+          "printAs": "notebookRef",
+          "captions": true,
+          "minImages": 2
+        },
+        {
+          "id": "c1",
+          "type": "checklist",
+          "items": [
+            "Every row in the table above carries its session date",
+            "Every photo I uploaded is captioned with the date of the session it came from",
+            "Every photo is flat, in focus, and readable when opened full size",
+            "My notebook has an entry for every session listed in the table"
+          ],
+          "points": 4
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 4,
+          "prompt": "Pick one session from your table. Describe what you did precisely enough that a student who was not there could repeat it: name the station, the operation, and the value you were working to.",
+          "maxSentences": 5,
+          "minSentences": 3
+        }
+      ],
+      "points": 20,
+      "rubric": [
+        {
+          "id": "r1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 4 sessions",
+              "points": 7,
+              "descriptor": "All four Phase 2 sessions appear as rows in the table, and the notebook carries an entry for each one."
+            },
+            {
+              "label": "Proficient",
+              "short": "3 of 4 sessions",
+              "points": 5,
+              "descriptor": "Three of the four Phase 2 sessions appear with a notebook entry behind them."
+            },
+            {
+              "label": "Developing",
+              "short": "2 of 4 sessions",
+              "points": 3,
+              "descriptor": "Two of the four Phase 2 sessions appear with a notebook entry behind them."
+            },
+            {
+              "label": "Absent",
+              "short": "1 or none",
+              "points": 0,
+              "descriptor": "One session or none, or the table is not filled."
+            }
+          ],
+          "criterion": "An entry exists for every build and test session"
+        },
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Paper behind every session",
+              "points": 5,
+              "descriptor": "Uploaded photographs show handwritten pages covering all four sessions, carrying numbers rather than narrative."
+            },
+            {
+              "label": "Proficient",
+              "short": "Paper behind 2 or 3",
+              "points": 3,
+              "descriptor": "Uploaded photographs show handwritten pages covering two or three sessions."
+            },
+            {
+              "label": "Developing",
+              "short": "Paper behind 1",
+              "points": 2,
+              "descriptor": "Uploaded photographs show a handwritten page covering one session, or the pages carry no recorded values."
+            },
+            {
+              "label": "Absent",
+              "short": "No paper record",
+              "points": 0,
+              "descriptor": "No photographs uploaded, or the uploads are typed or written after the fact rather than during the session."
+            }
+          ],
+          "criterion": "Entries hold raw data as recorded, not reconstructed afterward"
+        },
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All dated, all readable",
+              "points": 4,
+              "descriptor": "Every table row and every uploaded photograph carries its session date, and every photograph is readable at full size."
+            },
+            {
+              "label": "Proficient",
+              "short": "One date or photo fails",
+              "points": 3,
+              "descriptor": "One row or photograph is missing its date, or one photograph is not readable at full size."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or more fail",
+              "points": 2,
+              "descriptor": "Two or more rows or photographs are missing dates, or two or more photographs are not readable."
+            },
+            {
+              "label": "Absent",
+              "short": "No dates or unreadable",
+              "points": 0,
+              "descriptor": "No dates recorded anywhere, or no photograph is readable."
+            }
+          ],
+          "criterion": "Entries are dated and legible"
+        },
+        {
+          "id": "r4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Station, operation, value",
+              "points": 4,
+              "descriptor": "Every table row names a station and a recorded value, and the written response names the station, the operation, and the value worked to."
+            },
+            {
+              "label": "Proficient",
+              "short": "One element missing",
+              "points": 3,
+              "descriptor": "One table row is missing its station or its value, or the written response omits the value worked to."
+            },
+            {
+              "label": "Developing",
+              "short": "Names work only",
+              "points": 2,
+              "descriptor": "Rows and response name what was worked on but do not name the station or any recorded value."
+            },
+            {
+              "label": "Absent",
+              "short": "States work happened",
+              "points": 0,
+              "descriptor": "Rows or response state only that work happened, with no station, operation, or value anywhere."
+            }
+          ],
+          "criterion": "Entries are specific enough that another student could repeat your work"
+        }
+      ],
+      "aiLevel": 0
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
