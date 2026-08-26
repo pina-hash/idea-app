@@ -2483,6 +2483,18 @@ This is the **only** automated suite, and it is deliberately narrow.
   shape can no longer be constructed. **Feeding input the producer cannot emit is
   still right where the surface is reachable WITHOUT it** (a hand-rolled POST to
   a route); say so in the test, so nobody reads it as editor coverage.
+- **NEVER ASSERT OVER A DIRECTORY THE APP WRITES.** `materials/` is written by
+  the classroom GitHub export on every item save, with no human involved, and
+  pushed straight to `main`. A test that pins its bytes -- or its counts, or its
+  hashes -- is red the next time a teacher saves an item, and the fix offered
+  each time is to write down whatever the new value is. That is a RATCHET: it
+  records what last happened and checks nothing.
+  `tests/spec-instructions-budget.test.ts` was this, three times, and the third
+  is why the sweep is gone. **The deeper cost is that a standing failure hides a
+  real one** -- for days, every genuine regression in the suite was
+  indistinguishable from the known-red file. A test nobody can keep green is
+  worse than no test. If a property of app-written content matters, assert it
+  where the app WRITES it (the validator, the RPC), never where it lands.
 - **Keep the suite honest.** Pair every exclusion assertion with a positive control
   and report BOTH counts -- a scan reading the wrong property comes back clean, and
   clean is what nobody investigates. Assert the case count of a generated sweep, so
@@ -3086,17 +3098,23 @@ which is real -- and the copy would be overwritten by the next one to land.
 - **A module's `instructions` carry a 250-word TARGET and a 300-word CEILING**
   (`IDEA_MATERIAL_SPEC` v2.1). Instructions and the input tables share one scroll
   column on the item page, so teaching that explains WHY belongs in the unit
-  reference document and only bench procedure stays in the item. **The two
-  numbers are enforced in two different places, on purpose:** 251-300 is a
-  non-blocking WARNING from `validateSpec`, rendered in SpecImporter's problem
-  list and never gating publish; 301 fails `tests/spec-instructions-budget.test.ts`
-  by name and by count. **The count comes from the renderer's own
-  `parseMarkdown` walk** (`instructionsWordCount`), never a regex stripper --
-  a second syntax parser would charge an author for their own list markers and
-  the number a test failed on would not be the number on the page. Three
-  byte-identical authoring test copies are exempt BY PATH AND BY HASH, capped at
-  three; a fourth over-budget spec is a standards conversation, not a line added
-  to that list.
+  reference document and only bench procedure stays in the item. **NEITHER NUMBER
+  BLOCKS ANYTHING, and that is now the whole of it:** 251-300 is a non-blocking
+  WARNING from `validateSpec`, rendered in SpecImporter's problem list and never
+  gating publish, and 301 is the same warning with a different sentence. **The
+  count comes from the renderer's own `parseMarkdown` walk**
+  (`instructionsWordCount`), never a regex stripper -- a second syntax parser
+  would charge an author for their own list markers and the number reported
+  would not be the number on the page.
+  **`tests/spec-instructions-budget.test.ts` PINS THE COUNTER AND THE WARNING,
+  NOT THE CATALOGUE.** It used to sweep every spec under `materials/` and fail
+  on any module over the ceiling, with three specs exempted by path and by
+  pinned hash. That is deleted: `materials/` is an EXPORT the app writes on
+  every item save, so the sweep enforced an authoring standard against a mirror
+  of already-published work, could gate nothing, and turned CI red whenever a
+  teacher pressed save. **If the ceiling should ever BLOCK, that is a narrowing
+  of `validateSpec` with its own answer for the specs already stored** -- not a
+  test over a directory nobody edits by hand.
 - **Real quiz and rubric CONTENT is not committed to this repo.** It is pasted into
   its table by hand by whoever has SQL editor access, the same way the coin price
   list is maintained. A role or unit with zero questions is a legitimate state, not
