@@ -1,5 +1,5 @@
 # IDEA Rubric Standards
-**Version 1.2 - 2026-08-19**
+**Version 1.3 - 2026-08-25**
 Governs how rubrics are authored, structured, and used across every IDEA course. Applies to IDEA100, IDEA209H, and every course after.
 
 ---
@@ -36,6 +36,7 @@ Every criterion carries an id, a name, and an ordered list of levels. Every leve
 - **Every level carries a `short`.** Six words maximum, no terminal punctuation. The short form is what a grader reads when selecting a level; the full descriptor is what settles a dispute and what a student reads when they ask why. A grading console that shows only full descriptors makes a grader read roughly eighty words to pick one of four buttons, which is how grading stops being quick and starts being skipped. The short must name the same countable thing the descriptor does. If a short cannot be written in six words, the level is not distinct enough and the criterion needs rewriting.
 - **Four levels by default.** Three is acceptable when a criterion is close to binary and a fourth level would be an invented distinction. Never two: a two-level criterion is a checklist item and belongs in a checklist block instead.
 - **Top level equals the criterion maximum. Bottom level is always 0.** No criterion may have a floor above zero.
+- **There is no such thing as a bonus criterion.** Criterion maximums sum to the module's point value, so every criterion is required by construction. A criterion marked "bonus, not required, if attempted" either pushes the module past its own stated total or quietly makes optional work mandatory, and a grader reading the rubric cannot tell which was meant. Optional work is worth recognizing, and it is recognized outside the rubric: through the coin economy, or as a separately flagged extra-credit assignment, with the assignment's own instructions saying plainly that it carries no points. Recorded 2026-08-25, after the IDEA209H Unit 1 Lab Final was found carrying an optional-samples line as its fifth criterion while the assignment spec had already been handling those samples on coins, so the two instruments disagreed about whether a student could lose points by skipping them. Nothing in this document had forbidden it, which is why the defect survived a full conversion pass.
 - **Points weight toward the top, not evenly.** Use 10/7/4/0 rather than 10/6.7/3.3/0. Proficiency is the target, and even spacing implies the midpoint is the expectation.
 - **Criterion maximums are whole numbers** that sum exactly to the module's point value.
 - **Level labels are consistent within an assignment.** Do not mix Complete/Proficient/Developing/Absent in one criterion with Excellent/Good/Fair/None in the next.
@@ -103,6 +104,7 @@ Structural guarantees handle most of this, but two practices are worth keeping:
 - Every level carries a `short` of six words or fewer, naming the same countable thing as its descriptor
 - No level relies on the console's descriptor fallback; the fallback exists for material imported before 1.1
 - Top level equals criterion maximum, bottom level is 0
+- No criterion is marked bonus, optional, or conditional on attempt
 - Level maximums sum to module points; module points sum to assignment total
 - Every descriptor is observable and countable
 - Level labels are consistent across criteria within the assignment
@@ -111,6 +113,8 @@ Structural guarantees handle most of this, but two practices are worth keeping:
 ---
 
 ## Changelog
+
+- **1.3 (2026-08-25)** - Added the rule that a bonus criterion cannot exist under leveled scoring, and the verification check that enforces it. Criterion maximums sum to module points, so a criterion marked bonus either pushes the module past its own total or silently makes optional work required, and the rubric gives the grader no way to tell which. Written after the IDEA209H Unit 1 Lab Final rubric was found listing optional bonus samples as its fifth criterion while the assignment spec was already handling them on IDEA Coins, leaving two instruments in disagreement. Recognition for optional work now belongs outside the rubric, in the coin economy or a flagged extra-credit assignment, and the assignment instructions state that it carries no points.
 
 - **1.2 (2026-08-19)** - Grading Behavior gained the three console rules that 1.1 implied but never stated: selection reads `short` with the descriptor reachable on demand, a level with no `short` falls back to its descriptor rather than rendering an empty control, and a `short` backfill on already-imported material is a spec revision rather than a second write path for one field. The fallback is scoped explicitly as a compatibility path for specs imported before 1.1, since the field is required at authoring time and describing it as optional would make the verification list unenforceable. Housekeeping: the version header had been stale at 1.0 since the 1.1 update and now matches the changelog.
 

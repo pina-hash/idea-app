@@ -3047,11 +3047,17 @@ The two files have different jobs, and the split is the point.
 - New routes, tiers, roles, env vars, traps or conventions update `CLAUDE.md` in the
   same change that introduces them.
 
-### Standards copied in from outside -- READ, CITE, NEVER EDIT
+### Standards mirrored from project knowledge -- `docs/standards/` IS THE FRESHNESS AUTHORITY
 
-`docs/standards/` holds the IDEA programme standards. They are **authored and
-maintained OUTSIDE this repository**; what is here is a **copy**, kept so that work
-in this repo can read and cite them without leaving it.
+`docs/standards/` holds the IDEA programme standards. They are **authored in chat
+and delivered into project knowledge**, which is the working copy every chat reads
+by default; this directory is the **second copy, with a history**, so a chat (or a
+session in this repo) can fetch a file here and tell whether its own copy is stale.
+**Every standards delivery commits the updated file here in the same turn it is
+delivered**, before it is re-uploaded to project knowledge. It is not read-only:
+a file found behind project knowledge here is a defect in the delivery that
+produced it, and the fix is to land the current file, not to leave this copy stale.
+See `docs/standards/README.md` and `docs/standards/REGISTER.md`.
 
 - `docs/standards/IDEA_INTERFACE_STANDARDS.md` -- layout, viewport behaviour, role
   parity, legibility, interaction structure.
@@ -3059,30 +3065,27 @@ in this repo can read and cite them without leaving it.
   format: both kinds, the block types, the enforcement matrix.
 - `docs/standards/IDEA_RUBRIC_STANDARDS.md` -- leveled criteria, `short` forms,
   descriptor writing, grading behaviour.
-- `docs/standards/IDEA_VERIFICATION_ADDENDA.md` -- **a STAGING file, not a
-  standard.** Rules written here on their way UPSTREAM, held in the directory so
-  work in this repo can read them before they land. It is DELETED once they merge
-  into the authored originals, so nothing may treat it as a durable citation
-  target: cite the standard the rule ends up in, not this file.
+- `docs/standards/IDEA_VERIFICATION_ADDENDA.md` -- the owning verification
+  standard. The filename is kept deliberately (see below) though the document is
+  no longer staging.
 
 **Cite them by section**, the way the code already does (`IDEA_INTERFACE_STANDARDS`
 10, `IDEA_MATERIAL_SPEC` v2.2), and cite the path under `docs/standards/` so the
 reference resolves for the next reader.
-
-**Never edit a file in `docs/standards/`.** A correction goes UPSTREAM to the
-authored original and comes back as a new copy. Editing here produces a document
-that disagrees with the one everyone else is reading, with nothing anywhere to say
-which is real -- and the copy would be overwritten by the next one to land.
 
 - **The header version and the newest changelog entry must agree**, which
   `tests/standards-version-header.test.ts` asserts over every file in the
   directory. A header that has fallen behind its own changelog reads as correct and
   has already caused a document to be rewritten from a stale base. The test refuses
   the copy; it does not repair it.
-- **Their companions are NOT mirrored here** -- `IDEA_VERIFICATION_STANDARDS.md`,
-  `IDEA_Design_System.md` and `IDEA_MATERIALS_PROCESS.md` live only upstream, and the
-  copied documents cite them by bare name. A bare name with no `docs/standards/`
-  path is that: a pointer out of the repo, not a broken link.
+- **`IDEA_MATERIALS_PROCESS.md` is mirrored here** alongside the rest of the
+  registered set in `docs/standards/REGISTER.md`. It does not live upstream-only.
+- **Two names that used to route upstream never resolved to anything, and now
+  resolve here.** `IDEA_Design_System.md` was retired 2026-08-25; its content is
+  absorbed into `docs/standards/IDEA_CLAUDE_DESIGN_STANDARDS.md`. `IDEA_VERIFICATION_STANDARDS.md`
+  was a name cited into being and never written; the real document is
+  `docs/standards/IDEA_VERIFICATION_ADDENDA.md`, which deliberately keeps that
+  filename so existing references do not orphan.
 - **`docs/IDEA_MATERIAL_SPEC_v1.md` is a deliberate stub, not a standard**, and
   says so. It stays because an agent once cited it as authority; a stub that names
   the real document fails loudly where a deletion fails silently.

@@ -1,11 +1,11 @@
 # IDEA Interface Standards
-**Version 2.8 - 2026-08-21**
+**Version 2.10 - 2026-08-25**
 
 Governs layout, viewport behavior, role parity, and interaction structure for every IDEA app surface: IDEA Classroom, the digital notebook, the reference reader, the grading console, the portal, and any surface built after this document.
 
-**Relationship to the design system.** `IDEA_Design_System.md` governs color, typography, effects, and themes. It does not govern layout or interaction structure, which is why these rules were missing and why a surface could pass design review and still be unusable on the machine it runs on. That document owns what things look like; this one owns how they are arranged and who sees what.
+**Relationship to the design system.** `IDEA_CLAUDE_DESIGN_STANDARDS.md` governs color, typography, effects, and themes, having absorbed the retired `IDEA_Design_System.md` on 2026-08-25. It does not govern layout or interaction structure, which is why these rules were missing and why a surface could pass design review and still be unusable on the machine it runs on. That document owns what things look like; this one owns how they are arranged and who sees what.
 
-**Relationship to the verification standard.** `IDEA_VERIFICATION_STANDARDS.md` owns how any claim about a build is proven: harnesses, mutation proof, positive controls, generated sweeps, mock fidelity. Those rules were born here and outgrew the title. Read it alongside this document for interface work, and on its own for anything else.
+**Relationship to the verification standard.** `IDEA_VERIFICATION_ADDENDA.md` owns how any claim about a build is proven: harnesses, mutation proof, positive controls, generated sweeps, mock fidelity. Those rules were born here and outgrew the title. Read it alongside this document for interface work, and on its own for anything else.
 
 **Scope exception:** GAUNTLET and VANGUARD carry their own design and layout systems. Inside those products, theirs take precedence.
 
@@ -195,7 +195,7 @@ The IDEA program is run from a desktop computer with a wide screen. Students use
 - **Both selection states are separate measurements.** On a master-detail surface, nothing-selected and item-selected are different layouts and each is measured at each width.
 - **A frozen transition leaves the pane's own layout at the old value**, not merely its computed style, so a measurement taken mid-transition reports geometry that looks like a broken rule and is not. Disable transitions before measuring.
 
-Everything else about how a claim is proven, including harnesses, mutation proof, positive controls, generated sweeps, and mock fidelity, lives in `IDEA_VERIFICATION_STANDARDS.md`.
+Everything else about how a claim is proven, including harnesses, mutation proof, positive controls, generated sweeps, and mock fidelity, lives in `IDEA_VERIFICATION_ADDENDA.md`.
 
 **Rationale.** Phase 1 of the classroom rebuild ran every viewport check at 375px, caught two real mobile defects, and shipped a classroom with no desktop layout at all. Single-ended verification produces exactly this result: real bugs found, an entire category missed.
 
@@ -215,7 +215,37 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 ---
 
+## 13. A File Pipeline Is One Contract
+
+**Whatever a person can select, every stage after it accepts. A file type is supported only when every gate on the path says yes.**
+
+- **Any file type, from any role.** Engineering coursework produces file types nobody enumerated in advance: `.SLDPRT`, `.SLDASM`, `.SLDDRW`, `.STEP`, `.IGS`, `.F3D`, `.DWG`, `.DXF`, `.STL`, `.3MF`, `.gcode`, `.ino`, `.zip`, and whatever the next tool writes. An allow list of file types is permanently behind the work it is supposed to carry, and the day it is wrong is the day a student cannot turn something in. There is no extension allow list and no MIME allow list on any IDEA surface.
+- **Four gates can refuse a file independently, and from the outside all four look identical.** The `accept` attribute on the input, the client's own extension or size check, the transport (a serverless request body cap), and the bucket's `allowed_mime_types` and `file_size_limit`. Any audit of a file path enumerates all four with the file and line, because fixing one and declaring the path open is how a second refusal ships as a fix.
+- **A browser reports no MIME type for an unfamiliar extension, and the client library invents one.** `File.type` is the empty string for a SolidWorks part, and a storage client that substitutes `text/plain` when it is empty means a bucket allow list of real MIME types rejects exactly the files nobody thought to enumerate. Never key a decision on a browser-guessed MIME type. Identity comes from the extension and, where it matters, from the bytes.
+- **Bytes never travel through the app's own server.** A serverless request body cap is a file size limit nobody wrote down, sitting in the middle of the path, reported as a generic failure at 4.5 MB on Vercel. The upload goes browser to storage against a signed URL; the app's endpoint mints the URL and records the row and never carries the payload. Above roughly 6 MB the upload is resumable, because a CAD assembly on a school network is precisely the case where a single-shot POST dies at eighty percent and starts again from zero.
+- **A failed attachment never takes the post with it.** The item is created, each failure is reported per file with the reason and a retry, and the file stays staged, per section 4. A composer that discards the whole post because one attachment was refused converts a recoverable error into lost work, and it does it at the moment the person has the least idea which of the four gates said no.
+- **The message names the gate.** "Upload failed" is the same sentence for a MIME allow list, a size cap, an expired signed URL, and an RLS policy, and it sends the person to the one part of the system they cannot inspect. Report the refusal in the words of the refusal, with the limit that was exceeded where there was one.
+- **Anything a person uploaded is served as a download, never rendered inline.** `Content-Disposition: attachment` on every download path, on every bucket that holds uploads. This is what makes an unrestricted type list safe: an HTML or SVG file uploaded by a student is bytes to be handed back, not a document to be executed inside somebody else's session. Type freedom is bought by how the file is served, not by guessing which extensions are dangerous.
+- **Role parity applies to files.** If an instructor can attach a file to an item, a student can attach a file to their submission, through the same code, with the same ceiling and the same freedom of type. A student upload path that is a second implementation of the instructor path is the duplicated-rule failure from section 2 wearing a different extension.
+
+**Rationale.** A SolidWorks part file attached to a classroom assignment did not upload, and the assignment did not post either, so the reported symptom was a broken composer rather than a refused file. Nothing on screen distinguished a MIME allow list from a body-size cap from an RLS denial, and the one thing the person could see, the item failing to appear, was the least informative part of the failure.
+
+---
+
 ## Changelog
+
+- **2.10 (2026-08-25)** - Reference repair only, no rule changed. Two pointers in this
+  document named files that do not exist. The design system was cited as
+  `IDEA_Design_System.md`, which was absent from project knowledge and from both Drive
+  libraries; it is retired and its content now lives in the Visual Identity section of
+  `IDEA_CLAUDE_DESIGN_STANDARDS.md` 2.0, which both references now name. The verification
+  standard was cited twice as `IDEA_VERIFICATION_STANDARDS.md`, which has never existed
+  under that name; both now name `IDEA_VERIFICATION_ADDENDA.md`. This document stays
+  separate from the design standard on purpose: it governs shipped app surfaces for
+  Claude Code, not authored artifacts for Claude Design, and the two have different
+  failure modes.
+
+- **2.9 (2026-08-24)** - New section 13, from a SolidWorks part file that failed to attach and took the whole classroom post with it. Four gates can refuse a file and all four look the same from outside the app, so the section enumerates them and requires an audit to name all four rather than fix one; a browser reports no MIME type at all for an unfamiliar extension and the storage client substitutes a made-up one, which makes a bucket MIME allow list reject exactly the files nobody enumerated; and bytes routed through the app's own server inherit a serverless body cap that is a size limit written down nowhere. The type list is unrestricted and the safety is bought at the download path instead, with every uploaded file served as an attachment rather than rendered inline. Placed at the end rather than beside section 4 because the changelog above references sections by number and renumbering would falsify entries back to 2.1.
 
 - **2.8 (2026-08-21)** - Three rules, two of them corrections to claims this document's own rules had already been used to certify. The ground is the element's own computed background rather than the container it appears to sit in: a grading console override was recorded at 3.13:1 against the card and measured 2.95:1 against the fill the control actually paints, so it shipped under the floor inside a bundle whose verification read as clean. An inline target inside prose is exempt from the reach floors, because at roughly 24px line spacing a 44px hit area steals taps from adjacent lines. And "there is content here" is not "this has been edited": a composer's dirty flag asked whether content existed, so opening it on an existing item reported unsaved work from the first frame, invisible in create mode where the baseline is empty and both questions agree.
 

@@ -66,7 +66,7 @@ ID convention: `[course]-[project or unit]-[assignment#]`, lowercase, hyphens on
 
 - `totalPoints` must equal the sum of module points. Enforced on import.
 - `dueDate` is fixed at authoring. Deadlines are firm; no rendering may imply flexibility.
-- `theme` is always `idea-green`. The engine ships no other themes, so this is not a per-material decision. See `IDEA_Design_System.md`.
+- `theme` is always `idea-green`. The engine ships no other themes, so this is not a per-material decision. See the Visual Identity section of `IDEA_CLAUDE_DESIGN_STANDARDS.md`.
 - `gradingCategory` matches the course's locked grading categories.
 - `headerFields`: `studentName` and `date` always present.
 - `buildVersion`: bump on breaking content changes (module removed, points changed, field IDs renamed). Wording fixes do not bump.
