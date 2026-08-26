@@ -1,4 +1,5 @@
 # IDEA Reference Library
+**Version 4.1 - 2026-08-26**
 
 Owning document for Google Drive source material. Project knowledge holds the working
 set, read automatically every chat. Drive holds bulk source that is consulted
@@ -255,6 +256,12 @@ to OCR. `effectivestrategies.pdf` is the one worth fixing.
 ---
 
 ## Changelog
+
+**v4.1 - August 26, 2026**
+Version header added on line 2. The file carried a changelog and no header, so the
+freshness protocol's line-2 comparison could not read it and a mirroring session had to
+fall back to parsing the newest changelog entry. A fallback that works is still a file
+that opted out of the check. No content changed.
 
 **v4 - August 25, 2026**
 Added rule 9, on sources that live on Mr. Pina's machine rather than in a library.

@@ -1,4 +1,5 @@
 # Chat Handoff Standard
+**Version 1.0 - 2026-08-26**
 
 Governs every prompt this assistant writes for Mr. Pina to paste into a **new claude.ai chat**. This is the chat-surface counterpart to the Claude Code routing section in `IDEA_instructions.md`. CC prompts follow that section; new-chat kickoff prompts follow this one. Do not mix the two rubrics.
 
@@ -70,3 +71,17 @@ The new chat starts with zero memory of the originating conversation beyond proj
 - The originating chat stays open as the fallback. If the new chat asks for context it should have received, the fix is a patch to this standard, not a one-off answer.
 - On request, this assistant reads the new chat back via past-chat tools to verify the handoff landed and to sync any decisions made there.
 - Decisions made in the spinoff chat flow back through project knowledge updates, not through re-narration across chats.
+
+---
+
+## Changelog
+
+- **1.0 (2026-08-26)** - Version header and this changelog added. The file was authored
+  earlier in August 2026 and shipped without either, which went unnoticed until the
+  freshness protocol was built and a Claude Code session mirroring the standards set
+  found it was the one registered file with no version, no date, and no changelog
+  anywhere in it. That is not a formatting complaint: the protocol compares line 2 of the
+  mirrored copy against line 2 of the working copy, so a file with no version line cannot
+  be checked for staleness by any means and silently opts out of the only mechanism
+  protecting it. No content changed in this pass. Stamped 1.0 rather than assigned a
+  reconstructed history, since what the earlier versions were is not recoverable.

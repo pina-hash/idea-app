@@ -16,22 +16,16 @@ this directory shows `not yet mirrored` in both cells rather than a guess.
 | `IDEA_VERIFICATION_ADDENDA.md` | 2.0 | 2026-08-25 | The owning verification standard (no longer staging, despite the filename it deliberately keeps): how any build claim is proven, harnesses, mutation proof, positive controls, mock fidelity |
 | `IDEA_HUMOR_STANDARDS.md` | 2.1 | 2026-08-25 | Governs deliberate humor in IDEA and Team 5669 presentation artifacts: the three admission gates, sourcing, density and placement |
 | `IDEA_HUMOR_LEDGER.md` | 1.2 | 2026-08-25 | The anti-repetition record and cooldown mechanism for every humor insertion |
-| `IDEA_REFERENCE_LIBRARY.md` | 4 (see note) | 2026-08-25 (see note) | Owning document for the two Google Drive reference libraries: what they hold, retrieval rules, consult-before-authoring |
-| `IDEA_Chat_Handoff_Standard.md` | not stated in file | not stated in file | Governs every prompt written for a new claude.ai chat: when a handoff happens, the mandatory routing header, chat model routing, kickoff content rules |
+| `IDEA_REFERENCE_LIBRARY.md` | 4.1 | 2026-08-26 | Owning document for the two Google Drive reference libraries: what they hold, retrieval rules, consult-before-authoring |
+| `IDEA_Chat_Handoff_Standard.md` | 1.0 | 2026-08-26 | Governs every prompt written for a new claude.ai chat: when a handoff happens, the mandatory routing header, chat model routing, kickoff content rules |
 | `IDEA_CLASSROOM_REBUILD_PLAN.md` | 1.21 | 2026-08-24 | Records the locked decisions and phase history of the IDEA Classroom / notebook rebuild |
 | `IDEA_context.md` | 2.0 | 2026-08-20 | Program-level facts that rarely change: school, pathway, courses, platforms, A-G status |
 | `FRC_Design_System.md` | 1.6 | 2026-08-23 | FRC Team 5669's visual identity system: brand, marks, grounds, color roles, typography, motion, component manifest |
 | `FRC_CLAUDE_DESIGN_STANDARDS.md` | 2.4 | 2026-08-25 | FRC counterpart to the IDEA Claude Design standard: scoping and prompting rules for every FRC artifact authored in Claude Design |
 
-**Two rows carry a note instead of a clean version/date, and both are read
-exactly as delivered, not guessed at:**
-
-- `IDEA_REFERENCE_LIBRARY.md` carries no `**Version N - date**` header line at
-  all (its line 2 is blank). The version and date above are read from its own
-  changelog's newest entry (`v4 - August 25, 2026`) rather than fabricated.
-- `IDEA_Chat_Handoff_Standard.md` carries no version, no date, and no
-  changelog anywhere in the file. Both cells say so rather than showing a
-  number that was never stated.
+Every row above now carries a version and date read from line 2 of the file
+itself, with no fallback and no footnote. The two exceptions this table used
+to carry are closed: both files were delivered with a version header added.
 
 ## FRC files also live in a second repository
 
