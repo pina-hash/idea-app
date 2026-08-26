@@ -136,6 +136,14 @@ function moduleWith(contents: string[]): SpecModule {
 
 // ---------------------------------------------------------------------------
 
+describe('CI PIPELINE PROOF -- deliberately failing, reverted immediately', () => {
+	it('fails on purpose, so a red run can be told from a green one', () => {
+		// 300 words are 300 words. This asserts 299 so the job MUST fail, and
+		// fail for exactly one legible reason. Reverted in the next commit.
+		expect(instructionsWordCount(moduleWith([plainInstructions(300)]))).toBe(299);
+	});
+});
+
 describe('instructions budget: the guard itself', () => {
 	it('counts words of rendered content, with markdown syntax excluded', () => {
 		expect(instructionsWordCount(moduleWith([plainInstructions(300)]))).toBe(300);
