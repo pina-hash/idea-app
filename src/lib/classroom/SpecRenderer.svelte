@@ -142,6 +142,18 @@
 		if (stored && stored.length) return stored;
 		return [];
 	}
+	/**
+	 * Ends only, never interior -- `white-space: pre-wrap` on `.cell-text` is
+	 * what lets a longer cell keep its own line breaks, and this must not
+	 * touch those. ONE implementation for two call sites: the read-only span
+	 * (repairs a value already stored with leading/trailing whitespace,
+	 * without writing anything back) and the editable input's COMMIT, never
+	 * its `oninput` -- trimming every keystroke would strip a trailing space
+	 * the instant it was typed and make "hello " + "world" impossible to type.
+	 */
+	function trimCellEnds(value: string): string {
+		return value.trim();
+	}
 	function blankRow(block: TableBlock): Record<string, string> {
 		return Object.fromEntries(block.columns.map((c) => [c.key, '']));
 	}
@@ -403,7 +415,7 @@
 											{#each block.columns as col (col.key)}
 												<td>
 													{#if readonly || !canEdit}
-														<span class="cell-text">{row[col.key] ?? ''}</span>
+														<span class="cell-text">{trimCellEnds(row[col.key] ?? '')}</span>
 													{:else}
 														<input
 															type="text"
@@ -411,6 +423,11 @@
 															value={row[col.key] ?? ''}
 															oninput={(e) =>
 																setCell(block, ri, col.key, (e.currentTarget as HTMLInputElement).value)}
+															onchange={(e) => {
+																const el = e.currentTarget as HTMLInputElement;
+																const trimmed = trimCellEnds(el.value);
+																if (trimmed !== el.value) setCell(block, ri, col.key, trimmed);
+															}}
 														/>
 													{/if}
 												</td>

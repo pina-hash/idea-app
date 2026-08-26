@@ -9,7 +9,15 @@
 	 * read-only (what a submitted hand-in shows) and editable.
 	 */
 
-	/** The control: `?dirty=1` prefixes every option-set value with a tab. */
+	/**
+	 * The control. `?dirty=1` swaps in four distinct whitespace defects, one
+	 * per row, so the leading-box vs stored-whitespace question from item 1
+	 * and the trim-on-read/trim-on-write repair from item 2 can both be
+	 * checked against the SAME four values: a leading tab, a leading space,
+	 * a trailing space (all three of which trimCellEnds must repair to
+	 * flush), and an interior newline (which it must NOT touch -- ends only,
+	 * never interior, is the whole point of `.trim()` over a wider strip).
+	 */
 	const dirty = $derived(page.url.searchParams.get('dirty') === '1');
 
 	const MATERIALS = [
@@ -71,14 +79,27 @@
 			`Sentence ${i + 1}: the measured density for this sample sat close to the published value once the displacement reading was corrected for the meniscus, which is why the material call holds.`
 	).join(' ');
 
+	/**
+	 * Row 0: leading tab. Row 1: leading space. Row 2: trailing space. Row 3:
+	 * an interior newline with BOTH ends already flush -- the case that must
+	 * render unchanged, line break and all, proving the trim touches ends
+	 * only.
+	 */
+	const DIRTY_MATERIALS = [
+		'\tASTM 1018 steel',
+		' 304 stainless',
+		'ASTM B16 brass ',
+		'Ti-6Al-4V\ntitanium'
+	];
+
 	function seed(): Record<string, ResponseValue> {
-		const pad = dirty ? '\t' : '';
+		const materials = dirty ? DIRTY_MATERIALS : MATERIALS;
 		return {
 			t1: {
-				rows: MATERIALS.map((m, i) => ({
+				rows: materials.map((m, i) => ({
 					sample: `B-${i + 1}`,
-					material: pad + m,
-					confirm: pad + m,
+					material: m,
+					confirm: m,
 					mass: `${(18.24 + i * 3.1).toFixed(2)}`,
 					notes: i === 0 ? 'Displacement reading repeated twice for this one.' : 'Dimensional.'
 				}))
