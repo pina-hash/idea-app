@@ -24,7 +24,7 @@
 	import { env } from '$env/dynamic/public';
 
 	import AppStage from './AppStage.svelte';
-	import { foundryAppUrl } from './bundle-url.ts';
+	import FoundryShare from './FoundryShare.svelte';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
 	import type { FoundryApp, FoundryGalleryTransports } from './transports.ts';
 
@@ -68,81 +68,11 @@
 	const cover = $derived(app.cover_path ? coverUrl(app.cover_path) : null);
 
 	/**
-	 * THE DIRECT PAGE'S URL, OR NULL, AND THE THREE CONDITIONS ARE EACH A REAL
-	 * CASE RATHER THAN DEFENSIVENESS.
-	 *
-	 * It keys on `published_version_id` and NOT on `runs`. `runs` is whichever
-	 * build this surface is showing, which in the review queue is the SUBMITTED
-	 * one -- and `/a/` serves the published version, deliberately, so a link
-	 * offered beside a submitted build would point at something else or at
-	 * nothing at all.
-	 *
-	 * A HIDDEN APP GETS NO LINK, because `/a/` 404s a hidden app and a control
-	 * whose only possible outcome is a refusal should not be offered. The queue
-	 * is where a shelved app is met, so this is the surface that would have
-	 * offered it.
-	 *
-	 * NO APPS ORIGIN, NO LINK: there is no direct page on a deployment that has
-	 * not been told where bundles are served from.
+	 * THE SHARE LINK LIVES IN `FoundryShare`, which /foundry/mine mounts too.
+	 * The publication rule, the sentence about what the page carries and the
+	 * copy handler are all in there, so the two surfaces cannot drift apart on
+	 * any of them. This component supplies the app and the origin, nothing else.
 	 */
-	const shareUrl = $derived(
-		app.published_version_id && !app.hidden_at ? foundryAppUrl(appsOrigin, app.id) : null
-	);
-
-	/**
-	 * WHAT THE COPY CONTROL LAST DID, reported in a live region BESIDE the button
-	 * rather than by rewriting the button's own label. A control whose word
-	 * changes under the pointer is a control somebody clicks twice, and a screen
-	 * reader announcing "Copied" as the name of a button called "Copy link" is
-	 * announcing the wrong thing.
-	 *
-	 * THE FAILURE CASE IS REAL AND IS NOT A THROW TO SWALLOW. The Clipboard API
-	 * is refused outright without a secure context and can be refused by
-	 * permission, so the answer when it fails is to say the URL is there to be
-	 * selected -- which is true, because the URL is rendered as text either way
-	 * rather than living only inside the button's handler.
-	 */
-	let copyResult = $state<'idle' | 'copied' | 'failed'>('idle');
-	let copyTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function clearCopyTimer() {
-		if (copyTimer !== null) {
-			clearTimeout(copyTimer);
-			copyTimer = null;
-		}
-	}
-
-	async function copyShareUrl() {
-		if (!shareUrl) return;
-		clearCopyTimer();
-		try {
-			await navigator.clipboard.writeText(shareUrl);
-			copyResult = 'copied';
-		} catch {
-			copyResult = 'failed';
-		}
-		// A `setTimeout` and not an animation frame, for the reason the whole
-		// Foundry running path is built on: a wedged bundle in the frame above
-		// stops this document's animation frames arriving and leaves its task
-		// queue alive.
-		copyTimer = setTimeout(() => {
-			copyResult = 'idle';
-			copyTimer = null;
-		}, 4000);
-	}
-
-	// The instance owns the timer, so the instance clears it: a selection change
-	// remounts this component and a stray callback would write state on a copy of
-	// it nobody is looking at.
-	$effect(() => clearCopyTimer);
-
-	// A different app is a different link, so a stale acknowledgement must not
-	// ride across the change and read as though the new one was copied.
-	$effect(() => {
-		void app.id;
-		clearCopyTimer();
-		copyResult = 'idle';
-	});
 </script>
 
 <article class="fdy-detail">
@@ -188,42 +118,7 @@
 		<p class="fdy-detail-note">Nothing is published for this app yet.</p>
 	{/if}
 
-	<!--
-		THE SHARE LINK, AND THE SENTENCE THAT HAS TO GO WITH IT.
-
-		This surface is signed in and the link is not, which is a difference a
-		student cannot see and would have no reason to guess -- so it is stated in
-		words, before the control rather than after it. A student should know what
-		they are handing over before they hand it over.
-
-		THE SENTENCE SAYS WHAT IS AND IS NOT ON THAT PAGE, because "public" on its
-		own reads as "my name is on the internet". `/a/` reads one column of the
-		app row and the version's files: the author, the class and the build notes
-		are gallery surfaces and the direct page never carries them.
-
-		THE URL IS TEXT, NOT ONLY A CLIPBOARD CALL. The Clipboard API can be
-		refused, and a copy control is worthless on a surface where the thing being
-		copied cannot be read and selected by hand.
-	-->
-	{#if shareUrl}
-		<section class="fdy-detail-section">
-			<h3>Share this app</h3>
-			<p class="fdy-share-note">
-				Anyone with this link can open the app without signing in. The page carries
-				the app on its own, with no name, class or build notes on it.
-			</p>
-			<div class="fdy-share-row">
-				<code class="fdy-share-url" data-testid="share-url">{shareUrl}</code>
-				<button type="button" class="btn fdy-share-copy tap-44" onclick={copyShareUrl}>
-					Copy link
-				</button>
-			</div>
-			<p class="fdy-share-said" aria-live="polite" data-testid="share-copy-result">
-				{#if copyResult === 'copied'}Copied.{:else if copyResult === 'failed'}That did not
-					copy. Select the link above and copy it by hand.{/if}
-			</p>
-		</section>
-	{/if}
+	<FoundryShare {app} {appsOrigin} sectionClass="fdy-detail-section" />
 
 	{#if app.description}
 		<section class="fdy-detail-section">
@@ -330,50 +225,10 @@
 		color: var(--text-1, var(--white));
 	}
 
-	.fdy-share-note {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-		color: var(--text-2, var(--dim));
-	}
 
-	.fdy-share-row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2, 0.5rem);
-		min-width: 0;
-	}
 
-	/* The URL takes the room and wraps rather than ellipsising: a truncated link
-	   is one somebody copies by hand and gets wrong. `anywhere` because a uuid
-	   has no break opportunity in it at all. */
-	.fdy-share-url {
-		flex: 1 1 18rem;
-		min-width: 0;
-		overflow-wrap: anywhere;
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-		color: var(--text-1, var(--white));
-		padding: 0.35rem 0.5rem;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-sm, 6px);
-		background: var(--surface-2, var(--bg2));
-	}
 
-	.fdy-share-copy {
-		flex: 0 0 auto;
-	}
 
-	/* The live region keeps its box whether or not it has words in it, so an
-	   acknowledgement does not reflow the section it appears in. */
-	.fdy-share-said {
-		margin: 0;
-		min-height: 1.2em;
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-		color: var(--text-2, var(--dim));
-	}
 
 	.fdy-detail-note {
 		margin: 0;

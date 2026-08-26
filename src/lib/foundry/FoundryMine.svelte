@@ -17,11 +17,14 @@
 	 * removes its control outright, so a read-only mounting of this component is
 	 * structural rather than a `readOnly` flag someone has to honour.
 	 */
+	import { env } from '$env/dynamic/public';
+
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
 
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
+	import FoundryShare from './FoundryShare.svelte';
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
 	import {
 		FOUNDRY_METADATA_FIELDS,
@@ -40,7 +43,16 @@
 		transports = {},
 		coverUrl = (path: string) => path,
 		onSelect,
-		now
+		now,
+		/**
+		 * THE APPS ORIGIN, read here and handed to `FoundryShare`, exactly as
+		 * `FoundryDetail` does it. A prop with the environment read as its
+		 * default so a harness can drive the control without one; unset removes
+		 * the link rather than falling back to the current origin, which on the
+		 * portal is the cookie-carrying host the whole split exists to keep
+		 * bundles off.
+		 */
+		appsOrigin = env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? ''
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -51,6 +63,7 @@
 		/** Threaded from the caller. A component that reads its own clock
 		    silently disagrees with the ranking it is rendering. */
 		now: Date;
+		appsOrigin?: string;
 	} = $props();
 
 	let app = $state<FoundryApp | null>(null);
@@ -319,6 +332,16 @@
 					instructor will see that the details changed.
 				</p>
 			{/if}
+
+			<!--
+				THE SHARE LINK, FIRST, AND THE SAME CONTROL THE GALLERY CARRIES.
+				A student wants their own link more than a visitor does, so it sits
+				above the editing surfaces rather than under them. It renders
+				NOTHING until something is published and nothing at all for a
+				hidden app, so it never pushes the working surfaces down for a
+				student who is still building.
+			-->
+			<FoundryShare {app} {appsOrigin} sectionClass="fdy-block" />
 
 			<!-- ------------------------------------------------------ details -->
 			<section class="fdy-block" aria-label="App details">

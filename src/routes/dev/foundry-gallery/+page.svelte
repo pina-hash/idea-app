@@ -148,11 +148,15 @@
 			-->
 			<button type="button" class="hbtn" onclick={() => (gallerySlug = null)}>deselect</button>
 		</h2>
+		<!-- The harness has no PUBLIC_FOUNDRY_APPS_ORIGIN to read, and an unset one
+		     correctly removes the frame AND the share link -- which would leave
+		     neither to drive. A literal here is what makes both real. -->
 		<FoundryGallery
 			apps={data.apps}
 			selected={gallerySelected}
 			transports={galleryTransports}
 			onSelect={(slug) => (gallerySlug = slug)}
+			appsOrigin="https://apps.ideabosco.com"
 		/>
 	</section>
 

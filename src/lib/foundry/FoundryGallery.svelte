@@ -34,7 +34,16 @@
 		selected = null,
 		transports = {},
 		coverUrl = (path: string) => path,
-		onSelect
+		onSelect,
+		/**
+		 * PASSED THROUGH TO `FoundryDetail` ONLY WHEN A CALLER SUPPLIES ONE.
+		 * `FoundryDetail` reads the environment itself by default, which is what
+		 * the real route wants; a harness has no environment to read, so this is
+		 * how it drives the frame and the share link without one. Undefined
+		 * means "use your own default" rather than "no origin", which is why it
+		 * is spread rather than always bound.
+		 */
+		appsOrigin = undefined
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -42,6 +51,7 @@
 		/** Turns a stored cover path into a URL. Injected, never built here. */
 		coverUrl?: (path: string) => string;
 		onSelect: (slug: string | null) => void;
+		appsOrigin?: string | undefined;
 	} = $props();
 </script>
 
@@ -129,7 +139,12 @@
 		-->
 		{#key selected.slug}
 			<div class="fdy-gal-detail">
-				<FoundryDetail app={selected} {transports} {coverUrl} />
+				<FoundryDetail
+					app={selected}
+					{transports}
+					{coverUrl}
+					{...(appsOrigin === undefined ? {} : { appsOrigin })}
+				/>
 			</div>
 		{/key}
 	{/if}

@@ -188,7 +188,15 @@
 			</section>
 
 			<section>
-				<h2 class="h-label">My apps, every lifecycle state at once</h2>
+				<h2 class="h-label">
+					My apps, every lifecycle state at once
+					<!-- The three fixtures are also the three share-link states: Ember
+					     Clock is published and gets a link, Cold Start has nothing
+					     published, and Shelved is hidden. The origin is passed as a
+					     literal because the local .env has no
+					     PUBLIC_FOUNDRY_APPS_ORIGIN and an unset one correctly removes
+					     the control, which would leave nothing to drive. -->
+				</h2>
 				<FoundryMine
 					apps={liveSummaries}
 					selected={selectedLive()}
@@ -214,6 +222,7 @@
 					}}
 					onSelect={(slug) => (selectedSlug = slug)}
 					{now}
+					appsOrigin="https://apps.ideabosco.com"
 				/>
 			</section>
 
