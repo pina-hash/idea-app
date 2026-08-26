@@ -147,7 +147,12 @@
 		instructorAttachmentsEnabled?: boolean;
 		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
-		onsaved: (info: { kind: ClassroomItemKind; published: boolean; text: string }) => void;
+		onsaved: (info: {
+			kind: ClassroomItemKind;
+			published: boolean;
+			text: string;
+			itemId: string;
+		}) => void;
 		/**
 		 * WHETHER THERE IS WORK IN HERE TO LOSE, reported up so whoever owns this
 		 * composer's lifetime can warn before discarding it -- closing it, leaving
@@ -593,7 +598,7 @@
 			ok: true,
 			text: `Posted to ${res.data.added} more class${res.data.added === 1 ? '' : 'es'}.`
 		};
-		onsaved({ kind: editingKind, published: item.published, text: '' });
+		onsaved({ kind: editingKind, published: item.published, text: '', itemId: item.id });
 	}
 
 	async function unlink(sectionId: string) {
@@ -623,7 +628,7 @@
 			return;
 		}
 		msg = { ok: true, text: 'Unlinked from that class. The item still exists for the others.' };
-		onsaved({ kind: editingKind, published: item.published, text: '' });
+		onsaved({ kind: editingKind, published: item.published, text: '', itemId: item.id });
 	}
 
 	/**
@@ -834,7 +839,7 @@
 					`${failures.map((f) => f.replace(/\.\s*$/, '')).join('; ')}. ` +
 					'What is left is still here -- save again to retry.'
 			};
-			onsaved({ kind: editingKind, published: publish, text: '' });
+			onsaved({ kind: editingKind, published: publish, text: '', itemId });
 			return;
 		}
 		// What ELSE landed, named -- so a teacher who staged a deck and a spec
@@ -887,7 +892,7 @@
 			editorSeed += 1;
 		}
 		msg = { ok: true, text };
-		onsaved({ kind: editingKind, published: publish, text });
+		onsaved({ kind: editingKind, published: publish, text, itemId });
 	}
 </script>
 

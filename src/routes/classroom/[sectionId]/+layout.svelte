@@ -7,6 +7,7 @@
 	import {
 		readClassViewPrefs,
 		toggleGroupCollapsed,
+		type ClassroomItem,
 		type ClassViewPrefs
 	} from '$lib/classroom/classroom';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
@@ -19,7 +20,9 @@
 		createUnitTransports,
 		deckTransports,
 		fetchLinkPreviewClient,
+		itemById,
 		loadExportStatuses,
+		mergeInstructorMaterials,
 		runClassroomExport
 	} from '$lib/classroom/transports';
 	import type { LayoutData } from './$types';
@@ -163,17 +166,45 @@
 	});
 
 	/**
+	 * THE LIST, OVERLAID WITH WHATEVER THIS COMPOSER JUST CREATED.
+	 *
+	 * `data.items` only moves on a real reload (`invalidateAll`, or a fresh
+	 * navigation), so a post made here would otherwise sit unlisted until one
+	 * happens -- there is no other trigger for the section to re-run its load.
+	 * This overlay is dropped the moment the server's own list changes, which is
+	 * when its answer should win again (the same pattern `collapsed` already
+	 * uses for the same reason).
+	 */
+	let localItems = $state<ClassroomItem[] | null>(null);
+	const items = $derived(localItems ?? data.items);
+	$effect(() => {
+		void data.items;
+		localItems = null;
+	});
+
+	/**
 	 * A post that fully landed closes the composer and reports itself in the
 	 * list. One that PARTLY landed does not: `text` is empty exactly then, and
 	 * closing would throw away the staged file or deck the message has just
 	 * invited someone to save again. (The old inline composer closed on both,
 	 * which quietly lost the retry.)
+	 *
+	 * THE ROW ITSELF IS NOT ON `info` -- `createItem` answers only the id -- so
+	 * it is fetched by that one id, never by re-running the section's whole
+	 * load: a single-row `eq('id', ...)` next to the ~26-row section list it
+	 * would otherwise cost.
 	 */
-	function composerSaved(info: { text: string }) {
+	async function composerSaved(info: { text: string; itemId: string }) {
 		if (!info.text) return;
 		composeNotice = info.text;
 		composerDirty = false;
 		composing = false;
+		const created = await itemById(data.supabase, info.itemId);
+		if (!created) return;
+		const [withMaterials] = data.canManage
+			? await mergeInstructorMaterials(data.supabase, [created])
+			: [created];
+		localItems = [withMaterials, ...(localItems ?? data.items)];
 	}
 
 	/**
@@ -221,7 +252,7 @@
 {#snippet classList()}
 	<ClassView
 		section={data.section}
-		items={data.items}
+		{items}
 		units={data.units}
 		sections={data.sections}
 		canManage={data.canManage}
