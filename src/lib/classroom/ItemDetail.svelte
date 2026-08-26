@@ -422,6 +422,48 @@
 	-->
 	{#if canManage && hasInspector}
 		<section class="inspector" data-testid="item-inspector">
+			<!--
+				EDIT IS A DIRECT CONTROL, not buried behind "Instructor tools":
+				per IDEA_INTERFACE_STANDARDS, whether a teacher can change what is
+				on screen must not cost an extra click to discover. Everything
+				else instructor-only (pin, copy, delete, the deck, the check-in
+				attach/detach) stays behind the disclosure below.
+			-->
+			{#if editable}
+				<div class="insp-edit" data-testid="item-edit-direct">
+					<span class="card-actions">
+						<button
+							type="button"
+							class="btn secondary tiny"
+							disabled={busy}
+							onclick={() => (editing = !editing)}
+						>
+							{editing ? 'Close editor' : 'Edit'}
+						</button>
+					</span>
+					{#if alsoIn.length}
+						<p class="also-line">
+							Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy,
+							so an edit here changes all of them.
+						</p>
+					{/if}
+					{#if editing}
+						{#key item.id}
+							<ContentComposer
+								mode="edit"
+								{item}
+								{sections}
+								transports={transports!}
+								{attachmentsEnabled}
+								{instructorAttachmentsEnabled}
+								compact
+								onsaved={saved}
+								oncancel={() => (editing = false)}
+							/>
+						{/key}
+					{/if}
+				</div>
+			{/if}
 			<button
 				type="button"
 				class="insp-strip"
@@ -462,14 +504,6 @@
 					{#if editable}
 						<div class="insp-block">
 							<span class="card-actions">
-								<button
-									type="button"
-									class="btn secondary tiny"
-									disabled={busy}
-									onclick={() => (editing = !editing)}
-								>
-									{editing ? 'Close editor' : 'Edit'}
-								</button>
 								<button type="button" class="btn secondary tiny" disabled={busy} onclick={togglePin}>
 									{item.pinned ? 'Unpin' : 'Pin'}
 								</button>
@@ -485,27 +519,6 @@
 									{armDelete ? 'Really delete?' : 'Delete'}
 								</button>
 							</span>
-							{#if alsoIn.length}
-								<p class="also-line">
-									Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy,
-									so an edit here changes all of them.
-								</p>
-							{/if}
-							{#if editing}
-								{#key item.id}
-									<ContentComposer
-										mode="edit"
-										{item}
-										{sections}
-										transports={transports!}
-										{attachmentsEnabled}
-										{instructorAttachmentsEnabled}
-										compact
-										onsaved={saved}
-										oncancel={() => (editing = false)}
-									/>
-								{/key}
-							{/if}
 						</div>
 					{/if}
 
@@ -1021,6 +1034,16 @@
 		border: 1px dashed var(--gold);
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
+	}
+	/* Sits above the disclosure strip, always visible for a teacher: whether
+	   they can edit is not something opening "Instructor tools" should be
+	   required to learn. */
+	.insp-edit {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: 0.6rem 0.6rem 0.5rem;
+		border-bottom: 1px solid var(--hairline);
 	}
 	.insp-strip {
 		appearance: none;
