@@ -1,5 +1,5 @@
 # IDEA Reference Library
-**Version 4.1 - 2026-08-26**
+**Version 4.2 - 2026-08-26**
 
 Owning document for Google Drive source material. Project knowledge holds the working
 set, read automatically every chat. Drive holds bulk source that is consulted
@@ -43,8 +43,9 @@ Then `read_file_content` with the returned `fileId`. Never guess a file ID.
 7. **Consult before authoring, not only before declaring a source unavailable.**
    Rule 1 fires on a specific sentence Claude is about to write. It does not fire when
    Claude never doubts itself, which is the more common case and the more expensive
-   one. Before authoring any FRC, curriculum, or A-G artifact, check the inventory
-   below for a document that owns the subject, and open it. Established 2026-08-25,
+   one. Before authoring any FRC, curriculum, A-G, or course-material artifact, check
+   the inventory below for a document that owns the subject, and open it. Course
+   materials were added to this list on 2026-08-25; see rule 10. Established 2026-08-25,
    after a first-training-session run sheet was authored end to end from memory while
    `frctoolrecommendations.pdf` sat in Library A carrying the exact hex key, wrench,
    and tap sizes the session was about to teach, plus a PPE rule the run sheet had
@@ -67,6 +68,27 @@ Then `read_file_content` with the returned `fileId`. Never guess a file ID.
    optional. And when a comparison must be made from recollection anyway, state the
    provenance in the same sentence as the claim rather than in a preamble, since a
    caveat at the top does not survive a reader scanning the table underneath it.
+10. **Course materials are subject to rules 7 through 9, and the textbooks are the
+   owning source for engineering fundamentals.** Rule 7 originally named FRC,
+   curriculum, and A-G artifacts, which left assignments, labs, and course decks
+   outside the list that triggers a consultation. That gap was live. Established
+   2026-08-25, when the IDEA209H Unit 1 hardware content was built against the NASA RAP
+   guide, correctly and from a real source, while `Shigley's-Mechanical-Eningeering-
+   Design.pdf` and `Machine Elements in Mechanical Design.pdf` sat in the Library B
+   Textbooks subfolder carrying the same material at greater depth, unopened. Nothing
+   was wrong in the output, which is the point: consulting one source is not the same
+   as consulting the source that owns the subject, and the second is the standard.
+
+   For any material touching statics, stress and strain, fasteners and bolted joints,
+   power transmission, bearings, shafts, gears, or tolerances, the Textbooks subfolder
+   is checked before authoring. Its folder ID is
+   `1A0uSOTwIqxNsH0CZ1Gyh9iO898OLh6rO`, recorded here so the check costs one query
+   rather than a search for the search. Read the size and copyright constraints in the
+   Textbooks entry below before opening one; they are unchanged and they bind.
+
+   What is cited and how it reaches students is governed by
+   `IDEA_MATERIALS_PROCESS.md`, section "Every Material Cites Its Sources." This rule
+   covers the reading; that one covers the writing.
 
 ---
 
@@ -225,6 +247,9 @@ the full course catalog and the technology major structure.
 
 ### Textbooks (6 files)
 
+Subfolder ID `1A0uSOTwIqxNsH0CZ1Gyh9iO898OLh6rO`. Owning source for engineering
+fundamentals under rule 10.
+
 `Shigley's-Mechanical-Eningeering-Design.pdf`, `MachinerysHandbkOBERG.pdf`,
 `Machine Elements in Mechanical Design.pdf`, `Manufacturing-Processes-4-5-*.pdf`,
 `Practical Electronics for Inventors, 4th Edition.pdf`,
@@ -256,6 +281,15 @@ to OCR. `effectivestrategies.pdf` is the one worth fixing.
 ---
 
 ## Changelog
+
+**v4.2 - August 26, 2026**
+Added rule 10, extending consult-before-authoring to course materials and naming the
+Textbooks subfolder as the owning source for engineering fundamentals, after Unit 1
+hardware content was authored against a real but non-owning source while two textbooks
+covering the same material went unopened. Rule 7's artifact list widened to match.
+Recorded the Textbooks subfolder ID in both rule 10 and the inventory entry so the check
+is one query. Pointed the writing half of the rule at the new section in
+`IDEA_MATERIALS_PROCESS.md` 2.6 rather than duplicating it here.
 
 **v4.1 - August 26, 2026**
 Version header added on line 2. The file carried a changelog and no header, so the
