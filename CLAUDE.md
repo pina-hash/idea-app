@@ -2353,9 +2353,9 @@ belong wherever the app's own behaviour is documented.
 
 ### Machine and toolchain
 
-- **The `test` script in `package.json` carries `--no-file-parallelism` itself**
-  (`vitest run --no-file-parallelism`), so plain `npm test` is always the safe
-  invocation -- there is no bare, parallel form to reach for by mistake. DB files
+- **`npm test` runs `tools/run-tests.mjs`, which passes `--no-file-parallelism` to
+  vitest** (`vitest run --no-file-parallelism`), so plain `npm test` is always the
+  safe invocation -- there is no bare, parallel form to reach for by mistake. DB files
   used to starve each other's `beforeAll` because each booted its own embedded
   Postgres; they now share ONE cluster (see Testing), which is the fix for that,
   not more concurrency. Serial files are what keep each file's own database the
@@ -2415,8 +2415,9 @@ belong wherever the app's own behaviour is documented.
 
 ## Testing
 
-`npm test` (config `vitest.config.ts`, specs in `tests/`; the script itself carries
-`--no-file-parallelism`, see the parallelism trap under Machine and toolchain).
+`npm test` (config `vitest.config.ts`, specs in `tests/`; `npm test` runs
+`tools/run-tests.mjs`, which passes `--no-file-parallelism` to vitest, see the
+parallelism trap under Machine and toolchain).
 This is the **only** automated suite, and it is deliberately narrow.
 
 - **Automated tests are the exception, not the default.** New work is verified by

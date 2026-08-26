@@ -27688,10 +27688,10 @@ workflow and the abandoned `buildCommand` invoked) was independently found to
 be racy for a second, unrelated reason -- vitest's default file parallelism
 races `tests/db/supabase-stub.sql`'s `create role ... if not exists` guards
 against the one shared embedded Postgres cluster and fails
-nondeterministically. `--no-file-parallelism` is now baked into the `test`
-script in `package.json` itself, so there is no bare, broken invocation left
-for a future build-gate attempt (or a developer running the suite by hand) to
-reach for by mistake.
+nondeterministically. `--no-file-parallelism` is now passed to vitest by
+`tools/run-tests.mjs`, which the `test` script in `package.json` runs, so there
+is no bare, broken invocation left for a future build-gate attempt (or a
+developer running the suite by hand) to reach for by mistake.
 
 **If a build-time gate is ever wanted again, `npm run check` alone is the
 candidate worth testing** -- it has no native dependency (`svelte-check` and
