@@ -214,14 +214,20 @@ the shim injection, the trailing-slash repair and the one bodyless 404.
     files, and never the author, the class, the build notes, the description or
     the version list. Those are gallery surfaces and the gallery is signed in.
     A field added to this route's read is a disclosure decision.
-  - **THE SHARE CONTROL SAYS SO IN WORDS, BEFORE THE LINK.** `FoundryDetail`
-    renders the URL as selectable text beside a copy control, and states that
-    anyone with it can open the app without signing in and that the page carries
-    no name, class or build notes. A student should know what they are handing
-    over before they hand it over. It keys on `published_version_id` and NOT on
-    the version being SHOWN (the review queue shows the submitted one), and a
-    hidden app gets no link at all, because `/a/` refuses one and a control
-    whose only outcome is a refusal must not be offered.
+  - **THE SHARE CONTROL SAYS SO IN WORDS, BEFORE THE LINK, AND IT IS ONE
+    COMPONENT.** `FoundryShare` renders the URL as selectable text beside a copy
+    control, and states that anyone with it can open the app without signing in
+    and that the page carries no name, class or build notes. A student should
+    know what they are handing over before they hand it over. **The gallery
+    (`FoundryDetail`) and `/foundry/mine` both mount it** -- a student wants
+    their own link more than a visitor does -- so the publication rule, the
+    sentence and the copy handler cannot drift apart between them. The sentence
+    is the half that matters: a surface that quietly lost it is one where a
+    student shares something without knowing what is on it. It keys on
+    `published_version_id` and NOT on the version being SHOWN (the review queue
+    shows the submitted one); a hidden app and an unset
+    `PUBLIC_FOUNDRY_APPS_ORIGIN` each get no link at all, because `/a/` refuses
+    one and a control whose only outcome is a refusal must not be offered.
 
 **THE STUDENT HANDS OVER ONE OF THREE SHAPES AND THE BROWSER MAKES THEM ALL A
 ZIP** -- a `.zip` passes through untouched, a folder is zipped client-side, a
