@@ -16,6 +16,30 @@
 import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
 import type { NotebookEntry, StagedPhoto } from '$lib/notebook';
 
+/**
+ * ONE BEST-EFFORT WRITE OF THE COMPOSER'S NOTE, for the moment the page is
+ * being hidden or torn down.
+ *
+ * A `pagehide` handler cannot await anything, so the ordinary save path -- a
+ * debounce, a retry curve that sleeps up to 6.4s, a promise nobody is left to
+ * resolve -- is exactly the wrong shape there: a suspended iOS tab never
+ * resumes any of it. This is the other shape. The transport sends it with
+ * `keepalive`, which hands the request to the browser to finish independently
+ * of the document, and reports nothing back because there is nobody left to
+ * report to.
+ *
+ * IT NAMES AN ENTRY THAT ALREADY EXISTS. `noteId` null means the draft has no
+ * note chain yet and this write starts one; a composer that has never been
+ * created server-side has no id to name and is not rescuable this way at all.
+ */
+export type NoteFlush = {
+	entryId: string;
+	noteId: string | null;
+	content: TiptapNode;
+	/** Replace the head revision rather than appending one (0129). */
+	autosave: boolean;
+};
+
 /** What the composer holds when it is asked to be thrown away. */
 export type ComposerWork = {
 	staged: StagedPhoto[];

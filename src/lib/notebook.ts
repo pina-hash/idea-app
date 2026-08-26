@@ -664,11 +664,28 @@ export function photoCountLabel(count: number): string {
  * older route, a harness). A caller that has written once and still has no
  * chain id must REFUSE to write again rather than add a second one.
  */
+/**
+ * `retryable` SAYS WHETHER SENDING THE IDENTICAL PAYLOAD AGAIN COULD CHANGE
+ * THE ANSWER, and it is what stops the composer's autosave retrying a REFUSAL.
+ *
+ * A note over the character cap, a note with nothing in it and an RPC that
+ * raised are all decisions the server made about this payload; re-sending one
+ * five times with backoff spends twelve seconds arriving at the same answer
+ * while telling the student their work is being retried. A dropped connection
+ * or a 5xx is the opposite: the payload was never considered.
+ *
+ * OPTIONAL, and ABSENT MEANS RETRYABLE, which is exactly what every caller did
+ * before this field existed. A transport that cannot tell the two apart (the
+ * dev harness, a direct RPC with no HTTP status) simply omits it and keeps the
+ * behaviour it had. Only the routes that carry a status set it.
+ */
 export type CreateEntryResult =
 	| { ok: true; entryId: string; noteId?: string }
-	| { ok: false; error: string };
+	| { ok: false; error: string; retryable?: boolean };
 export type AddPhotoResult = { ok: true } | { ok: false; error: string };
-export type NoteSaveResult = { ok: true; noteId?: string } | { ok: false; error: string };
+export type NoteSaveResult =
+	| { ok: true; noteId?: string }
+	| { ok: false; error: string; retryable?: boolean };
 
 /**
  * A photo-less free-form entry whose content is a written note (0075 opened

@@ -1,5 +1,5 @@
 # IDEA Materials Production Process
-**Version 2.5 - 2026-08-25**
+**Version 2.6 - 2026-08-25**
 Pathway-wide. Governs how all IDEA course materials are created, for IDEA100, IDEA209H, and every course after.
 
 **Changed in v2.5:** added "An Instrument Is Not a Material." A non-graded instrument that collects student input matches neither spec kind and had no route, which turned a routing question into an open architecture question every time one was needed. Added its row to the material type table.
@@ -84,6 +84,80 @@ each individually look like a choice and collectively look like a mistake.
 
 Applies to syllabi, notebook standards, lab references, unit assignments, and anything
 else that will eventually exist once per course.
+
+---
+
+## Every Material Cites Its Sources
+
+**No material is authored from general knowledge where a source that owns the subject
+exists, and every material ships the list of what it was built from, visible to
+students.** Two halves of one rule. The first governs how the material is built; the
+second is why the first is checkable.
+
+Established 2026-08-25 as a standing correction from Alejandro, after the Unit 1
+hardware content was authored against the NASA RAP Robotics Design Guide only because a
+Drive sweep happened to surface it, while two engineering textbooks that own the same
+material sat in Library B unopened and unremembered.
+
+### Consulting
+
+Before authoring, identify what owns the subject and open it. `IDEA_REFERENCE_LIBRARY.md`
+rules 7 through 10 govern this and are not restated here. The short form: the trigger is
+the subject, not doubt, and time pressure is the argument for consulting rather than
+against it.
+
+### What counts as a source
+
+A named work that a student could go and check.
+
+- A textbook, named by title and edition.
+- A published standard or specification, named by its number and revision.
+- A manufacturer datasheet or vendor catalog page, named by part number.
+- An organizational reference document, named by title and version.
+
+What does not count, and must never appear in a sources block:
+
+- General knowledge. If nothing was opened, nothing is cited, and that is the defect the
+  rule exists to catch rather than a formatting choice.
+- An AI's recollection of any of the above. A model that names a part number is not a
+  catalog page.
+- A prior chat. A remembered fact is a claim, not a source.
+- A file that was searched but not read. `fullText contains` returning a hit proves the
+  string is in the document, not that the passage was consulted.
+
+### The Sources block
+
+Every assignment, worksheet, reference document, and deck carries one, as the last thing
+in it.
+
+| Kind | Where it goes |
+|---|---|
+| Assignment | A final `instructions` block headed `### Sources`, after the last graded module's content |
+| Reference document | A final section, slug `sources`, title `Sources` |
+| Deck | One sheet immediately before the closing bookend |
+| Print rendering | Same position as the material it renders, never dropped to save a page |
+
+Each entry names the work, its version or edition, and where the student can reach it.
+Entries are one line. A sources block is not a bibliography exercise and carries no
+citation format: title, version, where to find it.
+
+### The copyright line does not move
+
+Sources are cited, never excerpted. The textbooks and vendor documents in the libraries
+are copyrighted, and a sources block naming a work is not permission to reproduce a
+passage, table, or figure from it into student-facing material. Verify the fact, the
+formula, or the standard value against the source, then write the explanation fresh.
+Where a value is genuinely the source's, state the value and name the source in the same
+sentence.
+
+### Why students see it
+
+Because the assignment already requires it of them. The approved course description makes
+every numerical value and selection decision defensible on challenge, and Checkpoint 2
+grades a selection against published properties rather than against plausibility. A
+material that cites nothing while demanding citation teaches that values come from
+nowhere and that authority is a matter of who is speaking. The sources block is the
+worked example of the behavior the defense is about to test.
 
 ---
 
@@ -208,6 +282,8 @@ Everything else, including lab worksheets, goes in the engine. Bench work was al
    - Demo → CC prompt against idea-app, standard routing header.
 5. **Verify.** Engine: local validator, then import validation, then a browser check as a student before posting. Print: visual check of the rendered output. Claude Design: the pre-delivery audit in `IDEA_CLAUDE_DESIGN_STANDARDS.md`, counts first, then screenshot review of every slide.
 6. **Deliver.** The spec file plus any instructor-only materials in the same pass.
+   The Sources block is part of the material, not an addendum: a spec delivered without
+   one is incomplete and goes back, the same as a spec whose points do not sum.
 7. **Place.** On Alejandro's confirmation that the material is complete, deliver placement instructions per the standard below. See "Placement."
 
 ---
@@ -327,6 +403,15 @@ Handoff rule: chat decides and specifies, Design lays out, Code implements and m
 
 ## Changelog
 
+- **2.6 (2026-08-25)** - Added "Every Material Cites Its Sources" as a governing section,
+  from a standing correction by Alejandro. Two halves: nothing is authored from general
+  knowledge where an owning source exists, and every material ships a student-visible
+  Sources block naming what it was built from. Defines what counts as a source and, more
+  usefully, what does not: general knowledge, an AI's recollection, a prior chat, and a
+  file that was searched but never read. Places the block per material kind. Restates
+  that citing is not excerpting, since naming a copyrighted textbook is not permission to
+  reproduce from it. Pipeline step 6 updated to make a missing Sources block a rejection
+  rather than a note.
 - **2.5 (2026-08-25)** - Added "An Instrument Is Not a Material," after an FRC orientation intake was scoped as an assignment spec and turned out to match neither kind: `assignment` cannot express zero points without producing degenerate rubric levels and a graded row, and `reference` rejects `points` and `rubric` outright and collects nothing. Recorded the routing rule that an instrument is an app surface owned by whichever app consumes the answers, and the requirement to audit for an existing collector before specifying a new one. Added the type table row.
 
 - **2.3 (2026-08-16)** - Added Session Prerequisites, requiring `print.css` and the reference-spec validator to be uploaded before authoring rather than after delivery. Added Inherit Before Authoring. Added Reference Documents Are Never Built As Code, covering the syllabus paired-deliverable rule, the markup-only constraint on print sources, and the short-link ordering dependency.
