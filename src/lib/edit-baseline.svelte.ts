@@ -39,6 +39,20 @@ export class EditBaseline {
 		return this.#serial !== null;
 	}
 
+	/**
+	 * THE BASELINE ITSELF, for the one caller that has to PERSIST the comparison
+	 * rather than only ask it: the notebook's local draft mirror stores this
+	 * beside the document it kept, so a restore can `seed()` the same reference
+	 * back and the composer's own seeded-versus-edited question resumes rather
+	 * than being re-invented on the read side.
+	 *
+	 * Read-only on purpose. Setting a serial directly would be a second way to
+	 * seed a baseline, spelled in a shape no serializer had to agree with.
+	 */
+	get serial(): string | null {
+		return this.#serial;
+	}
+
 	/** What the surface opened on. Idempotent by value; call it from `onready`. */
 	seed(value: unknown): void {
 		this.#serial = serializeForBaseline(value);

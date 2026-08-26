@@ -1896,6 +1896,46 @@ inside the function fails closed rather than falling through to a weaker path.
   - **A retryable failure and a REFUSAL are different outcomes.** Backoff belongs
     to the network; a server that considered the payload and said no is answered
     once and reported, never retried five times.
+    - **WHICH ONE AN RPC ERROR IS COMES FROM ITS SQLSTATE, AND THE PARTITION IS
+      `$lib/pg-errors`.** `rpcErrorStatus(code)` answers 503 for a NAMED
+      transient (`23505`, `40001`, `40P01`, `55P03`, `57014`, `53300`) and 400
+      for everything else, so the client rule "4xx is a refusal" needs no second
+      copy on the wire. A whitelist, on purpose: almost every failure on a write
+      path IS a considered refusal (`P0001` is a `raise`, class 23 is a
+      constraint, `42501` is RLS), and a route answering 400 for every RPC error
+      -- which the three notebook note routes did -- reports a deadlock as a
+      decision about the payload and drops the write after one attempt.
+      `$lib/classroom/upload-errors.ts` reads the same list for its own
+      vocabulary; **do not write a second one.**
+  - **A SURFACE WHOSE ONLY COPY OF SOMEBODY'S WRITING IS IN MEMORY HAS NO
+    FAILURE TO REPORT WHEN IT LOSES IT**, which is why the notebook composer
+    mirrors its note into `localStorage` (`$lib/notebook/draft-mirror.ts`,
+    `IDEA_INTERFACE_STANDARDS` 2.11). A tab discarded under memory pressure
+    dispatches nothing, so no save machine, no beacon and no navigation guard
+    ever sees it. **The keepalive beacon is not the answer at the sizes that
+    matter** -- 64KB across every in-flight keepalive request, against a
+    measured 134.9KB wire body for 2000 short lines, so the longest notes are
+    exactly the ones it refuses whole.
+    - **THE MIRROR IS THE SAVE STATE'S SHADOW, NEVER A SECOND SAVE PATH.** It
+      is written while the surface's own unsaved predicate is true and cleared
+      beside every `EditBaseline.advance()`, so the slot exists precisely while
+      the server has not acknowledged the work -- one comparison, persisted,
+      rather than a second idea of "unsaved". **Cleared on a confirmed
+      acknowledgement or a confirmed discard, NEVER on dispatch**, and a
+      `resetForm`-shaped reset clears nothing: it runs in the one case where
+      the entry saved and the writing did not.
+    - **KEY IT PER VIEWER AND PER RECORD** (`notebook_draft_mirror:<viewer>:<record>`,
+      namespaced beside `notebook_pending_capture` and `vanguard_*`). The viewer
+      segment is what stops a shared school desktop handing one student
+      another's writing; the record segment is what stops two entries
+      overwriting each other.
+    - **A QUOTA REFUSAL IS SAID OUT LOUD AND NEVER THROWN.** Storage throws when
+      full and where site data is blocked, and an exception escaping into a
+      reactive effect is a dead editor over a lost note. Sweep OTHER records'
+      slots, retry once, then drop the stale value under this key -- a slot
+      claiming to be what is on screen and not being it is worse than no slot --
+      and tell the person the backup is not there. A safety net nobody knows is
+      missing is worse than none.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.

@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-26",
+			"title": "Your notebook keeps a copy of your writing on your own device",
+			"body": "If your phone or browser closes the notebook while you are part way through writing an entry, your words are no longer gone. The notebook now keeps a copy of what is in the writing box on the device you are typing on, and puts it back the next time you open the page. It still has to be saved or turned in the usual way, and the page says so when it puts something back, so you always know whether it has reached us. If the draft it belongs to already has writing saved on it, the page says that too, so you can read the saved version before you save over it.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-26",
 			"title": "A new post shows up right away",
 			"body": "Posting to a class used to need a page refresh before it showed up in the list. Now it appears the moment it saves, at the top of the class page, with nothing to reload.",
 			"tags": [

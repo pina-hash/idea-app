@@ -11,13 +11,25 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
-	import { EditBaseline } from '$lib/edit-baseline.svelte';
+	import { EditBaseline, serializeForBaseline } from '$lib/edit-baseline.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { revealDetailPane } from '$lib/shell/reveal';
 	import { splitIsWide, watchSplitWidth } from '$lib/shell/split.svelte';
 	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
+	import {
+		DRAFT_MIRROR_DEBOUNCE_MS,
+		MIRROR_UNAVAILABLE_NOTE,
+		baselineValue,
+		clearMirror,
+		draftMirrorKey,
+		latestMirror,
+		mirrorRestoreMessage,
+		planMirrorRestore,
+		sweepMirrors,
+		writeMirror
+	} from '$lib/notebook/draft-mirror';
 	import {
 		NOTEBOOK_DISCARD_WARNING,
 		clampSelection,
@@ -446,6 +458,13 @@
 	 */
 	function closeComposer() {
 		if (!confirmDiscard()) return;
+		/**
+		 * A CONFIRMED DISCARD IS THE OTHER THING THAT ENDS A MIRROR'S LIFE, and
+		 * it is not an acknowledgement -- it is the student answering "discard
+		 * it?" with yes. Leaving the slot would hand the same words back on the
+		 * next load, which is a second answer to a question already answered.
+		 */
+		clearComposerMirrors();
 		resetForm();
 		composing = false;
 	}
@@ -598,6 +617,77 @@
 	 */
 	const autosaveBaseline = new EditBaseline();
 	autosaveBaseline.seed(null);
+
+	// ---- the local draft mirror ----------------------------------------------
+	//
+	// WHAT IT IS FOR: the composer had NO local persistence of any kind. The note
+	// lived in `noteDraft` and in ProseMirror's in-memory document and nowhere
+	// else, so a tab discarded under memory pressure took it with no failed
+	// write, no error and no message -- nothing had been dispatched. The
+	// keepalive beacon above does not close that: its body is capped at 64KB and
+	// the composer's wire body was measured at 134.9KB for 2000 short lines, so
+	// the notes it refuses are exactly the long ones worth rescuing.
+	//
+	// IT IS THE AUTOSAVE'S SHADOW, NOT A SECOND SAVE PATH. It is written while
+	// `noteUnsaved` is true and cleared the moment `autosaveBaseline` advances,
+	// so the slot exists precisely while there is writing the server has not
+	// acknowledged -- one comparison, in one place, persisted. Nothing reads it
+	// but a fresh mount, and all it can do is put the words back in the box.
+	// -------------------------------------------------------------------------
+
+	/**
+	 * THE DOCUMENT A MIRROR PUT BACK, seeded into the editor rather than merely
+	 * assigned to `noteDraft`: Tiptap takes its content once, at mount, so a
+	 * restore has to arrive as `initialDoc` on a fresh instance (`noteKey`).
+	 * Cleared by `resetForm`, which bumps that key -- otherwise the next remount
+	 * would re-seed writing the student has already finished with.
+	 */
+	let restoredDoc = $state<TiptapNode | null>(null);
+	/** The sentence about a restore, shown beside the form. */
+	let mirrorNote = $state<string | null>(null);
+	/** Storage refused the mirror, so the student is told the net is not there. */
+	let mirrorBlocked = $state(false);
+	/** The debounce, and the thing `clearComposerMirrors` has to cancel. */
+	let mirrorTimer: ReturnType<typeof setTimeout> | null = null;
+	/**
+	 * The restore is a one-time read; `entries` reloading must not re-run it.
+	 *
+	 * `$state` rather than a plain flag because the MIRRORING effect reads it as
+	 * a gate: written plainly, that effect's first run would see false, return,
+	 * and never re-run -- the flag is not a dependency, so nothing would wake it
+	 * and nothing would ever be mirrored. Measured exactly that way first.
+	 */
+	let mirrorChecked = $state(false);
+
+	/**
+	 * THE SLOTS THIS COMPOSER SESSION CAN HAVE WRITTEN. Two, and only two: the
+	 * `new` slot it starts in, and the one named after the draft entry it
+	 * created. A create moves the session from the first to the second, so an
+	 * acknowledgement has to clear both -- the `new` slot is stale from that
+	 * moment on, and a stale slot is a mirror that would restore writing which
+	 * is already on an entry.
+	 */
+	function composerMirrorKeys(): string[] {
+		const keys = [draftMirrorKey(viewerId, null)];
+		if (savedDraftId) keys.push(draftMirrorKey(viewerId, savedDraftId));
+		return keys;
+	}
+
+	/**
+	 * CLEARED ON A CONFIRMED ACKNOWLEDGEMENT AND NEVER ON DISPATCH. Called from
+	 * exactly where `autosaveBaseline.advance()` is called, which is the one
+	 * place this codebase already means "the server holds these words" -- so the
+	 * mirror cannot survive its own acknowledgement and cannot be dropped before
+	 * one. The pending debounce is cancelled with it: a timer that fires after
+	 * the clear would write the slot straight back.
+	 */
+	function clearComposerMirrors(): void {
+		if (mirrorTimer !== null) {
+			clearTimeout(mirrorTimer);
+			mirrorTimer = null;
+		}
+		for (const key of composerMirrorKeys()) clearMirror(key);
+	}
 	/**
 	 * A WRITE IS IN FLIGHT, autosave or manual. Distinct from `busy`, which
 	 * disables the form: an autosave must never do that (it fires while
@@ -823,6 +913,163 @@
 	});
 
 	/**
+	 * PUT BACK WHAT THIS BROWSER KEPT, once, on mount.
+	 *
+	 * It reads `entries` so that a feed arriving after the first paint still
+	 * gets the pass, and `mirrorChecked` is what makes it a one-time read rather
+	 * than something that re-runs on every reload of the feed underneath.
+	 *
+	 * `untrack` around all of it, the EntryNotes rule: this WRITES most of the
+	 * composer's state, and a tracked write of state the same effect read is how
+	 * an effect re-enters itself.
+	 */
+	$effect(() => {
+		const rows = entries;
+		untrack(() => {
+			if (mirrorChecked) return;
+			mirrorChecked = true;
+			if (readOnly || !noteAllowed) return;
+			const now = Date.now();
+			// HOUSEKEEPING FIRST, and it only ever drops EXPIRED slots: a live one
+			// belonging to another draft is somebody's writing, not litter.
+			sweepMirrors(draftMirrorKey(viewerId, null), now);
+			const found = latestMirror(viewerId, now);
+			if (!found) return;
+			const plan = planMirrorRestore(
+				found.mirror,
+				found.mirror.entryId ? rows.find((e) => e.id === found.mirror.entryId) : undefined
+			);
+			if (plan.action === 'drop') {
+				clearMirror(found.key);
+				return;
+			}
+
+			// THE WRITING FIRST. Tiptap seeds its document once, at mount, so the
+			// restored one arrives as `initialDoc` on a fresh instance -- exactly
+			// the remount `resetForm` already uses to clear the box.
+			restoredDoc = found.mirror.doc;
+			noteDraft = found.mirror.doc;
+			noteKey += 1;
+			/**
+			 * AND THE COMPARISON IT WAS TAKEN AGAINST. Seeding the baseline the
+			 * mirror recorded means `noteUnsaved` answers exactly what it answered
+			 * in the session that died: there is no second notion of "edited" here,
+			 * only the composer's own, resumed.
+			 */
+			autosaveBaseline.seed(baselineValue(found.mirror));
+			orphanNote = false;
+			noteChainUnknown = false;
+
+			if (found.mirror.title) title = found.mirror.title;
+			// A DEEP LINK OUTRANKS THE MIRROR'S OWN PICK, and only here: arriving on
+			// a check-in is a deliberate act taken just now, where the mirror's pair
+			// is a record of one taken before the tab died.
+			if (!linkedPick) {
+				sessionTouched = true;
+				selectedSession = found.mirror.sessionId;
+				selectedSectionId = found.mirror.sectionId;
+			}
+			if (found.mirror.folderId && folders.some((f) => f.id === found.mirror.folderId)) {
+				folderTouched = true;
+				folderChoice = found.mirror.folderId;
+			}
+
+			/**
+			 * ADOPTING THE DRAFT IS WHAT KEEPS THIS ONE ENTRY. Without it a restore
+			 * would leave `savedDraftId` null and the next save would CREATE a
+			 * second entry beside the one the last session already made -- the
+			 * duplicate `savedDraftId` exists to prevent. `planMirrorRestore` only
+			 * ever names an entry the feed still holds as a live draft.
+			 */
+			if (plan.entryId) {
+				const entry = rows.find((e) => e.id === plan.entryId);
+				savedDraftId = plan.entryId;
+				savedNoteId = plan.noteId;
+				savedDraftSession = entry?.session_id ?? null;
+				savedLabel = entry?.custom_label ?? null;
+				headUnsealed = false;
+			}
+
+			// The slot this came out of is only the right slot to go on writing
+			// when the record did not move; where it did, the old one is dropped
+			// so the next load cannot find two.
+			const nextKey = draftMirrorKey(viewerId, savedDraftId);
+			if (nextKey !== found.key) clearMirror(found.key);
+
+			mirrorNote = mirrorRestoreMessage(plan);
+		});
+	});
+
+	/**
+	 * MIRROR THE BOX, DEBOUNCED, WHILE THERE IS WRITING THE SERVER HAS NOT GOT.
+	 *
+	 * The gate is `noteUnsaved` -- the SAME derived the autosave and the Save
+	 * draft button read -- so the slot exists exactly while there is something
+	 * to lose and is gone the moment `clearComposerMirrors` runs beside an
+	 * acknowledgement. That is the whole lifetime rule, and it is one comparison
+	 * rather than a second idea of what "unsaved" means.
+	 *
+	 * IT WAITS FOR THE RESTORE PASS. On the first frame `noteDraft` is null
+	 * because Tiptap has not mounted yet, and an ungated effect would read that
+	 * as an emptied box and delete the very mirror the pass above is about to
+	 * read.
+	 */
+	$effect(() => {
+		if (readOnly || !noteAllowed || !mirrorChecked) return;
+		const due = noteUnsaved;
+		const doc = noteDraft;
+		const key = draftMirrorKey(viewerId, savedDraftId);
+		const entryId = savedDraftId;
+		const noteId = savedNoteId;
+		const label = title;
+		const sessionId = selectedSession;
+		const sectionId = selectedSectionId;
+		const folderId = folderChoice;
+		const baseline = autosaveBaseline.serial;
+
+		if (mirrorTimer !== null) clearTimeout(mirrorTimer);
+		mirrorTimer = setTimeout(() => {
+			mirrorTimer = null;
+			if (!due || !doc) {
+				/**
+				 * AN EMPTIED BOX IS MIRRORED TOO, and it is not the "clear on
+				 * dispatch" this feature refuses. The slot's whole claim is that it
+				 * holds what is on screen; a slot left behind after a student
+				 * selected their words and deleted them would put those words back
+				 * on the next load, which is a worse failure than losing them.
+				 * Acknowledged text takes the same branch and is already cleared by
+				 * `clearComposerMirrors` a moment earlier.
+				 */
+				clearMirror(key);
+				return;
+			}
+			const result = writeMirror(key, {
+				v: 1,
+				at: Date.now(),
+				entryId,
+				noteId,
+				doc,
+				baseline: baseline ?? serializeForBaseline(null),
+				title: label,
+				sessionId,
+				sectionId,
+				folderId
+			});
+			// SAY SO WHEN THE NET IS NOT THERE. A safety net nobody knows is
+			// missing is worse than none, because the student goes on writing a
+			// long entry under an assumption that stopped being true.
+			mirrorBlocked = result !== 'ok';
+		}, DRAFT_MIRROR_DEBOUNCE_MS);
+
+		return () => {
+			if (mirrorTimer !== null) {
+				clearTimeout(mirrorTimer);
+				mirrorTimer = null;
+			}
+		};
+	});
+
+	/**
 	 * THE PICKED CHECK-IN'S GUIDANCE PROMPT (0123), resolved from the CURRENT
 	 * list on every read rather than captured when the pick was made -- the feed
 	 * reloads after every save, and a snapshot describes the state before it.
@@ -993,6 +1240,30 @@
 			noteDraft = null;
 			noteKey += 1;
 		}
+		/**
+		 * THE SEEDED DOCUMENT GOES WITH THE BOX. `noteKey` above remounts the
+		 * editor, and a `restoredDoc` left standing would seed the new instance
+		 * with writing that was just saved and cleared -- the box would refill
+		 * itself. Cleared in BOTH branches: with the note kept nothing remounts
+		 * now, and the next thing that bumps the key must not resurrect this.
+		 */
+		restoredDoc = null;
+		mirrorNote = null;
+		/**
+		 * IT DOES NOT CLEAR THE MIRROR, and that is deliberate rather than an
+		 * omission. This runs on a turn-in, on a create, and on `resetForm(true)`
+		 * -- the case where the ENTRY saved and the NOTE did not, which is exactly
+		 * when the words in the box are the only copy anywhere. The mirror is
+		 * cleared by `clearComposerMirrors`, called beside every
+		 * `autosaveBaseline.advance()`, which is the one thing in this file that
+		 * means the server holds these words. Clearing here would be clearing on
+		 * dispatch.
+		 *
+		 * The baseline reseed below leaves a kept note reading as unsaved, so the
+		 * mirroring effect writes the slot straight back under the `new` key --
+		 * which is correct: that text now belongs to no draft this session may
+		 * add to.
+		 */
 		recoveryNote = null;
 		// Deliberately NOT the folder: the next entry almost always belongs
 		// where the last one went, and the suggestion effect re-derives it from
@@ -1046,6 +1317,8 @@
 	 */
 	function checkpoint() {
 		recoveryNote = null;
+		// The restore note reported writing the server did not hold. It holds it now.
+		mirrorNote = null;
 		save.markSaved(Date.now());
 	}
 
@@ -1171,6 +1444,12 @@
 			// closed rather than starting a second note on this entry.
 			noteChainUnknown = !noteId;
 			autosaveBaseline.advance(noteDraft);
+			// The create carried the note, so it is acknowledged -- and this is the
+			// moment the session's slot MOVES from `new` to the entry's own id, so
+			// both are cleared (`clearComposerMirrors` is called after
+			// `savedDraftId` is set above, which is what puts the second one in
+			// range).
+			clearComposerMirrors();
 		}
 	}
 
@@ -1206,8 +1485,10 @@
 			savedNoteId = result.noteId ?? null;
 			noteChainUnknown = !result.noteId;
 		}
-		// ACKNOWLEDGED: from here this text is what the server holds.
+		// ACKNOWLEDGED: from here this text is what the server holds, so the local
+		// mirror of it has nothing left to protect and goes in the same breath.
 		autosaveBaseline.advance(doc);
+		clearComposerMirrors();
 		// WHAT THIS WRITE LEFT AT THE HEAD OF THE CHAIN. Sent as an autosave, it
 		// is replaceable and a click still owes it a boundary; sent from a
 		// button, it IS the boundary.
@@ -2390,6 +2671,12 @@
 			{#if recoveryNote}
 				<p class="feedback error" role="status" data-testid="nb-recovery">{recoveryNote}</p>
 			{/if}
+			<!-- WHAT THIS BROWSER PUT BACK. Beside the capture-recovery note rather
+			     than inside the note field, because a restore can also have put a
+			     title and a check-in back and the sentence is about all of it. -->
+			{#if mirrorNote}
+				<p class="feedback error" role="status" data-testid="nb-mirror-restored">{mirrorNote}</p>
+			{/if}
 
 			<form onsubmit={onTurnInSubmit}>
 				<fieldset class="picker">
@@ -2562,8 +2849,20 @@
 					<div class="field note-field">
 						<span class="photo-label">Write about it</span>
 						{#key noteKey}
-							<NoteEditor onchange={(doc) => (noteDraft = doc)} disabled={busy} />
+							<!-- `initialDoc`, not `value`: what the mirror kept is the EDITOR'S
+							     own shape, and the normalizer that would turn it into a stored
+							     NoteDoc is `$lib/server` and unreachable from here. -->
+							<NoteEditor
+								initialDoc={restoredDoc}
+								onchange={(doc) => (noteDraft = doc)}
+								disabled={busy}
+							/>
 						{/key}
+						{#if mirrorBlocked}
+							<p class="hint" role="status" data-testid="nb-mirror-unavailable">
+								{MIRROR_UNAVAILABLE_NOTE}
+							</p>
+						{/if}
 						<span class="hint">
 							Write as much as you like. On its own this saves as the whole entry; alongside a
 							photo it is saved with it. You can add photos to an entry later, and come back and
