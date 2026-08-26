@@ -142,6 +142,18 @@
 		if (stored && stored.length) return stored;
 		return [];
 	}
+	/**
+	 * Ends only, never interior -- `white-space: pre-wrap` on `.cell-text` is
+	 * what lets a longer cell keep its own line breaks, and this must not
+	 * touch those. ONE implementation for two call sites: the read-only span
+	 * (repairs a value already stored with leading/trailing whitespace,
+	 * without writing anything back) and the editable input's COMMIT, never
+	 * its `oninput` -- trimming every keystroke would strip a trailing space
+	 * the instant it was typed and make "hello " + "world" impossible to type.
+	 */
+	function trimCellEnds(value: string): string {
+		return value.trim();
+	}
 	function blankRow(block: TableBlock): Record<string, string> {
 		return Object.fromEntries(block.columns.map((c) => [c.key, '']));
 	}
@@ -201,11 +213,29 @@
 		report(id);
 	}
 
-	/** Auto-resizing textarea: grow to fit on every input. */
+	/**
+	 * Auto-resizing textarea: grow to fit on every input, BOUNDED.
+	 *
+	 * The cap is `.answer`'s own `max-height` and is read back from the computed
+	 * style rather than written down again here -- one statement of it, so the
+	 * element's height can never claim a size the box will not take. Past the cap
+	 * the box SCROLLS (`overflow-y: auto`) instead of growing.
+	 *
+	 * Unbounded, one long answer pushed every later module off the screen:
+	 * measured at 375px, a 26-sentence answer grew the box to 1998px, so
+	 * reaching the next module meant scrolling a full phone screen and a half
+	 * past one field.
+	 *
+	 * A box with no cap (the LOCKED one, see the rule) computes `max-height`
+	 * as `none`, which is not a number, so it keeps growing to fit exactly as
+	 * it always did. See the cap's own note on `.answer` for the figures.
+	 */
 	function autoresize(el: HTMLTextAreaElement) {
 		const fit = () => {
 			el.style.height = 'auto';
-			el.style.height = `${el.scrollHeight + 2}px`;
+			const cap = Number.parseFloat(getComputedStyle(el).maxHeight);
+			const wanted = el.scrollHeight + 2;
+			el.style.height = `${Number.isFinite(cap) ? Math.min(wanted, cap) : wanted}px`;
 		};
 		fit();
 		el.addEventListener('input', fit);
@@ -342,6 +372,7 @@
 								id={`tf-${block.id}`}
 								class="answer"
 								rows="2"
+								spellcheck="true"
 								disabled={!canEdit}
 								value={textValue(block.id)}
 								use:autoresize
@@ -384,7 +415,7 @@
 											{#each block.columns as col (col.key)}
 												<td>
 													{#if readonly || !canEdit}
-														<span class="cell-text">{row[col.key] ?? ''}</span>
+														<span class="cell-text">{trimCellEnds(row[col.key] ?? '')}</span>
 													{:else}
 														<input
 															type="text"
@@ -392,6 +423,11 @@
 															value={row[col.key] ?? ''}
 															oninput={(e) =>
 																setCell(block, ri, col.key, (e.currentTarget as HTMLInputElement).value)}
+															onchange={(e) => {
+																const el = e.currentTarget as HTMLInputElement;
+																const trimmed = trimCellEnds(el.value);
+																if (trimmed !== el.value) setCell(block, ri, col.key, trimmed);
+															}}
 														/>
 													{/if}
 												</td>
@@ -474,6 +510,7 @@
 													type="text"
 													class="caption"
 													placeholder="Caption"
+													spellcheck="true"
 													value={f.caption ?? ''}
 													onchange={(e) => oncaption?.(f.id, (e.currentTarget as HTMLInputElement).value)}
 												/>
@@ -683,6 +720,29 @@
 		resize: none;
 		overflow: hidden;
 		min-height: 3.2rem;
+	}
+	/* BOUNDED GROWTH, AND ONLY ON THE BOX A STUDENT IS WRITING IN.
+	   `autoresize` reads this `max-height` back, so the cap is stated once and
+	   the element's height can never claim a size the box will not take.
+	   Natural heights measured on the real box: a 5-sentence answer (the most
+	   any spec typically asks for) is 402px at 375px wide and 106px at 1440px;
+	   the longest ask in any stored spec, 8 sentences, is 630px at 375px, 265px
+	   at 768px and 151px at 1440px; an unbounded 26-sentence answer reached
+	   1998px at 375px, which is what buried every later module. 32rem clears
+	   every stored ask at 768px and up, clears a 5-sentence answer at every
+	   width, and holds the runaway case to 512px. Past it the box scrolls,
+	   which `auto` is what makes possible at all -- `hidden` left growing
+	   forever as the only way not to lose the text.
+
+	   THE LOCKED BOX IS DELIBERATELY LEFT UNCAPPED. A submitted answer renders
+	   in a DISABLED textarea, and a disabled control cannot take focus and is
+	   out of the tab order (measured: `focus()` does not land on it). Capping
+	   it would put the tail of a student's own submitted work behind a scroll
+	   a keyboard-only reader has no way to perform. The cap is a writing
+	   affordance; it must not become a way to hide finished work. */
+	.answer:not(:disabled) {
+		overflow-y: auto;
+		max-height: 32rem;
 	}
 	.answer:focus {
 		outline: none;

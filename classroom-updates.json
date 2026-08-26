@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-26",
+			"title": "Long answers no longer bury the rest of an assignment",
+			"body": "A written-answer box used to grow taller for every line you added, with no limit. On a phone a long answer could stretch the box past a full screen and a half, so getting to the next module meant scrolling through everything you had already written. The box now stops growing once it is tall enough for a long answer and scrolls inside itself after that. Nothing is cut off and nothing is lost: your whole answer is still there, and while you are typing the box follows your cursor as it always did. Written-answer boxes and photo captions also get your browser's spellcheck now, so misspellings are underlined the way they are anywhere else you type.",
+			"tags": [
+				"assignments"
+			]
+		},
+		{
+			"date": "2026-08-26",
 			"title": "Your notebook keeps a copy of your writing on your own device",
 			"body": "If your phone or browser closes the notebook while you are part way through writing an entry, your words are no longer gone. The notebook now keeps a copy of what is in the writing box on the device you are typing on, and puts it back the next time you open the page. It still has to be saved or turned in the usual way, and the page says so when it puts something back, so you always know whether it has reached us. If the draft it belongs to already has writing saved on it, the page says that too, so you can read the saved version before you save over it.",
 			"tags": [
