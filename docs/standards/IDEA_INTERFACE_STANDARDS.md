@@ -1,5 +1,5 @@
 # IDEA Interface Standards
-**Version 2.10 - 2026-08-25**
+**Version 2.11 - 2026-08-26**
 
 Governs layout, viewport behavior, role parity, and interaction structure for every IDEA app surface: IDEA Classroom, the digital notebook, the reference reader, the grading console, the portal, and any surface built after this document.
 
@@ -116,6 +116,26 @@ The IDEA program is run from a desktop computer with a wide screen. Students use
 - **"There is content here" is not "this has been edited."** A form opened on an existing record carries that record's content from the first frame, so a dirty signal derived from emptiness reports unsaved work before anyone has touched anything. The baseline is the seeded value and dirty is a divergence from it, which makes both questions one comparison against different references so they cannot drift apart. Creating a new record hides this entirely, since the baseline there is empty and the two questions agree, which is why it survives every review.
 - **A dirty signal originates in a person's edit, never in the component's own initialization.** Seeding a rich-text editor emits a transaction indistinguishable from typing, so a field wired to the editor's change event marks itself dirty on mount before anyone has touched it. Under an explicit save that shows as a guard prompting on a form nobody edited, which teaches people to dismiss guards. Under autosave it is an unbounded write loop against the database. Compare against the editor's own serialization of the seeded value at mount, and count only a divergence from that as an edit.
 - **A busy flag is cleared in a `finally`.** A throw that leaves the flag set disables the controls permanently, which the person experiences as the surface dying rather than as an error they could retry.
+- **Recovery copy is checked against what the code actually persists, not against what
+  the flow is for.** A sentence telling someone their work is safe is a claim about
+  storage, and it is the one claim they will act on: they read it and stop worrying. If
+  nothing wrote the thing it names, the sentence is a lie delivered at the exact moment
+  it does the most damage. Established 2026-08-26 in the notebook, where returning from
+  the camera showed "Everything you typed is still here" while the marker it restores
+  from carries only title, session, section and folder. The note body survived because
+  the tab survived, and on the day the tab did not survive the copy was still cheerfully
+  wrong. For every reassurance a surface prints, name the store it is asserting about and
+  read the write; where the answer is "nothing, it is in memory", the copy says only what
+  was restored.
+- **Content held only in component state is content with no recovery path, and a surface
+  that autosaves to a server still has one.** A server write is not a local draft: it
+  needs a network, a session, and a page that lives long enough to finish. A phone that
+  discards the tab under memory pressure takes everything that was only in `$state` with
+  it, and the person is told nothing because no write ever failed. Where work is composed
+  over minutes rather than seconds, mirror it locally on every change, key it to the
+  record being edited, restore it on mount, and clear it only on a confirmed server
+  acknowledgement.
+
 - **The state is per surface, not global.** A banner in the shell reading "all changes saved" while one pane holds a failed write is a false negative with a wide blast radius.
 
 **Rationale.** This is student work, produced once, under a deadline, on a school network. The cost of a silent failure is not a bad experience, it is a student who did the assignment and has nothing to show for it, discovered at grading time when there is no way to reconstruct it.
@@ -234,6 +254,15 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 ## Changelog
 
+- **2.11 (2026-08-26)** - Two rules added to section 6, both from the read-only audit of
+  the notebook save path after a student lost a long entry on an iPhone. Recovery copy is
+  checked against what the code persists: the camera-return reader claimed everything
+  typed was still there while the marker it restores from carries only title, session,
+  section and folder. And content held only in component state has no recovery path even
+  on a surface that autosaves, because a server write needs a network, a session and a
+  live page, none of which survive a tab discard. Neither rule was derivable from the
+  existing section, which governs whether a write is reported honestly and said nothing
+  about work that was never dispatched at all.
 - **2.10 (2026-08-25)** - Reference repair only, no rule changed. Two pointers in this
   document named files that do not exist. The design system was cited as
   `IDEA_Design_System.md`, which was absent from project knowledge and from both Drive
