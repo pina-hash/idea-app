@@ -6,7 +6,7 @@
     "course": "IDEA100",
     "subtitle": "Tournament of Hooks, IDEA100 Rotation 1, Fall 2026",
     "referenceId": "idea100-hook-rules",
-    "buildVersion": "v2"
+    "buildVersion": "v3"
   },
   "sections": [
     {
@@ -16,14 +16,14 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "You design one hook. Your teammate designs another. The two of you enter a double elimination bracket where hooks are pulled **against each other** on the rig until one breaks.\n\nThe hook that breaks loses. The hook that survives moves on with whatever damage it took. Your team is out when both of your hooks are gone.\n\nThis guide is the rulebook. A hook that misses any requirement in Dimensions or Manufacturing does not enter the bracket."
+          "content": "You design a hook. Your teammate designs a hook. The two of you enter a double elimination bracket where hooks are pulled **against each other** on the rig until one breaks.\n\nThe hook that breaks loses. The hook that survives moves on with whatever damage it took. Your team is out when both of your hooks are gone.\n\nThis guide is the rulebook. A hook that misses any requirement in Dimensions or Manufacturing does not enter the bracket. Everything else in here is advice, and the advice is what decides who wins."
         },
         {
           "type": "keyValue",
           "items": [
             {
               "label": "Material",
-              "value": "HIPS, provided. One reserved colour."
+              "value": "Provided HIPS. Any colour you like."
             },
             {
               "label": "Print profile",
@@ -35,7 +35,7 @@
             },
             {
               "label": "Maximum thickness",
-              "value": "0.75 in."
+              "value": "1.00 in."
             },
             {
               "label": "Both openings",
@@ -43,11 +43,11 @@
             },
             {
               "label": "Centre to centre",
-              "value": "2.000 in to 3.000 in."
+              "value": "2.000 in to 2.500 in."
             },
             {
               "label": "Hooks per team",
-              "value": "Two. Different designs."
+              "value": "Two. Identical or different, your call."
             },
             {
               "label": "Test article budget",
@@ -73,7 +73,7 @@
           "rows": [
             {
               "feature": "Centre-to-centre distance",
-              "requirement": "2.000 in to 3.000 in between the centres of the two 0.75 in features."
+              "requirement": "2.000 in to 2.500 in between the centres of the two 0.75 in features."
             },
             {
               "feature": "Anchor side",
@@ -89,7 +89,7 @@
             },
             {
               "feature": "Maximum thickness",
-              "requirement": "0.75 in."
+              "requirement": "1.00 in."
             }
           ],
           "type": "dataTable",
@@ -113,7 +113,7 @@
         },
         {
           "type": "instructions",
-          "content": "### Tolerancing\n\nA 0.750 in opening modelled in CAD will usually come out tight in the printed part. Use your test hooks to find how much you need to oversize it in SolidWorks. Do not guess it once and print the real thing.\n\n### Mass\n\nThe number that counts is the one on the scale, not the one in CAD. Leave yourself a buffer. A part at 59.8 g in the slicer is not a part at 59.8 g on the bench."
+          "content": "### Tolerancing\n\nA 0.750 in opening modelled in CAD will usually come out tight in the printed part. Use your test hooks to find how much you need to oversize it in SolidWorks. Do not guess it once and print the real thing.\n\n### Mass\n\nThe number that counts is the one on the scale, not the one in CAD or the slicer. Leave yourself a buffer. A part at 59.8 g in Bambu Studio is not a part at 59.8 g on the bench.\n\n### Thickness\n\nYou have a full inch now. That is a lot of material to spend, and spending all of it everywhere puts you over 60 g before you have done anything clever. Thickness is a tool you use where the stress is, not a default."
         },
         {
           "type": "callout",
@@ -125,15 +125,15 @@
     },
     {
       "slug": "versions",
-      "blurb": "Four versions. Each one exists to answer a different question.",
+      "blurb": "Four versions. Each one answers a different question.",
       "title": "V0 to V3",
       "blocks": [
         {
           "rows": [
             {
-              "what": "The tutorial hook. Guided, everyone builds the same part, then prints it.",
+              "what": "The tutorial hook. Guided, everyone builds the same part. Never printed.",
               "version": "V0",
-              "question": "Can I drive SolidWorks and Bambu Studio at all. V0 is yours to keep."
+              "question": "Can I drive SolidWorks. V0 exists to teach the software and nothing else."
             },
             {
               "what": "Your first design. No new tools, no testing.",
@@ -141,7 +141,7 @@
               "question": "Can I build my own hook with what I already know."
             },
             {
-              "what": "The design after simulation.",
+              "what": "The design after simulation. This is what you print at half scale.",
               "version": "V2",
               "question": "Where does the stress pile up, and did I move material there."
             },
@@ -176,19 +176,72 @@
       ]
     },
     {
-      "slug": "solidworks",
-      "blurb": "Sloppy trees and under-defined sketches get rejected at design review.",
-      "title": "SolidWorks Standards",
+      "slug": "design",
+      "blurb": "What matters is a finished, functional, legal hook.",
+      "title": "Design and CAD",
       "blocks": [
         {
           "type": "instructions",
-          "content": "### Fully defined sketches\n\nEvery structural and dimensional sketch must be fully defined. All lines black.\n\n**The aesthetic exception.** Splines and text used only for branding, contouring, or non-structural weight-saving patterns are exempt, provided they do not affect any dimension in the Dimensions tab.\n\n### No fixed geometry\n\nThe Fix constraint is prohibited. Define shapes with dimensions and relations: horizontal, vertical, tangent, coincident, equal.\n\n### An organised design tree\n\n- **Rename your features.** `Extrude1` and `Fillet4` are not acceptable. `Main_Body_Extrude` and `Anchor_Fillets` are.\n- **Use folders.** Group the weight-reduction cuts together, group the finishing fillets together. Any design past 10 features must use folders and renamed features.\n\n### Make it interesting\n\nA blocky hook is a weak hook. Splines, variable fillets, and truss patterns produce shapes that are lighter, stronger, and better looking at the same time."
+          "content": "There is no CAD etiquette requirement in this project. Sketches do not have to be fully defined. Fixed geometry is allowed. Your design tree does not have to be organised or renamed.\n\nModel it however you can get it done. What is graded is whether the hook is finished, functional, and legal, and whether you can explain the decisions in it.\n\n### Make it interesting anyway\n\nA blocky hook is a weak hook, and that is a structural claim rather than an aesthetic one. Sharp corners concentrate stress and flat slabs waste mass. Splines, variable fillets, and cut-out patterns produce shapes that are lighter and stronger at the same time, and they happen to look better."
         },
         {
           "type": "callout",
           "title": "Effort is protected",
-          "content": "CAD grading rewards engineered effort over safe simplicity. A complex design showing real design intent and sophisticated modelling is protected from small non-structural hygiene errors that would sink a simpler part. Ambition is not punished here.",
+          "content": "A complex design showing real design intent is protected from small non-structural modelling errors that would sink a simpler part. Ambition is not punished here. Reach past what you know how to do.",
           "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "printability",
+      "blurb": "A hook that cannot be printed well is not a good design.",
+      "title": "Designing for the Printer",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your part is printed flat on the plate, so its whole outline is the print cross section. That removes most overhang problems and replaces them with a different set. These are design decisions, made in CAD, before you ever open the slicer."
+        },
+        {
+          "rows": [
+            {
+              "fix": "Keep structural features wide enough to slice as solid walls, then confirm it in the slicer preview rather than assuming.",
+              "issue": "Thin features do not slice the way you drew them. A narrow rib can come out as two walls with a gap down the middle, or as one wall, or as nothing at all."
+            },
+            {
+              "fix": "Fillet every internal corner. This is the cheapest strength you will ever buy.",
+              "issue": "Sharp internal corners are both a stress riser and a place the toolpath leaves a void."
+            },
+            {
+              "fix": "Round the outside corners of your outline rather than leaving points, and glue the plate.",
+              "issue": "Large flat parts curl off the plate at their corners as they cool."
+            },
+            {
+              "fix": "Keep the part one connected mass in the plane of the plate.",
+              "issue": "Islands. A feature that starts mid-air, unconnected to anything below it, has nothing to print onto."
+            },
+            {
+              "fix": "Model the openings oversize by whatever your test hooks tell you, not by whatever seems reasonable.",
+              "issue": "A part that only barely fits the constraints leaves you nothing when the print comes out slightly small."
+            }
+          ],
+          "type": "dataTable",
+          "title": "What to design around",
+          "columns": [
+            {
+              "key": "issue",
+              "label": "The problem"
+            },
+            {
+              "key": "fix",
+              "label": "What you do about it in CAD"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Look at the sliced preview before you commit",
+          "content": "Step through the layer preview and look at where the walls actually go. Three hours of print time is a lot to spend on a part nobody looked at in the slicer. This is also where you find out that the rib you thought was structural is hollow.",
+          "variant": "required"
         }
       ]
     },
@@ -241,12 +294,12 @@
         },
         {
           "type": "instructions",
-          "content": "### What you read off the plot\n\n**Location.** Where is the red. That is where your hook will break.\n\n**Relative magnitude.** How much worse is the throat than the shank. That tells you where material is worth adding and where it is worth removing.\n\n### What you do not read off the plot\n\nFactor of safety, displacement, and predicted failure load. Those numbers are wrong here because the material is a stand-in, and quoting one in your write-up is a mistake, not a shortcut.\n\nThe honest division of labour across the whole project: **the simulation tells you where, the scale test tells you whether your geometry survived contact with a printer, and the rig tells you how much.**"
+          "content": "### What you read off the plot\n\n**Location.** Where is the red. That is where your hook will break.\n\n**Relative magnitude.** How much worse is the throat than the shank. That tells you where material is worth adding and where it is worth removing.\n\n### What you do not read off the plot\n\nFactor of safety, displacement, and predicted failure load. Those numbers are wrong here because the material is a stand-in, and quoting one in your write-up is a mistake rather than a shortcut.\n\nThe honest division of labour across the whole project: **the simulation tells you where, the scale test tells you whether your geometry survived contact with a printer, and the rig tells you how much.**"
         },
         {
           "type": "callout",
           "title": "AI is useful here",
-          "content": "Screenshot your stress plot, tell the AI what the study was set up as, and ask it to walk you through what the plot is showing. That is COACH use and it is exactly what it is good for. Asking it to redesign your hook is not.",
+          "content": "Screenshot your stress plot, tell the AI how the study was set up, and ask it to walk you through what the plot is showing. That is COACH use and it is exactly what it is good for. Asking it to redesign your hook is not.",
           "variant": "info"
         }
       ]
@@ -260,7 +313,7 @@
           "rows": [
             {
               "item": "Filament",
-              "rule": "Provided HIPS only, in the reserved colour. A hook in any other colour is rejected at inspection with no testing and no argument."
+              "rule": "Provided HIPS only. Any colour on the shelf."
             },
             {
               "item": "Profile",
@@ -314,7 +367,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "### The match\n\nTwo hooks are linked in the load path and pulled against each other on the rig. The first to break loses the match. Exactly one hook is destroyed per match.\n\nThe winning hook advances **with its damage**. It has been loaded near failure and it is not the part it was. That is part of the game.\n\n### Your team's decision\n\nYou hold two different hooks. Each round you choose which one to send. Send the strong one now, or hold it back for the losers bracket and spend the other one. That choice is yours and it decides more matches than you would think.\n\n### Elimination\n\nDouble elimination. Two losses puts your team out, which is exactly two dead hooks. A team is never eliminated while it still holds a hook."
+          "content": "### The match\n\nTwo hooks are linked in the load path and pulled against each other on the rig. The first to break loses the match. Exactly one hook is destroyed per match.\n\nThe winning hook advances **with its damage**. It has been loaded near failure and it is not the part it was. That is part of the game.\n\n### Your team's decision\n\nYou hold two hooks and each round you choose which one to send. If they are different designs, that choice is a real bet: send the strong one now, or hold it for the losers bracket. If they are identical, the choice is about damage instead, a fresh hook against the veteran that has already survived two pulls. Either way it is a decision, and it decides more matches than you would think.\n\n### Elimination\n\nDouble elimination. Two losses puts your team out, which is exactly two dead hooks. A team is never eliminated while it still holds a hook."
         },
         {
           "rows": [
@@ -333,6 +386,10 @@
             {
               "rule": "The 2-hook rule",
               "detail": "A team that brings two legal hooks enters the double elimination bracket. A team with one hook enters single elimination and is out on its first loss."
+            },
+            {
+              "rule": "Identical hooks",
+              "detail": "Your two hooks may be the same design or two different ones. Both are legal strategies."
             },
             {
               "rule": "Gate actuation",
@@ -367,7 +424,7 @@
         {
           "type": "callout",
           "title": "Safety at the rig",
-          "content": "Eye protection on everyone in the room, no exceptions. Spectators stay behind the line. HIPS snaps and it throws pieces, which is the entire reason the line exists.",
+          "content": "Eye protection on everyone in the room, no exceptions. HIPS snaps and it throws pieces, so stand back far enough that a broken hook is not your problem. Use your head.",
           "variant": "warn"
         }
       ]
@@ -379,7 +436,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Every item is pass or fail. A fail does not enter the bracket.\n\n1. Printed in the provided HIPS, in the reserved colour.\n2. Mass on the scale is 60.0 g or under.\n3. Thickness is 0.75 in or under.\n4. The 0.75 in go gauge passes through the anchor hole.\n5. The 0.75 in go gauge slides into the hook throat from the outside, with no interference.\n6. Centre-to-centre distance measures between 2.000 in and 3.000 in.\n7. No screws, tape, glue, or external reinforcement anywhere on the part.\n8. Any gate mechanism secures and actuates inside 10 seconds.\n9. The design is your own."
+          "content": "Every item is pass or fail. A fail does not enter the bracket.\n\n1. Printed in the provided HIPS.\n2. Mass on the scale is 60.0 g or under.\n3. Thickness is 1.00 in or under.\n4. The 0.75 in go gauge passes through the anchor hole.\n5. The 0.75 in go gauge slides into the hook throat from the outside, with no interference.\n6. Centre-to-centre distance measures between 2.000 in and 2.500 in.\n7. No screws, tape, glue, or external reinforcement anywhere on the part.\n8. Any gate mechanism secures and actuates inside 10 seconds.\n9. The design is your own."
         },
         {
           "type": "callout",
