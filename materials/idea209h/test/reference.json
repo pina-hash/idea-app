@@ -1,0 +1,564 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Mechanical Hardware Reference",
+    "course": "IDEA209H",
+    "subtitle": "Unit 1 · Six Component Categories and Fastener Fundamentals",
+    "referenceId": "idea209h-u1a-hardware",
+    "buildVersion": "v1"
+  },
+  "sections": [
+    {
+      "slug": "how-to-use",
+      "blurb": "What this document is for and which parts you will need first.",
+      "title": "Start Here",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "This is the component vocabulary for the Unit 1 Assignment. Six categories of mechanical hardware, one tab each, plus a closing tab on reading a real vendor catalog.\n\nYou are not expected to memorize any of it. You are expected to be able to find the right term, use it correctly in your written justification, and defend what you selected. Every tab is written so you can come back to it mid-task."
+        },
+        {
+          "type": "callout",
+          "title": "Read the Fasteners tab before the next class",
+          "content": "The Fasteners tab carries four ideas the next class period depends on: grade marking, shear plane, single versus double shear, and thread engagement. If the lecture runs short, this tab is where that content lives. Nothing in it is optional.",
+          "variant": "required"
+        },
+        {
+          "rows": [
+            {
+              "cat": "Fasteners",
+              "use": "Checkpoint 2. You size at least one bolt against a real shear load."
+            },
+            {
+              "cat": "Bearings",
+              "use": "Checkpoint 2. The pivot needs one, chosen against the shaft load you calculate."
+            },
+            {
+              "cat": "Shafts",
+              "use": "Checkpoint 1 and 2. Shaft load is a graded quantity; the shaft itself is a selection."
+            },
+            {
+              "cat": "Sprockets",
+              "use": "Checkpoint 2, if your reduction uses chain."
+            },
+            {
+              "cat": "Gears",
+              "use": "Checkpoint 1. Gear ratio is a graded quantity."
+            },
+            {
+              "cat": "Belt and chain drives",
+              "use": "Checkpoint 2, as the alternative to a gear reduction."
+            }
+          ],
+          "type": "dataTable",
+          "title": "Where each category shows up in the Assignment",
+          "caption": null,
+          "columns": [
+            {
+              "key": "cat",
+              "label": "Category"
+            },
+            {
+              "key": "use",
+              "label": "Where you use it"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### Source\nThe component descriptions here follow the NASA Robotics Alliance Project Robotics Design Guide, version 1.01. Where a number appears, it is a standard value from that guide, not something invented for this class. Anything you cite in your report should trace to a source like that or to the vendor's own page."
+        }
+      ]
+    },
+    {
+      "slug": "fasteners",
+      "blurb": "Bolts, nuts, rivets, and the four ideas the calculation day depends on.",
+      "title": "Fasteners",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A fastener holds two parts together. That sounds trivial until the joint is carrying load, at which point the fastener is a structural member and gets sized like one.\n\nMost of what a mechanism uses is a small set of standard sizes. Teams deliberately standardize on a few so they can stock spares and carry one set of tools. Very small sizes save weight that is rarely worth the added complexity."
+        },
+        {
+          "rows": [
+            {
+              "why": "The default. Strongest of the socket heads and the hardest to strip out.",
+              "kind": "Socket head cap"
+            },
+            {
+              "why": "Sits flush with the surface. Requires a countersunk hole. Most inch bolts use 82 degrees, most metric use 90.",
+              "kind": "Flat head, countersunk"
+            },
+            {
+              "why": "Rounded, lower profile. Use where a cap head is too tall or would snag.",
+              "kind": "Button head"
+            },
+            {
+              "why": "Shorter head than a cap head, for tight clearance.",
+              "kind": "Low profile"
+            },
+            {
+              "why": "Has a precision smooth section that fits a bearing or bushing and acts as a short shaft.",
+              "kind": "Shoulder bolt"
+            },
+            {
+              "why": "Holds axial position on a shaft. Do not use one to transmit torque.",
+              "kind": "Set screw"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Common bolt head types",
+          "caption": "Head style is a packaging and access decision, not a strength decision.",
+          "columns": [
+            {
+              "key": "kind",
+              "label": "Type"
+            },
+            {
+              "key": "why",
+              "label": "Why you would pick it"
+            }
+          ]
+        },
+        {
+          "rows": [
+            {
+              "why": "The default. A nylon insert keeps the bolt from backing out under vibration.",
+              "kind": "Nylon lock nut"
+            },
+            {
+              "why": "Same job where a standard lock nut will not fit.",
+              "kind": "Thin lock nut"
+            },
+            {
+              "why": "Mostly used in pairs, jammed against each other on threaded rod.",
+              "kind": "Plain nut"
+            },
+            {
+              "why": "For material too thin to tap. Installed into the part rather than threaded onto the bolt.",
+              "kind": "Pressed-in nut"
+            },
+            {
+              "why": "Threads for plastic and 3D printed parts. Pressed in with a soldering iron.",
+              "kind": "Heat-set insert"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Common nuts",
+          "caption": null,
+          "columns": [
+            {
+              "key": "kind",
+              "label": "Type"
+            },
+            {
+              "key": "why",
+              "label": "Why you would pick it"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Retention is not optional",
+          "content": "A joint that is correctly sized still fails if the bolt backs out. The two methods you will actually use are a nylon lock nut or a threadlocking compound. Never both on the same fastener: threadlocker destroys the nylon insert, so using them together gives you neither.",
+          "variant": "warn"
+        },
+        {
+          "type": "instructions",
+          "content": "### Grade marking\nBolts of the same diameter are not equally strong. Strength is set by the material and heat treatment, and it is declared by a **grade** (inch fasteners) or a **property class** (metric fasteners), stamped on the head.\n\nYou will not be asked to memorize a strength table. You will be asked to read the grade or class off the listing for the exact bolt you selected, record it, and use the strength value the vendor publishes for it. A bolt selected without its grade recorded is an incomplete selection, because the number that makes your sizing calculation true is missing."
+        },
+        {
+          "type": "instructions",
+          "content": "### Shear plane\nWhen a bolted joint is loaded sideways rather than pulled apart, the load has to cross the gap between the two parts. The imaginary surface it crosses at is the **shear plane**, and the bolt's cross-section at that plane is what carries the load.\n\nThis is why bolt sizing in shear works on cross-sectional area. Diameter is what you actually choose; area is what the load sees."
+        },
+        {
+          "type": "instructions",
+          "content": "### Single versus double shear\n**Single shear:** two parts, one interface, one shear plane. The whole load crosses one cross-section of the bolt.\n\n**Double shear:** three parts, with the middle one sandwiched, so there are two interfaces and two shear planes. The same applied load is now split between two cross-sections, so each plane carries half.\n\nA double-shear joint therefore carries roughly twice the load of the same bolt in single shear. Counting the planes wrong is the single most common error in this calculation, and it is off by a factor of two in the unsafe direction."
+        },
+        {
+          "type": "callout",
+          "title": "Thread engagement",
+          "content": "A bolt threaded into a tapped part only holds if enough thread is actually engaged. The working rule is at least four full threads into the material. For a 32-pitch thread that means at least 1/8 inch of material, since four threads at 32 per inch is 4/32. Material thinner than about 1/16 inch should generally not be tapped at all. The heavier the load, the more engagement you need, and past a point the right answer is a bolt and nut, or a pressed-in nut, rather than a tapped hole.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "### Rivets\nRivets join relatively thin parts and are semi-permanent: removing one means drilling it out. Blind rivets need access to only one side of the assembly, which is why they get used on closed tube.\n\nThree sizes cover most work. 1/8 inch for low to medium load, 5/32 inch as the general-purpose size for medium to high load, and 3/16 inch for high load. Rivet length matters as much as diameter: too short and the joint is weak, too long and the rivet never deforms enough to clamp. Anything you need to remove routinely should be a bolt, not a rivet."
+        }
+      ]
+    },
+    {
+      "slug": "bearings",
+      "blurb": "What supports a rotating shaft, and which type matches which load direction.",
+      "title": "Bearings",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A bearing supports a rotating shaft and cuts the friction between the shaft and whatever holds it. Choosing one starts with a single question: which direction is the load coming from?"
+        },
+        {
+          "rows": [
+            {
+              "use": "The default for a rotating shaft. This is what a loaded pivot uses.",
+              "kind": "Radial ball bearing",
+              "load": "Radial, perpendicular to the shaft axis"
+            },
+            {
+              "use": "Where something pushes on the face of the bearing rather than across it.",
+              "kind": "Thrust bearing",
+              "load": "Axial, along the shaft axis"
+            },
+            {
+              "use": "Elevators and sliding stages.",
+              "kind": "Linear bearing",
+              "load": "Supports straight-line motion, not rotation"
+            },
+            {
+              "use": "Ratcheting mechanisms.",
+              "kind": "One-way bearing",
+              "load": "Locks and carries torque one direction, free-spins the other"
+            },
+            {
+              "use": "Low speed, high load. Lighter and cheaper than a ball bearing, but more friction.",
+              "kind": "Bushing (plain bearing)",
+              "load": "Radial, no rolling elements"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Bearing types by load direction",
+          "caption": null,
+          "columns": [
+            {
+              "key": "kind",
+              "label": "Type"
+            },
+            {
+              "key": "load",
+              "label": "Load it takes"
+            },
+            {
+              "key": "use",
+              "label": "Typical use"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "The two numbers to record",
+          "content": "A vendor listing for a bearing publishes a maximum speed and a load rating. Those are the two specifications your justification has to cite. Bore, outer diameter, and width tell you whether it fits; the ratings tell you whether it survives.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "A bearing also has to be held in place, or it walks out of its bore under load. The usual methods are a press fit into the bore, a bolt head or washer capturing the face, or a feature on the shaft itself. Some bearing types handle both radial and axial load, tapered roller bearings being the common example, but a plain radial ball bearing tolerates only small axial loads."
+        }
+      ]
+    },
+    {
+      "slug": "shafts",
+      "blurb": "Live versus dead axles, and the profiles that let a shaft transmit torque.",
+      "title": "Shafts",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A shaft carries rotation from one place to another. The first decision is whether the shaft itself turns.\n\n**Live axle:** the shaft rotates and torque passes through it into the wheel, gear, or sprocket mounted on it. This requires a shaft profile that can grip.\n\n**Dead axle:** the shaft does not rotate. Bearings sit inside the wheel or gear, and torque is delivered directly to that part instead. A dead axle is more structural, because it can double as a standoff."
+        },
+        {
+          "rows": [
+            {
+              "kind": "Hex",
+              "note": "The common choice. 1/2 inch and 3/8 inch are the two standard sizes."
+            },
+            {
+              "kind": "Hex with rounded corners",
+              "note": "Fits directly into a round bearing, which makes alignment far easier. Sold in 3/8 and 1/2 inch."
+            },
+            {
+              "kind": "Round keyed",
+              "note": "A slot cut into the shaft takes a machine key. Used where high-speed round-bore bearings are needed. Several motors output an 8 mm round keyed shaft."
+            },
+            {
+              "kind": "D profile",
+              "note": "A round shaft with one flat milled on it."
+            },
+            {
+              "kind": "Square",
+              "note": "Used by one specific hardware ecosystem. Useful for prototyping."
+            }
+          ],
+          "type": "dataTable",
+          "title": "Shaft profiles",
+          "caption": "A round shaft with no profile cannot transmit torque in a live axle system.",
+          "columns": [
+            {
+              "key": "kind",
+              "label": "Profile"
+            },
+            {
+              "key": "note",
+              "label": "Note"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Set screws do not transmit torque",
+          "content": "A set screw bearing on a round shaft will hold axial position and will eventually round off the shaft under a torque load. If torque has to pass from shaft to component, that is what the profile is for.",
+          "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "sprockets",
+      "blurb": "The toothed wheel a chain runs on, and the numbers that define one.",
+      "title": "Sprockets",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A sprocket is a toothed wheel sized to a specific chain pitch. It is the component; the chain drive it belongs to is on the next tab.\n\nA sprocket is specified by three things: the chain it fits, its tooth count, and its bore. Tooth count is what sets the ratio, so it is the number your gear ratio calculation actually uses. Bore is what has to match your shaft profile."
+        },
+        {
+          "rows": [
+            {
+              "thk": "0.125 in",
+              "chain": "#25"
+            },
+            {
+              "thk": "0.1875 in",
+              "chain": "#35"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Sprocket thickness by chain size",
+          "caption": "The plate has to fit inside the chain's side plates.",
+          "columns": [
+            {
+              "key": "chain",
+              "label": "Chain"
+            },
+            {
+              "key": "thk",
+              "label": "Sprocket thickness"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "Two sprockets in a chain run set a ratio the same way two gears do: the ratio is the driven tooth count divided by the driving tooth count. Unlike gears, the two sprockets do not touch, so the distance between them is free within limits and the shafts turn the same direction rather than opposite."
+        },
+        {
+          "type": "callout",
+          "title": "Physical limits are real",
+          "content": "Tooth count is bounded by what fits. A sprocket has a real outside diameter, and if it is running inside structure it has to clear it. A ratio that is correct on paper and does not fit in the space is not a selection.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "gears",
+      "blurb": "Meshing teeth, the two specs that must match, and the ratio itself.",
+      "title": "Gears",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Gears are toothed wheels that mesh directly to transfer torque. Almost always they are used to trade speed for torque: reduce the speed, increase the torque. Two meshing gears turn in opposite directions."
+        },
+        {
+          "type": "callout",
+          "title": "Two specifications must match or the gears will not mesh",
+          "content": "**Pressure angle** is the angle at which the teeth push on each other. Two common values are in use, 14.5 degrees and 20 degrees, and a pair must share one.\n\n**Diametral pitch** is teeth per inch of pitch diameter. Common values are 20 and 32, where the higher number means finer teeth. A pair must share one.\n\nMixing either of these is a selection error that no amount of correct ratio math will save.",
+          "variant": "required"
+        },
+        {
+          "rows": [
+            {
+              "kind": "Spur",
+              "note": "Teeth parallel to the axis. Only works between parallel shafts. The small driving gear is a pinion."
+            },
+            {
+              "kind": "Sector",
+              "note": "A partial spur gear, for something that never rotates a full turn. Common on arms."
+            },
+            {
+              "kind": "Bevel",
+              "note": "Cone shaped, for shafts meeting at an angle. At 90 degrees with equal tooth counts they are called miter gears."
+            },
+            {
+              "kind": "Worm",
+              "note": "Very high reduction in little space, between perpendicular shafts. Hard to back-drive, so the mechanism tends to hold position."
+            },
+            {
+              "kind": "Rack and pinion",
+              "note": "A straight toothed bar driven by a pinion. Converts rotation to linear motion."
+            },
+            {
+              "kind": "Planetary",
+              "note": "A sun gear, several planets, and a ring gear. Large reduction in a compact package, and what most off-the-shelf gearboxes use."
+            }
+          ],
+          "type": "dataTable",
+          "title": "Gear types",
+          "caption": null,
+          "columns": [
+            {
+              "key": "kind",
+              "label": "Type"
+            },
+            {
+              "key": "note",
+              "label": "Note"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### Two formulas you will use\n**Pitch diameter** is the diameter at which a gear actually engages another gear. It is the tooth count divided by the diametral pitch.\n\n**Center distance** between two meshing gears is the sum of their tooth counts divided by twice the diametral pitch. Note what that means: only the sum matters, so a 50-tooth with a 50-tooth sits at the same center distance as a 60-tooth with a 40-tooth."
+        },
+        {
+          "type": "callout",
+          "title": "Stacked reductions multiply",
+          "content": "A gearbox with more than one reduction stage has a total ratio equal to the product of its stages, not the sum. Two 5:1 stages give 25:1. This is how catalog gearboxes reach large ratios, and it is how you will read their listings.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "belt-chain-drives",
+      "blurb": "Transmitting torque across a distance, and how the two compare.",
+      "title": "Belt and Chain Drives",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Gears have to touch, which fixes how far apart their shafts can be. Belts and chains carry torque across a distance instead, which is why a bicycle uses a chain rather than a gear train."
+        },
+        {
+          "rows": [
+            {
+              "belt": "Lower unless the belt is made much wider",
+              "chain": "Higher for a given width",
+              "aspect": "Load capacity"
+            },
+            {
+              "belt": "Lighter",
+              "chain": "Heavier",
+              "aspect": "Weight"
+            },
+            {
+              "belt": "Quiet, clean",
+              "chain": "Louder, needs lubrication",
+              "aspect": "Noise and mess"
+            },
+            {
+              "belt": "Bought in discrete lengths only",
+              "chain": "Built to length, link by link",
+              "aspect": "Length"
+            },
+            {
+              "belt": "Less forgiving",
+              "chain": "More forgiving",
+              "aspect": "Tolerance to misalignment"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Chain versus belt",
+          "caption": null,
+          "columns": [
+            {
+              "key": "aspect",
+              "label": "Aspect"
+            },
+            {
+              "key": "chain",
+              "label": "Chain"
+            },
+            {
+              "key": "belt",
+              "label": "Belt"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### Chain\nTwo sizes cover almost everything. **#25** chain has a 1/4 inch pitch, meaning each link is a quarter inch long, and is the common choice. **#35** has a 3/8 inch pitch, is stronger and noticeably heavier, and is more forgiving of imprecise alignment.\n\nDesign chain runs with an even number of links. Half links exist and are weaker than normal links. Master links, which let you close a chain run without a chain tool, are also weaker: a run with one in it will fail at the master link."
+        },
+        {
+          "type": "instructions",
+          "content": "### Belt\nBelts run on pulleys instead of sprockets. Two profiles dominate: **5 mm HTD**, typically in 9 mm and 15 mm widths, with the wider one reserved for high load; and **3 mm GT2**, typically 9 mm wide, which is lighter and more efficient but for lighter loads.\n\nBecause belts come only in discrete lengths, the center distance is not free. You pick a belt length and the geometry follows, rather than the other way around. Belt pitch length is the tooth count times the pitch. Pulley pitch diameter is the tooth count times the pitch, divided by pi."
+        },
+        {
+          "type": "callout",
+          "title": "Center distance is a real constraint",
+          "content": "Gears, chain, and belts all require a specific center-to-center distance to work. Too close and the drive binds; too far and it skips or throws. If your selection does not state a center distance, it is not finished.",
+          "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "reading-a-catalog",
+      "blurb": "What to pull off a vendor listing so the selection can be defended and ordered.",
+      "title": "Reading a Catalog",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Checkpoint 2 asks you to select real components from real catalogs and justify each one against published properties. That means every selection needs specific information copied off the actual listing, not remembered and not approximated."
+        },
+        {
+          "rows": [
+            {
+              "why": "A part with no source cannot be ordered.",
+              "item": "Vendor"
+            },
+            {
+              "why": "The only unambiguous identifier. A description is not one.",
+              "item": "Part number"
+            },
+            {
+              "why": "A procurement document without quantities is not usable.",
+              "item": "Quantity"
+            },
+            {
+              "why": "The published number your justification depends on: load rating, grade, tooth count, bore, pitch.",
+              "item": "Key specification"
+            },
+            {
+              "why": "Cost is a design constraint, and you covered it in the lab.",
+              "item": "Unit price"
+            }
+          ],
+          "type": "dataTable",
+          "title": "What every selection must carry",
+          "caption": "Missing any one of these makes the Bill of Materials incomplete.",
+          "columns": [
+            {
+              "key": "item",
+              "label": "Field"
+            },
+            {
+              "key": "why",
+              "label": "Why it is required"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Verify against the listing, not against memory",
+          "content": "Under the AI policy this assignment runs at ASSIST, which permits you to use AI to search and draft. It also requires that every factual claim be checked against the real datasheet or catalog page. An AI's recollection of a part number is not a source. Open the page.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "### Where to look\nMcMaster-Carr is the general industrial supplier and is unusually good for fasteners, bearings, and raw stock. Robotics-specific suppliers carry gears, sprockets, belts, pulleys, and shaft in the standard sizes described in these tabs, already matched to each other.\n\nPick the supplier that publishes the specification you need. A cheaper listing with no load rating is worse than a more expensive one with a full datasheet, because you cannot defend the cheaper one."
+        },
+        {
+          "type": "callout",
+          "title": "You will be challenged on this",
+          "content": "Every numerical value and every selection decision gets challenged during the presentation and defense. A value you cannot defend has to be corrected before that section of the report earns credit. Recording the source while you select is much faster than reconstructing it a week later.",
+          "variant": "info"
+        }
+      ]
+    }
+  ],
+  "navigation": "tabs",
+  "schemaVersion": 2
+}

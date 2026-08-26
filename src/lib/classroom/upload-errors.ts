@@ -25,6 +25,8 @@
  * than paraphrased.
  */
 
+import { isTransientSqlstate } from '$lib/pg-errors';
+
 export type UploadGate =
 	| 'too_large'
 	| 'expired'
@@ -196,21 +198,12 @@ export function classifyUploadError(args: {
  * read as "refused" to a caller that treats every RPC error the same way, and
  * every one of them is worth exactly one more attempt.
  *
- * THE LIST IS A WHITELIST, ON PURPOSE. Almost every raise on this path IS a
- * considered refusal -- not enrolled, not the teacher of record, already turned
- * in -- and retrying those is how a UI ends up asking the same question five
- * times. Only a named transient is retryable; everything else keeps the
- * server's own sentence and does not offer Retry.
+ * WHICH CODES THOSE ARE NOW LIVES IN `$lib/pg-errors`, unchanged, because the
+ * notebook's note routes have to answer the identical question about the
+ * identical failures -- and the partition is exactly the kind of list that
+ * stops matching once there are two of it. The reasoning for the whitelist
+ * shape is there; the WORDS for saying it to a person are still here.
  */
-const TRANSIENT_SQLSTATES = new Set([
-	'23505', // unique_violation      -- two writers raced an upsert
-	'40001', // serialization_failure
-	'40P01', // deadlock_detected
-	'55P03', // lock_not_available
-	'57014', // query_canceled (statement timeout)
-	'53300' // too_many_connections
-]);
-
 export function classifyRpcError(args: {
 	code?: string | null;
 	message?: string | null;
@@ -219,7 +212,7 @@ export function classifyRpcError(args: {
 	const code = (args.code ?? '').trim();
 	const message = (args.message ?? '').trim();
 
-	if (TRANSIENT_SQLSTATES.has(code)) {
+	if (isTransientSqlstate(code)) {
 		return {
 			gate: 'server',
 			message:
