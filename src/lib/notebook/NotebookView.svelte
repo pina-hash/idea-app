@@ -24,7 +24,8 @@
 		notebookComposerHasWork,
 		notebookUnsavedReason,
 		notebookUnsavedWarning,
-		selectedEntryOf
+		selectedEntryOf,
+		type NoteFlush
 	} from '$lib/notebook/notebook-shell';
 	import '$lib/notebook/notebook-theme.css';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
@@ -146,6 +147,7 @@
 		addNote,
 		editNote,
 		sealNotes,
+		flushNote,
 		folderTransports,
 		setPinned,
 		deleteEntry,
@@ -315,6 +317,17 @@
 		 * version it saved, which is the pre-0129 behaviour.
 		 */
 		sealNotes?: (entryId: string) => Promise<EntryActionResult>;
+		/**
+		 * ONE BEST-EFFORT WRITE OF THE NOTE DRAFT as the page is hidden or torn
+		 * down (`NoteFlush`). Synchronous and answerless on purpose: a `pagehide`
+		 * handler cannot await, and a suspended iOS tab never resumes a debounce,
+		 * a retry curve, or a promise. The transport sends it with `keepalive`.
+		 *
+		 * Omitted removes the net entirely and the surface behaves exactly as it
+		 * did before -- the hide path falls back to the shared machine's ordinary
+		 * `saveNow()`, which is what every non-notebook consumer still does.
+		 */
+		flushNote?: (payload: NoteFlush) => void;
 		/** Folder writes (0088). Omitted when foldersReady is false. */
 		folderTransports?: FolderTransports;
 		/** The one pin write (0091). Omitted when pinsReady is false. */
@@ -735,11 +748,44 @@
 	 * on the same 800ms debounce the assignment engine uses. `saved` is reached
 	 * only when a write is ACKNOWLEDGED, and carries the clock time of it.
 	 */
+	/**
+	 * THE HIDE PATH, AND IT IS A DIFFERENT SHAPE FROM THE SAVE PATH.
+	 *
+	 * `SaveState`'s default net is `saveNow()` -- the ordinary debounced,
+	 * retrying, awaited write. That is the right default for a surface on a
+	 * desktop and the wrong one here: iOS Safari freezes a hidden tab hard
+	 * enough that a plain `fetch` may never leave the machine, and the retry
+	 * curve's sleeps (up to 6.4s) never resume. So the notebook hands in an
+	 * `onHide` of its own -- ONE request, `keepalive`, no await, no retry, no
+	 * orchestration -- and the shared module is untouched for every other
+	 * consumer, which keeps its own default.
+	 *
+	 * IT CAN ONLY RESCUE A DRAFT THAT ALREADY EXISTS. `flushNote` names an
+	 * entry id, and a composer that has never been created server-side has none
+	 * to name: there is no single request that both creates an entry and is
+	 * safe to fire blind at teardown. That gap is real and is not closed here.
+	 *
+	 * THE GUARDS ARE `noteDue`'s, not a second spelling of them: `orphanNote`
+	 * and `noteChainUnknown` both mean a write would land in the wrong place,
+	 * and firing one blind is exactly where that is least recoverable.
+	 */
+	function hideFlush(): void {
+		if (!flushNote || !autosaveReady) return;
+		if (!noteDue || !savedDraftId) return;
+		flushNote({
+			entryId: savedDraftId,
+			noteId: savedNoteId,
+			content: noteDraft as TiptapNode,
+			autosave: coalescingReady
+		});
+	}
+
 	const save = new SaveState({
 		fallbackMessage: 'Your writing was not saved.',
 		async save() {
 			return await runSave(false, true);
-		}
+		},
+		onHide: hideFlush
 	});
 
 	/** visibilitychange + pagehide, living and dying with this instance. */
@@ -915,8 +961,19 @@
 				folderChoice = pending.folder;
 			}
 		}
+		/**
+		 * WHAT THIS SENTENCE MAY CLAIM IS WHAT THE MARKER ACTUALLY CARRIES.
+		 *
+		 * `notebook_pending_capture` holds the check-in, the section, the title
+		 * and the folder -- and NOT the note body. It used to say "Everything you
+		 * typed is still here", which is false in the one case this message is
+		 * shown for: the marker is only ever read on a FRESH load, i.e. after the
+		 * browser was killed, and a note that survived that survived because the
+		 * tab did, not because anything stored it. A student reading a promise
+		 * that broad stops checking the box it was made about.
+		 */
 		recoveryNote =
-			'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Everything you typed is still here. Please take the photo again.';
+			'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Your title and the check-in you picked have been put back. Check the writing box below before you carry on, then take the photo again.';
 	});
 
 	/**
@@ -1125,8 +1182,11 @@
 	async function persistNote(entryId: string, auto: boolean): Promise<NoteSaveResult> {
 		const doc = noteDraft as TiptapNode;
 		if (noteChainUnknown) {
+			// A REFUSAL, not a failure to deliver: this write has nowhere correct
+			// to land, so sending it again cannot change the answer.
 			return {
 				ok: false,
+				retryable: false,
 				error: 'Your writing could not be added to this entry. Save it from the entry itself.'
 			};
 		}
@@ -1199,7 +1259,9 @@
 				// snapshot of whatever had been typed 800ms in.
 				autosave: coalescingReady
 			});
-			if (!saved.ok) return { ok: false, retryable: true, message: saved.error };
+			if (!saved.ok) {
+				return { ok: false, retryable: saved.retryable !== false, message: saved.error };
+			}
 			rememberDraft(saved.entryId, saved.noteId, true);
 			// Revision 1 went in marked replaceable (`autosave` above), so it owes
 			// a boundary exactly as an autosaved edit does.
@@ -1212,7 +1274,9 @@
 			// `noteChainUnknown` is set, which is what fails that case closed rather
 			// than retrying it into a second note. Everything reaching this line is
 			// a transport failure, and sending it again can change the answer.
-			if (!wrote.ok) return { ok: false, retryable: true, message: wrote.error };
+			if (!wrote.ok) {
+				return { ok: false, retryable: wrote.retryable !== false, message: wrote.error };
+			}
 		}
 		if (labelDue) {
 			const titled = await persistLabel(savedDraftId);
@@ -1372,7 +1436,11 @@
 				staged = [];
 				stager?.reset();
 			}
-			if (!noteFailed) checkpoint();
+			// NOT WHILE ANYTHING FAILED. `checkpoint()` puts the indicator into
+			// `saved` with a clock time beside it, which read as a completed save
+			// sitting next to a red line about photos that did not upload. The
+			// indicator speaks for the whole save or it says nothing.
+			if (!noteFailed && !failed.length) checkpoint();
 		}
 		onChanged?.();
 	}
@@ -1432,6 +1500,26 @@
 			else if (!result.enhancedOk) failedEnhanced.push(i + 1);
 		}
 
+		/**
+		 * A FAILED NOTE ABORTS THE TURN-IN, AND THIS CHECK MUST STAY ABOVE
+		 * `submitEntry`.
+		 *
+		 * It used to sit below it, so a note write that failed still turned the
+		 * entry in and only then said so -- the entry went to the instructor
+		 * without the words the student had just written, and turning in is not
+		 * undoable from here. Submission is also a one-way door for the text
+		 * itself: `notebook_submit_entry` seals every revision on the way past
+		 * (0129), so the head stops being replaceable and the retry the message
+		 * asks for lands differently than it would have a moment earlier.
+		 *
+		 * The message and the early return are unchanged: the writing stays in
+		 * the box, which is what makes "Try again" a true instruction.
+		 */
+		if (noteFailed) {
+			errorMsg = 'Your note did not save, so it is still in the box above. Try again.';
+			return;
+		}
+
 		if (submitted) {
 			if (!submitEntry) {
 				errorMsg = 'Turning in an entry is not available here.';
@@ -1446,10 +1534,6 @@
 
 		if (failed.length) {
 			errorMsg = `${photoList(failed)} did not upload. Try again.`;
-			return;
-		}
-		if (noteFailed) {
-			errorMsg = 'Your note did not save, so it is still in the box above. Try again.';
 			return;
 		}
 		successMsg = submitted ? 'Entry turned in.' : 'Draft updated.';
@@ -2532,6 +2616,24 @@
 							it in. Photos attach when you save the entry.
 						{/if}
 					</p>
+					<!--
+						AND WHEN IT IS NOT AVAILABLE, SAY SO. Without this branch the
+						surface is SILENT about it: the reassuring sentence above and
+						the SaveIndicator beside it are both inside `autosaveReady`, so
+						a student on a deployment without 0118 gets a composer that
+						looks identical to one that saves itself and does not. The
+						sentence is the only thing on screen that can tell them apart.
+
+						Gated on `noteAllowed` rather than shown unconditionally: with
+						notes off there is no writing box, so there is no claim to make
+						about what happens to writing. `readOnly` is already excluded by
+						`noteAllowed` itself.
+					-->
+				{:else if noteAllowed}
+					<p class="note no-autosave-note" data-testid="nb-no-autosave-note">
+						Your writing is not saved automatically here. Use Save draft as you go, and Turn
+						in when you are ready.
+					</p>
 				{/if}
 				<!-- SAYS WHICH HALF IS MISSING, and never names photos alone: the
 				     student is being stopped by a rule with two ways to satisfy it,
@@ -2983,6 +3085,16 @@
 	.autosave-note {
 		margin: var(--space-2) 0 0;
 		color: var(--text-3);
+		font-size: 0.85rem;
+	}
+	/*
+	 * The same shape as `.autosave-note` and one tier less faint. It carries
+	 * something the student has to ACT on rather than a reassurance, so it
+	 * keeps `.note`'s own `--text-2` instead of dropping to `--text-3` -- and
+	 * it stays a plain sentence, not a warning colour: nothing has gone wrong.
+	 */
+	.no-autosave-note {
+		margin: var(--space-2) 0 0;
 		font-size: 0.85rem;
 	}
 	.label-field .optional {
