@@ -1,0 +1,395 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Hook Design and Manufacturing Guide",
+    "course": "IDEA100",
+    "subtitle": "Tournament of Hooks, IDEA100 Rotation 1, Fall 2026",
+    "referenceId": "idea100-hook-rules",
+    "buildVersion": "v2"
+  },
+  "sections": [
+    {
+      "slug": "how-to-qualify",
+      "blurb": "Read this tab first. Everything else is detail.",
+      "title": "How to Qualify",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You design one hook. Your teammate designs another. The two of you enter a double elimination bracket where hooks are pulled **against each other** on the rig until one breaks.\n\nThe hook that breaks loses. The hook that survives moves on with whatever damage it took. Your team is out when both of your hooks are gone.\n\nThis guide is the rulebook. A hook that misses any requirement in Dimensions or Manufacturing does not enter the bracket."
+        },
+        {
+          "type": "keyValue",
+          "items": [
+            {
+              "label": "Material",
+              "value": "HIPS, provided. One reserved colour."
+            },
+            {
+              "label": "Print profile",
+              "value": "Generic ABS, provided as a saved profile."
+            },
+            {
+              "label": "Maximum mass",
+              "value": "60.0 g, weighed after printing."
+            },
+            {
+              "label": "Maximum thickness",
+              "value": "0.75 in."
+            },
+            {
+              "label": "Both openings",
+              "value": "0.75 in clear."
+            },
+            {
+              "label": "Centre to centre",
+              "value": "2.000 in to 3.000 in."
+            },
+            {
+              "label": "Hooks per team",
+              "value": "Two. Different designs."
+            },
+            {
+              "label": "Test article budget",
+              "value": "Two half-scale test hooks."
+            }
+          ],
+          "title": "The short version"
+        },
+        {
+          "type": "callout",
+          "title": "The rule behind every other rule",
+          "content": "You can be asked to explain any part of your design, in your own words, at any time. A dimension you cannot justify gets corrected before the work earns credit. That is a correction, not a penalty.",
+          "variant": "required"
+        }
+      ]
+    },
+    {
+      "slug": "dimensions",
+      "blurb": "Checked at inspection. A miss is a disqualification, not a deduction.",
+      "title": "Dimensions",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "feature": "Centre-to-centre distance",
+              "requirement": "2.000 in to 3.000 in between the centres of the two 0.75 in features."
+            },
+            {
+              "feature": "Anchor side",
+              "requirement": "One 0.750 in diameter closed hole or loop."
+            },
+            {
+              "feature": "Hook side opening",
+              "requirement": "A minimum 0.750 in clear opening extending all the way to the edge."
+            },
+            {
+              "feature": "Maximum final mass",
+              "requirement": "60.0 g, measured on the scale after printing."
+            },
+            {
+              "feature": "Maximum thickness",
+              "requirement": "0.75 in."
+            }
+          ],
+          "type": "dataTable",
+          "title": "Physical and dimensional constraints",
+          "columns": [
+            {
+              "key": "feature",
+              "label": "Feature"
+            },
+            {
+              "key": "requirement",
+              "label": "Requirement"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "The slide-in requirement",
+          "content": "The hook side must be shaped so a standard 0.75 in diameter cylinder slides straight into the throat from the outside, with no interference. One physical go gauge checks both openings at inspection.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "### Tolerancing\n\nA 0.750 in opening modelled in CAD will usually come out tight in the printed part. Use your test hooks to find how much you need to oversize it in SolidWorks. Do not guess it once and print the real thing.\n\n### Mass\n\nThe number that counts is the one on the scale, not the one in CAD. Leave yourself a buffer. A part at 59.8 g in the slicer is not a part at 59.8 g on the bench."
+        },
+        {
+          "type": "callout",
+          "title": "Retractable hook allowance",
+          "content": "A closed-loop design such as a carabiner-style gate is permitted on the hook side, provided a 0.75 in cylinder can pass into the throat when the mechanism is fully opened. The mechanism must be non-permanent and integral to the hook. It must be secured and actuated within 10 seconds at technical inspection.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "versions",
+      "blurb": "Four versions. Each one exists to answer a different question.",
+      "title": "V0 to V3",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "what": "The tutorial hook. Guided, everyone builds the same part, then prints it.",
+              "version": "V0",
+              "question": "Can I drive SolidWorks and Bambu Studio at all. V0 is yours to keep."
+            },
+            {
+              "what": "Your first design. No new tools, no testing.",
+              "version": "V1",
+              "question": "Can I build my own hook with what I already know."
+            },
+            {
+              "what": "The design after simulation.",
+              "version": "V2",
+              "question": "Where does the stress pile up, and did I move material there."
+            },
+            {
+              "what": "The final design, after simulation and scale testing. This is what gets printed full size and fights.",
+              "version": "V3",
+              "question": "Did the real part fail where the simulation said it would."
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "version",
+              "label": "Version"
+            },
+            {
+              "key": "what",
+              "label": "What it is"
+            },
+            {
+              "key": "question",
+              "label": "The question it answers"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "V3 gets the extra time on purpose",
+          "content": "Simulation and scale testing can be repeated as many times as you can manage. Class time gates the checkpoints; the shop is open from 7:30, at lunch, and until 4:30 for the iterating. The students who place well are the ones who use it.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "solidworks",
+      "blurb": "Sloppy trees and under-defined sketches get rejected at design review.",
+      "title": "SolidWorks Standards",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### Fully defined sketches\n\nEvery structural and dimensional sketch must be fully defined. All lines black.\n\n**The aesthetic exception.** Splines and text used only for branding, contouring, or non-structural weight-saving patterns are exempt, provided they do not affect any dimension in the Dimensions tab.\n\n### No fixed geometry\n\nThe Fix constraint is prohibited. Define shapes with dimensions and relations: horizontal, vertical, tangent, coincident, equal.\n\n### An organised design tree\n\n- **Rename your features.** `Extrude1` and `Fillet4` are not acceptable. `Main_Body_Extrude` and `Anchor_Fillets` are.\n- **Use folders.** Group the weight-reduction cuts together, group the finishing fillets together. Any design past 10 features must use folders and renamed features.\n\n### Make it interesting\n\nA blocky hook is a weak hook. Splines, variable fillets, and truss patterns produce shapes that are lighter, stronger, and better looking at the same time."
+        },
+        {
+          "type": "callout",
+          "title": "Effort is protected",
+          "content": "CAD grading rewards engineered effort over safe simplicity. A complex design showing real design intent and sophisticated modelling is protected from small non-structural hygiene errors that would sink a simpler part. Ambition is not punished here.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "simulation",
+      "blurb": "A diagnostic that tells you where. It does not tell you how much.",
+      "title": "Simulation",
+      "blocks": [
+        {
+          "type": "callout",
+          "title": "Set the material to Nylon 101, not to a HIPS or ABS entry",
+          "content": "SolidWorks is poorly conditioned for ABS-family polymers and will not give you a usable study. In a single-material part under a fixed load, the stress pattern barely depends on which material you pick, so the hot spot you find with Nylon 101 is the hot spot your HIPS part actually has.",
+          "variant": "required"
+        },
+        {
+          "rows": [
+            {
+              "value": "Static.",
+              "setting": "Study type"
+            },
+            {
+              "value": "Nylon 101.",
+              "setting": "Material"
+            },
+            {
+              "value": "The upper internal face of the anchor hole.",
+              "setting": "Fixture"
+            },
+            {
+              "value": "400 lbf tensile, on the inner radius of the hook opening.",
+              "setting": "Load"
+            },
+            {
+              "value": "von Mises stress.",
+              "setting": "Plot to read"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Study setup",
+          "columns": [
+            {
+              "key": "setting",
+              "label": "Setting"
+            },
+            {
+              "key": "value",
+              "label": "Use this"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### What you read off the plot\n\n**Location.** Where is the red. That is where your hook will break.\n\n**Relative magnitude.** How much worse is the throat than the shank. That tells you where material is worth adding and where it is worth removing.\n\n### What you do not read off the plot\n\nFactor of safety, displacement, and predicted failure load. Those numbers are wrong here because the material is a stand-in, and quoting one in your write-up is a mistake, not a shortcut.\n\nThe honest division of labour across the whole project: **the simulation tells you where, the scale test tells you whether your geometry survived contact with a printer, and the rig tells you how much.**"
+        },
+        {
+          "type": "callout",
+          "title": "AI is useful here",
+          "content": "Screenshot your stress plot, tell the AI what the study was set up as, and ask it to walk you through what the plot is showing. That is COACH use and it is exactly what it is good for. Asking it to redesign your hook is not.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "manufacturing",
+      "blurb": "HIPS on the X1C and the H2D. You run your own prints.",
+      "title": "Manufacturing",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "item": "Filament",
+              "rule": "Provided HIPS only, in the reserved colour. A hook in any other colour is rejected at inspection with no testing and no argument."
+            },
+            {
+              "item": "Profile",
+              "rule": "The provided Generic ABS profile. You do not set filament or temperature parameters."
+            },
+            {
+              "item": "Orientation",
+              "rule": "Flat on the build plate. Mandatory. This runs the grain along the length of the hook."
+            },
+            {
+              "item": "Your decision",
+              "rule": "The balance of wall loops against infill density. This is the real slicer lesson."
+            },
+            {
+              "item": "Bed adhesion",
+              "rule": "Glue the plate. Do it every few prints, not once a month."
+            },
+            {
+              "item": "Test budget",
+              "rule": "Two half-scale test hooks."
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "item",
+              "label": "Item"
+            },
+            {
+              "key": "rule",
+              "label": "Rule"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Perimeters carry the load",
+          "content": "In an FDM part most of the strength is in the walls, not the infill. A hook with thin walls and dense infill is heavy and weak, which is the worst combination available to you. Spend your 60 g where it works.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "### What the scale test can and cannot tell you\n\nA half-scale hook has a quarter of the cross section, but the wall thickness does not scale with it. The test part is proportionally more wall than the real one, so it is stronger than the geometry alone predicts.\n\n**Failure location transfers. Failure load does not.** Use the test hook to confirm where it breaks and whether it printed the way you drew it. Do not use its number to predict what the full-size part will hold."
+        }
+      ]
+    },
+    {
+      "slug": "tournament",
+      "blurb": "Hook against hook. One rig. One hook dies per match.",
+      "title": "Tournament Rules",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### The match\n\nTwo hooks are linked in the load path and pulled against each other on the rig. The first to break loses the match. Exactly one hook is destroyed per match.\n\nThe winning hook advances **with its damage**. It has been loaded near failure and it is not the part it was. That is part of the game.\n\n### Your team's decision\n\nYou hold two different hooks. Each round you choose which one to send. Send the strong one now, or hold it back for the losers bracket and spend the other one. That choice is yours and it decides more matches than you would think.\n\n### Elimination\n\nDouble elimination. Two losses puts your team out, which is exactly two dead hooks. A team is never eliminated while it still holds a hook."
+        },
+        {
+          "rows": [
+            {
+              "rule": "Final weigh-in",
+              "detail": "Hooks are weighed on a precision scale after printing. 60.0 g is the ceiling."
+            },
+            {
+              "rule": "Weight correction",
+              "detail": "Over 60.0 g, you remove material by hand until it is legal. Drill, file, sand. No reprints for an overweight part."
+            },
+            {
+              "rule": "Manufacturing integrity",
+              "detail": "Provided HIPS only. No screws, tape, glue, or any external reinforcement."
+            },
+            {
+              "rule": "The 2-hook rule",
+              "detail": "A team that brings two legal hooks enters the double elimination bracket. A team with one hook enters single elimination and is out on its first loss."
+            },
+            {
+              "rule": "Gate actuation",
+              "detail": "Any gate or retractable mechanism must be secured and actuated within 10 seconds at inspection."
+            },
+            {
+              "rule": "Originality",
+              "detail": "Designs must be your own. Copying a known public design, including the Tom Stanton Polymaker hook or a hook from a previous rotation, is a disqualification. Studying them for ideas is encouraged and expected."
+            },
+            {
+              "rule": "Championship",
+              "detail": "The winner is the last team holding an intact hook. A team coming out of the losers bracket must break through the top team's remaining hooks to take the title."
+            },
+            {
+              "rule": "The exhibition pull",
+              "detail": "The champion hook never breaks in the bracket, so it has no number. It gets pulled to failure at the close with everyone watching. That number goes on the wall."
+            }
+          ],
+          "type": "dataTable",
+          "title": "Rules of the event",
+          "columns": [
+            {
+              "key": "rule",
+              "label": "Rule"
+            },
+            {
+              "key": "detail",
+              "label": "Detail"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "Safety at the rig",
+          "content": "Eye protection on everyone in the room, no exceptions. Spectators stay behind the line. HIPS snaps and it throws pieces, which is the entire reason the line exists.",
+          "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "inspection",
+      "blurb": "Run this on your own hook before you bring it. Nothing here is a surprise.",
+      "title": "Inspection Checklist",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Every item is pass or fail. A fail does not enter the bracket.\n\n1. Printed in the provided HIPS, in the reserved colour.\n2. Mass on the scale is 60.0 g or under.\n3. Thickness is 0.75 in or under.\n4. The 0.75 in go gauge passes through the anchor hole.\n5. The 0.75 in go gauge slides into the hook throat from the outside, with no interference.\n6. Centre-to-centre distance measures between 2.000 in and 3.000 in.\n7. No screws, tape, glue, or external reinforcement anywhere on the part.\n8. Any gate mechanism secures and actuates inside 10 seconds.\n9. The design is your own."
+        },
+        {
+          "type": "callout",
+          "title": "Check your own part the night before",
+          "content": "Every item on this list can be checked at open shop with the gauge and the scale sitting on the bench. A hook that fails inspection on tournament day failed it days earlier and nobody looked.",
+          "variant": "warn"
+        }
+      ]
+    }
+  ],
+  "navigation": "tabs",
+  "schemaVersion": 2
+}
