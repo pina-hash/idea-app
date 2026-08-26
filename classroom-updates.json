@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-26",
+			"title": "Long answers no longer bury the rest of an assignment",
+			"body": "A written-answer box used to grow taller for every line you added, with no limit. On a phone a long answer could stretch the box past a full screen and a half, so getting to the next module meant scrolling through everything you had already written. The box now stops growing once it is tall enough for a long answer and scrolls inside itself after that. Nothing is cut off and nothing is lost: your whole answer is still there, and while you are typing the box follows your cursor as it always did. Written-answer boxes and photo captions also get your browser's spellcheck now, so misspellings are underlined the way they are anywhere else you type.",
+			"tags": [
+				"assignments"
+			]
+		},
+		{
 			"date": "2026-08-25",
 			"title": "A published app gets a whole page, and a link you can share",
 			"body": "An app in the gallery used to run in a small box inside the page, so anything with a fixed playfield had to be zoomed out before you could use it. Two things change. There is a Full screen button beside Stop app, which hands the running app the whole window and gives it back with Escape or the button, and the app keeps going the whole time. And every published app now has a page of its own: open the app in the gallery and you will find its link under Share this app, with a button to copy it. Anyone you send that link to can open the app without signing in, and the page carries only the app -- your name, your class and your build notes stay in the gallery. If your app is taken down or you delete it, the link stops working straight away.",
