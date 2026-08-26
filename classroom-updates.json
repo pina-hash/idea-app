@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-26",
+			"title": "The notebook's local backup copy expires sooner",
+			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-26",
 			"title": "Long answers no longer bury the rest of an assignment",
 			"body": "A written-answer box used to grow taller for every line you added, with no limit. On a phone a long answer could stretch the box past a full screen and a half, so getting to the next module meant scrolling through everything you had already written. The box now stops growing once it is tall enough for a long answer and scrolls inside itself after that. Nothing is cut off and nothing is lost: your whole answer is still there, and while you are typing the box follows your cursor as it always did. Written-answer boxes and photo captions also get your browser's spellcheck now, so misspellings are underlined the way they are anywhere else you type.",
 			"tags": [
