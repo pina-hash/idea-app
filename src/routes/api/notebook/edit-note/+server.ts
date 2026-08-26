@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { normalizeNoteDoc } from '$lib/server/notebook-notes';
 import { UUID_RE } from '$lib/server/notebook-upload';
+import { rpcErrorStatus } from '$lib/pg-errors';
 import type { RequestHandler } from './$types';
 
 /**
@@ -59,7 +60,17 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 
 	const { data, error } = await supabase.rpc('notebook_edit_note', args);
 	if (error) {
-		return json({ error: error.message }, { status: 400 });
+		/**
+		 * A REFUSAL AND A TRANSIENT ARE REPORTED DIFFERENTLY, and until this line
+		 * they were not. Every RPC error left here as a 400, which the composer's
+		 * retry curve reads as "the server considered this payload and said no"
+		 * -- so a deadlock or a `too_many_connections`, neither of which is a
+		 * decision about the payload at all, was dropped after one attempt with a
+		 * student's writing in it. `rpcErrorStatus` is the one partition
+		 * ($lib/pg-errors); a `raise` from the RPC is still a 400 and still
+		 * reaches the reader as its own sentence.
+		 */
+		return json({ error: error.message }, { status: rpcErrorStatus(error.code) });
 	}
 
 	return json({ ok: true, note: data });

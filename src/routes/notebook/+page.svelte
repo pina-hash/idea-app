@@ -9,6 +9,7 @@
 		NotePayload
 	} from '$lib/notebook';
 	import type { TiptapNode } from '$lib/notebook-notes';
+	import type { NoteFlush } from '$lib/notebook/notebook-shell';
 	import type { FolderResult, FolderTransports } from '$lib/notebook-folders';
 
 	/**
@@ -21,8 +22,21 @@
 	 */
 	let { data } = $props();
 
-	/** Every route answers JSON; a non-JSON body is reported as the status. */
-	async function post(url: string, body: FormData | object): Promise<Record<string, unknown>> {
+	/** One answer from a route: the parsed body, and the status it came with. */
+	type Answered = { status: number; body: Record<string, unknown> };
+
+	/**
+	 * Every route answers JSON; a non-JSON body is reported as the status.
+	 *
+	 * THE STATUS IS CARRIED OUT, and it is not decoration: it is the only thing
+	 * that separates a REFUSAL from a failure to deliver. These routes answer
+	 * 400 for a note over the cap, an empty note and any RPC that raised, and
+	 * 401 with no session -- decisions about this exact payload, which sending
+	 * again cannot change. A 5xx or a thrown fetch is the opposite. Without the
+	 * status here the composer's autosave has nothing to tell them apart with,
+	 * and retries all of them five times over ~12s.
+	 */
+	async function post(url: string, body: FormData | object): Promise<Answered> {
 		const json = !(body instanceof FormData);
 		const res = await fetch(url, {
 			method: 'POST',
@@ -30,24 +44,49 @@
 			body: json ? JSON.stringify(body) : body
 		});
 		try {
-			return (await res.json()) as Record<string, unknown>;
+			return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 		} catch {
-			return { error: `The server answered ${res.status}.` };
+			return { status: res.status, body: { error: `The server answered ${res.status}.` } };
 		}
 	}
 
-	function readEntry(body: Record<string, unknown>, fallback: string): CreateEntryResult {
+	/**
+	 * 4xx IS THE SERVER HAVING CONSIDERED THIS PAYLOAD AND SAID NO. Everything
+	 * else -- 5xx, and the 200-without-`ok` that these routes do not produce but
+	 * that a proxy or a rewritten response could -- is left retryable, which is
+	 * the behaviour every caller had before this existed. A thrown fetch never
+	 * reaches here at all: it propagates, and `runSave` catches it as retryable.
+	 */
+	function retryableStatus(status: number): boolean {
+		return !(status >= 400 && status < 500);
+	}
+
+	function readEntry(res: Answered, fallback: string): CreateEntryResult {
+		const { status, body } = res;
 		const entry = body.entry as { entry_id?: string; note_id?: string } | undefined;
 		const entryId = entry?.entry_id;
-		if (!body.ok || !entryId) return { ok: false, error: (body.error as string) || fallback };
+		if (!body.ok || !entryId) {
+			return {
+				ok: false,
+				error: (body.error as string) || fallback,
+				retryable: retryableStatus(status)
+			};
+		}
 		// The note chain the entry was created with, when it was created FROM a
 		// note. Passed through so the composer's autosave edits that chain on
 		// every later write instead of starting another one.
 		return { ok: true, entryId, noteId: entry?.note_id };
 	}
 
-	function readOk(body: Record<string, unknown>, fallback: string): NoteSaveResult {
-		if (!body.ok) return { ok: false, error: (body.error as string) || fallback };
+	function readOk(res: Answered, fallback: string): NoteSaveResult {
+		const { status, body } = res;
+		if (!body.ok) {
+			return {
+				ok: false,
+				error: (body.error as string) || fallback,
+				retryable: retryableStatus(status)
+			};
+		}
 		return { ok: true, noteId: (body.note as { note_id?: string } | undefined)?.note_id };
 	}
 
@@ -60,7 +99,7 @@
 	}
 
 	async function addPhoto(form: FormData): Promise<AddPhotoResult> {
-		const body = await post('/api/notebook/add-photo', form);
+		const { body } = await post('/api/notebook/add-photo', form);
 		if (!body.ok) return { ok: false, error: (body.error as string) || 'The upload failed.' };
 		return { ok: true };
 	}
@@ -93,6 +132,52 @@
 			await post('/api/notebook/edit-note', { note_id: noteId, content: doc, autosave }),
 			'The change failed to save.'
 		);
+	}
+
+	/**
+	 * THE HIDE-PATH WRITE, and the ONLY `keepalive` request on this page.
+	 *
+	 * A request begun in a `visibilitychange` or `pagehide` handler is not
+	 * guaranteed to leave the machine: the document is being torn down or
+	 * frozen, and on iOS Safari that happens aggressively. `keepalive` is the
+	 * platform's answer -- the browser takes ownership of the request and
+	 * finishes it independently of the page.
+	 *
+	 * `keepalive` RATHER THAN `sendBeacon`, deliberately: a beacon cannot set
+	 * `content-type: application/json`, so it would arrive at a route that
+	 * parses JSON as something the route refuses, and the payload shape would
+	 * have to fork. This sends byte-identically what the ordinary save sends,
+	 * to the same route, so there is one request shape and one server contract.
+	 *
+	 * NOTHING IS AWAITED AND NOTHING IS REPORTED. There is no surface left to
+	 * report to and no opportunity to retry; a rejection is swallowed rather
+	 * than left to become an unhandled rejection during teardown.
+	 *
+	 * THE 64KB CEILING IS REAL. A browser is required to reject a keepalive
+	 * request whose body exceeds 64KB across all in-flight keepalive requests.
+	 * A note is capped at NOTE_MAX_CHARS (20,000) of TEXT, but what goes on the
+	 * wire is the editor's ProseMirror JSON with its node and mark scaffolding,
+	 * so the serialised body is always larger than the text and can exceed 64KB
+	 * well before the cap. Nothing here truncates: an oversized body is refused
+	 * whole by the browser and the write simply does not happen, which is the
+	 * same outcome as today and not a silent partial save.
+	 */
+	function flushNote(payload: NoteFlush): void {
+		const url = payload.noteId ? '/api/notebook/edit-note' : '/api/notebook/add-note';
+		const body = payload.noteId
+			? { note_id: payload.noteId, content: payload.content, autosave: payload.autosave }
+			: { entry_id: payload.entryId, content: payload.content, autosave: payload.autosave };
+		try {
+			void fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body),
+				keepalive: true
+			}).catch(() => {});
+		} catch {
+			// An over-ceiling body throws synchronously in some engines. There is
+			// nothing to fall back to and nobody to tell.
+		}
 	}
 
 	/**
@@ -275,6 +360,7 @@
 	{addNote}
 	{editNote}
 	{sealNotes}
+	{flushNote}
 	{folderTransports}
 	{setPinned}
 	{deleteEntry}
