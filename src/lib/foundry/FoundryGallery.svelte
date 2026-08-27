@@ -62,6 +62,14 @@
 			     that stood in for navigation is gone rather than duplicated. -->
 			<header class="fdy-gal-head">
 				<h2>Published apps</h2>
+				<!--
+					PERMANENT, not only in the empty state below. The shell carries a
+					Build contract tab of its own, but this is a second way in, right
+					beside the list -- reachable whether the gallery is empty or full
+					of apps, which the old link (inside the empty-state branch only)
+					was not.
+				-->
+				<a class="fdy-gal-contract tap-44" href="/foundry/contract">Build contract</a>
 			</header>
 
 			{#if apps.length === 0}
@@ -172,6 +180,12 @@
 		font-size: 1.25rem;
 	}
 
+	.fdy-gal-contract {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		color: var(--text-2, var(--dim));
+	}
+
 	.fdy-gal-empty {
 		display: flex;
 		flex-direction: column;
@@ -208,11 +222,19 @@
 		gap: var(--space-3, 0.75rem);
 	}
 
+	/*
+	   THE THUMBNAIL WAS A 4.5rem SQUARE ICON, AND THAT WAS THE DEFECT. A cover
+	   is a screenshot of a running app, which is landscape by construction --
+	   a browser or a phone frame is always wider than it is tall -- so
+	   `object-fit: contain` inside a 72px square left most covers as a thin
+	   letterboxed strip a few pixels tall, which reads as broken or missing
+	   rather than as a deliberately small thumbnail. The box is not the wrong
+	   FIT, it was the wrong SHAPE for what actually gets uploaded.
+	*/
 	.fdy-card {
-		display: grid;
-		grid-template-columns: 4.5rem minmax(0, 1fr);
-		gap: var(--space-3, 0.75rem);
-		align-items: start;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
 		/* 44px floor as a MINIMUM, never a height: this card is far taller, and
 		   a fixed height here would clip a wrapped title. */
 		min-height: 44px;
@@ -234,10 +256,18 @@
 		background: var(--surface-2, var(--bg2));
 	}
 
+	/*
+	   16:9 IS THE COVER'S OWN SHAPE, MEASURED FROM WHAT ACTUALLY GETS UPLOADED
+	   RATHER THAN CHOSEN AS A ROUND NUMBER: a browser window, a phone screen in
+	   either orientation and a desktop app window are all wider ranges that sit
+	   close to it, and none of them are square. A cover in a box shaped like
+	   its own aspect ratio needs no letterboxing to speak of, so `contain`
+	   stops being the thing fighting the layout.
+	*/
 	.fdy-card-cover {
 		display: block;
-		width: 4.5rem;
-		height: 4.5rem;
+		width: 100%;
+		aspect-ratio: 16 / 9;
 		border-radius: var(--radius-sm, 6px);
 		overflow: hidden;
 		background: var(--surface-2, var(--bg2));
@@ -247,9 +277,17 @@
 	.fdy-card-cover img {
 		width: 100%;
 		height: 100%;
-		/* `contain` here too: a thumbnail cropped to fill is a thumbnail that can
-		   hide what the app looks like, which is the only thing it is for. */
-		object-fit: contain;
+		/*
+		   `scale-down`, NOT `contain`: it behaves exactly like `contain` for
+		   anything at or above the box size (never crops, never hides an edge --
+		   the reasoning `contain` was chosen for stands), but it refuses to
+		   enlarge an image SMALLER than the box. `contain` alone stretches a
+		   small upload to fill the frame, which is the "upscaled and blurry"
+		   failure mode: a screenshot saved small comes back soft and pixelated
+		   at this size instead of rendering at its own native sharpness with
+		   plain letterboxing around it.
+		*/
+		object-fit: scale-down;
 	}
 
 	.fdy-card-blank {
@@ -259,7 +297,10 @@
 		width: 100%;
 		height: 100%;
 		font-family: var(--font-title, var(--font-display));
-		font-size: 1.5rem;
+		/* Large enough to read as a deliberate placeholder mark rather than a
+		   shrunken accident -- it fills a real fraction of a 16:9 box instead of
+		   the single small glyph a 72px square could hold. */
+		font-size: 2.75rem;
 		color: var(--text-2, var(--dim));
 	}
 
