@@ -7,7 +7,7 @@
     "dueDate": "2026-08-27",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-lab-01",
-    "buildVersion": "v1",
+    "buildVersion": "v2",
     "headerFields": [
       "studentName",
       "date"
@@ -101,7 +101,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Take one hook, the gauge, the scale, and a set of calipers.\n\n**Record what the instrument says, not whether it passed.** A hook that reads 61.4 g failed by 1.4 g, and a hook that reads 88 g was never close. Those are different parts and \"fail\" hides the difference. Numbers first, verdict second.\n\nWork one row at a time. If a check does not apply to your hook because that part of it is gone, write what is missing."
+          "content": "Take one hook, a set of calipers or a ruler, and the scale.\n\n**Record what the calipers say, not whether it passed.** A hook that reads 61.4 g failed by 1.4 g, and a hook that reads 88 g was never close. Those are different parts and \"fail\" hides the difference. Numbers first, verdict second.\n\nWork one row at a time. If a check does not apply to your hook because that part of it is gone, write what is missing."
         },
         {
           "id": "t2",
@@ -110,17 +110,17 @@
           "columns": [
             {
               "key": "check",
-              "tip": "Mass, thickness, anchor gauge, throat gauge, centre to centre.",
+              "tip": "Mass, thickness, anchor diameter, throat at its narrowest, centre to centre.",
               "label": "Check"
             },
             {
               "key": "value",
-              "tip": "A number with units, or pass and fail for the gauge checks.",
+              "tip": "A number with units. Every one of these is measurable.",
               "label": "What the instrument reads"
             },
             {
               "key": "verdict",
-              "tip": "Compare against the rules guide.",
+              "tip": "Compare your number against the rules guide.",
               "label": "Legal?"
             }
           ],
@@ -147,19 +147,19 @@
               "label": "Complete",
               "short": "All five, real numbers",
               "points": 4,
-              "descriptor": "All five checks carry a reading with units where a number applies, and a legality call beside it."
+              "descriptor": "All five checks carry a reading with units, and a legality call beside each one."
             },
             {
               "label": "Proficient",
               "short": "Four of five",
               "points": 3,
-              "descriptor": "Four checks carry readings; one is recorded only as pass or fail where a number was available."
+              "descriptor": "Four checks carry readings with units; one is missing a value or its units."
             },
             {
               "label": "Developing",
               "short": "Verdicts, few numbers",
               "points": 2,
-              "descriptor": "Most rows record only pass or fail, or units are missing throughout."
+              "descriptor": "Most rows record only legal or illegal, or units are missing throughout."
             },
             {
               "label": "Absent",
