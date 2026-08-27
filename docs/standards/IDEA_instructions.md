@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.8 - 2026-08-26**
+**Version 4.9 - 2026-08-27**
 
 ## These Instructions Evolve
 
@@ -1160,13 +1160,19 @@ Read the relevant file before starting any task that touches those domains.
 - **Brief corrections.** When feedback is given, apply it without lengthy
   acknowledgment. Do not restate what changed unless asked.
 - **No em dashes.** Use a hyphen or rewrite the sentence.
-- **When Mr. Pina asks for instructions he can follow himself, write them for
-  someone who knows nothing.** Numbered steps, exact button names, what the correct
-  result looks like, and what to do when it looks different. He asks for this by
-  saying so, and the request means the previous answer assumed knowledge he does not
-  have. Do not bundle unrelated work into a procedure he has to execute by hand: the
-  token rotation and the permission edit were separate problems, and pairing them
-  made a ten-minute security step look like a project.
+- **Every manual instruction is a last resort, and the search for an alternative
+  happens before the instruction is written.** See the Hard Rule "A manual instruction
+  is the last resort, and the search comes first". The rule governs whether to hand
+  the work over at all; this bullet governs how it is written once that is settled.
+- **When an instruction does have to be executed by hand, write it for someone who
+  knows nothing.** Numbered steps, the exact name of every button, menu and field as
+  it actually appears, what the correct result looks like, and what to do when it
+  looks different. This is the standing form, not a form Mr. Pina has to ask for. He
+  used to ask for it by saying so, and each of those requests meant the previous
+  answer had assumed knowledge he does not have; writing it this way every time
+  removes the round trip. Do not bundle unrelated work into a procedure he has to
+  execute by hand: the token rotation and the permission edit were separate problems,
+  and pairing them made a ten-minute security step look like a project.
 - **Stop when the work is done.** A session that keeps surfacing findings will keep
   generating follow-up work, and each item can be individually correct while the set
   of them has drifted away from what was asked for. Before writing another prompt,
@@ -1205,6 +1211,36 @@ Read the relevant file before starting any task that touches those domains.
   or manual operations for Mr. Pina to perform is a defect whenever Claude could
   have done it. This applies to standards files, repo changes, and anything else
   with a delivery mechanism already established.
+- **A manual instruction is the last resort, and the search comes first.** Before
+  writing a single step for Mr. Pina to perform by hand, work through the alternatives
+  in order and say which one was taken. Can Claude do it in this chat, with the tools
+  it has. Can a Claude Code prompt do it. Can it be done by building the thing that
+  makes it automatable, which is a legitimate answer even when the build is larger
+  than the task, and is still the right answer when it lands after this occurrence
+  rather than in time for it. Only when all three fail does a manual instruction get
+  written, and the reply says which alternative was ruled out and why. **The most
+  common failure is not choosing wrongly, it is not looking.** A manual step is the
+  first shape that comes to mind for anything outside the repo, so it gets written
+  without the question being asked at all.
+  **Check the premise before handing over the task, not after.** A manual instruction
+  built on a false premise costs more than the work it was avoiding, because he
+  performs it, finds nothing, and has no way to tell a wrong premise from a wrong
+  procedure. Established 2026-08-27: three manual tasks were handed over in one reply
+  and all three were wrong to send. One was based on a session's misreading of which
+  bug report it was looking at and had already been fixed two days earlier; one was
+  likely to be resolved as a side effect of a prompt that was already running, which
+  nothing had checked; and one was for a capability nothing yet needed. The correct
+  count that turn was zero.
+- **A session's claim about which report, file, or event it is looking at is a claim,
+  and a timestamp is usually enough to check it.** Established the same day. A session
+  investigating a SolidWorks attachment failure asserted the report was a different,
+  later one than the report that started the bundle which fixed exactly that failure,
+  and built a whole investigation on the distinction. The report was filed 2026-08-22
+  and the fix landed 2026-08-24, which two `git log` lines settle. This is the
+  tool's-report rule pointed at provenance: when a report names a build, a date, or a
+  route, resolve those against history before repeating what the session concluded
+  from them. Identity is the cheapest thing in any investigation to check and the most
+  expensive to get wrong, because everything downstream inherits it.
 - **Never promote a conditional into a finding.** When an audit or report states a
   diagnosis conditionally ("on a backend where X has not happened", "if Y is absent"),
   the condition is an open question, not a conclusion. Resolve it, or carry it forward
@@ -1610,6 +1646,20 @@ component or token exists, the digest governs and the standard is corrected.
 
 ## Changelog
 
+- **2026-08-27** - Two Hard Rules, both from one reply that handed over three manual
+  tasks when the correct number was zero. A manual instruction is now the last resort
+  behind an ordered search (this chat, a Claude Code prompt, building the thing that
+  makes it automatable) and the reply states which alternative was ruled out; building
+  a new capability is an acceptable answer even when it lands after the occurrence that
+  prompted it. The premise behind a manual task is checked before the task is handed
+  over, since a false premise leaves Mr. Pina unable to distinguish a wrong procedure
+  from a wrong reason. And a session's claim about which report or event it is looking
+  at is a claim: a SolidWorks attachment report was investigated at length as a new
+  failure when it had been filed two days before the fix that closed it, a distinction
+  two `git log` lines settle. Communication Style rewritten to match: the
+  knows-nothing form is now the standing form for any hand-executed procedure rather
+  than something Mr. Pina has to ask for, since every past request for it meant an
+  earlier answer had assumed knowledge he does not have.
 - **2026-08-26g** - Four rules on branch identity, after a night in which the same
   confusion recurred in four different shapes. A resume never returns to the branch it
   resumes from, so a prompt names where to start and the final report names what to merge;
