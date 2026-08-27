@@ -43,8 +43,10 @@
 		type StudentEngineData
 	} from '$lib/classroom/assignment-spec';
 	import {
+		attachmentIsFigure,
 		authorLabel,
 		editedWhen,
+		figureAttachmentFilenames,
 		formatDue,
 		instructorAttachmentSrc,
 		isScheduled,
@@ -205,6 +207,47 @@
 	const instructorAttachments = $derived(canManage ? (item.instructorAttachments ?? []) : []);
 	const instructorLinks = $derived(canManage ? (item.instructorLinks ?? []) : []);
 	const hasInstructorMaterial = $derived(instructorAttachments.length > 0 || instructorLinks.length > 0);
+
+	/**
+	 * FILENAMES A FIGURE ALREADY RENDERS, read off whichever spec this item
+	 * carries. The assignment engine's spec is the SAME authored content for a
+	 * manager (`spec`) and a student (`engine.spec`) -- one or the other is
+	 * loaded, never both -- and a material's `referenceSpec` is the other
+	 * source a figure can come from. Only `instructions` (both kinds) and
+	 * `callout` (reference only) blocks carry the prose an `attachment:`
+	 * figure can appear in; every other block type has no `content` string.
+	 */
+	const specProse = $derived.by(() => {
+		const blocks: string[] = [];
+		const assignmentSpec = spec ?? engine?.spec ?? null;
+		if (assignmentSpec) {
+			for (const mod of assignmentSpec.modules) {
+				for (const block of mod.blocks) {
+					if (block.type === 'instructions') blocks.push(block.content);
+				}
+			}
+		}
+		if (referenceSpec) {
+			for (const refSection of referenceSpec.sections) {
+				for (const block of refSection.blocks) {
+					if (block.type === 'instructions' || block.type === 'callout') {
+						blocks.push(block.content);
+					}
+				}
+			}
+		}
+		return blocks;
+	});
+	const figureFilenames = $derived(figureAttachmentFilenames(specProse));
+	/**
+	 * The item's own attachments, minus any a figure in its spec already
+	 * renders -- so a file authored as a figure is not ALSO a row in the plain
+	 * "Files" list below it. Everything else lists exactly as it always has,
+	 * for a student and a manager alike: this is the one list both read.
+	 */
+	const listedAttachments = $derived(
+		item.attachments.filter((a) => !attachmentIsFigure(a, figureFilenames))
+	);
 	const alsoIn = $derived(
 		item.postings
 			.filter((p) => p.section_id !== section.id)
@@ -902,13 +945,16 @@
 		</section>
 	{/if}
 
-	{#if item.attachments.length}
+	{#if listedAttachments.length}
 		<section class="card">
 			<h2 class="section-label">Files</h2>
 			<!-- `figureRefs` is the manage gate, and it is the ONLY thing that
 			     changes about this list for a teacher: the same component, the same
-			     rows, plus one affordance. -->
-			<AttachmentList attachments={item.attachments} figureRefs={canManage} />
+			     rows, plus one affordance. `listedAttachments` is `item.attachments`
+			     minus whatever a figure in the spec above already rendered inline --
+			     see `specProse` -- so a file authored as a figure is not also a
+			     download row for the same image. -->
+			<AttachmentList attachments={listedAttachments} figureRefs={canManage} />
 		</section>
 	{/if}
 

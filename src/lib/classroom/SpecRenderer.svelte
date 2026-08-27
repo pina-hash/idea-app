@@ -292,6 +292,18 @@
 		if (!fileNotice) return mod;
 		return { ...mod, blocks: mod.blocks.filter((b) => b.type !== 'imageZone') };
 	}
+
+	/**
+	 * IS THIS MODULE DONE. The same `moduleCompletion` tally the done-chip
+	 * already reads (`done`/`total` over the module's own constrained blocks),
+	 * so there is no second definition of "complete" for the collapse to drift
+	 * from. `total === 0` (an instructions-only module with nothing to enter)
+	 * is never complete by this reading -- there is nothing to have finished,
+	 * so the module stays open rather than collapsing on load.
+	 */
+	function moduleComplete(completion: { done: number; total: number }): boolean {
+		return completion.total > 0 && completion.done === completion.total;
+	}
 </script>
 
 {#each spec.modules as mod, mi (mod.id)}
@@ -304,6 +316,7 @@
 	     truth about what a student has done. It drives nothing but the
 	     instructions panel's default state. -->
 	{@const started = moduleStarted(progressModule(mod), responses, fileCounts)}
+	{@const complete = moduleComplete(completion)}
 	<section class="module card" class:gated>
 		<header class="module-head">
 			<div class="module-titles">
@@ -332,6 +345,22 @@
 				{#if spec.approvalGate?.label}&nbsp;({spec.approvalGate.label}){/if}.
 			</p>
 		{:else}
+			<!-- THE WHOLE MODULE, NOT ONLY ITS INSTRUCTIONS. The header above --
+			     title, points, the AI badge and the done chip -- stays outside this
+			     Disclosure and always renders, so a collapsed module is legible as
+			     DONE rather than as missing. `collapseWhen` is `complete`, never
+			     `started`: a module a student is halfway through must stay open,
+			     and only one already finished has nothing left to look at. Same
+			     rule for the readonly renders (the grading console, the importer's
+			     preview) -- `complete` is read off the same `completion` tally
+			     with no role branch, exactly as the nested instructions panel
+			     already is. -->
+			<Disclosure
+				label="Module content"
+				scope={`${spec.meta.assignmentId}:${mod.id}:module`}
+				collapseWhen={complete}
+				testId="module-body"
+			>
 			{#if mod.intro}
 				<p class="module-intro">{mod.intro}</p>
 			{/if}
@@ -593,6 +622,7 @@
 					</div>
 				{/if}
 			{/each}
+			</Disclosure>
 		{/if}
 	</section>
 

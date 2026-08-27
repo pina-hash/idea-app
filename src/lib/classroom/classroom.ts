@@ -13,6 +13,7 @@
 
 import { formatSectionLabel } from '$lib/section-label';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
+import { parseMarkdown } from '$lib/classroom/reference-spec';
 import type { UploadGate } from '$lib/classroom/upload-errors';
 
 // ---------------------------------------------------------------------------
@@ -630,6 +631,52 @@ export function resolveFigureSrc(
 		return { ok: false, reason: 'off-prefix' };
 	}
 	return { ok: true, src: ref, attachmentId: null };
+}
+
+/**
+ * Every filename an `attachment:<filename>` figure names, anywhere in a set
+ * of authored prose blocks -- lowercased, matching `resolveFigureSrc`'s own
+ * case-insensitive lookup.
+ *
+ * THE ONE WALK. A caller holding a spec's own block shapes (an assignment
+ * module's `instructions` content, a reference section's `instructions` or
+ * `callout` content) gathers the strings and hands them here rather than a
+ * second copy of the figure syntax reappearing wherever this question gets
+ * asked. `resolveFigureSrc` decides whether ONE reference resolves; this
+ * decides which filenames are named by ANY reference, which is what the
+ * attachment list needs to exclude a file its own figure already renders.
+ */
+export function figureAttachmentFilenames(proseBlocks: string[]): Set<string> {
+	const names = new Set<string>();
+	for (const content of proseBlocks) {
+		for (const node of parseMarkdown(content)) {
+			if (node.type !== 'figure') continue;
+			const src = node.src.trim();
+			if (!src.toLowerCase().startsWith(ATTACHMENT_PREFIX)) continue;
+			const filename = src.slice(ATTACHMENT_PREFIX.length).trim().toLowerCase();
+			if (filename) names.add(filename);
+		}
+	}
+	return names;
+}
+
+/**
+ * Is this attachment ALSO a figure -- rendered inline by an `attachment:`
+ * reference somewhere in the item's spec. An attachment a figure names is
+ * excluded from the plain attachment list (ItemDetail's "Files" section), so
+ * the image is not on the page twice; everything else lists as it always has.
+ *
+ * A filename with no matching attachment (a typo, or a figure naming a file
+ * nobody uploaded) never reaches this predicate as true for anything real:
+ * `figureFilenames` may hold a name that matches no row, which changes
+ * nothing here and leaves `resolveFigureSrc` to report it unresolved exactly
+ * as before.
+ */
+export function attachmentIsFigure(
+	a: ClassroomAttachment,
+	figureFilenames: Set<string>
+): boolean {
+	return figureFilenames.has((a.filename ?? '').toLowerCase());
 }
 
 /**

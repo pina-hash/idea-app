@@ -30,12 +30,15 @@
 // shipped components, not on a data structure a renderer was handed.
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 import MarkdownText from '$lib/classroom/MarkdownText.svelte';
 import ReferenceBlock from '$lib/classroom/ReferenceBlock.svelte';
 import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 import {
+	attachmentIsFigure,
 	FIGURE_STATIC_PREFIXES,
+	figureAttachmentFilenames,
 	figureReference,
 	resolveFigureSrc,
 	type ClassroomAttachment
@@ -478,5 +481,100 @@ describe('an unrecognised block type', () => {
 		expect(prod).not.toContain('Unsupported block type');
 		expect(inDev).toContain('Unsupported block type');
 		expect(inDev).toContain('retiredRefBlock');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Part 6. AN IMAGE A FIGURE USES IS NOT ALSO A ROW IN THE ATTACHMENT LIST.
+//
+// `figureAttachmentFilenames` / `attachmentIsFigure` are the DERIVED distinction
+// ItemDetail filters the "Files" list with: an attachment named by an
+// `attachment:` figure anywhere in the item's spec is excluded, so the same
+// image is not on the page twice. Nothing is stored -- the same spec content
+// this file already renders figures from is what decides it.
+// ---------------------------------------------------------------------------
+describe('figureAttachmentFilenames / attachmentIsFigure: the attachment-list exclusion', () => {
+	it('names the filename a figure references, lowercased', () => {
+		const names = figureAttachmentFilenames(['![Teardown](attachment:Teardown-03.JPG)']);
+		expect(names.has('teardown-03.jpg')).toBe(true);
+		expect(names.size).toBe(1);
+	});
+
+	it('collects references across every block handed to it, not only the first', () => {
+		const names = figureAttachmentFilenames([
+			'Some prose with no figure at all.',
+			'![Teardown](attachment:teardown-03.jpg)',
+			'![Second](attachment:diagram.png)'
+		]);
+		expect(names).toEqual(new Set(['teardown-03.jpg', 'diagram.png']));
+	});
+
+	it('ignores a figure pointing at a static path or an external source', () => {
+		const names = figureAttachmentFilenames([
+			'![Gear](/IDEA/idea-gear.png)',
+			'![Beacon](https://evil.example/beacon.png)'
+		]);
+		expect(names.size).toBe(0);
+	});
+
+	it('an attachment a figure references is excluded from the plain list', () => {
+		const names = figureAttachmentFilenames(['![Teardown](attachment:teardown-03.jpg)']);
+		const figureAttachment = ATTACHMENTS.find((a) => a.filename === 'teardown-03.jpg')!;
+		expect(attachmentIsFigure(figureAttachment, names)).toBe(true);
+	});
+
+	it('an attachment no figure references still lists, unaffected', () => {
+		const names = figureAttachmentFilenames(['![Teardown](attachment:teardown-03.jpg)']);
+		const unreferenced = ATTACHMENTS.find((a) => a.filename === 'notes.pdf')!;
+		expect(attachmentIsFigure(unreferenced, names)).toBe(false);
+	});
+
+	it('a figure naming a file that is not attached changes nothing about the list', () => {
+		// The filename lands in the set (it is a real reference), but since no
+		// attachment named `missing.jpg` exists, filtering the real attachments
+		// against it drops nothing -- exactly the pre-existing behaviour, where
+		// the figure itself renders unresolved (see resolveFigureSrc above) and
+		// the attachment list is not consulted at all for that name.
+		const names = figureAttachmentFilenames(['![Ghost](attachment:missing.jpg)']);
+		expect(names.has('missing.jpg')).toBe(true);
+		for (const a of ATTACHMENTS) {
+			expect(attachmentIsFigure(a, names)).toBe(false);
+		}
+	});
+
+	it('filtering a real attachment list keeps everything except the figure', () => {
+		const names = figureAttachmentFilenames(['![Teardown](attachment:teardown-03.jpg)']);
+		const listed = ATTACHMENTS.filter((a) => !attachmentIsFigure(a, names));
+		expect(listed.map((a) => a.filename)).toEqual(['diagram.png', 'notes.pdf']);
+	});
+});
+
+describe("ItemDetail's Files list excludes what a figure already renders", () => {
+	const src = readFileSync(new URL('../src/lib/classroom/ItemDetail.svelte', import.meta.url), 'utf8');
+
+	it('imports the one implementation rather than re-deriving the rule', () => {
+		expect(src).toContain('figureAttachmentFilenames');
+		expect(src).toContain('attachmentIsFigure');
+	});
+
+	it('the Files section reads the filtered list, not the raw attachments, in both the guard and the component', () => {
+		const filesSection = src.match(
+			/\{#if listedAttachments\.length\}[\s\S]*?<\/section>/
+		);
+		expect(filesSection, 'no Files section keyed on listedAttachments').not.toBeNull();
+		expect(filesSection![0]).toContain('<h2 class="section-label">Files</h2>');
+		expect(filesSection![0]).toContain('attachments={listedAttachments}');
+		// The raw, unfiltered prop must not reach AttachmentList directly any more.
+		expect(filesSection![0]).not.toContain('attachments={item.attachments}');
+	});
+
+	it('scans both the assignment spec and the reference spec for figures, with no role term', () => {
+		const derived = src.match(/const specProse = \$derived\.by\(\(\) => \{[\s\S]*?\n\t\}\);/);
+		expect(derived, '`specProse` is not a single derived expression').not.toBeNull();
+		const body = derived![0];
+		expect(body).toContain('engine?.spec');
+		expect(body).toContain('referenceSpec');
+		expect(body).not.toContain('canManage');
+		expect(body).not.toContain('viewAs');
 	});
 });
