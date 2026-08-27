@@ -227,7 +227,8 @@
 	--nb-shot-ink-deep: #26221b; /* reads as TEXT on --nb-shot-ink */
 	--nb-shot-ink-bright: #ffffff; /* the hover-lifted paper */
 
-	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). On PAPER the portal tokens are catastrophic: all six measured 1.93-3.34:1,
+	/* THE REVIEW GRID'S STATUS INKS (--nb-cell-*) -- six when this was written,
+	   seven since 0140. On PAPER the portal tokens are catastrophic: all six measured 1.93-3.34:1,
 	   five of them below even 3:1. These are the same six hues deepened onto
 	   white, each holding its source hue angle to within 0.9 degrees -- the move
 	   --gold -> --nb-accent-ink (line ~105) already makes on this exact plate.
@@ -236,7 +237,19 @@
 	   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
 	   The hue identity is fixed and is NOT a free choice: green = on time,
 	   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
-	   sage = missing. What varies per plate is lightness. */
+	   sage = missing, and since 0140 violet = scheduled. What varies per plate
+	   is lightness.
+
+	   RE-MEASURED IN A REAL BROWSER when the seventh arrived, by painting each
+	   ink over the ground its cell actually composites on and reading the pixel
+	   back (/dev/notebook-review through playwright-core, Chromium 141, 1440px):
+
+	     on time 4.79   late 4.80   awaiting 4.87   flagged 4.75
+	     excused 4.82   missing 8.64   scheduled 4.99
+
+	   Seven of seven clear 4.5:1, worst case 4.75 -- and the six are the figures
+	   the earlier pass recorded, which is the control saying the instrument is
+	   reading what it thinks it is. */
 	--nb-cell-ontime: #486e43;
 	--nb-cell-late: #895420;
 	--nb-cell-await: #367165;
@@ -249,6 +262,20 @@
 	--nb-cell-excused: #69756a;
 	--nb-cell-missing: #464e43;
 	--nb-cell-missing-edge: #5c6659;
+	/* SCHEDULED (0140), the seventh state: dated ahead of today, so nothing has
+	   been filed and nothing is owed. It is the one hue in this set that is NOT
+	   one of the six above, deliberately -- it has to be tellable from excused
+	   and from missing, which are the two near-neutral sages, and a third
+	   neutral would collapse into them exactly as those two collapse into each
+	   other when both are darkened onto white. It is --violet, the register's
+	   own "special, sparingly" accent, deepened onto paper the way every ink
+	   here is: hue 261.8 and saturation 35.5% held from #7050a8 to the degree,
+	   lightness 48.6% -> 54%. The cell fills with nothing, so the glyph sits on
+	   --nb-surface: 4.99:1 measured in a real browser against the 4.5 it has to
+	   make as text (the dotted edge reads the same 4.99). The dotted edge is the
+	   third fill style in the set (solid + pinned fill, dashed, dotted), so the
+	   state does not lean on the new hue alone. */
+	--nb-cell-scheduled: #7e60b3;
 	/* THE FILL IS PINNED, NOT MIXED OFF THE INK, and that is the whole trick.
 	   A fill written as color-mix(<ink> 26%) moves whenever the ink does, so
 	   deepening a glyph darkened its own ground and gave most of the contrast
@@ -417,9 +444,10 @@
 	   this token set exists to keep fixed, so the six were put to THIS plate's
 	   card rather than assumed from the retired plate's.
 
-	   The INKS are the six the two surviving dark rooms already carry: their hue
+	   The INKS are the ones the two surviving dark rooms already carry: their hue
 	   identity is a locked contract (green = on time, amber = late, cyan =
-	   awaiting review, crimson = flagged, ice = excused, sage = missing) and
+	   awaiting review, crimson = flagged, ice = excused, sage = missing, and
+	   since 0140 violet = scheduled) and
 	   only lightness is ever a free choice, which a card this deep does not need
 	   to spend.
 
@@ -431,11 +459,13 @@
 	   --nb-surface (the card), not --nb-bg:
 
 	     on time 4.90   late 5.07   awaiting 5.30   flagged 5.11
-	     excused 9.31   missing 5.59   (those two fill with nothing and sit on
-	                                    the card itself; missing's dashed edge
-	                                    reads 4.70)
+	     excused 9.31   missing 5.59   scheduled 6.19 (0140; those three fill with
+	                                    nothing and sit on the card itself, so
+	                                    each one's EDGE reads the same as its
+	                                    glyph -- missing is the exception at 4.70,
+	                                    because it has an edge token of its own)
 
-	   Six of six clear, worst case 4.90. The retired plate's fills would have
+	   Seven of seven clear, worst case 4.90. The retired plate's fills would have
 	   measured 4.76-5.09 here -- also clear, which is exactly why they had to be
 	   MEASURED rather than assumed. */
 	--nb-cell-ontime: #86bf7e;
@@ -445,6 +475,10 @@
 	--nb-cell-excused: var(--ice);
 	--nb-cell-missing: var(--dim);
 	--nb-cell-missing-edge: var(--gear);
+	/* SCHEDULED (0140). --violet-ink rather than --violet, for the reason that
+	   token exists: this is a GLYPH, and the raw accent cannot carry text. The
+	   cell fills with nothing, so it is measured on the card. */
+	--nb-cell-scheduled: var(--violet-ink);
 	/* THE FILL IS PINNED, NOT MIXED OFF THE INK. A fill written as
 	   color-mix(<ink> 26%) moves whenever the ink does and hands most of the
 	   contrast straight back (measured on paper: 4.79 vs 3.84). */
@@ -569,7 +603,7 @@
 	--nb-shot-ink-deep: #0b1410; /* reads as TEXT on --nb-shot-ink */
 	--nb-shot-ink-bright: #f8fdfa; /* the hover-lifted paper */
 
-	/* THE REVIEW GRID'S SIX STATUS INKS (--nb-cell-*). The same six inks both other plates take; the FILLS below are this
+	/* THE REVIEW GRID'S STATUS INKS (--nb-cell-*). The same inks both other plates take; the FILLS below are this
 	   plate's own, and the DEFAULT plate now shares them because its card sits
 	   at the same depth (measured 4.69-8.73 here). --green, --cyan and --ice never move,
 	   which is what preserves this palette's published accent separations.
@@ -578,7 +612,13 @@
 	   the bar, and it is measured against --nb-surface (the card), not --nb-bg.
 	   The hue identity is fixed and is NOT a free choice: green = on time,
 	   amber = late, cyan = awaiting review, crimson = flagged, ice = excused,
-	   sage = missing. What varies per plate is lightness. */
+	   sage = missing, and since 0140 violet = scheduled. What varies per plate
+	   is lightness. Measured the same way on this plate's card (#101c16):
+
+	     on time 4.90   late 5.07   awaiting 5.30   flagged 5.11
+	     excused 8.73   missing 5.24   scheduled 5.80  (0140)
+
+	   Seven of seven clear, worst case 4.90. */
 	--nb-cell-ontime: #86bf7e;
 	--nb-cell-late: #db9d60;
 	--nb-cell-await: var(--cyan);
@@ -586,6 +626,10 @@
 	--nb-cell-excused: var(--ice);
 	--nb-cell-missing: var(--dim);
 	--nb-cell-missing-edge: var(--gear);
+	/* SCHEDULED (0140). --violet-ink rather than --violet, for the reason that
+	   token exists: this is a GLYPH, and the raw accent cannot carry text. The
+	   cell fills with nothing, so it is measured on the card. */
+	--nb-cell-scheduled: var(--violet-ink);
 	/* Pinned to the fills this grid already shipped; see the note on the light
 	   palette for why they are not a mix of the ink. --cyan, --ice and --dim
 	   already cleared the bar here and are untouched, which is also what keeps

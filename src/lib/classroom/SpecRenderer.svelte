@@ -490,18 +490,19 @@
 													{#if readonly || !canEdit}
 														<span class="cell-text">{trimCellEnds(row[col.key] ?? '')}</span>
 													{:else}
-														<input
-															type="text"
+														<textarea
 															class="cell"
+															rows="1"
 															value={row[col.key] ?? ''}
+															use:autoresize
 															oninput={(e) =>
-																setCell(block, ri, col.key, (e.currentTarget as HTMLInputElement).value)}
+																setCell(block, ri, col.key, (e.currentTarget as HTMLTextAreaElement).value)}
 															onchange={(e) => {
-																const el = e.currentTarget as HTMLInputElement;
+																const el = e.currentTarget as HTMLTextAreaElement;
 																const trimmed = trimCellEnds(el.value);
 																if (trimmed !== el.value) setCell(block, ri, col.key, trimmed);
 															}}
-														/>
+														></textarea>
 													{/if}
 												</td>
 											{/each}
@@ -898,6 +899,7 @@
 		padding: 0.5rem 0.4rem;
 	}
 	.cell {
+		display: block;
 		width: 100%;
 		box-sizing: border-box;
 		background: var(--surface-0);
@@ -906,8 +908,11 @@
 		color: var(--text-1);
 		font-family: var(--font-display);
 		font-size: 0.9rem;
+		line-height: 1.5;
 		padding: 0.3rem 0.4rem;
 		min-width: 6rem;
+		resize: none;
+		overflow: hidden;
 	}
 	.cell:focus {
 		outline: none;

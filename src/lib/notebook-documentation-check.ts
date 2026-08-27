@@ -193,6 +193,14 @@ export function presenceEvidence(summary: StudentSummary): string {
 	if (summary.excused > 0) {
 		parts.push(`${summary.excused} excused (not counted as covered)`);
 	}
+	// A DENOMINATOR THAT SHRANK HAS TO SAY SO (0140). `summary.total` counts only
+	// the check-ins that have come due, so a unit whose remaining days are
+	// already scheduled grades out of the days that have happened -- which is the
+	// right number and an inexplicable one if the comment does not name the rest.
+	// It is the same job the excused clause above does, one state along.
+	if (summary.scheduled > 0) {
+		parts.push(`${summary.scheduled} not due yet (not counted either way)`);
+	}
 	if (summary.flagged > 0) {
 		parts.push(`${summary.flagged} still flagged`);
 	}

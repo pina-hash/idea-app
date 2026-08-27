@@ -22,6 +22,7 @@
 
 import type { ClassroomItemKind } from '$lib/classroom/classroom';
 import type { CheckInDraft } from '$lib/classroom/class-check-ins';
+import type { RubricCriterion } from '$lib/classroom/assignment-spec';
 import { deckUploadSizeIssue, type DeckTransports, type DeckUploadProgress } from '$lib/classroom/deck';
 
 /**
@@ -120,6 +121,16 @@ export interface StagedExtras {
 	 * Null on a first attempt, which is every save that has not half-landed.
 	 */
 	checkInSessionId?: string | null;
+	/**
+	 * A RUBRIC STAGED AT CREATION (0139), or null.
+	 *
+	 * `classroom_set_rubric` requires the item to exist, exactly like the spec
+	 * setters -- so this follows the SPEC's pattern (RubricBuilder's own staging
+	 * mode, one full-set write, nothing to resume), never the deck's. Optional
+	 * rather than required so every existing call site that predates it, here
+	 * and in the tests, keeps compiling unchanged.
+	 */
+	rubric?: RubricCriterion[] | null;
 }
 
 export interface StagedExtrasTransports {
@@ -151,6 +162,16 @@ export interface StagedExtrasTransports {
 	setGuidance:
 		| ((sessionId: string, doc: unknown) => Promise<{ ok: boolean; message?: string }>)
 		| null;
+	/**
+	 * Write the staged rubric onto the item that now exists (0139).
+	 *
+	 * Optional and nullable: a rubric is assignment-only, so a material or an
+	 * announcement never staged one, and this is simply absent for them --
+	 * absence removes the control the same way it does for the other three.
+	 */
+	setRubric?:
+		| ((itemId: string, criteria: RubricCriterion[] | null) => Promise<{ ok: boolean; message?: string }>)
+		| null;
 }
 
 export interface StagedExtrasResult {
@@ -171,6 +192,8 @@ export interface StagedExtrasResult {
 	 * there is nothing half-done.
 	 */
 	checkInSessionId: string | null;
+	/** The rubric, if it did not land. */
+	rubric: RubricCriterion[] | null;
 }
 
 /**
@@ -193,6 +216,7 @@ export async function applyStagedExtras(
 	let spec = staged.spec;
 	let checkIn = staged.checkIn;
 	let checkInSessionId = staged.checkInSessionId ?? null;
+	let rubric = staged.rubric ?? null;
 
 	if (deck) {
 		if (!transports.deck) {
@@ -239,6 +263,29 @@ export async function applyStagedExtras(
 	}
 
 	/**
+	 * THE RUBRIC, on the same terms as the spec above it: one full-set write,
+	 * nothing to resume, attempted independently of the check-in after it so a
+	 * refusal here cannot swallow the check-in behind it.
+	 */
+	if (rubric != null) {
+		if (!transports.setRubric) {
+			failures.push('rubric: attaching one is not available here');
+		} else {
+			let res: { ok: boolean; message?: string };
+			try {
+				res = await transports.setRubric(itemId, rubric);
+			} catch (e) {
+				res = { ok: false, message: (e as Error).message || 'Save failed.' };
+			}
+			if (res.ok) {
+				rubric = null;
+			} else {
+				failures.push(`rubric: ${res.message ?? 'could not be attached'}`);
+			}
+		}
+	}
+
+	/**
 	 * THE CHECK-IN, last and cheapest: one RPC, no bytes, nothing to resume.
 	 *
 	 * It is named by its LABEL in a failure, not by "the check-in", because a
@@ -264,7 +311,7 @@ export async function applyStagedExtras(
 				}
 				if (!res.ok) {
 					failures.push(`notebook check-in "${name}": ${res.message ?? 'could not be attached'}`);
-					return { failures, deck, spec, checkIn, checkInSessionId };
+					return { failures, deck, spec, checkIn, checkInSessionId, rubric };
 				}
 				created = res.sessionId ?? null;
 			}
@@ -306,7 +353,7 @@ export async function applyStagedExtras(
 		}
 	}
 
-	return { failures, deck, spec, checkIn, checkInSessionId };
+	return { failures, deck, spec, checkIn, checkInSessionId, rubric };
 }
 
 /**
@@ -334,6 +381,8 @@ export interface ComposerDraft {
 	spec: unknown | null;
 	/** A staged notebook check-in (0120): typed work, so it counts. */
 	checkIn: CheckInDraft | null;
+	/** A staged rubric (0139): typed work, so it counts. */
+	rubric: RubricCriterion[] | null;
 }
 
 /**
@@ -370,7 +419,8 @@ export function composerDraftSignature(draft: ComposerDraft): string {
 		instructorLinks: urls(draft.instructorLinks),
 		deck: draft.deck ? 1 : 0,
 		spec: draft.spec != null ? 1 : 0,
-		checkIn: draft.checkIn ? 1 : 0
+		checkIn: draft.checkIn ? 1 : 0,
+		rubric: draft.rubric ? 1 : 0
 	});
 }
 
@@ -384,7 +434,8 @@ export const EMPTY_COMPOSER_DRAFT: ComposerDraft = {
 	instructorLinks: [],
 	deck: null,
 	spec: null,
-	checkIn: null
+	checkIn: null,
+	rubric: null
 };
 
 export function composerHasWork(draft: ComposerDraft): boolean {
@@ -393,4 +444,4 @@ export function composerHasWork(draft: ComposerDraft): boolean {
 
 /** The one wording, so the close confirm and the navigation confirm agree. */
 export const COMPOSER_DISCARD_WARNING =
-	'This post has unsaved work in it -- text, files, a deck, a spec or a check-in. Leave and it is gone.';
+	'This post has unsaved work in it -- text, files, a deck, a spec, a rubric or a check-in. Leave and it is gone.';

@@ -112,12 +112,14 @@ describe("a manager's read-only spec render carries no path to a write", () => {
 		expect(studentHtml).toContain('<textarea');
 	});
 
-	it('renders no editable table-cell <input>', () => {
+	it('renders no editable table-cell <textarea>', () => {
 		// Svelte's SSR output appends a scoping-hash class (`class="cell
 		// svelte-xxxx"`), so this matches the class as a PREFIX, not the whole
-		// attribute value.
-		expect(managerHtml).not.toMatch(/<input[^>]*class="cell[ "]/);
-		expect(studentHtml).toMatch(/<input[^>]*class="cell[ "]/);
+		// attribute value. A table cell is a `<textarea>`, not an `<input>`, so
+		// a long value can wrap and be read while editing rather than scrolling
+		// out of view in a single-line box.
+		expect(managerHtml).not.toMatch(/<textarea[^>]*class="cell[ "]/);
+		expect(studentHtml).toMatch(/<textarea[^>]*class="cell[ "]/);
 	});
 
 	it('renders no editable image-caption <input>, and no upload control', () => {

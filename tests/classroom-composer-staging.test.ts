@@ -34,6 +34,7 @@ function file(name: string, bytes = 1024): File {
 }
 
 const SPEC = { meta: { title: 'Bridge stackup' } };
+const RUBRIC = [{ id: 'c1', criterion: 'Craftsmanship', points: 10, levels: [{ points: 10, label: 'Complete', descriptor: '' }] }];
 
 function transports(over: Partial<StagedExtrasTransports> = {}): StagedExtrasTransports {
 	return {
@@ -42,6 +43,7 @@ function transports(over: Partial<StagedExtrasTransports> = {}): StagedExtrasTra
 		setReferenceSpec: async () => ({ ok: true }),
 		createCheckIn: async () => ({ ok: true, sessionId: 'sess-1' }),
 		setGuidance: async () => ({ ok: true }),
+		setRubric: async () => ({ ok: true }),
 		...over
 	};
 }
@@ -357,6 +359,89 @@ describe('a staged notebook check-in', () => {
 	});
 });
 
+/**
+ * THE FOURTH STAGED ATTACHABLE (0139). `classroom_set_rubric` needs a real
+ * item, exactly like the two specs, so a rubric built while creating an
+ * assignment has nowhere to land until the create call returns an id --
+ * same shape as the spec, on purpose, since RubricBuilder's own staging mode
+ * mirrors SpecImporter's.
+ */
+describe('a staged rubric', () => {
+	it('is written against the item that now exists, and cleared', async () => {
+		const setRubric = vi.fn(async () => ({ ok: true }));
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: null, rubric: RUBRIC },
+			transports({ setRubric })
+		);
+		expect(setRubric).toHaveBeenCalledWith('i-1', RUBRIC);
+		expect(res.failures).toEqual([]);
+		expect(res.rubric).toBeNull();
+	});
+
+	it('STAYS STAGED when the server refuses it', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: null, rubric: RUBRIC },
+			transports({ setRubric: async () => ({ ok: false, message: 'That criterion needs text.' }) })
+		);
+		expect(res.rubric).toBe(RUBRIC);
+		expect(res.failures).toHaveLength(1);
+		expect(res.failures[0]).toContain('rubric');
+		expect(res.failures[0]).toContain('That criterion needs text.');
+	});
+
+	it('a throw is a refusal, not an unhandled rejection', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: null, rubric: RUBRIC },
+			transports({
+				setRubric: async () => {
+					throw new Error('Network died');
+				}
+			})
+		);
+		expect(res.rubric).toBe(RUBRIC);
+		expect(res.failures[0]).toContain('Network died');
+	});
+
+	it('names it when attaching one is not available at all', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: null, rubric: RUBRIC },
+			transports({ setRubric: undefined })
+		);
+		expect(res.rubric).toBe(RUBRIC);
+		expect(res.failures[0]).toContain('not available here');
+	});
+
+	it('a save with no rubric staged never calls the setter', async () => {
+		const setRubric = vi.fn(async () => ({ ok: true }));
+		await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: null, rubric: null },
+			transports({ setRubric })
+		);
+		expect(setRubric).not.toHaveBeenCalled();
+	});
+
+	/**
+	 * INDEPENDENT OF THE SPEC AND THE CHECK-IN. A refusal on one must not stop
+	 * the others from being attempted -- the same guarantee the deck and the
+	 * spec already give each other.
+	 */
+	it('is attempted even when the spec before it failed, and only the failure stays', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: SPEC, specKind: 'assignment', checkIn: null, rubric: RUBRIC },
+			transports({ setSpec: async () => ({ ok: false, message: 'Refused.' }) })
+		);
+		expect(res.spec).toBe(SPEC);
+		expect(res.rubric).toBeNull();
+		expect(res.failures).toHaveLength(1);
+	});
+});
+
 describe('is there work in here to lose', () => {
 	const empty: ComposerDraft = {
 		title: '',
@@ -367,7 +452,8 @@ describe('is there work in here to lose', () => {
 		instructorLinks: [],
 		deck: null,
 		spec: null,
-		checkIn: null
+		checkIn: null,
+		rubric: null
 	};
 
 	it('a composer nobody has touched is not dirty', () => {
@@ -402,5 +488,6 @@ describe('is there work in here to lose', () => {
 				checkIn: { unit_number: 3, session_date: '2026-09-04', session_label: 'Teardown' }
 			})
 		).toBe(true);
+		expect(composerHasWork({ ...empty, rubric: RUBRIC })).toBe(true);
 	});
 });

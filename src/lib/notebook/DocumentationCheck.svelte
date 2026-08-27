@@ -410,9 +410,15 @@
 							<div class="who">
 								<span class="name">{summary.student.name}</span>
 								{#if !summary.student.enrolled}<span class="chip left">left</span>{/if}
+								<!-- THE DENOMINATOR SAYS WHERE IT WENT (0140). `total` counts only
+								     the check-ins that have come due, so a unit laid out in advance
+								     no longer reads "2 of 8" for a student who is up to date. That
+								     is only trustworthy if the missing six are accounted for on the
+								     same line: the count a teacher can see on the grid has to
+								     reconcile with the count they are about to grade against. -->
 								<span class="counts">
 									{summary.covered} of {summary.total} filed{#if summary.excused > 0}, {summary.excused}
-										excused{/if}{#if flags.length > 0}, flagged: {flags.join(' · ')}{/if}
+										excused{/if}{#if summary.scheduled > 0}, {summary.scheduled} not due yet{/if}{#if flags.length > 0}, flagged: {flags.join(' · ')}{/if}
 								</span>
 							</div>
 							{#if email}

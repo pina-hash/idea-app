@@ -393,6 +393,7 @@ of its own is documented inside the one listed.
 | 0137 | `0137_anon_execute_sweep.sql` | [The anon EXECUTE sweep, and the fixture that was certifying the bug (`0137`, `lane/anon-execute-sweep`)](#the-anon-execute-sweep-and-the-fixture-that-was-certifying-the-bug-0137-laneanon-execute-sweep) |
 | 0138 | `0138_classroom_manager_exclusion_and_enrollment_removal.sql` | [A manager is never a student row, and an enrollment can finally be removed (`0138`)](#a-manager-is-never-a-student-row-and-an-enrollment-can-finally-be-removed-0138) |
 | 0139 | `0139_foundry_telemetry.sql` | [How much an app is played, and nothing about who played it (`0139`, `claude/foundry-telemetry-migration-dnzvh3`)](#how-much-an-app-is-played-and-nothing-about-who-played-it-0139-claudefoundry-telemetry-migration-dnzvh3) |
+| 0140 | `0140_notebook_scheduled_check_ins.sql` | [A check-in dated in the future is scheduled, not missing (`0140`, `claude/scheduled-checkin-future-status-vqlnpu`)](#a-check-in-dated-in-the-future-is-scheduled-not-missing-0140-claudescheduled-checkin-future-status-vqlnpu) |
 
 ---
 
@@ -34520,7 +34521,6 @@ from inside its own lane. All nine are closed; none needed a migration.
 - `npm run build` was not run (the Windows EPERM trap does not apply on
   Linux, and a build was not part of this pass).
 
-
 ---
 
 ## How much an app is played, and nothing about who played it (`0139`, `claude/foundry-telemetry-migration-dnzvh3`)
@@ -34775,3 +34775,572 @@ would have reported this.
   people" is the boundary this bundle was built to, and a public ranking derived
   from how many people did something is a step across it that deserves its own
   decision.
+
+---
+
+## A check-in dated in the future is scheduled, not missing (`0140`, `claude/scheduled-checkin-future-status-vqlnpu`)
+
+Mr. Cosso lays out a unit's notebook check-ins on the first day of the unit. From
+that moment his compliance grid reported every one of them, for every student, as
+`missing` -- because `notebook_get_section_grid` decided a cell in three arms
+(an entry, then an excusal, then `missing`) and a day nobody could have filed
+against yet has none of the first two. Five scheduled days x thirty students is
+150 cells of dash glyphs, a class-page badge reading 150 outstanding, every
+student on the "needs a look" list, and a Documentation Check pre-filling a
+presence score out of a denominator that counted days that had not happened.
+
+**The student's half of the same defect was already fixed, and differently.** The
+classroom section load bounds its check-in read with
+`.lte('notebook_sessions.session_date', <today in America/Los_Angeles>)`, so a
+student is never shown a future check-in and can never be told they owe it. That
+asymmetry is deliberate and is now written into `CLAUDE.md`: **bounding the
+teacher's read the same way would be wrong**, because a teacher SCHEDULES ahead
+and a grid that hid what they had just scheduled would be hiding their own work
+from them. The teacher's side gets a STATUS instead of a filter.
+
+### The status, and the order of the arms
+
+`0140` replaces `notebook_get_section_grid` with a version that declares
+`v_today date := (pg_catalog.now() at time zone 'America/Los_Angeles')::date`
+and inserts ONE arm into the cell `case`:
+
+```
+when l.id is not null           then l.status     -- an entry
+when x.session_id is not null   then 'excused'    -- an excusal
+when se.session_date > v_today  then 'scheduled'  -- 0140
+else 'missing'
+```
+
+Each arm above `scheduled` outranks it for a stated reason. An ENTRY wins because
+a student who filed early has filed it, and reporting "not due yet" over their own
+work would be telling them the page did not count -- the same argument that
+already put an entry above an excusal on this cell. An EXCUSAL wins because it is
+a decision an instructor made about that student on that day (a field trip excused
+three weeks ahead is a record worth keeping on screen), and neither state counts
+against anybody, so nothing is lost by showing the one somebody chose.
+
+**The calendar is America/Los_Angeles, which is the one `session_date` is already
+adjudicated in** (`on_time` is
+`(l.upload_timestamp at time zone 'America/Los_Angeles')::date <= se.session_date`,
+0094/0098, and the student-side bound reads the same calendar in the loader). UTC
+runs seven or eight hours ahead, so a UTC comparison would call tomorrow's
+check-in due from 5pm Pacific onwards -- every evening, which is exactly when a
+teacher sets up the next day. That is a smaller copy of the bug this file removes.
+Asserted arithmetically at a pinned instant rather than left to the clock: at
+8pm Pacific on 2026-08-27, the LA day is `2026-08-27` and the UTC day is
+`2026-08-28`, so a check-in dated `2026-08-28` is `scheduled` under the shipped
+rule and DUE under the rejected one.
+
+**The migration is additive in the sense that matters for a hand-applied chain.**
+The payload gains no key and loses none; one existing key gains one more possible
+value, and `cellDisplay`'s `switch` already had a default arm. So there is no
+deploy ordering between the SQL and the client, in either direction. The self-check
+reports the LA day and how many check-ins and postings are dated ahead of it, which
+is the count of cells that stopped reading `missing` the moment it ran.
+
+### The seventh cell state, and the locked contract it had to join
+
+`CheckInStatus` in `class-check-ins.ts` is the STUDENT's vocabulary and did not
+change: the student read is date-bounded, so nothing on that side can produce a
+future check-in, and a value with no producer is the dormant fallback this repo's
+rules refuse. The grid's own vocabulary is `CellDisplay` in
+`src/lib/notebook-review.ts`, and that is where the seventh value went:
+
+- `GridCellStatus` and `CellDisplay` gain `'scheduled'`; `cellDisplay` maps it.
+- `CELL_STATES` gains `{ key: 'scheduled', glyph: '»', label: 'Scheduled', hint: … }`,
+  APPENDED after `missing` -- the far end of the same axis the row already walks.
+- `SectionGrid.svelte` gains `.chip.scheduled, .cell.scheduled` with a DOTTED
+  edge, the third fill style in the set (solid-with-a-pinned-fill, dashed,
+  dotted), so the state does not lean on a new hue alone.
+- `--nb-cell-scheduled` is declared on all three plates: `#7e60b3` on paper
+  (`--violet` at hue 261.8 / saturation 35.5% held to the degree, lightness
+  48.6% -> 54%) and `var(--violet-ink)` on both dark plates -- the token that
+  exists precisely because the raw accent cannot carry text.
+
+**Violet rather than a seventh shade of the existing six**, and the reason is
+measured rather than aesthetic: the two states `scheduled` has to be tellable from
+are `excused` and `missing`, which are already the two near-neutral sages, and
+colors.css records that darkening BOTH of those onto white collapses them into
+each other at CIEDE2000 1.19. A third neutral would have joined that collapse.
+
+### The denominator, which is the half that was easy to miss
+
+`summarize()` computed `total = grid.sessions.length`, so a scheduled day was in
+every student's denominator: `covered < total` put a student who owes nothing on
+the `attention` list, and `presenceScore` -- the pre-fill the Documentation Check
+writes into a real rubric criterion -- was computed out of days that had not
+happened. `total` is now derived FROM THE CELLS (`status === 'scheduled'` is
+skipped and counted on its own `scheduled` line), which has two consequences worth
+stating:
+
+- **It reads no clock.** The RPC already decided which cells are scheduled, in the
+  calendar it owns; a date comparison in this module would have been a second
+  answer to the same question.
+- **It is per student, not per section.** A student who filed EARLY against a
+  future check-in has a cell carrying their entry rather than `scheduled`, so that
+  day counts for them and not for the classmate who has not been asked yet. Their
+  work is credited on the day they did it, which is the only reading that does not
+  punish filing ahead.
+
+`gridSummary.outstanding` needed no change at all, and that is the argument for its
+shape: it is a WHITELIST sum (`late + pending_review + flagged + missing`), so a
+seventh state joins `counts` and stays out of the total by not being named. A
+denominator that shrank is explained rather than silent -- `presenceEvidence` and
+the Documentation Check's own counts line both say "N not due yet".
+
+### What was measured
+
+- **The defect itself, against the deployed function.** `tests/notebook-scheduled-check-ins.test.ts`
+  boots the chain SHORT of 0140, seeds a class through the real RPCs, and captures
+  the pre-migration grid: 12 cells, 8 `missing`, `outstanding` 9, all three
+  students on the attention list -- Ada included, who has filed every day that has
+  arrived plus one that has not, with a presence pre-fill of 5 of 7. After the
+  migration over the same data: `scheduled` 4, `missing` 4, `outstanding` 5, Ada
+  off the list at 7 of 7. Exactly four cells changed, all `missing` -> `scheduled`,
+  and the key set of the envelope, a cell, a student row and a session row is
+  compared pre- to post- and is identical.
+- **Contrast, in a real browser, on all three plates.** `/dev/notebook-review`
+  driven through playwright-core (Chromium 141.0.7390.37) at 1440px, each ink
+  painted over the ground its cell actually composites on and the pixel read back.
+  `scheduled`: **4.99** light / **6.19** default (console register) / **5.80**
+  IDEA, against the 4.5:1 a glyph has to make as text; the dotted edge reads the
+  same figure in each case, well clear of the 3:1 a boundary carries. The six
+  existing states came back at the figures colors.css already records (light 4.79 /
+  4.80 / 4.87 / 4.75 / 4.82 / 8.64; dark 4.90 / 5.07 / 5.30 / 5.11 / 9.31 / 5.59),
+  which is the control that says the instrument is reading what it thinks it is.
+  Those figures are now written into all three plate blocks.
+- **The glyph is really in the face.** `»` measures 8.64px in Share Tech Mono --
+  the same monospace advance as `–`, `!` and `E` -- against 12.45px for a
+  guaranteed-absent codepoint, so it is not tofu. `document.fonts.check` reports
+  the face loaded (it is served from `@fontsource` over loopback; the harness's
+  one blocked external request is a redundant Google Fonts link). The cell box
+  measures 30.39px = 1.9rem at both 375 and 1440, and the locked density is
+  untouched.
+- **Mutation proof, in both directions**, each restored md5-identically:
+  - `outstanding` += `counts.scheduled` -> 1 assertion reddens.
+  - the `continue` removed from `summarize`'s scheduled arm (so it re-enters the
+    denominator) -> 3 redden.
+  - `>` -> `>=` in the migration, so `scheduled` swallows the day a check-in is
+    FOR -> 8 redden. This is the direction that matters most: a class that is
+    genuinely behind reading as caught up is as silent as the original defect.
+  - `America/Los_Angeles` -> `UTC` in the migration -> 1 reddens (the source
+    assertion). The behavioural discriminator did NOT bite, and could not: the
+    run was at 08:09 Pacific / 15:09 UTC, where the two calendars agree. That is
+    why the pinned-instant arithmetic assertion above exists.
+  - The generalized locked-contract test re-mutated: reordering the original six
+    reddens it, and dropping one plate's `--nb-cell-scheduled` declaration reddens
+    the per-plate token sweep.
+- **Full suite: 132 files / 3059 tests** (baseline 131 / 3030; +1 file and +26
+  tests for the new file, +3 from generalizing one locked-contract assertion into
+  four).
+- **`svelte-check`: 0 errors / 37 warnings**, 31/5/1 -- unchanged.
+- **`npm run verify:browser`: 18 route/width runs, 120 measurements, 2 outside
+  threshold** -- both the pre-existing, unowned `/dev/pathways` harness-control
+  tap target (194.7x26.2 at both widths). The harness does not cover
+  `/dev/notebook-review`, which is why the grid was measured directly.
+
+### An assertion that was generalized rather than deleted
+
+`tests/notebook-review-console.test.ts` held
+`expect(CELL_STATES.map(s => s.glyph)).toEqual([…six…]); expect(CELL_STATES).toHaveLength(6)`
+under the title "keeps the six glyphs, in order, and adds no seventh". That is the
+shape of test a legitimate change necessarily breaks, and the only choices it
+offers are "delete me" or "don't ship it". It is now three assertions of the RULE:
+the original six are pinned as the HEAD of the array (glyphs and keys, in order),
+the seventh is named explicitly so an eighth is still a deliberate edit, and every
+state must have a unique glyph, a unique key, a label, a hint, a `.cell.<key>` rule
+and a `--nb-cell-*` token declared on all three plates. Both halves were re-mutated
+to confirm they still bite.
+
+### Reported, not changed: the student side could read off the same idea
+
+The student-side bound HIDES a future check-in from the class stream entirely --
+for a manager as well as a student, since the bound is on the shared load. Showing
+it as upcoming is probably better than hiding it, and now that a scheduled state
+exists both sides could read off one idea. What that would take, in order:
+
+1. **`CheckInStatus` gains `'scheduled'`**, with a label ("Scheduled"), a tone
+   (`muted`, the `excused` precedent -- a state that stops something counting), and
+   an entry in `STATUS_LABELS` / `STATUS_TONES`. `isOutstanding` needs no change:
+   it is a whitelist (`missing || draft || flagged`), the same shape that made
+   `gridSummary.outstanding` free here.
+2. **`checkInStatus()` gains a date input, or the loader decides.** This is the
+   real design question and it is the one this bundle deliberately did not answer.
+   The current comment on that function says it takes no clock ON PURPOSE, because
+   a second idea of "is this due yet" -- one in the loader and one in the status
+   function -- is the pair that stops agreeing. Two ways out: pass `through` (the
+   loader's already-computed LA day) in as a parameter, so there is still ONE
+   clock read and it is the loader's; or have the loader map the rows it already
+   knows are future-dated to `status: 'scheduled'` before `checkInStatus` is
+   consulted at all. The second keeps the pure function pure.
+3. **`sectionCheckIns` drops the `.lte`** and gains nothing else -- the read is
+   already ladder-shaped and the bound is one line. The long comment justifying
+   the bound would have to be rewritten rather than deleted: it records a real
+   failure (a student told in August that he owed work due in October) and the
+   replacement has to explain why a rendered-but-not-counted row is safe where an
+   unmarked one was not.
+4. **`ClassView` and the check-in card need a visibly different treatment**, or
+   this is worse than hiding: a scheduled check-in sorts to the TOP of the stream
+   (the stream is newest-first by date and a future date is the newest thing
+   there), which is where the original defect put it. Either it is toned and
+   labelled so it cannot read as an obligation, or the merge has to stop putting
+   a future row above today's work.
+5. **`outstandingCheckIns` and the manager's `sectionOutstanding` need re-checking
+   together.** The manager's badge already comes from `gridSummary`, which this
+   bundle fixed; the student's comes from the array. Both would then be counting
+   the same rows for the first time, which is a good thing and is also exactly
+   where a discrepancy would show up.
+
+Points 1, 3 and 5 are mechanical. Point 2 is a decision about where the clock
+lives, and point 4 is a design question about a surface this bundle did not touch.
+
+### What was NOT verified
+
+- **The migration has NOT been applied.** No live Supabase project was touched,
+  no `supabase db push` was run, and `SUPABASE_ACCESS_TOKEN` was never set. The
+  file is applied by hand from the SQL editor after this merges.
+- No production or preview deployment; nothing here was opened on `ideabosco.com`.
+- No signed-in surface. The grid was driven through `/dev/notebook-review`, which
+  is the dev harness mounting the real `ReviewConsole`; the real `/notebook/review`
+  page needs a Bosco Tech Google session no automated run holds.
+- `prefers-reduced-motion` is `no-preference` in the harness, so that path was not
+  exercised. Nothing in this bundle animates.
+- Web fonts: the browser harness blocks non-loopback requests, so the redundant
+  Google Fonts link never resolved. Share Tech Mono itself DID load, from
+  `@fontsource` over loopback, and was confirmed by advance-width measurement.
+- `npm run build` was not run.
+- **`src/lib/classroom/PeoplePanel.svelte` was deliberately left alone**, and its
+  seventh tally glyph therefore inherits `--text-2` rather than naming a hue like
+  the other six. It is readable (`--text-2` measures 6.91 / 5.88 / 5.51 on the
+  three portal grounds, per `CLAUDE.md`) and carries its word and its glyph, so
+  it meets the standard; it is one line of cosmetic inconsistency, left because
+  two other sessions were live in the classroom tree.
+
+---
+
+## A rubric at creation time, and a second notebook check-in on one item (`claude/rubric-staging-creation-k3g9lw`, code only, no migration)
+
+Two composer-adjacent gaps, closed the same way the deck, the spec and the
+first check-in already were.
+
+- **A rubric can now be staged while creating an assignment, not only added
+  after it is posted.** `classroom_set_rubric` requires the item to exist and
+  to have at least one posting, exactly like the two spec setters --
+  `RubricBuilder`'s `itemId` prop is now `string | null` and, in the SAME
+  staging mode `SpecImporter` already uses (`onstage` in place of the RPC,
+  `staged` standing in for the not-yet-attached value), `ContentComposer`
+  mounts it right after the spec importer whenever the item being created is
+  an assignment and `teacherTransports` is available (`canStageRubric`). An
+  INCOMPLETE rubric may be staged and flagged, the same way `RubricBuilder`
+  already flags one at edit time -- refusing at creation what edit-time
+  permits would have been the inconsistency, not the flag staying visible. A
+  rubric is dropped, like the spec, the moment the item kind stops being
+  `assignment` (a material or an announcement has no rubric setter to write
+  through), and it is never staged on a surface that is not create-only, so
+  it cannot end up staged against a draft that never gets posted.
+
+  `composer-staging.ts` grew a fourth staged attachable
+  (`StagedExtras.rubric`, `StagedExtrasTransports.setRubric`,
+  `StagedExtrasResult.rubric`), applied in `applyStagedExtras` on the same
+  terms as the spec: one write, attempted independently of the check-in
+  after it, kept staged (named by "rubric:") on a refusal or a throw, and
+  cleared only once it lands. Both new fields are optional on their
+  interfaces rather than required, so the one existing caller
+  (`ContentComposer`) and every pre-existing test in
+  `tests/classroom-composer-staging.test.ts` needed no changes beyond adding
+  the field to the two literal `ComposerDraft`/`StagedExtras` shapes that are
+  now missing a key. `ComposerDraft.rubric` and `COMPOSER_DISCARD_WARNING`
+  both changed to match: a staged rubric now counts as work a close or a
+  navigation would discard.
+
+- **An item can now carry more than one notebook check-in.** The schema
+  already allowed it (`checkIns` was already a list, the create RPC already
+  callable per class, and the student-facing render on `ItemDetail` already
+  pluralized its own heading) -- the only thing enforcing "one" was a single
+  `{#if checkIns.length}...{:else}<CheckInStager>` branch in `ItemDetail`'s
+  MANAGEMENT half, which put the attach control behind an `{:else}` that a
+  first check-in closed forever. `CheckInStager` now renders unconditionally
+  alongside the list (heading pluralized to "Notebook check-ins" the same
+  way the student-facing block already does), with its submit label reading
+  "Attach another check-in" once one exists. `attachCheckIn` refuses a
+  SECOND check-in on the SAME date, naming the reason in the refusal (a
+  duplicate would put a second column on every affected class's grid and ask
+  every student for the same page twice) -- a client-side courtesy check
+  against the `checkIns` list already on the page, not a new database
+  constraint; `class-check-ins.ts` and the RPC it wraps were not touched, per
+  the session's scope. The composer's own create-time staging is unchanged
+  and still stages exactly one check-in -- attaching a second is
+  deliberately an edit-time-only action, matching how the deck and the spec
+  already work once an item exists.
+
+### What was measured
+
+- **Full suite: 131 files / 3036 tests** (baseline 131/3030, +6 for the new
+  staged-rubric cases and one `composerHasWork` case in
+  `tests/classroom-composer-staging.test.ts`).
+- **`svelte-check`: 0 errors / 37 warnings**, the same 31/5/1 breakdown as
+  baseline.
+- **`npm run verify:browser`: 18 route/width runs, 120 measurements, 2
+  outside threshold** -- both are the pre-existing, unowned `/dev/pathways`
+  harness-control tap-target finding (194.7x26.2 at both widths), unchanged
+  from before this bundle. `/dev/classroom-split/s-1?manage=1`, the one route
+  that mounts `ContentComposer` (with `teacherTransports` and
+  `checkInTransports`) through this repo's dev harness, measured 0 console
+  errors at both widths.
+
+### What was NOT verified
+
+- No dev harness route exercises `RubricBuilder`'s new staging mode or
+  `ItemDetail`'s second-check-in path directly through a scripted browser
+  interaction (clicking "Use this rubric" while creating an assignment,
+  attaching a second check-in to an existing item) -- `verify:browser`'s
+  route table has no entry that opens the composer's kind toggle on
+  `assignment` or navigates to an item detail page, and adding one was out
+  of scope for the two files this session does not own
+  (`src/routes/dev/classroom-split/...`). Verified instead by
+  `svelte-check`, the full test suite, and a manual trace of the new
+  `stagingMode`/`shown` branches against `SpecImporter`'s existing ones,
+  which they mirror line for line.
+- No production or preview deployment; nothing here was opened on
+  `ideabosco.com` or a Vercel preview.
+- No signed-in surface and no live Supabase project -- the placeholder
+  `.env` convention every prior bundle in this repo has used.
+- No migration: both changes are render-path and staging-shape changes over
+  RPCs (`classroom_set_rubric`, the check-in create RPC) that already exist
+  and already accept the shapes now reaching them.
+
+---
+
+## An assignment table cell wraps while editing, and PeoplePanel's last mono-tone tally gets a hue (code only, no migration)
+
+Two small, unrelated fixes scoped to `SpecRenderer.svelte` and
+`PeoplePanel.svelte`, done together because both were reported in one
+session and neither touches the other's surface.
+
+- **The editable table cell in `SpecRenderer` was a single-line `<input
+  type="text">`, which scrolled a long value out of view instead of wrapping
+  it.** The read-only render already handled this correctly --
+  `<span class="cell-text">` under `white-space: pre-wrap` grows the row to
+  fit -- and the same file already had the precedent for the editable side:
+  the `textField` block's `<textarea use:autoresize>`, capped by
+  `.answer`'s own `max-height` and read back rather than restated. The
+  table cell now uses the identical `autoresize` action on a `<textarea
+  class="cell">`, uncapped (no `max-height` set on `.cell`, matching the
+  read view's unbounded growth), so a long or multi-line answer stays fully
+  visible and the row grows with it -- read and edit no longer disagree.
+  `oninput`/`onchange` and the existing `trimCellEnds`-on-commit contract
+  are unchanged; only the element and its CSS (`resize: none`,
+  `overflow: hidden`, `line-height`) moved to match `.answer`'s shape. Two
+  already-existing tests asserted the old `<input class="cell">` markup
+  (`classroom-manager-spec-visibility.test.ts`'s "renders no editable
+  table-cell" case, keyed on the manager/readonly render never emitting
+  one, and `classroom-module-collapse.test.ts`'s collapsed-module case,
+  which read a filled cell back via `value="1"`/`value="2"`); both were
+  updated to look for `<textarea class="cell">` and for the value as the
+  textarea's text content rather than an attribute -- the same assertions,
+  ported to the new element.
+
+- **`PeoplePanel`'s notebook-compliance tallies read `CELL_STATES` (from
+  `notebook-review.ts`) and colour each glyph by hand, one CSS rule per
+  status; `missing` was the one left on the base `--text-2` instead of a
+  named hue.** The notebook review grid's own locked six-colour contract
+  (`CLAUDE.md`, "Visual theme" -> `.nb-root`) already answers what
+  `missing`'s hue is: green on time, amber late, cyan awaiting, crimson
+  flagged, ice excused, **sage missing** -- and in `colors.css`,
+  `--nb-cell-missing` resolves to `var(--dim)`. `--dim` is a general,
+  unscoped design-system token (not one of the `--nb-*` room-scoped
+  aliases), so `PeoplePanel` -- which is not under `.nb-root` and reads the
+  bare portal tokens for its other five tallies exactly as `.nb-on_time`
+  etc. do -- can use it directly with no new token and no room wrapper.
+  `.nb-missing .nb-glyph` now reads `var(--dim)`, matching the grid's own
+  answer for the same status rather than inventing a fresh one.
+
+### What was measured
+
+- **Cell geometry**, driven headlessly against the real `/dev/spec-table`
+  harness (`playwright-core` at the repo-pinned Chromium, matching
+  `tools/browser-verify`'s own instrument) with Module 1's disclosure
+  expanded and the first table cell scripted directly, since the harness's
+  own fixture pre-fills that module and the module disclosure collapses a
+  completed one by default:
+  - **375px**, short value ("Ti-6Al-4V"): 96 x 33px box, `scrollHeight`
+    31px. Long multi-line value (three lines, one an authored newline, the
+    rest wrapped): 96 x **595px**, `scrollHeight` 593px, row height
+    602.375px -- the row visibly grows with the cell.
+  - **1440px**, same short value: 236.9 x 33px. Same long value: 236.9 x
+    **206px**, `scrollHeight` 204px, row height 213.375px (shorter than at
+    375px because the wider column wraps to fewer lines).
+  - **No horizontal overflow at either width**: `document.documentElement
+    .scrollWidth === clientWidth` (375 and 1440 respectively) in both
+    cases.
+- **`npm run verify:browser -- --route spec-table`**: 4 route/width runs
+  (`/dev/spec-table` and `/dev/spec-table-open`, both widths), 20
+  measurements, 0 outside threshold -- `horizontal-scroll` reports 0px
+  overflow at both widths on both routes, and the opened-disclosure route's
+  table-cell contrast is unaffected (14.96:1, unchanged element, only its
+  input type moved).
+- **`npm run verify:browser`, full route table**: 18 route/width runs, 120
+  measurements, 2 outside threshold -- the pre-existing, unowned
+  `/dev/pathways` tap-target finding and nothing else. Unchanged from the
+  baseline this bundle started from.
+- **The `--dim` glyph's contrast**, measured the same way against the real
+  `/dev/classroom` harness's People tab (`?view=people`, the "notebook
+  migrations applied" toggle on, section `s-1`'s fixture carrying four
+  `missing` cells so the tally renders with a nonzero count): glyph colour
+  `rgb(132, 144, 128)` (`--dim`) on the card background `rgb(16, 19, 18)`
+  (`--surface-1`, the same ground `.cr-root .card` paints under this
+  component) -- **5.59:1**, matching the figure `colors.css` already
+  documents for `--nb-cell-missing` against `--nb-surface` on the default
+  plate (this is the identical portal-token pair, not a coincidence), and
+  clear of the 4.5:1 text floor.
+- **Full suite: 131 files / 3030 tests**, unchanged from baseline (the two
+  markup-assertion tests above were updated, not added or removed; no
+  count moved).
+- **`svelte-check`: 0 errors / 37 warnings**, 31/5/1 breakdown
+  (`state_referenced_locally` / `css_unused_selector` /
+  `perf_avoid_nested_class`) -- unchanged from baseline.
+
+### What was NOT verified
+
+- No production or preview deployment; nothing here was opened on
+  `ideabosco.com` or a Vercel preview.
+- No signed-in surface and no live Supabase project -- the placeholder
+  `.env` convention.
+- No migration; neither change touches the database.
+- `npm run build` was not run (the Windows EPERM trap does not apply on
+  Linux, and a build was not part of this pass).
+
+---
+
+## Three bundles landed as one integration merge (`claude/integration-three-feature-merges-8i1zec`, no migration of its own)
+
+Three independently-developed branches, merged into one integration branch with
+`--no-ff` in this order so they land as a single merge rather than three that
+conflict in sequence: `claude/scheduled-checkin-future-status-vqlnpu` (a check-in
+dated in the future is scheduled, not missing -- `0140`), `claude/rubric-staging-creation-k3g9lw`
+(a rubric can be staged at assignment creation; a second notebook check-in can
+sit on one item), and `claude/editable-table-cell-wrap-v7jq0i` (an assignment
+table cell wraps while editing; PeoplePanel's last mono-tone tally gets a hue).
+Started from `main` at `874c5b567deb4d8411137a3a3baacf7be9cddd69`, which already
+carried the Foundry telemetry bundle (`0139`).
+
+### Conflict resolution
+
+Exactly two files conflicted on every one of the three merges, as expected --
+`docs/HISTORY.md` and `classroom-updates.json` -- and nothing else did.
+
+- **`docs/HISTORY.md`**: each conflict was two dated entries landing at the same
+  point in the file (one from `main`'s side, one from the branch), never a
+  contested edit to the SAME entry. Resolved by keeping both, in the order they
+  were written, separated by the file's own `---` rule -- no section dropped, no
+  marker left behind. The first merge also had a two-line migration-index-table
+  conflict (`0139`'s row versus `0140`'s row); both rows are kept, in numeric
+  order.
+- **`classroom-updates.json`**: a text-level keep-both would have produced a file
+  with duplicate JSON keys that fails to parse, so each conflict was resolved by
+  parsing both sides, taking the union of `entries` by `(date, title, body)`
+  identity, sorting by `date`, and re-serializing with the file's own tab
+  indentation. `_readme` is identical on every side and was kept as is. The
+  three merges brought the entry count from 99 to 100 to 101; the final file
+  parses (`python3 -c "import json; json.load(open(...))"`) and was read back
+  through the app's own shape (`{_readme, entries}`).
+
+No other file conflicted across any of the three merges -- verified by
+`git diff --name-only --diff-filter=U` after each `git merge --no-ff`, which
+listed only the two files above every time.
+
+### Migration ordering: `0139` then `0140`
+
+`0139_foundry_telemetry.sql` (already on `main`) and
+`0140_notebook_scheduled_check_ins.sql` (arriving with the scheduled-checkin
+branch) had never been applied in sequence anywhere before this branch. Neither
+touches a table, function or policy the other one names -- Foundry telemetry and
+the notebook review grid are unrelated subsystems -- so the risk was purely
+mechanical: two migrations landing adjacent in the numbered chain for the first
+time.
+
+No single test in the suite runs the ENTIRE historical chain end to end (each
+test's own `CHAIN` is a scoped subset relevant to its subsystem, per this file's
+own testing conventions, and a literal apply-everything attempt against the stub
+fails on an unrelated early migration, `0043_fsp_qa.sql`, that assumes
+`auth.jwt()` exists outside the harness's minimal `auth` stub -- a stub
+limitation, not a real ordering defect). So this was verified directly: a
+temporary vitest file (removed before this commit, never part of the permanent
+suite) built the same chain `tests/foundry-telemetry.test.ts` already exercises
+for `0139` (ending on `0137`'s anon-execute sweep, exactly as the real project
+applies it), added `0098_notebook_session_postings.sql` (a real dependency
+`0140` needs that the Foundry-only chain does not carry), and appended `0140` at
+the end, matching production apply order. Two assertions against a real
+embedded Postgres:
+
+1. The whole chain -- `0139` then `0137` then `0140` -- applies with no error.
+2. Re-pasting `0139` then `0140` a second time over the same database (ordinary
+   here; migrations are idempotent where practical) applies with no error
+   either.
+
+Both passed. **`0139_foundry_telemetry.sql` and `0140_notebook_scheduled_check_ins.sql`
+apply cleanly in sequence.**
+
+### Full suite
+
+**134 files / 3096 tests, all passing.** Each of the three branches' own numbers,
+measured against its own base (a common ancestor whose test count was
+independently confirmed at 131 files / 3030 tests by running the suite at that
+commit in a throwaway worktree): the table-cell branch at 131/3030 (its two
+changed tests are in-place assertion edits -- an `<input>` became a `<textarea>`
+match, a `value="1"` became a text-content match -- so it adds zero tests, zero
+files, and its own reported total equals the base exactly), the rubric-staging
+branch at 131/3036 (+6 tests, +0 files), the scheduled-checkin branch at
+132/3059 (+29 tests, +1 file: `tests/notebook-scheduled-check-ins.test.ts`), and
+`main`'s own Foundry telemetry bundle at 133/3061 over the same base (+31 tests,
++2 files: `tests/foundry-telemetry-surfaces.test.ts` and
+`tests/foundry-telemetry.test.ts`).
+
+Summed: 3030 (base) + 0 (table-cell) + 6 (rubric) + 29 (scheduled-checkin) + 31
+(Foundry telemetry) = **3096**, and 131 + 0 + 0 + 1 + 2 = **134** files -- both
+exactly what the combined run measured. The four deltas are additive with no
+loss and no double-count: nothing that passed alone failed in combination, and
+nothing landed on the same test file from two branches at once (`git diff --stat`
+against `main` for each branch, run before merging, confirmed each branch's test
+changes stay inside files no OTHER branch in this integration also touches).
+
+### `svelte-check`
+
+**0 errors, 37 warnings**, mix 31 `state_referenced_locally` / 5
+`css_unused_selector` / 1 `perf_avoid_nested_class` -- matches the documented
+baseline exactly, re-derived with `svelte-kit sync` first and a placeholder
+`.env` (this container ships with neither) rather than trusted from this file.
+
+### `npm run verify:browser`
+
+**18 route/width runs, 120 measurements, 2 outside threshold** -- both the
+known, pre-existing `/dev/pathways` harness-controls tap-target finding (194.7 x
+26.2px, at both 375px and 1440px; the harness's own dev-only controls, not a
+student-facing surface), unchanged from every branch's own baseline. One run
+also showed a `net::ERR_ABORTED` on a background `__data.json` invalidation
+fetch that did not reproduce on a second run -- flaky, not a finding, per this
+file's own standing note on the instrument.
+
+### What appeared only in combination
+
+Nothing. Every number above lands exactly where the additive arithmetic
+predicts: no test passing alone and failing in combination, no migration
+conflict, no new `svelte-check` finding, no new browser-verify finding. The
+only work this session did beyond the merges themselves was proving the `0139`
+-> `0140` migration adjacency (never previously exercised) and re-deriving the
+combined test/file counts from first principles rather than trusting the
+arithmetic.
+
+### What was NOT verified
+
+- No production or preview deployment; nothing here was opened on
+  `ideabosco.com` or a Vercel preview.
+- No signed-in surface and no live Supabase project -- the placeholder `.env`
+  convention every prior bundle here has used; `SUPABASE_ACCESS_TOKEN` was
+  never set and `supabase db push` was never run.
+- Neither `0139` nor `0140` was applied to any live database by this session --
+  both are pasted into the Supabase SQL editor by hand, in that order, after
+  this branch is reviewed.
+- `npm run build` was not run (the Windows EPERM trap does not apply on Linux,
+  and a build was not part of this pass).
+- This branch was not merged to `main` and nothing was force-pushed.
