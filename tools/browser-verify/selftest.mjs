@@ -15,7 +15,7 @@
  * touches nothing.
  */
 import { launch, openPage, settle } from './browser.mjs';
-import { horizontalScroll, contrast, tapTargets, presence, domOrder, consoleErrors } from './checks.mjs';
+import { horizontalScroll, contrast, tapTargets, presence, domOrder, orderResult, consoleErrors } from './checks.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -151,6 +151,24 @@ const CASES = [
 			name: 'the "before" element genuinely rendered first',
 			html: shell('<div id="first">first</div><div id="second">second</div>'),
 			run: (p) => domOrder(p, { before: '#first', after: '#second', label: 'first before second' }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'order-result',
+		bad: {
+			/* The write path recorded an id array, but the wrong one -- the same
+			   shape a transport that reorders on the wrong axis, or silently
+			   no-ops and leaves a stale write behind, would produce. */
+			name: 'the recorded write does not match the expected order',
+			html: shell('<script>window.__order = ["a", "c", "b"];</' + 'script>'),
+			run: (p) => orderResult(p, { evaluate: '() => window.__order', expected: ['a', 'b', 'c'] }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the recorded write matches the expected order',
+			html: shell('<script>window.__order = ["a", "b", "c"];</' + 'script>'),
+			run: (p) => orderResult(p, { evaluate: '() => window.__order', expected: ['a', 'b', 'c'] }),
 			expect: 'within'
 		}
 	},

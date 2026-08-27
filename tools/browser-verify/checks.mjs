@@ -376,7 +376,34 @@ export async function domOrder(page, { before, after, label, beforeLabel = befor
 }
 
 /* ------------------------------------------------------------------ *
- * 6. Console errors during the run
+ * 6. Order result -- did an in-page action write the id array it should
+ * ------------------------------------------------------------------ */
+export async function orderResult(page, { evaluate, expected, label } = {}) {
+	/* Reads a value the page itself computed and wrote (a transport's own log),
+	   never a DOM position -- a drag-and-drop reorder in a harness backed by a
+	   static fixture can move a control without the fixture's rendered order
+	   ever changing, so a DOM read here would pass while a broken transport
+	   silently dropped the write on the floor. This is the counterpart to
+	   domOrder: that check proves an ordering claim by reading what painted;
+	   this one proves a WRITE claim by reading what the write path recorded,
+	   which is the only place "the drop persisted" is observable at all. */
+	const actual = await page
+		.evaluate(`(${evaluate})()`)
+		.catch((e) => ({ __evalError: e.message }));
+	const withinThreshold =
+		Array.isArray(actual) && Array.isArray(expected) && actual.length === expected.length && actual.every((v, i) => v === expected[i]);
+	return {
+		check: 'order-result',
+		label,
+		measured: JSON.stringify(actual),
+		threshold: JSON.stringify(expected),
+		withinThreshold,
+		data: { actual, expected }
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * 7. Console errors during the run
  * ------------------------------------------------------------------ */
 export function consoleErrors(collected, { ignore = [], blockedCount = 0 } = {}) {
 	/* The harness aborts external requests on purpose, and Chromium logs a

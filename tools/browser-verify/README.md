@@ -116,6 +116,7 @@ threshold exists it is printed beside the measurement, never instead of it.
 | `tap-target` | Each control's box, the smallest min-dimension, counts under 44px and under the 24px floor, and a centre hit-test |
 | `presence` | **present**, **visible** and **aria-hidden** counts -- three different questions -- with a reason for every invisible node |
 | `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
+| `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen |
 | `console-errors` | Console errors and uncaught exceptions during the run |
 
 Three details are deliberate:
@@ -158,8 +159,8 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **20
-controls, 10 negative and 10 positive.** Fixtures rather than a mutation of `src/`
+one, because unlike the measuring run there is a right answer here. **22
+controls, 11 negative and 11 positive.** Fixtures rather than a mutation of `src/`
 on purpose: a mutation proves a check once in a tree that then has to be
 restored byte-identically, this proves it on every run and touches nothing.
 

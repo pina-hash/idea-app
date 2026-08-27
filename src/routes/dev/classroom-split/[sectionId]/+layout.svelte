@@ -33,6 +33,10 @@
 		specs: [] as { itemId: string; kind: string }[],
 		/** Check-ins created against an item (0120), in call order. */
 		checkIns: [] as { itemId: string; label: string; unit: number | string; date: string }[],
+		/** Every `setOrder` write, in call order -- what the drag-and-drop
+		 *  bundle needs to measure that a DROP produced the id array it
+		 *  should, not only that dragging itself moves something on screen. */
+		orders: [] as string[][],
 		/**
 		 * Guidance prompts written against a check-in (0123), in call order.
 		 *
@@ -119,7 +123,11 @@
 		removePosting: () => ok({ ok: true }),
 		setPublished: () => ok(undefined),
 		setPinned: () => ok(undefined),
-		setOrder: () => ok(undefined),
+		setOrder: (itemIds) => {
+			composeLog.orders = [...composeLog.orders, itemIds];
+			logCall('setOrder', { itemIds });
+			return ok(undefined);
+		},
 		uploadAttachment: (itemId, file) => {
 			logCall('uploadAttachment', { itemId, file: file.name });
 			return ok(undefined);
@@ -373,6 +381,7 @@
 			decks: [...composeLog.decks],
 			specs: [...composeLog.specs],
 			checkIns: [...composeLog.checkIns],
+			orders: composeLog.orders.map((ids) => [...ids]),
 			calls: composeLog.calls.map((c) => c.fn),
 			fail: { ...composeLog.fail }
 		});
@@ -389,6 +398,7 @@
 			composeLog.decks = [];
 			composeLog.specs = [];
 			composeLog.checkIns = [];
+			composeLog.orders = [];
 			composeLog.fail.deck = false;
 			composeLog.fail.spec = false;
 			composeLog.fail.checkIn = false;
