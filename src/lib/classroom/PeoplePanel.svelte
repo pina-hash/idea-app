@@ -858,8 +858,11 @@
 	.nb-excused .nb-glyph {
 		color: var(--ice);
 	}
+	/* --dim is the notebook review grid's own "sage" ink for missing
+	   (--nb-cell-missing resolves to it), so this is the same status colour
+	   rather than a fresh one. */
 	.nb-missing .nb-glyph {
-		color: var(--text-2);
+		color: var(--dim);
 	}
 	.nb-attention {
 		margin-bottom: 0.6rem;
