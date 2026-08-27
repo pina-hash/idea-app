@@ -3,6 +3,7 @@
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { figureReference } from '$lib/classroom/classroom';
+	import { dropTarget } from '$lib/file-drop';
 	import {
 		appendFigure,
 		figureLineRenders,
@@ -126,33 +127,6 @@
 		onchange(out.markdown);
 	}
 
-	// -----------------------------------------------------------------------
-	// Drop and paste.
-	//
-	// WRITTEN INLINE RATHER THAN THROUGH `$lib/file-drop`, WHICH IS NOT ON THIS
-	// BRANCH. That module -- `isFileDrag`, `filesFromClipboard`, `dropTarget` --
-	// is the shared primitive for exactly this and is being built in a parallel
-	// lane (`claude/shared-upload-drop-paste-bhwqq1`); it does not exist on
-	// `main`, and reaching into another lane's file is how two half-merged
-	// copies of one primitive end up in the tree. These handlers are therefore
-	// the minimum DOM glue and no pure logic at all, so that swapping them for
-	// `use:dropTarget` when that lane lands is a deletion rather than a merge.
-	// -----------------------------------------------------------------------
-
-	function filesOf(e: DragEvent): File[] {
-		return Array.from(e.dataTransfer?.files ?? []);
-	}
-
-	function imagesOf(e: ClipboardEvent): File[] {
-		const out: File[] = [];
-		for (const item of Array.from(e.clipboardData?.items ?? [])) {
-			if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
-			const file = item.getAsFile();
-			if (file) out.push(file);
-		}
-		return out;
-	}
-
 	async function take(files: File[]) {
 		if (!upload || !files.length || disabled) return;
 		uploading = true;
@@ -193,31 +167,11 @@
 	class:spx-drag={dragging}
 	role="group"
 	aria-label={label}
-	ondragover={upload && !disabled
-		? (e) => {
-				if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
-				e.preventDefault();
-				dragging = true;
-			}
-		: undefined}
-	ondragleave={upload ? () => (dragging = false) : undefined}
-	ondrop={upload && !disabled
-		? (e) => {
-				const files = filesOf(e);
-				if (!files.length) return;
-				e.preventDefault();
-				dragging = false;
-				void take(files);
-			}
-		: undefined}
-	onpaste={upload && !disabled
-		? (e) => {
-				const files = imagesOf(e);
-				if (!files.length) return;
-				e.preventDefault();
-				void take(files);
-			}
-		: undefined}
+	use:dropTarget={{
+		onfiles: (files) => void take(files),
+		onactive: (active) => (dragging = active),
+		disabled: !upload || disabled
+	}}
 >
 	{#if rich}
 		<RichTextEditor
