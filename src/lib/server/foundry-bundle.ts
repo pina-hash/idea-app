@@ -9,7 +9,7 @@ import {
 	FOUNDRY_UPLOAD_BUCKET
 } from '$lib/foundry/bundle-url';
 import { servableFoundryType } from '$lib/foundry/preflight';
-import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
+import { FIXTURE_VIEWER, fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
 
 /**
  * THE REVIEW QUEUE'S SOURCE READS: what is ACTUALLY sitting in the bundle
@@ -25,14 +25,26 @@ import { fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture'
  *
  * SO THE SERVICE-ROLE CLIENT IS UNAVOIDABLE FOR EVERYTHING IN THIS FILE, and
  * this module is still the ONE Foundry reader of that key: the source viewer's
- * two reads, the serving route's read, and the delete sweep at the bottom.
+ * two reads, the serving route's read, the PREVIEW read, and the delete sweep
+ * at the bottom.
  *
  * NONE OF THEM IS SELF-AUTHORIZING AND NONE PRETENDS TO BE. They take no token
  * and bypass RLS by construction, so each one's caller carries the check: the
  * source reads answer to `/api/foundry/source`, which is admin-gated and 404s
  * everyone else; the serving read re-checks every rule RLS would have enforced
- * in its own body; and the sweep only ever removes paths a SECURITY DEFINER
- * function already handed back to the caller who was allowed to ask for them.
+ * in its own body; the preview read is handed a VIEWER its route resolved from
+ * the caller's own validated session and refuses anyone who is neither that
+ * version's author nor an admin; and the sweep only ever removes paths a
+ * SECURITY DEFINER function already handed back to the caller who was allowed
+ * to ask for them.
+ *
+ * THERE ARE TWO SERVING READS NOW AND THEY ARE DELIBERATELY NOT ONE.
+ * `serveBundleFile` answers on the APPS ORIGIN and gates on the VERSION'S OWN
+ * STATUS, because that host holds no session and no other question is available
+ * to it. `previewBundleFile` answers on the PORTAL ORIGIN and gates on WHO IS
+ * ASKING, which is the only place that question can be asked. A single function
+ * with a flag would put one boolean between every draft in the table and the
+ * open internet; see `previewBundleFile`'s own header for the full comparison.
  *
  * THE FILE LIST IS THE ROWS, NOT THE BUCKET. `student_app_files` is what the
  * ingest function wrote, so a tree built from it is the set of paths a bundle
@@ -306,6 +318,201 @@ export async function serveBundleFile(
 
 	const live = app.published_version_id === version.id || version.status === 'submitted';
 	if (!live) return REFUSED;
+
+	const { data: row, error: rowErr } = await client
+		.from('student_app_files')
+		.select('path, content_type')
+		.eq('version_id', versionId)
+		.eq('path', path)
+		.maybeSingle<{ path: string; content_type: string | null }>();
+	if (rowErr || !row) return REFUSED;
+
+	const { data: blob, error: dlErr } = await client.storage
+		.from(FOUNDRY_BUNDLE_BUCKET)
+		.download(`${appId}/${versionId}/${path}`);
+	if (dlErr || !blob) return REFUSED;
+
+	return {
+		ok: true,
+		bytes: new Uint8Array(await blob.arrayBuffer()),
+		contentType: servableFoundryType(row.content_type)
+	};
+}
+
+
+/* -------------------------------------------------------------------------
+ * THE PREVIEW READ: a version its AUTHOR may run before anybody has approved
+ * it.
+ *
+ * WHY THIS IS A SECOND READER AND NOT A PARAMETER ON `serveBundleFile`.
+ * `serveBundleFile` answers on the APPS ORIGIN, where there is no session and
+ * cannot be one -- that absence is the whole of what the origin split buys.
+ * Its gate is therefore the VERSION'S OWN STATUS, and it has to be: there is
+ * nothing on that host that could tell whether the person asking wrote the
+ * thing they are asking for. Widening it to admit a draft would mean admitting
+ * EVERY draft to EVERYONE, because on that host "everyone" is the only
+ * audience it can express. So preview is a different question asked in a
+ * different place, and mixing the two into one function with a flag would mean
+ * the flag was the only thing standing between a draft and the open internet.
+ *
+ * WHAT THIS PERMITS THAT `serveBundleFile` DOES NOT, EXACTLY, AND WHY EACH IS
+ * SAFE:
+ *
+ *   ANY STATUS, INCLUDING `draft` AND `rejected`. This is the point. A student
+ *     cannot currently run their own app before handing it in, so the first
+ *     time anyone finds out whether it works is after review -- which wastes a
+ *     review cycle on a build the author could have fixed in a minute. What
+ *     makes it safe is not the status but the VIEWER: the only people who
+ *     reach these bytes are the person who wrote them and an admin.
+ *
+ *   A HIDDEN APP, BUT FOR AN ADMIN ONLY. This is the one clause that is a
+ *     JUDGEMENT rather than a consequence, so it is written where it can be
+ *     changed in one place. Hiding is admin-only and narrows what the OWNER may
+ *     do to an app: 0130 already refuses their edit of a hidden one, and 0136
+ *     refuses their delete of it, both on the grounds that a shelved app is
+ *     under discussion with staff. A new owner capability that ignored the flag
+ *     would cut against that, so the owner is refused here too and reads the
+ *     sentence the surface already gives them ("talk to your instructor"). An
+ *     ADMIN is permitted, for the reason the review load asks for hidden apps
+ *     at all: a decision about a shelved app that cannot run the shelved app is
+ *     a decision made blind.
+ *
+ * WHAT IT DOES NOT PERMIT, AND WITH THE ABOVE THESE ARE THE WHOLE OF THE GATE:
+ *
+ *   A DELETED APP. There is no row, so `previewViewerMayRun` is handed null and
+ *     refuses. Deletion is real deletion (0136) and there is nothing to serve.
+ *
+ *   A VERSION THAT IS NOT THIS APP'S. The URL carries both ids and a caller can
+ *     write anything into either; the version's own `app_id` is what decides.
+ *     Without this, a student could name THEIR app and SOMEBODY ELSE'S version
+ *     and pass the ownership check on the app row they do own.
+ *
+ *   ANYONE WHO IS NEITHER THE AUTHOR NOR AN ADMIN. Including a signed-in
+ *     student looking at another student's draft, which is the case the whole
+ *     gate exists for.
+ *
+ * IT IS THE SAME BODYLESS 404 AS EVERYTHING ELSE. A draft somebody may not see
+ * and a version that does not exist are indistinguishable from outside, so the
+ * URL cannot be used to ask whether a given student has work in progress.
+ *
+ * THE SERVICE-ROLE CLIENT IS STILL NOT SELF-AUTHORIZING. It reads the rows
+ * bypassing RLS, exactly as the other three readers in this file do, and the
+ * decision is made here from what it read against a viewer the ROUTE resolved
+ * from the caller's own validated session. Nothing in this function trusts a
+ * value that came off the URL except as the thing being looked up.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * WHO IS ASKING, resolved by the route from the caller's own cookie session --
+ * never from anything in the URL.
+ *
+ * `isAdmin` is `$lib/server/admin`'s answer, which is `is_admin()` run as the
+ * CALLER through their own client. It is passed in rather than asked for here
+ * because this module holds the service-role key: a function with that key
+ * that also decided who was an admin would be one edit away from deciding it
+ * from a parameter.
+ */
+export type FoundryPreviewViewer = { id: string; isAdmin: boolean };
+
+/**
+ * THE PREVIEW GATE, AS A PURE PREDICATE OVER THE ROWS.
+ *
+ * It is separated from the IO so it can be asserted directly, in every
+ * combination, against a table of rows -- a gate reachable only through a
+ * Supabase client is a gate whose refusals are tested by hoping.
+ *
+ * IT FAILS CLOSED ON EVERY MISSING INPUT. A null app (deleted, or never
+ * existed), a null version, a null viewer and an EMPTY viewer id all refuse
+ * before anything else is considered. The empty id matters: `locals.claims.sub`
+ * is a string, and a caller with no session must not be able to match an
+ * `owner` column that is somehow also empty.
+ *
+ * THE APP/VERSION PAIRING IS CHECKED HERE, not left to the caller. Both ids
+ * come off the URL, so a version that belongs to another app has to be refused
+ * by the same predicate that decides ownership, or the ownership check is
+ * running against the wrong row.
+ *
+ * THE ADMIN BRANCH COMES BEFORE THE HIDDEN ONE, which is the whole of the
+ * hidden rule: an admin previews a shelved app (they are the person who shelved
+ * it, and a decision about a build that cannot run the build is made blind),
+ * and the owner does not (0130 refuses their edit of one and 0136 their delete
+ * of one, for the same reason). A NULL OWNER NEVER MATCHES, so a row whose
+ * owner column is somehow empty is not previewable by a viewer whose id is
+ * somehow empty -- both halves of that are already refused above, and this is
+ * the third refusal of the same thing.
+ */
+export function previewViewerMayRun(
+	app: { id: string; owner: string | null; hidden_at: string | null } | null,
+	version: { app_id: string } | null,
+	viewer: FoundryPreviewViewer | null
+): boolean {
+	if (!app || !version || !viewer) return false;
+	if (!viewer.id) return false;
+	if (version.app_id !== app.id) return false;
+	if (viewer.isAdmin) return true;
+	if (app.hidden_at !== null) return false;
+	return app.owner !== null && app.owner === viewer.id;
+}
+
+/**
+ * One file of one version, if and only if this viewer may preview it.
+ *
+ * THE FILE LIST IS STILL THE ALLOWLIST and `bundlePathOk` still runs first, as
+ * an independent second refusal -- those two properties are not about who is
+ * asking and do not relax for a preview.
+ *
+ * IN DEV, WITH NO REAL PROJECT, the rows and bytes come from
+ * `./foundry-dev-fixture`, whose apps carry no owner column at all -- so this
+ * branch STATES one: `FIXTURE_VIEWER` is treated as the author of every fixture
+ * app. That is a fact about the fixture, written here rather than there, and it
+ * is what lets the author/not-author/admin split be driven against the real
+ * handler. It changes nothing about the gate: the same predicate decides, with
+ * the same three refusals.
+ */
+export async function previewBundleFile(
+	appId: string,
+	versionId: string,
+	path: string,
+	viewer: FoundryPreviewViewer | null
+): Promise<FoundryServeResult> {
+	if (!bundlePathOk(path)) return REFUSED;
+	if (!viewer || !viewer.id) return REFUSED;
+
+	if (dev && isFixtureApp(appId)) {
+		const app = fixtureApp(appId);
+		const version = fixtureVersion(versionId);
+		if (!app || !version) return REFUSED;
+		if (
+			!previewViewerMayRun(
+				{ id: app.id, owner: FIXTURE_VIEWER, hidden_at: app.hiddenAt },
+				{ app_id: version.appId },
+				viewer
+			)
+		)
+			return REFUSED;
+		const file = version.files.get(path);
+		if (!file) return REFUSED;
+		return { ok: true, bytes: file.bytes, contentType: file.contentType };
+	}
+
+	const client = admin();
+	if (!client) return REFUSED;
+
+	const { data: version, error: versionErr } = await client
+		.from('student_app_versions')
+		.select('id, app_id')
+		.eq('id', versionId)
+		.maybeSingle<{ id: string; app_id: string }>();
+	if (versionErr || !version) return REFUSED;
+
+	const { data: app, error: appErr } = await client
+		.from('student_apps')
+		.select('id, owner, hidden_at')
+		.eq('id', appId)
+		.maybeSingle<{ id: string; owner: string | null; hidden_at: string | null }>();
+	if (appErr || !app) return REFUSED;
+
+	if (!previewViewerMayRun(app, version, viewer)) return REFUSED;
 
 	const { data: row, error: rowErr } = await client
 		.from('student_app_files')
