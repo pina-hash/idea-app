@@ -53,6 +53,92 @@
 import { bundlePathOk } from '../bundle-path.ts';
 import { FOUNDRY_STORAGE_SHIM_JS, FOUNDRY_STORAGE_SHIM_TAG } from './storage-shim.ts';
 
+/**
+ * EVERY STORAGE SHIM THIS PLATFORM HAS EVER HANDED A STUDENT, RETIRED ONES
+ * FIRST-CLASS.
+ *
+ * A student pastes the shim into `index.html` and it stays there. The snippet
+ * they pasted last term is not the snippet the contract hands out today, and
+ * the scanner has to recognise both or it complains about its own advice --
+ * see `isStorageShim` below for what that looked like.
+ *
+ * THIS IS NOT A SECOND COPY OF THE LIVE SHIM, AND THE DISTINCTION IS THE ONE
+ * THAT KEEPS IT HONEST. `storage-shim.ts` owns the shim that SHIPS: it is
+ * injected on every HTML response and embedded in the contract, from one
+ * string. What is written out below is a string this repository no longer
+ * emits anywhere -- it cannot drift from anything, because nothing generates
+ * it any more. `tests/foundry-preflight.test.ts` asserts no entry here equals
+ * the live shim, which is what stops somebody "keeping it in sync" and
+ * quietly creating the second copy.
+ *
+ * ONE ENTRY: the pre-probe shim, which replaced both storages unconditionally.
+ * It is the version served from the first bundle that had a shim at all
+ * through to the one that made the install conditional, so it is the version
+ * on every app published before then.
+ *
+ * ADDING TO THIS LIST IS WHAT A SHIM EDIT COSTS. Change the live string and
+ * the string it replaced moves here, verbatim, in the same commit.
+ */
+const FOUNDRY_RETIRED_SHIMS: readonly string[] = [
+	`(function(){
+try{
+var W=window;
+function make(){
+var d=Object.create(null);
+var api={
+getItem:function(k){k=String(k);return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null;},
+setItem:function(k,v){d[String(k)]=String(v);},
+removeItem:function(k){delete d[String(k)];},
+clear:function(){d=Object.create(null);},
+key:function(i){var ks=Object.keys(d);i=Math.floor(Number(i))||0;return i>=0&&i<ks.length?ks[i]:null;}
+};
+if(typeof Proxy!=='function'){try{Object.defineProperty(api,'length',{get:function(){return Object.keys(d).length;}});}catch(e){}return api;}
+return new Proxy(api,{
+get:function(t,p,r){
+if(p==='length')return Object.keys(d).length;
+if(typeof p!=='string')return Reflect.get(t,p,r);
+if(Object.prototype.hasOwnProperty.call(t,p))return t[p];
+return Object.prototype.hasOwnProperty.call(d,p)?d[p]:undefined;
+},
+set:function(t,p,v){
+if(typeof p==='string'&&!Object.prototype.hasOwnProperty.call(t,p))d[p]=String(v);
+return true;
+},
+has:function(t,p){
+return (typeof p==='string'&&Object.prototype.hasOwnProperty.call(d,p))||p in t;
+},
+deleteProperty:function(t,p){if(typeof p==='string')delete d[p];return true;},
+ownKeys:function(){return Object.keys(d);},
+getOwnPropertyDescriptor:function(t,p){
+if(typeof p==='string'&&Object.prototype.hasOwnProperty.call(d,p))
+return {value:d[p],writable:true,enumerable:true,configurable:true};
+return undefined;
+}
+});
+}
+function install(name){
+var s=make();
+var desc={value:s,configurable:true,enumerable:true,writable:false};
+try{Object.defineProperty(W,name,desc);if(W[name]===s)return true;}catch(e){}
+try{Object.defineProperty(Window.prototype,name,desc);if(W[name]===s)return true;}catch(e){}
+return false;
+}
+install('localStorage');
+install('sessionStorage');
+}catch(e){}
+})();`
+];
+
+/**
+ * The set `isStorageShim` tests against: the live shim and every retired one.
+ * Exported so a test can assert the live string is in it exactly once and that
+ * no retired entry has quietly become a copy of it.
+ */
+export const FOUNDRY_KNOWN_SHIMS: readonly string[] = [
+	FOUNDRY_STORAGE_SHIM_JS,
+	...FOUNDRY_RETIRED_SHIMS
+];
+
 /* -------------------------------------------------------------------------
  * Caps and vocabulary.
  * ---------------------------------------------------------------------- */
@@ -433,6 +519,44 @@ export interface FoundryIssue {
 
 function issue(file: string | null, line: number | null, message: string): FoundryIssue {
 	return { file, line, message };
+}
+
+/**
+ * WHETHER A SENTENCE ALREADY OPENS WITH ITS OWN LOCATION, AND THEREFORE
+ * WHETHER ANYTHING SHOULD ADD ONE.
+ *
+ * Nearly every message here is built from `where(path, line)` -- "index.html
+ * line 6 loads..." -- and the structural ones lead with the filename
+ * ("notes.md is a .md file..."). A surface that puts a location chip beside
+ * such a sentence prints the location twice, and a copy control that prefixes
+ * it again puts the stutter on the clipboard, which is what the student pastes
+ * into the tool that has to act on it.
+ *
+ * IT LIVES HERE RATHER THAN IN THE COMPONENT BECAUSE IT NOW HAS TWO CALLERS.
+ * `FoundryIssues.svelte` renders and copies one issue at a time;
+ * `foundryFixPrompt` below assembles the whole list into an instruction. Two
+ * copies of "does this sentence already say where it is" is two things that
+ * stop agreeing, and the failure is silent -- one surface stutters and the
+ * other does not, and nobody compares them.
+ */
+export function foundryIssueLeadsWithLocation(issue: FoundryIssue): boolean {
+	return issue.file !== null && issue.message.startsWith(issue.file);
+}
+
+/** The location, for the issues whose sentence does not already carry one. */
+export function foundryIssueLocation(issue: FoundryIssue): string | null {
+	if (issue.file === null || foundryIssueLeadsWithLocation(issue)) return null;
+	return issue.line === null ? issue.file : `${issue.file} line ${issue.line}`;
+}
+
+/**
+ * ONE ISSUE AS ONE COPYABLE LINE: the sentence, with a location added only
+ * when the sentence does not already name one. The file is most of what the
+ * tool receiving this paste needs, so it is never simply dropped.
+ */
+export function foundryIssueLine(issue: FoundryIssue): string {
+	const at = foundryIssueLocation(issue);
+	return at === null ? issue.message : `${at}: ${issue.message}`;
 }
 
 /** One decimal, so "31.2 MB" rather than "31.198242 MB". */
@@ -885,16 +1009,35 @@ export interface HtmlScan {
 
 /** The first line with something on it, used as a fallback locator. */
 /**
- * Whether an inline script IS the platform storage shim.
+ * Whether an inline script IS the platform storage shim, IN ANY VERSION THIS
+ * PLATFORM HAS EVER HANDED OUT.
  *
- * Whitespace-normalized on both sides: the shim is handed out as one line per
- * statement, and an editor or a formatter that reindents a pasted block would
- * otherwise turn a recognised shim into an unrecognised one -- which fails in
- * the direction of two confusing warnings rather than a hole, but fails.
+ * THE BUG THIS FIXES. The comparison used to be against
+ * `FOUNDRY_STORAGE_SHIM_JS` alone -- the CURRENT shim, the one string in the
+ * repo. That is correct for exactly as long as the shim never changes, and it
+ * changed: the probe (`usable`) was added so a bundle with a real storage area
+ * keeps it instead of having it replaced by an in-memory object. Every student
+ * who had already pasted the previous version was then scanned as ordinary
+ * code -- and the previous version contains `install('localStorage')`, which
+ * the storage rule in `scanJs` matches -- so the platform issued a storage
+ * warning about the very snippet it had told them to paste to fix storage. The
+ * advice and the complaint were the same lines.
+ *
+ * IT STAYS AN IDENTITY TEST OVER A KNOWN SET, AND THAT IS THE WHOLE DESIGN.
+ * The alternative -- recognising "a script that looks like a storage shim" --
+ * is a heuristic, and a heuristic here suppresses a real warning on somebody
+ * else's code the first time it is slightly too generous. What is recognised
+ * is a string this repository shipped, byte for byte modulo whitespace, and
+ * nothing else. A script that merely resembles one is scanned normally.
+ *
+ * WHITESPACE-NORMALIZED ON BOTH SIDES, unchanged: the shim is handed out one
+ * statement per line, and an editor or a formatter that reindents a pasted
+ * block would otherwise turn a recognised shim into an unrecognised one.
  */
 function isStorageShim(text: string): boolean {
 	const flat = (v: string) => v.replace(/\s+/g, '');
-	return flat(text) === flat(FOUNDRY_STORAGE_SHIM_JS);
+	const probe = flat(text);
+	return FOUNDRY_KNOWN_SHIMS.some((known) => flat(known) === probe);
 }
 
 function firstRealLine(text: string): string {
@@ -1274,19 +1417,38 @@ export function scanCss(
  * There is no CSP on a bundle now, so all four work, and a warning about them
  * would be telling a student their working code is broken.
  *
- * WHAT REPLACED IT IS ABOUT STORAGE, WHICH DID NOT RELAX. The frame is an
- * opaque origin, so `window.localStorage` is not merely empty -- THE GETTER
- * THROWS a `SecurityError`, and the first line of a generated app that reads
- * saved state takes the whole document down before anything renders. The
- * proxy used to inject a shim into every HTML response; there is no proxy to
- * inject anything now, so the shim is in the build contract for the student to
- * paste at the top of `index.html`, and this warning is what points at it.
+ * WHAT REPLACED IT IS ABOUT STORAGE, AND STORAGE HAS NOW RELAXED TOO -- SO
+ * THIS SENTENCE CHANGED WITH IT. It used to read: the frame is an opaque
+ * origin, `window.localStorage` is not merely empty but THE GETTER THROWS, and
+ * nothing survives a reload. Every clause of that was true while a bundle ran
+ * on an opaque origin. `foundrySandboxFlags` grants `allow-same-origin`
+ * whenever the bundle origin and the portal origin differ, which is every
+ * production configuration, so a published app has a REAL storage area and
+ * saved data survives a reload. Repeating the old sentence would tell a
+ * student their working save slot does not work.
  *
- * IT IS UNCONDITIONAL AND IT IS NOT A FALSE POSITIVE WHEN THE SHIM IS THERE.
- * The sentence says two things -- paste the shim, and nothing survives a
- * reload -- and the second half is true of a correctly shimmed app as well.
- * Detecting the shim to suppress it would trade a true sentence for a
+ * SO THE WARNING NOW NAMES THE TWO THINGS THAT ARE STILL TRUE, and it is worth
+ * being exact about why each survives:
+ *
+ *   1. STORAGE IS UNAVAILABLE OFF THE FILESYSTEM. The contract tells a student
+ *      to open `index.html` directly and check the app works before uploading,
+ *      and a `file://` document is denied storage in some browsers -- reading
+ *      it throws there exactly as it used to throw in the frame. That is what
+ *      the shim is still for, and why the contract still hands it out: it is
+ *      what makes the app behave the same in both places.
+ *   2. EVERY PUBLISHED APP SHARES ONE STORAGE AREA. Storage is keyed by ORIGIN
+ *      and every published app answers on the apps origin, so an unprefixed
+ *      key like `save` is a key any other published app can read and
+ *      overwrite. Separating them would take a subdomain per app; nothing
+ *      inside the sandbox can partition an origin from itself. A key prefix is
+ *      the whole remedy and it is one the student has to write.
+ *
+ * IT IS STILL UNCONDITIONAL AND IT IS STILL NOT A FALSE POSITIVE WHEN THE SHIM
+ * IS THERE. The key-collision half is true of a correctly shimmed app as well,
+ * and detecting the shim to suppress it would trade a true sentence for a
  * heuristic, and would have to run over the whole bundle rather than one file.
+ * (What IS shim-detected is the shim's own text, so the platform does not
+ * warn about the snippet it handed out -- see `isStorageShim`.)
  */
 const STORAGE_APIS = ['localStorage', 'sessionStorage'] as const;
 
@@ -1406,7 +1568,7 @@ export function scanJs(
 			issue(
 				path,
 				line,
-				`${where(path, line)} uses ${api}. Your app runs in a sandbox with no storage area, so reading ${api} throws an error and stops your script unless the storage snippet from the build contract is the first thing in ${FOUNDRY_ENTRY_FILE}. Even with it, nothing is written to disk: everything is lost when the page reloads.`
+				`${where(path, line)} uses ${api}. Published apps have a real storage area and saved data survives a reload, so this works. Two things still catch apps out. Every published app is served from the same address, so they all share one ${api}: prefix every key with your app's own name, like ${api}.setItem('my-app:save', value), or another app can read and overwrite it. And ${api} is blocked when ${FOUNDRY_ENTRY_FILE} is opened straight off your own computer, where reading it throws and stops the script, so paste the storage snippet from the build contract as the first thing inside <head> to make it behave the same in both places.`
 			)
 		);
 	}
@@ -1829,7 +1991,80 @@ ${FOUNDRY_STORAGE_SHIM_TAG}
 `;
 }
 
-export function foundryBuildContract(): string {
+/**
+ * THE STORAGE SENTENCES, WRITTEN ONCE.
+ *
+ * The contract's storage section, the fix prompt and the profile preambles all
+ * have to agree about what storage does, and after the sandbox merge that is a
+ * two-sided answer -- it works on a published app, it does not off the
+ * filesystem -- which is exactly the shape that gets half-restated somewhere
+ * and drifts. It is assembled here and interpolated, never retyped.
+ */
+const STORAGE_SECTION = `STORAGE -- IT WORKS, AND THE KEY NAME IS THE PART TO GET RIGHT
+- localStorage and sessionStorage WORK on a published app, and saved data
+  SURVIVES A RELOAD. A save slot, a high-score table, a settings panel and a
+  tracker that spans several visits are all buildable. Build them.
+- EVERY PUBLISHED APP IS SERVED FROM THE SAME ADDRESS, SO EVERY PUBLISHED APP
+  SHARES ONE STORAGE AREA. A key called "save" is a key every other published
+  app can read and overwrite, and it will happen, because "save" is what every
+  app calls it.
+- So PREFIX EVERY KEY with your app's own name and never write a bare one:
+      localStorage.setItem('snake-game:highscore', String(score));
+      localStorage.getItem('snake-game:highscore');
+  Pick the prefix once, at the top of the file, and build every key from it.
+- OPENING THE FILE STRAIGHT OFF YOUR OWN COMPUTER IS A DIFFERENT CASE. Some
+  browsers deny storage to a file:// page, where READING localStorage throws
+  and stops your whole script before anything is drawn. The contract tells you
+  to open ${FOUNDRY_ENTRY_FILE} that way and check the app works, so make this
+  the FIRST thing inside <head>, before any other script or stylesheet. Paste
+  it exactly:
+
+${FOUNDRY_STORAGE_SHIM_TAG}
+
+- That snippet is what makes the app behave the SAME in both places. It checks
+  whether real storage works and steps aside when it does, so it does not throw
+  away your saved data on the published app. It is also injected automatically
+  when your app is served, so it is there either way; paste it so your own
+  testing matches.
+- Do not store anything in COOKIES. The app runs in a frame on a different
+  site from the page around it and cookies set there are not reliable. Use
+  localStorage.`
+
+const SANDBOX_SECTION = `THE FRAME
+Your app runs in a sandboxed frame, on a different site from the page around
+it. Most things work. These are the ones that do not.
+- Do not read or change the page around your app. window.parent and
+  window.top exist, but your app is on a different site from them, so reading
+  anything off either one throws a SecurityError. There is nothing up there for
+  you.
+- Do not navigate the page your app is embedded in. Anything aimed at the top
+  window is blocked: target="_top", target="_parent", window.top.location.
+  Links and redirects INSIDE your own app are fine.
+- Do not build on the camera, the microphone, the clipboard, geolocation,
+  notifications or fullscreen. These are governed by the frame's permissions
+  rather than by the sandbox, and the frame is not granted any of them, so the
+  API is there and the request is refused. If your app needs a picture, take a
+  file from an <input type="file"> instead. Do not write your own full-screen
+  button either: the page around your app already has one, and it works by
+  resizing the frame, so size to the frame and it follows.
+WHAT DOES WORK, and you may have been told otherwise:
+- Forms. A <form> submits.
+- Downloads. <a download> and a script-driven save both produce a file.
+- window.open. A popup opens, and it runs under the same rules as your app.
+- alert, confirm and prompt.
+- Pointer lock, for a first-person or drag-heavy canvas.
+- Orientation lock, for a phone-oriented game.`
+
+/**
+ * THE CONTRACT'S CORE -- every rule, generated from the constants the checks
+ * read, so a cap change rewrites the document in the same commit.
+ *
+ * `foundryBuildContract()` IS THIS PLUS THE DEFAULT PREAMBLE, and every
+ * profile is this plus a different one. There is exactly one copy of the rules
+ * in the repo and six ways in to it; a profile that restated a rule would be
+ * the second copy, and the second copy is the one that goes stale.
+ */
+function contractCore(): string {
 	const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 	const exts = FOUNDRY_ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(' ');
 	const ignoredExts = FOUNDRY_IGNORED_EXTENSIONS.map((e) => `.${e}`).join(', ');
@@ -1879,14 +2114,7 @@ export function foundryBuildContract(): string {
 		.map((c) => `.${extensionOf(c)}`)
 		.join(', ');
 
-	return `BUILD CONTRACT -- IDEA Foundry
-
-You are building a self-contained web app that will be published to IDEA
-Foundry and run inside a locked-down sandbox. Follow every rule below. An app
-that breaks one of them is refused at upload with a message naming the file and
-the line.
-
-OUTPUT SHAPE
+	return `OUTPUT SHAPE
 - Produce ONE folder.
 - Put ${FOUNDRY_ENTRY_FILE} at the TOP LEVEL of that folder. Not in a subfolder.
 - Everything else the app needs goes in that same folder, or in subfolders of it.
@@ -1904,6 +2132,8 @@ TECHNOLOGY
   type="text/babel". Vue works the same way from its browser build.
 - ES modules work: <script type="module" src="app.js"></script> with relative
   paths, and a full https:// address as a specifier works too.
+- WebAssembly works, and .wasm is an allowed file type. So are the payload
+  files an engine export ships beside it: .pck, .data, .mem, .bin.
 
 PATHS
 - Every path to a file of your own is RELATIVE. Write src="art/logo.png", not
@@ -1914,6 +2144,15 @@ PATHS
 - An address on another site is written in full, with https:// in front of it.
 - Do not use ../ to climb above the folder. Nothing exists up there.
 - Paths are case-sensitive. art/Logo.png and art/logo.png are different files.
+- <base href="..."> WORKS, and it is the one way to make a page whose files
+  live somewhere else resolve them. Use it when you are porting a page that
+  already loads its assets from a CDN and you do not want to rewrite every
+  path. It rewrites what EVERY relative src, href and url() on that page means,
+  including the ones pointing at your own files, so it is all or nothing. The
+  upload warns about it every time, for a reason worth reading twice: if that
+  other address goes down, or a school network blocks it, your app is broken
+  and nothing in your own folder changed. Ship the files yourself where you
+  can.
 
 THE NETWORK
 - The app is on the open web. Loading a script, stylesheet, image, font or data
@@ -1943,35 +2182,9 @@ FONTS
 - Google Fonts works too, and so does shipping your own .woff2 or .ttf in the
   folder and @font-face-ing it with a relative path.
 
-STORAGE -- READ THIS ONE, IT IS THE MOST COMMON WAY AN APP ARRIVES BROKEN
-- The app runs in a sandbox with NO STORAGE AREA. localStorage is not empty
-  there: READING IT THROWS. A line like
-      var saved = localStorage.getItem('state');
-  stops your whole script before anything is drawn, and the page is blank.
-- Fix it by making this the FIRST thing inside <head> in ${FOUNDRY_ENTRY_FILE}, before
-  any other script or stylesheet. Paste it exactly:
+${STORAGE_SECTION}
 
-${FOUNDRY_STORAGE_SHIM_TAG}
-
-- With that in place localStorage and sessionStorage behave normally for the
-  rest of the page, but they are IN MEMORY. Nothing is written to disk and
-  everything is lost on reload.
-- Do not build anything whose value depends on data surviving a reload -- a
-  save slot, a high-score table, a multi-session tracker. Within one session
-  they are fine.
-- Cookies and IndexedDB are not available at all, and no snippet fixes those.
-
-SANDBOX
-The app runs in a sandboxed frame with no access to the page around it.
-- Do not write anything that reaches outside the app's own page. The following
-  all do nothing, and code that depends on them will appear broken:
-- window.parent, window.top, window.opener
-- window.open
-- navigating away: link clicks to other sites, location assignment, form
-  submission to a URL
-- downloads, including <a download> and any script-driven file save
-- the clipboard, the camera, the microphone, geolocation and notifications
-Build the app so everything happens inside its own page.
+${SANDBOX_SECTION}
 
 FILE TYPES
 - Allowed extensions, and nothing else:
@@ -1995,6 +2208,402 @@ BEFORE YOU FINISH
   works apart from the things it loads from other sites.
 - Confirm no src, href or url() in any file starts with a forward slash.
 - Confirm nothing uses ../ to climb above the folder.
-- If the app touches localStorage or sessionStorage at all, confirm the storage
-  snippet above is the first thing inside <head> in ${FOUNDRY_ENTRY_FILE}.`;
+- Confirm every localStorage and sessionStorage key starts with your app's own
+  name, and that the storage snippet is the first thing inside <head> in
+  ${FOUNDRY_ENTRY_FILE}.`;
+}
+
+/** The opening addressed to whatever is reading, for the default document. */
+const DEFAULT_PREAMBLE = `You are building a self-contained web app that will be published to IDEA
+Foundry and run inside a sandboxed frame. Follow every rule below. An app that
+breaks one of them is refused at upload with a message naming the file and the
+line.`;
+
+export function foundryBuildContract(): string {
+	return `BUILD CONTRACT -- IDEA Foundry
+
+${DEFAULT_PREAMBLE}
+
+${contractCore()}`;
+}
+
+/* -------------------------------------------------------------------------
+ * The profiles.
+ *
+ * ONE DOCUMENT DOES NOT FIT SIX SITUATIONS. The single contract is being
+ * pasted into tools doing very different jobs -- writing a new app, converting
+ * one that already exists, driving an engine's export dialog, repairing a
+ * refusal -- and the advice each of those needs is not the same advice. A
+ * document that tried to serve all six at once would be longer than any of
+ * them would read.
+ *
+ * A PROFILE IS A PREAMBLE PLUS THE CORE, AND NEVER MORE THAN THAT. Every rule
+ * -- the caps, the extensions, the path rules, storage, the frame -- is stated
+ * exactly once, in `contractCore()`, and every profile ends with it verbatim.
+ * A preamble says what this SITUATION needs and stops; the moment one of them
+ * restates a rule the core already states, there are two statements of it and
+ * one of them is the one that goes stale. `tests/foundry-contract-profiles`
+ * asserts the core is present in every profile and that no preamble spells a
+ * cap or the extension list.
+ * ---------------------------------------------------------------------- */
+
+export type FoundryContractProfileId =
+	| 'new'
+	| 'port'
+	| 'single-file'
+	| 'canvas'
+	| 'engine'
+	| 'fix';
+
+export interface FoundryContractProfile {
+	id: FoundryContractProfileId;
+	/** The picker's label. */
+	label: string;
+	/** ONE line saying who should pick this one. The picker shows nothing else. */
+	pick: string;
+	/** The situation-specific opening. Never a rule the core already states. */
+	preamble: string;
+	/** What the copy button puts on the clipboard: the preamble and the core. */
+	text: string;
+}
+
+/**
+ * HOW TO ACT ON A LIST OF REFUSALS, WRITTEN ONCE AND DELIVERED TWICE.
+ *
+ * The `fix` profile on the contract page is this plus the rules, for a student
+ * who has their errors somewhere else. `foundryFixPrompt` below is this plus
+ * the ACTUAL messages, offered on the submit surface at the moment an upload
+ * is refused. Two copies of "how should a tool respond to these" would drift,
+ * and the drift would be invisible: nobody reads both.
+ */
+const FIX_INSTRUCTIONS = `An app you produced was refused when it was uploaded to IDEA Foundry, or
+uploaded with warnings. The platform's own messages follow. Each names the
+file, usually the line, what is wrong, and what to write instead.
+
+Work through them like this:
+- Fix EVERY failure. Each one stops the upload on its own, so fixing four out
+  of five changes nothing.
+- Read every warning and decide. A warning does not stop the upload; it is the
+  platform saying the app will behave in a way its author did not intend.
+- Change the file the message names, at the line it names. Do not restructure
+  the app, rename files the messages did not mention, or rewrite working code
+  around the fix.
+- Do not work around a message or argue with it. The rule it names is checked
+  again at upload and will refuse the app again.
+- If two messages have one cause, fix the cause once rather than patching each
+  site.
+- When you are finished, output every CHANGED FILE IN FULL, each under its own
+  filename. Do not output a diff and do not describe the change in prose.`;
+
+const PROFILE_PREAMBLES: Record<FoundryContractProfileId, { label: string; pick: string; preamble: string }> = {
+	new: {
+		label: 'New app from scratch',
+		pick: 'You are asking a tool to write an app that does not exist yet.',
+		preamble: DEFAULT_PREAMBLE
+	},
+
+	port: {
+		label: 'Porting a game you already have',
+		pick: 'You have the source of a game or a page that already runs somewhere else.',
+		preamble: `You are converting a web app or game that ALREADY EXISTS so it can be
+published to IDEA Foundry and run inside a sandboxed frame. You have its
+source. Do not rewrite it. Change the smallest number of things that make it
+satisfy the rules below, and leave its behaviour alone.
+
+WORK OUT WHAT TO UPLOAD FIRST. This is the decision people get wrong.
+- If the project has a build step -- if it has a package.json with a build
+  script, or a src/ folder, or files ending .ts, .jsx, .vue or .scss -- then
+  RUN THE BUILD and upload the OUTPUT folder (usually dist/ or build/), never
+  the source folder. The output is plain HTML, CSS and JS with nothing left to
+  compile, which is exactly what this platform runs. Uploading the source
+  folder refuses on the first .ts or .jsx file, and it would not have worked
+  anyway.
+- Many build tools write the output expecting to be served from the root of a
+  site, so the built index.html says src="/assets/app.js". Fix that at BUILD
+  TIME, not by hand: set the tool's base path to "./" (Vite: base: './';
+  webpack: output.publicPath = './'; Parcel: --public-url ./) and build again.
+  Editing the emitted paths by hand works once and is undone by the next build.
+- If there is no build step, the folder you have is the folder to upload.
+
+STRIP THESE BEFORE YOU UPLOAD. None of them runs here and several refuse:
+- node_modules, .git, and any lockfile or config for a tool.
+- Source files the build already consumed: .ts, .jsx, .vue, .scss, .less.
+- Anything the page does not reference: unused art, old builds, backups. They
+  count against the size limits and slow the app's first load.
+- Server code. If the project has a server/, api/ or index.js that starts a
+  listener, none of it is coming with you. See below.
+
+<base href> IS THE SHORTCUT WHEN THE ASSETS LIVE SOMEWHERE ELSE. If the game
+already loads its art, audio and scripts from a CDN or another site that is
+still up, you can upload one HTML file with a <base href> pointing at where
+the rest of it lives, and everything resolves there with no path edits at all.
+It usually works on the first try, and here is what it costs: your app now
+depends completely on that other site. If it goes down, moves, or is blocked
+by the school network, your app is broken and nothing in your own folder
+changed. It is the fast way to get running, not the way to leave it. Bring the
+files across when you can, and drop the <base> when you do.
+
+IF THE GAME WANTS A SERVER, IT CANNOT HAVE ONE. There is nowhere to run your
+code except the browser. What to do depends on what the server was for:
+- Saving progress or a high score: use storage, per the rules below.
+- Serving the game's own files: that is what this platform is doing now.
+  Delete the server and upload the files it was serving.
+- A build/dev server (vite dev, webpack serve, python -m http.server): it was
+  never part of the game. Build for production and upload the output.
+- Multiplayer, matchmaking, a login, a shared leaderboard, a database, a
+  secret API key: none of this can be ported. Cut the feature, or point it at
+  a service that is already running somewhere else and reachable over https.
+  Never put an API key in the files you upload. Everyone who opens the app can
+  read them.`
+	},
+
+	'single-file': {
+		label: 'One HTML file',
+		pick: 'Everything is in one page: the markup, the styles and the script.',
+		preamble: `You are building a web app that will be published to IDEA Foundry as ONE
+HTML FILE, and run inside a sandboxed frame. Follow every rule below.
+
+THE SHAPE, EXACTLY.
+- Produce a single file called ${FOUNDRY_ENTRY_FILE}. Upload it on its own and the
+  platform packs it for you. There is no folder to make and no zip to build.
+- All of the CSS goes in one <style> block in <head>. All of the JavaScript
+  goes in <script> blocks in the same file. Do not emit a second file and do
+  not reference one -- a src or href pointing at a file that is not there is a
+  broken app, and the upload will tell you so by name.
+- Everything the file loads from another site is written as a full https://
+  address. That is the only kind of reference this shape can have.
+
+WHAT THIS SHAPE COSTS, so you can decide against it.
+- The whole page is re-downloaded on every visit; nothing can be cached
+  separately. Keep large art out of it, or move to a folder.
+- An image or a sound has to be a data: URI to live in the file, and a data:
+  URI is about a third larger than the file it encodes. Two or three small
+  icons are fine. A sprite sheet is not: use a folder instead.
+- There is no way to split the code up. Past a few hundred lines of script,
+  a folder with separate .js files is easier for you and for whoever reads it
+  next.
+
+INSIDE THE FILE.
+- The inline <script> blocks are scanned exactly as separate .js files are,
+  and a message will name ${FOUNDRY_ENTRY_FILE} and the line inside it, so there
+  is nothing you can hide in an inline script.
+- Order matters and there is no bundler to fix it: a script that uses
+  something defined further down the page runs first and fails. Put the
+  definitions above the code that calls them, or wrap the startup in
+  window.addEventListener('DOMContentLoaded', ...).`
+	},
+
+	canvas: {
+		label: 'Canvas or arcade game',
+		pick: 'A game drawn on a <canvas>, with a loop, input and sound.',
+		preamble: `You are building a canvas game that will be published to IDEA Foundry and run
+inside a sandboxed frame, EMBEDDED IN A PAGE rather than filling a browser
+window. Follow every rule below. The four things below are what a canvas game
+gets wrong here specifically.
+
+SIZE TO THE FRAME, NEVER TO THE SCREEN.
+- The frame is not the window and not the screen. window.innerWidth is the
+  frame's width, which is what you want; screen.width is the monitor and is
+  useless to you. Never use it.
+- Set the canvas's DRAWING size from its LAID-OUT size, and set it again when
+  that changes:
+      const r = canvas.getBoundingClientRect();
+      canvas.width  = Math.round(r.width  * devicePixelRatio);
+      canvas.height = Math.round(r.height * devicePixelRatio);
+  Setting canvas.width or canvas.height CLEARS the canvas and resets the
+  context transform, so do it before you draw the frame, not in the middle of
+  one.
+- Listen with a ResizeObserver on the canvas, not a window resize handler. A
+  viewer can put the app into full screen from the page around it, which
+  changes the frame's size WITHOUT a window resize, so a resize handler misses
+  exactly the case a player notices.
+
+THE LOOP.
+- One requestAnimationFrame loop, started once. Never call rAF twice for the
+  same loop, and never drive gameplay from setInterval.
+- Advance the world by MEASURED elapsed time, not by a fixed step per frame:
+      let last = performance.now();
+      function frame(now) {
+        const dt = Math.min((now - last) / 1000, 0.1);
+        last = now; update(dt); draw(); requestAnimationFrame(frame);
+      }
+  The clamp is not optional. The loop stops while the tab is hidden, so the
+  first frame after someone comes back reports the whole time they were away
+  and every unclamped object teleports through a wall.
+- Pause when the frame is not visible. Listen for visibilitychange, stop
+  scoring and stop audio.
+
+INPUT.
+- Keyboard events only reach your app once someone has CLICKED IT. Until then
+  the page around it has the keyboard. Draw a "click to start" state and start
+  on the first click; do not draw a running game nobody can steer.
+- Call preventDefault() on the arrow keys and the space bar in your keydown
+  handler, or the page scrolls under the game while it is being played.
+- Track keys in a held-down set and read that set in the loop. Moving the
+  player inside the keydown handler gives you the operating system's key-repeat
+  delay before the second step.
+- Handle pointer events as well as keys, and set touch-action: none in CSS on
+  the canvas, or a touch drag scrolls the page instead of steering.
+
+SOUND.
+- A browser will not play audio until the person has interacted with the page.
+  Create or resume your AudioContext inside the first real click or keypress
+  handler; anything you do before that is silently ignored and the game is
+  mute for the rest of the session.
+- Ship the audio files in your own folder. Keep them small; see the size rules
+  below.`
+	},
+
+	engine: {
+		label: 'Game engine export',
+		pick: 'Godot, Unity, Phaser, Emscripten or anything else with a web export.',
+		preamble: `You are preparing a GAME ENGINE'S WEB EXPORT for publishing to IDEA Foundry,
+where it runs inside a sandboxed frame. Most of this job happens in the
+engine's export dialog, before any file exists. Get those settings right and
+the export uploads as it comes out.
+
+EXPORT UNCOMPRESSED. This is the setting that matters most and the one that is
+usually wrong.
+- Engines offer gzip or Brotli compression, which emit files ending .gz or
+  .br. Those extensions are REFUSED here and the upload stops on the first one.
+  They exist so a web server can send a compressed file and set a header
+  saying so; this platform serves your files as they are, so a .wasm.gz would
+  arrive as bytes nothing can decompress.
+- The uncompressed export is larger. Check it against the size limits below
+  before you spend time on anything else, because that is the constraint you
+  are actually working inside.
+- Unity: Player Settings > Publishing Settings > Compression Format = Disabled.
+  Turn OFF "Decompression Fallback".
+- Godot: the .pck and the .wasm come out uncompressed by default. Leave them
+  that way.
+- Emscripten: do not pass -s GZIP or run a compression step after the build.
+
+THE FILES AN EXPORT SHIPS, AND THAT THEY ARE ACCEPTED.
+- .wasm is the compiled game. The browser downloads and compiles it. This is
+  usually the largest file in the export.
+- .pck is Godot's pack file: every scene, script and asset in one archive that
+  the engine reads at run time.
+- .data is Unity's and Emscripten's equivalent, sometimes with .mem beside it.
+- .bin is a generic data blob, and also the binary half of a glTF model.
+- All of them upload. You do not need to rename them, unpack them, or convert
+  them to anything.
+
+THE ENTRY FILE.
+- Engines name the exported page after the project: MyGame.html. RENAME IT to
+  ${FOUNDRY_ENTRY_FILE}. Nothing else changes -- the loader beside it finds its
+  files by relative name and does not care what the page is called.
+- Godot: set the export path's filename to ${FOUNDRY_ENTRY_FILE}, and the
+  whole export comes out named correctly.
+- Upload the export folder itself. Do not upload the engine project.
+
+WHAT AN EXPORT CANNOT USE HERE.
+- SharedArrayBuffer and multi-threaded builds need cross-origin isolation
+  headers this platform does not send. Export SINGLE-THREADED. Unity: uncheck
+  the multithreading option. Godot: the standard (non-threads) web export.
+  Emscripten: do not pass -s USE_PTHREADS. A threaded build loads and then
+  fails at startup with a message about SharedArrayBuffer.
+- Delete any full-screen button the engine's own template drew into the page.
+  The rules below say why.
+- Engine templates sometimes emit absolute paths in the loader. Search the
+  exported .html and .js for src="/ and fetch("/ and make each one relative.
+  The upload will name any it finds, with the file and the line.`
+	},
+
+	fix: {
+		label: 'Fixing a refused upload',
+		pick: 'The upload was refused and you want a tool to act on the messages.',
+		preamble: `${FIX_INSTRUCTIONS}
+
+PASTE THE MESSAGES FROM THE UPLOAD PAGE HERE, then leave everything below them
+alone: it is the full set of rules the app is checked against, and it is what
+each message is enforcing.
+
+MESSAGES:
+[paste them here]`
+	}
+};
+
+/**
+ * Every profile, in picker order, each carrying the text its copy control puts
+ * on the clipboard.
+ *
+ * THE ORDER IS THE ORDER SOMEBODY ARRIVES IN THESE SITUATIONS, not
+ * alphabetical: writing something new is the common case and goes first;
+ * repairing a refusal is the one you reach for after an upload and goes last.
+ */
+export function foundryContractProfiles(): FoundryContractProfile[] {
+	const core = contractCore();
+	const order: FoundryContractProfileId[] = [
+		'new',
+		'port',
+		'single-file',
+		'canvas',
+		'engine',
+		'fix'
+	];
+	return order.map((id) => {
+		const { label, pick, preamble } = PROFILE_PREAMBLES[id];
+		return {
+			id,
+			label,
+			pick,
+			preamble,
+			text: `BUILD CONTRACT -- IDEA Foundry\n\n${preamble}\n\n${core}`
+		};
+	});
+}
+
+/**
+ * THE FAILURE LIST, WRAPPED AS AN INSTRUCTION FOR WHATEVER WROTE THE APP.
+ *
+ * This is the highest-value thing on the submit surface, and the reason is not
+ * convenience. A student who cannot read a stack trace also cannot read a
+ * preflight message, and the loop that has to close is: upload refused ->
+ * paste back into the tool that generated the app -> upload again. Copying
+ * five sentences one at a time and hoping the tool understands what to do with
+ * them is the version of that loop that fails.
+ *
+ * IT USES THE REAL ISSUE LIST AND NEVER A RE-DESCRIPTION OF IT. Every sentence
+ * here is the one `preflight.ts` produced, rendered through the SAME
+ * `foundryIssueLine` the panel's own copy control uses, so what a student
+ * pastes as a prompt and what they would have pasted one message at a time are
+ * word for word the same text. A summarising layer -- "3 path problems and a
+ * missing file" -- would be a second description of the rules, and the second
+ * description is the one that stops matching.
+ *
+ * THE HEADINGS ARE SEPARATE BECAUSE THE INSTRUCTION TREATS THEM DIFFERENTLY:
+ * a failure must be fixed, a warning must be judged. Merging them into one
+ * list would make the tool fix warnings it should have weighed, and the two
+ * commonest warnings (a <base href>, an unprefixed storage key) are both
+ * things a student may legitimately intend.
+ *
+ * RETURNS THE EMPTY STRING WHEN THERE IS NOTHING TO ACT ON, so the caller has
+ * one thing to test and cannot offer a control that copies an instruction with
+ * no instructions in it.
+ */
+export function foundryFixPrompt(
+	failures: readonly FoundryIssue[],
+	warnings: readonly FoundryIssue[] = []
+): string {
+	if (failures.length === 0 && warnings.length === 0) return '';
+
+	const block = (heading: string, issues: readonly FoundryIssue[]) =>
+		issues.length === 0
+			? null
+			: `${heading}\n${issues.map((i) => `- ${foundryIssueLine(i)}`).join('\n')}`;
+
+	const sections = [
+		FIX_INSTRUCTIONS,
+		block(
+			failures.length === 1 ? 'FAILURE (the upload stopped):' : 'FAILURES (the upload stopped):',
+			failures
+		),
+		block(
+			warnings.length === 1 ? 'WARNING (the upload did not stop):' : 'WARNINGS (the upload did not stop):',
+			warnings
+		),
+		`The full rules these are enforcing are at ${FOUNDRY_PLATFORM_ORIGIN}/foundry/contract.`
+	].filter((v): v is string => v !== null);
+
+	return sections.join('\n\n');
 }

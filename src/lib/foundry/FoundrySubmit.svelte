@@ -34,7 +34,13 @@
 	import FoundryIssues from './FoundryIssues.svelte';
 	import { filesFromDataTransfer, normalizeFoundryInput, type NormalizeResult } from './normalize.ts';
 	import { preflightZipInBrowser, type BrowserPreflightResult } from './preflight-browser.ts';
-	import { FOUNDRY_LIMITS, formatBytes, type FoundryIssue } from './preflight.ts';
+	import {
+		FOUNDRY_LIMITS,
+		formatBytes,
+		foundryContractProfiles,
+		foundryFixPrompt,
+		type FoundryIssue
+	} from './preflight.ts';
 	import { slugLooksOk, suggestSlug } from './surface.ts';
 	import { FOUNDRY_STARTER_PATH } from './preflight.ts';
 	import type { FoundrySubmitTransports, IngestOutcome } from './transports.ts';
@@ -360,6 +366,62 @@
 	]);
 
 	const busy = $derived(phase === 'reading' || phase === 'checking' || phase === 'sending');
+
+	/*
+	 * THE SIX PROFILES, NAMED FROM THE PROFILES THEMSELVES.
+	 *
+	 * This paragraph is the whole reason a student opens the contract -- "there
+	 * is one for what I am doing" is what makes someone click, where "read the
+	 * build contract" is what they scroll past. Typed out in prose it would be
+	 * a second statement of the list: a seventh profile, or a renamed one,
+	 * would leave this page confidently naming five of six and inventing one
+	 * that no longer exists. The labels and the count both come from the same
+	 * function the contract page renders.
+	 */
+	const profileLabels = foundryContractProfiles().map((p) => p.label);
+
+	/*
+	 * THE WHOLE REFUSAL, WRAPPED AS AN INSTRUCTION FOR WHATEVER WROTE THE APP.
+	 *
+	 * This is the loop that has to close: an upload is refused, the student
+	 * pastes the refusal back into the tool that generated the app, the tool
+	 * fixes it, they upload again. A student who cannot read a stack trace
+	 * cannot read a preflight message either, and copying five sentences one at
+	 * a time and hoping the tool works out what to do with them is the version
+	 * of that loop that fails.
+	 *
+	 * THE STRING IS BUILT IN `preflight.ts` FROM THE REAL ISSUE LIST. Nothing
+	 * here summarises, counts or re-describes a message; `foundryFixPrompt`
+	 * renders `failures` and `warnings` through the same `foundryIssueLine` the
+	 * panels' own Copy buttons use, so the prompt and the one-at-a-time copies
+	 * are word for word the same sentences.
+	 *
+	 * IT IS OFFERED FOR WARNINGS ALONE AS WELL, and that is deliberate rather
+	 * than incidental: an upload that PASSED with a `<base href>` warning and an
+	 * unprefixed storage key is exactly the app that will behave oddly next
+	 * week, and the student is standing here now. `foundryFixPrompt` returns
+	 * the empty string when there is nothing to act on, which is the one thing
+	 * the control tests -- so a surface with no issues cannot offer an
+	 * instruction with no instructions in it.
+	 */
+	const fixPrompt = $derived(foundryFixPrompt(failures, warnings));
+
+	let fixCopied = $state(false);
+	let fixTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function copyFixPrompt() {
+		try {
+			await navigator.clipboard.writeText(fixPrompt);
+			fixCopied = true;
+		} catch {
+			// A clipboard the browser refused is not worth a panel: every
+			// sentence in the prompt is on screen and copyable on its own.
+			fixCopied = false;
+			return;
+		}
+		if (fixTimer) clearTimeout(fixTimer);
+		fixTimer = setTimeout(() => (fixCopied = false), 2200);
+	}
 </script>
 
 <div class="fdy-submit">
@@ -501,21 +563,49 @@
 	<section class="fdy-col fdy-bundle" aria-label="Your app files">
 		<h2>Your app</h2>
 
-		<p class="fdy-hint fdy-contract-link">
-			Building it with an AI tool? <a href="/foundry/contract">Read the build contract</a> and
-			paste it in first. It is what these checks are written against.
-		</p>
 		<!--
-			THE STARTER SITS BESIDE THE CONTRACT, not on the contract page alone.
-			This is the surface a student is standing on when they discover their
-			app is missing its libraries, and a file they can start from is a more
-			useful answer at that moment than a document about the rules.
+			THE CONTRACT GOES IN FRONT OF A STUDENT BEFORE THEIR FIRST UPLOAD, NOT
+			AFTER THEIR FIRST REFUSAL.
+
+			It used to be one grey hint line among two, below the heading and
+			above a drop zone that is the only thing on the pane anybody looks
+			at -- so in practice the document was discovered by being refused,
+			which is the expensive way to find out what the rules are. It is now
+			a panel with an edge, at the top of the pane, and it names the SIX
+			profiles rather than "the build contract": a student porting a Godot
+			export and a student writing their first page are not looking for the
+			same document, and "there is one for what you are doing" is what makes
+			someone open it.
+
+			IT IS NOT A DISCLOSURE. A collapsed panel is a panel nobody opens on
+			the one visit that matters, and the whole point is the visit before
+			the first upload.
 		-->
-		<p class="fdy-hint fdy-contract-link">
-			Using React? <a href={FOUNDRY_STARTER_PATH} download="index.html">Download the starter
-				file</a>
-			-- an index.html with the platform libraries already linked and a marked spot for your component.
-		</p>
+		<div class="fdy-before">
+			<p class="fdy-before-lead">Read this before you upload</p>
+			<p class="fdy-before-body">
+				The <a href="/foundry/contract">build contract</a> is the rules these checks are written
+				against, written as instructions to paste into whatever is building your app. Pick the
+				version that matches what you are doing and paste it in first.
+			</p>
+			<ul class="fdy-before-list">
+				{#each profileLabels as label (label)}
+					<li>{label}</li>
+				{/each}
+			</ul>
+			<!--
+				THE STARTER SITS BESIDE THE CONTRACT, not on the contract page
+				alone. This is the surface a student is standing on when they
+				discover their app is missing its libraries, and a file they can
+				start from is a more useful answer at that moment than a document
+				about the rules.
+			-->
+			<p class="fdy-before-body">
+				Using React? <a href={FOUNDRY_STARTER_PATH} download="index.html">Download the starter
+					file</a>
+				-- an index.html with the platform libraries already linked and a marked spot for your component.
+			</p>
+		</div>
 
 		{#if phase === 'idle'}
 			<div
@@ -585,6 +675,30 @@
 
 		{#if busy}
 			<p class="fdy-busy" role="status">{busyLabel}&hellip;</p>
+		{/if}
+
+		{#if fixPrompt}
+			<!--
+				ONE control over BOTH lists, so it lives here rather than inside a
+				panel: a panel sees one tone, and an instruction that carried the
+				failures without the warnings would send a tool back to fix half
+				the app. The wording says what lands on the clipboard, because
+				"Copy" beside a list of five sentences reads as those five
+				sentences.
+			-->
+			<div class="fdy-fix">
+				<div class="fdy-fix-text">
+					<p class="fdy-fix-lead">Hand this back to whatever built your app</p>
+					<p class="fdy-fix-body">
+						Copies every message below, with the file and line, wrapped as an instruction
+						telling the tool to fix them and hand back the changed files. Paste it into the
+						same chat that wrote the app.
+					</p>
+				</div>
+				<button type="button" class="btn fdy-fix-btn tap-44" onclick={copyFixPrompt}>
+					{fixCopied ? 'Copied' : 'Copy as a fix prompt'}
+				</button>
+			</div>
 		{/if}
 
 		<FoundryIssues
@@ -966,8 +1080,105 @@
 		color: var(--ice);
 	}
 
-	.fdy-contract-link {
+	/*
+	 * The pre-upload panel. A left edge in the room's own boundary token rather
+	 * than an accent: it is a signpost, not a warning, and the heat colours in
+	 * this room mean work in progress.
+	 */
+	.fdy-before {
+		border: 1px solid var(--boundary);
+		border-left: 3px solid var(--cyan);
+		border-radius: var(--radius-md, 8px);
+		background: var(--bg1);
+		padding: var(--space-3, 0.75rem);
 		margin-bottom: var(--space-3, 0.75rem);
+		display: grid;
+		gap: var(--space-2, 0.5rem);
+	}
+
+	.fdy-before-lead {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+
+	.fdy-before-body {
+		margin: 0;
+		font-size: 0.95rem;
+		line-height: 1.5;
+		max-width: 68ch;
+	}
+
+	/*
+	 * The six read as a menu rather than as a sentence: a student is scanning
+	 * for the one that describes them, and a comma-separated clause is the
+	 * shape that gets skimmed past. Wrapping rather than a column, because six
+	 * short labels in a stack is a page of its own on a phone.
+	 */
+	.fdy-before-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+
+	.fdy-before-list li {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		color: var(--text-2);
+		border: 1px solid var(--hairline);
+		border-radius: 999px;
+		padding: 0.15rem 0.6rem;
+	}
+
+	/*
+	 * The fix prompt sits directly above the failure panel it summarises, with
+	 * the same crimson edge, so the two read as one region rather than as an
+	 * unrelated control that happens to be nearby.
+	 */
+	.fdy-fix {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-3, 0.75rem);
+		flex-wrap: wrap;
+		border: 1px solid var(--boundary);
+		border-left: 3px solid var(--crimson);
+		border-radius: var(--radius-md, 8px);
+		background: var(--bg1);
+		padding: var(--space-3, 0.75rem);
+		margin-bottom: var(--space-2, 0.5rem);
+	}
+
+	.fdy-fix-text {
+		flex: 1;
+		/* min-width: 0 on the flex child, or the paragraph's min-content forces
+		   the pane wider than the viewport at 375px. */
+		min-width: min(18rem, 100%);
+	}
+
+	.fdy-fix-lead {
+		margin: 0 0 0.2rem;
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+	}
+
+	.fdy-fix-body {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.5;
+		color: var(--text-2);
+		max-width: 68ch;
+	}
+
+	.fdy-fix-btn {
+		flex: none;
+		border-color: var(--green);
+		color: var(--green);
 	}
 
 	.fdy-done {
