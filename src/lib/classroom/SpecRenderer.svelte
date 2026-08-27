@@ -25,6 +25,7 @@
 	import type { ClassroomAttachment } from '$lib/classroom/classroom';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import type { UploadedFileRow } from '$lib/classroom/file-upload';
+	import { filesFromClipboard, pasteRouteMessage } from '$lib/file-drop';
 
 	/**
 	 * The student renderer for one assignment spec: modules in order with
@@ -124,6 +125,48 @@
 	});
 	const fileCounts = $derived(filesByBlockCount(files));
 	const canEdit = $derived(!locked && !readonly);
+
+	/**
+	 * WHERE A PASTED SCREENSHOT GOES WHEN IT LANDS IN AN ANSWER FIELD.
+	 *
+	 * An assignment answer field is a textarea, so an image cannot sit inline
+	 * in it -- but a student who just worked something out on an online
+	 * calculator wants to hand in exactly that screenshot. `handleAnswerPaste`
+	 * is wired to every `textField`'s `onpaste`: it reads the SAME clipboard
+	 * extraction the shared drop target uses (`filesFromClipboard`), and does
+	 * nothing at all -- no `preventDefault`, no interception -- unless the
+	 * paste actually carried an image, so pasting plain TEXT into an answer
+	 * keeps working exactly as it always did.
+	 *
+	 * THE TARGET IS THE MODULE'S OWN imageZone, keyed by block id in
+	 * `zonePanels` (populated by each imageZone's own `bind:this` below) --
+	 * never a global "wherever the composer decided", because a module's photo
+	 * evidence is its own, not the assignment's. A module with no imageZone
+	 * block, or one whose panel is not mounted right now (uploads disabled, no
+	 * `itemId`), has nowhere to put it -- `pasteRouteMessage` is what turns
+	 * that into a stated refusal instead of a paste that looks like it did
+	 * nothing.
+	 */
+	let zonePanels = $state<Record<string, FileUploadPanel | null>>({});
+	let pasteNotice = $state<Record<string, string>>({});
+
+	function moduleImageZone(mod: SpecModule): ImageZoneBlock | null {
+		return (mod.blocks.find((b): b is ImageZoneBlock => b.type === 'imageZone') ?? null);
+	}
+
+	function handleAnswerPaste(mod: SpecModule, event: ClipboardEvent) {
+		const images = filesFromClipboard(event);
+		const zone = moduleImageZone(mod);
+		const panel = zone ? zonePanels[zone.id] : null;
+		const route = pasteRouteMessage(images.length, !!panel);
+		if (!route) return; // no image was pasted -- a plain-text paste is untouched
+		event.preventDefault();
+		if (route.sent && panel) panel.add(images);
+		pasteNotice = { ...pasteNotice, [mod.id]: route.text };
+		setTimeout(() => {
+			pasteNotice = { ...pasteNotice, [mod.id]: '' };
+		}, 4000);
+	}
 
 	function report(blockId: string) {
 		onvalue?.(blockId, $state.snapshot(values[blockId]) as ResponseValue);
@@ -406,6 +449,7 @@
 								value={textValue(block.id)}
 								use:autoresize
 								oninput={(e) => setText(block.id, (e.currentTarget as HTMLTextAreaElement).value)}
+								onpaste={(e) => handleAnswerPaste(mod, e)}
 							></textarea>
 						{/if}
 						<span class="counter {counter.state}">
@@ -571,6 +615,7 @@
 								     it wants. The camera button beside it keeps `accept` because
 								     `capture` is what makes a phone open its camera at all. -->
 								<FileUploadPanel
+									bind:this={zonePanels[block.id]}
 									role="submission"
 									{itemId}
 									blockId={block.id}
@@ -622,6 +667,12 @@
 					</div>
 				{/if}
 			{/each}
+			{#if pasteNotice[mod.id]}
+				<!-- ONE notice per module, not per textField -- a pasted image is
+				     routed once, wherever the paste happened, and every answer in
+				     this module shares the one place it could have gone. -->
+				<p class="paste-notice" role="status">{pasteNotice[mod.id]}</p>
+			{/if}
 			</Disclosure>
 		{/if}
 	</section>
@@ -985,6 +1036,11 @@
 		color: var(--text-2);
 		font-size: 0.8rem;
 		margin: 0.3rem 0 0;
+	}
+	.paste-notice {
+		color: var(--text-2);
+		font-size: 0.8rem;
+		margin: 0.5rem 0 0;
 	}
 	.gate-card {
 		margin-bottom: 0.9rem;

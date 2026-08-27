@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-27",
+			"title": "Drag files in, or paste a screenshot right into your answer",
+			"body": "Every file picker in the classroom -- attaching a file to a post, handing in evidence on an assignment, and a teacher's presentation deck upload -- now also takes a drag-and-drop, with a clear highlight while you're dragging over it. And if you're typing an answer and paste an image (a screenshot of work from an online calculator, for example), it's sent straight to that question's photo evidence area instead of doing nothing, with a note telling you where it went. The button to pick a file still works exactly as before.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
 			"title": "Modules on an assignment can be closed once you're done",
 			"body": "Each module on an assignment can now be collapsed, not just its instructions. A module you have finished can be closed to a single line so you can focus on what's left; the title still shows how many parts are done. A module you're still working on stays open, and closing one never loses your work -- it's still there the moment you reopen it.",
 			"tags": [

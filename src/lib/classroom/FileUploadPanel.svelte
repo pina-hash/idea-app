@@ -38,6 +38,7 @@
 	import type { UploadOutcome, UploadedFileRow } from '$lib/classroom/file-upload';
 	import { formatBytesShort } from '$lib/classroom/upload-errors';
 	import { isImageFilename } from '$lib/classroom/classroom';
+	import { dropTarget } from '$lib/file-drop';
 
 	export interface PanelUpload {
 		(args: {
@@ -99,6 +100,10 @@
 
 	let entries = $state<Entry[]>([]);
 	let running = $state(false);
+	/** Dragover feedback for the SHARED drop target below -- an outline plus a
+	 *  label, never a border or a size change, so a drag never shifts this
+	 *  panel's own layout or its neighbours'. */
+	let dragActive = $state(false);
 
 	/**
 	 * A staged picture shows as a PICTURE before anything is uploaded -- a
@@ -317,10 +322,24 @@
 	const noun = $derived(role === 'submission' ? 'file' : 'attachment');
 </script>
 
-<div class="fup" data-role={role}>
+<!-- THE SHARED DROP TARGET, on THIS panel's own root -- no wrapper, so a drag
+     or a paste over this component costs no layout of its own. `stage` is the
+     SAME function the picker's `onchange` calls: a drop and a paste are a
+     second way to reach it, never a second upload path. Disabled exactly
+     when the picker is (a batch already running). -->
+<div
+	class="fup"
+	class:is-drop-active={dragActive}
+	data-role={role}
+	use:dropTarget={{ onfiles: stage, onactive: (a) => (dragActive = a), disabled: running }}
+>
 	<div class="fup-head">
 		<span class="fup-label">{label}</span>
 		{#if hint}<p class="fup-hint">{hint}</p>{/if}
+		<!-- ONE sentence, said here rather than by every caller, so the wording
+		     can never drift between an attachment, an instructor-only file and a
+		     hand-in: they are the same control. -->
+		<p class="fup-hint fup-drop-hint">Drag files here, or paste an image, to add them.</p>
 	</div>
 
 	<div class="fup-actions">
@@ -392,12 +411,42 @@
 			{/each}
 		</ul>
 	{/if}
+	{#if dragActive}
+		<!-- Absolutely positioned, so it occupies no layout space -- this is what
+		     "unmistakable feedback, no layout shift" is built out of. `aria-hidden`
+		     because it is a visual echo of a drag the pointer is already doing;
+		     nothing here is reachable only this way. -->
+		<div class="fup-drop-overlay" aria-hidden="true">Drop files here</div>
+	{/if}
 </div>
 
 <style>
 	.fup {
 		display: grid;
 		gap: var(--space-2, 0.5rem);
+		position: relative;
+	}
+	.fup.is-drop-active {
+		/* outline, never border: it draws OUTSIDE the box and never changes the
+		   element's size, so nothing this panel sits beside moves. */
+		outline: 2px dashed var(--green);
+		outline-offset: -2px;
+		border-radius: var(--radius-2, 6px);
+	}
+	.fup-drop-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: color-mix(in srgb, var(--green) 12%, transparent);
+		border-radius: var(--radius-2, 6px);
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		letter-spacing: 0.04em;
+		color: var(--text-1, var(--white));
+		pointer-events: none;
+		z-index: 1;
 	}
 	.fup-label {
 		font-family: var(--font-mono);
@@ -410,6 +459,10 @@
 		margin: 0.15rem 0 0;
 		font-size: 0.85rem;
 		color: var(--text-2, var(--dim));
+	}
+	.fup-drop-hint {
+		font-size: 0.72rem;
+		opacity: 0.85;
 	}
 	.fup-actions {
 		display: flex;
