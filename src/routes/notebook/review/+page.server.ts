@@ -101,6 +101,14 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	return {
 		isInstructor: access.isInstructor,
 		isChair: access.isChair,
+		/**
+		 * The caller's own uuid, so the admin log can render their own rows as
+		 * "You". It is already in the validated claims -- this is a rename, not a
+		 * read -- and it is the ONLY identity the log resolves: every other actor
+		 * stays a uuid, because joining `profiles` for arbitrary user ids would
+		 * add a read of other people's rows to a console for a cosmetic gain.
+		 */
+		viewerId: claims.sub,
 		configured: !sectionError,
 		docCheckReady: !unitLinkProbe.error,
 		initialSectionId,

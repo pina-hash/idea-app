@@ -56,6 +56,7 @@
 		onDelete,
 		onRestore,
 		onStaffDelete,
+		onStaffRestore,
 		subjectName,
 		viewerId,
 		compact = false,
@@ -82,6 +83,30 @@
 		 * `EntryNotes` call is the only caller.
 		 */
 		onStaffDelete?: (noteId: string) => Promise<EntryActionResult>;
+		/**
+		 * Staff putting one back (0119, `notebook_staff_restore_note`), the
+		 * missing half of `onStaffDelete`.
+		 *
+		 * THE OWNER'S TWIN HAS BEEN WIRED SINCE 0119 AND THIS ONE NEVER WAS, so
+		 * a student could restore a note they removed themselves while the only
+		 * people who can remove SOMEBODY ELSE'S note had no way to undo it -- and
+		 * the refusal the student reads on a staff-deleted thread ("Ask them to
+		 * restore it for you") pointed at a capability that did not exist.
+		 *
+		 * INSTRUCTOR TIER, NOT ADMIN. The RPC asks
+		 * `classroom_manages_section(entry.section_id) OR
+		 * notebook_manages_student(entry.student_id)` -- the same question the
+		 * staff delete beside it asks -- so this is offered to every reviewer who
+		 * has the delete, and the two are handed in together or not at all.
+		 *
+		 * IT RENDERS ITS OWN DISCLOSURE rather than reusing the owner's below:
+		 * that one is gated on `canEdit`, which EntryReview never sets, and the
+		 * two ask different questions of a thread. The owner's offers Restore
+		 * only on a thread THIS viewer deleted; staff restore is offered on ANY
+		 * deleted thread, because the RPC admits any of them and a note removed
+		 * by the student is exactly the one an instructor gets asked to put back.
+		 */
+		onStaffRestore?: (noteId: string) => Promise<EntryActionResult>;
 		/** The student's name, for the staff-delete confirm text. */
 		subjectName?: string;
 		/** The signed-in caller's own id, for telling a self-deleted thread from a staff-deleted one. */
@@ -264,6 +289,28 @@
 		const result = await onRestore(noteId);
 		restoringId = null;
 		if (!result.ok) restoreErr = result.error;
+	}
+
+	// ---- staff restore (0119, notebook_staff_restore_note) -------------------
+	// Its own busy flag and its own error, not a second use of the owner's: the
+	// two disclosures are never rendered together (one is gated on `canEdit`,
+	// which the staff surface never sets), so sharing the state would only mean
+	// that whichever one is on screen reports an error the other one caused.
+
+	let staffRestoringId = $state<string | null>(null);
+	let staffRestoreErr = $state<string | null>(null);
+
+	async function staffRestoreOne(noteId: string) {
+		if (!onStaffRestore || staffRestoringId) return;
+		staffRestoringId = noteId;
+		staffRestoreErr = null;
+		try {
+			const result = await onStaffRestore(noteId);
+			if (!result.ok) staffRestoreErr = result.error;
+		} finally {
+			// In `finally`, so a throw cannot wedge the control forever.
+			staffRestoringId = null;
+		}
 	}
 
 	// ---- staff delete (0119), the danger-zone treatment ----------------------
@@ -495,6 +542,59 @@
 	</details>
 {/if}
 
+{#if onStaffRestore && !canEdit && deletedThreads.length}
+	<!--
+		THE STAFF HALF. Closed by default like the owner's, and rendered instead
+		of it rather than beside it: `canEdit` is what tells the two surfaces
+		apart, and EntryReview never sets it.
+
+		RESTORE IS OFFERED ON EVERY DELETED THREAD, with no `deletedBy` check.
+		That is not a looser copy of the owner's rule, it is the RPC's own: it
+		admits any note on an entry the caller manages, whoever removed it, and
+		a note the STUDENT deleted is exactly the one an instructor is asked to
+		put back. `deleted_by` is not even in the console's read (see
+		REVIEW_ENTRY_HISTORY_SELECT, which carries `deleted_at` alone), so a
+		per-author branch here could not be written honestly anyway.
+
+		The RPC still refuses two things this cannot see and states them itself:
+		a note on a DELETED entry (restore the entry first) and one on an entry
+		pulled back to a draft. Both surface verbatim in `staffRestoreErr`.
+	-->
+	<details class="removed-notes staff" data-testid="staff-removed-notes">
+		<summary>
+			{deletedThreads.length === 1
+				? '1 removed note'
+				: `${deletedThreads.length} removed notes`}
+		</summary>
+		<p class="removed-lede">
+			Removed by {subjectName ?? 'the student'} or by staff. Putting one back makes it visible
+			again to {subjectName ?? 'the student'} and to everyone reviewing this entry.
+		</p>
+		<ul>
+			{#each deletedThreads as thread (thread.noteId)}
+				<li>
+					<div class="removed-note-head">
+						<span class="removed-note-summary">{docSummary(thread.current.content, 60)}</span>
+						<span class="removed-when">Removed {when(thread.deletedAt ?? '')}</span>
+					</div>
+					<button
+						type="button"
+						class="btn secondary restore-note-btn tap-44"
+						disabled={staffRestoringId === thread.noteId}
+						data-testid="staff-restore-note"
+						onclick={() => staffRestoreOne(thread.noteId)}
+					>
+						{staffRestoringId === thread.noteId ? 'Restoring...' : 'Restore'}
+					</button>
+				</li>
+			{/each}
+		</ul>
+		{#if staffRestoreErr}
+			<p class="note-error" role="alert" data-testid="staff-restore-error">{staffRestoreErr}</p>
+		{/if}
+	</details>
+{/if}
+
 <style>
 	.notes {
 		list-style: none;
@@ -717,6 +817,13 @@
 	}
 	.removed-notes summary:hover {
 		color: var(--nb-accent-ink);
+	}
+	/* Staff-only lede: the owner already knows who removed their own note, and
+	   the instructor reading this one does not. */
+	.removed-lede {
+		margin: var(--space-1) 0 0;
+		font-size: 0.76rem;
+		color: var(--text-2);
 	}
 	.removed-notes ul {
 		list-style: none;
