@@ -313,6 +313,7 @@
 							disabled={busy}
 							autofocus
 							label="Edit note"
+							{viewerId}
 						/>
 						<div class="note-actions">
 							<button

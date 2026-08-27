@@ -1169,6 +1169,7 @@
 								autofocus
 								label="New note"
 								placeholder="What did you work through?"
+								{viewerId}
 							/>
 						{/key}
 						<div class="actions">
