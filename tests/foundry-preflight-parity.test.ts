@@ -272,13 +272,38 @@ describe('the sentences, pinned', () => {
 	 * unshimmed storage takes the whole script down, so the sentence names
 	 * the snippet and the file it goes in instead.
 	 */
-	it('warns rather than refuses on storage, and names the fix and the file', () => {
+	/**
+	 * THE SENTENCE CHANGED WHEN THE SANDBOX DID, AND THE OLD ASSERTION IS WHAT
+	 * FOUND IT.
+	 *
+	 * This used to require the phrase "lost when the page reloads", which was
+	 * true of every bundle while they ran on an opaque origin with no storage
+	 * area. `foundrySandboxFlags` grants `allow-same-origin` whenever the
+	 * bundle origin and the portal origin differ, so a published app has a real
+	 * storage area and saved data survives a reload -- and the warning saying
+	 * otherwise was telling a student their working save slot did not work.
+	 *
+	 * WHAT IS PINNED NOW IS THE TWO THINGS THAT ARE STILL TRUE, and the absence
+	 * of the one that is not. Both halves matter: without the absence check the
+	 * sentence could gain the old claim back beside the new ones and nothing
+	 * would fire.
+	 */
+	it('warns on storage about the key collision and the filesystem, not about reloading', () => {
 		const js = scanJs('app.js', "localStorage.getItem('save');");
 		expect(js.failures).toEqual([]);
 		expect(js.warnings).toHaveLength(1);
-		expect(js.warnings[0]!.message).toContain('storage snippet from the build contract');
-		expect(js.warnings[0]!.message).toContain(FOUNDRY_ENTRY_FILE);
-		expect(js.warnings[0]!.message).toContain('lost when the page reloads');
+		const msg = js.warnings[0]!.message;
+
+		// It still points at the snippet and still names the file to put it in.
+		expect(msg).toContain('storage snippet from the build contract');
+		expect(msg).toContain(FOUNDRY_ENTRY_FILE);
+		// The two live hazards: one shared storage area, and file://.
+		expect(msg).toContain('prefix every key');
+		expect(msg).toContain('survives a reload');
+
+		// And the retired claim is gone rather than merely joined.
+		expect(msg).not.toContain('lost when the page reloads');
+		expect(msg).not.toContain('no storage area');
 	});
 
 	/**
@@ -379,17 +404,50 @@ describe('the build contract is generated from the rules it describes', () => {
 	});
 
 	/**
-	 * The four runtime facts a generated app will otherwise get wrong, because
-	 * they are true of this sandbox and of nowhere else the tool has seen.
+	 * THE RUNTIME FACTS A GENERATED APP WILL OTHERWISE GET WRONG -- AND THIS
+	 * TEST IS WHERE THE OLD DOCUMENT'S FALSEHOODS WERE PINNED.
+	 *
+	 * It used to require "lost on reload" and treat `window.open` and
+	 * `downloads` as things the contract must WARN about. Every one of those
+	 * became false in the sandbox merge: `FOUNDRY_SANDBOX_BASE_FLAGS` grants
+	 * `allow-popups` and `allow-downloads`, and `allow-same-origin` gives a
+	 * published app a real, durable storage area.
+	 *
+	 * IT NOW ASSERTS IN BOTH DIRECTIONS, which is the only way this stays
+	 * honest: what the document must SAY is still refused, and what it must no
+	 * longer claim. A one-directional version passes on a document that says
+	 * everything twice.
 	 */
-	it('states the sandbox limits a generated app would otherwise assume away', () => {
+	it('states what the frame still refuses, and no longer claims what it grants', () => {
+		// Still true, and still the things a generated app assumes it has.
 		expect(contract).toContain('window.parent');
-		expect(contract).toContain('window.open');
+		expect(contract).toContain('window.top');
 		expect(contract).toMatch(/localStorage/);
-		// The contract hard-wraps, so a phrase can span a line break.
-		expect(contract.replace(/\s+/g, ' ')).toContain('lost on reload');
-		expect(contract).toMatch(/downloads/i);
 		expect(contract).toMatch(/no build step/i);
+
+		// The contract hard-wraps, so a phrase can span a line break.
+		const flat = contract.replace(/\s+/g, ' ');
+
+		// Storage: the claim reversed. Both directions.
+		expect(flat).toContain('SURVIVES A RELOAD');
+		expect(flat).not.toContain('lost on reload');
+		expect(flat).not.toContain('NO STORAGE AREA');
+		expect(flat).not.toContain('nothing is written to disk');
+
+		// The shared origin is the hazard that replaced it, and the remedy is
+		// stated as an instruction rather than as a fact about the platform.
+		expect(flat).toContain('SHARES ONE STORAGE AREA');
+		expect(flat).toContain('PREFIX EVERY KEY');
+
+		// Granted now, and named as granted rather than as forbidden.
+		expect(flat).toContain('window.open. A popup opens');
+		expect(flat).toContain('Downloads.');
+		expect(flat).toContain('Forms. A <form> submits.');
+		expect(flat).not.toContain('Cookies and IndexedDB are not available at all');
+
+		// <base href> works and the warning about depending on another site is
+		// repeated where a student choosing to use one will read it.
+		expect(flat).toContain('<base href="..."> WORKS');
 	});
 
 	/**

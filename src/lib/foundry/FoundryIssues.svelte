@@ -18,7 +18,11 @@
 	 * and line included in the copied text because that is what makes the
 	 * message actionable to whatever reads it next.
 	 */
-	import type { FoundryIssue } from './preflight.ts';
+	import {
+		foundryIssueLine,
+		foundryIssueLocation,
+		type FoundryIssue
+	} from './preflight.ts';
 
 	type Tone = 'failure' | 'warning' | 'note';
 
@@ -52,26 +56,16 @@
 	 * The sentence is never edited to fix this -- it is the shared module's, and
 	 * the rule of this surface is that it renders verbatim. What is suppressed
 	 * is OUR chip, on the issues that do not need it.
+	 *
+	 * THE PREDICATES MOVED INTO `preflight.ts` AND ARE IMPORTED, because the
+	 * fix prompt on the submit surface renders the same list into one
+	 * instruction and has to reach the same answer. When they lived here, the
+	 * only way for the second caller to get them was a second copy -- and the
+	 * failure of a second copy is silent: one surface stutters, the other does
+	 * not, and nobody puts the two clipboards side by side.
 	 */
-	function leadsWithItsLocation(issue: FoundryIssue): boolean {
-		return issue.file !== null && issue.message.startsWith(issue.file);
-	}
-
-	/** The location, for the issues whose sentence does not already carry it. */
-	function locationOf(issue: FoundryIssue): string | null {
-		if (issue.file === null || leadsWithItsLocation(issue)) return null;
-		return issue.line === null ? issue.file : `${issue.file} line ${issue.line}`;
-	}
-
-	/**
-	 * The copyable form: the sentence, with a location added only when the
-	 * sentence does not already name one. The file is most of what the tool
-	 * receiving this paste needs, so it is never simply dropped.
-	 */
-	function copyText(issue: FoundryIssue): string {
-		const at = locationOf(issue);
-		return at === null ? issue.message : `${at}: ${issue.message}`;
-	}
+	const locationOf = foundryIssueLocation;
+	const copyText = foundryIssueLine;
 
 	const lines = $derived([...issues.map(copyText), ...notes]);
 
