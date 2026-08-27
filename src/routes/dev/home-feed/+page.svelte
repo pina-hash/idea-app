@@ -215,10 +215,10 @@
 
 <svelte:head><title>Home feed harness</title></svelte:head>
 
-<div class="hf-bar">
+<div class="hf-bar" data-testid="home-feed-harness">
 	<strong>HOME FEED HARNESS</strong>
 	{#each MODES as m (m.id)}
-		<button type="button" class:active={mode === m.id} onclick={() => (mode = m.id)}>
+		<button type="button" data-mode={m.id} class:active={mode === m.id} onclick={() => (mode = m.id)}>
 			{m.label}
 		</button>
 	{/each}

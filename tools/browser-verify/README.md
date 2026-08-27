@@ -76,10 +76,32 @@ Two further limits belong in any report that quotes these numbers:
   the proxy resets `fonts.googleapis.com`, and an unanswered request hung the
   page load for 8s each, which took one run to **305 seconds**. Blocking is
   also what makes the run deterministic. But it means text is measured in the
-  **fallback stack**, so a tap-target height that depends on the line box of
-  Rajdhani is approximate. Every run prints the blocked count and says so.
-- **`prefers-reduced-motion` is `no-preference`.** The reduced-motion path is
-  not exercised.
+  **fallback stack**, so **every pixel measurement is approximate, including
+  tap-target geometry** -- a control's box depends on the line box of
+  Rajdhani, which this run never loads. **Contrast is unaffected**: colour is
+  resolved by painting the computed `color`/`background` and reading the
+  pixel back (see below), which does not depend on which face rendered the
+  glyphs. Every run prints the blocked count and says so.
+- **`prefers-reduced-motion` is `no-preference`.** The harness never sets the
+  reduced-motion media feature, so that path is **not exercised** -- a finding
+  from a route with `prefers-reduced-motion: no-preference` behaviour (an
+  entrance fade, a spin, a transform) describes only that state, never the
+  reduced one, and neither state is inferable from the other.
+
+### Known findings, and the two limits above as they apply to them
+
+- **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
+  dimension 26.2px), under the 44px floor at both widths. This number is a
+  **tap-target measurement**, so the fallback-stack limit above applies to it
+  directly -- the true box under Rajdhani may differ slightly, though not
+  enough to cross the 44px line from 26.2px.
+- **The chip label on its own fill measures 4.84:1** on `/dev/pathways`,
+  which passes. This is a **contrast measurement**, which the font-loading
+  limit does not qualify (see above) -- the ratio is real regardless of which
+  face painted the glyphs.
+- **A single `net::ERR_ABORTED` on `/dev/pathways/__data.json`** was seen once
+  and did not reproduce on a second run. Treat a non-reproducing abort as
+  flaky and say so rather than reporting it as a finding.
 
 ## The checks
 
@@ -93,6 +115,7 @@ threshold exists it is printed beside the measurement, never instead of it.
 | `contrast` | WCAG ratio of the text against the **real rendered ground**, naming which ancestor supplied it |
 | `tap-target` | Each control's box, the smallest min-dimension, counts under 44px and under the 24px floor, and a centre hit-test |
 | `presence` | **present**, **visible** and **aria-hidden** counts -- three different questions -- with a reason for every invisible node |
+| `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
 | `console-errors` | Console errors and uncaught exceptions during the run |
 
 Three details are deliberate:
@@ -135,8 +158,8 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **18
-controls, 9 negative and 9 positive.** Fixtures rather than a mutation of `src/`
+one, because unlike the measuring run there is a right answer here. **20
+controls, 10 negative and 10 positive.** Fixtures rather than a mutation of `src/`
 on purpose: a mutation proves a check once in a tree that then has to be
 restored byte-identically, this proves it on every run and touches nothing.
 
@@ -155,8 +178,8 @@ green, which is the property that makes it worth anything.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **~22 seconds** (3.5s of it the vite boot) for 3 routes x 2 widths
-= 54 measurements; `--selftest` is ~8s. That is fast enough to be no burden,
+A full run is **~34 seconds** (2.8s of it the vite boot) for 8 route specs x 2
+widths = 108 measurements; `--selftest` is ~8s. That is fast enough to be no burden,
 and it is still deliberately outside `npm test` and outside CI:
 
 - `npm test` is the DB suite -- real embedded Postgres, real migrations, no DOM.
@@ -180,7 +203,7 @@ change, not the harness.
 | `run.mjs` | CLI, report formatting, `--break` presets |
 | `browser.mjs` | Executable resolution, launch, `waitForApp`, `clickUntil`, external-request blocking |
 | `server.mjs` | Boots and stops `vite dev`, handing the placeholder public env to the **child process** so no `.env` is written to the repo |
-| `checks.mjs` | The five checks and the in-page colour/visibility helpers |
+| `checks.mjs` | The six checks and the in-page colour/visibility helpers |
 | `routes.mjs` | Which dev routes are driven and what is measured on each |
 | `probe.mjs` | The environment capability probe |
 | `selftest.mjs` | The negative controls |

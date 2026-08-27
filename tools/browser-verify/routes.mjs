@@ -83,6 +83,94 @@ export const ROUTES = [
 		tapTargets: []
 	},
 	{
+		path: '/dev/home-order?role=student&classes=1&rows=3',
+		label: 'Home page section order, non-managing student (Classes above Apps)',
+		/* Mounts the REAL src/routes/+page.svelte (see the route's own +page.ts
+		   for why its fixture items are dated off Date.now() rather than a
+		   frozen clock). A prior vitest probe asserted `managesAnySection` as a
+		   computed boolean and passed while never rendering a single row --
+		   every assertion here reads elements actually painted in the DOM. */
+		/* `.course-card` and `.app-card` mount at opacity:0 and are handed
+		   `.visible` by an IntersectionObserver in this page's own onMount
+		   (threshold 0.08) -- real entrance chrome, not a fixture gap. This
+		   harness does not scroll, so a card below the fold at a given
+		   viewport genuinely never intersects and never fades in; `present`
+		   over `visible` is CORRECT here for the same reason a closed
+		   Disclosure is (see /dev/spec-table above), not a relaxed assertion. */
+		presence: [
+			{ selector: '[data-tour="classes"] .course-card.section-card.feed-card', label: 'rendered class card(s)', expectPresent: 1, expectVisible: 0 },
+			{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered due-soon rows', expectPresent: 1 },
+			{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 0 }
+		],
+		domOrder: [
+			{
+				before: '[data-tour="classes"]',
+				after: '.launcher',
+				label: 'Classes precedes Apps for a viewer who manages nothing'
+			}
+		],
+		contrast: [{ selector: '[data-tour="classes"] .assignment-name', label: 'feed row title', min: 4.5 }],
+		tapTargets: [{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'feed rows', min: 44 }]
+	},
+	{
+		path: '/dev/home-order?role=teacher&classes=1&rows=3',
+		label: 'Home page section order, managing teacher (Apps above Classes)',
+		presence: [
+			{ selector: '[data-tour="classes"] .course-card.section-card.feed-card', label: 'rendered class card(s)', expectPresent: 1, expectVisible: 0 },
+			{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered ungraded-work rows', expectPresent: 1 },
+			{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 0 }
+		],
+		domOrder: [
+			{
+				before: '.launcher',
+				after: '[data-tour="classes"]',
+				label: 'Apps precedes Classes for a viewer who manages a section'
+			}
+		],
+		contrast: [{ selector: '[data-tour="classes"] .assignment-name', label: 'feed row title', min: 4.5 }],
+		tapTargets: [{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'feed rows', min: 44 }]
+	},
+	{
+		path: '/dev/home-feed',
+		label: 'Home feed harness, student mode',
+		/* Mounts the REAL ClassroomFeed through the REAL buildFeed, against a
+		   clock frozen in the fixture (`now={NOW}`), so unlike /dev/home-order
+		   this one carries no live-clock trap of its own -- the assertions
+		   below still read rendered rows rather than a ranking result, for the
+		   same reason: a computed value proves the function ran, not that
+		   anything painted. */
+		/* This route mounts ClassroomFeed directly rather than the real
+		   src/routes/+page.svelte, so the entrance IntersectionObserver that
+		   page's own onMount wires up for `.course-card` never runs here --
+		   the shared `.legacy-index .course-card` rule still stamps opacity:0
+		   at mount and nothing ever adds `.visible`. `present` is the honest
+		   assertion for this harness; the card genuinely renders, it is the
+		   entrance-fade wiring that this route does not carry. */
+		presence: [
+			{ selector: '.legacy-index .course-card.section-card.feed-card', label: 'rendered section card(s)', expectPresent: 3, expectVisible: 0 },
+			{ selector: '.legacy-index .assignment-item.linked', label: 'rendered feed rows', expectPresent: 1 }
+		],
+		contrast: [{ selector: '.legacy-index .assignment-name', label: 'feed row title', min: 4.5 }],
+		tapTargets: [{ selector: '.legacy-index .assignment-item.linked', label: 'feed rows', min: 44 }]
+	},
+	{
+		path: '/dev/home-feed-teacher',
+		label: 'Home feed harness, teacher mode (ungraded queue)',
+		aliasOf: '/dev/home-feed',
+		prepare: [
+			{
+				click: '[data-mode="teacher"]',
+				until: '() => document.querySelector(\'[data-mode="teacher"]\').classList.contains("active")'
+			}
+		],
+		presence: [
+			{ selector: '.legacy-index .course-card.section-card.feed-card', label: 'rendered section card(s)', expectPresent: 3, expectVisible: 0 },
+			{ selector: '.legacy-index .assignment-item.linked', label: 'rendered feed rows (teacher)', expectPresent: 1 }
+		],
+		contrast: [{ selector: '.legacy-index .assignment-name', label: 'feed row title (teacher)', min: 4.5 }],
+		tapTargets: []
+	},
+	{
 		path: '/dev/animated-logo',
 		label: 'Animated emblem harness',
 		presence: [

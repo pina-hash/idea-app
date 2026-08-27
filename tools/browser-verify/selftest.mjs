@@ -15,7 +15,7 @@
  * touches nothing.
  */
 import { launch, openPage, settle } from './browser.mjs';
-import { horizontalScroll, contrast, tapTargets, presence, consoleErrors } from './checks.mjs';
+import { horizontalScroll, contrast, tapTargets, presence, domOrder, consoleErrors } from './checks.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -136,6 +136,21 @@ const CASES = [
 			name: 'the element is rendered',
 			html: shell('<div id="card">the card</div>'),
 			run: (p) => presence(p, { selector: '#card', expectPresent: 1, expectVisible: 1 }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'dom-order',
+		bad: {
+			name: 'the "after" element rendered ahead of the "before" element',
+			html: shell('<div id="second">second</div><div id="first">first</div>'),
+			run: (p) => domOrder(p, { before: '#first', after: '#second', label: 'first before second' }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the "before" element genuinely rendered first',
+			html: shell('<div id="first">first</div><div id="second">second</div>'),
+			run: (p) => domOrder(p, { before: '#first', after: '#second', label: 'first before second' }),
 			expect: 'within'
 		}
 	},

@@ -34242,3 +34242,217 @@ That is the only change under `src/` on this branch.
   above can go back to being undated.
 - **The `/dev/pathways` tap targets.** A known finding, unchanged by any of
   these eight, and owned by whichever bundle takes the 44px sweep.
+
+---
+
+## A ninth bundle folds in, the two harness gaps close, and the drag-drop bundle gets its first browser pass (`claude/integration-eight-bundles-merge-4gd5ei`, code only, no migration)
+
+Two things had landed after the eight-bundle integration branch was built:
+`origin/main` had taken more app-export commits under `materials/`, and
+`origin/claude/classroom-drag-drop-order-ts9usf` (native drag-to-reorder,
+bulk select/publish/file/delete) was sitting unmerged. This session started
+from the eight-bundle tip, merged both in `--no-ff`, closed the two harness
+gaps the eight-bundle session's own "Deferred" section named above, and
+re-measured the whole tree.
+
+### The merges were clean -- no conflict at all, not even the two ledgers
+
+`git reset --hard` onto `origin/claude/integration-eight-bundles-jhg2ne`
+(precondition-checked first: all eight named bundles confirmed ancestors by
+`git merge-base --is-ancestor`), then `--no-ff` merges of `origin/main` and
+`origin/claude/classroom-drag-drop-order-ts9usf` in that order. **Neither
+merge touched `docs/HISTORY.md` or `classroom-updates.json` at the conflict
+level** -- `origin/main`'s changes were entirely under `materials/`, and the
+drag-drop bundle's own additions to both ledgers landed on lines the eight-
+bundle tip did not touch, so git's own three-way merge resolved
+`classroom-updates.json` (Auto-merged) with zero manual intervention. The
+RESOLUTION RULE (parse, union, date-order, round-trip, validate through the
+app's reader) was therefore not needed as a manual step; it was verified
+after the fact instead: `classroom-updates.json` parses (98 entries,
+`_readme` intact) and its dates span `2026-08-10` to `2026-08-27`. No `<<<<<<<`
+survives anywhere in the tree.
+
+### The two harness gaps, closed
+
+**1. `/dev/home-order` and `/dev/home-feed` are now in
+`tools/browser-verify/routes.mjs`**, as four route specs (`home-order` at
+`?role=student` and `?role=teacher`; `home-feed` and a `home-feed-teacher`
+alias that clicks into teacher mode). Each asserts **rendered rows** --
+`presence` counts on the actual `.course-card`/`.assignment-item.linked`/
+`.app-card` elements and a new `dom-order` check reading
+`compareDocumentPosition` between `[data-tour="classes"]` and `.launcher` --
+never a recomputed boolean, which is the exact blind spot the prior vitest
+probe had (it asserted `managesAnySection` in isolation and passed while
+rendering nothing).
+
+- **`dom-order` is a new check**, in `checks.mjs`, wired into `run.mjs` and
+  covered by its own selftest pair (bad: the "after" element rendered first;
+  good: genuine order) -- `--selftest` is now **20 controls, 10 negative, 10
+  positive**, up from 18/9/9.
+- **Driving these routes surfaced two real gaps, both fixed rather than
+  papered over:**
+  - `/dev/home-feed` mounts `ClassroomFeed` directly rather than the real
+    `src/routes/+page.svelte`, so it carries none of that page's
+    `main`/`h1`/`[data-testid]`/`.harness` landmarks. `waitForApp`'s readiness
+    predicate fell through to `body.firstElementChild`, which SvelteKit dev
+    mode gives a permanently `0x0` box -- so the readiness wait exhausted
+    Playwright's real default timeout (**30004ms**, twice, once per width)
+    before giving up and measuring anyway. Root cause, not the harness's
+    3-arg `waitForFunction` call (that call passes its options object as the
+    page function's `arg` rather than as `options`, which is a real latent
+    bug but turned out not to be what was firing here -- Playwright's
+    default 30s/`raf` polling is why the number was exactly 30000ms and not
+    45000). Fixed by adding `data-testid="home-feed-harness"` to the
+    harness's own root div, the same convention every other harness already
+    uses. Render time dropped from ~30000ms to ~500-800ms.
+  - `.course-card` and `.app-card` mount at `opacity:0` and are handed
+    `.visible` by an `IntersectionObserver` that lives in `+page.svelte`'s own
+    `onMount` (threshold 0.08, one entrance fade per card). `/dev/home-order`
+    mounts that real page, so the observer runs, but the harness never
+    scrolls, so a card below the fold at a given viewport genuinely never
+    intersects and never fades in -- present/visible varied by width and role
+    (1/9 app cards visible at 375px managing, 9/9 at 1440px, for instance).
+    `/dev/home-feed` mounts `ClassroomFeed` directly, so the observer never
+    runs there AT ALL and `.course-card` sits at opacity 0 unconditionally.
+    Both are real, expected behaviour -- not a defect -- so the presence
+    checks assert `expectVisible: 0` on these wrapper selectors with a
+    comment pointing at the exact CLAUDE.md precedent (`/dev/spec-table`'s
+    closed-disclosure "present > 0, visible 0 is correct" reading), and
+    `expectPresent` (rendered) stays the real assertion.
+- **The unrelated `waitForFunction(fn, {timeout, polling})` signature bug is
+  left in place**, named above and in a follow-up note below: it silently
+  disables the FIRST readability wait's configured timeout and polling
+  interval on every route, and only manifested here because home-feed's
+  landmarks were missing. Fixing it is a `browser.mjs` change unrelated to
+  this session's two named additions.
+
+**2. The harness's own two measurement limits are now documented beside the
+numbers they qualify**, in `tools/browser-verify/README.md`, not only as a
+general "Two further limits" note (which stays) but against the specific
+`/dev/pathways` findings that recur every run: the **194.7x26.2 tap-target**
+reading is flagged as approximate (fallback-stack text metrics), the
+**4.84:1 contrast** reading is flagged as unaffected (painted-pixel
+measurement, independent of which face rendered the glyphs), and the
+single non-reproducing `net::ERR_ABORTED` is named as flaky. The checks
+table gained `dom-order`, and the `--selftest`/full-run counts in the prose
+were re-derived from the actual measured run rather than left at the prior
+session's numbers (108 measurements now, not 54; 20 controls, not 18).
+
+### Measured
+
+- **Full suite: 131 files, 3027 tests, all passing, 97.0s.** The eight-bundle
+  tip measured 130/3002; the delta is exactly
+  `tests/classroom-item-order.test.ts` (**+1 file, +25 tests**), the drag-drop
+  bundle's own pure-function coverage for `dragReorderedIds`,
+  `dragCrossesPinBoundary`/`dragReorder`, `reorderedIds`, `renumberedForFiling`,
+  `runBulk`, `bulkFailureMessage` and `selectionScopeKey`. **No file lost a
+  test and no file disappeared** -- confirmed by diffing `git diff` against
+  the eight-bundle tip for `tests/`, which shows exactly one new file and
+  nothing else touched under it.
+- **`svelte-check`: 0 errors, 37 warnings in 20 files**, mix unchanged
+  (31 `state_referenced_locally` / 5 `css_unused_selector` / 1
+  `perf_avoid_nested_class`). Re-derived with `npx svelte-kit sync &&
+  npx svelte-check` against a placeholder `.env` written from `.env.example`
+  (git-ignored, not committed).
+- **`npm run verify:browser`, now including the two new routes: 16 route/width
+  runs, 108 measurements, 2 outside threshold, 33.9s.**
+  - Both outside-threshold findings are the SAME known one, at both widths:
+    `/dev/pathways` harness controls measure **194.7x26.2 (min dim 26.2px),
+    2/2 under the 44px floor**, 0 under the 24px floor -- unchanged by this
+    session, per the prior session's "Deferred" note above.
+  - The chip label passes at **4.84:1**, matching the prior measurement
+    exactly.
+  - **A single `net::ERR_ABORTED` on `/dev/pathways/__data.json` recurred on
+    this run too** (once, at 375px) and did not reproduce on the immediately
+    prior isolated run of the same route. Treated as flaky per the standing
+    instruction, not reported as a finding.
+  - The two new `home-order` route specs and two `home-feed` specs (8 of the
+    16 route/width runs) are all within threshold: `dom-order` correct in
+    both directions (Classes-before-Apps for a non-managing student,
+    Apps-before-Classes for a managing teacher), every `presence` count met,
+    contrast 12.09:1 on feed row titles throughout, 0px horizontal overflow,
+    0 console errors.
+  - **`--selftest`: 20 controls (10 negative, 10 positive), 0 instrument
+    failures**, including the new `dom-order` pair.
+- **The drag-drop bundle's first browser pass, driven by hand against
+  `/dev/classroom-split/s-1?manage=1`** (1440px; the route is not in
+  `routes.mjs` -- it needs a `?manage=1` query the fixture latches for the
+  session, which the route table has no mechanism for, so this stays a
+  by-hand pass rather than an addition):
+  - **Every interaction needed `clickUntil`'s retry, not a bare click.** A
+    single programmatic `.click()` on the row-menu button, the checkbox, and
+    the layout's own "New post" button all did nothing on the first attempt
+    -- not a broken page: `browser.mjs`'s own documented hydration-timing
+    trap (paint before handlers attach), confirmed by re-running the exact
+    same click through `clickUntil` and watching it succeed on attempt 1-3
+    (~250-750ms). Bare `page.evaluate(() => el.click())` immediately after
+    `settle()` is not sufficient evidence of a dead handler on this route.
+  - **Bulk selection works end to end**: checking two rows raises
+    `data-testid="bulk-bar"` with the correct running count ("1 selected" ->
+    "2 selected"), and Clear removes it. No console errors.
+  - **Native drag-and-drop mechanics are correct, confirmed by dispatching
+    real `DragEvent`s with a `DataTransfer` payload** (`dragstart` on the
+    grip, `dragover` + `drop` on the target row): `dragover` calls
+    `preventDefault` (proven via `event.defaultPrevented`, not by reading
+    stale state), and the `.drag-over` class -- the ONLY on-screen feedback a
+    user gets mid-drag -- applies to the target row and clears after drop.
+    **Reading the class synchronously in the same `evaluate()` call as the
+    dispatch reports it ABSENT even though the drop handler ran correctly**;
+    Svelte 5 batches the DOM update to a microtask, so a check has to
+    `waitForTimeout` or otherwise yield before reading `className`. This one
+    cost a full debugging pass here (six iterations) before the tick was
+    added -- worth a `CLAUDE.md` line if this harness pattern recurs.
+  - **The visible row order does not change after a successful drop, and
+    that is the harness's own limitation, not a defect.** The harness's
+    `transports.setOrder` is a no-op stub returning `{ok:true}` with nothing
+    downstream re-fetching `items`; `ClassView`'s groups are a pure
+    `$derived` of the `items` prop, which this harness never mutates. The
+    actual reorder arithmetic (`dragReorderedIds`, the pin-boundary
+    crossing) is already proven at the pure-function level by this bundle's
+    own 25 tests; this browser pass adds what those tests cannot cover --
+    that the DOM events wire up to the right calls and the right visual
+    state, which they do.
+  - **Two real, previously-unmeasured tap-target findings, both new UI from
+    this bundle and both under the 44px floor:**
+    - The bulk-action bar's buttons (`bulk-publish` 69.2x22.9, `bulk-delete`
+      89.8x22.9, `bulk-clear` 124.1x22.9) and its unit `<select>`
+      (221.8x36) all measure under 44px in height; three of the four are
+      also under the 24px absolute floor (22.9px). None carries a `.tap-44`
+      class. The row's own selection checkbox (`.row-select`) measures
+      18x18, not wrapped in a `<label>` for a larger hit area.
+    - The drag handle (`.row-grip`) measures 30x44 (min dim 30px, under
+      44px) -- but this ONE is a documented, deliberate exception already in
+      the source: `ClassView.svelte`'s own CSS comment states it is
+      "the mouse-only reorder affordance -- keyboard and assistive tech use
+      the menu's Move up / Move down, which stay for exactly this reason,"
+      and the row menu's Move up/Move down items are present and reachable.
+      Not reported as a finding for that reason.
+    - **Neither finding is fixed here.** This pass is a measurement, per the
+      task; the bulk-bar tap targets are new, real, and unowned.
+
+### What was NOT verified
+
+- Everything the eight-bundle session already listed as not verified (no
+  production/preview deploy, no signed-in surface, no migration -- this
+  bundle ships none, `npm run build` not run) still applies unchanged.
+- **`/dev/classroom-split`'s drag-and-drop was driven by hand, once, at
+  1440px only.** 375px and the keyboard-equivalent Move up/Move down path
+  were not driven this session.
+- **The `waitForFunction(fn, {timeout, polling})` argument-order bug in
+  `browser.mjs`'s first readability wait was found and named, not fixed.**
+  It happens to not matter for any route currently in `routes.mjs` (all have
+  a landmark the selector matches quickly); a future route without one will
+  hit the same 30-second default unless this is fixed.
+
+### Deferred
+
+- **The `browser.mjs` `waitForFunction` argument-order bug**, named above.
+- **A route-table entry for `/dev/classroom-split`.** It needs a `?manage=1`
+  query parameter latched into module state, which the route table's
+  `path`/`prepare` shape does not yet have a clean way to express (a `prepare`
+  `evaluate` step that navigates with the query string, or a second route
+  spec per query, the way `/dev/home-order`'s two role variants are handled
+  here, is the likely shape).
+- **The bulk-action bar's tap targets.** New, real, unowned; whichever bundle
+  next touches `ClassView.svelte`'s bulk bar should pick this up alongside
+  the standing `/dev/pathways` finding.
