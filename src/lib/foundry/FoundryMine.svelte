@@ -25,6 +25,7 @@
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
 	import FoundryShare from './FoundryShare.svelte';
+	import { foundryPreviewUrl, foundryPreviewable } from './bundle-url.ts';
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
 	import {
 		FOUNDRY_METADATA_FIELDS,
@@ -459,6 +460,47 @@
 							</div>
 
 							<div class="fdy-version-actions">
+								<!--
+									RUN IT. THIS IS THE ONE CONTROL EVERY VERSION GETS,
+									whatever its status, because "does it work" is a question
+									that does not depend on where a build is in review.
+
+									IT OPENS IN A NEW TAB, WHICH IS THE POINT RATHER THAN A
+									CONVENIENCE. A student needs to actually play the thing --
+									type into it, lose, reload, try again -- and a frame inside
+									a detail pane inside a two-pane split gets whatever is left
+									after three layers of chrome. The new tab also means the
+									list they came from is still there when they close it.
+
+									`rel="noopener"` because the opened document is a student's
+									own bundle: it lands in an opaque origin under the preview
+									response's strict sandbox, so it cannot reach back through
+									`window.opener` anyway, and stating it costs nothing.
+
+									`foundryPreviewable` IS THE CONDITION, AND IT IS NOT SPELLED
+									OUT HERE. It mirrors the two clauses of the server's gate that
+									this surface can see -- an upload that never unpacked, and a
+									shelved app, which the gate refuses to its OWNER -- so that no
+									control is offered whose only possible answer is a refusal.
+									Written inline, that expression is the one somebody adds a
+									status clause to; in a predicate it is a pure function with a
+									test on it, and the test says in words that the status is the
+									thing it must never ask.
+								-->
+								{#if foundryPreviewable(app, v)}
+									{@const previewHref = foundryPreviewUrl(app.id, v.id)}
+									{#if previewHref}
+										<a
+											class="btn tap-44"
+											href={previewHref}
+											target="_blank"
+											rel="noopener"
+										>
+											Run a preview
+										</a>
+									{/if}
+								{/if}
+
 								{#if v.status === 'draft' && transports.submitVersion}
 									<button
 										type="button"
@@ -578,6 +620,31 @@
 						</li>
 					{/each}
 				</ul>
+
+				<!--
+					WHAT A PREVIEW DOES NOT PROVE, SAID ONCE, WHERE IT WILL BE READ.
+
+					A preview runs in an opaque origin, so `localStorage` is the
+					injected in-memory shim and nothing in it survives a reload. A
+					PUBLISHED app runs on the apps origin, which is a real origin, so
+					its saves do persist. Without this sentence the first student with
+					a high score files a bug about it.
+
+					IT SAYS WHICH DIRECTION THE DIFFERENCE RUNS, which is the half that
+					actually helps: everything else about a preview is the published
+					response, byte for byte and header for header, minus that one
+					sandbox flag -- so a preview that works is a published app that
+					works, and only the reverse can surprise anybody.
+
+					ONCE, NOT PER VERSION. It is a fact about previewing, not about any
+					particular build, and repeating it down a list of six versions is
+					how a true sentence stops being read.
+				-->
+				<p class="fdy-hint">
+					A preview runs your app exactly as it will run published, with one
+					difference: saved data does not survive a reload in a preview, and it does
+					once the app is live. Anything that works in a preview works published.
+				</p>
 
 				{#if transports.rollback && targets.length > 0}
 					<p class="fdy-hint">
