@@ -11,6 +11,7 @@
 		type DeckTransports,
 		type DeckUploadProgress
 	} from '$lib/classroom/deck';
+	import { dropTarget } from '$lib/file-drop';
 
 	/**
 	 * The deck on one classroom item: how a student opens it, and how a teacher
@@ -97,6 +98,8 @@
 	 */
 	let progress = $state<DeckUploadProgress | null>(null);
 	let aborter: AbortController | null = null;
+	/** The shared drop target's feedback (see FileUploadPanel for the contract). */
+	let dragActive = $state(false);
 
 	const editable = $derived(canManage && !!transports);
 	const href = $derived(deckViewerHref(basePath, sectionId, itemId));
@@ -173,6 +176,18 @@
 		if (file) void send(file, null);
 	}
 
+	/**
+	 * A drop or a paste onto this panel -- the SAME `send` the picker's
+	 * `onchange` calls, on the FIRST file only, exactly as the picker (no
+	 * `multiple`) already only ever takes one. No new validation: whatever
+	 * lands still goes through the same size check and the same upload call,
+	 * and a file that is not a deck zip is refused exactly where it always was.
+	 */
+	function onDropFiles(files: File[]) {
+		const file = files[0];
+		if (file) void send(file, null);
+	}
+
 	function confirmEntry() {
 		if (pending && chosenEntry) void send(pending, chosenEntry);
 	}
@@ -201,7 +216,18 @@
 </script>
 
 {#if showView || showManage}
-	<section class="deck-card" class:card={mode !== 'manage'} data-testid="deck-panel-{mode}">
+	<!-- THE SHARED DROP TARGET, on this section's own root -- only when there is
+	     an upload control to drop onto (`showManage`), so a student's view-only
+	     mount never lights up for a drag it could not act on anyway. Same
+	     primitive, same feedback and the same wording as every other classroom
+	     upload surface. -->
+	<section
+		class="deck-card"
+		class:card={mode !== 'manage'}
+		class:is-drop-active={dragActive}
+		data-testid="deck-panel-{mode}"
+		use:dropTarget={{ onfiles: onDropFiles, onactive: (a) => (dragActive = a), disabled: !showManage || busy }}
+	>
 		{#if mode === 'manage'}
 			<h3 class="deck-manage-label">Presentation deck</h3>
 		{:else}
@@ -326,12 +352,37 @@
 				<p class="deck-warn">{warning}</p>
 			{/each}
 		{/if}
+		{#if dragActive}
+			<div class="deck-drop-overlay" aria-hidden="true">Drop files here</div>
+		{/if}
 	</section>
 {/if}
 
 <style>
 	.deck-card {
 		margin-top: var(--space-4);
+		position: relative;
+	}
+	.deck-card.is-drop-active {
+		/* outline, never border: draws outside the box, no layout shift. */
+		outline: 2px dashed var(--green);
+		outline-offset: -2px;
+		border-radius: var(--radius-card);
+	}
+	.deck-drop-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: color-mix(in srgb, var(--green) 12%, transparent);
+		border-radius: var(--radius-card);
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		letter-spacing: 0.04em;
+		color: var(--text-1, var(--white));
+		pointer-events: none;
+		z-index: 1;
 	}
 	/* In `manage` mode the inspector supplies the surface, so this is a block
 	   inside a card rather than a card of its own. */

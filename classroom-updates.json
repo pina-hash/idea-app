@@ -38,6 +38,14 @@
 			]
 		},
 		{
+			"date": "2026-08-27",
+			"title": "Drag files in, or paste a screenshot right into your answer",
+			"body": "Every file picker in the classroom -- attaching a file to a post, handing in evidence on an assignment, and a teacher's presentation deck upload -- now also takes a drag-and-drop, with a clear highlight while you're dragging over it. And if you're typing an answer and paste an image (a screenshot of work from an online calculator, for example), it's sent straight to that question's photo evidence area instead of doing nothing, with a note telling you where it went. The button to pick a file still works exactly as before.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
 			"date": "2026-08-26",
 			"title": "The notebook's local backup copy expires sooner",
 			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",

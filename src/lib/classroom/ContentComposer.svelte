@@ -40,6 +40,7 @@
 		type ClassroomItemKind,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
+	import { dropTarget, filesFromClipboard } from '$lib/file-drop';
 
 	/**
 	 * THE content editor for every classroom item -- announcement, assignment
@@ -246,6 +247,8 @@
 	let deckIssue = $state<string | null>(null);
 	let deckProgress = $state<DeckUploadProgress | null>(null);
 	let stagedSpec = $state<unknown | null>(null);
+	/** The shared drop target's feedback for the staged-deck picker below. */
+	let deckDragActive = $state(false);
 
 	/** Which setter a staged document goes through, from the item's own kind. */
 	const specKind = $derived(stagedSpecKind(editingKind));
@@ -281,11 +284,8 @@
 		stagedSpec == null ? null : (stagedSpec as AssignmentSpec | ReferenceSpec)
 	);
 
-	function pickDeck(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0] ?? null;
-		input.value = '';
-		if (!file) return;
+	/** The size/type check a staged deck goes through, whichever way it arrived. */
+	function stageDeckFile(file: File) {
 		const issue = stagedDeckIssue(file);
 		if (issue) {
 			deckIssue = issue;
@@ -294,6 +294,21 @@
 		}
 		deckIssue = null;
 		stagedDeck = file;
+	}
+
+	function pickDeck(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0] ?? null;
+		input.value = '';
+		if (!file) return;
+		stageDeckFile(file);
+	}
+
+	/** A drop or a paste onto the staged-deck editor, first file only -- the
+	 *  picker beside it takes no `multiple` either. */
+	function onDeckDropFiles(files: File[]) {
+		const file = files[0];
+		if (file) stageDeckFile(file);
 	}
 
 	/**
@@ -411,10 +426,11 @@
 	};
 
 	/**
-	 * Ctrl+V of a screenshot. The clipboard carries a pasted image as an
-	 * `image/*` ITEM with no name, so it is read from `items` (not `files`,
-	 * which several browsers leave empty for synthesised clipboard blobs) and
-	 * given a filename here.
+	 * Ctrl+V of a screenshot, anywhere in this composer. `filesFromClipboard`
+	 * is the SHARED extraction (`$lib/file-drop`) the drop target on every
+	 * upload panel now also uses, so there is exactly one reading of "which
+	 * clipboard items are images" rather than a second copy that could drift
+	 * from it.
 	 *
 	 * Only image items are intercepted: pasting TEXT into the body must keep
 	 * working exactly as it always did, so anything else falls through
@@ -422,18 +438,7 @@
 	 */
 	function onPaste(event: ClipboardEvent) {
 		if (!attachmentsEnabled) return;
-		const items = event.clipboardData?.items;
-		if (!items) return;
-		const images: File[] = [];
-		for (const clipItem of items) {
-			if (clipItem.kind !== 'file' || !clipItem.type.startsWith('image/')) continue;
-			const file = clipItem.getAsFile();
-			if (!file) continue;
-			const ext = clipItem.type.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'png';
-			const name =
-				file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.${ext}`;
-			images.push(new File([file], name, { type: clipItem.type }));
-		}
+		const images = filesFromClipboard(event);
 		if (!images.length) return;
 		event.preventDefault();
 		filePanel?.add(images);
@@ -1034,7 +1039,18 @@
 		and when it goes. Both are create-only; on edit the item page owns them.
 	-->
 	{#if canStageDeck}
-		<div class="attach-editor">
+		<!-- THE SHARED DROP TARGET, same primitive as everything else. Disabled
+		     once a deck is staged: the "Remove deck" step is what makes room for
+		     a replacement, exactly as the plain picker below is only offered then. -->
+		<div
+			class="attach-editor"
+			class:is-drop-active={deckDragActive}
+			use:dropTarget={{
+				onfiles: onDeckDropFiles,
+				onactive: (a) => (deckDragActive = a),
+				disabled: !!stagedDeck || busy
+			}}
+		>
 			<span class="mini-label">Presentation deck</span>
 			{#if stagedDeck}
 				<p class="spec-line">
@@ -1080,6 +1096,9 @@
 			{/if}
 			{#if deckIssue}
 				<p class="feedback error" data-testid="staged-deck-issue">{deckIssue}</p>
+			{/if}
+			{#if deckDragActive}
+				<div class="deck-drop-overlay" aria-hidden="true">Drop files here</div>
 			{/if}
 		</div>
 	{/if}
@@ -1396,6 +1415,30 @@
 		flex-direction: column;
 		gap: 0.35rem;
 		margin: 0.5rem 0 0.6rem;
+	}
+	.attach-editor {
+		position: relative;
+	}
+	.attach-editor.is-drop-active {
+		/* outline, never border: draws outside the box, no layout shift. */
+		outline: 2px dashed var(--green);
+		outline-offset: -2px;
+		border-radius: var(--radius-card);
+	}
+	.deck-drop-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: color-mix(in srgb, var(--green) 12%, transparent);
+		border-radius: var(--radius-card);
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		letter-spacing: 0.04em;
+		color: var(--text-1, var(--white));
+		pointer-events: none;
+		z-index: 1;
 	}
 	.body-field {
 		gap: var(--space-1);
