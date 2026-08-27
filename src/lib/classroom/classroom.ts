@@ -302,6 +302,55 @@ export function itemKindLabel(kind: ClassroomItemKind): string {
 	return ITEM_KINDS.find((k) => k.id === kind)?.label ?? kind;
 }
 
+/**
+ * DISTINCT, ranked grading-category suggestions for the composer's datalist
+ * (a `datalist` over the free-text field, never a table and never a pinned
+ * constant -- see `classroom_items.category`, which is free text with a
+ * length check and nothing else). Takes the raw, unprocessed `category`
+ * values of every item in scope -- the transport's job is fetching them, not
+ * ranking them -- and returns the distinct list a teacher should be offered.
+ *
+ * NORMALIZED FOR COMPARISON ONLY: "Unit Labs" and "unit labs " collapse to
+ * one suggestion, but nothing here rewrites what a category is STORED as --
+ * `category.trim()` is still all `updateItem`/`createItem` ever send. The
+ * comparison key trims the ends, collapses internal whitespace runs to one
+ * space, and lowercases; the value actually offered is one of the REAL raw
+ * spellings on record (the first one seen), never a synthesized casing.
+ *
+ * ORDERED MOST-USED FIRST. A category field gets typed into dozens of times
+ * a term, and the categories a teacher already leans on are far more useful
+ * at the top of the list than an alphabetical scan would be; ties (equal use
+ * count) break on first-seen order, for a result that does not reshuffle
+ * between two calls handed the same input in the same order.
+ */
+export function courseCategorySuggestions(
+	rawCategories: readonly (string | null | undefined)[]
+): string[] {
+	const counts = new Map<string, number>();
+	const display = new Map<string, string>();
+	const firstIndex = new Map<string, number>();
+
+	rawCategories.forEach((raw, i) => {
+		if (!raw) return;
+		const cleaned = raw.trim().replace(/\s+/g, ' ');
+		if (!cleaned) return;
+		const key = cleaned.toLowerCase();
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+		if (!display.has(key)) {
+			display.set(key, cleaned);
+			firstIndex.set(key, i);
+		}
+	});
+
+	return Array.from(counts.keys())
+		.sort((a, b) => {
+			const byCount = (counts.get(b) ?? 0) - (counts.get(a) ?? 0);
+			if (byCount !== 0) return byCount;
+			return (firstIndex.get(a) ?? 0) - (firstIndex.get(b) ?? 0);
+		})
+		.map((key) => display.get(key) as string);
+}
+
 // ---------------------------------------------------------------------------
 // Embed normalization. PostgREST returns embedded relations under their table
 // name; the 0085 view_as RPCs build plain jsonb with friendlier keys. Accepting
@@ -1749,6 +1798,19 @@ export interface ClassroomComposerTransports {
 	): Promise<TxResult<undefined>>;
 	/** Student-owned; a no-op for a teacher looking at their own class. */
 	markViewed(itemId: string): Promise<TxResult<undefined>>;
+	/**
+	 * Every non-null `category` on an item posted to any of the given courses,
+	 * UNPROCESSED -- de-duplicating and ranking is `courseCategorySuggestions`'s
+	 * job, not the transport's, so a real caller sends back a plain projection
+	 * and the dev harness can hand back a plain array with no ranking logic to
+	 * fake. Feeds the grading-category datalist; the field stays a free-text
+	 * input that takes any value regardless of what this returns.
+	 *
+	 * OPTIONAL, the `removeEnrollment` shape: its absence removes the datalist
+	 * down through the form and leaves a plain, unsuggested text field -- which
+	 * is also what a caller not yet wired for it gets, with no type error.
+	 */
+	loadCategorySuggestions?: (courseIds: string[]) => Promise<TxResult<string[]>>;
 }
 
 /**
