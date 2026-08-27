@@ -1,0 +1,304 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Unit 1 Assignment: Checkpoint 1",
+    "course": "IDEA209H",
+    "dueDate": "2026-08-28",
+    "totalPoints": 45,
+    "assignmentId": "idea209h-u1-cp1",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Assignments"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "The arm is held horizontal. Identify what is loading it, then work out how hard the pivot has to twist to hold that position.",
+      "title": "Forces and Holding Torque",
+      "aiNote": "ASSIST. You may use AI to check your arithmetic, to explain a method you did not follow in class, and to look up a published specification. Every number you submit must be one you worked yourself, and any specification an AI gives you has to be confirmed on the manufacturer's own page before you use it.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Work in the notebook first, then transfer here. Both are graded, and the notebook is where your setup lives.\n\n**Forces.** Every force acting on the arm, with its magnitude and its distance from the pivot. A force acting through the pivot has a distance of zero and still belongs in the table.\n\n**Torque.** Each force multiplied by its own perpendicular distance from the pivot, then summed. Not a total force at an average distance.\n\n![Fig 1. The pivoting arm held horizontal, with the arm's own weight acting at its centre of mass and the game piece acting at the tip.](attachment:scenario-arm.png)\n\nShow the substituted line, with units, before you show a result. A correct number with no setup does not earn the criterion, because nobody can tell whether you worked it or guessed it."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 10,
+          "columns": [
+            {
+              "key": "force",
+              "tip": "What is producing it.",
+              "label": "Force"
+            },
+            {
+              "key": "mag",
+              "tip": "Value with units. State which system you are working in.",
+              "label": "Magnitude"
+            },
+            {
+              "key": "dist",
+              "tip": "Perpendicular distance. Zero is a valid answer.",
+              "label": "Distance from pivot"
+            },
+            {
+              "key": "dir",
+              "tip": "Which way it acts.",
+              "label": "Direction"
+            }
+          ],
+          "minRows": 3,
+          "printRows": 5,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 12,
+          "prompt": "Work the holding torque. Show your conversions, the substituted line with units carried, and the result.",
+          "maxSentences": 8,
+          "minSentences": 3
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Check your result a second way and state whether the two agree.",
+          "maxSentences": 3,
+          "minSentences": 1
+        }
+      ],
+      "points": 25,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both loads, both distances",
+              "points": 10,
+              "descriptor": "Both gravitational loads listed with correct magnitudes and correct distances from the pivot, and direction stated for each."
+            },
+            {
+              "label": "Proficient",
+              "short": "Both loads, one value off",
+              "points": 7,
+              "descriptor": "Both gravitational loads listed, with one magnitude, distance, or direction incorrect or missing."
+            },
+            {
+              "label": "Developing",
+              "short": "One load only",
+              "points": 4,
+              "descriptor": "Only one of the two gravitational loads identified, or both listed with two or more values incorrect."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "No forces identified, or the table is empty."
+            }
+          ],
+          "criterion": "Force identification"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Correct, substitution shown",
+              "points": 12,
+              "descriptor": "Correct holding torque, with conversions shown, a substituted line carrying units, and the result stated with units."
+            },
+            {
+              "label": "Proficient",
+              "short": "Correct, setup incomplete",
+              "points": 7,
+              "descriptor": "Correct holding torque, but the substituted line is missing or units are dropped somewhere in the working."
+            },
+            {
+              "label": "Developing",
+              "short": "Method right, result wrong",
+              "points": 4,
+              "descriptor": "Each force multiplied by its own distance and summed, but an arithmetic or conversion error produces the wrong result."
+            },
+            {
+              "label": "Absent",
+              "short": "Wrong method or none",
+              "points": 0,
+              "descriptor": "Forces summed before applying a distance, an average distance used, or not attempted."
+            }
+          ],
+          "criterion": "Torque calculation and work shown"
+        },
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Second method, agreement stated",
+              "points": 3,
+              "descriptor": "A second route to the same quantity is worked and whether the two agree is stated explicitly."
+            },
+            {
+              "label": "Proficient",
+              "short": "Second method, no verdict",
+              "points": 2,
+              "descriptor": "A second route is worked but the response does not say whether it agrees."
+            },
+            {
+              "label": "Absent",
+              "short": "No check",
+              "points": 0,
+              "descriptor": "No second route attempted."
+            }
+          ],
+          "criterion": "Independent check"
+        }
+      ],
+      "aiLevel": 2
+    },
+    {
+      "id": "m2",
+      "intro": "Two requirements govern the reduction and only one of them ends up driving your answer. Then the load the pivot bearing physically carries.",
+      "title": "Gear Ratio and Shaft Load",
+      "aiNote": "ASSIST. You may use AI to check your arithmetic, to explain a method you did not follow in class, and to look up a published specification. Every number you submit must be one you worked yourself, and any specification an AI gives you has to be confirmed on the manufacturer's own page before you use it.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "**Gear ratio.** Work both requirements from the scenario. The torque requirement asks whether the reduction can hold the arm; the speed requirement asks whether it can move the arm in the time given. Each one demands a ratio. Report both, then state which one governs and why.\n\nThe motor's free speed and stall torque are not given to you. Find them on the manufacturer's published specification and record where you found them.\n\n**Shaft load.** The force the pivot bearing carries. This one uses no distances at all, which is not a trick.\n\nTorque and shaft load are different quantities in different units. If your two answers have the same number in them, check both."
+        },
+        {
+          "id": "f3",
+          "type": "textField",
+          "points": 5,
+          "prompt": "State the motor's free speed and stall torque, and give the source you took them from.",
+          "maxSentences": 3,
+          "minSentences": 1
+        },
+        {
+          "id": "f4",
+          "type": "textField",
+          "points": 9,
+          "prompt": "Work both ratio requirements. Show each calculation, report both ratios, and state which requirement governs your choice and why.",
+          "maxSentences": 10,
+          "minSentences": 4
+        },
+        {
+          "id": "f5",
+          "type": "textField",
+          "points": 6,
+          "prompt": "Work the shaft load. Show the substituted line with units and state the result.",
+          "maxSentences": 5,
+          "minSentences": 2
+        }
+      ],
+      "points": 20,
+      "rubric": [
+        {
+          "id": "c4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both values, source named",
+              "points": 5,
+              "descriptor": "Free speed and stall torque both stated with units, and the specific published source named."
+            },
+            {
+              "label": "Proficient",
+              "short": "Both values, vague source",
+              "points": 3,
+              "descriptor": "Both values stated correctly but the source is named only generally, such as the internet or a search."
+            },
+            {
+              "label": "Developing",
+              "short": "One value, or no source",
+              "points": 1,
+              "descriptor": "Only one value stated, or both stated with no source given at all."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "Neither value stated."
+            }
+          ],
+          "criterion": "Motor specification sourced"
+        },
+        {
+          "id": "c5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both worked, governing one named",
+              "points": 9,
+              "descriptor": "Both the torque-driven and speed-driven ratios calculated and reported, with the governing requirement identified and a reason given."
+            },
+            {
+              "label": "Proficient",
+              "short": "Both worked, no reason",
+              "points": 6,
+              "descriptor": "Both ratios calculated correctly but the response does not say which governs, or names one without a reason."
+            },
+            {
+              "label": "Developing",
+              "short": "One requirement only",
+              "points": 3,
+              "descriptor": "Only one of the two requirements worked, or both attempted with a calculation error in one."
+            },
+            {
+              "label": "Absent",
+              "short": "Neither worked",
+              "points": 0,
+              "descriptor": "Neither ratio calculated, or not attempted."
+            }
+          ],
+          "criterion": "Gear ratio, both requirements"
+        },
+        {
+          "id": "c6",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Correct, substitution shown",
+              "points": 6,
+              "descriptor": "Correct shaft load, with a substituted line carrying units and the result stated with units."
+            },
+            {
+              "label": "Proficient",
+              "short": "Correct, setup incomplete",
+              "points": 4,
+              "descriptor": "Correct shaft load but the substituted line is missing or units are dropped."
+            },
+            {
+              "label": "Developing",
+              "short": "Confused with torque",
+              "points": 2,
+              "descriptor": "A moment arm is applied to the forces, or the answer is reported in torque units."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "No shaft load reported."
+            }
+          ],
+          "criterion": "Shaft load"
+        }
+      ],
+      "aiLevel": 2
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
