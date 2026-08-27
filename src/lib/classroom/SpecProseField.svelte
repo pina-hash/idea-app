@@ -142,8 +142,13 @@
 			}
 			const figure = figureReference(res.filename);
 			if (!figureLineRenders(figure)) {
-				// The file uploaded and is on the item; only the inline reference
-				// is impossible. Say exactly that, and say what to do about it.
+				// NEW uploads are sanitized at record time (sanitizeAttachmentFilename
+				// in the classroom attachment route), so this should not fire for a
+				// file this drop just created -- it is a backstop for whatever
+				// reaches here without going through that route, and for anything
+				// stored before that sanitization existed. The file uploaded and is
+				// on the item either way; only the inline reference is impossible.
+				// Say exactly that, and say what to do about it.
 				uploadError =
 					`"${res.filename}" is attached to this item, but its name has a space in it, ` +
 					`so it cannot be referenced inline. Rename the file without spaces and drop it again ` +

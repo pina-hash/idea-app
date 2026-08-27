@@ -536,6 +536,30 @@ export function figureReference(filename: string): string {
 	return `![${filename.replace(/\.[^./\\]+$/, '')}](attachment:${filename})`;
 }
 
+/**
+ * A filename `figureReference` can turn into something that actually renders.
+ *
+ * `FIGURE_RE` (reference-spec.ts) matches a src of `[^)\s]+` and a caption of
+ * `[^\]]+`, so a name carrying whitespace, `(`, `)`, `[` or `]` produces a
+ * line that falls through to the paragraph path -- inert markup on the page,
+ * silently, with no indication anything is wrong. Applied at the point a NEW
+ * attachment is recorded (`classroom_add_attachment`'s `p_filename`), never to
+ * the storage KEY, which was already a uuid and carries nothing a person
+ * typed either way -- this is a display-name choice, not a security one.
+ *
+ * A name already stored keeps whatever it was called before this existed;
+ * see the refusal SpecProseField still carries for that case.
+ */
+export function sanitizeAttachmentFilename(filename: string): string {
+	const trimmed = filename.trim();
+	if (!trimmed) return trimmed;
+	const cleaned = trimmed
+		.replace(/[\s()[\]]+/g, '-')
+		.replace(/-{2,}/g, '-')
+		.replace(/^-+|-+$/g, '');
+	return cleaned || 'attachment';
+}
+
 const ATTACHMENT_PREFIX = 'attachment:';
 /** Any scheme at all: `http:`, `data:`, `javascript:`, `vbscript:`, `file:`. */
 const HAS_SCHEME_RE = /^[a-z][a-z0-9+.\-]*:/i;
