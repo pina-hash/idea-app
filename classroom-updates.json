@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-08-27",
+			"title": "Wording fixes on an assignment now reach every class at once",
+			"body": "Your teacher can now correct a sentence, a prompt, a column heading or a checklist line on an assignment or a reference document directly, instead of re-importing the whole thing. Two things follow for you. A wording fix shows up in every class the assignment is posted to at the same time, so your copy and your friend's copy in another block never disagree. And nothing about the marking can change while wording is being fixed: points, rubrics, AI levels and the parts of an assignment are locked out of that screen, so a typo fix cannot quietly move what something is worth. If a diagram gets added to the instructions, it now appears in the text where it is being talked about rather than only in the file list at the bottom.",
+			"tags": [
+				"Classwork",
+				"Reference"
+			]
+		},
+		{
+			"date": "2026-08-27",
 			"title": "Modules on an assignment can be closed once you're done",
 			"body": "Each module on an assignment can now be collapsed, not just its instructions. A module you have finished can be closed to a single line so you can focus on what's left; the title still shows how many parts are done. A module you're still working on stays open, and closing one never loses your work -- it's still there the moment you reopen it.",
 			"tags": [
