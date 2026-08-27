@@ -34088,7 +34088,7 @@ file people edit in commits, not a directory the app writes -- the thing
 
 ---
 
-## Eight bundles onto one integration branch (`claude/integration-eight-bundles-jhg2ne`, code only, no migration)
+## Nine bundles onto one integration branch (`claude/integration-eight-bundles-jhg2ne`, later re-merged as `claude/integration-nine-bundles-*`, code only, no migration)
 
 Eight finished bundles were sitting unmerged against a `main` that had itself
 moved on. Landed one at a time they would have produced eight conflicting
@@ -34108,6 +34108,20 @@ Merged with `--no-ff`, in this order:
 8. `claude/foundry-preview-drafts-60xko9`
 
 The harness goes first because the final pass runs the script it adds.
+
+**A NINTH BUNDLE FOLDED IN LATER, ONTO THIS SAME BRANCH, AFTER TWO THINGS
+LANDED ON TOP OF IT.** Starting from this branch's own tip, `origin/main` (app
+export commits under `materials/` only -- the classroom GitHub export writing
+with no human involved) merged first, then
+`claude/classroom-drag-drop-order-ts9usf` (drag-to-reorder in `ClassView`,
+native HTML5 DnD from the row grip, plus `tests/classroom-item-order.test.ts`).
+**Both merges were clean -- zero conflicts, in either file, this time.** The
+eight-bundle pass's own conflict machinery (parse-union-dedupe for
+`classroom-updates.json`, text-union for `docs/HISTORY.md`) was not exercised
+here because git's own three-way merge resolved both ledgers without a hunk
+colliding: `main` only appended `materials/` files, which touch neither ledger,
+and the drag-drop bundle's own additions to both landed past the eight bundles'
+without overlapping a line either side had touched.
 
 ### The conflict surface was exactly the two append-only ledgers
 
@@ -34213,6 +34227,77 @@ That is the only change under `src/` on this branch.
   home-feed: **7 rows**, with "Shop safety quiz" back as "Due in 2 days"
   alongside Overdue, Returned, Updated and Pinned. 0px overflow on all four.
 
+### Re-measured with the ninth bundle folded in
+
+Everything above is the eight-bundle pass, left as it was measured. Folding in
+`origin/main` (app-export commits only) and the drag-drop bundle moves three of
+the numbers above and adds one browser pass the eight-bundle branch could not
+have run, because the harness it depends on had not shipped yet when the
+drag-drop bundle was written -- its own history entry says the browser check it
+would have used "reported no browser available" at the time.
+
+- **Full suite: 131 files, 3027 tests, all passing, ~101s.** +1 file / +25
+  tests over the eight-bundle figure, and both numbers are attributed: the one
+  new file is `tests/classroom-item-order.test.ts` (drag-drop bundle, 25
+  cases), and nothing else moved -- `origin/main`'s only change here is
+  `materials/` exports, which no test reads (see the standing rule against
+  asserting over that directory).
+- **`svelte-check`: 0 errors, 37 warnings in 20 files, mix 31/5/1.** Identical
+  to the eight-bundle figure and to the documented baseline. Neither `main`'s
+  export commits nor the drag-drop bundle moved it.
+- **`npm run verify:browser`: 8 route/width runs, 54 measurements, 2 outside
+  threshold.** Identical to the eight-bundle figure -- same two known findings
+  (`/dev/pathways` controls at 194.7x26.2, and the pathway chip label at
+  4.84:1) -- because the drag-drop bundle touches no route this script opens.
+- **`/dev/classroom-split/[sectionId]` driven directly, real HTML5 drag events
+  dispatched at 1440px and 375px, since drag-and-drop mechanics cannot be read
+  off CSS.** The harness mounts the real `ClassView` against a fixture with
+  three items (`i-1`, `i-2`, `i-3`) filed into the same unit, under
+  `?manage=1` so the grip renders.
+  - **Grip hit-test: exact match.** `row-grip-i-1`'s box measures **30x44px**
+    at both widths (unchanged by viewport -- the row is a fixed-width flex
+    item), and `elementFromPoint` at its center returns the grip itself, not a
+    neighboring control. The 30px width is deliberate and already documented
+    in the component's own CSS comment: it is a mouse-only affordance, and
+    keyboard/assistive tech use the row menu's Move up/Move down instead, so
+    this is not a new finding against the 44px floor -- the height clears it
+    and the narrow width is the stated exception.
+  - **Same-group drag applies live visual feedback and clears it correctly.**
+    Dispatching `dragstart` on `row-grip-i-1` then `dragover` on `i-3`'s row
+    (same unit) adds the `drag-over` class to that row's `<li>` while the drag
+    is in progress (`class="row-wrap svelte-1w65r8g drag-over"`, read after a
+    task-boundary wait -- reading synchronously in the same turn misses it,
+    per the Svelte-5-effects-are-deferred trap); `drop` followed by `dragend`
+    clears it back to `"row-wrap svelte-1w65r8g"`. 0 rows carry `.drag-over`
+    after the sequence completes at either width.
+  - **Cross-group drag is correctly refused, at the event level.** Dragging
+    `row-grip-i-1` (unit `u-1`) over `i-draft`'s row (unit `u-2`) never calls
+    `preventDefault` on the `dragover` event -- confirmed by reading the
+    dispatch's own return value, which is `true` (not cancelled) -- so the
+    browser's native "no drop allowed" cursor applies, and the target row
+    never gains `.drag-over`. This matches the component's own documented
+    scoping: "a drop in a different group's list is ignored."
+  - **The drop handler completes with no thrown error and no visible refusal**
+    at either width: `dropThrew` is `null`, and `p.feedback.error` has 0
+    matches after the sequence.
+  - **What this pass could NOT measure: whether a successful drop persists a
+    new order.** This harness's `transports.setOrder` is a no-op stub
+    (`() => ok(undefined)`, with no `logCall` beside it, unlike every other
+    transport the same file defines) and nothing here wires `onchanged` back
+    into a reload, so the row order read before and after a drop is byte-
+    identical at both widths -- by construction of the harness, not because
+    the reorder failed. `tests/classroom-item-order.test.ts` is what proves
+    the actual ID-reordering arithmetic (`dragReorder`, `reorderedIds`,
+    `renumberedForFiling`) the drop handler calls before invoking the
+    transport; this pass proves the DOM-level mechanics around it -- grip
+    targeting, live feedback, group scoping, and that the handler runs
+    cleanly -- which is what a unit test cannot reach.
+  - **Console errors: 0 real ones.** Two `net::ERR_CONNECTION_RESET` entries
+    appeared, both against an external host this container's network policy
+    blocks (consistent with `verify:browser`'s own "1 external request blocked:
+    fonts.googleapis.com" on every route in this pass); nothing from the app's
+    own code threw or logged an error.
+
 ### What was NOT verified
 
 - **No production or preview deployment.** Nothing here was opened on
@@ -34220,8 +34305,8 @@ That is the only change under `src/` on this branch.
 - **No signed-in surface.** The container has no `.env` and no Supabase; a
   placeholder `.env` was written from `.env.example` for `svelte-check` only
   (it is git-ignored and is not committed) and no live project was contacted.
-- **No migration was applied**, because none of the eight ships SQL.
-- **The eight bundles' own claims were not re-verified.** This branch measures
+- **No migration was applied**, because none of the nine ships SQL.
+- **The nine bundles' own claims were not re-verified.** This branch measures
   the COMBINATION; each bundle's own history entry stands for its own feature.
 - **`npm run build` was not run.** The Windows EPERM trap does not apply on
   Linux, but a build was not part of this pass.
@@ -34229,6 +34314,15 @@ That is the only change under `src/` on this branch.
   are blocked, so text is measured in the fallback stack, and
   `prefers-reduced-motion` is `no-preference`, so the reduced-motion path is
   unexercised.
+- **The drag-drop pass could not measure post-drop persistence** (see above,
+  under the ninth bundle's own bullet) -- the harness's `setOrder` stub does
+  not wire a result back into the rendered list, so that half of the claim
+  rests on `tests/classroom-item-order.test.ts` rather than on anything driven
+  in a browser here.
+- **`npm ci` runs on a container with no `node_modules` and no `.env` by
+  design.** A placeholder `.env` from `.env.example` was written for
+  `svelte-check` and the browser passes; it is git-ignored and was not
+  committed.
 
 ### Deferred
 
@@ -34241,4 +34335,12 @@ That is the only change under `src/` on this branch.
   COLLECTS a hand-in. That is a migration, and when it lands both fixtures
   above can go back to being undated.
 - **The `/dev/pathways` tap targets.** A known finding, unchanged by any of
-  these eight, and owned by whichever bundle takes the 44px sweep.
+  these nine, and owned by whichever bundle takes the 44px sweep.
+- **`/dev/classroom-split`'s `setOrder` stub logging nothing.** Every other
+  transport on that harness layout calls `logCall` beside its no-op or fake
+  success; `setOrder` alone does not, which is why a persisted-reorder claim
+  could not be driven from a browser in this pass. Adding the log call (and,
+  if the harness is meant to show a settled reorder, wiring `onchanged` to a
+  local re-sort) is a small, self-contained follow-up for whichever bundle
+  next touches that harness -- not done here because it is a source change
+  beyond what re-measuring calls for.
