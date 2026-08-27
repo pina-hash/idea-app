@@ -11,6 +11,8 @@ import {
 import {
 	FOUNDRY_SANDBOX_BASE_FLAGS,
 	foundryBundleCsp,
+	foundryPortalOrigin,
+	foundryPortalOriginIsFallback,
 	foundrySandboxFlags
 } from '../src/lib/foundry/bundle-headers.ts';
 import {
@@ -18,7 +20,10 @@ import {
 	FOUNDRY_STORAGE_SHIM_JS,
 	FOUNDRY_STORAGE_SHIM_TAG
 } from '../src/lib/foundry/storage-shim.ts';
-import { servableFoundryType } from '../src/lib/foundry/preflight.ts';
+import {
+	FOUNDRY_PLATFORM_ORIGIN,
+	servableFoundryType
+} from '../src/lib/foundry/preflight.ts';
 
 /**
  * WHERE A BUNDLE IS SERVED FROM, AND THE PROOF THAT THE OLD ANSWERS ARE GONE.
@@ -437,6 +442,201 @@ describe('nothing of the token proxy survives', () => {
  * THE SANDBOX FLAGS AND THE CSP, which are the half of this that the Supabase
  * gateway was silently overriding and that nothing downstream touches now.
  */
+/**
+ * THE PORTAL ORIGIN IS RESOLVED, NOT READ, AND THAT IS WHAT KEEPS THE GRANT
+ * FROM DEPENDING ON A VARIABLE NOBODY HERE CAN SEE.
+ *
+ * THE FAILURE THIS GUARDS AGAINST IS A SILENT ONE, which is why it is a test
+ * rather than a harness pass. `allow-same-origin` is granted only when the
+ * portal origin is non-empty, the portal origin used to be
+ * `PUBLIC_FOUNDRY_PORTAL_ORIGIN` and nothing else, and that variable's absence
+ * is a SUPPORTED configuration -- `frame-ancestors` is deliberately
+ * unset-means-unrestricted. So a production deployment that never set it would
+ * have withheld the flag, every published app would have kept losing its saved
+ * state on reload, and the symptom would have been a feature that looked like
+ * it had never worked rather than a variable that was never set.
+ *
+ * EVERY ASSERTION HERE HAS ITS OPPOSITE BESIDE IT. The two that matter are the
+ * two the prompt for this bundle named, and each is a case an implementation
+ * that ignored one of its arguments would get wrong in a different direction:
+ *
+ *   apps origin SET + portal variable UNSET   must GRANT   (the production case,
+ *                                                           via the fallback)
+ *   apps origin UNSET                         must WITHHOLD (dev and preview,
+ *                                                           whatever the portal
+ *                                                           variable says)
+ *
+ * The second is the one with teeth. Dev and preview are where the portal and
+ * the bundle genuinely do share an origin, so a fallback applied there would
+ * MANUFACTURE the escape the strict rule was written for: a same-origin child
+ * with `allow-scripts` and `allow-same-origin` reaches `parent.document`,
+ * strips its own sandbox attribute and reloads with full rights.
+ */
+describe('the portal origin resolves without depending on a Vercel variable', () => {
+	const APPS = 'https://apps.example.com';
+	const PORTAL = 'https://portal.example.com';
+
+	/**
+	 * THE VARIABLE WINS WHEN IT IS SET. An operator who names an origin means
+	 * it, and a preview on its own portal host has to be able to say so -- a
+	 * resolver that preferred the constant would quietly ignore configuration
+	 * somebody deliberately wrote.
+	 */
+	it('prefers the configured portal origin over the fallback', () => {
+		expect(foundryPortalOrigin(APPS, PORTAL)).toBe(PORTAL);
+		expect(foundryPortalOriginIsFallback(APPS, PORTAL)).toBe(false);
+		// And with no apps origin either: the variable still wins, because the
+		// apps origin gates only the FALLBACK and not the configured value.
+		expect(foundryPortalOrigin('', PORTAL)).toBe(PORTAL);
+		expect(foundryPortalOrigin(undefined, PORTAL)).toBe(PORTAL);
+	});
+
+	/**
+	 * THE FALLBACK IS THE CANONICAL HOST, AND IT IS THE IMPORTED CONSTANT. A
+	 * second literal spelling of `https://ideabosco.com` in this repo is the one
+	 * that stops matching when the domain moves, so the assertion reads it from
+	 * `preflight.ts` -- the same module the resolver imports -- rather than
+	 * writing the string out again.
+	 */
+	it('falls back to the canonical portal host when the variable is unset', () => {
+		for (const unset of ['', '   ', null, undefined]) {
+			expect(foundryPortalOrigin(APPS, unset), String(unset)).toBe(FOUNDRY_PLATFORM_ORIGIN);
+			expect(foundryPortalOriginIsFallback(APPS, unset), String(unset)).toBe(true);
+		}
+		// The constant is the real canonical host, not merely some non-empty
+		// string the resolver happens to return.
+		expect(FOUNDRY_PLATFORM_ORIGIN).toBe('https://ideabosco.com');
+	});
+
+	/**
+	 * CONTROL ONE, THE PRODUCTION CASE: apps origin set, portal variable unset,
+	 * and the flag must be GRANTED. This is the configuration the previous
+	 * bundle would have been inert in, and it is asserted all the way through to
+	 * the flags and the CSP rather than stopping at the resolver -- a resolver
+	 * that returned the right string while nothing downstream used it would pass
+	 * a narrower test and change nothing about what a browser receives.
+	 */
+	it('grants allow-same-origin when the apps origin is set and the portal variable is not', () => {
+		const portal = foundryPortalOrigin(APPS, '');
+		expect(portal).toBe(FOUNDRY_PLATFORM_ORIGIN);
+		expect(foundrySandboxFlags(APPS, portal)).toContain('allow-same-origin');
+
+		const csp = foundryBundleCsp(APPS, portal);
+		expect(csp).toContain('allow-same-origin');
+		// The other half of the argument: the grant is only safe because the
+		// browser refuses any other embedder, and that refusal is emitted here.
+		expect(csp).toContain(`frame-ancestors ${FOUNDRY_PLATFORM_ORIGIN}`);
+	});
+
+	/**
+	 * CONTROL TWO, THE DEV AND PREVIEW CASE: no apps origin, so no fallback and
+	 * no grant -- WHATEVER the portal variable says.
+	 *
+	 * The portal variable is varied across the loop on purpose. An
+	 * implementation that gated the fallback on the wrong argument, or that
+	 * ignored the apps origin entirely, would still pass a single-case version
+	 * of this; the row where the variable IS set and the apps origin is not is
+	 * the one that separates "the fallback is gated" from "the fallback does not
+	 * exist".
+	 */
+	it('withholds the fallback entirely when the apps origin is unset', () => {
+		for (const appsUnset of ['', '   ', null, undefined]) {
+			// No portal variable either: nothing to fall back to and nothing
+			// configured, so the strict set and no frame-ancestors.
+			expect(foundryPortalOrigin(appsUnset, ''), String(appsUnset)).toBe('');
+			expect(foundryPortalOriginIsFallback(appsUnset, ''), String(appsUnset)).toBe(false);
+			expect(foundrySandboxFlags(APPS, foundryPortalOrigin(appsUnset, ''))).not.toContain(
+				'allow-same-origin'
+			);
+			expect(foundryBundleCsp(APPS, foundryPortalOrigin(appsUnset, ''))).not.toContain(
+				'frame-ancestors'
+			);
+
+			// A portal variable that IS set is still honoured -- the apps origin
+			// gates the fallback, never the configured value -- and that is a
+			// different sentence from "the apps origin is ignored".
+			expect(foundryPortalOrigin(appsUnset, PORTAL), String(appsUnset)).toBe(PORTAL);
+			expect(foundryPortalOriginIsFallback(appsUnset, PORTAL), String(appsUnset)).toBe(false);
+		}
+	});
+
+	/**
+	 * THE DEV DEFAULT, END TO END. With neither variable set -- which is exactly
+	 * `npm run dev` and an unconfigured preview -- a bundle framed by a portal on
+	 * the SAME origin gets the strict set, which is the case the escape is real
+	 * in. Asserted on the origins a dev server actually produces rather than on
+	 * the empty string, so it is a statement about the deployment and not about
+	 * a sentinel.
+	 */
+	it('leaves a same-origin dev deployment on the strict set', () => {
+		const LOCAL = 'http://localhost:5173';
+		const portal = foundryPortalOrigin('', '');
+		expect(portal).toBe('');
+		expect(foundrySandboxFlags(LOCAL, portal)).toBe(FOUNDRY_SANDBOX_BASE_FLAGS);
+		expect(foundryBundleCsp(LOCAL, portal)).not.toContain('allow-same-origin');
+	});
+
+	/**
+	 * NORMALIZATION IS THE RESOLVER'S TOO, not just the flag function's. A
+	 * trailing slash on either variable is a spelling, and a resolver that
+	 * passed one through would hand `foundrySandboxFlags` two strings that
+	 * differ only by that slash -- which the flag function normalizes anyway, so
+	 * the bug would be invisible there and visible only in the admin line, where
+	 * it would report an origin nobody configured.
+	 */
+	it('normalizes what it returns, so one origin has one spelling', () => {
+		expect(foundryPortalOrigin(APPS, `${PORTAL}/`)).toBe(PORTAL);
+		expect(foundryPortalOrigin(APPS, `  ${PORTAL}  `)).toBe(PORTAL);
+		// A whitespace-only apps origin is unset, not a configured origin, so it
+		// licenses no fallback.
+		expect(foundryPortalOrigin('   ', '')).toBe('');
+		// A trailing slash on the APPS origin still licenses the fallback: it is
+		// a spelling of a configured origin, not the absence of one.
+		expect(foundryPortalOrigin(`${APPS}/`, '')).toBe(FOUNDRY_PLATFORM_ORIGIN);
+	});
+
+	/**
+	 * BOTH READERS CALL THE RESOLVER, which is what makes the frame attribute
+	 * and the CSP directive one answer rather than two that happen to agree. The
+	 * responder is asserted by source because its env read cannot be exercised
+	 * from a unit test, and the frame likewise -- the point is that NEITHER of
+	 * them reads `PUBLIC_FOUNDRY_PORTAL_ORIGIN` straight into the flags any more,
+	 * which is precisely the shape that made the previous bundle inert.
+	 */
+	it('is reached by the responder and the frame, neither reading the variable raw', () => {
+		const REPO = path.resolve(__dirname, '..');
+		const responder = fs.readFileSync(
+			path.join(REPO, 'src/lib/server/foundry-bundle-response.ts'),
+			'utf8'
+		);
+		const frame = fs.readFileSync(path.join(REPO, 'src/lib/foundry/AppFrame.svelte'), 'utf8');
+
+		for (const [name, source] of [
+			['responder', responder],
+			['frame', frame]
+		] as const) {
+			expect(source, name).toContain('foundryPortalOrigin(');
+			// The apps origin is what gates the fallback, so both callers have to
+			// be handing it over. A call with one argument would type-error, but
+			// a call passing the WRONG variable twice would not.
+			expect(source, name).toContain('env.PUBLIC_FOUNDRY_APPS_ORIGIN');
+			expect(source, name).toContain('env.PUBLIC_FOUNDRY_PORTAL_ORIGIN');
+		}
+
+		// NEGATIVE: neither one still trims the portal variable into a local of
+		// its own, which is what the raw read looked like in both files.
+		for (const [name, source] of [
+			['responder', responder],
+			['frame', frame]
+		] as const) {
+			expect(source, name).not.toMatch(
+				/PUBLIC_FOUNDRY_PORTAL_ORIGIN\s*\?\?\s*''\s*\)?\s*\n?\s*\.trim\(\)/
+			);
+			expect(source, name).not.toContain("foundrySandboxFlags(originOf(src), env.");
+		}
+	});
+});
+
 describe('the sandbox is one function, and the CSP names the bundle origin', () => {
 	const APPS = 'https://apps.example.com';
 	const PORTAL = 'https://portal.example.com';

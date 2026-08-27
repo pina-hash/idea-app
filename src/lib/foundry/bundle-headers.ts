@@ -1,3 +1,5 @@
+import { FOUNDRY_PLATFORM_ORIGIN } from './preflight.ts';
+
 /**
  * WHAT GOES ON A SERVED BUNDLE'S RESPONSE, as one pure module both the serving
  * routes and the framing component read.
@@ -91,6 +93,83 @@
     origin, which is what keeps the comparison below honest. */
 function normalizeOrigin(origin: string | null | undefined): string {
 	return (origin ?? '').trim().replace(/\/+$/, '');
+}
+
+/**
+ * THE PORTAL ORIGIN, RESOLVED, AND IT NO LONGER DEPENDS ON A VERCEL VARIABLE
+ * BEING SET.
+ *
+ * THE PROBLEM THIS EXISTS FOR. `allow-same-origin` is granted only when the
+ * portal origin is non-empty and differs from the bundle origin, and the portal
+ * origin used to be `PUBLIC_FOUNDRY_PORTAL_ORIGIN` and nothing else. That
+ * variable's absence was tolerated DELIBERATELY -- `frame-ancestors` is
+ * unset-means-unrestricted, and the comment below says why -- so a production
+ * deployment that never set it was a supported configuration that nobody would
+ * have investigated. The two rules composed badly: the grant would have been
+ * silently withheld in production, every published app would have kept losing
+ * its saved state on reload, and the whole bundle that fixed it would have
+ * looked like a fix that did not work. Nobody with access to this repository
+ * can read what that variable is set to on Vercel, so the resolution must not
+ * depend on the answer.
+ *
+ * THE RULE, IN ORDER:
+ *   1. `PUBLIC_FOUNDRY_PORTAL_ORIGIN` when it is set. An operator who names an
+ *      origin means it, and a preview deployment on its own portal host has to
+ *      be able to say so.
+ *   2. Otherwise `FOUNDRY_PLATFORM_ORIGIN` -- `https://ideabosco.com`, the
+ *      canonical portal host -- but ONLY when `PUBLIC_FOUNDRY_APPS_ORIGIN` is
+ *      itself set.
+ *   3. Otherwise the empty string, which is the strict flag set and no
+ *      `frame-ancestors`.
+ *
+ * WHY THE APPS ORIGIN GATES THE FALLBACK, WHICH IS THE ONLY SUBTLE PART. A
+ * configured apps origin is what makes this a SPLIT-ORIGIN deployment: bundles
+ * answer on their own host, the serving routes 404 a bundle path arriving
+ * anywhere else, and the portal is by construction somewhere else. Guessing the
+ * canonical portal host is safe there because the guess cannot be the bundle
+ * host. With the apps origin UNSET the routes answer on ANY host -- which is
+ * dev and preview, where the portal and the bundle genuinely do share one
+ * origin -- and there the old comment's escape is real: a framed document that
+ * is same-origin with its parent, handed `allow-scripts` and
+ * `allow-same-origin`, reaches `parent.document`, strips its own sandbox
+ * attribute and reloads with full rights. So the fallback is withheld exactly
+ * where applying it would manufacture the vulnerability, and the empty answer
+ * flows through `foundrySandboxFlags` to the strict set.
+ *
+ * IT IS FAIL-CLOSED IN BOTH DIRECTIONS, which is the property to keep: the only
+ * configuration that gains the flag is one that has already been told its
+ * bundles live on a host of their own.
+ *
+ * THE CONSTANT IS IMPORTED RATHER THAN RETYPED. `preflight.ts` hardcodes
+ * `https://ideabosco.com` for the same reason the OG tags and the sitemap do --
+ * it is the canonical host and a runtime-read origin would put a preview URL in
+ * a document students paste into a tool -- and a second literal here is the one
+ * that stops matching when the domain moves.
+ */
+export function foundryPortalOrigin(
+	appsOrigin: string | null | undefined,
+	portalVariable: string | null | undefined,
+): string {
+	const configured = normalizeOrigin(portalVariable);
+	if (configured !== '') return configured;
+	return normalizeOrigin(appsOrigin) !== '' ? FOUNDRY_PLATFORM_ORIGIN : '';
+}
+
+/**
+ * WHETHER THE ANSWER ABOVE CAME FROM THE FALLBACK. Read by the admin
+ * configuration line in `AppFrame.svelte`, which has to say WHICH of the two
+ * sources produced the origin it is reporting -- "resolved to ideabosco.com"
+ * and "resolved to ideabosco.com because nobody set the variable" are different
+ * facts about a deployment, and only the second one is worth acting on.
+ */
+export function foundryPortalOriginIsFallback(
+	appsOrigin: string | null | undefined,
+	portalVariable: string | null | undefined,
+): boolean {
+	return (
+		normalizeOrigin(portalVariable) === '' &&
+		foundryPortalOrigin(appsOrigin, portalVariable) !== ''
+	);
 }
 
 /**
