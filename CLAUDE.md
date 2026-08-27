@@ -1165,6 +1165,25 @@ in this repo can read what Vercel holds. **There is no separate deploy step
 any more** -- the route ships with the app, which is the ordering problem the
 Edge Function created and this removes.
 
+**ON A VERCEL PREVIEW DEPLOYMENT, THE TWO VARIABLES ARE EQUAL OR BOTH UNSET,
+NEVER TWO DIFFERENT HOSTS.** A preview deploys to exactly one host, so naming
+`PUBLIC_FOUNDRY_APPS_ORIGIN` as that preview's own URL and
+`PUBLIC_FOUNDRY_PORTAL_ORIGIN` as something else claims the bundle origin and
+the portal origin differ when they are the same server answering both roles.
+That claim is what the conditional `allow-same-origin` grant reads --
+`foundrySandboxFlags` appends the flag only when both origins are non-empty
+AND differ (see the origin-split section above) -- so a preview configured
+with two different hostnames is misconfigured into GRANTING student bundle
+code `allow-same-origin` on a host that, on a preview, is genuinely carrying
+that preview's session cookies (not `httpOnly`, exactly as on production).
+**Equal origins withhold the flag, which is the safe answer, and the routes
+are still fully exercisable** -- the host gate and the publication check run
+regardless of the CSP grant, so setting both variables to the preview's own
+URL (or leaving both unset, which is also safe: the fallback in
+`foundryPortalOrigin` only fires when the apps origin is set) verifies the
+serving routes on a preview with no window for the escape the conditional
+grant exists to close.
+
 **ONE MODULE KNOWS EACH CREDENTIAL.** A secret has exactly one reader, which is
 the single egress point for that service. Do not add a second.
 
