@@ -873,6 +873,16 @@ This applies to every change. Prompts do not need to restate it.
     being trusted rather than measured looks like. **A session that measures a
     different number CORRECTS THIS LINE in the same change**, and says in its
     history entry which warning moved.
+  - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
+    MISLEADING ROLLDOWN/TSCONFIG ERROR FOR IT.** Vitest's dependency
+    optimisation step fails on startup with `[RESOLVE_ERROR] Could not resolve
+    'node:module' in \0rolldown/runtime.js ... Tsconfig not found` -- which
+    reads like a broken toolchain and is actually vite/vitest reaching for a
+    generated `tsconfig` that `svelte-kit sync` has not written yet. Run
+    `npx svelte-kit sync` once after `npm ci`, same as before `svelte-check`,
+    and the same fresh checkout runs clean. This bites in the same first five
+    minutes as the missing-`.env` phantom errors above and for the same root
+    cause: nothing has generated the `.svelte-kit` output yet.
   - The 37 break down as 31 `state_referenced_locally`, 5
     `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
