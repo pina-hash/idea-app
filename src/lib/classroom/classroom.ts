@@ -1285,6 +1285,135 @@ export function reorderedIds(
 	return ids;
 }
 
+/**
+ * The id list for a DRAG to an arbitrary position, computed from the group AS
+ * RENDERED. `toIndex` is the rendered index of the row the item was dropped
+ * on -- the item is moved to sit there, same index-based semantics as
+ * `reorderPiece` in GREENLINE's `PieceChainBuilder`. Returns null when the
+ * item is not in the list or the drop is onto itself (a no-op), so a caller
+ * never sends a pointless write.
+ */
+export function dragReorderedIds(
+	groupItems: ClassroomItem[],
+	fromId: string,
+	toIndex: number
+): string[] | null {
+	const ids = groupItems.map((i) => i.id);
+	const from = ids.indexOf(fromId);
+	if (from < 0) return null;
+	const dest = Math.max(0, Math.min(ids.length - 1, toIndex));
+	if (dest === from) return null;
+	const [moved] = ids.splice(from, 1);
+	ids.splice(dest, 0, moved);
+	return ids;
+}
+
+/**
+ * Whether a drag crossed the pin boundary: the dragged item was pinned, and
+ * the new order puts at least one UNPINNED item ahead of it. `orderedForGroup`
+ * always re-splits pinned first, so an order written across that boundary
+ * would otherwise be silently discarded on the next render -- the item stays
+ * at the top of the pinned block regardless of where it was dropped. Never
+ * fires the other way (an unpinned item dragged up among pinned ones does not
+ * get pinned by the drag; only "Pin to top" pins).
+ */
+export function dragCrossesPinBoundary(
+	groupItems: ClassroomItem[],
+	fromId: string,
+	newIds: string[]
+): boolean {
+	const moved = groupItems.find((i) => i.id === fromId);
+	if (!moved?.pinned) return false;
+	const pinnedIds = new Set(groupItems.filter((i) => i.pinned).map((i) => i.id));
+	const finalIndex = newIds.indexOf(fromId);
+	for (let i = 0; i < finalIndex; i++) {
+		if (!pinnedIds.has(newIds[i])) return true;
+	}
+	return false;
+}
+
+export interface DragReorder {
+	ids: string[];
+	/** True when the caller must also unpin the dragged item -- see above. */
+	unpin: boolean;
+}
+
+/** Composes `dragReorderedIds` + `dragCrossesPinBoundary` for one drop. */
+export function dragReorder(
+	groupItems: ClassroomItem[],
+	fromId: string,
+	toIndex: number
+): DragReorder | null {
+	const ids = dragReorderedIds(groupItems, fromId, toIndex);
+	if (!ids) return null;
+	return { ids, unpin: dragCrossesPinBoundary(groupItems, fromId, ids) };
+}
+
+/**
+ * The ids to send to `setOrder` after filing one or more items into a
+ * DIFFERENT unit group: the destination's existing order (the filed ids
+ * excluded, in case one is somehow already listed) followed by the filed ids
+ * themselves, in the order they were filed.
+ *
+ * `sort_order` lives on the canonical item while ordering is applied per unit
+ * group, so an item carrying a number from the group that never placed it
+ * would file into an arbitrary position instead of landing at the end of
+ * where it was just filed. One implementation for both the single-item picker
+ * and the bulk file action.
+ */
+export function renumberedForFiling(destGroupItems: ClassroomItem[], filedIds: string[]): string[] {
+	const filed = new Set(filedIds);
+	const base = destGroupItems.map((i) => i.id).filter((id) => !filed.has(id));
+	return [...base, ...filedIds];
+}
+
+/**
+ * The selection-scope signature: a multi-select must not survive a move to a
+ * different class, or a change in the class's own unit structure -- either
+ * one means the ids currently checked may no longer even exist on screen. It
+ * does NOT change on an item merely moving between existing groups (a
+ * successful bulk file, for instance), which is what lets a partial failure
+ * leave its refused ids selected across the very reload that reports it.
+ */
+export function selectionScopeKey(sectionId: string, groups: ClassGroup[]): string {
+	return `${sectionId}::${groups.map((g) => g.id).join(',')}`;
+}
+
+export interface BulkOutcome {
+	succeededIds: string[];
+	failedIds: string[];
+	firstFailureMessage: string | null;
+}
+
+/**
+ * Apply `fn` to every id independently, per the bulk-action convention
+ * (`classroom_import_roster`'s summary, 0110's per-item export status): one
+ * refusal must never obscure whether the rest landed. Every id is attempted
+ * regardless of an earlier failure, and the caller decides what a partial
+ * result means -- which ids to keep selected, what to say.
+ */
+export async function runBulk(
+	ids: string[],
+	fn: (id: string) => Promise<{ ok: boolean; message?: string }>
+): Promise<BulkOutcome> {
+	const results = await Promise.all(ids.map(async (id) => ({ id, res: await fn(id) })));
+	const succeededIds = results.filter((r) => r.res.ok).map((r) => r.id);
+	const failed = results.filter((r) => !r.res.ok);
+	return {
+		succeededIds,
+		failedIds: failed.map((f) => f.id),
+		firstFailureMessage: failed[0]?.res.message ?? null
+	};
+}
+
+/** The one sentence for a partial bulk failure: what did not land, and why. */
+export function bulkFailureMessage(failedCount: number, total: number, firstMessage: string): string {
+	const rest = failedCount - 1;
+	return `${failedCount} of ${total} item${total === 1 ? '' : 's'} did not update: ${firstMessage}${
+		rest > 0 ? ` (and ${rest} more)` : ''
+	}.`;
+}
+
 // ---------------------------------------------------------------------------
 // Roster CSV parsing (client-side; the server refuses anything it cannot
 // place regardless). Columns, in order: student email, display name, course
