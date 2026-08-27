@@ -94,55 +94,50 @@ async function sectionCheckIns(
 	guidanceReady: boolean;
 } | null> {
 	for (const rung of NOTEBOOK_POSTING_SELECTS) {
+		/**
+		 * A CHECK-IN DATED IN THE FUTURE IS NOT READ AT ALL.
+		 *
+		 * This read had NO DATE BOUND, and nothing downstream supplied one:
+		 * `checkInStatus` has no clock in it, so a check-in a teacher scheduled
+		 * for next month came back with no entry against it, resolved to
+		 * `missing`, and `isOutstanding` counted it. A student opening their
+		 * class page in August was told he owed work due in October -- and
+		 * because the stream is newest-first by date, the thing he did not owe
+		 * was the first row on the page, in the attention tone.
+		 *
+		 * BOUNDING THE READ IS THE WHOLE FIX, because the badge is derived from
+		 * this same array: ClassView computes `outstandingCheckIns(checkIns)`
+		 * for a student, so a row that is not here cannot be counted, cannot be
+		 * toned and cannot be rendered. `checkInStatus` needs no clock and does
+		 * not get one -- a second idea of "is this due yet", one in the loader
+		 * and one in the status function, is the pair that stops agreeing.
+		 *
+		 * A POSTGREST `.lte` ON THE EMBED, which the `!inner` join every rung
+		 * already carries makes a real query bound rather than a row filter --
+		 * `tests/db/postgrest-shim.ts` now implements `.lte()`, so this is
+		 * driven through the real load and proven there rather than asserted
+		 * as equivalent to the row filter it replaces.
+		 *
+		 * INCLUSIVE, so a check-in dated TODAY is still outstanding -- that is
+		 * the day it is for, not the day after it.
+		 *
+		 * IT ALSO TAKES A FUTURE CHECK-IN OFF THE STREAM ENTIRELY, for a
+		 * manager as well as a student. That is the honest reading of one
+		 * scheduled read: a class page shows what the class is doing, and a
+		 * manager schedules and edits check-ins on /notebook/review, which
+		 * reads the canonical rows by id and carries no bound of its own.
+		 */
 		const { data, error: postingError } = await supabase
 			.from('notebook_session_postings')
 			.select(rung.select)
-			.eq('section_id', sectionId);
+			.eq('section_id', sectionId)
+			.lte('notebook_sessions.session_date', through);
 		if (postingError) continue;
 		const rows = ((data ?? []) as unknown as PostingRow[])
 			.filter(
 				(r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
 					Boolean(r.notebook_sessions)
 			)
-			/**
-			 * A CHECK-IN DATED IN THE FUTURE IS NOT READ AT ALL.
-			 *
-			 * This read had NO DATE BOUND, and nothing downstream supplied one:
-			 * `checkInStatus` has no clock in it, so a check-in a teacher scheduled
-			 * for next month came back with no entry against it, resolved to
-			 * `missing`, and `isOutstanding` counted it. A student opening their
-			 * class page in August was told he owed work due in October -- and
-			 * because the stream is newest-first by date, the thing he did not owe
-			 * was the first row on the page, in the attention tone.
-			 *
-			 * BOUNDING THE READ IS THE WHOLE FIX, because the badge is derived from
-			 * this same array: ClassView computes `outstandingCheckIns(checkIns)`
-			 * for a student, so a row that is not here cannot be counted, cannot be
-			 * toned and cannot be rendered. `checkInStatus` needs no clock and does
-			 * not get one -- a second idea of "is this due yet", one in the loader
-			 * and one in the status function, is the pair that stops agreeing.
-			 *
-			 * IT IS A ROW FILTER RATHER THAN A POSTGREST `.lte` on the embed, which
-			 * is the shape the `!inner` join would otherwise allow. The two are
-			 * behaviourally identical here; the difference is that
-			 * `tests/db/postgrest-shim.ts` implements `eq`, `in`, `is` and `not.is`
-			 * and NOT `lte`, and that file is shared test infrastructure this
-			 * bundle does not own -- so a query-level bound could not have been
-			 * driven through the real load and proven. Moving it onto the query
-			 * later is a one-line change and needs no new ladder rung:
-			 * `session_date` arrived in 0098 alongside `notebook_session_postings`
-			 * itself, so any schema that has the table has the column.
-			 *
-			 * INCLUSIVE, so a check-in dated TODAY is still outstanding -- that is
-			 * the day it is for, not the day after it.
-			 *
-			 * IT ALSO TAKES A FUTURE CHECK-IN OFF THE STREAM ENTIRELY, for a
-			 * manager as well as a student. That is the honest reading of one
-			 * scheduled read: a class page shows what the class is doing, and a
-			 * manager schedules and edits check-ins on /notebook/review, which
-			 * reads the canonical rows by id and carries no bound of its own.
-			 */
-			.filter((r) => r.notebook_sessions.session_date <= through)
 			.map((r) => ({
 				session_id: r.notebook_sessions.id,
 				section_id: r.section_id,

@@ -227,7 +227,9 @@ function projection(
 			params.push(f.value);
 			return f.op === 'in'
 				? `${childAlias}.${quote(f.column)} = any($${params.length})`
-				: `${childAlias}.${quote(f.column)} = $${params.length}`;
+				: f.op === 'lte'
+					? `${childAlias}.${quote(f.column)} <= $${params.length}`
+					: `${childAlias}.${quote(f.column)} = $${params.length}`;
 		});
 		const where = [on, ...extra].join(' and ');
 
@@ -263,7 +265,7 @@ function quote(identifier: string): string {
 
 interface Filter {
 	column: string;
-	op: 'eq' | 'in' | 'is' | 'not.is';
+	op: 'eq' | 'in' | 'is' | 'not.is' | 'lte';
 	value: unknown;
 }
 
@@ -293,6 +295,20 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 
 	in(column: string, values: unknown[]) {
 		this.filters.push({ column, op: 'in', value: values });
+		return this;
+	}
+
+	/**
+	 * PostgREST's `lte`, a plain `<=` bound. Added for the classroom check-in
+	 * date bound (`notebook_sessions.session_date`), which used to be a row
+	 * filter applied AFTER the fetch specifically because this shim had no
+	 * `.lte()` to prove a query-level bound through -- see the doc comment at
+	 * `sectionCheckIns` in `+layout.server.ts`. A bare comparison operator
+	 * needs no `IS`-style operand narrowing the way `.is()` does; the column
+	 * and value are typed by whatever the caller sends, exactly like `.eq()`.
+	 */
+	lte(column: string, value: unknown) {
+		this.filters.push({ column, op: 'lte', value });
 		return this;
 	}
 
@@ -400,7 +416,9 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 				where.push(
 					filter.op === 'eq'
 						? `t.${quote(filter.column)} = $${params.length}`
-						: `t.${quote(filter.column)} = any($${params.length})`
+						: filter.op === 'lte'
+							? `t.${quote(filter.column)} <= $${params.length}`
+							: `t.${quote(filter.column)} = any($${params.length})`
 				);
 			}
 			// ONE json object per row, not a column list: PostgREST answers JSON
