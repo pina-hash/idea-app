@@ -50,7 +50,8 @@ const CHAIN = [
 	'0087_coin_weekly_wage_tier.sql',
 	'0089_coin_public_ledger.sql',
 	'0096_coin_medium.sql',
-	'0115_coin_bulk_log_students.sql'
+	'0115_coin_bulk_log_students.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 let db: TestDb;

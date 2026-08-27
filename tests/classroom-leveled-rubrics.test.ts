@@ -29,8 +29,14 @@ const MIGRATIONS = [
 	'0082_classroom.sql',
 	'0083_classroom_management.sql',
 	'0085_classroom_canonical_items.sql',
-	'0086_classroom_assignment_engine.sql'
+	'0086_classroom_assignment_engine.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
+
+const MIGRATION_0137 = readFileSync(
+	join(process.cwd(), 'supabase', 'migrations', '0137_anon_execute_sweep.sql'),
+	'utf8'
+);
 
 const MIGRATION_0095 = readFileSync(
 	join(process.cwd(), 'supabase', 'migrations', '0095_classroom_leveled_rubrics.sql'),
@@ -262,6 +268,11 @@ describe('flat criteria become leveled without losing a score', () => {
 
 	test('0095 applies, and NO SCORE MOVES', async () => {
 		await db.sql(MIGRATION_0095);
+		// 0095 RE-CREATES two functions, and a `create or replace` under the
+		// project's default privileges hands the new one a fresh `anon` grant.
+		// The chain already swept once; a migration applied by hand after it has
+		// to be swept again, exactly as it would be in the real apply order.
+		await db.sql(MIGRATION_0137);
 
 		const after = {
 			alice: await readScores(migrated, alice.email),
@@ -308,6 +319,7 @@ describe('flat criteria become leveled without losing a score', () => {
 		const first = await readCriteria(migrated);
 		const scoresFirst = await readScores(migrated, alice.email);
 		await db.sql(MIGRATION_0095);
+		await db.sql(MIGRATION_0137);
 		expect(await readCriteria(migrated)).toEqual(first);
 		expect(await readScores(migrated, alice.email)).toEqual(scoresFirst);
 	});

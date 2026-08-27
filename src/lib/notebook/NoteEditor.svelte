@@ -32,6 +32,7 @@
 	 */
 	let {
 		value,
+		initialDoc = null,
 		onchange,
 		onready,
 		disabled = false,
@@ -41,6 +42,22 @@
 	}: {
 		/** Seeds the editor once, on mount: an existing note being revised. */
 		value?: NoteDoc | null;
+		/**
+		 * Seeds the editor once, on mount, from the EDITOR'S OWN shape rather
+		 * than the stored one -- what `onchange` last handed back.
+		 *
+		 * It exists for the local draft mirror ($lib/notebook/draft-mirror): what
+		 * a browser kept while somebody typed is ProseMirror JSON, and there is
+		 * no way to turn that back into a `NoteDoc` on this side, because the
+		 * normalizer that produces one is `$lib/server`. Handed straight to
+		 * Tiptap as `content`, which is the shape it emits and the shape it
+		 * takes, so nothing converts and nothing can convert it wrongly.
+		 *
+		 * It WINS over `value` when both are given: a caller passing both is
+		 * saying "this note, as it was being edited", and the half that was
+		 * being edited is the half nobody else has a copy of.
+		 */
+		initialDoc?: TiptapNode | null;
 		/** Every keystroke, as the editor's own document. */
 		onchange: (doc: TiptapNode) => void;
 		/**
@@ -111,7 +128,7 @@
 					// normalizer's behaviour build their fixtures from the SAME declaration
 					// this editor is configured with.
 					extensions: [StarterKit.configure(NOTE_SCHEMA_OPTIONS)],
-					content: value ? docToTiptap(value) : undefined,
+					content: initialDoc ?? (value ? docToTiptap(value) : undefined),
 					autofocus,
 					editable: !disabled,
 					editorProps: {

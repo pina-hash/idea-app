@@ -1,7 +1,39 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeItemRow, normalizeSectionRow, sortSections } from '$lib/classroom/classroom';
 import { SECTION_SELECT, loadSectionRoster, selectItemsWithDoc } from '$lib/classroom/transports';
 import type { FeedSubmission } from '$lib/classroom/feed';
+import { queueOrder } from '$lib/foundry/review';
+import type { FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
+
+/**
+ * THE FOUNDRY REVIEW COUNT ON THE LAUNCHER CARD, admins only. A queue nobody
+ * is reminded of goes stale, and typing /foundry/review by hand was the only
+ * way in; the card carries the same number the Foundry shell's Review tab
+ * does, from the same `queueOrder` arithmetic over the same admin-widened
+ * read, so the two cannot disagree.
+ *
+ * NULL FOR EVERYONE ELSE, not zero: "not asked" and "nothing waiting" are
+ * different answers, and a student's payload does not carry the queue's state
+ * at all -- the launcher's isAdmin gate on the badge is the second layer, not
+ * the boundary. `isAdmin` comes from `parent()` (the root layout already
+ * resolved it) rather than being resolved a second time here.
+ */
+async function foundryReviewPending(
+	supabase: SupabaseClient,
+	admin: boolean
+): Promise<number | null> {
+	if (!admin) return null;
+	try {
+		const { data } = await supabase.rpc('foundry_list_apps', { p_include_unpublished: true });
+		if (!data) return null;
+		return queueOrder(data as FoundryAppSummary[]).length;
+	} catch {
+		// The count is a reminder on a card; a failed read degrades to no badge
+		// rather than taking the home page down with it.
+		return null;
+	}
+}
 
 /**
  * Homepage data for a signed-in user.
@@ -28,16 +60,21 @@ import type { PageServerLoad } from './$types';
  * needed `gauntlet_progression` and the published challenge catalog is gone from
  * the home page, and /gauntlet still runs that RPC for itself.
  */
-export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
+export const load: PageServerLoad = async ({ locals: { supabase, claims }, parent }) => {
 	if (!claims) {
 		return {
 			classroomReady: true,
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
-			feedManagerEmails: {} as Record<string, string[]>
+			feedManagerEmails: {} as Record<string, string[]>,
+			foundryReviewPending: null as number | null
 		};
 	}
+
+	// Kicked off beside the feed reads rather than after them; every return
+	// below awaits it, so an early return cannot leave it dangling.
+	const pending = parent().then(({ isAdmin }) => foundryReviewPending(supabase, isAdmin));
 
 	const { data: sectionRows, error: sectionError } = await supabase
 		.from('classroom_sections')
@@ -49,7 +86,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
-			feedManagerEmails: {} as Record<string, string[]>
+			feedManagerEmails: {} as Record<string, string[]>,
+			foundryReviewPending: await pending
 		};
 	}
 
@@ -63,7 +101,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
-			feedManagerEmails: {} as Record<string, string[]>
+			feedManagerEmails: {} as Record<string, string[]>,
+			foundryReviewPending: await pending
 		};
 	}
 
@@ -112,6 +151,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		feedSections: sections,
 		feedItems: items,
 		feedSubmissions: submissions,
-		feedManagerEmails
+		feedManagerEmails,
+		foundryReviewPending: await pending
 	};
 };

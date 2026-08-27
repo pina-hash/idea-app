@@ -35,6 +35,45 @@ $$;
 grant usage on schema public to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
+-- THE DEFAULT PRIVILEGES A REAL SUPABASE PROJECT SHIPS WITH.
+--
+-- A hosted project bootstraps `alter default privileges in schema public grant
+-- execute on functions to anon, authenticated, service_role`. That writes a
+-- DIRECT grant to each of the three roles into every new function's `proacl`
+-- AT CREATION TIME -- it is not the SQL default, which is a single grant to
+-- PUBLIC.
+--
+-- THE DIFFERENCE IS INVISIBLE UNTIL A MIGRATION TRIES TO NARROW A FUNCTION.
+-- `revoke all on function f from public` removes the PUBLIC entry and NOTHING
+-- ELSE, so on a real project `anon` keeps a direct EXECUTE it was never meant
+-- to have, while on a fixture without these defaults the same statement leaves
+-- the function correctly closed. Measured, on a function created each way:
+--
+--   without these defaults, after `revoke ... from public`:
+--     proacl  postgres=X/postgres | authenticated=X/postgres     anon=false
+--
+--   WITH them, after the identical `revoke ... from public`:
+--     proacl  postgres=X/postgres | anon=X/postgres
+--             | authenticated=X/postgres | service_role=X/postgres
+--     anon=TRUE
+--
+-- WITHOUT THESE THREE LINES THIS FILE CERTIFIES A BUG. 0136 shipped with
+-- exactly that gap: its own self-check asserting `anon` holds no EXECUTE
+-- passed here and raised on production. And it was never one migration's
+-- problem -- 41 assertions across 32 files, written deliberately by past
+-- sessions, were all passing vacuously, because a stub more permissive than
+-- the real thing does not fail loudly.
+--
+-- THEY ARRIVE WITH 0137, which is the migration that closes the gap on every
+-- function that should never have had it. That ordering is the point: this
+-- line and that file are one change, so the fixture starts telling the truth
+-- in the same commit that makes the truth green.
+-- ---------------------------------------------------------------------------
+
+alter default privileges in schema public
+	grant execute on functions to anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
 -- auth
 -- ---------------------------------------------------------------------------
 

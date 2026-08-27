@@ -3,117 +3,6 @@ import { type Handle, type HandleServerError, redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import { env as publicEnv } from '$env/dynamic/public';
-import { appsHostAllows, isFoundryAppsHost, isFoundryHostNamespace } from '$lib/foundry/host';
-// TEMPORARY: bundle-proxy diagnostic. Remove with `$lib/server/foundry-probe`.
-import { foundryProbe, presence, redactProxyPath } from '$lib/server/foundry-probe';
-
-/**
- * THE ORIGIN SPLIT, AND IT RUNS FIRST.
- *
- * `apps.ideabosco.com` is the same Vercel project and the same deployment as
- * `ideabosco.com`, so without this hook it serves the whole app: every route,
- * every API endpoint, the auth callback. This is what makes it serve student
- * bundles and nothing else.
- *
- * IT IS AN ALLOWLIST, NOT A BLOCKLIST, which is the only version of this that
- * stays true. `appsHostAllows` names the two prefixes that exist on that host
- * and everything else is a bodyless 404 -- so a route added next month is
- * unreachable there by DEFAULT, rather than reachable until somebody remembers
- * to add it to a list. The 404 is answered HERE, so an unrecognised path is
- * never handed to the SvelteKit router at all.
- *
- * IT RUNS BEFORE THE SUPABASE CLIENT IS CREATED, deliberately. A request on
- * the bundle host must not cause a session to be read or a refreshed auth
- * cookie to be written; there are no cookies on that origin and there must
- * never be any. Sequencing this first means no code path on that host can
- * create one, rather than no code path happening to.
- *
- * AND THE PROXY IS UNREACHABLE ON THE MAIN HOST. `/r/*` and `/_platform/*` 404
- * there, so there is no URL on the session-bearing origin that serves a
- * bundle. Without that half, the split would be a convention rather than a
- * boundary: the bundle would simply be available on both.
- *
- * THE TWO BRANCHES ASK DIFFERENT QUESTIONS AND USE DIFFERENT PREDICATES.
- * `appsHostAllows` is the SHAPE the proxy serves (`/r/{token}/{path}`), so on
- * the bundle host nothing else reaches the router. `isFoundryHostNamespace` is
- * the PREFIX, so on the main host the whole `/r` and `/_platform` namespace is
- * refused whether or not it names a file. See `$lib/foundry/host.ts` for why
- * one predicate could not do both jobs.
- *
- * EVERY PATH ON THE APPS HOST REACHES THIS FUNCTION, and that is no longer
- * true by luck. Vercel answers `static/` and `_app/immutable/*` off its
- * filesystem WITHOUT INVOKING the function, so this hook used to bind only the
- * subset of requests the platform happened to hand it -- measured against
- * production, `apps.ideabosco.com/coins/index.html` served 200 with 177,019
- * bytes of text/html. `scripts/foundry-edge-routes.mjs` now inserts a
- * host-matched route at the FRONT of the generated Build Output route table
- * that sends every apps-host request here first. It could not be done from
- * `vercel.json`; that script's header carries the measurements that settled
- * it.
- */
-/**
- * EXPORTED SO A TEST CAN DRIVE THE REAL BRANCH, not a copy of its decision.
- * `tests/foundry-proxy.test.ts` composes this with the real route handler, so
- * "what does the apps host do with this URL" is answered by the two pieces
- * production actually runs. Re-spelling `appsHostAllows` inside a test would
- * be a second copy of the allowlist, and the copy is the one that stops
- * matching -- which is exactly how the bundle root came to 404 unnoticed.
- */
-export const foundryHostBranch: Handle = async ({ event, resolve }) => {
-	const onAppsHost = isFoundryAppsHost(event.url.host, publicEnv.PUBLIC_FOUNDRY_APPS_HOST);
-	const { pathname } = event.url;
-
-	/**
-	 * TEMPORARY: the host branch is instrumented too, and it is not on the
-	 * user's candidate list. It refuses with the SAME bodyless 404 and the same
-	 * `cache-control: private, no-store` the proxy does, so "our function
-	 * answered 404 with our own header" does not distinguish this branch from
-	 * any refusal inside the route -- and this branch is the one that fires if
-	 * `event.url.host` reaching the function is not the configured apps host,
-	 * which is precisely the difference between production (behind Cloudflare)
-	 * and a locally driven build. Remove with `$lib/server/foundry-probe`.
-	 */
-	const probing = pathname.startsWith('/r/') || pathname.startsWith('/_platform');
-
-	if (onAppsHost) {
-		if (!appsHostAllows(pathname)) {
-			foundryProbe('hook.apps-host.refused-shape', {
-				path: redactProxyPath(pathname),
-				requestHost: event.url.host
-			});
-			return new Response(null, {
-				status: 404,
-				headers: { 'cache-control': 'private, no-store' }
-			});
-		}
-		if (probing) {
-			foundryProbe('hook.apps-host.allowed', {
-				path: redactProxyPath(pathname),
-				requestHost: event.url.host,
-				method: event.request.method
-			});
-		}
-		return resolve(event);
-	}
-
-	if (isFoundryHostNamespace(pathname)) {
-		foundryProbe('hook.main-host.refused-namespace', {
-			path: redactProxyPath(pathname),
-			requestHost: event.url.host,
-			configuredAppsHost: publicEnv.PUBLIC_FOUNDRY_APPS_HOST ?? null,
-			configuredAppsHostPresence: presence(publicEnv.PUBLIC_FOUNDRY_APPS_HOST),
-			forwardedHost: event.request.headers.get('x-forwarded-host'),
-			xVercelDeploymentUrl: event.request.headers.get('x-vercel-deployment-url')
-		});
-		return new Response(null, {
-			status: 404,
-			headers: { 'cache-control': 'private, no-store' }
-		});
-	}
-
-	return resolve(event);
-};
 
 /**
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
@@ -247,7 +136,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle: Handle = sequence(foundryHostBranch, legacyRedirects, supabase, authGuard);
+export const handle: Handle = sequence(legacyRedirects, supabase, authGuard);
 
 /**
  * THE MINIMUM THAT MAKES A SERVER ERROR AND A REPORT ABOUT IT THE SAME EVENT.
@@ -271,6 +160,13 @@ export const handle: Handle = sequence(foundryHostBranch, legacyRedirects, supab
  */
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
 	const id = crypto.randomUUID();
+	/**
+	 * THE PATHNAME IS LOGGED WHOLE, and it used to be redacted. A bundle URL
+	 * carried a signed token in its path -- 30 minutes of read access to a
+	 * student's app -- and a function log is not the place for one. There is no
+	 * token any more: a bundle URL is two uuids on somebody else's origin, and
+	 * requests for it never reach this application at all.
+	 */
 	console.error(
 		`[error ${id}] ${status} ${event.request.method} ${event.url.pathname}` +
 			` route=${event.route.id ?? 'none'}`,

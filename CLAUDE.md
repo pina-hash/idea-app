@@ -35,8 +35,9 @@ Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), and the portal
 shell (`/`, `/dashboard`, `/admin`).
 
-**FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the ingest
-function, the bundle proxy, the submit surface (`/foundry/submit`,
+**FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
+`foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
+front of a browser, the submit surface (`/foundry/submit`,
 `/foundry/mine`, `/foundry/contract`), the GALLERY (`/foundry`) and the REVIEW
 QUEUE (`/foundry/review`, admin only). Several things about it are rules rather
 than history.
@@ -52,6 +53,19 @@ the SUBMITTED version, which by definition is not published yet.
   - **`AppStage` IS THE LIFECYCLE AND `AppFrame` IS THE SANDBOX**, and both
     surfaces mount the same two. Nothing frames a bundle on load: a gallery that
     started every app in the list would run every app in the list.
+  - **FULL SCREEN IS A CLASS ON THE STAGE, NEVER A SECOND FRAME.** The control
+    beside Stop app puts `.is-full` on `AppStage`'s own element and then asks
+    the Fullscreen API; the `<iframe>` is never unmounted and its `src` is never
+    rewritten, so a running app keeps its state, its timers and its audio. THE
+    OVERLAY IS THE FLOOR AND NATIVE IS THE UPGRADE -- the class goes on first
+    and the API's rejection (iOS has no element fullscreen; every engine
+    refuses without a gesture) costs nothing, so both paths land on the same
+    layout and only the ESCAPE differs: native Escape is the browser's and
+    works with focus inside the bundle, the overlay's is a keydown a focused
+    cross-origin frame never delivers, so the VISIBLE control is the guarantee
+    and the hint says which one this viewer has. Stop app stays on screen in
+    both, because an app can still wedge and unmounting the frame is still the
+    only way out of that.
   - **THE STOP CONTROL UNMOUNTS THE FRAME, AND NOTHING ON THAT PATH MAY USE
     `requestAnimationFrame`.** Measured against a bundle running `while (true)`:
     the child's heartbeat stops dead, the parent's `setTimeout(100)` fires at
@@ -64,7 +78,7 @@ the SUBMITTED version, which by definition is not published yet.
     Ingest decides what comes out of a zip (a wrapper stripped, OS noise
     dropped, ignored extensions removed), so a reviewer reading the upload is
     reviewing something nobody will execute. The tree is built from
-    `student_app_files`, which IS the proxy's allowlist.
+    `student_app_files`, which IS the serving route's allowlist.
   - **THE METADATA FLAG CANNOT SAY WHICH FIELD MOVED, AND MUST NOT CLAIM TO.**
     `metadata_flagged_at` is a timestamp; there is no metadata history table and
     the version manifest carries build facts only. The panel reports the two
@@ -77,80 +91,143 @@ the SUBMITTED version, which by definition is not published yet.
     two spellings of "is this ready" is what produces a click that does nothing.
     The control is `aria-disabled`, never `disabled`, so it can explain itself.
 
-**THE PLATFORM HOSTS THE RUNTIME LIBRARIES, AND A CDN TAG FOR ONE OF THEM IS
-REWRITTEN RATHER THAN REFUSED.** `src/lib/foundry/vendor.ts` is the registry --
-what we host, its pinned version, the global it defines, and every name that
-means it -- and the bytes are committed under `src/lib/foundry/vendor/`, served
-from `/_platform/lib/<file>.js` on the apps host. Refusing these was correct and
-useless: a student cannot download a library into a folder they never had, and
-the tool that wrote the app writes the same tag again.
-  - **THE REGISTRY AND THE BYTES ARE TWO HALVES OF ONE FACT.** A library listed
-    with no file behind it rewrites a tag to a path that 404s -- the upload
-    PASSES, the note says we fixed it, and the app is blank, which is the exact
-    failure this exists to end. `tests/foundry-vendor.test.ts` asserts both
-    directions, and `.gitattributes` marks them `-text` so `core.autocrlf` does
-    not rewrite the published bytes out from under the recorded versions.
-  - **VERSIONS ARE PINNED AND COMMITTED, NEVER FETCHED AT BUILD TIME.** A build
-    that reaches the network can fail, or worse succeed differently, and
-    `lucide@latest` in a student's file is the moving target this ends.
-  - **IT IS SCRIPT REFERENCES ONLY, AND `import` SPECIFIERS ARE NOT REWRITTEN.**
-    Everything hosted is a UMD or IIFE build consumed from a `<script src>`.
-    Repointing a `<link rel="stylesheet">` would hand the browser JavaScript
-    where a stylesheet belongs; repointing `import React from "https://esm.sh/react"`
-    would bind `undefined` and fail hundreds of lines later. Both stay refusals,
-    and both messages name the script-tag form instead.
-  - **THE REWRITE EDITS ONE ATTRIBUTE VALUE AND NEVER RESERIALIZES.**
-    `AttrFinder` locates the value as an attribute (preceded by `="`, `='` or a
-    bare `=`), `applyEdits` splices it, and a replacement carrying a newline is
-    refused -- so indentation, comments, attribute order and line endings all
-    survive and every line number stays true of the file the student has open.
-    **A span that cannot be located safely FALLS THROUGH TO THE REFUSAL**: an
-    app that is refused can be uploaded again, where one edited at the wrong
-    offset is a corrupted file nobody inspected.
-  - **A TAG CARRYING `integrity` IS REFUSED, NOT REWRITTEN.** The hash is of the
-    other site's bytes and cannot match ours, so the browser would refuse the
-    script at runtime -- a blank app under a note claiming we fixed it. cdnjs
-    puts `integrity` in its copy-paste snippet, so this arrives in real files.
-  - **A VERSION MISMATCH IS SAID OUT LOUD.** `cdn.tailwindcss.com` IS the v3
-    Play CDN and we serve v4, so a bare reference to it reports the change.
-    `versionSatisfied` compares a range as a range: reduced to a string prefix,
-    `^18.2.0` did not match 18.3.1 and every satisfied caret raised a false
-    alarm.
-  - **`/foundry/starter` IS GENERATED FROM THE SAME REGISTRY** and must pass its
-    own preflight with ZERO rewrites -- a starter that had to be repaired means
-    the paths we hand out are not the paths we serve. Never commit a copy of it.
+**HIDE AND DELETE ARE TWO DECISIONS AND NEITHER MAY ABSORB THE OTHER.**
+`foundry_set_app_hidden` (0130) is ADMIN ONLY and shelves: off the gallery, off
+the serving route, files intact, reversible by the same call with `false`.
+`foundry_delete_app` / `foundry_delete_version` (0136) are the OWNER's as well
+as an admin's and are real deletion, with no undo and nothing to restore from.
+One "remove" verb would be either a delete a student cannot trust or a hide
+staff cannot reverse, so the review console renders the two as a definition list
+and states the difference in words. Both confirm in two steps and the delete
+confirm names the app.
+  - **THE OWNER IS THE HALF THAT MATTERS.** Before 0136 there was no path of any
+    kind by which a student could remove their own app. Deleting your own app
+    takes its PUBLISHED version with it, because the thing being removed is the
+    app; deleting a single version is refused for the published one, for an
+    admin too, because what that would leave behind is a live app pointing at a
+    version that does not exist. `versionIsDeletable` mirrors that rule so no
+    control is offered whose only possible answer is a refusal, and the live row
+    SAYS why rather than merely lacking a button.
+  - **A HIDDEN APP IS NOT THE OWNER'S TO DELETE.** 0130 already refuses their
+    EDIT of one; a hidden app is under discussion with staff, and the refusal
+    names who to ask. An admin can delete it and an admin can restore it.
 
-**A PLATFORM ASSET ANSWERS `Access-Control-Allow-Origin`, AND WITHOUT IT HALF OF
-THEM DO NOT LOAD AT ALL.** A bundle runs in an OPAQUE ORIGIN, which is
-same-origin with nothing, so a request it makes to its own host is CROSS-origin.
-A `<script src>` carrying `crossorigin` -- which React's own published CDN
-snippet has, so the generated apps all carry it -- and EVERY `@font-face` fetch,
-which has no attribute to leave off, are made in CORS mode and need the header
-back. Measured in a real Chrome with Babel as the control: `babel.js` and
-`lucide.js` (same route, same origin, no `crossorigin` attribute) loaded and
-Babel compiled the page, while `react.js` and `react-dom.js` were discarded and
-the console read `ReferenceError: React is not defined`. The platform FONTS were
-in the same position and had never worked inside a bundle at all.
-  - **IT BELONGS TO `/_platform/*` AND MUST NOT SPREAD TO `/r/*`.** Those are a
-    student's own bytes behind a thirty-minute token, and the apps host
-    answering no CORS headers there is load-bearing -- the proxy harness reads
-    "fetch blocked (CORS)" as its own outcome, which is the origin split
-    working.
-  - **`*` DISCLOSES NOTHING HERE**: pinned npm builds and six font files,
-    identical for every viewer, already reachable by anyone who reaches the
-    host. `*` forbids credentialed requests by definition, and this host sets no
-    cookie and receives none.
+**ROWS FIRST, THEN OBJECTS, AND A FAILED SWEEP IS NOT A FAILED DELETE.** There
+is no transaction between Postgres and Storage, so one write can land alone and
+something has to be the acceptable failure. Objects-first leaves a LIVE APP
+whose every file 404s, which reads as a corrupted upload and which the student
+finds. Rows-first leaves an ORPHANED OBJECT: bytes in a private bucket that no
+row names, that nothing serves (the serving route's allowlist IS
+`student_app_files`) and that no client can list. So the RPC deletes the rows
+and RETURNS the paths it just orphaned -- they only exist while the rows do --
+and `POST /api/foundry/delete` sweeps them with the service role.
+  - **`ok` IS TRUE THE MOMENT THE RPC RETURNS.** A partial sweep adds
+    `storageProblem`, a sentence shown beside the confirmation, and a server log
+    line naming every survivor, which is the only remaining record of them.
+    Reporting a completed delete as an error is how somebody presses it again.
+  - **THE ROUTE IS NOT THE AUTHORIZATION BOUNDARY**, even though it holds the
+    key: it calls the RPC on `locals.supabase`, the CALLER's own client, so
+    `auth.uid()` and `is_admin()` are the real thing and the service role only
+    ever removes paths the database itself just handed back. It exists because
+    `foundry-bundles` has no storage policy (no browser client can delete a
+    bundle byte) and the other two buckets' policies are pinned to `auth.uid()`
+    (an admin deleting a student's app cannot satisfy them).
+  - **THE SWEEP RE-LISTS RATHER THAN PARSING `remove()`'s ANSWER.** Matching a
+    returned `FileObject[]` back against the keys sent would fail silently in
+    one of two directions, and a claimed clean sweep is unrecoverable once the
+    rows that named the objects are gone. It removes, then LISTS again and
+    reports what is still there. It lists the bundle PREFIX rather than the
+    rows, which is strictly more complete: a half-finished ingest leaves objects
+    no row ever named.
 
-**A BUNDLE TOKEN CARRIES A KIND IN ITS SIGNED BYTES, AND `review` LIFTS EXACTLY
-ONE CHECK.** Byte 0 of the payload was always a signed discriminator; it now
-holds `published` (1) or `review` (2). A review token lets an ADMIN read one
-named version of an app whether or not it is published, because the queue has to
-RUN the build it is deciding about. Everything else still holds: the version must
-belong to the app, the app must not be hidden, and the mint re-reads the version
-row rather than trusting the body. **Do not turn the publication re-check into a
-parameter** -- it is what makes a thirty-minute token withdrawable inside its own
-lifetime, and the licence has to be unforgeable, which is why it is in the
-signature rather than in the request.
+**THE REVIEW LOAD ASKS FOR HIDDEN APPS, AND MUST KEEP DOING SO.** Hiding is
+reversible, but a hidden app is on no other surface -- not the gallery, not its
+owner's list, not the queue -- so without `p_include_hidden` the Hide control is
+a ONE-WAY DOOR with a Restore nothing can ever be selected to press. `queueOrder`
+still filters on `submitted_version_id`, so the queue is unchanged; the shelved
+apps get their own list below it, and a queue row that is ALSO hidden carries a
+shelved chip, because hiding does not move a version's status and deciding about
+a shelved app without knowing it is shelved is the trap. The widening is not the
+route's to grant: `_foundry_app_in_population` gates both flags on `is_admin()`
+inside itself.
+
+**A BUNDLE URL CARRIES NO TOKEN, AND THE PUBLICATION GATE IS THE VERSION'S OWN
+STATUS.** `foundryBundleUrl(appsOrigin, appId, versionId)` is the whole frame
+src -- `<apps origin>/b/<app id>/<version id>/` -- plain, stable, unexpiring,
+and safe to log, screenshot and paste into a bug report. `serveBundleFile` in
+`$lib/server/foundry-bundle.ts` decides on every request whether to answer --
+**a version serves when it is the app's `published_version_id` OR its status is
+`submitted`**, and never when the app is hidden.
+  - **`submitted` IS WHAT REPLACED THE REVIEW-KIND TOKEN.** The queue has to RUN
+    the build it is deciding about, and a submitted version is by definition not
+    the published one. The old design signed an admin's licence into the token
+    bytes; the licence now comes from the row. It costs one thing -- a student
+    who knows their own version uuid can hand somebody a link to a build that is
+    submitted but unapproved -- and buys immediacy: a DRAFT and a REJECTED
+    version, a rolled-back one and a hidden app all stop serving in the same
+    statement that changes them, where a thirty-minute token could not.
+    Verified in both directions against the real RPCs and the real function.
+  - **DO NOT REINTRODUCE A SIGNED TOKEN TO NARROW THAT.** It is the machinery
+    this lane removed, and the narrowing it buys is one link a student could
+    equally send as a zip. If the exposure ever has to close, close it by
+    dropping `submitted` from the gate and giving the queue a different way to
+    run a build -- not by putting a signature back on every request.
+
+**THERE ARE TWO MOUNTS AND THEY DIFFER ONLY IN WHERE THE VERSION ID COMES FROM.**
+`/b/<app>/<version>/` is the FRAME src and names a build, because its callers
+are deciding about one. `/a/<app>/` is the DIRECT PAGE -- `foundryAppUrl`, the
+whole document, no iframe and no chrome -- and names an APP, resolving
+`published_version_id` per request through `publishedVersionOf`. Everything
+downstream of that one difference is `$lib/server/foundry-bundle-response.ts`,
+which both routes call: the host gate, the publication re-check, the header set,
+the shim injection, the trailing-slash repair and the one bodyless 404.
+  - **A SECOND COPY OF THE HEADER SET IS A PAGE THAT ISOLATES NOTHING WHILE
+    LOOKING IDENTICAL.** The CSP `sandbox` directive is what puts a DIRECTLY
+    NAVIGATED bundle in an opaque origin -- the iframe attribute needs a frame
+    to be on -- so a route that served the same bytes with a weaker policy would
+    render perfectly and run a student's document with full rights on a host of
+    ours. `tests/foundry-app-route.test.ts` therefore asserts the two responses'
+    header sets are EQUAL rather than listing what they should contain: a header
+    added to only one of them reddens.
+  - **THE OBVIOUS NAME FOR THAT MODULE IS TAKEN.** `$lib/server/foundry-serve.ts`
+    is a deleted module of the token proxy and `tests/foundry-bundle-url.test.ts`
+    sweeps the tree for it. Do not rename the responder to it.
+  - **`/a/` IS STRICTLY NARROWER THAN `/b/`: IT NEVER SERVES A SUBMITTED BUILD.**
+    `/b/` does, because the review queue has to run the thing it is deciding
+    about. An app's own public address does not, and `publishedVersionOf` reads
+    one column and cannot return one.
+  - **THE PATH SHAPE IS HOW RELATIVE ASSETS RESOLVE, AND `<base href>` CANNOT
+    REPLACE IT.** The document is served at `/a/<app>/`, so `style.css` resolves
+    to `/a/<app>/style.css` and arrives at the same handler. Injecting a `<base>`
+    is not merely uglier, it does not work: the bundle CSP carries
+    `base-uri 'none'`, so the element is ignored, and the only way to make it
+    take effect is to weaken the policy that stops a bundle repointing its own
+    URLs. A redirect to `/b/<app>/<version>/` was the other rejected shape -- it
+    leaves the VERSION URL in the address bar, so a bookmark or a re-paste of
+    what is on screen carries a link that dies at the next publish.
+  - **THE DIRECT PAGE IS PUBLIC AND IS NOT MISSING A SESSION CHECK.** There is
+    no session on the apps host to check -- that absence is the point of the
+    split -- so requiring one means either `Domain`-scoping the portal's cookies
+    onto that host or putting a signed token back on every request. Anyone
+    proposing a gate here answers that first. **WHAT IS PUBLIC IS THE WORK, NOT
+    THE STUDENT**: the route reads one column of the app row and the version's
+    files, and never the author, the class, the build notes, the description or
+    the version list. Those are gallery surfaces and the gallery is signed in.
+    A field added to this route's read is a disclosure decision.
+  - **THE SHARE CONTROL SAYS SO IN WORDS, BEFORE THE LINK, AND IT IS ONE
+    COMPONENT.** `FoundryShare` renders the URL as selectable text beside a copy
+    control, and states that anyone with it can open the app without signing in
+    and that the page carries no name, class or build notes. A student should
+    know what they are handing over before they hand it over. **The gallery
+    (`FoundryDetail`) and `/foundry/mine` both mount it** -- a student wants
+    their own link more than a visitor does -- so the publication rule, the
+    sentence and the copy handler cannot drift apart between them. The sentence
+    is the half that matters: a surface that quietly lost it is one where a
+    student shares something without knowing what is on it. It keys on
+    `published_version_id` and NOT on the version being SHOWN (the review queue
+    shows the submitted one); a hidden app and an unset
+    `PUBLIC_FOUNDRY_APPS_ORIGIN` each get no link at all, because `/a/` refuses
+    one and a control whose only outcome is a refusal must not be offered.
 
 **THE STUDENT HANDS OVER ONE OF THREE SHAPES AND THE BROWSER MAKES THEM ALL A
 ZIP** -- a `.zip` passes through untouched, a folder is zipped client-side, a
@@ -177,12 +254,43 @@ teaching the function two more shapes would mean re-proving all of them twice.
     zipped the wrong folder and the honest answer is the refusal they already
     get. Every drop is reported by category, never silently.
 
+**THE NETWORK IS NOT A PREFLIGHT RULE, AND UNDOING THAT IS THE EASY WRONG
+INSTINCT.** A bundle is served with no `connect-src` restriction, so a CDN
+script, a Google Fonts stylesheet, a remote ES-module specifier and a `fetch`
+all WORK. `classifyReference` returns `ok` for http, https and the
+protocol-relative form; `scanJs` no longer mentions `fetch`, `XMLHttpRequest`,
+`WebSocket` or `EventSource` at all. React and Babel from unpkg -- which is
+what a student's AI tool writes when asked for a React app -- is the ORDINARY
+case, and refusing it taught a student only that the platform is arbitrary.
+  - **WHAT STILL REFUSES IS CONTAINMENT, NOT REACH**: a path starting with a
+    forward slash, a `..` that climbs out, a scheme that is neither the web nor
+    an inline value (`file:`, `ftp:`), a disallowed extension, and the caps.
+  - **THERE IS NO ALLOWED ABSOLUTE PATH ANY MORE, INCLUDING THE ONE THERE USED
+    TO BE.** `/_platform/fonts.css` resolved while bundles came off a host of
+    ours; they come off the Supabase project host now, where a leading slash
+    resolves to Supabase. So the exception is GONE and the contract names the
+    whole URL (`FOUNDRY_PLATFORM_ORIGIN` in `preflight.ts`), with a refusal
+    message that hands the URL back to anyone who wrote the old form. The route
+    moved to the MAIN host and serves `access-control-allow-origin: *`, which
+    is load-bearing rather than decorative: an opaque origin makes even a
+    same-host font fetch cross-origin, and a `@font-face` request is CORS-mode
+    by specification. Measured in a real browser from a genuine opaque origin
+    -- the sheet loads, `cssRules` throws `SecurityError` (so it really is
+    cross-origin), and `document.fonts.check('16px Rajdhani')` is true.
+  - **STORAGE DID NOT RELAX AND IS THE ONE WARNING LEFT.** `localStorage` still
+    throws in an opaque origin, so touching it earns a warning naming the shim
+    and the entry file. It is a WARNING and not a refusal, and it is
+    unconditional -- the sentence also says nothing survives a reload, which is
+    true of a correctly shimmed app too, so suppressing it by detecting the
+    shim would trade a true sentence for a heuristic.
+
 **THE BUILD CONTRACT IS GENERATED FROM THE PREFLIGHT CONSTANTS, IN
 `preflight.ts` ITSELF** (`foundryBuildContract()`), and rendered at
-`/foundry/contract`. Every cap, the extension list, the entry filename and the
-one allowed absolute path are read from the values the checks enforce, so a rule
-change rewrites the document in the same commit. **Do not write the contract
-down anywhere else** -- a second statement of the rules is the one that drifts.
+`/foundry/contract`. Every cap, the extension list, the entry filename, the
+platform fonts URL and the storage shim are read from the values and the module
+the checks actually use, so a rule change rewrites the document in the same
+commit. **Do not write the contract down anywhere else** -- a second statement
+of the rules is the one that drifts.
 **THE "EXTRA FILES" PARAGRAPH IS SORTED BY PUTTING EACH CANDIDATE THROUGH THE
 REAL PREDICATES**, so the document cannot claim an outcome the code does not
 produce. It used to read "Do not produce a README, a package.json, a lockfile,
@@ -324,9 +432,11 @@ whatever generated the app.
 
 **PREFLIGHT PASSING IS NOT SUBMISSION.** A pass uploads the zip, creates the
 version and runs ingest, and the version stays a DRAFT; submitting for review is
-a separate press on `/foundry/mine`. The surface says so in words, because a
-student who reads "uploaded" as "submitted" walks away believing a review is
-queued when nothing is.
+a separate, deliberate press, offered on `/foundry/submit` once ingest succeeds
+(the optional `submitVersion` transport) and still available on `/foundry/mine`.
+It is never a side effect of the upload finishing. The surface says so in words,
+because a student who reads "uploaded" as "submitted" walks away believing a
+review is queued when nothing is.
 
 **THE UPLOAD PATH IS KEYED TO A PER-UPLOAD UUID, NOT TO THE VERSION ID, AND
 THAT IS FORCED.** `foundry_create_version` takes the zip path as an INPUT, so
@@ -338,8 +448,13 @@ means changing that RPC's signature, which is a migration.
 **`foundry-bundles` HAS NO STORAGE POLICY, AND THAT IS THE MECHANISM** --
 `storage.objects` has RLS on, so a bucket no policy names denies every
 `authenticated` and `anon` request by default and only `service_role` reaches
-it. Any policy added there, for any reason, is what opens it; the proxy reads it
-server side. And **LIVENESS GOES THROUGH `_foundry_app_in_population` AND
+it. Any policy added there, for any reason, is what opens it; the serving route
+reads it server side with that key. **MAKING IT PUBLIC IS THE OBVIOUS WRONG
+ANSWER AND WAS TRIED**: it would put every extracted version -- drafts,
+rejected builds, superseded builds, the builds of hidden apps -- one guessed
+pair of uuids from the open internet, and it does not even work (see the
+Storage `text/html` rule below). And **LIVENESS GOES THROUGH
+`_foundry_app_in_population` AND
 NOTHING ELSE** -- a new read of `student_apps` calls that predicate rather than
 writing its own `hidden_at is null`, and its two widening flags are gated on
 `is_admin()` inside the function, which is why the admin populations are a
@@ -496,8 +611,13 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
 **A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
-are served from `PUBLIC_FOUNDRY_APPS_HOST` (`apps.ideabosco.com`), which is the
-same Vercel project and the same deployment as `ideabosco.com`.
+are served by **two ordinary SvelteKit routes**,
+`src/routes/b/[appId]/[versionId]/[...path]/+server.ts` (the frame src) and
+`src/routes/a/[appId]/[...path]/+server.ts` (the direct page), answering on
+**`apps.ideabosco.com`** -- a second domain on the same Vercel project -- and
+never on `ideabosco.com`. Both go through
+`$lib/server/foundry-bundle-response.ts`, which is the one copy of everything
+below; a third mount is a caller of it, never a third handler.
 
 - **TWO ORIGINS, NOT ONE HOST PLUS A HEADER, and the difference is subresource
   cookies.** A header governs scripting and document origin; it does not govern
@@ -505,136 +625,144 @@ same Vercel project and the same deployment as `ideabosco.com`.
   `<img src="/api/whatever">` served same-host reaches the real backend with the
   viewer's cookies attached. Served cross-site it reaches a host that reaches
   nothing. No header achieves this and no header ever will.
-- **`src/lib/foundry/host.ts` IS THE ONE COPY OF THE HOST RULE**, it is pure,
-  and the apps host is an **ALLOWLIST** (`appsHostAllows`): `/r/*` and
-  `/_platform/*`, everything else a bodyless 404 answered in
-  `hooks.server.ts` before the router sees it. A route added later is
-  unreachable there BY DEFAULT. The branch is sequenced FIRST, ahead of the
-  Supabase client, so no path on that host can read a session or write a
-  refreshed cookie. **`/r/*` and `/_platform/*` 404 on the MAIN host** -- without
-  that half the split is a convention, not a boundary.
-- **`event.url.host` IS THE VALUE TO BRANCH ON, and it was measured on Vercel,
-  not assumed.** It tracks the requested host, is not rewritten upstream, and a
-  client-supplied `X-Forwarded-Host` does not move it. See `host.ts` for the
-  probe.
-- **THE HOOK ONLY BINDS REQUESTS THAT REACH THE FUNCTION, AND ON THE APPS HOST
-  A BUILD STEP IS WHAT MAKES THAT EVERY REQUEST.** Vercel answers `static/` and
-  `_app/immutable/*` off its filesystem without invoking the function at all,
-  so the hook used to govern whichever subset the platform handed it -- measured
-  on production, `apps.ideabosco.com/coins/index.html` served 200 with 177,019
-  bytes of `text/html`, alongside `/robots.txt`, `/push-sw.js`,
-  `/manifest.webmanifest` and the entire client build.
-  `scripts/foundry-edge-routes.mjs` runs after `vite build` (it is the second
-  half of the `build` script) and inserts ONE host-matched route at the FRONT of
-  the generated Build Output route table, sending every apps-host request to the
-  function. It names no paths: the hook stays the only place that decides what
-  the bundle host serves.
-  - **IT CANNOT BE DONE FROM `vercel.json`, AND THAT WAS MEASURED ON TWO PROBE
-    DEPLOYMENTS RATHER THAN ASSUMED.** A `routes` entry carrying `status: 404`
-    fires but does NOT suppress the body -- `/robots.txt` answered 404 with its
-    own 142 bytes and `/coins/index.html` answered 404 with all 175,996 of its,
-    which is exactly the shape of a fix that looks right and changes nothing. A
-    `routes` entry carrying `dest` does shadow the file, but Vercel merges
-    `vercel.json` routes AFTER the framework's, and `adapter-vercel` emits
-    `{ src: '/_app/immutable/.+', headers: {...} }` with no `continue`, which
-    terminates the pre-filesystem phase -- so that route closed `static/` and
-    left the whole client build open. Only an edit ahead of the adapter's own
-    routes reaches it.
-  - **THE ONE RESIDUE: `_app/immutable/*` refuses with 9 bytes, not zero.** The
-    adapter's own post-filesystem rule answers those paths `404` and Vercel
-    supplies its default `Not Found` body. No asset is served (measured on one
-    deployment: 3,183 bytes on a non-apps host, 9 on the apps host), but that
-    one prefix is distinguishable from the hook's bodyless refusal. It reveals
-    only that a path is under `_app/immutable`.
-  - **THE SUITE CANNOT SEE WHETHER VERCEL HONOURS ANY OF THIS.**
-    `tests/foundry-edge-routes.test.ts` asserts the script puts its route at the
-    front of a real adapter-shaped config and fails the build loudly otherwise,
-    which is the half whose regression would be silent. That the platform then
-    obeys the route table is **verified by request against a real deployment,
-    not by the suite** -- and a preview only proves it if the preview is itself
-    the apps host (point `PUBLIC_FOUNDRY_APPS_HOST` at the preview's own alias),
-    because a host-matched route is inert on a hostname it does not match.
+  - **AND THE ABSENCE IS STRUCTURAL, NOT BEHAVIOURAL, WHICH IS THE WHOLE
+    ARGUMENT FOR A SECOND ORIGIN OVER A SANDBOX ON THE MAIN HOST.**
+    `@supabase/ssr`'s `DEFAULT_COOKIE_OPTIONS` sets `path`, `sameSite: 'lax'`
+    and `httpOnly: false` and NO `Domain`, and `hooks.server.ts` adds none -- so
+    the session cookies are host-only on `ideabosco.com` and simply do not
+    exist on the apps host. Serving from the main host under a sandbox would
+    instead rest on the browser computing a null site-for-cookies for an
+    opaque-origin initiator: probably true today, subtle, varying by browser,
+    and no help against a `SameSite=None` cookie added later. An absence cannot
+    regress. **`httpOnly: false` is why it matters more than it looks** -- those
+    tokens are readable by `document.cookie`, so the host a student's code runs
+    on is the question.
+- **THERE USED TO BE A SECOND VERCEL HOST AND IT NEVER SERVED A BUNDLE.**
+  `apps.ideabosco.com`, a host branch sequenced first in `hooks.server.ts`, an
+  allowlist module, signed HMAC read tokens, a mint endpoint and a build step
+  that rewrote the generated Build Output route table -- five lanes of
+  diagnosis, production logs showing the hook entering, allowing the request
+  and returning 404, and a handler probe that fired on one deployment and not
+  the next for identical requests. **It is deleted, not disabled.** Do not
+  reintroduce `PUBLIC_FOUNDRY_APPS_HOST`, `FOUNDRY_TOKEN_SECRET`, a `/r`
+  namespace, a host branch or `scripts/foundry-edge-routes.mjs`;
+  `tests/foundry-bundle-url.test.ts` sweeps for every one of those names and
+  reddens.
+- **NOTHING SUPABASE-HOSTED WILL SERVE HTML, AND THAT IS TWO MEASUREMENTS, NOT
+  ONE.** Storage was the first and the hosted **Edge Function gateway** is the
+  second: a deployed, correct `foundry-serve` answered
+  `Content-Type: text/plain` AND
+  `content-security-policy: default-src 'none'; sandbox` -- the gateway
+  REPLACED the function's own policy, so correcting the type alone would still
+  have rendered a blank page, and `frame-ancestors` had never once taken
+  effect. Different codebases, different languages, identical refusal: it is a
+  platform posture against arbitrary HTML on `*.supabase.co`, not a bug in
+  either, and **no function code can reach it.** That is why the bytes come off
+  a host whose headers we set. **Do not try a Supabase custom domain on the
+  strength of a guess** -- whether the control is hostname-conditional was
+  never measured, and the storage twin is unconditional.
+- **STORAGE'S OWN REWRITE, MEASURED FIRST.** `normalizeContentType` in storage-api's renderer
+  rewrites any `text/html` content type to `text/plain`, unconditionally, with
+  no bucket flag and no configuration. Measured on a real object: stored
+  `text/html; charset=utf-8`, served `text/plain; charset=UTF-8` on the public,
+  the authenticated AND the signed-URL path. A framed bundle would render its
+  own source as text. **Framing a Storage object URL directly is therefore not
+  an option and never will be** -- the check is case-sensitive, which makes
+  `Text/Html` a working bypass and a deliberate circumvention of somebody
+  else's abuse control that one upstream `.toLowerCase()` would silently break.
+  Do not.
+- **THE ROUTE OPTS OUT OF TRAILING-SLASH NORMALIZATION, AND BOTH SVELTEKIT
+  DEFAULTS ARE WRONG FOR IT.** `'never'` 308s `/b/<app>/<version>/` to the
+  slashless form, which is the broken one -- `.../<version>` has `.../<app>/`
+  as its base URL, so every relative asset resolves one level too high and the
+  app renders unstyled and scriptless, reading as a bad upload. `'always'`
+  breaks the other direction, sending `.../style.css` to `.../style.css/`. Only
+  `export const trailingSlash = 'ignore'` hands both forms to the handler, which
+  then issues the ONE correct redirect: bare root, no slash, 307 with a
+  RELATIVE `Location` so it stays right on any host.
+- **THE HOST CHECK IS IN THE ROUTE AND IS NOT THE DELETED HOST BRANCH.** The
+  branch that burned two lanes sat in `hooks.server.ts` and decided what an
+  entire host could serve, ahead of routing, on every request to the site. This
+  is one route declining to answer on an origin it is not for, inside its own
+  handler. It is what stops the main host quietly becoming a second,
+  cookie-carrying way to the same bytes. **Unset means any host**, so local dev
+  and previews need no configuration; production pins
+  `PUBLIC_FOUNDRY_APPS_ORIGIN`.
 - **`allow-scripts` AND `allow-same-origin` TOGETHER CANCEL THE SANDBOX
   ENTIRELY** -- a frame with both can reach its own origin, strip the sandbox
   attribute off itself in the parent document and reload unsandboxed.
   **`allow-same-origin` must never appear on a Foundry frame**, and
-  `$lib/foundry/AppFrame.svelte` is the ONE place the attribute is written down.
-  A second copy is a frame that looks identical and isolates nothing.
+  `FOUNDRY_SANDBOX_FLAGS` in `$lib/foundry/bundle-headers.ts` is the ONE place
+  the flags are written down. **That moved out of `AppFrame.svelte`, which used
+  to hold the only copy**, because the SERVING side has to send the identical
+  set as a CSP `sandbox` directive -- and a second spelling in another file is a
+  frame and a document that drift apart with nothing able to compare them.
+  `AppFrame` reads the constant; a second copy is a frame that looks identical
+  and isolates nothing.
 - **THE CSP `sandbox` DIRECTIVE AND THE IFRAME `sandbox` ATTRIBUTE ARE NOT
   REDUNDANT.** The attribute covers a document the portal frames; the directive
   covers the document however it was reached, so a student who navigates
-  straight to a bundle URL lands in the same opaque origin. Neither replaces the
-  other and both must stay.
+  straight to a bundle URL lands in the same opaque origin. Measured both ways
+  against a real served bundle: `window.origin` is `"null"` framed AND on a
+  direct navigation, and `document.cookie`, `indexedDB` and every reach at the
+  parent throw `SecurityError` in both.
 - **`'self'` IS NOT A USABLE CSP SOURCE FOR A SANDBOXED DOCUMENT.** It is the
   only origin-relative source expression, and an opaque origin is same-origin
-  with nothing -- so a source list must NAME THE BUNDLE ORIGIN LITERALLY (taken
-  from the request's own URL). Equally, **`default-src` alone forbids inline
-  script**, which kills the storage shim and essentially every generated app;
-  `script-src`/`style-src` are stated explicitly with `'unsafe-inline'`. The
-  isolation here is the opaque origin, `connect-src 'none'` and
-  `frame-ancestors` -- never a restriction on how the student's own script runs.
-- **THE TOKEN IS NOT THE LAST WORD ON ACCESS.** The proxy reads
-  `foundry-bundles` with the service-role key, which bypasses RLS, so every rule
-  RLS would have enforced is re-checked in `$lib/server/foundry-bundle.ts` on
-  every request: the version belongs to the app, it is still the app's
-  `published_version_id`, and the app is not hidden. A token lives 30 minutes
-  and an app can be withdrawn inside that window.
+  with nothing -- so a source list must NAME THE BUNDLE ORIGIN LITERALLY.
+  Equally, **`default-src` alone forbids inline script**, which kills the
+  storage shim and essentially every generated app; `script-src`/`style-src`
+  are stated explicitly with `'unsafe-inline'`. **The network is deliberately
+  open now** (`https:` on every fetching directive), because the build contract
+  tells students a CDN works and a policy that refused one would make the
+  contract lie. The isolation is the opaque origin and `frame-ancestors`, never
+  a restriction on how the student's own script runs.
+- **`frame-ancestors` IS UNSET-MEANS-UNRESTRICTED, WHICH REVERSES THE OLD
+  RULE.** The proxy defaulted a missing app origin to `'none'`, fail-closed. On
+  a feature whose history is silently serving nothing, a variable whose absence
+  blanks every frame is the worse failure -- and a framed bundle is sandboxed,
+  holds no session and reaches nothing of ours, so another site embedding one
+  gains a copy of a student's app and no more. Production pins it with
+  `PUBLIC_FOUNDRY_PORTAL_ORIGIN`. **The old `FOUNDRY_APP_ORIGIN` Supabase
+  function secret is retired and never worked**: the gateway was replacing that
+  CSP wholesale, so the value was read, sent, and discarded.
+- **THE PUBLICATION GATE IS NOT A SESSION CHECK, AND THAT IS FORCED RATHER THAN
+  CHOSEN.** There IS no session on the apps host -- that absence is the point of
+  the split -- so "require a signed-in caller" is not available there without
+  either `Domain`-scoping the session cookie onto the apps host, which hands
+  every bundle the credentials the split exists to withhold, or putting a signed
+  token back on every request, which is the machinery this feature spent five
+  lanes removing. The licence comes from the VERSION'S OWN STATUS. Anyone
+  proposing to add a session check here has to answer that first.
+- **THE SERVICE-ROLE READ IS NOT THE LAST WORD ON ACCESS.** It bypasses RLS, so
+  every rule RLS would have enforced is re-checked in the route on every
+  request: the version belongs to the app, the app is not hidden, and the
+  version is published or submitted.
 - **THE FILE LIST IS THE ALLOWLIST.** A served path must have a row in
   `student_app_files` for that exact version and that exact string, so path
   traversal has nothing to traverse to and nothing is ever resolved against a
-  filesystem.
-- **`/r/{token}/` KEEPS ITS TRAILING SLASH, AND THE SLASHLESS FORM IS
-  REDIRECTED, NEVER REFUSED.** `/r/<token>` has `/r/` as its base URL, so every
-  relative asset in every bundle would resolve outside the bundle -- which is
-  why the entry is never SERVED at the slashless spelling. But the frame
-  requests the bundle ROOT and nothing else, so **the slashless form is the one
-  shape the whole system has to survive**: anything that normalizes a trailing
-  slash anywhere between the browser and the function delivers it.
-  `isFoundryProxyPath` used to refuse it outright, which meant a bodyless 404
-  with the database never consulted, and a blank frame for every published app.
-  **A path that names a non-empty token is allowed through even with no slash**;
-  what stays refused is every shape naming no token at all (`/r`, `/r/`,
-  `/r//...`), which are the ones that used to reach the router.
-  - **THE 307 RUNS BEFORE THE TOKEN IS VERIFIED, and that is what closes the
-    oracle** the old refusal was standing in for: verifying first made a good
-    token answer 307 where a garbage one answered 404, the one place on that
-    host where two outcomes did not look alike. Redirecting first makes every
-    slashless root answer 307 and judges the token on the request that follows.
-  - **THE TEST HAS TO DRIVE THE HOOK AND THE ROUTE TOGETHER.** Handing `params`
-    straight to the route skips `appsHostAllows`, which is where this lived, and
-    that is why a suite with a bundle-root test in it stayed green for the whole
-    life of the bug. `tests/foundry-proxy.test.ts` composes the real
-    `foundryHostBranch` with the real handler and asserts all three spellings.
-- **THE TWO HOSTS ASK DIFFERENT QUESTIONS, AND THAT IS TWO PREDICATES RATHER
-  THAN TWO COPIES OF ONE.** `appsHostAllows` is the SHAPE the proxy serves
-  (`/r/{token}/{path}`, `/_platform/*`) and governs the apps host, so nothing
-  else there reaches the router. `isFoundryHostNamespace` is the PREFIX and
-  governs the main host, so the whole `/r` and `/_platform` namespace is refused
-  there whether or not it names a file. Using the shape for both was measured to
-  open one path: a bare `/r` matches no route on either host, so on the main
-  host it fell to the router and rendered the ordinary 404 page. Harmless in
-  itself -- `/nope` renders the same page -- but it would let a route added at
-  `/r/<anything>` ship reachable on the session-bearing origin.
-  - **A PREFIX TEST ON THE APPS HOST IS WHAT PUT THE PORTAL ON THE BUNDLE
-    ORIGIN.** `isFoundryProxyPath` used to match `pathname === '/r'`, so `/r`
-    passed the allowlist, reached the router, matched nothing, and was answered
-    by the root `+error.svelte`: 33 client modules loaded from
-    `apps.ideabosco.com` and `userProfile` in the inlined payload, which is the
-    root `+layout.server.ts` key and so proof that a session read ran on the one
-    origin that exists to prevent it. **NO PATH THE APPS HOST ALLOWS MAY RESOLVE
-    TO A PAGE** -- both prefixes are `+server.ts` endpoints, and SvelteKit does
-    not run layout loads for endpoints, which is what makes this structural
-    rather than a fact about today's routes. `tests/foundry-proxy.test.ts`
-    reads the route directory and reddens if a `+page`/`+layout` appears under
-    either prefix.
-- **EVERY REFUSAL ON THAT HOST IS THE SAME BODYLESS 404.** A bad signature, an
-  expired token, another app's file, a missing row, a hidden app and an ordinary
-  app route are indistinguishable from outside. Two exceptions, both measured
-  and both stated rather than papered over: `_app/immutable/*` refuses with
-  Vercel's own 9-byte `Not Found` (see the build-step bullet above), and a path
-  with a trailing slash is normalized by SvelteKit with a 308 BEFORE any hook
-  runs -- which is universal (`/nope/` does it too), so it distinguishes nothing
-  about Foundry.
+  filesystem. `bundlePathOk` runs first anyway, as an independent second
+  refusal.
+- **THE BUNDLE ROOT KEEPS ITS TRAILING SLASH.** `.../<version>` has
+  `.../<app>/` as its base URL, so every relative asset in every bundle would
+  resolve one level too high -- an app that renders unstyled and scriptless,
+  which reads as a bad upload rather than a bad URL. `foundryBundleUrl` only
+  produces the slash form and the function 307s the other one. **That redirect
+  sends a RELATIVE `Location`**, because the only absolute URL the isolate can
+  build is its own unreachable internal one. And **the redirect keys on whether
+  the path was DERIVED, never on `path === 'index.html'`** -- keyed the second
+  way, an explicit request for `.../index.html` bounced to `.../index.html/`.
+- **EVERY REFUSAL IS THE SAME BODYLESS 404.** A malformed URL, an unknown app,
+  an unpublished version, another app's file, a missing row and a hidden app
+  are indistinguishable from outside.
+- **THE STORAGE SHIM IS INJECTED AGAIN, AND IT IS ALSO IN THE CONTRACT.** An
+  opaque origin has no storage area and the `localStorage` GETTER THROWS, so
+  the first line of a generated app that reads saved state takes the page down
+  before anything renders. `injectStorageShim` in
+  `$lib/foundry/storage-shim.ts` puts it first inside `<head>` on the way past;
+  `foundryBuildContract()` embeds the same string for the student to paste, so
+  the app behaves identically opened off their own filesystem. **Two
+  deliveries, one source** -- there is exactly one copy of the shim text in the
+  repo and running it twice is harmless.
 
 ---
 
@@ -718,8 +846,10 @@ it is not required to browse.
     report, rate limited per address inside the database. It answers its own
     responses, so it is not in `authedPrefixes`, and it reads no session.
 - **Signed-in tier (any role):** `/gauntlet`, `/frc`, `/greenline`, `/notebook`,
-  `/classroom`, `/foundry` (the gallery included: a launch mints a token that
-  NAMES the viewer, so there is no anonymous read of a student bundle).
+  `/classroom`, `/foundry` (the SURFACES; the bundle BYTES are a separate
+  question -- they are served from the apps origin, which holds no session at
+  all, so the publication gate there is the version's own status and the two
+  uuids in the URL. See the origin split).
   `hooks.server.ts` redirects anonymous users off a LIST of authed prefixes.
 - **Admin tier:** `/dashboard`, `/coin-desk`, `/admin`, `/greenline/moderation`,
   the notebook Drive connect flow, GAUNTLET authoring / room hosting, FRC
@@ -873,34 +1003,32 @@ Read via `$env/static/public`: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
 
 Read via `$env/dynamic/public` (runtime, so a missing value never breaks the
 build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
-`PUBLIC_FSP_PULSE_APPS_SCRIPT_URL`, `PUBLIC_VAPID_PUBLIC_KEY`,
-`PUBLIC_FOUNDRY_APPS_HOST` (the bundle host, no scheme; UNSET FAILS CLOSED --
-nothing is the apps host, so no bundle is served anywhere rather than being
-served from the main origin) and `PUBLIC_FOUNDRY_APP_ORIGIN` (the CSP
-`frame-ancestors` value; unset means `'none'`).
+`PUBLIC_FSP_PULSE_APPS_SCRIPT_URL` and `PUBLIC_VAPID_PUBLIC_KEY`.
 
 **SERVER-ONLY**, read via `$env/dynamic/private` (runtime; never in the client
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FOUR modules: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FOUR places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
-  validation in Node before any row is written), the tournament push sender, and
+  validation in Node before any row is written), the tournament push sender,
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
-  anything in it), and the Foundry bundle module
-  (`src/lib/server/foundry-bundle.ts`, which serves the proxy AND backs the
-  review queue's source viewer -- one reader per credential, so the source
-  reads live there rather than in the route that fronts them). The FOURTH one is forced by the origin
-  split rather than chosen: the apps host is a different site, so the viewer's
-  cookies never arrive and there is no session to read a row under, and
-  `foundry-bundles` carries no storage policy at all, so `service_role` is the
-  only role that reaches it. That is why every rule RLS would have enforced is
-  re-checked explicitly in that module. Nothing else may read it, and **it must
-  never gain a `PUBLIC_` prefix**. Unset, the feedback route answers a structured
-  `not_configured` refusal rather than a retryable failure: a missing
-  environment variable does not fix itself in eight seconds of backoff.
+  anything in it), and Foundry -- which is now ONE reader again,
+  `src/lib/server/foundry-bundle.ts`, backing the review queue's source viewer,
+  BOTH serving routes (the frame src and the direct page, which resolve a
+  version differently and then share one responder) AND the delete sweep -- four
+  functions, one module, one client. **It was two while an Edge Function served the
+  bytes in a different runtime and could not import the first**; deleting the
+  function collapsed that split, and a second reader should not come back. It
+  exists because `foundry-bundles` carries no storage policy at all, which makes
+  `service_role` the only role that reaches it, and it re-checks explicitly
+  every rule RLS would otherwise have enforced. Nothing else may read it, and
+  **it must never gain a `PUBLIC_` prefix**. Unset, the feedback
+  route answers a structured `not_configured` refusal rather than a retryable
+  failure: a missing environment variable does not fix itself in eight seconds
+  of backoff.
 - **`GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
   `GOOGLE_DRIVE_REFRESH_TOKEN`** -- Drive storage for notebook photos, classroom
   attachments and decks. Auth is **OAuth on behalf of a real Bosco Tech account,
@@ -915,20 +1043,29 @@ build break):
 - **`VAPID_PRIVATE_KEY`** (+ optional `VAPID_SUBJECT`) -- signs Web Push. Read
   ONLY by `src/lib/server/push.ts`. Must come from ONE generated pair with
   `PUBLIC_VAPID_PUBLIC_KEY`; rotating orphans every existing subscription.
-- **`FOUNDRY_TOKEN_SECRET`** -- signs the bundle tokens that authorize a read on
-  the apps host. Read ONLY by `src/lib/server/foundry-token.ts`. Unset in
-  DEVELOPMENT mints a per-process secret (tokens work, and die with the
-  process); unset in PRODUCTION is not papered over -- the mint answers a
-  structured `not_configured` and the proxy refuses every token -- because a
-  per-instance secret across many serverless instances mints tokens that verify
-  on one instance and nowhere else.
-
 - **`GITHUB_EXPORT_TOKEN`** -- the classroom GitHub export. Read ONLY by
   `src/lib/server/classroom-export.ts`; never reaches a caller, a message, or a
   log line. Unset is SILENT: no attempt, no recorded failure, no chip.
 
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
-`COIN_LEDGER_URL`.** Nothing reads them.
+`COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and
+`FOUNDRY_TOKEN_SECRET`.** Nothing reads any of them. **Retired on the Supabase
+side too: the `FOUNDRY_APP_ORIGIN` function secret** (`supabase secrets unset`),
+which never took effect because the gateway replaced that CSP wholesale.
+
+**FOUNDRY READS TWO PUBLIC VERCEL VARIABLES, BOTH VIA `$env/dynamic/public`.**
+`PUBLIC_FOUNDRY_APPS_ORIGIN` is the origin bundles are served from
+(`https://apps.ideabosco.com`); the serving route 404s a bundle path arriving on
+any other origin, and **unset removes the launch control AND the share link
+everywhere rather than falling back to the current origin** -- that fallback
+would serve student bundles off the main, cookie-carrying host, silently, which
+is the one failure nobody would notice. `FoundryDetail` is the one place it is
+read on the gallery path and hands it down to `AppStage`, because the frame src
+and the share link must name the same origin and two independent reads are how
+they come to differ. `PUBLIC_FOUNDRY_PORTAL_ORIGIN` becomes the CSP
+`frame-ancestors`; unset means unrestricted. **There is no separate deploy step
+any more** -- the route ships with the app, which is the ordering problem the
+Edge Function created and this removes.
 
 **ONE MODULE KNOWS EACH CREDENTIAL.** A secret has exactly one reader, which is
 the single egress point for that service. Do not add a second.
@@ -963,6 +1100,14 @@ against production. Every claim about live data must say so.
 - **Migrations are an immutable applied record.** Never rewrite an applied file
   to change behaviour; write a new one. (This is why the `is_teacher()` naming
   trap exists.)
+  - **A FILE THAT RAISED AND ROLLED ITSELF BACK IS NOT AN APPLIED RECORD**, and
+    is corrected IN PLACE. The rule exists so a file is never changed out from
+    under a database that already ran it; a migration whose own self-check
+    raised left nothing behind, so there is no such database. A follow-up file
+    correcting one nobody can apply would leave a permanently failing migration
+    in the chain, which is worse. 0136 is the case. **Confirm the rollback was
+    total before relying on this** -- a file that failed partway with DDL
+    already committed is the opposite situation and needs a new file.
 - **Idempotent where practical** (`create or replace`, `if not exists`,
   `drop ... if exists` before `create`). **Re-pasting a migration is ordinary** --
   someone re-pastes, or a first attempt failed partway and gets retried -- so a
@@ -975,6 +1120,56 @@ against production. Every claim about live data must say so.
   rewrites every genuine row, silently.
 - **Report counts with `raise notice`** so the operator can check them against
   what the deployed app actually holds.
+
+### `revoke ... FROM public` DOES NOT CLOSE A FUNCTION ON THIS PROJECT
+
+**A hosted Supabase project bootstraps `alter default privileges in schema
+public grant execute on functions to anon, authenticated, service_role`**, which
+writes a DIRECT grant to each of those roles into every new function's `proacl`
+AT CREATION TIME. That is not the SQL default -- the SQL default is one grant to
+`PUBLIC` -- so `revoke all on function f from public` removes exactly that one
+entry and the function stays granted to `anon`. Measured on the catalog, same
+body, same revoke: without the defaults `proacl` comes out
+`postgres=X/postgres | authenticated=X/postgres` and `anon` is false; WITH them
+it comes out `postgres=X/postgres | anon=X/postgres | authenticated=X/postgres |
+service_role=X/postgres` and **`anon` is true**.
+
+- **A NARROWING MUST NAME THE ROLES**: `revoke all on function f(...) from
+  public, anon, authenticated, service_role;` then grant back only what should
+  hold it. That end state is independent of whatever default privileges the
+  database carries, which is the whole point -- a narrowing that works under one
+  privilege configuration and silently does nothing under the other is not a
+  narrowing.
+- **THE FIXTURE NOW CARRIES THOSE DEFAULTS, AND 0137 IS WHAT MAKES IT GREEN.**
+  `tests/db/supabase-stub.sql` used to set no default privileges, so the
+  `from public` form appeared to work and every assertion about `anon` passed
+  VACUOUSLY -- 41 of them, across 32 files, written deliberately by past
+  sessions. The three lines are in the stub now and **0137
+  (`0137_anon_execute_sweep.sql`) is the migration that closes the gap**:
+  `anon` went from 360 of 369 functions to the 18 deliberate public surfaces,
+  and 88 private helpers lost `authenticated` with it.
+- **0137 GOES LAST IN EVERY TEST CHAIN, INCLUDING THE HARNESS DEFAULT**, because
+  it is a sweep over whatever the chain above it created. **A migration applied
+  BY HAND after the chain needs the sweep re-applied after it** -- a
+  `create or replace` under the project's default privileges hands the new
+  function a fresh `anon` grant, so `notebook-session-postings`, `coin-medium`
+  and `classroom-leveled-rubrics` each re-run it. A "world as it was" half
+  filters it out instead.
+- **A NEW FUNCTION IS NOT COVERED BY 0137 AND MUST REVOKE FOR ITSELF.** The
+  sweep is a one-time repair of what was already there; anything created after
+  it arrives granted to `anon` again unless its own migration names the roles.
+- **DO NOT SWEEP THE GRANTS BLIND.** The partition is the whole job and 0137's
+  header carries it: 18 functions are granted to `anon` DELIBERATELY (the public
+  coin ledger, the public reference viewer and its attachments, short links, the
+  unauthenticated GAUNTLET run path), and `is_teacher` must keep
+  `authenticated` because it is named inside RLS policies, where a function is
+  evaluated as the QUERYING role -- revoking it breaks the read rather than
+  narrowing it (the 0070 lesson 0109 writes down). **`service_role` is never
+  touched**, because a CHECK constraint's function runs as the WRITING role
+  (0131).
+- **ASSERT THE ACL, NOT THE SELF-CHECK'S VERDICT.** A migration's own guard
+  passing tells you the guard ran; reading `proacl` and
+  `has_function_privilege` back tells you what is actually granted.
 
 ### THE SIGNATURE TRAP
 
@@ -1537,6 +1732,16 @@ inside the function fails closed rather than falling through to a weaker path.
   **The list is then responsible for USING the width** -- a fixed-width column
   centred in the room it was just given is the same defect one level in. ClassView
   lays its unit groups out in `auto-fit` columns for exactly this.
+- **A BREAKPOINT INSIDE A NESTED PANE IS DEAD CODE UNTIL IT IS MEASURED THERE,
+  and nothing warns.** A container query whose threshold the container never
+  reaches simply never fires: no unused-selector notice, no `svelte-check`
+  warning, and a layout that looks deliberate because the fallback is the one
+  you also wrote. Measured twice now -- `.fdy-q-work` at 58rem against the
+  viewport figure when the pane was 857px, and the Foundry review inspector's
+  own panel at 34rem when its container is **418px at 1440 and about 541px at
+  1920**. Drive the real surface and read the CONTAINER's width before choosing
+  a number, and when the measurement says the wide arrangement never has room,
+  DELETE the rule rather than lowering it into columns too narrow to read.
 - **A column count comes from measuring the content, not from round numbers.**
   Drive the pane across a range and count what actually breaks (ellipsised titles,
   wrapped rows); the column is the width above which the content stops gaining.
@@ -1671,6 +1876,21 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A partial failure KEEPS what did not land** and names it; only what succeeded
   is cleared. A retry after a partial create UPDATES the record already made, or
   it produces a duplicate.
+- **AN ACKNOWLEDGEMENT MUST SURVIVE THE ACT IT REPORTS, AND A DESTRUCTIVE ONE
+  USUALLY DOES NOT WHERE IT WAS WRITTEN.** "Saved" renders where the work is,
+  because the work is still there; "deleted" cannot, because the pane holding
+  it is what was just deleted. Measured on `/foundry/mine`: the confirmation
+  lived inside the detail pane, the app delete unmounted that pane, and the
+  card simply vanished from the list with nothing anywhere saying a word. So a
+  delete's note belongs on the surface that is on screen AFTERWARDS -- for a
+  master-detail split under `narrow="swap"`, the LIST, which is exactly what
+  shows at every width once no detail is open. Two outcomes ending in two
+  places is two notes, not one moved.
+- **A CONTROL THAT IS ABSENT FOR A REASON SAYS THE REASON, where every sibling
+  row has one.** A version list whose live build alone has no Delete reads as a
+  bug; one sentence in its place is the difference between a rule and a defect.
+  It is the `aria-disabled` argument for the case where there is nothing to
+  disable.
 - **EVERY SURFACE REPORTS ITS OWN DEFECTS, AND THE AFFORDANCE IS MOUNTED ONCE IN
   THE ROOT LAYOUT.** `SiteFeedback.svelte` sits in `src/routes/+layout.svelte`;
   there are no layout resets in `src/routes`, so that mount is what makes
@@ -1725,6 +1945,46 @@ inside the function fails closed rather than falling through to a weaker path.
   - **A retryable failure and a REFUSAL are different outcomes.** Backoff belongs
     to the network; a server that considered the payload and said no is answered
     once and reported, never retried five times.
+    - **WHICH ONE AN RPC ERROR IS COMES FROM ITS SQLSTATE, AND THE PARTITION IS
+      `$lib/pg-errors`.** `rpcErrorStatus(code)` answers 503 for a NAMED
+      transient (`23505`, `40001`, `40P01`, `55P03`, `57014`, `53300`) and 400
+      for everything else, so the client rule "4xx is a refusal" needs no second
+      copy on the wire. A whitelist, on purpose: almost every failure on a write
+      path IS a considered refusal (`P0001` is a `raise`, class 23 is a
+      constraint, `42501` is RLS), and a route answering 400 for every RPC error
+      -- which the three notebook note routes did -- reports a deadlock as a
+      decision about the payload and drops the write after one attempt.
+      `$lib/classroom/upload-errors.ts` reads the same list for its own
+      vocabulary; **do not write a second one.**
+  - **A SURFACE WHOSE ONLY COPY OF SOMEBODY'S WRITING IS IN MEMORY HAS NO
+    FAILURE TO REPORT WHEN IT LOSES IT**, which is why the notebook composer
+    mirrors its note into `localStorage` (`$lib/notebook/draft-mirror.ts`,
+    `IDEA_INTERFACE_STANDARDS` 2.11). A tab discarded under memory pressure
+    dispatches nothing, so no save machine, no beacon and no navigation guard
+    ever sees it. **The keepalive beacon is not the answer at the sizes that
+    matter** -- 64KB across every in-flight keepalive request, against a
+    measured 134.9KB wire body for 2000 short lines, so the longest notes are
+    exactly the ones it refuses whole.
+    - **THE MIRROR IS THE SAVE STATE'S SHADOW, NEVER A SECOND SAVE PATH.** It
+      is written while the surface's own unsaved predicate is true and cleared
+      beside every `EditBaseline.advance()`, so the slot exists precisely while
+      the server has not acknowledged the work -- one comparison, persisted,
+      rather than a second idea of "unsaved". **Cleared on a confirmed
+      acknowledgement or a confirmed discard, NEVER on dispatch**, and a
+      `resetForm`-shaped reset clears nothing: it runs in the one case where
+      the entry saved and the writing did not.
+    - **KEY IT PER VIEWER AND PER RECORD** (`notebook_draft_mirror:<viewer>:<record>`,
+      namespaced beside `notebook_pending_capture` and `vanguard_*`). The viewer
+      segment is what stops a shared school desktop handing one student
+      another's writing; the record segment is what stops two entries
+      overwriting each other.
+    - **A QUOTA REFUSAL IS SAID OUT LOUD AND NEVER THROWN.** Storage throws when
+      full and where site data is blocked, and an exception escaping into a
+      reactive effect is a dead editor over a lost note. Sweep OTHER records'
+      slots, retry once, then drop the stale value under this key -- a slot
+      claiming to be what is on screen and not being it is worse than no slot --
+      and tell the person the backup is not there. A safety net nobody knows is
+      missing is worse than none.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
@@ -2182,9 +2442,9 @@ belong wherever the app's own behaviour is documented.
 
 ### Machine and toolchain
 
-- **The `test` script in `package.json` carries `--no-file-parallelism` itself**
-  (`vitest run --no-file-parallelism`), so plain `npm test` is always the safe
-  invocation -- there is no bare, parallel form to reach for by mistake. DB files
+- **`npm test` runs `tools/run-tests.mjs`, which passes `--no-file-parallelism` to
+  vitest** (`vitest run --no-file-parallelism`), so plain `npm test` is always the
+  safe invocation -- there is no bare, parallel form to reach for by mistake. DB files
   used to starve each other's `beforeAll` because each booted its own embedded
   Postgres; they now share ONE cluster (see Testing), which is the fix for that,
   not more concurrency. Serial files are what keep each file's own database the
@@ -2244,8 +2504,9 @@ belong wherever the app's own behaviour is documented.
 
 ## Testing
 
-`npm test` (config `vitest.config.ts`, specs in `tests/`; the script itself carries
-`--no-file-parallelism`, see the parallelism trap under Machine and toolchain).
+`npm test` (config `vitest.config.ts`, specs in `tests/`; `npm test` runs
+`tools/run-tests.mjs`, which passes `--no-file-parallelism` to vitest, see the
+parallelism trap under Machine and toolchain).
 This is the **only** automated suite, and it is deliberately narrow.
 
 - **Automated tests are the exception, not the default.** New work is verified by
@@ -2318,6 +2579,18 @@ This is the **only** automated suite, and it is deliberately narrow.
   shape can no longer be constructed. **Feeding input the producer cannot emit is
   still right where the surface is reachable WITHOUT it** (a hand-rolled POST to
   a route); say so in the test, so nobody reads it as editor coverage.
+- **NEVER ASSERT OVER A DIRECTORY THE APP WRITES.** `materials/` is written by
+  the classroom GitHub export on every item save, with no human involved, and
+  pushed straight to `main`. A test that pins its bytes -- or its counts, or its
+  hashes -- is red the next time a teacher saves an item, and the fix offered
+  each time is to write down whatever the new value is. That is a RATCHET: it
+  records what last happened and checks nothing.
+  `tests/spec-instructions-budget.test.ts` was this, three times, and the third
+  is why the sweep is gone. **The deeper cost is that a standing failure hides a
+  real one** -- for days, every genuine regression in the suite was
+  indistinguishable from the known-red file. A test nobody can keep green is
+  worse than no test. If a property of app-written content matters, assert it
+  where the app WRITES it (the validator, the RPC), never where it lands.
 - **Keep the suite honest.** Pair every exclusion assertion with a positive control
   and report BOTH counts -- a scan reading the wrong property comes back clean, and
   clean is what nobody investigates. Assert the case count of a generated sweep, so
@@ -2718,6 +2991,25 @@ properly. That is a bundle, not a line.
     folder colours, `--nb-cell-*` and `--nb-shot-*`.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
+- **`.fg-root` -- the Foundry FORGE** (`src/lib/foundry/forge.css`, mounted by
+  `src/routes/foundry/+layout.svelte` with the persistent `FoundryShell`).
+  Molten metal poured, worked, cooled, finished: GREEN stays the driving colour
+  and the FINISHED state; the `--fg-heat-*` scale (amber/orange) means IN
+  PROGRESS and nothing else may wear it. The five status trios
+  (`--fg-st-*-ink/-fill/-edge`) are the heat language -- draft cold iron,
+  submitted heating, approved cooled green, rejected quenched grey, hidden
+  shelved flat -- read ONLY through `ForgeStatus.svelte`, whose tone vocabulary
+  is `versionLabel`'s own plus `shelved`; fills are PINNED, never mixed from the
+  ink. `MoltenSeam.svelte` is the signature pour (CSS conveyor layers,
+  transform-only, paused offscreen and on a hidden tab, still-gradient under
+  reduced motion) and belongs ONLY where heat belongs: the shell header, the
+  review queue while something waits, the submitted state. The room aliases the
+  shared vocabulary onto its own plate the `.nb-root` way (source and target on
+  `.fg-root` itself) and does NOT re-point the semantic accents. It is in
+  `split.css`'s room lists like `.cd-root`. `$lib/foundry/nav.ts` is the one
+  statement of the IA (contract and starter resolve to the `submit` tab); the
+  shell's Review tab renders for admins only, with the pending count asked only
+  for admins in the layout load -- null, never zero, for everyone else.
 - **`.glb` -- GREENLINE brand** (`Greenline Art Direction Reference.html`,
   direction "1A / IMPACT"). Chrome/steel dominant; **GREEN is surgical** (one
   signature thread, the player's own machine); **AMBER is impact state only**, never
@@ -2844,11 +3136,17 @@ The two files have different jobs, and the split is the point.
 - New routes, tiers, roles, env vars, traps or conventions update `CLAUDE.md` in the
   same change that introduces them.
 
-### Standards copied in from outside -- READ, CITE, NEVER EDIT
+### Standards mirrored from project knowledge -- `docs/standards/` IS THE FRESHNESS AUTHORITY
 
-`docs/standards/` holds the IDEA programme standards. They are **authored and
-maintained OUTSIDE this repository**; what is here is a **copy**, kept so that work
-in this repo can read and cite them without leaving it.
+`docs/standards/` holds the IDEA programme standards. They are **authored in chat
+and delivered into project knowledge**, which is the working copy every chat reads
+by default; this directory is the **second copy, with a history**, so a chat (or a
+session in this repo) can fetch a file here and tell whether its own copy is stale.
+**Every standards delivery commits the updated file here in the same turn it is
+delivered**, before it is re-uploaded to project knowledge. It is not read-only:
+a file found behind project knowledge here is a defect in the delivery that
+produced it, and the fix is to land the current file, not to leave this copy stale.
+See `docs/standards/README.md` and `docs/standards/REGISTER.md`.
 
 - `docs/standards/IDEA_INTERFACE_STANDARDS.md` -- layout, viewport behaviour, role
   parity, legibility, interaction structure.
@@ -2856,30 +3154,27 @@ in this repo can read and cite them without leaving it.
   format: both kinds, the block types, the enforcement matrix.
 - `docs/standards/IDEA_RUBRIC_STANDARDS.md` -- leveled criteria, `short` forms,
   descriptor writing, grading behaviour.
-- `docs/standards/IDEA_VERIFICATION_ADDENDA.md` -- **a STAGING file, not a
-  standard.** Rules written here on their way UPSTREAM, held in the directory so
-  work in this repo can read them before they land. It is DELETED once they merge
-  into the authored originals, so nothing may treat it as a durable citation
-  target: cite the standard the rule ends up in, not this file.
+- `docs/standards/IDEA_VERIFICATION_ADDENDA.md` -- the owning verification
+  standard. The filename is kept deliberately (see below) though the document is
+  no longer staging.
 
 **Cite them by section**, the way the code already does (`IDEA_INTERFACE_STANDARDS`
 10, `IDEA_MATERIAL_SPEC` v2.2), and cite the path under `docs/standards/` so the
 reference resolves for the next reader.
-
-**Never edit a file in `docs/standards/`.** A correction goes UPSTREAM to the
-authored original and comes back as a new copy. Editing here produces a document
-that disagrees with the one everyone else is reading, with nothing anywhere to say
-which is real -- and the copy would be overwritten by the next one to land.
 
 - **The header version and the newest changelog entry must agree**, which
   `tests/standards-version-header.test.ts` asserts over every file in the
   directory. A header that has fallen behind its own changelog reads as correct and
   has already caused a document to be rewritten from a stale base. The test refuses
   the copy; it does not repair it.
-- **Their companions are NOT mirrored here** -- `IDEA_VERIFICATION_STANDARDS.md`,
-  `IDEA_Design_System.md` and `IDEA_MATERIALS_PROCESS.md` live only upstream, and the
-  copied documents cite them by bare name. A bare name with no `docs/standards/`
-  path is that: a pointer out of the repo, not a broken link.
+- **`IDEA_MATERIALS_PROCESS.md` is mirrored here** alongside the rest of the
+  registered set in `docs/standards/REGISTER.md`. It does not live upstream-only.
+- **Two names that used to route upstream never resolved to anything, and now
+  resolve here.** `IDEA_Design_System.md` was retired 2026-08-25; its content is
+  absorbed into `docs/standards/IDEA_CLAUDE_DESIGN_STANDARDS.md`. `IDEA_VERIFICATION_STANDARDS.md`
+  was a name cited into being and never written; the real document is
+  `docs/standards/IDEA_VERIFICATION_ADDENDA.md`, which deliberately keeps that
+  filename so existing references do not orphan.
 - **`docs/IDEA_MATERIAL_SPEC_v1.md` is a deliberate stub, not a standard**, and
   says so. It stays because an agent once cited it as authority; a stub that names
   the real document fails loudly where a deletion fails silently.
@@ -2902,17 +3197,23 @@ which is real -- and the copy would be overwritten by the next one to land.
 - **A module's `instructions` carry a 250-word TARGET and a 300-word CEILING**
   (`IDEA_MATERIAL_SPEC` v2.1). Instructions and the input tables share one scroll
   column on the item page, so teaching that explains WHY belongs in the unit
-  reference document and only bench procedure stays in the item. **The two
-  numbers are enforced in two different places, on purpose:** 251-300 is a
-  non-blocking WARNING from `validateSpec`, rendered in SpecImporter's problem
-  list and never gating publish; 301 fails `tests/spec-instructions-budget.test.ts`
-  by name and by count. **The count comes from the renderer's own
-  `parseMarkdown` walk** (`instructionsWordCount`), never a regex stripper --
-  a second syntax parser would charge an author for their own list markers and
-  the number a test failed on would not be the number on the page. Three
-  byte-identical authoring test copies are exempt BY PATH AND BY HASH, capped at
-  three; a fourth over-budget spec is a standards conversation, not a line added
-  to that list.
+  reference document and only bench procedure stays in the item. **NEITHER NUMBER
+  BLOCKS ANYTHING, and that is now the whole of it:** 251-300 is a non-blocking
+  WARNING from `validateSpec`, rendered in SpecImporter's problem list and never
+  gating publish, and 301 is the same warning with a different sentence. **The
+  count comes from the renderer's own `parseMarkdown` walk**
+  (`instructionsWordCount`), never a regex stripper -- a second syntax parser
+  would charge an author for their own list markers and the number reported
+  would not be the number on the page.
+  **`tests/spec-instructions-budget.test.ts` PINS THE COUNTER AND THE WARNING,
+  NOT THE CATALOGUE.** It used to sweep every spec under `materials/` and fail
+  on any module over the ceiling, with three specs exempted by path and by
+  pinned hash. That is deleted: `materials/` is an EXPORT the app writes on
+  every item save, so the sweep enforced an authoring standard against a mirror
+  of already-published work, could gate nothing, and turned CI red whenever a
+  teacher pressed save. **If the ceiling should ever BLOCK, that is a narrowing
+  of `validateSpec` with its own answer for the specs already stored** -- not a
+  test over a directory nobody edits by hand.
 - **Real quiz and rubric CONTENT is not committed to this repo.** It is pasted into
   its table by hand by whoever has SQL editor access, the same way the coin price
   list is maintained. A role or unit with zero questions is a legitimate state, not

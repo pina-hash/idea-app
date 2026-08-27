@@ -13,6 +13,54 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-26",
+			"title": "The notebook's local backup copy expires sooner",
+			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "Long answers no longer bury the rest of an assignment",
+			"body": "A written-answer box used to grow taller for every line you added, with no limit. On a phone a long answer could stretch the box past a full screen and a half, so getting to the next module meant scrolling through everything you had already written. The box now stops growing once it is tall enough for a long answer and scrolls inside itself after that. Nothing is cut off and nothing is lost: your whole answer is still there, and while you are typing the box follows your cursor as it always did. Written-answer boxes and photo captions also get your browser's spellcheck now, so misspellings are underlined the way they are anywhere else you type.",
+			"tags": [
+				"assignments"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "Your notebook keeps a copy of your writing on your own device",
+			"body": "If your phone or browser closes the notebook while you are part way through writing an entry, your words are no longer gone. The notebook now keeps a copy of what is in the writing box on the device you are typing on, and puts it back the next time you open the page. It still has to be saved or turned in the usual way, and the page says so when it puts something back, so you always know whether it has reached us. If the draft it belongs to already has writing saved on it, the page says that too, so you can read the saved version before you save over it.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "A new post shows up right away",
+			"body": "Posting to a class used to need a page refresh before it showed up in the list. Now it appears the moment it saves, at the top of the class page, with nothing to reload.",
+			"tags": [
+				"classroom"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "Your notebook writing is looked after better when the connection is poor",
+			"body": "Four changes to the digital notebook, all about what happens when a save does not get through. Turning an entry in now stops if your writing failed to save, and tells you so, instead of handing the entry in without it. Your words stay in the box, so you can try again. If you leave the page or your phone switches to something else mid sentence, the notebook now makes one last attempt to save what you have written. If the notebook refuses something, for example a note that is too long, you are told straight away rather than after a wait while it tries again several times. And on the rare setup where writing does not save itself as you go, the page now says so, so you know to use Save draft.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-25",
+			"title": "A published app gets a whole page, and a link you can share",
+			"body": "An app in the gallery used to run in a small box inside the page, so anything with a fixed playfield had to be zoomed out before you could use it. Two things change. There is a Full screen button beside Stop app, which hands the running app the whole window and gives it back with Escape or the button, and the app keeps going the whole time. And every published app now has a page of its own: open the app in the gallery and you will find its link under Share this app, with a button to copy it. Anyone you send that link to can open the app without signing in, and the page carries only the app -- your name, your class and your build notes stay in the gallery. If your app is taken down or you delete it, the link stops working straight away.",
+			"tags": [
+				"Foundry"
+			]
+		},
+		{
 			"date": "2026-08-25",
 			"title": "Your class list only shows students",
 			"body": "Teachers sometimes add their own account to a class so they can see it the way you do. Until now that account turned up everywhere a student would: on the check-in grid, in the grading list, and in the count of how many people are in the class. It does not any more, so the number on the Grades page and the names on the check-in grid are the class itself. Nothing about your own work changed, and nothing you have handed in moved. Your teacher can also now take a name off a class list for good, which only goes through when nothing at all has been handed in or written under it.",

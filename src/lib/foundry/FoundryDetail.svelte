@@ -21,7 +21,10 @@
 	 * yet. Nothing else about the surface changes between those two cases, which
 	 * is exactly why it is a parameter rather than a second component.
 	 */
+	import { env } from '$env/dynamic/public';
+
 	import AppStage from './AppStage.svelte';
+	import FoundryShare from './FoundryShare.svelte';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
 	import type { FoundryApp, FoundryGalleryTransports } from './transports.ts';
 
@@ -31,7 +34,23 @@
 		transports = {},
 		coverUrl = (path: string) => path,
 		frameHeight = '70vh',
-		runningLabel = ''
+		runningLabel = '',
+		/**
+		 * THE APPS ORIGIN, READ ONCE HERE AND HANDED DOWN.
+		 *
+		 * The frame src and the share link must name the SAME origin, and two
+		 * independent reads of one environment variable is the arrangement in
+		 * which they can differ -- a surface offering a link to one host while
+		 * running the app off another. So this reads it and passes it to
+		 * `AppStage` explicitly; `AppStage` keeps its own default for the harness
+		 * and the routes that mount it directly.
+		 *
+		 * UNSET REMOVES BOTH, which is the same strict direction the launch
+		 * control already takes: no origin, no frame and no link, rather than a
+		 * fallback to the current one -- which on the portal is the cookie-carrying
+		 * host the split exists to keep bundles off.
+		 */
+		appsOrigin = env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? ''
 	}: {
 		app: FoundryApp;
 		/** Defaults to whatever is published. Null with nothing published = no stage. */
@@ -40,12 +59,20 @@
 		coverUrl?: (path: string) => string;
 		frameHeight?: string;
 		runningLabel?: string;
+		appsOrigin?: string;
 	} = $props();
 
 	const runs = $derived(versionId ?? app.published_version_id);
 	const author = $derived(foundryAuthorName(app));
 	const authorClass = $derived(foundryAuthorClass(app));
 	const cover = $derived(app.cover_path ? coverUrl(app.cover_path) : null);
+
+	/**
+	 * THE SHARE LINK LIVES IN `FoundryShare`, which /foundry/mine mounts too.
+	 * The publication rule, the sentence about what the page carries and the
+	 * copy handler are all in there, so the two surfaces cannot drift apart on
+	 * any of them. This component supplies the app and the origin, nothing else.
+	 */
 </script>
 
 <article class="fdy-detail">
@@ -82,6 +109,7 @@
 			appId={app.id}
 			versionId={runs}
 			title={app.title}
+			{appsOrigin}
 			{transports}
 			height={frameHeight}
 			{runningLabel}
@@ -89,6 +117,8 @@
 	{:else}
 		<p class="fdy-detail-note">Nothing is published for this app yet.</p>
 	{/if}
+
+	<FoundryShare {app} {appsOrigin} sectionClass="fdy-detail-section" />
 
 	{#if app.description}
 		<section class="fdy-detail-section">
@@ -194,6 +224,11 @@
 		white-space: pre-wrap;
 		color: var(--text-1, var(--white));
 	}
+
+
+
+
+
 
 	.fdy-detail-note {
 		margin: 0;

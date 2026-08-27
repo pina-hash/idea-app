@@ -37,7 +37,8 @@ const MIGRATIONS = [
 	'0083_classroom_management.sql',
 	'0085_classroom_canonical_items.sql',
 	'0086_classroom_assignment_engine.sql',
-	'0095_classroom_leveled_rubrics.sql'
+	'0095_classroom_leveled_rubrics.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 let db: TestDb;

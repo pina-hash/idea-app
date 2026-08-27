@@ -89,12 +89,29 @@ describe('the fixture is the file that got through', () => {
 		expect(Buffer.byteLength(source), 'fixture bytes').toBeLessThan(30_000);
 	});
 
-	it('every one of the four is a hard fail under the reference rule', () => {
+	/**
+	 * THIS EXPECTATION HAS NOW BEEN THREE THINGS, AND THAT IS THE POINT OF
+	 * KEEPING IT.
+	 *
+	 * It began as "all four are refused", became "all four are repointed at
+	 * the copies we host", and is now "all four simply load". Each answer was
+	 * right for the sandbox of its day; what changed underneath was whether a
+	 * bundle could reach the network at all. There is no CSP on a bundle now,
+	 * so a CDN script tag works exactly as it does on any web page, and
+	 * refusing or rewriting one would be interfering with something correct.
+	 *
+	 * WHAT MUST NOT REGRESS EITHER WAY is that the classifier has an OPINION
+	 * about each of them rather than falling through by accident, which is
+	 * what the positive control below is for.
+	 */
+	it('classifies every one of the four as an ordinary web reference', () => {
 		for (const url of CDN_SCRIPTS) {
-			const verdict = classifyReference(url);
-			expect(verdict.kind, url).toBe('scheme');
-			if (verdict.kind === 'scheme') expect(verdict.scheme, url).toBe('https');
+			expect(classifyReference(url).kind, url).toBe('ok');
 		}
+		// POSITIVE CONTROL: the classifier is still capable of refusing, so
+		// four `ok`s are a decision and not a dead function.
+		expect(classifyReference('/lib/react.js').kind).toBe('absolute');
+		expect(classifyReference('ftp://x/y.js').kind).toBe('scheme');
 	});
 });
 
@@ -129,43 +146,32 @@ describe('scanHtml on the student’s file', () => {
 	 * named either way, carries its own line, and -- the half a refusal never
 	 * needed -- is GONE from the bytes that will be served.
 	 */
-	it('leaves none of the four alone: each is named, at its own line', () => {
+	/**
+	 * AND THE SCAN SAYS NOTHING AT ALL ABOUT THEM, which is a claim worth
+	 * making explicitly rather than leaving as an empty array somewhere.
+	 * "We stopped warning about CDN tags" and "the scanner stopped running"
+	 * produce the same empty result, so the positive control is the whole
+	 * assertion: the same scan, on the same file, still finds the ONE thing
+	 * that did not relax.
+	 */
+	it('reports nothing for four CDN script tags', () => {
 		const scan = scanHtml('index.html', source, workingReader);
 		expect(scan.parseFailed ?? false).toBe(false);
-
-		// Every one of them accounted for, by exactly one channel.
-		expect(scan.failures.length + scan.rewriteNotes.length, 'one answer each').toBe(4);
-
-		for (const [i, url] of CDN_SCRIPTS.entries()) {
-			const said = [...scan.failures.map((f) => f.message), ...scan.rewriteNotes].filter((m) =>
-				m.includes(url)
-			);
-			expect(said, `${url} is named exactly once`).toHaveLength(1);
-			// The line number is what sends a student to the right tag; a
-			// message without one is a scavenger hunt through their own file.
-			expect(said[0], `${url} line`).toContain(`index.html line ${7 + i}`);
-		}
+		expect(scan.failures).toEqual([]);
+		expect(scan.warnings).toEqual([]);
 	});
 
-	it('rewrites the served bytes and changes nothing else about them', () => {
-		const scan = scanHtml('index.html', source, workingReader);
-		expect(scan.rewritten, 'the repaired file').not.toBeNull();
-		const out = scan.rewritten as string;
-
-		// The CDN is gone.
-		for (const url of CDN_SCRIPTS) expect(out, url).not.toContain(url);
-		// Replaced by paths this platform serves, one per tag.
-		expect((out.match(/\/_platform\/lib\//g) ?? []).length, 'hosted paths').toBe(4);
-
-		/*
-		 * NOTHING ELSE MOVED, asserted as a byte count rather than by eye. Only
-		 * the four attribute values differ, so the two files agree line for
-		 * line and everything outside those four spans is identical -- which is
-		 * what "never reserialize the document" means in a number.
-		 */
-		expect(out.split('\n').length, 'line count').toBe(source.split('\n').length);
-		const strip = (s: string) => s.split(/https:\/\/unpkg\.com\/\S+?"|\/_platform\/lib\/\S+?"/).join('|');
-		expect(strip(out), 'every byte outside the four values').toBe(strip(source));
+	it('still reports the storage call in the same file', () => {
+		const storageReader: HtmlReader = (): HtmlFacts => ({
+			refs: CDN_SCRIPTS.map((value) => ({ tag: 'script', attr: 'src', value })),
+			title: 'Study Timer',
+			inlineScripts: [
+"\nconst saved = localStorage.getItem('t');\n"
+			]
+		});
+		const scan = scanHtml('index.html', source, storageReader);
+		expect(scan.failures).toEqual([]);
+		expect(scan.warnings.map((w) => w.message).join(' ')).toContain('localStorage');
 	});
 });
 

@@ -139,7 +139,8 @@ beforeAll(async () => {
 		...MIGRATIONS,
 		'0073_coin_sections.sql',
 		'0077_coin_contracts.sql',
-		'0084_coin_legacy_import.sql'
+		'0084_coin_legacy_import.sql',
+		'0137_anon_execute_sweep.sql'
 	]);
 
 	owner = await createUser(db, 'apina@boscotech.edu', 'Site Owner');

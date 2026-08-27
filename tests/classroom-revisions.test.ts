@@ -40,7 +40,9 @@ const MIGRATIONS = [
 	'0104_classroom_edit_visibility.sql',
 	'0108_classroom_rich_body.sql',
 	'0109_classroom_scheduled_posting.sql',
-	'0110_classroom_content_revisions.sql'
+	'0110_classroom_content_revisions.sql',
+	// LAST: the sweep runs over whatever the chain above created.
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 const MIGRATION_0110 = readFileSync(

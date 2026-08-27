@@ -2,12 +2,19 @@
 	/**
 	 * THE ONE FRAME A PUBLISHED BUNDLE IS EVER SHOWN IN.
 	 *
-	 * The gallery does not exist yet; when it does, it mounts THIS, and the dev
-	 * harness at /dev/foundry-proxy mounts it too. There is exactly one place
-	 * where the sandbox attribute is written down, because the failure mode of a
-	 * second copy is a frame that looks identical and isolates nothing.
+	 * The gallery, the detail view, the review queue and the dev harnesses all
+	 * mount THIS. There is exactly one place where the sandbox attribute is
+	 * written down, because the failure mode of a second copy is a frame that
+	 * looks identical and isolates nothing.
 	 *
-	 * `allow-same-origin` IS THE ONE FLAG THAT MUST NEVER APPEAR HERE.
+	 * THE FLAGS THEMSELVES LIVE IN `bundle-headers.ts` NOW, and that is the
+	 * change. They used to be written out here as the single copy, which was
+	 * right while the attribute was the only place they appeared -- but the
+	 * SERVING side has to send the same flags as a CSP `sandbox` directive, and
+	 * a second spelling of them over there is a frame and a document that can
+	 * drift apart with nothing to compare them. One constant, two readers.
+	 *
+	 * `allow-same-origin` IS THE ONE FLAG THAT MUST NEVER APPEAR THERE.
 	 * `allow-scripts` and `allow-same-origin` together cancel the sandbox
 	 * outright: a framed document given both can reach into its own origin,
 	 * remove its own sandbox attribute from the parent document and reload
@@ -28,16 +35,18 @@
 	 * `allow-downloads`, `allow-modals`' louder cousins. None of them is needed
 	 * by the build contract and each is a way out of the frame.
 	 *
-	 * THE ATTRIBUTE IS NOT THE ONLY SANDBOX. The proxy sends the same flags as a
-	 * CSP `sandbox` directive on the document itself, so a student who navigates
+	 * THE ATTRIBUTE IS NOT THE ONLY SANDBOX. The serving route sends the same
+	 * flags as a CSP `sandbox` directive on the document, so a student who navigates
 	 * straight to a bundle URL -- outside any frame -- lands in the same opaque
 	 * origin. The attribute cannot cover that case and the directive cannot
 	 * cover a frame the portal renders with different flags, so both are real.
 	 *
-	 * This component fetches nothing and knows nothing about tokens. The route
-	 * that mounts it owns the mint and hands over a `src`, per the
+	 * This component fetches nothing. There is no token and no mint anywhere on
+	 * this path any more; the caller hands over a plain `src`, per the
 	 * presentation-takes-props convention.
 	 */
+	import { FOUNDRY_SANDBOX_FLAGS } from './bundle-headers.ts';
+
 	let {
 		src,
 		title,
@@ -54,17 +63,39 @@
 		 * fires IntersectionObserver at all, so a lazy frame there never loads
 		 * and every assertion about it passes vacuously.)
 		 */
-		loading = 'lazy'
+		loading = 'lazy',
+		/**
+		 * TAKE THE WHOLE BOX THE CALLER GIVES ME, instead of `height`.
+		 *
+		 * This is what full screen needs, and it is a PROP rather than a height
+		 * value because the two are different mechanisms and only one of them can
+		 * win: `height` is written as an INLINE STYLE, and an inline style beats
+		 * every class rule -- so a caller trying to reach the full viewport by
+		 * passing `height="100%"` would be resting on a percentage resolving
+		 * against a wrapper whose own height is a flex computation. `fill` drops
+		 * the inline height entirely and lets the box grow, which is the only
+		 * arrangement in which the frame is exactly as tall as whatever is around
+		 * it.
+		 *
+		 * IT MUST NOT REMOUNT THE FRAME. Full screen is a class change on an
+		 * ANCESTOR of this element and a flag on this one; the <iframe> is never
+		 * unmounted and its `src` is never rewritten, so a running app keeps its
+		 * state, its timers and its audio across the transition. An implementation
+		 * that swapped one frame for another would restart every app anybody ever
+		 * maximised.
+		 */
+		fill = false
 	}: {
 		src: string;
 		title: string;
 		height?: string;
 		notice?: string;
 		loading?: 'lazy' | 'eager';
+		fill?: boolean;
 	} = $props();
 </script>
 
-<div class="fdy-frame-wrap">
+<div class="fdy-frame-wrap" class:is-fill={fill}>
 	{#if notice}
 		<p class="fdy-notice">{notice}</p>
 	{/if}
@@ -78,8 +109,8 @@
 		{src}
 		{title}
 		class="fdy-frame"
-		style="height: {height};"
-		sandbox="allow-scripts allow-modals allow-pointer-lock"
+		style={fill ? '' : `height: ${height};`}
+		sandbox={FOUNDRY_SANDBOX_FLAGS}
 		referrerpolicy="no-referrer"
 		{loading}
 	></iframe>
@@ -98,6 +129,29 @@
 		font-family: var(--font-mono);
 		font-size: 0.85rem;
 		color: var(--text-2, var(--dim));
+	}
+
+	/*
+		FULL SCREEN IS A BOX CHANGE AND NOTHING ELSE. The wrap grows into whatever
+		the caller's flex column gives it and the frame grows into the wrap; the
+		element, its src and its sandbox attribute are untouched, which is what
+		keeps a running app running across the transition.
+
+		THE BORDER AND THE RADIUS GO. The whole point of the state is room, and a
+		rounded 1px edge at the viewport boundary spends it on separating the frame
+		from nothing.
+	*/
+	.fdy-frame-wrap.is-fill {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+
+	.fdy-frame-wrap.is-fill .fdy-frame {
+		flex: 1 1 auto;
+		min-height: 0;
+		height: auto;
+		border: 0;
+		border-radius: 0;
 	}
 
 	.fdy-frame {

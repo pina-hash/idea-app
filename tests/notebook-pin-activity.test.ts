@@ -50,7 +50,8 @@ import {
 const CHAIN = [
 	...MIGRATIONS.filter((m) => m !== '0098_notebook_session_postings.sql'),
 	'0091_notebook_pin_and_activity.sql',
-	'0098_notebook_session_postings.sql'
+	'0098_notebook_session_postings.sql',
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 const MIGRATION_PATH = fileURLToPath(

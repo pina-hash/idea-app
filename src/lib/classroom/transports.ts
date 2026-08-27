@@ -373,6 +373,22 @@ export async function itemsForSection(
 }
 
 /**
+ * One item by id, in the same shape `itemsForSection` returns -- for a caller
+ * that already knows which row it wants and does not want to refetch the
+ * whole section to get it (the section layout's create composer, adding a
+ * freshly created post to the list it already holds instead of reloading it).
+ */
+export async function itemById(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<ClassroomItem | null> {
+	const { data } = await selectItemsWithDoc((select) =>
+		supabase.from('classroom_items').select(select).eq('id', itemId).maybeSingle()
+	);
+	return data ? normalizeItemRow(data as unknown as Record<string, unknown>) : null;
+}
+
+/**
  * THE INSTRUCTOR HALF OF THE ONE UPLOAD PATH.
  *
  * There is deliberately almost nothing here: sign, PUT, record, and the

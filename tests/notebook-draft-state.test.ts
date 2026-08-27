@@ -67,11 +67,16 @@ const CHAIN = [
 	'0114_notebook_note_entry_session.sql',
 	'0116_notebook_soft_delete.sql',
 	'0117_notebook_soft_delete_restore.sql',
-	'0118_notebook_draft_state.sql'
+	'0118_notebook_draft_state.sql',
+	// LAST: the sweep is over whatever the chain above created, and the grant
+	// assertions below are only true once it has run.
+	'0137_anon_execute_sweep.sql'
 ] as const;
 
 /** The same chain stopping one short: the world the backfill has to migrate. */
-const PRE_DRAFT_CHAIN = CHAIN.filter((m) => m !== '0118_notebook_draft_state.sql');
+const PRE_DRAFT_CHAIN = CHAIN.filter(
+	(m) => m !== '0118_notebook_draft_state.sql' && m !== '0137_anon_execute_sweep.sql'
+);
 
 const MIGRATION_0118 = readFileSync(
 	fileURLToPath(new URL('../supabase/migrations/0118_notebook_draft_state.sql', import.meta.url)),

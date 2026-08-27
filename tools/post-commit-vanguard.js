@@ -1,3 +1,20 @@
+// UNWIRED: this script is written as a git post-commit hook, but nothing
+// invokes it. There is no `.git/hooks/post-commit` and `core.hooksPath` is
+// unset, and neither is set up anywhere in this repo's tooling. A local git
+// hook cannot work in this project's cloud-only workflow anyway -- every
+// session runs in a fresh, ephemeral clone with no persistent `.git/hooks/`
+// to install into, so there is no lasting place to wire it even if a session
+// tried. Do not delete it and do not wire it; it stays as a record of the
+// intended mechanism.
+//
+// The VERSION uptick and CHANGELOG entry this script was written to perform
+// on a VANGUARD-touching commit are, as of this writing, happening BY HAND:
+// recent commits editing src/lib/legacy/vanguard/index.html show VERSION and
+// CHANGELOG bumped manually inside the commit's own diff, not by this
+// script. That hand process has also drifted -- VERSION currently reads
+// '213' while the newest CHANGELOG entry is still '212', a discontinuity
+// consistent with a manual bump made without also adding a changelog line.
+
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';

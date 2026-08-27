@@ -1,0 +1,207 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Unit 1 Assignment: Loading Scenario",
+    "course": "IDEA209H",
+    "subtitle": "Pivoting arm mechanism · the problem every calculation and every selection comes back to",
+    "referenceId": "idea209h-u1a-scenario",
+    "buildVersion": "v2"
+  },
+  "sections": [
+    {
+      "slug": "mechanism",
+      "blurb": "What the arm is and what it has to do.",
+      "title": "The Mechanism",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A pivoting arm is mounted to a structural upright on a competition robot. A motor drives it through a reduction at the pivot. The arm reaches out, picks up a game piece at its tip, and has to hold it there.\n\n**You are sizing it for the worst case, which is the arm held horizontal.** That is where the loads act at their full distance from the pivot, so it is where the pivot has to work hardest. Every number you produce is for that position.\n\n![Fig 1. Pivoting arm, side elevation. Arm weight of 4 lbf acts at the centre of mass, 12 in from the pivot. The 6 lbf game piece acts at the tip, 24 in from the pivot. Not to scale.](attachment:scenario-arm.png)"
+        },
+        {
+          "type": "callout",
+          "title": "Today you read this and nothing else",
+          "content": "Do not start calculating. In your notebook, write your first read of it: what the mechanism has to do, what you were given, and what you think you will have to work out. You will be wrong about some of it, and that is the point of dating it.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "givens",
+      "blurb": "Every value the problem hands you, and the one it deliberately does not.",
+      "title": "What You Are Given",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "q": "Arm length, pivot to tip",
+              "v": "24 in"
+            },
+            {
+              "q": "Arm weight",
+              "v": "4 lbf"
+            },
+            {
+              "q": "Arm centre of mass, from the pivot",
+              "v": "12 in"
+            },
+            {
+              "q": "Game piece weight, at the tip",
+              "v": "6 lbf"
+            },
+            {
+              "q": "Motor",
+              "v": "Kraken X60"
+            },
+            {
+              "q": "Required sweep",
+              "v": "90 degrees in not more than 0.50 s"
+            },
+            {
+              "q": "Required factor of safety on holding torque",
+              "v": "2.0"
+            },
+            {
+              "q": "Arm-to-hub joint",
+              "v": "4 bolts on a 1.50 in bolt circle radius"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Given values",
+          "caption": null,
+          "columns": [
+            {
+              "key": "q",
+              "label": "Quantity"
+            },
+            {
+              "key": "v",
+              "label": "Value"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "The motor's numbers are not given here on purpose",
+          "content": "Free speed and stall torque come off the manufacturer's published specification. You look them up and you record where you found them. That is the same habit Checkpoint 2 grades on every component you select, and it starts here.",
+          "variant": "required"
+        }
+      ]
+    },
+    {
+      "slug": "deliverables",
+      "blurb": "The four stages, and what each one is judged on.",
+      "title": "What You Produce",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "d": "Forces identified, holding torque, gear ratio, and shaft load. Work shown, units carried, every result tied back to this scenario.",
+              "s": "Checkpoint 1"
+            },
+            {
+              "d": "Real components selected from real catalogs and justified against published properties, including a shear sizing calculation for at least one fastener. Plus a complete Bill of Materials.",
+              "s": "Checkpoint 2"
+            },
+            {
+              "d": "The whole thing assembled, with your checkpoint corrections folded in.",
+              "s": "Report"
+            },
+            {
+              "d": "You present it, and every number and every decision gets challenged.",
+              "s": "Defense"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Stages",
+          "caption": null,
+          "columns": [
+            {
+              "key": "s",
+              "label": "Stage"
+            },
+            {
+              "key": "d",
+              "label": "What is due"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "worth-knowing",
+      "blurb": "The three places this problem is most often gotten wrong.",
+      "title": "Three Things Worth Knowing Now",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### Torque and shaft load are different numbers\nTorque is a twisting moment about the pivot. Shaft load is the straight-down force the bearing physically carries. Both matter, they are not the same quantity, and confusing them is the most common error on this kind of problem."
+        },
+        {
+          "type": "instructions",
+          "content": "### The reduction has two requirements, and only one of them binds\nYour reduction has to move the arm through its required sweep in the required time, and it has to deliver the holding torque with a factor of safety of 2.0 against the motor's published stall torque. Work out both. Part of the answer is finding out which of the two is actually driving your choice, because it is not always the one you expect. Real gearboxes reach their ratios by stacking stages, and stacked stages multiply. Round to a ratio you can actually buy."
+        },
+        {
+          "type": "instructions",
+          "content": "### A large margin is a real answer, and it still has to be shown\nWhen you size the hub bolts you may find the smallest bolt in the shop clears the load several times over. That is a legitimate result and it is not a sign you did it wrong. What is not legitimate is skipping the calculation and asserting it is fine. Show the number, then say the margin is large."
+        }
+      ]
+    },
+    {
+      "slug": "sources",
+      "blurb": "What this document was built from, and what you owe in return.",
+      "title": "Sources",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "e": "6th ed., 2018",
+              "w": "Machine Elements in Mechanical Design",
+              "x": "Course reference library"
+            },
+            {
+              "e": "10th ed., 2015",
+              "w": "Shigley's Mechanical Engineering Design",
+              "x": "Course reference library"
+            },
+            {
+              "e": "As published",
+              "w": "Manufacturer specification, Kraken X60",
+              "x": "You look this up and record it"
+            },
+            {
+              "e": "As cited",
+              "w": "Vendor catalog pages",
+              "x": "You record one per selection"
+            }
+          ],
+          "type": "dataTable",
+          "title": "Sources",
+          "caption": null,
+          "columns": [
+            {
+              "key": "w",
+              "label": "Work"
+            },
+            {
+              "key": "e",
+              "label": "Edition"
+            },
+            {
+              "key": "x",
+              "label": "Where"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "This is the model",
+          "content": "Everything in this document traces to one of the works above. Your report has to trace to something too. The last two rows are deliberately yours to fill.",
+          "variant": "info"
+        }
+      ]
+    }
+  ],
+  "navigation": "tabs",
+  "schemaVersion": 2
+}

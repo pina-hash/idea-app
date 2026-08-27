@@ -379,6 +379,20 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# ---------------------------------------------------------------------------
+# THERE IS NO `foundry-serve` FUNCTION ANY MORE, and no block for one.
+#
+# It was deployed and it ran correctly, but nothing Supabase-hosted will serve
+# HTML: the hosted Edge Function gateway rewrites `text/html` to `text/plain`
+# AND replaces the function's own CSP with `default-src 'none'; sandbox`, which
+# blanks the page even once the type is corrected. Storage's renderer does the
+# same rewrite on every path. Measured on the real project in both cases. A
+# published bundle is served by an ordinary SvelteKit route on the apps origin
+# now; see `src/routes/b/[appId]/[versionId]/[...path]/+server.ts`.
+#
+# `foundry-ingest` deliberately has NO block here either: it keeps the default
+# verify_jwt = true, because its whole first act is establishing which student
+# is calling.
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
