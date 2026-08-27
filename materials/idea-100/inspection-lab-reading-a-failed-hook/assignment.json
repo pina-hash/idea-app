@@ -7,7 +7,7 @@
     "dueDate": "2026-08-27",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-lab-01",
-    "buildVersion": "v2",
+    "buildVersion": "v4",
     "headerFields": [
       "studentName",
       "date"
@@ -18,90 +18,116 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Written on paper at the rig, while it happens. Transcribed here after.",
-      "title": "What You Watched Break",
-      "aiNote": "No AI. This is a record of something you watched happen, and you were the only one there.",
+      "intro": "One 1v1 pull, run exactly the way the tournament will run in September.",
+      "title": "The Match",
+      "aiNote": "No AI. You were in the room and it happened once.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "One row per hook broken today.\n\n**Guess before each pull.** Say where you think it will go, out loud or on paper, then watch. Being wrong is worth more here than being right, because the gap between what you expected and what happened is the only thing on this page that will change how you design."
+          "content": "Two hooks, linked in one load path, pulled against each other until one breaks.\n\n**Call it before the pull.** Which hook survives, and where will the loser go. Write it down first. Being wrong is worth more than being right, because the gap between what you called and what happened is the only thing on this page that changes how you design.\n\nThen fill both rows: the one that broke and the one that did not."
         },
         {
           "id": "t1",
           "type": "table",
-          "points": 3,
+          "points": 2,
           "columns": [
             {
               "key": "hook",
-              "tip": "Number them as they come out.",
-              "label": "Which hook"
+              "tip": "A or B.",
+              "label": "Hook"
             },
             {
-              "key": "where",
-              "tip": "Throat, anchor, shank, or it pulled open.",
-              "label": "Where it broke"
+              "key": "called",
+              "tip": "Survives, or breaks and where.",
+              "label": "What you called before the pull"
             },
             {
-              "key": "expected",
-              "tip": "What you called before the pull.",
-              "label": "Where you expected"
+              "key": "happened",
+              "tip": "Broke where, or survived.",
+              "label": "What actually happened"
             },
             {
-              "key": "note",
-              "tip": "Sound, speed, whether it warned you first.",
-              "label": "One thing you noticed"
+              "key": "after",
+              "tip": "Look closely at the survivor. Cracks, whitening, bending.",
+              "label": "Condition after"
             }
           ],
-          "minRows": 3,
-          "printRows": 5,
+          "minRows": 2,
+          "printRows": 2,
           "rowImages": false,
           "statusColumn": false
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 2,
+          "prompt": "The winning hook advances to the next match in whatever condition it is now in. Based on what you can see on it, would you send it again, or hold it back and send your other hook?",
+          "maxSentences": 3,
+          "minSentences": 2
         }
       ],
-      "points": 3,
+      "points": 4,
       "rubric": [
         {
           "id": "r1",
           "levels": [
             {
               "label": "Complete",
-              "short": "All hooks, both columns",
-              "points": 3,
-              "descriptor": "Every hook broken today has a row carrying both a predicted location and an observed one."
-            },
-            {
-              "label": "Proficient",
-              "short": "All hooks, one gap",
+              "short": "Both hooks, called first",
               "points": 2,
-              "descriptor": "Every hook has a row, but at least one prediction is missing or was filled in after the pull."
+              "descriptor": "Both rows filled, each carrying a call made before the pull and what actually happened beside it."
             },
             {
               "label": "Developing",
-              "short": "Some hooks recorded",
+              "short": "One row or called late",
               "points": 1,
-              "descriptor": "Fewer hooks than were broken, or observed locations only with no predictions."
+              "descriptor": "Only one hook recorded, or the call column was filled in once the result was already known."
             },
             {
               "label": "Absent",
               "short": "Nothing recorded",
               "points": 0,
-              "descriptor": "No rows, or rows written from memory after the demonstrations ended."
+              "descriptor": "Table empty, or written from memory after the demonstration ended."
             }
           ],
-          "criterion": "A prediction was made before each pull and both are recorded"
+          "criterion": "A call was made before the pull and both hooks are recorded"
+        },
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Cites visible damage",
+              "points": 2,
+              "descriptor": "Names something specific observed on the surviving hook and reasons from it to a decision."
+            },
+            {
+              "label": "Developing",
+              "short": "Decides without evidence",
+              "points": 1,
+              "descriptor": "Reaches a decision but supports it with general reasoning rather than with what is on the part."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank or interchangeable",
+              "points": 0,
+              "descriptor": "Blank, or an answer that would read identically for any hook in any condition."
+            }
+          ],
+          "criterion": "The send-or-hold judgment reasons from the survivor's actual condition"
         }
       ],
       "aiLevel": 0
     },
     {
       "id": "m2",
-      "intro": "Pick one broken hook off the bench and run the full inspection on it.",
+      "intro": "Take a hook out of the box of past-tournament breaks and run the full inspection on it.",
       "title": "The Lab",
       "aiNote": "No AI. You are reading instruments. There is nothing here to look up.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Take one hook, a set of calipers or a ruler, and the scale.\n\n**Record what the calipers say, not whether it passed.** A hook that reads 61.4 g failed by 1.4 g, and a hook that reads 88 g was never close. Those are different parts and \"fail\" hides the difference. Numbers first, verdict second.\n\nWork one row at a time. If a check does not apply to your hook because that part of it is gone, write what is missing."
+          "content": "Take one hook from the box, a set of calipers or a ruler, and the scale.\n\n**Record what the calipers say, not whether it passed.** A hook that reads 61.4 g failed by 1.4 g, and a hook that reads 88 g was never close. Those are different parts and \"fail\" hides the difference. Numbers first, verdict second.\n\nWork one row at a time. If a check does not apply to your hook because that part of it is gone, write what is missing."
         },
         {
           "id": "t2",
@@ -210,7 +236,7 @@
         {
           "id": "t3",
           "type": "table",
-          "points": 3,
+          "points": 2,
           "columns": [
             {
               "key": "design",
@@ -234,7 +260,7 @@
           "statusColumn": false
         }
       ],
-      "points": 3,
+      "points": 2,
       "rubric": [
         {
           "id": "r4",
@@ -242,20 +268,14 @@
             {
               "label": "Complete",
               "short": "Two designs, both justified",
-              "points": 3,
-              "descriptor": "Two distinct designs named, each with a specific feature and a reason tied to a failure watched or a measurement taken today."
-            },
-            {
-              "label": "Proficient",
-              "short": "Two designs, one justified",
               "points": 2,
-              "descriptor": "Two designs named with specific features, but only one reason connects to today's evidence."
+              "descriptor": "Two distinct designs named, each with a specific feature and a reason tied to the match or to a measurement taken today."
             },
             {
               "label": "Developing",
               "short": "Describes rather than borrows",
               "points": 1,
-              "descriptor": "Designs are described in general terms without naming what is being taken from them."
+              "descriptor": "Two designs named but described in general terms, or only one reason connects to today's evidence."
             },
             {
               "label": "Absent",
@@ -277,7 +297,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Sketch your hook by hand and put **five dimensions** on it: overall length, both hole diameters, centre to centre, throat opening width, and thickness.\n\nNumbers, not proportions. \"About this wide\" is not a dimension.\n\nThis sketch is what you build from on Monday. A student who opens SolidWorks without numbers spends the period nudging geometry until it looks right and ends up with a part nobody can check against the rules."
+          "content": "Sketch your hook by hand and put **five dimensions** on it: overall length, both hole diameters, centre to centre, throat opening width, and thickness.\n\nNumbers, not proportions. \"About this wide\" is not a dimension.\n\nThis sketch is what you build from tomorrow. A student who opens SolidWorks without numbers spends the period nudging geometry until it looks right and ends up with a part nobody can check against the rules."
         },
         {
           "id": "z1",
