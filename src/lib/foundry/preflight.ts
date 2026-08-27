@@ -57,12 +57,55 @@ import { FOUNDRY_STORAGE_SHIM_JS, FOUNDRY_STORAGE_SHIM_TAG } from './storage-shi
  * Caps and vocabulary.
  * ---------------------------------------------------------------------- */
 
+/**
+ * THESE THREE NUMBERS ARE BOUNDED BY `foundry-ingest` BUFFERING THE WHOLE
+ * ARCHIVE, NOT BY ANYTHING STREAMING.
+ *
+ * `readCentralDirectory`/`inflateEntry` in `./zip.ts` hold the entire zip in
+ * one `Uint8Array` (its own header says so: "both hold the whole archive
+ * already -- it is capped at 25 MB, so there is nothing to stream around"),
+ * and the ingest function inflates EVERY file into one `built` array BEFORE
+ * writing a single byte to Storage -- deliberately, so a hard failure leaves
+ * the bucket untouched. So the peak resident set for one invocation is
+ * roughly `zipBytes` (the downloaded archive) plus `totalBytes` (every
+ * inflated file held at once), plus one transient UTF-8 string for whichever
+ * text file is mid-scan, plus the Deno isolate's own baseline.
+ *
+ * At the old caps that peak was at most ~50 MB of bytes. Raised here to 50 MB
+ * zip / 75 MB unpacked (~125 MB of bytes at the worst case), which is a
+ * deliberately CONSERVATIVE roughly-2.5x rather than a measured ceiling: nothing
+ * in this session could load-test the real Supabase Edge Function memory limit
+ * against it, so this is bounded by reasoning about the buffering shape, not by
+ * a number read off a production run. **THE ONE DIRECTLY COMPARABLE PRECEDENT
+ * IN THIS REPO IS THE OPPOSITE LESSON**: the classroom deck upload (a
+ * different runtime -- Node on Vercel, not Deno on Supabase) needed 150 MB
+ * zip / 300 MB unpacked and `docs/HISTORY.md` records that "buffering could
+ * not have survived" those numbers -- it had to move to a `ZipSource` that
+ * reads one entry at a time. That is evidence buffering has a ceiling well
+ * below 150+300 MB somewhere, not evidence about where; it is offered here as
+ * a reason to stay well clear of that region rather than as a measurement of
+ * this runtime. If the real ceiling on Supabase's Edge Function needs to be
+ * confirmed, or these caps need to go higher, `foundry-ingest` has to stop
+ * buffering first: read the zip's central directory (its own last few
+ * kilobytes) without inflating anything, then inflate and upload ONE entry at
+ * a time -- mirroring the deck reader's `ZipSource` shape -- so the resident
+ * set is bounded by the largest single file rather than by the archive.
+ *
+ * `maxFiles` is a different axis and is not gated on the same argument: each
+ * additional file costs one small array entry and, at write time, one Storage
+ * `upload()` round trip -- it is bounded by FUNCTION DURATION, the same
+ * distinction `docs/HISTORY.md` draws for the deck reader's own 500-entry cap
+ * ("THE REMAINING CEILING IS FUNCTION DURATION, not memory"). Raised further
+ * than the byte caps for that reason: real engine exports (Unity WebGL,
+ * Godot's web export, a Phaser/Construct project with a sprite atlas) commonly
+ * ship many small files well past 500 before touching either byte cap.
+ */
 export const FOUNDRY_LIMITS = {
 	/** The zip as uploaded. */
-	maxZipBytes: 25 * 1024 * 1024,
-	maxFiles: 500,
+	maxZipBytes: 50 * 1024 * 1024,
+	maxFiles: 1500,
 	/** Everything the zip unpacks to, counted while unpacking. */
-	maxTotalBytes: 25 * 1024 * 1024,
+	maxTotalBytes: 75 * 1024 * 1024,
 	/** Not a refusal -- a single asset above this earns a warning. */
 	warnAssetBytes: 5 * 1024 * 1024
 } as const;
@@ -124,7 +167,58 @@ export const FOUNDRY_ALLOWED_EXTENSIONS = [
 	 * cannot serve .ico" learns only that the platform is arbitrary. It is a
 	 * bitmap container with no script surface, served with a real type below.
 	 */
-	'ico'
+	'ico',
+	/*
+	 * THE FORMATS A REAL GAME ENGINE EXPORT ACTUALLY SHIPS IN. Every one of
+	 * these is inert on its own -- none of them is a language a browser
+	 * executes as a document or a script, which is the property that lets
+	 * `.js`/`.html`/`.css`/`.mjs`/`.htm` sit in the same list as a texture or an
+	 * audio clip.
+	 */
+	// An equivalent entry-file shape; see FOUNDRY_ENTRY_FILE resolution below.
+	'htm',
+	// An ES module by another name; browsers treat the extension identically.
+	'mjs',
+	// WebAssembly: what a Unity/Godot/Emscripten web export streams-compiles.
+	'wasm',
+	// Fonts a build ships instead of linking, alongside the existing woff2/ttf.
+	'woff',
+	'otf',
+	// Video and audio an engine export or a cutscene actually uses.
+	'mp4',
+	'webm',
+	'm4a',
+	'aac',
+	'opus',
+	'flac',
+	// Images beyond the existing raster/vector set.
+	'avif',
+	'bmp',
+	// Data an engine's own loader reads, never executed as markup or script.
+	'xml',
+	'csv',
+	'vtt',
+	// glTF, the standard 3D asset interchange format.
+	'glb',
+	'gltf',
+	/*
+	 * ENGINE PAYLOAD FILES, ALLOWED AS application/octet-stream -- see
+	 * MIME_BY_EXT below. A loader `fetch`es every one of these as raw bytes
+	 * (an ArrayBuffer), never as a document or a script, so there is no wrong
+	 * type to guess at and no execution surface to worry about: `data`/`mem`
+	 * (Emscripten/Unity WebGL data segments), `pck` (Godot's packed export),
+	 * `bin` (glTF's binary buffer, and a generic engine data blob), `atlas`
+	 * (a sprite-sheet's own index, e.g. Spine/TexturePacker), `fnt` (a bitmap
+	 * font descriptor), `obj`/`mtl` (Wavefront 3D geometry and its materials).
+	 */
+	'data',
+	'mem',
+	'pck',
+	'bin',
+	'atlas',
+	'fnt',
+	'obj',
+	'mtl'
 ] as const;
 
 export type FoundryExtension = (typeof FOUNDRY_ALLOWED_EXTENSIONS)[number];
@@ -150,8 +244,15 @@ export type FoundryExtension = (typeof FOUNDRY_ALLOWED_EXTENSIONS)[number];
  * `.ts` or a `.scss` is a SOURCE file, and a bundle containing one means the
  * student shipped the wrong folder -- that stays a refusal, because the
  * refusal is the thing that tells them.
+ *
+ * `.map` JOINS `.md` FOR THE SAME REASON, NOT A NEW ONE: A SOURCE MAP IS
+ * INERT. Nothing on this platform reads it -- there is no devtools session
+ * attached to a sandboxed bundle that would ever request one -- and it
+ * cannot execute or be navigated to. Failing a whole upload because a
+ * bundler emitted `app.js.map` next to `app.js` is the same wrong trade a
+ * README already gets an exception from.
  */
-export const FOUNDRY_IGNORED_EXTENSIONS = ['md'] as const;
+export const FOUNDRY_IGNORED_EXTENSIONS = ['md', 'map'] as const;
 
 const IGNORED = new Set<string>(FOUNDRY_IGNORED_EXTENSIONS);
 
@@ -189,7 +290,54 @@ const MIME_BY_EXT: Record<string, string> = {
 	ttf: 'font/ttf',
 	// The IANA-registered name. `image/x-icon` is the older de-facto spelling
 	// and both work; this one is the one that is actually registered.
-	ico: 'image/vnd.microsoft.icon'
+	ico: 'image/vnd.microsoft.icon',
+	// `index.htm` resolves to the canonical entry name before it is ever
+	// stored (see FOUNDRY_ENTRY_FILE resolution), but a NON-entry `.htm` page
+	// still needs to be served as a document.
+	htm: 'text/html; charset=utf-8',
+	// An ES module by another name; a browser needs the same executable type
+	// `.js` gets or a `<script type="module">` referencing it will not run.
+	mjs: 'text/javascript; charset=utf-8',
+	// The IANA-registered type; required for `WebAssembly.compileStreaming`,
+	// which refuses to compile a response served as anything else.
+	wasm: 'application/wasm',
+	woff: 'font/woff',
+	otf: 'font/otf',
+	mp4: 'video/mp4',
+	webm: 'video/webm',
+	m4a: 'audio/mp4',
+	aac: 'audio/aac',
+	opus: 'audio/ogg',
+	flac: 'audio/flac',
+	avif: 'image/avif',
+	bmp: 'image/bmp',
+	xml: 'application/xml; charset=utf-8',
+	csv: 'text/csv; charset=utf-8',
+	vtt: 'text/vtt; charset=utf-8',
+	glb: 'model/gltf-binary',
+	gltf: 'model/gltf+json; charset=utf-8',
+	/*
+	 * DELIBERATELY application/octet-stream, THE SAME TYPE AN UNRECOGNISED
+	 * EXTENSION FALLS BACK TO -- and that is not a placeholder, it is the
+	 * right answer. Every engine loader that reads one of these fetches it as
+	 * an ArrayBuffer and inspects the bytes itself; none of them is parsed as
+	 * a document, a stylesheet or a script by the browser, so there is no
+	 * "real" type being withheld. Writing them out explicitly here (rather
+	 * than leaving them to the `??` fallback in `foundryMime`) is what keeps
+	 * them in `SERVABLE_TYPES` below -- an extension left out of this table
+	 * entirely would still upload (it is on FOUNDRY_ALLOWED_EXTENSIONS) but
+	 * the serving route could not tell its stored type from a stored type
+	 * nobody ever wrote, which is a distinction worth keeping honest even
+	 * though both answers are the same string today.
+	 */
+	data: 'application/octet-stream',
+	mem: 'application/octet-stream',
+	pck: 'application/octet-stream',
+	bin: 'application/octet-stream',
+	atlas: 'application/octet-stream',
+	fnt: 'application/octet-stream',
+	obj: 'application/octet-stream',
+	mtl: 'application/octet-stream'
 };
 
 /** Lowercased extension with no dot, or '' when the name carries none. */
@@ -229,7 +377,15 @@ export function servableFoundryType(stored: string | null | undefined): string {
 }
 
 export function isTextExtension(ext: string): boolean {
-	return ext === 'html' || ext === 'css' || ext === 'js' || ext === 'json' || ext === 'txt';
+	return (
+		ext === 'html' ||
+		ext === 'htm' ||
+		ext === 'css' ||
+		ext === 'js' ||
+		ext === 'mjs' ||
+		ext === 'json' ||
+		ext === 'txt'
+	);
 }
 
 /* -------------------------------------------------------------------------
@@ -412,6 +568,23 @@ export function folderNoiseLabel(path: string): string | null {
 }
 
 /**
+ * Whether a set of top-level names looks like it holds an app's entry point,
+ * in any of the three shapes `resolveEntryFile` below will accept: the
+ * canonical name, its `.htm` equivalent, or a single unambiguous top-level
+ * HTML file. Shared by the wrapper check below and by `resolveEntryFile`
+ * itself, so a wrapped upload and an unwrapped one agree on what counts as
+ * "this looks like an app" without two copies of the same three-way test.
+ */
+function hasResolvableEntry(paths: string[]): boolean {
+	if (paths.includes(FOUNDRY_ENTRY_FILE)) return true;
+	if (paths.includes('index.htm')) return true;
+	const topLevelHtml = paths.filter(
+		(p) => !p.includes('/') && (extensionOf(p) === 'html' || extensionOf(p) === 'htm')
+	);
+	return topLevelHtml.length === 1;
+}
+
+/**
  * Removes a single wrapper directory when the whole app sits inside one.
  *
  * A FOLDER-OF-ONE IS THE SINGLE MOST COMMON SHAPE A PERSON UPLOADS -- right
@@ -419,9 +592,10 @@ export function folderNoiseLabel(path: string): string | null {
  * this is a repair rather than a refusal, and it moves the whole tree together,
  * which changes no reference between the files.
  *
- * It strips ONE level and only when `index.html` is directly inside it. Not a
- * loop: two nested wrappers is a different mistake, and a loop that ate both
- * would also eat a real single-directory app whose entry sits deeper.
+ * It strips ONE level and only when the inner set looks like it holds an app
+ * (see `hasResolvableEntry`). Not a loop: two nested wrappers is a different
+ * mistake, and a loop that ate both would also eat a real single-directory app
+ * whose entry sits deeper.
  */
 export function stripWrapperDirectory(paths: string[]): {
 	paths: string[];
@@ -443,8 +617,63 @@ export function stripWrapperDirectory(paths: string[]): {
 
 	const prefix = `${root}/`;
 	const inner = paths.map((p) => p.slice(prefix.length));
-	if (!inner.includes(FOUNDRY_ENTRY_FILE)) return { paths, stripped: null };
+	if (!hasResolvableEntry(inner)) return { paths, stripped: null };
 	return { paths: inner, stripped: root };
+}
+
+/**
+ * THE THREE ACCEPTED ENTRY SHAPES, RESOLVED TO ONE CANONICAL NAME.
+ *
+ * `index.html` at the top level was the only accepted shape, which refused a
+ * ported `game.html` outright. Two more are accepted now, in order:
+ *
+ *   1. `index.html` itself -- no change.
+ *   2. `index.htm`, the equivalent extension. Renamed to `index.html` and
+ *      reported, because `FOUNDRY_ENTRY_FILE` is read by the serving routes
+ *      as a literal string and this is the one place that decides what a
+ *      student's upload resolves to -- the serving side must not have to
+ *      guess between the two.
+ *   3. Failing both, exactly ONE HTML-shaped file at the top level. Renamed
+ *      the same way. Two or more is left alone: guessing which of several
+ *      pages is meant to load first is worse than asking, so the existing
+ *      "no index.html" refusal stands for that case.
+ *
+ * A RENAME, NOT A COPY. The chosen file's `path` is overwritten in place, so
+ * it is stored under the canonical name and nothing downstream -- the
+ * extension allowlist, the MIME table, the serving routes -- has to know a
+ * substitution happened.
+ */
+export function resolveEntryFile(files: PlannedFile[]): {
+	files: PlannedFile[];
+	note: string | null;
+} {
+	if (files.some((f) => f.path === FOUNDRY_ENTRY_FILE)) return { files, note: null };
+
+	const rename = (chosen: PlannedFile, note: string) => ({
+		files: files.map((f) => (f === chosen ? { ...f, path: FOUNDRY_ENTRY_FILE } : f)),
+		note
+	});
+
+	const htm = files.find((f) => f.path === 'index.htm');
+	if (htm) {
+		return rename(
+			htm,
+			`index.htm was renamed to ${FOUNDRY_ENTRY_FILE} and used as your app's entry point. A browser treats the two names the same way; ${FOUNDRY_ENTRY_FILE} is the one this platform's serving routes look for, so name it that yourself next time.`
+		);
+	}
+
+	const topLevelHtml = files.filter(
+		(f) => !f.path.includes('/') && (extensionOf(f.path) === 'html' || extensionOf(f.path) === 'htm')
+	);
+	if (topLevelHtml.length === 1) {
+		const chosen = topLevelHtml[0];
+		return rename(
+			chosen,
+			`${chosen.path} is the only HTML file at the top level of your app, so it was renamed to ${FOUNDRY_ENTRY_FILE} and used as the entry point. Name your entry point ${FOUNDRY_ENTRY_FILE} yourself next time, especially if you add a second top-level HTML file later -- with two present, this platform cannot guess which one should load first and the upload is refused instead.`
+		);
+	}
+
+	return { files, note: null };
 }
 
 /* -------------------------------------------------------------------------
@@ -675,7 +904,12 @@ function firstRealLine(text: string): string {
 	return '';
 }
 
-export function scanHtml(path: string, source: string, read: HtmlReader): HtmlScan {
+export function scanHtml(
+	path: string,
+	source: string,
+	read: HtmlReader,
+	knownPaths?: ReadonlySet<string>
+): HtmlScan {
 	const failures: FoundryIssue[] = [];
 	const warnings: FoundryIssue[] = [];
 
@@ -781,7 +1015,23 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 	const finder = new LineFinder(source);
 	for (const ref of facts.refs) {
 		const verdict = classifyReference(ref.value);
-		if (verdict.kind === 'ok') continue;
+		if (verdict.kind === 'ok') {
+			/*
+			 * A <base> TAG'S OWN href IS NOT A REFERENCE TO CHECK FOR EXISTENCE.
+			 * It names an ADDRESS every OTHER relative path on the page will be
+			 * read against, not a file this bundle is expected to contain --
+			 * warned about separately below, once per entry file, rather than
+			 * folded into the missing-asset sweep here.
+			 */
+			if (ref.tag !== 'base' && knownPaths) {
+				const resolved = resolveBundleReference(path, ref.value);
+				if (resolved !== null && !knownPaths.has(resolved)) {
+					const line = finder.find(ref.value);
+					warnings.push(issue(path, line, missingAssetMessage(path, line, ref.value, resolved)));
+				}
+			}
+			continue;
+		}
 
 		const line = finder.find(ref.value);
 		failures.push(
@@ -808,9 +1058,83 @@ export function scanHtml(path: string, source: string, read: HtmlReader): HtmlSc
 				)
 			);
 		}
+
+		/*
+		 * <base href> REWRITES WHAT EVERY RELATIVE PATH ON THIS PAGE MEANS.
+		 *
+		 * It is legitimate -- an app hosted partly on another site, or one
+		 * whose generator always emits one -- so this is a warning, not a
+		 * failure. But it is also the single easiest way for a bundle to
+		 * quietly depend on a THIRD PARTY: nobody reading the file sees
+		 * `src="art/logo.png"` and expects it to resolve against some other
+		 * origin entirely.
+		 */
+		const baseRef = facts.refs.find((r) => r.tag === 'base' && r.attr === 'href');
+		if (baseRef) {
+			const line = finder.find(baseRef.value);
+			warnings.push(issue(path, line, baseHrefWarning(path, line, baseRef.value)));
+		}
 	}
 
 	return { failures, warnings };
+}
+
+function baseHrefWarning(path: string, line: number | null, value: string): string {
+	return `${where(path, line)} sets <base href="${value}">. Every relative src, href and url() on this page is now read against that address instead of your own files. If that address goes down, or a school network blocks it, your app stops working even though nothing in your own folder changed.`;
+}
+
+/**
+ * A REFERENCE THAT SHOULD RESOLVE INSIDE THIS BUNDLE, RESOLVED AS A BROWSER
+ * WOULD RESOLVE IT -- against the referencing file's own directory, walking
+ * `.` and `..` the way `resolveInsideRoot` does. Returns null when there is no
+ * path component worth checking (a bare fragment or query) so the caller can
+ * tell "nothing to check" apart from "checked and missing".
+ *
+ * `..` past the top of the bundle has nowhere further to go and is simply
+ * clamped there, the same way a browser's own resolution has nowhere further
+ * to go once it reaches the served root -- the point here is not to re-judge
+ * containment (`judgeEntryName` already did that for every stored path), only
+ * to compute the bundle-relative string a reference resolves to; that string
+ * is checked against `knownPaths` regardless.
+ */
+export function resolveBundleReference(fromPath: string, rawValue: string): string | null {
+	const stripped = rawValue.split(/[?#]/)[0];
+	if (stripped === '') return null;
+	let decoded = stripped;
+	try {
+		decoded = decodeURIComponent(stripped);
+	} catch {
+		// An invalid escape is left as-is; it will simply fail to match a
+		// stored path, which is the honest outcome for a malformed reference.
+	}
+
+	const dir = fromPath.includes('/') ? fromPath.slice(0, fromPath.lastIndexOf('/')) : '';
+	const parts = dir === '' ? [] : dir.split('/');
+	for (const segment of decoded.split('/')) {
+		if (segment === '' || segment === '.') continue;
+		if (segment === '..') {
+			if (parts.length > 0) parts.pop();
+			continue;
+		}
+		parts.push(segment);
+	}
+	return parts.length > 0 ? parts.join('/') : null;
+}
+
+/**
+ * NEVER A FAILURE, and that is not a softness -- it is a correctness call. A
+ * page carrying a `<base href>` legitimately ships none of its own assets (see
+ * `baseHrefWarning` above), and this scanner has no way to tell that apart
+ * from a genuinely broken reference except by asking the student, which a
+ * warning does and a refusal does not.
+ */
+function missingAssetMessage(
+	path: string,
+	line: number | null,
+	value: string,
+	resolved: string
+): string {
+	return `${where(path, line)} points at ${value}, but this upload does not include a file at ${resolved}. If your app needs it, add the file; if it does not, remove the reference so nothing looks for it.`;
 }
 
 function where(path: string, line: number | null): string {
@@ -893,14 +1217,27 @@ function blankComments(source: string, lineComments: boolean): string {
 	return out.join('');
 }
 
-export function scanCss(path: string, source: string): { failures: FoundryIssue[] } {
+export function scanCss(
+	path: string,
+	source: string,
+	knownPaths?: ReadonlySet<string>
+): { failures: FoundryIssue[]; warnings: FoundryIssue[] } {
 	const failures: FoundryIssue[] = [];
+	const warnings: FoundryIssue[] = [];
 	const text = blankComments(source, false);
 
 	const push = (value: string, index: number, attr: string) => {
 		const verdict = classifyReference(value);
-		if (verdict.kind === 'ok') return;
 		const line = lineAt(source, index);
+		if (verdict.kind === 'ok') {
+			if (knownPaths) {
+				const resolved = resolveBundleReference(path, value);
+				if (resolved !== null && !knownPaths.has(resolved)) {
+					warnings.push(issue(path, line, missingAssetMessage(path, line, value, resolved)));
+				}
+			}
+			return;
+		}
 		// A stylesheet has no TAG, and that empty string is load-bearing rather
 		// than a placeholder: it is what makes `relativeExample` produce the
 		// `url("image.png")` form here and an attribute form in HTML, and what
@@ -923,7 +1260,7 @@ export function scanCss(path: string, source: string): { failures: FoundryIssue[
 		push(value, m.index, 'url');
 	}
 
-	return { failures };
+	return { failures, warnings };
 }
 
 /* -------------------------------------------------------------------------
@@ -1129,6 +1466,14 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 
 	let droppedOsNoise = 0;
 	let droppedIgnored = 0;
+	// PER EXTENSION, NOT ONE TOTAL. `FOUNDRY_IGNORED_EXTENSIONS` now holds two
+	// entries (`.md`, `.map`), and a single joined "kinds" string would name
+	// BOTH in the note even on an upload that dropped only one of them -- a
+	// student reading "2 .md, .map files were left out" after shipping two
+	// READMEs and no source map at all. One sentence per extension that this
+	// upload actually dropped keeps that from happening as the ignored list
+	// grows further.
+	const droppedIgnoredByExt = new Map<string, number>();
 	const kept: { name: string; index: number; declaredSize: number }[] = [];
 	entries.forEach((entry, index) => {
 		if (entry.directory) return;
@@ -1143,6 +1488,8 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 		 */
 		if (isIgnoredExtension(entry.name)) {
 			droppedIgnored++;
+			const ext = extensionOf(entry.name);
+			droppedIgnoredByExt.set(ext, (droppedIgnoredByExt.get(ext) ?? 0) + 1);
 			return;
 		}
 		const judged = judgeEntryName(entry.name, entry.irregular);
@@ -1164,12 +1511,13 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 	// Same shape as the note above: what went, and why it was not part of the
 	// app. The extension is named because unlike operating-system noise this is
 	// a file the student wrote on purpose and may be looking for afterwards.
-	if (droppedIgnored > 0) {
-		const kinds = FOUNDRY_IGNORED_EXTENSIONS.map((e) => `.${e}`).join(', ');
+	for (const ext of FOUNDRY_IGNORED_EXTENSIONS) {
+		const count = droppedIgnoredByExt.get(ext) ?? 0;
+		if (count === 0) continue;
 		notes.push(
-			droppedIgnored === 1
-				? `One ${kinds} file was left out. It cannot be part of a published app, and leaving it in would have stopped the upload.`
-				: `${droppedIgnored} ${kinds} files were left out. They cannot be part of a published app, and leaving them in would have stopped the upload.`
+			count === 1
+				? `One .${ext} file was left out. It cannot be part of a published app, and leaving it in would have stopped the upload.`
+				: `${count} .${ext} files were left out. They cannot be part of a published app, and leaving them in would have stopped the upload.`
 		);
 	}
 
@@ -1192,7 +1540,7 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 	}
 
 	const { paths, stripped } = stripWrapperDirectory(kept.map((k) => k.name));
-	const files: PlannedFile[] = kept.map((k, i) => ({
+	const strippedFiles: PlannedFile[] = kept.map((k, i) => ({
 		path: paths[i],
 		index: k.index,
 		declaredSize: k.declaredSize
@@ -1203,6 +1551,13 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 			`Everything was inside a folder called "${stripped}", so that folder was removed and its contents are now the top level of your app. ${FOUNDRY_ENTRY_FILE} is where it needs to be.`
 		);
 	}
+
+	// index.htm, or a single unambiguous top-level HTML file, is renamed to
+	// the canonical entry name here -- before the checks below, so an
+	// upload that resolves to one of those two shapes never hits the "no
+	// index.html" refusal in the first place.
+	const { files, note: entryNote } = resolveEntryFile(strippedFiles);
+	if (entryNote !== null) notes.push(entryNote);
 
 	if (files.length > FOUNDRY_LIMITS.maxFiles) {
 		failures.push(
@@ -1227,6 +1582,10 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 	const allowed = FOUNDRY_ALLOWED_EXTENSIONS.join(', ');
 	for (const file of files) {
 		const ext = extensionOf(file.path);
+		if (ext === 'br' || ext === 'gz') {
+			failures.push(issue(file.path, null, compressedExtensionMessage(file.path, ext)));
+			continue;
+		}
 		if (!ALLOWED.has(ext)) {
 			failures.push(
 				issue(
@@ -1241,6 +1600,22 @@ export function planStructure(entries: StructureInput[], zipBytes: number): Stru
 	}
 
 	return { files, strippedWrapper: stripped, droppedOsNoise, droppedIgnored, failures, notes };
+}
+
+/**
+ * `.br` AND `.gz` ARE REFUSED BY NAME RATHER THAN BY THE GENERIC "CANNOT
+ * SERVE" SENTENCE, because the generic one's advice -- "take it out" or "give
+ * it the right extension" -- is wrong here. A Brotli or gzip build is a real,
+ * working build; what is missing is the `content-encoding` response header a
+ * browser needs to decompress it on the way in, and this serving route does
+ * not send one. Storing the file changes nothing: it would sit in the bucket
+ * forever, byte-identical to what was uploaded, and never run. So the fix
+ * named is the one that actually works -- export uncompressed -- not "remove
+ * this file" or "rename it".
+ */
+function compressedExtensionMessage(path: string, ext: 'br' | 'gz'): string {
+	const compression = ext === 'br' ? 'Brotli' : 'gzip';
+	return `${path} is a .${ext} file: a ${compression}-compressed build output. This platform has no way to tell a browser it is ${compression}-compressed (that takes a content-encoding response header, and this platform does not send one for your files), so the bytes would arrive and never decompress. Turn off ${compression} compression in your engine's web export settings and upload the uncompressed build instead.`;
 }
 
 function entryRejectionIssue(name: string, rejection: EntryRejection): FoundryIssue {

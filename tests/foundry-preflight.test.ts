@@ -37,6 +37,7 @@ import { zipSync, strToU8 } from 'fflate';
 
 import {
 	FOUNDRY_ALLOWED_EXTENSIONS,
+	FOUNDRY_ENTRY_FILE,
 	FOUNDRY_LIMITS,
 	PLATFORM_FONTS_URL,
 	classifyReference,
@@ -45,10 +46,14 @@ import {
 	isOsNoise,
 	judgeEntryName,
 	planStructure,
+	resolveBundleReference,
+	resolveEntryFile,
 	scanCss,
+	scanHtml,
 	scanJs,
 	stripWrapperDirectory,
-	versionIsIngestable
+	versionIsIngestable,
+	type HtmlFacts
 } from '$lib/foundry/preflight.ts';
 import { bundlePathOk } from '$lib/bundle-path.ts';
 import { ByteBudget, ZipBudgetError, inflateEntry, readCentralDirectory } from '$lib/foundry/zip.ts';
@@ -328,6 +333,119 @@ describe('structure', () => {
 		// A leading dot is NOT noise on its own -- decks rely on exactly this.
 		expect(isOsNoise('.image-slots.state.json')).toBe(false);
 	});
+
+	it('a source map is dropped with a note, not refused', () => {
+		const plan = planStructure(
+			[entry('index.html', 10), entry('app.js', 10), entry('app.js.map', 10)],
+			100
+		);
+		expect(plan.failures).toEqual([]);
+		expect(plan.droppedIgnored).toBe(1);
+		expect(plan.files.map((f) => f.path)).toEqual(['index.html', 'app.js']);
+	});
+
+	it('refuses a Brotli or gzip build with a message naming the real fix', () => {
+		const plan = planStructure(
+			[entry('index.html', 10), entry('game.wasm.br', 10), entry('game.data.gz', 10)],
+			100
+		);
+		const messages = plan.failures.map((f) => f.message);
+		expect(messages.some((m) => m.includes('game.wasm.br') && m.includes('Brotli'))).toBe(true);
+		expect(messages.some((m) => m.includes('game.data.gz') && m.includes('gzip'))).toBe(true);
+		for (const m of messages) {
+			expect(m).toContain('content-encoding');
+			expect(m).toContain('uncompressed');
+		}
+	});
+});
+
+/* -------------------------------------------------------------- entry file */
+
+describe('entry file resolution', () => {
+	it('leaves index.html alone when it is already there', () => {
+		const { files, note } = resolveEntryFile([
+			{ path: 'index.html', index: 0, declaredSize: 1 },
+			{ path: 'index.htm', index: 1, declaredSize: 1 }
+		]);
+		expect(note).toBeNull();
+		expect(files.map((f) => f.path)).toEqual(['index.html', 'index.htm']);
+	});
+
+	it('renames index.htm to index.html and reports it', () => {
+		const { files, note } = resolveEntryFile([
+			{ path: 'index.htm', index: 0, declaredSize: 1 },
+			{ path: 'styles.css', index: 1, declaredSize: 1 }
+		]);
+		expect(files.map((f) => f.path)).toEqual(['index.html', 'styles.css']);
+		expect(note).toContain('index.htm');
+		expect(note).toContain('index.html');
+	});
+
+	it('renames a single top-level HTML file when neither canonical name is present', () => {
+		const { files, note } = resolveEntryFile([
+			{ path: 'game.html', index: 0, declaredSize: 1 },
+			{ path: 'assets/sprite.png', index: 1, declaredSize: 1 }
+		]);
+		expect(files.map((f) => f.path)).toEqual(['index.html', 'assets/sprite.png']);
+		expect(note).toContain('game.html');
+	});
+
+	it('does not guess between two top-level HTML files', () => {
+		const { files, note } = resolveEntryFile([
+			{ path: 'game.html', index: 0, declaredSize: 1 },
+			{ path: 'credits.html', index: 1, declaredSize: 1 }
+		]);
+		expect(note).toBeNull();
+		expect(files.map((f) => f.path)).toEqual(['game.html', 'credits.html']);
+	});
+
+	it('does not count a NESTED html file as the single top-level one', () => {
+		const { files, note } = resolveEntryFile([{ path: 'pages/game.html', index: 0, declaredSize: 1 }]);
+		expect(note).toBeNull();
+		expect(files.map((f) => f.path)).toEqual(['pages/game.html']);
+	});
+
+	it('index.htm wins over a same-level ambiguity, since it is the more specific signal', () => {
+		const { files, note } = resolveEntryFile([
+			{ path: 'index.htm', index: 0, declaredSize: 1 },
+			{ path: 'about.html', index: 1, declaredSize: 1 }
+		]);
+		expect(files.map((f) => f.path)).toEqual(['index.html', 'about.html']);
+		expect(note).toContain('index.htm');
+	});
+
+	/** End to end through planStructure, so the wiring is asserted too. */
+	it('a ported game.html passes where it used to be refused', () => {
+		const plan = planStructure([entry('game.html', 10), entry('style.css', 10)], 100);
+		expect(plan.failures).toEqual([]);
+		expect(plan.files.map((f) => f.path)).toEqual(['index.html', 'style.css']);
+		expect(plan.notes.some((n) => n.includes('game.html'))).toBe(true);
+	});
+
+	it('index.htm passes through planStructure the same way', () => {
+		const plan = planStructure([entry('index.htm', 10)], 100);
+		expect(plan.failures).toEqual([]);
+		expect(plan.files.map((f) => f.path)).toEqual(['index.html']);
+	});
+
+	it('a wrapper folder holding only a single top-level HTML file still unwraps', () => {
+		const plan = planStructure(
+			[entry('MyGame/game.html', 10), entry('MyGame/assets/tex.png', 10)],
+			100
+		);
+		expect(plan.failures).toEqual([]);
+		expect(plan.strippedWrapper).toBe('MyGame');
+		expect(plan.files.map((f) => f.path)).toEqual(['index.html', 'assets/tex.png']);
+	});
+
+	it('a wrapper folder with two ambiguous top-level HTML files does not unwrap', () => {
+		const { paths, stripped } = stripWrapperDirectory([
+			'MyGame/game.html',
+			'MyGame/credits.html'
+		]);
+		expect(stripped).toBeNull();
+		expect(paths).toEqual(['MyGame/game.html', 'MyGame/credits.html']);
+	});
 });
 
 /* --------------------------------------------------------- invocation gate */
@@ -496,16 +614,140 @@ describe('content scanning', () => {
 	});
 });
 
+/* -------------------------------------------------------- known-bundle refs */
+
+describe('resolveBundleReference', () => {
+	it('resolves a same-directory reference against the file it is written in', () => {
+		expect(resolveBundleReference('index.html', 'logo.png')).toBe('logo.png');
+		expect(resolveBundleReference('pages/help.html', 'shared.css')).toBe('pages/shared.css');
+	});
+
+	it('walks .. the way a browser would', () => {
+		expect(resolveBundleReference('pages/help.html', '../logo.png')).toBe('logo.png');
+		expect(resolveBundleReference('pages/deep/help.html', '../../logo.png')).toBe('logo.png');
+	});
+
+	it('strips a query or fragment before resolving', () => {
+		expect(resolveBundleReference('index.html', 'art/bg.png?v=2')).toBe('art/bg.png');
+		expect(resolveBundleReference('index.html', 'art/bg.png#frag')).toBe('art/bg.png');
+	});
+
+	it('has nothing to check for a bare fragment or query', () => {
+		expect(resolveBundleReference('index.html', '#top')).toBeNull();
+		expect(resolveBundleReference('index.html', '?x=1')).toBeNull();
+	});
+});
+
+describe('a missing reference is a warning, never a failure', () => {
+	const factsWithImg = (value: string): HtmlFacts => ({
+		refs: [{ tag: 'img', attr: 'src', value }],
+		title: 'Fixture',
+		inlineScripts: []
+	});
+
+	it('warns when an HTML reference names a file this upload does not have', () => {
+		const known = new Set([FOUNDRY_ENTRY_FILE]);
+		const scan = scanHtml(
+			FOUNDRY_ENTRY_FILE,
+			'<img src="art/logo.png">',
+			() => factsWithImg('art/logo.png'),
+			known
+		);
+		expect(scan.failures).toEqual([]);
+		expect(scan.warnings).toHaveLength(1);
+		expect(scan.warnings[0].message).toContain('art/logo.png');
+	});
+
+	it('says nothing when the referenced file really is in the bundle', () => {
+		const known = new Set([FOUNDRY_ENTRY_FILE, 'art/logo.png']);
+		const scan = scanHtml(
+			FOUNDRY_ENTRY_FILE,
+			'<img src="art/logo.png">',
+			() => factsWithImg('art/logo.png'),
+			known
+		);
+		expect(scan.failures).toEqual([]);
+		expect(scan.warnings).toEqual([]);
+	});
+
+	it('runs no check at all when no known-path set is handed in', () => {
+		// The default: a caller not passing knownPaths (an existing test, or a
+		// caller that has not computed the final file set yet) gets the old
+		// behaviour, not a warning about every reference it never checked.
+		const scan = scanHtml(FOUNDRY_ENTRY_FILE, '<img src="art/logo.png">', () =>
+			factsWithImg('art/logo.png')
+		);
+		expect(scan.warnings).toEqual([]);
+	});
+
+	it('warns on a missing CSS url() the same way', () => {
+		const known = new Set(['style.css']);
+		const css = 'body { background: url("art/bg.png"); }\n';
+		const scan = scanCss('style.css', css, known);
+		expect(scan.failures).toEqual([]);
+		expect(scan.warnings).toHaveLength(1);
+		expect(scan.warnings[0].message).toContain('art/bg.png');
+	});
+
+	it('a <base> tag is never itself checked for existence', () => {
+		const known = new Set([FOUNDRY_ENTRY_FILE]);
+		const facts: HtmlFacts = {
+			refs: [{ tag: 'base', attr: 'href', value: 'https://example.com/app/' }],
+			title: 'Fixture',
+			inlineScripts: []
+		};
+		const scan = scanHtml(FOUNDRY_ENTRY_FILE, '<base href="https://example.com/app/">', () => facts, known);
+		// One warning: the base-href notice itself, never a "missing file"
+		// warning about the base tag's own address.
+		expect(scan.warnings).toHaveLength(1);
+		expect(scan.warnings[0].message).toContain('base href');
+	});
+
+	it('warns once about a <base href> in the entry file, and only the entry file', () => {
+		const facts: HtmlFacts = {
+			refs: [{ tag: 'base', attr: 'href', value: 'https://example.com/app/' }],
+			title: 'Fixture',
+			inlineScripts: []
+		};
+		const entryScan = scanHtml(FOUNDRY_ENTRY_FILE, '<base href="https://example.com/app/">', () => facts);
+		expect(entryScan.failures).toEqual([]);
+		expect(entryScan.warnings.some((w) => w.message.includes('<base href'))).toBe(true);
+
+		const otherScan = scanHtml('help.html', '<base href="https://example.com/app/">', () => facts);
+		expect(otherScan.failures).toEqual([]);
+		expect(otherScan.warnings.some((w) => w.message.includes('<base href'))).toBe(false);
+	});
+});
+
 /* ------------------------------------------------------------------ mime */
 
 describe('content types', () => {
+	/**
+	 * OCTET-STREAM IS DELIBERATE FOR AN ENGINE PAYLOAD FILE, so this no longer
+	 * asserts "never octet-stream" for every allowed extension -- it asserts
+	 * the narrower, real claim: octet-stream is EXPLICITLY WRITTEN in the MIME
+	 * table for exactly the extensions that are meant to get it (an engine
+	 * loader fetches these as raw bytes and never as a document or a script),
+	 * and every other allowed extension still gets a real type.
+	 */
+	const DELIBERATELY_OCTET_STREAM = ['data', 'mem', 'pck', 'bin', 'atlas', 'fnt', 'obj', 'mtl'];
+
 	it('gives every allowed extension a type, and js and css executable ones', () => {
 		for (const ext of FOUNDRY_ALLOWED_EXTENSIONS) {
+			if (DELIBERATELY_OCTET_STREAM.includes(ext)) {
+				expect(foundryMime(`file.${ext}`), ext).toBe('application/octet-stream');
+				continue;
+			}
 			expect(foundryMime(`file.${ext}`), ext).not.toBe('application/octet-stream');
 		}
 		// A wrong type here stops the browser executing the file at all.
 		expect(foundryMime('app.js')).toBe('text/javascript; charset=utf-8');
 		expect(foundryMime('a.css')).toBe('text/css; charset=utf-8');
+		expect(foundryMime('app.mjs')).toBe('text/javascript; charset=utf-8');
+		expect(foundryMime('page.htm')).toBe('text/html; charset=utf-8');
+		// WebAssembly.compileStreaming refuses to compile a response served as
+		// anything else.
+		expect(foundryMime('module.wasm')).toBe('application/wasm');
 	});
 
 	it('reads the extension case-insensitively and from the last dot', () => {
