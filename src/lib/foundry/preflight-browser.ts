@@ -113,6 +113,10 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 	if (failures.length === 0) {
 		const readHtml = makeDomHtmlReader(new DOMParser());
 		const decoder = new TextDecoder('utf-8');
+		// The final, post-strip, post-entry-rename path set -- what a missing
+		// reference is actually checked against, on both sides of the parity
+		// lane.
+		const knownPaths = new Set(plan.files.map((f) => f.path));
 		for (const f of plan.files) {
 			const ext = extensionOf(f.path);
 			if (!isTextExtension(ext)) continue;
@@ -129,13 +133,15 @@ export async function preflightZipInBrowser(file: Blob): Promise<BrowserPrefligh
 				continue;
 			}
 
-			if (ext === 'html') {
-				const r = scanHtml(f.path, text, readHtml);
+			if (ext === 'html' || ext === 'htm') {
+				const r = scanHtml(f.path, text, readHtml, knownPaths);
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);
 			} else if (ext === 'css') {
-				failures.push(...scanCss(f.path, text).failures);
-			} else if (ext === 'js') {
+				const r = scanCss(f.path, text, knownPaths);
+				failures.push(...r.failures);
+				warnings.push(...r.warnings);
+			} else if (ext === 'js' || ext === 'mjs') {
 				const r = scanJs(f.path, text);
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);

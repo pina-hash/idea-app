@@ -321,10 +321,18 @@ describe('the build contract is generated from the rules it describes', () => {
 		// which is why this checks the CONSTANT rather than a written-down set.
 		const allowedLine = contract.split('\n').find((l) => l.includes('.html') && l.includes('.woff2'));
 		expect(allowedLine).toBeDefined();
-		for (const ext of ['.mp4', '.md', '.ts', '.scss']) {
+		// `.mp4` moved OFF this list and into the allowlist in the same bundle
+		// that widened it to real game-engine export formats; `.br`/`.gz` and
+		// `.ts`/`.scss` are the ones that still refuse (see the caps note
+		// above and `compressedExtensionMessage`).
+		for (const ext of ['.br', '.gz', '.md', '.ts', '.scss']) {
 			expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).not.toContain(ext.slice(1));
 			expect(allowedLine).not.toContain(ext);
 		}
+		// Positive control for the relaxation itself: `.mp4` really is allowed
+		// and really is on this line now.
+		expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).toContain('mp4');
+		expect(allowedLine).toContain('.mp4');
 		// Positive control: the line really is the allowed list, so the four
 		// absences above are not four ways of missing the same wrong line.
 		expect(allowedLine).toContain('.ico');

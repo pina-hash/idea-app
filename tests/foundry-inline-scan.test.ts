@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	FOUNDRY_ALLOWED_EXTENSIONS,
 	FOUNDRY_IGNORED_EXTENSIONS,
+	extensionOf,
 	foundryMime,
 	isIgnoredExtension,
 	planStructure,
@@ -311,5 +312,63 @@ describe('.md is dropped rather than refused', () => {
 			// branches would be unreachable and nobody would know which.
 			expect(FOUNDRY_ALLOWED_EXTENSIONS).not.toContain(ext);
 		}
+	});
+});
+
+describe('.map is dropped rather than refused, the same way .md is', () => {
+	it('leaves the source map out, keeps the app, and says what went', () => {
+		const plan = planStructure(
+			[
+				{ name: 'index.html', directory: false, irregular: false, declaredSize: 10 },
+				{ name: 'app.js', directory: false, irregular: false, declaredSize: 10 },
+				{ name: 'app.js.map', directory: false, irregular: false, declaredSize: 10 }
+			],
+			100
+		);
+		expect(plan.failures).toEqual([]);
+		expect(plan.files.map((f) => f.path)).toEqual(['index.html', 'app.js']);
+		expect(plan.droppedIgnored).toBe(1);
+		expect(isIgnoredExtension('app.js.map')).toBe(true);
+	});
+});
+
+describe('the game-engine export formats are allowed and typed', () => {
+	it('gives every new extension a real, non-generic content type', () => {
+		const cases: Record<string, string> = {
+			'module.wasm': 'application/wasm',
+			'app.mjs': 'text/javascript; charset=utf-8',
+			'page.htm': 'text/html; charset=utf-8',
+			'font.woff': 'font/woff',
+			'font.otf': 'font/otf',
+			'clip.mp4': 'video/mp4',
+			'clip.webm': 'video/webm',
+			'voice.m4a': 'audio/mp4',
+			'voice.aac': 'audio/aac',
+			'voice.opus': 'audio/ogg',
+			'voice.flac': 'audio/flac',
+			'tex.avif': 'image/avif',
+			'tex.bmp': 'image/bmp',
+			'data.xml': 'application/xml; charset=utf-8',
+			'scores.csv': 'text/csv; charset=utf-8',
+			'captions.vtt': 'text/vtt; charset=utf-8',
+			'model.glb': 'model/gltf-binary',
+			'model.gltf': 'model/gltf+json; charset=utf-8'
+		};
+		for (const [name, mime] of Object.entries(cases)) {
+			expect(foundryMime(name), name).toBe(mime);
+			expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).toContain(extensionOf(name));
+		}
+	});
+
+	it('gives every engine-payload extension the octet-stream type, deliberately', () => {
+		for (const ext of ['data', 'mem', 'pck', 'bin', 'atlas', 'fnt', 'obj', 'mtl']) {
+			expect(foundryMime(`file.${ext}`), ext).toBe('application/octet-stream');
+			expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).toContain(ext);
+		}
+	});
+
+	it('never accepts a Brotli or gzip build, on purpose', () => {
+		expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).not.toContain('br');
+		expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).not.toContain('gz');
 	});
 });

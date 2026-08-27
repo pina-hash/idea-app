@@ -323,6 +323,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 	const budget = new ByteBudget(FOUNDRY_LIMITS.maxTotalBytes);
 	const decoder = new TextDecoder('utf-8');
 	const built: { path: string; bytes: Uint8Array; contentType: string }[] = [];
+	// The final, post-strip, post-entry-rename path set -- what a missing
+	// reference is checked against. Same set the browser preflight builds from
+	// its own `plan.files`, so the two sides agree on what "in this bundle"
+	// means with no second definition of it.
+	const knownPaths = new Set(plan.files.map((f) => f.path));
 
 	for (const file of plan.files) {
 		const record = records[file.index];
@@ -356,8 +361,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 		const ext = extensionOf(file.path);
 		if (isTextExtension(ext) && ext !== 'json' && ext !== 'txt') {
 			const text = decoder.decode(content);
-			if (ext === 'html') {
-				const r = scanHtml(file.path, text, readHtml);
+			if (ext === 'html' || ext === 'htm') {
+				const r = scanHtml(file.path, text, readHtml, knownPaths);
 
 				/*
 				 * THE ONE PLACE A STUDENT'S BYTES ARE EDITED, AND IT IS HERE
@@ -390,8 +395,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);
 			} else if (ext === 'css') {
-				failures.push(...scanCss(file.path, text).failures);
-			} else if (ext === 'js') {
+				const r = scanCss(file.path, text, knownPaths);
+				failures.push(...r.failures);
+				warnings.push(...r.warnings);
+			} else if (ext === 'js' || ext === 'mjs') {
 				const r = scanJs(file.path, text);
 				failures.push(...r.failures);
 				warnings.push(...r.warnings);
