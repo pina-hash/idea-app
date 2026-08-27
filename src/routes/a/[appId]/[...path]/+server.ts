@@ -77,12 +77,20 @@ export const trailingSlash = 'ignore';
  * relative reference a bundle can hold -- a stylesheet, a script, an image, a
  * `fetch('data.json')` -- lands on this same handler with the tail it asked for.
  *
- * THE REJECTED ALTERNATIVE WAS `<base href>`, AND IT IS NOT MERELY UGLIER: IT
- * CANNOT WORK. The bundle CSP carries `base-uri 'none'`, so a `<base>` element
- * injected into the document would be ignored by the browser outright, and the
- * only way to make it take effect is to weaken the policy that stops a bundle
- * repointing its own relative URLs. A path shape costs nothing and rewrites no
- * student bytes.
+ * THE REJECTED ALTERNATIVE WAS `<base href>`, AND THE REASON IS THE STUDENT'S
+ * BYTES, NOT THE POLICY. This paragraph used to say a `<base>` CANNOT work,
+ * because the bundle CSP carried `base-uri 'none'` and the browser would ignore
+ * the element outright. That claim is now FALSE: `base-uri` names the bundle
+ * origin and `https:`, so a `<base href>` a student ships is honoured -- which
+ * is the point of the change, since a game ported from elsewhere routinely
+ * arrives as one HTML file pointing at the CDN its assets live on.
+ *
+ * The argument that survives is the one that never depended on the CSP. Making
+ * `/a/` work by INJECTING a `<base>` would mean this route rewriting the entry
+ * document, and the ingest function, the source viewer and both serving routes
+ * all agree that a stored byte is served back unchanged -- so a reviewer reads
+ * what executes. A path shape costs nothing, rewrites nothing, and is the only
+ * one of the two that leaves that true.
  *
  * THE OTHER REJECTED ALTERNATIVE WAS A REDIRECT TO `/b/<app>/<version>/`. It
  * would serve the app, but the address bar would then hold the version URL --

@@ -199,11 +199,46 @@ describe('a direct page carries exactly the headers a framed bundle carries', ()
 			delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
 		}
 
-		// NEGATIVE CONTROL: with nothing configured the same two responses agree
-		// on the STRICT set, so the equality above is about the wiring rather
-		// than about a flag that is always there.
-		const bare = (await app(FIXTURE_APP_TYPES, '')).headers.get('content-security-policy')!;
-		expect(bare).not.toContain('allow-same-origin');
+		// NEGATIVE CONTROL: the two responses still agree when NOTHING resolves,
+		// and they agree on the STRICT set -- so the equality above is about the
+		// wiring rather than about a flag that is always there.
+		//
+		// THE APPS ORIGIN IS WHAT HAS TO BE CLEARED FOR THAT, NOT THE PORTAL
+		// VARIABLE, and this control used to clear only the portal variable. With
+		// an apps origin configured, an unset portal variable now falls back to
+		// the canonical portal host and the flag is granted -- which is the
+		// production case, and asserting its absence there was the assertion the
+		// follow-up bundle had to correct.
+		const beforeApps = process.env.PUBLIC_FOUNDRY_APPS_ORIGIN;
+		delete process.env.PUBLIC_FOUNDRY_APPS_ORIGIN;
+		try {
+			const bareDirect = (await app(FIXTURE_APP_TYPES, '')).headers.get(
+				'content-security-policy'
+			)!;
+			const bareFramed = (
+				await bundle(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')
+			).headers.get('content-security-policy')!;
+			expect(bareDirect).toBe(bareFramed);
+			expect(bareDirect).not.toContain('allow-same-origin');
+			expect(bareDirect).not.toContain('frame-ancestors');
+		} finally {
+			if (beforeApps === undefined) delete process.env.PUBLIC_FOUNDRY_APPS_ORIGIN;
+			else process.env.PUBLIC_FOUNDRY_APPS_ORIGIN = beforeApps;
+		}
+
+		// AND THE FALLBACK ITSELF IS THE SAME ON BOTH MOUNTS: apps origin set,
+		// portal variable unset. `/a/` is the mount where a student's saved data
+		// has to survive a reload, so a direct page that quietly kept the strict
+		// set here would look correct and lose every save.
+		const fellBackDirect = (await app(FIXTURE_APP_TYPES, '')).headers.get(
+			'content-security-policy'
+		)!;
+		const fellBackFramed = (
+			await bundle(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')
+		).headers.get('content-security-policy')!;
+		expect(fellBackDirect).toBe(fellBackFramed);
+		expect(fellBackDirect).toContain('allow-same-origin');
+		expect(fellBackDirect).toContain('frame-ancestors https://ideabosco.com');
 	});
 });
 

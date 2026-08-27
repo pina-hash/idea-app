@@ -41,8 +41,12 @@
 	 *                      already used to build `src`, and two independent
 	 *                      reads are how a frame and its own URL come to
 	 *                      disagree.
-	 *   the portal origin  is `PUBLIC_FOUNDRY_PORTAL_ORIGIN`, the same variable
-	 *                      the responder reads for the same argument. It is the
+	 *   the portal origin  is `foundryPortalOrigin`'s answer, the same CALL the
+	 *                      responder makes for the same argument -- no longer a
+	 *                      raw read of `PUBLIC_FOUNDRY_PORTAL_ORIGIN`, because
+	 *                      that variable's absence is a supported configuration
+	 *                      and resting the grant on it made the whole feature
+	 *                      silently inert wherever nobody had set it. It is the
 	 *                      origin `frame-ancestors` pins, which is what makes
 	 *                      the grant safe, so it is the right value rather than
 	 *                      merely a convenient one.
@@ -61,8 +65,13 @@
 	 * this path any more; the caller hands over a plain `src`, per the
 	 * presentation-takes-props convention.
 	 */
+	import { page } from '$app/state';
 	import { env } from '$env/dynamic/public';
-	import { foundrySandboxFlags } from './bundle-headers.ts';
+	import {
+		foundryPortalOrigin,
+		foundryPortalOriginIsFallback,
+		foundrySandboxFlags
+	} from './bundle-headers.ts';
 
 	let {
 		src,
@@ -120,14 +129,71 @@
 		}
 	}
 
-	const sandboxFlags = $derived(
-		foundrySandboxFlags(originOf(src), env.PUBLIC_FOUNDRY_PORTAL_ORIGIN ?? '')
+	/**
+	 * THE PORTAL ORIGIN IS RESOLVED RATHER THAN READ, and the call is the same
+	 * one `foundry-bundle-response.ts` makes for the CSP directive. It falls back
+	 * to the canonical portal host when the variable is unset AND the apps origin
+	 * is set; the rule, and why the apps origin gates it, is in
+	 * `foundryPortalOrigin`.
+	 */
+	const portalOrigin = $derived(
+		foundryPortalOrigin(env.PUBLIC_FOUNDRY_APPS_ORIGIN, env.PUBLIC_FOUNDRY_PORTAL_ORIGIN)
+	);
+
+	const sandboxFlags = $derived(foundrySandboxFlags(originOf(src), portalOrigin));
+
+	/**
+	 * THE RESOLVED CONFIGURATION, ON SCREEN, FOR AN ADMIN ONLY.
+	 *
+	 * WHY IT EXISTS. Which sandbox flags a bundle actually gets is a function of
+	 * two Vercel variables, and nobody working in this repository can read what
+	 * either is set to on the deployment they are looking at. That made drift on
+	 * this pair INVISIBLE: a portal variable quietly unset would have withheld
+	 * `allow-same-origin` in production, every published app would have kept
+	 * losing its saved state on reload, and the only symptom would have been a
+	 * feature that looked like it had never worked. One line beside the frame
+	 * ends that -- the answer is now readable off the surface an admin already
+	 * opens to review a build.
+	 *
+	 * IT STATES VALUES, NOT A VERDICT. There is no pass, no fail and no warning
+	 * colour, because every one of these configurations is legitimate somewhere:
+	 * the strict set is CORRECT in dev and on a preview, and a reader who knows
+	 * which deployment they are on is the one who can tell whether what it says
+	 * is what they meant. A line that judged would cry wolf on every local run.
+	 *
+	 * `granted` IS READ OFF THE FLAGS ACTUALLY IN FORCE, never recomputed from
+	 * the origins. It is the same string the `sandbox` attribute below carries,
+	 * so the line cannot report a grant the frame beside it did not get -- which
+	 * is the one way a diagnostic like this becomes worse than nothing.
+	 */
+	const isAdmin = $derived(page.data?.isAdmin === true);
+	const configLine = $derived(
+		[
+			`apps origin ${env.PUBLIC_FOUNDRY_APPS_ORIGIN?.trim() || 'unset'}`,
+			`portal origin ${portalOrigin || 'unset'}${
+				foundryPortalOriginIsFallback(
+					env.PUBLIC_FOUNDRY_APPS_ORIGIN,
+					env.PUBLIC_FOUNDRY_PORTAL_ORIGIN
+				)
+					? ' (fallback)'
+					: ''
+			}`,
+			`allow-same-origin ${sandboxFlags.includes('allow-same-origin') ? 'granted' : 'withheld'}`
+		].join(' \u00b7 ')
 	);
 </script>
 
 <div class="fdy-frame-wrap" class:is-fill={fill}>
 	{#if notice}
 		<p class="fdy-notice">{notice}</p>
+	{/if}
+	<!--
+		ADMIN ONLY. A student sees nothing here at all: the element is not rendered
+		rather than hidden, so there is no markup to inspect and nothing to reveal
+		how this deployment is wired.
+	-->
+	{#if isAdmin}
+		<p class="fdy-config">{configLine}</p>
 	{/if}
 	<!--
 		referrerpolicy="no-referrer": the request for a bundle carries no record of
@@ -159,6 +225,21 @@
 		font-family: var(--font-mono);
 		font-size: 0.85rem;
 		color: var(--text-2, var(--dim));
+	}
+
+	/*
+		Metadata, so `--cyan`'s role in the register -- and `--text-2` for the
+		weight, which is the token measured for secondary copy on all three portal
+		grounds. `--dim` is NOT used: it clears only the darkest of them.
+	*/
+	.fdy-config {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--cyan));
+		overflow-wrap: anywhere;
+		min-width: 0;
 	}
 
 	/*

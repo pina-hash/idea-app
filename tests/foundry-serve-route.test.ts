@@ -115,19 +115,27 @@ describe('the entry document is served as HTML with our own policy', () => {
 	 * the whole `<base>`/localStorage fix would be silently absent in
 	 * production.
 	 *
-	 * BOTH DIRECTIONS, DRIVEN THROUGH THE REAL HANDLER. The rest of this file
-	 * deliberately runs with no portal origin configured, so the default case
-	 * already covers the absence; this sets one and asserts the response
-	 * changes.
+	 * BOTH DIRECTIONS, DRIVEN THROUGH THE REAL HANDLER.
+	 *
+	 * THE ABSENT-VARIABLE CASE IS NOW A POSITIVE, AND IT USED TO BE THE
+	 * NEGATIVE. This test opened by asserting that with no portal variable set
+	 * the route answers the strict set -- which was true when the route READ
+	 * that variable, and is wrong now that it RESOLVES a portal origin from the
+	 * pair. With an apps origin configured (which this whole file runs with) an
+	 * unset portal variable falls back to the canonical portal host, so the
+	 * grant lands. That is the entire point of the follow-up bundle: it is the
+	 * production configuration, and the old expectation is exactly what would
+	 * have been silently true on a deployment where nobody set the variable.
 	 */
-	it('grants allow-same-origin only once a portal origin is configured', async () => {
-		// NEGATIVE: as the rest of the file runs -- nothing configured, so the
-		// route cannot prove the two origins differ.
+	it('grants allow-same-origin once a portal origin RESOLVES, set or fallen back to', async () => {
+		// POSITIVE: no portal variable at all, as the rest of this file runs.
+		// The apps origin IS configured here, so the fallback fires and the
+		// route must grant the flag and pin the ancestry.
 		const bare = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
 			'content-security-policy'
 		)!;
-		expect(bare).not.toContain('allow-same-origin');
-		expect(bare).not.toContain('frame-ancestors');
+		expect(bare).toContain('allow-same-origin');
+		expect(bare).toContain('frame-ancestors https://ideabosco.com');
 
 		process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = 'https://ideabosco.com';
 		try {
@@ -302,20 +310,44 @@ describe('the host gate keeps bundles off the cookie-carrying host', () => {
 	});
 
 	/** `frame-ancestors` is unset-means-unrestricted, deliberately. */
-	it('adds frame-ancestors only when a portal origin is configured', async () => {
+	/**
+	 * `frame-ancestors` FOLLOWS THE RESOLVED PORTAL ORIGIN, NOT THE VARIABLE,
+	 * and the negative moved with it. Unset used to mean unrestricted
+	 * unconditionally; it now means unrestricted only where NO portal origin
+	 * resolves, which -- since the fallback is gated on the apps origin -- is a
+	 * deployment with no apps origin either. That is dev and preview.
+	 */
+	it('adds frame-ancestors whenever a portal origin resolves', async () => {
+		// POSITIVE, VIA THE FALLBACK: apps origin configured, portal variable not.
 		const bare = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
 			'content-security-policy'
 		)!;
-		expect(bare).not.toContain('frame-ancestors');
+		expect(bare).toContain('frame-ancestors https://ideabosco.com');
 
-		process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = 'https://ideabosco.com';
+		// POSITIVE, CONFIGURED: the same answer reached the other way.
+		process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = 'https://portal.example.com';
 		try {
 			const pinned = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
 				'content-security-policy'
 			)!;
-			expect(pinned).toContain('frame-ancestors https://ideabosco.com');
+			expect(pinned).toContain('frame-ancestors https://portal.example.com');
 		} finally {
 			delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		}
+
+		// NEGATIVE: no apps origin, so no fallback and nothing resolves. The
+		// directive is absent entirely and the grant goes with it. Without this
+		// row the two positives would pass on a route that pins the ancestry
+		// unconditionally.
+		delete process.env.PUBLIC_FOUNDRY_APPS_ORIGIN;
+		try {
+			const open = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
+				'content-security-policy'
+			)!;
+			expect(open).not.toContain('frame-ancestors');
+			expect(open).not.toContain('allow-same-origin');
+		} finally {
+			process.env.PUBLIC_FOUNDRY_APPS_ORIGIN = APPS;
 		}
 	});
 });

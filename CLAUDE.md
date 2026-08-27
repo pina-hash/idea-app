@@ -196,15 +196,21 @@ the shim injection, the trailing-slash repair and the one bodyless 404.
     `/b/` does, because the review queue has to run the thing it is deciding
     about. An app's own public address does not, and `publishedVersionOf` reads
     one column and cannot return one.
-  - **THE PATH SHAPE IS HOW RELATIVE ASSETS RESOLVE, AND `<base href>` CANNOT
-    REPLACE IT.** The document is served at `/a/<app>/`, so `style.css` resolves
-    to `/a/<app>/style.css` and arrives at the same handler. Injecting a `<base>`
-    is not merely uglier, it does not work: the bundle CSP carries
-    `base-uri 'none'`, so the element is ignored, and the only way to make it
-    take effect is to weaken the policy that stops a bundle repointing its own
-    URLs. A redirect to `/b/<app>/<version>/` was the other rejected shape -- it
-    leaves the VERSION URL in the address bar, so a bookmark or a re-paste of
-    what is on screen carries a link that dies at the next publish.
+  - **THE PATH SHAPE IS HOW RELATIVE ASSETS RESOLVE, AND INJECTING A `<base>`
+    IS STILL NOT THE ANSWER -- FOR A DIFFERENT REASON THAN THIS RULE USED TO
+    GIVE.** The document is served at `/a/<app>/`, so `style.css` resolves to
+    `/a/<app>/style.css` and arrives at the same handler. This rule used to say
+    a `<base>` CANNOT work, because the CSP carried `base-uri 'none'` and the
+    browser ignored the element outright. **That is no longer true and must not
+    be restated**: `base-uri` names the bundle origin and `https:` now, so a
+    `<base href>` a STUDENT ships is honoured. What rules out injecting one
+    OURSELVES is the byte rule, which never depended on the CSP -- ingest, the
+    source viewer and both serving routes all agree that a stored byte is served
+    back unchanged, so a reviewer reads what executes, and a route that rewrote
+    the entry document would end that. A redirect to `/b/<app>/<version>/` was
+    the other rejected shape -- it leaves the VERSION URL in the address bar, so
+    a bookmark or a re-paste of what is on screen carries a link that dies at
+    the next publish.
   - **THE DIRECT PAGE IS PUBLIC AND IS NOT MISSING A SESSION CHECK.** There is
     no session on the apps host to check -- that absence is the point of the
     split -- so requiring one means either `Domain`-scoping the portal's cookies
@@ -688,17 +694,66 @@ below; a third mount is a caller of it, never a third handler.
   cookie-carrying way to the same bytes. **Unset means any host**, so local dev
   and previews need no configuration; production pins
   `PUBLIC_FOUNDRY_APPS_ORIGIN`.
-- **`allow-scripts` AND `allow-same-origin` TOGETHER CANCEL THE SANDBOX
-  ENTIRELY** -- a frame with both can reach its own origin, strip the sandbox
-  attribute off itself in the parent document and reload unsandboxed.
-  **`allow-same-origin` must never appear on a Foundry frame**, and
-  `FOUNDRY_SANDBOX_FLAGS` in `$lib/foundry/bundle-headers.ts` is the ONE place
-  the flags are written down. **That moved out of `AppFrame.svelte`, which used
-  to hold the only copy**, because the SERVING side has to send the identical
-  set as a CSP `sandbox` directive -- and a second spelling in another file is a
-  frame and a document that drift apart with nothing able to compare them.
-  `AppFrame` reads the constant; a second copy is a frame that looks identical
-  and isolates nothing.
+- **`allow-same-origin` IS GRANTED, CONDITIONALLY, AND THE CONDITION IS THE
+  WHOLE OF WHAT MAKES IT SAFE. DO NOT REVERT IT TO A BLANKET REFUSAL.** This
+  rule used to read "`allow-same-origin` must never appear on a Foundry frame",
+  on the grounds that with `allow-scripts` it cancels the sandbox outright. **The
+  mechanism is real and the rule was too broad.** Stripping the sandbox attribute
+  off the `<iframe>` means reaching the PARENT document, and
+  `window.parent.document` throws `SecurityError` unless the child is SAME-ORIGIN
+  WITH ITS PARENT. So the pair cancels the sandbox only when the framed document
+  and the page framing it share an origin -- which the SERVING-HOST GATE prevents
+  in production, because a bundle answers only on the apps origin and the portal
+  is by construction somewhere else.
+  - **THE CONDITION, EXACTLY:** `foundrySandboxFlags(bundleOrigin, portalOrigin)`
+    in `$lib/foundry/bundle-headers.ts` appends the flag only when both origins
+    are non-empty AND they DIFFER. Either one missing, or the two equal, is the
+    strict set. That is fail-closed: a deployment not told where its bundles and
+    its portal live never gets the grant.
+  - **AND IT COMPOSES WITH `frame-ancestors`, which is what makes it airtight
+    rather than merely likely.** A non-empty portal origin is exactly when the
+    CSP emits `frame-ancestors <portal origin>`, so in every configuration that
+    grants the flag the browser itself refuses to let anything but the portal
+    embed the bundle -- and the portal is not the bundle origin. The parent a
+    bundle could reach into cannot exist. The configuration where anyone may
+    frame a bundle is precisely the one where the flag is withheld.
+  - **THE PORTAL ORIGIN IS RESOLVED, NOT READ, AND THAT IS LOAD-BEARING.**
+    `foundryPortalOrigin(appsOrigin, portalVariable)` is the ONE implementation:
+    `PUBLIC_FOUNDRY_PORTAL_ORIGIN` when set, otherwise `FOUNDRY_PLATFORM_ORIGIN`
+    from `preflight.ts` but ONLY when `PUBLIC_FOUNDRY_APPS_ORIGIN` is itself set,
+    otherwise empty. **Resting the grant on that variable alone made the whole
+    feature silently inert wherever nobody had set it** -- and its absence is a
+    supported configuration, because `frame-ancestors` is deliberately
+    unset-means-unrestricted, so nothing would have reported it. **The apps
+    origin gates the FALLBACK and never the configured value**: with no apps
+    origin the routes answer on any host, which is dev and preview, where the
+    portal and the bundle genuinely do share an origin and the escape above is
+    real -- so the fallback is withheld exactly where applying it would
+    manufacture the vulnerability.
+  - **TWO FLAGS STAY REFUSED IN EVERY CONFIGURATION**, because neither is about
+    what a bundle may do to ITSELF: `allow-top-navigation` (a redirect out of a
+    student project onto anywhere) and `allow-popups-to-escape-sandbox` (an
+    unsandboxed document opened from a student's app).
+  - **THE FLAGS ARE WRITTEN DOWN ONCE, in `bundle-headers.ts`, and they are a
+    FUNCTION now rather than a constant.** That moved out of `AppFrame.svelte`,
+    which used to hold the only copy, because the SERVING side has to send the
+    identical set as a CSP `sandbox` directive. `AppFrame` and
+    `foundry-bundle-response.ts` each call the same two functions with the same
+    two values; a second spelling, or a second reading of the raw variables, is a
+    frame and a document that drift apart with nothing able to compare them.
+- **EVERY BUNDLE ON THE APPS ORIGIN SHARES ONE STORAGE AREA, AND A SUBDOMAIN PER
+  APP IS THE ONLY THING THAT WOULD SEPARATE THEM.** That is the price of the
+  grant above and it is inherent in having a real origin at all: `localStorage`,
+  `sessionStorage`, IndexedDB and cookies are keyed by ORIGIN, and every
+  published app answers on `apps.ideabosco.com`. **So two published apps can read
+  and overwrite each other's saved state**, deliberately or by both picking the
+  key `save`. What is exposed is a student's own save data on a host that holds
+  no session and no credential of ours, which is why the trade is worth making --
+  the alternative was an opaque origin where the `localStorage` GETTER THROWS and
+  every high score died at the next reload. **Do not describe bundle storage as
+  isolated per app anywhere**, and if it ever must be, the answer is a subdomain
+  per app, not a shim: nothing inside the sandbox can partition an origin from
+  itself.
 - **THE CSP `sandbox` DIRECTIVE AND THE IFRAME `sandbox` ATTRIBUTE ARE NOT
   REDUNDANT.** The attribute covers a document the portal frames; the directive
   covers the document however it was reached, so a student who navigates
@@ -714,8 +769,20 @@ below; a third mount is a caller of it, never a third handler.
   are stated explicitly with `'unsafe-inline'`. **The network is deliberately
   open now** (`https:` on every fetching directive), because the build contract
   tells students a CDN works and a policy that refused one would make the
-  contract lie. The isolation is the opaque origin and `frame-ancestors`, never
-  a restriction on how the student's own script runs.
+  contract lie. **The isolation is the ORIGIN SPLIT and `frame-ancestors`, never
+  a restriction on how the student's own script runs** -- it used to be the
+  opaque origin, which the conditional `allow-same-origin` grant above ends in
+  the configuration that grants it.
+- **`base-uri` NAMES THE BUNDLE ORIGIN AND `https:`, NOT `'none'`, AND THE
+  REASON IS A PORTED GAME'S `<base href>`.** A game brought in from elsewhere
+  routinely ships as one HTML file with a `<base href>` pointing at the CDN its
+  assets live on; under `base-uri 'none'` the browser ignores that element
+  outright, every asset request resolves against the bundle instead and 404s, and
+  the app renders empty -- which reads as a bad upload rather than a policy.
+  **It grants nothing new**: `default-src` already admits `https:`, so every URL
+  a `<base>` could point at was already reachable by writing it out in full, and
+  what changed is only whether the student has to. Anything in this repo still
+  saying `base-uri 'none'` is stale and is a bug to fix, not a rule to restore.
 - **`frame-ancestors` IS UNSET-MEANS-UNRESTRICTED, WHICH REVERSES THE OLD
   RULE.** The proxy defaulted a missing app origin to `'none'`, fail-closed. On
   a feature whose history is silently serving nothing, a variable whose absence
@@ -1063,7 +1130,14 @@ is the one failure nobody would notice. `FoundryDetail` is the one place it is
 read on the gallery path and hands it down to `AppStage`, because the frame src
 and the share link must name the same origin and two independent reads are how
 they come to differ. `PUBLIC_FOUNDRY_PORTAL_ORIGIN` becomes the CSP
-`frame-ancestors`; unset means unrestricted. **There is no separate deploy step
+`frame-ancestors`; unset means unrestricted. **UNSET NO LONGER MEANS "no portal
+origin", THOUGH, AND THAT DISTINCTION IS THE ONE TO KEEP STRAIGHT**: the value
+the CSP and the sandbox flags actually use is `foundryPortalOrigin`'s, which
+falls back to `https://ideabosco.com` whenever the APPS origin is set, so the
+variable's absence is a supported production configuration rather than a
+degraded one. Its resolved value, and whether the fallback produced it, are
+readable off the admin line in `AppFrame` -- which exists because nobody working
+in this repo can read what Vercel holds. **There is no separate deploy step
 any more** -- the route ships with the app, which is the ordering problem the
 Edge Function created and this removes.
 

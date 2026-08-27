@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/public';
-import { foundryBundleHeaders } from '$lib/foundry/bundle-headers';
+import { foundryBundleHeaders, foundryPortalOrigin } from '$lib/foundry/bundle-headers';
 import { injectStorageShim } from '$lib/foundry/storage-shim';
 import { serveBundleFile } from '$lib/server/foundry-bundle';
 
@@ -132,9 +132,17 @@ export async function foundryFileResponse(
 	const found = await serveBundleFile(appId, versionId, path);
 	if (!found.ok) return foundryNotFound();
 
-	const portalOrigin = (env.PUBLIC_FOUNDRY_PORTAL_ORIGIN ?? '')
-		.trim()
-		.replace(/\/+$/, '');
+	// THE PORTAL ORIGIN IS RESOLVED, NOT READ. `PUBLIC_FOUNDRY_PORTAL_ORIGIN`
+	// when it is set, the canonical portal host when it is not AND this is a
+	// split-origin deployment, and empty otherwise. The rule and the reason it is
+	// gated on the apps origin live in `foundryPortalOrigin`; what matters here
+	// is that this is the SAME call `AppFrame.svelte` makes, so the CSP `sandbox`
+	// directive and the iframe `sandbox` attribute cannot disagree about whether
+	// `allow-same-origin` is granted.
+	const portalOrigin = foundryPortalOrigin(
+		env.PUBLIC_FOUNDRY_APPS_ORIGIN,
+		env.PUBLIC_FOUNDRY_PORTAL_ORIGIN,
+	);
 	const headers = foundryBundleHeaders(
 		found.contentType,
 		requestOrigin,

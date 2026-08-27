@@ -41,7 +41,8 @@ import FoundryDetail from '$lib/foundry/FoundryDetail.svelte';
 import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 import AppFrame from '$lib/foundry/AppFrame.svelte';
 import { queueOrder, reviewBlockedBecause, reviewCanSend, buildFileTree } from '$lib/foundry/review';
-import { foundryBundleCsp } from '$lib/foundry/bundle-headers';
+import { foundryBundleCsp, foundryPortalOrigin } from '$lib/foundry/bundle-headers';
+import { withPageData } from './stubs/app-state.ts';
 
 /*
  * `AppStage` READS THE APPS ORIGIN FROM THE ENVIRONMENT AND RENDERS NO LAUNCH
@@ -176,16 +177,34 @@ describe('the frame cancels nothing', () => {
 	];
 	const CROSS = [...STRICT, 'allow-same-origin'].sort();
 
-	/** Render the REAL component with a chosen portal origin in the environment. */
-	function frameWith(portalOrigin: string | null): string {
-		const before = process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
-		if (portalOrigin === null) delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
-		else process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = portalOrigin;
+	/**
+	 * Render the REAL component with a chosen pair of origins in the environment.
+	 *
+	 * BOTH VARIABLES ARE CONTROLLED NOW, AND THAT IS THE GENERALIZATION. The
+	 * helper used to set the portal variable alone, on the understanding that it
+	 * WAS the portal origin. It is not any more: the portal origin is RESOLVED
+	 * from the pair, so the apps origin is what decides whether an unset portal
+	 * variable falls back to the canonical host or stays empty, and a helper that
+	 * left it at whatever the file happened to set at module scope would be
+	 * describing one arrangement while claiming to test another.
+	 *
+	 * `null` means the variable is DELETED rather than set empty, which is what
+	 * an unset Vercel variable actually looks like.
+	 */
+	function frameWith(portalOrigin: string | null, appsOrigin: string | null = APPS): string {
+		const beforePortal = process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		const beforeApps = process.env.PUBLIC_FOUNDRY_APPS_ORIGIN;
+		const set = (key: string, value: string | null) => {
+			if (value === null) delete process.env[key];
+			else process.env[key] = value;
+		};
+		set('PUBLIC_FOUNDRY_PORTAL_ORIGIN', portalOrigin);
+		set('PUBLIC_FOUNDRY_APPS_ORIGIN', appsOrigin);
 		try {
 			return render(AppFrame, { props: { src: SRC, title: 'Tide Clock' } }).body;
 		} finally {
-			if (before === undefined) delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
-			else process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = before;
+			set('PUBLIC_FOUNDRY_PORTAL_ORIGIN', beforePortal ?? null);
+			set('PUBLIC_FOUNDRY_APPS_ORIGIN', beforeApps ?? null);
 		}
 	}
 
@@ -195,8 +214,33 @@ describe('the frame cancels nothing', () => {
 		return match![1].split(/\s+/).filter(Boolean).sort();
 	}
 
+	/**
+	 * THE BASE SET IS UNCONDITIONAL, and asserting it that way is what survives
+	 * the portal origin becoming a resolved value rather than a raw read.
+	 *
+	 * This used to be one call with the portal variable unset, on the assumption
+	 * that unset meant the strict set. It does not any more -- unset with an apps
+	 * origin configured now resolves to the canonical portal host and grants the
+	 * conditional flag -- so the assertion is restated as the thing that was
+	 * actually being claimed: these seven are present in EVERY configuration, and
+	 * the eighth is the only one that moves.
+	 */
 	it('grants scripts, modals, pointer lock, forms, downloads, popups and orientation lock', () => {
-		expect(sandboxOf(frameWith(null))).toEqual(STRICT);
+		for (const [portal, apps] of [
+			[PORTAL, APPS],
+			[null, APPS],
+			[null, null],
+			[APPS, APPS],
+			['', null]
+		] as const) {
+			const flags = sandboxOf(frameWith(portal, apps));
+			for (const flag of STRICT) {
+				expect(flags, `${flag} with portal ${portal} / apps ${apps}`).toContain(flag);
+			}
+		}
+		// POSITIVE CONTROL: at least one of those really is the bare strict set,
+		// so "contains all seven" is not passing on a set that grants everything.
+		expect(sandboxOf(frameWith(null, null))).toEqual(STRICT);
 	});
 
 	/**
@@ -211,15 +255,42 @@ describe('the frame cancels nothing', () => {
 	 * change would be untested); asserting only the presence passes on one that
 	 * always grants it, which is the actual hazard.
 	 */
-	it('grants allow-same-origin only when the bundle and portal origins differ', () => {
+	it('grants allow-same-origin only when the bundle and RESOLVED portal origins differ', () => {
 		// POSITIVE: production's arrangement, two real and different origins.
-		expect(sandboxOf(frameWith(PORTAL))).toEqual(CROSS);
+		expect(sandboxOf(frameWith(PORTAL)), 'configured').toEqual(CROSS);
 
-		// NEGATIVE: the same origin, a portal origin that is not configured, and
-		// an empty one. Each must fall back to the strict set.
-		expect(sandboxOf(frameWith(APPS)), 'same origin').toEqual(STRICT);
-		expect(sandboxOf(frameWith(null)), 'unset').toEqual(STRICT);
-		expect(sandboxOf(frameWith('')), 'empty').toEqual(STRICT);
+		// POSITIVE, AND THIS ROW IS THE WHOLE POINT OF THE BUNDLE: the portal
+		// variable is UNSET and the flag is still granted, because an apps origin
+		// is configured and the portal origin falls back to the canonical host.
+		// This case used to be a negative -- it asserted STRICT -- which is
+		// exactly the production configuration the previous bundle would have
+		// been silently inert in.
+		expect(sandboxOf(frameWith(null, APPS)), 'portal unset, apps set').toEqual(CROSS);
+		expect(sandboxOf(frameWith('', APPS)), 'portal empty, apps set').toEqual(CROSS);
+
+		// NEGATIVE: the two origins are the same string, so the escape is real
+		// and the flag must go, configured apps origin or not.
+		expect(sandboxOf(frameWith(APPS, APPS)), 'same origin').toEqual(STRICT);
+
+		// NEGATIVE: no apps origin, which is dev and preview. No fallback fires,
+		// the resolved portal origin is empty, and the strict set applies
+		// whatever the portal variable says -- including when it says something.
+		expect(sandboxOf(frameWith(null, null)), 'neither').toEqual(STRICT);
+		expect(sandboxOf(frameWith('', null)), 'apps unset, portal empty').toEqual(STRICT);
+	});
+
+	/**
+	 * THE APPS ORIGIN GATES THE FALLBACK, NOT THE CONFIGURED VALUE, and the
+	 * difference is worth its own case because the two collapse into one in
+	 * every other row above.
+	 *
+	 * With no apps origin but a portal variable that IS set, the resolved portal
+	 * origin is that variable -- so a frame whose src is on a genuinely different
+	 * origin still gets the flag. A resolver that read "no apps origin" as "no
+	 * portal origin" would fail this while passing everything else.
+	 */
+	it('honours a configured portal origin even with no apps origin', () => {
+		expect(sandboxOf(frameWith(PORTAL, null))).toEqual(CROSS);
 	});
 
 	/**
@@ -252,12 +323,23 @@ describe('the frame cancels nothing', () => {
 	 * produce two answers.
 	 */
 	it('renders exactly the sandbox directive the CSP sends, in both cases', () => {
-		for (const portal of [PORTAL, APPS, '']) {
-			const directive = foundryBundleCsp(APPS, portal)
+		// THE PAIR IS THE INPUT NOW, because both sides resolve the portal origin
+		// from both variables. Feeding the CSP the raw variable while the
+		// component resolves it would compare two different questions and pass
+		// only by luck.
+		for (const [portal, apps] of [
+			[PORTAL, APPS],
+			[null, APPS],
+			[APPS, APPS],
+			[null, null],
+			['', null]
+		] as const) {
+			const resolved = foundryPortalOrigin(apps, portal);
+			const directive = foundryBundleCsp(APPS, resolved)
 				.split('; ')
 				.find((d) => d.startsWith('sandbox '))!
 				.slice('sandbox '.length);
-			expect(sandboxOf(frameWith(portal)), portal || '(empty)').toEqual(
+			expect(sandboxOf(frameWith(portal, apps)), `${portal} / ${apps}`).toEqual(
 				directive.split(/\s+/).filter(Boolean).sort()
 			);
 		}
@@ -304,6 +386,112 @@ describe('the frame cancels nothing', () => {
 		expect(readFileSync('src/lib/foundry/AppFrame.svelte', 'utf8')).toContain(
 			'sandbox={sandboxFlags}'
 		);
+	});
+
+
+	/**
+	 * THE RESOLVED CONFIGURATION IS ON SCREEN, FOR AN ADMIN AND NOBODY ELSE.
+	 *
+	 * WHY THIS IS A TEST AND NOT A HARNESS PASS. It is a visibility boundary --
+	 * the class of assertion where a wrong result is invisible in normal use.
+	 * Nothing about a student silently seeing an internal configuration line
+	 * fails visibly; the first person to notice is the wrong person. So it is
+	 * asserted in both directions, with the counts, on the REAL component.
+	 *
+	 * AND THE VALUES MUST BE THE RESOLVED ONES. A line that reported the raw
+	 * variables would be worse than no line at all: the whole reason it exists
+	 * is that the raw variables do not tell you what the browser is going to
+	 * get, and a diagnostic that restates the input has answered a question
+	 * nobody asked.
+	 */
+	describe('the admin configuration line', () => {
+		const adminFrame = (portal: string | null, apps: string | null = APPS) =>
+			withPageData({ isAdmin: true }, () => frameWith(portal, apps));
+		const studentFrame = (portal: string | null, apps: string | null = APPS) =>
+			withPageData({ isAdmin: false }, () => frameWith(portal, apps));
+
+		it('states the resolved pair, the fallback and the grant, for an admin', () => {
+			// PRODUCTION AS IT MAY ACTUALLY BE WIRED: apps origin set, portal
+			// variable never set. The line has to say the origin it RESOLVED and
+			// say that it was a fallback, because "resolved to ideabosco.com" and
+			// "resolved to ideabosco.com because nobody set the variable" are
+			// different facts and only the second is worth acting on.
+			const fellBack = adminFrame(null, APPS);
+			expect(fellBack).toContain(`apps origin ${APPS}`);
+			expect(fellBack).toContain(`portal origin ${PORTAL}`);
+			expect(fellBack).toContain('(fallback)');
+			expect(fellBack).toContain('allow-same-origin granted');
+
+			// CONFIGURED: the same resolved origin, reached the other way, and the
+			// fallback marker must be ABSENT. Without this row the marker could be
+			// unconditional text and the row above would not notice.
+			const configured = adminFrame(PORTAL, APPS);
+			expect(configured).toContain(`portal origin ${PORTAL}`);
+			expect(configured).not.toContain('(fallback)');
+			expect(configured).toContain('allow-same-origin granted');
+
+			// DEV: neither variable set. Every field has to say so rather than
+			// going blank, and the grant is withheld.
+			const dev = adminFrame(null, null);
+			expect(dev).toContain('apps origin unset');
+			expect(dev).toContain('portal origin unset');
+			expect(dev).not.toContain('(fallback)');
+			expect(dev).toContain('allow-same-origin withheld');
+		});
+
+		/**
+		 * THE GRANT IT REPORTS IS THE GRANT THE FRAME GOT. Recomputing it from
+		 * the origins would let the line and the attribute disagree, which is the
+		 * one way a diagnostic like this becomes actively harmful -- somebody
+		 * reads "granted", believes storage works, and the frame beside it says
+		 * otherwise. Compared against the real `sandbox` attribute in the same
+		 * render, in both directions.
+		 */
+		it('never reports a grant the frame beside it did not get', () => {
+			for (const [portal, apps] of [
+				[PORTAL, APPS],
+				[null, APPS],
+				[APPS, APPS],
+				[null, null]
+			] as const) {
+				const html = adminFrame(portal, apps);
+				const granted = sandboxOf(html).includes('allow-same-origin');
+				expect(html, `${portal} / ${apps}`).toContain(
+					`allow-same-origin ${granted ? 'granted' : 'withheld'}`
+				);
+			}
+			// POSITIVE CONTROLS: both words really do occur across that loop, so
+			// the agreement above is not vacuous over four identical cases.
+			expect(adminFrame(null, APPS)).toContain('granted');
+			expect(adminFrame(null, null)).toContain('withheld');
+		});
+
+		/**
+		 * A STUDENT SEES NOTHING, and neither does a signed-out visitor. The
+		 * element is not rendered rather than hidden, so there is no markup to
+		 * inspect and no CSS to defeat.
+		 */
+		it('renders nothing at all for a student or a visitor', () => {
+			for (const data of [{ isAdmin: false }, {}, { isAdmin: 'yes' }, { isAdmin: 1 }]) {
+				const html = withPageData(data, () => frameWith(null, APPS));
+				expect(html, JSON.stringify(data)).not.toContain('fdy-config');
+				expect(html, JSON.stringify(data)).not.toContain('allow-same-origin granted');
+				expect(html, JSON.stringify(data)).not.toContain('portal origin');
+				expect(html, JSON.stringify(data)).not.toContain('apps origin');
+				// POSITIVE CONTROL, IN THE SAME RENDER: the frame itself is still
+				// there, so the four absences are about the line and not about a
+				// component that failed to render anything.
+				expect(html.split('<iframe').length - 1, JSON.stringify(data)).toBe(1);
+			}
+
+			// AND THE OTHER DIRECTION, on the identical configuration: an admin
+			// gets exactly one of these lines. Without this the sweep above would
+			// pass on a component that never renders the line for anyone.
+			const admin = adminFrame(null, APPS);
+			expect(admin.split('fdy-config').length - 1).toBeGreaterThanOrEqual(1);
+			expect(admin).toContain('apps origin');
+			expect(studentFrame(null, APPS)).not.toContain('apps origin');
+		});
 	});
 
 	it('does not render a frame until something is launched', () => {
