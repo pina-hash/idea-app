@@ -21,6 +21,7 @@
 	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { queueOrder } from '$lib/foundry/review';
+	import type { FoundryPlayCounts, FoundryPlayStats } from '$lib/foundry/telemetry';
 	import type {
 		FoundryGalleryTransports,
 		FoundryReviewTransports
@@ -42,6 +43,42 @@
 	 */
 	let removed = $state<string[]>([]);
 	let hidden = $state<Record<string, string | null>>({});
+	/**
+	 * THE ADMIN METADATA EDIT, DRIVEN FOR REAL, the same way hiding and deletion
+	 * are: a save from `FoundryInspector` has to change what `FoundryDetail`
+	 * shows beside it, or the harness would be proving the form submits without
+	 * proving the panel reflects a write.
+	 */
+	let metaEdits = $state<Record<string, Partial<Record<string, string>>>>({});
+
+	/**
+	 * TELEMETRY FIXTURES FOR THE THREE MOUNTED APPS, keyed off the load's own
+	 * ids rather than re-typed uuids, so the mapping cannot drift from which app
+	 * is actually app A/B/playfield. One app carries zero plays deliberately --
+	 * `playCountLabel` renders NO chip for zero, and that absence is only
+	 * provable with a real zero sitting beside two real counts.
+	 */
+	const playCounts: FoundryPlayCounts = $derived({
+		[data.apps[0].id]: { plays: 42, plays7d: 5 },
+		[data.apps[1].id]: { plays: 3, plays7d: 3 },
+		[data.apps[2].id]: { plays: 0, plays7d: 0 }
+	});
+
+	const playStatsFixture: Record<string, FoundryPlayStats> = $derived({
+		[data.apps[0].id]: {
+			plays: 42,
+			players: 11,
+			seconds_played: 5400,
+			last_played_at: '2026-08-26T15:30:00Z'
+		},
+		[data.apps[1].id]: {
+			plays: 3,
+			players: 2,
+			seconds_played: 210,
+			last_played_at: '2026-08-20T10:00:00Z'
+		},
+		[data.apps[2].id]: { plays: 0, players: 0, seconds_played: 0, last_played_at: null }
+	});
 
 	const liveApps = $derived(
 		data.apps
@@ -57,7 +94,10 @@
 		if (!reviewSlug) return null;
 		const detail = data.details[reviewSlug] ?? null;
 		if (!detail || removed.includes(detail.id)) return null;
-		return detail.id in hidden ? { ...detail, hidden_at: hidden[detail.id] } : detail;
+		const withHidden =
+			detail.id in hidden ? { ...detail, hidden_at: hidden[detail.id] } : detail;
+		const edits = metaEdits[detail.id];
+		return edits ? { ...withHidden, ...edits } : withHidden;
 	});
 
 	const galleryTransports: FoundryGalleryTransports = {};
@@ -95,6 +135,26 @@
 				storageProblem:
 					appId === data.appBId ? '3 stored files could not be removed.' : null
 			};
+		},
+		/**
+		 * `foundry_app_play_stats`, the four scalars and nothing else. Every app
+		 * in the fixture answers; there is no id here that would exercise the
+		 * null "not available" branch, because every app the queue can select is
+		 * one this admin transport is allowed to answer for.
+		 */
+		async playStats(appId) {
+			return playStatsFixture[appId] ?? null;
+		},
+		/**
+		 * `foundry_update_app_metadata`. Driven for real, same as hiding and
+		 * deletion: the write lands in `metaEdits` and both `FoundryDetail` and
+		 * `FoundryInspector` re-render from it, so a save is provably reflected
+		 * rather than merely accepted.
+		 */
+		async saveField(appId, field, value) {
+			lastDecision = JSON.stringify({ savedField: appId, field, value });
+			metaEdits = { ...metaEdits, [appId]: { ...metaEdits[appId], [field]: value } };
+			return { ok: true };
 		}
 	};
 </script>
@@ -146,7 +206,14 @@
 				`?app`; the harness needs a control for it, and it drives the same
 				`onSelect(null)` the routes call.
 			-->
-			<button type="button" class="hbtn" onclick={() => (gallerySlug = null)}>deselect</button>
+			<button
+				type="button"
+				class="hbtn"
+				data-testid="gallery-deselect"
+				onclick={() => (gallerySlug = null)}
+			>
+				deselect
+			</button>
 		</h2>
 		<!-- The harness has no PUBLIC_FOUNDRY_APPS_ORIGIN to read, and an unset one
 		     correctly removes the frame AND the share link -- which would leave
@@ -157,13 +224,21 @@
 			transports={galleryTransports}
 			onSelect={(slug) => (gallerySlug = slug)}
 			appsOrigin="https://apps.ideabosco.com"
+			{playCounts}
 		/>
 	</section>
 
 	<section class="fdy-shell">
 		<h2>
 			/foundry/review &mdash; the queue
-			<button type="button" class="hbtn" onclick={() => (reviewSlug = null)}>deselect</button>
+			<button
+				type="button"
+				class="hbtn"
+				data-testid="review-deselect"
+				onclick={() => (reviewSlug = null)}
+			>
+				deselect
+			</button>
 		</h2>
 		<ReviewQueue
 			apps={liveApps}
