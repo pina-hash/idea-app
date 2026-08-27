@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	FOUNDRY_ALLOWED_EXTENSIONS,
 	FOUNDRY_IGNORED_EXTENSIONS,
+	FOUNDRY_KNOWN_SHIMS,
 	extensionOf,
 	foundryMime,
 	isIgnoredExtension,
@@ -12,6 +13,7 @@ import {
 	type HtmlFacts,
 	type HtmlReader
 } from '../src/lib/foundry/preflight.ts';
+import { FOUNDRY_STORAGE_SHIM_JS } from '../src/lib/foundry/storage-shim.ts';
 
 /**
  * INLINE SCRIPTS, AND THE LINE NUMBER THAT HAS TO BE RIGHT.
@@ -372,3 +374,100 @@ describe('the game-engine export formats are allowed and typed', () => {
 		expect(FOUNDRY_ALLOWED_EXTENSIONS as readonly string[]).not.toContain('gz');
 	});
 });
+
+/**
+ * THE PLATFORM MUST NOT WARN ABOUT ITS OWN ADVICE -- IN ANY VERSION OF IT.
+ *
+ * The contract tells a student to paste the storage shim as the first thing
+ * inside <head>. The shim's own text contains `install('localStorage')`, which
+ * the storage rule in `scanJs` matches, so without an exemption every
+ * correctly built app carries a warning about the snippet that fixes storage.
+ * That exemption existed and compared against the CURRENT shim string alone --
+ * correct exactly as long as the shim never changed, and it changed: the probe
+ * that keeps a real storage area instead of replacing it was added, and every
+ * student who had already pasted the previous version started being warned
+ * about it.
+ *
+ * THE MEASUREMENT THAT MATTERS IS THE RETIRED ONE, and it is why the pair of
+ * assertions below is a pair. Testing only the current shim passes on exactly
+ * the broken code this fixes; the retired shim is the case, and the third
+ * fixture is the positive control that proves the exemption is an identity
+ * test rather than a blanket amnesty for anything mentioning storage.
+ *
+ * IT IS DELIBERATELY A LOOP OVER `FOUNDRY_KNOWN_SHIMS` rather than two named
+ * fixtures: a shim edit that forgets to record the string it replaced adds an
+ * entry to that array and this test covers it for free, and a shim edit that
+ * records nothing leaves the array one entry long, which the length assertion
+ * catches.
+ */
+describe('the storage shim is recognised in every version this platform shipped', () => {
+	it('warns about no shim the platform has ever handed out', () => {
+		// The set really does hold more than the live string -- otherwise every
+		// assertion below would be about the current shim twice over.
+		expect(FOUNDRY_KNOWN_SHIMS.length).toBeGreaterThan(1);
+		expect(FOUNDRY_KNOWN_SHIMS[0]).toBe(FOUNDRY_STORAGE_SHIM_JS);
+
+		for (const [i, shim] of FOUNDRY_KNOWN_SHIMS.entries()) {
+			const scan = scanHtml('index.html', '<html></html>', readerFor([shim]));
+			expect(scan.failures, `shim ${i} failures`).toEqual([]);
+			expect(scan.warnings, `shim ${i} warnings`).toEqual([]);
+		}
+	});
+
+	/**
+	 * THE POSITIVE CONTROL, and it is the retired shim's own text with one
+	 * character changed. A control that used unrelated code would prove only
+	 * that the scanner runs at all; this proves the exemption is keyed on the
+	 * exact string and not on the block looking shim-shaped.
+	 */
+	it('scans a script that merely resembles a shim, retired text included', () => {
+		for (const [i, shim] of FOUNDRY_KNOWN_SHIMS.entries()) {
+			const tampered = `${shim}\nlocalStorage.setItem('mine', '1');`;
+			const scan = scanHtml('index.html', '<html></html>', readerFor([tampered]));
+			expect(scan.warnings.length, `tampered ${i}`).toBeGreaterThan(0);
+			expect(scan.warnings[0]!.message).toContain('localStorage');
+		}
+	});
+
+	/**
+	 * WHITESPACE IS THE ONE THING NORMALIZED, because a student pastes into an
+	 * editor and an editor reindents. Anything else is a different script.
+	 */
+	it('recognises a reindented paste and not an edited one', () => {
+		const reindented = FOUNDRY_KNOWN_SHIMS.map((v) =>
+			v.split('\n').map((l) => `\t\t${l}`).join('\n')
+		);
+		for (const [i, shim] of reindented.entries()) {
+			const scan = scanHtml('index.html', '<html></html>', readerFor([shim]));
+			expect(scan.warnings, `reindented ${i}`).toEqual([]);
+		}
+
+		// Positive control on the same axis: renaming an identifier inside the
+		// shim is not whitespace, so it is scanned.
+		const renamed = FOUNDRY_STORAGE_SHIM_JS.replace("install('localStorage')", "install('localStorage');install('localStorage')");
+		expect(renamed).not.toBe(FOUNDRY_STORAGE_SHIM_JS);
+		const scan = scanHtml('index.html', '<html></html>', readerFor([renamed]));
+		expect(scan.warnings.length).toBeGreaterThan(0);
+	});
+
+	/**
+	 * NO RETIRED ENTRY MAY BE A COPY OF THE LIVE SHIM. The retired strings are
+	 * written out in `preflight.ts` because nothing generates them any more;
+	 * that is only safe while they are genuinely dead. An entry that had been
+	 * "kept in sync" with the live one would be the second copy of the shipping
+	 * shim, which is the thing `storage-shim.ts` exists to prevent.
+	 */
+	it('holds no retired shim that has become a copy of the live one', () => {
+		const flat = (v: string) => v.replace(/\s+/g, '');
+		const live = flat(FOUNDRY_STORAGE_SHIM_JS);
+		const retired = FOUNDRY_KNOWN_SHIMS.slice(1);
+		expect(retired.length).toBeGreaterThan(0);
+		for (const [i, v] of retired.entries()) expect(flat(v), `retired ${i}`).not.toBe(live);
+
+		// And they are distinct from each other, so the array is a history and
+		// not a list with a duplicate in it.
+		const seen = new Set(retired.map(flat));
+		expect(seen.size).toBe(retired.length);
+	});
+});
+

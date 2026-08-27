@@ -167,3 +167,96 @@ export function foundryAppUrl(
 	if (!origin || !app) return null;
 	return `${origin}${FOUNDRY_APP_PREFIX}${encodeURIComponent(app)}/`;
 }
+
+/**
+ * THE PREVIEW MOUNT: a version of an app the AUTHOR may run before anybody has
+ * approved it.
+ *
+ *   /foundry/preview/<app id>/<version id>/
+ *
+ * WHY IT IS A THIRD SHAPE AND NOT A FLAG ON ONE OF THE FIRST TWO. `/b/` and
+ * `/a/` both answer on the APPS ORIGIN, which deliberately holds no session --
+ * that absence is the whole of what the split buys, and it is the reason both
+ * of them gate on the VERSION'S OWN STATUS rather than on who is asking. A
+ * draft has no status that licenses serving, and there is nothing on that host
+ * that could tell whether the person asking wrote it. So preview cannot be a
+ * widening of either gate; it has to answer where the session cookie is.
+ *
+ * WHICH IS WHY THIS BUILDER TAKES NO ORIGIN, AND MUST NOT GAIN ONE. It is a
+ * SAME-ORIGIN path on the portal, deliberately: the route resolves the viewer
+ * from `locals.claims` and refuses anyone who is neither the version's author
+ * nor an admin, and a caller that could point this at another host would be
+ * pointing it at one where that resolution answers nobody. `foundryBundleUrl`
+ * and `foundryAppUrl` take an origin because their answer lives elsewhere;
+ * this one's answer is here.
+ *
+ * WHAT IT COSTS, STATED WHERE THE URL IS BUILT: student HTML executing on the
+ * cookie-carrying host is the exact thing the apps origin exists to prevent, so
+ * the preview response carries the CSP `sandbox` directive with NO
+ * `allow-same-origin` -- an opaque origin, from the header, regardless of what
+ * any environment variable is set to. See `previewBundleFile` for the gate and
+ * `foundryPreviewResponse` for the containment.
+ *
+ * THE TRAILING SLASH IS THE SAME LOAD-BEARING SLASH THE OTHER TWO HAVE.
+ * `.../<version>` has `.../<app>/` as its base URL, so every relative asset in
+ * the bundle would resolve one level too high and the app would render
+ * unstyled and scriptless -- which reads as a bad upload rather than a bad URL.
+ * This only ever produces the slash form; the route 307s the other one.
+ */
+export const FOUNDRY_PREVIEW_PREFIX = '/foundry/preview/';
+
+/**
+ * `/foundry/preview/<app>/<version>/`, or null when it has nothing to point at.
+ *
+ * NULL IS A REAL ANSWER and the caller renders the absence, exactly as it does
+ * for the other two builders: a control whose only possible outcome is a
+ * refusal must not be offered.
+ */
+export function foundryPreviewUrl(
+	appId: string | null | undefined,
+	versionId: string | null | undefined,
+): string | null {
+	const app = (appId ?? '').trim();
+	const version = (versionId ?? '').trim();
+	if (!app || !version) return null;
+	return `${FOUNDRY_PREVIEW_PREFIX}${encodeURIComponent(app)}/${encodeURIComponent(version)}/`;
+}
+
+/**
+ * WHETHER A SURFACE SHOULD OFFER A PREVIEW OF THIS VERSION TO ITS OWNER.
+ *
+ * IT MIRRORS THE GATE RATHER THAN RESTATING IT, which is the same arrangement
+ * `versionIsDeletable` has with `foundry_delete_version`: the BOUNDARY is
+ * `previewViewerMayRun` on the server and nothing here can widen it, and this
+ * exists so that no control is offered whose only possible answer is a refusal.
+ * A button that 404s reads as a broken feature rather than as a rule.
+ *
+ * IT IS THE OWNER'S VIEW OF THE GATE, and only the clauses a surface can see:
+ *
+ *   THE FILE COUNT. An upload whose ingest never finished has no entry
+ *     document, so the route answers the same bodyless 404 an unknown app does.
+ *     This reads the same fact `draftIsSubmittable` reads, for a different
+ *     question -- it is not a second copy of that predicate, which additionally
+ *     requires the status to be `draft`.
+ *
+ *   THE HIDDEN FLAG. `previewViewerMayRun` refuses a shelved app to its OWNER,
+ *     matching 0130 refusing their edit of one and 0136 their delete of one. An
+ *     ADMIN still previews it, which is why this is named for the owner's
+ *     surface rather than called a general rule: a staff surface offering the
+ *     same control would not read this.
+ *
+ * WHAT IT DELIBERATELY DOES NOT ASK IS THE STATUS. Every other control on a
+ * version row is status-gated, so the natural shape of a regression is somebody
+ * adding a status clause to the one control that must not have one -- and the
+ * surface would look correct to anybody testing with a submitted or approved
+ * build, which is every build a reviewer has. Running a DRAFT is the entire
+ * point of the feature.
+ */
+export function foundryPreviewable(
+	app: { hidden_at: string | null } | null | undefined,
+	version: { file_count: number } | null | undefined,
+): boolean {
+	if (!app || !version) return false;
+	if (app.hidden_at !== null) return false;
+	return version.file_count > 0;
+}

@@ -179,6 +179,21 @@ function runLoadOn(
 	});
 }
 
+/**
+ * EVERY FIXTURE DATE HERE MUST BE IN THE PAST, and that is a rule now rather
+ * than a habit: the class load bounds its check-in read at TODAY on the
+ * America/Los_Angeles calendar, so a check-in dated ahead of the run is not
+ * read at all and every assertion about it fails with `undefined`. Four of
+ * these were dated months out when they were written, which was harmless while
+ * the read had no bound and is not any more.
+ *
+ * What the bound exists to stop is a scheduled check-in counting as missing
+ * weeks before the day it is for (see the loader's own comment). A test that
+ * wants to pin THAT behaviour dates its fixture relative to the real clock, the
+ * way tests/classroom-feed-false-counts.test.ts does; everything here is about
+ * status, linkage and the ladder, so a fixed past date is the right shape and
+ * stays right, because dates only recede.
+ */
 const upsertSession = (
 	as: SeededUser,
 	sectionIds: string[],
@@ -505,7 +520,7 @@ describe('a draft is not filed', () => {
 	});
 
 	it('reads as draft, not filed, and counts as outstanding', async () => {
-		draftCheckIn = await upsertSession(owner, [p1], 7, '2026-09-10', 'Draft check-in');
+		draftCheckIn = await upsertSession(owner, [p1], 7, '2026-08-13', 'Draft check-in');
 
 		// Alice drafts against it; Bruno files against it. Same check-in, same
 		// class, two students -- so the assertion is a comparison and not a read
@@ -763,8 +778,8 @@ describe('a check-in attached to a classroom item', () => {
 
 		// Two check-ins in the same class on the same day: one attached to the
 		// material, one not. A comparison, not a single reading.
-		linkedCheckIn = await upsertSession(owner, [p1], 9, '2026-10-12', 'Shop floor pages');
-		looseCheckIn = await upsertSession(owner, [p1], 9, '2026-10-12', 'Bench log');
+		linkedCheckIn = await upsertSession(owner, [p1], 9, '2026-08-14', 'Shop floor pages');
+		looseCheckIn = await upsertSession(owner, [p1], 9, '2026-08-14', 'Bench log');
 		await db.asUser(teacher.id, (q) =>
 			q('select public.notebook_link_session_item($1::uuid, $2::uuid, $3::uuid)', [
 				linkedCheckIn,
@@ -872,7 +887,7 @@ describe('a check-in attached to a classroom item', () => {
 			);
 			return rows[0].result.item_id;
 		});
-		const hidden = await upsertSession(owner, [p1], 9, '2026-10-13', 'Hidden handout pages');
+		const hidden = await upsertSession(owner, [p1], 9, '2026-08-15', 'Hidden handout pages');
 		await db.asUser(teacher.id, (q) =>
 			q('select public.notebook_link_session_item($1::uuid, $2::uuid, $3::uuid)', [
 				hidden,
@@ -924,7 +939,8 @@ describe('a check-in attached to a classroom item', () => {
 			q('select public.notebook_admin_upsert_session($1::uuid[], $2, $3::date, $4)', [
 				[section],
 				9,
-				'2026-10-12',
+				// In the past, like every other fixture date here -- see upsertSession.
+				'2026-08-14',
 				'Bench log'
 			])
 		);

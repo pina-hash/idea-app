@@ -64,17 +64,67 @@ describe('the review tab renders for admins and for nobody else', () => {
 	});
 });
 
+/*
+ * THE BUILD CONTRACT'S PERMANENT PLACE.
+ *
+ * It used to have none: the gallery linked it only from the empty state (so
+ * the link vanished the moment one app existed anywhere) and `locateFoundry`
+ * folded it into the `submit` tab, which is not a link anywhere either. Both
+ * halves of the fix are asserted here -- the tab is unconditional on role and
+ * on which other tab is active, and the map answers the path as its own place
+ * rather than as an alias for `submit`.
+ */
+describe('the build contract has a permanent tab, unconditional on role', () => {
+	it('renders the Build contract tab for a student and for an admin alike', () => {
+		for (const isAdmin of [true, false]) {
+			const html = shell({ active: 'gallery', isAdmin, reviewPending: isAdmin ? 0 : null });
+			expect(html, `isAdmin=${isAdmin}`).toContain('/foundry/contract');
+			expect(html, `isAdmin=${isAdmin}`).toContain('Build contract');
+		}
+	});
+
+	it('marks the tab current when the contract page is the active place', () => {
+		const html = shell({ active: 'contract', isAdmin: false, reviewPending: null });
+		const match = /<a[^>]*href="\/foundry\/contract"[^>]*>/.exec(html);
+		expect(match, 'no Build contract tab in the markup').not.toBeNull();
+		expect(match![0]).toContain('aria-current="page"');
+
+		// POSITIVE CONTROL: a different active place leaves it uncurrent, so the
+		// assertion above is about the `active` prop and not a tab that is
+		// always marked current.
+		const elsewhere = shell({ active: 'gallery', isAdmin: false, reviewPending: null });
+		const elsewhereMatch = /<a[^>]*href="\/foundry\/contract"[^>]*>/.exec(elsewhere);
+		expect(elsewhereMatch![0]).not.toContain('aria-current="page"');
+	});
+
+	it('renders every other tab alongside it, so nothing was displaced', () => {
+		const html = shell({ active: 'contract', isAdmin: false, reviewPending: null });
+		expect(html).toContain('/foundry');
+		expect(html).toContain('/foundry/mine');
+		expect(html).toContain('/foundry/submit');
+	});
+});
+
 describe('the map behind the active tab', () => {
-	it('nests the contract and the starter under the publish flow', () => {
-		expect(locateFoundry('/foundry/contract')).toBe('submit');
-		expect(locateFoundry('/foundry/starter')).toBe('submit');
+	it('resolves the contract to its OWN place, not the publish tab', () => {
+		expect(locateFoundry('/foundry/contract')).toBe('contract');
+		// POSITIVE CONTROL: this used to be the shared answer, so the assertion
+		// above is meaningful only because 'submit' really is a different value
+		// something in this map still returns.
 		expect(locateFoundry('/foundry/submit')).toBe('submit');
+	});
+
+	it('keeps the starter nested under the publish flow', () => {
+		// The starter is a download reached WHILE publishing and nowhere else,
+		// unlike the contract, so it stays folded into the submit tab.
+		expect(locateFoundry('/foundry/starter')).toBe('submit');
 	});
 
 	it('answers each top-level surface as itself, trailing slash included', () => {
 		expect(locateFoundry('/foundry')).toBe('gallery');
 		expect(locateFoundry('/foundry/')).toBe('gallery');
 		expect(locateFoundry('/foundry/mine')).toBe('mine');
+		expect(locateFoundry('/foundry/contract/')).toBe('contract');
 		expect(locateFoundry('/foundry/review')).toBe('review');
 	});
 

@@ -33191,3 +33191,1156 @@ change at all.
   with a space**, everywhere else it is used. Only this caller checks.
 - **A per-field diff against the last revision.** The history panel shows whole
   documents; saying which sentence moved is a different feature.
+
+---
+
+## `tools/browser-verify` -- the visual pass, made repeatable instead of lucky
+
+Code-only. No SQL, no migration, and **nothing under `src/`**: other sessions
+were live in `src/lib/classroom/` and `src/lib/foundry/`, so this bundle owns
+`package.json`, `package-lock.json`, `tools/browser-verify/`, `CLAUDE.md` and
+this file, and touched nothing else.
+
+### The problem, stated as the contradiction it was
+
+Every session in this repo for several days ended by reporting that no browser
+was available and the visual pass was skipped. The entry immediately above this
+one ends "**No browser pass. No screenshots.**" Meanwhile `CLAUDE.md` cites
+Chromium measurements as established fact in a dozen places -- the `<img>`
+thumbnail decode at `naturalWidth` 8, the platform-font CORS load from a genuine
+opaque origin, the `while (true)` teardown timings -- and at least one session
+demonstrably drove a browser to get them.
+
+Both cannot be true. The sentence "no browser tool available" describes the
+SESSION, not the environment, and the two had drifted apart. What follows is
+what the environment turned out to have.
+
+### What this container actually has (measured 2026-08-27, not assumed)
+
+- **A Chromium is preinstalled**: `141.0.7390.37` at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, found through
+  `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`, registered by a **global**
+  playwright `1.56.1` at `/opt/node22/lib/node_modules/playwright`. Nothing is
+  on `PATH` under any of the six usual names, which is why `command -v chromium`
+  -- the obvious check -- answers "no browser" on a machine that has one.
+- **It starts headless.** `--headless=new --no-sandbox --disable-gpu
+  --dump-dom about:blank` returns the document, exit 0. The wall of
+  `Failed to connect to the bus: /run/dbus/system_bus_socket` on stderr is
+  NOISE: there is no system bus in the container and Chromium does not need one.
+  A session that read that stderr as the failure would conclude the browser was
+  broken.
+- **`npx playwright install chromium` is a NO-OP**, because build 1194 is
+  already at the install location. `--dry-run` prints the three download URLs
+  and the install path, which already exists.
+- **It could NOT download if it had to.** `cdn.playwright.dev` answers **403 to
+  CONNECT** through the agent proxy: `curl` gives
+  `CONNECT tunnel failed, response 403`, and the proxy's own
+  `/__agentproxy/status` records `connect_rejected -- gateway answered 403 to
+  CONNECT (policy denial or upstream failure)`. `registry.npmjs.org` IS
+  reachable (it is in `no_proxy`), so npm works and the browser CDN does not.
+- **Disk is not the constraint** (30G available; the binary is 463MB).
+
+### The five capability rows that matter most
+
+`CLAUDE.md`'s "The Browser pane" section documents at length what the
+`mcp__Claude_Browser__*` pane cannot do. Sessions have been carrying those over
+as facts about the environment. Measured against the harness Chromium, **every
+one of them is the opposite here**:
+
+| | Browser pane (per `CLAUDE.md`) | This Chromium |
+| --- | --- | --- |
+| Screenshots | time out | **work** (6086-byte PNG) |
+| `requestAnimationFrame` | frozen when hidden | **fires** |
+| `IntersectionObserver` | **never** fires, for anything | **fires** |
+| `ResizeObserver` | never delivers | **delivers** |
+| Canvas readback / `color-mix()` | (n/a) | **work** |
+| Paused animation midpoint | (n/a) | **0.5 opacity**, interpolates |
+
+This is the single most useful thing in this entry. It means the documented
+workarounds -- settling `AppLauncher`'s cards by hand because the observer never
+fires, patching the `ResizeObserver` constructor to capture and invoke the
+callback -- are unnecessary here, and applying them anyway measures the
+workaround rather than the component.
+
+### The dependency, and why the pin is load-bearing
+
+`playwright-core@1.56.1`, **exact**, in `devDependencies`. Chosen over the full
+`playwright` package for two reasons:
+
+- `playwright-core` has no install-time browser download, so `npm install` in
+  this repo cannot be broken by the blocked CDN. (Neither package publishes a
+  `scripts` field at 1.56.1, so this is belt and braces -- but the belt is free.)
+- **The version must match the preinstalled build.** Playwright pins a chromium
+  build number per release; 1.56.1 wants **1194**, which is what is on disk. A
+  different minor wants a different build, and that download is 403. So a
+  routine `npm update` is what would take this harness out, silently, with a
+  "browser not found" that reads like a missing tool rather than a version
+  drift. The exact pin is the guard, and `browser.mjs` additionally resolves
+  through a **reported** fallback chain so a moved binary is a named error.
+
+### The harness
+
+`npm run verify:browser`. Seven modules under `tools/browser-verify/`; the
+README there is the reference and is not repeated here.
+
+- **It drives `/dev` routes only, and that is a boundary rather than a starting
+  set.** They mount the real components with fixture data and need no account
+  and no Supabase. A real route needs a Bosco Tech Google session no automated
+  run holds; that stays `/dev/login` against a local stack, by hand. The README
+  and `CLAUDE.md` both say so, because the failure mode is a future session
+  reporting the harness as covering a signed-in page.
+- **No `.env` is written.** The two public Supabase values are handed to the
+  vite **child process**, since SvelteKit merges `process.env` into
+  `$env/static/public`. The previous bundle wrote one from `.env.example` to
+  reach the `svelte-check` baseline; this needs no file and so has nothing to
+  restore.
+- **Every check reports a measured value, never a pass.** Overflow in px with
+  the offending elements and their overhang; contrast as a ratio with both
+  composited colours and the ancestor that supplied the ground; every control's
+  box with counts under 44px and under the 24px floor; present/visible/
+  aria-hidden as three separate counts with a reason per invisible node;
+  console errors with their text. A number is auditable and a green tick is not,
+  which is precisely how the unchecked claims survived.
+- **Contrast is measured by painting to a canvas and reading the pixel back**,
+  per the rule in `CLAUDE.md`: a regex over computed styles skips `color-mix()`
+  and `color(srgb ...)` silently. Alpha on the text composites over the resolved
+  ground before the ratio is taken, and a `background-image` anywhere up the
+  stack is flagged so the number is not read as more than it is.
+
+### Four defects found in the instrument while building it, and what each taught
+
+These are recorded because each one produced a **plausible, confident, wrong
+reading** -- which is the failure mode a measuring tool has to be hardened
+against.
+
+1. **`page.evaluate(string)` treats its argument as an EXPRESSION.** A `prepare`
+   step's predicate was handed in as arrow-function source, which evaluated to a
+   function object and was never `=== true`. Every step reported twelve failed
+   attempts while the clicks underneath were working perfectly -- and the
+   presence check beside it reported the state those clicks had produced. Fixed
+   by invoking: `page.evaluate(\`(${until})()\`)`.
+2. **`page.route('**/*')` round-trips every vite dev module request through the
+   Node handler.** A full run took **176 seconds**; with a predicate matcher, so
+   Chromium serves loopback on its own fast path, the same run is **22
+   seconds**. An 8x cost with no symptom other than slowness.
+3. **`waitUntil: 'networkidle'` never idles here.** The proxy resets
+   `fonts.googleapis.com` and the request hangs until it does, so every page paid
+   the full cap; one run took **305 seconds**. Replaced by a DOM-stability poll,
+   and every non-loopback request is now blocked outright -- which is also what
+   makes the run deterministic, since whether a webfont arrived changes text
+   metrics and this harness reports geometry.
+4. **`aria-hidden` was folded into visibility**, so a correctly-decorative
+   15.2x15.2 glyph came back as "present but not visible". They are three
+   questions and are now three counts.
+
+The first is the one worth generalising: **a verification tool that fails
+silently in the direction of "no result" is worse than no tool**, because "0
+matched" reads as a changed surface rather than a broken probe. The harness now
+reports match counts, attempt counts and blocked-request counts for exactly
+this reason.
+
+### Paint is not interactivity, and no marker separates them
+
+Promoted to `CLAUDE.md`. `/dev/pathways` answered HTTP 200 with a 1099-byte
+shell and every selector matched 0 nodes with a clean console -- which reads
+exactly like a page whose markup changed. Waiting for painted content fixed
+that, but not the next layer: on `/dev/spec-table` **every `__SVELTEKIT_*` global
+was present at 600ms while two clicks in a row did nothing**, and the same
+single click took effect at 2500ms. The client entry module sets those globals
+before hydration attaches a handler, so there is no marker to wait on. Nothing
+here waits on a timer; `clickUntil` retries against the step's own effect and
+reports the attempt count (1-2 in practice).
+
+### Negative controls -- the deliverable, not a footnote
+
+A check that has never failed has not been tested.
+
+- **`--selftest`: 18 controls, 9 negative and 9 positive, 0 instrument
+  failures.** Every check is put to a fixture built to break it AND one built to
+  pass it, both measured values printed, exiting non-zero if the instrument is
+  wrong. Fixtures rather than a mutation of `src/` deliberately: a mutation
+  proves a check once in a tree that then needs restoring byte-identically, this
+  proves it on every run and touches nothing. The contrast pair includes a
+  `color-mix()` ground with alpha text (2.23:1 vs 11.72:1) and a pale-ink-on-a-
+  light-card-on-a-dark-page case (1.19:1 vs 12.12:1) that only bites if the
+  ground is genuinely resolved; the tap-target pair includes a 22px input in a
+  22px label vs the same input in a 44px label, which is the rule about
+  measuring at the label.
+- **`--break <preset>`: the LIVE control.** Injects a defect into the real page
+  before measuring. Run on `/dev/spec-table` at 375px, each preset reddened
+  exactly its own check and left every other one green: `overflow` -> 1225px of
+  overflow, `tiny-taps` -> smallest 293x18 with 5/5 under 44px, `low-contrast`
+  -> 1:1, `invisible` -> present 1 / visible 0 (`opacity:0`), `console-error`
+  -> 1 pageerror. **The isolation is the property that makes them worth
+  anything**; a preset that reddened three checks would prove none of them.
+
+### Measured
+
+- **Full run: 22.4s, 22.7s, 23.2s** over three consecutive runs (3.5s of it the
+  vite boot), 8 route/width runs, 54 measurements. The findings were
+  **byte-identical across all three** -- checked with `diff` -- which is the
+  reliability evidence behind the CI recommendation.
+- `--selftest`: **7.7s**. `--probe`: ~3s.
+- Per-page render after the first: **~400-500ms**; first visit to a route
+  1.0-1.7s while vite compiles its module graph.
+- **`svelte-check`: 0 errors, 37 warnings**, breakdown 31 `state_referenced_locally`
+  / 5 `css_unused_selector` / 1 `perf_avoid_nested_class` -- the documented
+  baseline, unmoved.
+- **`npm test`: 120 files, 2733 tests, all passing, 113.1s.**
+
+### The `svelte-check` `.env` trap, promoted to `CLAUDE.md`
+
+A first run reported **11 errors**, all
+`Module '"$env/static/public"' has no exported member 'PUBLIC_SUPABASE_URL'`
+(or `_ANON_KEY`), across eight files this bundle never touched. That module is
+generated from the environment, and `.env` is gitignored -- so **every fresh
+cloud session sees this**, and it looks exactly like a regression in someone
+else's code. Exporting the two values (any placeholder) before `svelte-kit sync`
+returns it to 0/37. The tell is that the warnings do not move: a real regression
+moves one of those numbers, this moves only the errors and only in files the
+diff never named.
+
+### Findings on the surfaces driven
+
+Reported, not fixed -- `src/` was out of this bundle's scope.
+
+- **`/dev/pathways`: the two harness controls measure 194.7x26.2px**, under the
+  44px floor at both widths (above the 24px absolute floor, and the centre
+  hit-test lands on the control itself). These are the dev harness's own
+  controls, not a student surface.
+- **`/dev/pathways` mounts the real first-login picker, whose overlay covers the
+  page.** Measuring through it is a true reading of the wrong thing; the spec
+  dismisses it with "Not now" first and the report says so. Before that was
+  noticed, the tap-target hit-test was correctly reporting `.pwp-overlay` as
+  what a tap would land on.
+- **`/dev/spec-table` renders two disclosures closed and two open**, and the
+  closed ones keep their tables in the DOM at a zero box -- which is
+  `Disclosure`'s documented contract (hidden in CSS, never removed) and is why
+  the presence check reports present and visible separately. `present 2, visible
+  0` is the correct reading of a closed panel, and the route spec says so rather
+  than carrying a permanent false finding.
+- **The chip label on its own fill measures 4.84:1** on `/dev/pathways` -- it
+  clears 4.5, but not by much, and the ground is a per-chip fill.
+
+### Not in `npm test`, not in CI, and the recommendation
+
+Left out of both, deliberately, and this bundle wires it into neither.
+`npm test` is the database suite (real embedded Postgres, real migrations, no
+DOM) and a browser failure there would read as a database failure. More
+importantly, **a push to `main` deploys `ideabosco.com` while students are
+using it**, so a gate that can wedge that deploy needs a much stronger
+reliability record than one bundle's worth of runs. Default exit is **0 even
+with findings** -- it is a measuring instrument; `--strict` exits 1 for a
+session that wants that. **Recommendation: revisit CI once several sessions
+have run it and the finding list is stable enough that a red run means the
+change rather than the harness.** 22s and three identical consecutive runs is
+an encouraging start, not a record.
+
+### What was NOT verified
+
+- **No signed-in surface, and no real route.** The harness cannot reach one by
+  construction. Nothing here says anything about `/classroom`, `/notebook`,
+  `/foundry` or any production page.
+- **Nothing was run against the live Supabase project, a real deployment, or a
+  Vercel preview.** The public env values were placeholders.
+- **Web fonts did not load in any measurement**, so every geometry number is
+  against the fallback stack. A tap-target height that depends on Rajdhani's
+  line box could differ in production.
+- **`prefers-reduced-motion` was `no-preference` throughout.** The
+  reduced-motion path of any animated component is unexercised.
+- **Only three dev routes are in `routes.mjs`** (`/dev/pathways`,
+  `/dev/spec-table`, `/dev/animated-logo`), out of 51 that exist. The other 48
+  are unmeasured. They were chosen for being stable and outside the areas other
+  sessions were live in.
+- **No screenshots were taken as part of the pass**, though `--probe` proves
+  they work here. The checks are geometry and computed-style reads.
+
+### Deferred
+
+- **Route specs for the other 48 dev routes.** Each needs its selectors
+  anchored against the real DOM -- a bare tag name matched the root layout's
+  site-feedback glyph on the first attempt -- which is a per-route job.
+- **A reduced-motion pass.** `openPage` already takes the context option; it
+  needs a second axis in the run matrix and a decision about which surfaces
+  care.
+- **Screenshot capture on a finding.** Cheap here and would make a contrast or
+  overflow report much easier to act on.
+- **Wiring `--strict` into a pre-merge step** rather than CI, once the finding
+  list is stable.
+
+---
+
+## Five staff capabilities that were live, granted and uncalled get their controls (`claude/notebook-excusal-grid-control-0ub2q2`, code only, no migration)
+
+An audit named five SECURITY DEFINER functions in the notebook's data layer that
+were applied, granted to `authenticated`, gated inside their own bodies, and
+called from nowhere in `src/`. All five claims were re-derived here against the
+migrations and the catalog before anything was built on them, and **two of the
+five turned out not to be admin-gated at all** -- see the tier table below, which
+is the finding this bundle most wants a future session to read.
+
+Nothing in this bundle is a migration. Every function, table, grant and policy it
+uses has been in the schema since 0069-0120; what was missing was a caller.
+
+### What each one was, and what now calls it
+
+| Function | Tier, from its own body | New surface |
+| --- | --- | --- |
+| `notebook_admin_set_excusal` | `is_admin()` -- **ADMIN** | `CellExcusal.svelte`, in the review console's entry pane, under both panel branches |
+| `notebook_admin_override_entry` | `is_admin()` -- **ADMIN** | `EntryMove.svelte`, between the verdicts and the danger zone |
+| `notebook_admin_log` (select) | policy `using (is_admin())` -- **ADMIN** | `AdminLogPanel.svelte`, a fourth console mode |
+| `notebook_staff_restore_note` | `classroom_manages_section` OR `notebook_manages_student` -- **INSTRUCTOR** | a staff deleted-notes disclosure in `EntryNotes.svelte` |
+| `notebook_link_session_item` | `classroom_manages_section` -- **INSTRUCTOR** | an "Attached item" panel per row in `SessionManager.svelte` |
+
+### THE TIER SPLIT IS NOT WHAT THE NAMES SUGGEST, and that is the finding
+
+The audit described all five as admin-gated. Two are not, and the difference
+matters operationally rather than pedantically: three sections of this course run
+identical grading and one is taught by a colleague who is an instructor and not
+an admin.
+
+- `notebook_staff_restore_note` says `staff` in its own name and means it. Its
+  gate is the same one the staff note DELETE beside it asks, which is why the two
+  are handed in together and never separately.
+- `notebook_link_session_item` asks exactly what `notebook_add_session_postings`
+  and `notebook_set_session_guidance` already ask on the same surface.
+- **The excusal splits down the middle.** 0098's SELECT policy on
+  `notebook_session_excusals` admits the subject and any manager of a section the
+  check-in is posted to, while the WRITE is `is_admin()`. So an instructor sees
+  that a student was excused and why, and has no control. `CellExcusal` says so
+  in words rather than rendering an inert button.
+
+**What that costs the colleague, stated plainly rather than fixed quietly:** they
+can attach a check-in to an item and restore a note; they **cannot** excuse a
+student from a check-in, cannot correct an entry filed against the wrong check-in
+or class, and cannot read the admin log. Every one of those is a capability only
+the site admin has, on a course three people teach the same way. Widening any of
+them is a migration and a deliberate decision about who may change a state a
+student is graded on -- it was not made here.
+
+### The excusal is the one that mattered
+
+`excused` has been a first-class READ state since 0069 -- its own glyph and its
+own `--nb-cell-excused` per-plate token in the compliance grid, its own branch in
+`checkInStatus`, its own line in the Documentation Check's coverage arithmetic,
+its own count on the People panel, its own branch in the console's empty-cell
+panel -- and it is what stops a check-in counting as outstanding. Six read sites
+were rendering a state no surface in the codebase could produce.
+
+- **The control is in the panel beside the grid, under BOTH branches.** The
+  cursor already names the (student, check-in) pair the RPC takes. It renders on
+  the empty-cell panel as well as the open-entry one because the empty cell is
+  the common case: a student who filed nothing is exactly who is about to be
+  excused. It renders on an entry that EXISTS too, because that pair is real --
+  `checkInStatus` already decides an entry beats an excusal -- and somebody may
+  still need to withdraw the excusal behind it.
+- **`note` had never been selected anywhere.** The column has existed since 0069
+  with a 500-character CHECK. An excusal recorded in October was unexplainable in
+  March. `EXCUSAL_NOTE_MAX` restates the cap client-side and a test asserts it
+  against the column's own constraint in both directions, so the restatement
+  cannot drift.
+- **A recorded excusal with no reason SAYS so** rather than rendering an empty
+  line: "nobody wrote one down" and "the field was never read" look identical
+  otherwise, and telling them apart is the whole point.
+- **`excused` still comes from the GRID**, never from whether a row came back in
+  the excusal read. The RPC adjudicates the cell; the extra read carries the note
+  and nothing else. A second idea of "is this excused" is what stops matching.
+- **A student with no account cannot be excused**, and the control says why
+  rather than silently lacking a button. 0094's roster carries a student who is
+  enrolled and has never signed in (`student_key` is the email, `id` is null) and
+  the RPC refuses a `p_student_id` with no `profiles` row. `excusalBlockedReason`
+  is the client mirror and the test asserts the refusal it mirrors.
+
+### The override renders two of nine parameters
+
+`notebook_admin_override_entry` takes nine and was re-signed across four
+migrations. Four of them (`p_custom_label`, `p_status`, `p_flag_reason`,
+`p_instructor_comment`) restate verdicts the console already has real controls
+for -- Flag with its validated reason list, Clear flag, Accept -- so exposing
+them would be a second, admin-only path to the same decision with none of the
+surrounding rules. What has no other path is the pair the control renders: an
+entry filed against the wrong check-in, and one filed in the wrong class.
+
+- **The two `p_set_*` booleans are not user-facing.** They are how the RPC tells
+  "leave this alone" from "write null here", and `entryMovePayload` derives each
+  from what actually moved -- so a section correction never rewrites the session.
+  Null with the flag TRUE detaches, which is a wanted outcome and has its own
+  option; the test asserts both directions of that flag, because a control that
+  sent null for both would silently never detach anything.
+- **A MOVE IS NOT A REVIEW.** Sending no `p_status` is what makes the RPC leave
+  `reviewed_by`/`reviewed_at` alone. That is asserted rather than assumed: a
+  future edit sending a status "for completeness" would make correcting a
+  student's filing silently also record that somebody read it.
+- **`entryMoveChanged` drives the button and the handler**, one predicate. An
+  unchanged send would succeed at the database and mint an audit row saying an
+  admin moved an entry that did not move.
+
+### The log listing, and why an empty result is the honest failure
+
+`notebook_admin_log` had a select grant, an admin-only read policy and
+`notebook_admin_log_created_idx on (created_at desc)` -- an index built for a
+listing that did not exist. Every irreversible staff action in the notebook has
+been writing there since 0069 with nobody able to read it.
+
+- **Its gate is a POLICY, not a function body**, so a non-admin gets an EMPTY
+  LIST rather than an error. That is the /admin doctrine and the panel's empty
+  state names both possibilities rather than claiming nothing has happened.
+- **It resolves no subject uuids.** The columns carry no foreign keys on purpose
+  (0069: "a log row must survive the deletion of what it describes"), so a lookup
+  would render much of the log as blanks while adding a read of other people's
+  rows. The viewer's own id is the one exception, because the console already
+  holds it and "You" is most of the rows on a one-admin deployment.
+- **`ADMIN_LOG_ACTIONS` is asserted against the table**, not against a retyped
+  list: the test reads `distinct action` from rows the other describes actually
+  produced and fails on any label it lacks. An unknown action renders as itself,
+  and that test is what turns the fallback from a silent gap into a finding.
+
+### The two instructor-tier halves that were missing
+
+- **Staff note restore.** `EntryNotes` has offered a staff DELETE since 0119 and
+  the owner-side restore since 0119, and the refusal a student reads on a
+  staff-deleted thread ("Ask them to restore it for you") pointed at a capability
+  that did not exist. The staff disclosure is its own, gated on
+  `onStaffRestore && !canEdit`, and offers Restore on EVERY deleted thread with
+  no `deletedBy` branch -- that is the RPC's own rule, and `deleted_by` is not
+  even in the console's read (`REVIEW_ENTRY_HISTORY_SELECT` carries `deleted_at`
+  alone), so a per-author branch could not have been written honestly.
+  - **`EntryReview`'s notes block can no longer be gated on `noteCount`.** That
+    counts LIVE threads, so deleting the only note on an entry made the whole
+    block vanish, taking the Restore with it in exactly the case it exists for.
+    It is gated on either count now, and the disclosure label says how many are
+    removed.
+- **Attaching a scheduled check-in to an item.** 0120 gave a posting an
+  `item_id`, and the only path to it was `notebook_create_item_check_in`, which
+  MAKES a new check-in -- so a check-in already on the calendar could only be
+  attached by deleting and recreating it, which detaches every entry filed
+  against it. The panel is per SECTION because `item_id` is on the posting, and
+  the picker is scoped by a `!inner` embed on `classroom_postings`, which is
+  exactly the condition the RPC refuses on, so it can never offer something that
+  would be turned down.
+
+### Shape decisions
+
+- **A separate transport bundle per capability, not fields on `ReviewTransports`.**
+  The console's transports describe what any reviewer may do; these do not
+  partition that way. Separate optional bundles carry the tier split as a TYPE
+  rather than as a comment, and the presence-gates-the-control rule then does the
+  rest: an instructor is handed no `entryMove` and no `adminLog`, so there is no
+  write to execute and no tab to reach. `ExcusalTransports.set` being the
+  optional half of one object is the same idea one level down.
+- **`src/lib/notebook/admin-actions.ts` is the pure module** -- shapes, labels,
+  the note cap, and the small amount of arithmetic. It imports `ReviewResult`
+  from `notebook-review.ts` rather than defining a second result type.
+- **The route decides from `data.isChair`**, which is `isAdmin()` resolved
+  server-side by `notebookAccess`, not `role === 'teacher'`. Hiding is
+  presentation; each function refusing is the boundary, and both were tested.
+
+### Verification
+
+- **`svelte-check`: 0 errors, 37 warnings before and after** (31
+  `state_referenced_locally`, 5 `css_unused_selector`, 1
+  `perf_avoid_nested_class`). The baseline had to be established first: this
+  container had no `.env`, which made `svelte-kit sync` fail and reported 11
+  phantom `$env/static/public` errors. One was written from `.env.example`; it is
+  gitignored and uncommitted.
+- **Full suite: 121 files, 2765 tests, all passing** (120 / 2733 before).
+  `tests/notebook-staff-actions.test.ts` adds 32.
+- **Both database-side gates mutation-proved in the PERMISSIVE direction**, and
+  both migration files restored and md5-verified byte-identical afterwards:
+  - `notebook_admin_set_excusal`'s `if not public.is_admin()` to `if not true`
+    (0098) reddens exactly two tests -- the instructor refusal and the student
+    refusal -- and nothing else. Commenting the check out would have left
+    `if not <nothing>`, a syntax error that fails closed and proves nothing.
+  - the log policy's `using (public.is_admin())` to `using (true)` (0069) reddens
+    exactly the two "reads nothing" tests. Dropping the policy would fail closed
+    (RLS on, no policy = deny) and redden nothing.
+- **Every gate is asserted in both directions**, each with its positive control:
+  the fixture itself asserts that the owner IS an admin, the teacher of record is
+  NOT, and that the teacher DOES manage P1 -- so no refusal below can pass
+  because the fixture is broken. The grant premise is re-derived from `pg_proc`
+  and `has_function_privilege` AFTER 0137, which is the migration that could have
+  swept any of them.
+- **The audit row is asserted per action, by COUNT before and after**, never by
+  "a row with this action exists" -- several describes write to the same table.
+
+### What was NOT verified
+
+- **Nothing ran against the live Supabase project.** The local `.env` is a
+  placeholder and this repo cannot apply a migration, run an RPC or sign in
+  against production. Every claim above is from the embedded Postgres running the
+  real migration files.
+- **NO BROWSER PASS, AND NO DEV HARNESS WAS ADDED.** CLAUDE.md requires an
+  interactive verification through a dev-guarded harness for work like this. The
+  existing harness is `src/routes/dev/notebook-review/`, which is outside this
+  session's declared file ownership, so it was not touched and no new one was
+  written. No browser was available in this container either. **Everything below
+  is therefore unverified visually:** that `CellExcusal` and `EntryMove` render
+  legibly in the 34rem detail pane at 1440px and at 375px, that the fourth mode
+  button fits the console bar without wrapping badly, that the admin log table
+  scrolls inside its own container rather than widening the page, that the two
+  new `<select>` controls hit the 44px floor in practice, and that the staff
+  deleted-notes disclosure reads correctly on all three notebook plates. The
+  contrast of every token used was taken from existing per-plate values rather
+  than measured fresh.
+- **The new components were not measured for contrast on the light or IDEA
+  plates.** They read `--text-1/-2/-3`, `--boundary`, `--hairline`,
+  `--surface-1/-2`, `--nb-error`, `--nb-warn`, `--nb-ok` and `--nb-cell-excused`,
+  all of which the room already declares per plate -- but "reads a per-plate
+  token" is not the same as "was measured", and CLAUDE.md is explicit that a
+  shared component entering a room must be measured there.
+
+### Deferred, and what is still missing
+
+- **The classroom-side item page has no attach control.** `ClassCheckInTransports`
+  carries `createForItem` and `unlink` and no `link`, so attaching an existing
+  check-in is reachable only from the review console's Check-ins mode. Adding it
+  there means editing `ContentComposer.svelte`, which was outside this session's
+  file ownership. It is the more natural second home.
+- **The log has no paging, filtering or export.** It reads the newest 50. Older
+  pages are in the table and nothing offers them.
+- **`adminLogActor` renders a raw uuid for anybody but the viewer.** Resolving it
+  is a disclosure decision about reading other people's `profiles` rows, not a
+  rendering one.
+- **Excusing is one student at a time.** A whole-class excusal (a field trip is
+  rarely one student) would be a bulk RPC with the `{total, succeeded, refused,
+  results}` shape, which is a migration.
+
+---
+
+## The build contract gets a permanent tab, and the gallery thumbnail gets a shape
+
+A code-only bundle scoped to `FoundryGallery.svelte`, `FoundryDetail.svelte`,
+`FoundryShell.svelte`, `nav.ts` and `forge.css` (an explicit file ownership boundary
+for this session; `FoundryInspector.svelte`, `ReviewQueue.svelte`, `transports.ts`
+and everything under `$lib/server` were out of scope and untouched).
+
+### The build contract was unreachable once anything published
+
+`locateFoundry` folded `/foundry/contract` into the `submit` place, which is not a
+link anywhere -- it only decides which TAB lights up once you are already on the
+page. The one actual link to the contract lived inside `FoundryGallery`'s
+`apps.length === 0` branch, so the document every student needs BEFORE they build
+anything had exactly one way in, and that way disappeared the moment a single app
+published anywhere on the site.
+
+- `FoundryPlace` gained `'contract'` as its own value; `locateFoundry('/foundry/contract')`
+  now answers `'contract'` rather than `'submit'`. `/foundry/starter` stays folded
+  into `submit`, because it is a download reached WHILE publishing and nowhere else
+  -- the asymmetry is deliberate and both directions are pinned in
+  `tests/foundry-shell.test.ts`.
+- `FoundryShell`'s tab bar gained a permanent "Build contract" tab, unconditional on
+  `isAdmin` and on which other tab is active, between "My apps" and "Publish".
+- `FoundryGallery` gained a second, always-rendered link in its own header (`.fdy-gal-head`),
+  so the contract is reachable from the gallery component itself in both the empty
+  and the populated state, not only through the shell that wraps it. The existing
+  empty-state link was left in place rather than removed.
+- The `/foundry/contract` page (`FoundryContract.svelte`, out of scope) needed no
+  change: it already carries its own "Back to publishing" crumb, which is still
+  correct now that the contract has a second way in.
+
+### The gallery thumbnail: what was actually wrong, and what was not
+
+Investigated before changing anything, per the request. The cover pipeline
+(`FoundrySubmit.svelte`, out of scope) applies no resize, no compression and no
+aspect-ratio constraint: whatever image a student picks is uploaded and served
+verbatim. That rules out "missing" (a null `cover_path` was already rendering its
+own deliberate placeholder) and rules out server-side cropping or resampling --
+there is no server-side image processing in this pipeline at all.
+
+What was wrong was the THUMBNAIL BOX, in `FoundryGallery.svelte` alone:
+
+- **Wrong aspect ratio, not wrong fit.** `.fdy-card-cover` was a 4.5rem (72px)
+  square with `object-fit: contain`. A cover is a screenshot of a running app --
+  landscape by construction, a browser or a phone frame is never square -- so a
+  typical cover was letterboxed down to a thin strip a few pixels tall inside that
+  square, which reads as broken or missing even though it is neither. The existing
+  comment choosing `contain` over `cover` was read and left standing: `contain`
+  is correct (cropping to fill would hide the cut-off edge, which is the one thing
+  a cover exists to show), the box shape fighting it was the defect, not the
+  fit mode.
+  - Fix: the cover box is now `width: 100%; aspect-ratio: 16 / 9`, a full-width
+    banner above the card body rather than an icon beside it. 16:9 was chosen as
+    the shape actually produced by what gets uploaded (browser windows, phone
+    screens in either orientation, desktop app windows all sit near it), not as a
+    round number.
+- **Upscale risk, not confirmed upscaling.** At 72px nothing could visibly
+  upscale (the box was smaller than almost anything a student would upload), but
+  enlarging the box to a real preview size reintroduces the risk: `contain` scales
+  a cover UP to fill its box when the cover is smaller, which is the
+  soft-and-pixelated failure mode. Switched both the gallery thumbnail and the
+  detail page's hero cover (`FoundryDetail.svelte`, same reasoning, same fix) from
+  `object-fit: contain` to `object-fit: scale-down`, which is identical to
+  `contain` for anything at or above the box size and never enlarges anything
+  smaller than it.
+- **Coverless tiles already looked deliberate** (the app's own initial, centered,
+  no stock "no image" graphic) but were sized for the old 72px box. The initial
+  now renders at 2.75rem inside the 16:9 banner, so a coverless tile stays
+  legible and reads as a chosen placeholder rather than a shrunken accident.
+
+### Admin management beyond delete: hide/unhide already shipped, editing did not, and both are out of this session's file scope
+
+Investigated rather than assumed, per the request:
+
+- **Hide and unhide already exist, fully wired.** `foundry_set_app_hidden` (0130)
+  is the RPC, gated on `is_admin()` inside its own body, and `FoundryInspector.svelte`
+  already renders both directions (Hide with a required reason, Restore, both
+  two-step armed confirms) through `FoundryReviewTransports.setHidden`. The serving
+  path already refuses a hidden app (`_foundry_app_in_population`). Nothing here
+  needed to be built; the task's own instruction to "confirm both and reuse them
+  rather than inventing a second state" is satisfied by inspection -- there is
+  exactly one hidden state and one control pair for it, already admin-gated and
+  already mutation-proven in `tests/foundry-policies.test.ts` (not owned by this
+  session, not touched).
+- **Editing an app's title, description and cover has DATABASE support already**
+  (`foundry_update_app_metadata` accepts `v_app.owner <> v_uid and not
+  public.is_admin()` as its only refusal, i.e. an admin may already call it for
+  any app) but NO UI wiring for an admin caller. `FoundryMineTransports.saveField`
+  / `.uploadCover` exist for the OWNING student on `/foundry/mine`
+  (`FoundryMine.svelte`); `FoundryReviewTransports` carries no equivalent, and
+  `FoundryInspector.svelte` -- the admin-only inspector column role parity
+  requires this kind of control to live in (`IDEA_INTERFACE_STANDARDS` 2:
+  "Instructor-only content lives in a visually distinct inspector") -- renders no
+  edit form.
+  - **This was not built.** `FoundryInspector.svelte`, `ReviewQueue.svelte`,
+    `transports.ts` and `src/routes/foundry/review/+page.server.ts` are all
+    outside this session's owned file list, and `FoundryDetail.svelte` -- which
+    IS owned -- states explicitly in its own header comment that it carries no
+    staff flag and no staff branch; adding admin edit affordances there would
+    both violate that invariant and break the `renders the SAME detail markup
+    the gallery renders` assertion in `tests/foundry-gallery.test.ts`. The
+    correct home for this control is `FoundryInspector.svelte`, beside Hide and
+    Delete, via a new `saveField`/`uploadCover` pair on `FoundryReviewTransports`
+    wired through the review route -- deferred to a session that owns those
+    files.
+
+### Tests
+
+- `tests/foundry-shell.test.ts`: generalized the two assertions that pinned the
+  old "contract nests under submit" behaviour (a legitimate change breaking a
+  written-down assertion, per the verification standard); added coverage that the
+  Build contract tab renders for both roles, marks itself current only on the
+  contract page, and does not displace any other tab.
+- `tests/foundry-gallery.test.ts`: added coverage that the contract link survives
+  in the gallery component itself in both the empty and the populated state
+  (including with an app open in the detail pane), and that a coverless tile
+  renders the deliberate placeholder state with no `<img>` at all -- both
+  directions, with an image-bearing sibling card as the positive control -- plus a
+  static assertion that the stylesheet ships `scale-down` rather than plain
+  `contain`.
+- Full suite: **120 files, 2741 tests, all green** (2651 files/tests at the
+  previous bundle's own count; net +90 tests across the run, +39 of them in the
+  two files this bundle touched).
+- **`svelte-check`: 0 errors, 37 warnings, unchanged** before and after (re-derived
+  both ways via `npx svelte-kit sync && npx svelte-check`, with a stash/pop across
+  this bundle's six changed files to measure the true before state rather than
+  trusting the figure written down in `CLAUDE.md`).
+
+### What was NOT verified
+
+- **No browser or screenshot pass.** Every claim above is either a static
+  assertion over the shipped markup/CSS (`svelte/server` SSR renders in
+  `tests/foundry-gallery.test.ts` and `tests/foundry-shell.test.ts`) or read
+  directly off the stylesheet. The 16:9 banner's actual appearance with a real
+  uploaded screenshot, the coverless placeholder's legibility, and no-horizontal-scroll
+  at 375px and 1440px were reasoned from the CSS (percentage width, `aspect-ratio`,
+  `min-width: 0` already present on every ancestor in the existing grid) rather
+  than measured in a rendered browser -- this container has no browser pane and no
+  live Supabase project to source a real cover image from.
+- **Nothing was run against the live Supabase project.** The local `.env` used to
+  reach the `svelte-check` baseline is the placeholder `example-ref` project, per
+  `CLAUDE.md`.
+
+### Deferred
+
+- **Admin editing of an app's title, description and cover**, via
+  `FoundryInspector.svelte` / `FoundryReviewTransports` / the review route -- see
+  above. The database-side permission already exists; only the UI and the
+  transport are missing, and both are outside this session's file ownership.
+
+---
+
+## A student can run their own app before handing it in (`claude/foundry-preview-drafts-60xko9`, code only, no migration)
+
+### The problem
+
+`serveBundleFile` serves a version when it is the app's `published_version_id`
+or its status is `submitted`, and nothing else. A DRAFT was therefore unreachable
+by anybody -- including the student who had just uploaded it. The first time
+anyone on earth found out whether a Foundry app actually ran was when a reviewer
+opened it, which spends a review cycle on a build the author could have fixed in
+a minute and teaches a student that the platform is somewhere you post work into
+rather than somewhere you work.
+
+### Why it could not be a widening of either published gate
+
+Both published mounts (`/b/` and `/a/`) answer on the APPS ORIGIN, which
+deliberately holds no session: the portal's cookies are host-only on the main
+host, and that absence is the entire point of the split. So the apps origin has
+no way to ask whether the person requesting a bundle is its author -- the only
+question available to it is the version's own status, which is exactly why both
+gates are written that way. On that host the only audience a widening can
+express is EVERYONE, so admitting `draft` there would admit every draft in the
+table to the open internet.
+
+"Is this viewer the author" can only be asked where the session cookie is. So
+preview answers on the PORTAL origin, at `/foundry/preview/<app>/<version>/`,
+and resolves the viewer from `locals.claims` plus `is_admin()`.
+
+### The containment, which is the part that had to be explicit
+
+Serving student HTML on the cookie-carrying host is the thing the apps origin
+exists to prevent, so this route does not inherit its isolation from any
+environment variable. `foundryPreviewResponse` hands `foundryBundleHeaders` the
+SAME VARIABLE TWICE as bundle origin and portal origin.
+
+`foundrySandboxFlags` appends `allow-same-origin` only when both origins are
+non-empty AND they DIFFER. Passing one variable twice makes them the same string
+by construction, so the comparison cannot come out any way but equal and the
+strict set is a property of the CALL SITE rather than of a deployment's
+configuration. The document therefore lands in an opaque origin, where
+`document.cookie` throws -- which matters here more than anywhere else, because
+`@supabase/ssr` sets the portal's session tokens with `httpOnly: false` and they
+are readable by `document.cookie` on that host.
+
+The prompt asked whether `foundrySandboxFlags` already produced the strict set
+for two equal origins, and whether that was enough to rely on. It does, and it
+is -- but only because the two arguments are literally the same variable rather
+than two values that happen to agree. That distinction is what the test sweep
+below turns from an argument into a measurement.
+
+Passing the request origin rather than two empty strings buys one thing and
+costs nothing: two empty origins also produce the strict set but emit no
+`frame-ancestors` at all, so any site anywhere could embed a preview. Passing
+the portal origin twice pins `frame-ancestors` to the portal. It grants nothing
+on the source lists, because `default-src` already admits `https:` and that
+already covers the portal origin whether or not it is named.
+
+### The gate, and the one clause that is a judgement
+
+`previewViewerMayRun` is a pure predicate over the rows, separated from the IO so
+its refusals can be asserted directly rather than through a Supabase client:
+
+| Case | Answer |
+| --- | --- |
+| any status, including `draft` and `rejected` | the point of the feature |
+| app row missing (deleted, 0136) | refused |
+| version's `app_id` is not the app in the URL | refused |
+| viewer null, or viewer id empty | refused |
+| neither author nor admin | refused |
+| **hidden app, viewer is the OWNER** | **refused** |
+| **hidden app, viewer is an ADMIN** | **permitted** |
+
+The hidden split is the one clause that is a JUDGEMENT rather than a consequence,
+and it goes beyond what the prompt enumerated (it listed status, deletion and
+viewer, and was silent on hiding). Hiding is admin-only and NARROWS what the
+owner may do to an app: 0130 refuses their edit of a hidden one and 0136 refuses
+their delete of one, both because a shelved app is under discussion with staff. A
+new owner capability that ignored the flag would cut against an established rule,
+so the owner is refused and reads the notice that pane already carries. An admin
+is permitted for the reason the review load asks for hidden apps at all -- a
+decision about a shelved app that cannot run the shelved app is made blind. If
+that ever has to change it is one line in one predicate.
+
+### `serveBundleFile` was not reused and not loosened
+
+`previewBundleFile` is a second reader in the same module, with a header stating
+exactly what it permits that the other does not. One function with a flag would
+have put a single boolean between every draft in the table and the open internet.
+What IS shared is everything downstream: `bundleBytesResponse` was extracted from
+`foundryFileResponse` and now builds the headers, injects the storage shim and
+sets the content length for all three mounts. That extraction is what makes
+"preview is the published response minus one sandbox flag" a fact rather than a
+claim -- it is asserted directive by directive.
+
+The shim matters MORE here than on the published mounts: preview never gets
+`allow-same-origin`, so it is always on an opaque origin, where the
+`localStorage` getter throws.
+
+### The control, and what it does not prove
+
+Every version on `/foundry/mine` gets a "Run a preview" link opening in a new
+tab, gated by `foundryPreviewable` -- a pure predicate mirroring the two clauses
+of the gate the owner's surface can see (an upload that never unpacked has no
+entry document; a shelved app is refused to its owner). That is the same
+arrangement `versionIsDeletable` has with `foundry_delete_version`: the boundary
+is the server's, and this exists so no control is offered whose only possible
+answer is a refusal. It deliberately does not ask the STATUS, which is the whole
+point and also the shape a regression would take -- every other control in that
+row is status-gated.
+
+One sentence sits under the version list, once:
+
+> A preview runs your app exactly as it will run published, with one difference:
+> saved data does not survive a reload in a preview, and it does once the app is
+> live. Anything that works in a preview works published.
+
+The difference only ever runs in the safe direction, which is the half that
+actually helps a student decide whether they have found a bug.
+
+### What was measured
+
+- **`svelte-check`: 0 errors, 37 warnings before and after**, same breakdown (31
+  `state_referenced_locally`, 5 `css_unused_selector`, 1
+  `perf_avoid_nested_class`). The container had no `.env` at all -- it is
+  gitignored, so a fresh clone has none -- and without one `$env/static/public`
+  declares no members and `svelte-check` reports **11 phantom errors** in files
+  nobody touched. Writing `.env` from `.env.example` reproduces the documented
+  baseline exactly. Worth knowing: that figure is an artefact of the environment,
+  not a finding.
+- **Tests: 120 files / 2733 tests before, 122 / 2797 after.** All passing. The 64
+  added are `foundry-preview-route.test.ts` (50) and
+  `foundry-preview-control.test.ts` (14).
+- **Mutation proof, the author check.** `previewViewerMayRun`'s last clause
+  opened to `return true` (the permissive direction) reddened **6**: `refuses a
+  second student the author's draft`, `refuses a second student every asset of
+  it`, `is indistinguishable from a version that does not exist`, `reaches
+  another student's unpublished build`, `refuses another student`, `refuses a
+  null owner`. Restored md5-identical (`16c0eddd…`).
+- **Mutation proof, the sandbox -- and the FIRST ATTEMPT WAS TOO WEAK, WHICH IS
+  THE USEFUL PART.** `foundryPreviewResponse` mutated to resolve a portal origin
+  the way `foundryFileResponse` does reddened only **1 of 5** rows. The sweep
+  varied the ENVIRONMENT but always requested on the canonical portal host --
+  where the resolved portal origin and the request origin are the same string, so
+  the two spellings coincide and the mutation is invisible. The single row that
+  caught it did so by accident.
+
+  Where they genuinely diverge is **a portal host that is not the canonical one,
+  which is a Vercel preview deployment**: `PUBLIC_FOUNDRY_PORTAL_ORIGIN` is
+  deliberately allowed to be unset, the fallback then names `ideabosco.com`, and
+  the request arrives on `idea-app-git-….vercel.app`. There the mutation grants
+  `allow-same-origin` **on a host that is carrying that deployment's session
+  cookies**. The sweep now varies the request origin too and the same mutation
+  reddens **4 of 7**, including both preview-deployment rows. Restored
+  md5-identical (`a39fd3f8…`).
+- **The published mounts are unchanged**, asserted rather than assumed: `/b/`
+  still refuses a version that is neither published nor submitted, still refuses
+  a hidden app, still refuses another app's file, and both mounts still serve the
+  published version with no session in scope at all.
+- **Indistinguishability** is compared field for field -- status, every header,
+  and the body -- between a draft a viewer may not see and a version that does
+  not exist, so the URL cannot be used to ask whether a given student has work in
+  progress.
+
+### `FoundryMine`'s detail pane cannot be server-rendered, and that shaped the tests
+
+Measured: `render(FoundryMine, { props: { selected, … } })` produces the list
+pane and an **empty** detail pane -- 916 bytes, `cr-detail` with nothing inside
+-- because the open app is `let app = $state(null)` filled by an `$effect`, and
+effects do not run under `svelte/server`. Every version row, every control on it
+and every sentence under it is absent from that markup.
+
+A test asserting over that render would pass or fail for reasons unrelated to
+what it claims. Reshaping the component so a test could see it would be the
+harness dictating the code, and would touch the local-refresh path (`app = fresh`
+after a write) for a test's convenience. So the OFFERING RULE was extracted into
+`foundryPreviewable` and asserted directly, and the three things left in markup
+(the predicate call, `target="_blank"`/`rel="noopener"`/`Run a preview`/`tap-44`,
+and the sentence) are asserted as presence checks over the component's own
+SOURCE, each with a positive control and each labelled as exactly that. That is a
+file people edit in commits, not a directory the app writes -- the thing
+`tests/spec-instructions-budget.test.ts` was deleted for.
+
+### What was NOT verified
+
+- **No browser pass of any kind, and none was possible**: this cloud session has
+  neither the `mcp__Claude_Browser__*` pane nor a connected Chrome. So the
+  following are argued from the code and the specification and were NOT observed:
+  that a preview document actually lands in an opaque origin, that
+  `document.cookie` and `localStorage` actually throw there, that the shim
+  actually rescues a generated app, that relative assets actually resolve in a
+  real browser, that the new tab opens, and that the control and its sentence
+  render legibly at 1440px and 375px.
+- **Nothing was run against the live Supabase project.** The non-dev branch of
+  `previewBundleFile` -- the three real reads against `student_app_versions`,
+  `student_apps` and `student_app_files`, and the Storage download -- has never
+  executed. Only the dev-fixture branch and the pure predicate have.
+- **`isAdmin` was driven through a stub client** answering the `is_admin` RPC.
+  The real function is exercised, but not against a real database.
+- **A genuinely deleted app was never tested end to end**, because in dev a
+  deleted app and an unknown one are the same absence. The route test proves the
+  caller gets the standard 404; the predicate test proves the gate refuses a null
+  app row, which is the half the route cannot show.
+- **The preview URL was never opened in a signed-in session.** `/dev/login`
+  against a local Supabase stack is the way to do that and there is no Docker or
+  WSL here.
+
+### Out of scope, found and left alone
+
+- **`CLAUDE.md`'s Foundry environment section now undercounts this module's
+  readers.** It says `src/lib/server/foundry-bundle.ts` backs "the review queue's
+  source viewer, BOTH serving routes … AND the delete sweep -- four functions,
+  one module, one client". There are five functions and three serving reads now.
+  The file is outside this lane's scope and was not edited; the rule it states
+  (one module, one client, no second reader) is unchanged and was followed.
+- **`classroom-updates.json` was not touched.** The standing directive covers
+  classroom-facing behaviour; this is Foundry, and the file is outside this
+  lane's scope.
+
+### Deferred
+
+- **A dev harness route for the preview mount.** The repo's convention is a
+  dev-guarded route mounting the real component, and one would be the right way
+  to drive this in a browser -- but nothing in this session could open a browser,
+  so it would have shipped unexercised.
+- **Preview from the review console.** An admin can reach any preview URL by
+  construction, but no staff surface builds one. The queue already frames the
+  submitted build, which is the case it needs.
+
+---
+
+## Nine bundles onto one integration branch (`claude/integration-eight-bundles-jhg2ne`, later re-merged as `claude/integration-nine-bundles-*`, code only, no migration)
+
+Eight finished bundles were sitting unmerged against a `main` that had itself
+moved on. Landed one at a time they would have produced eight conflicting
+merges over the same two ledger files; this carries all eight on one branch so
+they land as a single merge, and -- the actual point -- measures the
+COMBINATION, which nothing else had.
+
+Merged with `--no-ff`, in this order:
+
+1. `claude/browser-verify-harness-36v3jr` -- `tools/browser-verify`, `npm run verify:browser`
+2. `claude/shared-upload-drop-paste-bhwqq1`
+3. `claude/classroom-sidebar-collapse-b2xf5c`
+4. `claude/outstanding-work-false-counts-k2iua6`
+5. `claude/notebook-excusal-grid-control-0ub2q2`
+6. `claude/foundry-contract-docs-lhjbhf`
+7. `claude/foundry-nav-thumbnails-kk9ffu`
+8. `claude/foundry-preview-drafts-60xko9`
+
+The harness goes first because the final pass runs the script it adds.
+
+**A NINTH BUNDLE FOLDED IN LATER, ONTO THIS SAME BRANCH, AFTER TWO THINGS
+LANDED ON TOP OF IT.** Starting from this branch's own tip, `origin/main` (app
+export commits under `materials/` only -- the classroom GitHub export writing
+with no human involved) merged first, then
+`claude/classroom-drag-drop-order-ts9usf` (drag-to-reorder in `ClassView`,
+native HTML5 DnD from the row grip, plus `tests/classroom-item-order.test.ts`).
+**Both merges were clean -- zero conflicts, in either file, this time.** The
+eight-bundle pass's own conflict machinery (parse-union-dedupe for
+`classroom-updates.json`, text-union for `docs/HISTORY.md`) was not exercised
+here because git's own three-way merge resolved both ledgers without a hunk
+colliding: `main` only appended `materials/` files, which touch neither ledger,
+and the drag-drop bundle's own additions to both landed past the eight bundles'
+without overlapping a line either side had touched.
+
+### The conflict surface was exactly the two append-only ledgers
+
+`docs/HISTORY.md` (5 conflicts) and `classroom-updates.json` (4). **No source
+file conflicted**, which is a measurement rather than an assumption: no test
+file and no module under `src/` is touched by two of the eight.
+
+Both ledgers keep BOTH sides, and the two files need different mechanics:
+
+- **`docs/HISTORY.md` is markdown**, so a text-level union works. Each hunk was
+  main's newly appended section against the branch's, joined with the `---`
+  separator the file already uses between sections.
+- **`classroom-updates.json` is JSON, where a text-level "keep both" produces a
+  file that does not parse.** Both stages are parsed, the entries unioned,
+  deduplicated on their canonical form (an entry in the merge base appears
+  identically on both sides and must not be doubled) and re-emitted newest-first
+  with the file's own tab indentation. Round-tripped through `json.load` from
+  the written bytes, and validated through the app's own reader --
+  `src/lib/classroom/updates.ts`, via `tests/classroom-measure.test.ts`.
+
+**Nothing was dropped, and that is asserted rather than believed.** A sweep over
+all eight branches plus `origin/main` confirms every `##` section and every
+update entry present on any side is present in the final tree: 163 sections
+(158 in the base, 5 added) and 97 entries (90 in the base, 7 added). Zero
+conflict markers survive anywhere in the tree.
+
+### The one defect that exists only in the combination
+
+**`/dev/home-order` and `/dev/home-feed` built undated assignments and depended
+on the `unsubmitted` reason to turn them into student rows.** Bundle 4 removes
+that reason (an item cannot say whether it collects a hand-in, so the reason was
+a false count in the "N to do" chip), which leaves both fixtures producing
+nothing: `home-order` rendered zero ranked rows on every card, and `home-feed`
+lost its never-handed-in row. Neither branch could see it alone -- bundle 4
+never opens a dev harness, and the harness bundle never touches the feed.
+
+Each fixture is given a due date inside `DUE_SOON_DAYS`, which ranks it
+`due-soon`: the surviving reason that carries the retired one's tone (`info`)
+and its actionable-ness, so the header count chip still counts these rows.
+Distinct per item, so the deadline tiebreak in `compare` stays decided.
+
+**THE TWO HARNESSES DO NOT SHARE A CLOCK, AND THAT DECIDES THE DATES.**
+`/dev/home-feed` threads a frozen `NOW` into `buildFeed` and `ClassroomFeed`, so
+a fixed `2026-10-17` is correct there. `/dev/home-order` mounts the REAL
+`src/routes/+page.svelte`, which ranks with `const now = new Date()` and cannot
+be frozen -- so its due dates come off `Date.now()`. Dated off the fixture's own
+frozen `NOW` they were ~50 days out by the time anyone opened the page, ranked
+`later`, and produced the same empty cards the change exists to prevent. It
+passed a unit probe first and failed in the browser, because the probe called
+`buildFeed` with the fixture's frozen clock and the page does not. `NOW` still
+stamps `created_at`, where frozen is right: that is only the final tiebreak, and
+a fixed DUE date is the half that goes stale.
+
+That is the only change under `src/` on this branch.
+
+### Measured
+
+- **Full suite: 130 files, 3002 tests, all passing, 153.9s.** `origin/main` on
+  the same container measures **122 / 2783**, so the branch is +8 files / +219
+  tests.
+  - **Every one of the +219 is attributed to a branch's own file**, by diffing
+    per-file counts between the two runs: `classroom-nav-collapse` +34,
+    `foundry-preview-route` +50, `foundry-contract` +35, `notebook-staff-actions`
+    +32, `classroom-file-drop` +22, `foundry-preview-control` +14,
+    `classroom-upload-picker-parity` +11, `classroom-feed-false-counts` +9, and
+    +4 each in `foundry-gallery`, `foundry-inline-scan` and `foundry-shell`.
+    **No file lost a test and no file disappeared** -- which is the finding this
+    branch existed to look for, and it is negative.
+  - The four branches that reported a figure match EXACTLY once rebased onto
+    the moved `main`: notebook-excusal +1/+32, foundry-nav +0/+8,
+    foundry-preview +2/+64, browser-verify +0/+0. The other four reported none;
+    their contributions above are measured here for the first time.
+  - **Each branch measured against a 120 / 2733 `main` that no longer exists.**
+    `main` has since taken the assignment-spec-editor bundle (+2 files, +50
+    tests), so a raw comparison of any branch's own number against this one is
+    off by that bundle, not by anything the merge did.
+- **`svelte-check`: 0 errors, 37 warnings in 20 files**, mix 31
+  `state_referenced_locally` / 5 `css_unused_selector` / 1
+  `perf_avoid_nested_class`. The documented baseline exactly; no bundle moved
+  it. Re-derived after the fixture change too.
+- **`npm run verify:browser`: 8 route/width runs, 54 measurements, 2 outside
+  threshold**, 22.5s.
+  - Both are the SAME known finding at two widths: `/dev/pathways` harness
+    controls measure **194.7x26.2 (min dim 26.2px), 2/2 under the 44px floor**,
+    0 under the 24px floor.
+  - The other known observation reads as expected and passes: the pathway chip
+    label at **4.84:1** on its fill (`rgb(255,102,102)` on `rgb(54,43,29)`),
+    against a 4.5 threshold.
+  - **Nothing else is outside threshold.** Everything else: 0px horizontal
+    overflow on all 8 runs; contrast 14.22, 5.31, 15.7, 14.96 and 5.31:1 on the
+    copy selectors; 0 console errors everywhere; every presence count met.
+  - **`--selftest`: 18 controls (9 negative, 9 positive), 0 instrument
+    failures**, so the numbers above are from checks that were proved to bite in
+    the same session.
+  - One run reported a single `net::ERR_ABORTED` on
+    `/dev/pathways/__data.json` at 1440px. **It did not reproduce** on a second
+    run of the same route; it is flaky and is recorded here rather than as a
+    finding.
+- **`/dev/home-order` and `/dev/home-feed` were driven by hand**, at 375px and
+  1440px, because they are NOT in `tools/browser-verify/routes.mjs` and
+  `npm run verify:browser` never opens them. home-order: **6 ranked rows across
+  two cards** ("Due tomorrow", "Due in 2 days", "Due in 3 days" per card).
+  home-feed: **7 rows**, with "Shop safety quiz" back as "Due in 2 days"
+  alongside Overdue, Returned, Updated and Pinned. 0px overflow on all four.
+
+### Re-measured with the ninth bundle folded in
+
+Everything above is the eight-bundle pass, left as it was measured. Folding in
+`origin/main` (app-export commits only) and the drag-drop bundle moves three of
+the numbers above and adds one browser pass the eight-bundle branch could not
+have run, because the harness it depends on had not shipped yet when the
+drag-drop bundle was written -- its own history entry says the browser check it
+would have used "reported no browser available" at the time.
+
+- **Full suite: 131 files, 3027 tests, all passing, ~101s.** +1 file / +25
+  tests over the eight-bundle figure, and both numbers are attributed: the one
+  new file is `tests/classroom-item-order.test.ts` (drag-drop bundle, 25
+  cases), and nothing else moved -- `origin/main`'s only change here is
+  `materials/` exports, which no test reads (see the standing rule against
+  asserting over that directory).
+- **`svelte-check`: 0 errors, 37 warnings in 20 files, mix 31/5/1.** Identical
+  to the eight-bundle figure and to the documented baseline. Neither `main`'s
+  export commits nor the drag-drop bundle moved it.
+- **`npm run verify:browser`: 8 route/width runs, 54 measurements, 2 outside
+  threshold.** Identical to the eight-bundle figure -- same two known findings
+  (`/dev/pathways` controls at 194.7x26.2, and the pathway chip label at
+  4.84:1) -- because the drag-drop bundle touches no route this script opens.
+- **`/dev/classroom-split/[sectionId]` driven directly, real HTML5 drag events
+  dispatched at 1440px and 375px, since drag-and-drop mechanics cannot be read
+  off CSS.** The harness mounts the real `ClassView` against a fixture with
+  three items (`i-1`, `i-2`, `i-3`) filed into the same unit, under
+  `?manage=1` so the grip renders.
+  - **Grip hit-test: exact match.** `row-grip-i-1`'s box measures **30x44px**
+    at both widths (unchanged by viewport -- the row is a fixed-width flex
+    item), and `elementFromPoint` at its center returns the grip itself, not a
+    neighboring control. The 30px width is deliberate and already documented
+    in the component's own CSS comment: it is a mouse-only affordance, and
+    keyboard/assistive tech use the row menu's Move up/Move down instead, so
+    this is not a new finding against the 44px floor -- the height clears it
+    and the narrow width is the stated exception.
+  - **Same-group drag applies live visual feedback and clears it correctly.**
+    Dispatching `dragstart` on `row-grip-i-1` then `dragover` on `i-3`'s row
+    (same unit) adds the `drag-over` class to that row's `<li>` while the drag
+    is in progress (`class="row-wrap svelte-1w65r8g drag-over"`, read after a
+    task-boundary wait -- reading synchronously in the same turn misses it,
+    per the Svelte-5-effects-are-deferred trap); `drop` followed by `dragend`
+    clears it back to `"row-wrap svelte-1w65r8g"`. 0 rows carry `.drag-over`
+    after the sequence completes at either width.
+  - **Cross-group drag is correctly refused, at the event level.** Dragging
+    `row-grip-i-1` (unit `u-1`) over `i-draft`'s row (unit `u-2`) never calls
+    `preventDefault` on the `dragover` event -- confirmed by reading the
+    dispatch's own return value, which is `true` (not cancelled) -- so the
+    browser's native "no drop allowed" cursor applies, and the target row
+    never gains `.drag-over`. This matches the component's own documented
+    scoping: "a drop in a different group's list is ignored."
+  - **The drop handler completes with no thrown error and no visible refusal**
+    at either width: `dropThrew` is `null`, and `p.feedback.error` has 0
+    matches after the sequence.
+  - **What this pass could NOT measure: whether a successful drop persists a
+    new order.** This harness's `transports.setOrder` is a no-op stub
+    (`() => ok(undefined)`, with no `logCall` beside it, unlike every other
+    transport the same file defines) and nothing here wires `onchanged` back
+    into a reload, so the row order read before and after a drop is byte-
+    identical at both widths -- by construction of the harness, not because
+    the reorder failed. `tests/classroom-item-order.test.ts` is what proves
+    the actual ID-reordering arithmetic (`dragReorder`, `reorderedIds`,
+    `renumberedForFiling`) the drop handler calls before invoking the
+    transport; this pass proves the DOM-level mechanics around it -- grip
+    targeting, live feedback, group scoping, and that the handler runs
+    cleanly -- which is what a unit test cannot reach.
+  - **Console errors: 0 real ones.** Two `net::ERR_CONNECTION_RESET` entries
+    appeared, both against an external host this container's network policy
+    blocks (consistent with `verify:browser`'s own "1 external request blocked:
+    fonts.googleapis.com" on every route in this pass); nothing from the app's
+    own code threw or logged an error.
+
+### What was NOT verified
+
+- **No production or preview deployment.** Nothing here was opened on
+  `ideabosco.com` or a Vercel preview.
+- **No signed-in surface.** The container has no `.env` and no Supabase; a
+  placeholder `.env` was written from `.env.example` for `svelte-check` only
+  (it is git-ignored and is not committed) and no live project was contacted.
+- **No migration was applied**, because none of the nine ships SQL.
+- **The nine bundles' own claims were not re-verified.** This branch measures
+  the COMBINATION; each bundle's own history entry stands for its own feature.
+- **`npm run build` was not run.** The Windows EPERM trap does not apply on
+  Linux, but a build was not part of this pass.
+- **The harness's own limits carry into every number it produced**: web fonts
+  are blocked, so text is measured in the fallback stack, and
+  `prefers-reduced-motion` is `no-preference`, so the reduced-motion path is
+  unexercised.
+- **The drag-drop pass could not measure post-drop persistence** (see above,
+  under the ninth bundle's own bullet) -- the harness's `setOrder` stub does
+  not wire a result back into the rendered list, so that half of the claim
+  rests on `tests/classroom-item-order.test.ts` rather than on anything driven
+  in a browser here.
+- **`npm ci` runs on a container with no `node_modules` and no `.env` by
+  design.** A placeholder `.env` from `.env.example` was written for
+  `svelte-check` and the browser passes; it is git-ignored and was not
+  committed.
+
+### Deferred
+
+- **`/dev/home-order` and `/dev/home-feed` are not in the harness route table.**
+  They were driven by hand here. Adding them would have made this defect
+  self-reporting, and is a change to `tools/browser-verify/routes.mjs` rather
+  than to a fixture, so it is out of this branch's one permitted source change.
+- **The `unsubmitted` reason itself.** `feed.ts` keeps the slot, its rank, its
+  tone and its indicator on purpose, waiting on a flag saying whether an item
+  COLLECTS a hand-in. That is a migration, and when it lands both fixtures
+  above can go back to being undated.
+- **The `/dev/pathways` tap targets.** A known finding, unchanged by any of
+  these nine, and owned by whichever bundle takes the 44px sweep.
+- **`/dev/classroom-split`'s `setOrder` stub logging nothing.** Every other
+  transport on that harness layout calls `logCall` beside its no-op or fake
+  success; `setOrder` alone does not, which is why a persisted-reorder claim
+  could not be driven from a browser in this pass. Adding the log call (and,
+  if the harness is meant to show a settled reorder, wiring `onchanged` to a
+  local re-sort) is a small, self-contained follow-up for whichever bundle
+  next touches that harness -- not done here because it is a source change
+  beyond what re-measuring calls for.

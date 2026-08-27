@@ -17,7 +17,9 @@
 	import {
 		UNFILED_GROUP_ID,
 		authorLabel,
+		bulkFailureMessage,
 		classGroups,
+		dragReorder,
 		editedWhen,
 		emailLocal,
 		formatDue,
@@ -26,9 +28,12 @@
 		isUpdatedForViewer,
 		itemKindLabel,
 		itemTitle,
+		renumberedForFiling,
 		reorderedIds,
+		runBulk,
 		scheduleLabel,
 		sectionTitle,
+		selectionScopeKey,
 		shortWhen,
 		sortUnits,
 		unitIdFor,
@@ -199,6 +204,20 @@
 	let seen = $state<Record<string, boolean>>({});
 	let menuHost = $state<HTMLElement | null>(null);
 
+	/**
+	 * BULK SELECTION. Global to the pane, not per group -- "bundle multiple
+	 * posts together" is a page-level ask, and a unit's own contents are
+	 * usually a small fraction of what a teacher wants to touch at once.
+	 */
+	let bulkSelected = $state<Set<string>>(new Set());
+	let armBulkDelete = $state(false);
+	/** Row being dragged, and which group it came from -- a drop outside that
+	 *  group is ignored rather than treated as a file-into-a-unit action,
+	 *  which has its own control. */
+	let dragGroupId = $state<string | null>(null);
+	let dragItemId = $state<string | null>(null);
+	let dragOverId = $state<string | null>(null);
+
 	const shownNotice = $derived(localNotice ?? notice);
 
 	const editable = $derived(canManage && !!transports);
@@ -211,6 +230,26 @@
 	 * for whom it is a heading over nothing.
 	 */
 	const groups = $derived(classGroups(items, units, { includeEmptyUnits: canManage }));
+
+	/**
+	 * A SELECTION IS SCOPED TO ONE CLASS AND ONE UNIT STRUCTURE. `selectionScopeKey`
+	 * changes when `section.id` changes (a different class) or the class's own
+	 * set of groups changes (a unit added, removed, or the section swapped out
+	 * from under this pane) -- either one means an id the caller had checked may
+	 * no longer even be on screen, and a delete aimed at the wrong class is
+	 * exactly the failure this pane has no undo for. It does NOT change when an
+	 * item merely moves between groups that already existed (a successful bulk
+	 * file), which is what lets a partial bulk failure leave its refused ids
+	 * selected across the very reload that reports it.
+	 */
+	let selectionScope = $state('');
+	$effect(() => {
+		const key = selectionScopeKey(section.id, groups);
+		if (key === selectionScope) return;
+		selectionScope = key;
+		bulkSelected = new Set();
+		armBulkDelete = false;
+	});
 
 	/**
 	 * CHECK-INS RIDE THE UNFILED GROUP, merged chronologically by the same
@@ -357,6 +396,69 @@
 		await run(() => transports.setOrder(ids));
 	}
 
+	/* ---- drag to reorder (native DnD, initiated only from the grip) ----
+	 *
+	 * A drag is scoped to the group it started in: `dragGroupId` is recorded at
+	 * dragstart, and a drop in a different group's list is ignored -- moving an
+	 * item to another unit is the picker's job (and the bulk file action's),
+	 * each of which renumbers the destination on its own. */
+	function onDragStart(e: DragEvent, groupId: string, itemId: string) {
+		if (!editable) return;
+		dragGroupId = groupId;
+		dragItemId = itemId;
+		dragOverId = itemId;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			// Firefox refuses to start a drag without payload.
+			e.dataTransfer.setData('text/plain', itemId);
+		}
+	}
+	function onDragOver(e: DragEvent, groupId: string, itemId: string) {
+		if (!dragItemId || dragGroupId !== groupId) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dragOverId = itemId;
+	}
+	function onDragEnd() {
+		dragGroupId = null;
+		dragItemId = null;
+		dragOverId = null;
+	}
+	async function onDrop(e: DragEvent, groupId: string, groupItems: ClassroomItem[], dropId: string) {
+		e.preventDefault();
+		const fromId = dragItemId;
+		const fromGroup = dragGroupId;
+		dragGroupId = null;
+		dragItemId = null;
+		dragOverId = null;
+		if (!transports || !fromId || fromGroup !== groupId || fromId === dropId) return;
+		const toIndex = groupItems.findIndex((i) => i.id === dropId);
+		if (toIndex < 0) return;
+		const result = dragReorder(groupItems, fromId, toIndex);
+		if (!result) return;
+		busy = true;
+		error = null;
+		localNotice = null;
+		const orderRes = await transports.setOrder(result.ids);
+		if (!orderRes.ok) {
+			busy = false;
+			error = orderRes.message ?? 'Something went wrong.';
+			return;
+		}
+		// A pinned item dropped among the unpinned ones only reads as moved once
+		// it stops being pinned -- see dragCrossesPinBoundary.
+		if (result.unpin) {
+			const pinRes = await transports.setPinned(fromId, false);
+			if (!pinRes.ok) {
+				busy = false;
+				error = pinRes.message ?? 'Something went wrong.';
+				return;
+			}
+		}
+		busy = false;
+		await onchanged?.();
+	}
+
 	/** Filing: one click and a pick, the fast path a teacher uses many times. */
 	async function fileInto(item: ClassroomItem, value: string) {
 		if (!unitTransports) return;
@@ -378,7 +480,131 @@
 					: 'That move was refused.';
 			return;
 		}
+		// The item just landed in a group whose numbering never placed it --
+		// renumber that group with it appended last, so it does not carry an
+		// arbitrary sort_order into a group it was never ordered against.
+		if (transports) {
+			const targetGroupId = target ?? UNFILED_GROUP_ID;
+			const destGroup = groups.find((g) => g.id === targetGroupId);
+			await transports.setOrder(renumberedForFiling(destGroup?.items ?? [], [item.id]));
+		}
 		await onchanged?.();
+	}
+
+	function toggleSelected(id: string) {
+		const next = new Set(bulkSelected);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		bulkSelected = next;
+		armBulkDelete = false;
+	}
+
+	function clearSelection() {
+		bulkSelected = new Set();
+		armBulkDelete = false;
+	}
+
+	async function bulkPublish(ids: string[]) {
+		if (!transports || !ids.length) return;
+		armBulkDelete = false;
+		busy = true;
+		error = null;
+		localNotice = null;
+		const tx = transports;
+		const outcome = await runBulk(ids, (id) => tx.setPublished(id, true));
+		busy = false;
+		bulkSelected = new Set(outcome.failedIds);
+		if (outcome.failedIds.length) {
+			error = bulkFailureMessage(
+				outcome.failedIds.length,
+				ids.length,
+				outcome.firstFailureMessage ?? 'Something went wrong.'
+			);
+		} else {
+			localNotice = `Published ${outcome.succeededIds.length} item${outcome.succeededIds.length === 1 ? '' : 's'}.`;
+		}
+		if (outcome.succeededIds.length) await onchanged?.();
+	}
+
+	async function bulkFileInto(ids: string[], value: string) {
+		if (!unitTransports || !transports || !ids.length) return;
+		armBulkDelete = false;
+		const unitTx = unitTransports;
+		const tx = transports;
+		const target = unitIdFor(value);
+		const targetGroupId = target ?? UNFILED_GROUP_ID;
+		const destGroup = groups.find((g) => g.id === targetGroupId);
+		const needsMove = ids.filter((id) => {
+			const item = items.find((i) => i.id === id);
+			return !!item && (item.unit_id ?? null) !== target;
+		});
+		const trivialCount = ids.length - needsMove.length;
+		busy = true;
+		error = null;
+		localNotice = null;
+		const outcome = await runBulk(needsMove, async (id) => {
+			const res = await unitTx.setItemUnit(id, target);
+			if (!res.ok) return res;
+			if (res.data.ok === false) {
+				return {
+					ok: false,
+					message:
+						res.data.reason === 'wrong_course'
+							? 'That unit belongs to another course.'
+							: 'That move was refused.'
+				};
+			}
+			return { ok: true };
+		});
+		if (outcome.succeededIds.length) {
+			await tx.setOrder(renumberedForFiling(destGroup?.items ?? [], outcome.succeededIds));
+		}
+		busy = false;
+		const succeededCount = trivialCount + outcome.succeededIds.length;
+		bulkSelected = new Set(outcome.failedIds);
+		if (outcome.failedIds.length) {
+			error = bulkFailureMessage(
+				outcome.failedIds.length,
+				ids.length,
+				outcome.firstFailureMessage ?? 'Something went wrong.'
+			);
+		} else {
+			localNotice = `Filed ${succeededCount} item${succeededCount === 1 ? '' : 's'}.`;
+		}
+		if (succeededCount) await onchanged?.();
+	}
+
+	/**
+	 * Two-step confirm, and the second step names the count -- the whole point
+	 * of a bulk delete is that the person cannot see everything it touches.
+	 * There is no undo on this page: recovery is Copy-then-repost for a wrongly
+	 * deleted announcement or material, and re-authoring for an assignment
+	 * (which also drops its submissions).
+	 */
+	async function bulkDelete(ids: string[]) {
+		if (!transports || !ids.length) return;
+		if (!armBulkDelete) {
+			armBulkDelete = true;
+			return;
+		}
+		armBulkDelete = false;
+		busy = true;
+		error = null;
+		localNotice = null;
+		const tx = transports;
+		const outcome = await runBulk(ids, (id) => tx.deleteItem(id));
+		busy = false;
+		bulkSelected = new Set(outcome.failedIds);
+		if (outcome.failedIds.length) {
+			error = bulkFailureMessage(
+				outcome.failedIds.length,
+				ids.length,
+				outcome.firstFailureMessage ?? 'Something went wrong.'
+			);
+		} else {
+			localNotice = `Deleted ${outcome.succeededIds.length} item${outcome.succeededIds.length === 1 ? '' : 's'}.`;
+		}
+		if (outcome.succeededIds.length) await onchanged?.();
 	}
 
 	function toggleEdit(id: string) {
@@ -587,7 +813,7 @@
 	</div>
 {/snippet}
 
-{#snippet itemRow(item: ClassroomItem, groupItems: ClassroomItem[])}
+{#snippet itemRow(item: ClassroomItem, groupItems: ClassroomItem[], groupId: string)}
 	<!--
 		A STUDENT ALWAYS SEES WHERE THEY STAND ON AN ASSIGNMENT, including when
 		that is "nothing yet": no submission row is exactly what not-started means
@@ -600,8 +826,35 @@
 		canManage || item.kind !== 'assignment'
 			? null
 			: (work[item.id] ?? { state: 'not-started' as const, score: null })}
-	<li class="row-wrap" class:editing={editing === item.id} class:selected={selectedItemId === item.id}>
+	<li
+		class="row-wrap"
+		class:editing={editing === item.id}
+		class:selected={selectedItemId === item.id}
+		class:drag-over={editable && dragItemId !== null && dragItemId !== item.id && dragOverId === item.id && dragGroupId === groupId}
+		ondragover={(e) => onDragOver(e, groupId, item.id)}
+		ondrop={(e) => onDrop(e, groupId, groupItems, item.id)}
+	>
 		<div class="row" data-testid="item-row" data-selected={selectedItemId === item.id ? 'true' : undefined}>
+			{#if editable}
+				<input
+					type="checkbox"
+					class="row-select"
+					checked={bulkSelected.has(item.id)}
+					aria-label="Select {itemTitle(item)}"
+					data-testid="row-select-{item.id}"
+					onclick={(e) => e.stopPropagation()}
+					onchange={() => toggleSelected(item.id)}
+				/>
+				<span
+					class="row-grip"
+					aria-hidden="true"
+					title="Drag to reorder"
+					draggable="true"
+					data-testid="row-grip-{item.id}"
+					ondragstart={(e) => onDragStart(e, groupId, item.id)}
+					ondragend={onDragEnd}
+				>&#10495;</span>
+			{/if}
 			<button
 				type="button"
 				class="row-expand"
@@ -926,6 +1179,80 @@
 		</div>
 	{/if}
 
+	<!--
+		BULK ACTIONS. A row's own checkbox is the selection; this bar is what
+		acts on the whole set at once -- "bundle multiple posts together" is a
+		selection model, not a second grouping, since units already group items.
+
+		Delete is the one that names its cost: the label itself becomes the
+		confirmation (`armBulkDelete`), and it names the COUNT, because the
+		whole point of a bulk action is that the person cannot see everything
+		it touches from one row. There is no undo here -- a wrongly deleted
+		announcement or material can only be reposted (Copy keeps a draft of
+		one at a time; there is no bulk copy), and a wrongly deleted assignment
+		has to be re-authored and also loses its submissions. A wrongly bulk
+		FILED set is recoverable: file it back with the same control. A wrongly
+		bulk PUBLISHED set is recoverable: publish is a toggle, so drafts can be
+		selected again and this bar has no unpublish action, but the per-row
+		menu's own toggle still reaches each one directly.
+	-->
+	{#if editable && bulkSelected.size > 0}
+		<div class="bulk-bar" data-testid="bulk-bar">
+			<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
+			<button
+				type="button"
+				class="btn secondary tiny"
+				disabled={busy}
+				data-testid="bulk-publish"
+				onclick={() => bulkPublish([...bulkSelected])}
+			>
+				Publish
+			</button>
+			{#if unitTransports}
+				<label class="bulk-unit">
+					<span class="sr-only">File the selection into a unit</span>
+					<select
+						value=""
+						disabled={busy}
+						data-testid="bulk-unit-select"
+						onchange={(e) => {
+							const target = e.currentTarget as HTMLSelectElement;
+							const value = target.value;
+							target.value = '';
+							if (value) bulkFileInto([...bulkSelected], value);
+						}}
+					>
+						<option value="" disabled>File into…</option>
+						<option value={UNFILED_GROUP_ID}>No unit</option>
+						{#each orderedUnits as u (u.id)}
+							<option value={u.id}>{u.name}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+			<button
+				type="button"
+				class="btn secondary tiny danger"
+				disabled={busy}
+				data-testid="bulk-delete"
+				onclick={() => bulkDelete([...bulkSelected])}
+			>
+				{armBulkDelete
+					? `Really delete ${bulkSelected.size} item${bulkSelected.size === 1 ? '' : 's'}?`
+					: `Delete (${bulkSelected.size})`}
+			</button>
+			<button
+				type="button"
+				class="btn secondary tiny"
+				disabled={busy}
+				data-testid="bulk-clear"
+				onclick={clearSelection}
+			>
+				Clear selection
+			</button>
+		</div>
+	{/if}
+
 	<!-- BELOW THE TOOLBAR, NEVER ABOVE IT. A status line that appears after an
 	     action must not push the actions themselves down the pane. -->
 	{#if error}
@@ -994,7 +1321,7 @@
 							{#if entry.kind === 'check-in'}
 								{@render checkInRow(entry.checkIn)}
 							{:else}
-								{@render itemRow(entry.item, group.items)}
+								{@render itemRow(entry.item, group.items, group.id)}
 							{/if}
 						{/each}
 					</ul>
@@ -1162,6 +1489,42 @@
 	.tool-panel {
 		margin-bottom: var(--space-4);
 	}
+	/* THE BULK BAR: a peer of the actions row above it, appearing only while
+	   something is checked. It sits BELOW pane-tools and ABOVE the status
+	   line, matching the toolbar-then-status ordering the rest of the pane
+	   already follows. */
+	.bulk-bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin-bottom: var(--space-4);
+		padding: var(--space-2) var(--space-3);
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+	}
+	.bulk-count {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+		margin-right: var(--space-1);
+	}
+	.bulk-unit select {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		padding: 0.28rem 0.4rem;
+		min-height: 36px;
+	}
+	/* The same crimson the per-row menu's own Delete carries -- reserved for
+	   this kind of destructive action, never a general accent. */
+	.bulk-bar .danger {
+		color: var(--crimson);
+		border-color: var(--crimson);
+	}
+	.bulk-bar .danger:hover:not(:disabled) {
+		color: var(--crimson);
+	}
 	.outstanding-badge {
 		display: inline-block;
 		margin-left: var(--space-1);
@@ -1268,6 +1631,11 @@
 		background: var(--surface-2);
 		box-shadow: inset 3px 0 0 var(--green);
 	}
+	/* Where a dragged row would land -- a rule on the row it is over, the same
+	   shape PieceChainBuilder's `.dropinto` uses. */
+	.row-wrap.drag-over {
+		box-shadow: inset 0 2px 0 0 var(--green);
+	}
 	.empty-row {
 		padding: 0.3rem 0.1rem;
 	}
@@ -1278,6 +1646,29 @@
 		align-items: center;
 		gap: 0.3rem;
 		min-width: 0;
+	}
+	.row-select {
+		flex: none;
+		width: 18px;
+		height: 18px;
+		margin: 0;
+		cursor: pointer;
+	}
+	/* The mouse-only reorder affordance -- keyboard and assistive tech use the
+	   menu's Move up / Move down, which stay for exactly this reason. */
+	.row-grip {
+		flex: none;
+		width: 30px;
+		min-height: 44px;
+		display: grid;
+		place-items: center;
+		color: var(--text-2);
+		cursor: grab;
+		font-size: 0.85rem;
+		user-select: none;
+	}
+	.row-grip:active {
+		cursor: grabbing;
 	}
 	.row-expand {
 		appearance: none;

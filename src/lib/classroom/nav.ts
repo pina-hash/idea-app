@@ -126,6 +126,22 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 }
 
 /**
+ * IS THE CLASS'S LIST OF OTHER ITEMS EVEN ON SCREEN BESIDE SOMETHING, HERE.
+ *
+ * The nav-collapse control ($lib/classroom/nav-collapse.ts,
+ * ClassroomShell's toggle) only means anything on the one place where a list
+ * pane sits beside an open item: `item`. On `section` nothing is selected, so
+ * the list already has the whole split to itself (see split.css's
+ * `:not(.has-detail)` rule) and there is nothing beside it to put away.
+ * `people`, `grades`, `item-grade`, `item-deck` and everywhere else never
+ * split at all (`src/routes/classroom/[sectionId]/+layout.svelte`'s own
+ * `split` only turns on for `section` and `item`).
+ */
+export function canCollapseNav(loc: ClassroomLocation): boolean {
+	return loc.place === 'item';
+}
+
+/**
  * HOW WIDE THE PAGE IS, answered in the same place as "where am I".
  *
  * The shell's breadcrumbs and tabs used to be pinned at 60rem while the content

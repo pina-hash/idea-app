@@ -77,13 +77,27 @@
 
 	const ME = 'alice@boscotech.net';
 
-	// A deliberate mix: overdue, due soon, handed back, never handed in, an
+	// A deliberate mix: overdue, due soon, handed back, not yet handed in, an
 	// edited announcement, a pinned notice and a pinned syllabus.
 	const items: ClassroomItem[] = [
 		item({ id: 'i-overdue', section: p1.id, title: 'Truss bridge sketch', due_at: iso('2026-10-10T07:00:00Z') }),
 		item({ id: 'i-returned', section: p1.id, title: 'Material ID checkpoint' }),
 		item({ id: 'i-soon', section: p1.id, title: 'Tolerance worksheet', due_at: iso('2026-10-18T07:00:00Z') }),
-		item({ id: 'i-unsub', section: p1.id, title: 'Shop safety quiz' }),
+		/**
+		 * DATED, and it used to be undated. This row exists to show an
+		 * assignment the viewer has not handed in; it reached the feed as
+		 * `unsubmitted`, which `studentReason` no longer emits, so undated it
+		 * now produces no row at all and the mix silently loses one. A deadline
+		 * inside DUE_SOON_DAYS puts it back under `due-soon` -- the surviving
+		 * reason carrying the retired one's tone (`info`) -- and a date distinct
+		 * from the other two dated items keeps the deadline tiebreak decided.
+		 */
+		item({
+			id: 'i-unsub',
+			section: p1.id,
+			title: 'Shop safety quiz',
+			due_at: iso('2026-10-17T07:00:00Z')
+		}),
 		item({
 			id: 'i-updated',
 			section: p1.id,

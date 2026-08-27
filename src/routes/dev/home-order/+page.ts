@@ -54,7 +54,35 @@ function item(sectionId: string, n: number): ClassroomItem {
 		body: '',
 		body_doc: null,
 		points: 10,
-		due_at: null,
+		/**
+		 * DATED INSIDE THE DUE-SOON WINDOW, OFF THE REAL CLOCK, and it used to be
+		 * null.
+		 *
+		 * An undated assignment with no submission row used to rank under
+		 * `unsubmitted`; `studentReason` no longer emits that (an item cannot say
+		 * whether it collects a hand-in, so the reason was a false count). Left
+		 * undated, every student row here would be gone and this harness would
+		 * measure the section offset against two empty cards.
+		 *
+		 * `Date.now()` AND NOT `NOW`, WHICH IS THE TRAP. This route mounts the
+		 * REAL `src/routes/+page.svelte`, and that page ranks with
+		 * `const now = new Date()` -- the live clock, which no fixture can
+		 * freeze. Dated off `NOW` instead, these items were ~50 days out by the
+		 * time anyone opened the page, ranked `later`, and produced exactly the
+		 * empty cards this line exists to prevent. Measured in a browser: 0 rows
+		 * dated off `NOW`, 6 dated off `Date.now()`.
+		 *
+		 * `NOW` still stamps `created_at`, where a frozen value is right: that is
+		 * only the final tiebreak in `compare`, and a fixed DUE date is the half
+		 * that goes stale.
+		 *
+		 * n stays inside DUE_SOON_DAYS for every value `?rows=` allows, so each
+		 * item ranks `due-soon` -- the surviving reason carrying the retired
+		 * one's tone (`info`) and its actionable-ness, so the header's count chip
+		 * still counts these. Distinct per item, so the deadline tiebreak is
+		 * decided.
+		 */
+		due_at: new Date(Date.now() + n * 86_400_000).toISOString(),
 		category: null,
 		author_email: TEACHER,
 		author_name: 'T. Vargas',
@@ -107,7 +135,7 @@ export const load: PageLoad = async ({ url }) => {
 	/**
 	 * ONE ROW PER ITEM, FOR EITHER ROLE, through the real ranking rules rather
 	 * than by handing the feed pre-ranked entries:
-	 *   - a student has no submission on an undated assignment -> `unsubmitted`
+	 *   - a student has no submission on an assignment due inside the window -> `due-soon`
 	 *   - a teacher has ANOTHER student's submission awaiting grade -> `ungraded`
 	 * The other student's row is never the viewer's own, so it cannot leak into
 	 * the student case.

@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-27",
+			"title": "Teachers can drag posts into a new order and act on several at once",
+			"body": "Your teacher can now drag an announcement, assignment, or material to a new spot in the list, instead of only moving items one step at a time. They can also select several items and publish, file them into a unit, or delete them all together. This changes how your teacher organizes the class, not what you're able to do -- you may just notice things moving to a new order or a different unit.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-27",
 			"title": "Wording fixes on an assignment now reach every class at once",
 			"body": "Your teacher can now correct a sentence, a prompt, a column heading or a checklist line on an assignment or a reference document directly, instead of re-importing the whole thing. Two things follow for you. A wording fix shows up in every class the assignment is posted to at the same time, so your copy and your friend's copy in another block never disagree. And nothing about the marking can change while wording is being fixed: points, rubrics, AI levels and the parts of an assignment are locked out of that screen, so a typo fix cannot quietly move what something is worth. If a diagram gets added to the instructions, it now appears in the text where it is being talked about rather than only in the file list at the bottom.",
 			"tags": [
@@ -35,6 +43,57 @@
 			"body": "When a teacher includes a picture directly in an assignment's or reference document's text, it used to also show up a second time in the Files list below. Now it only shows where it's used in the text; anything else attached still lists as a file, same as before.",
 			"tags": [
 				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Drag files in, or paste a screenshot right into your answer",
+			"body": "Every file picker in the classroom -- attaching a file to a post, handing in evidence on an assignment, and a teacher's presentation deck upload -- now also takes a drag-and-drop, with a clear highlight while you're dragging over it. And if you're typing an answer and paste an image (a screenshot of work from an online calculator, for example), it's sent straight to that question's photo evidence area instead of doing nothing, with a note telling you where it went. The button to pick a file still works exactly as before.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Hide the rest of the class while you read one item",
+			"body": "Opening an assignment or material now shows a 'Hide other items' button next to the trail at the top of the page. Turn it on and the list of everything else in the class tucks out of the way so the one you're reading gets the room; the button stays right there to bring it back. Your choice is remembered on this account and follows you from one item to the next.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "The \"to do\" count now only counts things you can actually do",
+			"body": "Three things were being counted as work when they were not. An assignment with no due date was listed as \"Not handed in\" forever, even when it was one your teacher grades on paper or at the bench and never collects online. A class that has finished kept its card on the home page, so last term's overdue work stayed in this term's count. And a notebook check-in scheduled for a date in the future was already showing as not filed, weeks before the day it is for. All three are fixed: an assignment with no due date is no longer counted, a finished class leaves the home page (you can still open it and everything in it is still there), and a check-in appears on the day it is for, not before. Anything with a due date behaves exactly as it did, so real work still shows up.",
+			"tags": [
+				"Home",
+				"Classes",
+				"check-ins"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Being excused from a notebook check-in is now something your teacher can record",
+			"body": "If you miss a check-in for a reason your school has approved -- a field trip, an appointment, an absence that was cleared -- a site admin can now mark you excused for that day, with a short reason kept alongside it. An excused check-in stops counting against you: it does not show as missing, and it is not counted as one you still owe. Your teacher can see that you were excused and why, even though only a site admin can record or remove it. Nothing about the work changes -- if you did file an entry for that day it still counts as filed.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A check-in already on the calendar can be attached to the classwork it goes with",
+			"body": "A notebook check-in that was scheduled on its own can now be attached to the assignment or reference it belongs with, so the day's material and its notebook requirement show as one thing in your class stream instead of two separate rows. Before, that was only possible if the check-in was created from the item in the first place. The dates, the prompt and anything you have already filed are untouched either way.",
+			"tags": [
+				"Notebook",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A note your teacher removed can be put back",
+			"body": "You have always been able to restore a note you removed yourself. If your teacher removed one, the notebook told you to ask them to put it back -- but there was no way for them to actually do it. There is now. Ask your teacher and they can restore it from the same place they removed it.",
+			"tags": [
+				"Notebook"
 			]
 		},
 		{
