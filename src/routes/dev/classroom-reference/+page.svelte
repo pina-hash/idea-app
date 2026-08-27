@@ -52,7 +52,7 @@
 	 * half is covered against a real Postgres in tests/classroom-reference.test.ts
 	 * and tests/classroom-reference-route.test.ts.
 	 */
-	type View = 'reader' | 'stacked' | 'item-plain' | 'item-ref' | 'public' | 'tools' | 'links';
+	type View = 'reader' | 'stacked' | 'item-plain' | 'item-ref' | 'item-ref-manage' | 'public' | 'tools' | 'links';
 	let view = $state<View>('reader');
 
 	let spec = $state<ReferenceSpec>(SAMPLE_REFERENCE);
@@ -222,9 +222,9 @@
      measure. Nesting one inside another would both be invalid and constrain the
      page to this harness's 48rem, which is the one thing that view is here to
      measure. -->
-<div class="dev-page" class:full={view === 'public' || view === 'item-plain' || view === 'item-ref'}>
+<div class="dev-page" class:full={view === 'public' || view === 'item-plain' || view === 'item-ref' || view === 'item-ref-manage'}>
 	<nav class="views">
-		{#each [['reader', 'Reader (tabs)'], ['stacked', 'Reader (stacked)'], ['item-plain', 'Material: no document'], ['item-ref', 'Material: with document'], ['public', 'Public page (/reference)'], ['tools', 'Teacher tools'], ['links', 'Short links']] as [id, label] (id)}
+		{#each [['reader', 'Reader (tabs)'], ['stacked', 'Reader (stacked)'], ['item-plain', 'Material: no document'], ['item-ref', 'Material: with document'], ['item-ref-manage', 'Material: manage + wording editor'], ['public', 'Public page (/reference)'], ['tools', 'Teacher tools'], ['links', 'Short links']] as [id, label] (id)}
 			<button
 				type="button"
 				class="btn secondary tiny"
@@ -236,7 +236,7 @@
 		{/each}
 	</nav>
 
-	{#if view === 'reader' || view === 'item-ref' || view === 'public'}
+	{#if view === 'reader' || view === 'item-ref' || view === 'item-ref-manage' || view === 'public'}
 		<label class="toggle">
 			<input type="checkbox" bind:checked={manyTabs} data-role="many-tabs" />
 			14 sections (the tab strip has to scroll)
@@ -256,6 +256,23 @@
 			section={devSection}
 			item={devMaterial}
 			referenceSpec={view === 'item-ref' ? shownSpec : null}
+			{fetchPreview}
+		/>
+	{:else if view === 'item-ref-manage'}
+		<!-- THE MANAGE-SIDE MOUNT. No dev harness passed canManage AND
+		     referenceTransports together on a material, so ItemDetail's
+		     canEditReference (`item.kind === 'material' && canManage &&
+		     !!referenceTransports`) had never once been true here -- meaning the
+		     in-place wording editor (SpecTextEditor, in reference mode) had never
+		     been driven through this page at all. Reuses the SAME
+		     referenceTransports the "Teacher tools" view's SpecImporter already
+		     exercises, so a save here and a save there hit one transport log. -->
+		<ItemDetail
+			section={devSection}
+			item={devMaterial}
+			referenceSpec={shownSpec}
+			canManage={true}
+			{referenceTransports}
 			{fetchPreview}
 		/>
 	{:else if view === 'public'}
