@@ -9,10 +9,15 @@ import {
 	foundryBundleUrl
 } from '../src/lib/foundry/bundle-url.ts';
 import {
-	FOUNDRY_SANDBOX_FLAGS,
-	foundryBundleCsp
+	FOUNDRY_SANDBOX_BASE_FLAGS,
+	foundryBundleCsp,
+	foundrySandboxFlags
 } from '../src/lib/foundry/bundle-headers.ts';
-import { injectStorageShim, FOUNDRY_STORAGE_SHIM_TAG } from '../src/lib/foundry/storage-shim.ts';
+import {
+	injectStorageShim,
+	FOUNDRY_STORAGE_SHIM_JS,
+	FOUNDRY_STORAGE_SHIM_TAG
+} from '../src/lib/foundry/storage-shim.ts';
 import { servableFoundryType } from '../src/lib/foundry/preflight.ts';
 
 /**
@@ -47,6 +52,10 @@ import { servableFoundryType } from '../src/lib/foundry/preflight.ts';
  *   4. THE SANDBOX FLAGS BEING ONE STRING. The frame attribute and the CSP
  *      `sandbox` directive have to agree, and they are written in different
  *      files for different consumers -- which is exactly the shape that drifts.
+ *      They are a FUNCTION of the two origins now rather than a constant, so
+ *      "they agree" is no longer free: it is a claim about two call sites being
+ *      handed the same arguments, and both directions of the condition need a
+ *      control or the test cannot tell the cases apart.
  */
 
 const REPO = path.resolve(import.meta.dirname, '..');
@@ -225,7 +234,8 @@ describe('the storage shim goes in first, and only once per document', () => {
 	it('inserts it as the first thing inside <head>', () => {
 		const out = injectStorageShim('<!doctype html><html><head><title>x</title></head></html>');
 		expect(out.indexOf(FOUNDRY_STORAGE_SHIM_TAG)).toBe(out.indexOf('<head>') + '<head>'.length);
-		// The document either side of the insertion point is untouched.
+		// The document either side of the insertion point is untouched, and the
+		// doctype it already had is not doubled.
 		expect(out.replace(FOUNDRY_STORAGE_SHIM_TAG, '')).toBe(
 			'<!doctype html><html><head><title>x</title></head></html>'
 		);
@@ -238,10 +248,65 @@ describe('the storage shim goes in first, and only once per document', () => {
 
 	it('falls back through <html>, the doctype, and the front of the file', () => {
 		expect(injectStorageShim('<html><body>hi</body></html>')).toBe(
-			'<html>' + FOUNDRY_STORAGE_SHIM_TAG + '<body>hi</body></html>'
+			'<!DOCTYPE html><html>' + FOUNDRY_STORAGE_SHIM_TAG + '<body>hi</body></html>'
 		);
 		expect(injectStorageShim('<!doctype html><p>hi').indexOf('<!doctype html>')).toBe(0);
-		expect(injectStorageShim('<p>hi')).toBe(FOUNDRY_STORAGE_SHIM_TAG + '<p>hi');
+		expect(injectStorageShim('<p>hi')).toBe(
+			'<!DOCTYPE html>' + FOUNDRY_STORAGE_SHIM_TAG + '<p>hi'
+		);
+	});
+
+	/**
+	 * A DOCUMENT WITH NO DOCTYPE RENDERS IN QUIRKS MODE, which is a different
+	 * box model and a different `line-height` inheritance -- so a ported page
+	 * arrives visibly wrong in a way that reads as a bad upload. A single
+	 * hand-written HTML file is exactly the shape that lacks one, and it is a
+	 * shape the submit surface takes first-class.
+	 *
+	 * BOTH DIRECTIONS, because "prepends a doctype" and "never doubles one" are
+	 * different failures and a test that only checks the first passes on an
+	 * implementation that emits two.
+	 */
+	it('adds a doctype only to a document that has none', () => {
+		// PRESENT: added at the very front, ahead of everything including a
+		// shim that landed inside <head>.
+		const bare = injectStorageShim('<html><head></head><body>hi</body></html>');
+		expect(bare.startsWith('<!DOCTYPE html><html>')).toBe(true);
+		expect(bare.match(/<!doctype/gi)).toHaveLength(1);
+
+		// ABSENT: a document that already declares one is left alone -- in any
+		// case, and after leading whitespace, which a browser tolerates too.
+		// Stripping the shim has to give the input back UNCHANGED, which is a
+		// stronger statement than counting doctypes: it also catches one added
+		// somewhere other than the front.
+		for (const already of [
+			'<!doctype html><html><head></head></html>',
+			'<!DOCTYPE HTML><html><head></head></html>',
+			'\n  <!doctype html>\n<html><head></head></html>'
+		]) {
+			const out = injectStorageShim(already);
+			expect(out.match(/<!doctype/gi), already).toHaveLength(1);
+			expect(out.replace(FOUNDRY_STORAGE_SHIM_TAG, ''), already).toBe(already);
+		}
+	});
+
+	/**
+	 * THE INSERT-ONLY PROPERTY IS LOAD-BEARING and the doctype must not have
+	 * cost it. Nothing in the document is rewritten, reordered or
+	 * reserialized: removing the two inserted strings has to give back the
+	 * original bytes exactly.
+	 */
+	it('inserts and never rewrites, doctype included', () => {
+		for (const doc of [
+			'<!doctype html><html><head><title>x</title></head><body>\r\n<p a=\'1\'>hi</body></html>',
+			'<html><head></head><body>hi</body></html>',
+			'<p>hi',
+			'  \n<html><body>hi</body></html>'
+		]) {
+			const out = injectStorageShim(doc);
+			const back = out.replace(FOUNDRY_STORAGE_SHIM_TAG, '').replace(/^<!DOCTYPE html>/, '');
+			expect(back, doc).toBe(doc);
+		}
 	});
 
 	/**
@@ -372,54 +437,197 @@ describe('nothing of the token proxy survives', () => {
  * THE SANDBOX FLAGS AND THE CSP, which are the half of this that the Supabase
  * gateway was silently overriding and that nothing downstream touches now.
  */
-describe('the sandbox is one string, and the CSP names the bundle origin', () => {
+describe('the sandbox is one function, and the CSP names the bundle origin', () => {
+	const APPS = 'https://apps.example.com';
+	const PORTAL = 'https://portal.example.com';
+
+	/**
+	 * THE FLAG LIST IS WRITTEN OUT HERE, IN THE TEST, rather than read out of
+	 * the module: a check derived from the implementation's own string cannot
+	 * fail. Adding a flag to the shipped set is meant to redden this line, so
+	 * that granting one is a decision somebody wrote down twice.
+	 */
+	const STRICT = [
+		'allow-downloads',
+		'allow-forms',
+		'allow-modals',
+		'allow-orientation-lock',
+		'allow-pointer-lock',
+		'allow-popups',
+		'allow-scripts'
+	];
+	const CROSS = [...STRICT, 'allow-same-origin'].sort();
+
+	const flagsOf = (s: string) => s.split(/\s+/).filter(Boolean).sort();
+	const sandboxDirectiveOf = (csp: string) =>
+		csp
+			.split('; ')
+			.find((d) => d.startsWith('sandbox '))!
+			.slice('sandbox '.length);
+
 	/**
 	 * THE FRAME ATTRIBUTE AND THE CSP DIRECTIVE MUST CARRY THE SAME FLAGS, and
 	 * they are consumed in different files by different things -- an HTML
 	 * attribute and a response header. That is the shape that drifts. It used to
-	 * be two literals in two runtimes with nothing able to compare them.
+	 * be two literals in two runtimes with nothing able to compare them; it is
+	 * one FUNCTION with two callers now, which is the same guarantee provided
+	 * both callers hand it the same two origins.
+	 *
+	 * SO THE PROOF IS IN TWO HALVES. This asserts the frame reaches the shared
+	 * function rather than spelling anything out, and that the directive is
+	 * built from the same call. `tests/foundry-gallery.test.ts` asserts the
+	 * other half -- that the string the REAL component renders equals the one
+	 * the CSP carries, for the same origins.
 	 */
-	it('is read from one constant by the frame and by the policy', () => {
+	it('is read from one function by the frame and by the policy', () => {
 		const frame = fs.readFileSync(path.join(REPO, 'src/lib/foundry/AppFrame.svelte'), 'utf8');
-		expect(frame).toContain('sandbox={FOUNDRY_SANDBOX_FLAGS}');
 		expect(frame).toContain("from './bundle-headers.ts'");
+		expect(frame).toContain('foundrySandboxFlags(originOf(src)');
+		expect(frame).toContain('sandbox={sandboxFlags}');
 		// The attribute is not spelled out a second time anywhere in that file.
 		expect(frame).not.toContain('sandbox="allow-');
 
-		expect(foundryBundleCsp('https://apps.example.com', '')).toContain(
-			`sandbox ${FOUNDRY_SANDBOX_FLAGS}`
-		);
+		// AND THE DIRECTIVE IS THE FUNCTION'S OWN ANSWER, in both directions of
+		// the condition -- asserted on the pair rather than on one case, since a
+		// policy that hardcoded the strict list would satisfy the second alone.
+		for (const [bundle, portal] of [
+			[APPS, PORTAL],
+			[APPS, APPS],
+			[APPS, ''],
+			['', '']
+		]) {
+			expect(foundryBundleCsp(bundle, portal), `${bundle} / ${portal}`).toContain(
+				`sandbox ${foundrySandboxFlags(bundle, portal)}`
+			);
+		}
 	});
 
 	/**
-	 * `allow-same-origin` WITH `allow-scripts` CANCELS THE SANDBOX OUTRIGHT -- a
-	 * document given both reaches its own origin, strips the attribute off
-	 * itself in the parent and reloads unsandboxed. Asserted on the constant
-	 * itself so it cannot be added in either consumer.
+	 * `allow-same-origin` IS THE ONE CONDITIONAL FLAG, AND THE CONDITION IS THE
+	 * WHOLE POINT.
+	 *
+	 * With `allow-scripts` it lets a framed document reach into the PARENT
+	 * document, strip the sandbox attribute off its own `<iframe>` element and
+	 * reload unsandboxed -- but only when the child is same-origin with that
+	 * parent, because `parent.document` throws otherwise. A bundle is served
+	 * from the apps origin and framed by the portal origin, which differ.
+	 *
+	 * THE NEGATIVE CONTROL IS WHAT MAKES THIS A TEST. The flag has to be ABSENT
+	 * whenever the function cannot prove the two origins differ -- equal, or
+	 * either one missing -- and PRESENT when they do. A single assertion in
+	 * either direction passes on an implementation that ignores its arguments,
+	 * which is exactly the bug worth catching.
 	 */
-	it('never grants allow-same-origin', () => {
-		expect(FOUNDRY_SANDBOX_FLAGS).not.toContain('allow-same-origin');
-		expect(foundryBundleCsp('https://apps.example.com', 'https://example.com')).not.toContain(
-			'allow-same-origin'
-		);
-		// POSITIVE CONTROL: the flags string is non-empty and does grant scripts,
-		// so the two absences above are real rather than an empty comparison.
-		expect(FOUNDRY_SANDBOX_FLAGS).toContain('allow-scripts');
+	it('withholds allow-same-origin unless the two origins differ', () => {
+		// NEGATIVE: equal, and either side empty.
+		for (const [bundle, portal] of [
+			[APPS, APPS],
+			[APPS, ''],
+			['', PORTAL],
+			['', ''],
+			// Normalized before comparing, so one trailing slash is not a second
+			// origin -- the one shape that would silently grant the flag to a
+			// deployment whose two variables name the same host.
+			[APPS, `${APPS}/`],
+			[`${APPS}/`, APPS]
+		]) {
+			expect(flagsOf(foundrySandboxFlags(bundle, portal)), `${bundle} / ${portal}`).toEqual(
+				STRICT
+			);
+			expect(foundryBundleCsp(bundle, portal), `${bundle} / ${portal}`).not.toContain(
+				'allow-same-origin'
+			);
+		}
+
+		// POSITIVE: two real, different origins. Without this the absences above
+		// would pass on a function that never grants the flag at all.
+		expect(flagsOf(foundrySandboxFlags(APPS, PORTAL))).toEqual(CROSS);
+		expect(sandboxDirectiveOf(foundryBundleCsp(APPS, PORTAL))).toContain('allow-same-origin');
+		// And the trailing-slash normalization does not swallow a REAL pair.
+		expect(flagsOf(foundrySandboxFlags(`${APPS}/`, `${PORTAL}/`))).toEqual(CROSS);
 	});
 
 	/**
-	 * `'self'` IS NOT A USABLE SOURCE FOR A SANDBOXED DOCUMENT. It is the only
-	 * origin-relative source expression and an opaque origin is same-origin with
-	 * nothing, so every source list has to NAME the bundle origin literally. A
-	 * policy that used `'self'` would refuse the bundle's own stylesheet, which
-	 * looks exactly like a bad upload.
+	 * THE GRANT AND `frame-ancestors` ARE TWO HALVES OF ONE ARGUMENT, so the
+	 * link between them is worth pinning rather than leaving in a comment.
+	 *
+	 * The flag is only safe because the browser refuses to let anything other
+	 * than the portal origin embed a bundle -- and that refusal is
+	 * `frame-ancestors`, which is emitted exactly when a portal origin is
+	 * configured. A policy that granted the flag while leaving the frame
+	 * ancestry unrestricted would be one where any site could frame a bundle
+	 * and, by serving its own page on the apps origin, be same-origin with it.
+	 */
+	it('never grants allow-same-origin without pinning frame-ancestors', () => {
+		for (const [bundle, portal] of [
+			[APPS, PORTAL],
+			[APPS, APPS],
+			[APPS, ''],
+			['', '']
+		]) {
+			const csp = foundryBundleCsp(bundle, portal);
+			if (csp.includes('allow-same-origin')) {
+				expect(csp, `${bundle} / ${portal}`).toContain(`frame-ancestors ${portal}`);
+				expect(portal).not.toBe(bundle);
+			}
+		}
+		// POSITIVE CONTROL: one of those cases really does grant it, so the
+		// implication above is not vacuously true over four non-grants.
+		expect(foundryBundleCsp(APPS, PORTAL)).toContain('allow-same-origin');
+	});
+
+	/**
+	 * TWO FLAGS ARE REFUSED IN EVERY CONFIGURATION, because neither is about
+	 * what a bundle may do to itself. `allow-top-navigation` lets a student's
+	 * app replace the page the viewer is actually on;
+	 * `allow-popups-to-escape-sandbox` hands a popup full rights on any origin
+	 * it likes. `allow-popups` is granted, which is what makes the second one
+	 * worth asserting separately rather than assuming.
+	 */
+	it('never grants top navigation or an escaping popup, in any configuration', () => {
+		for (const [bundle, portal] of [
+			[APPS, PORTAL],
+			[APPS, APPS],
+			[APPS, ''],
+			['', PORTAL],
+			['', '']
+		]) {
+			const flags = foundrySandboxFlags(bundle, portal);
+			const csp = foundryBundleCsp(bundle, portal);
+			for (const banned of ['allow-top-navigation', 'allow-popups-to-escape-sandbox']) {
+				expect(flags, `${banned} in ${bundle} / ${portal}`).not.toContain(banned);
+				expect(csp, `${banned} in ${bundle} / ${portal}`).not.toContain(banned);
+			}
+		}
+		// POSITIVE CONTROL: `allow-popups` IS granted, so the two absences above
+		// are not a substring accident of a set that grants no popup at all.
+		expect(foundrySandboxFlags(APPS, PORTAL)).toContain('allow-popups');
+	});
+
+	/**
+	 * `'self'` IS NOT A USABLE SOURCE FOR A SANDBOXED DOCUMENT whose origin is
+	 * opaque. It is the only origin-relative source expression and an opaque
+	 * origin is same-origin with nothing, so every source list has to NAME the
+	 * bundle origin literally. A policy that used `'self'` would refuse the
+	 * bundle's own stylesheet, which looks exactly like a bad upload.
 	 */
 	it('names the bundle origin literally and never uses self', () => {
-		const csp = foundryBundleCsp('https://apps.example.com', '');
+		const csp = foundryBundleCsp(APPS, '');
 		expect(csp).not.toContain("'self'");
-		for (const directive of ['default-src', 'script-src', 'style-src', 'img-src', 'font-src']) {
+		for (const directive of [
+			'default-src',
+			'script-src',
+			'style-src',
+			'img-src',
+			'font-src',
+			'worker-src',
+			'frame-src',
+			'base-uri',
+			'form-action'
+		]) {
 			const line = csp.split('; ').find((d) => d.startsWith(directive + ' '));
-			expect(line, directive).toContain('https://apps.example.com');
+			expect(line, directive).toBeTruthy();
+			expect(line, directive).toContain(APPS);
 		}
 	});
 
@@ -427,28 +635,228 @@ describe('the sandbox is one string, and the CSP names the bundle origin', () =>
 	 * INLINE SCRIPT AND STYLE ARE PERMITTED ON PURPOSE. `default-src` alone
 	 * forbids both, which kills the storage shim and essentially every generated
 	 * app. And the NETWORK IS OPEN, because the build contract tells students a
-	 * CDN works: a policy that refused one would make the contract lie.
+	 * CDN works: a policy that refused one would make the contract lie. `wss:`
+	 * joins `connect-src` for the same reason one directive over -- a socket is
+	 * the one reach `https:` does not cover, and a live-data or multiplayer app
+	 * is otherwise refused at the handshake.
 	 */
-	it('permits inline script and an https CDN', () => {
-		const csp = foundryBundleCsp('https://apps.example.com', '');
+	it('permits inline script, an https CDN and a websocket', () => {
+		const csp = foundryBundleCsp(APPS, '');
 		expect(csp).toMatch(/script-src [^;]*'unsafe-inline'/);
 		expect(csp).toMatch(/style-src [^;]*'unsafe-inline'/);
 		for (const directive of ['script-src', 'connect-src', 'img-src', 'font-src']) {
 			const line = csp.split('; ').find((d) => d.startsWith(directive + ' '));
 			expect(line, directive).toContain('https:');
 		}
+		const connect = csp.split('; ').find((d) => d.startsWith('connect-src '))!;
+		expect(connect).toContain('wss:');
+		// NEGATIVE CONTROL: `wss:` belongs to connect-src alone. A scheme swept
+		// onto every directive would satisfy the line above and mean nothing.
+		expect(csp.split('; ').find((d) => d.startsWith('img-src '))).not.toContain('wss:');
+	});
+
+	/**
+	 * `base-uri` ADMITS A `<base href>` NOW, AND IT USED TO BE `'none'`.
+	 *
+	 * A game ported from elsewhere routinely ships as one HTML file with a
+	 * `<base href>` pointing at the CDN its assets live on. `base-uri 'none'`
+	 * makes the browser ignore that element outright, so every asset request
+	 * resolves against the bundle instead and 404s -- the app renders empty,
+	 * which reads as a bad upload.
+	 *
+	 * IT GRANTS NOTHING THE POLICY DID NOT ALREADY ALLOW: `default-src` admits
+	 * `https:`, so every URL a `<base>` could point at was already reachable by
+	 * writing it out in full. That equivalence is the argument, so it is what is
+	 * asserted -- not merely that the directive changed.
+	 */
+	it('lets a bundle repoint its own relative URLs, within what default-src already allows', () => {
+		const csp = foundryBundleCsp(APPS, '');
+		expect(csp).not.toContain("base-uri 'none'");
+		const base = csp.split('; ').find((d) => d.startsWith('base-uri '))!;
+		expect(base).toBe(`base-uri ${APPS} https:`);
+
+		// THE EQUIVALENCE: every source `base-uri` admits is already admitted by
+		// `default-src`, so nothing became reachable that was not.
+		const fetchable = csp.split('; ').find((d) => d.startsWith('default-src '))!;
+		for (const source of base.slice('base-uri '.length).split(/\s+/).filter(Boolean)) {
+			expect(fetchable, source).toContain(source);
+		}
+	});
+
+	/**
+	 * `form-action` NAMES THE SAME SET the fetching directives do, because
+	 * `allow-forms` is granted and a policy that grants the flag and forbids the
+	 * action refuses the thing it just permitted -- a form that submits into a
+	 * CSP violation, which is a silent no-op with a console line.
+	 */
+	it('permits a form to submit, since allow-forms is granted', () => {
+		const csp = foundryBundleCsp(APPS, '');
+		expect(csp).not.toContain("form-action 'none'");
+		expect(csp.split('; ').find((d) => d.startsWith('form-action '))).toBe(
+			`form-action ${APPS} https: data: blob:`
+		);
+		expect(foundrySandboxFlags(APPS, '')).toContain('allow-forms');
+	});
+
+	/**
+	 * `worker-src` AND `frame-src` ARE STATED rather than left to fall back to
+	 * `default-src`. The fallback is a fact about the CSP level in front of
+	 * them, not about this policy, and a reader asking whether a bundle may
+	 * spawn a worker should find the answer written down.
+	 */
+	it('states worker-src and frame-src rather than leaving them to default-src', () => {
+		const csp = foundryBundleCsp(APPS, '');
+		const web = `${APPS} https: data: blob:`;
+		expect(csp.split('; ').find((d) => d.startsWith('worker-src '))).toBe(`worker-src ${web}`);
+		expect(csp.split('; ').find((d) => d.startsWith('frame-src '))).toBe(`frame-src ${web}`);
 	});
 
 	/**
 	 * `frame-ancestors` IS UNSET-MEANS-UNRESTRICTED. On a feature whose history
 	 * is silently serving nothing, a variable whose absence blanks every frame is
-	 * the worse failure -- and a framed bundle is sandboxed, holds no session and
-	 * reaches nothing of ours.
+	 * the worse failure -- and a framed bundle holds no session and reaches
+	 * nothing of ours. It is load-bearing in a second way now: see the grant
+	 * assertion above.
 	 */
 	it('omits frame-ancestors when no portal origin is configured', () => {
-		expect(foundryBundleCsp('https://apps.example.com', '')).not.toContain('frame-ancestors');
-		expect(foundryBundleCsp('https://apps.example.com', 'https://ideabosco.com')).toContain(
+		expect(foundryBundleCsp(APPS, '')).not.toContain('frame-ancestors');
+		expect(foundryBundleCsp(APPS, 'https://ideabosco.com')).toContain(
 			'frame-ancestors https://ideabosco.com'
 		);
+	});
+});
+
+/**
+ * THE SHIM'S OWN DECISION: does it replace a storage that WORKS?
+ *
+ * WHY THIS IS A TEST AND NOT A HARNESS DRIVE. Getting it wrong is completely
+ * invisible: the app runs, `localStorage.setItem` succeeds, `getItem` comes
+ * back, and the only symptom is that nothing is there after a reload -- which
+ * is exactly what the opaque origin did, so the fix one file over would look
+ * like it had shipped while buying nothing at all. Nobody reloads a student
+ * game twice while reviewing a diff.
+ *
+ * IT RUNS THE SHIPPED STRING, not a transcription of it. `new Function` gives
+ * the IIFE its `window` and `Window` rather than a browser doing it, which is
+ * the only way to hand it a storage that throws on purpose.
+ */
+describe('the storage shim replaces a broken storage and leaves a working one alone', () => {
+	/** A storage that behaves, close enough to the real interface for a probe. */
+	function workingStorage() {
+		const d = new Map<string, string>();
+		return {
+			getItem: (k: string) => (d.has(String(k)) ? d.get(String(k))! : null),
+			setItem: (k: string, v: string) => void d.set(String(k), String(v)),
+			removeItem: (k: string) => void d.delete(String(k)),
+			clear: () => d.clear(),
+			key: (i: number) => [...d.keys()][i] ?? null,
+			get length() {
+				return d.size;
+			},
+			/** Not part of Storage; the test reads it to see what survived. */
+			_keys: () => [...d.keys()]
+		};
+	}
+
+	/** Run the REAL shim source against a window we control. */
+	function runShim(win: Record<string, unknown>) {
+		const WindowCtor = function () {} as unknown as { prototype: Record<string, unknown> };
+		WindowCtor.prototype = {};
+		new Function('window', 'Window', FOUNDRY_STORAGE_SHIM_JS)(win, WindowCtor);
+		return win;
+	}
+
+	it('leaves a storage that round-trips exactly where it was', () => {
+		const real = workingStorage();
+		real.setItem('highScore', '900');
+		const win: Record<string, unknown> = { localStorage: real, sessionStorage: workingStorage() };
+
+		runShim(win);
+
+		// IDENTITY is the assertion. A shim that copied the contents across would
+		// satisfy a value check and still lose the next reload.
+		expect(win.localStorage).toBe(real);
+		expect(real.getItem('highScore')).toBe('900');
+		// The probe cleans up after itself; a leftover key is a bundle finding a
+		// value in its own storage that no app ever wrote.
+		expect(real._keys()).toEqual(['highScore']);
+	});
+
+	it('replaces a storage whose getter throws, the way an opaque origin does', () => {
+		const win: Record<string, unknown> = {};
+		Object.defineProperty(win, 'localStorage', {
+			get() {
+				throw new Error('SecurityError');
+			},
+			configurable: true
+		});
+		Object.defineProperty(win, 'sessionStorage', {
+			get() {
+				throw new Error('SecurityError');
+			},
+			configurable: true
+		});
+
+		runShim(win);
+
+		// It is now readable at all, which is the whole point -- the getter used
+		// to take the document down before anything rendered.
+		const shimmed = win.localStorage as Storage;
+		expect(() => shimmed.getItem('x')).not.toThrow();
+		shimmed.setItem('slot', '1');
+		expect(shimmed.getItem('slot')).toBe('1');
+		expect(shimmed.getItem('never-written')).toBeNull();
+		expect(() => (win.sessionStorage as Storage).setItem('a', 'b')).not.toThrow();
+	});
+
+	/**
+	 * A STORAGE PRESENT BUT REFUSING TO WRITE is the private-browsing shape:
+	 * the API is there, the getter does not throw, and `setItem` raises a quota
+	 * error. The probe has to catch that too, because "present" was never the
+	 * question -- "works" is.
+	 */
+	it('replaces a storage that is present but refuses the write', () => {
+		const refusing = {
+			getItem: () => null,
+			setItem: () => {
+				throw new Error('QuotaExceededError');
+			},
+			removeItem: () => {},
+			clear: () => {},
+			key: () => null,
+			length: 0
+		};
+		const win: Record<string, unknown> = { localStorage: refusing, sessionStorage: refusing };
+
+		runShim(win);
+
+		expect(win.localStorage).not.toBe(refusing);
+		(win.localStorage as Storage).setItem('slot', '1');
+		expect((win.localStorage as Storage).getItem('slot')).toBe('1');
+	});
+
+	it('installs over an API that is absent entirely', () => {
+		const win: Record<string, unknown> = {};
+		runShim(win);
+		expect(win.localStorage).toBeTruthy();
+		(win.localStorage as Storage).setItem('slot', '1');
+		expect((win.localStorage as Storage).getItem('slot')).toBe('1');
+	});
+
+	/**
+	 * THE SHIM MUST NEVER BE THE THING THAT THROWS. It is the first script in
+	 * the head, so an exception there is a blank page for an app that would
+	 * otherwise have run.
+	 */
+	it('throws nothing, whatever it is handed', () => {
+		const hostile: Record<string, unknown>[] = [
+			{},
+			{ localStorage: null, sessionStorage: undefined },
+			{ localStorage: 'not a storage', sessionStorage: 42 },
+			{ localStorage: { setItem: 1 }, sessionStorage: Object.create(null) }
+		];
+		for (const win of hostile) {
+			expect(() => runShim(win), JSON.stringify(Object.keys(win))).not.toThrow();
+		}
 	});
 });

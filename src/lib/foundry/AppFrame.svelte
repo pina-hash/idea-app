@@ -7,45 +7,62 @@
 	 * written down, because the failure mode of a second copy is a frame that
 	 * looks identical and isolates nothing.
 	 *
-	 * THE FLAGS THEMSELVES LIVE IN `bundle-headers.ts` NOW, and that is the
-	 * change. They used to be written out here as the single copy, which was
-	 * right while the attribute was the only place they appeared -- but the
-	 * SERVING side has to send the same flags as a CSP `sandbox` directive, and
-	 * a second spelling of them over there is a frame and a document that can
-	 * drift apart with nothing to compare them. One constant, two readers.
+	 * THE FLAGS THEMSELVES LIVE IN `bundle-headers.ts`, and they are a FUNCTION
+	 * of the two origins rather than a constant. They used to be written out
+	 * here as the single copy, which was right while the attribute was the only
+	 * place they appeared -- but the SERVING side has to send the same flags as
+	 * a CSP `sandbox` directive, and a second spelling of them over there is a
+	 * frame and a document that can drift apart with nothing to compare them.
+	 * One implementation, two readers.
 	 *
-	 * `allow-same-origin` IS THE ONE FLAG THAT MUST NEVER APPEAR THERE.
-	 * `allow-scripts` and `allow-same-origin` together cancel the sandbox
-	 * outright: a framed document given both can reach into its own origin,
-	 * remove its own sandbox attribute from the parent document and reload
-	 * itself unsandboxed. Every other flag on this element is additive and
-	 * arguable; that pair is not.
+	 * `allow-same-origin` IS CONDITIONAL, NOT FORBIDDEN, AND THIS COMMENT USED
+	 * TO SAY OTHERWISE. It said the pair `allow-scripts` + `allow-same-origin`
+	 * cancels the sandbox outright, because a framed document given both can
+	 * remove its own sandbox attribute from the PARENT document and reload
+	 * unsandboxed. The mechanism is real; the rule was too broad. Reaching the
+	 * parent's DOM at all requires the child to be SAME-ORIGIN WITH THE PARENT,
+	 * and a bundle is served from the apps origin while the portal that frames
+	 * it is a different one. `foundrySandboxFlags` decides that at runtime and
+	 * withholds the flag whenever it cannot prove the two differ. The full
+	 * argument, including how it composes with `frame-ancestors`, is in
+	 * `bundle-headers.ts`; it is written down once, there, and not restated
+	 * here.
 	 *
-	 * What IS granted, and why each one:
-	 *   allow-scripts        a bundle is a program. Without it there is nothing
-	 *                        to show.
-	 *   allow-modals         alert / confirm / prompt. Generated apps use them
-	 *                        constantly, and without this they are silent
-	 *                        no-ops -- a game that "does nothing" when you win.
-	 *   allow-pointer-lock   canvas games ask for it; without it the request
-	 *                        rejects and the app's own error path runs.
+	 * THE TWO ORIGINS THIS COMPONENT HANDS IT ARE THE TWO THE SERVER HANDS IT,
+	 * WHICH IS WHAT KEEPS THE ATTRIBUTE AND THE DIRECTIVE ONE STRING.
 	 *
-	 * What is deliberately NOT granted: `allow-popups` (window.open),
-	 * `allow-top-navigation` (setting top.location), `allow-forms`,
-	 * `allow-downloads`, `allow-modals`' louder cousins. None of them is needed
-	 * by the build contract and each is a way out of the frame.
+	 *   the bundle origin  is read off `src` -- the origin of the URL this
+	 *                      frame is actually about to load, which is by
+	 *                      construction the origin the serving route answers on
+	 *                      and therefore the exact string it passes to
+	 *                      `foundryBundleCsp`. Reading
+	 *                      `PUBLIC_FOUNDRY_APPS_ORIGIN` again here instead
+	 *                      would be a SECOND read of the value `AppStage`
+	 *                      already used to build `src`, and two independent
+	 *                      reads are how a frame and its own URL come to
+	 *                      disagree.
+	 *   the portal origin  is `PUBLIC_FOUNDRY_PORTAL_ORIGIN`, the same variable
+	 *                      the responder reads for the same argument. It is the
+	 *                      origin `frame-ancestors` pins, which is what makes
+	 *                      the grant safe, so it is the right value rather than
+	 *                      merely a convenient one.
 	 *
-	 * THE ATTRIBUTE IS NOT THE ONLY SANDBOX. The serving route sends the same
-	 * flags as a CSP `sandbox` directive on the document, so a student who navigates
-	 * straight to a bundle URL -- outside any frame -- lands in the same opaque
-	 * origin. The attribute cannot cover that case and the directive cannot
+	 * AN UNPARSEABLE `src` IS THE EMPTY STRING, WHICH FAILS CLOSED. A relative
+	 * or malformed URL yields no origin, and no origin means the strict flag set
+	 * -- never a guess about what the frame is about to load.
+	 *
+	 * THE ATTRIBUTE IS NOT THE ONLY SANDBOX. The serving routes send the same
+	 * flags as a CSP `sandbox` directive on the document, so a student who
+	 * navigates straight to a bundle URL -- outside any frame -- is treated the
+	 * same way. The attribute cannot cover that case and the directive cannot
 	 * cover a frame the portal renders with different flags, so both are real.
 	 *
 	 * This component fetches nothing. There is no token and no mint anywhere on
 	 * this path any more; the caller hands over a plain `src`, per the
 	 * presentation-takes-props convention.
 	 */
-	import { FOUNDRY_SANDBOX_FLAGS } from './bundle-headers.ts';
+	import { env } from '$env/dynamic/public';
+	import { foundrySandboxFlags } from './bundle-headers.ts';
 
 	let {
 		src,
@@ -93,6 +110,19 @@
 		loading?: 'lazy' | 'eager';
 		fill?: boolean;
 	} = $props();
+
+	/** The origin `src` will actually load from, or '' when it has none. */
+	function originOf(url: string): string {
+		try {
+			return new URL(url).origin;
+		} catch {
+			return '';
+		}
+	}
+
+	const sandboxFlags = $derived(
+		foundrySandboxFlags(originOf(src), env.PUBLIC_FOUNDRY_PORTAL_ORIGIN ?? '')
+	);
 </script>
 
 <div class="fdy-frame-wrap" class:is-fill={fill}>
@@ -110,7 +140,7 @@
 		{title}
 		class="fdy-frame"
 		style={fill ? '' : `height: ${height};`}
-		sandbox={FOUNDRY_SANDBOX_FLAGS}
+		sandbox={sandboxFlags}
 		referrerpolicy="no-referrer"
 		{loading}
 	></iframe>

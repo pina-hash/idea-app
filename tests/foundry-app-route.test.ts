@@ -162,12 +162,48 @@ describe('a direct page carries exactly the headers a framed bundle carries', ()
 		const h = (await app(FIXTURE_APP_TYPES, '')).headers;
 		const csp = h.get('content-security-policy')!;
 		expect(csp).toContain('sandbox allow-scripts allow-modals allow-pointer-lock');
-		expect(csp).not.toContain('allow-same-origin');
 		expect(csp).toContain(`default-src ${APPS}`);
 		expect(h.get('x-content-type-options')).toBe('nosniff');
 		expect(h.get('referrer-policy')).toBe('no-referrer');
 		expect(h.get('x-robots-tag')).toBe('noindex, nofollow');
 		expect(h.get('cache-control')).toBe('private, max-age=60');
+	});
+
+	/**
+	 * THE EQUALITY ABOVE HAS TO HOLD WHEN THE POLICY IS CONFIGURED, TOO.
+	 *
+	 * `allow-same-origin` is granted from the portal origin, and `/a/` is the
+	 * mount with no frame around it -- so a responder that decided the flag from
+	 * something frame-shaped would produce two different policies for the two
+	 * routes, and the header-set comparison above would only notice if it were
+	 * run with a portal origin set. The rest of this file runs with none.
+	 *
+	 * IT IS ALSO THE ONE THAT MATTERS MOST HERE: the direct page is where a
+	 * student's localStorage has to survive a reload, which is exactly what the
+	 * grant buys, so a `/a/` that quietly kept the strict set would look correct
+	 * and lose every save.
+	 */
+	it('carries the same configured policy the framed mount does', async () => {
+		process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = 'https://ideabosco.com';
+		try {
+			const direct = (await app(FIXTURE_APP_TYPES, '')).headers.get('content-security-policy')!;
+			const framed = (
+				await bundle(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')
+			).headers.get('content-security-policy')!;
+			expect(direct).toBe(framed);
+			// POSITIVE CONTROL: two strict policies would also compare equal, and
+			// would be the one result nobody would look at twice.
+			expect(direct).toContain('allow-same-origin');
+			expect(direct).toContain('frame-ancestors https://ideabosco.com');
+		} finally {
+			delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		}
+
+		// NEGATIVE CONTROL: with nothing configured the same two responses agree
+		// on the STRICT set, so the equality above is about the wiring rather
+		// than about a flag that is always there.
+		const bare = (await app(FIXTURE_APP_TYPES, '')).headers.get('content-security-policy')!;
+		expect(bare).not.toContain('allow-same-origin');
 	});
 });
 

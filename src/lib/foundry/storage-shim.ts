@@ -2,17 +2,33 @@
  * THE STORAGE SHIM, and why a bundle is dead on load without it.
  *
  * A document on an OPAQUE ORIGIN -- which is what `sandbox allow-scripts`
- * without `allow-same-origin` produces, and the whole reason the sandbox is
- * worth having -- has no storage area. `window.localStorage` is not undefined
- * there: the GETTER THROWS a `SecurityError`. So the first line of a generated
- * app that reads `localStorage.getItem('state')` throws before anything
- * renders, and the app is a blank frame with a console message no student will
- * ever see. That shape -- read saved state at the top of the script -- is the
- * single most common thing an AI tool writes.
+ * without `allow-same-origin` produces -- has no storage area.
+ * `window.localStorage` is not undefined there: the GETTER THROWS a
+ * `SecurityError`. So the first line of a generated app that reads
+ * `localStorage.getItem('state')` throws before anything renders, and the app
+ * is a blank frame with a console message no student will ever see. That shape
+ * -- read saved state at the top of the script -- is the single most common
+ * thing an AI tool writes.
  *
- * So both storages are defined as in-memory objects before any student code
- * runs. The data does not survive a reload, which the build contract tells
- * students, and it is per-frame, which is what a sandbox means.
+ * IT INSTALLS ONLY WHEN REAL STORAGE IS UNAVAILABLE, AND THAT IS THE CHANGE.
+ * It used to replace both storages UNCONDITIONALLY, which was right while every
+ * bundle ran on an opaque origin and there was never anything to replace.
+ * `foundrySandboxFlags` now grants `allow-same-origin` when the bundle origin
+ * and the portal origin differ, so a served bundle usually HAS a real, durable
+ * storage area -- and an unconditional shim would overwrite it with an
+ * in-memory object, losing every save slot and every high score exactly as the
+ * opaque origin did. The fix one file over would have bought nothing.
+ *
+ * SO EACH STORAGE IS PROBED BEFORE IT IS REPLACED: write a key, read it back,
+ * remove it, all inside a try/catch. A throw -- the opaque-origin
+ * `SecurityError`, a private-browsing quota refusal, a missing API -- installs
+ * the in-memory replacement. A clean round trip leaves the real thing alone,
+ * untouched, with the probe key removed. The probe is the whole of the
+ * condition: there is no origin sniffing and no flag read, because what matters
+ * is whether storage WORKS and not why it might not.
+ *
+ * When the replacement does go in, its data does not survive a reload, which
+ * the build contract tells students, and it is per-document.
  *
  * IT IS A PROXY, NOT A PLAIN OBJECT WITH FIVE METHODS, because half of the
  * real Storage interface is the index properties: `localStorage.score = 5`,
@@ -109,7 +125,19 @@ return undefined;
 }
 });
 }
+function usable(name){
+try{
+var real=W[name];
+if(!real)return false;
+var pk='__fdy_probe__';
+real.setItem(pk,'1');
+var back=real.getItem(pk);
+real.removeItem(pk);
+return back==='1';
+}catch(e){return false;}
+}
 function install(name){
+if(usable(name))return true;
 var s=make();
 var desc={value:s,configurable:true,enumerable:true,writable:false};
 try{Object.defineProperty(W,name,desc);if(W[name]===s)return true;}catch(e){}
@@ -131,17 +159,61 @@ install('sessionStorage');
 export const FOUNDRY_STORAGE_SHIM_TAG = `<script>${FOUNDRY_STORAGE_SHIM_JS}</script>`;
 
 /**
- * Insert the shim as the first element inside `<head>`.
+ * THE DOCTYPE A DOCUMENT WITHOUT ONE IS GIVEN.
  *
- * FAILING THAT, straight after `<html>` or the doctype, and failing that, the
- * very front of the document. A page with no `<head>` is ORDINARY rather than
- * exotic -- browsers synthesize one -- so those are the common case for a
- * hand-written file, not defensive padding.
+ * A served HTML document with no doctype renders in QUIRKS MODE, which is a
+ * different box model, a different `line-height` inheritance and a different
+ * table-cell font resolution -- so a ported page laid out against standards
+ * mode arrives visibly broken, in a way that reads as a bad upload rather than
+ * a missing string. A single HTML file typed by hand or emitted by a tool that
+ * assumed a wrapper is exactly the shape that lacks one, and it is a shape the
+ * submit surface accepts first-class.
  *
- * IT INSERTS AND DOES NOT REWRITE. Nothing else in the document is touched, so
- * a bundle is byte-identical either side of the injection point.
+ * It is `<!DOCTYPE html>` and nothing else: the doctype is not a version
+ * declaration any more, it is a one-bit switch, and this is the spelling that
+ * sets it.
+ */
+const FOUNDRY_DOCTYPE = '<!DOCTYPE html>';
+
+/**
+ * Whether the document already declares one.
+ *
+ * LEADING WHITESPACE AND A BOM ARE TOLERATED, because a browser tolerates them
+ * -- a doctype after a blank line still switches the mode -- and prepending a
+ * SECOND doctype to a document that has one is the one outcome worse than
+ * leaving it alone.
+ */
+function hasDoctype(html: string): boolean {
+	return /^[\s\uFEFF]*<!doctype/i.test(html);
+}
+
+/**
+ * Insert the shim as the first element inside `<head>`, and a doctype at the
+ * front of a document that has none.
+ *
+ * FAILING A `<head>`, the shim goes straight after `<html>` or the doctype, and
+ * failing those, the very front of the document. A page with no `<head>` is
+ * ORDINARY rather than exotic -- browsers synthesize one -- so those are the
+ * common case for a hand-written file, not defensive padding.
+ *
+ * THE DOCTYPE GOES AT THE FRONT OF THE DOCUMENT, NOT BESIDE THE SHIM, and that
+ * is forced rather than chosen: a doctype anywhere after the first element is
+ * ignored, so putting it next to a shim that landed inside `<head>` would
+ * change the bytes and fix nothing. In the fallback case -- no head, no html
+ * tag -- the two land together anyway, because the shim is itself at the front.
+ *
+ * IT INSERTS AND DOES NOT REWRITE. Nothing in the document is modified,
+ * reordered or reserialized; the original bytes survive contiguously with at
+ * most two strings inserted in front of them. That property is load-bearing --
+ * parse-and-reserialize would mangle bundles in ways nobody asked for -- and it
+ * survives the doctype, which is one more insert.
  */
 export function injectStorageShim(html: string): string {
+	const withShim = insertShim(html);
+	return hasDoctype(html) ? withShim : FOUNDRY_DOCTYPE + withShim;
+}
+
+function insertShim(html: string): string {
 	const head = /<head\b[^>]*>/i.exec(html);
 	if (head) {
 		const at = head.index + head[0].length;
