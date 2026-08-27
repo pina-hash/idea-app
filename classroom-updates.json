@@ -852,6 +852,14 @@
 				"Classwork",
 				"check-ins"
 			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A long answer in an assignment table stays readable while you type it",
+			"body": "A cell in a table on an assignment used to be a single-line box: type past its width and the words scrolled sideways out of view, with no way to see what you'd already written. It now grows to fit what you type, the way the finished, read-only version of the table already did, so a long entry -- or one you want to break onto its own lines -- stays fully on screen and the row grows with it.",
+			"tags": [
+				"Classwork"
+			]
 		}
 	]
 }

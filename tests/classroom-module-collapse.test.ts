@@ -151,8 +151,10 @@ describe('the module body disclosure', () => {
 		// and the filled table rows are all still there to print or reopen.
 		expect(html).toContain(PROSE);
 		expect(html).toContain(ANSWER);
-		expect(html).toContain('value="1"');
-		expect(html).toContain('value="2"');
+		// The table cell is a <textarea>, so its value is the element's TEXT
+		// content, not a `value` attribute.
+		expect(html).toMatch(/class="cell[ "][^>]*>1</);
+		expect(html).toMatch(/class="cell[ "][^>]*>2</);
 	});
 
 	it("lets a person's own toggle override the completion signal in both directions", () => {
