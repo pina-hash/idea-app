@@ -85,11 +85,49 @@
 	 * with no apps origin, or an app with no version to point at, gives `null`
 	 * from that builder, and this renders no launch control at all rather than a
 	 * button that opens `about:blank`.
+	 *
+	 * THIS IS ALSO WHERE A PLAY IS RECORDED, AND IT HAS TO BE, BECAUSE THE APP
+	 * CANNOT REPORT.
+	 *
+	 * A published bundle runs in a sandboxed cross-origin frame with no session
+	 * and no channel back to us. There is no postMessage contract and there must
+	 * not be one -- asking a student's own code to report its own usage would
+	 * make every figure a figure the measured party writes. So the app is never
+	 * asked, and the only thing that knows a play happened is the component that
+	 * mounted the frame. That is this one: Launch is a session start, Stop is
+	 * its end, a change of subject is an end, and a teardown is an end.
+	 *
+	 * A HEARTBEAT RATHER THAN A ROW PER BEAT. `recordPlay` opens ONE row and
+	 * `pingPlay` extends it, so a session is a row and not a stream, and a
+	 * student mashing Launch resumes the row they already have -- the database's
+	 * own resume window decides that, not this file. Duration is measured to the
+	 * last beat, which is what makes the NORMAL ending, the tab closing where
+	 * nothing fires at all, a measurement accurate to within one interval rather
+	 * than a zero.
+	 *
+	 * IT BEATS ONLY WHILE THE PAGE IS VISIBLE. A tab left open overnight would
+	 * otherwise book the night as play time. Going hidden sends a last beat and
+	 * stops; coming back sends one, and a beat the database refuses as STALE
+	 * opens a fresh session instead of extending an old one across the gap.
+	 *
+	 * NOTHING ON THIS PATH CAN REACH THE VIEWER. Every call is wrapped, every
+	 * refusal is silent, and none of the state here renders -- because
+	 * instrumentation must never be able to affect the thing it measures, and
+	 * the thing being measured is a student's app starting. The reason there is
+	 * no rAF on the stop path applies here too: this is all task-queue work.
+	 *
+	 * AND IT ONLY RUNS WHERE A TRANSPORT WAS HANDED IN. The review queue
+	 * supplies none, so a reviewer running a submitted build records nothing --
+	 * absence is the mechanism, and the database refuses that same case again on
+	 * its own.
 	 */
+	import { untrack } from 'svelte';
+
 	import { env } from '$env/dynamic/public';
 
 	import AppFrame from './AppFrame.svelte';
 	import { foundryBundleUrl } from './bundle-url.ts';
+	import { FOUNDRY_PLAY_HEARTBEAT_MS } from './telemetry.ts';
 	import type { FoundryGalleryTransports } from './transports.ts';
 
 	let {
@@ -158,6 +196,154 @@
 	let native = $state(false);
 
 
+	/* ------------------------------------------------------------ telemetry
+	 *
+	 * NONE OF THIS IS `$state`, ON PURPOSE. Nothing here renders, so a reactive
+	 * cell would buy a dependency and cost the risk of an effect that reads what
+	 * it writes -- and an instrumentation bug that spins a component is exactly
+	 * the class of failure "must never affect the thing it measures" is about.
+	 * Plain `let` cannot be read by the renderer and cannot be tracked.
+	 */
+
+	/** The open session's id, or null when nothing is being recorded. */
+	let playId: string | null = null;
+	/** The heartbeat handle. `setInterval`, never rAF: see the header. */
+	let beat: ReturnType<typeof setInterval> | null = null;
+
+	function stopBeat() {
+		if (beat !== null) {
+			clearInterval(beat);
+			beat = null;
+		}
+	}
+
+	function startBeat() {
+		stopBeat();
+		if (typeof window === 'undefined') return;
+		beat = setInterval(() => void heartbeat(), FOUNDRY_PLAY_HEARTBEAT_MS);
+	}
+
+	/**
+	 * OPEN A SESSION. The database decides whether this is a new row or a resume
+	 * of one already open, which is what makes mashing Launch cheap; this side
+	 * only has to ask.
+	 *
+	 * THE SUBJECT IS RE-CHECKED ON THE WAY BACK. A viewer who picks another app
+	 * while this is in flight must not have the previous app's session attached
+	 * to the new one, which is the same staleness guard the inspector's file
+	 * read uses.
+	 */
+	async function beginPlay() {
+		const record = transports.recordPlay;
+		if (!record) return;
+		const forApp = appId;
+		const forVersion = versionId;
+		try {
+			const r = await record(forApp, forVersion);
+			if (!r.ok) return;
+			if (!running || appId !== forApp || versionId !== forVersion) return;
+			playId = r.playId;
+			startBeat();
+		} catch {
+			// Silent, always. A telemetry failure is not the viewer's problem and
+			// must not become their error message.
+		}
+	}
+
+	/**
+	 * SAY THE APP IS STILL RUNNING. Also the clean end: the beat sent as the
+	 * frame comes down is what makes a stopped session's duration exact.
+	 *
+	 * `stale` IS THE ONE ANSWER THIS ACTS ON. It means the row aged out of the
+	 * database's resume window while the tab was hidden, so the gap must not be
+	 * booked: the old row keeps the duration it had earned and a fresh session
+	 * starts from now.
+	 */
+	async function heartbeat() {
+		const ping = transports.pingPlay;
+		const id = playId;
+		if (!ping || !id) return;
+		try {
+			const r = await ping(id);
+			if (playId !== id) return;
+			if (r.ok) return;
+			playId = null;
+			stopBeat();
+			if (r.stale && running) void beginPlay();
+		} catch {
+			// Silent.
+		}
+	}
+
+	/**
+	 * CLOSE THE SESSION. Best effort by construction -- a page being torn down
+	 * may not finish the request, and that is precisely the case the duration is
+	 * measured to `last_seen_at` for: the worst outcome is one heartbeat
+	 * interval of play time uncounted, never a session recorded as zero.
+	 */
+	function endPlay() {
+		stopBeat();
+		const ping = transports.pingPlay;
+		const id = playId;
+		playId = null;
+		if (!ping || !id) return;
+		try {
+			void ping(id).catch(() => {});
+		} catch {
+			// Silent.
+		}
+	}
+
+	/**
+	 * VISIBILITY, WHICH IS WHAT KEEPS AN ABANDONED TAB OUT OF THE FIGURES.
+	 *
+	 * Beating while hidden would book a tab left open overnight as eight hours
+	 * of play. So going hidden sends a last beat and stops the timer, and coming
+	 * back sends one -- which the database refuses if the row has aged out,
+	 * opening a fresh session rather than extending the old one across the gap.
+	 *
+	 * `pagehide` IS THE CLOSEST THING TO A TAB CLOSING THAT FIRES AT ALL, and it
+	 * is best effort: the ping may not complete. That is the accepted cost, and
+	 * the reason duration is pinned to the last beat rather than to a clean end.
+	 *
+	 * The listeners read `running` and `playId` when they FIRE, not when this
+	 * effect runs, so nothing here is tracked and the effect sets up once.
+	 * `addEventListener` rather than a Svelte binding, because these are
+	 * document- and window-level events.
+	 */
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') {
+				stopBeat();
+				void heartbeat();
+				return;
+			}
+			if (!running) return;
+			if (playId) {
+				startBeat();
+				void heartbeat();
+			} else {
+				void beginPlay();
+			}
+		};
+		const onPageHide = () => endPlay();
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('pagehide', onPageHide);
+		return () => {
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('pagehide', onPageHide);
+		};
+	});
+
+	/**
+	 * THE COMPONENT GOING AWAY IS AN ENDING TOO, and it is a common one: the
+	 * gallery keys its detail pane on the slug, so moving between apps destroys
+	 * this instance outright. No dependencies, so the body runs once and the
+	 * cleanup runs on destroy.
+	 */
+	$effect(() => () => endPlay());
+
 	/**
 	 * A CHANGE OF SUBJECT STOPS WHATEVER IS RUNNING. Selecting another app while
 	 * one is open must not leave the previous bundle live behind the new page --
@@ -173,11 +359,20 @@
 		void versionId;
 		running = false;
 		leaveFull();
+		// UNTRACKED. `endPlay` reads the transports object and calls into it, and
+		// a tracked read of anything it touches would make this effect depend on
+		// state it also moves. The ids above are the only dependencies this
+		// effect is meant to have.
+		untrack(() => endPlay());
 	});
 
 	function start() {
 		if (!src) return;
 		running = true;
+		// AFTER the state change, never before it: pressing Launch has to put the
+		// frame on screen whatever the recording does, and this call is allowed
+		// to do nothing at all.
+		void beginPlay();
 	}
 
 	function stop() {
@@ -186,6 +381,7 @@
 		// Leaving it on would hand the viewer a black viewport with a Launch
 		// button in the corner of it.
 		leaveFull();
+		endPlay();
 	}
 
 	/**

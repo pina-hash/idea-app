@@ -12,11 +12,36 @@
 	 * comes from `foundry-bundles`, which is where the proxy reads.
 	 *
 	 * ABSENCE IS THE MECHANISM, one control at a time. No `listFiles`, no tree.
-	 * No `readFile`, no source viewer. No `decide`, no decision form. A read-only
-	 * mounting of this component is therefore structural rather than a flag, and
-	 * the dev harness gets exactly the controls it hands transports for.
+	 * No `readFile`, no source viewer. No `decide`, no decision form. No
+	 * `saveField`, no metadata editor. A read-only mounting of this component is
+	 * therefore structural rather than a flag, and the dev harness gets exactly
+	 * the controls it hands transports for.
+	 *
+	 * THE ADMIN'S SINGLE-APP TOOLS ALL LIVE HERE, AND THAT IS WHY THE METADATA
+	 * EDITOR IS HERE TOO.
+	 *
+	 * `foundry_update_app_metadata` has admitted `is_admin()` in its own body
+	 * since 0130 -- the database half of an admin edit has existed all along and
+	 * only the control was missing. This is where it goes, because this is
+	 * already the one place staff act on ONE app: clear its flag, shelve it,
+	 * restore it, delete it. A second admin editor somewhere else would be a
+	 * second list of field names and limits to keep in step with the whitelist
+	 * inside that RPC, so the fields come from `FOUNDRY_METADATA_FIELDS` -- the
+	 * SAME registry `/foundry/mine` renders for the owner.
+	 *
+	 * WHICH ALSO MEANS THE ADMIN EDITS EXACTLY WHAT THE OWNER EDITS, including
+	 * the build notes. That is the RPC's whitelist, not a choice made here, and
+	 * it is the right side to err on: the reason staff need this at all is to
+	 * take something inappropriate off a published page without deleting a
+	 * student's work, and a field list that stopped short of one of them would
+	 * leave exactly that case with no answer but deletion.
+	 *
+	 * A HIDDEN APP IS REFUSED BY THE RPC FOR EVERYONE, an admin included, so no
+	 * control is drawn for one -- and the reason is stated where the control
+	 * would have been, because a panel that is simply missing reads as a bug.
 	 */
 	import ForgeStatus from './ForgeStatus.svelte';
+	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import { formatBytes } from './preflight.ts';
 	import {
 		FOUNDRY_REJECT_REASONS,
@@ -27,7 +52,11 @@
 		type FoundryDecision,
 		type FoundryTreeNode
 	} from './review.ts';
-	import { deleteAppCostLine } from './surface.ts';
+	import {
+		FOUNDRY_METADATA_FIELDS,
+		deleteAppCostLine,
+		metadataIsLive
+	} from './surface.ts';
 	import type {
 		FoundryApp,
 		FoundryBundleFileRow,
@@ -39,10 +68,13 @@
 		app,
 		version,
 		transports = {},
+		coverUrl = (path: string) => path,
 		onDecided,
 		onDeleted
 	}: {
 		app: FoundryApp;
+		/** Turns a stored cover path into a URL. Injected, never built here. */
+		coverUrl?: (path: string) => string;
 		/** The version being decided about. */
 		version: FoundryVersion;
 		transports?: FoundryReviewTransports;
@@ -243,6 +275,110 @@
 		if (ok) onDeleted?.();
 	}
 
+	/* ------------------------------------------------- editing the metadata
+	 *
+	 * THE OWNER'S EDITOR, POINTED AT THE SAME RPC. Same field registry, same one
+	 * field per call, same inline edit-and-save -- because it is the same act,
+	 * and two spellings of "change an app's title" is how the two surfaces come
+	 * to enforce different limits.
+	 *
+	 * ONE FIELD PER CALL IS THE RPC'S SHAPE AND IS WORTH KEEPING. A whole-row
+	 * update would make `metadata_flagged_at` -- the flag whose entire job is to
+	 * say the text drifted from what was approved -- unanswerable about which
+	 * text moved, and would let a stale read silently revert somebody else's
+	 * change.
+	 */
+
+	let editing = $state<string | null>(null);
+	let draft = $state('');
+	let metaBusy = $state(false);
+	let metaProblem = $state<string | null>(null);
+	let metaNote = $state<string | null>(null);
+
+	/**
+	 * A CHANGE OF APP CLEARS A HALF-TYPED EDIT. The queue keys this component on
+	 * the slug so it normally remounts, but the reset is stated rather than
+	 * rested on: a draft carried into another student's app is an edit made to
+	 * the wrong work. Only `app.id` is read tracked; the body only writes.
+	 */
+	$effect(() => {
+		void app.id;
+		editing = null;
+		draft = '';
+		metaProblem = null;
+		metaNote = null;
+	});
+
+	/** The app is on the gallery, so an edit is visible the moment it lands. */
+	const metadataLive = $derived(metadataIsLive(app));
+
+	function beginEdit(field: string, value: string) {
+		editing = field;
+		draft = value;
+		metaProblem = null;
+		metaNote = null;
+	}
+
+	/**
+	 * Every metadata write goes through here, so the busy flag, the problem and
+	 * the acknowledgement are one set rather than three copies. THE FLAG IS
+	 * CLEARED IN `finally`: a throw mid-save would otherwise disable the whole
+	 * panel until the page is reloaded.
+	 */
+	async function runMeta(
+		work: () => Promise<{ ok: boolean; message?: string }>,
+		said: string
+	): Promise<boolean> {
+		if (metaBusy) return false;
+		metaBusy = true;
+		metaProblem = null;
+		metaNote = null;
+		try {
+			const r = await work();
+			if (!r.ok) {
+				// The RPC's own sentence. It is already written for a person to
+				// read, so replacing it with a generic one would say less.
+				metaProblem = r.message ?? 'That did not save.';
+				return false;
+			}
+			// THE ACKNOWLEDGEMENT CARRIES THE CLOCK TIME OF THE WRITE, never the
+			// dispatch: a status set beside the call says a request was made,
+			// which is not what the reader is asking.
+			metaNote = `${said} at ${new Date().toLocaleTimeString([], {
+				hour: 'numeric',
+				minute: '2-digit'
+			})}.`;
+			return true;
+		} catch (e) {
+			metaProblem = e instanceof Error ? e.message : 'That did not save.';
+			return false;
+		} finally {
+			metaBusy = false;
+		}
+	}
+
+	async function saveEdit(field: string) {
+		if (!transports.saveField) return;
+		const value = draft;
+		const ok = await runMeta(() => transports.saveField!(app.id, field, value), 'Saved');
+		if (ok) {
+			editing = null;
+			// Re-read, so the panel and the student page beside it both show what
+			// actually landed rather than what was typed.
+			onDecided?.();
+		}
+	}
+
+	async function replaceCover(file: File) {
+		if (!transports.uploadCover || !transports.saveField) return;
+		const ok = await runMeta(async () => {
+			const up = await transports.uploadCover!(file);
+			if (!up.ok) return up;
+			return transports.saveField!(app.id, 'cover_path', up.path);
+		}, 'Cover replaced');
+		if (ok) onDecided?.();
+	}
+
 	function stamp(iso: string | null): string {
 		if (!iso) return 'unknown';
 		return new Date(iso).toLocaleString([], {
@@ -417,6 +553,128 @@
 				{#if sentAt}<span class="fdy-sent">Sent at {sentAt}.</span>{/if}
 			</div>
 			{#if sendProblem}<p class="fdy-insp-problem" role="alert">{sendProblem}</p>{/if}
+		</section>
+	{/if}
+
+	<!--
+		FROM HERE DOWN IT IS THE APP, NOT THE BUILD. The decision above answers
+		the version; everything below answers the thing the version belongs to,
+		which is why these are their own sections rather than more controls in
+		the decision form. A reviewer who has just rejected a build has not
+		thereby said anything about the app.
+	-->
+	<section class="fdy-insp-section">
+		<!--
+			THE SAME COMPONENT /foundry/mine MOUNTS FOR THE AUTHOR, with the same
+			four scalars, because `foundry_app_play_stats` answers the owner and an
+			admin identically. Staff see MORE APPS, never more detail about one:
+			there is no per-player read for any caller, so "which students played
+			it" has no answer on this surface either.
+		-->
+		<FoundryPlayStats appId={app.id} load={transports.playStats} heading="h4" />
+	</section>
+
+	{#if transports.saveField}
+		<section class="fdy-insp-section fdy-meta" data-testid="foundry-metadata-edit">
+			<h4>The text on this app&rsquo;s page</h4>
+
+			{#if app.hidden_at}
+				<!--
+					A CONTROL THAT IS ABSENT FOR A REASON SAYS THE REASON. 0130 refuses
+					a metadata edit on a hidden app for EVERYONE, an admin included --
+					it is not an oversight, it is that a hidden app is under discussion
+					and editing the text of one is how the discussion loses its subject.
+					A panel that simply vanished here would read as a bug in the console.
+				-->
+				<p class="fdy-insp-note">
+					This app is hidden, so its text cannot be edited. Restore it below first.
+				</p>
+			{:else}
+				<p class="fdy-insp-note">
+					You are editing the student&rsquo;s own words. Change what has to change and leave the
+					rest.
+					{#if metadataLive}
+						This app is live, so a save is on the gallery straight away.
+					{/if}
+				</p>
+
+				{#if metaNote}<p class="fdy-meta-said" role="status">{metaNote}</p>{/if}
+				{#if metaProblem}<p class="fdy-insp-problem" role="alert">{metaProblem}</p>{/if}
+
+				{#each FOUNDRY_METADATA_FIELDS as f (f.field)}
+					{@const current = String((app as unknown as Record<string, unknown>)[f.field] ?? '')}
+					<div class="fdy-meta-row">
+						<span class="fdy-label">{f.label}</span>
+						{#if editing === f.field}
+							{#if f.kind === 'text'}
+								<textarea class="fdy-note" bind:value={draft} maxlength={f.max} rows="5"
+								></textarea>
+							{:else}
+								<input class="fdy-meta-input tap-44" type="text" bind:value={draft} maxlength={f.max} />
+							{/if}
+							<div class="fdy-shelf-row">
+								<button
+									type="button"
+									class="btn tap-44"
+									disabled={metaBusy}
+									onclick={() => saveEdit(f.field)}
+								>
+									{metaBusy ? 'Saving...' : 'Save'}
+								</button>
+								<button type="button" class="btn tap-44" onclick={() => (editing = null)}>
+									Cancel
+								</button>
+							</div>
+						{:else}
+							<p class="fdy-meta-value" class:fdy-meta-empty={current === ''}>
+								{current || 'Not set'}
+							</p>
+							<!--
+								`tap-44`, not `tap-reach-44`: this control owns its row, so it
+								can simply grow. A reach is for a control sitting inside a line
+								of text, where growing would reflow the writing around it.
+							-->
+							<button
+								type="button"
+								class="btn tap-44"
+								onclick={() => beginEdit(f.field, current)}
+							>
+								Edit
+							</button>
+						{/if}
+					</div>
+				{/each}
+
+				{#if transports.uploadCover}
+					<div class="fdy-meta-row">
+						<span class="fdy-label">Cover</span>
+						{#if app.cover_path}
+							<!-- `scale-down`, never `cover`: a cropped preview hides the
+							     cut-off edge, which is the whole thing a cover is for. -->
+							<img class="fdy-meta-cover" src={coverUrl(app.cover_path)} alt="Current cover" />
+						{:else}
+							<p class="fdy-meta-value fdy-meta-empty">Not set</p>
+						{/if}
+						<label class="btn tap-44">
+							{app.cover_path ? 'Replace' : 'Add'}
+							<input
+								type="file"
+								accept="image/png,image/jpeg,image/webp"
+								hidden
+								onchange={async (e) => {
+									const input = e.currentTarget as HTMLInputElement;
+									const file = input.files?.[0];
+									// Cleared BEFORE the await, so picking the same file again
+									// after a failure still fires a change event.
+									input.value = '';
+									if (!file) return;
+									await replaceCover(file);
+								}}
+							/>
+						</label>
+					</div>
+				{/if}
+			{/if}
 		</section>
 	{/if}
 
@@ -746,6 +1004,87 @@
 		background: var(--surface-2, var(--bg2));
 		color: var(--text-1, var(--white));
 		font-family: var(--font-display);
+	}
+
+	/* ---------------------------------------------- editing the app's text */
+
+	.fdy-meta {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
+		min-width: 0;
+	}
+
+	/*
+	   ONE COLUMN, ALWAYS. This panel lives inside the inspector column, which
+	   measures 418px at a 1440px viewport and about 541px at 1920 -- so a
+	   two-column label/value arrangement would be a breakpoint that never fires
+	   at any width this surface is ever seen at. `/foundry/mine` puts its own
+	   version of this row in columns because it has the whole page; this one
+	   does not, and lowering the threshold would only produce two columns too
+	   narrow to read.
+	*/
+	.fdy-meta-row {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.25rem;
+		padding: var(--space-2, 0.5rem) 0;
+		border-top: 1px solid var(--hairline);
+		min-width: 0;
+	}
+
+	.fdy-meta-value {
+		margin: 0;
+		/* The student's own words, rendered as text with their own line breaks
+		   kept. There is no rich-text document here and no {@html} near it. */
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		color: var(--text-1, var(--white));
+		min-width: 0;
+	}
+
+	/*
+	   "Not set" is the ABSENCE of a value, not a value, so it takes the
+	   secondary token -- `--text-2` rather than `--dim`, which clears only the
+	   darkest of the three portal grounds.
+	*/
+	.fdy-meta-empty {
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		color: var(--text-2, var(--dim));
+	}
+
+	.fdy-meta-input {
+		width: 100%;
+		min-width: 0;
+		padding: 0.5rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 6px);
+		background: var(--surface-2, var(--bg2));
+		color: var(--text-1, var(--white));
+		font-family: var(--font-display);
+	}
+
+	.fdy-meta-cover {
+		display: block;
+		width: 100%;
+		max-width: 100%;
+		max-height: 9rem;
+		object-fit: scale-down;
+		object-position: left center;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-sm, 6px);
+		background: var(--surface-1, var(--bg1));
+	}
+
+	.fdy-meta-said {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--dim));
+		max-width: 62ch;
 	}
 
 	/* ----------------------------------------------------- hide beside delete */

@@ -207,10 +207,15 @@
 				</div>
 				<div class="fdy-q-insp">
 					{#if underReview}
+						<!-- `coverUrl` is handed down because the inspector's metadata
+						     editor shows the current cover beside Replace. It is the SAME
+						     injected builder the detail view uses, so the two panes cannot
+						     end up resolving one stored path two different ways. -->
 						<FoundryInspector
 							app={selected}
 							version={underReview}
 							{transports}
+							{coverUrl}
 							onDecided={() => onDecided?.()}
 							onDeleted={() => onDeleted?.()}
 						/>
@@ -236,6 +241,7 @@
 								app={selected}
 								version={newestVersion}
 								{transports}
+								{coverUrl}
 								onDecided={() => onDecided?.()}
 								onDeleted={() => onDeleted?.()}
 							/>

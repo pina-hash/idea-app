@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { foundryPlayCountMap, type FoundryPlayCountRow } from '$lib/foundry/telemetry';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
 
@@ -26,6 +27,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { data: apps, error: listErr } = await locals.supabase.rpc('foundry_list_apps');
 	if (listErr) error(500, listErr.message);
 
+	/**
+	 * THE PLAY COUNTS, AS A SECOND READ RATHER THAN A WIDER FIRST ONE.
+	 *
+	 * `foundry_list_apps` is untouched deliberately: its shape, its order and
+	 * its population are what every Foundry surface already reads, and joining
+	 * two counts into it would have been a signature change on a function four
+	 * other loads call. `foundry_play_counts` declares the SAME population
+	 * through the SAME predicate, so the two answers cover the same apps and the
+	 * client joins them on the app id.
+	 *
+	 * A MISSING RPC IS NOT A BROKEN GALLERY. Migrations here are applied by hand
+	 * and separately, so a deployment sitting between 0138 and 0139 is a real
+	 * state -- and on it this read fails while everything else on the page is
+	 * fine. So the failure degrades to NO COUNTS: the cards lose their play
+	 * chips, the popularity tabs order on ties, and the gallery renders. Erroring
+	 * would take a working page down for a figure nobody came for.
+	 */
+	const { data: countRows } = await locals.supabase.rpc('foundry_play_counts');
+
 	const slug = url.searchParams.get('app');
 	let selected: FoundryApp | null = null;
 
@@ -42,6 +62,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	return {
 		apps: (apps ?? []) as FoundryAppSummary[],
-		selected
+		selected,
+		playCounts: foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null)
 	};
 };
