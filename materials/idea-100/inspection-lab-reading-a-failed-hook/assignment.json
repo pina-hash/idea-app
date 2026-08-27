@@ -1,0 +1,345 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Inspection Lab - Reading a Failed Hook",
+    "course": "IDEA100",
+    "dueDate": "2026-08-27",
+    "totalPoints": 15,
+    "assignmentId": "idea100-hook-lab-01",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Written on paper at the rig, while it happens. Transcribed here after.",
+      "title": "What You Watched Break",
+      "aiNote": "No AI. This is a record of something you watched happen, and you were the only one there.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "One row per hook broken today.\n\n**Guess before each pull.** Say where you think it will go, out loud or on paper, then watch. Being wrong is worth more here than being right, because the gap between what you expected and what happened is the only thing on this page that will change how you design."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "hook",
+              "tip": "Number them as they come out.",
+              "label": "Which hook"
+            },
+            {
+              "key": "where",
+              "tip": "Throat, anchor, shank, or it pulled open.",
+              "label": "Where it broke"
+            },
+            {
+              "key": "expected",
+              "tip": "What you called before the pull.",
+              "label": "Where you expected"
+            },
+            {
+              "key": "note",
+              "tip": "Sound, speed, whether it warned you first.",
+              "label": "One thing you noticed"
+            }
+          ],
+          "minRows": 3,
+          "printRows": 5,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 3,
+      "rubric": [
+        {
+          "id": "r1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All hooks, both columns",
+              "points": 3,
+              "descriptor": "Every hook broken today has a row carrying both a predicted location and an observed one."
+            },
+            {
+              "label": "Proficient",
+              "short": "All hooks, one gap",
+              "points": 2,
+              "descriptor": "Every hook has a row, but at least one prediction is missing or was filled in after the pull."
+            },
+            {
+              "label": "Developing",
+              "short": "Some hooks recorded",
+              "points": 1,
+              "descriptor": "Fewer hooks than were broken, or observed locations only with no predictions."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing recorded",
+              "points": 0,
+              "descriptor": "No rows, or rows written from memory after the demonstrations ended."
+            }
+          ],
+          "criterion": "A prediction was made before each pull and both are recorded"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m2",
+      "intro": "Pick one broken hook off the bench and run the full inspection on it.",
+      "title": "The Lab",
+      "aiNote": "No AI. You are reading instruments. There is nothing here to look up.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Take one hook, the gauge, the scale, and a set of calipers.\n\n**Record what the instrument says, not whether it passed.** A hook that reads 61.4 g failed by 1.4 g, and a hook that reads 88 g was never close. Those are different parts and \"fail\" hides the difference. Numbers first, verdict second.\n\nWork one row at a time. If a check does not apply to your hook because that part of it is gone, write what is missing."
+        },
+        {
+          "id": "t2",
+          "type": "table",
+          "points": 4,
+          "columns": [
+            {
+              "key": "check",
+              "tip": "Mass, thickness, anchor gauge, throat gauge, centre to centre.",
+              "label": "Check"
+            },
+            {
+              "key": "value",
+              "tip": "A number with units, or pass and fail for the gauge checks.",
+              "label": "What the instrument reads"
+            },
+            {
+              "key": "verdict",
+              "tip": "Compare against the rules guide.",
+              "label": "Legal?"
+            }
+          ],
+          "minRows": 5,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": true
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 2,
+          "prompt": "Which check would have been hardest for this hook to pass when it was new, and how do your own numbers tell you that?",
+          "maxSentences": 4,
+          "minSentences": 2
+        }
+      ],
+      "points": 6,
+      "rubric": [
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All five, real numbers",
+              "points": 4,
+              "descriptor": "All five checks carry a reading with units where a number applies, and a legality call beside it."
+            },
+            {
+              "label": "Proficient",
+              "short": "Four of five",
+              "points": 3,
+              "descriptor": "Four checks carry readings; one is recorded only as pass or fail where a number was available."
+            },
+            {
+              "label": "Developing",
+              "short": "Verdicts, few numbers",
+              "points": 2,
+              "descriptor": "Most rows record only pass or fail, or units are missing throughout."
+            },
+            {
+              "label": "Absent",
+              "short": "No measurements taken",
+              "points": 0,
+              "descriptor": "Table empty, or filled from the rules guide rather than from an instrument."
+            }
+          ],
+          "criterion": "Measurements are recorded as instrument readings, not as verdicts"
+        },
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Cites own numbers",
+              "points": 2,
+              "descriptor": "Names a specific check and points at a reading from the table above as the reason."
+            },
+            {
+              "label": "Developing",
+              "short": "Plausible, unsupported",
+              "points": 1,
+              "descriptor": "Names a check but gives a general reason rather than a number from the table."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer or unrelated",
+              "points": 0,
+              "descriptor": "Blank, or names something that is not one of the inspection checks."
+            }
+          ],
+          "criterion": "The hardest-check judgment is supported by the student's own readings"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m3",
+      "intro": "From the case library. Two designs, and what each one gives you.",
+      "title": "Two Designs You Are Borrowing From",
+      "aiNote": "COACH only. Ask it to explain how a design works or what a feature does. Do not ask it which designs to pick or what your hook should look like.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Find two designs in the case library that your concept takes something from.\n\n**Name what you are taking, not what the design is.** \"It has a thick throat\" describes it. \"I am taking its throat fillet because the throat is where three of today's hooks broke\" is what this is asking for.\n\nTwo different designs. Not two views of one."
+        },
+        {
+          "id": "t3",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "design",
+              "tip": "Slide number or name from the library.",
+              "label": "Design"
+            },
+            {
+              "key": "taking",
+              "tip": "One specific feature or idea.",
+              "label": "What you are taking"
+            },
+            {
+              "key": "why",
+              "tip": "Tie it to something you saw or measured today.",
+              "label": "Why that helps your hook"
+            }
+          ],
+          "minRows": 2,
+          "printRows": 3,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 3,
+      "rubric": [
+        {
+          "id": "r4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Two designs, both justified",
+              "points": 3,
+              "descriptor": "Two distinct designs named, each with a specific feature and a reason tied to a failure watched or a measurement taken today."
+            },
+            {
+              "label": "Proficient",
+              "short": "Two designs, one justified",
+              "points": 2,
+              "descriptor": "Two designs named with specific features, but only one reason connects to today's evidence."
+            },
+            {
+              "label": "Developing",
+              "short": "Describes rather than borrows",
+              "points": 1,
+              "descriptor": "Designs are described in general terms without naming what is being taken from them."
+            },
+            {
+              "label": "Absent",
+              "short": "Fewer than two",
+              "points": 0,
+              "descriptor": "One design or none, or the same design listed twice."
+            }
+          ],
+          "criterion": "Each borrowed idea is specific and tied to evidence from today"
+        }
+      ],
+      "aiLevel": 1
+    },
+    {
+      "id": "m4",
+      "intro": "On paper. Photograph it and upload it here.",
+      "title": "Concept Sketch",
+      "aiNote": "No AI. Drawn by your hand, dimensioned by your hand.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Sketch your hook by hand and put **five dimensions** on it: overall length, both hole diameters, centre to centre, throat opening width, and thickness.\n\nNumbers, not proportions. \"About this wide\" is not a dimension.\n\nThis sketch is what you build from on Monday. A student who opens SolidWorks without numbers spends the period nudging geometry until it looks right and ends up with a part nobody can check against the rules."
+        },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 2,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "c1",
+          "type": "checklist",
+          "items": [
+            "Overall length is dimensioned",
+            "Both hole diameters are dimensioned",
+            "Centre to centre is dimensioned and falls between 2.000 and 2.500",
+            "Throat opening width is dimensioned and is at least 0.750",
+            "Thickness is dimensioned and is 1.00 or under",
+            "My teammate's name is written on the sketch, and we have agreed whether our two hooks are the same design or different"
+          ],
+          "points": 1
+        }
+      ],
+      "points": 3,
+      "rubric": [
+        {
+          "id": "r5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Five dimensions, all legal",
+              "points": 3,
+              "descriptor": "All five dimensions present and readable, and every one falls inside the rules."
+            },
+            {
+              "label": "Proficient",
+              "short": "Five present, one illegal",
+              "points": 2,
+              "descriptor": "All five dimensions present, but at least one value breaks a rule in the guide."
+            },
+            {
+              "label": "Developing",
+              "short": "Three or four dimensions",
+              "points": 1,
+              "descriptor": "Sketch uploaded with three or four dimensions on it, or values given as ranges rather than numbers."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketch or undimensioned",
+              "points": 0,
+              "descriptor": "Nothing uploaded, or a drawing with fewer than three dimensions on it."
+            }
+          ],
+          "criterion": "The sketch is dimensioned well enough to build from"
+        }
+      ],
+      "aiLevel": 0
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
