@@ -7,7 +7,7 @@
     "dueDate": "2026-08-27",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-lab-01",
-    "buildVersion": "v4",
+    "buildVersion": "v5",
     "headerFields": [
       "studentName",
       "date"
@@ -315,7 +315,7 @@
             "Both hole diameters are dimensioned",
             "Centre to centre is dimensioned and falls between 2.000 and 2.500",
             "Throat opening width is dimensioned and is at least 0.750",
-            "Thickness is dimensioned and is 1.00 or under",
+            "Thickness is dimensioned and is 0.75 or under",
             "My teammate's name is written on the sketch, and we have agreed whether our two hooks are the same design or different"
           ],
           "points": 1
