@@ -17,6 +17,9 @@
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
+	import SpecTextEditor from '$lib/classroom/SpecTextEditor.svelte';
+	import { uploadClassroomFile } from '$lib/classroom/file-upload';
+	import type { EditableSpec } from '$lib/classroom/spec-text';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import { flagReasonLabel } from '$lib/notebook';
 	import {
@@ -286,6 +289,51 @@
 	// an empty strip.
 	const canEditReference = $derived(item.kind === 'material' && canManage && !!referenceTransports);
 	const canEditAssignment = $derived(item.kind === 'assignment' && canManage && !!teacherTransports);
+	/**
+	 * THE IN-PLACE WORDING EDITOR (SpecTextEditor).
+	 *
+	 * Offered exactly where the spec setter already is, on a document that
+	 * already HAS a spec: this edits words in a stored document, so an item
+	 * with none has nothing for it to walk and the import is still where a
+	 * document comes from. Its own derivation rather than a reuse of
+	 * `canEditAssignment` / `canEditReference` so that the two can be reasoned
+	 * about separately -- the importer replaces the document, this one may only
+	 * reword it.
+	 */
+	const wordingSpec = $derived<EditableSpec | null>(
+		canEditAssignment ? (spec ?? null) : canEditReference ? (referenceSpec ?? null) : null
+	);
+	const wordingKind = $derived(item.kind === 'material' ? 'reference' : 'assignment');
+
+	/**
+	 * The image half. ONE upload path (`uploadClassroomFile`, role `attachment`),
+	 * the same three steps -- sign, PUT, record -- the file picker on this page
+	 * already runs; nothing here is a second transport. What it answers is the
+	 * FILENAME, because that is what `figureReference` needs and what
+	 * `resolveFigureSrc` matches on.
+	 */
+	async function uploadProseImage(
+		file: File
+	): Promise<{ ok: true; filename: string } | { ok: false; message: string }> {
+		const res = await uploadClassroomFile({ role: 'attachment', itemId: item.id, file });
+		if (!res.ok) return { ok: false, message: res.message };
+		return { ok: true, filename: res.row?.filename ?? file.name };
+	}
+
+	async function saveWording(next: EditableSpec): Promise<{ ok: boolean; message?: string }> {
+		// THE EXISTING WRITE PATH, BOTH KINDS. `classroom_set_assignment_spec`
+		// and `classroom_set_reference_spec` each snapshot the outgoing document
+		// into `classroom_content_revisions` (0110) before writing, so the
+		// history panel below this one can revert a wording change with nothing
+		// added here, and the spec hangs off the CANONICAL item, so one save
+		// reaches every class it is posted to.
+		const res =
+			wordingKind === 'reference'
+				? await referenceTransports!.setReferenceSpec(item.id, next as never)
+				: await teacherTransports!.setSpec(item.id, next);
+		return res.ok ? { ok: true } : { ok: false, message: res.message };
+	}
+
 	const canManageDeck = $derived(canManage && !!deckTransports);
 	const canManageCheckIn = $derived(canManage && !!checkInTransports);
 	/**
@@ -719,6 +767,32 @@
 								<hr class="tool-rule" />
 								<a class="btn tiny" href={gradeHref}>Open grading console</a>
 							{/if}
+						</div>
+					{/if}
+
+					<!--
+						THE WORDING EDITOR. Its own block rather than a panel inside
+						the two importers above, because it is the control for a
+						DIFFERENT job: the importer replaces the document, this one
+						may only reword it, and the guard behind it refuses a save
+						that did anything else. Collapsed behind the shared
+						Disclosure because it is as long as the document it edits.
+					-->
+					{#if wordingSpec}
+						<div class="insp-block">
+							<Disclosure
+								label="Edit the wording"
+								scope={`item:${item.id}:wording`}
+								testId="item-wording-disclosure"
+							>
+								<SpecTextEditor
+									spec={wordingSpec}
+									kind={wordingKind}
+									upload={uploadProseImage}
+									save={saveWording}
+									onchanged={() => onchanged?.()}
+								/>
+							</Disclosure>
 						</div>
 					{/if}
 
