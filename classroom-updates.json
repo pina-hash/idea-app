@@ -54,6 +54,16 @@
 			]
 		},
 		{
+			"date": "2026-08-27",
+			"title": "The \"to do\" count now only counts things you can actually do",
+			"body": "Three things were being counted as work when they were not. An assignment with no due date was listed as \"Not handed in\" forever, even when it was one your teacher grades on paper or at the bench and never collects online. A class that has finished kept its card on the home page, so last term's overdue work stayed in this term's count. And a notebook check-in scheduled for a date in the future was already showing as not filed, weeks before the day it is for. All three are fixed: an assignment with no due date is no longer counted, a finished class leaves the home page (you can still open it and everything in it is still there), and a check-in appears on the day it is for, not before. Anything with a due date behaves exactly as it did, so real work still shows up.",
+			"tags": [
+				"Home",
+				"Classes",
+				"check-ins"
+			]
+		},
+		{
 			"date": "2026-08-26",
 			"title": "The notebook's local backup copy expires sooner",
 			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",

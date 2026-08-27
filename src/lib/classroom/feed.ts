@@ -86,6 +86,15 @@ export type FeedReasonId =
 	| 'overdue'
 	| 'returned'
 	| 'due-soon'
+	/**
+	 * NOTHING PRODUCES THIS RIGHT NOW, and the slot is kept on purpose rather
+	 * than deleted. It was the reason an UNDATED assignment with no submission
+	 * row ranked under, which is the false count `studentReason` no longer
+	 * emits (see the long comment there). It comes back the moment an item can
+	 * say it collects a hand-in, and its rank, tone and indicator are the
+	 * answers that were already agreed for it -- deleting the four of them
+	 * would only mean re-deciding them under a different name later.
+	 */
 	| 'unsubmitted'
 	| 'updated'
 	| 'pinned'
@@ -207,9 +216,35 @@ function studentReason(
 			const when = dueWindow(item, now);
 			if (when === 'past') return 'overdue';
 			if (when === 'soon') return 'due-soon';
-			if (when === 'none') return 'unsubmitted';
-			// Due later than the window: not urgent yet, but it may still be
-			// worth surfacing for another reason below.
+			/**
+			 * AN ASSIGNMENT WITH NO DUE DATE IS NOT ACTIONABLE, and `when ===
+			 * 'none'` used to return 'unsubmitted' here.
+			 *
+			 * `isUnsubmitted` treats a MISSING submission row as "not handed
+			 * in", which is right for an assignment that collects one and wrong
+			 * for every assignment that does not -- and nothing on a
+			 * `classroom_items` row says which kind it is. So an assignment
+			 * graded on paper, at the bench, or in conversation had no row, no
+			 * deadline to expire, and no way to stop counting: it reported
+			 * "Not handed in" into the "N to do" chip forever. A student
+			 * reported exactly that, and the count was the reason he could not
+			 * tell it apart from real work.
+			 *
+			 * THIS IS THE NARROW VERSION, DELIBERATELY. The durable fix is a
+			 * flag on the item saying whether it COLLECTS a hand-in -- a
+			 * migration plus a field on ContentComposer -- after which an
+			 * undated assignment that does collect one can rank again on its own
+			 * evidence rather than on the absence of a date. That is not in this
+			 * bundle. What is here trades a false count for a missed one in
+			 * exactly one case (an undated assignment that really does want a
+			 * hand-in), which is the safer half of the trade on a surface whose
+			 * whole job is to be believed.
+			 *
+			 * EVERYTHING WITH A DUE DATE IS UNTOUCHED: past is still 'overdue',
+			 * inside the window is still 'due-soon', and later than the window
+			 * still falls through to the reasons below -- not urgent yet, but
+			 * still able to surface as updated or pinned.
+			 */
 		}
 	}
 

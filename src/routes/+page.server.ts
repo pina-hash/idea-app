@@ -91,8 +91,34 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		};
 	}
 
+	/**
+	 * A CONCLUDED CLASS LEAVES THE HOME PAGE ENTIRELY.
+	 *
+	 * `classroom_sections.active` is 0083's archive flag -- soft state, set by
+	 * `classroom_set_section_active`, keeping the roster, the stream and every
+	 * graded record exactly as they were. `SECTION_SELECT` has always carried the
+	 * column and `normalizeSectionRow` has always preserved it, but NOTHING read
+	 * it on this path: RLS does not filter on it either (`classroom_can_read_section`
+	 * asks about management and enrollment, never about the archive), so last
+	 * term's class kept its card, kept its overdue rows, and kept adding to the
+	 * "N to do" chip for as long as the student stayed enrolled -- which is
+	 * forever, because archiving is exactly the thing that does not unenroll
+	 * anybody.
+	 *
+	 * FILTERED HERE AND NOT INSIDE `buildFeed`, so there is one statement of it:
+	 * `sections` is what feeds the header's class chip, the item read's
+	 * `sectionIds` and the feed alike, and a filter applied further down would
+	 * leave the first two naming a class the third had dropped. It also stops the
+	 * items of an archived class being fetched at all.
+	 *
+	 * ABSENT READS AS ACTIVE, via `normalizeSectionRow`'s own default, which is
+	 * what keeps this fail-open: a row that cannot say it is archived is not
+	 * treated as one.
+	 */
 	const sections = sortSections(
-		((sectionRows ?? []) as Record<string, unknown>[]).map(normalizeSectionRow)
+		((sectionRows ?? []) as Record<string, unknown>[])
+			.map(normalizeSectionRow)
+			.filter((s) => s.active)
 	);
 	const sectionIds = sections.map((s) => s.id);
 	if (!sectionIds.length) {
