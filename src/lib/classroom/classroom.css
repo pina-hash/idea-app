@@ -480,3 +480,53 @@ body:has(.cr-root) {
 		max-width: var(--measure-form);
 	}
 }
+
+/* --- The nav-collapse toggle ("Hide other items") ------------------------
+   A student filed the same report three times: reading one item with every
+   other item in the class sitting beside it in the list pane is a
+   distraction, and there is no way to put it away.
+
+   THE PANE IS NOT THIS FILE'S TO REMOVE. `.cr-nav` and the `ClassView` it
+   holds are mounted by src/routes/classroom/[sectionId]/+layout.svelte,
+   which this session does not own -- so ClassroomShell's toggle button is a
+   MARKER on screen (`aria-pressed`), never a prop threaded into that layout,
+   and `:has()` is what reads it from here: `.cr-root` is the one ancestor
+   common to the button (rendered by ClassroomShell) and the split (rendered
+   by the section layout), the same relationship `body:has(.cr-root) .bg-fx`
+   already leans on to reach a sibling a rule cannot otherwise see.
+
+   NOTHING IS UNMOUNTED. `.cr-nav` keeps its Svelte instance, its scroll
+   position and its folded groups; only its box stops painting and stops
+   taking grid space. Collapsed is a view state, never a content one.
+
+   THE SAME TWO-TRACK SHAPE split.css's OWN "nothing open" COLLAPSE USES
+   (`.cr-split:not(.nav-wide):not(.has-detail) { --cr-nav-w: 100%; gap: 0 }`),
+   because it is the same problem the other way round: give the nav column's
+   width to the detail pane and drop the gap that would otherwise sit at the
+   vacated edge. Overriding the custom property rather than dropping to a
+   single track is what keeps split.css's own transition
+   (`grid-template-columns 180ms ease-out, gap 180ms ease-out`) interpolating
+   instead of snapping -- the track LIST stays the same two entries either
+   way, only `--cr-nav-w` moves.
+
+   THE DETAIL PANE'S OWN MEASURE DOES NOT MOVE. `--cr-measure` on
+   `.cr-split > .cr-detail` stays pinned to `--measure-reading` above whether
+   this rule is active or not: "widening the split must not widen the
+   sentences" does not get an exception for a reader who asked for more room
+   -- what this hands back is the margin around the reading column, not the
+   column itself.
+
+   SCREEN ONLY. Collapsing must cost a printed copy nothing it did not
+   already lack on screen -- `display: none` reaching into `@media print`
+   would be exactly the mistake Disclosure.svelte's own print rule exists to
+   avoid one component over. */
+@media screen and (min-width: 1024px) {
+	.cr-root:has([data-testid='nav-collapse-toggle'][aria-pressed='true']) .cr-split > .cr-nav {
+		display: none;
+	}
+	.cr-root:has([data-testid='nav-collapse-toggle'][aria-pressed='true'])
+		.cr-split:not(.nav-wide) {
+		--cr-nav-w: 0px;
+		gap: 0;
+	}
+}

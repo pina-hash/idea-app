@@ -46,6 +46,14 @@
 			]
 		},
 		{
+			"date": "2026-08-27",
+			"title": "Hide the rest of the class while you read one item",
+			"body": "Opening an assignment or material now shows a 'Hide other items' button next to the trail at the top of the page. Turn it on and the list of everything else in the class tucks out of the way so the one you're reading gets the room; the button stays right there to bring it back. Your choice is remembered on this account and follows you from one item to the next.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
 			"date": "2026-08-26",
 			"title": "The notebook's local backup copy expires sooner",
 			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",

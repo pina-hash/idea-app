@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { sectionTitle, sortSections, type ClassroomSection } from '$lib/classroom/classroom';
-	import type { Crumb, SectionTab, SectionTabId } from '$lib/classroom/nav';
+	import { canCollapseNav, locateClassroom, type Crumb, type SectionTab, type SectionTabId } from '$lib/classroom/nav';
+	import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
@@ -59,6 +61,41 @@
 
 	let switcherOpen = $state(false);
 	let switcherEl = $state<HTMLElement | null>(null);
+
+	/**
+	 * THE NAV-COLLAPSE TOGGLE (see $lib/classroom/nav-collapse.ts for why this
+	 * lives outside the pane it affects).
+	 *
+	 * This component is mounted by the OUTER classroom layout, which is not
+	 * remounted when the URL moves from one item to the next -- so a plain
+	 * `$state` here already survives "every subsequent item" with no module-
+	 * level trick. What it does not survive on its own is a reload, which is
+	 * what the localStorage round trip is for.
+	 *
+	 * SAME OVERRIDE SHAPE AS `Disclosure.svelte`: `stored` is a derived read so
+	 * the first render already has the remembered answer, and `override` is
+	 * what a click can see immediately without waiting on localStorage to
+	 * become reactive (it is not). Keyed on the viewer, like a disclosure --
+	 * this is a decision about how this person reads, not about the screen
+	 * in front of them.
+	 */
+	const loc = $derived(locateClassroom(page.url.pathname));
+	const showNavToggle = $derived(!minimal && canCollapseNav(loc));
+	const viewer = $derived((page.data?.claims?.sub as string | undefined) ?? null);
+	const navCollapseStorageKey = $derived(navCollapseKey(viewer));
+	const storedNavCollapsed = $derived(readNavCollapsed(navCollapseStorageKey));
+	let navCollapseOverride = $state<{ key: string; collapsed: boolean } | null>(null);
+	const navCollapsed = $derived(
+		navCollapseOverride && navCollapseOverride.key === navCollapseStorageKey
+			? navCollapseOverride.collapsed
+			: storedNavCollapsed
+	);
+
+	function toggleNavCollapsed() {
+		const next = !navCollapsed;
+		navCollapseOverride = { key: navCollapseStorageKey, collapsed: next };
+		writeNavCollapsed(navCollapseStorageKey, next);
+	}
 
 	const ordered = $derived(sortSections(sections));
 	const current = $derived(ordered.find((s) => s.id === currentSectionId) ?? null);
@@ -181,6 +218,54 @@
 				</li>
 			{/each}
 		</ol>
+
+		<!--
+			HIDE THE REST OF THE CLASS, GIVE THE ROOM TO THIS ONE. Filed three times
+			by one student: reading an assignment with every other item in the class
+			sitting beside it in the list pane is a distraction, and there is no way
+			to put it away.
+
+			THE PANE ITSELF IS NOT TOUCHED. `ClassView` and the `.cr-nav` element that
+			holds it are mounted by src/routes/classroom/[sectionId]/+layout.svelte,
+			which this session does not own -- so this is a marker, not a removal.
+			classroom.css matches `[aria-pressed="true"]` on THIS button with a
+			`:has()` selector rooted at `.cr-root` (the same tool `body:has(.cr-root)`
+			already uses to reach a sibling this component cannot see) and hides the
+			nav pane in CSS alone. Nothing here unmounts anything: `ClassView` keeps
+			running, keeps its scroll position and its folded groups, and gets no
+			`{#if}` of its own -- collapsed is a view state, never a content one.
+
+			WHY IT SITS BESIDE THE TRAIL. The trail is the only chrome an item page
+			has (the section tabs above never render for `item` -- see `tab` being
+			null there), and the two controls answer the same question together:
+			how do I get back, and how do I put the rest of the class away while I
+			read this one. Hiding one must never cost the other, which is why this
+			is a second child of `.crumbs` rather than a replacement for it.
+
+			ONLY ON THE ITEM PAGE (`canCollapseNav`). On the class list nothing is
+			open, so the list already has the whole split to itself (split.css's
+			`:not(.has-detail)` rule) -- there is nothing beside it to hide, and a
+			control that could not do anything must not be offered.
+
+			ABSENT BELOW THE DESKTOP BREAKPOINT, deliberately: split.css's `swap`
+			behaviour already shows the item ALONE, full width, below 1024px --
+			the nav pane it would hide is not rendered there at all, so the control
+			would have nothing to do. classroom.css hides it at that width.
+		-->
+		{#if showNavToggle}
+			<button
+				type="button"
+				class="nav-toggle tap-44"
+				aria-pressed={navCollapsed}
+				data-testid="nav-collapse-toggle"
+				onclick={toggleNavCollapsed}
+			>
+				<span class="nav-toggle-caret" aria-hidden="true">{navCollapsed ? '▸' : '▾'}</span>
+				<span class="nav-toggle-label"
+					>{navCollapsed ? 'Show other items' : 'Hide other items'}</span
+				>
+			</button>
+		{/if}
 	</nav>
 {/if}
 
@@ -356,8 +441,19 @@
 	   4.8px into `.sec-tab`'s own 44px box and won the hit test there, leaving
 	   the tab bar 39.2px. 16px clears both. */
 	.crumbs {
+		/* THE ROW HOLDS THE TRAIL AND THE NAV-COLLAPSE TOGGLE, one on each end.
+		   `display: flex` on this element stops the margin-collapsing that used
+		   to carry `.crumbs ol`'s own bottom margin out through `<nav>` to
+		   whatever sits below it -- flex items never collapse their margins with
+		   their container -- so the space moved onto `.crumbs` itself, and `ol`
+		   keeps none of its own. */
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2) var(--space-4);
 		max-width: var(--cr-measure, var(--measure-page));
-		margin: 0 auto;
+		margin: 0 auto var(--space-4);
 		padding: var(--space-4) var(--cr-gutter, 1.2rem) 0;
 	}
 	.crumbs ol {
@@ -366,7 +462,7 @@
 		align-items: baseline;
 		gap: 0.35rem;
 		list-style: none;
-		margin: 0 0 var(--space-4);
+		margin: 0;
 		padding: 0;
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
@@ -412,6 +508,39 @@
 		color: var(--boundary);
 	}
 
+	/* THE NAV-COLLAPSE TOGGLE. A real button, not a bare glyph -- the trigger
+	   convention this codebase already has (Disclosure.svelte's own caret +
+	   word). `.tap-44` (src/app.css) is what buys the 44px floor: this control
+	   owns its own row-end box rather than sitting inline in running text, so
+	   the reach trick the crumb links need does not apply here.
+	   `flex: none` keeps it from being squeezed by a long trail wrapping onto
+	   two lines above the breakpoint where both share the row. */
+	.nav-toggle {
+		appearance: none;
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.3rem 0.6rem;
+		background: var(--surface-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.nav-toggle:hover {
+		color: var(--text-1);
+		border-color: var(--gold);
+	}
+	.nav-toggle-caret {
+		font-size: 0.65rem;
+		color: var(--text-2);
+		flex: none;
+	}
+
 	/* THE TAB BAR IS THE LAST THING BEFORE THE CONTENT, so the space under it is
 	   the space between the chrome and the page -- and at 0.9rem it was the
 	   tightest gap on the whole screen, with the top of both panes crowding the
@@ -442,6 +571,20 @@
 	.sec-tab.active {
 		color: var(--green);
 		border-bottom-color: var(--green);
+	}
+
+	/* NO NAV-COLLAPSE TOGGLE BELOW THE SPLIT'S OWN BREAKPOINT (split.css's
+	   `min-width: 1024px`, matched here exactly so the two can never disagree
+	   about where the split turns on). Below it split.css's `swap` behaviour
+	   already shows the item ALONE at full width -- the list pane this control
+	   would hide is not rendered there at all (`.cr-split:not(.narrow-stack)
+	   .has-detail .cr-nav { display: none }`), so the control would have
+	   nothing to do. A control that can do nothing is not offered rather than
+	   offered inert. */
+	@media (max-width: 1023.98px) {
+		.nav-toggle {
+			display: none;
+		}
 	}
 
 	/* Phone: the switcher keeps its place in the masthead and simply narrows --
