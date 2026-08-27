@@ -24,6 +24,7 @@
 
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
+	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import FoundryShare from './FoundryShare.svelte';
 	import { foundryPreviewUrl, foundryPreviewable } from './bundle-url.ts';
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
@@ -343,6 +344,22 @@
 				student who is still building.
 			-->
 			<FoundryShare {app} {appsOrigin} sectionClass="fdy-block" />
+
+			<!--
+				HOW MUCH IT HAS BEEN PLAYED, beside the share link rather than under
+				the version list, because both are about the app being out in the
+				world rather than about building it.
+
+				THE SAME COMPONENT THE REVIEW INSPECTOR MOUNTS, and the same four
+				scalars: `foundry_app_play_stats` admits the owner and `is_admin()`
+				and answers both identically. What staff have that a student does not
+				is other people's apps, never more detail about one -- and there is no
+				per-player read for anybody, so "who played it" has no answer here for
+				the author either. Absent transport, absent block.
+			-->
+			<div class="fdy-block">
+				<FoundryPlayStats appId={app.id} load={transports.playStats} />
+			</div>
 
 			<!-- ------------------------------------------------------ details -->
 			<section class="fdy-block" aria-label="App details">

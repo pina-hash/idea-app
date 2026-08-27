@@ -19,6 +19,7 @@
  */
 
 import type { FoundryIssue } from './preflight.ts';
+import type { FoundryPlayStats } from './telemetry.ts';
 
 /** The shape every transport answers with. */
 export type FoundryOutcome<T = object> = ({ ok: true } & T) | { ok: false; message: string };
@@ -127,6 +128,13 @@ export interface FoundryMineTransports {
 	deleteVersion?: (versionId: string) => Promise<FoundryOutcome<FoundryDeleteReport>>;
 	/** Re-read one app after a write, so the surface never renders a stale row. */
 	refresh?: (slug: string) => Promise<FoundryApp | null>;
+	/**
+	 * `foundry_app_play_stats` for the student's OWN app. Aggregates only: how
+	 * many plays, how many people, how long, and when last. Never which people
+	 * and never when a named person played -- the function has no shape in
+	 * which it could say.
+	 */
+	playStats?: FoundryPlayStatsTransport;
 }
 
 /**
@@ -240,13 +248,54 @@ export interface FoundryAppSummary extends FoundryAuthor {
  */
 export interface FoundryGalleryTransports {
 	/**
-	 * Deliberately empty. The gallery and the detail view make no server calls
-	 * of their own -- the route loads their data and the frame src is derived.
-	 * The interface stays so `FoundryReviewTransports` still has something to
-	 * extend and so a future read-side call has a home.
+	 * `foundry_play_start`. THE PORTAL RECORDS BECAUSE THE APP CANNOT.
+	 *
+	 * A published bundle runs in a sandboxed cross-origin frame with no session
+	 * and no way to reach us, so it is never asked to report anything -- and it
+	 * must not be, or every figure would be written by the party being
+	 * measured. `AppStage` owns the lifecycle, so `AppStage` is what calls this.
+	 *
+	 * ABSENCE IS THE MECHANISM, AND IT IS LOAD-BEARING HERE RATHER THAN TIDY.
+	 * The REVIEW QUEUE deliberately supplies neither of these: a reviewer
+	 * running a submitted build to decide about it is not a play, and the way
+	 * that is guaranteed is that the surface has nothing to call. The database
+	 * refuses the same case a second time (`foundry_play_start` accepts only the
+	 * app's PUBLISHED version), so opening one layer leaves the other closed.
+	 *
+	 * IT NEVER THROWS AND ITS REFUSAL IS NEVER SHOWN. Telemetry must not be able
+	 * to affect the thing it measures, so every outcome here is a value, a
+	 * refusal is silent, and nothing on this path can reach the student's screen.
 	 */
-	readonly _?: never;
+	recordPlay?: (
+		appId: string,
+		versionId: string
+	) => Promise<{ ok: true; playId: string } | { ok: false }>;
+
+	/**
+	 * `foundry_play_ping`. The heartbeat, which is also the clean end: the last
+	 * ping before teardown is what makes a stopped session's duration exact.
+	 *
+	 * `stale` IS THE ONE OUTCOME THE CALLER ACTS ON. It means the row has fallen
+	 * outside the database's resume window -- a tab hidden for an hour and then
+	 * brought back -- and the correct response is to open a NEW session rather
+	 * than to book the gap. Every other refusal is silent.
+	 */
+	pingPlay?: (playId: string) => Promise<{ ok: true } | { ok: false; stale: boolean }>;
 }
+
+/**
+ * `foundry_app_play_stats`, the author-and-admin aggregate.
+ *
+ * FOUR SCALARS AND NEVER A ROW. There is no per-player detail in the answer and
+ * no parameter through which one could be asked for, on this transport or in
+ * the function behind it. `null` is the ordinary answer for an app whose stats
+ * this caller may not read, and it is the SAME answer a nonexistent app gives,
+ * so nothing here can be used to probe an id.
+ *
+ * It is optional on both surfaces that take it, so a mounting without it simply
+ * renders no figures.
+ */
+export type FoundryPlayStatsTransport = (appId: string) => Promise<FoundryPlayStats | null>;
 
 /** One file of a stored bundle, as the review inspector lists it. */
 export interface FoundryBundleFileRow {
@@ -292,4 +341,30 @@ export interface FoundryReviewTransports extends FoundryGalleryTransports {
 	deleteApp?: (appId: string) => Promise<FoundryOutcome<FoundryDeleteReport>>;
 	/** Re-read one app after a decision, so the queue never renders a stale row. */
 	refresh?: (slug: string) => Promise<FoundryApp | null>;
+	/**
+	 * `foundry_app_play_stats` for ANY app, which is what `is_admin()` inside
+	 * that function admits. THE SAME FOUR SCALARS the author sees and not one
+	 * field more: staff get every app's aggregates and nobody's play history,
+	 * because there is no per-player read for any caller at all.
+	 */
+	playStats?: FoundryPlayStatsTransport;
+	/**
+	 * `foundry_update_app_metadata`, one named field per call -- the SAME
+	 * transport shape `/foundry/mine` hands the owner, pointed at the same RPC,
+	 * which has admitted `is_admin()` in its own body since 0130.
+	 *
+	 * THIS IS THE ADMIN'S ONLY PLACE TO EDIT THESE FIELDS. The owner edits them
+	 * on `/foundry/mine`; a second admin-flavoured editor somewhere else would
+	 * be a second set of field names, a second set of limits and a second thing
+	 * to keep in step with the whitelist inside the RPC.
+	 *
+	 * A HIDDEN APP IS REFUSED BY THE RPC, for an admin as well as for the owner,
+	 * so the surface must not offer the control for one. That refusal is
+	 * unconditional in 0130 and is not an oversight: a hidden app is under
+	 * discussion, and editing the text of one is how the discussion loses its
+	 * subject.
+	 */
+	saveField?: (appId: string, field: string, value: string) => Promise<FoundryOutcome>;
+	/** Cover replacement. Same bucket as the owner's, written under the CALLER's prefix. */
+	uploadCover?: (file: File) => Promise<FoundryOutcome<{ path: string }>>;
 }

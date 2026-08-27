@@ -111,6 +111,32 @@
 			return { ok: true, path };
 		},
 
+		/**
+		 * `foundry_app_play_stats` for this student's OWN app, which is what the
+		 * function's own gate admits (the owner, or `is_admin()`).
+		 *
+		 * FOUR SCALARS AND NEVER A ROW. There is no per-player detail to ask for
+		 * and no parameter through which one could be requested; a student
+		 * looking at their own app's figures learns how much it was played and
+		 * nothing whatever about who played it.
+		 *
+		 * NULL IS AN ORDINARY ANSWER and is what a missing RPC degrades to as
+		 * well -- migrations here are applied by hand, so a deployment between
+		 * 0138 and 0139 is a real state and must render the page without the
+		 * block rather than an error over the student's work.
+		 */
+		async playStats(appId) {
+			try {
+				const { data: r, error } = await data.supabase.rpc('foundry_app_play_stats', {
+					p_app_id: appId
+				});
+				if (error || !r) return null;
+				return r as never;
+			} catch {
+				return null;
+			}
+		},
+
 		async refresh(slug) {
 			const { data: fresh } = await data.supabase.rpc('foundry_get_app', {
 				p_slug: slug,

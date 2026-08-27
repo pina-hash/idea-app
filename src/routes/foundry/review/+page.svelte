@@ -105,6 +105,71 @@
 			return { ok: true };
 		},
 
+		/**
+		 * `foundry_app_play_stats` for ANY app, which is what `is_admin()` inside
+		 * that function admits. THE SAME FOUR SCALARS the author gets and not one
+		 * field more: staff see every app's aggregates and nobody's play history,
+		 * because there is no per-player read for any caller at all.
+		 *
+		 * Null on a missing RPC as well, so a deployment sitting between 0138 and
+		 * 0139 renders the queue without the block rather than an error over it.
+		 */
+		async playStats(appId) {
+			try {
+				const { data: r, error } = await data.supabase.rpc('foundry_app_play_stats', {
+					p_app_id: appId
+				});
+				if (error || !r) return null;
+				return r as never;
+			} catch {
+				return null;
+			}
+		},
+
+		/**
+		 * THE ADMIN METADATA EDIT. `foundry_update_app_metadata` has admitted
+		 * `is_admin()` in its own body since 0130 -- the database half has existed
+		 * all along and only the control was missing -- so this is one RPC with
+		 * three scalars straight from the browser client, exactly like the
+		 * decision above it.
+		 *
+		 * IT IS THE SAME CALL /foundry/mine MAKES FOR THE OWNER. One field per
+		 * request over the RPC's own named whitelist: the slug is refused by name
+		 * (a printed, QR-coded address), an unknown field is refused rather than
+		 * ignored, and a hidden app is refused for an admin exactly as for its
+		 * owner. Nothing here re-states any of that; the refusals come back as
+		 * sentences and the inspector renders them.
+		 */
+		async saveField(appId, field, value) {
+			const { error } = await data.supabase.rpc('foundry_update_app_metadata', {
+				p_app_id: appId,
+				p_field: field,
+				p_value: value
+			});
+			if (error) return { ok: false, message: error.message };
+			await invalidateAll();
+			return { ok: true };
+		},
+
+		/**
+		 * A COVER GOES UNDER THE CALLER'S OWN PREFIX, not the app owner's. The
+		 * bucket's policies are pinned to `auth.uid()`, so an admin cannot write
+		 * into a student's folder and must not try -- the stored path is then the
+		 * admin's, which is correct: they uploaded it. What the app points at is
+		 * decided by `saveField` on the row, where `is_admin()` is the gate.
+		 */
+		async uploadCover(file) {
+			const uid = data.claims?.sub ?? '';
+			if (!uid) return { ok: false, message: 'You are not signed in.' };
+			const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() || 'png';
+			const path = `${uid}/${crypto.randomUUID()}.${ext}`;
+			const { error } = await data.supabase.storage
+				.from(FOUNDRY_COVER_BUCKET)
+				.upload(path, file, { contentType: file.type || undefined, upsert: false });
+			if (error) return { ok: false, message: error.message };
+			return { ok: true, path };
+		},
+
 		async clearMetadataFlag(appId) {
 			const { error } = await data.supabase.rpc('foundry_clear_metadata_flag', {
 				p_app_id: appId

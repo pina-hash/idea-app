@@ -17,12 +17,36 @@
 	 * SELECTION LIVES IN THE URL, so an app is linkable, the back button works,
 	 * and a reload lands where the viewer was. The route owns the read; this owns
 	 * the arrangement and the intent.
+	 *
+	 * THE ORDER IS A VIEW CONTROL AND STAYS LOCAL, which is the one thing here
+	 * that is deliberately NOT in the URL. Selection is a thing you send someone;
+	 * a sort is a thing you do while looking. Putting it in the query string
+	 * would put a second parameter on every link a student pastes and would make
+	 * two people opening the same app disagree about what page they are on.
+	 *
+	 * POPULARITY IS A COUNT OVER APPS, ALWAYS. `playCounts` carries two numbers
+	 * per app and nothing else -- there is no per-person figure in the payload,
+	 * on this surface or in the function behind it, and there is nothing here
+	 * that could be widened into one. A card says how many times a thing was
+	 * played and never by whom.
+	 *
+	 * THE COUNTS ARE OPTIONAL AND DEFAULT TO NOTHING. A mounting without them (a
+	 * harness, or a load that degraded) still orders -- every app ties at zero
+	 * and the stable sort leaves the list exactly as Recent shows it -- rather
+	 * than throwing or hiding the control.
 	 */
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
 
 	import FoundryDetail from './FoundryDetail.svelte';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
+	import {
+		FOUNDRY_GALLERY_SORTS,
+		playCountLabel,
+		sortGallery,
+		type FoundryGallerySort,
+		type FoundryPlayCounts
+	} from './telemetry.ts';
 	import type {
 		FoundryApp,
 		FoundryAppSummary,
@@ -43,7 +67,13 @@
 		 * means "use your own default" rather than "no origin", which is why it
 		 * is spread rather than always bound.
 		 */
-		appsOrigin = undefined
+		appsOrigin = undefined,
+		/**
+		 * Plays per app, from `foundry_play_counts`. Keyed by app id, two numbers
+		 * each, and there is no third field it could grow that would still be a
+		 * count over an app.
+		 */
+		playCounts = {}
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -52,7 +82,19 @@
 		coverUrl?: (path: string) => string;
 		onSelect: (slug: string | null) => void;
 		appsOrigin?: string | undefined;
+		playCounts?: FoundryPlayCounts;
 	} = $props();
+
+	/**
+	 * `recent` IS THE DEFAULT AND IS WHAT THE ROUTE ALREADY RETURNS. Opening the
+	 * gallery on a popularity ranking would put the same handful of apps at the
+	 * top of the page every day of the year, which is a decision about whose
+	 * work gets seen and not a default.
+	 */
+	let sort = $state<FoundryGallerySort>('recent');
+
+	/** Pure, stable, and it never mutates the list the route handed in. */
+	const ordered = $derived(sortGallery(apps, playCounts, sort));
 </script>
 
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="page" detailWidth="roomy">
@@ -72,6 +114,34 @@
 				<a class="fdy-gal-contract tap-44" href="/foundry/contract">Build contract</a>
 			</header>
 
+			{#if apps.length > 1}
+				<!--
+					REAL BUTTONS WITH WORDS ON THEM, in a labelled group, with
+					`aria-pressed` saying which one is on. Not a <select>: three options
+					that change what is already on screen is a segmented control, and a
+					select hides two of the three behind a press.
+
+					IT RENDERS WHENEVER THERE IS MORE THAN ONE APP TO ORDER, including
+					before anything has been played. Every app ties at zero then and the
+					order is unchanged, which is the honest answer -- hiding the control
+					until somebody plays something would make it appear one day with no
+					explanation.
+				-->
+				<div class="fdy-gal-sort" role="group" aria-label="Order the gallery">
+					{#each FOUNDRY_GALLERY_SORTS as option (option.id)}
+						<button
+							type="button"
+							class="btn fdy-gal-sort-btn tap-44"
+							aria-pressed={sort === option.id}
+							data-sort={option.id}
+							onclick={() => (sort = option.id)}
+						>
+							{option.label}
+						</button>
+					{/each}
+				</div>
+			{/if}
+
 			{#if apps.length === 0}
 				<div class="fdy-gal-empty">
 					<p>Nothing has been published yet.</p>
@@ -83,9 +153,14 @@
 				</div>
 			{:else}
 				<ul class="fdy-gal-grid" data-testid="foundry-gallery-grid">
-					{#each apps as app (app.id)}
+					{#each ordered as app (app.id)}
 						{@const author = foundryAuthorName(app)}
 						{@const cls = foundryAuthorClass(app)}
+						{@const plays = playCountLabel(
+							sort === 'played7d'
+								? (playCounts[app.id]?.plays7d ?? 0)
+								: (playCounts[app.id]?.plays ?? 0)
+						)}
 						<li>
 							<!--
 								A LINK, not a button with a click handler. It carries a real
@@ -124,10 +199,25 @@
 										class renders NOTHING -- not an empty span, not a
 										separator, not a label.
 									-->
-									{#if author || cls}
+									{#if author || cls || plays}
 										<span class="fdy-card-by">
 											{#if author}<span class="fdy-card-author">{author}</span>{/if}
 											{#if cls}<span class="fdy-card-class">{cls}</span>{/if}
+											<!--
+												NOTHING AT ALL FOR ZERO. "0 plays" on every card of a
+												gallery nobody has opened yet is noise on every card,
+												and it reads as a verdict on the work rather than as
+												the absence of a measurement. The count follows
+												whichever window is being sorted on, so the number a
+												card shows is the number it was ordered by -- a card
+												ranked by this week showing its all-time total would
+												be a ranking the reader cannot check.
+											-->
+											{#if plays}
+												<span class="fdy-card-plays" data-testid="fdy-card-plays">
+													{plays}{sort === 'played7d' ? ' this week' : ''}
+												</span>
+											{/if}
 										</span>
 									{/if}
 								</span>
@@ -184,6 +274,53 @@
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2, var(--dim));
+	}
+
+	/*
+	   The three controls sit on one wrapping row. `flex-wrap` rather than a
+	   breakpoint: at 375 the three labels do not fit one line and wrap to two,
+	   which is the correct arrangement and needs no rule of its own.
+	*/
+	.fdy-gal-sort {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2, 0.5rem);
+		min-width: 0;
+	}
+
+	/*
+	   QUIET UNTIL CHOSEN, AND THAT IS NOT A PREFERENCE -- IT IS WHAT MAKES THE
+	   ACTIVE ONE VISIBLE AT ALL.
+
+	   `.btn` in the global sheet is ALREADY `color: var(--green)` on a green
+	   border, so an active rule that set those two was a no-op: measured on the
+	   harness at both widths, the pressed control and the two beside it came
+	   back at the same 8.28:1 and the same rgb(120, 184, 112). The state was
+	   carried by `aria-pressed` alone, which is invisible to somebody looking at
+	   the screen. So the inactive members give the accent up -- `--text-2` for
+	   the label (the token measured for secondary copy on all three portal
+	   grounds) and `--boundary` for the edge, which is the load-bearing token a
+	   control's own outline takes.
+	*/
+	.fdy-gal-sort-btn {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		color: var(--text-2, var(--dim));
+		border-color: var(--boundary);
+	}
+
+	/*
+	   THE ACCENT AND A RAISED GROUND, which is the room's own selected idiom
+	   (`.fdy-card.selected`, two rules down). Colour is never the only signal:
+	   the ground moves with the hue, the label is a word rather than a glyph,
+	   and `aria-pressed` carries the same fact to a reader looking at none of
+	   them. `--green` is correct here rather than decorative -- the register
+	   gives it active navigation, and this is which view is in force.
+	*/
+	.fdy-gal-sort-btn[aria-pressed='true'] {
+		color: var(--green);
+		border-color: var(--green);
+		background: var(--surface-2, var(--bg2));
 	}
 
 	.fdy-gal-empty {
@@ -341,6 +478,18 @@
 	}
 
 	.fdy-card-class {
+		color: var(--text-2, var(--dim));
+		padding-left: 0.4rem;
+		border-left: 1px solid var(--boundary);
+	}
+
+	/*
+	   Metadata, so `--text-2` for the weight -- the token measured for secondary
+	   copy on all three portal grounds. NOT `--green`: a play count is a fact
+	   about an app, not a success state, and the primary accent is reserved for
+	   actions, active navigation and completion.
+	*/
+	.fdy-card-plays {
 		color: var(--text-2, var(--dim));
 		padding-left: 0.4rem;
 		border-left: 1px solid var(--boundary);

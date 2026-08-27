@@ -2,12 +2,24 @@
 	/**
 	 * THE ROUTE OWNS THE TRANSPORTS; the component owns the arrangement.
 	 *
-	 * THERE ARE NONE LEFT ON THIS SURFACE. The gallery's only server call was
-	 * the token mint, which existed because a proxy of ours served the bundle
-	 * and a signed decision had to reach it. Bundles come straight off public
-	 * Storage now and `AppStage` derives the frame src from the two ids, so the
-	 * object below is empty and is passed only so the component's contract does
-	 * not change shape between here and the review queue.
+	 * THE TWO HERE ARE THE PLAY RECORDER, AND THEY EXIST BECAUSE THE APP CANNOT
+	 * REPORT. A bundle runs in a sandboxed cross-origin frame with no session,
+	 * so nothing inside it can record anything and it is never asked to. The
+	 * portal knows when Launch was pressed and when the frame came down, so the
+	 * portal writes -- `AppStage` calls these, and they go straight to the RPCs
+	 * because each is one call with two ids and there is nothing a server would
+	 * add.
+	 *
+	 * THE REVIEW QUEUE SUPPLIES NEITHER, ON PURPOSE. A reviewer running a
+	 * submitted build to decide about it is not a play, and the way that is
+	 * guaranteed is that the surface has nothing to call. `foundry_play_start`
+	 * refuses any version that is not the app's PUBLISHED one as well, so
+	 * opening one of those layers leaves the other closed.
+	 *
+	 * NEITHER OF THEM CAN AFFECT THE PAGE. Every outcome is a value, a refusal
+	 * is silent, and nothing here is awaited before the frame goes up: telemetry
+	 * must never be able to break the thing it measures, and the thing being
+	 * measured is a student's app starting.
 	 */
 	import { goto } from '$app/navigation';
 
@@ -21,7 +33,41 @@
 		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 	}
 
-	const transports: FoundryGalleryTransports = {};
+	const transports: FoundryGalleryTransports = {
+		async recordPlay(appId, versionId) {
+			try {
+				const { data: r, error } = await data.supabase.rpc('foundry_play_start', {
+					p_app_id: appId,
+					p_version_id: versionId
+				});
+				const out = r as { ok?: boolean; play_id?: string } | null;
+				// A missing RPC (a deployment between 0138 and 0139), a refusal, or
+				// anything else: the same silent nothing. There is no branch here
+				// that can put a sentence in front of the viewer.
+				if (error || !out?.ok || !out.play_id) return { ok: false };
+				return { ok: true, playId: out.play_id };
+			} catch {
+				return { ok: false };
+			}
+		},
+
+		async pingPlay(playId) {
+			try {
+				const { data: r, error } = await data.supabase.rpc('foundry_play_ping', {
+					p_play_id: playId
+				});
+				const out = r as { ok?: boolean; reason?: string } | null;
+				if (error) return { ok: false, stale: false };
+				if (out?.ok) return { ok: true };
+				// `stale` IS THE ONE OUTCOME THE CALLER ACTS ON: the session aged out
+				// while the tab was hidden, so the right answer is a NEW session
+				// rather than extending the old one across the gap.
+				return { ok: false, stale: out?.reason === 'stale' };
+			} catch {
+				return { ok: false, stale: false };
+			}
+		}
+	};
 
 	function select(slug: string | null) {
 		const target = slug ? `/foundry?app=${encodeURIComponent(slug)}` : '/foundry';
@@ -54,6 +100,7 @@
 	<FoundryGallery
 		apps={data.apps}
 		selected={data.selected}
+		playCounts={data.playCounts}
 		{transports}
 		{coverUrl}
 		onSelect={select}
