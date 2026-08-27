@@ -6,6 +6,21 @@
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
 	import DocumentationCheck from '$lib/notebook/DocumentationCheck.svelte';
+	import CellExcusal from '$lib/notebook/CellExcusal.svelte';
+	import EntryMove from '$lib/notebook/EntryMove.svelte';
+	import AdminLogPanel from '$lib/notebook/AdminLogPanel.svelte';
+	import {
+		excusalIndex,
+		excusalKey,
+		type AdminLogTransports,
+		type EntryMoveTransports,
+		type ExcusalRow,
+		type ExcusalTransports,
+		type LinkTargetItem,
+		type SessionItemLink,
+		type SessionItemTransports,
+		type StaffNoteTransports
+	} from '$lib/notebook/admin-actions';
 	import NotebookMasthead from '$lib/notebook/NotebookMasthead.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { revealDetailPane } from '$lib/shell/reveal';
@@ -71,7 +86,13 @@
 		configured = true,
 		initialSectionId = null,
 		transports,
-		docCheck = null
+		docCheck = null,
+		excusals = null,
+		entryMove = null,
+		adminLog = null,
+		itemLink = null,
+		staffNote = null,
+		viewerId = null
 	}: {
 		sections: ReviewSection[];
 		isChair: boolean;
@@ -97,6 +118,36 @@
 		 * action are untouched by its absence.
 		 */
 		docCheck?: DocCheckTransports | null;
+		/**
+		 * ---------------------------------------------------------------------
+		 * THE FIVE STAFF CAPABILITIES THE DATA LAYER HAS CARRIED SINCE 0069-0120
+		 * WITH NOTHING CALLING THEM. See `$lib/notebook/admin-actions` for the
+		 * tier each one is really on, which is not what the names suggest.
+		 *
+		 * EVERY ONE IS A NULLABLE PROP AND ABSENCE REMOVES THE CONTROL, down
+		 * through the components. That is the mechanism, not a `readOnly` flag: an
+		 * instructor is handed no `entryMove` and no `adminLog`, so there is no
+		 * write to execute and no tab to reach rather than a hidden one. It is
+		 * PRESENTATION regardless -- each function gates itself in its own body,
+		 * and that is what actually holds.
+		 *
+		 * THE ROUTE DECIDES, from the SAME `isChair` this component already takes,
+		 * which is `isAdmin()` resolved server-side by `notebookAccess`.
+		 */
+		excusals?: ExcusalTransports | null;
+		/** ADMIN ONLY (`notebook_admin_override_entry`). */
+		entryMove?: EntryMoveTransports | null;
+		/** ADMIN ONLY (`notebook_admin_log`'s own RLS policy). Adds a fourth mode. */
+		adminLog?: AdminLogTransports | null;
+		/** INSTRUCTOR TIER (`notebook_link_session_item`). */
+		itemLink?: SessionItemTransports | null;
+		/**
+		 * INSTRUCTOR TIER (`notebook_staff_restore_note`) -- the undo for the staff
+		 * note delete this console has offered since 0119 with no way back.
+		 */
+		staffNote?: StaffNoteTransports | null;
+		/** The caller's own uuid, so the log can render their rows as "You". */
+		viewerId?: string | null;
 	} = $props();
 
 	/**
@@ -117,7 +168,7 @@
 	 * same complaint one layer up: the check-in manager used to sit ABOVE the
 	 * grid and pushed it off the first screen on every load.
 	 */
-	type Mode = 'review' | 'checkins' | 'grade';
+	type Mode = 'review' | 'checkins' | 'grade' | 'log';
 	let mode = $state<Mode>('review');
 
 	// Seeded ONCE, then owned by the picker: a later navigation within the
@@ -130,6 +181,24 @@
 
 	let sessions = $state<GridSession[]>([]);
 	let grid = $state<SectionGridData | null>(null);
+	/**
+	 * THE EXCUSAL ROWS BEHIND THE GRID'S BOOLEAN.
+	 *
+	 * `notebook_get_section_grid` adjudicates `cell.excused` and that stays the
+	 * authority -- this is read only for the NOTE, which the grid has never
+	 * carried and which nothing in the codebase has ever selected. Keyed on the
+	 * same (check-in, student) pair the RPC writes on, so a lookup cannot drift
+	 * from what was written.
+	 *
+	 * It is refetched beside the grid rather than on its own timer: the two
+	 * answer one question and a note that outlived its excusal by a refresh cycle
+	 * is exactly the confusion this panel exists to end.
+	 */
+	let excusalRows = $state<ExcusalRow[]>([]);
+	const excusalsByCell = $derived(excusalIndex(excusalRows));
+	/** Which check-ins in this section point at an item (0120), for SessionManager. */
+	let sessionItemLinks = $state<SessionItemLink[]>([]);
+	let sessionItemCandidates = $state<LinkTargetItem[]>([]);
 	let loading = $state(false);
 	let loadError = $state<string | null>(null);
 	/** A live update landed and the grid is being re-read. Never blanks anything. */
@@ -239,6 +308,12 @@
 	 */
 	$effect(() => {
 		if (mode === 'grade' && (unit === null || !docCheck)) mode = 'review';
+		// THE SAME FALLBACK FOR THE LOG, and it is not decoration: an admin who
+		// opens the log and is then demoted mid-session (or whose page is
+		// re-hydrated with no transport) must land on a mode that renders, not on
+		// an empty body. The table's own RLS policy is what actually withholds the
+		// rows; this only keeps the console coherent.
+		if (mode === 'log' && !adminLog) mode = 'review';
 	});
 
 	/**
@@ -284,12 +359,66 @@
 		}
 		sessions = sessionResult.value;
 		grid = gridResult.value;
+		/**
+		 * THE EXCUSAL NOTES, AFTER the grid rather than beside it, because the
+		 * check-in ids they are read for come OUT of the grid. A second round trip
+		 * on a load that already made two, and only when the deployment can answer
+		 * at all.
+		 *
+		 * A FAILURE HERE IS NOT A FAILED LOAD. The grid is on screen and correct;
+		 * what is missing is the reason text on cells that are already marked
+		 * excused. Blanking the console over that -- or raising a banner that
+		 * outranks the grid -- would trade the whole surface for a footnote, so the
+		 * rows are simply emptied and the panel says no reason was recorded, which
+		 * is what it says for a genuinely blank note too. The one thing it must not
+		 * do is keep STALE rows: a note from the previous section under this
+		 * section's cells is worse than none.
+		 */
+		if (excusals) {
+			const ids = gridResult.value.sessions.map((sn) => sn.id);
+			const rows = ids.length ? await excusals.load(ids) : null;
+			if (token !== loadToken) return;
+			excusalRows = rows?.ok ? rows.value : [];
+		} else {
+			excusalRows = [];
+		}
 		// THE CURSOR SURVIVES THE REFETCH. It is a (student, check-in) pair, not
 		// an index, so a student who appears above it does not move it; clamping
 		// only matters when the row or the column it names has gone.
 		cursor = clampCursor(gridResult.value, cursor);
 		if (opts.quiet) liveTick++;
 	}
+
+	/**
+	 * WHICH CHECK-INS POINT AT AN ITEM (0120), plus what they could point at.
+	 *
+	 * READ WHEN THE CHECK-INS MODE IS OPENED, not on every console load: it is
+	 * two selects nobody reviewing a grid needs, and the mode is the only surface
+	 * that renders either. Re-read after every link and unlink, which is what
+	 * `refreshItemLinks` is for -- the controls are on a list this owns, so a
+	 * write that did not refetch would leave the check mark lying until the next
+	 * section change.
+	 */
+	async function refreshItemLinks(id = sectionId) {
+		if (!itemLink || !id) {
+			sessionItemLinks = [];
+			sessionItemCandidates = [];
+			return;
+		}
+		const [links, items] = await Promise.all([itemLink.load(id), itemLink.candidates(id)]);
+		// Same rule as the excusal read above: a failure here costs the check mark
+		// and the picker, never the check-in list they sit on. The RPC states its
+		// own refusal when a control is actually pressed.
+		sessionItemLinks = links.ok ? links.value : [];
+		sessionItemCandidates = items.ok ? items.value : [];
+	}
+
+	$effect(() => {
+		const id = sectionId;
+		const m = mode;
+		if (m !== 'checkins') return;
+		untrack(() => void refreshItemLinks(id));
+	});
 
 	/**
 	 * Reload whenever the section or the unit changes -- and ONLY then.
@@ -509,6 +638,23 @@
 		return result;
 	}
 
+	/**
+	 * PUTTING A REMOVED NOTE BACK (0119, `notebook_staff_restore_note`).
+	 *
+	 * The mirror of `deleteNote` above it, through the same `afterReview` path:
+	 * a restored note is content on the open entry, so the panel has to re-read
+	 * or it keeps rendering the thread as removed. Same tier as the delete, so
+	 * the two transports arrive together.
+	 */
+	async function restoreNote(entryId: string, noteId: string) {
+		if (!staffNote) {
+			return { ok: false as const, error: 'Restoring notes is not available.' };
+		}
+		const result = await staffNote.restore(noteId);
+		if (result.ok) await afterReview(entryId);
+		return result;
+	}
+
 	async function saveSession(input: Parameters<ReviewTransports['saveSession']>[0]) {
 		const result = await transports.saveSession(input);
 		if (result.ok) await refresh();
@@ -707,6 +853,34 @@
 	{/if}
 {/snippet}
 
+{#snippet excusalFor(
+	sessionId: string,
+	studentId: string | null,
+	studentName: string,
+	sessionLabel: string,
+	excused: boolean
+)}
+	<!--
+		ONE MOUNT, TWO PANELS. The open-entry panel and the empty-cell panel both
+		render this, because the pair the RPC takes -- a student and a check-in --
+		is what the CURSOR names, and whether an entry happens to exist against it
+		is a different question. The empty cell is in fact the common case: a
+		student who filed nothing is exactly who somebody is about to excuse.
+	-->
+	{#if excusals}
+		<CellExcusal
+			{sessionId}
+			{studentId}
+			{studentName}
+			{sessionLabel}
+			{excused}
+			excusal={excusalsByCell.get(excusalKey(sessionId, studentId ?? '')) ?? null}
+			transports={excusals}
+			onDone={() => void refresh(sectionId, unit, { quiet: true })}
+		/>
+	{/if}
+{/snippet}
+
 {#snippet entryPane()}
 	<div class="entry-col" aria-label="Open entry">
 		{#if entryLoading}
@@ -724,6 +898,7 @@
 			-->
 			{#key openEntry.id}
 				{@const entryId = openEntry.id}
+				{@const entrySessionId = openEntry.session_id}
 				<EntryReview
 					entry={openEntry}
 					cell={openCell}
@@ -739,8 +914,43 @@
 					onDeleteNote={transports.deleteNote
 						? (noteId) => deleteNote(entryId, noteId)
 						: undefined}
+					onRestoreNote={staffNote ? (noteId) => restoreNote(entryId, noteId) : undefined}
 					onClose={closeEntry}
-				/>
+				>
+					{#snippet excusal()}
+						{@render excusalFor(
+							openCell.session_id,
+							openCell.student_id,
+							openStudent?.name ?? 'This student',
+							openSession?.session_label ?? 'this check-in',
+							openCell.excused
+						)}
+					{/snippet}
+					{#snippet adminMove()}
+						<!-- ADMIN ONLY. Rendered here rather than built inside the panel
+						     because it needs this console's check-in list and section list,
+						     which the panel does not load and should not. -->
+						{#if entryMove && sectionId}
+							<EntryMove
+								{entryId}
+								currentSessionId={entrySessionId}
+								currentSectionId={sectionId}
+								studentName={openStudent?.name ?? 'This student'}
+								{sessions}
+								{sections}
+								transports={entryMove}
+								onDone={() => {
+									// The entry may have left this section entirely, in which
+									// case its cell is gone and the panel has nothing to show.
+									// Closing first and re-reading second is what stops the
+									// panel describing a cell the grid no longer has.
+									closeEntry();
+									void refresh(sectionId, unit, { quiet: true });
+								}}
+							/>
+						{/if}
+					{/snippet}
+				</EntryReview>
 			{/key}
 		{:else if cursor}
 			<!-- THE CURSOR IS ON A CELL WITH NOTHING IN IT, which is a real answer
@@ -755,6 +965,19 @@
 						Nothing filed for this check-in.
 					{/if}
 				</p>
+				<!-- THE CELL WITH NOTHING IN IT IS THE COMMON CASE FOR THIS CONTROL.
+				     `cursorStudent` may have no uuid (0094's roster carries a student
+				     who has never signed in); CellExcusal says so rather than silently
+				     dropping the control. -->
+				{#if cursor && cursorSession}
+					{@render excusalFor(
+						cursor.sessionId,
+						cursorStudent?.id ?? null,
+						cursorStudent?.name ?? 'This student',
+						cursorSession.session_label,
+						cursorAt?.excused ?? false
+					)}
+				{/if}
 			</section>
 		{:else}
 			<section class="card empty-panel">
@@ -849,6 +1072,21 @@
 						onclick={() => (mode = 'grade')}>Grade unit</button
 					>
 				{/if}
+				<!-- ADMIN ONLY, and the ABSENCE of the transport is what withholds it,
+				     not a role check written here. The table's RLS policy is the
+				     boundary regardless: a non-admin who reached the mode would read an
+				     empty list, which is the /admin doctrine rather than an error. -->
+				{#if adminLog}
+					<button
+						type="button"
+						class="mode"
+						class:on={mode === 'log'}
+						aria-pressed={mode === 'log'}
+						data-testid="mode-log"
+						title="Who excused, moved or deleted what"
+						onclick={() => (mode = 'log')}>Admin log</button
+					>
+				{/if}
 			</div>
 
 			<div class="bar-status">
@@ -932,12 +1170,19 @@
 						onAddSections={addSessionSections}
 						onRemoveSection={removeSessionSection}
 						onSetGuidance={setSessionGuidance}
+						{itemLink}
+						itemLinks={sessionItemLinks}
+						itemCandidates={sessionItemCandidates}
 					/>
 				{/if}
 			</div>
 		{:else if mode === 'grade' && docCheck && section && unit !== null}
 			<div class="console-panel scrolls">
 				<DocumentationCheck {section} unitNumber={unit} {grid} transports={docCheck} />
+			</div>
+		{:else if mode === 'log' && adminLog}
+			<div class="console-panel scrolls">
+				<AdminLogPanel transports={adminLog} {viewerId} />
 			</div>
 		{/if}
 	{/if}

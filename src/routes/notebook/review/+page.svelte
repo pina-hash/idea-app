@@ -20,6 +20,18 @@
 		LinkableItem,
 		UnitItemLink
 	} from '$lib/notebook-documentation-check';
+	import type {
+		AdminLogRow,
+		AdminLogTransports,
+		EntryMoveResult,
+		EntryMoveTransports,
+		ExcusalRow,
+		ExcusalTransports,
+		LinkTargetItem,
+		SessionItemLink,
+		SessionItemTransports,
+		StaffNoteTransports
+	} from '$lib/notebook/admin-actions';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -491,6 +503,183 @@
 		}
 	};
 
+	/**
+	 * ---------------------------------------------------------------------
+	 * THE FIVE STAFF CAPABILITIES THAT HAD NO CALLER (0069-0120).
+	 *
+	 * Same doctrine as everything above: every call runs as the CALLER'S OWN
+	 * session through the browser client, so each function's own gate and each
+	 * table's own RLS is what decides the answer. Nothing here re-implements a
+	 * permission rule.
+	 *
+	 * WHAT THIS ROUTE DOES DECIDE is which bundles to hand in at all, and it
+	 * decides it from `data.isChair` -- which is `isAdmin()` resolved
+	 * server-side by `notebookAccess`, not `role === 'teacher'`. That is
+	 * PRESENTATION (CLAUDE.md's "hiding a control is presentation, the function
+	 * refusing is the boundary"): an admin-only bundle withheld from an
+	 * instructor means there is no write to execute, and the RPC would raise for
+	 * them anyway if a client sent one.
+	 *
+	 * THE SPLIT IS NOT UNIFORM, AND THAT IS THE POINT OF FIVE FIELDS RATHER THAN
+	 * ONE `isAdmin` FLAG:
+	 *
+	 *   excusals.load     INSTRUCTOR   0098's SELECT policy on the table
+	 *   excusals.set      ADMIN        notebook_admin_set_excusal: is_admin()
+	 *   entryMove         ADMIN        notebook_admin_override_entry: is_admin()
+	 *   adminLog          ADMIN        the table's own policy: is_admin()
+	 *   staffNote         INSTRUCTOR   classroom_manages_section OR
+	 *                                    notebook_manages_student
+	 *   itemLink          INSTRUCTOR   classroom_manages_section
+	 */
+	function adminFail(err: unknown, fallback: string): ReviewResult<never> {
+		const message = (err as { message?: string } | null)?.message?.trim();
+		return { ok: false, error: message || fallback };
+	}
+
+	/**
+	 * READING an excusal is the INSTRUCTOR tier and WRITING one is not, so the
+	 * two halves of this object are handed in on different conditions. `load` is
+	 * a plain RLS-scoped select rather than an RPC, because 0098's policy already
+	 * says exactly who may read a row: the subject, and any manager of a section
+	 * the check-in is posted to. No `.eq('student_id', ...)` filter -- the policy
+	 * IS the boundary (the /coin-balance doctrine).
+	 */
+	const excusalTransports: ExcusalTransports = {
+		async load(sessionIds) {
+			if (sessionIds.length === 0) return { ok: true, value: [] };
+			const { data: rows, error } = await data.supabase
+				.from('notebook_session_excusals')
+				.select('session_id, student_id, excused_at, excused_by, note')
+				.in('session_id', sessionIds);
+			if (error) return adminFail(error, 'Could not read the excusals for this section.');
+			return { ok: true, value: (rows ?? []) as unknown as ExcusalRow[] };
+		},
+		// ADMIN ONLY. Handed in below on `isChair` alone; the RPC raises
+		// "Only a site admin can excuse notebook sessions." regardless.
+		async set(input) {
+			const { data: result, error } = await data.supabase.rpc('notebook_admin_set_excusal', {
+				p_session_id: input.sessionId,
+				p_student_id: input.studentId,
+				p_excused: input.excused,
+				p_note: input.note
+			});
+			if (error) return adminFail(error, 'Could not record that excusal.');
+			return { ok: true, value: result as { excused: boolean } };
+		}
+	};
+
+	/**
+	 * FIVE OF THE NINE PARAMETERS, and the four that are missing are missing
+	 * deliberately -- see `EntryMoveInput` for why exposing the status, the flag
+	 * reason, the comment and the label here would be a second path to decisions
+	 * this console already has proper controls for.
+	 */
+	const entryMoveTransports: EntryMoveTransports = {
+		async move(input) {
+			const { data: result, error } = await data.supabase.rpc('notebook_admin_override_entry', {
+				p_entry_id: input.entryId,
+				p_set_session: input.setSession,
+				p_session_id: input.sessionId,
+				p_set_section: input.setSection,
+				p_section_id: input.sectionId
+			});
+			if (error) return adminFail(error, 'Could not move that entry.');
+			return { ok: true, value: result as EntryMoveResult };
+		}
+	};
+
+	/**
+	 * THE LOG IS A TABLE READ, NOT AN RPC, and its gate is the policy 0069 put on
+	 * it (`using (public.is_admin())`). So a non-admin who somehow reached this
+	 * transport gets an EMPTY LIST rather than an error -- the /admin doctrine,
+	 * where an empty RLS result is indistinguishable from the rows not existing.
+	 * The console is additionally handed no transport at all unless `isChair`.
+	 *
+	 * `created_at desc` is what `notebook_admin_log_created_idx` was built for.
+	 */
+	const adminLogTransports: AdminLogTransports = {
+		async load(limit) {
+			const { data: rows, error } = await data.supabase
+				.from('notebook_admin_log')
+				.select('id, actor_id, action, section_id, session_id, entry_id, student_id, details, created_at')
+				.order('created_at', { ascending: false })
+				.limit(limit);
+			if (error) return adminFail(error, 'Could not read the admin log.');
+			return { ok: true, value: (rows ?? []) as unknown as AdminLogRow[] };
+		}
+	};
+
+	/** The undo for the staff note delete this console has always offered. */
+	const staffNoteTransports: StaffNoteTransports = {
+		async restore(noteId) {
+			const { error } = await data.supabase.rpc('notebook_staff_restore_note', {
+				p_note_id: noteId
+			});
+			if (error) return adminFail(error, 'Could not restore that note.');
+			return { ok: true, value: undefined };
+		}
+	};
+
+	const itemLinkTransports: SessionItemTransports = {
+		async load(sectionId) {
+			// RLS-scoped: notebook_session_postings is readable by any signed-in
+			// user (0098), which is also why the grid is what gates section access.
+			const { data: rows, error } = await data.supabase
+				.from('notebook_session_postings')
+				.select('session_id, section_id, item_id')
+				.eq('section_id', sectionId);
+			if (error) return adminFail(error, 'Could not read the item links for this class.');
+			return { ok: true, value: (rows ?? []) as unknown as SessionItemLink[] };
+		},
+		async candidates(sectionId) {
+			// THE `!inner` EMBED IS THE "posted to this class" FILTER, which is
+			// exactly the condition notebook_link_session_item refuses on -- so the
+			// picker can never offer something the RPC would turn down. The same
+			// shape the Documentation Check's own candidate read uses, minus the
+			// `kind` filter: a check-in can hang off a material as readily as an
+			// assignment, and 0120 constrains it to neither.
+			const { data: rows, error } = await data.supabase
+				.from('classroom_items')
+				.select('id, title, classroom_postings!inner(section_id)')
+				.eq('classroom_postings.section_id', sectionId)
+				.order('title');
+			if (error) return adminFail(error, 'Could not read this class’s items.');
+			const value = ((rows ?? []) as unknown as Record<string, unknown>[]).map(
+				(row): LinkTargetItem => ({
+					id: String(row.id),
+					title: (row.title as string | null) ?? 'Untitled item'
+				})
+			);
+			return { ok: true, value };
+		},
+		async link(sessionId, sectionId, itemId) {
+			const { data: result, error } = await data.supabase.rpc('notebook_link_session_item', {
+				p_session_id: sessionId,
+				p_section_id: sectionId,
+				p_item_id: itemId
+			});
+			if (error) return adminFail(error, 'Could not attach that check-in.');
+			return { ok: true, value: result as { linked: number } };
+		},
+		async unlink(sessionId, sectionId) {
+			const { data: result, error } = await data.supabase.rpc('notebook_unlink_session_item', {
+				p_session_id: sessionId,
+				p_section_id: sectionId
+			});
+			if (error) return adminFail(error, 'Could not detach that check-in.');
+			return { ok: true, value: result as { cleared: number } };
+		}
+	};
+
+	/**
+	 * THE ADMIN HALF OF THE EXCUSAL BUNDLE, assembled here rather than inside
+	 * CellExcusal: the component asks whether it HAS a `set`, never who the
+	 * viewer is, so there is one statement of the rule and it is this line.
+	 */
+	const excusalsForViewer: ExcusalTransports = $derived(
+		data.isChair ? excusalTransports : { load: excusalTransports.load }
+	);
+
 	function docFail(err: unknown, fallback: string): DocCheckResult<never> {
 		const message = (err as { message?: string } | null)?.message?.trim();
 		return { ok: false, error: message || fallback };
@@ -504,4 +693,10 @@
 	initialSectionId={data.initialSectionId}
 	{transports}
 	docCheck={data.docCheckReady ? docCheckTransports : null}
+	excusals={excusalsForViewer}
+	entryMove={data.isChair ? entryMoveTransports : null}
+	adminLog={data.isChair ? adminLogTransports : null}
+	staffNote={staffNoteTransports}
+	itemLink={itemLinkTransports}
+	viewerId={data.viewerId}
 />

@@ -14,6 +14,31 @@
 	"entries": [
 		{
 			"date": "2026-08-27",
+			"title": "Being excused from a notebook check-in is now something your teacher can record",
+			"body": "If you miss a check-in for a reason your school has approved -- a field trip, an appointment, an absence that was cleared -- a site admin can now mark you excused for that day, with a short reason kept alongside it. An excused check-in stops counting against you: it does not show as missing, and it is not counted as one you still owe. Your teacher can see that you were excused and why, even though only a site admin can record or remove it. Nothing about the work changes -- if you did file an entry for that day it still counts as filed.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A check-in already on the calendar can be attached to the classwork it goes with",
+			"body": "A notebook check-in that was scheduled on its own can now be attached to the assignment or reference it belongs with, so the day's material and its notebook requirement show as one thing in your class stream instead of two separate rows. Before, that was only possible if the check-in was created from the item in the first place. The dates, the prompt and anything you have already filed are untouched either way.",
+			"tags": [
+				"Notebook",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A note your teacher removed can be put back",
+			"body": "You have always been able to restore a note you removed yourself. If your teacher removed one, the notebook told you to ask them to put it back -- but there was no way for them to actually do it. There is now. Ask your teacher and they can restore it from the same place they removed it.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-27",
 			"title": "Modules on an assignment can be closed once you're done",
 			"body": "Each module on an assignment can now be collapsed, not just its instructions. A module you have finished can be closed to a single line so you can focus on what's left; the title still shows how many parts are done. A module you're still working on stays open, and closing one never loses your work -- it's still there the moment you reopen it.",
 			"tags": [

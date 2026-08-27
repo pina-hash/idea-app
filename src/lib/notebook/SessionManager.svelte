@@ -1,6 +1,11 @@
 <script lang="ts">
 	import CheckInGuidance from '$lib/CheckInGuidance.svelte';
 	import { hasGuidance } from '$lib/check-in-guidance';
+	import type {
+		LinkTargetItem,
+		SessionItemLink,
+		SessionItemTransports
+	} from '$lib/notebook/admin-actions';
 	import type { TiptapNode } from '$lib/rich-text';
 	import {
 		sectionName,
@@ -41,7 +46,10 @@
 		onDelete,
 		onAddSections,
 		onRemoveSection,
-		onSetGuidance = null
+		onSetGuidance = null,
+		itemLink = null,
+		itemLinks = [],
+		itemCandidates = []
 	}: {
 		sectionId: string;
 		/** Every section the caller manages -- what a check-in may be posted to. */
@@ -68,6 +76,31 @@
 		onSetGuidance?:
 			| ((sessionId: string, doc: TiptapNode | null) => Promise<ReviewResult<{ cleared: boolean }>>)
 			| null;
+		/**
+		 * ATTACHING AN ALREADY-SCHEDULED CHECK-IN TO A CLASSWORK ITEM (0120,
+		 * `notebook_link_session_item` / `notebook_unlink_session_item`).
+		 *
+		 * THIS IS WHERE IT BELONGS BECAUSE THIS IS WHERE CHECK-INS ARE SCHEDULED.
+		 * 0120 gave a posting an `item_id` so the day's material and its notebook
+		 * requirement are one row in the class stream, and the only path to that
+		 * has been `notebook_create_item_check_in`, which MAKES a new check-in. So
+		 * a check-in already on the calendar could never be attached to the item it
+		 * belongs with -- the workaround is to delete it and recreate it from the
+		 * item, which detaches every entry already filed against it.
+		 *
+		 * INSTRUCTOR TIER, and it is worth saying because two of its neighbours in
+		 * the same audit are not: the RPC asks `classroom_manages_section`, the same
+		 * question `onAddSections` and `onSetGuidance` already ask. Nothing here is
+		 * admin-only.
+		 *
+		 * NULL REMOVES THE CONTROL, the way `onSetGuidance` does: a deployment
+		 * without 0120 has no column to write.
+		 */
+		itemLink?: SessionItemTransports | null;
+		/** Which check-ins in THIS section already point at an item. */
+		itemLinks?: SessionItemLink[];
+		/** Items posted to this section: what a check-in may be attached to. */
+		itemCandidates?: LinkTargetItem[];
 	} = $props();
 
 	const ordered = $derived(sessionsInOrder(sessions));
@@ -189,6 +222,86 @@
 				: 'Check-in added.'
 			: 'Check-in updated everywhere it runs.';
 		close();
+	}
+
+	// ---- attaching a check-in to a classwork item (0120) ---------------------
+
+	/**
+	 * Which session's ITEM panel is open. Its own state beside `managing` and
+	 * `guiding` for the same reason those two are separate from each other: they
+	 * answer different questions and opening one should not leave another hanging
+	 * open under it.
+	 */
+	let linking = $state<string | null>(null);
+	/** The picker's value while the panel is open. '' is "pick one". */
+	let linkChoice = $state('');
+	let linkBusy = $state(false);
+	let linkErr = $state<string | null>(null);
+	/** Two-step confirm on the DETACH, which changes where students look for it. */
+	let confirmUnlink = $state<string | null>(null);
+
+	/**
+	 * The item this check-in points at IN THE SECTION BEING VIEWED.
+	 *
+	 * Per POSTING, never per check-in: 0120 put `item_id` on
+	 * `notebook_session_postings`, so one canonical check-in can hang off a
+	 * material in period 2 and stand alone in period 5. Keying the lookup on the
+	 * pair is what keeps this row honest about the class it is being read in.
+	 */
+	function linkedItem(sessionId: string): LinkTargetItem | null {
+		const row = itemLinks.find((l) => l.session_id === sessionId && l.section_id === sectionId);
+		if (!row?.item_id) return null;
+		const found = itemCandidates.find((c) => c.id === row.item_id);
+		// A linked item that is not in `candidates` is a real state, not a bug: the
+		// item was unposted from this class after the link was made. Naming it as an
+		// unknown item is more honest than rendering "not linked", which is false.
+		return found ?? { id: row.item_id, title: 'An item no longer posted to this class' };
+	}
+
+	function openLink(session: GridSession) {
+		linking = linking === session.id ? null : session.id;
+		confirmUnlink = null;
+		linkErr = null;
+		linkChoice = linkedItem(session.id)?.id ?? '';
+	}
+
+	async function applyLink(sessionId: string) {
+		if (!itemLink || linkBusy || linkChoice === '') return;
+		linkBusy = true;
+		linkErr = null;
+		try {
+			const result = await itemLink.link(sessionId, sectionId, linkChoice);
+			if (!result.ok) {
+				linkErr = result.error;
+				return;
+			}
+			notice = 'Check-in attached. It now shows on that item in this class.';
+			linking = null;
+		} finally {
+			linkBusy = false;
+		}
+	}
+
+	async function applyUnlink(sessionId: string) {
+		if (!itemLink || linkBusy) return;
+		if (confirmUnlink !== sessionId) {
+			confirmUnlink = sessionId;
+			return;
+		}
+		linkBusy = true;
+		linkErr = null;
+		try {
+			const result = await itemLink.unlink(sessionId, sectionId);
+			if (!result.ok) {
+				linkErr = result.error;
+				return;
+			}
+			notice = 'Check-in detached. It is its own row in the class stream again.';
+			confirmUnlink = null;
+			linking = null;
+		} finally {
+			linkBusy = false;
+		}
 	}
 
 	function openManage(session: GridSession) {
@@ -351,6 +464,20 @@
 										Guidance{hasGuidance(session.guidance_doc) ? ' ✓' : ''}
 									</button>
 								{/if}
+								<!-- Same rule as Guidance beside it: no transport, no control.
+								     The check mark says the check-in is already attached, and
+								     the word carries the meaning on its own. -->
+								{#if itemLink}
+									<button
+										type="button"
+										class="btn secondary"
+										data-testid="session-item-open"
+										aria-expanded={linking === session.id}
+										onclick={() => openLink(session)}
+									>
+										Item{linkedItem(session.id) ? ' \u2713' : ''}
+									</button>
+								{/if}
 								<button type="button" class="btn secondary" onclick={() => openEdit(session)}>
 									Edit
 								</button>
@@ -399,6 +526,85 @@
 									Leave it empty to remove the prompt. Editing it changes what every class
 									this check-in runs in reads, including students who have already filed.
 								</p>
+							</div>
+						{/if}
+
+						<!--
+							ATTACHING THIS CHECK-IN TO A CLASSWORK ITEM (0120).
+
+							PER CLASS, unlike the guidance panel above it, and the sentence
+							says so: `item_id` is a column on the POSTING, so a check-in that
+							runs in three classes can hang off a material in one of them and
+							stand alone in the other two. Every call names the section being
+							viewed and never touches the others.
+
+							WHAT THE PICKER OFFERS IS WHAT THE RPC WILL ACCEPT. The candidates
+							are read as "items posted to this section", which is exactly the
+							condition `notebook_link_session_item` refuses on, so the list can
+							never contain something that would be turned down.
+						-->
+						{#if itemLink && linking === session.id}
+							{@const current = linkedItem(session.id)}
+							<div class="item-panel" data-testid="session-item-panel">
+								<h4>Attached item</h4>
+								{#if current}
+									<p class="note" data-testid="session-item-current">
+										This check-in shows on <strong>{current.title}</strong> in {nameOf(sectionId)}.
+									</p>
+								{:else}
+									<p class="note" data-testid="session-item-none">
+										This check-in stands on its own in the {nameOf(sectionId)} stream. Attaching it
+										to an item puts the day's material and its notebook requirement in one row.
+									</p>
+								{/if}
+
+								{#if itemCandidates.length === 0}
+									<!-- A CONTROL THAT IS ABSENT FOR A REASON SAYS THE REASON. -->
+									<p class="note" data-testid="session-item-empty">
+										Nothing is posted to this class yet, so there is no item to attach this to.
+									</p>
+								{:else}
+									<label class="field">
+										<span>Item in {nameOf(sectionId)}</span>
+										<select bind:value={linkChoice} data-testid="session-item-pick">
+											<option value="">Pick an item...</option>
+											{#each itemCandidates as c (c.id)}
+												<option value={c.id}>{c.title}</option>
+											{/each}
+										</select>
+									</label>
+									<div class="item-actions">
+										<button
+											type="button"
+											class="btn"
+											aria-disabled={linkChoice === '' || linkChoice === current?.id || linkBusy}
+											data-testid="session-item-apply"
+											onclick={() => applyLink(session.id)}
+										>
+											{linkBusy ? 'Working...' : current ? 'Attach to this instead' : 'Attach'}
+										</button>
+										{#if current}
+											<button
+												type="button"
+												class="btn secondary"
+												disabled={linkBusy}
+												data-testid="session-item-unlink"
+												onclick={() => applyUnlink(session.id)}
+											>
+												{confirmUnlink === session.id ? 'Yes, detach' : 'Detach'}
+											</button>
+										{/if}
+									</div>
+									{#if confirmUnlink === session.id}
+										<p class="confirm-hint" data-testid="session-item-unlink-confirm">
+											It goes back to being its own row in the stream. The check-in, its dates and
+											every entry filed against it are untouched.
+										</p>
+									{/if}
+								{/if}
+								{#if linkErr}
+									<p class="msg error" role="alert" data-testid="session-item-error">{linkErr}</p>
+								{/if}
 							</div>
 						{/if}
 
@@ -622,6 +828,7 @@
 		flex-wrap: wrap;
 	}
 	.guidance-panel,
+	.item-panel,
 	.posted-panel {
 		/* A row is a wrapping flex line; the panel is a block under it. */
 		width: 100%;
@@ -638,6 +845,7 @@
 		   blocks, not a list of rows like the posted panel's. */
 		gap: var(--space-3);
 	}
+	.item-panel h4,
 	.posted-panel h4 {
 		margin: 0;
 		font-size: 0.7rem;
@@ -740,9 +948,32 @@
 		font-family: inherit;
 		font-size: 0.95rem;
 	}
-	.field input:focus {
+	.field select {
+		width: 100%;
+		max-width: 100%;
+		min-height: 44px;
+		padding: 0 var(--space-2);
+		background: var(--surface-1);
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
+		font-family: inherit;
+		font-size: 0.95rem;
+	}
+	.field input:focus,
+	.field select:focus {
 		outline: none;
 		border-color: var(--nb-accent);
+	}
+	.item-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	.item-actions [aria-disabled='true'] {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 	.form-actions {
 		display: flex;

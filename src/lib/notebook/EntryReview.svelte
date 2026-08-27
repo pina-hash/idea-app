@@ -1,7 +1,7 @@
 <script lang="ts">
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
-	import { noteThreads } from '$lib/notebook-notes';
+	import { deletedNoteThreads, noteThreads } from '$lib/notebook-notes';
 	import {
 		entryTitle,
 		flagReasonLabel,
@@ -68,6 +68,9 @@
 		onUnaccept,
 		onDelete,
 		onDeleteNote,
+		onRestoreNote,
+		adminMove,
+		excusal,
 		onClose
 	}: {
 		entry: ReviewEntry;
@@ -121,6 +124,29 @@
 		 * same way `onDelete` is.
 		 */
 		onDeleteNote?: (noteId: string) => Promise<ReviewResult>;
+		/**
+		 * An instructor putting one BACK (0119, `notebook_staff_restore_note`) --
+		 * the half of `onDeleteNote` that was never wired. Same tier as the
+		 * delete (`classroom_manages_section` OR `notebook_manages_student`), so
+		 * the two arrive together, and handed straight to EntryNotes the same
+		 * way.
+		 */
+		onRestoreNote?: (noteId: string) => Promise<ReviewResult>;
+		/**
+		 * ADMIN ONLY (`notebook_admin_override_entry`). A snippet rather than a
+		 * transport because the control needs the console's own check-in list and
+		 * section list, which this panel has no business loading -- so the
+		 * console renders it and this decides WHERE it sits. Absent for a
+		 * non-admin, which removes it outright.
+		 */
+		adminMove?: import('svelte').Snippet;
+		/**
+		 * The excusal control for THIS cell, rendered by the console for the same
+		 * reason `adminMove` is. Present for every reviewer (an instructor reads
+		 * an excusal and cannot write one; see CellExcusal), absent only where
+		 * the deployment cannot answer at all.
+		 */
+		excusal?: import('svelte').Snippet;
 		onClose: () => void;
 	} = $props();
 
@@ -149,11 +175,26 @@
 	 * block and suppress the "no photos and no written notes" line on an entry
 	 * that genuinely has neither.
 	 *
-	 * The console never OFFERS to restore one: this is a read-only surface (see
-	 * `ReviewEntry`), and staff restore is its own RPC on the grid's own tools.
+	 * The console never offers to EDIT one -- `canEdit` is never set here and
+	 * 0078's `notebook_edit_note` refuses anyone but the owner -- but since
+	 * `onRestoreNote` it does offer to put a removed one back.
 	 */
 	const noteCount = $derived(noteThreads(entry.notes ?? []).length);
 	const pageCount = $derived(photoPages(entry.photos).length);
+	/**
+	 * Removed threads, counted the same way EntryNotes counts them so the two
+	 * cannot disagree about whether its disclosure has anything in it.
+	 *
+	 * IT IS WHY THE NOTES BLOCK CANNOT BE GATED ON `noteCount` ALONE ANY MORE.
+	 * That counts LIVE threads, so an instructor who deletes the only note on an
+	 * entry watches the whole block vanish -- taking the Restore with it, in
+	 * exactly the case it exists for. Gated on either count, the block stays and
+	 * the undo is reachable.
+	 */
+	const removedNoteCount = $derived(
+		onRestoreNote ? deletedNoteThreads(entry.notes ?? []).length : 0
+	);
+	const notesBlock = $derived(noteCount > 0 || removedNoteCount > 0);
 
 	/**
 	 * The notes disclosure opens itself on a NOTE-ONLY entry, and only there.
@@ -371,7 +412,7 @@
 		<p class="empty">This entry has no photos and no written notes.</p>
 	{/if}
 
-	{#if noteCount}
+	{#if notesBlock}
 		<section class="notes-block" data-testid="review-notes">
 			<button
 				type="button"
@@ -381,7 +422,9 @@
 				onclick={() => (notesOpen = !notesOpen)}
 			>
 				<span class="caret" aria-hidden="true">{notesOpen ? '▾' : '▸'}</span>
-				Written notes ({noteCount})
+				Written notes ({noteCount}){#if removedNoteCount}<span class="removed-count"
+						>, {removedNoteCount} removed</span
+					>{/if}
 			</button>
 			<div id="review-notes-body" hidden={!notesOpen}>
 				<!-- The student's own words, rendered by the SAME component their
@@ -391,6 +434,7 @@
 					notes={entry.notes}
 					compact
 					onStaffDelete={onDeleteNote}
+					onStaffRestore={onRestoreNote}
 					subjectName={student?.name}
 				/>
 			</div>
@@ -464,6 +508,25 @@
 			"awaiting review".
 		</p>
 	</div>
+
+	<!-- EXCUSING SITS WITH THE VERDICTS AND ABOVE THE DANGER ZONE. It is
+	     bookkeeping about ATTENDANCE rather than a judgement on the work, so it
+	     is not a fourth verdict; it is reversible by the same call that set it,
+	     so it is not a danger-zone action either. It renders on an entry that
+	     EXISTS because that pair is real and not a contradiction: a student
+	     excused from a check-in who filed one anyway has filed it, which is
+	     exactly what `checkInStatus` already decides (an entry beats an
+	     excusal), and somebody looking at this panel may still need to record
+	     or withdraw the excusal behind it. -->
+	{@render excusal?.()}
+
+	<!-- MOVING sits between the verdicts and the delete, which is where it
+	     belongs on both sides: it is more consequential than a flag and far less
+	     than a deletion, and it is the thing to reach for INSTEAD of deleting an
+	     entry that is merely in the wrong place. Rendered by the console rather
+	     than built here, so it can be handed the check-in and section lists this
+	     panel does not load; absent entirely for a non-admin. -->
+	{@render adminMove?.()}
 
 	{#if onDelete}
 		<div class="danger-zone" data-testid="entry-danger-zone">
@@ -754,6 +817,11 @@
 	   well: "flag this" and "delete this student's work outright" are never one
 	   click apart, and the destructive one is not even on screen until it is
 	   asked for. */
+	/* Part of the disclosure label, so a removed note is discoverable without
+	   opening the block -- the whole point of gating it on either count. */
+	.removed-count {
+		color: var(--text-3);
+	}
 	.danger-zone {
 		display: grid;
 		gap: var(--space-2);
