@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.7 - 2026-08-26**
+**Version 4.8 - 2026-08-26**
 
 ## These Instructions Evolve
 
@@ -875,6 +875,44 @@ costs nothing to keep.
 - **Branch names come from the tool.** Sessions produce `claude/<slug>-<hash>`. Do not
   fight it by insisting on `lane/<thing>`; the naming was never the control, the
   partition was.
+- **The branch a session pushes to is assigned by the harness, not chosen by the prompt,
+  and a resume does not return to the branch it resumes from.** Observed four times on
+  2026-08-26, every time on a prompt that opened "continue on branch X". The work was
+  correct in all four; the ref was new in all four. `claude/assignment-spec-table-indent-uhp2l6`
+  became `...-qbf5kl`. `claude/notebook-save-audit-24rn3g` became `...-mm80bj`.
+  `claude/manager-exclusion-roster-6cxcix` became `claude/manager-exclusion-roster-merge-8xelgo`.
+  One session additionally reported its named branch as absent from the remote when it was
+  present, and worked on its designated branch instead.
+
+  So a branch named in a prompt is naming **where to resume from**, never where the work
+  will land. Write it that way: tell the session to put its designated branch onto that
+  starting point and to report both the branch it is on and the sha it resumed from. Then
+  **the branch to merge is the one in the session's final report, never the one in the
+  prompt that started it.** Reading the prompt to decide what to merge is reading the
+  request rather than the result.
+- **Every resume leaves a decoy behind.** The old ref keeps its old tip, still shows ahead
+  of main, and looks exactly like live unmerged work. Two branches sat side by side for
+  hours on 2026-08-26, one superseded and one current, distinguishable only by knowing
+  which resume produced which. When a resume reports a new branch, say in the same turn
+  which older ref it supersedes and that the older one is now safe to delete. An
+  ahead-count is not evidence that a branch holds anything unique.
+- **A precondition must be a property of the artifact, not a value that moves while the
+  prompt sits unpasted.** `main` on this repo advances without a human: the app writes
+  classroom-export commits under `materials/`. So behind-count, CI status, and "updated N
+  minutes ago" are all races, and a session correctly halting on a false precondition then
+  halts on noise. Observed 2026-08-26: a prompt asserted a branch was 1 ahead and 0 behind,
+  and the session stopped because seven auto-export commits had landed in between. Ahead-count,
+  which files a commit touches, and what a version line says are properties of the branch and
+  are safe to assert. Behind-count is not. Where being behind matters, state the consequence
+  instead: proceed as long as the incoming commits do not touch the files this bundle owns.
+- **A merge is confirmed by reading the artifact on `main`, not by a merge report, a branch
+  page, or a green check.** Also observed 2026-08-26, and by the assistant rather than by a
+  session: a file was fetched, the old value was found, and Mr. Pina was told his work might
+  have been deleted. The merge had simply not happened yet at the moment of the read, and the
+  branch page saying "updated 5 minutes ago" was evidence about a page load rather than about
+  the present. Fetch the file, grep for the thing that changed, and quote it. This is the
+  bare-count rule from `IDEA_VERIFICATION_ADDENDA.md` pointed at merges: the check returns the
+  identity of what it examined, not a status about it.
 - **A file handed to a session lands under `/root/.claude/uploads/<uuid>/`, never at the
   repo root.** The filename is prefixed with a hash and may carry a `_1` suffix. A prompt
   saying "a file has been placed at the repo root" states a precondition that is always
@@ -1572,6 +1610,14 @@ component or token exists, the digest governs and the standard is corrected.
 
 ## Changelog
 
+- **2026-08-26g** - Four rules on branch identity, after a night in which the same
+  confusion recurred in four different shapes. A resume never returns to the branch it
+  resumes from, so a prompt names where to start and the final report names what to merge;
+  every resume leaves a superseded ref that is indistinguishable from live work; a
+  behind-count is a race rather than a property and must not be written as a precondition on
+  a repo whose `main` advances without a human; and a merge is confirmed by reading the file
+  on `main` rather than by any report about it, after the assistant told Mr. Pina work might
+  have been lost on the strength of a read taken before he clicked the button.
 - **2026-08-26f** - Two rules from the end of the same long session. The register is not
   the directory: a sweep built from `REGISTER.md` cannot see an unregistered file, which
   hid `IDEA_MATERIALS_PROCESS` 2.6 and `IDEA_REFERENCE_LIBRARY` 4.2 next to their own stale
