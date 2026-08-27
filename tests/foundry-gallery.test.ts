@@ -2,11 +2,14 @@
 //
 // FOUR THINGS ABOUT THE FOUNDRY READING SURFACES WHOSE REGRESSION IS SILENT.
 //
-// 1. THE SANDBOX. `allow-scripts` and `allow-same-origin` together cancel the
-//    sandbox outright -- a frame given both can reach its own origin, strip the
-//    attribute off itself in the parent document and reload unsandboxed. A
-//    bundle framed that way looks EXACTLY the same on screen. There is nothing
-//    to see, which is the whole argument for pinning it here.
+// 1. THE SANDBOX. `allow-scripts` and `allow-same-origin` together let a frame
+//    reach into the PARENT document, strip the attribute off its own <iframe>
+//    and reload unsandboxed -- but only when the child is same-origin with that
+//    parent, which is why the flags are a function of the two origins rather
+//    than a constant. Every case here looks EXACTLY the same on screen: a frame
+//    that granted the flag when it should not have, and one that withheld it
+//    when it should not have, both render the app. There is nothing to see,
+//    which is the whole argument for pinning it here.
 //
 // 2. THE NULL CLASS. `owner_class` is legitimately null (0132) and must render
 //    as nothing at all. The failure is a card reading "Ana Reyes ·", or a bare
@@ -38,6 +41,7 @@ import FoundryDetail from '$lib/foundry/FoundryDetail.svelte';
 import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 import AppFrame from '$lib/foundry/AppFrame.svelte';
 import { queueOrder, reviewBlockedBecause, reviewCanSend, buildFileTree } from '$lib/foundry/review';
+import { foundryBundleCsp } from '$lib/foundry/bundle-headers';
 
 /*
  * `AppStage` READS THE APPS ORIGIN FROM THE ENVIRONMENT AND RENDERS NO LAUNCH
@@ -150,37 +154,127 @@ function galleryHtml(over: { selected?: FoundryApp | null } = {}) {
 /* ------------------------------------------------------------ 1. sandbox */
 
 describe('the frame cancels nothing', () => {
-	const FRAME = render(AppFrame, {
-		props: {
-			src: 'https://apps.ideabosco.com/b/a/v-1/',
-			title: 'Tide Clock'
-		}
-	}).body;
+	const APPS = 'https://apps.ideabosco.com';
+	const PORTAL = 'https://ideabosco.com';
+	const SRC = `${APPS}/b/a/v-1/`;
 
-	it('grants scripts, modals and pointer lock and NOTHING else', () => {
-		// The expected list is written here, in the test, rather than read out of
-		// the component -- a check derived from the implementation's own string
-		// cannot fail.
-		const match = /sandbox="([^"]*)"/.exec(FRAME);
+	/**
+	 * THE EXPECTED FLAGS ARE WRITTEN OUT HERE, IN THE TEST, rather than read
+	 * out of the component or the shared module -- a check derived from the
+	 * implementation's own string cannot fail. Adding a flag to the shipped set
+	 * is meant to redden this, so that granting one is a decision written down
+	 * twice.
+	 */
+	const STRICT = [
+		'allow-downloads',
+		'allow-forms',
+		'allow-modals',
+		'allow-orientation-lock',
+		'allow-pointer-lock',
+		'allow-popups',
+		'allow-scripts'
+	];
+	const CROSS = [...STRICT, 'allow-same-origin'].sort();
+
+	/** Render the REAL component with a chosen portal origin in the environment. */
+	function frameWith(portalOrigin: string | null): string {
+		const before = process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		if (portalOrigin === null) delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		else process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = portalOrigin;
+		try {
+			return render(AppFrame, { props: { src: SRC, title: 'Tide Clock' } }).body;
+		} finally {
+			if (before === undefined) delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+			else process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = before;
+		}
+	}
+
+	function sandboxOf(html: string): string[] {
+		const match = /sandbox="([^"]*)"/.exec(html);
 		expect(match, 'the frame carries no sandbox attribute at all').not.toBeNull();
-		const granted = match![1].split(/\s+/).filter(Boolean).sort();
-		expect(granted).toEqual(['allow-modals', 'allow-pointer-lock', 'allow-scripts']);
+		return match![1].split(/\s+/).filter(Boolean).sort();
+	}
+
+	it('grants scripts, modals, pointer lock, forms, downloads, popups and orientation lock', () => {
+		expect(sandboxOf(frameWith(null))).toEqual(STRICT);
 	});
 
-	it('never grants allow-same-origin, in the markup or anywhere in $lib/foundry', () => {
-		expect(FRAME).not.toContain('allow-same-origin');
+	/**
+	 * THE PAIR. A frame whose bundle origin differs from the origin framing it
+	 * gets `allow-same-origin`, because the escape needs same-origin access to
+	 * the parent and there is none. A frame on the SAME origin as the portal --
+	 * which is what a deployment with no apps origin configured produces -- does
+	 * not, and neither does one that cannot tell.
+	 *
+	 * ONE DIRECTION ALONE IS NOT A TEST. Asserting only the absence passes on a
+	 * component that never grants the flag (which is what shipped before, so the
+	 * change would be untested); asserting only the presence passes on one that
+	 * always grants it, which is the actual hazard.
+	 */
+	it('grants allow-same-origin only when the bundle and portal origins differ', () => {
+		// POSITIVE: production's arrangement, two real and different origins.
+		expect(sandboxOf(frameWith(PORTAL))).toEqual(CROSS);
 
-		// AND THERE IS ONE COPY OF THE FLAGS. A second frame written elsewhere
-		// would look identical and isolate nothing, so the sweep is over every
-		// Foundry module rather than over this one's output.
+		// NEGATIVE: the same origin, a portal origin that is not configured, and
+		// an empty one. Each must fall back to the strict set.
+		expect(sandboxOf(frameWith(APPS)), 'same origin').toEqual(STRICT);
+		expect(sandboxOf(frameWith(null)), 'unset').toEqual(STRICT);
+		expect(sandboxOf(frameWith('')), 'empty').toEqual(STRICT);
+	});
+
+	/**
+	 * AN UNPARSEABLE `src` FAILS CLOSED. A relative or malformed URL yields no
+	 * origin, and no origin must never be read as "different from the portal".
+	 */
+	it('withholds the flag when the src has no origin to compare', () => {
+		const before = process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = PORTAL;
+		try {
+			for (const src of ['/b/a/v-1/', '', 'not a url']) {
+				const html = render(AppFrame, { props: { src, title: 'x' } }).body;
+				expect(sandboxOf(html), src).toEqual(STRICT);
+			}
+		} finally {
+			if (before === undefined) delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+			else process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = before;
+		}
+	});
+
+	/**
+	 * THE ATTRIBUTE AND THE DIRECTIVE ARE ONE STRING, WHICH IS THE HALF THAT
+	 * CANNOT BE READ OFF THE SOURCE.
+	 *
+	 * `tests/foundry-bundle-url.test.ts` asserts the frame REACHES the shared
+	 * function; this compares the string the real component actually rendered
+	 * against the `sandbox` directive the real policy actually emits, for the
+	 * same two origins. It is what catches the two callers being handed
+	 * different arguments -- which is the only way one function can still
+	 * produce two answers.
+	 */
+	it('renders exactly the sandbox directive the CSP sends, in both cases', () => {
+		for (const portal of [PORTAL, APPS, '']) {
+			const directive = foundryBundleCsp(APPS, portal)
+				.split('; ')
+				.find((d) => d.startsWith('sandbox '))!
+				.slice('sandbox '.length);
+			expect(sandboxOf(frameWith(portal)), portal || '(empty)').toEqual(
+				directive.split(/\s+/).filter(Boolean).sort()
+			);
+		}
+	});
+
+	it('writes the flags down in exactly one place', () => {
+		// A second frame written elsewhere would look identical and isolate
+		// nothing, so the sweep is over every Foundry module rather than over
+		// this one's output.
 		//
-		// IT COUNTS DECLARATIONS, NOT ATTRIBUTES, AND THAT IS THE GENERALIZATION.
-		// The flags used to be a literal in AppFrame's markup, so counting
-		// `sandbox="` was the same question; they live in `bundle-headers.ts` now
-		// because the SERVING side has to send the identical set as a CSP
-		// `sandbox` directive, and a `sandbox="allow-..."` count answers zero on
-		// a tree that is correct. What has to stay true either way is that the
-		// grant is written down ONCE.
+		// IT COUNTS DECLARATIONS, NOT ATTRIBUTES, AND THAT IS THE
+		// GENERALIZATION. The flags used to be a literal in AppFrame's markup, so
+		// counting `sandbox="` was the same question; they live in
+		// `bundle-headers.ts` now because the SERVING side has to send the
+		// identical set as a CSP `sandbox` directive, and a `sandbox="allow-..."`
+		// count answers zero on a tree that is correct. What has to stay true
+		// either way is that the grant is written down ONCE.
 		const FILES = [
 			'src/lib/foundry/bundle-headers.ts',
 			'src/lib/foundry/AppFrame.svelte',
@@ -193,19 +287,22 @@ describe('the frame cancels nothing', () => {
 		let declarations = 0;
 		for (const file of FILES) {
 			const src = readFileSync(file, 'utf8');
-			// The word appears in the comments explaining why it is refused, so
-			// the sweep looks for it being GRANTED beside another allow- flag.
-			expect(src, `${file} grants allow-same-origin`).not.toMatch(
-				/allow-scripts[^'"`\n]*allow-same-origin|allow-same-origin[^'"`\n]*allow-scripts/
-			);
+			// NO COMPONENT SPELLS AN ATTRIBUTE OUT. The flags are a function of
+			// two origins now, so a hardcoded `sandbox="allow-..."` anywhere is
+			// by construction a set that ignores them.
+			expect(src, `${file} hardcodes a sandbox attribute`).not.toMatch(/sandbox="allow-/);
 			if (/allow-scripts allow-modals/.test(src)) declarations += 1;
 		}
 		// POSITIVE CONTROL: exactly one file states the grant at all. Zero would
 		// mean the sweep is looking at the wrong thing; two is the defect.
 		expect(declarations, 'the sandbox flags are written in more than one place').toBe(1);
-		// And the one that states them is the shared constant, not a component.
+		// And the one that states them is the shared module, not a component.
+		expect(readFileSync('src/lib/foundry/bundle-headers.ts', 'utf8')).toMatch(
+			/allow-scripts allow-modals/
+		);
+		// The component computes its attribute rather than carrying one.
 		expect(readFileSync('src/lib/foundry/AppFrame.svelte', 'utf8')).toContain(
-			'sandbox={FOUNDRY_SANDBOX_FLAGS}'
+			'sandbox={sandboxFlags}'
 		);
 	});
 
@@ -217,7 +314,7 @@ describe('the frame cancels nothing', () => {
 		expect(html.split('<iframe').length - 1).toBe(0);
 		// POSITIVE CONTROL: the frame component really does emit an <iframe>, so
 		// the zero above is about the stage and not about a broken assertion.
-		expect(FRAME.split('<iframe').length - 1).toBe(1);
+		expect(frameWith(null).split('<iframe').length - 1).toBe(1);
 	});
 
 	/**

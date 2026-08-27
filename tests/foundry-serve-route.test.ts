@@ -98,10 +98,57 @@ describe('the entry document is served as HTML with our own policy', () => {
 			'content-security-policy'
 		)!;
 		expect(csp).toContain('sandbox allow-scripts allow-modals allow-pointer-lock');
-		expect(csp).not.toContain('allow-same-origin');
 		expect(csp).not.toContain("'self'");
 		expect(csp).toContain(`default-src ${APPS}`);
 		expect(csp).toMatch(/script-src [^;]*'unsafe-inline'/);
+	});
+
+	/**
+	 * THE ROUTE HAS TO WIRE THE REAL PORTAL ORIGIN THROUGH, and that is a
+	 * separate claim from the flags being right.
+	 *
+	 * `foundrySandboxFlags` grants `allow-same-origin` only when the bundle
+	 * origin and the portal origin differ, and its unit coverage lives in
+	 * `tests/foundry-bundle-url.test.ts`. What THIS file is for is the wiring:
+	 * a route that passed a constant, or the wrong variable, or nothing at all,
+	 * would answer the strict set forever and look exactly like a correct one --
+	 * the whole `<base>`/localStorage fix would be silently absent in
+	 * production.
+	 *
+	 * BOTH DIRECTIONS, DRIVEN THROUGH THE REAL HANDLER. The rest of this file
+	 * deliberately runs with no portal origin configured, so the default case
+	 * already covers the absence; this sets one and asserts the response
+	 * changes.
+	 */
+	it('grants allow-same-origin only once a portal origin is configured', async () => {
+		// NEGATIVE: as the rest of the file runs -- nothing configured, so the
+		// route cannot prove the two origins differ.
+		const bare = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
+			'content-security-policy'
+		)!;
+		expect(bare).not.toContain('allow-same-origin');
+		expect(bare).not.toContain('frame-ancestors');
+
+		process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = 'https://ideabosco.com';
+		try {
+			// POSITIVE: a different portal origin, which is production.
+			const cross = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
+				'content-security-policy'
+			)!;
+			expect(cross).toContain('allow-same-origin');
+			expect(cross).toContain('frame-ancestors https://ideabosco.com');
+
+			// NEGATIVE AGAIN: pointed at the SAME host the bundles come off,
+			// which is the misconfiguration the escape is actually reachable in.
+			process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN = APPS;
+			const same = (await call(FIXTURE_APP_TYPES, FIXTURE_VERSION_TYPES, '')).headers.get(
+				'content-security-policy'
+			)!;
+			expect(same).not.toContain('allow-same-origin');
+			expect(same).toContain(`frame-ancestors ${APPS}`);
+		} finally {
+			delete process.env.PUBLIC_FOUNDRY_PORTAL_ORIGIN;
+		}
 	});
 
 	it('marks the response nosniff, no-referrer, private and noindex', async () => {
