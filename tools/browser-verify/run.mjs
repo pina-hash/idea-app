@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { launch, openPage, settle, waitForApp, clickUntil } from './browser.mjs';
 import { startDevServer } from './server.mjs';
-import { horizontalScroll, contrast, tapTargets, presence, consoleErrors } from './checks.mjs';
+import { horizontalScroll, contrast, tapTargets, presence, domOrder, consoleErrors } from './checks.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
 import { WIDTHS, selectRoutes, urlFor } from './routes.mjs';
@@ -156,6 +156,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const c of spec.contrast ?? []) results.push(await contrast(page, { ...c, all: true }));
 		for (const t of spec.tapTargets ?? []) results.push(await tapTargets(page, t));
 		for (const p of spec.presence ?? []) results.push(await presence(page, p));
+		for (const o of spec.domOrder ?? []) results.push(await domOrder(page, o));
 		results.push(consoleErrors(errs, { ignore: spec.ignoreConsole ?? [], blockedCount: blockedExternal.length }));
 	} finally {
 		await context.close();
