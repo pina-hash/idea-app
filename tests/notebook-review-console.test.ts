@@ -406,9 +406,71 @@ describe('the reviewed dimension', () => {
 describe('the grid is still the grid', () => {
 	const gridSrc = () => read('src/lib/notebook/SectionGrid.svelte');
 
-	it('keeps the six glyphs, in order, and adds no seventh', () => {
-		expect(CELL_STATES.map((s) => s.glyph)).toEqual(['✓', '⤴', '○', '!', 'E', '–']);
-		expect(CELL_STATES).toHaveLength(6);
+	/**
+	 * THE ORIGINAL SIX ARE THE LOCKED PART, AND THIS USED TO SAY "AND ADDS NO
+	 * SEVENTH".
+	 *
+	 * It pinned the whole array and its length, which made it the assertion a
+	 * legitimate change necessarily breaks -- 0140 adds `scheduled`, which is a
+	 * state of the CELL that had no way to be said before, and the choice a test
+	 * like that offers is "delete me or don't ship it". So it is generalized to
+	 * the RULE the contract is actually about, in three parts:
+	 *
+	 *   1. THE SIX DO NOT MOVE. Their glyphs, their keys and their ORDER are
+	 *      pinned exactly as before, as the PREFIX of the array -- an instructor
+	 *      reads this grid by glyph, and a ✓ that became something else, or a
+	 *      legend that reordered itself, is the regression this line exists for.
+	 *   2. ANYTHING NEW IS APPENDED, never interleaved.
+	 *   3. NO TWO STATES SHARE A GLYPH OR A KEY, and every state carries a word
+	 *      as well as a mark -- which is the property that makes the grid
+	 *      readable without colour, and the one a seventh state is most likely
+	 *      to break by accident.
+	 *
+	 * The seventh is then named explicitly, so adding an EIGHTH is still a
+	 * deliberate edit to this file rather than something that slips through.
+	 */
+	it('keeps the original six glyphs, in order, as the head of the list', () => {
+		const SIX = ['✓', '⤴', '○', '!', 'E', '–'];
+		const SIX_KEYS = ['on_time', 'late', 'pending_review', 'flagged', 'excused', 'missing'];
+		expect(CELL_STATES.slice(0, 6).map((s) => s.glyph)).toEqual(SIX);
+		expect(CELL_STATES.slice(0, 6).map((s) => s.key)).toEqual(SIX_KEYS);
+	});
+
+	it('appends the seventh (0140) and nothing else', () => {
+		expect(CELL_STATES).toHaveLength(7);
+		expect(CELL_STATES[6].key).toBe('scheduled');
+		expect(CELL_STATES[6].glyph).toBe('»');
+	});
+
+	it('gives every state a unique glyph, a unique key and a word of its own', () => {
+		expect(new Set(CELL_STATES.map((s) => s.glyph)).size).toBe(CELL_STATES.length);
+		expect(new Set(CELL_STATES.map((s) => s.key)).size).toBe(CELL_STATES.length);
+		for (const state of CELL_STATES) {
+			expect(state.label.trim(), `${state.key} has no label`).not.toBe('');
+			expect(state.hint.trim(), `${state.key} has no hint`).not.toBe('');
+		}
+	});
+
+	it('paints every state per plate, through a --nb-cell-* token', () => {
+		// THE OTHER HALF OF THE CONTRACT, and the half a seventh state is most
+		// likely to miss: a state with a class but no rule renders as an unstyled
+		// box on all three plates and nothing reports it. Asserted against the
+		// component's own rules and against the token file, so a state added to
+		// the registry without a colour reddens here rather than on screen.
+		const src = gridSrc();
+		const colors = read('src/lib/design-system/colors.css');
+		for (const state of CELL_STATES) {
+			expect(src, `${state.key} has no cell rule`).toContain(`.cell.${state.key} {`);
+			const rule = src.slice(src.indexOf(`.cell.${state.key} {`));
+			const body = rule.slice(0, rule.indexOf('}'));
+			const token = (body.match(/var\((--nb-cell-[a-z-]+)\)/) ?? [])[1];
+			expect(token, `${state.key} paints with no --nb-cell-* token`).toBeTruthy();
+			// Declared on the light plate (:root) and on BOTH dark plates.
+			expect(
+				colors.split(`${token}:`).length - 1,
+				`${token} is not declared on all three plates`
+			).toBe(3);
+		}
 	});
 
 	it('keeps the cell box, the density and Share Tech Mono', () => {

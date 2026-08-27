@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-27",
+			"title": "A notebook check-in set for a later day no longer counts against you early",
+			"body": "If your teacher lays out the whole unit's notebook check-ins at once, the ones dated for a day that has not happened yet used to show up on their screen as though you had missed them, and the presence mark the notebook works out for your Documentation Check was calculated out of days you had not been asked about. Now a check-in dated ahead of today is marked as scheduled instead: it still shows in the list so everyone can see what is coming, and it counts for nothing until the day arrives. A check-in dated for today is due today, exactly as before, and one you missed still shows as missed. If you file a page early for a day that has not come yet, it counts straight away.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-27",
 			"title": "Teachers can drag posts into a new order and act on several at once",
 			"body": "Your teacher can now drag an announcement, assignment, or material to a new spot in the list, instead of only moving items one step at a time. They can also select several items and publish, file them into a unit, or delete them all together. This changes how your teacher organizes the class, not what you're able to do -- you may just notice things moving to a new order or a different unit.",
 			"tags": [

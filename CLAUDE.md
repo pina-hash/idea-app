@@ -1880,26 +1880,53 @@ inside the function fails closed rather than falling through to a weaker path.
 - **`min-width: 0` on grid/flex children.** An item's automatic minimum is its
   min-content, so a `nowrap` row forces the whole page wider than the viewport.
   `overflow: hidden` and an ellipsis do NOT reduce min-content.
-- **The notebook review grid's density, its six status glyphs (checkmark,
-  up-arrow, circle, bang, E, dash), Share Tech Mono and the 1.9rem cell box are a
-  LOCKED CONTRACT.** Verify byte-identical after any restyle. Do not put words in
-  a cell to satisfy a label audit -- the always-visible legend and the hint above
-  the grid carry the meaning.
-  - **A NEW DIMENSION GETS ITS OWN MARK, never a seventh glyph or a seventh hue.**
-    What a cell says about the WORK and whether anybody has SEEN it are different
-    questions; acknowledgement (0121) is a dot in its own corner, the way the
-    multi-entry count already was, and carries its word in the cell's title, its
-    screen-reader line and the legend.
-  - **The six status COLOURS are per-palette (`--nb-cell-*`), and used not to be.**
+- **The notebook review grid's density, its status glyphs (checkmark, up-arrow,
+  circle, bang, E, dash, and since 0140 the guillemet), Share Tech Mono and the
+  1.9rem cell box are a LOCKED CONTRACT.** Verify byte-identical after any
+  restyle. Do not put words in a cell to satisfy a label audit -- the
+  always-visible legend and the hint above the grid carry the meaning.
+  - **A NEW DIMENSION GETS ITS OWN MARK, NEVER A NEW GLYPH OR A NEW HUE. A NEW
+    VALUE OF THE EXISTING DIMENSION GETS BOTH.** This rule used to read "never a
+    seventh glyph or a seventh hue" flatly, and 0140 is what showed the sentence
+    was one word short: it is about what QUESTION a mark answers, not about the
+    number six. Acknowledgement (0121) asks whether anybody has SEEN the work,
+    which is a different question from what the cell says about the work, so it
+    is a dot in its own corner the way the multi-entry count already was.
+    `scheduled` (0140) is the SAME question with an answer the vocabulary could
+    not previously give -- a check-in dated ahead of today, which fell through to
+    `missing` and counted against a class for work that was not due -- so it takes
+    a glyph, a hue and a per-plate token like every other answer to that question.
+    **A value added this way arrives with all of it or not at all:** a key, a
+    label, a hint, a glyph no other state uses, a fill STYLE no other state uses
+    (solid-with-a-pinned-fill, dashed, dotted), a `--nb-cell-*` token declared on
+    all three plates, and a MEASURED contrast figure for each of them.
+    `tests/notebook-review-console.test.ts` pins the original six as the head of
+    the list, in order, and asserts the whole set for uniqueness and for a token
+    on every plate -- the generalization of an assertion that used to spell out
+    the array and could only be deleted.
+  - **The status COLOURS are per-palette (`--nb-cell-*`), and used not to be.**
     They were the portal's own tokens on the grounds that no scoped palette should
     reach them. Measured on the three notebook plates, that rule was costing the
     thing it protected: twelve of eighteen plate-state combinations sat below
     4.5:1 and on the LIGHT plate all six did, five of them below 3:1. What is
     fixed is each state's HUE IDENTITY -- green on time, amber late, cyan awaiting,
-    crimson flagged, ice excused, sage missing -- and only lightness moves per
-    plate. **The FILL is a pinned colour, never a `color-mix` of the ink:** a fill
-    derived from the ink moves whenever the ink does and hands most of the
-    contrast straight back (measured, 4.79 vs 3.84).
+    crimson flagged, ice excused, sage missing, violet scheduled -- and only
+    lightness moves per plate. **The FILL is a pinned colour, never a `color-mix`
+    of the ink:** a fill derived from the ink moves whenever the ink does and hands
+    most of the contrast straight back (measured, 4.79 vs 3.84).
+  - **A CHECK-IN DATED IN THE FUTURE IS NOT OUTSTANDING, ON EITHER SIDE, AND THE
+    TWO SIDES ARE FIXED DIFFERENTLY ON PURPOSE.** The STUDENT's class page bounds
+    its read to today or earlier, so a future check-in is not on the page at all;
+    the TEACHER's grid keeps it and gives it a status, because a teacher schedules
+    ahead and needs to see what they scheduled. Do not "make them consistent" by
+    bounding the grid's read -- that hides a teacher's own work from them. The
+    day is the **America/Los_Angeles** calendar day on both sides, which is the
+    calendar `session_date` is adjudicated in; UTC runs seven or eight hours ahead
+    and reproduces a smaller copy of the same bug every evening, which is when a
+    teacher lays out the next day. **`scheduled` is held out of `outstanding` by a
+    WHITELIST sum and out of a student's `total` by the cell's own status** -- so
+    a state that should count has to be added deliberately, and a scheduled day
+    still counts for a student who filed against it early.
 
 ### Interface standards
 
