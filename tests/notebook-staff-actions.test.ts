@@ -33,6 +33,7 @@
 // "there is a row with action X" would pass on a row an earlier `it` left
 // behind.
 
+import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	createClassroomSection,
@@ -124,8 +125,15 @@ async function rpc<T = Record<string, unknown>>(
 	return rows[0].result;
 }
 
-/** Runs a plain SELECT as `authenticated`, so RLS is what filters it. */
-async function selectAs<T extends Record<string, unknown>>(
+/**
+ * Runs a plain SELECT as `authenticated`, so RLS is what filters it.
+ *
+ * The constraint mirrors `QueryFn`'s own (`pg.QueryResultRow`) rather than
+ * `Record<string, unknown>`: an interface gets no implicit index signature, so
+ * the tighter constraint refuses every named row type this file has -- which is
+ * all of them.
+ */
+async function selectAs<T extends pg.QueryResultRow>(
 	user: SeededUser,
 	sql: string,
 	params: unknown[] = []
