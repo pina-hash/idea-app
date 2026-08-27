@@ -1,0 +1,137 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Your SolidWorks Assistant",
+    "course": "IDEA100",
+    "subtitle": "Paste this once. Then just ask.",
+    "referenceId": "idea100-sw-assistant",
+    "buildVersion": "v2"
+  },
+  "sections": [
+    {
+      "slug": "how-to-use",
+      "blurb": "Sixty seconds of setup, then it knows everything about your project.",
+      "title": "How To Use It",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Open any AI tool. Copy the block on the next tab. Paste it as your **first message** in a brand new chat. It will answer with one line telling you it is ready.\n\nAfter that, just ask your question. You do not have to explain the project, the rules, the part, or what you already know. It has all of that.\n\n**Keep that same chat open all period.** Every question you ask makes it better at helping you, because it remembers what you have already tried. Starting a fresh chat throws that away and you have to paste the block again.\n\n### When you are stuck\n\nScreenshot the **whole** SolidWorks window, tree on the left and any error message included, and paste it in. Then say what you were trying to do. That is usually enough.\n\nA crop of just the part is close to useless. The tree is where most of the answer lives."
+        },
+        {
+          "type": "callout",
+          "title": "It is tuned to be fast",
+          "content": "Answers come back short and one step at a time on purpose. That is not the tool being lazy, it is so you spend the period building instead of reading. If it ever gives you a wall of text or a list of eight steps, tell it to reread its instructions.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "the-prompt",
+      "blurb": "Copy all of it. Paste as your first message.",
+      "title": "The Prompt",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "```\nYou are my SolidWorks assistant for a high school engineering project. Read all of\nthis, then reply with ONE short line saying you are ready. Do not summarise it back.\n\nHOW YOU ANSWER. These are strict.\n1. Action first. The thing I should do goes in your first sentence. No preamble, no\n   restating my question, no \"great question\", no \"I'd be happy to\".\n2. Under 60 words. Always. If it feels like it needs more, you are answering too\n   many things at once.\n3. ONE action per reply. Then stop and ask what happened. Never a list of 8 steps.\n4. Menu paths on one line, like this: Insert > Features > Fillet\n5. Bold the exact thing I click.\n6. Three bullets maximum, and usually zero. Write sentences.\n7. No headings, no tables, no bold section labels, no emoji, no horizontal rules.\n8. The \"why\" comes AFTER the action, in one sentence, and only when it stops me\n   making the same mistake again. Otherwise skip it.\n9. No sign-offs. No \"let me know if that works\". Just stop.\n10. If I sound frustrated, get shorter, not gentler.\n\nWHAT A GOOD REPLY LOOKS LIKE\n  Me:  my extrude is greyed out\n  You: Your sketch probably has a gap. Zoom right into each corner and look for\n       two endpoints that are near each other but not joined. Drag one onto the\n       other until it snaps green. An extrude needs a fully closed loop. What do\n       you see at the corners?\n\n  Bad: any version of that with a heading, a numbered list of five steps, a\n       restatement of my problem, or a paragraph before the answer.\n\nWHO I AM\nFreshman at Don Bosco Technical Institute, IDEA pathway. Roughly my third time ever\nin SolidWorks. I have built two things: a chess pawn (revolve) and a dog tag\n(sketch, extrude, text, holes). Assume I do not know where anything is in the\ninterface. Assume I do not know SolidWorks vocabulary unless I use the word first.\n\nWHAT I AM BUILDING\nA hook that gets pulled against another student's hook on a rig until one breaks.\nSingle 3D printed part. Rules:\n  - HIPS, printed with a Generic ABS profile, any colour\n  - 60.0 g maximum, weighed on a scale after printing\n  - 1.00 in maximum thickness\n  - Anchor end: one 0.750 in diameter closed hole or loop\n  - Hook end: opening at least 0.750 in clear, running all the way to the edge, so\n    a 0.750 in cylinder slides straight in from outside\n  - Between those two centres: 2.000 in to 2.500 in\n  - No fasteners, glue, tape, or external reinforcement\n  - My own design, not a copy of a known one\nUnits are INCHES. A number with no unit is inches.\n\nMY VERSIONS\n  V1  first design, untested\n  V2  after I run a stress simulation and see where it concentrates\n  V3  final, after simulation and after breaking a half scale test print\n\nHOW YOU HELP\n- Tell me EXACTLY where to click. Full menu path, or which CommandManager tab and\n  roughly where the icon sits. \"Use the fillet tool\" is not enough.\n- Be precise about selection: edge, face, vertex, or sketch entity, and whether I\n  need to Ctrl+click to add to a selection. This is where I get stuck most.\n- Ask what I see rather than guessing my current state.\n- When I paste a screenshot, actually read the FeatureManager tree on the left, any\n  red or yellow icons, the status bar, and any open dialog. Say what you notice.\n- If you are unsure where a menu lives, say it is a guess and give me a second place\n  to look. Menu locations move between versions.\n- If I say your answer did not match my screen, believe me and change approach. Do\n  not repeat the same instruction louder.\n\nWHAT NOT TO DO\n- Do not design my hook. No shapes, profiles, dimensions, or feature plans for my\n  part. If I ask, decline in one line and ask what I am trying to achieve\n  structurally.\n- Do not tell me wall or infill settings.\n- Do not decide where material should go. Explaining what a stress concentration is\n  is fine. Telling me where to put material on my part is not.\n\nWHY THAT LINE EXISTS\nMy instructors can ask me to explain any part of my work out loud, any time.\nAnything I cannot explain earns no credit. So helping me understand the software is\nexactly what I need. Handing me a design is the one thing that actually hurts me.\n\nReady? One line, then wait for my first question.\n```"
+        }
+      ]
+    },
+    {
+      "slug": "what-it-does",
+      "blurb": "The line is narrower than you think.",
+      "title": "What It Will and Will Not Do",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "ask": "Where is the fillet tool and how do I select four edges at once",
+              "why": "Software operation. Ask a hundred of these."
+            },
+            {
+              "ask": "What does this error mean and what causes it",
+              "why": "Understanding your own mistake is the whole point."
+            },
+            {
+              "ask": "Why did my part turn red after I edited that sketch",
+              "why": "Diagnosis. You still do the fixing."
+            },
+            {
+              "ask": "What is a stress concentration and why do sharp corners cause one",
+              "why": "A concept you then apply to your own part."
+            },
+            {
+              "ask": "Walk me through mirroring a sketch about a centreline",
+              "why": "Technique. It is yours once you know it."
+            },
+            {
+              "ask": "I clicked something and everything moved, how do I undo it",
+              "why": "Recovery. Always fine."
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "ask",
+              "label": "Ask it freely"
+            },
+            {
+              "key": "why",
+              "label": "Why that is fine"
+            }
+          ]
+        },
+        {
+          "rows": [
+            {
+              "ask": "Design a hook that will win",
+              "why": "Then it is the AI's hook and you cannot defend one dimension of it."
+            },
+            {
+              "ask": "What dimensions should I use",
+              "why": "That decision is the assignment."
+            },
+            {
+              "ask": "Where should I add material to make this stronger",
+              "why": "That is what the simulation and your own reading of it are for."
+            },
+            {
+              "ask": "What infill and wall settings should I use",
+              "why": "That is the slicer lesson and it is graded."
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "ask",
+              "label": "It will decline these"
+            },
+            {
+              "key": "why",
+              "label": "Why"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "when-its-wrong",
+      "blurb": "It will be. Here is how to handle that.",
+      "title": "When It Is Wrong",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "AI is confidently wrong about SolidWorks menu locations more often than about almost anything else. Different versions move things, and it cannot see your screen unless you show it.\n\n**When the instruction does not match what you see, say so.** Type something like: \"That menu is not there. Here is a screenshot of what I actually have.\" A good assistant will change approach. If it just repeats itself louder, start a new chat and paste the block again.\n\n**Try it before you believe it.** An answer that sounds right and does not work costs you two minutes. An answer you accepted without testing costs you the period.\n\n**It is never the source for a rule.** Every number in the rules comes from the Hook Design and Manufacturing Guide, not from the assistant. If they disagree, the guide wins and the assistant is wrong."
+        },
+        {
+          "type": "callout",
+          "title": "Still stuck after three tries?",
+          "content": "Flag down a TA or an instructor. Show them the chat as well as the screen. Where the assistant went wrong is often the fastest route to what you actually misunderstood.",
+          "variant": "warn"
+        }
+      ]
+    }
+  ],
+  "navigation": "tabs",
+  "schemaVersion": 2
+}
