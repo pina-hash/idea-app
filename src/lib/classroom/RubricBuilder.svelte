@@ -30,20 +30,38 @@
 	 * labelled and described) is saveable but flagged UNFINISHED, here and
 	 * everywhere it is rendered. That is what the flat-to-leveled migration
 	 * produces, and it must be visible rather than silent.
+	 *
+	 * STAGING (0139): `classroom_set_rubric` requires the item to exist and to
+	 * have at least one posting, so a rubric authored while CREATING an
+	 * assignment has nowhere to write to yet. `itemId` null means exactly that
+	 * -- the same shape SpecImporter's own staging mode already uses -- and the
+	 * validated criteria list goes out through `onstage` instead of the RPC,
+	 * for the composer to apply the moment its create call returns an id. An
+	 * incomplete rubric may be staged: refusing at creation what edit-time
+	 * already permits would be the inconsistency, not the flag.
 	 */
 	let {
-		itemId,
+		itemId = null,
 		criteria = null,
+		staged = null,
 		spec = null,
 		transports,
-		onchanged = null
+		onchanged = null,
+		onstage = null
 	}: {
-		itemId: string;
+		itemId?: string | null;
 		criteria: RubricCriterion[] | null;
+		/** A rubric already staged for the next save, in staging mode. */
+		staged?: RubricCriterion[] | null;
 		spec: AssignmentSpec | null;
 		transports: AssignmentTeacherTransports;
 		onchanged?: (() => void | Promise<void>) | null;
+		onstage?: ((criteria: RubricCriterion[] | null) => void) | null;
 	} = $props();
+
+	const stagingMode = $derived(!itemId);
+	/** What the summary line describes: attached, or waiting to be. */
+	const shown = $derived(staged ?? criteria);
 
 	let editing = $state(false);
 	let rows = $state<RubricCriterion[]>([]);
@@ -55,7 +73,7 @@
 
 	const total = $derived(rubricTotal(rows));
 	const unfinished = $derived(rows.filter((r) => criterionIssues(r).length > 0).length);
-	const savedUnfinished = $derived((criteria ?? []).filter(criterionIncomplete).length);
+	const savedUnfinished = $derived((shown ?? []).filter(criterionIncomplete).length);
 
 	function blankCriterion(): RubricCriterion {
 		nextId += 1;
@@ -144,7 +162,7 @@
 
 	function generate() {
 		if (!spec) return;
-		startEdit(rubricFromSpec(spec, criteria));
+		startEdit(rubricFromSpec(spec, shown));
 		notice = 'Generated from the spec’s leveled criteria -- edit freely, then save.';
 	}
 
@@ -179,8 +197,20 @@
 					// it away one step later, which is the same defect one level in.
 					...(l.short?.trim() ? { short: l.short.trim() } : {})
 				}))
-			}));
-			const res = await transports.setRubric(itemId, payload as RubricCriterion[]);
+			})) as RubricCriterion[];
+
+			// Staging: nothing exists to attach TO yet. The composer applies this
+			// the moment its create call returns an id (composer-staging.ts).
+			if (stagingMode) {
+				onstage?.(payload);
+				editing = false;
+				notice = unfinished
+					? `Rubric ready with ${unfinished} criteri${unfinished === 1 ? 'on' : 'a'} still unfinished. It attaches when you save.`
+					: 'Rubric ready. It attaches when you save.';
+				return;
+			}
+
+			const res = await transports.setRubric(itemId as string, payload);
 			if (!res.ok) {
 				error = res.message;
 				return;
@@ -204,9 +234,16 @@
 			return;
 		}
 		armRemove = false;
+
+		if (stagingMode) {
+			onstage?.(null);
+			notice = 'Rubric removed.';
+			return;
+		}
+
 		busy = true;
 		try {
-			const res = await transports.setRubric(itemId, null);
+			const res = await transports.setRubric(itemId as string, null);
 			if (!res.ok) {
 				error = res.message;
 				return;
@@ -221,10 +258,10 @@
 
 <div class="rubric-builder">
 	{#if !editing}
-		<p class="line" class:none={!criteria?.length}>
-			{#if criteria?.length}
-				Rubric: {criteria.length} criteri{criteria.length === 1 ? 'on' : 'a'},
-				{rubricTotal(criteria)} pts total.
+		<p class="line" class:none={!shown?.length}>
+			{#if shown?.length}
+				Rubric: {shown.length} criteri{shown.length === 1 ? 'on' : 'a'},
+				{rubricTotal(shown)} pts total.{staged ? ' Attaches on save.' : ''}
 			{:else}
 				No rubric yet -- grading needs one.
 			{/if}
@@ -239,14 +276,14 @@
 			<button
 				type="button"
 				class="btn secondary tiny"
-				onclick={() => startEdit(criteria?.length ? criteria : [blankCriterion()])}
+				onclick={() => startEdit(shown?.length ? shown : [blankCriterion()])}
 			>
-				{criteria?.length ? 'Edit rubric' : 'Build rubric'}
+				{shown?.length ? 'Edit rubric' : 'Build rubric'}
 			</button>
 			{#if spec}
 				<button type="button" class="btn secondary tiny" onclick={generate}>Generate from spec</button>
 			{/if}
-			{#if criteria?.length}
+			{#if shown?.length}
 				<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={removeRubric}>
 					{armRemove ? 'Really remove?' : 'Remove'}
 				</button>
@@ -330,7 +367,9 @@
 				</p>
 			{/if}
 			<span class="actions">
-				<button type="button" class="btn tiny" disabled={busy} onclick={save}>Save rubric</button>
+				<button type="button" class="btn tiny" disabled={busy} onclick={save}>
+					{stagingMode ? 'Use this rubric' : 'Save rubric'}
+				</button>
 				<button type="button" class="btn secondary tiny" onclick={() => (editing = false)}>Cancel</button>
 			</span>
 		</div>
