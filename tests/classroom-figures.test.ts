@@ -41,6 +41,7 @@ import {
 	figureAttachmentFilenames,
 	figureReference,
 	resolveFigureSrc,
+	sanitizeAttachmentFilename,
 	type ClassroomAttachment
 } from '$lib/classroom/classroom';
 import { parseMarkdown } from '$lib/classroom/reference-spec';
@@ -252,6 +253,25 @@ describe('resolveFigureSrc refuses each shape by name', () => {
 		if (node.type !== 'figure') throw new Error('expected a figure');
 		expect(node.alt).toBe('teardown-03');
 		expect(resolveFigureSrc(node.src, ATTACHMENTS).ok).toBe(true);
+	});
+
+	it('a raw filename with whitespace breaks the reference, which is the gap sanitizeAttachmentFilename closes', () => {
+		const ref = figureReference('bench setup.png');
+		const nodes = parseMarkdown(ref);
+		// THE GAP: falls through to the paragraph path, not a figure.
+		expect(nodes.length === 1 && nodes[0].type === 'figure').toBe(false);
+	});
+
+	it('sanitizeAttachmentFilename produces a reference the parser reads back as a figure', () => {
+		for (const raw of ['bench setup.png', 'Photo (1).JPG', 'truss [detail].png', '  padded  name .pdf']) {
+			const ref = figureReference(sanitizeAttachmentFilename(raw));
+			const nodes = parseMarkdown(ref);
+			expect(nodes.length === 1 && nodes[0].type === 'figure', `expected a figure for "${raw}"`).toBe(true);
+		}
+	});
+
+	it('sanitizeAttachmentFilename leaves an already-safe name untouched', () => {
+		expect(sanitizeAttachmentFilename('teardown-03.jpg')).toBe('teardown-03.jpg');
 	});
 });
 

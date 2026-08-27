@@ -338,7 +338,72 @@ export async function presence(page, { selector, label = selector, expectPresent
 }
 
 /* ------------------------------------------------------------------ *
- * 5. Console errors during the run
+ * 5. DOM order -- which of two rendered elements comes first
+ * ------------------------------------------------------------------ */
+export async function domOrder(page, { before, after, label, beforeLabel = before, afterLabel = after } = {}) {
+	/* Reads document position of two ALREADY-RENDERED nodes, never a computed
+	   boolean the page happens to expose. /dev/home-order exists because a
+	   vitest probe asserting `managesAnySection` in isolation passed while
+	   never once rendering the page it claims to describe -- this check has to
+	   read the DOM the same way a screen reader or a tab order would, or it
+	   inherits that exact blind spot. */
+	await ensureHelpers(page);
+	const data = await page.evaluate(
+		({ before, after }) => {
+			const b = document.querySelector(before);
+			const a = document.querySelector(after);
+			if (!b || !a) return { beforeFound: !!b, afterFound: !!a, order: null };
+			const beforePrecedesAfter = !!(b.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
+			return { beforeFound: true, afterFound: true, order: beforePrecedesAfter ? 'before-then-after' : 'after-then-before' };
+		},
+		{ before, after }
+	);
+
+	const withinThreshold = data.beforeFound && data.afterFound && data.order === 'before-then-after';
+	return {
+		check: 'dom-order',
+		label,
+		measured:
+			!data.beforeFound || !data.afterFound
+				? `not found (${beforeLabel} present=${data.beforeFound}, ${afterLabel} present=${data.afterFound})`
+				: data.order === 'before-then-after'
+					? `${beforeLabel} precedes ${afterLabel}`
+					: `${afterLabel} precedes ${beforeLabel}`,
+		threshold: `${beforeLabel} before ${afterLabel}`,
+		withinThreshold,
+		data
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * 6. Order result -- did an in-page action write the id array it should
+ * ------------------------------------------------------------------ */
+export async function orderResult(page, { evaluate, expected, label } = {}) {
+	/* Reads a value the page itself computed and wrote (a transport's own log),
+	   never a DOM position -- a drag-and-drop reorder in a harness backed by a
+	   static fixture can move a control without the fixture's rendered order
+	   ever changing, so a DOM read here would pass while a broken transport
+	   silently dropped the write on the floor. This is the counterpart to
+	   domOrder: that check proves an ordering claim by reading what painted;
+	   this one proves a WRITE claim by reading what the write path recorded,
+	   which is the only place "the drop persisted" is observable at all. */
+	const actual = await page
+		.evaluate(`(${evaluate})()`)
+		.catch((e) => ({ __evalError: e.message }));
+	const withinThreshold =
+		Array.isArray(actual) && Array.isArray(expected) && actual.length === expected.length && actual.every((v, i) => v === expected[i]);
+	return {
+		check: 'order-result',
+		label,
+		measured: JSON.stringify(actual),
+		threshold: JSON.stringify(expected),
+		withinThreshold,
+		data: { actual, expected }
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * 7. Console errors during the run
  * ------------------------------------------------------------------ */
 export function consoleErrors(collected, { ignore = [], blockedCount = 0 } = {}) {
 	/* The harness aborts external requests on purpose, and Chromium logs a

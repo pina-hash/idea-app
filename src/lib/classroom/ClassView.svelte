@@ -1510,11 +1510,26 @@
 		color: var(--text-2);
 		margin-right: var(--space-1);
 	}
+	/* THIS BAR DELETES SEVERAL ITEMS AT ONCE, so its controls take the same
+	   44px floor the console and the engine host do (classroom.css), not the
+	   21px chip `.btn.tiny` measures everywhere else it is the right size.
+	   `.btn.tiny` alone measured 21px tall here -- under the 24px hard floor,
+	   on the one control in the module where a mis-hit is the expensive
+	   kind. `min-height` and block padding only, never a fixed height, for
+	   the same reason classroom.css gives: rounding to reach a floor rounds
+	   both ways. */
+	.bulk-bar .btn,
+	.bulk-bar .btn.tiny {
+		min-height: 44px;
+		padding-block: var(--space-2);
+		display: inline-flex;
+		align-items: center;
+	}
 	.bulk-unit select {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		padding: 0.28rem 0.4rem;
-		min-height: 36px;
+		min-height: 44px;
 	}
 	/* The same crimson the per-row menu's own Delete carries -- reserved for
 	   this kind of destructive action, never a general accent. */

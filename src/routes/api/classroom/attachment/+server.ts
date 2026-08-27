@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { CLASSROOM_ATTACHMENTS_BUCKET, MAX_STORAGE_BYTES } from '$lib/server/classroom-attachments';
 import { classifyRpcError } from '$lib/classroom/upload-errors';
+import { sanitizeAttachmentFilename } from '$lib/classroom/classroom';
 import { UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
@@ -29,7 +30,8 @@ import type { RequestHandler } from './$types';
  * Body (JSON):
  *   item_id      uuid of the canonical item (required)
  *   storage_key  the key ./sign handed out and the browser wrote to (required)
- *   filename     the ORIGINAL name, verbatim, kept for display (required)
+ *   filename     the ORIGINAL name, sanitized for figureReference and kept
+ *                for display -- see sanitizeAttachmentFilename (required)
  *   size_bytes   what the browser reported (optional)
  */
 
@@ -66,7 +68,12 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		);
 	}
 
-	const filename = String(body.filename ?? '').trim().slice(0, 300) || 'attachment';
+	// Sanitized so `figureReference` always produces a renderable line for a
+	// NEW upload -- see the doc comment there. This is display metadata, not
+	// the storage key (a uuid, unaffected either way).
+	const filename = sanitizeAttachmentFilename(
+		String(body.filename ?? '').trim().slice(0, 300)
+	) || 'attachment';
 	const rawSize = Number(body.size_bytes ?? 0);
 	const sizeBytes = Number.isFinite(rawSize) && rawSize > 0 ? Math.min(rawSize, MAX_STORAGE_BYTES) : null;
 

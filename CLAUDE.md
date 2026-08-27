@@ -873,6 +873,16 @@ This applies to every change. Prompts do not need to restate it.
     being trusted rather than measured looks like. **A session that measures a
     different number CORRECTS THIS LINE in the same change**, and says in its
     history entry which warning moved.
+  - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
+    MISLEADING ROLLDOWN/TSCONFIG ERROR FOR IT.** Vitest's dependency
+    optimisation step fails on startup with `[RESOLVE_ERROR] Could not resolve
+    'node:module' in \0rolldown/runtime.js ... Tsconfig not found` -- which
+    reads like a broken toolchain and is actually vite/vitest reaching for a
+    generated `tsconfig` that `svelte-kit sync` has not written yet. Run
+    `npx svelte-kit sync` once after `npm ci`, same as before `svelte-check`,
+    and the same fresh checkout runs clean. This bites in the same first five
+    minutes as the missing-`.env` phantom errors above and for the same root
+    cause: nothing has generated the `.svelte-kit` output yet.
   - The 37 break down as 31 `state_referenced_locally`, 5
     `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
@@ -1154,6 +1164,25 @@ readable off the admin line in `AppFrame` -- which exists because nobody working
 in this repo can read what Vercel holds. **There is no separate deploy step
 any more** -- the route ships with the app, which is the ordering problem the
 Edge Function created and this removes.
+
+**ON A VERCEL PREVIEW DEPLOYMENT, THE TWO VARIABLES ARE EQUAL OR BOTH UNSET,
+NEVER TWO DIFFERENT HOSTS.** A preview deploys to exactly one host, so naming
+`PUBLIC_FOUNDRY_APPS_ORIGIN` as that preview's own URL and
+`PUBLIC_FOUNDRY_PORTAL_ORIGIN` as something else claims the bundle origin and
+the portal origin differ when they are the same server answering both roles.
+That claim is what the conditional `allow-same-origin` grant reads --
+`foundrySandboxFlags` appends the flag only when both origins are non-empty
+AND differ (see the origin-split section above) -- so a preview configured
+with two different hostnames is misconfigured into GRANTING student bundle
+code `allow-same-origin` on a host that, on a preview, is genuinely carrying
+that preview's session cookies (not `httpOnly`, exactly as on production).
+**Equal origins withhold the flag, which is the safe answer, and the routes
+are still fully exercisable** -- the host gate and the publication check run
+regardless of the CSP grant, so setting both variables to the preview's own
+URL (or leaving both unset, which is also safe: the fallback in
+`foundryPortalOrigin` only fires when the apps origin is set) verifies the
+serving routes on a preview with no window for the escape the conditional
+grant exists to close.
 
 **ONE MODULE KNOWS EACH CREDENTIAL.** A secret has exactly one reader, which is
 the single egress point for that service. Do not add a second.
