@@ -50,6 +50,25 @@ interface PostingRow {
 }
 
 /**
+ * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN.
+ *
+ * `notebook_sessions.session_date` is a bare DATE, and every rule that
+ * adjudicates one compares it in America/Los_Angeles --
+ * `notebook_get_section_grid`'s `on_time` is
+ * `(upload_timestamp at time zone 'America/Los_Angeles')::date <= se.session_date`
+ * (0094/0098). A server reading UTC instead would run seven or eight hours
+ * ahead of that, so every evening between 5pm Pacific and midnight UTC the next
+ * day's check-in would already count as due. That is a smaller version of the
+ * exact bug this bound exists to fix, so it is not worth taking.
+ *
+ * `en-CA` is the YYYY-MM-DD spelling, which is the same string the column
+ * holds, so the comparison below is a plain lexical one with no parsing in it.
+ */
+function checkInsThrough(now: Date): string {
+	return now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+}
+
+/**
  * The check-ins, and whether this project can say which item each one hangs off.
  *
  * TWO RUNGS (NOTEBOOK_POSTING_SELECTS), widest first, for the reason every
@@ -65,7 +84,9 @@ interface PostingRow {
  */
 async function sectionCheckIns(
 	supabase: SupabaseClient,
-	sectionId: string
+	sectionId: string,
+	/** The last day a check-in may be dated and still be read. See below. */
+	through: string
 ): Promise<{
 	rows: Omit<ClassCheckIn, 'status' | 'flag_reason'>[];
 	linksReady: boolean;
@@ -83,6 +104,45 @@ async function sectionCheckIns(
 				(r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
 					Boolean(r.notebook_sessions)
 			)
+			/**
+			 * A CHECK-IN DATED IN THE FUTURE IS NOT READ AT ALL.
+			 *
+			 * This read had NO DATE BOUND, and nothing downstream supplied one:
+			 * `checkInStatus` has no clock in it, so a check-in a teacher scheduled
+			 * for next month came back with no entry against it, resolved to
+			 * `missing`, and `isOutstanding` counted it. A student opening their
+			 * class page in August was told he owed work due in October -- and
+			 * because the stream is newest-first by date, the thing he did not owe
+			 * was the first row on the page, in the attention tone.
+			 *
+			 * BOUNDING THE READ IS THE WHOLE FIX, because the badge is derived from
+			 * this same array: ClassView computes `outstandingCheckIns(checkIns)`
+			 * for a student, so a row that is not here cannot be counted, cannot be
+			 * toned and cannot be rendered. `checkInStatus` needs no clock and does
+			 * not get one -- a second idea of "is this due yet", one in the loader
+			 * and one in the status function, is the pair that stops agreeing.
+			 *
+			 * IT IS A ROW FILTER RATHER THAN A POSTGREST `.lte` on the embed, which
+			 * is the shape the `!inner` join would otherwise allow. The two are
+			 * behaviourally identical here; the difference is that
+			 * `tests/db/postgrest-shim.ts` implements `eq`, `in`, `is` and `not.is`
+			 * and NOT `lte`, and that file is shared test infrastructure this
+			 * bundle does not own -- so a query-level bound could not have been
+			 * driven through the real load and proven. Moving it onto the query
+			 * later is a one-line change and needs no new ladder rung:
+			 * `session_date` arrived in 0098 alongside `notebook_session_postings`
+			 * itself, so any schema that has the table has the column.
+			 *
+			 * INCLUSIVE, so a check-in dated TODAY is still outstanding -- that is
+			 * the day it is for, not the day after it.
+			 *
+			 * IT ALSO TAKES A FUTURE CHECK-IN OFF THE STREAM ENTIRELY, for a
+			 * manager as well as a student. That is the honest reading of one
+			 * scheduled read: a class page shows what the class is doing, and a
+			 * manager schedules and edits check-ins on /notebook/review, which
+			 * reads the canonical rows by id and carries no bound of its own.
+			 */
+			.filter((r) => r.notebook_sessions.session_date <= through)
 			.map((r) => ({
 				session_id: r.notebook_sessions.id,
 				section_id: r.section_id,
@@ -168,7 +228,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	const [{ data: manages }, content, checkInRows] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
-		sectionCheckIns(supabase, params.sectionId)
+		sectionCheckIns(supabase, params.sectionId, checkInsThrough(new Date()))
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
