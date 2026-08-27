@@ -118,11 +118,18 @@ export interface GridStudent {
 }
 
 /**
- * The RPC's cell status. Note it is WIDER than `NotebookStatus`: the two
+ * The RPC's cell status. Note it is WIDER than `NotebookStatus`: the three
  * extra values are states of the CELL rather than of an entry -- there is no
  * entry to carry them.
+ *
+ * `scheduled` (0140) is the newest of them and the only one that is a fact
+ * about the CALENDAR rather than about a person: the check-in is dated ahead of
+ * today, so nobody could have filed against it yet. The RPC decides it, in
+ * America/Los_Angeles, which is the calendar `session_date` is adjudicated in
+ * everywhere else -- nothing in this file re-derives it, and nothing here reads
+ * a clock at all.
  */
-export type GridCellStatus = NotebookStatus | 'excused' | 'missing';
+export type GridCellStatus = NotebookStatus | 'excused' | 'missing' | 'scheduled';
 
 export interface GridCell {
 	/** Matches GridStudent.student_key; the uuid may be absent, this never is. */
@@ -207,12 +214,18 @@ export type CellDisplay =
 	| 'flagged'
 	| 'pending_review'
 	| 'excused'
-	| 'missing';
+	| 'missing'
+	| 'scheduled';
 
 export function cellDisplay(cell: GridCell): CellDisplay {
 	switch (cell.status) {
 		case 'missing':
 			return 'missing';
+		// NOT DUE YET (0140). It arrives here already decided -- the RPC ranked it
+		// below an entry and below an excusal, so a cell that reaches this arm has
+		// neither, and there is nothing left to weigh.
+		case 'scheduled':
+			return 'scheduled';
 		case 'excused':
 			return 'excused';
 		case 'flagged':
@@ -237,7 +250,18 @@ export const CELL_STATES: { key: CellDisplay; glyph: string; label: string; hint
 	{ key: 'pending_review', glyph: '○', label: 'Awaiting review', hint: 'Resubmitted after a flag.' },
 	{ key: 'flagged', glyph: '!', label: 'Flagged', hint: 'You flagged this entry.' },
 	{ key: 'excused', glyph: 'E', label: 'Excused', hint: 'A sanctioned absence, not a missing entry.' },
-	{ key: 'missing', glyph: '–', label: 'Missing', hint: 'Nothing uploaded for this check-in.' }
+	{ key: 'missing', glyph: '–', label: 'Missing', hint: 'Nothing uploaded for this check-in.' },
+	// LAST, because it is the far end of the same axis the row already walks:
+	// filed, filed late, waiting, flagged, excused, nothing filed -- and then
+	// nothing filed BECAUSE THE DAY HAS NOT COME. The hint says both halves,
+	// since a teacher reading the legend needs to know it is not counted as well
+	// as what it is.
+	{
+		key: 'scheduled',
+		glyph: '»',
+		label: 'Scheduled',
+		hint: 'Dated after today. Not due yet, so it is not counted as missing or outstanding.'
+	}
 ];
 
 const CELL_META = new Map(CELL_STATES.map((s) => [s.key, s]));
@@ -499,10 +523,41 @@ export interface StudentSummary {
 	student: GridStudent;
 	/** Sessions this student filed an entry against, any status. */
 	covered: number;
-	/** Sessions in the selected unit -- the denominator. */
+	/**
+	 * Sessions in the selected unit THAT HAVE COME DUE -- the denominator.
+	 *
+	 * IT IS NOT `grid.sessions.length` ANY MORE (0140), and that is the second
+	 * half of the scheduled-check-in fix. A check-in dated ahead of today sits
+	 * in the session list, because a teacher who scheduled it needs to see it,
+	 * and counting it here would put every student under their own total the
+	 * moment a unit was laid out: "3 of 8" on the grid, an `attention` row
+	 * apiece, and a presence score pre-filled at 3 of a possible 7 for a class
+	 * that is perfectly up to date.
+	 *
+	 * IT IS DERIVED FROM THE CELLS, never from a date this file read. The RPC
+	 * already decided which cells are `scheduled`, in the calendar it owns; a
+	 * clock here would be a second answer to the same question and this module
+	 * deliberately holds none.
+	 *
+	 * PER STUDENT RATHER THAN PER SECTION, and that falls out of the same
+	 * derivation: a student who filed EARLY against a future check-in has a cell
+	 * carrying their entry rather than `scheduled`, so that day counts for them
+	 * and not for the classmate who has not. Their work is credited on the day
+	 * they did it, which is the only reading that does not punish filing ahead.
+	 */
 	total: number;
 	/** Sessions excused. Reported separately; see `presenceScore`. */
 	excused: number;
+	/**
+	 * Sessions dated after today with nothing filed against them (0140) -- the
+	 * ones held OUT of `total`.
+	 *
+	 * Reported rather than merely subtracted, for the reason `excused` is: a
+	 * denominator that quietly shrank is a number nobody can check, and the
+	 * evidence line the Documentation Check stores beside a presence score has
+	 * to be able to say where it went.
+	 */
+	scheduled: number;
 	/** Cells currently flagged. */
 	flagged: number;
 	flags: Record<NotebookFlagReason, number>;
@@ -527,7 +582,6 @@ export interface StudentSummary {
 
 export function summarize(grid: SectionGrid): StudentSummary[] {
 	const index = cellIndex(grid);
-	const total = grid.sessions.length;
 
 	return grid.students.map((student) => {
 		const flags = Object.fromEntries(FLAG_REASONS.map((r) => [r, 0])) as Record<
@@ -537,9 +591,23 @@ export function summarize(grid: SectionGrid): StudentSummary[] {
 		let covered = 0;
 		let excused = 0;
 		let flagged = 0;
+		let scheduled = 0;
+		let total = 0;
 
 		for (const session of grid.sessions) {
 			const cell = index.get(`${student.student_key}|${session.id}`);
+			// NOT DUE YET, SO NOT IN THE DENOMINATOR (0140). It is counted on its
+			// own line instead, and the `continue` is what keeps it out of every
+			// figure below rather than out of one of them.
+			if (cell?.status === 'scheduled') {
+				scheduled++;
+				continue;
+			}
+			// A session with NO CELL AT ALL still counts toward the total, exactly
+			// as it did when this was `grid.sessions.length`: the cross join means
+			// that cannot happen, and if it ever did, silently shrinking a
+			// student's denominator is the wrong way to find out.
+			total++;
 			if (!cell) continue;
 			if (cell.entry_id) covered++;
 			if (cell.excused) excused++;
@@ -554,6 +622,7 @@ export function summarize(grid: SectionGrid): StudentSummary[] {
 			covered,
 			total,
 			excused,
+			scheduled,
 			flagged,
 			flags,
 			presenceScore: total === 0 ? 0 : Math.round((covered / total) * PRESENCE_POINTS)
@@ -591,9 +660,23 @@ export interface GridSummary {
 	students: number;
 	/** Cells per display state, keyed exactly as CELL_STATES is. */
 	counts: Record<CellDisplay, number>;
-	/** Cells that are neither on time nor excused -- what "behind" totals to. */
+	/**
+	 * Cells that are neither on time, excused, NOR SCHEDULED -- what "behind"
+	 * totals to.
+	 *
+	 * It is a WHITELIST SUM rather than a subtraction from the cell count, which
+	 * is what made 0140 additive here: a seventh state joins `counts` and stays
+	 * out of this number by not being named, rather than by anybody remembering
+	 * to exclude it. A state that SHOULD count has to be added on purpose.
+	 */
 	outstanding: number;
-	/** Students with a flagged cell or an incomplete count, worst first. */
+	/**
+	 * Students with a flagged cell or an incomplete count, worst first.
+	 *
+	 * `covered < total` is the incomplete half, and `total` excludes a student's
+	 * scheduled cells (0140) -- so laying out a unit's check-ins in advance no
+	 * longer puts the whole roster on this list for work that is not due.
+	 */
 	attention: StudentSummary[];
 }
 

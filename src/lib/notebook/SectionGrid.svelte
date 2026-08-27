@@ -600,7 +600,9 @@
 		box-shadow: 0 0 0 2px var(--gold);
 	}
 
-	/* THE SIX STATUS STATES, PER PLATE, AND WHY THAT CHANGED.
+	/* THE STATUS STATES, PER PLATE, AND WHY THAT CHANGED. Six of them when this
+	 * was written; 0140 adds `scheduled` at the bottom of the block, measured the
+	 * same way against the same ground.
 	 *
 	 * These were the PORTAL's tokens -- --green, --amber, --cyan, --crimson,
 	 * --ice, --gear/--dim -- used directly. Those were tuned against the portal's
@@ -624,10 +626,11 @@
 	 * bar it has to clear, and it was not close.
 	 *
 	 * The values now come from --nb-cell-* (colors.css), declared once per plate.
-	 * What is NOT per-plate, and is still the locked contract: the six glyphs, the
+	 * What is NOT per-plate, and is still the locked contract: the glyphs, the
 	 * 1.9rem cell box, the 0.35/0.4rem density, Share Tech Mono, and the hue
 	 * identity of each state (green = on time, amber = late, cyan = awaiting,
-	 * crimson = flagged, ice = excused, sage = missing). Only lightness moves,
+	 * crimson = flagged, ice = excused, sage = missing, and since 0140
+	 * violet = scheduled). Only lightness moves,
 	 * every value holds its source hue to within a degree, and no state depends
 	 * on colour alone -- each still carries its own glyph and its own fill style.
 	 * The fill is a PINNED colour rather than a mix of the ink, because a mix moves
@@ -667,6 +670,19 @@
 		background: transparent;
 		border: 1px dashed var(--nb-cell-missing-edge);
 		color: var(--nb-cell-missing);
+	}
+	/* SCHEDULED (0140), the seventh state, and it obeys the same contract as the
+	   six: its own glyph, its own hue, and its own FILL STYLE, so no two states
+	   are told apart by colour alone. Dotted is the third style in the set --
+	   solid with a pinned fill, dashed, dotted -- and it is the one that reads
+	   as "not yet" beside excused's dashed. The hue is the register's violet,
+	   deepened per plate (colors.css); it is not one of the six, because the two
+	   states this has to be tellable from are already the two near-neutrals. */
+	.chip.scheduled,
+	.cell.scheduled {
+		background: transparent;
+		border: 1px dotted var(--nb-cell-scheduled);
+		color: var(--nb-cell-scheduled);
 	}
 
 	/* NOT YET LOOKED AT (0121). A mark in its own corner rather than a seventh

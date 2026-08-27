@@ -135,6 +135,25 @@
 		section_id: string | null;
 	}
 
+	/**
+	 * TODAY AND THE DAYS AROUND IT, ON THE AMERICA/LOS_ANGELES CALENDAR -- the
+	 * one `notebook_get_section_grid` adjudicates `session_date` in, and the same
+	 * `en-CA` spelling the column holds, so every comparison below is lexical.
+	 *
+	 * COMPUTED, NEVER HARDCODED, and that is the whole reason it exists. The
+	 * fixture dates above it are pinned literals, which is right for a check-in
+	 * whose whole job is to be in the past; a SCHEDULED check-in is defined by
+	 * being ahead of whenever you are reading, so a pinned date would quietly
+	 * become an ordinary missing column at some point and the state this harness
+	 * exists to show would stop appearing, with nothing to say so.
+	 */
+	function laDay(offsetDays: number): string {
+		const d = new Date();
+		d.setDate(d.getDate() + offsetDays);
+		return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+	}
+	const LA_TODAY = laDay(0);
+
 	let sessions = $state<StoreSession[]>([
 		// `guidance_doc: null` on every check-in without a prompt, never absent:
 		// a real read on the widest rung returns the column carrying null, and
@@ -164,6 +183,19 @@
 			]
 		},
 		{ id: 'ses-a4', section_ids: ['sec-a'], unit_number: 2, session_date: '2026-07-28', session_label: 'Shop safety walk', guidance_doc: null },
+		// SCHEDULED, NOT MISSING (0140): dated ten days ahead of whenever this
+		// harness is opened, which is a teacher laying out the rest of the unit.
+		// Every cell in this column reads `scheduled` -- except Ana's, who filed
+		// early below, and Ben's, who is excused ahead: the two arms that outrank
+		// it in the RPC, both drivable here rather than argued about.
+		{
+			id: 'ses-a5',
+			section_ids: ['sec-a'],
+			unit_number: 3,
+			session_date: laDay(10),
+			session_label: 'Gearbox reassembly',
+			guidance_doc: null
+		},
 		{ id: 'ses-b1', section_ids: ['sec-b'], unit_number: 3, session_date: '2026-08-04', session_label: 'Gear train sketch', guidance_doc: null }
 	]);
 
@@ -386,7 +418,16 @@
 				[photo('p-15', 1, 'teardown-a.jpg'), removedPhoto('p-16', 2, 'teardown-b.jpg')]
 			),
 			custom_label: 'Teardown, restorable page'
-		}
+		},
+		// FILED EARLY against the check-in that has not happened yet (0140). Ana
+		// has done next week's work today, so her cell carries her ENTRY and not
+		// `scheduled` -- which is the arm that has to outrank the date, and the
+		// one that would be easiest to get backwards. It also puts her total one
+		// ahead of the rest of the class on the count column, which is the
+		// intended reading: the day counts for the student who filed it.
+		mk('e-15', 'stu-1', 'sec-a', 'ses-a5', new Date().toISOString(), 'compliant', [
+			photo('p-17', 1, 'reassembly-early.jpg')
+		])
 	]);
 
 	/**
@@ -465,8 +506,16 @@
 		return { id, entry_id, note_id, revision, content, created_at };
 	}
 
-	/** Chloe is excused from the stackup check-in. */
-	const EXCUSALS = [{ session_id: 'ses-a2', student_id: 'stu-3' }];
+	/**
+	 * Chloe is excused from the stackup check-in. Ben is excused AHEAD of time
+	 * from a check-in that has not happened yet (a known absence next week),
+	 * which is the case that proves an excusal outranks `scheduled` (0140)
+	 * rather than the other way round.
+	 */
+	const EXCUSALS = [
+		{ session_id: 'ses-a2', student_id: 'stu-3' },
+		{ session_id: 'ses-a5', student_id: 'stu-2' }
+	];
 
 	// ---- the RPC's own rules, mirrored -------------------------------------
 
@@ -575,7 +624,16 @@
 					student_key: student.student_key,
 					student_id: student.id,
 					session_id: session.id,
-					status: latest ? latest.status : excused ? 'excused' : 'missing',
+					// THE RPC'S OWN ORDER (0140), mirrored: an entry outranks an
+					// excusal, an excusal outranks the date, and only a cell with
+					// nothing in it on a day that HAS arrived is missing.
+					status: latest
+						? latest.status
+						: excused
+							? 'excused'
+							: session.session_date > LA_TODAY
+								? 'scheduled'
+								: 'missing',
 					entry_id: latest?.id ?? null,
 					entry_count: mine.length,
 					upload_timestamp: latest?.upload_timestamp ?? null,
