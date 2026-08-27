@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-27",
+			"title": "Teachers can drag posts into a new order and act on several at once",
+			"body": "Your teacher can now drag an announcement, assignment, or material to a new spot in the list, instead of only moving items one step at a time. They can also select several items and publish, file them into a unit, or delete them all together. This changes how your teacher organizes the class, not what you're able to do -- you may just notice things moving to a new order or a different unit.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-27",
 			"title": "Wording fixes on an assignment now reach every class at once",
 			"body": "Your teacher can now correct a sentence, a prompt, a column heading or a checklist line on an assignment or a reference document directly, instead of re-importing the whole thing. Two things follow for you. A wording fix shows up in every class the assignment is posted to at the same time, so your copy and your friend's copy in another block never disagree. And nothing about the marking can change while wording is being fixed: points, rubrics, AI levels and the parts of an assignment are locked out of that screen, so a typo fix cannot quietly move what something is worth. If a diagram gets added to the instructions, it now appears in the text where it is being talked about rather than only in the file list at the bottom.",
 			"tags": [
