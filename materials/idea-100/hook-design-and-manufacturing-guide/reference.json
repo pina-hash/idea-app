@@ -6,7 +6,7 @@
     "course": "IDEA100",
     "subtitle": "Tournament of Hooks, IDEA100 Rotation 1, Fall 2026",
     "referenceId": "idea100-hook-rules",
-    "buildVersion": "v3"
+    "buildVersion": "v6"
   },
   "sections": [
     {
@@ -17,6 +17,10 @@
         {
           "type": "instructions",
           "content": "You design a hook. Your teammate designs a hook. The two of you enter a double elimination bracket where hooks are pulled **against each other** on the rig until one breaks.\n\nThe hook that breaks loses. The hook that survives moves on with whatever damage it took. Your team is out when both of your hooks are gone.\n\nThis guide is the rulebook. A hook that misses any requirement in Dimensions or Manufacturing does not enter the bracket. Everything else in here is advice, and the advice is what decides who wins."
+        },
+        {
+          "type": "instructions",
+          "content": "![Fig 07. Hooks from four previous tournaments. Nearly every one failed in the same place.](attachment:HOOK_FIG07_Break_Wall.png)"
         },
         {
           "type": "keyValue",
@@ -125,16 +129,11 @@
     },
     {
       "slug": "versions",
-      "blurb": "Four versions. Each one answers a different question.",
-      "title": "V0 to V3",
+      "blurb": "Three versions. Each answers a different question.",
+      "title": "V1 to V3",
       "blocks": [
         {
           "rows": [
-            {
-              "what": "The tutorial hook. Guided, everyone builds the same part. Never printed.",
-              "version": "V0",
-              "question": "Can I drive SolidWorks. V0 exists to teach the software and nothing else."
-            },
             {
               "what": "Your first design. No new tools, no testing.",
               "version": "V1",
@@ -170,7 +169,7 @@
         {
           "type": "callout",
           "title": "V3 gets the extra time on purpose",
-          "content": "Simulation and scale testing can be repeated as many times as you can manage. Class time gates the checkpoints; the shop is open from 7:30, at lunch, and until 4:30 for the iterating. The students who place well are the ones who use it.",
+          "content": "Simulation and scale testing repeat as many times as you can manage. Class time gates the checkpoints. The shop is open from 7:30, at lunch, and until 4:30 for the iterating. The students who place well are the ones who use it.",
           "variant": "info"
         }
       ]
@@ -189,6 +188,47 @@
           "title": "Effort is protected",
           "content": "A complex design showing real design intent is protected from small non-structural modelling errors that would sink a simpler part. Ambition is not punished here. Reach past what you know how to do.",
           "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "where-hooks-break",
+      "blurb": "Three ways it ends. One of them is almost always yours.",
+      "title": "Where Hooks Break",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Every hook in the box behind you came out of a previous tournament, and they fail in a small number of ways. Learn to recognise them now and you will design around them instead of discovering them in September."
+        },
+        {
+          "type": "instructions",
+          "content": "![Fig 04. Fractured at the inside corner of the throat. The most common failure by a wide margin.](attachment:HOOK_FIG04_Break_Throat.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "### The throat, inside corner\n\nThis is where the load path turns a corner, and a sharp corner concentrates stress into a line rather than spreading it across material. It is the single most common failure in this competition.\n\nA generous fillet here buys more strength per gram than anything else you can do to the part."
+        },
+        {
+          "type": "instructions",
+          "content": "![Fig 05. Fractured through the anchor. Usually a hook that was too thin around the hole.](attachment:HOOK_FIG05_Break_Anchor.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "### Through the anchor\n\nUsually a hook that spent its mass on the hook end and left too little material around the anchor hole. Both ends carry the same force. Both ends need material."
+        },
+        {
+          "type": "instructions",
+          "content": "![Fig 06. Deformed and pulled open instead of snapping. It did not break; it stopped being a hook.](attachment:HOOK_FIG06_Break_Pullthrough.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "### Pulled open\n\nIt did not snap. It bent until the throat opened and the other hook slid out. Under the rules this is a loss exactly like a fracture, because you no longer have a hook.\n\nThis one is deceptive: a part that deforms instead of breaking often looks strong right up until it stops holding anything."
+        },
+        {
+          "type": "callout",
+          "title": "Which of these is yours?",
+          "content": "You will not know until you run a simulation and then break a half-scale print. That is what V2 and V3 are for, and it is why the phase is built the way it is.",
+          "variant": "required"
         }
       ]
     },
@@ -298,8 +338,8 @@
         },
         {
           "type": "callout",
-          "title": "AI is useful here",
-          "content": "Screenshot your stress plot, tell the AI how the study was set up, and ask it to walk you through what the plot is showing. That is COACH use and it is exactly what it is good for. Asking it to redesign your hook is not.",
+          "title": "AI is unrestricted for the software",
+          "content": "There is no limit on AI help for driving SolidWorks in this project. Paste the assistant prompt from Your SolidWorks Assistant and ask it anything about the program, as often as you like. The one thing it will not do is make your design decisions, because those are the part you have to defend out loud.",
           "variant": "info"
         }
       ]
