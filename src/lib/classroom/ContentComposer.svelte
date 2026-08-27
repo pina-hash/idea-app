@@ -7,6 +7,7 @@
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
+	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
 	import { itemBodyDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
@@ -26,7 +27,11 @@
 		type DeckTransports,
 		type DeckUploadProgress
 	} from '$lib/classroom/deck';
-	import type { AssignmentSpec, AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
+	import type {
+		AssignmentSpec,
+		AssignmentTeacherTransports,
+		RubricCriterion
+	} from '$lib/classroom/assignment-spec';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import {
 		ITEM_KINDS,
@@ -247,6 +252,14 @@
 	let deckIssue = $state<string | null>(null);
 	let deckProgress = $state<DeckUploadProgress | null>(null);
 	let stagedSpec = $state<unknown | null>(null);
+	/**
+	 * A STAGED RUBRIC (0139): the fourth create-only attachable, on the same
+	 * terms as the spec above it -- `classroom_set_rubric` needs the item to
+	 * exist, so it is held here until the create call hands back an id. On an
+	 * EDIT it is the item page's own RubricBuilder that owns it, exactly as the
+	 * item page owns the deck and the spec once the item exists.
+	 */
+	let stagedRubric = $state<RubricCriterion[] | null>(null);
 	/** The shared drop target's feedback for the staged-deck picker below. */
 	let deckDragActive = $state(false);
 
@@ -256,6 +269,10 @@
 		mode === 'create' &&
 			((specKind === 'assignment' && !!teacherTransports) ||
 				(specKind === 'reference' && !!referenceTransports))
+	);
+	/** A rubric is assignment-only -- a material or an announcement takes none. */
+	const canStageRubric = $derived(
+		mode === 'create' && specKind === 'assignment' && !!teacherTransports
 	);
 	const canStageDeck = $derived(mode === 'create' && !!deckTransports);
 	/**
@@ -317,11 +334,14 @@
 	 * through different RPCs and validated by different rules, and an
 	 * announcement takes neither. Silently carrying one across the toggle would
 	 * mean staging a document on a material and posting an announcement with it
-	 * quietly discarded.
+	 * quietly discarded. A staged RUBRIC is dropped the same way and for the
+	 * same reason: it is assignment-only, and the RPC it writes through would
+	 * refuse it against anything else.
 	 */
 	$effect(() => {
 		void editingKind;
 		if (!canStageSpec) stagedSpec = null;
+		if (!canStageRubric) stagedRubric = null;
 	});
 
 	// --- Attachments ------------------------------------------------------
@@ -558,7 +578,8 @@
 		instructorLinks,
 		deck: stagedDeck,
 		spec: stagedSpec,
-		checkIn: stagedCheckIn
+		checkIn: stagedCheckIn,
+		rubric: stagedRubric
 	});
 
 	/**
@@ -723,6 +744,7 @@
 		const hadDeck = !!stagedDeck;
 		const hadSpec = stagedSpec != null;
 		const hadCheckIn = stagedCheckIn != null;
+		const hadRubric = stagedRubric != null;
 		const failures: string[] = [];
 
 		// The save route had to fall back past the rich body to get through, so
@@ -785,7 +807,7 @@
 		 * because the deck is the long one and its progress is what the form
 		 * reports while it goes.
 		 */
-		if (stagedDeck || stagedSpec != null || stagedCheckIn != null) {
+		if (stagedDeck || stagedSpec != null || stagedCheckIn != null || stagedRubric != null) {
 			const extras = await applyStagedExtras(
 				itemId,
 				{
@@ -793,7 +815,8 @@
 					spec: stagedSpec,
 					specKind,
 					checkIn: stagedCheckIn,
-					checkInSessionId: stagedCheckInSessionId
+					checkInSessionId: stagedCheckInSessionId,
+					rubric: stagedRubric
 				},
 				{
 					deck: deckTransports,
@@ -811,6 +834,9 @@
 					// follow, applied to the write rather than to the form.
 					setGuidance: checkInTransports?.setGuidance
 						? (id, doc) => checkInTransports.setGuidance!(id, doc as TiptapNode | null)
+						: null,
+					setRubric: teacherTransports
+						? (id, criteria) => teacherTransports.setRubric(id, criteria)
 						: null
 				},
 				(p) => (deckProgress = p)
@@ -824,6 +850,7 @@
 			// the check-in already made rather than scheduling a second one.
 			stagedCheckIn = extras.checkIn;
 			stagedCheckInSessionId = extras.checkInSessionId;
+			stagedRubric = extras.rubric;
 			failures.push(...extras.failures);
 		}
 
@@ -853,6 +880,7 @@
 			hadFiles ? 'Files attached.' : '',
 			hadDeck ? 'Deck uploaded.' : '',
 			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : '',
+			hadRubric ? 'Rubric attached.' : '',
 			hadCheckIn ? 'Check-in scheduled.' : ''
 		].filter(Boolean);
 		const attachNote = alsoLanded.length ? ` ${alsoLanded.join(' ')}` : '';
@@ -887,6 +915,7 @@
 			// the complete list of what a fresh post starts from.
 			stagedDeck = null;
 			stagedSpec = null;
+			stagedRubric = null;
 			stagedCheckIn = null;
 			stagedCheckInSessionId = null;
 			deckIssue = null;
@@ -1145,6 +1174,23 @@
 				itemId={null}
 				staged={stagedSpecShown}
 				onstage={(raw) => (stagedSpec = raw)}
+			/>
+		</div>
+	{/if}
+
+	{#if canStageRubric}
+		<div class="attach-editor">
+			<span class="mini-label">Rubric</span>
+			<!-- The SAME builder the item page mounts, in its staging mode: the
+			     validated criteria list comes back through `onstage` and is
+			     applied the moment the create call returns an id. -->
+			<RubricBuilder
+				itemId={null}
+				criteria={null}
+				staged={stagedRubric}
+				spec={stagedSpecShown as AssignmentSpec | null}
+				transports={teacherTransports!}
+				onstage={(criteria) => (stagedRubric = criteria)}
 			/>
 		</div>
 	{/if}

@@ -13,195 +13,544 @@
 	],
 	"entries": [
 		{
-			"date": "2026-08-27",
-			"title": "A notebook check-in set for a later day no longer counts against you early",
-			"body": "If your teacher lays out the whole unit's notebook check-ins at once, the ones dated for a day that has not happened yet used to show up on their screen as though you had missed them, and the presence mark the notebook works out for your Documentation Check was calculated out of days you had not been asked about. Now a check-in dated ahead of today is marked as scheduled instead: it still shows in the list so everyone can see what is coming, and it counts for nothing until the day arrives. A check-in dated for today is due today, exactly as before, and one you missed still shows as missed. If you file a page early for a day that has not come yet, it counts straight away.",
+			"date": "2026-08-10",
+			"title": "File attachments on posts and assignments",
+			"body": "Teachers can attach handouts, images and PDFs directly to an announcement or assignment. They open straight from the class page -- no separate download link, no Drive permission to request.",
+			"tags": [
+				"Stream",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-10",
+			"title": "Classroom opens",
+			"body": "My Classes, a Stream of announcements, and Classwork grouped by due date. Your classes appear automatically once your teacher adds you to the roster -- there is nothing to join and no code to type.",
+			"tags": [
+				"Everywhere"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Hand work in from the assignment page",
+			"body": "Assignments now have a real hand-in: attach files or photos (your phone camera works), then Submit. Until your teacher starts grading you can Unsubmit to keep working, and when work is returned you can revise and resubmit. Some assignments are now fully interactive -- you type answers, fill tables, attach photo evidence and tick checklists right on the page, everything saves by itself as you type, and the page lists exactly what is still missing before Submit will go through.",
+			"tags": [
+				"Assignments"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Rubrics and returned grades",
+			"body": "Assignments can show their rubric up front, so you can see how the points break down before you start. When your teacher returns your work you will see your score, the points per rubric line, and their comment right on the assignment page.",
+			"tags": [
+				"Assignments",
+				"Grades"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "One post, every class -- edits now reach all of them",
+			"body": "An announcement, assignment or material posted to more than one class used to become a separate copy per class, so fixing a typo only fixed it in one place. There is one shared copy now: your teacher edits it once and every class it was posted to sees the change straight away.",
+			"tags": [
+				"Classwork",
+				"Stream"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "\"Updated\" badges on things that changed",
+			"body": "If your teacher edits an assignment or announcement after posting it, you will see an Updated badge on it and the time it was last changed. Opening the item clears the badge, so what is left is what you have not read yet.",
+			"tags": [
+				"Stream",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Materials: syllabi and standing references",
+			"body": "Classwork can now hold Materials -- a syllabus, a rubric, a link shelf. They sit alongside assignments but have no points and nothing to hand in, so a reference you need all term stops getting buried under this week's work.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Pinned items and a set order",
+			"body": "Teachers can pin the things that matter most so they sit at the top of Stream and Classwork, and can put the rest in whatever order makes sense for the unit instead of strict date order.",
+			"tags": [
+				"Classwork",
+				"Stream"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Links show a preview",
+			"body": "A link attached to an assignment or material now shows the page title and picture where the site provides them, so you can tell what you are about to open. If a site does not offer any of that, the plain link still works exactly as before.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Tell us what is not working",
+			"body": "There is a Feedback button at the bottom of every classroom page. It sends a short note along with which page you were on -- useful if something looks wrong, is confusing, or you have an idea.",
+			"tags": [
+				"Everywhere"
+			]
+		},
+		{
+			"date": "2026-08-12",
+			"title": "Teachers can attach private materials to classwork",
+			"body": "Teachers can now attach answer keys, facilitation notes, and other private files or links to any post, assignment, or material. Those stay visible only to that class's teachers and staff -- nothing changes on your side, and you will never see them or know they are there.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-12",
+			"title": "Your classes are on the front page now",
+			"body": "Sign in and the IDEA home page opens straight onto your classes. Each class gets a card showing what it is actually asking of you right now, most urgent first: work that is past due, grades that have come back and you have not opened yet, anything due in the next week, and work you have not handed in. Your syllabus and other reference material sit further down the card under Reference, so they stay easy to find without pushing your deadlines out of sight. Teachers see the same cards from the other side: work waiting to be graded, drafts not posted yet, and what is due soon. Fold a class shut if you want it out of the way and it stays that way, on every device you sign in on.",
+			"tags": [
+				"Home",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-12",
+			"title": "The Freshman Summer Program has wrapped up",
+			"body": "Summer is over, so the FSP box has come off the front page. Nothing has been thrown away: the slide decks from all three days, the course descriptions, the rulebook and the rest are kept together at ideabosco.com/fsp/archive, and every link and QR code from the summer still works. Two things are carrying on as normal -- the SolidWorks add-in is still supported and still downloadable, and the FRC interest form is still open, because Team 5669 recruits all year.",
+			"tags": [
+				"Home"
+			]
+		},
+		{
+			"date": "2026-08-13",
+			"title": "Your notebook is one click from your class page",
+			"body": "Every class page now carries a link straight to your engineering notebook, next to the class and teacher at the top. You no longer have to go back out to the home screen to get to it. Nothing about the notebook itself changed -- same entries, same folders, same pinned pages -- there is just a door to it from the class it belongs to. Your teachers get a link from the same spot into the review side, so when they are looking at your class they can see how the notebook check-ins are going without hunting for it.",
+			"tags": [
+				"Notebook",
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-13",
+			"title": "Reference pages like the syllabus are easier to read and move around",
+			"body": "The syllabus and other reference pages used to be one long block of grey text, and switching tabs threw you back to the top of the page. Both are fixed. Headings, numbered and bulleted lists, quotes and highlighted terms now show up the way they were written instead of as raw text, so a long section has visible structure. Lines are shorter, which is easier on the eyes, while tables and card links still use the full width. Tables read as tables, the boxes for notes and warnings look different from each other, and anything marked Required is now impossible to miss -- which matters on the pages your parents read. Switching tabs keeps the tab bar exactly where it is and starts you at the top of the new section, and your browser's back and forward buttons now move between tabs instead of leaving the page. On a phone, wide tables stack instead of sliding sideways. Printing still gives you the whole document, every section, in order.",
+			"tags": [
+				"Reference",
+				"Syllabus"
+			]
+		},
+		{
+			"date": "2026-08-13",
+			"title": "Your Documentation Check grade shows up with the rest of your work",
+			"body": "The Documentation Check on your engineering notebook used to be graded off to the side. It is an assignment in your class now, so when your teacher returns it you see the score, the rubric and their comment in the same place as everything else, and it counts toward your grade the same way. One criterion is filled in straight from your notebook -- how many of the unit's check-ins you actually filed something for -- and the note attached to it shows the count your teacher was looking at, including any sessions you were excused from. The other three are still judged by your teacher reading your notebook. If a criterion looks wrong, that note tells you exactly what it was counted from, which is the thing to ask about.",
+			"tags": [
+				"Notebook",
+				"Grades"
+			]
+		},
+		{
+			"date": "2026-08-13",
+			"title": "Rubrics now tell you what each score means",
+			"body": "The rubric on an assignment used to give you a criterion and a number. Now every criterion lists its levels -- full marks, partway, and nothing -- each with the points it is worth and a sentence describing what that level actually looks like. You can read all of it before you start, so you know what full marks means rather than guessing. When your work comes back, the level you were given is ticked on each criterion, so you can see exactly which description matched your work and what the next one up would have taken. If your teacher scores you between two levels, they have to say why, and that note comes back to you with the grade. Your teachers are still filling in level descriptions on some older rubrics; those criteria are marked so you can tell.",
+			"tags": [
+				"Classwork",
+				"Grades"
+			]
+		},
+		{
+			"date": "2026-08-13",
+			"title": "Your notebook knows your classes",
+			"body": "The digital notebook is connected to your real classes now. The check-ins your teacher schedules show up as quick picks when you add an entry, and they come from the classes you are actually in rather than the pathway year you picked for yourself. If you join a class partway through the term, its check-ins appear straight away. Nothing you have already written changes, and you can still add a free-form entry or a note with no check-in attached.",
 			"tags": [
 				"Notebook"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "Teachers can drag posts into a new order and act on several at once",
-			"body": "Your teacher can now drag an announcement, assignment, or material to a new spot in the list, instead of only moving items one step at a time. They can also select several items and publish, file them into a unit, or delete them all together. This changes how your teacher organizes the class, not what you're able to do -- you may just notice things moving to a new order or a different unit.",
+			"date": "2026-08-13",
+			"title": "Class materials can be real documents now",
+			"body": "A material your teacher posts can open as a proper document with tabs across the top instead of one long page. Tap a tab to jump to that part, and the address bar keeps your place, so a link to one section takes you straight there. Some documents include a grade estimator you can type your own scores into (nothing you type is saved or sent anywhere) and a lookup for what AI use is allowed on a given kind of work. Printing works too: Ctrl+P gives you the whole document in order, not just the tab you were on. Your teacher can also give one of these documents a link that works without signing in, so you can hand it to a parent.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Presentation uploads go a different way in, and have a size limit",
+			"body": "Attaching a slide deck to an assignment, announcement or material (something only your teacher does) now goes straight through our own server instead of being sent to Google separately first. It turned out the separate route did not actually work reliably here, so this is the more dependable path -- the same one every other file in the class already used. The tradeoff: a deck now has to be under about 4 MB to upload, which most decks are, but ones with a gif or a video in them usually are not. If your teacher's deck has media like that, they will need to pull it out of the deck and attach it to the item on its own instead. Nothing changes about how a presentation opens or looks for you once it is there.",
 			"tags": [
 				"Classes"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "Wording fixes on an assignment now reach every class at once",
-			"body": "Your teacher can now correct a sentence, a prompt, a column heading or a checklist line on an assignment or a reference document directly, instead of re-importing the whole thing. Two things follow for you. A wording fix shows up in every class the assignment is posted to at the same time, so your copy and your friend's copy in another block never disagree. And nothing about the marking can change while wording is being fixed: points, rubrics, AI levels and the parts of an assignment are locked out of that screen, so a typo fix cannot quietly move what something is worth. If a diagram gets added to the instructions, it now appears in the text where it is being talked about rather than only in the file list at the bottom.",
+			"date": "2026-08-14",
+			"title": "Filing an entry into a folder is one tap from the entry itself",
+			"body": "Moving an entry into a folder was possible before, but only if you opened the entry and scrolled past the photos and the notes to a small box at the bottom, so most people never found it. Every entry in your notebook now carries its folder on the row itself, open or closed: it shows which folder the entry is in (or Unfiled), and changing it is one tap with nothing to open first. The two buttons beside it say Pin and Copy in words now, instead of being symbols you had to hover to identify. Nothing about how folders work has changed, and picking several entries at once to move them together still works exactly as it did.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "You can write a note on a check-in as you photograph it",
+			"body": "A notebook check-in still needs a photo of the page -- that has not changed. But until now the photo was all you could send, so if there was something worth saying about it (what you measured, what went wrong, what you would try next) you had to save the entry first and then come back and add it. There is now an optional Note box on the same screen, right under where you pick your photos. Write in it or leave it empty; either way the entry saves the same. Like the photo, a note on a check-in cannot be edited once it is saved, but you can always add another note to the same entry afterwards.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Your teacher can now read your whole notebook, not just your check-ins",
+			"body": "Your teachers could only ever see notebook entries you filed against one of their check-ins. Anything you wrote or photographed on your own -- a free entry with no check-in attached -- was invisible to them, which meant most of a notebook could not be looked at or given credit for. A teacher can now open your whole notebook from their class list, including your own entries and notes. Two things to know. Only teachers whose class you are currently in can do this, and only for you -- not for anyone else's students. And it is read-only: they cannot change, delete or add anything to your notebook. Nothing you have written has moved or been altered.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Big presentations no longer fail on the last piece",
+			"body": "A large presentation is sent up in pieces, and the very last piece is the one that tells Google the file is complete. That last piece was failing on some uploads, so a deck that had reached 100% still never arrived -- which is a frustrating way to lose ten minutes of waiting. The last piece is now sent exactly the way it is supposed to be, and if it does fail, the upload asks how much actually arrived and carries on from there instead of giving up. It also checks that the finished file is the size it should be, so a presentation can never half-arrive and then open as something broken. If it still cannot finish, the message now says which piece failed and how much had arrived, which is what your teacher can pass on when reporting it. Nothing changes about how a deck looks or opens for you.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "\"Updated\" on a class item now always means something changed for you",
+			"body": "The Updated tag on an announcement, assignment or material is meant to tell you that your teacher changed something you should read again. It was appearing on items where nothing you can see had changed -- so opening one told you nothing, and after a few of those the tag stops being worth trusting. It now appears only when the title, the description, the points, the due date or the links actually changed. If your teacher saves an item without changing any of that, nothing about it moves for you at all, and it will not push its way back to the top of your list on the home page. Nothing you have already read has been marked unread by this.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Really big presentations finish uploading now",
+			"body": "Large decks -- the ones with several animations or videos in them -- could get all the way to the end of the upload and then fail, so the presentation never appeared on the item. They now unpack a few files at a time instead of all at once, which is what they were running out of time on, and the progress bar counts the files as it goes so your teacher can see it working rather than watching a bar that has stopped. If something does go wrong, it says what went wrong instead of just \"something failed\", and it can pick up where it left off rather than starting the whole upload again. A presentation that fails halfway now leaves nothing behind. Nothing changes about how a deck looks or opens for you.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Bigger presentations now make it into class",
+			"body": "Some of the decks your teachers wanted to put on an assignment were too big to upload, and the upload simply failed part way with nothing to show for it. That is fixed: a presentation now goes up in one piece however big it is, including ones with video in them, and there is a progress bar while it uploads so your teacher can see it working instead of guessing. If the wifi drops or they change their mind, they can stop it and start again without leaving half a deck behind. For you nothing changes about how a deck opens or looks -- there are just fewer that never arrived. If a presentation you were told about is missing from an item, it is worth telling your teacher, because it may be one that failed to upload before this.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Slide decks now open right in your class",
+			"body": "When your teacher puts a presentation on an assignment, announcement or material, it now opens inside IDEA Classroom instead of being a file you have to download. Open the item and tap the presentation at the top: it fills the screen, and the left and right arrow keys move between slides just like they do when your teacher is presenting. There is a full-screen button for when you want nothing else on the screen, and a slide list if you want to see what is coming up. It works on a phone as well as a laptop. Nothing about this is something to hand in -- a deck is there to read and go back to, and it stays available for as long as the item does.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Notebook check-ins now show up in your class",
+			"body": "Your notebook check-ins appear in the class stream, alongside announcements and assignments, on the day they are for. Each one tells you where you stand on it -- filed, not filed yet, excused, or needs another look -- and tapping it takes you to your notebook with that check-in already picked, so you can go straight to adding the page. The notebook link at the top of the class page now carries a number when something still needs you: check-ins you have not filed, plus any your teacher flagged. If there is no number, you are up to date. A check-in is still a notebook thing, not a second assignment: there is nothing to hand in here and nothing to grade here. Your Documentation Check is still the one graded piece for the unit, exactly as before.",
+			"tags": [
+				"Notebook",
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-15",
+			"title": "The classroom is easier on the eyes",
+			"body": "Your classes, your classwork and the reference documents now sit on a quieter, darker background with the scan lines turned off, so a page of instructions is the loudest thing on screen instead of the page around it. Green is kept for buttons you press, the tab you are on and work that is finished, which makes those easier to pick out. Nothing moved and nothing is missing -- it is the same classroom, just calmer to read for a while.",
 			"tags": [
 				"Classwork",
-				"Reference"
+				"Announcements"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "Modules on an assignment can be closed once you're done",
-			"body": "Each module on an assignment can now be collapsed, not just its instructions. A module you have finished can be closed to a single line so you can focus on what's left; the title still shows how many parts are done. A module you're still working on stays open, and closing one never loses your work -- it's still there the moment you reopen it.",
+			"date": "2026-08-15",
+			"title": "A material with a reference document keeps its description",
+			"body": "When your teacher attaches a full reference document to a material -- a syllabus, a standards sheet -- anything they had written on the material itself used to disappear behind it. That description now shows above the document, where it introduces what you are about to read.",
 			"tags": [
 				"Classwork"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "A picture used in an assignment or reference no longer shows twice",
-			"body": "When a teacher includes a picture directly in an assignment's or reference document's text, it used to also show up a second time in the Files list below. Now it only shows where it's used in the text; anything else attached still lists as a file, same as before.",
+			"date": "2026-08-15",
+			"title": "Assignments say clearly when there is nothing to hand in here",
+			"body": "An assignment with no online hand-in used to say submission was \"not available right now\", which sounded like something was broken and left people waiting for a form. It now says plainly that this assignment has no online hand-in and to follow the instructions above, where your teacher has said how to turn it in.",
 			"tags": [
 				"Classwork"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "Drag files in, or paste a screenshot right into your answer",
-			"body": "Every file picker in the classroom -- attaching a file to a post, handing in evidence on an assignment, and a teacher's presentation deck upload -- now also takes a drag-and-drop, with a clear highlight while you're dragging over it. And if you're typing an answer and paste an image (a screenshot of work from an online calculator, for example), it's sent straight to that question's photo evidence area instead of doing nothing, with a note telling you where it went. The button to pick a file still works exactly as before.",
+			"date": "2026-08-15",
+			"title": "Instructions can have headings, lists and links",
+			"body": "Assignment instructions, announcements and material descriptions are properly formatted now. Your teacher can use headings, bulleted and numbered lists, bold, italic and links, so a set of steps reads as a set of steps instead of one long paragraph. Everything already posted still says exactly what it said before, and it looks the same everywhere -- on the class stream, on the assignment's own page, and on your phone.",
+			"tags": [
+				"Classwork",
+				"Announcements"
+			]
+		},
+		{
+			"date": "2026-08-15",
+			"title": "Your notebook comes in IDEA green now",
+			"body": "The notebook has a third look beside the light and dark ones: a green-black theme in the program's own colours. Use the appearance button at the top of your notebook to pick it. There are four choices now -- Match my device, Light, Dark and IDEA -- and whichever you pick is remembered on that device. If you have not picked one, your phone or computer still decides between light and dark, the way it always has; IDEA only turns up if you choose it. Everything else is exactly where it was, and your teacher's review grid reads the same in all three.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-15",
+			"title": "The app grid is one list you can arrange yourself",
+			"body": "The apps on the home page are no longer split into Games, Tools and Class headings. They are one grid, starting with Classroom and your notebook, and they fit on screen without scrolling now. You can sort them by what you use most or what you opened last, drag a card by the handle on its left to put it exactly where you want it, or star an app to keep it at the front. Hit Customize to see the handles and stars. Whatever you set is saved to your account, so it looks the same on the school computers and on your phone. If you had already rearranged your apps, your arrangement carried over.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "The syllabus tabs no longer get stuck",
+			"body": "On a laptop, a reference document with a lot of section tabs -- the syllabus is the main one -- could open with its tabs cut off, sometimes leaving no way to get back to the first one. The tab strip scrolls properly now, with a soft fade at either end telling you there is more that way, and it disappears once there is nothing left to scroll to. You can also move across the tabs with the keyboard: the arrow keys step between them, and Home and End jump straight to the first and last.",
+			"tags": [
+				"Classwork",
+				"Reference",
+				"Syllabus"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "The class list reads better beside what you are reading",
+			"body": "The list of everything in your class now fits the narrower column it sits in on a laptop: each item is two tidy lines -- its name, then when it is due and what it is worth -- with small markers showing how many files and links it has, instead of spilling onto extra lines. The class name at the top is smaller and out of the way, so you see more of the actual class before you scroll. Nothing was removed; it is the same list, just easier to run your eye down.",
 			"tags": [
 				"Classwork"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "Hide the rest of the class while you read one item",
-			"body": "Opening an assignment or material now shows a 'Hide other items' button next to the trail at the top of the page. Turn it on and the list of everything else in the class tucks out of the way so the one you're reading gets the room; the button stays right there to bring it back. Your choice is remembered on this account and follows you from one item to the next.",
+			"date": "2026-08-16",
+			"title": "Your class list stays on screen while you read",
+			"body": "On a laptop or desktop, opening a class now keeps everything in that class in a list down the left while whatever you picked opens on the right. The row you are reading is marked, so you always know where you are, and the list keeps its place: units you folded stay folded, and you do not get scrolled back to the top every time you open something. Moving between assignments is a click instead of a click and a trip back. On a phone or tablet nothing changes -- you get the class list, then the thing you tapped, full width, the same as before.",
 			"tags": [
 				"Classwork"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "The \"to do\" count now only counts things you can actually do",
-			"body": "Three things were being counted as work when they were not. An assignment with no due date was listed as \"Not handed in\" forever, even when it was one your teacher grades on paper or at the bench and never collects online. A class that has finished kept its card on the home page, so last term's overdue work stayed in this term's count. And a notebook check-in scheduled for a date in the future was already showing as not filed, weeks before the day it is for. All three are fixed: an assignment with no due date is no longer counted, a finished class leaves the home page (you can still open it and everything in it is still there), and a check-in appears on the day it is for, not before. Anything with a due date behaves exactly as it did, so real work still shows up.",
+			"date": "2026-08-16",
+			"title": "Better sentence counting, file previews, and a faster grading view",
+			"body": "The sentence counter on short-answer questions used to get confused by decimals, abbreviations and \"...\", so a few numbers could count as several sentences. It reads accurately now, and the count is shown as a small badge that is easy to spot at a glance. Any photo or document you or your teacher attaches now shows as a real image thumbnail, or a clear PDF / DOC / ZIP label if it is not a photo -- click to open it full size. Uploading a file now shows a live progress bar instead of going blank while it sends. And in the grading view, teachers see a student's work and the rubric side by side, each scrolling on its own, so scoring never means losing your place.",
 			"tags": [
-				"Home",
-				"Classes",
+				"Classwork",
+				"Grading"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Assignment pages read a little cleaner",
+			"body": "Two small things on an assignment page. An assignment with no deadline no longer says \"Due No due date\" -- if there is no deadline, the page just does not mention one, and a real due date still shows exactly as before. And the strip of the old green background that showed under the bottom of every class page is gone, so the page sits on one colour from top to bottom.",
+			"tags": [
+				"Assignments"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Your class is one list now, grouped into units",
+			"body": "The Stream and Classwork tabs are gone. They showed the same things twice, in two orders, and neither matched the way your classes actually run. A class is now a single list grouped into the units your teacher set up -- Unit 1, Unit 2, Rotation 1 -- in their order, with anything not filed yet in a clearly marked group at the bottom. Announcements sit in the list alongside assignments and materials, marked by kind so you can tell them apart at a glance. You can fold a unit shut to get it out of the way, and it stays folded next time you open the class, on your phone too.",
+			"tags": [
+				"Classwork",
+				"Announcements"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Every assignment shows where you stand",
+			"body": "Each assignment in your class list now says whether you have not started it, have it in progress, have submitted it, or have had it returned -- and a returned one shows the score right there. No more opening things one at a time to find out what you still owe.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Shorter rows, so a full class fits on a screen",
+			"body": "Each announcement, assignment and material is one compact line carrying its kind, title, due date, status and whether it has files or links attached. Tap the arrow at the left to open one up in place, or the title to go to its full page. A class with thirty things in it is now something you can scan instead of scroll through.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Switch between your classes from anywhere",
+			"body": "Every classroom page now has your class list in the top bar. Whichever class, assignment or page you are on, the class you are in is named up there and every other class is one tap away -- no more going back to My Classes and starting again. Underneath it, a trail shows where you are and takes you back up a level.",
+			"tags": [
+				"Classwork",
+				"Announcements"
+			]
+		},
+		{
+			"date": "2026-08-17",
+			"title": "A little more room to breathe",
+			"body": "The class page had squeezed itself right up against the edge of the screen, and everything on it -- the trail across the top, the tabs, the class list, whatever you have open -- started and stopped in slightly different places. It all lines up now, with a proper margin down both sides, and the class list sits in its own bordered panel so it is clear where it ends and your reading begins. Things that belong together sit closer together, so the list is easier to scan. Scrollbars in the classroom are thinner and quieter too.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-18",
+			"title": "Your notebook now opens beside your entries",
+			"body": "On a laptop or a desktop, the notebook you reach from your class page is now two columns: your entries stay on the left while whatever you pick opens on the right, so you can read one page and go straight to the next without scrolling back up to find the list. Starting a new entry takes that right-hand side too -- press New entry -- and if you click away to look at something, whatever you had already typed or photographed is still waiting there when you come back. On a phone nothing has changed: the form is at the top, your entries are under it, and tapping one opens it in place.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-19",
+			"title": "The syllabus section tabs can actually be moved now",
+			"body": "The row of section tabs across the top of a reference document -- the syllabus is the one most of you use -- could scroll but gave you no way to scroll it. The only thing that moved it was tapping a tab you could half see, which also changed what you were reading, and some sections were left unreachable. It has real controls now: a scrollbar under the tabs, arrows at each end that move across about a screen's worth at a time, the mouse wheel or trackpad while you are over it, and you can just grab the strip and drag it. None of those change the section you are reading -- only tapping a tab does that. On a phone the row is replaced by a Section menu instead, which lists every section at once rather than showing you two at a time. Arrow keys, Home and End still work the way they did.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "Your work now tells you when it is actually saved",
+			"body": "On an assignment with questions in it, the note under the status now says one of four things, and it means them. \"Unsaved changes\" means you have typed something that has not gone out yet. \"Saving...\" means it is on its way. \"Saved\" comes with the time it happened, so you can tell a save from a minute ago apart from one from an hour ago. \"Not saved\" means it did not work, and it tells you why and gives you a Retry button; it also keeps trying on its own for a while before giving up, and whatever you typed stays in the box the whole time. If you click away to another page while an answer is still on its way, it is now sent first instead of being lost, and if it truly cannot be sent you get asked before you leave rather than finding out later. There is also a \"Save now\" button if you would rather not wait. The same wording is used when you edit a note in your notebook, so it reads the same everywhere.",
+			"tags": [
+				"Assignments",
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "Pictures can now sit inside instructions",
+			"body": "Your teacher can put a picture directly into the instructions on an assignment or a material, with a caption under it, instead of leaving it as a file at the bottom of the page you have to open separately. A diagram of the part you are making now sits next to the step that talks about it. Pictures print, so a page you print for the bench keeps them. If a picture cannot be shown for any reason you will see its caption with a short note in place of the image, rather than a blank space or a broken picture, so you always know something was meant to be there and can ask about it.",
+			"tags": [
+				"Instructions",
+				"Materials"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "Indented bullet points no longer run together",
+			"body": "If a teacher wrote instructions with a list inside a list, or you wrote a note that way, everything under the indented part was being squashed into the bullet above it with no spaces, so a list of materials could come out reading as one long unbroken word. Every bullet now keeps its own line, in the order it was written, in class instructions and in your notebook notes. The indenting itself is not shown yet, so an indented bullet sits at the same level as the rest of the list for now. This only fixes lists saved from today onwards. Anything already saved as one run-on line is stored that way and cannot be sorted out on its own, so if you find one in your own notebook, open it and type the bullets out again.",
+			"tags": [
+				"Instructions",
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "Grading in your class looks different, and it is only what your teacher sees",
+			"body": "Your teacher marks your work on a screen that shows the class list, what you handed in and the marking scale all at once. That screen was cramped, so the wording of each mark on the scale was squeezed into a narrow strip and a teacher had to scroll away from your work to score it. It now uses the whole window: the class list, your work and the scale sit side by side and each one scrolls on its own. Each level of the scale shows a short line, with the full wording of the standard right there on the level, so nothing about what earns a mark has been shortened or dropped. Your teacher can also work through a class from the keyboard now, and they get a warning before leaving a student whose marks they have not saved, so a score entered for you is far less likely to be lost. Nothing about what you hand in, how you hand it in, or how anything is scored has changed.",
+			"tags": [
+				"Grading"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "Your instructor can mark a notebook entry reviewed",
+			"body": "Until now the only thing an instructor could record on a notebook entry was a flag, so there was no way to tell an entry they had read and approved from one nobody had opened yet. They can now mark an entry as reviewed. It does not change your grade and it does not change what the entry says: it only records that somebody has looked at it. One thing does change for you. While an entry is marked reviewed you can no longer delete it yourself, and you can no longer pull it back to a draft, because it is part of a record your instructor is keeping. If you need it changed after that, ask them. They can undo the mark, and then it is yours to edit again. The class review screen and your own notebook also update on their own now, so work you turn in shows up for your instructor without either of you reloading the page.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "Your notebook and your classes look like one place now",
+			"body": "The digital notebook used to be set in a different typeface, at a different size, with rounder corners and its own spacing, so moving between a class and your notebook felt like moving between two different apps. It now uses the same type, the same corners and the same spacing as the rest of the class site. Nothing moved and nothing is hidden. The light, dark and IDEA appearance settings are all still there and still do the same thing, and the switch is in the same place at the top of the notebook. The status squares on the section review grid have been recoloured so the tick, arrow, circle, bang, E and dash are properly readable on all three, which they were not on the light setting.",
+			"tags": [
+				"Notebook",
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "A notebook check-in can live on the work it belongs to",
+			"body": "When your teacher sets up a notebook check-in for a particular post, assignment or handout, it now shows up ON that item instead of as a separate row further down the class. Open the item and you see the check-in right under the title: what it is called, which unit and day it is for, whether you have filed it, started a draft or not done it yet, and a link straight into your notebook with that check-in already picked. Check-ins that are not attached to anything keep their own row in the class exactly as before, and nothing about filing a page changes.",
+			"tags": [
+				"Stream",
+				"Classwork",
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "The class page uses the whole screen now",
+			"body": "On a laptop or a desktop, opening a class used to give you a narrow strip of class content on the left and a mostly empty half-screen on the right waiting for you to pick something. The class now fills the width until you open something: your units sit side by side in two or three columns instead of one long list, so you can see far more of the class without scrolling. Pick a post or an assignment and the class slides back to the left exactly where it was, with the thing you opened beside it. Rows are a little tighter as well, so more fits on a screen. Nothing moved, nothing is hidden, and on a phone the class page looks and works the way it always has.",
+			"tags": [
+				"Stream",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "You can write a notebook entry without a photo",
+			"body": "If you did not have a page to photograph -- you left your notebook at home, you worked something out on the whiteboard, you want to say what you were thinking before you draw it up -- you can now just write it. Pick the check-in you are answering as usual, type into the box under the photos, and save. It counts as filed for that check-in exactly like a photographed page does, and your teacher sees what you wrote. You can also do both now: photograph the page AND say something about it in the same go, which was only possible on entries that were not attached to a check-in before. Nothing else changed -- a photo on its own still saves the way it always has. The only thing that is still refused is an entry with nothing in it at all, and it now tells you that either a photo or some writing will do.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "One scrollbar in the notebook, not two",
+			"body": "The notebook had ended up with a scrollbar inside a scrollbar -- the page scrolled, and your list of entries scrolled separately inside it, so which one you got depended on where your pointer happened to be. There is one now: the page. The section review grid had the same problem and is fixed the same way. When you open an entry it comes to you rather than waiting somewhere further up the page, and the row of folder buttons wraps onto a second line on a big screen instead of sliding sideways.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-21",
+			"title": "Your teacher can say what a check-in is asking for",
+			"body": "A notebook check-in can now carry a short set of instructions from your teacher: what to photograph, and what to write about it. You see it in your notebook, right under the control where you pick which check-in an entry is for, so it is on screen before you type anything. It opens up the first time and folds itself away once you have started writing, and you can open or close it yourself whenever you like, and it remembers what you chose. It is on the entry afterwards too, under \"What was asked for\", so you can check what was wanted when you go back to a page you already turned in. If your teacher rewrites the instructions later, everyone sees the new version, including on entries that were already turned in. Not every check-in will have one, and nothing changes for the ones that do not.",
+			"tags": [
+				"notebook",
 				"check-ins"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "Being excused from a notebook check-in is now something your teacher can record",
-			"body": "If you miss a check-in for a reason your school has approved -- a field trip, an appointment, an absence that was cleared -- a site admin can now mark you excused for that day, with a short reason kept alongside it. An excused check-in stops counting against you: it does not show as missing, and it is not counted as one you still owe. Your teacher can see that you were excused and why, even though only a site admin can record or remove it. Nothing about the work changes -- if you did file an entry for that day it still counts as filed.",
+			"date": "2026-08-21",
+			"title": "Indented bullets stay indented",
+			"body": "A bulleted or numbered list can now have lists inside it, and they stay that way. Before, an indented bullet was moved out to the same level as the one above it, so a materials list with its parts tucked underneath came out as one long flat list. Anything you write or paste with sub-bullets now reads the way it was written, on the item page, in the class stream and in your notebook, and it comes back the same way when you open it again to edit it. Nothing you wrote before this has changed: those lists were already flattened when they were saved, and there is no way to put the indenting back other than re-indenting them yourself. One thing a bullet still cannot do is hold two separate paragraphs; if you write one that way, each paragraph becomes its own bullet.",
+			"tags": [
+				"notebook",
+				"assignments",
+				"writing"
+			]
+		},
+		{
+			"date": "2026-08-21",
+			"title": "Instructions get out of the way once you start working",
+			"body": "An assignment's instructions, and each module's instructions inside it, now open the first time you look at an item and fold themselves away once you have typed anything in. Press Show to read them again at any point, and Hide when you want the room back. Whatever you choose is remembered for that item on that computer, so it stays the way you left it next time. Nothing is deleted: the instructions are always one press away, and they still come out on a printed copy whether they were open or shut.",
+			"tags": [
+				"assignments",
+				"reading"
+			]
+		},
+		{
+			"date": "2026-08-21",
+			"title": "A report now says which browser you were using",
+			"body": "When you send a Report a problem note, it already carried the page you were on, your role, your class and the size of your screen. It now also carries which browser and which kind of device you were using, picked up on its own the way everything else is, so there is nothing extra to fill in. It is there because a lot of what goes wrong only goes wrong in one browser, and without knowing which one there was no way to tell. The note above the box says so before you send.",
+			"tags": [
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-08-21",
+			"title": "Report a problem from any page",
+			"body": "The Feedback button used to sit at the bottom of a few classroom pages, so if something went wrong anywhere else there was nowhere to say so. There is now a Report a problem button in the corner of every page in the portal, and it is the same box: pick what kind of note it is, write what you noticed, send. You no longer have to describe where you were. The page you are on, whether you are signed in as a student or a teacher, which class you were looking at, the size of your screen and which build you had all ride along on their own. During a presentation the button moves into the deck's own bar rather than floating over the slides, and it never prints. If a page fails to load, you now get an IDEA page instead of a blank browser error, with a reference code on it and the same button right there, already filled in with what went wrong. Quote that code if you write to us about it. You have to be signed in to send a report for now.",
+			"tags": [
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-08-21",
+			"title": "An entry keeps its name when you take a page out",
+			"body": "If you took every page out of an entry, that entry was still named after one of the pages you removed, so its name pointed at something that was no longer in it. Now it is named after what is still there: a page you can still see comes first, and if there is no page left, the opening words of what you wrote. If all that is left is pages you removed, the entry keeps their name rather than becoming \"Untitled entry\", so it never quietly loses the name you were looking for it under. It is the same name everywhere: on the card in your notebook, in search, when you copy an entry out to paste somewhere else, and on your teacher's screen when they read it.",
 			"tags": [
 				"Notebook"
 			]
 		},
 		{
-			"date": "2026-08-27",
-			"title": "A check-in already on the calendar can be attached to the classwork it goes with",
-			"body": "A notebook check-in that was scheduled on its own can now be attached to the assignment or reference it belongs with, so the day's material and its notebook requirement show as one thing in your class stream instead of two separate rows. Before, that was only possible if the check-in was created from the item in the first place. The dates, the prompt and anything you have already filed are untouched either way.",
-			"tags": [
-				"Notebook",
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-27",
-			"title": "A note your teacher removed can be put back",
-			"body": "You have always been able to restore a note you removed yourself. If your teacher removed one, the notebook told you to ask them to put it back -- but there was no way for them to actually do it. There is now. Ask your teacher and they can restore it from the same place they removed it.",
+			"date": "2026-08-21",
+			"title": "\"Has photos\" now means photos you can still see",
+			"body": "If you took a page out of an entry, that entry kept turning up under the \"Has photos\" filter in your notebook, and then opened with no page in it. It does not any more: that filter now lists entries that still have a page you can look at. Nothing about the entry itself changed. Anything you wrote on it is still there, it still turns up under \"Has notes\" if you wrote one, and the page you took out is still under \"Removed photos\" on the entry if you want it back.",
 			"tags": [
 				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-26",
-			"title": "The notebook's local backup copy expires sooner",
-			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",
-			"tags": [
-				"notebook"
-			]
-		},
-		{
-			"date": "2026-08-26",
-			"title": "Long answers no longer bury the rest of an assignment",
-			"body": "A written-answer box used to grow taller for every line you added, with no limit. On a phone a long answer could stretch the box past a full screen and a half, so getting to the next module meant scrolling through everything you had already written. The box now stops growing once it is tall enough for a long answer and scrolls inside itself after that. Nothing is cut off and nothing is lost: your whole answer is still there, and while you are typing the box follows your cursor as it always did. Written-answer boxes and photo captions also get your browser's spellcheck now, so misspellings are underlined the way they are anywhere else you type.",
-			"tags": [
-				"assignments"
-			]
-		},
-		{
-			"date": "2026-08-26",
-			"title": "Your notebook keeps a copy of your writing on your own device",
-			"body": "If your phone or browser closes the notebook while you are part way through writing an entry, your words are no longer gone. The notebook now keeps a copy of what is in the writing box on the device you are typing on, and puts it back the next time you open the page. It still has to be saved or turned in the usual way, and the page says so when it puts something back, so you always know whether it has reached us. If the draft it belongs to already has writing saved on it, the page says that too, so you can read the saved version before you save over it.",
-			"tags": [
-				"notebook"
-			]
-		},
-		{
-			"date": "2026-08-26",
-			"title": "A new post shows up right away",
-			"body": "Posting to a class used to need a page refresh before it showed up in the list. Now it appears the moment it saves, at the top of the class page, with nothing to reload.",
-			"tags": [
-				"classroom"
-			]
-		},
-		{
-			"date": "2026-08-26",
-			"title": "Your notebook writing is looked after better when the connection is poor",
-			"body": "Four changes to the digital notebook, all about what happens when a save does not get through. Turning an entry in now stops if your writing failed to save, and tells you so, instead of handing the entry in without it. Your words stay in the box, so you can try again. If you leave the page or your phone switches to something else mid sentence, the notebook now makes one last attempt to save what you have written. If the notebook refuses something, for example a note that is too long, you are told straight away rather than after a wait while it tries again several times. And on the rare setup where writing does not save itself as you go, the page now says so, so you know to use Save draft.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-25",
-			"title": "A published app gets a whole page, and a link you can share",
-			"body": "An app in the gallery used to run in a small box inside the page, so anything with a fixed playfield had to be zoomed out before you could use it. Two things change. There is a Full screen button beside Stop app, which hands the running app the whole window and gives it back with Escape or the button, and the app keeps going the whole time. And every published app now has a page of its own: open the app in the gallery and you will find its link under Share this app, with a button to copy it. Anyone you send that link to can open the app without signing in, and the page carries only the app -- your name, your class and your build notes stay in the gallery. If your app is taken down or you delete it, the link stops working straight away.",
-			"tags": [
-				"Foundry"
-			]
-		},
-		{
-			"date": "2026-08-25",
-			"title": "Your class list only shows students",
-			"body": "Teachers sometimes add their own account to a class so they can see it the way you do. Until now that account turned up everywhere a student would: on the check-in grid, in the grading list, and in the count of how many people are in the class. It does not any more, so the number on the Grades page and the names on the check-in grid are the class itself. Nothing about your own work changed, and nothing you have handed in moved. Your teacher can also now take a name off a class list for good, which only goes through when nothing at all has been handed in or written under it.",
-			"tags": [
-				"classroom",
-				"grades"
-			]
-		},
-		{
-			"date": "2026-08-25",
-			"title": "Photos you hand in show as photos again",
-			"body": "When files moved to the new storage, a photo you added to a photo block stopped showing as a picture and turned into a row you had to click to see. That is fixed. A picture shows as a picture again, in the photo blocks on an assignment, in your extra files, and in the view your teacher grades from, and clicking it opens the full size version. Anything that is not a picture, a part file, an assembly, a zip, still shows as a file row with its type beside it, which is what you want: nobody needs a preview of a SolidWorks assembly. If a picture cannot be shown for any reason it falls back to that same file row rather than a broken image, so there is always something to click. Nothing changed about who can see your work, and files still download rather than opening as a page in the browser.",
-			"tags": [
-				"files",
-				"assignments"
-			]
-		},
-		{
-			"date": "2026-08-24",
-			"title": "Public reference documents open their files again",
-			"body": "A reference document your teacher publishes for anyone to read can be opened without signing in, and now the files attached to it open that way too. Before this, a file attached to a public document the new way came back as not found unless you happened to be signed in and enrolled in that class, which made a QR code on a handout useless to anybody else. Only documents your teacher has actually published as public work this way. Assignments, hand-ins and anything a teacher keeps to themselves still need you to be signed in, exactly as before.",
-			"tags": [
-				"files",
-				"reference"
-			]
-		},
-		{
-			"date": "2026-08-24",
-			"title": "Hand in any kind of file, up to 200 MB",
-			"body": "File uploads used to refuse almost everything an engineering class actually makes. A SolidWorks part, an assembly, a STEP file, a DXF, a Fusion file, a DWG, an Arduino sketch, a zip: all of them came back saying your file had to be an image, a PDF, text, a CSV or an Office document. That is gone. There is no list any more. Hand in whatever the work is, and the limit per file is 200 MB instead of 4 MB, so a full assembly fits. It is the same everywhere: files your teacher attaches to a post, files you attach to an assignment, and photos you add to a photo block. Files now go straight from your computer to storage instead of through the site, so a big one uploads much faster and you get a progress bar per file while it does. If one file out of several fails, the rest still go, that one stays on screen with the actual reason it failed, and there is a Retry button beside it. Your assignment or post is saved either way, so nothing you typed is ever lost to a file problem. Files download rather than opening in the browser, which is what makes accepting any file type safe. Everything already posted still opens exactly as it did.",
-			"tags": [
-				"files",
-				"assignments"
-			]
-		},
-		{
-			"date": "2026-08-24",
-			"title": "Apps built with React now run in Foundry, and there is a starter file",
-			"body": "If you built your app with an AI tool, it very likely starts with a few script tags pointing at React, Babel, Lucide or Tailwind on the internet. Those never loaded here, because a published app runs with no network access, so the app went up and then showed a blank page. IDEA Foundry now hosts those libraries itself. Upload your app exactly as your tool wrote it: the check finds those script tags, points them at our copies instead, and tells you which lines it changed. Nothing else in your file is touched. React with JSX works with no build step now, so you do not have to rewrite anything into plain JavaScript. If a tag asks for a library we do not host, the upload is still refused, and the message now lists what IS available and how to write it. There is also a starter file on the build contract page and on the upload page: download it and you get an index.html with all of it already wired up and a marked spot to paste your component into.",
-			"tags": [
-				"foundry"
-			]
-		},
-		{
-			"date": "2026-08-24",
-			"title": "IDEA Foundry is open: browse the apps other students have published",
-			"body": "There is a new card on the home screen called IDEA Foundry, and behind it is a gallery of the web apps students have built and published. Pick one from the list and you get its description, the author's name and class, and what they wrote about how they built it, which is the part worth reading. Press Launch app to run it. Every app opens in a sandbox on a separate address, so nothing it does can reach your account, your notebook or your coins. There is a Stop app button beside it the whole time it is running: if an app freezes or you just want it gone, press that and it closes on the spot, without you having to close the tab. If you have published something yourself, My apps is still where you manage it. If you have not, the build contract page says exactly what an app has to look like before you can upload it.",
-			"tags": [
-				"foundry"
 			]
 		},
 		{
@@ -304,544 +653,204 @@
 			]
 		},
 		{
-			"date": "2026-08-21",
-			"title": "Your teacher can say what a check-in is asking for",
-			"body": "A notebook check-in can now carry a short set of instructions from your teacher: what to photograph, and what to write about it. You see it in your notebook, right under the control where you pick which check-in an entry is for, so it is on screen before you type anything. It opens up the first time and folds itself away once you have started writing, and you can open or close it yourself whenever you like, and it remembers what you chose. It is on the entry afterwards too, under \"What was asked for\", so you can check what was wanted when you go back to a page you already turned in. If your teacher rewrites the instructions later, everyone sees the new version, including on entries that were already turned in. Not every check-in will have one, and nothing changes for the ones that do not.",
+			"date": "2026-08-24",
+			"title": "Public reference documents open their files again",
+			"body": "A reference document your teacher publishes for anyone to read can be opened without signing in, and now the files attached to it open that way too. Before this, a file attached to a public document the new way came back as not found unless you happened to be signed in and enrolled in that class, which made a QR code on a handout useless to anybody else. Only documents your teacher has actually published as public work this way. Assignments, hand-ins and anything a teacher keeps to themselves still need you to be signed in, exactly as before.",
 			"tags": [
-				"notebook",
+				"files",
+				"reference"
+			]
+		},
+		{
+			"date": "2026-08-24",
+			"title": "Hand in any kind of file, up to 200 MB",
+			"body": "File uploads used to refuse almost everything an engineering class actually makes. A SolidWorks part, an assembly, a STEP file, a DXF, a Fusion file, a DWG, an Arduino sketch, a zip: all of them came back saying your file had to be an image, a PDF, text, a CSV or an Office document. That is gone. There is no list any more. Hand in whatever the work is, and the limit per file is 200 MB instead of 4 MB, so a full assembly fits. It is the same everywhere: files your teacher attaches to a post, files you attach to an assignment, and photos you add to a photo block. Files now go straight from your computer to storage instead of through the site, so a big one uploads much faster and you get a progress bar per file while it does. If one file out of several fails, the rest still go, that one stays on screen with the actual reason it failed, and there is a Retry button beside it. Your assignment or post is saved either way, so nothing you typed is ever lost to a file problem. Files download rather than opening in the browser, which is what makes accepting any file type safe. Everything already posted still opens exactly as it did.",
+			"tags": [
+				"files",
+				"assignments"
+			]
+		},
+		{
+			"date": "2026-08-24",
+			"title": "Apps built with React now run in Foundry, and there is a starter file",
+			"body": "If you built your app with an AI tool, it very likely starts with a few script tags pointing at React, Babel, Lucide or Tailwind on the internet. Those never loaded here, because a published app runs with no network access, so the app went up and then showed a blank page. IDEA Foundry now hosts those libraries itself. Upload your app exactly as your tool wrote it: the check finds those script tags, points them at our copies instead, and tells you which lines it changed. Nothing else in your file is touched. React with JSX works with no build step now, so you do not have to rewrite anything into plain JavaScript. If a tag asks for a library we do not host, the upload is still refused, and the message now lists what IS available and how to write it. There is also a starter file on the build contract page and on the upload page: download it and you get an index.html with all of it already wired up and a marked spot to paste your component into.",
+			"tags": [
+				"foundry"
+			]
+		},
+		{
+			"date": "2026-08-24",
+			"title": "IDEA Foundry is open: browse the apps other students have published",
+			"body": "There is a new card on the home screen called IDEA Foundry, and behind it is a gallery of the web apps students have built and published. Pick one from the list and you get its description, the author's name and class, and what they wrote about how they built it, which is the part worth reading. Press Launch app to run it. Every app opens in a sandbox on a separate address, so nothing it does can reach your account, your notebook or your coins. There is a Stop app button beside it the whole time it is running: if an app freezes or you just want it gone, press that and it closes on the spot, without you having to close the tab. If you have published something yourself, My apps is still where you manage it. If you have not, the build contract page says exactly what an app has to look like before you can upload it.",
+			"tags": [
+				"foundry"
+			]
+		},
+		{
+			"date": "2026-08-25",
+			"title": "A published app gets a whole page, and a link you can share",
+			"body": "An app in the gallery used to run in a small box inside the page, so anything with a fixed playfield had to be zoomed out before you could use it. Two things change. There is a Full screen button beside Stop app, which hands the running app the whole window and gives it back with Escape or the button, and the app keeps going the whole time. And every published app now has a page of its own: open the app in the gallery and you will find its link under Share this app, with a button to copy it. Anyone you send that link to can open the app without signing in, and the page carries only the app -- your name, your class and your build notes stay in the gallery. If your app is taken down or you delete it, the link stops working straight away.",
+			"tags": [
+				"Foundry"
+			]
+		},
+		{
+			"date": "2026-08-25",
+			"title": "Your class list only shows students",
+			"body": "Teachers sometimes add their own account to a class so they can see it the way you do. Until now that account turned up everywhere a student would: on the check-in grid, in the grading list, and in the count of how many people are in the class. It does not any more, so the number on the Grades page and the names on the check-in grid are the class itself. Nothing about your own work changed, and nothing you have handed in moved. Your teacher can also now take a name off a class list for good, which only goes through when nothing at all has been handed in or written under it.",
+			"tags": [
+				"classroom",
+				"grades"
+			]
+		},
+		{
+			"date": "2026-08-25",
+			"title": "Photos you hand in show as photos again",
+			"body": "When files moved to the new storage, a photo you added to a photo block stopped showing as a picture and turned into a row you had to click to see. That is fixed. A picture shows as a picture again, in the photo blocks on an assignment, in your extra files, and in the view your teacher grades from, and clicking it opens the full size version. Anything that is not a picture, a part file, an assembly, a zip, still shows as a file row with its type beside it, which is what you want: nobody needs a preview of a SolidWorks assembly. If a picture cannot be shown for any reason it falls back to that same file row rather than a broken image, so there is always something to click. Nothing changed about who can see your work, and files still download rather than opening as a page in the browser.",
+			"tags": [
+				"files",
+				"assignments"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "The notebook's local backup copy expires sooner",
+			"body": "The notebook keeps a backup copy of writing in progress on the device you are typing on, in case the tab closes before you save. That copy used to stick around for up to a week; it now clears itself after 24 hours. These are shared school computers, so shortening it means a backup copy of your writing does not sit around on a lab machine for anywhere near as long.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "Long answers no longer bury the rest of an assignment",
+			"body": "A written-answer box used to grow taller for every line you added, with no limit. On a phone a long answer could stretch the box past a full screen and a half, so getting to the next module meant scrolling through everything you had already written. The box now stops growing once it is tall enough for a long answer and scrolls inside itself after that. Nothing is cut off and nothing is lost: your whole answer is still there, and while you are typing the box follows your cursor as it always did. Written-answer boxes and photo captions also get your browser's spellcheck now, so misspellings are underlined the way they are anywhere else you type.",
+			"tags": [
+				"assignments"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "Your notebook keeps a copy of your writing on your own device",
+			"body": "If your phone or browser closes the notebook while you are part way through writing an entry, your words are no longer gone. The notebook now keeps a copy of what is in the writing box on the device you are typing on, and puts it back the next time you open the page. It still has to be saved or turned in the usual way, and the page says so when it puts something back, so you always know whether it has reached us. If the draft it belongs to already has writing saved on it, the page says that too, so you can read the saved version before you save over it.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "A new post shows up right away",
+			"body": "Posting to a class used to need a page refresh before it showed up in the list. Now it appears the moment it saves, at the top of the class page, with nothing to reload.",
+			"tags": [
+				"classroom"
+			]
+		},
+		{
+			"date": "2026-08-26",
+			"title": "Your notebook writing is looked after better when the connection is poor",
+			"body": "Four changes to the digital notebook, all about what happens when a save does not get through. Turning an entry in now stops if your writing failed to save, and tells you so, instead of handing the entry in without it. Your words stay in the box, so you can try again. If you leave the page or your phone switches to something else mid sentence, the notebook now makes one last attempt to save what you have written. If the notebook refuses something, for example a note that is too long, you are told straight away rather than after a wait while it tries again several times. And on the rare setup where writing does not save itself as you go, the page now says so, so you know to use Save draft.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A notebook check-in set for a later day no longer counts against you early",
+			"body": "If your teacher lays out the whole unit's notebook check-ins at once, the ones dated for a day that has not happened yet used to show up on their screen as though you had missed them, and the presence mark the notebook works out for your Documentation Check was calculated out of days you had not been asked about. Now a check-in dated ahead of today is marked as scheduled instead: it still shows in the list so everyone can see what is coming, and it counts for nothing until the day arrives. A check-in dated for today is due today, exactly as before, and one you missed still shows as missed. If you file a page early for a day that has not come yet, it counts straight away.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Teachers can drag posts into a new order and act on several at once",
+			"body": "Your teacher can now drag an announcement, assignment, or material to a new spot in the list, instead of only moving items one step at a time. They can also select several items and publish, file them into a unit, or delete them all together. This changes how your teacher organizes the class, not what you're able to do -- you may just notice things moving to a new order or a different unit.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Wording fixes on an assignment now reach every class at once",
+			"body": "Your teacher can now correct a sentence, a prompt, a column heading or a checklist line on an assignment or a reference document directly, instead of re-importing the whole thing. Two things follow for you. A wording fix shows up in every class the assignment is posted to at the same time, so your copy and your friend's copy in another block never disagree. And nothing about the marking can change while wording is being fixed: points, rubrics, AI levels and the parts of an assignment are locked out of that screen, so a typo fix cannot quietly move what something is worth. If a diagram gets added to the instructions, it now appears in the text where it is being talked about rather than only in the file list at the bottom.",
+			"tags": [
+				"Classwork",
+				"Reference"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Modules on an assignment can be closed once you're done",
+			"body": "Each module on an assignment can now be collapsed, not just its instructions. A module you have finished can be closed to a single line so you can focus on what's left; the title still shows how many parts are done. A module you're still working on stays open, and closing one never loses your work -- it's still there the moment you reopen it.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "A picture used in an assignment or reference no longer shows twice",
+			"body": "When a teacher includes a picture directly in an assignment's or reference document's text, it used to also show up a second time in the Files list below. Now it only shows where it's used in the text; anything else attached still lists as a file, same as before.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Drag files in, or paste a screenshot right into your answer",
+			"body": "Every file picker in the classroom -- attaching a file to a post, handing in evidence on an assignment, and a teacher's presentation deck upload -- now also takes a drag-and-drop, with a clear highlight while you're dragging over it. And if you're typing an answer and paste an image (a screenshot of work from an online calculator, for example), it's sent straight to that question's photo evidence area instead of doing nothing, with a note telling you where it went. The button to pick a file still works exactly as before.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "Hide the rest of the class while you read one item",
+			"body": "Opening an assignment or material now shows a 'Hide other items' button next to the trail at the top of the page. Turn it on and the list of everything else in the class tucks out of the way so the one you're reading gets the room; the button stays right there to bring it back. Your choice is remembered on this account and follows you from one item to the next.",
+			"tags": [
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-27",
+			"title": "The \"to do\" count now only counts things you can actually do",
+			"body": "Three things were being counted as work when they were not. An assignment with no due date was listed as \"Not handed in\" forever, even when it was one your teacher grades on paper or at the bench and never collects online. A class that has finished kept its card on the home page, so last term's overdue work stayed in this term's count. And a notebook check-in scheduled for a date in the future was already showing as not filed, weeks before the day it is for. All three are fixed: an assignment with no due date is no longer counted, a finished class leaves the home page (you can still open it and everything in it is still there), and a check-in appears on the day it is for, not before. Anything with a due date behaves exactly as it did, so real work still shows up.",
+			"tags": [
+				"Home",
+				"Classes",
 				"check-ins"
 			]
 		},
 		{
-			"date": "2026-08-21",
-			"title": "Indented bullets stay indented",
-			"body": "A bulleted or numbered list can now have lists inside it, and they stay that way. Before, an indented bullet was moved out to the same level as the one above it, so a materials list with its parts tucked underneath came out as one long flat list. Anything you write or paste with sub-bullets now reads the way it was written, on the item page, in the class stream and in your notebook, and it comes back the same way when you open it again to edit it. Nothing you wrote before this has changed: those lists were already flattened when they were saved, and there is no way to put the indenting back other than re-indenting them yourself. One thing a bullet still cannot do is hold two separate paragraphs; if you write one that way, each paragraph becomes its own bullet.",
-			"tags": [
-				"notebook",
-				"assignments",
-				"writing"
-			]
-		},
-		{
-			"date": "2026-08-21",
-			"title": "Instructions get out of the way once you start working",
-			"body": "An assignment's instructions, and each module's instructions inside it, now open the first time you look at an item and fold themselves away once you have typed anything in. Press Show to read them again at any point, and Hide when you want the room back. Whatever you choose is remembered for that item on that computer, so it stays the way you left it next time. Nothing is deleted: the instructions are always one press away, and they still come out on a printed copy whether they were open or shut.",
-			"tags": [
-				"assignments",
-				"reading"
-			]
-		},
-		{
-			"date": "2026-08-21",
-			"title": "A report now says which browser you were using",
-			"body": "When you send a Report a problem note, it already carried the page you were on, your role, your class and the size of your screen. It now also carries which browser and which kind of device you were using, picked up on its own the way everything else is, so there is nothing extra to fill in. It is there because a lot of what goes wrong only goes wrong in one browser, and without knowing which one there was no way to tell. The note above the box says so before you send.",
-			"tags": [
-				"Appearance"
-			]
-		},
-		{
-			"date": "2026-08-21",
-			"title": "Report a problem from any page",
-			"body": "The Feedback button used to sit at the bottom of a few classroom pages, so if something went wrong anywhere else there was nowhere to say so. There is now a Report a problem button in the corner of every page in the portal, and it is the same box: pick what kind of note it is, write what you noticed, send. You no longer have to describe where you were. The page you are on, whether you are signed in as a student or a teacher, which class you were looking at, the size of your screen and which build you had all ride along on their own. During a presentation the button moves into the deck's own bar rather than floating over the slides, and it never prints. If a page fails to load, you now get an IDEA page instead of a blank browser error, with a reference code on it and the same button right there, already filled in with what went wrong. Quote that code if you write to us about it. You have to be signed in to send a report for now.",
-			"tags": [
-				"Appearance"
-			]
-		},
-		{
-			"date": "2026-08-21",
-			"title": "An entry keeps its name when you take a page out",
-			"body": "If you took every page out of an entry, that entry was still named after one of the pages you removed, so its name pointed at something that was no longer in it. Now it is named after what is still there: a page you can still see comes first, and if there is no page left, the opening words of what you wrote. If all that is left is pages you removed, the entry keeps their name rather than becoming \"Untitled entry\", so it never quietly loses the name you were looking for it under. It is the same name everywhere: on the card in your notebook, in search, when you copy an entry out to paste somewhere else, and on your teacher's screen when they read it.",
+			"date": "2026-08-27",
+			"title": "Being excused from a notebook check-in is now something your teacher can record",
+			"body": "If you miss a check-in for a reason your school has approved -- a field trip, an appointment, an absence that was cleared -- a site admin can now mark you excused for that day, with a short reason kept alongside it. An excused check-in stops counting against you: it does not show as missing, and it is not counted as one you still owe. Your teacher can see that you were excused and why, even though only a site admin can record or remove it. Nothing about the work changes -- if you did file an entry for that day it still counts as filed.",
 			"tags": [
 				"Notebook"
 			]
 		},
 		{
-			"date": "2026-08-21",
-			"title": "\"Has photos\" now means photos you can still see",
-			"body": "If you took a page out of an entry, that entry kept turning up under the \"Has photos\" filter in your notebook, and then opened with no page in it. It does not any more: that filter now lists entries that still have a page you can look at. Nothing about the entry itself changed. Anything you wrote on it is still there, it still turns up under \"Has notes\" if you wrote one, and the page you took out is still under \"Removed photos\" on the entry if you want it back.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "Your work now tells you when it is actually saved",
-			"body": "On an assignment with questions in it, the note under the status now says one of four things, and it means them. \"Unsaved changes\" means you have typed something that has not gone out yet. \"Saving...\" means it is on its way. \"Saved\" comes with the time it happened, so you can tell a save from a minute ago apart from one from an hour ago. \"Not saved\" means it did not work, and it tells you why and gives you a Retry button; it also keeps trying on its own for a while before giving up, and whatever you typed stays in the box the whole time. If you click away to another page while an answer is still on its way, it is now sent first instead of being lost, and if it truly cannot be sent you get asked before you leave rather than finding out later. There is also a \"Save now\" button if you would rather not wait. The same wording is used when you edit a note in your notebook, so it reads the same everywhere.",
-			"tags": [
-				"Assignments",
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "Pictures can now sit inside instructions",
-			"body": "Your teacher can put a picture directly into the instructions on an assignment or a material, with a caption under it, instead of leaving it as a file at the bottom of the page you have to open separately. A diagram of the part you are making now sits next to the step that talks about it. Pictures print, so a page you print for the bench keeps them. If a picture cannot be shown for any reason you will see its caption with a short note in place of the image, rather than a blank space or a broken picture, so you always know something was meant to be there and can ask about it.",
-			"tags": [
-				"Instructions",
-				"Materials"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "Indented bullet points no longer run together",
-			"body": "If a teacher wrote instructions with a list inside a list, or you wrote a note that way, everything under the indented part was being squashed into the bullet above it with no spaces, so a list of materials could come out reading as one long unbroken word. Every bullet now keeps its own line, in the order it was written, in class instructions and in your notebook notes. The indenting itself is not shown yet, so an indented bullet sits at the same level as the rest of the list for now. This only fixes lists saved from today onwards. Anything already saved as one run-on line is stored that way and cannot be sorted out on its own, so if you find one in your own notebook, open it and type the bullets out again.",
-			"tags": [
-				"Instructions",
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "Grading in your class looks different, and it is only what your teacher sees",
-			"body": "Your teacher marks your work on a screen that shows the class list, what you handed in and the marking scale all at once. That screen was cramped, so the wording of each mark on the scale was squeezed into a narrow strip and a teacher had to scroll away from your work to score it. It now uses the whole window: the class list, your work and the scale sit side by side and each one scrolls on its own. Each level of the scale shows a short line, with the full wording of the standard right there on the level, so nothing about what earns a mark has been shortened or dropped. Your teacher can also work through a class from the keyboard now, and they get a warning before leaving a student whose marks they have not saved, so a score entered for you is far less likely to be lost. Nothing about what you hand in, how you hand it in, or how anything is scored has changed.",
-			"tags": [
-				"Grading"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "Your instructor can mark a notebook entry reviewed",
-			"body": "Until now the only thing an instructor could record on a notebook entry was a flag, so there was no way to tell an entry they had read and approved from one nobody had opened yet. They can now mark an entry as reviewed. It does not change your grade and it does not change what the entry says: it only records that somebody has looked at it. One thing does change for you. While an entry is marked reviewed you can no longer delete it yourself, and you can no longer pull it back to a draft, because it is part of a record your instructor is keeping. If you need it changed after that, ask them. They can undo the mark, and then it is yours to edit again. The class review screen and your own notebook also update on their own now, so work you turn in shows up for your instructor without either of you reloading the page.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "Your notebook and your classes look like one place now",
-			"body": "The digital notebook used to be set in a different typeface, at a different size, with rounder corners and its own spacing, so moving between a class and your notebook felt like moving between two different apps. It now uses the same type, the same corners and the same spacing as the rest of the class site. Nothing moved and nothing is hidden. The light, dark and IDEA appearance settings are all still there and still do the same thing, and the switch is in the same place at the top of the notebook. The status squares on the section review grid have been recoloured so the tick, arrow, circle, bang, E and dash are properly readable on all three, which they were not on the light setting.",
+			"date": "2026-08-27",
+			"title": "A check-in already on the calendar can be attached to the classwork it goes with",
+			"body": "A notebook check-in that was scheduled on its own can now be attached to the assignment or reference it belongs with, so the day's material and its notebook requirement show as one thing in your class stream instead of two separate rows. Before, that was only possible if the check-in was created from the item in the first place. The dates, the prompt and anything you have already filed are untouched either way.",
 			"tags": [
 				"Notebook",
-				"Appearance"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "A notebook check-in can live on the work it belongs to",
-			"body": "When your teacher sets up a notebook check-in for a particular post, assignment or handout, it now shows up ON that item instead of as a separate row further down the class. Open the item and you see the check-in right under the title: what it is called, which unit and day it is for, whether you have filed it, started a draft or not done it yet, and a link straight into your notebook with that check-in already picked. Check-ins that are not attached to anything keep their own row in the class exactly as before, and nothing about filing a page changes.",
-			"tags": [
-				"Stream",
-				"Classwork",
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-20",
-			"title": "The class page uses the whole screen now",
-			"body": "On a laptop or a desktop, opening a class used to give you a narrow strip of class content on the left and a mostly empty half-screen on the right waiting for you to pick something. The class now fills the width until you open something: your units sit side by side in two or three columns instead of one long list, so you can see far more of the class without scrolling. Pick a post or an assignment and the class slides back to the left exactly where it was, with the thing you opened beside it. Rows are a little tighter as well, so more fits on a screen. Nothing moved, nothing is hidden, and on a phone the class page looks and works the way it always has.",
-			"tags": [
-				"Stream",
 				"Classwork"
 			]
 		},
 		{
-			"date": "2026-08-20",
-			"title": "You can write a notebook entry without a photo",
-			"body": "If you did not have a page to photograph -- you left your notebook at home, you worked something out on the whiteboard, you want to say what you were thinking before you draw it up -- you can now just write it. Pick the check-in you are answering as usual, type into the box under the photos, and save. It counts as filed for that check-in exactly like a photographed page does, and your teacher sees what you wrote. You can also do both now: photograph the page AND say something about it in the same go, which was only possible on entries that were not attached to a check-in before. Nothing else changed -- a photo on its own still saves the way it always has. The only thing that is still refused is an entry with nothing in it at all, and it now tells you that either a photo or some writing will do.",
+			"date": "2026-08-27",
+			"title": "A note your teacher removed can be put back",
+			"body": "You have always been able to restore a note you removed yourself. If your teacher removed one, the notebook told you to ask them to put it back -- but there was no way for them to actually do it. There is now. Ask your teacher and they can restore it from the same place they removed it.",
 			"tags": [
 				"Notebook"
 			]
 		},
 		{
-			"date": "2026-08-20",
-			"title": "One scrollbar in the notebook, not two",
-			"body": "The notebook had ended up with a scrollbar inside a scrollbar -- the page scrolled, and your list of entries scrolled separately inside it, so which one you got depended on where your pointer happened to be. There is one now: the page. The section review grid had the same problem and is fixed the same way. When you open an entry it comes to you rather than waiting somewhere further up the page, and the row of folder buttons wraps onto a second line on a big screen instead of sliding sideways.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-19",
-			"title": "The syllabus section tabs can actually be moved now",
-			"body": "The row of section tabs across the top of a reference document -- the syllabus is the one most of you use -- could scroll but gave you no way to scroll it. The only thing that moved it was tapping a tab you could half see, which also changed what you were reading, and some sections were left unreachable. It has real controls now: a scrollbar under the tabs, arrows at each end that move across about a screen's worth at a time, the mouse wheel or trackpad while you are over it, and you can just grab the strip and drag it. None of those change the section you are reading -- only tapping a tab does that. On a phone the row is replaced by a Section menu instead, which lists every section at once rather than showing you two at a time. Arrow keys, Home and End still work the way they did.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-18",
-			"title": "Your notebook now opens beside your entries",
-			"body": "On a laptop or a desktop, the notebook you reach from your class page is now two columns: your entries stay on the left while whatever you pick opens on the right, so you can read one page and go straight to the next without scrolling back up to find the list. Starting a new entry takes that right-hand side too -- press New entry -- and if you click away to look at something, whatever you had already typed or photographed is still waiting there when you come back. On a phone nothing has changed: the form is at the top, your entries are under it, and tapping one opens it in place.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-17",
-			"title": "A little more room to breathe",
-			"body": "The class page had squeezed itself right up against the edge of the screen, and everything on it -- the trail across the top, the tabs, the class list, whatever you have open -- started and stopped in slightly different places. It all lines up now, with a proper margin down both sides, and the class list sits in its own bordered panel so it is clear where it ends and your reading begins. Things that belong together sit closer together, so the list is easier to scan. Scrollbars in the classroom are thinner and quieter too.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "The syllabus tabs no longer get stuck",
-			"body": "On a laptop, a reference document with a lot of section tabs -- the syllabus is the main one -- could open with its tabs cut off, sometimes leaving no way to get back to the first one. The tab strip scrolls properly now, with a soft fade at either end telling you there is more that way, and it disappears once there is nothing left to scroll to. You can also move across the tabs with the keyboard: the arrow keys step between them, and Home and End jump straight to the first and last.",
+			"date": "2026-08-27",
+			"title": "More than one notebook check-in can now sit on the same post",
+			"body": "If your teacher schedules two notebook check-ins under one assignment or material -- one for each day's page, say -- you'll now see both listed there instead of just the first. Turning in a single check-in works exactly as before.",
 			"tags": [
 				"Classwork",
-				"Reference",
-				"Syllabus"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "The class list reads better beside what you are reading",
-			"body": "The list of everything in your class now fits the narrower column it sits in on a laptop: each item is two tidy lines -- its name, then when it is due and what it is worth -- with small markers showing how many files and links it has, instead of spilling onto extra lines. The class name at the top is smaller and out of the way, so you see more of the actual class before you scroll. Nothing was removed; it is the same list, just easier to run your eye down.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Your class list stays on screen while you read",
-			"body": "On a laptop or desktop, opening a class now keeps everything in that class in a list down the left while whatever you picked opens on the right. The row you are reading is marked, so you always know where you are, and the list keeps its place: units you folded stay folded, and you do not get scrolled back to the top every time you open something. Moving between assignments is a click instead of a click and a trip back. On a phone or tablet nothing changes -- you get the class list, then the thing you tapped, full width, the same as before.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Better sentence counting, file previews, and a faster grading view",
-			"body": "The sentence counter on short-answer questions used to get confused by decimals, abbreviations and \"...\", so a few numbers could count as several sentences. It reads accurately now, and the count is shown as a small badge that is easy to spot at a glance. Any photo or document you or your teacher attaches now shows as a real image thumbnail, or a clear PDF / DOC / ZIP label if it is not a photo -- click to open it full size. Uploading a file now shows a live progress bar instead of going blank while it sends. And in the grading view, teachers see a student's work and the rubric side by side, each scrolling on its own, so scoring never means losing your place.",
-			"tags": [
-				"Classwork",
-				"Grading"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Assignment pages read a little cleaner",
-			"body": "Two small things on an assignment page. An assignment with no deadline no longer says \"Due No due date\" -- if there is no deadline, the page just does not mention one, and a real due date still shows exactly as before. And the strip of the old green background that showed under the bottom of every class page is gone, so the page sits on one colour from top to bottom.",
-			"tags": [
-				"Assignments"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Your class is one list now, grouped into units",
-			"body": "The Stream and Classwork tabs are gone. They showed the same things twice, in two orders, and neither matched the way your classes actually run. A class is now a single list grouped into the units your teacher set up -- Unit 1, Unit 2, Rotation 1 -- in their order, with anything not filed yet in a clearly marked group at the bottom. Announcements sit in the list alongside assignments and materials, marked by kind so you can tell them apart at a glance. You can fold a unit shut to get it out of the way, and it stays folded next time you open the class, on your phone too.",
-			"tags": [
-				"Classwork",
-				"Announcements"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Every assignment shows where you stand",
-			"body": "Each assignment in your class list now says whether you have not started it, have it in progress, have submitted it, or have had it returned -- and a returned one shows the score right there. No more opening things one at a time to find out what you still owe.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Shorter rows, so a full class fits on a screen",
-			"body": "Each announcement, assignment and material is one compact line carrying its kind, title, due date, status and whether it has files or links attached. Tap the arrow at the left to open one up in place, or the title to go to its full page. A class with thirty things in it is now something you can scan instead of scroll through.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-16",
-			"title": "Switch between your classes from anywhere",
-			"body": "Every classroom page now has your class list in the top bar. Whichever class, assignment or page you are on, the class you are in is named up there and every other class is one tap away -- no more going back to My Classes and starting again. Underneath it, a trail shows where you are and takes you back up a level.",
-			"tags": [
-				"Classwork",
-				"Announcements"
-			]
-		},
-		{
-			"date": "2026-08-15",
-			"title": "The classroom is easier on the eyes",
-			"body": "Your classes, your classwork and the reference documents now sit on a quieter, darker background with the scan lines turned off, so a page of instructions is the loudest thing on screen instead of the page around it. Green is kept for buttons you press, the tab you are on and work that is finished, which makes those easier to pick out. Nothing moved and nothing is missing -- it is the same classroom, just calmer to read for a while.",
-			"tags": [
-				"Classwork",
-				"Announcements"
-			]
-		},
-		{
-			"date": "2026-08-15",
-			"title": "A material with a reference document keeps its description",
-			"body": "When your teacher attaches a full reference document to a material -- a syllabus, a standards sheet -- anything they had written on the material itself used to disappear behind it. That description now shows above the document, where it introduces what you are about to read.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-15",
-			"title": "Assignments say clearly when there is nothing to hand in here",
-			"body": "An assignment with no online hand-in used to say submission was \"not available right now\", which sounded like something was broken and left people waiting for a form. It now says plainly that this assignment has no online hand-in and to follow the instructions above, where your teacher has said how to turn it in.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-15",
-			"title": "Instructions can have headings, lists and links",
-			"body": "Assignment instructions, announcements and material descriptions are properly formatted now. Your teacher can use headings, bulleted and numbered lists, bold, italic and links, so a set of steps reads as a set of steps instead of one long paragraph. Everything already posted still says exactly what it said before, and it looks the same everywhere -- on the class stream, on the assignment's own page, and on your phone.",
-			"tags": [
-				"Classwork",
-				"Announcements"
-			]
-		},
-		{
-			"date": "2026-08-15",
-			"title": "Your notebook comes in IDEA green now",
-			"body": "The notebook has a third look beside the light and dark ones: a green-black theme in the program's own colours. Use the appearance button at the top of your notebook to pick it. There are four choices now -- Match my device, Light, Dark and IDEA -- and whichever you pick is remembered on that device. If you have not picked one, your phone or computer still decides between light and dark, the way it always has; IDEA only turns up if you choose it. Everything else is exactly where it was, and your teacher's review grid reads the same in all three.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-15",
-			"title": "The app grid is one list you can arrange yourself",
-			"body": "The apps on the home page are no longer split into Games, Tools and Class headings. They are one grid, starting with Classroom and your notebook, and they fit on screen without scrolling now. You can sort them by what you use most or what you opened last, drag a card by the handle on its left to put it exactly where you want it, or star an app to keep it at the front. Hit Customize to see the handles and stars. Whatever you set is saved to your account, so it looks the same on the school computers and on your phone. If you had already rearranged your apps, your arrangement carried over.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Presentation uploads go a different way in, and have a size limit",
-			"body": "Attaching a slide deck to an assignment, announcement or material (something only your teacher does) now goes straight through our own server instead of being sent to Google separately first. It turned out the separate route did not actually work reliably here, so this is the more dependable path -- the same one every other file in the class already used. The tradeoff: a deck now has to be under about 4 MB to upload, which most decks are, but ones with a gif or a video in them usually are not. If your teacher's deck has media like that, they will need to pull it out of the deck and attach it to the item on its own instead. Nothing changes about how a presentation opens or looks for you once it is there.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Filing an entry into a folder is one tap from the entry itself",
-			"body": "Moving an entry into a folder was possible before, but only if you opened the entry and scrolled past the photos and the notes to a small box at the bottom, so most people never found it. Every entry in your notebook now carries its folder on the row itself, open or closed: it shows which folder the entry is in (or Unfiled), and changing it is one tap with nothing to open first. The two buttons beside it say Pin and Copy in words now, instead of being symbols you had to hover to identify. Nothing about how folders work has changed, and picking several entries at once to move them together still works exactly as it did.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "You can write a note on a check-in as you photograph it",
-			"body": "A notebook check-in still needs a photo of the page -- that has not changed. But until now the photo was all you could send, so if there was something worth saying about it (what you measured, what went wrong, what you would try next) you had to save the entry first and then come back and add it. There is now an optional Note box on the same screen, right under where you pick your photos. Write in it or leave it empty; either way the entry saves the same. Like the photo, a note on a check-in cannot be edited once it is saved, but you can always add another note to the same entry afterwards.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Your teacher can now read your whole notebook, not just your check-ins",
-			"body": "Your teachers could only ever see notebook entries you filed against one of their check-ins. Anything you wrote or photographed on your own -- a free entry with no check-in attached -- was invisible to them, which meant most of a notebook could not be looked at or given credit for. A teacher can now open your whole notebook from their class list, including your own entries and notes. Two things to know. Only teachers whose class you are currently in can do this, and only for you -- not for anyone else's students. And it is read-only: they cannot change, delete or add anything to your notebook. Nothing you have written has moved or been altered.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Big presentations no longer fail on the last piece",
-			"body": "A large presentation is sent up in pieces, and the very last piece is the one that tells Google the file is complete. That last piece was failing on some uploads, so a deck that had reached 100% still never arrived -- which is a frustrating way to lose ten minutes of waiting. The last piece is now sent exactly the way it is supposed to be, and if it does fail, the upload asks how much actually arrived and carries on from there instead of giving up. It also checks that the finished file is the size it should be, so a presentation can never half-arrive and then open as something broken. If it still cannot finish, the message now says which piece failed and how much had arrived, which is what your teacher can pass on when reporting it. Nothing changes about how a deck looks or opens for you.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "\"Updated\" on a class item now always means something changed for you",
-			"body": "The Updated tag on an announcement, assignment or material is meant to tell you that your teacher changed something you should read again. It was appearing on items where nothing you can see had changed -- so opening one told you nothing, and after a few of those the tag stops being worth trusting. It now appears only when the title, the description, the points, the due date or the links actually changed. If your teacher saves an item without changing any of that, nothing about it moves for you at all, and it will not push its way back to the top of your list on the home page. Nothing you have already read has been marked unread by this.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Really big presentations finish uploading now",
-			"body": "Large decks -- the ones with several animations or videos in them -- could get all the way to the end of the upload and then fail, so the presentation never appeared on the item. They now unpack a few files at a time instead of all at once, which is what they were running out of time on, and the progress bar counts the files as it goes so your teacher can see it working rather than watching a bar that has stopped. If something does go wrong, it says what went wrong instead of just \"something failed\", and it can pick up where it left off rather than starting the whole upload again. A presentation that fails halfway now leaves nothing behind. Nothing changes about how a deck looks or opens for you.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Bigger presentations now make it into class",
-			"body": "Some of the decks your teachers wanted to put on an assignment were too big to upload, and the upload simply failed part way with nothing to show for it. That is fixed: a presentation now goes up in one piece however big it is, including ones with video in them, and there is a progress bar while it uploads so your teacher can see it working instead of guessing. If the wifi drops or they change their mind, they can stop it and start again without leaving half a deck behind. For you nothing changes about how a deck opens or looks -- there are just fewer that never arrived. If a presentation you were told about is missing from an item, it is worth telling your teacher, because it may be one that failed to upload before this.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Slide decks now open right in your class",
-			"body": "When your teacher puts a presentation on an assignment, announcement or material, it now opens inside IDEA Classroom instead of being a file you have to download. Open the item and tap the presentation at the top: it fills the screen, and the left and right arrow keys move between slides just like they do when your teacher is presenting. There is a full-screen button for when you want nothing else on the screen, and a slide list if you want to see what is coming up. It works on a phone as well as a laptop. Nothing about this is something to hand in -- a deck is there to read and go back to, and it stays available for as long as the item does.",
-			"tags": [
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-14",
-			"title": "Notebook check-ins now show up in your class",
-			"body": "Your notebook check-ins appear in the class stream, alongside announcements and assignments, on the day they are for. Each one tells you where you stand on it -- filed, not filed yet, excused, or needs another look -- and tapping it takes you to your notebook with that check-in already picked, so you can go straight to adding the page. The notebook link at the top of the class page now carries a number when something still needs you: check-ins you have not filed, plus any your teacher flagged. If there is no number, you are up to date. A check-in is still a notebook thing, not a second assignment: there is nothing to hand in here and nothing to grade here. Your Documentation Check is still the one graded piece for the unit, exactly as before.",
-			"tags": [
-				"Notebook",
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-13",
-			"title": "Your notebook is one click from your class page",
-			"body": "Every class page now carries a link straight to your engineering notebook, next to the class and teacher at the top. You no longer have to go back out to the home screen to get to it. Nothing about the notebook itself changed -- same entries, same folders, same pinned pages -- there is just a door to it from the class it belongs to. Your teachers get a link from the same spot into the review side, so when they are looking at your class they can see how the notebook check-ins are going without hunting for it.",
-			"tags": [
-				"Notebook",
-				"Classes"
-			]
-		},
-		{
-			"date": "2026-08-13",
-			"title": "Reference pages like the syllabus are easier to read and move around",
-			"body": "The syllabus and other reference pages used to be one long block of grey text, and switching tabs threw you back to the top of the page. Both are fixed. Headings, numbered and bulleted lists, quotes and highlighted terms now show up the way they were written instead of as raw text, so a long section has visible structure. Lines are shorter, which is easier on the eyes, while tables and card links still use the full width. Tables read as tables, the boxes for notes and warnings look different from each other, and anything marked Required is now impossible to miss -- which matters on the pages your parents read. Switching tabs keeps the tab bar exactly where it is and starts you at the top of the new section, and your browser's back and forward buttons now move between tabs instead of leaving the page. On a phone, wide tables stack instead of sliding sideways. Printing still gives you the whole document, every section, in order.",
-			"tags": [
-				"Reference",
-				"Syllabus"
-			]
-		},
-		{
-			"date": "2026-08-13",
-			"title": "Your Documentation Check grade shows up with the rest of your work",
-			"body": "The Documentation Check on your engineering notebook used to be graded off to the side. It is an assignment in your class now, so when your teacher returns it you see the score, the rubric and their comment in the same place as everything else, and it counts toward your grade the same way. One criterion is filled in straight from your notebook -- how many of the unit's check-ins you actually filed something for -- and the note attached to it shows the count your teacher was looking at, including any sessions you were excused from. The other three are still judged by your teacher reading your notebook. If a criterion looks wrong, that note tells you exactly what it was counted from, which is the thing to ask about.",
-			"tags": [
-				"Notebook",
-				"Grades"
-			]
-		},
-		{
-			"date": "2026-08-13",
-			"title": "Rubrics now tell you what each score means",
-			"body": "The rubric on an assignment used to give you a criterion and a number. Now every criterion lists its levels -- full marks, partway, and nothing -- each with the points it is worth and a sentence describing what that level actually looks like. You can read all of it before you start, so you know what full marks means rather than guessing. When your work comes back, the level you were given is ticked on each criterion, so you can see exactly which description matched your work and what the next one up would have taken. If your teacher scores you between two levels, they have to say why, and that note comes back to you with the grade. Your teachers are still filling in level descriptions on some older rubrics; those criteria are marked so you can tell.",
-			"tags": [
-				"Classwork",
-				"Grades"
-			]
-		},
-		{
-			"date": "2026-08-13",
-			"title": "Your notebook knows your classes",
-			"body": "The digital notebook is connected to your real classes now. The check-ins your teacher schedules show up as quick picks when you add an entry, and they come from the classes you are actually in rather than the pathway year you picked for yourself. If you join a class partway through the term, its check-ins appear straight away. Nothing you have already written changes, and you can still add a free-form entry or a note with no check-in attached.",
-			"tags": [
-				"Notebook"
-			]
-		},
-		{
-			"date": "2026-08-13",
-			"title": "Class materials can be real documents now",
-			"body": "A material your teacher posts can open as a proper document with tabs across the top instead of one long page. Tap a tab to jump to that part, and the address bar keeps your place, so a link to one section takes you straight there. Some documents include a grade estimator you can type your own scores into (nothing you type is saved or sent anywhere) and a lookup for what AI use is allowed on a given kind of work. Printing works too: Ctrl+P gives you the whole document in order, not just the tab you were on. Your teacher can also give one of these documents a link that works without signing in, so you can hand it to a parent.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-12",
-			"title": "Teachers can attach private materials to classwork",
-			"body": "Teachers can now attach answer keys, facilitation notes, and other private files or links to any post, assignment, or material. Those stay visible only to that class's teachers and staff -- nothing changes on your side, and you will never see them or know they are there.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-12",
-			"title": "Your classes are on the front page now",
-			"body": "Sign in and the IDEA home page opens straight onto your classes. Each class gets a card showing what it is actually asking of you right now, most urgent first: work that is past due, grades that have come back and you have not opened yet, anything due in the next week, and work you have not handed in. Your syllabus and other reference material sit further down the card under Reference, so they stay easy to find without pushing your deadlines out of sight. Teachers see the same cards from the other side: work waiting to be graded, drafts not posted yet, and what is due soon. Fold a class shut if you want it out of the way and it stays that way, on every device you sign in on.",
-			"tags": [
-				"Home",
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-12",
-			"title": "The Freshman Summer Program has wrapped up",
-			"body": "Summer is over, so the FSP box has come off the front page. Nothing has been thrown away: the slide decks from all three days, the course descriptions, the rulebook and the rest are kept together at ideabosco.com/fsp/archive, and every link and QR code from the summer still works. Two things are carrying on as normal -- the SolidWorks add-in is still supported and still downloadable, and the FRC interest form is still open, because Team 5669 recruits all year.",
-			"tags": [
-				"Home"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "Hand work in from the assignment page",
-			"body": "Assignments now have a real hand-in: attach files or photos (your phone camera works), then Submit. Until your teacher starts grading you can Unsubmit to keep working, and when work is returned you can revise and resubmit. Some assignments are now fully interactive -- you type answers, fill tables, attach photo evidence and tick checklists right on the page, everything saves by itself as you type, and the page lists exactly what is still missing before Submit will go through.",
-			"tags": [
-				"Assignments"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "Rubrics and returned grades",
-			"body": "Assignments can show their rubric up front, so you can see how the points break down before you start. When your teacher returns your work you will see your score, the points per rubric line, and their comment right on the assignment page.",
-			"tags": [
-				"Assignments",
-				"Grades"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "One post, every class -- edits now reach all of them",
-			"body": "An announcement, assignment or material posted to more than one class used to become a separate copy per class, so fixing a typo only fixed it in one place. There is one shared copy now: your teacher edits it once and every class it was posted to sees the change straight away.",
-			"tags": [
-				"Classwork",
-				"Stream"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "\"Updated\" badges on things that changed",
-			"body": "If your teacher edits an assignment or announcement after posting it, you will see an Updated badge on it and the time it was last changed. Opening the item clears the badge, so what is left is what you have not read yet.",
-			"tags": [
-				"Stream",
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "Materials: syllabi and standing references",
-			"body": "Classwork can now hold Materials -- a syllabus, a rubric, a link shelf. They sit alongside assignments but have no points and nothing to hand in, so a reference you need all term stops getting buried under this week's work.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "Pinned items and a set order",
-			"body": "Teachers can pin the things that matter most so they sit at the top of Stream and Classwork, and can put the rest in whatever order makes sense for the unit instead of strict date order.",
-			"tags": [
-				"Classwork",
-				"Stream"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "Links show a preview",
-			"body": "A link attached to an assignment or material now shows the page title and picture where the site provides them, so you can tell what you are about to open. If a site does not offer any of that, the plain link still works exactly as before.",
-			"tags": [
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-11",
-			"title": "Tell us what is not working",
-			"body": "There is a Feedback button at the bottom of every classroom page. It sends a short note along with which page you were on -- useful if something looks wrong, is confusing, or you have an idea.",
-			"tags": [
-				"Everywhere"
-			]
-		},
-		{
-			"date": "2026-08-10",
-			"title": "File attachments on posts and assignments",
-			"body": "Teachers can attach handouts, images and PDFs directly to an announcement or assignment. They open straight from the class page -- no separate download link, no Drive permission to request.",
-			"tags": [
-				"Stream",
-				"Classwork"
-			]
-		},
-		{
-			"date": "2026-08-10",
-			"title": "Classroom opens",
-			"body": "My Classes, a Stream of announcements, and Classwork grouped by due date. Your classes appear automatically once your teacher adds you to the roster -- there is nothing to join and no code to type.",
-			"tags": [
-				"Everywhere"
+				"check-ins"
 			]
 		}
 	]

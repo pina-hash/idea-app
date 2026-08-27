@@ -355,6 +355,19 @@
 
 	async function attachCheckIn(draft: CheckInDraft) {
 		if (!checkInTransports || checkInBusy) return;
+		// A SECOND CHECK-IN ON THE SAME DATE IS REFUSED, and named as its own
+		// case rather than a generic "could not attach": a duplicate puts a
+		// second column on every affected class's grid and asks every student
+		// for the same page twice. This is a client-side courtesy -- the schema
+		// allows more than one check-in per item and does not itself enforce
+		// distinct dates -- so it only catches what THIS page is about to do.
+		if (checkIns.some((c) => c.session_date === draft.session_date)) {
+			checkInError =
+				'This item already has a check-in on that date. Pick a different date, or edit the ' +
+				'existing one instead -- a duplicate would put a second column on every affected ' +
+				"class's grid and ask students for the same page twice.";
+			return;
+		}
 		checkInBusy = true;
 		checkInError = null;
 		try {
@@ -639,7 +652,9 @@
 						     the check-in; this only decides what it hangs off. -->
 						<div class="insp-block">
 							{#if checkIns.length}
-								<h2 class="section-label">Notebook check-in</h2>
+								<h2 class="section-label">
+									{checkIns.length === 1 ? 'Notebook check-in' : 'Notebook check-ins'}
+								</h2>
 								{#each checkIns as checkIn (checkIn.session_id)}
 									<p class="insp-line" data-testid="insp-check-in">
 										<strong>{checkIn.session_label}</strong>
@@ -714,16 +729,28 @@
 										</span>
 									{/if}
 								{/each}
-							{:else}
-								<CheckInStager
-									guidanceAvailable={canWriteGuidance}
-									label="Notebook check-in"
-									submitLabel={checkInBusy ? 'Attaching...' : 'Attach check-in'}
-									hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class this item is posted to."
-									busy={checkInBusy}
-									onstage={attachCheckIn}
-								/>
 							{/if}
+							<!--
+								OPENING THE SECOND DOOR (0139). Several check-ins on one item
+								are separate sessions, one per date -- the schema already
+								permits it (`checkIns` is plural and the create RPC can be
+								called repeatedly) -- so this stays mounted once check-ins
+								already exist rather than being the `{:else}` of the block
+								above. Attaching one is an EDIT-TIME action; the composer
+								still stages exactly one at creation.
+							-->
+							<CheckInStager
+								guidanceAvailable={canWriteGuidance}
+								label="Notebook check-in"
+								submitLabel={checkInBusy
+									? 'Attaching...'
+									: checkIns.length
+										? 'Attach another check-in'
+										: 'Attach check-in'}
+								hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class this item is posted to."
+								busy={checkInBusy}
+								onstage={attachCheckIn}
+							/>
 							{#if checkInError}
 								<p class="feedback error" data-testid="check-in-error">{checkInError}</p>
 							{/if}
