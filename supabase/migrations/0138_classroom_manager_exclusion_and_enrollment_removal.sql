@@ -39,6 +39,46 @@
 -- whose RESULT SHAPE is new are dropped at their exact signature first (a
 -- `returns table` cannot be replaced with a different column list, which is
 -- what a re-paste over a half-applied earlier draft would hit).
+--
+-- EVERY REVOKE BELOW NAMES THE ROLES, AND `from public` ALONE WOULD HAVE BEEN
+-- A NARROWING THAT DOES NOTHING. This file was written before
+-- `0137_anon_execute_sweep.sql` landed and originally used the repo's old
+-- `revoke all on function f from public` form throughout. That form is wrong
+-- on a hosted Supabase project, which bootstraps
+--
+--   alter default privileges in schema public
+--     grant execute on functions to anon, authenticated, service_role;
+--
+-- so every new function's `proacl` carries a DIRECT grant to each of those
+-- three roles from the moment it is created. The SQL default is a single
+-- grant to PUBLIC; `revoke ... from public` removes exactly that one entry,
+-- which on a real project is not even present. The function comes out of
+-- `create` already granted to `anon` and stays granted.
+--
+-- MEASURED ON THIS FILE, not inferred: the chain plus 0137 plus an earlier
+-- draft of 0138, read back off `pg_proc`, returned `anon = TRUE` on all four
+-- functions this migration creates -- and `_admin_is_email` ANSWERED a call
+-- made as the `anon` role, reporting whether a given address holds admin.
+-- That is an admin-roster oracle reachable without a session. The three
+-- functions 0138 only REPLACES were unaffected, because `create or replace`
+-- preserves an existing ACL and 0137 had already narrowed them.
+--
+-- 0137 IS A ONE-TIME REPAIR OF WHAT EXISTED WHEN IT RAN. It does not and
+-- cannot cover a function created afterwards, so a new function narrows
+-- itself or it is not narrowed. `0136_foundry_delete.sql` is the file this
+-- one follows: its two RPCs revoke from `public, anon, authenticated,
+-- service_role` and then grant back only what should hold it, an end state
+-- that is independent of whatever default privileges the database carries.
+--
+-- WHO HOLDS WHAT, AND WHY. The two private helpers are granted to NOBODY:
+-- they are called only from the bodies of SECURITY DEFINER functions, which
+-- execute as the owner, and they are named in no policy, no CHECK constraint
+-- and no view, so no caller is ever evaluated against their ACL. The two
+-- RPCs are granted to `authenticated` alone, because the browser client calls
+-- them through PostgREST and nothing else does. `service_role` is not granted
+-- anywhere here: no server route holds the service key on this path, and
+-- 0131's CHECK-constraint case (a predicate evaluated as the WRITING role)
+-- does not arise, because this file adds no constraint.
 
 -- ---------------------------------------------------------------------------
 -- 1. ONE definition of "who manages this", asked of an EMAIL.
@@ -68,7 +108,13 @@ as $$
 	end;
 $$;
 
-revoke all on function public._admin_is_email(text) from public;
+-- REVOKED FROM THE ROLES THAT ACTUALLY HOLD IT, NOT ONLY FROM `public`.
+-- See the header section on default privileges: `revoke ... from public`
+-- alone leaves `anon` a direct EXECUTE on a real Supabase project. GRANTED TO
+-- NOBODY -- `is_admin()` and `_classroom_manages_section_email` are its only
+-- callers and both are SECURITY DEFINER, so this runs as the owner.
+revoke all on function public._admin_is_email(text)
+	from public, anon, authenticated, service_role;
 
 -- 0067's is_admin(), now a caller-scoped reading of the rule above. The body
 -- is replaced; the NAME, the signature and therefore every policy that
@@ -114,8 +160,14 @@ as $$
 	end;
 $$;
 
-revoke all on function public._classroom_manages_section_email(uuid, text) from public;
-grant execute on function public._classroom_manages_section_email(uuid, text) to authenticated;
+-- REVOKED FROM THE ROLES THAT ACTUALLY HOLD IT, NOT ONLY FROM `public`, and
+-- GRANTED TO NOBODY. Its callers are `classroom_manages_section`,
+-- `_notebook_section_roster`, `classroom_section_roster` and section 5's
+-- report, and every one of them is SECURITY DEFINER or the applying owner.
+-- A grant to `authenticated` here would hand any signed-in student a way to
+-- ask whether an arbitrary address manages an arbitrary section.
+revoke all on function public._classroom_manages_section_email(uuid, text)
+	from public, anon, authenticated, service_role;
 
 -- 0082's classroom_manages_section, now a thin wrapper. Same name, same
 -- signature, same answers.
@@ -278,7 +330,12 @@ as $$
 	order by e.display_name, e.student_email;
 $$;
 
-revoke all on function public.classroom_section_roster(uuid) from public;
+-- REVOKED FROM THE ROLES THAT ACTUALLY HOLD IT, NOT ONLY FROM `public`.
+-- `authenticated` alone: the browser calls this through PostgREST
+-- (`loadSectionRoster`), and its own body refuses a caller who manages
+-- nothing, so an `anon` grant would buy an empty result and a probe.
+revoke all on function public.classroom_section_roster(uuid)
+	from public, anon, authenticated, service_role;
 grant execute on function public.classroom_section_roster(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -410,7 +467,13 @@ begin
 end;
 $$;
 
-revoke all on function public.classroom_remove_enrollment(uuid, text) from public;
+-- REVOKED FROM THE ROLES THAT ACTUALLY HOLD IT, NOT ONLY FROM `public`.
+-- `authenticated` alone: the browser calls this through PostgREST. The body
+-- already raises on a null `auth.uid()`, but a gate refused at the grant and
+-- a gate refused in the body are not the same thing, and this file is not
+-- the place to spend the outer one.
+revoke all on function public.classroom_remove_enrollment(uuid, text)
+	from public, anon, authenticated, service_role;
 grant execute on function public.classroom_remove_enrollment(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
