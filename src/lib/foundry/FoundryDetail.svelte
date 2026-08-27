@@ -96,10 +96,14 @@
 
 	{#if cover}
 		<!--
-			`contain`, never `cover`: a cropped-to-fill preview hides the cut-off
-			edge, and the whole reason a cover exists is to show what the app looks
-			like. The alt text is the title because the image IS the app's own
-			screenshot; a second description would be invented here.
+			`scale-down`, never `cover`: a cropped-to-fill preview hides the
+			cut-off edge, and the whole reason a cover exists is to show what the
+			app looks like. It is not plain `contain` either -- that enlarges a
+			cover smaller than this box, which is the upscaled-and-blurry failure
+			mode; `scale-down` renders it at its own native sharpness with
+			letterboxing around it instead. The alt text is the title because the
+			image IS the app's own screenshot; a second description would be
+			invented here.
 		-->
 		<img class="fdy-cover" src={cover} alt={app.title} loading="lazy" />
 	{/if}
@@ -193,7 +197,7 @@
 		width: 100%;
 		max-width: 100%;
 		max-height: 18rem;
-		object-fit: contain;
+		object-fit: scale-down;
 		object-position: left center;
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-md, 8px);

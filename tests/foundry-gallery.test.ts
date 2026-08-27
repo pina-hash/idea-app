@@ -536,6 +536,50 @@ describe('the frame cancels nothing', () => {
 	});
 });
 
+/* ------------------------------------------------------- the cover thumbnail */
+
+describe('a coverless tile renders its own deliberate state', () => {
+	it('renders the app initial rather than a broken or stock image', () => {
+		// Both fixture apps have cover_path: null, so the gallery-wide render is
+		// already the coverless case.
+		const html = galleryHtml();
+
+		const start = html.indexOf('data-app-slug="gear-ratio"');
+		expect(start, 'the coverless card did not render').toBeGreaterThan(-1);
+		const card = html.slice(start, html.indexOf('</a>', start));
+
+		// No <img> at all for this card -- a broken image would still emit one
+		// with a src that 404s, which looks identical to "missing" on screen.
+		expect(card).not.toContain('<img');
+		expect(card).toContain('fdy-card-blank');
+		// The initial is the app's own first letter, uppercased, not a generic
+		// glyph or a stock "no image" graphic.
+		expect(card).toContain('>G<');
+
+		// POSITIVE CONTROL: the sibling card, which DOES have a cover once one
+		// is supplied, renders an <img> instead -- so the absence above is about
+		// this card's data, not a component that never renders images.
+		const withCover = render(FoundryGallery, {
+			props: {
+				apps: [summary({ id: 'a', slug: 'tide-clock', title: 'Tide Clock', cover_path: 'x/y.png' })],
+				selected: null,
+				transports: NO_TRANSPORTS,
+				onSelect: noop
+			}
+		}).body;
+		expect(withCover).toContain('<img');
+		expect(withCover).not.toContain('fdy-card-blank');
+	});
+
+	it('never scales a cover past its own resolution', () => {
+		// `object-fit: scale-down` is a CSS decision with no different markup, so
+		// what is provable at this level is that the stylesheet states it and
+		// that plain `contain` (which upscales) is not what ships instead.
+		const src = readFileSync('src/lib/foundry/FoundryGallery.svelte', 'utf8');
+		expect(src).toMatch(/\.fdy-card-cover img[\s\S]*?object-fit:\s*scale-down/);
+	});
+});
+
 /* -------------------------------------------------------- 2. the author line */
 
 describe('a null class renders as nothing at all', () => {
@@ -741,6 +785,31 @@ describe('the review queue is the student page plus an inspector', () => {
 		// answer is not recorded. A confident "Title changed from X to Y" would
 		// be a sentence with nothing behind it.
 		expect(withFlag).toContain('Which one is not recorded');
+	});
+});
+
+/* ---------------------------------------------------- the build contract */
+
+describe('the build contract is reachable from the gallery in every state', () => {
+	it('links it when there is nothing published yet', () => {
+		const empty = render(FoundryGallery, {
+			props: { apps: [], selected: null, transports: NO_TRANSPORTS, onSelect: noop }
+		}).body;
+		expect(empty).toContain('href="/foundry/contract"');
+	});
+
+	it('links it just as reliably once apps exist', () => {
+		// This is the case that regressed: the old link lived only inside the
+		// `apps.length === 0` branch, so it disappeared the moment one app
+		// published anywhere. APPS here has two.
+		const html = galleryHtml();
+		expect(html).toContain('href="/foundry/contract"');
+		expect(html).toContain('Build contract');
+		// And with an app OPEN in the detail pane too, not only the bare list.
+		const withSelection = galleryHtml({
+			selected: app({ id: 'a', slug: 'tide-clock', title: 'Tide Clock' })
+		});
+		expect(withSelection).toContain('href="/foundry/contract"');
 	});
 });
 

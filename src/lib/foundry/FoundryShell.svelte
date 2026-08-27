@@ -47,6 +47,7 @@
 	const tabs: { place: FoundryPlace; href: string; word: string }[] = [
 		{ place: 'gallery', href: '/foundry', word: 'Gallery' },
 		{ place: 'mine', href: '/foundry/mine', word: 'My apps' },
+		{ place: 'contract', href: '/foundry/contract', word: 'Build contract' },
 		{ place: 'submit', href: '/foundry/submit', word: 'Publish' }
 	];
 </script>
