@@ -2856,6 +2856,7 @@
 								initialDoc={restoredDoc}
 								onchange={(doc) => (noteDraft = doc)}
 								disabled={busy}
+								{viewerId}
 							/>
 						{/key}
 						{#if mirrorBlocked}

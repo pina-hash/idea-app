@@ -1,7 +1,16 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { docToTiptap, type NoteDoc, type TiptapNode } from '$lib/notebook-notes';
 	import { NOTE_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
+	import { CorrectionLedger } from '$lib/notebook/autocorrect';
+	import ToleranceCallout from '$lib/notebook/ToleranceCallout.svelte';
+	import {
+		WRITING_AID_LABEL,
+		WRITING_AID_OFF_NOTE,
+		WRITING_AID_ON_NOTE,
+		setWritingAidEnabled,
+		writingAidEnabled
+	} from '$lib/notebook/writing-aid.svelte';
 	import type { Editor } from '@tiptap/core';
 
 	/**
@@ -38,7 +47,8 @@
 		disabled = false,
 		placeholder = 'Write your note...',
 		autofocus = false,
-		label = 'Note'
+		label = 'Note',
+		viewerId
 	}: {
 		/** Seeds the editor once, on mount: an existing note being revised. */
 		value?: NoteDoc | null;
@@ -72,11 +82,52 @@
 		placeholder?: string;
 		autofocus?: boolean;
 		label?: string;
+		/**
+		 * WHOSE writing aid preference this is. A shop workstation is shared, so
+		 * the switch is keyed per viewer exactly as the draft mirror is
+		 * ($lib/notebook/writing-aid.svelte) -- a student turning corrections off
+		 * does not turn them off for whoever sits down next, and does not read
+		 * the last person's setting as their own.
+		 *
+		 * Absent takes the `anon` slot, which is the right answer for a harness
+		 * and for a signed-out surface: the preference still works, it is simply
+		 * not attributed to anybody.
+		 */
+		viewerId?: string;
 	} = $props();
 
 	let host = $state<HTMLDivElement | null>(null);
 	let editor = $state<Editor | null>(null);
 	let failed = $state(false);
+
+	/**
+	 * THE WRITING AID: autocorrect and the tolerance callout, one switch.
+	 *
+	 * Read through the store's own accessor rather than copied into local state,
+	 * so the value is reactive and the plugin's `enabled()` closure below and
+	 * this component's own rendering can never disagree about it -- two
+	 * spellings of "is this on" is what produces a switch that dims the callout
+	 * and keeps correcting.
+	 */
+	const aidOn = $derived(writingAidEnabled(viewerId));
+
+	/**
+	 * The document as it stands, for the callout. Seeded at `onready` so a note
+	 * opened for editing gets a band before anything is typed, and it is the
+	 * EDITOR'S serialization in both cases (the `onready` rule) rather than the
+	 * `value` prop, which is a different shape.
+	 */
+	let liveDoc = $state<TiptapNode | null>(null);
+
+	/**
+	 * The one-keystroke undo's memory, per editor instance. The DECLINED words
+	 * behind it are module-level and shared across instances on purpose -- see
+	 * `sessionDeclined` in $lib/notebook/autocorrect.
+	 */
+	const ledger = new CorrectionLedger();
+
+	/** Clears the correction marks after CORRECTION_MARK_MS. */
+	let markTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/**
 	 * What the toolbar shows, PUSHED from the editor's own transactions rather
@@ -116,18 +167,44 @@
 
 		void (async () => {
 			try {
-				const [{ Editor }, { StarterKit }] = await Promise.all([
+				const [{ Editor, Extension }, { StarterKit }, plugin] = await Promise.all([
 					import('@tiptap/core'),
-					import('@tiptap/starter-kit')
+					import('@tiptap/starter-kit'),
+					// Same ProseMirror bundle the two above pull in, so this costs no
+					// extra request and still never runs during SSR.
+					import('$lib/notebook/autocorrect-plugin')
 				]);
 				if (cancelled) return;
+
+				/**
+				 * A bare ProseMirror plugin, carried in by the thinnest Tiptap
+				 * extension there is. It needs `appendTransaction`, `handleKeyDown`
+				 * and a decoration set and nothing else the extension API offers, so
+				 * the extension exists only because `addProseMirrorPlugins` is how a
+				 * plugin reaches the editor.
+				 *
+				 * `enabled` is a GETTER, read on every keystroke. Capturing the
+				 * boolean here would mean the switch could not take effect without
+				 * rebuilding the editor, and rebuilding the editor drops whatever
+				 * the student has typed into it.
+				 */
+				const autocorrect = plugin.autocorrectPlugin({
+					enabled: () => aidOn,
+					ledger
+				});
 
 				const instance = new Editor({
 					element,
 					// The schema lives in $lib/rich-text-schema so the tests that fix the
 					// normalizer's behaviour build their fixtures from the SAME declaration
 					// this editor is configured with.
-					extensions: [StarterKit.configure(NOTE_SCHEMA_OPTIONS)],
+					extensions: [
+						StarterKit.configure(NOTE_SCHEMA_OPTIONS),
+						Extension.create({
+							name: 'notebookAutocorrect',
+							addProseMirrorPlugins: () => [autocorrect]
+						})
+					],
 					content: initialDoc ?? (value ? docToTiptap(value) : undefined),
 					autofocus,
 					editable: !disabled,
@@ -140,7 +217,18 @@
 					},
 					onUpdate: ({ editor: e }) => {
 						syncActive(e);
-						onchange(e.getJSON() as TiptapNode);
+						const doc = e.getJSON() as TiptapNode;
+						liveDoc = doc;
+						onchange(doc);
+						// The mark is BRIEF. Scheduled on a timeout and never on an
+						// animation frame: a backgrounded or throttled tab never ticks
+						// rAF, and a mark that never cleared would become a permanent
+						// annotation on the note.
+						if (markTimer) clearTimeout(markTimer);
+						markTimer = setTimeout(() => {
+							const view = editor?.view;
+							if (view) view.dispatch(plugin.clearCorrectionMarks(view.state));
+						}, plugin.CORRECTION_MARK_MS);
 					},
 					// Moving the caret changes what "bold" means without changing
 					// the document, so selection needs its own hook.
@@ -151,7 +239,9 @@
 				});
 				editor = instance;
 				syncActive(instance);
-				onready?.(instance.getJSON() as TiptapNode);
+				const ready = instance.getJSON() as TiptapNode;
+				liveDoc = ready;
+				onready?.(ready);
 			} catch {
 				// A note is still writable without formatting; say so rather than
 				// leaving an inert box.
@@ -169,8 +259,45 @@
 	});
 
 	onDestroy(() => {
+		if (markTimer) clearTimeout(markTimer);
+		markTimer = null;
 		editor?.destroy();
 		editor = null;
+	});
+
+	/**
+	 * THE SWITCH. It lives in the toolbar and not in a settings page, because
+	 * the moment somebody wants it off is the moment it has just changed a word
+	 * they meant -- and a preference three navigations away is one they will
+	 * instead work around.
+	 *
+	 * TURNING IT OFF REMOVES BOTH FEATURES AND SAYS NOTHING FURTHER. The band
+	 * stops rendering, corrections stop firing, and the control keeps sitting
+	 * where controls sit. There is no reminder, no badge and no periodic offer
+	 * to turn it back on: a switch in its off state is a control, and a surface
+	 * that asks again is a surface arguing with a decision the student made.
+	 */
+	function toggleAid() {
+		setWritingAidEnabled(viewerId, !aidOn);
+	}
+
+	/**
+	 * Going OFF takes the marks with it. Coming back on leaves whatever is on
+	 * screen alone -- the timer already owns clearing those -- but a correction
+	 * left highlighted in a note nothing is correcting any more is a mark with
+	 * no meaning behind it.
+	 *
+	 * `untrack` around the editor read, the EntryNotes rule: this effect's one
+	 * real dependency is the switch, and taking one on the editor instance would
+	 * re-run it on every remount for no reason.
+	 */
+	$effect(() => {
+		if (aidOn) return;
+		const view = untrack(() => editor)?.view;
+		if (!view) return;
+		void import('$lib/notebook/autocorrect-plugin').then((plugin) => {
+			view.dispatch(plugin.clearCorrectionMarks(view.state));
+		});
 	});
 
 	function run(fn: 'toggleBold' | 'toggleItalic' | 'toggleBulletList' | 'toggleOrderedList') {
@@ -245,11 +372,41 @@
 			disabled={disabled || !editor}
 			onclick={toggleLink}>Link</button
 		>
+		<span class="sep" aria-hidden="true"></span>
+		<!--
+			THE WRITING AID SWITCH. A visible WORD, never a bare glyph: a tooltip
+			is not discoverable and a phone cannot hover. It sits with the
+			formatting controls because it is the same kind of thing -- something
+			you reach for while writing -- and because the moment a student wants
+			it off is the moment it has just changed a word they meant.
+
+			It is NOT disabled while the editor loads, unlike its neighbours: the
+			preference is this component's own state and does not need ProseMirror
+			to be settled before it can be set.
+		-->
+		<button
+			type="button"
+			class:on={aidOn}
+			aria-pressed={aidOn}
+			data-testid="nb-writing-aid-toggle"
+			title={aidOn ? WRITING_AID_ON_NOTE : WRITING_AID_OFF_NOTE}
+			{disabled}
+			onclick={toggleAid}>{WRITING_AID_LABEL}</button
+		>
 	</div>
 
 	<div class="note-surface" class:empty={active.empty} data-placeholder={placeholder}>
 		<div bind:this={host}></div>
 	</div>
+
+	<!--
+		THE BAND, and only when there is one. `ToleranceCallout` renders no
+		element at all below the minimum word count, so an empty editor and a
+		two-word note show nothing rather than an empty row waiting to fill.
+		`enabled` is the same switch autocorrect reads, so the two can never
+		disagree about whether the feature is running.
+	-->
+	<ToleranceCallout doc={liveDoc} enabled={aidOn} />
 
 	{#if failed}
 		<p class="editor-note" role="status">
@@ -355,5 +512,36 @@
 		padding: var(--space-2) var(--space-3) var(--space-2);
 		color: var(--text-3);
 		font-size: 0.8rem;
+	}
+	/*
+	   A CORRECTION IS NEVER INVISIBLE. The decoration is applied by the plugin
+	   (autocorrect-plugin.ts) and cleared on a timer, so a corrected word is
+	   marked for long enough to be noticed and does not become a permanent
+	   annotation on the note.
+
+	   TWO SIGNALS, not one: a wash AND an underline. Colour is never the only
+	   signal, and the underline is what carries the mark on a plate where the
+	   wash is faint. ProseMirror owns the inner element, so this is global.
+	*/
+	.note-surface :global(.nb-corrected) {
+		background: var(--nb-accent-wash);
+		border-radius: 2px;
+		box-shadow: inset 0 -1px 0 0 var(--nb-accent);
+	}
+	/* The fade is the polish, never the signal: with motion off the mark is
+	   simply there at full strength until the timer clears it. */
+	@media (prefers-reduced-motion: no-preference) {
+		.note-surface :global(.nb-corrected) {
+			animation: nb-correction-fade 1.8s ease-out forwards;
+		}
+		@keyframes nb-correction-fade {
+			0%,
+			60% {
+				background: var(--nb-accent-wash);
+			}
+			100% {
+				background: transparent;
+			}
+		}
 	}
 </style>
