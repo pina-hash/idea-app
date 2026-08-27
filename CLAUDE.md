@@ -839,6 +839,9 @@ below; a third mount is a caller of it, never a third handler.
 npm run dev                             # dev server
 npx svelte-check                        # type + a11y check
 npm test                                # full suite (see the parallelism trap)
+npm run verify:browser                  # the visual pass: /dev routes at 375 and 1440
+npm run verify:browser -- --probe       # what this machine's browser can actually do
+npm run verify:browser -- --selftest    # negative controls for every check
 npm run build                           # see the Windows EPERM trap below
 ```
 
@@ -853,7 +856,18 @@ This applies to every change. Prompts do not need to restate it.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
     npx svelte-check`, and read the count off its own summary line -- the sync
     first, because stale generated route types report phantom errors (see the
-    toolchain traps). A number written down here is a number that drifts: this
+    toolchain traps).
+  - **A CHECKOUT WITH NO `.env` REPORTS 11 PHANTOM ERRORS, AND THEY ARE NOT A
+    REGRESSION.** `$env/static/public` is generated from the environment, so
+    with no `.env` present -- which is every fresh cloud session, since `.env`
+    is gitignored -- `svelte-kit sync` writes a module exporting nothing and
+    eleven `has no exported member 'PUBLIC_SUPABASE_URL'`/`_ANON_KEY` errors
+    land across eight files that no change touched. **Export the two values
+    (any placeholder will do) BEFORE the sync** and the count returns to 0
+    errors / 37 warnings with the 31/5/1 breakdown intact, measured. The
+    warnings are unaffected either way, which is the tell: a real regression
+    moves one of those numbers, this moves only the errors and only in files
+    the diff never named. A number written down here is a number that drifts: this
     line said 36 against a tree measuring 37, and two separate sessions found
     the same gap independently before either said so, which is what a figure
     being trusted rather than measured looks like. **A session that measures a
@@ -3157,6 +3171,61 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
 - **Commit and push every session.** Do not leave work uncommitted -- merged to
   `main` where the work is single-item, or landed on its `lane/` branch with
   the branch's status reported.
+- **THE VISUAL PASS IS RUNNABLE HERE, AND "NO BROWSER TOOL AVAILABLE" IS NO
+  LONGER AN ACCEPTABLE SENTENCE.** It describes the SESSION rather than the
+  environment, and the two have turned out to differ: sessions reported it for
+  days on end while a Chromium sat at `/opt/pw-browsers`, starting headless on
+  demand, and while this file cited Chromium measurements as established fact.
+  `npm run verify:browser` (`tools/browser-verify/`, and its README is the
+  reference) drives the `/dev` routes at **375px and 1440px** through
+  playwright-core and the preinstalled binary. **A session either runs it and
+  reports the numbers, or names precisely what stopped it** -- the binary it
+  looked for and did not find, the error the launch returned. `--probe` answers
+  the "is there a browser" question on its own and prints what that browser can
+  do.
+  - **EVERY CHECK REPORTS A MEASURED VALUE, NEVER A PASS.** No horizontal scroll
+    at either width, contrast against the REAL rendered ground, tap-target
+    geometry against 44px, present-vs-visible-vs-aria-hidden, and console errors
+    during the run. A number is auditable by the next reader and a green tick is
+    not, which is the whole reason the claims this replaces went unchecked for
+    so long.
+  - **IT COVERS `/dev` ROUTES ONLY, AND THAT IS A BOUNDARY RATHER THAN A
+    STARTING SET.** A real route needs a Bosco Tech Google session no automated
+    run holds; that is still `/dev/login` against a local stack, by hand. Do not
+    report the harness as covering a signed-in surface.
+  - **TWO LIMITS BELONG IN ANY REPORT THAT QUOTES ITS NUMBERS**: the harness
+    blocks every non-loopback request (the proxy resets `fonts.googleapis.com`,
+    and an unanswered request cost 8s a page -- one run took 305 SECONDS), so
+    **text is measured in the fallback stack**; and `prefers-reduced-motion` is
+    `no-preference`, so that path is not exercised.
+  - **A CHECK THAT HAS NEVER FAILED HAS NOT BEEN TESTED.** `--selftest` puts
+    every check to a broken fixture AND a sound one and exits non-zero if the
+    instrument is wrong; `--break <preset>` injects a defect into the REAL page
+    so a session can prove a check bites on the surface in front of it. Adding
+    a check means adding both.
+  - **IT IS DELIBERATELY OUTSIDE `npm test` AND OUTSIDE CI.** `npm test` is the
+    database suite and a browser failure there would read as a database
+    failure; and a push to `main` deploys `ideabosco.com` during class, so a
+    browser-shaped flake must not be able to block a deploy. Default exit is 0
+    even with findings. Revisit CI once several sessions have run it.
+- **THE BROWSER PANE'S LIMITS ARE NOT THE ENVIRONMENT'S LIMITS, AND THE WHOLE
+  "Browser pane" SECTION MUST BE READ THAT WAY.** Measured against the harness
+  Chromium (141.0.7390.37) rather than assumed: screenshots WORK,
+  `requestAnimationFrame` FIRES, `IntersectionObserver` FIRES,
+  `ResizeObserver` DELIVERS, canvas readback and `color-mix()` parsing work,
+  and a paused animation reports 0.5 opacity at its midpoint. Every one of
+  those is the opposite of what that section records for
+  `mcp__Claude_Browser__*`, and carrying its workarounds over here is how a
+  session settles an `IntersectionObserver` by hand that would have fired on
+  its own. Re-run `--probe` rather than trusting this paragraph.
+- **PAINT IS NOT INTERACTIVITY, AND NO WINDOW MARKER SEPARATES THEM.** The
+  server-rendered markup is on screen before hydration attaches a handler, and
+  the `__SVELTEKIT_*` globals are set by the client entry module before that
+  too. Measured on `/dev/spec-table`: every global present at 600ms while two
+  clicks in a row did nothing, and the same single click landing at 2500ms. So
+  a scripted click NEVER waits on a timer or a marker -- it retries against its
+  own effect and reports the attempt count. A step that "failed" through twelve
+  attempts whose clicks were all working is what the other shape looks like.
 - **Interactive/visual verification:** when a task involves interactive or visual
   UI (custom viewers, canvas/three.js, animations, drag/pan/zoom, pop-out/PiP,
   complex forms -- anything whose correctness is invisible to type-checking), you
