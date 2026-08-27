@@ -1,10 +1,12 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
+		enrollmentWorkSummary,
 		importReasonLabel,
 		parseSectionRosterCsv,
 		sectionDeleteBlockedLabel,
 		sectionTitle,
+		splitRoster,
 		type ClassroomEnrollment,
 		type ClassroomPeopleTransports,
 		type ClassroomSection,
@@ -36,6 +38,7 @@
 	let {
 		section,
 		roster = [],
+		removalReady = false,
 		transports,
 		loadNotebookGrid = null,
 		onchanged = null,
@@ -43,6 +46,16 @@
 	}: {
 		section: ClassroomSection;
 		roster?: ClassroomEnrollment[];
+		/**
+		 * Did the roster come back off the 0138 rung, so `manages` is real and
+		 * `classroom_remove_enrollment` exists to be called?
+		 *
+		 * DEFAULTS FALSE, which is the fail-closed direction: a caller that has
+		 * not asked gets the panel exactly as it was before this bundle, rather
+		 * than a Remove control that would answer PGRST202 and a status chip
+		 * asserting nobody manages the class.
+		 */
+		removalReady?: boolean;
 		transports: ClassroomPeopleTransports;
 		/**
 		 * The notebook's own grid read, for the compliance element below (0099).
@@ -157,6 +170,100 @@
 
 	const active = $derived(roster.filter((e) => e.active));
 	const inactive = $derived(roster.filter((e) => !e.active));
+	/**
+	 * The hero's count, THROUGH THE REAL SPLIT.
+	 *
+	 * It used to be `active.length`, which on a roster carrying the teacher's
+	 * own enrollment reads 25 while the Grades tab beside it reads 24 -- two
+	 * numbers for one class, with nothing on either page to say why. This page
+	 * still LISTS every row, because the manager row is the one somebody came
+	 * here to remove; it just stops calling them all students.
+	 */
+	const activeSplit = $derived(splitRoster(active));
+
+	/**
+	 * REMOVAL: the first path this schema has ever had for taking an enrollment
+	 * OFF a class rather than archiving it (0138).
+	 *
+	 * IT IS OFFERED ONLY WHEN BOTH HALVES ARE THERE. The transport is optional,
+	 * so its absence removes the control down through this panel the way every
+	 * other write here works; `removalReady` is the other half, and says the
+	 * database has the RPC at all. One derived predicate, read by the control
+	 * AND by the handler, because two spellings of "can this be pressed" is
+	 * what produces a click that does nothing.
+	 */
+	const canRemove = $derived(removalReady && typeof transports.removeEnrollment === 'function');
+
+	/** The row whose Remove is armed. Only ever one, and never across a reload. */
+	let armedRemoval = $state<string | null>(null);
+	/**
+	 * A refusal, held against the row it belongs to. IN PLACE rather than in
+	 * `msg` at the top of the page: the counts are about ONE person, and the
+	 * alternative action they point at is that person's own Deactivate.
+	 */
+	let removalRefusal = $state<{ email: string; text: string } | null>(null);
+
+	function armRemoval(e: ClassroomEnrollment) {
+		armedRemoval = armedRemoval === e.student_email ? null : e.student_email;
+		removalRefusal = null;
+		msg = null;
+	}
+
+	async function confirmRemoval(e: ClassroomEnrollment) {
+		const remove = transports.removeEnrollment;
+		if (busy || !canRemove || !remove) return;
+		busy = true;
+		msg = null;
+		removalRefusal = null;
+		const res = await remove(section.id, e.student_email);
+		busy = false;
+		if (!res.ok) {
+			msg = { ok: false, text: res.message };
+			return;
+		}
+		if (res.data.ok === false) {
+			armedRemoval = null;
+			removalRefusal = {
+				email: e.student_email,
+				text:
+					res.data.reason === 'work_attached'
+						? `Not removed. ${enrollmentWorkSummary(res.data.counts)} in this class ${
+								res.data.total === 1 ? 'is' : 'are'
+							} attached to this enrollment, and deleting it would strand ${
+								res.data.total === 1 ? 'that' : 'those'
+							}.${
+								// Only when an entry is actually in the count. Explaining the bin
+								// beside a refusal that has nothing to do with it reads as a
+								// non sequitur, and the reader goes looking for a deleted entry
+								// that is not there.
+								res.data.counts.notebook_entries > 0
+									? ' A notebook entry in the bin still counts, because it can be restored.'
+									: ''
+							}`
+						: 'Not removed. That enrollment is already gone from this class.'
+			};
+			await onchanged?.();
+			return;
+		}
+		armedRemoval = null;
+		msg = { ok: true, text: `${e.student_email} removed from this class.` };
+		await onchanged?.();
+	}
+
+	/**
+	 * The row's own status, in words. Colour is never the only signal here, so
+	 * the chip carries the sentence and the class only tints it.
+	 *
+	 * MANAGING OUTRANKS ENROLLED, because it is the fact that explains why this
+	 * row does not appear on the check-in grid, in the grading roster or in the
+	 * FACTS export. Somebody reading this page after looking for that name
+	 * somewhere else is asking exactly this question.
+	 */
+	function rosterStatus(e: ClassroomEnrollment): { label: string; tone: 'manager' | 'on' | 'off' } {
+		if (e.manages === true) return { label: 'Manages this class', tone: 'manager' };
+		if (e.active) return { label: 'Enrolled', tone: 'on' };
+		return { label: 'Not on the live roster', tone: 'off' };
+	}
 
 	async function addStudent() {
 		if (busy) return;
@@ -299,9 +406,13 @@
 </script>
 
 {#snippet rosterRow(e: ClassroomEnrollment)}
+	{@const status = rosterStatus(e)}
 	<div class="roster-row" class:inactive={!e.active} data-testid="roster-row">
 		<span class="roster-name">{e.display_name || e.student_email.split('@')[0]}</span>
 		<span class="roster-email">{e.student_email}</span>
+		<span class="roster-status" data-tone={status.tone} data-testid="roster-status">
+			{status.label}
+		</span>
 		<span class="roster-actions">
 			<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => startEdit(e)}>
 				{editEmail === e.student_email ? 'Close' : 'Edit'}
@@ -315,8 +426,64 @@
 			>
 				{e.active ? 'Deactivate' : 'Reactivate'}
 			</button>
+			{#if canRemove}
+				<button
+					type="button"
+					class="btn secondary tiny"
+					disabled={busy}
+					data-testid="roster-remove"
+					onclick={() => armRemoval(e)}
+				>
+					{armedRemoval === e.student_email ? 'Keep' : 'Remove'}
+				</button>
+			{/if}
 		</span>
 	</div>
+	{#if armedRemoval === e.student_email}
+		<div class="roster-confirm" data-testid="roster-remove-confirm">
+			<p class="note">
+				Delete this enrollment outright? {e.student_email} comes off this class list for good, and
+				this cannot be undone. It only goes through if no saved answers, hand-ins, module approvals
+				or notebook entries are attached to it. To take somebody off the live roster and keep
+				everything, use Deactivate.
+			</p>
+			<span class="roster-confirm-actions">
+				<button
+					type="button"
+					class="btn tiny danger tap-44"
+					disabled={busy}
+					data-testid="roster-remove-confirm-go"
+					onclick={() => confirmRemoval(e)}
+				>
+					Remove permanently
+				</button>
+				<button
+					type="button"
+					class="btn secondary tiny tap-44"
+					disabled={busy}
+					onclick={() => (armedRemoval = null)}
+				>
+					Cancel
+				</button>
+			</span>
+		</div>
+	{/if}
+	{#if removalRefusal?.email === e.student_email}
+		<div class="roster-refusal" data-testid="roster-remove-refusal">
+			<p class="note">{removalRefusal.text}</p>
+			{#if e.active}
+				<button
+					type="button"
+					class="btn secondary tiny tap-44"
+					disabled={busy}
+					data-testid="roster-refusal-deactivate"
+					onclick={() => toggleEnrollment(e)}
+				>
+					Deactivate instead
+				</button>
+			{/if}
+		</div>
+	{/if}
 	{#if editEmail === e.student_email}
 		<form
 			class="inline-form"
@@ -348,7 +515,9 @@
 		<h1>People</h1>
 		<p class="section-line">
 			{formatSectionLabel(section.label, section.block)}
-			&nbsp;&middot; {active.length} enrolled
+			&nbsp;&middot; {activeSplit.students.length} enrolled
+			{#if activeSplit.managers.length}&nbsp;&middot; {activeSplit.managers.length}
+				{activeSplit.managers.length === 1 ? 'manages' : 'manage'} this class{/if}
 			{#if inactive.length}&nbsp;&middot; {inactive.length} inactive{/if}
 			{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
 		</p>
@@ -813,6 +982,63 @@
 		gap: 0.3rem;
 		flex-wrap: wrap;
 	}
+	/* The row's own status, in words. The tint is a second signal on top of the
+	   sentence, never the only one -- read with the label removed, every chip
+	   here still says nothing, which is the test that it is decoration. */
+	.roster-status {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		padding: 0.1rem var(--space-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-chip);
+		white-space: nowrap;
+		color: var(--text-2);
+	}
+	.roster-status[data-tone='on'] {
+		color: var(--text-2);
+	}
+	/* --gold, because a manager row is a SPECIAL CALLOUT and not a warning:
+	   nothing is wrong with it, it is simply the row that explains why this
+	   name is absent from every student surface. --amber would say something
+	   needs fixing. */
+	.roster-status[data-tone='manager'] {
+		color: var(--gold);
+		border-color: var(--gold);
+	}
+	.roster-status[data-tone='off'] {
+		color: var(--text-3);
+	}
+	/* Both blocks sit UNDER the row they belong to and inside its own list, so
+	   the counts and the alternative action are next to the person they are
+	   about. A refusal rendered at the top of the page would be a sentence
+	   about somebody whose row has scrolled away. */
+	.roster-confirm,
+	.roster-refusal {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		align-items: flex-start;
+		padding: var(--space-3);
+		margin: var(--space-1) 0 var(--space-3);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.roster-confirm {
+		border: 1px solid var(--crimson);
+	}
+	/* NOT --crimson. The confirm above is about to destroy something; a refusal
+	   is the system declining to, which is the safe outcome and must not be
+	   dressed as an error. */
+	.roster-refusal {
+		border: 1px solid var(--amber);
+	}
+	.roster-confirm-actions {
+		display: flex;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
 	.add-row {
 		display: grid;
 		grid-template-columns: minmax(10rem, 2fr) minmax(7rem, 1.5fr) auto;
@@ -848,8 +1074,13 @@
 		.add-row {
 			grid-template-columns: 1fr;
 		}
+		/* The row wraps to two lines below this width, so the actions stop
+		   being pushed to a right edge that is no longer beside the name. */
 		.roster-actions {
 			margin-left: 0;
+		}
+		.roster-status {
+			order: -1;
 		}
 	}
 </style>

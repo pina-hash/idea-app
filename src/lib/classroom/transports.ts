@@ -56,6 +56,7 @@ import {
 	type ClassroomUnitTransports,
 	type ClassroomCourse,
 	type ClassroomEnrollment,
+	type EnrollmentRemoval,
 	type ClassroomItem,
 	type ClassroomManageTransports,
 	type ImportSummary,
@@ -169,6 +170,66 @@ export async function selectItemsWithDoc<T extends { error: { message?: string }
 
 function fail(error: { message?: string } | null): { ok: false; message: string } {
 	return { ok: false, message: error?.message ?? 'Something went wrong.' };
+}
+
+// ---------------------------------------------------------------------------
+// THE ROSTER READ. One reader, four callers (0138).
+// ---------------------------------------------------------------------------
+
+/** The columns the roster has always had; the degraded rung's select string. */
+export const ROSTER_SELECT = 'section_id, student_email, display_name, active, updated_at';
+
+/** A roster read, and whether it could answer the manager question at all. */
+export interface RosterRead {
+	rows: ClassroomEnrollment[];
+	/**
+	 * Did `classroom_section_roster` answer, so `manages` is real on every row?
+	 *
+	 * ITS OWN RUNG FLAG, never folded into anything else (the notesReady /
+	 * foldersReady convention). FALSE means the project has no 0138 and the
+	 * exclusion cannot be applied -- the surfaces then behave exactly as they
+	 * did before the bundle, which is a known state, rather than guessing.
+	 */
+	managesReady: boolean;
+}
+
+/**
+ * ONE class's roster, or (null) every roster the caller manages.
+ *
+ * WIDEST RUNG FIRST: `classroom_section_roster` (0138) carries the `manages`
+ * flag, which is the whole exclusion. It DEGRADES to the plain table select
+ * every one of these call sites used to make, on the `PGRST202` code ALONE --
+ * an error from inside the function must fail closed rather than fall through
+ * to a read that cannot tell a manager from a student.
+ *
+ * The null-section rung is what the home feed needs, and it has no degraded
+ * form worth having: without 0138 there is nothing to filter by, so it answers
+ * an empty list and the to-grade tally is the one it has always been.
+ */
+export async function loadSectionRoster(
+	supabase: SupabaseClient,
+	sectionId: string | null
+): Promise<TxResult<RosterRead>> {
+	const wide = await supabase.rpc('classroom_section_roster', { p_section_id: sectionId });
+	if (!wide.error) {
+		return {
+			ok: true,
+			data: { rows: (wide.data ?? []) as ClassroomEnrollment[], managesReady: true }
+		};
+	}
+	if ((wide.error as { code?: string }).code !== 'PGRST202') return fail(wide.error);
+
+	if (sectionId === null) return { ok: true, data: { rows: [], managesReady: false } };
+	const narrow = await supabase
+		.from('classroom_enrollments')
+		.select(ROSTER_SELECT)
+		.eq('section_id', sectionId)
+		.order('display_name');
+	if (narrow.error) return fail(narrow.error);
+	return {
+		ok: true,
+		data: { rows: (narrow.data ?? []) as ClassroomEnrollment[], managesReady: false }
+	};
 }
 
 /**
@@ -1282,11 +1343,10 @@ export function createTeacherEngineTransports(
 		async loadGrading(itemId, sectionId) {
 			const [rosterRes, submissionsRes, responsesRes, filesRes, approvalsRes] =
 				await Promise.all([
-					supabase
-						.from('classroom_enrollments')
-						.select('section_id, student_email, display_name, active, updated_at')
-						.eq('section_id', sectionId)
-						.order('display_name'),
+					// The manager exclusion rides in on this read (0138): the roster
+					// arrives carrying `manages`, and studentWorkRows is the one
+					// place that acts on it.
+					loadSectionRoster(supabase, sectionId),
 					selectSubmissions(supabase, itemId, false),
 					supabase
 						.from('classroom_responses')
@@ -1298,11 +1358,11 @@ export function createTeacherEngineTransports(
 						.select('item_id, student_email, module_id, approved_by, approved_at')
 						.eq('item_id', itemId)
 				]);
-			if (rosterRes.error) return fail(rosterRes.error);
+			if (!rosterRes.ok) return rosterRes;
 			return {
 				ok: true,
 				data: {
-					roster: (rosterRes.data ?? []) as ClassroomEnrollment[],
+					roster: rosterRes.data.rows,
 					submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
 						normalizeSubmissionRow
 					),
@@ -1445,13 +1505,20 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 			};
 		},
 		async loadRoster(sectionId) {
-			const { data: rows, error } = await supabase
-				.from('classroom_enrollments')
-				.select('section_id, student_email, display_name, active, updated_at')
-				.eq('section_id', sectionId)
-				.order('display_name');
+			// The People tab shows EVERY row, manager rows included -- that row is
+			// what somebody came here to remove. It still reads through the one
+			// roster reader, so the flag it labels them with is the same flag the
+			// grading console drops them by.
+			const res = await loadSectionRoster(supabase, sectionId);
+			return res.ok ? { ok: true, data: res.data.rows } : res;
+		},
+		async removeEnrollment(sectionId, email) {
+			const { data: res, error } = await supabase.rpc('classroom_remove_enrollment', {
+				p_section_id: sectionId,
+				p_student_email: email
+			});
 			if (error) return fail(error);
-			return { ok: true, data: (rows ?? []) as ClassroomEnrollment[] };
+			return { ok: true, data: res as EnrollmentRemoval };
 		},
 		async setEnrollment(sectionId, email, name, active) {
 			const { error } = await supabase.rpc('classroom_set_enrollment', {

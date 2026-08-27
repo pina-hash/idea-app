@@ -1,6 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
-import { normalizeSectionRow, type ClassroomEnrollment } from '$lib/classroom/classroom';
-import { SECTION_SELECT } from '$lib/classroom/transports';
+import { normalizeSectionRow } from '$lib/classroom/classroom';
+import { SECTION_SELECT, loadSectionRoster } from '$lib/classroom/transports';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -30,15 +30,17 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	if (!sectionRow) error(404, 'Not found');
 	if (manages !== true) error(404, 'Not found');
 
-	const { data: roster } = await supabase
-		.from('classroom_enrollments')
-		.select('section_id, student_email, display_name, active, updated_at')
-		.eq('section_id', params.sectionId)
-		.order('display_name');
+	// The one roster reader (0138). This tab shows EVERY row -- a manager's own
+	// enrollment is exactly the row somebody has come here to remove -- so it
+	// takes `rows` whole and reads the `manages` flag as a LABEL rather than as
+	// a filter. `managesReady` false means the project has no 0138: the flag is
+	// unknown, so the tab says nothing about it and offers no Remove.
+	const roster = await loadSectionRoster(supabase, params.sectionId);
 
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
-		roster: (roster ?? []) as ClassroomEnrollment[]
+		roster: roster.ok ? roster.data.rows : [],
+		removalReady: roster.ok ? roster.data.managesReady : false
 	};
 };

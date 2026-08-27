@@ -885,6 +885,22 @@ explicit ADMIN grant.
 - **`is_admin()` is the check.** `public.app_admins` is the roster, keyed by
   LOWERCASED EMAIL (not user id), so an account can be authorized before it has
   ever signed in. `is_owner()` is the owner-only check.
+- **BOTH ADMIN AND MANAGE ARE NOW EMAIL-SCOPED RULES WITH CALLER-SCOPED WRAPPERS
+  OVER THEM (0138), AND THE WRAPPER IS THE ONE YOU CALL.** `_admin_is_email(text)`
+  is the admin rule and `is_admin()` is
+  `case when auth.uid() is null then false else _admin_is_email(current_user_email()) end`;
+  `_classroom_manages_section_email(uuid, text)` is the manage rule and
+  `classroom_manages_section(uuid)` passes `current_user_email()` into it. Both
+  wrappers keep their name, signature and OID, so every applied policy resolves
+  unchanged. **Ask the email-scoped form only when the subject is a THIRD PARTY**
+  (a roster row, a projected flag); for "may the caller do this", call the
+  wrapper, always. Writing a third statement of either rule is the thing this
+  shape exists to prevent.
+  - **`current_user_email()` RETURNS `''`, NOT NULL, WITH NO SESSION**, which is
+    why both helpers refuse the empty string explicitly. That refusal IS
+    `is_admin()`'s old `auth.uid() is null` guard, expressed through the new
+    shape; a helper of this family that forgets it answers for a caller who is
+    not there.
 - **THE NAMING TRAP -- read this before touching any policy.** `is_teacher()`
   still exists and **now returns `is_admin()`**. Redefining that one function body
   re-gated ~90 already-applied references at once, because migrations here are an
@@ -1300,6 +1316,39 @@ with its own answer for the rows already stored.
   real enrollment mistake exactly as well as it hides the expected case. Report
   the COUNT, not the addresses: what reaches a console reaches an export, a paste
   and a screenshot.
+- **AND A PERSON WHO CAN MANAGE THE SECTION IS NEVER A STUDENT ROW IN IT (0138),
+  WHATEVER THEIR ENROLLMENT SAYS.** Instructors enroll themselves to see a class
+  the way a student does, and roster imports sweep them in; the row then reads as
+  a student on the check-in grid (name, LEFT badge, dashed cells, a work count),
+  in the grading roster, in the FACTS CSV and in the Grades denominator.
+  - **`classroom_section_roster(uuid default null)` IS THE ONE ROSTER READ**, and
+    it PROJECTS a `manages` flag rather than filtering: the People tab has to SHOW
+    that row, because it is the row somebody came there to remove. Null section
+    means every section the caller manages, which is what the home feed needs.
+    `loadSectionRoster` is its single reader, with a `PGRST202` rung down to the
+    plain table select where `manages` is UNDEFINED -- "cannot tell" must never
+    read as "yes".
+  - **`splitRoster` IS THE ONE IMPLEMENTATION OF DROPPING THEM.** The client never
+    re-derives manage-ness and could not: admin-ness is keyed on `app_admins`,
+    which is admin-only readable, so a browser has no way to ask. A surface that
+    spells out "is this the teacher of record" is the second definition.
+  - **THE MANAGER LIST AND THE OFF-ROSTER LIST ARE TWO FINDINGS WITH TWO LABELS,
+    and only one of them is an error.** An off-roster email means work arrived
+    with no enrollment behind it; a manager exclusion is the roster working. One
+    sentence covering both makes the working case read as a fault every time.
+  - **A TALLY IS NOT A ROSTER, AND HAS TO BE TOLD SEPARATELY.** The home feed's
+    to-grade chip counts submissions, so `buildFeed` takes `managerEmails` per
+    section; empty is the honest pre-0138 answer, never a guess.
+- **AN ENROLLMENT CAN BE REMOVED, BUT ONLY WHEN NOTHING HANGS OFF IT (0138).**
+  `classroom_remove_enrollment` is the ONLY delete path -- `classroom_enrollments`
+  still carries `grant select` and nothing else, and adding a DELETE grant or a
+  write policy is what would open a second one. It re-checks
+  `classroom_manages_section` (no new gate), counts responses, submissions,
+  approvals and notebook entries scoped to the SECTION through
+  `classroom_postings`, and refuses with those counts rather than deleting.
+  **Soft-deleted notebook entries are counted deliberately**: 0116/0117 make them
+  restorable, so an entry in the bin is work a delete here would strand.
+  Deactivating (`active = false`) stays the answer for a student who left.
 - **An owner-privileged view (not `security_invoker`) MUST carry its own explicit
   row predicate** to replace the RLS it bypasses.
 - **`security_invoker = true`** wherever a view should add no reach.

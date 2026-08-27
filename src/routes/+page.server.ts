@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeItemRow, normalizeSectionRow, sortSections } from '$lib/classroom/classroom';
-import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
+import { SECTION_SELECT, loadSectionRoster, selectItemsWithDoc } from '$lib/classroom/transports';
 import type { FeedSubmission } from '$lib/classroom/feed';
 import { queueOrder } from '$lib/foundry/review';
 import type { FoundryAppSummary } from '$lib/foundry/transports';
@@ -67,6 +67,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
+			feedManagerEmails: {} as Record<string, string[]>,
 			foundryReviewPending: null as number | null
 		};
 	}
@@ -85,6 +86,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
+			feedManagerEmails: {} as Record<string, string[]>,
 			foundryReviewPending: await pending
 		};
 	}
@@ -99,6 +101,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
+			feedManagerEmails: {} as Record<string, string[]>,
 			foundryReviewPending: await pending
 		};
 	}
@@ -128,11 +131,27 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		submissions = (subRows ?? []) as FeedSubmission[];
 	}
 
+	// Who, on the rosters this caller MANAGES, can manage the class they are
+	// enrolled in (0138). One round trip for every one of them -- the null
+	// section is what that spelling means -- and a student receives nothing at
+	// all, because this is a management read. It keeps an instructor's own
+	// hand-in out of their own to-grade count; without 0138 it answers empty
+	// and the tally is the one it has always been.
+	const managed = await loadSectionRoster(supabase, null);
+	const feedManagerEmails: Record<string, string[]> = {};
+	if (managed.ok) {
+		for (const row of managed.data.rows) {
+			if (row.manages !== true) continue;
+			(feedManagerEmails[row.section_id] ??= []).push(row.student_email);
+		}
+	}
+
 	return {
 		classroomReady: true,
 		feedSections: sections,
 		feedItems: items,
 		feedSubmissions: submissions,
+		feedManagerEmails,
 		foundryReviewPending: await pending
 	};
 };

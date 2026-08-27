@@ -62,6 +62,17 @@ export interface BuildFeedInput {
 	myEmail: string;
 	/** Mirrors classroom_manages_section: teacher of record, or admin. */
 	isAdmin?: boolean;
+	/**
+	 * Per section, the roster addresses that can MANAGE that section (0138),
+	 * from `classroom_section_roster`. Their submissions are not somebody's
+	 * work to grade, so they are kept out of the to-grade tally.
+	 *
+	 * DEFAULTS TO EMPTY, and empty is the honest pre-0138 answer rather than a
+	 * guess: the flag cannot be derived in a browser (admin-ness is keyed on
+	 * `app_admins`, which is admin-only readable), so a project without the
+	 * migration tallies exactly what it has always tallied.
+	 */
+	managerEmails?: Record<string, readonly string[]>;
 	now?: Date;
 	urgentLimit?: number;
 	standingLimit?: number;
@@ -286,21 +297,13 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 		submissions,
 		myEmail,
 		isAdmin = false,
+		managerEmails = {},
 		now = new Date(),
 		urgentLimit = URGENT_LIMIT,
 		standingLimit = STANDING_LIMIT
 	} = input;
 
 	const me = myEmail.trim().toLowerCase();
-
-	// Own submissions by item (a student has at most one row per item), and the
-	// waiting-to-grade tally per item across every student.
-	const mine = new Map<string, FeedSubmission>();
-	const ungraded = new Map<string, number>();
-	for (const sub of submissions) {
-		if ((sub.student_email ?? '').toLowerCase() === me) mine.set(sub.item_id, sub);
-		if (isAwaitingGrade(sub)) ungraded.set(sub.item_id, (ungraded.get(sub.item_id) ?? 0) + 1);
-	}
 
 	// An item posted to three classes belongs to all three cards.
 	const bySection = new Map<string, ClassroomItem[]>();
@@ -310,6 +313,42 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 			if (list) list.push(item);
 			else bySection.set(posting.section_id, [item]);
 		}
+	}
+
+	/**
+	 * Whose submissions on THIS item are not work to grade: the managers of
+	 * every class it is posted to, unioned. Per ITEM and not per section,
+	 * because the tally is per item -- an assignment posted to two classes has
+	 * one count, and it must exclude both teachers of record.
+	 */
+	const managersFor = (item: ClassroomItem): Set<string> => {
+		const set = new Set<string>();
+		for (const posting of item.postings) {
+			for (const email of managerEmails[posting.section_id] ?? []) set.add(email);
+		}
+		return set;
+	};
+
+	// Own submissions by item (a student has at most one row per item), and the
+	// waiting-to-grade tally per item across every student.
+	const mine = new Map<string, FeedSubmission>();
+	const subsByItem = new Map<string, FeedSubmission[]>();
+	for (const sub of submissions) {
+		if ((sub.student_email ?? '').toLowerCase() === me) mine.set(sub.item_id, sub);
+		const list = subsByItem.get(sub.item_id);
+		if (list) list.push(sub);
+		else subsByItem.set(sub.item_id, [sub]);
+	}
+
+	const ungraded = new Map<string, number>();
+	for (const item of items) {
+		const skip = managersFor(item);
+		let n = 0;
+		for (const sub of subsByItem.get(item.id) ?? []) {
+			if (skip.has((sub.student_email ?? '').toLowerCase())) continue;
+			if (isAwaitingGrade(sub)) n += 1;
+		}
+		if (n > 0) ungraded.set(item.id, n);
 	}
 
 	return sections.map((section) => {

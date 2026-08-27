@@ -81,7 +81,9 @@
 	let gradeNotice = $state<string | null>(null);
 
 	const work = $derived(
-		data ? studentWorkRows(data) : { rows: [] as StudentWork[], offRoster: [] as string[] }
+		data
+			? studentWorkRows(data)
+			: { rows: [] as StudentWork[], offRoster: [] as string[], managers: [] as string[] }
 	);
 	const students = $derived(work.rows);
 	/**
@@ -92,6 +94,19 @@
 	 * else.
 	 */
 	const offRosterCount = $derived(work.offRoster.length);
+	/**
+	 * Roster rows dropped because that person can MANAGE this class (0138): an
+	 * instructor who enrolled themselves to see the class from a student's
+	 * chair, or a roster import that swept them in.
+	 *
+	 * ITS OWN LINE, WITH ITS OWN LABEL, and never folded into the one above.
+	 * They are different findings and only one of them is an error: an
+	 * off-roster response set means work arrived with no enrollment behind it,
+	 * which somebody should look at; a manager exclusion is the roster working
+	 * exactly as it should. One sentence covering both would make the working
+	 * case read as a fault every time a teacher opened the console.
+	 */
+	const managerCount = $derived(work.managers.length);
 	const selected = $derived(students.find((s) => s.email === selectedEmail) ?? null);
 	const outOf = $derived(rubric ? rubricTotal(rubric) : (item.points ?? 0));
 	const liveTotal = $derived(
@@ -687,6 +702,15 @@
 						exported here. Check the roster on the People tab if that is unexpected.
 					</p>
 				{/if}
+				{#if managerCount > 0}
+					<p class="manager-note" data-testid="manager-notice">
+						{managerCount}
+						{managerCount === 1 ? 'person on this roster' : 'people on this roster'} can manage this
+						class, so {managerCount === 1 ? 'their row is' : 'their rows are'} not listed, counted or
+						exported as student work: {work.managers.join(', ')}. Remove the enrollment on the People
+						tab to take {managerCount === 1 ? 'it' : 'them'} off the roster entirely.
+					</p>
+				{/if}
 				<!-- No tabindex here: every row is a real button, so the roster is
 				     already reachable and scrollable from the keyboard. -->
 				<ul class="roster-list">
@@ -1090,6 +1114,20 @@
 		font-size: 0.76rem;
 		line-height: 1.45;
 		color: var(--text-1);
+	}
+	/* NOT --amber. The off-roster line above is a WARNING -- work with no
+	   enrollment behind it -- and this one is a statement of fact about a
+	   roster that is behaving correctly. Giving them the same edge would say
+	   they are the same kind of finding, which is exactly what keeping them
+	   apart is for. --boundary is the load-bearing neutral. */
+	.manager-note {
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		font-size: 0.76rem;
+		line-height: 1.45;
+		color: var(--text-2);
 	}
 	.roster-list {
 		list-style: none;

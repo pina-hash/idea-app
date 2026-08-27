@@ -2,9 +2,10 @@ import { error, redirect } from '@sveltejs/kit';
 import {
 	assignmentStandings,
 	normalizeSectionRow,
+	splitRoster,
 	type SubmissionSummary
 } from '$lib/classroom/classroom';
-import { SECTION_SELECT, itemsForSection } from '$lib/classroom/transports';
+import { SECTION_SELECT, itemsForSection, loadSectionRoster } from '$lib/classroom/transports';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -32,17 +33,17 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	if (!sectionRow) error(404, 'Not found');
 	if (manages !== true) error(404, 'Not found');
 
-	// A plain select and a length rather than a head-count: a class roster is
-	// tens of rows, and this keeps the read to the one shape every other
-	// classroom load already uses.
-	const [content, { data: roster }] = await Promise.all([
+	// A plain read and a length rather than a head-count: a class roster is tens
+	// of rows, and this keeps the read to the one shape every other classroom
+	// load already uses. It goes through the ONE roster reader (0138) so the
+	// denominator counts the same people the grading roster lists -- an
+	// instructor enrolled in their own class was one more head here and no row
+	// there, which is a fraction that could never reach its own bottom.
+	const [content, roster] = await Promise.all([
 		itemsForSection(supabase, params.sectionId),
-		supabase
-			.from('classroom_enrollments')
-			.select('student_email')
-			.eq('section_id', params.sectionId)
-			.eq('active', true)
+		loadSectionRoster(supabase, params.sectionId)
 	]);
+	const { students } = splitRoster(roster.ok ? roster.data.rows.filter((e) => e.active) : []);
 
 	const assignmentIds = content.items.filter((i) => i.kind === 'assignment').map((i) => i.id);
 	let submissions: SubmissionSummary[] = [];
@@ -57,6 +58,6 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
-		standings: assignmentStandings(content.items, submissions, (roster ?? []).length)
+		standings: assignmentStandings(content.items, submissions, students.length)
 	};
 };
