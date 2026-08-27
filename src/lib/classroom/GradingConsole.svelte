@@ -95,7 +95,7 @@
 	 */
 	const offRosterCount = $derived(work.offRoster.length);
 	/**
-	 * Roster rows dropped because that person can MANAGE this class (0136): an
+	 * Roster rows dropped because that person can MANAGE this class (0138): an
 	 * instructor who enrolled themselves to see the class from a student's
 	 * chair, or a roster import that swept them in.
 	 *

@@ -1,6 +1,6 @@
 // tests/classroom-manager-exclusion.test.ts
 //
-// Migration 0136 against a real Postgres: the MANAGER EXCLUSION and the
+// Migration 0138 against a real Postgres: the MANAGER EXCLUSION and the
 // BOUNDED ENROLLMENT REMOVAL.
 //
 // WHY THIS IS A TEST AND NOT A HARNESS DRIVE. Both guarantees fail SILENTLY.
@@ -11,9 +11,9 @@
 // that worked, right up until somebody goes looking for the work.
 //
 // THE MIGRATION IS TESTED OVER SEEDED PRE-MIGRATION DATA (the 0128 pattern):
-// the suite boots the chain SHORT of 0136, seeds a full class -- students,
+// the suite boots the chain SHORT of 0138, seeds a full class -- students,
 // assignments, real hand-ins, notebook entries -- through the REAL RPCs,
-// captures every payload the bundle claims to change, then applies 0136 over
+// captures every payload the bundle claims to change, then applies 0138 over
 // the top and compares. A migration that only works against an empty schema
 // fails exactly where it matters.
 //
@@ -93,8 +93,8 @@ const CHAIN = [
 	'0121_notebook_review_acknowledged.sql'
 ] as const;
 
-const MIGRATION_0136 = readFileSync(
-	join(process.cwd(), 'supabase', 'migrations', '0136_classroom_manager_exclusion_and_enrollment_removal.sql'),
+const MIGRATION_0138 = readFileSync(
+	join(process.cwd(), 'supabase', 'migrations', '0138_classroom_manager_exclusion_and_enrollment_removal.sql'),
 	'utf8'
 );
 
@@ -183,7 +183,7 @@ const RUBRIC = [
 // The four surfaces, driven through the REAL modules the routes drive.
 // ---------------------------------------------------------------------------
 
-/** transports.loadGrading's read, since 0136 through classroom_section_roster. */
+/** transports.loadGrading's read, since 0138 through classroom_section_roster. */
 async function loadGrading(
 	userId: string,
 	itemId: string,
@@ -510,7 +510,7 @@ afterAll(async () => {
 //    the pre-state has to be non-empty and has to contain the manager.
 // ---------------------------------------------------------------------------
 
-describe('before 0136: a manager renders as a student', () => {
+describe('before 0138: a manager renders as a student', () => {
 	test('the fixture really is pre-migration', async () => {
 		const { rows } = await db.sql<{ roster: string | null; remove: string | null }>(
 			`select to_regprocedure('public.classroom_section_roster(uuid)')::text as roster,
@@ -562,12 +562,12 @@ describe('before 0136: a manager renders as a student', () => {
 // 2. The migration.
 // ---------------------------------------------------------------------------
 
-describe('0136 applies over that data, and re-applies', () => {
+describe('0138 applies over that data, and re-applies', () => {
 	test('it applies twice', async () => {
-		await db.sql(MIGRATION_0136);
+		await db.sql(MIGRATION_0138);
 		// Re-pasting a migration is ordinary here (a first attempt that failed
 		// partway gets retried), so it has to survive a second pass.
-		await db.sql(MIGRATION_0136);
+		await db.sql(MIGRATION_0138);
 		const { rows } = await db.sql<{ roster: string | null; remove: string | null }>(
 			`select to_regprocedure('public.classroom_section_roster(uuid)')::text as roster,
 			        to_regprocedure('public.classroom_remove_enrollment(uuid, text)')::text as remove`
@@ -637,7 +637,7 @@ describe('0136 applies over that data, and re-applies', () => {
 // 3. The exclusion, on all five surfaces. Identities, and positive controls.
 // ---------------------------------------------------------------------------
 
-describe('after 0136: a manager is never a student row', () => {
+describe('after 0138: a manager is never a student row', () => {
 	test('classroom_section_roster names exactly who manages, and it is not only the teacher', async () => {
 		const rows = await db.asUser(teacherA.id, async (q) => {
 			const { rows } = await q<{ student_email: string; manages: boolean }>(

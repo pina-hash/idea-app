@@ -388,7 +388,7 @@ of its own is documented inside the one listed.
 | 0133 | `0133_classroom_storage_attachments.sql` | [Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)](#any-file-type-up-to-200-mb-straight-to-storage-0133-0134-laneattach-any-type) |
 | 0134 | `0134_classroom_submission_open_race.sql` | [Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)](#any-file-type-up-to-200-mb-straight-to-storage-0133-0134-laneattach-any-type) |
 | 0135 | `0135_classroom_instructor_storage_and_public_attachments.sql` | [The storage bundle stops blocking its own deploy (`0133` amended, `0135`, `lane/attach-any-type`)](#the-storage-bundle-stops-blocking-its-own-deploy-0133-amended-0135-laneattach-any-type) |
-| 0136 | `0136_classroom_manager_exclusion_and_enrollment_removal.sql` | [A manager is never a student row, and an enrollment can finally be removed (`0136`)](#a-manager-is-never-a-student-row-and-an-enrollment-can-finally-be-removed-0136) |
+| 0138 | `0138_classroom_manager_exclusion_and_enrollment_removal.sql` | [A manager is never a student row, and an enrollment can finally be removed (`0138`)](#a-manager-is-never-a-student-row-and-an-enrollment-can-finally-be-removed-0138) |
 
 ---
 
@@ -30251,7 +30251,7 @@ proves nothing about the real producer.**
 
 ---
 
-## A manager is never a student row, and an enrollment can finally be removed (`0136`)
+## A manager is never a student row, and an enrollment can finally be removed (`0138`)
 
 An instructor with an enrollment row in their own section rendered as a STUDENT.
 The reported shape was the check-in grid: their name, a LEFT status badge, a row
@@ -30295,7 +30295,7 @@ here is about a THIRD PARTY'S email, and no email-scoped variant existed
 anywhere. `is_admin()` is caller-scoped for the same reason.
 
 Restating either rule inside a new function would have been the second copy this
-codebase's own rule forbids. So 0136 LIFTS both into email-scoped functions and
+codebase's own rule forbids. So 0138 LIFTS both into email-scoped functions and
 turns the caller-scoped ones into thin wrappers:
 
 - `_admin_is_email(text)` is the admin rule; `is_admin()` becomes
@@ -30341,7 +30341,7 @@ other surface has to drop it.
 
 **The to-grade chip needed the section->managers map**, since it is a submission
 tally and not a roster. `buildFeed` takes `managerEmails` (defaulting to `{}`,
-which is the honest pre-0136 answer) and skips those addresses when counting;
+which is the honest pre-0138 answer) and skips those addresses when counting;
 the home load fills it from ONE `classroom_section_roster(null)` call, which is
 what the null section means.
 
@@ -30435,14 +30435,14 @@ before and no button that would answer `PGRST202`.
 - **The refusal and success paths were both driven end to end** in the browser:
   alice (work attached) produced the counted refusal with her row still listed,
   dara (nothing attached) was removed and `removed exactly ["dara@boscotech.net"]`.
-- **The degraded rung was driven**: with the harness's 0136 toggle off, 0 Remove
+- **The degraded rung was driven**: with the harness's 0138 toggle off, 0 Remove
   controls and 25 Deactivate controls.
 
 ### What was NOT verified
 
 - **Nothing was run against the live Supabase project.** The local `.env` is the
   placeholder (`example-ref`), and this container had no `.env` at all until one
-  was written from `.env.example` to reach the `svelte-check` baseline. 0136 has
+  was written from `.env.example` to reach the `svelte-check` baseline. 0138 has
   NOT been applied to production; the apply is pending approval.
 - **No screenshots.** Every visual claim above is a computed-style, geometry or
   hit-test read.

@@ -63,12 +63,12 @@ export interface ClassroomEnrollment {
 	active: boolean;
 	updated_at?: string;
 	/**
-	 * Can this person MANAGE the section they are enrolled in (0136)?
+	 * Can this person MANAGE the section they are enrolled in (0138)?
 	 *
 	 * Projected by `classroom_section_roster`, never derived here: admin-ness is
 	 * keyed on `app_admins`, which is admin-only readable, so a browser has no
 	 * way to ask. UNDEFINED is the degraded rung talking -- a project without
-	 * 0136 applied cannot answer, and "cannot tell" must not read as "yes".
+	 * 0138 applied cannot answer, and "cannot tell" must not read as "yes".
 	 */
 	manages?: boolean;
 }
@@ -81,7 +81,7 @@ export interface ClassroomEnrollment {
  * or a roster import swept them in. What is NOT ordinary is what it looked
  * like -- a row on the check-in grid with a LEFT badge and cells nobody can
  * check, a row in the grading roster, a line in the FACTS CSV, and one more
- * head in the Grades denominator -- and until 0136 there was no affordance
+ * head in the Grades denominator -- and until 0138 there was no affordance
  * anywhere to remove it.
  *
  * THE SIGNAL IS THE DATABASE'S, and this function only sorts by it. Every
@@ -1608,14 +1608,14 @@ export interface ClassroomPeopleTransports {
 		name: string | null
 	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
 	/**
-	 * Delete an enrollment outright (0136). The FIRST removal path this schema
+	 * Delete an enrollment outright (0138). The FIRST removal path this schema
 	 * has ever had: `setEnrollment` writes an `active` flag, which archives a
 	 * student and is the right answer for one who left mid-term, and leaves the
 	 * row on every roster read that does not filter on it.
 	 *
 	 * OPTIONAL, so its ABSENCE removes the Remove control down through the
 	 * panel (the omitted-transport convention). That is what a project sitting
-	 * on a pre-0136 schema gets: Deactivate, exactly as before, and no button
+	 * on a pre-0138 schema gets: Deactivate, exactly as before, and no button
 	 * that would answer PGRST202.
 	 */
 	removeEnrollment?: (sectionId: string, email: string) => Promise<TxResult<EnrollmentRemoval>>;

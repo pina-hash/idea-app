@@ -63,11 +63,11 @@ export interface BuildFeedInput {
 	/** Mirrors classroom_manages_section: teacher of record, or admin. */
 	isAdmin?: boolean;
 	/**
-	 * Per section, the roster addresses that can MANAGE that section (0136),
+	 * Per section, the roster addresses that can MANAGE that section (0138),
 	 * from `classroom_section_roster`. Their submissions are not somebody's
 	 * work to grade, so they are kept out of the to-grade tally.
 	 *
-	 * DEFAULTS TO EMPTY, and empty is the honest pre-0136 answer rather than a
+	 * DEFAULTS TO EMPTY, and empty is the honest pre-0138 answer rather than a
 	 * guess: the flag cannot be derived in a browser (admin-ness is keyed on
 	 * `app_admins`, which is admin-only readable), so a project without the
 	 * migration tallies exactly what it has always tallied.

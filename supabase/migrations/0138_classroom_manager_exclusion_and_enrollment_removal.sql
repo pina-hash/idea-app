@@ -1,4 +1,4 @@
--- 0136_classroom_manager_exclusion_and_enrollment_removal.sql
+-- 0138_classroom_manager_exclusion_and_enrollment_removal.sql
 --
 -- TWO THINGS, AND THEY ARE THE TWO HALVES OF ONE DEFECT.
 --
@@ -435,7 +435,7 @@ begin
 	join public.classroom_sections s on s.id = e.section_id
 	where public._classroom_manages_section_email(e.section_id, e.student_email);
 
-	raise notice '0136: % enrollment row(s) belong to somebody who can manage that section. They no longer render as students anywhere: %',
+	raise notice '0138: % enrollment row(s) belong to somebody who can manage that section. They no longer render as students anywhere: %',
 		v_count, v_who;
-	raise notice '0136: each of those can now be removed outright from the class People tab, or will be refused with the counts if work is attached to it.';
+	raise notice '0138: each of those can now be removed outright from the class People tab, or will be refused with the counts if work is attached to it.';
 end $$;

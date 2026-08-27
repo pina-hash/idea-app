@@ -1414,7 +1414,7 @@ export interface StudentWorkRows {
 	 */
 	offRoster: string[];
 	/**
-	 * Roster rows dropped because that person can MANAGE this section (0136),
+	 * Roster rows dropped because that person can MANAGE this section (0138),
 	 * sorted. A SEPARATE LIST FROM `offRoster`, and the separation is the
 	 * point: an off-roster email is a finding, a manager exclusion is the
 	 * roster working. Only one of the two is an error.

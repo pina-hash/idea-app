@@ -756,7 +756,7 @@ explicit ADMIN grant.
   LOWERCASED EMAIL (not user id), so an account can be authorized before it has
   ever signed in. `is_owner()` is the owner-only check.
 - **BOTH ADMIN AND MANAGE ARE NOW EMAIL-SCOPED RULES WITH CALLER-SCOPED WRAPPERS
-  OVER THEM (0136), AND THE WRAPPER IS THE ONE YOU CALL.** `_admin_is_email(text)`
+  OVER THEM (0138), AND THE WRAPPER IS THE ONE YOU CALL.** `_admin_is_email(text)`
   is the admin rule and `is_admin()` is
   `case when auth.uid() is null then false else _admin_is_email(current_user_email()) end`;
   `_classroom_manages_section_email(uuid, text)` is the manage rule and
@@ -1121,7 +1121,7 @@ with its own answer for the rows already stored.
   real enrollment mistake exactly as well as it hides the expected case. Report
   the COUNT, not the addresses: what reaches a console reaches an export, a paste
   and a screenshot.
-- **AND A PERSON WHO CAN MANAGE THE SECTION IS NEVER A STUDENT ROW IN IT (0136),
+- **AND A PERSON WHO CAN MANAGE THE SECTION IS NEVER A STUDENT ROW IN IT (0138),
   WHATEVER THEIR ENROLLMENT SAYS.** Instructors enroll themselves to see a class
   the way a student does, and roster imports sweep them in; the row then reads as
   a student on the check-in grid (name, LEFT badge, dashed cells, a work count),
@@ -1143,8 +1143,8 @@ with its own answer for the rows already stored.
     sentence covering both makes the working case read as a fault every time.
   - **A TALLY IS NOT A ROSTER, AND HAS TO BE TOLD SEPARATELY.** The home feed's
     to-grade chip counts submissions, so `buildFeed` takes `managerEmails` per
-    section; empty is the honest pre-0136 answer, never a guess.
-- **AN ENROLLMENT CAN BE REMOVED, BUT ONLY WHEN NOTHING HANGS OFF IT (0136).**
+    section; empty is the honest pre-0138 answer, never a guess.
+- **AN ENROLLMENT CAN BE REMOVED, BUT ONLY WHEN NOTHING HANGS OFF IT (0138).**
   `classroom_remove_enrollment` is the ONLY delete path -- `classroom_enrollments`
   still carries `grant select` and nothing else, and adding a DELETE grant or a
   write policy is what would open a second one. It re-checks

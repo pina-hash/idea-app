@@ -30,10 +30,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	if (!sectionRow) error(404, 'Not found');
 	if (manages !== true) error(404, 'Not found');
 
-	// The one roster reader (0136). This tab shows EVERY row -- a manager's own
+	// The one roster reader (0138). This tab shows EVERY row -- a manager's own
 	// enrollment is exactly the row somebody has come here to remove -- so it
 	// takes `rows` whole and reads the `manages` flag as a LABEL rather than as
-	// a filter. `managesReady` false means the project has no 0136: the flag is
+	// a filter. `managesReady` false means the project has no 0138: the flag is
 	// unknown, so the tab says nothing about it and offers no Remove.
 	const roster = await loadSectionRoster(supabase, params.sectionId);
 

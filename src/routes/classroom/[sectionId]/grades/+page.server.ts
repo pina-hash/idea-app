@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	// A plain read and a length rather than a head-count: a class roster is tens
 	// of rows, and this keeps the read to the one shape every other classroom
-	// load already uses. It goes through the ONE roster reader (0136) so the
+	// load already uses. It goes through the ONE roster reader (0138) so the
 	// denominator counts the same people the grading roster lists -- an
 	// instructor enrolled in their own class was one more head here and no row
 	// there, which is a fraction that could never reach its own bottom.

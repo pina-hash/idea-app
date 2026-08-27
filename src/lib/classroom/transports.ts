@@ -173,7 +173,7 @@ function fail(error: { message?: string } | null): { ok: false; message: string 
 }
 
 // ---------------------------------------------------------------------------
-// THE ROSTER READ. One reader, four callers (0136).
+// THE ROSTER READ. One reader, four callers (0138).
 // ---------------------------------------------------------------------------
 
 /** The columns the roster has always had; the degraded rung's select string. */
@@ -186,7 +186,7 @@ export interface RosterRead {
 	 * Did `classroom_section_roster` answer, so `manages` is real on every row?
 	 *
 	 * ITS OWN RUNG FLAG, never folded into anything else (the notesReady /
-	 * foldersReady convention). FALSE means the project has no 0136 and the
+	 * foldersReady convention). FALSE means the project has no 0138 and the
 	 * exclusion cannot be applied -- the surfaces then behave exactly as they
 	 * did before the bundle, which is a known state, rather than guessing.
 	 */
@@ -196,14 +196,14 @@ export interface RosterRead {
 /**
  * ONE class's roster, or (null) every roster the caller manages.
  *
- * WIDEST RUNG FIRST: `classroom_section_roster` (0136) carries the `manages`
+ * WIDEST RUNG FIRST: `classroom_section_roster` (0138) carries the `manages`
  * flag, which is the whole exclusion. It DEGRADES to the plain table select
  * every one of these call sites used to make, on the `PGRST202` code ALONE --
  * an error from inside the function must fail closed rather than fall through
  * to a read that cannot tell a manager from a student.
  *
  * The null-section rung is what the home feed needs, and it has no degraded
- * form worth having: without 0136 there is nothing to filter by, so it answers
+ * form worth having: without 0138 there is nothing to filter by, so it answers
  * an empty list and the to-grade tally is the one it has always been.
  */
 export async function loadSectionRoster(
@@ -1327,7 +1327,7 @@ export function createTeacherEngineTransports(
 		async loadGrading(itemId, sectionId) {
 			const [rosterRes, submissionsRes, responsesRes, filesRes, approvalsRes] =
 				await Promise.all([
-					// The manager exclusion rides in on this read (0136): the roster
+					// The manager exclusion rides in on this read (0138): the roster
 					// arrives carrying `manages`, and studentWorkRows is the one
 					// place that acts on it.
 					loadSectionRoster(supabase, sectionId),

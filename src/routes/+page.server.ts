@@ -93,10 +93,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	}
 
 	// Who, on the rosters this caller MANAGES, can manage the class they are
-	// enrolled in (0136). One round trip for every one of them -- the null
+	// enrolled in (0138). One round trip for every one of them -- the null
 	// section is what that spelling means -- and a student receives nothing at
 	// all, because this is a management read. It keeps an instructor's own
-	// hand-in out of their own to-grade count; without 0136 it answers empty
+	// hand-in out of their own to-grade count; without 0138 it answers empty
 	// and the tally is the one it has always been.
 	const managed = await loadSectionRoster(supabase, null);
 	const feedManagerEmails: Record<string, string[]> = {};

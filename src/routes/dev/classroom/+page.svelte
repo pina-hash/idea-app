@@ -183,7 +183,7 @@
 	];
 
 	/**
-	 * Enrollments carrying 0136's `manages` flag, because the two rows that
+	 * Enrollments carrying 0138's `manages` flag, because the two rows that
 	 * matter for the Roster area are the two the flag distinguishes.
 	 *
 	 *   * TEACHER is the reported defect: the section's own teacher of record,
@@ -2353,7 +2353,7 @@
 	// computed by the REAL gridSummary/summarize/cellDisplay in the component.
 	let notebookApplied = $state(true);
 	/**
-	 * Is 0136 applied? The panel's `removalReady`, so the DEGRADED state is
+	 * Is 0138 applied? The panel's `removalReady`, so the DEGRADED state is
 	 * drivable here: with this off the roster rows carry no status the flag
 	 * could give them and there is no Remove control at all, which is exactly
 	 * what a project sitting between two hand-applied migrations must look
@@ -2492,7 +2492,7 @@
 	</label>
 	<label class="harness-toggle">
 		<input type="checkbox" bind:checked={peopleRemovalReady} data-testid="sim-removal" />
-		enrollment removal applied (0136)
+		enrollment removal applied (0138)
 	</label>
 	<label class="harness-toggle">
 		<input type="checkbox" bind:checked={checkInsApplied} data-testid="sim-check-ins" />

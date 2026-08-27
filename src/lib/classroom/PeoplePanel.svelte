@@ -47,7 +47,7 @@
 		section: ClassroomSection;
 		roster?: ClassroomEnrollment[];
 		/**
-		 * Did the roster come back off the 0136 rung, so `manages` is real and
+		 * Did the roster come back off the 0138 rung, so `manages` is real and
 		 * `classroom_remove_enrollment` exists to be called?
 		 *
 		 * DEFAULTS FALSE, which is the fail-closed direction: a caller that has
@@ -183,7 +183,7 @@
 
 	/**
 	 * REMOVAL: the first path this schema has ever had for taking an enrollment
-	 * OFF a class rather than archiving it (0136).
+	 * OFF a class rather than archiving it (0138).
 	 *
 	 * IT IS OFFERED ONLY WHEN BOTH HALVES ARE THERE. The transport is optional,
 	 * so its absence removes the control down through this panel the way every
