@@ -6,7 +6,7 @@ this directory shows `not yet mirrored` in both cells rather than a guess.
 
 | Filename | Version | Date | Owns |
 | --- | --- | --- | --- |
-| `IDEA_instructions.md` | 4.6 | 2026-08-26 | Standing directive: doc-maintenance triggers, the freshness protocol for this directory, materials production pointer, Claude Code prompting and routing, cloud-container environment facts, git/branch/migration rules |
+| `IDEA_instructions.md` | 4.7 | 2026-08-26 | Standing directive: doc-maintenance triggers, the freshness protocol for this directory, materials production pointer, Claude Code prompting and routing, cloud-container environment facts, git/branch/migration rules |
 | `IDEA_MATERIALS_PROCESS.md` | 2.6 | 2026-08-25 | The process for authoring and publishing IDEA materials: pipeline, placement, tool roles, phases, the instrument-vs-material routing rule |
 | `IDEA_MATERIAL_SPEC_v2.md` | 2.3 | 2026-08-20 | The canonical material authoring format: both kinds, the block types, the enforcement matrix |
 | `IDEA_RUBRIC_STANDARDS.md` | 1.3 | 2026-08-25 | Leveled criteria, `short` forms, descriptor writing, grading behavior |

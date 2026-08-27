@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.6 - 2026-08-26**
+**Version 4.7 - 2026-08-26**
 
 ## These Instructions Evolve
 
@@ -61,6 +61,24 @@ curl -sfL https://raw.githubusercontent.com/pina-hash/idea-app/main/docs/standar
 sixteen files in one response and answers the staleness question without pulling any
 standard. Pull the individual file only when the register says the local copy is behind,
 or when the file is about to be edited.
+
+**The register is not the directory, and a file list built from it is blind to whatever
+sits in the mirror unregistered.** The register answers "is my copy of a known file
+stale". It cannot answer "is there a file here I do not know about", because a document
+absent from it is absent from every sweep that reads it. Observed twice on 2026-08-26,
+the second time expensively. Building a sweep from the register missed `README.md`, which
+was harmless; it then missed `IDEA_MATERIALS_PROCESS (2).md` and
+`IDEA_REFERENCE_LIBRARY (3).md`, which were **2.6 and 4.2 against canonical copies at 2.5
+and 4.1**. A web-UI upload had collided with the existing filenames, so GitHub appended
+` (2)` and ` (3)`, the replacement never happened, and two revisions sat beside their own
+stale originals for a day, invisible, because nothing ever compared the directory to the
+register. They were found only when a test globbed the directory and they had no register
+row, and the first recommendation on the table was to delete them as junk.
+
+So: **list the directory, then reconcile it against the register in both directions.** A
+file with a version header and no register row, and a register row with no file, are both
+defects and neither is visible from one side alone. `tests/standards-version-header.test.ts`
+now asserts this in code; the rule is here because the discipline outlives the test.
 
 **Before editing any standards file, and again immediately before delivering it, fetch
 the mirror and compare the version line and changelog head against the mount.** Twice,
@@ -830,6 +848,30 @@ costs nothing to keep.
   against a `main` that already had `0136_foundry_delete.sql` and `0137_anon_execute_sweep.sql`.
   Every prompt that may produce a migration fetches and lists the highest number on
   `origin/main` before choosing one.
+- **A migration is correct against the schema it will meet, not the one it was written
+  against, and a branch left sitting goes stale in ways nothing checks.** The number
+  collision above is the visible half. The dangerous half is semantic: a migration that
+  was right on the day it was cut can be made wrong by a migration that lands after it,
+  and no diff, no test and no merge will say so, because nothing compares a branch's SQL
+  against migrations that appeared later. Established 2026-08-26. A branch from 2026-08-25
+  narrowed its new functions with `revoke all on function f from public`, which was the
+  house form at the time. `0137_anon_execute_sweep.sql` landed the next day and
+  established that on hosted Supabase that form **removes nothing**, because the project's
+  default privileges write a direct `anon` grant into every new function's ACL at creation;
+  0137 repaired the 369 functions that existed and set the rule that a new function
+  narrows itself by naming the roles. The waiting branch predated the rule, so its four
+  new functions would have arrived executable by `anon`, reopening four of the holes 0137
+  had closed the day before. One of them, `_admin_is_email(text)`, took an address as a
+  parameter, carried no session guard, and was `SECURITY DEFINER` over `app_admins`: an
+  unauthenticated admin-roster oracle, reachable from the open internet.
+
+  Before landing any migration older than the tip, list every migration that landed since
+  it was cut and read each one for a rule, a form or an invariant this migration predates.
+  Then **measure the end state rather than reason about it**: apply the chain plus the new
+  migration against a real Postgres and read the catalog back. That is how this was found,
+  and reading `pg_proc` took one session where reasoning had already produced a confident
+  and wrong answer. A grant fix that has not been observed failing to grant has not been
+  tested.
 - **Branch names come from the tool.** Sessions produce `claude/<slug>-<hash>`. Do not
   fight it by insisting on `lane/<thing>`; the naming was never the control, the
   partition was.
@@ -1530,6 +1572,16 @@ component or token exists, the digest governs and the standard is corrected.
 
 ## Changelog
 
+- **2026-08-26f** - Two rules from the end of the same long session. The register is not
+  the directory: a sweep built from `REGISTER.md` cannot see an unregistered file, which
+  hid `IDEA_MATERIALS_PROCESS` 2.6 and `IDEA_REFERENCE_LIBRARY` 4.2 next to their own stale
+  canonical copies for a day after a web-UI upload collided with the existing filenames,
+  and nearly got both deleted as junk. And a migration is correct against the schema it
+  will meet rather than the one it was written against: a branch cut a day before
+  `0137_anon_execute_sweep.sql` carried the pre-0137 revoke form, which would have landed
+  four functions executable by `anon`, one of them an admin-roster oracle open to the
+  internet. Both are failures of comparison against something that changed underneath, and
+  neither was visible from the side the work was being done on.
 - **2026-08-26e** - Five changes, all from one day of three parallel lanes plus a second
   VANGUARD leaderboard forgery. Two Hard Rules from the forgery: a validator that names
   which check failed is an oracle, and a consistency check cannot be built on fields the
