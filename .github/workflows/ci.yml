@@ -92,11 +92,23 @@ jobs:
         continue-on-error: true
         run: npm test
 
-      - name: Fail the job if either step failed
+      # Asserts the VERSION constant baked into the served VANGUARD build has
+      # a matching CHANGELOG entry (tools/check-vanguard-changelog.mjs). A
+      # version bump with no changelog line used to ship silently -- there was
+      # no CI, and no local hook, that ever caught it. This does not generate
+      # a missing entry; it fails so a human writes one.
+      - name: VANGUARD changelog check
+        id: vanguard-changelog
+        if: always()
+        continue-on-error: true
+        run: node tools/check-vanguard-changelog.mjs
+
+      - name: Fail the job if any step failed
         if: always()
         run: |
-          echo "check: ${{ steps.check.outcome }}"
-          echo "test:  ${{ steps.test.outcome }}"
-          if [ "${{ steps.check.outcome }}" != "success" ] || [ "${{ steps.test.outcome }}" != "success" ]; then
+          echo "check:              ${{ steps.check.outcome }}"
+          echo "test:               ${{ steps.test.outcome }}"
+          echo "vanguard-changelog: ${{ steps.vanguard-changelog.outcome }}"
+          if [ "${{ steps.check.outcome }}" != "success" ] || [ "${{ steps.test.outcome }}" != "success" ] || [ "${{ steps.vanguard-changelog.outcome }}" != "success" ]; then
             exit 1
           fi
