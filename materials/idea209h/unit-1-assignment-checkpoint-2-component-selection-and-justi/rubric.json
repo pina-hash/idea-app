@@ -1,0 +1,162 @@
+[
+  {
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Four parts, real listings",
+        "points": 7,
+        "descriptor": "All four components selected from actual vendor listings, each identified by a part number that resolves to a real page."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four parts, one unverifiable",
+        "points": 5,
+        "descriptor": "All four selected, but one part number is wrong, generic, or does not resolve to a listing."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or three parts",
+        "points": 3,
+        "descriptor": "Only two or three components selected, or several identified by description rather than part number."
+      },
+      {
+        "label": "Absent",
+        "short": "No real sourcing",
+        "points": 0,
+        "descriptor": "Components named generically with no vendor or part number, or not attempted."
+      }
+    ],
+    "points": 7,
+    "criterion": "Component Selection and Justification: Sourced from real catalogs",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both numbers, all four",
+        "points": 7,
+        "descriptor": "Every selection names a published specification and the calculated value it clears, with both stated."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both numbers, most",
+        "points": 5,
+        "descriptor": "Most selections name both numbers; one or two name only the published value or only the calculated one."
+      },
+      {
+        "label": "Developing",
+        "short": "Asserted, not shown",
+        "points": 3,
+        "descriptor": "Selections are justified by suitability, availability, or team habit rather than by a published number."
+      },
+      {
+        "label": "Absent",
+        "short": "No justification",
+        "points": 0,
+        "descriptor": "Selections listed with no reasoning, or not attempted."
+      }
+    ],
+    "points": 7,
+    "criterion": "Component Selection and Justification: Justified against published properties",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Worked, area choice stated",
+        "points": 6,
+        "descriptor": "Force per bolt, area used, capacity, and margin all shown, with the shear plane location stated and the matching area used."
+      },
+      {
+        "label": "Proficient",
+        "short": "Worked, area unstated",
+        "points": 4,
+        "descriptor": "The calculation is complete and correct but does not say whether the shear plane falls in the shank or the threads."
+      },
+      {
+        "label": "Developing",
+        "short": "Partial calculation",
+        "points": 2,
+        "descriptor": "Force per bolt found but capacity or margin missing, or an area used that does not match the stated plane."
+      },
+      {
+        "label": "Absent",
+        "short": "Asserted or absent",
+        "points": 0,
+        "descriptor": "The fastener is claimed adequate with no calculation, or not attempted."
+      }
+    ],
+    "points": 6,
+    "criterion": "Component Selection and Justification: Fastener shear sizing shown",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Every cell filled",
+        "points": 5,
+        "descriptor": "All four components present with vendor, part number, quantity, key specification, unit price, and line total."
+      },
+      {
+        "label": "Proficient",
+        "short": "One or two gaps",
+        "points": 3,
+        "descriptor": "All four components present with one or two cells blank or marked as unknown."
+      },
+      {
+        "label": "Developing",
+        "short": "Missing a component",
+        "points": 1,
+        "descriptor": "Fewer than four components listed, or several rows substantially incomplete."
+      },
+      {
+        "label": "Absent",
+        "short": "Not usable",
+        "points": 0,
+        "descriptor": "Table empty or too sparse to read as a parts list."
+      }
+    ],
+    "points": 5,
+    "criterion": "Bill of Materials: Completeness",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Orderable without questions",
+        "points": 5,
+        "descriptor": "Quantities are assembly counts, part numbers are exact, line totals extend correctly, and an order total is given."
+      },
+      {
+        "label": "Proficient",
+        "short": "Minor cleanup needed",
+        "points": 3,
+        "descriptor": "Usable as a parts list but with a package quantity mistaken for an assembly count, an arithmetic slip, or a missing total."
+      },
+      {
+        "label": "Developing",
+        "short": "Would need a conversation",
+        "points": 1,
+        "descriptor": "A buyer would have to come back with questions before this could be ordered."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "No usable procurement information."
+      }
+    ],
+    "points": 5,
+    "criterion": "Bill of Materials: Procurement ready",
+    "incomplete": false
+  }
+]
