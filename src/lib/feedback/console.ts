@@ -147,6 +147,77 @@ export function rowErrorId(row: FeedbackRow): string | null {
 	return metaString(row, 'errorId');
 }
 
+/**
+ * Every `meta` key a named accessor above already reads, matched key for key
+ * against `route`/`path`/`role`/`section`/`viewport`/`userAgent`/`build`/
+ * `status`/`errorId`. `at` is the same instant as `row.created_at`, already
+ * printed as "filed", so it is excluded rather than left to fall through as a
+ * second timestamp.
+ *
+ * `meta` IS FREE-FORM (feedback.ts says so): `captureMeta` is the shell's one
+ * producer, but not the only one -- VANGUARD's in-game composer writes
+ * `surface` and `initials` straight into the same column, and `captureMeta`
+ * itself has emitted `error` for every error-boundary report since it
+ * existed. A FIXED LIST OF NAMED FIELDS IS THE WRONG SHAPE for a free-form
+ * blob on its own; {@link rowMetaExtras} is the generic pass that catches
+ * whatever this set does not name.
+ */
+const KNOWN_META_KEYS = new Set([
+	'route',
+	'path',
+	'role',
+	'section',
+	'viewport',
+	'userAgent',
+	'at',
+	'build',
+	'status',
+	'errorId'
+]);
+
+/** A meta value worth a line in the generic pass: a non-empty primitive. */
+function metaExtraText(value: unknown): string | null {
+	if (typeof value === 'string') return value.trim() || null;
+	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+	// An object or an array gets no generic rendering: `build` is the one
+	// object shape this file understands by name and prints with its own
+	// sentence, and serialising an unknown one inline would wedge a JSON blob
+	// or "[object Object]" into a markdown bullet. Dropped rather than guessed
+	// at -- the JSON export carries the row, and this key, verbatim.
+	return null;
+}
+
+/**
+ * Whatever else is in the row's `meta`, beyond a key a named accessor above
+ * already reads. ADDITIVE ONLY: a key `rowRoute`, `rowBuild` and the rest
+ * already claim can never reach here, so widening this set can only ever
+ * surface a key nothing already prints -- it cannot change what a named field
+ * says.
+ *
+ * SORTED BY KEY, not by insertion order into the blob, so the same set of
+ * extra keys prints in the same order on every export of the same row. Two
+ * exports taken an hour apart are then diffable by eye, which tracking object
+ * insertion order could not promise -- a producer that writes its keys in a
+ * different order between builds would otherwise reorder the bundle for no
+ * reason a reader could see.
+ *
+ * ONE IMPLEMENTATION, read by the markdown export. Long values are capped at
+ * 200 characters: this is a layout safety net, not a content rule, because
+ * nothing here promises a future producer keeps its values as short as
+ * VANGUARD's `initials` does.
+ */
+export function rowMetaExtras(row: FeedbackRow): { key: string; value: string }[] {
+	const meta = row.meta ?? {};
+	const extras: { key: string; value: string }[] = [];
+	for (const key of Object.keys(meta)) {
+		if (KNOWN_META_KEYS.has(key)) continue;
+		const text = metaExtraText(meta[key]);
+		if (!text) continue;
+		extras.push({ key, value: text.length > 200 ? `${text.slice(0, 200)}…` : text });
+	}
+	return extras.sort((a, b) => a.key.localeCompare(b.key));
+}
+
 /** The YYYY-MM-DD the row was filed, in the reader's own zone. */
 export function rowDay(row: FeedbackRow): string {
 	const d = new Date(row.created_at);
@@ -474,6 +545,10 @@ function oneRow(
 	// repeating it under every report is most of the bundle's length.
 	const build = rowBuild(row);
 	if (build) facts.push(`build: ${build.value} (${build.source})`);
+	// THE GENERIC PASS, LAST AND ALWAYS SORTED, so a producer nothing above
+	// names by key still reaches the bundle instead of being dropped on the
+	// floor -- see rowMetaExtras.
+	for (const extra of rowMetaExtras(row)) facts.push(`${extra.key}: ${extra.value}`);
 
 	lines.push(facts.map((f) => `- ${f}`).join('\n'));
 	lines.push('');
