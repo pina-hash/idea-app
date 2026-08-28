@@ -4,21 +4,21 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Four parts, real listings",
-        "points": 7,
-        "descriptor": "All four components selected from actual vendor listings, each identified by a part number that resolves to a real page."
+        "short": "Six parts, real listings",
+        "points": 6,
+        "descriptor": "All six components selected from actual vendor listings, each identified by a part number that resolves to a real page."
       },
       {
         "label": "Proficient",
-        "short": "Four parts, one unverifiable",
-        "points": 5,
-        "descriptor": "All four selected, but one part number is wrong, generic, or does not resolve to a listing."
+        "short": "Five or six, one unverifiable",
+        "points": 4,
+        "descriptor": "All six selected, but one part number is wrong, generic, or does not resolve to a listing."
       },
       {
         "label": "Developing",
-        "short": "Two or three parts",
-        "points": 3,
-        "descriptor": "Only two or three components selected, or several identified by description rather than part number."
+        "short": "Three or four parts",
+        "points": 2,
+        "descriptor": "Only three or four components selected, or several identified by description rather than part number."
       },
       {
         "label": "Absent",
@@ -27,7 +27,7 @@
         "descriptor": "Components named generically with no vendor or part number, or not attempted."
       }
     ],
-    "points": 7,
+    "points": 6,
     "criterion": "Component Selection and Justification: Sourced from real catalogs",
     "incomplete": false
   },
@@ -36,21 +36,21 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Both numbers, all four",
-        "points": 7,
-        "descriptor": "Every selection names a published specification and the calculated value it clears, with both stated."
+        "short": "Both values, all six",
+        "points": 6,
+        "descriptor": "Every selection names a published specification or fit constraint and the calculated value it clears, with both stated."
       },
       {
         "label": "Proficient",
-        "short": "Both numbers, most",
-        "points": 5,
-        "descriptor": "Most selections name both numbers; one or two name only the published value or only the calculated one."
+        "short": "Both values, most",
+        "points": 4,
+        "descriptor": "Most selections name both; one or two name only the published value or only the calculated one."
       },
       {
         "label": "Developing",
         "short": "Asserted, not shown",
-        "points": 3,
-        "descriptor": "Selections are justified by suitability, availability, or team habit rather than by a published number."
+        "points": 2,
+        "descriptor": "Selections justified by suitability, availability, or team habit rather than by a published number."
       },
       {
         "label": "Absent",
@@ -59,7 +59,7 @@
         "descriptor": "Selections listed with no reasoning, or not attempted."
       }
     ],
-    "points": 7,
+    "points": 6,
     "criterion": "Component Selection and Justification: Justified against published properties",
     "incomplete": false
   },
@@ -68,20 +68,46 @@
     "levels": [
       {
         "label": "Complete",
+        "short": "Named, and specifically ruled out",
+        "points": 3,
+        "descriptor": "A real candidate is named and the specific property or constraint that ruled it out is given."
+      },
+      {
+        "label": "Proficient",
+        "short": "Named, vague reason",
+        "points": 2,
+        "descriptor": "A candidate is named but the reason is general, such as too expensive or not right."
+      },
+      {
+        "label": "Absent",
+        "short": "None named",
+        "points": 0,
+        "descriptor": "No rejected candidate given."
+      }
+    ],
+    "points": 3,
+    "criterion": "Component Selection and Justification: Rejected candidate",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c4",
+    "levels": [
+      {
+        "label": "Complete",
         "short": "Worked, area choice stated",
-        "points": 6,
+        "points": 5,
         "descriptor": "Force per bolt, area used, capacity, and margin all shown, with the shear plane location stated and the matching area used."
       },
       {
         "label": "Proficient",
         "short": "Worked, area unstated",
-        "points": 4,
+        "points": 3,
         "descriptor": "The calculation is complete and correct but does not say whether the shear plane falls in the shank or the threads."
       },
       {
         "label": "Developing",
         "short": "Partial calculation",
-        "points": 2,
+        "points": 1,
         "descriptor": "Force per bolt found but capacity or margin missing, or an area used that does not match the stated plane."
       },
       {
@@ -91,30 +117,30 @@
         "descriptor": "The fastener is claimed adequate with no calculation, or not attempted."
       }
     ],
-    "points": 6,
+    "points": 5,
     "criterion": "Component Selection and Justification: Fastener shear sizing shown",
     "incomplete": false
   },
   {
-    "id": "m2-c4",
+    "id": "m2-c5",
     "levels": [
       {
         "label": "Complete",
         "short": "Every cell filled",
         "points": 5,
-        "descriptor": "All four components present with vendor, part number, quantity, key specification, unit price, and line total."
+        "descriptor": "All six components present with vendor, part number, quantity, key specification, unit price, and line total."
       },
       {
         "label": "Proficient",
         "short": "One or two gaps",
         "points": 3,
-        "descriptor": "All four components present with one or two cells blank or marked as unknown."
+        "descriptor": "All six components present with one or two cells blank or marked as unknown."
       },
       {
         "label": "Developing",
         "short": "Missing a component",
         "points": 1,
-        "descriptor": "Fewer than four components listed, or several rows substantially incomplete."
+        "descriptor": "Fewer than six components listed, or several rows substantially incomplete."
       },
       {
         "label": "Absent",
@@ -128,7 +154,7 @@
     "incomplete": false
   },
   {
-    "id": "m2-c5",
+    "id": "m2-c6",
     "levels": [
       {
         "label": "Complete",
