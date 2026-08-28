@@ -442,6 +442,13 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
 		color: var(--dim);
+		/* `.controls` wraps, but a flex child's automatic minimum is still its
+		   own min-content -- here the <select>'s widest OPTION text ("normal
+		   export (wrapper folder + hidden state file)"), which is wider than a
+		   phone viewport on its own. Wrapping onto its own row does not help
+		   an item that is, by itself, wider than the row (CLAUDE.md:
+		   "min-width: 0 on grid/flex children"). */
+		min-width: 0;
 	}
 	.mono {
 		font-family: 'Share Tech Mono', monospace;

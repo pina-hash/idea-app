@@ -25,6 +25,7 @@ import {
 	horizontalScroll,
 	contrast,
 	tapTargets,
+	tapReach,
 	presence,
 	domOrder,
 	orderResult,
@@ -105,6 +106,16 @@ function printDetail(r, indent = '        ') {
 	if (r.check === 'tap-target') {
 		for (const x of r.data.results.filter((v) => v.visible && v.minDim < 44).slice(0, 8)) {
 			console.log(`${indent}${x.w}x${x.h} (min ${x.minDim}px, measured at ${x.measuredAt}${x.measuredAt === 'label' ? `, own box ${x.ownW}x${x.ownH}` : ''}) hit=${x.centreHitsSelf ? 'self' : x.hitPath}  ${x.path}`);
+		}
+	}
+	if (r.check === 'tap-reach') {
+		for (const x of r.data.results.filter((v) => v.visible && (v.minDim < 44 || v.stolen > 0)).slice(0, 8)) {
+			console.log(`${indent}reach ${x.reachW}x${x.reachH} (min ${x.minDim}px, own box ${x.ownW}x${x.ownH}) ${x.stolen} stolen, ${x.offscreenCount} offscreen  ${x.path}`);
+			if (x.stolen > 0) {
+				for (const p of x.hits.filter((p) => !p.offscreen && !p.hitsSelf)) {
+					console.log(`${indent}    (${p.x},${p.y}) hit=${p.hitPath}`);
+				}
+			}
 		}
 	}
 	if (r.check === 'presence') {
@@ -206,6 +217,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 		results.push(await horizontalScroll(page));
 		for (const c of spec.contrast ?? []) results.push(await contrast(page, { ...c, all: true }));
 		for (const t of spec.tapTargets ?? []) results.push(await tapTargets(page, t));
+		for (const t of spec.tapReach ?? []) results.push(await tapReach(page, t));
 		for (const p of spec.presence ?? []) results.push(await presence(page, p));
 		for (const o of spec.domOrder ?? []) results.push(await domOrder(page, o));
 		for (const o of spec.orderResult ?? []) results.push(await orderResult(page, o));

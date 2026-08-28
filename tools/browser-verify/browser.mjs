@@ -102,11 +102,36 @@ export async function openPage(browser, { width, height = 900, freezeTransitions
 		);
 	}
 
+	/*
+	 * A FAILED HTTP RESPONSE'S URL, so a "Failed to load resource" console
+	 * error can be told apart from another one of the same shape.
+	 *
+	 * `msg.text()` for that message is always the SAME generic sentence --
+	 * Chromium never puts the URL in the console text, only in the message's
+	 * `location()`, which playwright-core does not expose for a resource-load
+	 * failure. Without this, `ignoreConsole` can only match the whole class of
+	 * "something 401'd", which is a blanket ignore wearing a regex: a real new
+	 * failure with the same status and the same generic sentence would pass
+	 * through silently. Every failed (status >= 400) response is queued here
+	 * and paired FIFO with the next matching console error below, in emission
+	 * order -- true within one page for the ordinary case of a handful of
+	 * failing requests, which is what every route in this file has.
+	 */
+	const failedResponses = [];
+	page.on('response', (res) => {
+		if (res.status() >= 400) failedResponses.push({ url: res.url(), status: res.status() });
+	});
+
 	/** Console + uncaught errors, collected for the whole page lifetime. */
 	const consoleErrors = [];
 	const consoleWarnings = [];
 	page.on('console', (msg) => {
-		const entry = { type: msg.type(), text: msg.text(), url: page.url() };
+		let text = msg.text();
+		if (msg.type() === 'error' && /Failed to load resource/.test(text) && failedResponses.length) {
+			const hit = failedResponses.shift();
+			text = `${text} [${hit.status} ${hit.url}]`;
+		}
+		const entry = { type: msg.type(), text, url: page.url() };
 		if (msg.type() === 'error') consoleErrors.push(entry);
 		else if (msg.type() === 'warning') consoleWarnings.push(entry);
 	});
@@ -196,7 +221,19 @@ export async function waitForApp(page, { timeoutMs = 45_000 } = {}) {
  * the effect is the signal. `until` is a predicate evaluated in the page; the
  * ATTEMPT COUNT is returned and printed, because a step that needed four tries
  * is telling you something about the surface that a silent success would not.
- */
+ *
+ * DISPATCHED AT COORDINATES, NEVER `locator.click()`. Playwright's
+ * actionability checks refuse a control carrying `aria-disabled="true"` --
+ * it reads as disabled in the accessibility tree, so `.click()` times out and
+ * the step reports every attempt failed, which looks exactly like a dead
+ * button. This repo uses `aria-disabled` over `disabled` DELIBERATELY and in
+ * several places (CLAUDE.md: a blocked control must still receive the tap so
+ * it can explain itself), so a harness that cannot press one is blind to
+ * whatever that control does. `page.mouse.click(x, y)` at the element's own
+ * centre is a real OS-level click with no actionability gate in front of it
+ * -- it lands on `aria-disabled`, exactly as a finger does, and still misses
+ * a genuinely `disabled` control the same way a finger would (the browser
+ * itself swallows the event before any handler runs). */
 export async function clickUntil(page, selector, until, { attempts = 12, gapMs = 300 } = {}) {
 	const matched = await page.locator(selector).count();
 	if (matched === 0) return { ok: false, matched: 0, attempts: 0, reason: 'no match' };
@@ -217,7 +254,17 @@ export async function clickUntil(page, selector, until, { attempts = 12, gapMs =
 
 	for (let i = 1; i <= attempts; i++) {
 		try {
-			await page.locator(selector).first().click({ timeout: 5000 });
+			const loc = page.locator(selector).first();
+			await loc.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
+			const box = await loc.boundingBox();
+			if (box) {
+				await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+			} else {
+				/* Not boxable (display:none, detached): fall back to the
+				   ordinary actionable click, which at least reports honestly
+				   why nothing happened rather than clicking blind at (0,0). */
+				await loc.click({ timeout: 5000 });
+			}
 		} catch (e) {
 			await page.waitForTimeout(gapMs);
 			continue;

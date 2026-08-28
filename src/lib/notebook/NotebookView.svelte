@@ -3407,7 +3407,21 @@
 		font-size: 0.8rem;
 		margin-top: var(--space-1);
 	}
-	/* The shared .field class is a ROW flex; these stack. */
+	/* THE SHARED .field CLASS (app.css) IS A ROW FLEX, justify-content:
+	   space-between, no wrap -- it is a key/value row, built for a profile or
+	   course header, not a label wrapping a stacked input and hint. Every
+	   label here carries `.field` for its border-bottom rhythm only, so every
+	   one of them has to override the row back to a column, not just the two
+	   that happened to also carry `.folder-field`. Unoverridden, the title
+	   field's label laid its heading, its input and its hint sentence out
+	   side by side with no wrap, and the long hint sentence forced the row --
+	   and the document -- 10.5px past the viewport at 375px, silently, because
+	   `body` clips horizontal overflow and nothing else on the page moved. */
+	.label-field {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+	}
 	.note-field,
 	.folder-field {
 		margin-top: var(--space-4);
