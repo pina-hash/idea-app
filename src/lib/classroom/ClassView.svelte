@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
@@ -631,11 +632,16 @@
 	let retrying = $state<string | null>(null);
 
 	$effect(() => {
+		// TRACKED, deliberately: the transport's presence and the ids on screen
+		// are exactly what should re-run this.
 		const load = loadExportStatuses;
 		const ids = items.map((i) => i.id);
 		if (!load || !canManage || !ids.length) return;
 		let alive = true;
-		void load(ids).then((res) => {
+		// UNTRACKED, and this is the load-bearing half: `load` is INJECTED, so
+		// whatever it touches before its first `await` would otherwise join this
+		// effect's dependencies. See the injected-callback rule in CLAUDE.md.
+		void untrack(() => load(ids)).then((res) => {
 			if (!alive) return;
 			exportStatuses = res;
 			exportOverrides = {};

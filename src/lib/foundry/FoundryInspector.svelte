@@ -40,6 +40,7 @@
 	 * control is drawn for one -- and the reason is stated where the control
 	 * would have been, because a panel that is simply missing reads as a bug.
 	 */
+	import { untrack } from 'svelte';
 	import { foundryDownloadUrl } from './bundle-url.ts';
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
@@ -114,10 +115,23 @@
 	 * that belongs to the previous version is cleared with it -- an open source
 	 * file, a half-typed note, a chosen decision.
 	 *
-	 * `untrack` is what keeps this from spinning: the body WRITES `files`,
-	 * `openPath` and the rest, and reading any of them inside a tracked effect
-	 * would take a dependency on state the effect itself moves. Only `version.id`
-	 * is read tracked, which is the one thing that should re-run it.
+	 * Only `version.id` is read tracked, which is the one thing that should
+	 * re-run it, and TWO independent reasons make that necessary rather than one.
+	 *
+	 * The body WRITES `files`, `openPath` and the rest, so reading any of them
+	 * inside a tracked effect would take a dependency on state the effect itself
+	 * moves. That much was already written down here, and it stops one step
+	 * short: it accounts only for what THIS file reads, and never asks what
+	 * `listFiles` reads.
+	 *
+	 * `listFiles` is INJECTED -- written by whoever mounts this component, who
+	 * cannot see this effect -- so everything it touches reactively before its
+	 * first `await` joins this effect's dependency set too, and anything it
+	 * writes re-triggers the effect. A harness transport that merely read a
+	 * fixture array and appended a log line is already a non-terminating loop.
+	 * So the CALL is untracked, which is what this comment previously claimed
+	 * was already happening while no `untrack` was anywhere in the body. See the
+	 * injected-callback rule in CLAUDE.md.
 	 */
 	$effect(() => {
 		const id = version.id;
@@ -131,10 +145,10 @@
 		reasonId = null;
 		sendProblem = null;
 		sentAt = null;
-		if (!transports.listFiles) return;
+		const listFiles = transports.listFiles;
+		if (!listFiles) return;
 		loadingFiles = true;
-		transports
-			.listFiles(id)
+		untrack(() => listFiles(id))
 			.then((r) => {
 				// The version may have moved on while this was in flight. Answering
 				// a stale request into the current state is how a reviewer ends up

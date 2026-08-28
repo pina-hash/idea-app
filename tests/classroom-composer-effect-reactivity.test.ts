@@ -1,17 +1,31 @@
 // tests/classroom-composer-effect-reactivity.test.ts
 //
-// THE INJECTED-CALLBACK CONTRACT, asserted against the SHIPPING BYTES of
-// ContentComposer rather than against a copy of its effect.
+// THE INJECTED-CALLBACK CONTRACT, asserted over EVERY `$effect` IN `src/`.
 //
-// Reading state inside an `$effect` subscribes to it, and that includes state
-// read inside the functions the effect calls. `transports.loadCategorySuggestions`
-// is INJECTED -- written by whoever mounts the composer, who cannot see this
-// effect -- so anything it touches reactively before its first `await` joins
-// this effect's dependency set, and anything it writes re-triggers the effect.
-// A dev-harness transport that read fixture state and appended a log line took
+// THE FILENAME IS HISTORICAL AND IS KEPT DELIBERATELY. This began as a source
+// assertion over ContentComposer alone, because that is where the defect was
+// found. The defect was never ContentComposer's: a repo-wide sweep on the same
+// checker turned up six more in five other files, in three subsystems, none of
+// which had anything to do with the classroom. So the sweep is the test now and
+// the composer is one of its inputs. The name stays so existing references do
+// not orphan, the way `IDEA_VERIFICATION_ADDENDA.md` keeps its own.
+//
+// THE RULE. Reading state inside an `$effect` subscribes to it, and that
+// includes state read inside the functions the effect calls. A transport, a
+// prop callback, an injected client -- any caller-supplied binding -- is code
+// written by whoever MOUNTS the component, who cannot see the effect that calls
+// it. So everything it touches reactively before its first `await` joins that
+// effect's dependency set, and anything it writes re-triggers the effect. A
+// dev-harness transport that read fixture state and appended a log line took
 // the composer down with `effect_update_depth_exceeded` the moment it opened.
 // The production transport is a plain Supabase call with no reactivity in it,
-// so production never looped -- which is luck, not design.
+// so production never looped -- which is luck, not design, and is exactly the
+// reason a source sweep is worth more here than a runtime one.
+//
+// THE FIX IS ALWAYS THE SAME SHAPE: track the inputs, untrack the CALL.
+// Untracking the whole effect body buys the same safety by deleting the reason
+// the effect exists, and nothing on screen reports an effect that stopped
+// re-running.
 //
 // WHY THIS IS A SOURCE ASSERTION AND NOT A MOUNT.
 // Proving it behaviourally means mounting the real component so its effects
@@ -24,15 +38,20 @@
 // for the two-line config change that would make a mount test possible, and for
 // exactly what remains unproven without it.
 //
-// SO THIS TEST TAKES THE OTHER HALF, AND DELIBERATELY TAKES THE WIDER ONE: it
-// does not look for the one call that was fixed, it walks EVERY `$effect` in
-// the file and flags EVERY synchronous call into a caller-supplied binding that
-// is not wrapped in `untrack`. It reddens for the next one somebody writes.
+// SCOPE: every `.svelte` file under `src/`. `.svelte.ts` modules are NOT
+// walked -- they have no `$props()`, so "caller-supplied" has a different shape
+// there (a constructor argument, a factory parameter) and detecting it is a
+// different analysis. That is a real gap, so it is pinned rather than assumed:
+// no `.svelte.ts` module in the repo calls `$effect(` today, and the assertion
+// below reddens the moment one does, which forces the decision instead of
+// silently leaving the file uncovered.
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { parse } from 'svelte/compiler';
 
+const SRC_ROOT = 'src';
 const COMPOSER = 'src/lib/classroom/ContentComposer.svelte';
 
 /**
@@ -283,25 +302,237 @@ describe('the checker itself', () => {
 });
 
 // ---------------------------------------------------------------------------
-// THE REAL FILE.
+// THE REPO-WIDE SWEEP.
 // ---------------------------------------------------------------------------
 
-describe('ContentComposer: no injected callback runs inside a tracking context', () => {
+/** Every `.svelte` file under `src/`, in a stable order. */
+function svelteFiles(dir: string, out: string[] = []): string[] {
+	for (const entry of readdirSync(dir).sort()) {
+		const p = join(dir, entry);
+		if (statSync(p).isDirectory()) svelteFiles(p, out);
+		else if (p.endsWith('.svelte')) out.push(p.split(sep).join('/'));
+	}
+	return out;
+}
+
+/** Every `.svelte.ts` module under `src/`, for the scope tripwire below. */
+function svelteModules(dir: string, out: string[] = []): string[] {
+	for (const entry of readdirSync(dir).sort()) {
+		const p = join(dir, entry);
+		if (statSync(p).isDirectory()) svelteModules(p, out);
+		else if (p.endsWith('.svelte.ts')) out.push(p.split(sep).join('/'));
+	}
+	return out;
+}
+
+interface Site extends Finding {
+	file: string;
+}
+
+/**
+ * THE ALLOWLIST, AND WHY IT IS PER SITE RATHER THAN PER METHOD NAME.
+ *
+ * `PURE_COLLECTION_METHODS` is a heuristic and it has a hole in it that only
+ * shows up at repo scale: `get`, `has` and `find` are on that list because
+ * `Map.get` and `Array.find` belong there, and a transport called
+ * `transports.get(id)` or `store.find(q)` would be waved straight through by
+ * the same rule. One file could be eyeballed. Three hundred and fifty cannot.
+ *
+ * So a pure-looking call clears only when it is NAMED HERE, with the reason
+ * somebody checked. That makes every entry a decision that was made rather
+ * than a hole that was left, and it makes the heuristic a first filter rather
+ * than the verdict.
+ *
+ * `count` is asserted exactly, so a SECOND call appearing at a site somebody
+ * already blessed still has to be looked at. Line numbers are deliberately not
+ * part of the key: they churn on every unrelated edit above, and an allowlist
+ * that has to be renumbered is one that gets renumbered without being read.
+ */
+const ALLOWED_PURE: ReadonlyArray<{ file: string; callee: string; count: number; why: string }> = [
+	{
+		file: 'src/lib/classroom/ClassView.svelte',
+		callee: 'items.map',
+		count: 1,
+		why: 'Array.prototype.map over the `items` prop with a local `(i) => i.id`. The effect already reads `items` to build the id list it exists for, so the call adds no dependency it did not want.'
+	},
+	{
+		file: 'src/lib/frc/FrcInteractiveDrill.svelte',
+		callee: 'bank.items.map',
+		count: 1,
+		why: 'Array.prototype.map over `bank.items` with the local `buildState`. `bank` is read tracked on the line above ON PURPOSE, so the drill re-seeds when the bank changes.'
+	},
+	{
+		file: 'src/lib/notebook/NotebookView.svelte',
+		callee: 'folders.some',
+		count: 2,
+		why: 'Two stale-selection guards (the folder picker, and the feed filter) asking Array.prototype.some over the `folders` prop with a local id comparison. Both must re-run when `folders` changes, which is the dependency the read itself already takes.'
+	},
+	{
+		file: 'src/lib/notebook/NotebookView.svelte',
+		callee: 'sessions.find',
+		count: 1,
+		why: 'Array.prototype.find over the `sessions` prop resolving a pending capture to its section. `find`, not a transport lookup: the callback is a local id comparison.'
+	},
+	{
+		file: 'src/lib/notebook/PhotoStager.svelte',
+		callee: 'staged.map',
+		count: 1,
+		why: 'Array.prototype.map over the `staged` prop with the local `shownFile`, building the live set the object-URL cache is swept against.'
+	},
+	{
+		file: 'src/lib/notebook/ReviewConsole.svelte',
+		callee: 'sections.some',
+		count: 1,
+		why: 'Array.prototype.some over the `sections` prop, the stale-section guard. Same shape as NotebookView\'s, and named separately so a change to one cannot be waved through on the other\'s reason.'
+	},
+	{
+		file: 'src/lib/tournaments/RewardRulesEditor.svelte',
+		callee: 'r.find',
+		count: 1,
+		why: 'Array.prototype.find over `r`, a direct alias of the `rules` prop, with a local trigger-type comparison. The alias is why the checker reports it at all.'
+	},
+	{
+		file: 'src/lib/tournaments/RewardRulesEditor.svelte',
+		callee: 'r .filter',
+		count: 1,
+		why: 'Array.prototype.filter over the same alias, re-seeding the round rows. The space in the callee text is a line break the checker collapses, not a typo.'
+	},
+	{
+		file: 'src/routes/gauntlet/author/+page.svelte',
+		callee: 'data.series.map',
+		count: 1,
+		why: 'Array.prototype.map over `data.series` from the page load, copying rows into local editable state. `data` is the props object, which is what puts it in front of the checker.'
+	}
+];
+
+const ALLOWED_KEY = (file: string, callee: string) => `${file}::${callee}`;
+
+describe('src/: no injected callback runs inside a tracking context', () => {
+	const files = svelteFiles(SRC_ROOT);
+	const sites: Site[] = [];
+	const parseFailures: string[] = [];
+	let effects = 0;
+
+	for (const file of files) {
+		let result: ReturnType<typeof injectedCallsInEffects>;
+		try {
+			result = injectedCallsInEffects(readFileSync(file, 'utf8'), file);
+		} catch (e) {
+			// A file the checker cannot parse is NOT a pass. It is a file that was
+			// never checked, and silently skipping it is how the sweep comes back
+			// clean over code it never read.
+			parseFailures.push(`${file}: ${e instanceof Error ? e.message : String(e)}`);
+			continue;
+		}
+		effects += result.effects;
+		for (const f of result.findings) sites.push({ ...f, file });
+	}
+
+	const unwrappedSites = sites.filter((s) => !s.wrapped);
+	const pureSites = unwrappedSites.filter((s) => s.pure);
+	const defects = unwrappedSites.filter((s) => !s.pure);
+
+	it('read every component in src/ and parsed all of them', () => {
+		expect(parseFailures).toEqual([]);
+		// A sweep that generated nothing passes every absence assertion below.
+		// These are floors on the CORPUS, not pins on it: adding a component or
+		// an effect is ordinary and must not redden anything.
+		expect(files.length).toBeGreaterThanOrEqual(300);
+		expect(effects).toBeGreaterThanOrEqual(120);
+	});
+
+	it('found real candidates, so a clean result is not a checker that walked nothing', () => {
+		// The positive control for the whole sweep. If this ever goes to zero the
+		// walk has stopped finding calls at all, and every assertion under it is
+		// vacuous rather than satisfied.
+		expect(sites.length).toBeGreaterThanOrEqual(20);
+		expect(sites.filter((s) => s.wrapped).length).toBeGreaterThanOrEqual(8);
+		expect(pureSites.length).toBeGreaterThanOrEqual(10);
+	});
+
+	it('has no unwrapped injected call in any effect, anywhere in src/', () => {
+		expect(
+			defects.map(
+				(s) => `${s.file}:${s.line} ${s.text}(...) -- wrap the CALL in untrack()`
+			)
+		).toEqual([]);
+	});
+
+	it('clears every pure-looking call through the explicit allowlist, and nothing else', () => {
+		const allowed = new Set(ALLOWED_PURE.map((a) => ALLOWED_KEY(a.file, a.callee)));
+		const unlisted = pureSites.filter((s) => !allowed.has(ALLOWED_KEY(s.file, s.text)));
+		expect(
+			unlisted.map(
+				(s) =>
+					`${s.file}:${s.line} ${s.text}(...) -- a pure-looking call at an unlisted site. ` +
+					`Either wrap the CALL in untrack(), or add it to ALLOWED_PURE with the reason it is safe.`
+			)
+		).toEqual([]);
+	});
+
+	it('counts each allowlisted site exactly, so a second call there is still looked at', () => {
+		const seen = new Map<string, number>();
+		for (const s of pureSites) {
+			const k = ALLOWED_KEY(s.file, s.text);
+			seen.set(k, (seen.get(k) ?? 0) + 1);
+		}
+		expect(
+			ALLOWED_PURE.map((a) => `${ALLOWED_KEY(a.file, a.callee)} x${seen.get(ALLOWED_KEY(a.file, a.callee)) ?? 0}`)
+		).toEqual(ALLOWED_PURE.map((a) => `${ALLOWED_KEY(a.file, a.callee)} x${a.count}`));
+	});
+
+	it('pins the allowlist, so an entry cannot be added without saying so', () => {
+		// The length is the tripwire the reasons hang off: an entry appended in a
+		// hurry moves this number and has to be argued for in review rather than
+		// merged as a one-line diff.
+		expect(ALLOWED_PURE).toHaveLength(9);
+		expect(ALLOWED_PURE.reduce((n, a) => n + a.count, 0)).toBe(10);
+		// Every entry carries a real reason, and no entry is a duplicate key.
+		for (const a of ALLOWED_PURE) expect(a.why.length).toBeGreaterThan(40);
+		expect(new Set(ALLOWED_PURE.map((a) => ALLOWED_KEY(a.file, a.callee))).size).toBe(
+			ALLOWED_PURE.length
+		);
+	});
+
+	it('has no STALE allowlist entry, so a blessing cannot outlive its call', () => {
+		// An entry whose site is gone is a pre-approval for whatever gets written
+		// there next, which is the opposite of what this list is for.
+		const live = new Set(pureSites.map((s) => ALLOWED_KEY(s.file, s.text)));
+		expect(
+			ALLOWED_PURE.filter((a) => !live.has(ALLOWED_KEY(a.file, a.callee))).map(
+				(a) => `${ALLOWED_KEY(a.file, a.callee)} -- allowlisted, but no such call exists any more`
+			)
+		).toEqual([]);
+	});
+
+	it('covers every effect in the repo, because no .svelte.ts module has one', () => {
+		// THE SCOPE TRIPWIRE. `.svelte.ts` modules are outside this sweep (see the
+		// header): they have no `$props()`, so "caller-supplied" is a different
+		// shape there. That gap costs nothing only while no such module runs an
+		// effect. The moment one does, this reddens and somebody decides, rather
+		// than the file sitting unchecked with the sweep still reporting clean.
+		const withEffects = svelteModules(SRC_ROOT).filter((f) =>
+			/\$effect(\.pre)?\s*\(/.test(readFileSync(f, 'utf8'))
+		);
+		expect(withEffects).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// THE COMPOSER, WHICH IS WHERE THIS STARTED. The sweep above already asserts it
+// has no unwrapped call; this asserts the SHAPE of the fix, which the sweep
+// cannot see -- a whole-body untrack would satisfy the sweep and quietly stop
+// the effect re-running.
+// ---------------------------------------------------------------------------
+
+describe('ContentComposer: the fix tracks its inputs and untracks only the call', () => {
 	const source = readFileSync(COMPOSER, 'utf8');
 	const result = injectedCallsInEffects(source, COMPOSER);
 
 	it('walked the real effects and found real candidates, so a pass is not vacuous', () => {
-		// A sweep that generated nothing passes every absence assertion below.
 		expect(result.effects).toBeGreaterThanOrEqual(4);
 		expect(result.findings.length).toBeGreaterThanOrEqual(2);
 		expect(result.findings.filter((f) => f.wrapped).length).toBeGreaterThanOrEqual(2);
-	});
-
-	it('has no unwrapped injected call in any effect', () => {
-		const bad = unwrapped(result);
-		expect(
-			bad.map((f) => `${COMPOSER}:${f.line} ${f.text}(...) -- wrap the CALL in untrack()`)
-		).toEqual([]);
 	});
 
 	it('still tracks the dependencies the suggestions effect exists for', () => {
