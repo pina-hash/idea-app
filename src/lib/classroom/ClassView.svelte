@@ -1050,8 +1050,17 @@
 
 {#snippet checkInRow(checkIn: ClassCheckIn)}
 	{@const href = canManage ? notebookHref : notebookHref && checkInHref(checkIn, notebookHref)}
+	{@const upcoming = checkIn.status === 'scheduled'}
 	<li class="row-wrap">
-		<div class="row check-in-row">
+		<!-- A CHECK-IN NOBODY HAS BEEN ASKED FOR YET IS MUTED WHOLE, not just
+		     chipped. `mergeCheckIns` has already put it below everything
+		     actionable and the chip says "Not due yet" in words; this takes the
+		     cyan off the glyph so the row does not read at the weight of the work
+		     above it. Colour is never the only signal here -- the word is in the
+		     chip, and the position is the third. The LINK stays: filing early is
+		     something the grid explicitly credits (0140), so the door has to be
+		     open. -->
+		<div class="row check-in-row" class:upcoming>
 			<span class="row-expand spacer" aria-hidden="true"></span>
 			{#snippet inner()}
 				<span class="kind-glyph kind-checkin" aria-hidden="true">
@@ -1749,6 +1758,9 @@
 	}
 	.kind-checkin {
 		color: var(--cyan);
+	}
+	.check-in-row.upcoming .kind-checkin {
+		color: var(--text-2);
 	}
 	.row-text {
 		display: flex;

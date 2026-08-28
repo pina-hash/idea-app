@@ -55,13 +55,22 @@ import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
 /**
  * Where the viewer stands on one check-in.
  *
- * The five values are the notebook's own, narrowed to what a STUDENT can act
- * on. `late` is deliberately absent: whether an entry arrived on time is
+ * The values are the notebook's own, narrowed to what a STUDENT can act on.
+ * `late` is deliberately absent: whether an entry arrived on time is
  * adjudicated by `notebook_get_section_grid`, which owns the
  * America/Los_Angeles calendar rule, and re-deriving that here would be a
  * second copy of a rule that has exactly one right answer. A late entry reads
  * as `filed`, and lateness stays a review question on the grid where it is
  * decided.
+ *
+ * `scheduled` IS THE ONE VALUE THAT IS NOT ABOUT THE VIEWER, and it is the
+ * same idea `0140` gave the teacher's grid: a check-in dated after today has
+ * not been asked for yet. It is a property of the DAY, identical for everybody
+ * looking at it, which is why it is the one status a MANAGER carries (see the
+ * class load) where every other one is null for them. It sits in this union
+ * rather than beside it because both sides of this feature now read off one
+ * vocabulary -- the grid says `scheduled` in its cell, this says `scheduled`
+ * on its card, and neither has to know how the other spells it.
  */
 export type CheckInStatus =
 	| 'filed'
@@ -69,6 +78,7 @@ export type CheckInStatus =
 	| 'awaiting_review'
 	| 'flagged'
 	| 'excused'
+	| 'scheduled'
 	| 'missing';
 
 /**
@@ -128,6 +138,55 @@ export interface ClassCheckIn {
 }
 
 // ---------------------------------------------------------------------------
+// The calendar
+// ---------------------------------------------------------------------------
+
+/**
+ * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN.
+ *
+ * `notebook_sessions.session_date` is a bare DATE, and every rule that
+ * adjudicates one compares it in America/Los_Angeles:
+ * `notebook_get_section_grid`'s `on_time` is
+ * `(upload_timestamp at time zone 'America/Los_Angeles')::date <= se.session_date`
+ * (0094/0098), and `0140`'s `scheduled` arm is `se.session_date > v_today`
+ * where `v_today` is that same conversion. A server reading UTC instead would
+ * run seven or eight hours ahead, so every evening between 5pm Pacific and
+ * midnight UTC the next day's check-in would already read as due -- a smaller
+ * copy of the exact defect the `scheduled` state exists to remove, arriving in
+ * the hours a teacher actually lays the next day out.
+ *
+ * IT TAKES `now` RATHER THAN READING A CLOCK, and that is the whole point of
+ * it being here. A pure function that reaches for `new Date()` is the defect no
+ * probe catches; a pure function handed an instant is assertable at a pinned
+ * one, including the instants where the two calendars disagree. THE LOADER
+ * READS THE CLOCK, ONCE, and hands the day down -- there is exactly one idea of
+ * "today" on this surface and it is the loader's.
+ *
+ * `en-CA` is the YYYY-MM-DD spelling, which is the string the column holds, so
+ * every comparison against it is a plain lexical one with no parsing in it.
+ */
+export function laCalendarDay(now: Date): string {
+	return now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+}
+
+/**
+ * IS THIS CHECK-IN DATED AFTER TODAY -- that is, has it been asked for yet?
+ *
+ * STRICTLY AFTER, so a check-in dated TODAY is due: that is the day it is for,
+ * not the day after it. It is the same `>` `0140` writes into the grid's
+ * `case`, and flipping it to `>=` is the direction that matters -- a class
+ * genuinely behind would read as caught up, which is as silent as the defect
+ * this replaces.
+ *
+ * BOTH ARGUMENTS ARE YYYY-MM-DD, so this is a lexical compare and not a date
+ * parse. Nothing here reads a clock; `today` comes from `laCalendarDay` at the
+ * one place that does.
+ */
+export function checkInIsScheduled(sessionDate: string, today: string): boolean {
+	return sessionDate > today;
+}
+
+// ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
 
@@ -166,18 +225,55 @@ export interface CheckInEntry {
  * would be telling them their page did not count. A DRAFT does not beat an
  * excusal -- there is nothing to count yet, and "excused" is the more useful
  * thing to know.
+ *
+ * THE ARMS ARE `0140`'s GRID ARMS, IN `0140`'s ORDER, and that is deliberate
+ * rather than coincidental -- the two sides of this feature now answer one
+ * question the same way:
+ *
+ *   turned-in entry > excusal > scheduled > draft > missing
+ *
+ *   - AN ENTRY WINS because a student who filed EARLY has filed it, and
+ *     reporting "not due yet" over their own work would be telling them the
+ *     page did not count. The same argument already put an entry above an
+ *     excusal.
+ *   - AN EXCUSAL WINS because it is a decision an instructor made about this
+ *     student on that day (a field trip excused three weeks ahead is a record
+ *     worth keeping on screen), and neither state counts against anybody, so
+ *     nothing is lost by showing the one somebody chose.
+ *   - `scheduled` BEATS A DRAFT for the reason a draft already loses to an
+ *     excusal -- there is nothing to count yet -- and for one more that is
+ *     decisive on its own: `isOutstanding` counts a draft, so a draft ranked
+ *     first would tell a student they owe a check-in that has not been asked
+ *     for. That is the whole defect, in a narrower case.
+ *
+ * `scheduled` IS HANDED IN, NEVER DERIVED. This function takes no clock, and
+ * the caller passing a boolean rather than a date is what keeps it that way:
+ * the loader reads `new Date()` once, converts it with `laCalendarDay`, and
+ * asks `checkInIsScheduled`. A second idea of "is this due yet" -- one in the
+ * loader and one in here -- is the pair that stops agreeing.
  */
 export function checkInStatus(
 	entry: CheckInEntry | null | undefined,
-	excused: boolean
+	excused: boolean,
+	/**
+	 * Whether this check-in is dated after today, from `checkInIsScheduled`.
+	 *
+	 * REQUIRED, NOT DEFAULTED, and deliberately: a default of `false` is the
+	 * pre-`0140` answer, so a caller that forgot would silently reproduce the
+	 * defect with nothing on screen or in the types to say so. Every caller has
+	 * to decide, the way `ClassCheckIn.item_id` makes every builder decide.
+	 */
+	scheduled: boolean
 ): CheckInStatus {
-	if (entry && !entry.submitted) return excused ? 'excused' : 'draft';
-	if (entry) {
+	if (entry && entry.submitted) {
 		if (entry.status === 'flagged') return 'flagged';
 		if (entry.status === 'pending_review') return 'awaiting_review';
 		return 'filed';
 	}
-	return excused ? 'excused' : 'missing';
+	if (excused) return 'excused';
+	if (scheduled) return 'scheduled';
+	if (entry) return 'draft';
+	return 'missing';
 }
 
 const STATUS_LABELS: Record<CheckInStatus, string> = {
@@ -188,6 +284,15 @@ const STATUS_LABELS: Record<CheckInStatus, string> = {
 	awaiting_review: 'Awaiting review',
 	flagged: 'Needs another look',
 	excused: 'Excused',
+	// NOT "Scheduled", and the collision is the reason. This stream already
+	// renders a `.sched-chip` reading "Scheduled" on a classroom ITEM, in amber,
+	// meaning "students cannot see this yet" -- a manager-only chip about
+	// PUBLICATION. A check-in dated ahead is the opposite: everybody can see it,
+	// and what has not happened is the DUE DAY. So the label says the thing the
+	// reader needs, the way `draft` names both its halves rather than saying
+	// "Draft". The grid's own label for this state is "Scheduled" and stays that
+	// way; the KEY is what the two surfaces share, never the wording.
+	scheduled: 'Not due yet',
 	missing: 'Not filed yet'
 };
 
@@ -209,6 +314,12 @@ const STATUS_TONES: Record<CheckInStatus, CheckInTone> = {
 	awaiting_review: 'info',
 	flagged: 'attention',
 	excused: 'muted',
+	// The `excused` tone, for the `excused` reason: a state that stops something
+	// counting must not wear the tone of a state that asks for something. This
+	// card sits at the BOTTOM of the stream as well (see mergeCheckIns) -- the
+	// tone and the position are one decision made twice, because either alone
+	// still lets a future check-in read as work.
+	scheduled: 'muted',
 	missing: 'attention'
 };
 
@@ -232,10 +343,15 @@ export function checkInTone(status: CheckInStatus): CheckInTone {
  * `awaiting_review` is deliberately NOT outstanding: the student has done their
  * part and the ball is with the instructor, so counting it would ask them for
  * something that does not exist. `excused` is a sanctioned absence and `filed`
- * is done.
+ * is done. `scheduled` HAS NOT BEEN ASKED FOR YET, and it stays out of this
+ * total by not being named -- which is the argument for the whitelist shape
+ * rather than a blacklist, and is the same reason `gridSummary.outstanding`
+ * needed no change when `0140` added the state on the other side. A state
+ * added here has to be added DELIBERATELY.
  *
- * A manager's check-in carries a null status and therefore never counts here;
- * their own total comes from the grid (see the class page load).
+ * A manager's check-in carries a null status -- or `scheduled`, the one status
+ * that is a fact about the day rather than about a person -- and neither counts
+ * here; their own total comes from the grid (see the class page load).
  */
 export function isOutstanding(status: CheckInStatus | null): boolean {
 	return status === 'missing' || status === 'draft' || status === 'flagged';
@@ -465,6 +581,29 @@ export function streamEntries(items: ClassroomItem[], checkIns: ClassCheckIn[]):
  *
  * `streamEntries` keeps its exact behaviour by calling this with the list
  * `streamItems` produces.
+ *
+ * A `scheduled` CHECK-IN IS NOT INSERTED BY DATE AT ALL. It is appended AFTER
+ * everything else, and that exception is the whole reason a future check-in can
+ * be shown to a student in the first place. The insertion walk below is
+ * newest-first, and a future date is the newest thing on the page -- so a
+ * check-in nobody has been asked for yet would land at the TOP, in the first
+ * row a student reads, which is precisely where the defect that bounded this
+ * read away used to put it. Showing it there would be worse than hiding it.
+ * The tone and the label say it is not work (see STATUS_TONES); the position
+ * says it too, and either one alone is one accident away from a future check-in
+ * reading as today's.
+ *
+ * WITHIN THAT BLOCK THE ORDER FLIPS TO SOONEST-FIRST, which is one rule and not
+ * two: the page reads NEAREST TO NOW first, and time runs both ways from today,
+ * so descending above and ascending below is the same sentence on either side
+ * of it. The alternative -- keeping the block newest-first -- puts the check-in
+ * FURTHEST away directly under today's work and the next one due at the very
+ * bottom, which inverts the only thing an upcoming list is read for.
+ *
+ * IT READS `status`, NEVER A CLOCK. The loader decided what is scheduled, in
+ * the calendar it owns; a date comparison in here would be a second answer to
+ * the same question, and `summarize()` on the grid side refuses one for exactly
+ * the same reason.
  */
 export function mergeCheckIns(
 	ordered: ClassroomItem[],
@@ -484,14 +623,21 @@ export function mergeCheckIns(
 	const loose = streamCheckIns(checkIns);
 	if (!loose.length) return entries;
 
+	const entryFor = (checkIn: ClassCheckIn): StreamEntry => ({
+		kind: 'check-in',
+		key: `check-in:${checkIn.session_id}:${checkIn.section_id}`,
+		checkIn
+	});
+	// The tie-breakers are the same pair on both sides, so two check-ins sharing
+	// a date keep one stable, readable order wherever they end up.
+	const settle = (a: ClassCheckIn, b: ClassCheckIn) =>
+		a.session_label.localeCompare(b.session_label) || a.section_id.localeCompare(b.section_id);
+
 	// Newest first, so equally-dated check-ins keep a stable, readable order and
 	// the insertion walk below never has to reconsider one it already placed.
-	const sorted = [...loose].sort(
-		(a, b) =>
-			checkInStamp(b) - checkInStamp(a) ||
-			a.session_label.localeCompare(b.session_label) ||
-			a.section_id.localeCompare(b.section_id)
-	);
+	const sorted = loose
+		.filter((c) => c.status !== 'scheduled')
+		.sort((a, b) => checkInStamp(b) - checkInStamp(a) || settle(a, b));
 
 	for (const checkIn of sorted) {
 		const stamp = checkInStamp(checkIn);
@@ -508,11 +654,16 @@ export function mergeCheckIns(
 				break;
 			}
 		}
-		entries.splice(at, 0, {
-			kind: 'check-in',
-			key: `check-in:${checkIn.session_id}:${checkIn.section_id}`,
-			checkIn
-		});
+		entries.splice(at, 0, entryFor(checkIn));
+	}
+
+	// AFTER EVERYTHING, SOONEST FIRST. `push` and not `splice`: whatever the walk
+	// above decided about the actionable rows is final, and nothing upcoming may
+	// reach between two of them.
+	for (const checkIn of loose
+		.filter((c) => c.status === 'scheduled')
+		.sort((a, b) => checkInStamp(a) - checkInStamp(b) || settle(a, b))) {
+		entries.push(entryFor(checkIn));
 	}
 
 	return entries;

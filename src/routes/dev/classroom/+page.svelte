@@ -34,6 +34,7 @@
 	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
 	import {
 		checkInsForItem,
+		laCalendarDay,
 		type ClassCheckIn,
 		type CheckInDraft,
 		type ClassCheckInTransports
@@ -2190,6 +2191,25 @@
 				status: 'missing',
 				flag_reason: null,
 				item_id: null
+			},
+			{
+				// DATED AHEAD OF TODAY, so it is `scheduled`: read, muted,
+				// uncounted, and appended BELOW everything actionable rather than
+				// inserted at the top where its date would otherwise put it.
+				//
+				// RELATIVE, unlike every other date in this fixture, and that is
+				// the point of it: a hardcoded future date lapses into the past and
+				// the harness then silently stops showing the state it exists to
+				// show. It is built with `laCalendarDay`, which is the same
+				// function the class load reads its own day from.
+				session_id: 'ns-5',
+				section_id: 's-1',
+				unit_number: 4,
+				session_date: laCalendarDay(new Date(Date.now() + 30 * 86_400_000)),
+				session_label: 'Final assembly photos',
+				status: 'scheduled',
+				flag_reason: null,
+				item_id: null
 			}
 		],
 		's-2': [
@@ -2277,8 +2297,18 @@
 	};
 
 	/** The same rows a MANAGER gets: no personal status on any of them. */
+	/**
+	 * The class load's manager branch, mirrored: every status is null EXCEPT
+	 * `scheduled`, which is a fact about the day rather than about a person and
+	 * is therefore the one status a teacher carries. Blanking it here too would
+	 * make this harness show a manager view the real loader does not produce.
+	 */
 	const asManager = (rows: ClassCheckIn[]): ClassCheckIn[] =>
-		rows.map((c) => ({ ...c, status: null, flag_reason: null }));
+		rows.map((c) => ({
+			...c,
+			status: c.status === 'scheduled' ? ('scheduled' as const) : null,
+			flag_reason: null
+		}));
 
 	/**
 	 * Off = what the class page gets on a project without the notebook

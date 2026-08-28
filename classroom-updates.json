@@ -860,6 +860,16 @@
 			"tags": [
 				"Classwork"
 			]
+		},
+		{
+			"date": "2026-08-28",
+			"title": "Check-ins your teacher has scheduled ahead now show up, marked \"Not due yet\"",
+			"body": "A notebook check-in dated for a day that has not arrived used to be missing from your class page entirely. It now appears, at the bottom of the class list, marked \"Not due yet\" -- so you can see what is coming without it looking like something you owe. It does not count toward the number beside My notebook, and nothing about it is late. You can still open it and file a page early if you want to; your teacher's records credit early work on the day you did it. Teachers see the same rows on their own class page now too, matching the check-in grid.",
+			"tags": [
+				"check-ins",
+				"Notebook",
+				"Classes"
+			]
 		}
 	]
 }
