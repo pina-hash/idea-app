@@ -45,6 +45,15 @@ import type {
 	HallPassState,
 	HallPassTransports
 } from './hall-pass';
+import type {
+	SongDecided,
+	SongQueueState,
+	SongQueueTransports,
+	SongRefusal,
+	SongRefusalDetail,
+	SongRequested,
+	SongResult
+} from './song-queue';
 import {
 	normalizeRevisionHistory,
 	type ExportOutcome,
@@ -1778,6 +1787,152 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 			});
 			if (error) return { ok: false, message: 'Could not sign the pass back in. Try again.' };
 			return hallPassOutcome<HallPassClosed>(data, hallPassClosedShape);
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// THE SONG QUEUE (0145).
+// ---------------------------------------------------------------------------
+
+/**
+ * Every reason `0145` can refuse with, as a value the client can switch on.
+ *
+ * A NARROW LIST, CHECKED. An unrecognised `reason` is NOT passed through as a
+ * refusal -- it falls to the generic message below, because a string this module
+ * has no sentence for would otherwise reach a student as a bare token.
+ */
+const SONG_REFUSALS = new Set<SongRefusal>([
+	'not_a_student',
+	'bad_url',
+	'url_too_long',
+	'note_too_long',
+	'pending_cap',
+	'already_decided',
+	'debt',
+	'not_priced',
+	'reason_required',
+	'reason_too_long'
+]);
+
+/**
+ * THE NUMBERS AND NAMES A REFUSAL CARRIES, LIFTED IN ONE PLACE.
+ *
+ * `songRefusalMessage` states the cap, the limit, the student and the balance
+ * inside its sentences, so dropping them here would leave every refusal reading
+ * as its own fallback -- "3 requests waiting" would silently become the
+ * hardcoded default rather than what the database actually counted.
+ */
+function songDetail(row: Record<string, unknown>): SongRefusalDetail {
+	const num = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
+	return {
+		cap: num(row.cap),
+		pending: num(row.pending),
+		max: num(row.max),
+		balance: num(row.balance),
+		price: num(row.price),
+		student_name: typeof row.student_name === 'string' ? row.student_name : undefined,
+		status: row.status as SongRefusalDetail['status']
+	};
+}
+
+function songOutcome<T>(
+	data: unknown,
+	shape: (row: Record<string, unknown>) => T
+): SongResult<T> {
+	const row = (data ?? {}) as Record<string, unknown>;
+	if (row.ok === true) return { ok: true, data: shape(row) };
+	const reason = row.reason as SongRefusal | undefined;
+	if (reason && SONG_REFUSALS.has(reason)) {
+		return { ok: false, refusal: reason, detail: songDetail(row) };
+	}
+	return { ok: false, message: 'Something went wrong. Try again.' };
+}
+
+/**
+ * ONE SHAPE FOR BOTH DECISIONS, because they answer the identical object.
+ *
+ * `charged` is read straight off the row rather than inferred from the status:
+ * a rejection answers 0 explicitly, and a console that has just charged
+ * somebody on the row above must not leave "was this one charged too" to be
+ * worked out. Two copies of that mapping is what stops agreeing about a field
+ * somebody adds later.
+ */
+const songDecidedShape = (row: Record<string, unknown>): SongDecided => ({
+	request_id: String(row.request_id ?? ''),
+	status: (row.status as SongDecided['status']) ?? 'pending',
+	student_name: String(row.student_name ?? ''),
+	charged: typeof row.charged === 'number' ? row.charged : 0
+});
+
+/**
+ * The `0145` song-queue RPCs, called on the browser client as the student or the
+ * instructor themselves.
+ *
+ * NOTHING HERE IS A BOUNDARY AND NOTHING HERE FILTERS. `classroom_song_queue`
+ * projects by role INSIDE the database, in two separately built branches, so a
+ * student's payload has never contained a classmate's pending or rejected
+ * request and there is nothing for this module to strip. If one ever appears in
+ * a student's result, the bug is in the migration and stripping it here would
+ * only hide it.
+ *
+ * A RAW ERROR IS NEVER RENDERED. `0145` raises only on genuine misuse (no
+ * session, a class the caller cannot see, a request they may not decide);
+ * everything a surface must display gracefully comes back as
+ * `{ok:false, reason}`. So an `error` here is turned into one flat sentence
+ * rather than passed through.
+ */
+export function createSongQueueTransports(supabase: SupabaseClient): SongQueueTransports {
+	return {
+		async load(sectionId) {
+			const { data, error } = await supabase.rpc('classroom_song_queue', {
+				p_section_id: sectionId
+			});
+			// A failed refresh keeps whatever is already on screen rather than
+			// blanking it: the poll runs unattended and a transient failure must not
+			// read as "nothing has been approved".
+			if (error) return null;
+			return (data as SongQueueState | null) ?? null;
+		},
+		/**
+		 * THE STUDENT'S OWN, AND IT SENDS NO IDENTIFIER. The section, the link and
+		 * the note are the only arguments the RPC has; the person is
+		 * `current_user_email()` inside the database, so asking on somebody else's
+		 * behalf is not expressible from here.
+		 */
+		async submit(sectionId, url, note) {
+			const { data, error } = await supabase.rpc('classroom_song_request', {
+				p_section_id: sectionId,
+				p_url: url,
+				p_note: note
+			});
+			if (error) return { ok: false, message: 'Could not send the request. Try again.' };
+			return songOutcome<SongRequested>(data, (row) => ({
+				request_id: String(row.request_id ?? ''),
+				pending: typeof row.pending === 'number' ? row.pending : 0,
+				cap: typeof row.cap === 'number' ? row.cap : 0
+			}));
+		},
+		/**
+		 * THE INSTRUCTOR'S, AND EACH NAMES THE REQUEST. The id comes from the
+		 * manager branch of this caller's OWN state payload -- a student's payload
+		 * carries no id for anybody else's request, which is why naming it costs no
+		 * disclosure.
+		 */
+		async approve(requestId) {
+			const { data, error } = await supabase.rpc('classroom_song_approve', {
+				p_request_id: requestId
+			});
+			if (error) return { ok: false, message: 'Could not approve that request. Try again.' };
+			return songOutcome<SongDecided>(data, songDecidedShape);
+		},
+		async reject(requestId, reason) {
+			const { data, error } = await supabase.rpc('classroom_song_reject', {
+				p_request_id: requestId,
+				p_reason: reason
+			});
+			if (error) return { ok: false, message: 'Could not reject that request. Try again.' };
+			return songOutcome<SongDecided>(data, songDecidedShape);
 		}
 	};
 }
