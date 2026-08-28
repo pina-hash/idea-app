@@ -18,6 +18,10 @@
  *               pressed/active control actually renders differently from
  *               its unpressed siblings, not merely that both individually
  *               clear a contrast minimum
+ *   datalistOrder  [{ inputSelector, evaluateExpected, label }]  an input's
+ *               `list` attribute resolves to a real datalist, options in the
+ *               order a page-side probe function produces -- `evaluateExpected`
+ *               calls that probe rather than a list retyped here
  *   ignoreConsole  regex sources for errors that belong to the FIXTURE
  *
  * Selectors are ANCHORED (a component root, then the element) rather than bare
@@ -318,6 +322,53 @@ export const ROUTES = [
 		ignoreConsole: ['Failed to load resource: the server responded with a status of 401']
 	},
 	{
+		path: '/dev/classroom?view=class-teacher',
+		label: 'Class stream composer, grading-category datalist (teacher)',
+		/* This is the fixture side of a real 0142 gap: the harness mounted the
+		   REAL ContentComposer but supplied no `loadCategorySuggestions`
+		   transport, so the grading-category datalist never rendered here and
+		   the pass measured nothing about it. `New post` opens the composer
+		   (kind defaults to `post`, which carries no category field at all),
+		   then the Assignment kind tab is what renders the "Grading category"
+		   input the datalist attaches to. Both steps mirror
+		   /dev/classroom-split's own compose-assignment-rubric route exactly. */
+		prepare: [
+			{
+				click: '[data-testid="new-post"]',
+				until: '() => !!document.querySelector(".composer-host .kind-toggle")'
+			},
+			{
+				click: '.composer-host .kind-toggle .kind:has-text("Assignment")',
+				until: '() => !!document.querySelector(".composer-host input[list]")'
+			}
+		],
+		presence: [
+			{ selector: '.composer-host .kind-toggle .kind.active', label: 'kind tab active (Assignment)', expectPresent: 1 },
+			{ selector: '.composer-host input[list]', label: 'grading-category field carries a list attribute', expectPresent: 1 }
+		],
+		/*
+			THE REGRESSION THIS CATCHES: a fixture whose `loadCategorySuggestions`
+			returns raw, unranked categories in a different order than the real
+			RPC would, or a composer that renders the datalist's `<option>`s out
+			of the order `categorySuggestions` (the effect's own state) actually
+			holds -- either one a plain "the datalist has N options" presence
+			check would miss entirely. `evaluateExpected` calls the SAME transport
+			and the SAME `courseCategorySuggestions` the real render path calls
+			(exposed at `window.__categorySuggestionsFor`, see
+			src/routes/dev/classroom/+page.svelte), so the expected order is never
+			retyped here -- it is the function's own output on this fixture's own
+			data (i-3 and i-8 are both 'Unit Labs', i-4 is 'Documentation', so the
+			ranked order is ['Unit Labs', 'Documentation']).
+		*/
+		datalistOrder: [
+			{
+				inputSelector: '.composer-host input[list]',
+				evaluateExpected: "() => window.__categorySuggestionsFor(['c-1'])",
+				label: 'grading-category datalist matches courseCategorySuggestions'
+			}
+		]
+	},
+	{
 		path: '/dev/animated-logo',
 		label: 'Animated emblem harness',
 		presence: [
@@ -363,13 +414,23 @@ export const ROUTES = [
 			{ selector: '[data-testid="fdy-card-plays"]', label: 'play-count chips (2 of 3 apps played)', expectPresent: 2 },
 			{ selector: '[data-testid="foundry-inspector"]', label: 'review inspector (admin path)', expectPresent: 1 },
 			{ selector: '[data-testid="foundry-play-stats"]', label: 'FoundryPlayStats block', expectPresent: 1 },
-			{ selector: '[data-testid="foundry-metadata-edit"]', label: 'admin metadata editor', expectPresent: 1 }
+			{ selector: '[data-testid="foundry-metadata-edit"]', label: 'admin metadata editor', expectPresent: 1 },
+			/* The inspector's own download control (FoundryInspector.svelte), never
+			   measured by the harness before this: 'hostile-probe's reviewed
+			   version carries real fixture bundle files (file_count > 0) and its
+			   app is not hidden, so `foundryDownloadable` holds and the control
+			   renders. Hand-measured previously at 208 x 45.4, 8.28:1. */
+			{ selector: '[data-testid="foundry-inspector"] .fdy-insp-get a.btn', label: 'inspector download control', expectPresent: 1 }
 		],
 		contrast: [
 			{ selector: '.fdy-gal-sort-btn[aria-pressed="true"]', label: 'sort control, active', min: 4.5 },
-			{ selector: '.fdy-gal-sort-btn[aria-pressed="false"]', label: 'sort control, inactive', min: 4.5 }
+			{ selector: '.fdy-gal-sort-btn[aria-pressed="false"]', label: 'sort control, inactive', min: 4.5 },
+			{ selector: '[data-testid="foundry-inspector"] .fdy-insp-get a.btn', label: 'inspector download control', min: 4.5 }
 		],
-		tapTargets: [{ selector: '.fdy-gal-sort-btn', label: 'gallery sort buttons', min: 44 }],
+		tapTargets: [
+			{ selector: '.fdy-gal-sort-btn', label: 'gallery sort buttons', min: 44 },
+			{ selector: '[data-testid="foundry-inspector"] .fdy-insp-get a.btn', label: 'inspector download control', min: 44 }
+		],
 		/*
 			THE REGRESSION THIS CATCHES: a first draft styled the active sort
 			button `color: var(--green)`, which `.btn` was already setting, so
@@ -385,6 +446,29 @@ export const ROUTES = [
 				inactiveSelector: '.fdy-gal-sort-btn[aria-pressed="false"]',
 				label: 'sort control: active vs inactive must render differently'
 			}
+		]
+	},
+	{
+		path: '/dev/foundry-forge',
+		label: 'Forge identity harness (FoundryMine download control)',
+		/* Mounts the REAL FoundryMine over fixture apps holding every lifecycle
+		   state at once. `/foundry/mine` and this harness's own FoundryMine
+		   mount were never in tools/browser-verify/routes.mjs, so the download
+		   control FoundryMine.svelte renders beside every version (submitted,
+		   draft, approved, rejected -- `foundryDownloadable` mirrors
+		   `foundryPreviewable` and asks no status question) was hand-measured
+		   instead of driven here. 'ember-clock' is selected by default, whose
+		   five fixture versions all carry file_count: 3 on a non-hidden app, so
+		   every one renders its own "Download v<ordinal>" control. Hand-measured
+		   previously at 138.8 x 45.4, 7.97:1. */
+		presence: [
+			{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'per-version download controls (ember-clock, 5 versions)', expectPresent: 5 }
+		],
+		contrast: [
+			{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'FoundryMine download control', min: 4.5 }
+		],
+		tapTargets: [
+			{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'FoundryMine download control', min: 44 }
 		]
 	}
 ];

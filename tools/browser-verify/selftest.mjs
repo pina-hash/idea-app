@@ -22,6 +22,7 @@ import {
 	presence,
 	domOrder,
 	orderResult,
+	datalistOrder,
 	consoleErrors,
 	statePairContrast
 } from './checks.mjs';
@@ -178,6 +179,36 @@ const CASES = [
 			name: 'the recorded write matches the expected order',
 			html: shell('<script>window.__order = ["a", "b", "c"];</' + 'script>'),
 			run: (p) => orderResult(p, { evaluate: '() => window.__order', expected: ['a', 'b', 'c'] }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'datalist-order',
+		bad: {
+			/* The datalist resolves fine -- the input names it correctly -- but its
+			   options are in the WRONG order relative to what the page's own
+			   probe function produces. This is the shape a stale or unkeyed
+			   `{#each}` over a re-sorted array would render: present, resolved,
+			   silently out of order. */
+			name: 'a resolved datalist whose options are out of order',
+			html: shell(
+				'<input id="i" list="dl"><datalist id="dl"><option value="b"></option><option value="a"></option></datalist>' +
+					'<script>window.__expected = () => ["a", "b"];</' +
+					'script>'
+			),
+			run: (p) =>
+				datalistOrder(p, { inputSelector: '#i', evaluateExpected: '() => window.__expected()', label: 'test' }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same datalist with its options in the probe’s own order',
+			html: shell(
+				'<input id="i" list="dl"><datalist id="dl"><option value="a"></option><option value="b"></option></datalist>' +
+					'<script>window.__expected = () => ["a", "b"];</' +
+					'script>'
+			),
+			run: (p) =>
+				datalistOrder(p, { inputSelector: '#i', evaluateExpected: '() => window.__expected()', label: 'test' }),
 			expect: 'within'
 		}
 	},

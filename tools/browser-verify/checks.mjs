@@ -474,7 +474,55 @@ export async function orderResult(page, { evaluate, expected, label } = {}) {
 }
 
 /* ------------------------------------------------------------------ *
- * 7. Console errors during the run
+ * 7. Datalist order -- an input's `list` attribute resolves to a REAL
+ * datalist element, with its options in the order a page-side function
+ * produces.
+ * ------------------------------------------------------------------ */
+export async function datalistOrder(page, { inputSelector, evaluateExpected, label } = {}) {
+	/* `input.list` is the DOM's own resolution of the `list` attribute to a
+	   real <datalist> element (or null if the attribute is absent, stale, or
+	   points at nothing) -- reading it rather than re-deriving the id by hand
+	   is what proves the ATTRIBUTE resolves, not merely that a datalist with
+	   a plausible id exists somewhere on the page.
+
+	   `evaluateExpected` is a function SOURCE (a string), invoked exactly the
+	   way `orderResult`'s `evaluate` is: it calls a page-side probe the route
+	   under test exposes on `window`, which runs the SAME pure function the
+	   real render path calls, so "the order the code produces" is measured by
+	   calling that code, never by retyping its expected output into a route
+	   spec. */
+	const result = await page
+		.evaluate(`(async () => {
+			const input = document.querySelector(${JSON.stringify(inputSelector)});
+			if (!input) return { error: 'input not found' };
+			const dl = input.list;
+			const actual = dl ? Array.from(dl.options).map((o) => o.value) : null;
+			const expected = await (${evaluateExpected})();
+			return { resolved: !!dl, actual, expected };
+		})()`)
+		.catch((e) => ({ error: e.message }));
+	const withinThreshold =
+		!result.error &&
+		result.resolved &&
+		Array.isArray(result.actual) &&
+		Array.isArray(result.expected) &&
+		result.expected.length > 0 &&
+		result.actual.length === result.expected.length &&
+		result.actual.every((v, i) => v === result.expected[i]);
+	return {
+		check: 'datalist-order',
+		label,
+		measured: result.error
+			? `error: ${result.error}`
+			: `list resolves=${result.resolved}  options=${JSON.stringify(result.actual)}`,
+		threshold: result.error ? 'a resolved datalist' : `options === ${JSON.stringify(result.expected)}`,
+		withinThreshold,
+		data: result
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. Console errors during the run
  * ------------------------------------------------------------------ */
 export function consoleErrors(collected, { ignore = [], blockedCount = 0 } = {}) {
 	/* The harness aborts external requests on purpose, and Chromium logs a

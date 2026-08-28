@@ -28,6 +28,7 @@ import {
 	presence,
 	domOrder,
 	orderResult,
+	datalistOrder,
 	consoleErrors,
 	statePairContrast
 } from './checks.mjs';
@@ -172,6 +173,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const p of spec.presence ?? []) results.push(await presence(page, p));
 		for (const o of spec.domOrder ?? []) results.push(await domOrder(page, o));
 		for (const o of spec.orderResult ?? []) results.push(await orderResult(page, o));
+		for (const d of spec.datalistOrder ?? []) results.push(await datalistOrder(page, d));
 		for (const s of spec.statePairs ?? []) results.push(await statePairContrast(page, s));
 		results.push(consoleErrors(errs, { ignore: spec.ignoreConsole ?? [], blockedCount: blockedExternal.length }));
 	} finally {
