@@ -3,6 +3,7 @@
 	import { beforeNavigate, invalidateAll } from '$app/navigation';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
+	import HallPass from '$lib/classroom/HallPass.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		readClassViewPrefs,
@@ -17,6 +18,7 @@
 		createClassroomTransports,
 		createReferenceTransports,
 		createTeacherEngineTransports,
+		createHallPassTransports,
 		createUnitTransports,
 		deckTransports,
 		fetchLinkPreviewClient,
@@ -75,6 +77,29 @@
 	// schema can take it; `checkInLinksReady` is the load's own ladder answer.
 	// svelte-ignore state_referenced_locally
 	const checkInTransports = createCheckInTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const hallPassTransports = createHallPassTransports(data.supabase);
+
+	/**
+	 * THE ONE CLOCK ON THIS SURFACE.
+	 *
+	 * Read here and threaded down, exactly as the layout LOAD reads `today` once
+	 * for the check-ins: nothing inside `HallPass` or `$lib/classroom/hall-pass`
+	 * calls `Date.now()`, so every elapsed figure in one paint is measured
+	 * against the same instant and each label is assertable at a pinned one.
+	 *
+	 * It only ticks where there is something to tick FOR: no 0143 in this
+	 * database means no card, so no timer. The interval is the ELAPSED LABEL's
+	 * only; re-asking the server is the card's own poll, at its own interval,
+	 * because the two questions ("how long has it been" and "is it still true")
+	 * do not want the same answer rate.
+	 */
+	let now = $state(Date.now());
+	$effect(() => {
+		if (!data.hallPass) return;
+		const timer = setInterval(() => (now = Date.now()), 30_000);
+		return () => clearInterval(timer);
+	});
 
 	/**
 	 * The writes this DEPLOYMENT can execute, per capability rather than
@@ -250,6 +275,25 @@
 </script>
 
 {#snippet classList()}
+	<!--
+		THE HALL PASS SITS ABOVE THE CLASS CONTENT, AND THAT IS THE FEATURE.
+		Below 1024px this pane IS the class page, full width, so first-in-the-pane
+		is zero scrolling and one tap from opening the class. A student who needs
+		it needs it in about a second; anywhere further down and it is a scroll on
+		the one surface where scrolling is the whole cost.
+
+		It is rendered ONLY when the load came back with a state, which is the
+		fail-soft path for a database without 0143 (applied by hand, separately
+		from this deploy). No state, no card -- never a card that cannot work.
+	-->
+	{#if data.hallPass}
+		<HallPass
+			sectionId={data.section.id}
+			state={data.hallPass}
+			transports={hallPassTransports}
+			{now}
+		/>
+	{/if}
 	<ClassView
 		section={data.section}
 		{items}

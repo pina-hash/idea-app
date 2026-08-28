@@ -37,6 +37,14 @@ import {
 	checkInDraftPayload,
 	type ClassCheckInTransports
 } from './class-check-ins';
+import type {
+	HallPassClosed,
+	HallPassOpened,
+	HallPassRefusal,
+	HallPassResult,
+	HallPassState,
+	HallPassTransports
+} from './hall-pass';
 import {
 	normalizeRevisionHistory,
 	type ExportOutcome,
@@ -1652,6 +1660,88 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 			});
 			if (error) return fail(error);
 			return { ok: true, data: Array.isArray(data) ? (data as string[]) : [] };
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// THE HALL PASS (0143).
+// ---------------------------------------------------------------------------
+
+/**
+ * Every reason `0143` can refuse with, as a value the client can switch on.
+ *
+ * A NARROW LIST, CHECKED. An unrecognised `reason` is NOT passed through as a
+ * refusal -- it falls to the generic message below, because a string this
+ * module has no sentence for would otherwise reach a student as a bare token.
+ */
+const HALL_PASS_REFUSALS = new Set<HallPassRefusal>([
+	'taken',
+	'already_out',
+	'not_a_student',
+	'not_open',
+	'not_yours'
+]);
+
+function hallPassOutcome<T>(
+	data: unknown,
+	shape: (row: Record<string, unknown>) => T
+): HallPassResult<T> {
+	const row = (data ?? {}) as Record<string, unknown>;
+	if (row.ok === true) return { ok: true, data: shape(row) };
+	const reason = row.reason as HallPassRefusal | undefined;
+	if (reason && HALL_PASS_REFUSALS.has(reason)) return { ok: false, refusal: reason };
+	return { ok: false, message: 'Something went wrong. Try again.' };
+}
+
+/**
+ * The three `0143` RPCs, called on the browser client as the student or the
+ * instructor themselves.
+ *
+ * NOTHING HERE IS A BOUNDARY AND NOTHING HERE FILTERS. `classroom_hall_pass_state`
+ * projects by role INSIDE the database, in two separately built branches, so a
+ * student's payload has never contained another student's name and there is
+ * nothing for this module to strip. If a name ever appears in a student's
+ * result, the bug is in the migration and stripping it here would only hide it.
+ *
+ * A RAW ERROR IS NEVER RENDERED. `0143` raises only on genuine misuse (no
+ * session, a class the caller cannot see); everything a surface must display
+ * gracefully comes back as `{ok:false, reason}`. So an `error` here is turned
+ * into one flat sentence rather than passed through -- a Postgres message can
+ * carry a constraint name, and the capacity check is an index whose violation
+ * text names the table and the column.
+ */
+export function createHallPassTransports(supabase: SupabaseClient): HallPassTransports {
+	const call = async (fn: string, sectionId: string) =>
+		supabase.rpc(fn, { p_section_id: sectionId });
+
+	return {
+		async load(sectionId) {
+			const { data, error } = await call('classroom_hall_pass_state', sectionId);
+			// A failed refresh keeps whatever is already on screen rather than
+			// blanking it: the poll runs unattended and a transient failure must
+			// not read as "the pass is free".
+			if (error) return null;
+			return (data as HallPassState | null) ?? null;
+		},
+		async open(sectionId) {
+			const { data, error } = await call('classroom_hall_pass_open', sectionId);
+			if (error) return { ok: false, message: 'Could not sign you out. Try again.' };
+			return hallPassOutcome<HallPassOpened>(data, (row) => ({
+				pass_id: String(row.pass_id ?? ''),
+				opened_at: String(row.opened_at ?? '')
+			}));
+		},
+		async close(sectionId) {
+			const { data, error } = await call('classroom_hall_pass_close', sectionId);
+			if (error) return { ok: false, message: 'Could not sign back in. Try again.' };
+			return hallPassOutcome<HallPassClosed>(data, (row) => ({
+				pass_id: String(row.pass_id ?? ''),
+				opened_at: String(row.opened_at ?? ''),
+				closed_at: String(row.closed_at ?? ''),
+				closed_by_manager: row.closed_by_manager === true,
+				student_name: (row.student_name as string | null) ?? null
+			}));
 		}
 	};
 }

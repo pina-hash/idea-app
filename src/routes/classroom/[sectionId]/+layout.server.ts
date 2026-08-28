@@ -20,6 +20,7 @@ import {
 	type ClassCheckIn
 } from '$lib/classroom/class-check-ins';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
+import type { HallPassState } from '$lib/classroom/hall-pass';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
@@ -161,6 +162,40 @@ async function sectionCheckIns(
 }
 
 /**
+ * THE HALL PASS FOR THIS CLASS (0143), OR NULL IF THIS DEPLOYMENT HAS NO IDEA
+ * WHAT ONE IS.
+ *
+ * DEGRADES ON `PGRST202` ALONE, which is the codebase's RPC rule and matters
+ * more here than usual: migrations are pasted into the SQL editor by hand and
+ * separately from the deploy, so a build carrying this route against a database
+ * without 0143 is a REAL state and not a hypothetical. Null removes the control
+ * entirely -- the layout hands no transports down, so there is no write to
+ * execute and nothing on screen claiming a pass exists.
+ *
+ * ANY OTHER ERROR ALSO YIELDS NULL, and deliberately so rather than being
+ * re-raised: the pass is one card on a page whose real content is the class,
+ * and a hall-pass outage must not take the class list down with it. What it
+ * must never do is degrade to a WRONG answer -- there is no fallback that
+ * guesses "free", because the whole feature is one shared slot and a guess
+ * would put two students in the hall.
+ *
+ * THE PROJECTION IS THE DATABASE'S, NOT THIS LOAD'S. Whatever comes back is
+ * handed to the page as-is: a student's payload is built by a branch of the RPC
+ * that has no expression capable of naming anybody, so there is nothing here to
+ * filter and adding a filter would only make it look as though there were.
+ */
+async function sectionHallPass(
+	supabase: SupabaseClient,
+	sectionId: string
+): Promise<HallPassState | null> {
+	const { data, error: rpcError } = await supabase.rpc('classroom_hall_pass_state', {
+		p_section_id: sectionId
+	});
+	if (rpcError) return null;
+	return (data as HallPassState | null) ?? null;
+}
+
+/**
  * THE CLASS ITSELF, loaded ONCE for every route under /classroom/<section>.
  *
  * IT IS A LAYOUT LOAD BECAUSE THE CLASS CONTENT IS NAVIGATION, not a page. The
@@ -229,10 +264,14 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 */
 	const today = laCalendarDay(new Date());
 
-	const [{ data: manages }, content, checkInRows] = await Promise.all([
+	const [{ data: manages }, content, checkInRows, hallPass] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
-		sectionCheckIns(supabase, params.sectionId)
+		sectionCheckIns(supabase, params.sectionId),
+		// Rides along with the other three: it is one small RPC and the pass is
+		// the one thing on this page somebody may need before they have finished
+		// reading it.
+		sectionHallPass(supabase, params.sectionId)
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
@@ -544,6 +583,14 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		// 0123. The item page hands the guidance transport in ONLY when this is
 		// true, so an instructor is never offered a field whose save would fail.
 		checkInGuidanceReady: checkInRows?.guidanceReady ?? false,
+		/**
+		 * 0143. NULL ON A DATABASE WITHOUT THE MIGRATION, which removes the whole
+		 * control rather than rendering a broken one -- see sectionHallPass. It is
+		 * also null for a caller the RPC will not answer about, which cannot
+		 * happen here (the section load already 404s them) but is the honest
+		 * shape of the value.
+		 */
+		hallPass,
 		sectionOutstanding
 	};
 };
