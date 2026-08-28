@@ -10,9 +10,17 @@ import type { RequestHandler } from './$types';
  * Each user holds ONE run per game mode (composite PK (user_id, mode)), so a
  * HARDCORE checkpoint never clobbers a saved NORMAL run and vice versa. A run is
  * played on one device at a time, so within a mode this is last-write-wins:
- *   GET    -> array of the user's saved run states ({ mode, data, updated_at }).
  *   POST   -> upsert the checkpoint for the mode read from snapshot.gameMode.
  *   DELETE -> clear only the row for the caller's given mode (query param/body).
+ *
+ * THERE IS NO GET HERE, DELIBERATELY. The saved checkpoints reach the page
+ * through the /vanguard route's own server-side read of `vanguard_run_state`
+ * (src/routes/vanguard/+server.ts), injected into the served page as
+ * `window.__ideaRunStates`; the browser never fetches this route to read them
+ * back. A GET handler stood here with no caller until this file was touched
+ * for another reason (docs/VANGUARD_BACKLOG.md has the history); re-adding
+ * one means a real caller exists for it, not that the shape looks incomplete
+ * without one.
  *
  * Only RANKABLE modes are persisted (normal / hardcore); dev/tune/calib and any
  * unknown mode are rejected so throwaway runs never occupy a resume slot.
@@ -25,18 +33,6 @@ const MAX_BYTES = 64 * 1024;
 
 /** Modes that own a resume slot. Mirrors the game's rankable modes. */
 const RANKABLE_MODES = new Set(['normal', 'hardcore']);
-
-export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
-	if (!claims) return json({ error: 'unauthorized' }, { status: 401 });
-
-	const { data, error } = await supabase
-		.from('vanguard_run_state')
-		.select('mode, data, updated_at')
-		.eq('user_id', claims.sub);
-
-	if (error) return json({ error: error.message }, { status: 500 });
-	return json({ runStates: data ?? [] });
-};
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
 	if (!claims) return json({ error: 'unauthorized' }, { status: 401 });

@@ -74,6 +74,69 @@
 
 	const sectionMap = $derived(new Map(classroomSections.map((s) => [s.id, s])));
 
+	/**
+	 * EVERY META KEY THIS FILE ALREADY RENDERS BY NAME, so the generic reader
+	 * below shows what nobody enumerated rather than repeating a field.
+	 *
+	 * `meta` IS FREE-FORM (feedback.ts says so): `captureMeta` in context.ts is
+	 * the shell's one producer, but it is not the only one -- VANGUARD's in-game
+	 * composer writes `surface` and `initials` straight into the same column,
+	 * and there will be another surface after it. A FIXED LIST OF NAMES IS THE
+	 * WRONG SHAPE for a free-form blob: the day this file was written to check,
+	 * two keys (`surface`, `initials`) were already being stored and silently
+	 * dropped on the floor, and `meta.error` -- which `captureMeta` itself has
+	 * emitted for every error-boundary report since it existed -- was too. A
+	 * queue that reads its OWN row rather than a list somebody once typed out
+	 * cannot fall behind its own producers again.
+	 *
+	 * `at` is excluded on purpose rather than left to fall through: it is the
+	 * same instant as `row.created_at`, already shown as "filed", and showing
+	 * it a second time under its meta key would read as a second timestamp.
+	 */
+	const KNOWN_META_KEYS = new Set([
+		'route',
+		'path',
+		'role',
+		'section',
+		'viewport',
+		'userAgent',
+		'at',
+		'build',
+		'status',
+		'errorId'
+	]);
+
+	/** A meta value worth a line: a non-empty primitive. */
+	function metaExtraText(value: unknown): string | null {
+		if (typeof value === 'string') return value.trim() || null;
+		if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+		// Objects and arrays get no generic rendering -- `build` is the one
+		// object shape this file understands, and a stray "[object Object]"
+		// for anything else is worse than omitting it.
+		return null;
+	}
+
+	/**
+	 * Whatever else is in the row's `meta`, key and value, sorted so the list is
+	 * stable across renders. STUDENT-SUPPLIED TEXT (VANGUARD's `initials` among
+	 * them) goes through the SAME escaping every other field on this card uses:
+	 * plain Svelte text interpolation -- this component raw-renders nothing --
+	 * so there is no second answer to add.
+	 */
+	function metaExtras(row: FeedbackRow): { key: string; value: string }[] {
+		const meta = row.meta ?? {};
+		const extras: { key: string; value: string }[] = [];
+		for (const key of Object.keys(meta)) {
+			if (KNOWN_META_KEYS.has(key)) continue;
+			const text = metaExtraText(meta[key]);
+			if (!text) continue;
+			// A layout safety cap, not a content rule: nothing here promises a
+			// future producer keeps its values short the way `initials` does.
+			extras.push({ key, value: text.length > 200 ? `${text.slice(0, 200)}…` : text });
+		}
+		return extras.sort((a, b) => a.key.localeCompare(b.key));
+	}
+
 	const STATUSES: { id: FeedbackStatus; label: string }[] = [
 		{ id: 'new', label: 'New' },
 		{ id: 'seen', label: 'Seen' },
@@ -338,6 +401,7 @@
 						{#if rowUserAgentSummary(row)}<li>{rowUserAgentSummary(row)}</li>{/if}
 						{#if rowStatusCode(row) !== null}<li>http {rowStatusCode(row)}</li>{/if}
 						{#if rowErrorId(row)}<li>error id {rowErrorId(row)}</li>{/if}
+						{#each metaExtras(row) as extra (extra.key)}<li>{extra.key} {extra.value}</li>{/each}
 					</ul>
 					{#if rowBuild(row)}
 						<!-- THE VALUE NEVER TRAVELS WITHOUT WHAT IT MEANS. Neither
@@ -575,6 +639,12 @@
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
+	}
+	.fb-context li {
+		/* A key nobody anticipated carries a value nobody bounded either: this
+		   list renders whatever is in meta beyond the named fields above it. */
+		overflow-wrap: anywhere;
+		max-width: 100%;
 	}
 	.fb-build {
 		margin: 0 0 var(--space-2);
