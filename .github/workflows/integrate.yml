@@ -1,0 +1,282 @@
+name: Integrate
+
+# Collects finished session branches onto ONE long-lived branch, `integration`,
+# so a person merges once instead of nine times.
+#
+# The shape:
+#   1. CI passes on a `claude/**` branch.
+#   2. This workflow merges `main` into `integration` (main advances all day on
+#      its own -- the classroom GitHub export pushes `materials/` commits with
+#      no human involved), then merges the green branch into `integration`.
+#   3. It pushes `integration` and deletes the source branch.
+#   4. A PERSON merges `integration` into `main` when they want to deploy.
+#
+# ---------------------------------------------------------------------------
+# THIS WORKFLOW MUST NEVER PUSH TO `main`. NOT ON ANY CONDITION, NOT BEHIND ANY
+# FLAG, NOT AS A FALLBACK.
+#
+# If you are reading this because you want to make it end to end, here is what
+# step 4 is protecting, and neither half is hypothetical:
+#
+#   * Every push to `main` deploys `ideabosco.com`. Students are on it during
+#     class. A deploy is a decision about a room full of people, made by
+#     somebody who knows what time it is.
+#   * Migrations are applied BY HAND in the Supabase SQL editor, and several
+#     must be applied BEFORE the code that calls them goes live -- two branches
+#     in one week carried exactly that. A machine that merged to `main` on green
+#     CI would ship an RPC call to a function the database does not have yet.
+#     CI cannot see this: the suite runs against an embedded Postgres with the
+#     migration files applied, so a branch whose migration has never touched
+#     production is green.
+#
+# `integration` exists so that everything mechanical happens without a person,
+# and the one judgement call still needs one. Automating step 4 does not save a
+# merge; it removes the only place that judgement is exercised.
+# ---------------------------------------------------------------------------
+
+on:
+  # THE `workflow_run` TRAP, and it is the one that wastes an afternoon:
+  # GitHub runs the copy of THIS FILE THAT IS ON THE DEFAULT BRANCH, not the
+  # copy on the branch whose CI just finished. So:
+  #   * edits to this file do nothing until they are merged to `main`;
+  #   * this workflow will not run at all until it is on `main` once;
+  #   * `github.ref` / the checkout default point at `main`, never at the
+  #     branch being integrated -- every ref this job touches is named
+  #     explicitly below rather than inherited from the event.
+  #
+  # The upside of the same rule is that a session branch cannot change what
+  # this workflow does to it.
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+  # For a person: re-run the sweep by hand after resolving a conflict, or to
+  # pick up branches a cancelled queue entry skipped (see `concurrency` below).
+  # It reaches exactly the same code path and it still cannot push to `main`.
+  workflow_dispatch:
+
+# SERIALIZE. Three sessions can finish within seconds of each other, and two
+# runs merging into one branch at once produce a rejected push at best.
+# `cancel-in-progress: false` makes a second run WAIT instead of racing.
+#
+# WORTH KNOWING: GitHub queues at most ONE pending run per group -- a third
+# arrival cancels the one already pending. That would silently drop a merge if
+# this job only ever handled its own trigger, so it does not: the job sweeps
+# EVERY eligible `claude/**` branch, and a cancelled queue entry therefore costs
+# nothing but a little latency. Whatever it would have merged, the next run
+# merges.
+concurrency:
+  group: integrate
+  cancel-in-progress: false
+
+# LEAST PRIVILEGE. Two scopes, and nothing else is granted:
+#   contents: write -- push `integration`, and delete a `claude/**` ref.
+#                      (This is also what `main` is protected from by the
+#                      refusal above rather than by a token scope. If this repo
+#                      ever gains a branch protection rule on `main`, that is a
+#                      second, independent lock and it is welcome.)
+#   actions:  read  -- read the CI conclusion of a branch OTHER than the one
+#                      that triggered this run, so the sweep can tell a green
+#                      branch from a red one.
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  integrate:
+    # ONLY ON GREEN, and only for our own branches:
+    #   conclusion == success  -- a red or cancelled CI run merges nothing.
+    #   event == push          -- a same-repo branch produces BOTH a push run
+    #                             and (once a PR is open) a pull_request run.
+    #                             Taking only the push run keeps one trigger
+    #                             per finished branch.
+    #   head_repository        -- a fork's CI run must not move our branches.
+    # `workflow_dispatch` has no `workflow_run` payload at all, so it is
+    # allowed through on its own and the per-branch CI check below is what
+    # gates it. Every branch is re-checked there regardless of trigger, so
+    # "only on green" is enforced in one place, not two.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Merges need real history and every branch, not a shallow cone.
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Merge main, then every green claude/** branch, into integration
+        env:
+          # The CI workflow's FILENAME, which is what the Actions API keys on.
+          # Rename ci.yml and this lookup 404s -- which fails CLOSED (every
+          # branch reads as "CI: unknown" and nothing is merged), rather than
+          # merging on no evidence.
+          CI_WORKFLOW_FILE: ci.yml
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read through env, never interpolated into the script body: a branch
+          # name is attacker-controllable text and `${{ }}` pastes it into the
+          # shell before bash ever sees a quote.
+          TRIGGER_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          TARGET=integration
+
+          # Cheap, deliberate assertion of the rule at the top of this file.
+          # If a future edit ever points TARGET at the deploy branch, the job
+          # stops here instead of deploying to a classroom.
+          if [ "$TARGET" = main ] || [ "$TARGET" = master ]; then
+            echo "::error::refusing to run: this workflow may never write to the deploy branch"
+            exit 1
+          fi
+
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+          if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
+            git checkout -B "$TARGET" "origin/$TARGET"
+          else
+            echo "::notice::$TARGET does not exist; creating it from origin/main"
+            git checkout -B "$TARGET" origin/main
+          fi
+
+          # MAIN FIRST, EVERY TIME. `main` moves on its own all day (the
+          # classroom GitHub export commits under `materials/` on every item
+          # save), so integrating onto a stale base is how a branch that merges
+          # cleanly today conflicts next week.
+          if ! git merge --no-edit origin/main; then
+            git merge --abort || true
+            echo "::error::$TARGET conflicts with main. Resolve it on $TARGET by hand; nothing was merged, pushed or deleted."
+            exit 1
+          fi
+
+          merged=()
+          merged_shas=()
+          conflicted=()
+          skipped=()
+
+          for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+            branch="${ref#origin/}"
+            case "$branch" in
+              claude/*) ;;
+              *) continue ;;
+            esac
+
+            sha="$(git rev-parse "$ref")"
+
+            # IDEMPOTENT. A branch whose commits are already in $TARGET is a
+            # no-op and not an error -- a re-run, a CI re-run, or a
+            # workflow_dispatch sweep all land here.
+            #
+            # It is deliberately not deleted. A branch can be contained in
+            # $TARGET because THIS system merged it, or because it was merged to
+            # `main` by hand long ago (and `main` is merged in above), and from
+            # here those two are indistinguishable. Only a branch this run
+            # merged itself is deleted, below.
+            if git merge-base --is-ancestor "$ref" HEAD; then
+              skipped+=("$branch -- already in $TARGET")
+              continue
+            fi
+
+            # ONLY ON GREEN, per branch and per COMMIT: the newest completed CI
+            # run for this branch must be for the exact tip we are about to
+            # merge. A branch that was green two commits ago is not green.
+            runs="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/$CI_WORKFLOW_FILE/runs" \
+                      -f branch="$branch" -f event=push -f status=completed -f per_page=30 \
+                      2>/dev/null || echo '{"workflow_runs":[]}')"
+            conclusion="$(printf '%s' "$runs" \
+              | jq -r --arg sha "$sha" \
+                  '[.workflow_runs[] | select(.head_sha == $sha)]
+                     | sort_by(.run_number) | last | .conclusion // "unknown"')"
+
+            if [ "$conclusion" != success ]; then
+              skipped+=("$branch -- CI on ${sha:0:7} is $conclusion")
+              continue
+            fi
+
+            # --no-ff so a bundle reverts as one commit, which is the repo's
+            # own merge convention.
+            if git merge --no-ff --no-edit -m "Merge $branch into $TARGET" "$ref"; then
+              merged+=("$branch")
+              merged_shas+=("$sha")
+            else
+              # FAIL LOUD, NEVER FORCE. A conflict here is two bundles genuinely
+              # touching one file, which is exactly the thing a machine must not
+              # resolve by picking a side. Abandon this one branch, leave it
+              # undeleted and unmerged, keep going with the others (they are
+              # independent), and fail the job at the end so a person sees it.
+              git merge --abort || true
+              conflicted+=("$branch")
+            fi
+          done
+
+          pushed=no
+          if [ ${#merged[@]} -gt 0 ]; then
+            # NEVER --force, and no retry on rejection. A rejected push means
+            # $TARGET moved under us; the honest response is to do nothing and
+            # let the next run redo the whole sweep from the new tip. Nothing
+            # has been deleted at this point, so nothing is lost.
+            if git push origin "HEAD:refs/heads/$TARGET"; then
+              pushed=yes
+            else
+              echo "::error::push to $TARGET was rejected -- it moved during this run. Nothing was deleted; the next run will redo this sweep."
+              exit 1
+            fi
+          fi
+
+          # DELETE ONLY AFTER THE PUSH SUCCEEDS. A branch deleted before its
+          # merge is confirmed is work that existed and does not.
+          #
+          # The lease pins the tip we actually merged: if the session pushed
+          # another commit while this job was running, the delete is refused and
+          # the branch survives with that commit on it.
+          if [ "$pushed" = yes ]; then
+            i=0
+            while [ "$i" -lt ${#merged[@]} ]; do
+              b="${merged[$i]}"
+              s="${merged_shas[$i]}"
+              if ! git push origin --force-with-lease="refs/heads/$b:$s" ":refs/heads/$b"; then
+                echo "::warning::merged $b but could not delete it (it moved, or was already gone). Its work is in $TARGET; the branch is harmless."
+              fi
+              i=$((i + 1))
+            done
+          fi
+
+          {
+            echo "## Integration sweep"
+            echo
+            echo "Triggered by: \`${TRIGGER_BRANCH:-workflow_dispatch}\`"
+            echo
+            if [ ${#merged[@]} -gt 0 ]; then
+              echo "### Merged into \`$TARGET\` and deleted"
+              for b in "${merged[@]}"; do echo "- \`$b\`"; done
+            else
+              echo "### Merged into \`$TARGET\`"
+              echo "- nothing (no branch was both green and outstanding)"
+            fi
+            echo
+            if [ ${#conflicted[@]} -gt 0 ]; then
+              echo "### CONFLICTED -- a person is needed"
+              for b in "${conflicted[@]}"; do echo "- \`$b\` still exists and was not merged"; done
+              echo
+              echo "Resolve on the branch: \`git fetch origin && git checkout <branch> && git merge origin/$TARGET\`, push, and this workflow picks it up on the next green CI run (or press Run workflow)."
+              echo
+            fi
+            if [ ${#skipped[@]} -gt 0 ]; then
+              echo "### Left alone"
+              for b in "${skipped[@]}"; do echo "- $b"; done
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ${#conflicted[@]} -gt 0 ]; then
+            echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. See the job summary."
+            exit 1
+          fi
