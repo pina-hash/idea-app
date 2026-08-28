@@ -6,8 +6,9 @@
 	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
 	import type { RevisionTransports } from '$lib/classroom/revisions';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
+	import { checkInsForItem, type ClassCheckInTransports } from '$lib/classroom/class-check-ins';
 	import { harnessManage } from '../../+layout.svelte';
-	import { ALT_REFERENCE_ID, DECK, REFERENCE, REFERENCE_ALT } from '../../../fixture';
+	import { ALT_REFERENCE_ID, CHECK_INS, DECK, REFERENCE, REFERENCE_ALT } from '../../../fixture';
 	import type { PageData } from './$types';
 
 	/**
@@ -76,6 +77,20 @@
 		restore: () => Promise.resolve({ ok: false as const, message: 'Stub.' })
 	};
 
+	/**
+	 * ANSWERED IN MEMORY, exactly the shape /dev/classroom's own harness
+	 * transport uses. This route is for GEOMETRY (see the file's own doc
+	 * comment above), so the point is not driving the write path -- it is
+	 * making `checkInTransports` non-null, which is what turns the second
+	 * attach door on for an item that already carries a check-in.
+	 */
+	let harnessSessionSeq = 0;
+	const checkInTransports: ClassCheckInTransports = {
+		createForItem: () => Promise.resolve({ ok: true, sessionId: `ses-harness-${++harnessSessionSeq}` }),
+		unlink: () => Promise.resolve({ ok: true }),
+		setGuidance: () => Promise.resolve({ ok: true })
+	};
+
 	const isMaterial = $derived(data.item.kind === 'material');
 </script>
 
@@ -90,5 +105,7 @@
 	referenceTransports={manage && isMaterial ? referenceTransports : null}
 	teacherTransports={manage && !isMaterial ? teacherTransports : null}
 	revisionTransports={manage ? revisionTransports : null}
+	checkIns={manage ? checkInsForItem(CHECK_INS['s-1'] ?? [], data.item.id) : []}
+	checkInTransports={manage ? checkInTransports : null}
 	gradeHref={manage ? `/dev/classroom-split/s-1/item/${data.item.id}/grade` : null}
 />
