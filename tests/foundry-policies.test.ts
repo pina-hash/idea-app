@@ -54,10 +54,16 @@ let owner: SeededUser;
 let admin: SeededUser;
 
 /**
- * A FRESH author per test. The five-app cap is real and it is enforced per
- * person, so a shared seed user runs out of slots halfway through the file --
- * which is the cap working, not the suite failing, but it makes every later
- * test depend on how many apps the earlier ones happened to create.
+ * A FRESH author per test. The five-app cap is real IN THIS CHAIN and it is
+ * enforced per person, so a shared seed user runs out of slots halfway through
+ * the file -- which is the cap working, not the suite failing, but it makes
+ * every later test depend on how many apps the earlier ones happened to create.
+ *
+ * 0141 REMOVES THAT CAP and is deliberately NOT in the chain above: this file
+ * measures 0130/0131 as applied, and `tests/foundry-app-cap.test.ts` is where
+ * the before/after pair for the removal lives. A fresh author per test is
+ * correct either way -- it is also what keeps these tests independent of each
+ * other -- so nothing here changes.
  */
 let authorSeq = 0;
 async function author(): Promise<SeededUser> {

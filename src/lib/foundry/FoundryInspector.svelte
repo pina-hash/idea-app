@@ -40,6 +40,7 @@
 	 * control is drawn for one -- and the reason is stated where the control
 	 * would have been, because a panel that is simply missing reads as a bug.
 	 */
+	import { foundryDownloadUrl } from './bundle-url.ts';
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import { formatBytes } from './preflight.ts';
@@ -427,6 +428,36 @@
 				version.created_at
 			)}
 		</p>
+		<!--
+			THE STAFF COPY, AND IT IS IN THE INSPECTOR RATHER THAN IN
+			`FoundryDetail` FOR THE REASON THAT COMPONENT'S WHOLE DESIGN RESTS ON.
+			The gallery, the detail view and the review queue are ONE render path
+			and `FoundryDetail` has no staff branch in it, so "what does a student
+			see" stays answerable by reading that one file straight through. An
+			admin-only control belongs in the column BESIDE it, which is this.
+
+			WHAT ARRIVES IS THE STORED BUNDLE, the same bytes the tree below lists
+			and the same bytes the frame runs -- not the archive the student
+			uploaded, which contains files nothing serves. It is the source viewer's
+			argument applied to the whole version at once: a reviewer who wants to
+			open the thing in an editor should be opening what executes.
+
+			THE ROUTE IS THE BOUNDARY, not this condition. `previewViewerMayRun`
+			admits an admin to any app including a shelved one; `foundryDownloadable`
+			is the OWNER's view of that gate, so it refuses a hidden app -- which is
+			why the control is drawn from the flag rather than from the predicate
+			here, and the empty-bundle clause is spelled out instead.
+		-->
+		{#if version.file_count > 0}
+			{@const downloadHref = foundryDownloadUrl(app.id, version.id)}
+			{#if downloadHref}
+				<p class="fdy-insp-get">
+					<a class="btn tap-44" href={downloadHref} download>
+						Download this build
+					</a>
+				</p>
+			{/if}
+		{/if}
 	</header>
 
 	{#if drift}
@@ -825,6 +856,12 @@
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2, var(--dim));
+	}
+
+	/* The staff copy sits under the build's own meta line, on its own row, so
+	   it is not competing with the decision controls further down. */
+	.fdy-insp-get {
+		margin: var(--space-2, 0.5rem) 0 0;
 	}
 
 	.fdy-insp-problem {

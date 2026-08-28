@@ -26,7 +26,12 @@
 	import FoundryIssues from './FoundryIssues.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import FoundryShare from './FoundryShare.svelte';
-	import { foundryPreviewUrl, foundryPreviewable } from './bundle-url.ts';
+	import {
+		foundryDownloadUrl,
+		foundryDownloadable,
+		foundryPreviewUrl,
+		foundryPreviewable
+	} from './bundle-url.ts';
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
 	import {
 		FOUNDRY_METADATA_FIELDS,
@@ -514,6 +519,37 @@
 											rel="noopener"
 										>
 											Run a preview
+										</a>
+									{/if}
+								{/if}
+
+								<!--
+									TAKE IT AWAY. The one control every version gets beside
+									Run a preview, and for the same reason: "can I have my
+									work back" does not depend on where a build is in review.
+
+									WHAT ARRIVES IS THE STORED BUNDLE, NOT THE UPLOAD -- the
+									entry file as ingest settled it, the wrapper directory
+									already stripped, the ignored files already gone -- so it
+									is what a viewer sees and it re-uploads to the same app.
+									The route says the rest.
+
+									`foundryDownloadable` IS `foundryPreviewable`, by
+									assignment rather than by resemblance: the server decides
+									both with ONE predicate, so the surface mirrors it with
+									one function. See `bundle-url.ts`.
+
+									NO `target`, because the response is an attachment and a
+									new tab would open and immediately close itself. `download`
+									is the browser's hint; the `Content-Disposition` header is
+									what actually names the file, and the header is the half
+									that survives a right-click and a pasted URL.
+								-->
+								{#if foundryDownloadable(app, v)}
+									{@const downloadHref = foundryDownloadUrl(app.id, v.id)}
+									{#if downloadHref}
+										<a class="btn tap-44" href={downloadHref} download>
+											Download v{v.ordinal}
 										</a>
 									{/if}
 								{/if}
