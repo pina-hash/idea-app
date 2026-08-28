@@ -9,7 +9,11 @@
  * Each entry:
  *   path        the dev route
  *   label       what the surface is
- *   prepare     [{ click }|{ evaluate }, waitMs?] -- reach the state to measure
+ *   prepare     [{ click }|{ waitFor }|{ evaluate }, waitMs?] -- reach the state
+ *               to measure. `waitFor` is a page-side predicate SOURCE waited on
+ *               until it holds, for a state reached by an async payload landing
+ *               rather than by a press; the wait is reported in ms and a
+ *               predicate that never holds prints FAILED
  *   settleMs    how long to let entrance animations finish before measuring
  *   contrast    [{ selector, label, min }]   4.5 for copy, 3 for a boundary
  *   tapTargets  [{ selector, label, min }]
@@ -30,6 +34,52 @@
  * not an svg at all.
  */
 export const WIDTHS = [375, 1440];
+
+/**
+ * SETTLE THE ENTRANCE CHROME, the way the components' own cleanup does.
+ *
+ * `.legacy-index .course-card` is `opacity: 0` in `src/app.css` until an
+ * IntersectionObserver adds `.visible`; `AppLauncher` stamps `opacity: 0`
+ * INLINE on every `.app-card` at mount and clears it from its own IO callback.
+ * The harness never scrolls, so a card below the fold at a given viewport
+ * genuinely never intersects and stays at opacity 0 -- real entrance chrome,
+ * not a fixture gap.
+ *
+ * WHY THIS EXISTS AT ALL, AND IT IS NOT A CONVENIENCE. `opacity` is NOT
+ * inherited, so a ROW INSIDE an opacity-0 card computes opacity 1. Until the
+ * ancestor walk went into `isVisible` (see checks.mjs), every `.assignment-item`
+ * assertion on these two routes reported "visible" about an element painted
+ * nowhere -- so four presence rows and three tap-target rows were passing
+ * VACUOUSLY, and the 44px figure the pass printed for a feed row was the
+ * geometry of something no reader could see. Asserting `expectVisible: 0` on
+ * the rows to match would have written the vacuum down as if it were the
+ * intended reading.
+ *
+ * So the entrance is SETTLED instead, which CLAUDE.md's own prescription for
+ * this case is: put the component into the state its cleanup produces -- which
+ * is byte-identically what the reduced-motion path renders from the first frame
+ * -- and SAY HOW MANY were settled, which the returned count does (the prepare
+ * line prints it). Settling nothing would be a silent no-op the day a class
+ * name changes; a count of 0 in the report is visible.
+ */
+export const SETTLE_ENTRANCE = `() => {
+	/* A STYLE RULE, NOT A MUTATION OF THE ELEMENTS, and that is the second
+	   attempt rather than the first. Adding \`.visible\` and clearing the inline
+	   opacity settled /dev/home-order's student variant and left the teacher
+	   variant and /dev/home-feed at opacity 0 -- because \`AppLauncher\`'s own
+	   onMount re-stamps \`style.opacity = '0'\` on every card, and whether it has
+	   run yet by the time a prepare step fires is a race that resolves
+	   differently per route. A rule cannot be re-stamped over. */
+	const css = '.legacy-index .course-card, .course-card { opacity: 1 !important; transform: none !important; }'
+		+ '.app-card { opacity: 1 !important; transform: none !important; }';
+	const tag = document.createElement('style');
+	tag.setAttribute('data-bv-settle', '1');
+	tag.textContent = css;
+	document.head.appendChild(tag);
+	const cards = document.querySelectorAll('.legacy-index .course-card, .course-card');
+	const apps = document.querySelectorAll('.app-card');
+	return 'settled entrance on ' + cards.length + ' course-card(s) and ' + apps.length + ' app-card(s)';
+}`;
 
 export const ROUTES = [
 	{
@@ -102,13 +152,21 @@ export const ROUTES = [
 		   `.visible` by an IntersectionObserver in this page's own onMount
 		   (threshold 0.08) -- real entrance chrome, not a fixture gap. This
 		   harness does not scroll, so a card below the fold at a given
-		   viewport genuinely never intersects and never fades in; `present`
-		   over `visible` is CORRECT here for the same reason a closed
-		   Disclosure is (see /dev/spec-table above), not a relaxed assertion. */
+		   viewport genuinely never intersects and never fades in.
+
+		   THIS USED TO SAY `present` OVER `visible` WAS CORRECT HERE, AND IT
+		   WAS HALF RIGHT. It was correct about the CARDS and it quietly covered
+		   for the ROWS, which had no `expectVisible` of their own and were
+		   reported visible only because `isVisible` did not walk ancestors for
+		   opacity -- the rows compute opacity 1 inside an opacity-0 card. The
+		   entrance is settled in `prepare` now (see SETTLE_ENTRANCE), so every
+		   row below is measured painted and the card assertions are `visible`
+		   rather than an exemption. */
+		prepare: [{ evaluate: SETTLE_ENTRANCE, waitMs: 150 }],
 		presence: [
-			{ selector: '[data-tour="classes"] .course-card.section-card.feed-card', label: 'rendered class card(s)', expectPresent: 1, expectVisible: 0 },
-			{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered due-soon rows', expectPresent: 1 },
-			{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 0 }
+			{ selector: '[data-tour="classes"] .course-card.section-card.feed-card', label: 'rendered class card(s)', expectPresent: 1, expectVisible: 1 },
+			{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered due-soon rows', expectPresent: 1, expectVisible: 1 },
+			{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 1 }
 		],
 		domOrder: [
 			{
@@ -123,10 +181,14 @@ export const ROUTES = [
 	{
 		path: '/dev/home-order?role=teacher&classes=1&rows=3',
 		label: 'Home page section order, managing teacher (Apps above Classes)',
+		/* Same entrance settling as the student variant above, and for the same
+		   reason: the rows are what the assertions are about, and a row inside
+		   an opacity-0 card is painted nowhere. */
+		prepare: [{ evaluate: SETTLE_ENTRANCE, waitMs: 150 }],
 		presence: [
-			{ selector: '[data-tour="classes"] .course-card.section-card.feed-card', label: 'rendered class card(s)', expectPresent: 1, expectVisible: 0 },
-			{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered ungraded-work rows', expectPresent: 1 },
-			{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 0 }
+			{ selector: '[data-tour="classes"] .course-card.section-card.feed-card', label: 'rendered class card(s)', expectPresent: 1, expectVisible: 1 },
+			{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered ungraded-work rows', expectPresent: 1, expectVisible: 1 },
+			{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 1 }
 		],
 		domOrder: [
 			{
@@ -151,12 +213,18 @@ export const ROUTES = [
 		   src/routes/+page.svelte, so the entrance IntersectionObserver that
 		   page's own onMount wires up for `.course-card` never runs here --
 		   the shared `.legacy-index .course-card` rule still stamps opacity:0
-		   at mount and nothing ever adds `.visible`. `present` is the honest
-		   assertion for this harness; the card genuinely renders, it is the
-		   entrance-fade wiring that this route does not carry. */
+		   at mount and NOTHING EVER ADDS `.visible` on this route at all.
+
+		   Which makes it the sharper case of the two: on /dev/home-order a card
+		   above the fold does fade in, so the vacuum was intermittent. Here the
+		   cards were at opacity 0 at every width on every run, and the nine
+		   `.assignment-item` rows inside them were being measured for contrast
+		   and tap geometry the whole time. `SETTLE_ENTRANCE` adds the class this
+		   route's own page never gets round to adding. */
+		prepare: [{ evaluate: SETTLE_ENTRANCE, waitMs: 150 }],
 		presence: [
-			{ selector: '.legacy-index .course-card.section-card.feed-card', label: 'rendered section card(s)', expectPresent: 3, expectVisible: 0 },
-			{ selector: '.legacy-index .assignment-item.linked', label: 'rendered feed rows', expectPresent: 1 }
+			{ selector: '.legacy-index .course-card.section-card.feed-card', label: 'rendered section card(s)', expectPresent: 3, expectVisible: 3 },
+			{ selector: '.legacy-index .assignment-item.linked', label: 'rendered feed rows', expectPresent: 1, expectVisible: 1 }
 		],
 		contrast: [{ selector: '.legacy-index .assignment-name', label: 'feed row title', min: 4.5 }],
 		tapTargets: [{ selector: '.legacy-index .assignment-item.linked', label: 'feed rows', min: 44 }]
@@ -165,15 +233,19 @@ export const ROUTES = [
 		path: '/dev/home-feed-teacher',
 		label: 'Home feed harness, teacher mode (ungraded queue)',
 		aliasOf: '/dev/home-feed',
+		/* The settle comes AFTER the mode switch, not before: switching modes
+		   re-renders the feed, and a class added to the cards that were on
+		   screen a moment ago is a class on elements that no longer exist. */
 		prepare: [
 			{
 				click: '[data-mode="teacher"]',
 				until: '() => document.querySelector(\'[data-mode="teacher"]\').classList.contains("active")'
-			}
+			},
+			{ evaluate: SETTLE_ENTRANCE, waitMs: 150 }
 		],
 		presence: [
-			{ selector: '.legacy-index .course-card.section-card.feed-card', label: 'rendered section card(s)', expectPresent: 3, expectVisible: 0 },
-			{ selector: '.legacy-index .assignment-item.linked', label: 'rendered feed rows (teacher)', expectPresent: 1 }
+			{ selector: '.legacy-index .course-card.section-card.feed-card', label: 'rendered section card(s)', expectPresent: 3, expectVisible: 3 },
+			{ selector: '.legacy-index .assignment-item.linked', label: 'rendered feed rows (teacher)', expectPresent: 1, expectVisible: 1 }
 		],
 		contrast: [{ selector: '.legacy-index .assignment-name', label: 'feed row title (teacher)', min: 4.5 }],
 		tapTargets: []
@@ -470,6 +542,264 @@ export const ROUTES = [
 		tapTargets: [
 			{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'FoundryMine download control', min: 44 }
 		]
+	},
+	{
+		path: '/dev/hall-pass',
+		label: 'Hall pass, all five projections + the 0144 close branch',
+		/*
+			THE ONE CONTROL THIS FEATURE HAS, and until now it had never been
+			measured anywhere. 0143 shipped the hall pass with no harness; the
+			route's own header says so in as many words and asks whoever owns
+			`tools/` to list it. This is that listing.
+
+			WHY IT MATTERS MORE THAN ITS SIZE SUGGESTS: it is a PHONE control on
+			a student surface -- one-handed, at the top of the class pane, at the
+			one moment a student is not going to read anything -- and it is
+			`aria-disabled` rather than `disabled` on purpose, so a student who
+			taps a taken pass gets a sentence instead of a dead button. Both of
+			those are invisible to `svelte-check` and neither shows up as wrong
+			on screen: a `disabled` attribute renders identically and simply eats
+			the tap.
+
+			CONFIRMED HERE, NOT COPIED. The bundle that added the route
+			hand-measured 44.0px min dimension, hit fraction 1.0 and 0px overflow
+			at both widths. Re-measured through this harness: min dim 44.0px over
+			4 controls, 4/4 centre hit tests land on the control itself, 0px
+			overflow at 375 and 1440. The hand numbers reproduce exactly.
+		*/
+		presence: [
+			/* SIX MOUNTS: the five payload projections plus the read-only one. */
+			{ selector: '[data-testid="hall-pass"]', label: 'hall pass mounts (5 projections + read-only)', expectPresent: 6 },
+			/*
+				ABSENCE IS THE MECHANISM, and this is the assertion for it. The
+				sixth mount is handed `transports={null}`, so the whole actions
+				block is not rendered -- 5 `.hp-actions`, never 6. A read-only
+				surface with a flag somebody honours would show 6 here.
+
+				PRESENT 5 BUT VISIBLE 4, MEASURED, and the gap is the sixth
+				projection rather than a defect: an instructor with NOBODY OUT has
+				a `transports` object (so the block renders) and nothing to press
+				(`canClose` is false, and the Sign-out branch is student-only), so
+				that mount's block is a real zero-box -- 309.0x0.0 at 375px,
+				638.0x0.0 at 1440. Asserting visible 5 here would be asserting a
+				control the component is right not to offer. The numbers are split
+				deliberately: `present` says the read-only mount rendered nothing,
+				`visible` says exactly one of the five holds no control.
+			*/
+			{ selector: '.hp-actions', label: 'action blocks (read-only renders none; manager-empty renders an empty one)', expectPresent: 5, expectVisible: 4 },
+			/*
+				THE aria-disabled CONTRACT, ASSERTED IN BOTH DIRECTIONS. The
+				blocked student's control must carry `aria-disabled="true"` so it
+				can still receive the tap and explain itself, and NOTHING here may
+				carry a real `disabled` attribute -- that swallows the pointer
+				event and takes the explanation with it. The second row is the one
+				that bites: a `disabled` added "to be consistent" looks correct in
+				every screenshot.
+			*/
+			{ selector: '[data-mount="student-blocked"] [data-testid="hall-pass-open"][aria-disabled="true"]', label: 'blocked control is aria-disabled', expectPresent: 1 },
+			{ selector: '[data-testid="hall-pass-open"][disabled], [data-testid="hall-pass-close"][disabled]', label: 'no control carries a real disabled attribute', expectPresent: 0, expectVisible: 0 }
+		],
+		contrast: [
+			{ selector: '[data-testid="hall-pass-status"]', label: 'status line', min: 4.5 },
+			/* `--ice` on the blocked control: a boundary-weight signal on a
+			   control, not body copy, so 3:1 is the floor that applies. */
+			{ selector: '[data-mount="student-blocked"] [data-testid="hall-pass-open"]', label: 'blocked control ink (--ice)', min: 3 }
+		],
+		tapTargets: [
+			{ selector: '[data-testid="hall-pass-open"], [data-testid="hall-pass-close"]', label: 'hall pass controls (phone-first, 44px)', min: 44 }
+		],
+		/*
+			THE 0144 BRANCH, WHICH IS THE HALF `svelte-check` CANNOT SEE AND THE
+			SCREEN DOES NOT SHOW. `signIn()` sends the PASS ID when the payload is
+			a manager's and the SECTION when it is a student's -- one button, one
+			label, two different requests. The defect it replaced was a
+			section-keyed close that re-resolved "whatever is open in this
+			section" server-side, so a clear pressed while one student returned
+			and another left closed the SECOND student's pass and marked them back
+			in the room while they were in a corridor.
+
+			So this is a claim about a WRITE, which is exactly what `orderResult`
+			exists for and what no DOM read can settle: the button looks identical
+			either way. The prepare steps press the manager's control and then the
+			student's; the harness's transports record which METHOD each press
+			called, and the evaluate below projects the log down to just the
+			method names. The expected pair is 0144's rule, not the fixture's
+			prose -- reformatting a log line must not move this assertion, and
+			taking the wrong branch must.
+		*/
+		prepare: [
+			{
+				click: '[data-mount="manager-open"] [data-testid="hall-pass-close"]',
+				until: '() => document.querySelectorAll(\'[data-testid="hall-pass-log"] li\').length >= 1'
+			},
+			{
+				click: '[data-mount="student-mine"] [data-testid="hall-pass-close"]',
+				until: '() => document.querySelectorAll(\'[data-testid="hall-pass-log"] li\').length >= 2'
+			}
+		],
+		orderResult: [
+			{
+				evaluate:
+					'() => [...document.querySelectorAll(\'[data-testid="hall-pass-log"] li\')].map((li) => (li.textContent.match(/(closeById|closeMine|open)\\(/) || [])[1] ?? "?")',
+				expected: ['closeById', 'closeMine'],
+				label: "the manager's close named the PASS, the student's named nothing"
+			}
+		]
+	},
+	{
+		path: '/dev/foundry-submit',
+		label: 'Foundry submit, a refused upload rendered to the student',
+		/*
+			THE STUDENT'S OWN UPLOAD SURFACE, and the highest-churn dev route that
+			nothing drove: `FoundrySubmit`, `FoundryIssues`, `FoundryContract` and
+			`AppFrame` are all mounted here and none of them appears anywhere else
+			in this file. `/dev/foundry-forge` drives `FoundryMine` and stops
+			there.
+
+			WHAT IS BEING MEASURED IS THE REFUSAL PATH, deliberately, because that
+			is the half a student meets when something is wrong and the half whose
+			failure is silent: a refusal that stops rendering leaves a student
+			looking at an upload that did not work with nothing on screen saying
+			why, and the next thing that happens is they paste it back into
+			whatever generated the app. CLAUDE.md pins those sentences as
+			VERBATIM -- `FoundryIssues` never rewrites, shortens or re-tones one,
+			because the same string is produced by the browser preflight and by
+			`foundry-ingest`.
+
+			THE PREFLIGHT IS THE REAL ONE. `[data-drive="zip-bad"]` builds a real
+			`File`, hands it to the component's own input through a real `change`
+			event, and the route runs `preflightZipInBrowser` over the same
+			normalized zip the surface would have uploaded -- the same module the
+			server runs, with the same wording. Measured: 4 sentences render, at
+			14.27:1, at both widths.
+		*/
+		prepare: [
+			{
+				click: '[data-drive="zip-bad"]',
+				until: '() => !!document.querySelector(".fdy-issues")',
+				attempts: 8,
+				gapMs: 400
+			}
+		],
+		presence: [
+			/*
+				THE INPUT IS NOT ASSERTED HERE, ON PURPOSE, AND IT IS NOT
+				UNCHECKED. `[data-fdy-input]` exists before the drive and is gone
+				after it -- the surface moves off its drop zone once it has a
+				bundle -- so a presence row for it measured 0 and reported a
+				finding about a control that had done its job. It is proven by the
+				PREPARE STEP instead, and more strongly: the route's `drive()`
+				looks the input up itself and, not finding one, writes "No file
+				input on screen" into the drive note and returns WITHOUT handing
+				the files over, so `.fdy-issues` never appears and the step prints
+				FAILED. The note below is the same fact stated positively.
+			*/
+			{ selector: '[data-testid="drive-note"]', label: 'the drive note (the input was found and handed the files)', expectPresent: 1 },
+			{ selector: '.fdy-issues', label: 'issues panels after the bad zip', expectPresent: 1 },
+			/*
+				FOUR SENTENCES, not "at least one": the bad fixture trips a leading
+				slash, two references to files the upload does not contain, and the
+				unconditional localStorage warning. A count of 1 would pass on a
+				panel that had lost three of them.
+			*/
+			{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, 2 missing refs, storage)', expectPresent: 4 }
+		],
+		contrast: [
+			{ selector: '.fdy-issue-message', label: 'refusal sentence on its panel', min: 4.5 }
+		],
+		/*
+			THE COPY CONTROLS ARE `tap-44` AND THE REASON IS THE FEATURE ITSELF:
+			the next thing that happens to a failure is being pasted back into an
+			AI tool, so per-issue copy and copy-all are the point of the panel
+			rather than a convenience. Measured 77.4x44, min dim 44.0px over 5
+			controls.
+
+			NOTE ON THE HIT TEST the tap-target check also records: these controls
+			sit ~3000px down the document at 375px, and `elementFromPoint` answers
+			null outside the viewport, so `centreHitsSelf` reads false for all
+			five here. It is an artefact of the harness never scrolling, not a
+			finding -- scrolled into view the same control hit-tests to itself --
+			and it changes nothing, because `tapTargets` gates only on the
+			geometry. Do not "fix" it by scrolling before measuring: scrolling
+			moves the boxes this check exists to report.
+		*/
+		tapTargets: [
+			{ selector: '.fdy-issues .btn', label: 'per-issue and copy-all controls', min: 44 }
+		]
+	},
+	{
+		path: '/dev/notebook-review',
+		label: 'Notebook review grid, the locked density contract and its seven states',
+		/*
+			THE GRID IS A LOCKED CONTRACT (CLAUDE.md): its density, its status
+			glyphs, Share Tech Mono and the 1.9rem cell box are verified
+			byte-identical after any restyle, and every status value carries a
+			glyph, a label, a fill STYLE no other state uses, a `--nb-cell-*`
+			token declared on all three plates AND A MEASURED CONTRAST FIGURE FOR
+			EACH. That last clause is a standing obligation on a surface nothing
+			automated has ever measured, which is the whole argument for listing
+			this route: a token missing from one plate, or an ink that quietly
+			stops clearing on the ground it is actually painted on, is invisible
+			on screen and reddens no type check.
+
+			0140 IS WHY IT IS URGENT RATHER THAN TIDY. `scheduled` is the seventh
+			answer to the same question the other six answer, so it arrived with
+			all of it -- key, label, glyph, dashed-vs-dotted fill, per-plate token
+			-- and its contrast figure is now measured here (6.19:1) instead of
+			once, by hand, in the bundle that added it.
+
+			THE STATES PRESENT IN THIS FIXTURE ARE FIVE OF THE SEVEN, and the two
+			absent ones are asserted as absent rather than left unmentioned: the
+			section fixture produces no `ontime` and no `await` cell, so a
+			contrast row naming either would report "no match" forever and read as
+			a finding about the ink. The LEGEND is the assertion that covers all
+			seven regardless -- it renders the same array the grid dispatches
+			from, so a state that stopped being drawn stops being advertised.
+		*/
+		/*
+			THE COLD-LOAD RACE, AND WHY THIS ROUTE NEEDS `waitFor`. The compliance
+			grid arrives on an async transport. The FIRST visit to any route also
+			pays vite's module-graph compile, and the run visits 375 before 1440 --
+			so on the cold pass the grid had not landed 700ms after `waitForApp`
+			returned and the page measured 0 cells, while the warm 1440 pass
+			measured 30. That reads exactly like a console that renders no grid at
+			phone width, and it is nothing of the kind: warm, BOTH widths render
+			the identical 30 cells (`narrow="stack-nav-first"` puts the grid pane
+			first, it is not dropped). A longer `settleMs` would paper over it
+			until the payload got slower again; the predicate cannot.
+		*/
+		prepare: [
+			{ waitFor: '() => document.querySelectorAll(".cell").length > 0', timeoutMs: 20000 }
+		],
+		presence: [
+			{ selector: '[data-testid="grid-scroll"]', label: 'compliance grid', expectPresent: 1 },
+			{ selector: '.cell', label: 'grid cells', expectPresent: 30 },
+			/* SEVEN STATES PLUS THE not-reviewed DOT. The legend is always
+			   visible on purpose -- CLAUDE.md forbids putting words in a cell to
+			   satisfy a label audit, so this row and the hint above the grid are
+			   what carry the meaning. */
+			{ selector: '.legend li', label: 'always-visible legend (7 states + not-reviewed)', expectPresent: 8 },
+			/* The two states this fixture does not produce, asserted as absent so
+			   the five contrast rows below cannot be read as covering all seven. */
+			{ selector: '.cell.ontime, .cell.await', label: 'states absent from this fixture (ontime, await)', expectPresent: 0, expectVisible: 0 }
+		],
+		contrast: [
+			{ selector: '.cell.late', label: 'cell: late', min: 4.5 },
+			{ selector: '.cell.flagged', label: 'cell: flagged', min: 4.5 },
+			{ selector: '.cell.excused', label: 'cell: excused', min: 4.5 },
+			{ selector: '.cell.missing', label: 'cell: missing', min: 4.5 },
+			/* 0140's new value, measured rather than asserted. */
+			{ selector: '.cell.scheduled', label: 'cell: scheduled (0140)', min: 4.5 }
+		],
+		/*
+			24px, NOT 44px, AND THAT IS THE DOCUMENTED EXCEPTION RATHER THAN A
+			RELAXATION. `IDEA_INTERFACE_STANDARDS` 10 exempts a control inside a
+			locked density contract, because inflating the cell box to 44px would
+			break the invariant the contract exists to hold -- and this grid is an
+			instructor console, not a phone surface. Measured 30.4x30.4, which
+			clears the floor that actually applies with room to spare.
+		*/
+		tapTargets: [{ selector: '.cell', label: 'grid cells (locked density: 24px floor)', min: 24 }]
 	}
 ];
 

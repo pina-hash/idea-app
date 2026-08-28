@@ -4,6 +4,7 @@
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
+	import SongQueue from '$lib/classroom/SongQueue.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		readClassViewPrefs,
@@ -19,6 +20,7 @@
 		createReferenceTransports,
 		createTeacherEngineTransports,
 		createHallPassTransports,
+		createSongQueueTransports,
 		createUnitTransports,
 		deckTransports,
 		fetchLinkPreviewClient,
@@ -79,6 +81,8 @@
 	const checkInTransports = createCheckInTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const hallPassTransports = createHallPassTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const songQueueTransports = createSongQueueTransports(data.supabase);
 
 	/**
 	 * THE ONE CLOCK ON THIS SURFACE.
@@ -96,7 +100,10 @@
 	 */
 	let now = $state(Date.now());
 	$effect(() => {
-		if (!data.hallPass) return;
+		// EITHER CARD IS A REASON TO TICK, and neither is a reason on its own. A
+		// database with 0143 and not 0145 (they are applied by hand, separately) is
+		// a real state, and so is the reverse.
+		if (!data.hallPass && !data.songQueue) return;
 		const timer = setInterval(() => (now = Date.now()), 30_000);
 		return () => clearInterval(timer);
 	});
@@ -291,6 +298,25 @@
 			sectionId={data.section.id}
 			state={data.hallPass}
 			transports={hallPassTransports}
+			{now}
+		/>
+	{/if}
+	<!--
+		THE SONG QUEUE SITS BENEATH THE PASS, and the order is an argument rather
+		than a preference. The pass earns the top of the pane because its whole
+		value is the second it takes; a song request is never urgent and is done
+		once a period with time to spare. Putting it first would cost the pass the
+		property it was placed there for.
+
+		Rendered ONLY when the load came back with a state, which is the fail-soft
+		path for a database without 0145 (applied by hand, separately from this
+		deploy). No state, no card -- never a card that cannot work.
+	-->
+	{#if data.songQueue}
+		<SongQueue
+			sectionId={data.section.id}
+			state={data.songQueue}
+			transports={songQueueTransports}
 			{now}
 		/>
 	{/if}

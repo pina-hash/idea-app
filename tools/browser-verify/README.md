@@ -64,6 +64,15 @@ a moved binary is a named error rather than a stack trace.
 data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
+**It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
+53 directories under `src/routes/dev` (50 with a page, 3 server-only) and 52
+`+page.svelte` files; `routes.mjs` lists **17 specs over 12 distinct routes**.
+A 52-route pass nobody waits for is a pass nobody runs. Routes earn a place by
+one question -- if this surface broke silently, would anyone find out before a
+student did -- not by existing. `docs/history/dev-routes-audit-5nocl7.md` has
+the audit that produced the current list and the reasons the rest were left
+out.
+
 **It cannot reach a real route.** `/classroom`, `/notebook`, `/foundry` and the
 rest need a Bosco Tech Google session, and OAuth against a real school account
 cannot happen from an automated run. A signed-in surface is verified with
@@ -89,6 +98,9 @@ Two further limits belong in any report that quotes these numbers:
   reduced one, and neither state is inferable from the other.
 
 ### Known findings, and the two limits above as they apply to them
+
+**The whole run reports exactly 2 measurements outside threshold**, and they are
+the two below -- the same finding at each width. Anything else is new.
 
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
@@ -132,6 +144,25 @@ Three details are deliberate:
 - **`aria-hidden` is a third question, not a visual one.** Folding it into
   visibility reported a perfectly painted 15.2x15.2 decorative glyph as
   invisible.
+- **Visibility walks ANCESTORS for opacity, because `opacity` is not
+  inherited.** A child of an `opacity: 0` parent computes opacity 1 and used to
+  report itself visible while being painted nowhere -- the exact false green
+  this check exists to prevent. Found by a live control: `--break invisible` set
+  opacity 0 on three routes' room wrappers and every presence row came back
+  green. The reason string NAMES the ancestor that did it. It also revealed that
+  seven assertions on `/dev/home-order` and `/dev/home-feed` had been passing
+  vacuously about rows inside entrance-faded cards; those specs settle the
+  entrance in `prepare` now (see `SETTLE_ENTRANCE`) rather than writing the
+  vacuum down as an exemption.
+- **The centre hit-test is recorded but is only meaningful IN THE VIEWPORT.**
+  `document.elementFromPoint` answers null outside it and the harness never
+  scrolls, so a control far down a long page reads `centreHitsSelf: false` --
+  measured on `/dev/foundry-submit`, where the five copy controls sit ~3000px
+  down at 375px and all five read false, while the same control scrolled into
+  view hit-tests to itself. It is an artefact, not a finding, and it changes no
+  verdict: `tapTargets` gates on the geometry alone. Do not "fix" it by
+  scrolling before measuring -- that moves the boxes the check exists to
+  report.
 
 ## Reaching a state: `prepare`, and why it retries
 
@@ -152,6 +183,32 @@ A `prepare` predicate is a function **source string**, invoked as `(${src})()`.
 function source evaluates to a function object and is never `=== true`; that bug
 reported twelve failed attempts on steps whose clicks were working perfectly.
 
+### `waitFor` -- the state that arrives rather than being pressed
+
+`clickUntil` covers a state reached by pressing something. **`{ waitFor: '<predicate
+source>', timeoutMs }`** covers the other one: a state that arrives when an async
+payload lands, where there is nothing to press and pressing something arbitrary
+to borrow a retry loop is a lie about what the step does. The wait is REPORTED in
+milliseconds and a predicate that never holds prints `FAILED`, so the
+measurements after it are read as describing a state the run never reached.
+
+**It is not a longer `settleMs`, and the difference is the whole point.**
+Measured on `/dev/notebook-review`: the first visit to a route pays vite's
+module-graph compile, the run visits 375 before 1440, and the compliance grid's
+transport had not resolved 700ms after `waitForApp` returned. The cold 375 pass
+measured **0 cells** and the warm 1440 pass measured **30** -- which reads
+exactly like a console that renders no grid at phone width and is nothing of the
+kind. Warm, both widths render the identical 30 cells. A fixed timeout long
+enough today measures an empty page the day the payload gets slower, silently,
+because every selector honestly matches nothing.
+
+### `evaluate` steps print their return value
+
+An `evaluate` step's return value is printed beside it when it is a string or a
+number. `SETTLE_ENTRANCE` in `routes.mjs` uses that to say how many cards it
+settled -- a settling step that reports `0 course-card(s)` is a silent no-op made
+visible, which is what happens the day a class name moves.
+
 ## Negative controls -- the part that makes the numbers mean anything
 
 A check that has never failed has not been tested.
@@ -159,10 +216,11 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **24
-controls, 12 negative and 12 positive** (re-derived from `selftest.mjs`'s own
-`CASES` array 2026-08-28; the file already carried the twelfth group,
-`console-errors (console.error)`, this line had simply drifted). Fixtures rather than a mutation of `src/`
+one, because unlike the measuring run there is a right answer here. **30
+controls, 15 negative and 15 positive** (re-derived from `selftest.mjs`'s own
+`CASES` array 2026-08-28, after the `wait-for` and ancestor-opacity groups went
+in; a number written down here is a number that drifts, so re-derive it rather
+than trusting this line). Fixtures rather than a mutation of `src/`
 on purpose: a mutation proves a check once in a tree that then has to be
 restored byte-identically, this proves it on every run and touches nothing.
 
@@ -181,9 +239,19 @@ green, which is the property that makes it worth anything.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **~34 seconds** (2.8s of it the vite boot) for 8 route specs x 2
-widths = 108 measurements; `--selftest` is ~8s. That is fast enough to be no burden,
-and it is still deliberately outside `npm test` and outside CI:
+A full run is **~91 seconds** (3.5s of it the vite boot) for **17 route specs x 2
+widths = 34 runs and 258 measurements**; `--selftest` is ~10s.
+
+**MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
+direction that matters: it read "~34 seconds ... 8 route specs" against a tree
+carrying 14, and a task brief written from it put the real figure at "roughly 22
+seconds" when the same tree measured **71.9s**. Per route/width the cost is
+~2.6s and it is close to linear, so a session adding four more specs should
+expect ~+21s and should say whether that is still a pass a person will run
+voluntarily. The 91s figure above is a warm second run on 2026-08-28; a cold one
+(no vite cache) measured 79.8s at 14 specs and is not meaningfully slower.
+
+It is still deliberately outside `npm test` and outside CI:
 
 - `npm test` is the DB suite -- real embedded Postgres, real migrations, no DOM.
   This needs a browser and a dev server. A browser failure would read as a

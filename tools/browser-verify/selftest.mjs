@@ -14,7 +14,7 @@
  * byte-identically; this proves it on every run, for any future session, and
  * touches nothing.
  */
-import { launch, openPage, settle } from './browser.mjs';
+import { launch, openPage, settle, waitUntil } from './browser.mjs';
 import {
 	horizontalScroll,
 	contrast,
@@ -135,6 +135,30 @@ const CASES = [
 		}
 	},
 	{
+		/*
+			THE ANCESTOR CASE, WHICH THE CHECK USED TO MISS. `opacity` is NOT an
+			inherited property, so a child of an `opacity: 0` parent computes
+			opacity 1 and reports itself visible while being painted nowhere --
+			the exact false green `presence` exists to prevent. Caught by a live
+			`--break invisible` that set opacity 0 on three routes' room wrappers
+			and got a clean run back; the group above only ever set opacity on the
+			asserted element itself, which is why it passed throughout.
+		*/
+		group: 'presence (invisible via an ANCESTOR)',
+		bad: {
+			name: 'the element is opaque but its parent is at opacity 0',
+			html: shell('<div style="opacity:0"><div id="card">the card</div></div>'),
+			run: (p) => presence(p, { selector: '#card', expectPresent: 1, expectVisible: 1 }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same nesting with the parent painted',
+			html: shell('<div style="opacity:1"><div id="card">the card</div></div>'),
+			run: (p) => presence(p, { selector: '#card', expectPresent: 1, expectVisible: 1 }),
+			expect: 'within'
+		}
+	},
+	{
 		group: 'presence (absent entirely)',
 		bad: {
 			name: 'the element is not rendered at all',
@@ -240,6 +264,53 @@ const CASES = [
 				'.btn{color:#a39d92;background:#0d0c0a;border:0}.btn.active{color:#78b870}'
 			),
 			run: (p) => statePairContrast(p, { activeSelector: '#a', inactiveSelector: '#b', label: 'test pair' }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			NOT A CHECK -- a PREPARE MECHANISM, and it gets a control for the same
+			reason the checks do. `waitFor` exists so a route whose state arrives
+			on an async payload is measured after it lands rather than before, and
+			its failure mode is the dangerous kind: if a silent timeout counted as
+			success, every measurement after it would be an honest reading of a
+			page that had not finished loading, which reads as a surface that
+			renders nothing rather than as a step that gave up. So the negative
+			control is a predicate that never holds.
+		*/
+		group: 'wait-for (prepare step)',
+		bad: {
+			name: 'a predicate that never holds',
+			html: shell('<div id="here">nothing else is coming</div>'),
+			run: async (p) => {
+				const r = await waitUntil(p, '() => !!document.querySelector("#late")', { timeoutMs: 1200 });
+				return {
+					check: 'wait-for',
+					measured: `${r.reason} after ${r.waitedMs}ms`,
+					threshold: 'the predicate holds',
+					withinThreshold: r.ok
+				};
+			},
+			expect: 'outside'
+		},
+		good: {
+			/* The real shape: the element is not in the document at load and
+			   arrives later, which is what an async transport resolving looks
+			   like. A `settleMs` short of 300ms would measure the empty page. */
+			name: 'an element that arrives 300ms after load',
+			html: shell(
+				'<div id="here">waiting</div><script>setTimeout(() => { const d = document.createElement("div"); d.id = "late"; document.body.appendChild(d); }, 300)</' +
+					'script>'
+			),
+			run: async (p) => {
+				const r = await waitUntil(p, '() => !!document.querySelector("#late")', { timeoutMs: 5000 });
+				return {
+					check: 'wait-for',
+					measured: `${r.reason} after ${r.waitedMs}ms`,
+					threshold: 'the predicate holds',
+					withinThreshold: r.ok
+				};
+			},
 			expect: 'within'
 		}
 	},

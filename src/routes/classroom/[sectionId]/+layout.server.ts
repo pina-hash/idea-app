@@ -21,6 +21,7 @@ import {
 } from '$lib/classroom/class-check-ins';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import type { HallPassState } from '$lib/classroom/hall-pass';
+import type { SongQueueState } from '$lib/classroom/song-queue';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
@@ -196,6 +197,39 @@ async function sectionHallPass(
 }
 
 /**
+ * THE SONG QUEUE (0145), FAIL-SOFT FOR THE SAME REASON THE HALL PASS IS.
+ *
+ * Migrations are applied by hand, separately from the deploy, so a build
+ * carrying this route against a database without 0145 is a REAL state and not a
+ * hypothetical. Null removes the whole card -- the layout hands no transports
+ * down and mounts nothing, so there is no write to execute and nothing on
+ * screen claiming a queue exists.
+ *
+ * ANY OTHER ERROR ALSO YIELDS NULL, deliberately rather than re-raised: this is
+ * one card on a page whose real content is the class, and a song-queue outage
+ * must not take the class list down with it. There is no fallback that guesses
+ * an empty queue -- an empty approved list and an unavailable one look identical
+ * on screen and mean very different things, so the card is absent rather than
+ * wrong.
+ *
+ * THE PROJECTION IS THE DATABASE'S, NOT THIS LOAD'S. Whatever comes back is
+ * handed to the page as-is: a student's payload is built by a branch of the RPC
+ * that cannot return a classmate's pending or rejected request, so there is
+ * nothing here to filter and adding a filter would only make it look as though
+ * there were.
+ */
+async function sectionSongQueue(
+	supabase: SupabaseClient,
+	sectionId: string
+): Promise<SongQueueState | null> {
+	const { data, error: rpcError } = await supabase.rpc('classroom_song_queue', {
+		p_section_id: sectionId
+	});
+	if (rpcError) return null;
+	return (data as SongQueueState | null) ?? null;
+}
+
+/**
  * THE CLASS ITSELF, loaded ONCE for every route under /classroom/<section>.
  *
  * IT IS A LAYOUT LOAD BECAUSE THE CLASS CONTENT IS NAVIGATION, not a page. The
@@ -264,14 +298,17 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 */
 	const today = laCalendarDay(new Date());
 
-	const [{ data: manages }, content, checkInRows, hallPass] = await Promise.all([
+	const [{ data: manages }, content, checkInRows, hallPass, songQueue] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
 		sectionCheckIns(supabase, params.sectionId),
 		// Rides along with the other three: it is one small RPC and the pass is
 		// the one thing on this page somebody may need before they have finished
 		// reading it.
-		sectionHallPass(supabase, params.sectionId)
+		sectionHallPass(supabase, params.sectionId),
+		// 0145, alongside it for the same reason and at the same cost: one small
+		// RPC, and both cards sit at the top of the class pane.
+		sectionSongQueue(supabase, params.sectionId)
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
@@ -591,6 +628,14 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * shape of the value.
 		 */
 		hallPass,
+		/**
+		 * 0145. NULL ON A DATABASE WITHOUT THE MIGRATION, which removes the whole
+		 * card rather than rendering a broken one -- see sectionSongQueue. It is
+		 * also null for a caller the RPC will not answer about, which cannot
+		 * happen here (the section load already 404s them) but is the honest shape
+		 * of the value.
+		 */
+		songQueue,
 		sectionOutstanding
 	};
 };

@@ -157,17 +157,16 @@ user.** `PrefBucket` is used inside `StoredSave` in the same file (`:31`);
 `Record<string, string>`, and the greps that look like hits are `splitSnapshot`,
 a different identifier).
 
-**`GET /api/vanguard-run-state` -- a handler with no caller.** The saved
-checkpoints reach the page through the injection, which reads them server-side in
-the `/vanguard` GET and ships them as `window.__ideaRunStates`; the browser never
-fetches this endpoint. `POST` and `DELETE` on the same route are both called
-(`+server.ts`, the checkpoint saver and clearer). **Re-checked 2026-08-28 and
-still true**: the only three call sites in the repo are the two `POST`s
-(`+server.ts:333` `sendBeacon`, `:336` `fetch`) and the one `DELETE` (`:351`).
-Nothing in `src/lib/legacy/` names the route at all. Deleting the `GET` is safe
-and is the right call whenever a bundle is touching this file -- it is an
-authenticated read of a student's own rows, so it leaks nothing while it sits
-there, which is why it is a tidy-up and not a defect.
+**`GET /api/vanguard-run-state` -- DELETED, 2026-08-28.** It was a handler with
+no caller. The saved checkpoints reach the page through the injection, which
+reads them server-side in the `/vanguard` GET and ships them as
+`window.__ideaRunStates`; the browser never fetched this endpoint. Re-checked a
+third time before deleting -- across `src/`, `tests/`, `static/`, `tools/` and
+`src/lib/legacy/` -- and the only call sites in the repo were the two `POST`s
+(`+server.ts:333` `sendBeacon`, `:336` `fetch`) and the one `DELETE`
+(`+server.ts:351`); nothing named the route with a `GET`. `POST` and `DELETE` on
+the same route are unaffected and still do the checkpoint saving and clearing.
+No type, helper or test was orphaned by the removal.
 
 **The in-game feedback composer wrote to a third-party endpoint, not to the
 portal. FIXED IN THE INJECTION, NOT IN THE GAME.** `buildFeedbackComposer`
