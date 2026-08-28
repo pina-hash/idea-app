@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-08-28",
+			"title": "Ask for a song to be played in class",
+			"body": "Your class page now has a Class music card. Paste a link to a song and your teacher decides whether it gets played. Asking is free. If your teacher approves it you are charged 2 IDEA Coins; if they say no you are charged nothing at all, and they leave you a short reason so you know what to change. You can have three requests waiting at a time in each class, and asking again is fine as soon as one of them has been looked at. Everyone in the class can see the approved list, but nobody else can see a request that is still waiting or one that was turned down, and the approved list does not say who asked. Nothing plays on the website itself: your teacher opens the link and plays it however they normally would, so send a link rather than a file.",
+			"tags": [
+				"Classes",
+				"IDEA Coins"
+			]
+		},
+		{
+			"date": "2026-08-28",
 			"title": "The hall pass signs the right person back in",
 			"body": "If you took the hall pass just as somebody else was coming back, your teacher clearing the pass could sign YOU back in by mistake while you were still out of the room, and the pass would go free for somebody else. That is fixed. Signing a pass back in now applies to the exact pass it was meant for, so your teacher can only ever sign in the person they were actually looking at. If they press it a moment after you have already signed yourself in, they are told that is what happened instead of it doing something else. Nothing about how you use the pass changes: tap Sign out when you leave and Sign back in when you return.",
 			"tags": [
