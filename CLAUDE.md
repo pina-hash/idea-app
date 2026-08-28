@@ -2434,6 +2434,46 @@ These have each cost a debugging session. They are not hypothetical.
   inside functions the effect calls. An effect that calls a transport takes a
   dependency on whatever that transport touches and spins. Wrap the work in
   `untrack` and pass its inputs explicitly.
+- **AN `$effect` THAT CALLS AN INJECTED CALLBACK -- A TRANSPORT, A PROP
+  FUNCTION, ANY CALLER-SUPPLIED CALLBACK -- WRAPS THE CALL ITSELF IN `untrack`,
+  AND THE FAILURE IS `effect_update_depth_exceeded` ON MOUNT.** This is the rule
+  above pointed at the case where the code being called is not YOURS. A
+  transport is written by whoever mounts the component, who cannot see the
+  effect that calls it: everything it touches reactively before its first
+  `await` joins that effect's dependency set, and anything it writes then
+  re-triggers the effect. A transport that merely READS a `$state` array and
+  appends to it -- an ordinary dev-harness log line -- is already a
+  non-terminating loop, and the composer's category-suggestion effect was
+  exactly this. **A real transport that happens not to loop is luck, not
+  design**: the shipping one is a plain Supabase call with no reactivity in it,
+  so production never spun while the interface silently forbade something
+  nothing wrote down.
+  - **TRACK THE INPUTS, UNTRACK THE CALL.** The dependencies the effect exists
+    for -- the scope it refetches on, the transport lookup that says whether the
+    feature is on -- are read TRACKED at the top of the body; only the
+    invocation goes inside `untrack(() => load(ids))`. Untracking the whole
+    effect body instead is the wrong repair: it buys the same safety by
+    deleting the reason the effect exists, and nothing on screen reports an
+    effect that stopped re-running.
+  - **THE `.then` HANDLER NEEDS NO WRAPPING AND MUST NOT GET ONE.** It runs in a
+    microtask, outside the tracking context, so a stale-response guard written
+    there is already safe; wrapping it only suggests the rule is about promises
+    rather than about the synchronous prefix, which is where the whole problem
+    lives.
+  - **A CALLBACK IS NOT EXEMPT FOR BEING SMALL.** `ondirtychange?.(dirty)` is
+    one prop call with no `await` in it at all, and it is the same defect: the
+    parent's handler is somebody else's code running inside this effect's
+    tracking context.
+  - **IT IS ASSERTED ON THE SOURCE, NOT ON A MOUNT, AND THAT IS A LIMIT WORTH
+    KNOWING.** `tests/classroom-composer-effect-reactivity.test.ts` parses the
+    real `ContentComposer.svelte` and reddens on any unwrapped injected call in
+    ANY of its effects, so it catches the next one rather than the one that was
+    fixed. It cannot mount: effects never run under `svelte/server`, this suite
+    is `environment: 'node'` with no DOM package, and `svelte` resolves to its
+    server build -- measured, a bare `$effect.root` in a `.svelte.ts` fixture
+    runs its effect ZERO times, so a runtime control written here today would be
+    green and prove nothing. **Do not add one without the environment to run
+    it.**
 - **An effect that calls something writing state must be deferred**
   (`queueMicrotask`), or it lands while Svelte is still settling the render and
   throws `state_unsafe_mutation` -- which surfaces as an unhandled rejection after

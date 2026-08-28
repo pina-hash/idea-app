@@ -437,6 +437,8 @@
 	 */
 	let categorySuggestions = $state<string[]>([]);
 	$effect(() => {
+		// TRACKED, deliberately: the course scope and the transport's presence
+		// are exactly what should re-run this.
 		const courseIds = categoryCourseIds;
 		const load = transports.loadCategorySuggestions;
 		if (!load || courseIds.length === 0) {
@@ -444,7 +446,10 @@
 			return;
 		}
 		let cancelled = false;
-		load(courseIds).then((res) => {
+		// UNTRACKED, and this is the load-bearing half: `load` is INJECTED, so
+		// whatever it touches before its first `await` would otherwise join this
+		// effect's dependencies. See the injected-callback rule in CLAUDE.md.
+		untrack(() => load(courseIds)).then((res) => {
 			if (cancelled) return;
 			categorySuggestions = res.ok ? courseCategorySuggestions(res.data) : [];
 		});
@@ -647,7 +652,10 @@
 	 */
 	const dirty = $derived(baseline.changed(composerDraftSignature(draft)));
 	$effect(() => {
-		ondirtychange?.(dirty);
+		// `dirty` tracked, the notification untracked: `ondirtychange` belongs to
+		// whoever mounted this form and may read or write state of its own.
+		const value = dirty;
+		untrack(() => ondirtychange?.(value));
 	});
 	onDestroy(() => ondirtychange?.(false));
 
