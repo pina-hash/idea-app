@@ -800,6 +800,147 @@ export const ROUTES = [
 			clears the floor that actually applies with room to spare.
 		*/
 		tapTargets: [{ selector: '.cell', label: 'grid cells (locked density: 24px floor)', min: 24 }]
+	},
+	{
+		path: '/dev/notebook',
+		label: "Notebook, student account (the compose form stacked above the feed at phone width, always -- CLAUDE.md: 'a phone has always shown it ABOVE the feed')",
+		/*
+			REACHABLE FROM NOWHERE ELSE IN THIS FILE. `NotebookView.svelte` and
+			`NotebookEntryCard.svelte` had never been driven here before this
+			bundle -- `/dev/notebook-review` mounts the review CONSOLE (a
+			different component, `SectionGrid`), never the student's own
+			notebook. The default account is 'student', which at 375px is
+			`wide=false`, so `composerMounted` is unconditionally true and the
+			split's `has-detail` class applies from first paint -- no prepare
+			step is needed to reach the state this route exists to measure.
+
+			THIS IS THE ROUTE THE 10px OVERFLOW WAS ON. `.field.label-field`
+			(the free-entry title field) had no override for the shared
+			`.field` class's row-flex layout from app.css -- a key/value row
+			built for a profile header, not a label wrapping a stacked input
+			and hint -- so the title field's long hint sentence forced the row,
+			and the document, 10.5px past the viewport. `body` clips horizontal
+			overflow (app.css), so nothing scrolled and nothing looked wrong;
+			the content was simply cut off the right edge. Fixed by giving
+			`.label-field` itself the column stacking `.note-field` and
+			`.folder-field` already had -- the folder field only avoided the
+			same defect by ALSO carrying `.folder-field`, which the title
+			field's label never did.
+		*/
+		/*
+			THE TITLE FIELD ONLY RENDERS FOR A FREE ENTRY (`selectedSession ===
+			null`), and which check-in (if any) auto-selects on mount is not
+			pinned by this route -- forcing "Something else" is what makes the
+			title field's presence deterministic at BOTH widths rather than
+			riding whatever the auto-pick effect happened to land on.
+		*/
+		prepare: [{ click: '.pick.free', until: '() => document.querySelector(".pick.free").getAttribute("aria-pressed") === "true"' }],
+		presence: [
+			{ selector: '.dev-bar', label: 'harness controls', expectPresent: 1 },
+			{ selector: '.nb-root', label: 'NotebookView mounted', expectPresent: 1 },
+			{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 }
+		],
+		contrast: [{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 }],
+		tapTargets: [{ selector: '.compose-card input[type="text"], .compose-card select', label: 'compose form controls', min: 44 }],
+		/*
+			THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER
+			NOTEBOOK ROUTE'S DO: `<img>` against the real `/api/notebook/photo/
+			<id>` proxy, which needs a session this placeholder-.env dev server
+			cannot provide. This fixture's own photo ids (p-1 through p-13,
+			the STUDENT_ENTRIES/FILLER fixtures), named rather than blanketed.
+		*/
+		ignoreConsole: ['\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/']
+	},
+	{
+		path: '/dev/notebook-review-student',
+		label: 'Notebook review, one student (StudentReviewBackStrip + NotebookView read-only + NotebookDeletedZone)',
+		/*
+			ALREADY CLEAN AT BOTH WIDTHS -- 0px overflow, measured -- and the only
+			reason it was not already listed is that nothing had driven it. The
+			default student ('ana') carries one self-deleted and one
+			staff-deleted entry, so both `NotebookDeletedZone` branches (a
+			Restore control on the first, a bare refusal reading on the
+			second) are on screen without a click.
+
+			THE 401s ARE THE FIXTURE, NOT A DEFECT: `NotebookView` here (like
+			every other notebook route in this file) renders `<img>` tags
+			against the REAL `/api/notebook/photo/<id>` proxy, which needs a
+			session this placeholder-.env dev server cannot provide. NAMED
+			rather than blanketed -- the harness now tags a "Failed to load
+			resource" console error with the actual failing request (see
+			`browser.mjs`), so this ignores the two specific photo fetches
+			ana's fixture makes and nothing else that happens to also 401.
+		*/
+		presence: [
+			{ selector: '.back-strip', label: 'StudentReviewBackStrip', expectPresent: 1 },
+			{ selector: '.nb-root', label: 'NotebookView mounted (read-only)', expectPresent: 1 },
+			{ selector: '[data-testid="staff-deleted-zone"]', label: 'deleted-entries disclosure', expectPresent: 1 },
+			{ selector: '[data-testid="staff-restore-entry"]', label: 'Restore control (self-deleted entry only)', expectPresent: 1 }
+		],
+		contrast: [{ selector: '.back-strip .who', label: 'back-strip student line', min: 4.5 }],
+		ignoreConsole: [
+			'\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/ana-p1\\?',
+			'\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/ana-p2-live\\?'
+		]
+	},
+	{
+		path: '/dev/song-queue',
+		label: 'Song queue (0145), seven mounts -- student, capped student, manager, read-only',
+		/*
+			SHIPPED BUILT AND NEVER REGISTERED. The route's own header says so:
+			"deliberately NOT in tools/browser-verify/routes.mjs, because the
+			session that added it was scoped out of that directory." Its own
+			session hand-measured 0px overflow, 23 controls at exactly 44.0px
+			(hit fraction 1.0) and 20 links boxing at 24.3px whose HIT-TESTED
+			reach is 44.0px with 0 taps stolen -- confirmed here rather than
+			retyped: a plain box-height tap-target check would report 20
+			findings on `.tap-reach-44` links that are genuinely fine, because
+			the reach is a pseudo-element that grows the HIT AREA without
+			reflowing the link's own line box (CLAUDE.md: ".tap-reach-44
+			expands the HIT AREA of one sitting inside a line of text"). The
+			harness's own `tap-target` check already hit-tests every control's
+			CENTRE and reports it beside the box, which is what proves the
+			20 links are not 20 findings.
+		*/
+		presence: [
+			{ selector: 'section.mount[data-mount]', label: 'the seven state mounts', expectPresent: 7 },
+			{ selector: '[data-testid="song-queue"]', label: 'SongQueue card, one per mount', expectPresent: 7 },
+			{ selector: '[data-mount="student / at the cap"] [data-testid="song-queue-send"][aria-disabled="true"]', label: 'capped student control is aria-disabled', expectPresent: 1 },
+			{ selector: '[data-testid="song-queue-send"][disabled], [data-testid="song-queue-approve"][disabled], [data-testid="song-queue-reject"][disabled]', label: 'no control carries a real disabled attribute', expectPresent: 0, expectVisible: 0 }
+		],
+		contrast: [
+			{ selector: '[data-testid="song-queue-price"]', label: 'price label', min: 4.5 },
+			{ selector: '[data-mount="manager / queue to work"] [data-testid="song-queue-tally"]', label: 'pending tally', min: 4.5 }
+		],
+		tapTargets: [
+			{ selector: '.tap-44', label: 'primary controls (send / approve / reject / send reason)', min: 44 }
+		],
+		/*
+			`.sq-link` IS `.tap-reach-44`, NOT `.tap-44`: it sits inside a text
+			row (a URL and its meta beside it), so its box stays whatever its
+			text needs (measured 24.3px tall) and the 44px floor is met by the
+			pseudo-element reach instead (app.css). Pointing the ordinary
+			`tapTargets` box check at it would report all 20 as findings on a
+			control that is correct by design -- see `tapReach` in checks.mjs,
+			which measures the reach's own geometry and hit-tests it rather
+			than the link's box.
+		*/
+		tapReach: [
+			{ selector: '.sq-link.tap-reach-44', label: 'approved/pending row links (reach, not box)', min: 44 }
+		],
+		/*
+			THE aria-disabled CONTRACT AGAIN, the same shape as /dev/hall-pass:
+			the capped student's Request control must still take the tap and
+			explain itself. Proven by actually clicking it (clickUntil's
+			coordinate click, which lands on aria-disabled where
+			locator.click() would refuse) and reading the notice it produces.
+		*/
+		prepare: [
+			{
+				click: '[data-mount="student / at the cap"] [data-testid="song-queue-send"]',
+				until: '() => !!document.querySelector(\'[data-mount="student / at the cap"] [data-testid="song-queue-notice"]\')'
+			}
+		]
 	}
 ];
 

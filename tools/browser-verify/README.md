@@ -66,7 +66,9 @@ build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
 53 directories under `src/routes/dev` (50 with a page, 3 server-only) and 52
-`+page.svelte` files; `routes.mjs` lists **17 specs over 12 distinct routes**.
+`+page.svelte` files; `routes.mjs` lists **20 specs over 15 distinct routes**
+(17 over 12 before `/dev/notebook`, `/dev/notebook-review-student` and
+`/dev/song-queue` joined it).
 A 52-route pass nobody waits for is a pass nobody runs. Routes earn a place by
 one question -- if this surface broke silently, would anyone find out before a
 student did -- not by existing. `docs/history/dev-routes-audit-5nocl7.md` has
@@ -126,6 +128,7 @@ threshold exists it is printed beside the measurement, never instead of it.
 | `horizontal-scroll` | `scrollWidth - clientWidth`, plus the widest offending elements and their overhang in px |
 | `contrast` | WCAG ratio of the text against the **real rendered ground**, naming which ancestor supplied it |
 | `tap-target` | Each control's box, the smallest min-dimension, counts under 44px and under the 24px floor, and a centre hit-test |
+| `tap-reach` | A `.tap-reach-44` control's expanded HIT AREA (its `::after` pseudo-element's own geometry, recomputed the way the CSS computes it), not its box -- plus a 5-point hit test across that area for a tap a neighbour might be stealing |
 | `presence` | **present**, **visible** and **aria-hidden** counts -- three different questions -- with a reason for every invisible node |
 | `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
 | `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen |
@@ -216,13 +219,45 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **30
-controls, 15 negative and 15 positive** (re-derived from `selftest.mjs`'s own
-`CASES` array 2026-08-28, after the `wait-for` and ancestor-opacity groups went
-in; a number written down here is a number that drifts, so re-derive it rather
-than trusting this line). Fixtures rather than a mutation of `src/`
-on purpose: a mutation proves a check once in a tree that then has to be
-restored byte-identically, this proves it on every run and touches nothing.
+one, because unlike the measuring run there is a right answer here. **36
+controls, 18 negative and 18 positive** (re-derived from `selftest.mjs`'s own
+`CASES` array 2026-08-28, after `click-through (aria-disabled control)` and the
+two `tap-reach` groups went in alongside `wait-for`; a number written down here
+is a number that drifts, so re-derive it rather than trusting this line).
+Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
+once in a tree that then has to be restored byte-identically, this proves it on
+every run and touches nothing.
+
+**`tap-reach` is a SEPARATE check from `tap-target`, not a variant of it, for a
+control whose class is `.tap-reach-44` rather than `.tap-44`.** `.tap-reach-44`
+(app.css) grows a control's HIT AREA with a centred `::after` pseudo-element
+instead of growing the control's own box, for a control sitting inside a line
+of text where inflating the box would reflow the writing around it
+(`IDEA_INTERFACE_STANDARDS` 10). Pointing the ordinary box-measuring
+`tap-target` check at one of these reports a finding on every single one --
+CLAUDE.md names the exact case: "a box-height check would report 20 findings on
+a surface that is actually fine." `tap-reach` instead recomputes the pseudo's
+geometry the way the CSS computes it (only when a `::after` genuinely exists on
+that element -- `getComputedStyle(el, '::after').content` is `'none'`
+otherwise, and crediting every element with a reach it does not have would be
+a worse defect than the one this check exists to catch) and HIT-TESTS five
+points across it -- the centre and the midpoint of each edge -- because a
+neighbouring reach or an opaque sibling overlapping part of it steals a tap
+silently, which no amount of geometry alone can see. Sample points outside the
+viewport are marked `offscreen` and excluded from the stolen-tap count and the
+gate, the same artefact and the same fix `tap-target`'s own centre hit-test
+already documents (see `/dev/foundry-submit` below).
+
+**`click-through (aria-disabled control)` is not a check, it is the CLICK
+MECHANISM `prepare` steps use, and it earns a control for the same reason
+`wait-for` does.** This repo uses `aria-disabled` over `disabled` deliberately,
+in several places, so a blocked control can still explain itself when tapped
+(CLAUDE.md). Playwright's `locator.click()` performs an actionability check
+that refuses a control carrying `aria-disabled="true"` -- the negative control
+proves it, on a real button, in this container's own Chromium: the click times
+out and the handler never fires. `clickUntil` now dispatches at the element's
+own bounding-box centre with `page.mouse.click()`, a real coordinate click with
+no actionability gate in front of it, which the positive control proves lands.
 
 `--break <preset>` is the **live** control: it injects a defect into the real
 page before measuring, so a session can prove a check bites on the surface in
@@ -239,17 +274,23 @@ green, which is the property that makes it worth anything.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **~91 seconds** (3.5s of it the vite boot) for **17 route specs x 2
-widths = 34 runs and 258 measurements**; `--selftest` is ~10s.
+A full run is **~101 seconds** (3.4s of it the vite boot) for **20 route specs
+x 2 widths = 40 runs and 306 measurements**; `--selftest` is ~12s (36 controls).
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree
 carrying 14, and a task brief written from it put the real figure at "roughly 22
-seconds" when the same tree measured **71.9s**. Per route/width the cost is
-~2.6s and it is close to linear, so a session adding four more specs should
-expect ~+21s and should say whether that is still a pass a person will run
-voluntarily. The 91s figure above is a warm second run on 2026-08-28; a cold one
-(no vite cache) measured 79.8s at 14 specs and is not meaningfully slower.
+seconds" when the same tree measured **71.9s**. It later read "~91 seconds ...
+17 route specs" (91.4s measured 2026-08-27); three more specs
+(`/dev/notebook`, `/dev/notebook-review-student`, `/dev/song-queue`) measured
+**+9.3s** on 2026-08-28, close to the ~2.6s-per-route/width estimate this line
+already carried (~+15.6s expected for 6 more runs; 9.3s measured -- still in the
+same ballpark, and the discrepancy is plausibly the `/dev/notebook` prepare
+click adding one extra round trip per width rather than a new per-route
+constant). **101 seconds is the point at which this is worth saying out loud
+rather than just running**: it is comfortably still a pass a person will run
+before pushing, but it is no longer the kind of number nobody notices, and the
+next few specs added here should watch it rather than assume it stays flat.
 
 It is still deliberately outside `npm test` and outside CI:
 
