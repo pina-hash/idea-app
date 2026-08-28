@@ -17,6 +17,7 @@
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		assignmentStandings,
+		courseCategorySuggestions,
 		splitRoster,
 		isScheduled,
 		registerLocalAttachmentUrl,
@@ -1053,6 +1054,42 @@
 				instructorLinks: links.map((r, i) => ({ ...r, id: nid('ir'), sort_order: i + 1 }))
 			});
 			return { ok: true, data: undefined };
+		},
+		/**
+		 * The RAW, unprocessed categories of every item posted into one of the
+		 * given courses -- ranking is `courseCategorySuggestions`'s job, not the
+		 * transport's, mirroring the real RPC's own contract. Every fixture item
+		 * lives under course c-1 (the only course s-1/s-2/s-9 belong to), so this
+		 * is what makes the composer's grading-category datalist render on
+		 * /dev/classroom at all: 'Unit Labs' appears twice (i-3, i-8) and
+		 * 'Documentation' once (i-4), which is what proves the datalist option
+		 * order comes from courseCategorySuggestions's own ranking rather than a
+		 * retyped list.
+		 *
+		 * THE LEADING `await` IS LOAD-BEARING (CLAUDE.md: reading state inside an
+		 * `$effect` subscribes to it, including state read inside a function the
+		 * effect calls). `ContentComposer`'s own effect calls this transport
+		 * SYNCHRONOUSLY, so without it every `items`/`sections` read below would
+		 * be tracked as one of THAT effect's dependencies -- and `note`'s write
+		 * to `log` on the very next line, still inside the same synchronous
+		 * window, is enough state churn to spin it (measured: effect_update_
+		 * depth_exceeded on mount). Yielding one microtask first moves every
+		 * read past the effect's synchronous tracking window, same as wrapping
+		 * them in `untrack`.
+		 */
+		async loadCategorySuggestions(courseIds) {
+			await Promise.resolve();
+			note('loadCategorySuggestions', { courseIds });
+			const courseIdSet = new Set(courseIds);
+			const raw = items
+				.filter((i) =>
+					i.postings.some((p) => {
+						const courseId = sections.find((s) => s.id === p.section_id)?.course_id;
+						return courseId !== undefined && courseIdSet.has(courseId);
+					})
+				)
+				.map((i) => i.category);
+			return { ok: true, data: raw as string[] };
 		}
 	};
 
@@ -2238,6 +2275,19 @@
 
 	$effect(() => {
 		(window as unknown as Record<string, unknown>).__checkInProbe = () => [...checkInLog];
+		/**
+		 * FOR THE BROWSER-VERIFY HARNESS ONLY: the same two calls
+		 * `ContentComposer`'s own effect makes -- `transports.loadCategorySuggestions`
+		 * then `courseCategorySuggestions` over its result -- so a measurement of the
+		 * rendered datalist's option order can be checked against this function's OWN
+		 * output rather than a list retyped into the route spec.
+		 */
+		(window as unknown as Record<string, unknown>).__categorySuggestionsFor = async (
+			courseIds: string[]
+		) => {
+			const res = await transports.loadCategorySuggestions!(courseIds);
+			return res.ok ? courseCategorySuggestions(res.data) : [];
+		};
 		(window as unknown as Record<string, unknown>).__checkInFail = (on: boolean) => {
 			harnessCheckInFail = on;
 			return harnessCheckInFail;
