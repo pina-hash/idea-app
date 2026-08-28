@@ -295,6 +295,77 @@ export async function tapTargets(page, { selector, label = selector, min = 44, f
 }
 
 /* ------------------------------------------------------------------ *
+ * 3b. Active-vs-inactive state distinctness
+ * ------------------------------------------------------------------ */
+/**
+ * A segmented control that carries `aria-pressed` is only readable by a
+ * SIGHTED user if the pressed member actually looks different from the
+ * others -- `aria-pressed` says so to a screen reader, never to an eye.
+ * The Foundry gallery's sort control shipped a first draft where the
+ * active rule set `color: var(--green)`, which `.btn` was ALREADY
+ * setting: pressed and unpressed rendered the identical foreground on
+ * the identical ground, both at 8.28:1, and the only thing distinguishing
+ * them was the attribute. Two individually-passing `contrast` checks
+ * would not have caught that -- 8.28:1 clears 4.5:1 twice over -- because
+ * a plain per-element minimum has nothing to say about whether two
+ * elements agree with EACH OTHER.
+ *
+ * This check reads the foreground colour AND the contrast ratio of one
+ * "active" element and one "inactive" element and asserts they actually
+ * differ, by either signal: a real RGB separation in the ink (catches the
+ * green-on-green case) or a materially different ratio against their own
+ * ground (catches a same-hue-different-weight case the colour distance
+ * alone might miss). Colour is never the only signal on this platform,
+ * and it is not the only signal this check trusts either.
+ */
+export async function statePairContrast(page, { activeSelector, inactiveSelector, label, minFgDelta = 12, minRatioDelta = 0.05 } = {}) {
+	await ensureHelpers(page);
+	const data = await page.evaluate(
+		({ activeSelector, inactiveSelector }) => {
+			const h = window.__bvHelpers;
+			function read(selector) {
+				const el = document.querySelector(selector);
+				if (!el) return null;
+				const cs = getComputedStyle(el);
+				const g = h.groundOf(el);
+				const fgRaw = h.toRGBA(cs.color);
+				const fg = h.over(fgRaw, g.ground);
+				return {
+					path: h.cssPath(el),
+					fg,
+					ground: g.ground,
+					ratio: +h.ratio(fg, g.ground).toFixed(2)
+				};
+			}
+			return { active: read(activeSelector), inactive: read(inactiveSelector) };
+		},
+		{ activeSelector, inactiveSelector }
+	);
+
+	const found = !!data.active && !!data.inactive;
+	const fgDelta = found
+		? Math.sqrt(
+				(data.active.fg.r - data.inactive.fg.r) ** 2 +
+					(data.active.fg.g - data.inactive.fg.g) ** 2 +
+					(data.active.fg.b - data.inactive.fg.b) ** 2
+			)
+		: 0;
+	const ratioDelta = found ? Math.abs(data.active.ratio - data.inactive.ratio) : 0;
+	const distinct = found && (fgDelta >= minFgDelta || ratioDelta >= minRatioDelta);
+
+	return {
+		check: 'state-pair-contrast',
+		label,
+		measured: found
+			? `active ${data.active.ratio}:1 ${rgbStr(data.active.fg)} vs inactive ${data.inactive.ratio}:1 ${rgbStr(data.inactive.fg)}; Δfg=${fgDelta.toFixed(1)} Δratio=${ratioDelta.toFixed(2)}`
+			: `not found (active=${!!data.active}, inactive=${!!data.inactive})`,
+		threshold: `Δfg >= ${minFgDelta} or Δratio >= ${minRatioDelta} (states must render differently, not just both clear their own minimum)`,
+		withinThreshold: distinct,
+		data
+	};
+}
+
+/* ------------------------------------------------------------------ *
  * 4. Presence vs visibility -- two different questions
  * ------------------------------------------------------------------ */
 export async function presence(page, { selector, label = selector, expectPresent = 1, expectVisible = undefined } = {}) {
