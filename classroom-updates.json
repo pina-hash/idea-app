@@ -13,6 +13,15 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-28",
+			"title": "A hall pass on your class page",
+			"body": "There is now a hall pass at the top of every class page. Tap Sign out when you leave the room and Sign back in when you return. One person at a time can be out, so if the pass is already taken you will see that it is, and the card will tell you when you tap. Nobody in the class can see who is out -- only whether the pass is free. Your teacher sees the name and the time, and can sign you back in if you forget. There is no time limit and nothing happens automatically if you are gone a while.",
+			"tags": [
+				"Classes",
+				"classroom"
+			]
+		},
+		{
 			"date": "2026-08-10",
 			"title": "File attachments on posts and assignments",
 			"body": "Teachers can attach handouts, images and PDFs directly to an announcement or assignment. They open straight from the class page -- no separate download link, no Drive permission to request.",
