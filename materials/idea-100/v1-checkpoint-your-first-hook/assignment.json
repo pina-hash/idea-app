@@ -7,7 +7,7 @@
     "dueDate": "2026-08-28",
     "totalPoints": 20,
     "assignmentId": "idea100-hook-v1",
-    "buildVersion": "v1",
+    "buildVersion": "v3",
     "headerFields": [
       "studentName",
       "date"
@@ -24,12 +24,22 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Upload a screenshot of your part in SolidWorks with the **FeatureManager tree visible on the left**. The tree is most of what gets read here.\n\nThen fill the table with what your part actually measures in CAD, and the mass Bambu Studio reports after a slice.\n\n**V1 is allowed to be illegal.** If your throat came out at 0.940 or your mass reads 71 g, write that down. Nothing here is scored on hitting the numbers, because that is what V2 and V3 are for. It is scored on knowing where you stand."
+          "content": "**1. Attach your part file.** Save as `V1_LASTNAME.SLDPRT` and attach it to this assignment. That file is the real submission. Everything else here is you telling us about it.\n\n**2. Upload one screenshot.** The whole SolidWorks window, so the list of features down the left side is readable. That list is called the FeatureManager tree and it is most of what gets looked at.\n\n**3. Fill the table.** Four rows, one each:\n\n- Anchor hole diameter\n- Throat opening width\n- Centre to centre\n- Thickness\n\nMeasure each one on your own model, then look up what the rule says in the guide and put it beside yours.\n\n**Your part is allowed to be illegal today.** Throat came out at 1.180? Centres at 2.640? Write it down. You are not graded on hitting the numbers, you are graded on knowing where you stand. Fixing them is what V2 and V3 are for.\n\n**No mass today.** That number comes from Bambu Studio and you have not been shown it yet."
+        },
+        {
+          "id": "c0",
+          "type": "checklist",
+          "items": [
+            "My part file is attached to this assignment",
+            "It is named V1_LASTNAME.SLDPRT",
+            "There are no red or yellow marks in my FeatureManager tree"
+          ],
+          "points": 2
         },
         {
           "id": "z1",
           "type": "imageZone",
-          "points": 4,
+          "points": 3,
           "printAs": "notebookRef",
           "captions": false,
           "minImages": 1
@@ -37,31 +47,31 @@
         {
           "id": "t1",
           "type": "table",
-          "points": 6,
+          "points": 5,
           "columns": [
             {
               "key": "dim",
-              "tip": "Anchor, throat, centres, thickness, mass.",
+              "tip": "Anchor hole, throat opening, centre to centre, thickness.",
               "label": "Dimension"
             },
             {
               "key": "yours",
-              "tip": "From SolidWorks. Mass comes from Bambu.",
-              "label": "What yours measures"
+              "tip": "Measured on your own model.",
+              "label": "Yours"
             },
             {
               "key": "legal",
-              "tip": "From the rules guide.",
-              "label": "Legal value"
+              "tip": "Look it up in the Hook Design and Manufacturing Guide.",
+              "label": "The rule"
             },
             {
               "key": "ok",
               "tip": "Yes or no. No is a normal answer today.",
-              "label": "Inside the rule?"
+              "label": "Inside it?"
             }
           ],
-          "minRows": 5,
-          "printRows": 6,
+          "minRows": 4,
+          "printRows": 5,
           "rowImages": false,
           "statusColumn": true
         }
@@ -73,51 +83,75 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Solid body, tree visible",
+              "short": "Attached, opens, rebuilds",
               "points": 4,
-              "descriptor": "Screenshot shows a solid body with both features present and the FeatureManager tree readable at full size."
+              "descriptor": "A correctly named part file is attached, opens, and shows no red or yellow marks in the tree."
             },
             {
               "label": "Proficient",
-              "short": "Body built, tree cut off",
+              "short": "Attached with tree marks",
               "points": 3,
-              "descriptor": "A solid body with both features, but the tree is cropped, hidden, or unreadable."
+              "descriptor": "File attached and opens, but the tree carries red or yellow marks."
             },
             {
               "label": "Developing",
-              "short": "Partial body only",
+              "short": "Attached, wrong or partial",
               "points": 2,
-              "descriptor": "Screenshot shows a sketch or an incomplete body rather than a hook with both features."
+              "descriptor": "A file is attached but is misnamed, is the wrong format, or contains only a sketch rather than a body."
             },
             {
               "label": "Absent",
-              "short": "Nothing uploaded",
+              "short": "No file attached",
               "points": 0,
-              "descriptor": "No screenshot, or an image of something other than this student's SolidWorks session."
+              "descriptor": "Nothing attached to the assignment."
             }
           ],
-          "criterion": "A built part exists and its tree is legible"
+          "criterion": "A part file is attached and it opens without unresolved errors"
         },
         {
           "id": "r2",
           "levels": [
             {
               "label": "Complete",
-              "short": "All five, honestly compared",
-              "points": 6,
-              "descriptor": "All five rows carry a measured value, the legal value beside it, and a verdict, including any that fall outside the rule."
+              "short": "Body and tree readable",
+              "points": 2,
+              "descriptor": "Solid body with both features visible and the tree readable at full size."
+            },
+            {
+              "label": "Developing",
+              "short": "Tree cropped or hidden",
+              "points": 1,
+              "descriptor": "Part visible but the tree is cropped, collapsed, or unreadable."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No screenshot uploaded."
+            }
+          ],
+          "criterion": "The screenshot shows the part with its FeatureManager tree"
+        },
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All four, honestly compared",
+              "points": 4,
+              "descriptor": "All four rows carry a measured value, the legal value beside it, and a verdict, including any that fall outside the rule."
             },
             {
               "label": "Proficient",
-              "short": "Four of five measured",
-              "points": 4,
-              "descriptor": "Four rows carry measured values with comparisons; one is missing a value or a verdict."
+              "short": "Three of four measured",
+              "points": 3,
+              "descriptor": "Three rows carry measured values with comparisons; one is missing a value or a verdict."
             },
             {
               "label": "Developing",
               "short": "Rules copied, not measured",
               "points": 2,
-              "descriptor": "Rows repeat the legal values in the measured column, or fewer than four rows carry real measurements."
+              "descriptor": "Rows repeat the legal values in the measured column, or fewer than three rows carry real measurements."
             },
             {
               "label": "Absent",
@@ -126,7 +160,7 @@
               "descriptor": "No table filled."
             }
           ],
-          "criterion": "All five values are measured and compared against the rule"
+          "criterion": "All four dimensions are measured and compared against the rule"
         }
       ],
       "aiLevel": 3
@@ -139,15 +173,15 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "You wrote down two designs from the case library and what you were taking from each.\n\nSay what actually made it into V1, and where. Point at a specific part of your hook.\n\n**\"I did not use either one\" is a legitimate answer** if you say what you did instead and why. Abandoning an idea once you start drawing is normal engineering. Pretending you used it is not."
+          "content": "On Thursday you wrote down two designs from the case library and what you were taking from each.\n\nSay which one actually made it into your hook, and point at where on the part it is.\n\n**\"Neither one\" is a full-credit answer** if you say what you did instead and why you changed your mind. Dropping an idea once you start drawing is normal. Saying you used it when you did not is the problem."
         },
         {
           "id": "f1",
           "type": "textField",
           "points": 5,
-          "prompt": "Which of the two designs you named on Thursday shows up in V1, and where on your part is it? If neither made it in, say what replaced them and what changed your mind.",
-          "maxSentences": 5,
-          "minSentences": 3
+          "prompt": "Which design from Thursday shows up in your hook, and where on the part is it? If neither did, what replaced it and why?",
+          "maxSentences": 4,
+          "minSentences": 2
         }
       ],
       "points": 5,
@@ -187,13 +221,13 @@
     },
     {
       "id": "m3",
-      "intro": "Thirty seconds. This one is for the course, not for you.",
+      "intro": "Thirty seconds, and it is worth the same five points however you answer it.",
       "title": "What Stopped You",
       "aiNote": "No AI. This is a report on your own period and only you were there.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "One thing stopped you longer than anything else today. Everyone had one.\n\nWrite what it was, and what got you moving again: the assistant, a TA, a neighbour, or working it out yourself.\n\n**Answer this honestly and it is worth full marks whatever it says.** It is the only read anyone gets on whether the assistant and the TAs are actually working, and a room full of \"nothing stopped me\" tells us nothing and changes nothing for Monday."
+          "content": "Something stopped you longer than anything else today. Everybody had one.\n\nWrite what it was, roughly how long it cost you, and what finally got you moving: the assistant, a TA, the person next to you, or working it out yourself.\n\n**Say it honestly and you get all five points whatever it says.** This is how we find out whether the assistant and the TAs are actually helping. \"Nothing stopped me\" tells us nothing and changes nothing about Monday."
         },
         {
           "id": "t2",
@@ -228,7 +262,7 @@
             "I pasted the assistant prompt into a fresh chat at the start of the period",
             "I kept that same chat open while I worked",
             "I screenshotted the whole SolidWorks window at least once, tree included",
-            "My V1 file is saved and submitted"
+            "I asked it what was causing a problem at least once, not just what the fix was"
           ],
           "points": 2
         }
