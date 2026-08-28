@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import RegionEditor from '$lib/gauntlet/RegionEditor.svelte';
@@ -125,18 +126,40 @@
 		assetTrim && !assetIsInline && !assetIsUrl ? assetTrim : !assetTrim ? form.drawing_image_path : ''
 	);
 	$effect(() => {
+		// TRACKED, deliberately: the path to sign, and the CLIENT itself. `data`
+		// is `$derived` on both author pages, so an `invalidate('supabase:auth')`
+		// hands this component a freshly constructed client and the URL has to be
+		// re-signed against it.
 		const path = pathToSign;
+		const client = supabase;
 		if (file || !path) {
 			signedPathUrl = null;
 			return;
 		}
 		let cancelled = false;
-		supabase.storage
-			.from(DRAWINGS_BUCKET)
-			.createSignedUrl(path, 3600)
-			.then(({ data }) => {
+		// UNTRACKED. `supabase` is a prop, so this call is somebody else's code
+		// running in this effect's tracking context exactly as an injected
+		// transport is, and this file cannot see what the object it was handed
+		// does before its first `await`.
+		//
+		// TODAY IT GENUINELY CANNOT LOOP, and that is worth stating rather than
+		// leaving implied: both mounts (`/gauntlet/author/new` and
+		// `/gauntlet/author/[id]`) pass the real `createBrowserClient` object
+		// built in `+layout.ts`, no harness mounts this component with a stub,
+		// and nothing in `@supabase/ssr`'s storage path reads a rune. So the
+		// wrapping buys no behaviour change here.
+		//
+		// It is wrapped anyway because the rule is about SHAPE, not about what
+		// the current object happens to do. The composer's own defect was a
+		// transport that happened not to loop in production and took the surface
+		// down the moment a harness passed a stateful one; a prop-supplied client
+		// is one stub away from the same thing. See the injected-callback rule in
+		// CLAUDE.md.
+		untrack(() => client.storage.from(DRAWINGS_BUCKET).createSignedUrl(path, 3600)).then(
+			({ data }) => {
 				if (!cancelled) signedPathUrl = data?.signedUrl ?? null;
-			});
+			}
+		);
 		return () => {
 			cancelled = true;
 		};

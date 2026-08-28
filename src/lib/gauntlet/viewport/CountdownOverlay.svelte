@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { prefersReducedMotion } from './motion';
 
 	/**
@@ -21,7 +22,16 @@
 	$effect(() => {
 		if (!active) return;
 		if (prefersReducedMotion()) {
-			onDone?.();
+			// UNTRACKED even though there is no transport and nothing to await:
+			// `onDone` is a callback the MOUNTING surface wrote, so it is somebody
+			// else's code running inside this effect's tracking context, and
+			// whatever it reads reactively before it returns joins this effect's
+			// dependencies. A parent whose handler flips a `$state` flag this
+			// overlay's `active` is derived from is a loop, and nothing here can
+			// see that. The two calls below are inside `setTimeout` callbacks,
+			// which run outside the tracking context already. See the
+			// injected-callback rule in CLAUDE.md.
+			untrack(() => onDone?.());
 			return;
 		}
 		const seq = ['3', '2', '1', 'BUILD'];

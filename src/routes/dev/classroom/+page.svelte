@@ -1066,19 +1066,24 @@
 		 * order comes from courseCategorySuggestions's own ranking rather than a
 		 * retyped list.
 		 *
-		 * THE LEADING `await` IS LOAD-BEARING (CLAUDE.md: reading state inside an
-		 * `$effect` subscribes to it, including state read inside a function the
-		 * effect calls). `ContentComposer`'s own effect calls this transport
-		 * SYNCHRONOUSLY, so without it every `items`/`sections` read below would
-		 * be tracked as one of THAT effect's dependencies -- and `note`'s write
-		 * to `log` on the very next line, still inside the same synchronous
-		 * window, is enough state churn to spin it (measured: effect_update_
-		 * depth_exceeded on mount). Yielding one microtask first moves every
-		 * read past the effect's synchronous tracking window, same as wrapping
-		 * them in `untrack`.
+		 * IT NEEDS NO LEADING `await` ANY MORE, AND THE ABSENCE IS THE POINT.
+		 * It carried one -- a bare `await Promise.resolve()` -- because
+		 * `ContentComposer`'s effect called this transport SYNCHRONOUSLY, so every
+		 * `items`/`sections` read below joined THAT effect's dependencies and
+		 * `note`'s write to `log` on the next line spun it (measured:
+		 * effect_update_depth_exceeded on mount). Yielding a microtask moved the
+		 * reads past the tracking window and fixed the symptom FROM THE CALLER'S
+		 * SIDE, which is the wrong side: it made every future harness transport
+		 * responsible for a rule it cannot see, and a transport written without
+		 * the yield would have brought the loop straight back.
+		 *
+		 * The composer untracks the call now, so the effect is safe against any
+		 * transport rather than against the careful ones. This one is deliberately
+		 * left in the shape a person would naturally write -- synchronous, reading
+		 * state, writing a log line -- so the harness stays a real test of that
+		 * fix instead of tiptoeing around it.
 		 */
 		async loadCategorySuggestions(courseIds) {
-			await Promise.resolve();
 			note('loadCategorySuggestions', { courseIds });
 			const courseIdSet = new Set(courseIds);
 			const raw = items

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
 		enrollmentWorkSummary,
@@ -337,13 +338,19 @@
 	 * roster above it.
 	 */
 	$effect(() => {
+		// TRACKED, deliberately: the transport's presence and which class this is
+		// are exactly what should re-run this.
 		const load = loadNotebookGrid;
 		const sectionId = section.id;
 		if (!load) return;
 		let alive = true;
 		notebookLoading = true;
-		// null = every unit, which is what "how is this class doing" means.
-		void load(sectionId, null).then((res) => {
+		// null = every unit, which is what "how is this class doing" means. The
+		// CALL is UNTRACKED, and that is the load-bearing half: `load` is
+		// INJECTED, so whatever it touches before its first `await` would
+		// otherwise join this effect's dependencies. See the injected-callback
+		// rule in CLAUDE.md.
+		void untrack(() => load(sectionId, null)).then((res) => {
 			if (!alive) return;
 			notebookLoading = false;
 			if (res.ok) {

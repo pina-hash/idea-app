@@ -1791,6 +1791,28 @@ inside the function fails closed rather than falling through to a weaker path.
   (`/api/notebook/*`, `/api/classroom/*`).
 - **Every `+server.ts` re-checks authorization itself.** A route group's layout
   guard does NOT run for endpoints.
+- **SVELTEKIT THROWS ON ANY NON-METHOD EXPORT FROM A `+server.ts`, AND NOTHING
+  LOCAL CATCHES IT, SO THE FIRST SIGN IS PRODUCTION.** `validate_server_exports`
+  admits `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, `OPTIONS`, `HEAD`, `fallback`,
+  `prerender`, `trailingSlash`, `config`, `entries` -- **and anything whose key
+  starts with `_`.** Everything else raises
+  `Invalid export '<name>' in <route>` when the route is served. Exporting a
+  helper, a constant or a type from an endpoint so a test can import it is the
+  ordinary way to hit this.
+  - **BOTH LOCAL CHECKS PASS A BROKEN FILE, MEASURED.** With
+    `export const helperTable = { a: 1 }` appended to a real `+server.ts`,
+    `svelte-check` reported its usual **0 errors and 37 warnings** -- the export
+    is valid TypeScript, and the rule is SvelteKit's, not the type system's --
+    and a vitest file imported the module, read `helperTable` off it and passed.
+    Vitest imports the module DIRECTLY and never goes through the router, so the
+    validator it would trip is not on the path. `npm run build` does run the
+    validator in its postbuild analysis, which is the one thing that would catch
+    it -- and on Windows that build dies earlier with the EPERM in the toolchain
+    traps below, so the local answer is "the build is broken anyway".
+  - **THE `_` PREFIX IS THE WHOLE ANSWER, and it is already the repo's.**
+    `src/routes/vanguard/+server.ts` exports `_NON_ADMIN_STRIPS` and
+    `_stripForNonAdmin` for exactly this reason. Prefix it, or move it to a
+    module beside the route and import it from both.
 - **A group-wide gate is hoisted to `+layout.server.ts`** and stated once, so a
   new area cannot ship ungated by forgetting to copy the check.
 - **A FAILED LOAD RENDERS IN THE APP'S CHROME.** `src/routes/+error.svelte` is the
@@ -2434,9 +2456,11 @@ These have each cost a debugging session. They are not hypothetical.
   inside functions the effect calls. An effect that calls a transport takes a
   dependency on whatever that transport touches and spins. Wrap the work in
   `untrack` and pass its inputs explicitly.
-- **AN `$effect` THAT CALLS AN INJECTED CALLBACK -- A TRANSPORT, A PROP
-  FUNCTION, ANY CALLER-SUPPLIED CALLBACK -- WRAPS THE CALL ITSELF IN `untrack`,
-  AND THE FAILURE IS `effect_update_depth_exceeded` ON MOUNT.** This is the rule
+- **AN `$effect` THAT CALLS INJECTED CODE -- A TRANSPORT, A PROP FUNCTION, A
+  PROP-SUPPLIED CLIENT, ANY CALLER-SUPPLIED BINDING -- WRAPS THE CALL ITSELF IN
+  `untrack`, AND THE FAILURE IS `effect_update_depth_exceeded` ON MOUNT.**
+  Search for that string: it is the whole symptom, it arrives on mount, and it
+  names nothing about the transport that caused it. This is the rule
   above pointed at the case where the code being called is not YOURS. A
   transport is written by whoever mounts the component, who cannot see the
   effect that calls it: everything it touches reactively before its first
@@ -2460,20 +2484,58 @@ These have each cost a debugging session. They are not hypothetical.
     there is already safe; wrapping it only suggests the rule is about promises
     rather than about the synchronous prefix, which is where the whole problem
     lives.
-  - **A CALLBACK IS NOT EXEMPT FOR BEING SMALL.** `ondirtychange?.(dirty)` is
-    one prop call with no `await` in it at all, and it is the same defect: the
-    parent's handler is somebody else's code running inside this effect's
-    tracking context.
+  - **A CALLBACK IS NOT EXEMPT FOR BEING SMALL, AND THE DEFECT IS NOT ABOUT
+    ASYNC.** `ondirtychange?.(dirty)` is one prop call with no `await` in it at
+    all, and `CountdownOverlay`'s `onDone?.()` under reduced motion is one prop
+    call with no transport, no promise and nothing to cancel. Both are the same
+    defect: the parent's handler is somebody else's code running inside this
+    effect's tracking context, and whatever it reads reactively before it
+    returns is now a dependency of an effect its author never saw. A parent
+    whose handler flips the very flag the overlay's `active` is derived from is
+    a loop, and nothing in the overlay can see that.
+  - **AN INJECTED CLIENT IS THE SAME SHAPE AS AN INJECTED CALLBACK.**
+    `ChallengeForm` takes a `SupabaseClient` as a PROP and called
+    `supabase.storage.from(...).createSignedUrl(...)` straight from an effect.
+    Measured, it genuinely cannot loop today: both mounts pass the real
+    `createBrowserClient` object from `+layout.ts`, no harness mounts it with a
+    stub, and nothing in `@supabase/ssr` reads a rune. **It is wrapped anyway,
+    and the reason is written beside it** -- the rule is about the SHAPE, and
+    "happens not to loop" is exactly the state the composer was in the day
+    before a harness handed it a stateful transport. Where the client is the
+    tracked input the effect re-runs on, hoist it (`const client = supabase;`)
+    and untrack only the call, or the wrapping silently costs the re-run.
   - **IT IS ASSERTED ON THE SOURCE, NOT ON A MOUNT, AND THAT IS A LIMIT WORTH
-    KNOWING.** `tests/classroom-composer-effect-reactivity.test.ts` parses the
-    real `ContentComposer.svelte` and reddens on any unwrapped injected call in
-    ANY of its effects, so it catches the next one rather than the one that was
-    fixed. It cannot mount: effects never run under `svelte/server`, this suite
-    is `environment: 'node'` with no DOM package, and `svelte` resolves to its
+    KNOWING.** `tests/classroom-composer-effect-reactivity.test.ts` cannot
+    mount: effects never run under `svelte/server`, this suite is
+    `environment: 'node'` with no DOM package, and `svelte` resolves to its
     server build -- measured, a bare `$effect.root` in a `.svelte.ts` fixture
     runs its effect ZERO times, so a runtime control written here today would be
     green and prove nothing. **Do not add one without the environment to run
     it.**
+  - **AND IT SWEEPS ALL OF `src/`, NOT THE FILE THE BUG WAS FOUND IN. THE
+    FILENAME IS HISTORICAL.** It parsed `ContentComposer.svelte` alone for one
+    bundle; pointed at the tree it found SIX more, in five files across three
+    subsystems, none of them the classroom. A checker aimed at the component
+    that was already fixed only ever proves the fix is still there. It walks
+    every `.svelte` file under `src/` (350 files, 164 effects at the time of
+    writing) and reddens with a file and a line. **`.svelte.ts` modules are
+    outside it** -- they have no `$props()`, so "caller-supplied" is a different
+    shape there -- and that gap is a TRIPWIRE rather than an omission: no such
+    module runs an effect today, and the test reddens the moment one does.
+  - **THE PURE-COLLECTION ALLOWLIST IS PER SITE, WITH A REASON AND A PINNED
+    LENGTH.** A call whose member is `map`/`filter`/`find` over prop DATA takes
+    no dependency the effect did not already have by reading the array. But
+    `get`, `has` and `find` are on that list for `Map` and `Array`, so a
+    transport NAMED `transports.get(id)` would be waved straight through by the
+    method name alone -- which is fine to eyeball in one file and impossible
+    across 350. So a pure-looking call clears only when its `file::callee` is
+    named in `ALLOWED_PURE`, with the reason somebody checked, an exact count
+    (a SECOND call at a blessed site is still looked at) and no line numbers (a
+    list that has to be renumbered is one that gets renumbered without being
+    read). The length is pinned, a stale entry reddens, and an unparseable
+    component is a FAILURE rather than a skip -- a file the checker could not
+    read is a file it never checked, and silently skipping it is how a sweep
+    comes back clean over code it never saw.
 - **An effect that calls something writing state must be deferred**
   (`queueMicrotask`), or it lands while Svelte is still settling the render and
   throws `state_unsafe_mutation` -- which surfaces as an unhandled rejection after
@@ -2724,6 +2786,27 @@ belong wherever the app's own behaviour is documented.
   cold runs), independent of code correctness. **Do not add a parallel `test`
   variant** -- it is broken, not faster, and a second script offering it is a
   second way to hit this.
+- **DO NOT RUN PRETTIER. IT IS REACHABLE AND IT IS NOT CONFIGURED, WHICH IS THE
+  WORST OF THE THREE POSSIBLE STATES.** With no config the defaults apply, and
+  the default is TWO SPACES over a codebase indented with TABS -- so a run
+  rewrites every line of every file it touches and turns a three-line fix into a
+  whole-file diff nothing can be reviewed against. The churn is silent: it
+  formats cleanly, exits 0, and says nothing about having reformatted 2,000
+  lines you did not write.
+  - **IT IS NOT A PROJECT DEPENDENCY, AND THAT IS WHY IT IS DANGEROUS RATHER
+    THAN WHY IT IS SAFE.** Measured: no `prettier` in `dependencies` or
+    `devDependencies`, not in `node_modules`, and **zero occurrences in
+    `package-lock.json`**. There is no `.prettierrc`, no `prettier` key in
+    `package.json`, no `.editorconfig` and no `format` script. But a bare
+    `prettier` resolves anyway -- it is installed GLOBALLY in the agent
+    environments this repo is worked in (`/opt/node22/bin/prettier`), and `npx
+    prettier` would fetch it from the registry on demand. So there is nothing in
+    the repo pinning its version, nothing stating the house style, and nothing
+    that records it ran. A pinned devDependency would at least be one of those.
+  - **MATCH THE SURROUNDING STYLE BY HAND**, and do not add a config to "fix"
+    this as a side effect of an unrelated task. Adopting a formatter is its own
+    bundle and its diff is the entire repository; smuggling it in under another
+    change is how a surgical fix becomes unreviewable.
 - **`npm run build` dies on Windows in the Vercel adapter's `closeBundle` with
   `EPERM`** writing a path Windows cannot create. Machine-level and PRE-EXISTING,
   not a code failure; Vercel builds on Linux and is unaffected. It does NOT stop

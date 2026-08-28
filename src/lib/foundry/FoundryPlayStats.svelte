@@ -31,6 +31,7 @@
 	 * ABSENCE IS STILL THE MECHANISM. No `playStats` transport, nothing rendered
 	 * -- not an empty panel, not a "not available" card.
 	 */
+	import { untrack } from 'svelte';
 	import {
 		FOUNDRY_PLAY_COVERAGE_NOTE,
 		formatPlayTime,
@@ -64,9 +65,21 @@
 	 * RE-READ WHEN THE APP CHANGES, and clear everything belonging to the
 	 * previous one first, so a stale figure is never shown under a new title.
 	 *
-	 * Only `appId` is read tracked. The body WRITES `stats`, `loading` and
-	 * `refused`, and reading any of them here would take a dependency on state
-	 * this effect itself moves.
+	 * Only `appId` is read tracked, and there are TWO independent reasons for
+	 * that, both of which have to hold.
+	 *
+	 * The body WRITES `stats`, `loading` and `refused`, so reading any of them
+	 * here would take a dependency on state this effect itself moves. That much
+	 * was already written down, and it stops one step short: it accounts only
+	 * for what THIS file reads, and says nothing about what `load` reads.
+	 *
+	 * `load` is INJECTED -- written by whoever mounts this component, who cannot
+	 * see this effect -- so everything it touches reactively before its first
+	 * `await` would join this effect's dependency set too, and anything it
+	 * writes would re-trigger the effect. A harness transport that merely read a
+	 * fixture array and appended a log line is already a non-terminating loop.
+	 * So the CALL is untracked while `appId` stays tracked. See the
+	 * injected-callback rule in CLAUDE.md.
 	 */
 	$effect(() => {
 		const id = appId;
@@ -74,7 +87,7 @@
 		refused = false;
 		if (!load) return;
 		loading = true;
-		load(id)
+		untrack(() => load(id))
 			.then((r) => {
 				// The subject may have moved on while this was in flight.
 				if (appId !== id) return;
