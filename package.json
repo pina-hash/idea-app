@@ -24,6 +24,7 @@
 		"@types/qrcode": "^1.5.6",
 		"@types/web-push": "^3.6.4",
 		"embedded-postgres": "^17.10.0-beta.17",
+		"happy-dom": "20.11.14",
 		"pg": "^8.22.0",
 		"playwright-core": "1.56.1",
 		"svelte": "^5.56.3",
