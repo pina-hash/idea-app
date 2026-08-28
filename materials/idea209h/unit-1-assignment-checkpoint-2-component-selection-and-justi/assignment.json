@@ -26,18 +26,41 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Your Checkpoint 1 numbers were the point. Now spend them.\n\n**Six components:** the reduction, the pivot bearings, the pivot shaft, the hub fasteners, the arm stock, and the bearing mounts. The first four are decided by a number you calculated. The last two are decided by what has to fit, which is a real constraint and you still have to say what drove it.\n\nFor each one, write **one sentence** in this shape: the published number clears the number I calculated, or this size is what the assembly physically requires. Name the actual values. A justification that says a part looks strong enough, or that it is what the team normally uses, earns nothing, because neither is a published property.\n\n**Open the listing.** A part number you did not read off a page is not a selection.\n\nThen size one fastener in shear, and name one candidate you looked at and rejected. Both of those are what you will be asked about first during the defense."
+          "content": "Your Checkpoint 1 numbers were the point. Now spend them.\n\n**Six components:** the reduction, the pivot bearings, the pivot shaft, the hub fasteners, the arm stock, and the bearing mounts. The first four are decided by a number you calculated. The last two are decided by what has to fit, which is a real constraint and you still have to say what drove it.\n\nThe selection table takes one row per component. The last two columns are the whole argument: a published number off the listing, and the number of yours it clears. Both need units. A row that says a part looks strong enough, or that it is what the team normally uses, earns nothing, because neither is a published property.\n\n**Open the listing.** A part number you did not read off a page is not a selection.\n\nThen name one candidate you looked at and rejected, and size one fastener in shear. Those two are what you will be asked about first during the defense."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 10,
+          "columns": [
+            {
+              "key": "component",
+              "tip": "Reduction, pivot bearing, pivot shaft, hub fastener, arm stock, bearing mount.",
+              "label": "Component"
+            },
+            {
+              "key": "selected",
+              "tip": "Part number exactly as the listing gives it, plus the vendor.",
+              "label": "What you selected"
+            },
+            {
+              "key": "published",
+              "tip": "The number off the listing that matters. Load rating, grade, ratio, bore, size.",
+              "label": "Published specification"
+            },
+            {
+              "key": "clears",
+              "tip": "The number you calculated, or the fit constraint it satisfies. Both need units.",
+              "label": "Value it clears"
+            }
+          ],
+          "minRows": 6,
+          "printRows": 8,
+          "rowImages": false,
+          "statusColumn": false
         },
         {
           "id": "f1",
-          "type": "textField",
-          "points": 10,
-          "prompt": "For each of the six components: what you selected, and one sentence naming the published specification or fit constraint and the calculated value it clears.",
-          "maxSentences": 14,
-          "minSentences": 6
-        },
-        {
-          "id": "f2",
           "type": "textField",
           "points": 4,
           "prompt": "Name one candidate part you looked at and did not choose. Say what it was and what specifically ruled it out.",
@@ -45,12 +68,38 @@
           "minSentences": 2
         },
         {
-          "id": "f3",
+          "id": "t2",
+          "type": "table",
+          "points": 4,
+          "columns": [
+            {
+              "key": "quantity",
+              "tip": "In order: force per bolt, area used, capacity, margin.",
+              "label": "Quantity"
+            },
+            {
+              "key": "value",
+              "tip": "With units.",
+              "label": "Value"
+            },
+            {
+              "key": "source",
+              "tip": "The formula or the published source. Not just the answer.",
+              "label": "How you got it"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 5,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "f2",
           "type": "textField",
-          "points": 6,
-          "prompt": "Size one fastener in shear. Give the force per bolt, the area you used and why, the capacity, and the resulting margin.",
-          "maxSentences": 9,
-          "minSentences": 4
+          "points": 2,
+          "prompt": "Does the shear plane fall in the smooth shank or in the threads, and why does that decide which area you used?",
+          "maxSentences": 3,
+          "minSentences": 1
         }
       ],
       "points": 20,
@@ -183,7 +232,7 @@
           "content": "A Bill of Materials is a procurement document. The test is simple: could someone who has never seen your project place this order without contacting you?\n\nEvery row needs a vendor, a part number, a quantity, the one specification your justification depended on, and a unit price. A blank cell is a question somebody has to come ask you, and every question is a delay.\n\nQuantity means how many the assembly needs, not how many come in a package. Two bearings means two, even if they are sold in packs of ten.\n\nExtend the line totals and give the order total. Cost is a design constraint and you worked with it in the lab."
         },
         {
-          "id": "t1",
+          "id": "t3",
           "type": "table",
           "points": 10,
           "columns": [
