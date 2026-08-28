@@ -3420,6 +3420,20 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   opened in a browser bought nothing over pushing to `main`.
 - **If a session ends with a branch still open, report the branch name and what
   is unfinished on it.** An unmerged branch is invisible work.
+- **A FINISHED `claude/**` BRANCH VANISHING ON ITS OWN IS CORRECT, NOT A
+  MISTAKE, AND IT IS STILL NOT A REASON TO START MERGING.** A workflow
+  (`.github/workflows/integrate.yml`, read its own `README.md` for the
+  operator's view) merges any `claude/**` branch into a long-lived
+  `integration` branch the moment CI goes green on its tip, and deletes the
+  branch. **The commits are not lost** -- they are on `integration` -- and
+  **`main` still moves only when a person merges it**, because that push is
+  the deploy to `ideabosco.com` mid-class, and several bundles carry a
+  migration CI cannot see and that has to be applied by hand first. Nothing in
+  this file changes: push the branch, do not merge to `main`, exactly as every
+  prompt already says. **A `claude/**` branch still standing after a session
+  ends is a SIGNAL, not a leftover** -- its CI failed, its CI has not finished,
+  or its merge into `integration` conflicted -- and is worth naming in the same
+  report a still-open branch already gets.
 - **Never force-push `main`.** Not `--force`, not `-f`, not
   `--force-with-lease`. The repo holds the only archive of exported material
   revisions.
