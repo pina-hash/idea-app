@@ -1419,6 +1419,41 @@ with its own answer for the rows already stored.
   own-row `WITH CHECK`, because there is nothing to forge in a comment about
   yourself; and the legacy coin import writes rows directly because they are
   HISTORY, not events, and no live rule should read them.
+- **EVERY PUBLIC COIN WRITE FUNCTION IS ADMIN-ONLY, AND 0145 IS THE FIRST
+  DELIBERATE EXCEPTION.** `coin_log_transaction`, `coin_log_extra_credit`,
+  `coin_bulk_log_section` and `coin_payout_student` each open with the
+  identical `if not public.is_admin() then raise exception 'Only site admins
+  can log IDEA Coin transactions.';`, and a nested SECURITY DEFINER call does
+  not escape it: `is_admin()` reads the session's JWT claims, so it answers
+  about the ORIGINAL caller regardless of how many definer functions sit
+  between them and `_coin_insert`.
+  - **`0145` (the classroom song queue) is the first path that moves a coin
+    with no admin in the chain.** Approving a song request charges the
+    requester 2i¢ from their digital balance, and approval is available to any
+    SECTION MANAGER (`classroom_manages_section`), which is routinely a
+    teacher who is not an admin. It cannot call `coin_log_transaction` --
+    that would raise the sentence above at exactly the person the feature is
+    for -- so `classroom_song_approve` mints the row itself, straight through
+    `_coin_insert` (the row shape) and `_coin_balance` (the digital-balance
+    debt check), with the price read from `coin_categories` rather than
+    written down twice.
+  - **THE REASONING, KEPT BESIDE THE RULE IT BENDS:** the teacher of a room
+    should be able to moderate their own room without an admin in the loop; the
+    amount is fixed by the `song_request` category row, never chosen by the
+    approver, so a manager cannot set an arbitrary price; and the alternative --
+    an instructor unable to approve a song in their own class -- is worse than
+    the admin-only rule being not-quite-universal. This is a narrow, named
+    exception, not a second authorization model: every OTHER coin-moving path
+    stays admin-gated, and a new one needs its own stated reason here, not a
+    silent second call to `_coin_insert`.
+  - **THE RETROFIT THAT WOULD REMOVE THE EXCEPTION**, named in 0145's own
+    header so it is not reinvented: give `coin_log_transaction` an
+    authorization seam other than `is_admin()`, or extract its
+    price/sign/debt/insert middle into a private helper both it and a
+    non-admin caller like this one can reach. Either is a change to the
+    busiest function in the coin system and belongs in its own bundle with its
+    own answer for every existing caller, not something to fold into a
+    narrow feature's migration.
 - **`app_feedback` HAS TWO WRITE PATHS ON PURPOSE, AND THEY DO NOT CONVERGE.**
   A signed-in report is the direct insert above, whose `WITH CHECK` pins
   `user_id` to `auth.uid()`; an anonymous one goes through
