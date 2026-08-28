@@ -19,11 +19,8 @@
 
 export type DeviceClass = 'mobile' | 'desktop';
 
-/** A flat map of `vanguard_*` localStorage key -> string value. */
-export type Snapshot = Record<string, string>;
-
 /** Per-device-class preference bucket (pref keys + an `_ts` marker). */
-export type PrefBucket = Record<string, string>;
+type PrefBucket = Record<string, string>;
 
 export interface StoredSave {
 	v: 2;
@@ -346,16 +343,4 @@ export function mergeIntoStored(
 	if (stored.prefs.mobile) delete stored.prefs.mobile.vanguard_lastInitials;
 	if (stored.prefs.desktop) delete stored.prefs.desktop.vanguard_lastInitials;
 	return stored;
-}
-
-/** The localStorage keys a given device class should see (progression + its prefs). */
-export function flattenForDevice(stored: StoredSave, deviceClass: DeviceClass): Record<string, string> {
-	const out: Record<string, string> = { ...stored.progression };
-	const bucket = stored.prefs[deviceClass];
-	if (bucket) {
-		for (const [k, v] of Object.entries(bucket)) {
-			if (k !== '_ts' && typeof v === 'string') out[k] = v;
-		}
-	}
-	return out;
 }
