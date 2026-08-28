@@ -1,0 +1,271 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Unit 1 Assignment: Checkpoint 2",
+    "course": "IDEA209H",
+    "dueDate": "2026-08-31",
+    "totalPoints": 30,
+    "assignmentId": "idea209h-u1-cp2",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Assignments"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Four components, chosen from real catalogs, each justified against a published number that clears a number you calculated.",
+      "title": "Component Selection and Justification",
+      "aiNote": "ASSIST. You may use AI to search for candidate parts, to explain a specification you do not recognise, and to tighten your writing. Every specification you cite must be confirmed on the vendor's own listing before you use it. An AI that names a part number is not a catalog page. If you cannot open the page, you cannot cite the part.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your Checkpoint 1 numbers were the point. Now spend them.\n\n**Four components:** the reduction, the pivot bearings, the pivot shaft, and the hub fasteners. Nothing else. These are the four your calculations actually decide.\n\nFor each one, write **one sentence** in this shape: the published number clears the number I calculated. Name both. A justification that says a part looks strong enough, or that it is what the team normally uses, earns nothing, because neither is a published property.\n\n**Open the listing.** A part number you did not read off a page is not a selection, and it is the one thing the AI policy on this module will not forgive.\n\nThen size one fastener in shear. Show the force per bolt, the area you used, the capacity, and the margin. Say whether the shear plane falls in the shank or the threads, because that decides which area is correct."
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 14,
+          "prompt": "For each of the four components: what you selected, and one sentence naming the published specification and the calculated value it clears.",
+          "maxSentences": 16,
+          "minSentences": 8
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 6,
+          "prompt": "Size one fastener in shear. Show force per bolt, the area used and why, the capacity, and the resulting margin.",
+          "maxSentences": 8,
+          "minSentences": 3
+        }
+      ],
+      "points": 20,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Four parts, real listings",
+              "points": 7,
+              "descriptor": "All four components selected from actual vendor listings, each identified by a part number that resolves to a real page."
+            },
+            {
+              "label": "Proficient",
+              "short": "Four parts, one unverifiable",
+              "points": 5,
+              "descriptor": "All four selected, but one part number is wrong, generic, or does not resolve to a listing."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or three parts",
+              "points": 3,
+              "descriptor": "Only two or three components selected, or several identified by description rather than part number."
+            },
+            {
+              "label": "Absent",
+              "short": "No real sourcing",
+              "points": 0,
+              "descriptor": "Components named generically with no vendor or part number, or not attempted."
+            }
+          ],
+          "criterion": "Sourced from real catalogs"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both numbers, all four",
+              "points": 7,
+              "descriptor": "Every selection names a published specification and the calculated value it clears, with both stated."
+            },
+            {
+              "label": "Proficient",
+              "short": "Both numbers, most",
+              "points": 5,
+              "descriptor": "Most selections name both numbers; one or two name only the published value or only the calculated one."
+            },
+            {
+              "label": "Developing",
+              "short": "Asserted, not shown",
+              "points": 3,
+              "descriptor": "Selections are justified by suitability, availability, or team habit rather than by a published number."
+            },
+            {
+              "label": "Absent",
+              "short": "No justification",
+              "points": 0,
+              "descriptor": "Selections listed with no reasoning, or not attempted."
+            }
+          ],
+          "criterion": "Justified against published properties"
+        },
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Worked, area choice stated",
+              "points": 6,
+              "descriptor": "Force per bolt, area used, capacity, and margin all shown, with the shear plane location stated and the matching area used."
+            },
+            {
+              "label": "Proficient",
+              "short": "Worked, area unstated",
+              "points": 4,
+              "descriptor": "The calculation is complete and correct but does not say whether the shear plane falls in the shank or the threads."
+            },
+            {
+              "label": "Developing",
+              "short": "Partial calculation",
+              "points": 2,
+              "descriptor": "Force per bolt found but capacity or margin missing, or an area used that does not match the stated plane."
+            },
+            {
+              "label": "Absent",
+              "short": "Asserted or absent",
+              "points": 0,
+              "descriptor": "The fastener is claimed adequate with no calculation, or not attempted."
+            }
+          ],
+          "criterion": "Fastener shear sizing shown"
+        }
+      ],
+      "aiLevel": 2
+    },
+    {
+      "id": "m2",
+      "intro": "The same four components as a document somebody could actually order from without asking you a question.",
+      "title": "Bill of Materials",
+      "aiNote": "ASSIST. You may use AI to search for candidate parts, to explain a specification you do not recognise, and to tighten your writing. Every specification you cite must be confirmed on the vendor's own listing before you use it. An AI that names a part number is not a catalog page. If you cannot open the page, you cannot cite the part.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A Bill of Materials is a procurement document. The test is simple: could someone who has never seen your project place this order without contacting you?\n\nEvery row needs a vendor, a part number, a quantity, the one specification your justification depended on, and a unit price. A blank cell is a question somebody has to come ask you, and every question is a delay.\n\nQuantity means how many the assembly needs, not how many come in a package. Two bearings means two, even if they are sold in packs of ten.\n\nExtend the line totals and give the order total. Cost is a design constraint and you worked with it in the lab."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 10,
+          "columns": [
+            {
+              "key": "component",
+              "tip": "Reduction, pivot bearing, pivot shaft, or hub fastener.",
+              "label": "Component"
+            },
+            {
+              "key": "vendor",
+              "tip": "Who you would order from.",
+              "label": "Vendor"
+            },
+            {
+              "key": "partno",
+              "tip": "Exactly as the listing gives it. A description is not a part number.",
+              "label": "Part number"
+            },
+            {
+              "key": "qty",
+              "tip": "How many the assembly needs, not the package size.",
+              "label": "Qty"
+            },
+            {
+              "key": "keyspec",
+              "tip": "The published number your justification depended on.",
+              "label": "Key specification"
+            },
+            {
+              "key": "unit",
+              "tip": "As listed.",
+              "label": "Unit price"
+            },
+            {
+              "key": "ext",
+              "tip": "Quantity times unit price.",
+              "label": "Line total"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 7,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "c4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every cell filled",
+              "points": 5,
+              "descriptor": "All four components present with vendor, part number, quantity, key specification, unit price, and line total."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two gaps",
+              "points": 3,
+              "descriptor": "All four components present with one or two cells blank or marked as unknown."
+            },
+            {
+              "label": "Developing",
+              "short": "Missing a component",
+              "points": 1,
+              "descriptor": "Fewer than four components listed, or several rows substantially incomplete."
+            },
+            {
+              "label": "Absent",
+              "short": "Not usable",
+              "points": 0,
+              "descriptor": "Table empty or too sparse to read as a parts list."
+            }
+          ],
+          "criterion": "Completeness"
+        },
+        {
+          "id": "c5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Orderable without questions",
+              "points": 5,
+              "descriptor": "Quantities are assembly counts, part numbers are exact, line totals extend correctly, and an order total is given."
+            },
+            {
+              "label": "Proficient",
+              "short": "Minor cleanup needed",
+              "points": 3,
+              "descriptor": "Usable as a parts list but with a package quantity mistaken for an assembly count, an arithmetic slip, or a missing total."
+            },
+            {
+              "label": "Developing",
+              "short": "Would need a conversation",
+              "points": 1,
+              "descriptor": "A buyer would have to come back with questions before this could be ordered."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "No usable procurement information."
+            }
+          ],
+          "criterion": "Procurement ready"
+        }
+      ],
+      "aiLevel": 2
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
