@@ -1680,7 +1680,9 @@ const HALL_PASS_REFUSALS = new Set<HallPassRefusal>([
 	'already_out',
 	'not_a_student',
 	'not_open',
-	'not_yours'
+	'not_yours',
+	// `0144`, manager path only: the named pass had already been signed back in.
+	'already_closed'
 ]);
 
 function hallPassOutcome<T>(
@@ -1695,8 +1697,25 @@ function hallPassOutcome<T>(
 }
 
 /**
- * The three `0143` RPCs, called on the browser client as the student or the
- * instructor themselves.
+ * ONE SHAPE FOR BOTH CLOSES, because they answer the identical object.
+ *
+ * `0144`'s two functions return `0143`'s close result unchanged -- the manager
+ * fields are present and null on the student path rather than absent -- so the
+ * surface reading a close needs no branch and there is one place where the
+ * mapping from row to result is written down. Two copies of it is what stops
+ * agreeing about a field somebody adds later.
+ */
+const hallPassClosedShape = (row: Record<string, unknown>): HallPassClosed => ({
+	pass_id: String(row.pass_id ?? ''),
+	opened_at: String(row.opened_at ?? ''),
+	closed_at: String(row.closed_at ?? ''),
+	closed_by_manager: row.closed_by_manager === true,
+	student_name: (row.student_name as string | null) ?? null
+});
+
+/**
+ * The `0143`/`0144` pass RPCs, called on the browser client as the student or
+ * the instructor themselves.
  *
  * NOTHING HERE IS A BOUNDARY AND NOTHING HERE FILTERS. `classroom_hall_pass_state`
  * projects by role INSIDE the database, in two separately built branches, so a
@@ -1732,16 +1751,33 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 				opened_at: String(row.opened_at ?? '')
 			}));
 		},
-		async close(sectionId) {
-			const { data, error } = await call('classroom_hall_pass_close', sectionId);
+		/**
+		 * THE STUDENT'S OWN, AND IT SENDS NO IDENTIFIER. `p_section_id` is the
+		 * only argument the RPC has; the person is `current_user_email()` inside
+		 * the database, so closing somebody else's is not expressible from here.
+		 */
+		async closeMine(sectionId) {
+			const { data, error } = await call('classroom_hall_pass_close_mine', sectionId);
 			if (error) return { ok: false, message: 'Could not sign back in. Try again.' };
-			return hallPassOutcome<HallPassClosed>(data, (row) => ({
-				pass_id: String(row.pass_id ?? ''),
-				opened_at: String(row.opened_at ?? ''),
-				closed_at: String(row.closed_at ?? ''),
-				closed_by_manager: row.closed_by_manager === true,
-				student_name: (row.student_name as string | null) ?? null
-			}));
+			return hallPassOutcome<HallPassClosed>(data, hallPassClosedShape);
+		},
+		/**
+		 * THE INSTRUCTOR'S, AND IT NAMES THE PASS. The id comes from the manager
+		 * branch of this caller's OWN state payload -- a student's payload has
+		 * none to send, which is why the split costs no disclosure.
+		 *
+		 * NAMING IT IS THE FIX: `classroom_hall_pass_close(p_section_id)` closes
+		 * whatever is open in the section at the instant the request lands, so a
+		 * clear pressed while one student returns and another leaves closes the
+		 * SECOND student's pass. The id is what carries the instructor's intent
+		 * across that gap.
+		 */
+		async closeById(passId) {
+			const { data, error } = await supabase.rpc('classroom_hall_pass_close_by_id', {
+				p_pass_id: passId
+			});
+			if (error) return { ok: false, message: 'Could not sign the pass back in. Try again.' };
+			return hallPassOutcome<HallPassClosed>(data, hallPassClosedShape);
 		}
 	};
 }
