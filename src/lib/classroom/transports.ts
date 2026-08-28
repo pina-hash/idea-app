@@ -1616,6 +1616,42 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 				p_resources: links
 			});
 			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		/**
+		 * The grading-category vocabulary of every given course (0142), RAW.
+		 *
+		 * AN RPC AND NOT A SELECT, WHICH IS THE ONLY THING THIS FUNCTION HAS TO
+		 * GET RIGHT. `classroom_items` is read through `classroom_can_read_item`,
+		 * which gates PER SECTION -- so a select of `category` filtered on
+		 * `course_id` is not refused and does not error: RLS silently narrows it
+		 * to the caller's OWN sections and returns that with no signal anything
+		 * was dropped. The composer's scope is the COURSE deliberately (its own
+		 * comment: a teacher's vocabulary follows the course, not one block of
+		 * it), so the narrowed answer would be the opposite of the intent
+		 * wearing the appearance of success. `classroom_course_categories` is
+		 * SECURITY DEFINER and gated per course on `_classroom_manages_course`,
+		 * and it projects the one column.
+		 *
+		 * NOTHING IS RANKED, DE-DUPLICATED OR NORMALIZED HERE OR IN SQL. That is
+		 * `courseCategorySuggestions`'s job and it is already tested; the repeats
+		 * this returns are what it ranks BY.
+		 *
+		 * EVERY FAILURE DEGRADES TO NO SUGGESTIONS, and that is the whole failure
+		 * story rather than an unhandled case: the composer maps a non-ok result
+		 * to an empty list, which removes the datalist and leaves the plain
+		 * free-text input the field has always been. So this transport needs no
+		 * `PGRST202` rung -- there is no narrower read worth degrading TO (the
+		 * select this replaces is the wrong answer, not a lesser one), and a
+		 * deployment sitting between this merge and 0142 being applied by hand
+		 * behaves exactly as production does today. A category nobody has ever
+		 * used is typeable and savable regardless of what lands here.
+		 */
+		async loadCategorySuggestions(courseIds) {
+			const { data, error } = await supabase.rpc('classroom_course_categories', {
+				p_course_ids: courseIds
+			});
+			if (error) return fail(error);
+			return { ok: true, data: Array.isArray(data) ? (data as string[]) : [] };
 		}
 	};
 }
