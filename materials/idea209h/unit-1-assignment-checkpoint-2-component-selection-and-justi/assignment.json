@@ -20,29 +20,37 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Four components, chosen from real catalogs, each justified against a published number that clears a number you calculated.",
+      "intro": "Six components, chosen from real catalogs, each justified against a published number that clears a number you calculated.",
       "title": "Component Selection and Justification",
       "aiNote": "ASSIST. You may use AI to search for candidate parts, to explain a specification you do not recognise, and to tighten your writing. Every specification you cite must be confirmed on the vendor's own listing before you use it. An AI that names a part number is not a catalog page. If you cannot open the page, you cannot cite the part.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Your Checkpoint 1 numbers were the point. Now spend them.\n\n**Four components:** the reduction, the pivot bearings, the pivot shaft, and the hub fasteners. Nothing else. These are the four your calculations actually decide.\n\nFor each one, write **one sentence** in this shape: the published number clears the number I calculated. Name both. A justification that says a part looks strong enough, or that it is what the team normally uses, earns nothing, because neither is a published property.\n\n**Open the listing.** A part number you did not read off a page is not a selection, and it is the one thing the AI policy on this module will not forgive.\n\nThen size one fastener in shear. Show the force per bolt, the area you used, the capacity, and the margin. Say whether the shear plane falls in the shank or the threads, because that decides which area is correct."
+          "content": "Your Checkpoint 1 numbers were the point. Now spend them.\n\n**Six components:** the reduction, the pivot bearings, the pivot shaft, the hub fasteners, the arm stock, and the bearing mounts. The first four are decided by a number you calculated. The last two are decided by what has to fit, which is a real constraint and you still have to say what drove it.\n\nFor each one, write **one sentence** in this shape: the published number clears the number I calculated, or this size is what the assembly physically requires. Name the actual values. A justification that says a part looks strong enough, or that it is what the team normally uses, earns nothing, because neither is a published property.\n\n**Open the listing.** A part number you did not read off a page is not a selection.\n\nThen size one fastener in shear, and name one candidate you looked at and rejected. Both of those are what you will be asked about first during the defense."
         },
         {
           "id": "f1",
           "type": "textField",
-          "points": 14,
-          "prompt": "For each of the four components: what you selected, and one sentence naming the published specification and the calculated value it clears.",
-          "maxSentences": 16,
-          "minSentences": 8
+          "points": 10,
+          "prompt": "For each of the six components: what you selected, and one sentence naming the published specification or fit constraint and the calculated value it clears.",
+          "maxSentences": 14,
+          "minSentences": 6
         },
         {
           "id": "f2",
           "type": "textField",
+          "points": 4,
+          "prompt": "Name one candidate part you looked at and did not choose. Say what it was and what specifically ruled it out.",
+          "maxSentences": 5,
+          "minSentences": 2
+        },
+        {
+          "id": "f3",
+          "type": "textField",
           "points": 6,
-          "prompt": "Size one fastener in shear. Show force per bolt, the area used and why, the capacity, and the resulting margin.",
-          "maxSentences": 8,
-          "minSentences": 3
+          "prompt": "Size one fastener in shear. Give the force per bolt, the area you used and why, the capacity, and the resulting margin.",
+          "maxSentences": 9,
+          "minSentences": 4
         }
       ],
       "points": 20,
@@ -52,21 +60,21 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Four parts, real listings",
-              "points": 7,
-              "descriptor": "All four components selected from actual vendor listings, each identified by a part number that resolves to a real page."
+              "short": "Six parts, real listings",
+              "points": 6,
+              "descriptor": "All six components selected from actual vendor listings, each identified by a part number that resolves to a real page."
             },
             {
               "label": "Proficient",
-              "short": "Four parts, one unverifiable",
-              "points": 5,
-              "descriptor": "All four selected, but one part number is wrong, generic, or does not resolve to a listing."
+              "short": "Five or six, one unverifiable",
+              "points": 4,
+              "descriptor": "All six selected, but one part number is wrong, generic, or does not resolve to a listing."
             },
             {
               "label": "Developing",
-              "short": "Two or three parts",
-              "points": 3,
-              "descriptor": "Only two or three components selected, or several identified by description rather than part number."
+              "short": "Three or four parts",
+              "points": 2,
+              "descriptor": "Only three or four components selected, or several identified by description rather than part number."
             },
             {
               "label": "Absent",
@@ -82,21 +90,21 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Both numbers, all four",
-              "points": 7,
-              "descriptor": "Every selection names a published specification and the calculated value it clears, with both stated."
+              "short": "Both values, all six",
+              "points": 6,
+              "descriptor": "Every selection names a published specification or fit constraint and the calculated value it clears, with both stated."
             },
             {
               "label": "Proficient",
-              "short": "Both numbers, most",
-              "points": 5,
-              "descriptor": "Most selections name both numbers; one or two name only the published value or only the calculated one."
+              "short": "Both values, most",
+              "points": 4,
+              "descriptor": "Most selections name both; one or two name only the published value or only the calculated one."
             },
             {
               "label": "Developing",
               "short": "Asserted, not shown",
-              "points": 3,
-              "descriptor": "Selections are justified by suitability, availability, or team habit rather than by a published number."
+              "points": 2,
+              "descriptor": "Selections justified by suitability, availability, or team habit rather than by a published number."
             },
             {
               "label": "Absent",
@@ -112,20 +120,44 @@
           "levels": [
             {
               "label": "Complete",
+              "short": "Named, and specifically ruled out",
+              "points": 3,
+              "descriptor": "A real candidate is named and the specific property or constraint that ruled it out is given."
+            },
+            {
+              "label": "Proficient",
+              "short": "Named, vague reason",
+              "points": 2,
+              "descriptor": "A candidate is named but the reason is general, such as too expensive or not right."
+            },
+            {
+              "label": "Absent",
+              "short": "None named",
+              "points": 0,
+              "descriptor": "No rejected candidate given."
+            }
+          ],
+          "criterion": "Rejected candidate"
+        },
+        {
+          "id": "c4",
+          "levels": [
+            {
+              "label": "Complete",
               "short": "Worked, area choice stated",
-              "points": 6,
+              "points": 5,
               "descriptor": "Force per bolt, area used, capacity, and margin all shown, with the shear plane location stated and the matching area used."
             },
             {
               "label": "Proficient",
               "short": "Worked, area unstated",
-              "points": 4,
+              "points": 3,
               "descriptor": "The calculation is complete and correct but does not say whether the shear plane falls in the shank or the threads."
             },
             {
               "label": "Developing",
               "short": "Partial calculation",
-              "points": 2,
+              "points": 1,
               "descriptor": "Force per bolt found but capacity or margin missing, or an area used that does not match the stated plane."
             },
             {
@@ -142,7 +174,7 @@
     },
     {
       "id": "m2",
-      "intro": "The same four components as a document somebody could actually order from without asking you a question.",
+      "intro": "The same six components as a document somebody could actually order from without asking you a question.",
       "title": "Bill of Materials",
       "aiNote": "ASSIST. You may use AI to search for candidate parts, to explain a specification you do not recognise, and to tighten your writing. Every specification you cite must be confirmed on the vendor's own listing before you use it. An AI that names a part number is not a catalog page. If you cannot open the page, you cannot cite the part.",
       "blocks": [
@@ -191,8 +223,8 @@
               "label": "Line total"
             }
           ],
-          "minRows": 4,
-          "printRows": 7,
+          "minRows": 6,
+          "printRows": 9,
           "rowImages": false,
           "statusColumn": false
         }
@@ -200,25 +232,25 @@
       "points": 10,
       "rubric": [
         {
-          "id": "c4",
+          "id": "c5",
           "levels": [
             {
               "label": "Complete",
               "short": "Every cell filled",
               "points": 5,
-              "descriptor": "All four components present with vendor, part number, quantity, key specification, unit price, and line total."
+              "descriptor": "All six components present with vendor, part number, quantity, key specification, unit price, and line total."
             },
             {
               "label": "Proficient",
               "short": "One or two gaps",
               "points": 3,
-              "descriptor": "All four components present with one or two cells blank or marked as unknown."
+              "descriptor": "All six components present with one or two cells blank or marked as unknown."
             },
             {
               "label": "Developing",
               "short": "Missing a component",
               "points": 1,
-              "descriptor": "Fewer than four components listed, or several rows substantially incomplete."
+              "descriptor": "Fewer than six components listed, or several rows substantially incomplete."
             },
             {
               "label": "Absent",
@@ -230,7 +262,7 @@
           "criterion": "Completeness"
         },
         {
-          "id": "c5",
+          "id": "c6",
           "levels": [
             {
               "label": "Complete",
