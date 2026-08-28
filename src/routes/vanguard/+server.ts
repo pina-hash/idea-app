@@ -55,7 +55,6 @@ interface PlayerProfile {
 /** Build the <head> bootstrap. `cloud` is the normalized v2 save (empty if signed out). */
 function injectionScript(
 	signedIn: boolean,
-	isAdminUser: boolean,
 	cloud: StoredSave,
 	profile: PlayerProfile,
 	runStates: unknown,
@@ -110,8 +109,6 @@ function injectionScript(
 	return `${seoHead}<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
-	var IS_TEACHER = ${isAdminUser ? 'true' : 'false'};
-	window.__ideaIsTeacher = IS_TEACHER;
 	var CLOUD = ${cloudJson};
 	var PROFILE = ${profileJson};
 	// --- CO-OP (Phase 1): Supabase Realtime access for the game -----------------
@@ -286,7 +283,6 @@ function injectionScript(
 	// of cloud I/O. Fire-and-forget, swallow errors. Left undefined when signed
 	// out so the game's optional call no-ops.
 	if (SIGNED_IN) {
-		window.__ideaSignedIn = true;
 		window.__ideaRecordRun = function (summary) {
 			try {
 				fetch('/api/vanguard-run', {
@@ -761,6 +757,92 @@ function injectionScript(
 </script>`;
 }
 
+/**
+ * THE NON-ADMIN GATE, AS DATA. Each entry is one edit made to the served bytes
+ * of the legacy build before a non-admin receives them.
+ *
+ * IT IS A TABLE RATHER THAN A CHAIN OF `.replace()` CALLS FOR ONE REASON: a
+ * replace whose anchor has drifted is a SILENT NO-OP. `String.prototype.replace`
+ * neither throws nor reports a miss, so a rename or a formatting pass inside
+ * `index.html` turns a gate off while the handler still answers 200 with a page
+ * that looks exactly right, and nobody looks again. Written inline, each anchor
+ * was visible only to a person reading this file; written as a table with a
+ * `name`, `tests/vanguard-admin-gate.test.ts` walks the REAL list -- not a copy
+ * of it -- and asserts of every entry that its anchor matches the current build
+ * EXACTLY ONCE and is gone from the output. A strip added here later is covered
+ * the moment it is added, and cannot ship untested.
+ *
+ * THE STRIPS REMOVE, THEY DO NOT DISABLE, and the two are not the same gate.
+ * The game's own dev affordances are held shut at runtime by `gameMode==='dev'`
+ * -- a client-side test, of a client-side variable, in a page the client owns.
+ * That is a guard against a mistake, not against a person, and VANGUARD posts to
+ * a ranked leaderboard. So the bytes are not there.
+ *
+ * ORDER IS NOT SIGNIFICANT: no entry's anchor lies inside another's match. The
+ * dev-console slice ends on the last line before the TUNE panel's own header,
+ * and the two mode-select anchors sit ~2,200 lines above both.
+ */
+interface VanguardStrip {
+	/** Stable identifier. A failing assertion names this, never a line number. */
+	name: string;
+	/** Anchor in the raw build. Never global: each must match exactly once. */
+	find: string | RegExp;
+	replace: string;
+}
+
+export const _NON_ADMIN_STRIPS: readonly VanguardStrip[] = [
+	// DEV and TUNE both leave the mode allowlist. DEV is a title-screen button
+	// and not only a query param, so dropping it from the allowlist alone (and
+	// leaving the button clickable) would not gate it -- and a stale 'dev'/'tune'
+	// already sitting in this device's localStorage is caught here too, since
+	// that value is restored through this same allowlist on load.
+	{
+		name: 'modeAllowlist',
+		find: "if(m!=='normal'&&m!=='hardcore'&&m!=='dev'&&m!=='tune') m='normal';",
+		replace: "if(m!=='normal'&&m!=='hardcore') m='normal';"
+	},
+	{
+		name: 'tuneQueryHook',
+		find: "try{ if(/[?&]tune=1\\b/.test(location.search)) m='tune'; }catch(e){}",
+		replace: '/* tune mode disabled */'
+	},
+	{
+		name: 'devModeButton',
+		find: '<button class="modebtn" data-m="dev">DEV</button>',
+		replace: ''
+	},
+	// The TUNE balancing panel, whole (keeps the closing IIFE brace/paren).
+	{
+		name: 'tunePanel',
+		find: /\/\* ============================= TUNE balancing panel ============================= \*\/[\s\S]*?requestAnimationFrame\(loop\);\s*\}\)\(\);\s*\}\)\(\);/,
+		replace: '/* TUNE balancing panel removed */'
+	},
+	// The DEV console, whole: god mode and its damage bypass, spawn suppression,
+	// arbitrary boss and wave spawns, a hitbox overlay and a text command
+	// console. It used to ship to EVERY visitor, held shut only by the
+	// `gameMode==='dev'` tests inside its own render loop. It is removed now on
+	// the same terms as TUNE, because those two gates are not equivalent.
+	//
+	// REMOVING IT STRANDS NOTHING. It is a self-contained IIFE, and every
+	// reference to what it defines lives outside it behind a guard or is a
+	// write: `__devSetGod` and `__devDrawHitboxes` are called only inside
+	// `if (window.__devX)`, `__devInput` only inside `window.__devInput && ...`,
+	// `__devTime` is read as `(window.__devTime==null?1:...)`, and `__devTime`,
+	// `__devStep` and `__devNoSpawn` are each assigned at run start by code that
+	// is not part of this block. The game runs identically without it.
+	{
+		name: 'devConsole',
+		find: /\/\* ============================= dev mode ============================= \*\/[\s\S]*?requestAnimationFrame\(vis\);\s*\}\)\(\);\s*\}\)\(\);/,
+		replace: '/* dev console removed */'
+	}
+];
+
+/** Apply every strip in `_NON_ADMIN_STRIPS`, in order. */
+export function _stripForNonAdmin(html: string): string {
+	for (const strip of _NON_ADMIN_STRIPS) html = html.replace(strip.find, strip.replace);
+	return html;
+}
+
 export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	let signedIn = false;
 	let isAdminUser = false;
@@ -786,9 +868,9 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		]);
 		cloud = normalizeStored(saveRes.data?.data);
 		const p = profileRes.data;
-		// Admin-only since 0067: this flag unlocks the game's TUNE mode (a dev
-		// tool), which belongs to the same privileged tier as everything else.
-		// DEV mode is gated behind the same flag (see below).
+		// Admin-only since 0067: this flag unlocks the game's TUNE mode, its
+		// DEV mode and its DEV console (all dev tools), which belong to the
+		// same privileged tier as everything else. See `_NON_ADMIN_STRIPS`.
 		isAdminUser = await isAdmin(supabase, claims.sub);
 		role = (p?.role as string | null) ?? null;
 		profile = {
@@ -820,32 +902,11 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	);
 
 	if (!isAdminUser) {
-		// Strip the query param check that forces tune mode, and strip both DEV
-		// and TUNE from the mode allowlist -- DEV is a title-screen button, not
-		// only a query param, so dropping it from the allowlist alone (leaving
-		// the button clickable) would not gate it. A stale 'dev'/'tune' value
-		// already sitting in this device's localStorage is also caught here,
-		// since it is restored through this same allowlist on load.
-		htmlContent = htmlContent
-			.replace(
-				"if(m!=='normal'&&m!=='hardcore'&&m!=='dev'&&m!=='tune') m='normal';",
-				"if(m!=='normal'&&m!=='hardcore') m='normal';"
-			)
-			.replace(
-				"try{ if(/[?&]tune=1\\b/.test(location.search)) m='tune'; }catch(e){}",
-				"/* tune mode disabled */"
-			)
-			.replace('<button class="modebtn" data-m="dev">DEV</button>', '');
-
-		// Completely slice out the TUNE balancing panel script block (keeps closing IIFE brace/paren)
-		htmlContent = htmlContent.replace(
-			/\/\* ============================= TUNE balancing panel ============================= \*\/[\s\S]*?requestAnimationFrame\(loop\);\s*\}\)\(\);\s*\}\)\(\);/,
-			'/* TUNE balancing panel removed */'
-		);
+		htmlContent = _stripForNonAdmin(htmlContent);
 	}
 
 	const html = injectVersionBadge(
-		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, isAdminUser, cloud, profile, runStates, role)}`),
+		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runStates, role)}`),
 		'vanguard'
 	);
 
