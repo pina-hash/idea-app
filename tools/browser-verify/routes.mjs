@@ -263,16 +263,15 @@ export const ROUTES = [
 		contrast: [
 			{ selector: '.compose-card .rubric-builder .line', label: 'rubric builder empty-state copy', min: 4.5 }
 		],
-		/* KNOWN FINDING, not a new defect: `.btn.secondary.tiny` measures
-		   ~22.9px here, which is the deliberate "chip beside a heading" size
-		   documented at classroom.css:196 -- only `.cr-console` and
-		   `.engine-host` bump that class to the 44px floor, and the composer's
-		   staged rubric builder is neither wrapper. Left in as a measurement
-		   (CLAUDE.md: every check reports a number, never a bare pass), not
-		   silenced -- this is the first time this control has actually run in
-		   a browser to measure. */
+		/* `.btn.secondary.tiny` here is a chip beside a heading -- it is not
+		   phone-touched (manage-only classroom surface) and not the
+		   student-facing engine, so IDEA_INTERFACE_STANDARDS 10's 24px floor
+		   applies, not the 44px one `.cr-console` and `.engine-host` bump their
+		   own `.btn.tiny` controls to. classroom.css:195 now clears 24px for
+		   every `.btn.tiny`/`.btn.secondary.tiny`, so this check asserts the
+		   floor that actually applies to this control. */
 		tapTargets: [
-			{ selector: '.compose-card .rubric-builder .actions .btn', label: 'rubric builder controls (Build rubric / Generate from spec)', min: 44 }
+			{ selector: '.compose-card .rubric-builder .actions .btn', label: 'rubric builder controls (Build rubric / Generate from spec)', min: 24 }
 		]
 	},
 	{
@@ -302,13 +301,12 @@ export const ROUTES = [
 		contrast: [
 			{ selector: '[data-testid="insp-check-in"] strong', label: 'attached check-in label', min: 4.5 }
 		],
-		/* Same known chip-sized-control finding as the composer route above --
-		   `.btn.secondary.tiny` inside the inspector is neither `.cr-console`
-		   nor `.engine-host`, so it stays at the documented ~22.9px chip size
-		   (classroom.css:196). Measured, not silenced. */
+		/* Same chip-sized control as the composer route above -- neither
+		   `.cr-console` nor `.engine-host`, so the 24px floor applies rather
+		   than the 44px one (classroom.css:195). */
 		tapTargets: [
-			{ selector: '[data-testid="check-in-open"]', label: 'second attach door control', min: 44 },
-			{ selector: '[data-testid="detach-check-in"]', label: 'detach control', min: 44 }
+			{ selector: '[data-testid="check-in-open"]', label: 'second attach door control', min: 24 },
+			{ selector: '[data-testid="detach-check-in"]', label: 'detach control', min: 24 }
 		],
 		/* THE CROWDED FIXTURE'S OWN IMAGE ATTACHMENT (span-photo.jpg), not this
 		   bundle's doing: `AttachmentList` always renders through

@@ -192,21 +192,30 @@ body:has(.cr-root) {
 }
 
 /* --- Buttons -------------------------------------------------------------- */
+/* `.btn.tiny` is the chip-sized action sitting beside a heading, or beside
+   another chip, on a page somebody is reading rather than working -- Cancel
+   on a staged rubric, Add criterion, attach/detach a check-in. It is never
+   phone-touched (it lives inside the manage-only classroom surface) and it
+   is not the student-facing engine, so IDEA_INTERFACE_STANDARDS 10's 24px
+   floor applies, not the 44px one. `min-height` is the floor and never a
+   fixed height, so a chip whose label wraps still grows with it; the
+   existing block padding is untouched, because at this size it is most of
+   what makes the control read as a chip rather than a button. */
 .cr-root .btn.tiny,
 .cr-root .btn.secondary.tiny {
 	font-size: 0.65rem;
 	padding: 0.28rem 0.6rem;
+	min-height: 24px;
 }
 
 /* THE CONSOLE'S CONTROLS ARE WORKED, NOT READ PAST.
 
-   `.btn.tiny` measures 21px tall, which is right for the chip-sized action
-   sitting beside a heading on a page somebody is reading. On the grading
-   console the SAME class carries Save draft, Return to student, Approve and
-   Close -- the surface's primary actions, used a hundred times an hour and
-   often on a laptop trackpad. 44px is the standard tap target; the block
-   padding is what carries it, so the type and the horizontal rhythm are
-   untouched and no other surface's chip changes size.
+   On the grading console the SAME class carries Save draft, Return to
+   student, Approve and Close -- the surface's primary actions, used a
+   hundred times an hour and often on a laptop trackpad. 44px is the standard
+   tap target there, not the 24px floor above; the block padding is what
+   carries it, so the type and the horizontal rhythm are untouched and no
+   other surface's chip changes size.
 
    Scoped to `.cr-console` (the grading page's own class) rather than applied to
    `.btn.tiny` everywhere: ten other call sites want the chip. */
