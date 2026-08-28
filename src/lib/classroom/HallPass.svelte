@@ -170,12 +170,43 @@
 		}
 	}
 
+	/**
+	 * THE MANAGER NAMES THE PASS; THE STUDENT NAMES NOTHING (`0144`).
+	 *
+	 * The target is read from THIS PAINT's payload, so the id sent is the pass
+	 * the instructor was actually looking at when they pressed. That is the
+	 * whole fix: `classroom_hall_pass_close(p_section_id)` re-resolved "whatever
+	 * is open in this section" server-side at the instant the request landed, so
+	 * a clear pressed while one student returned and another left closed the
+	 * SECOND student's pass -- marking them back in the room while they were in
+	 * a corridor, with nothing on screen reporting it. If the named pass has
+	 * since closed the database refuses with `already_closed` and touches
+	 * nothing, which is the honest answer to a press that arrived too late.
+	 *
+	 * A STUDENT SENDS NO IDENTIFIER AT ALL, and could not: their payload has no
+	 * pass id in it and `HallPassStudentState` has no field capable of carrying
+	 * one. `closeMine` passes the section and the database resolves the person
+	 * from the session.
+	 *
+	 * THE SNAPSHOT IS TAKEN ONCE, before the await. Reading `live` again after
+	 * it would be reading whatever the poll has since replaced it with, which is
+	 * the same stale-intent bug one level up.
+	 */
 	async function signIn(): Promise<void> {
 		if (busy || !transports || !canClose) return;
+		const snapshot = live;
+		const target = snapshot.scope === 'manager' ? snapshot.open : null;
+		// `canClose` already requires a manager to have an open pass, so this is
+		// unreachable rather than defensive -- but a close with nothing to name
+		// must never fall through to a section-keyed one, which is the shape this
+		// change exists to remove.
+		if (snapshot.scope === 'manager' && !target) return;
 		busy = true;
 		notice = null;
 		try {
-			const res = await transports.close(sectionId);
+			const res = target
+				? await transports.closeById(target.pass_id)
+				: await transports.closeMine(sectionId);
 			report(
 				res,
 				res.ok && res.data.student_name

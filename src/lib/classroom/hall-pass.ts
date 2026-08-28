@@ -65,8 +65,24 @@ export interface HallPassManagerState {
 
 export type HallPassState = HallPassStudentState | HallPassManagerState;
 
-/** Every refusal `0143` can answer with. */
-export type HallPassRefusal = 'taken' | 'already_out' | 'not_a_student' | 'not_open' | 'not_yours';
+/**
+ * Every refusal the pass RPCs can answer with.
+ *
+ * `already_closed` is `0144`'s and is reachable ONLY on the manager path: a
+ * named pass that had already been signed back in before the instructor
+ * pressed. It is a refusal rather than a silent success because "the student
+ * came back and signed themselves in" and "I signed them in" are different
+ * things that happened, and the instructor is the person who needs to know
+ * which. Reporting the second when the first occurred is how somebody concludes
+ * their press worked on the one occasion it did nothing.
+ */
+export type HallPassRefusal =
+	| 'taken'
+	| 'already_out'
+	| 'not_a_student'
+	| 'not_open'
+	| 'not_yours'
+	| 'already_closed';
 
 export interface HallPassOpened {
 	pass_id: string;
@@ -87,10 +103,46 @@ export type HallPassResult<T> =
 	| { ok: false; refusal: HallPassRefusal }
 	| { ok: false; message: string };
 
+/**
+ * THE CLOSE IS TWO TRANSPORTS BECAUSE IT IS TWO DECISIONS (`0144`).
+ *
+ * A SINGLE SECTION-KEYED CLOSE IS THE DEFECT, not a simplification of one. It
+ * re-resolves "whatever is open in this section" at the moment the request
+ * lands, so an instructor clearing a pass in the same instant one student
+ * returns and another leaves closes the SECOND student's pass -- marking them
+ * back in the room while they are in a corridor, and freeing the pass for a
+ * third. Nothing on screen reports it.
+ *
+ * SO THE MANAGER NAMES THE PASS AND THE STUDENT NAMES NOTHING, and neither half
+ * is arbitrary:
+ *
+ *   * `closeById` carries the instructor's INTENT across the gap between
+ *     reading the card and pressing the control. It costs no disclosure -- a
+ *     manager's own payload already hands them the pass id, the name, the email
+ *     and the history, so a handle tells them nothing they did not have.
+ *   * `closeMine` takes the SECTION and resolves the person in the database
+ *     from the session. There is no argument through which to name anybody, so
+ *     `HallPassStudentState` still has no field capable of identifying a person
+ *     and never needs one. That property is the load-bearing one and is swept
+ *     for in `tests/classroom-hall-pass.test.ts`.
+ *
+ * AND THE STUDENT PATH CANNOT HAVE THE RACE AT ALL, structurally: the database
+ * requires the open pass's holder to BE the caller, so if their pass closed and
+ * somebody else's opened underneath, the answer is `not_yours`. A wrong close
+ * is not expressible on it.
+ *
+ * TWO METHODS RATHER THAN ONE TAKING A ROLE FLAG, for the reason `ENDPOINTS` in
+ * `$lib/classroom/file-upload.ts` is a literal map: a flag is a value that can
+ * be computed wrongly, where two names cannot be, and grepping for either RPC
+ * finds its one caller.
+ */
 export interface HallPassTransports {
 	load(sectionId: string): Promise<HallPassState | null>;
 	open(sectionId: string): Promise<HallPassResult<HallPassOpened>>;
-	close(sectionId: string): Promise<HallPassResult<HallPassClosed>>;
+	/** A student signing THEMSELVES back in. Passes no identifier of any kind. */
+	closeMine(sectionId: string): Promise<HallPassResult<HallPassClosed>>;
+	/** An instructor signing ONE NAMED pass back in, from their own payload. */
+	closeById(passId: string): Promise<HallPassResult<HallPassClosed>>;
 }
 
 /**
@@ -192,6 +244,14 @@ export function hallPassRefusalMessage(refusal: HallPassRefusal): string {
 			return 'Nobody is signed out right now.';
 		case 'not_yours':
 			return 'That pass is not yours to sign back in.';
+		case 'already_closed':
+			// SAYS THAT THE PRESS DID NOTHING, which is the whole reason `0144`
+			// makes this a refusal instead of reporting a close. An instructor
+			// whose click landed a moment after the student signed themselves in
+			// is entitled to know that is what happened -- and the card behind
+			// this sentence has already been re-read, so whoever is out NOW is on
+			// screen beside it.
+			return 'That pass was already signed back in, so nothing was changed.';
 	}
 }
 

@@ -55,7 +55,8 @@ const CHAIN = [
 	'0082_classroom.sql',
 	'0083_classroom_management.sql',
 	'0137_anon_execute_sweep.sql',
-	'0143_classroom_hall_pass.sql'
+	'0143_classroom_hall_pass.sql',
+	'0144_classroom_hall_pass_close_by_id.sql'
 ] as const;
 
 /** The harness pool holds 4 connections, so 4 is the real concurrency ceiling. */
@@ -282,5 +283,230 @@ describe('the capacity check is the database, not the button', () => {
 		expect(elsewhere.ok).toBe(true);
 		expect(await openCount()).toBe(2);
 		await db.sql('delete from public.classroom_hall_passes');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 0144: THE MANAGER'S CLOSE MUST NOT LAND ON A PASS THAT REPLACED THE ONE THEY
+// MEANT.
+//
+// THE DEFECT. `classroom_hall_pass_close(p_section_id)` closes "whatever is
+// open in this section" at the instant the request lands. So an instructor
+// clearing a pass in the same moment one student returns and another leaves
+// closes the SECOND student's pass: that student is marked back in the room
+// while standing in a corridor, and the pass is free for a third. Every row is
+// well formed, the capacity index is satisfied, and nothing anywhere reports it
+// -- which is exactly the shape of regression this suite exists for.
+//
+// A `for update` LOCK DOES NOT FIX IT AND 0143 ALREADY HAD ONE. A lock makes
+// two callers agree about one ROW. It cannot make an instructor's INTENT
+// survive the row underneath it being replaced, because the target is
+// re-resolved server-side AFTER the replacement has committed. The lock is
+// taken on the wrong pass.
+//
+// SO THE PROOF HAS TO BE THE THREE-WAY INTERLEAVING, NOT A BURST. A
+// `Promise.all` of three calls does not discriminate here for the same reason
+// it does not discriminate for the capacity rule one describe block up: the
+// wrong close and the right one both leave a well-formed table, and a burst
+// that happened not to overlap produces the correct outcome on defective code.
+// A sleep is worse still -- it guarantees the interleaving never happens.
+//
+// WHAT THIS DOES INSTEAD IS FORCE THE ORDER WITH A GENUINELY BLOCKED
+// TRANSACTION, and every step is observed rather than assumed:
+//
+//   1. Ana holds the pass. Her pass id is what the instructor's screen is
+//      showing, and it is captured HERE -- before anything moves -- which is
+//      the whole point: it is a value read at one instant and used at a later
+//      one.
+//   2. Ana signs herself back in inside an EXPLICIT, UNCOMMITTED transaction.
+//      Her row is stamped and locked, and the index entry's deletion is
+//      pending.
+//   3. Ben signs out on a second connection. His insert MUST BLOCK on the
+//      partial unique index, which still sees Ana's entry as live.
+//   4. The test polls `pg_stat_activity` until that block is real
+//      (wait_event_type = 'Lock'), and asserts Ben's promise is UNSETTLED at
+//      that moment. If he never blocks, the poll times out and this reddens
+//      before reaching any outcome assertion.
+//   5. Ana commits. Ben's insert then succeeds and he genuinely holds the pass.
+//      The test AWAITS that, so the instructor's press below is not racing
+//      anything -- the interleaving has already happened and the table is
+//      settled.
+//   6. The instructor presses clear with ANA's pass id, the one from step 1.
+//
+// Step 6 is the whole test. Naming the pass, it finds Ana's already closed and
+// refuses; resolving the section, it closes BEN.
+// ---------------------------------------------------------------------------
+
+interface CloseResult {
+	ok: boolean;
+	reason?: string;
+	pass_id?: string;
+	student_email?: string | null;
+}
+
+/** The manager's close: names the pass. */
+async function closeById(user: SeededUser, passId: string): Promise<CloseResult> {
+	return db.asUser(user.id, async (q) => {
+		const { rows } = await q<{ result: CloseResult }>(
+			'select public.classroom_hall_pass_close_by_id($1::uuid) as result',
+			[passId]
+		);
+		return rows[0].result;
+	});
+}
+
+/** The id and holder of whatever is open, read past RLS by the harness. */
+async function openRow(): Promise<{ id: string; student_email: string } | null> {
+	const { rows } = await db.sql<{ id: string; student_email: string }>(
+		'select id, student_email from public.classroom_hall_passes where closed_at is null'
+	);
+	return rows[0] ?? null;
+}
+
+describe('a manager clearing a pass cannot close the one that replaced it', () => {
+	test('student A returns, student B leaves, the manager clears, and B stays out', async () => {
+		await db.sql('delete from public.classroom_hall_passes');
+
+		// 1. ANA IS OUT, and this is the id the instructor's card is showing.
+		const ana = students[0];
+		const ben = students[1];
+		expect((await openPass(ana)).ok).toBe(true);
+		const anasPass = (await openRow())!.id;
+
+		let signalClosed!: () => void;
+		const closed = new Promise<void>((r) => (signalClosed = r));
+		let releaseAna!: () => void;
+		const commitGate = new Promise<void>((r) => (releaseAna = r));
+
+		// 2. ANA SIGNS HERSELF BACK IN, uncommitted, holding the row.
+		const anaPromise = db.asUser(ana.id, async (q) => {
+			await q('begin');
+			const { rows } = await q<{ result: CloseResult }>(
+				'select public.classroom_hall_pass_close_mine($1::uuid) as result',
+				[sectionId]
+			);
+			signalClosed();
+			await commitGate;
+			await q('commit');
+			return rows[0].result;
+		});
+		await closed;
+
+		// 3. BEN SIGNS OUT. His insert blocks on Ana's pending index entry.
+		let benSettled = false;
+		const benPromise = openPass(ben).then((r) => {
+			benSettled = true;
+			return r;
+		});
+
+		// 4. THE BLOCK IS OBSERVED, NOT ASSUMED.
+		const blocked = await waitForBlockedOpener(10_000);
+		expect(blocked).toBe(true);
+		// THE PROOF OF OVERLAP: Ben is provably inside the open RPC while Ana's
+		// close is still uncommitted. This is the instant the defect needs.
+		expect(benSettled).toBe(false);
+
+		// 5. ANA COMMITS; BEN'S PASS IS REAL AND SETTLED BEFORE THE MANAGER ACTS.
+		releaseAna();
+		const [anaClose, benOpen] = await Promise.all([anaPromise, benPromise]);
+		expect(anaClose.ok).toBe(true);
+		expect(benOpen.ok).toBe(true);
+
+		const bensRow = (await openRow())!;
+		expect(bensRow.student_email).toBe(ben.email);
+		expect(bensRow.id).not.toBe(anasPass);
+
+		// 6. THE MANAGER PRESSES CLEAR, with the id from step 1.
+		const cleared = await closeById(teacher, anasPass);
+
+		// THE REFUSAL, AND IT IS THE HONEST ONE: the pass they meant had already
+		// been signed back in by the student. Not a reported close of a pass this
+		// call never touched.
+		expect(cleared.ok).toBe(false);
+		expect(cleared.reason).toBe('already_closed');
+
+		// AND THE ASSERTION THE WHOLE BUNDLE EXISTS FOR: BEN IS STILL OUT.
+		const after = await openRow();
+		expect(after).not.toBeNull();
+		expect(after!.id).toBe(bensRow.id);
+		expect(after!.student_email).toBe(ben.email);
+		expect(await openCount()).toBe(1);
+
+		// Ben's row was not merely left open -- it was not written to at all.
+		const { rows: untouched } = await db.sql<{ closed_by: string | null }>(
+			'select closed_by from public.classroom_hall_passes where id = $1',
+			[bensRow.id]
+		);
+		expect(untouched[0].closed_by).toBeNull();
+
+		// Ana's own row records ANA as the closer, not the instructor whose press
+		// arrived afterwards. `closed_by` is the only record of who acted.
+		const { rows: anaRow } = await db.sql<{ closed_by: string }>(
+			'select closed_by from public.classroom_hall_passes where id = $1',
+			[anasPass]
+		);
+		expect(anaRow[0].closed_by).toBe(ana.email);
+
+		/**
+		 * THE POSITIVE CONTROL, and it is what stops every assertion above from
+		 * passing on a close that simply never works. The same instructor, on the
+		 * same connection, naming the pass that IS open closes it.
+		 */
+		const good = await closeById(teacher, bensRow.id);
+		expect(good.ok).toBe(true);
+		expect(good.student_email).toBe(ben.email);
+		expect(await openCount()).toBe(0);
+	});
+
+	/**
+	 * THE STUDENT PATH CANNOT HAVE THIS RACE AT ALL, and the reason is
+	 * structural rather than careful: it requires the open pass's holder to BE
+	 * the caller. Ana pressing "back" a moment too late finds BEN's row, not her
+	 * own, and the worst outcome available to her is a refusal.
+	 *
+	 * This is why the section is a safe handle for a student and not for an
+	 * instructor -- the asymmetry that makes the split possible at all, and it
+	 * is asserted rather than argued.
+	 */
+	test('a student pressing back too late is refused, never given somebody else', async () => {
+		await db.sql('delete from public.classroom_hall_passes');
+		const ana = students[0];
+		const ben = students[1];
+
+		expect((await openPass(ana)).ok).toBe(true);
+		await db.asUser(ana.id, (q) =>
+			q('select public.classroom_hall_pass_close_mine($1::uuid)', [sectionId])
+		);
+		expect((await openPass(ben)).ok).toBe(true);
+		const bensRow = (await openRow())!;
+
+		// Ana taps again -- her card had not caught up. She names no pass, so the
+		// only thing this can resolve to is Ben's open row, and it refuses.
+		const late = await db.asUser(ana.id, async (q) => {
+			const { rows } = await q<{ result: CloseResult }>(
+				'select public.classroom_hall_pass_close_mine($1::uuid) as result',
+				[sectionId]
+			);
+			return rows[0].result;
+		});
+		expect(late.ok).toBe(false);
+		expect(late.reason).toBe('not_yours');
+		// It names nobody: the refusal is one word and carries no email.
+		expect(JSON.stringify(late)).not.toContain(ben.email);
+
+		// BEN IS STILL OUT.
+		expect((await openRow())!.id).toBe(bensRow.id);
+		expect(await openCount()).toBe(1);
+
+		// POSITIVE CONTROL: Ben's own press on the same path closes it.
+		const his = await db.asUser(ben.id, async (q) => {
+			const { rows } = await q<{ result: CloseResult }>(
+				'select public.classroom_hall_pass_close_mine($1::uuid) as result',
+				[sectionId]
+			);
+			return rows[0].result;
+		});
+		expect(his.ok).toBe(true);
+		expect(await openCount()).toBe(0);
 	});
 });

@@ -53,7 +53,8 @@ const CHAIN = [
 	'0082_classroom.sql',
 	'0083_classroom_management.sql',
 	'0137_anon_execute_sweep.sql',
-	'0143_classroom_hall_pass.sql'
+	'0143_classroom_hall_pass.sql',
+	'0144_classroom_hall_pass_close_by_id.sql'
 ] as const;
 
 let db: TestDb;
@@ -85,8 +86,26 @@ const open = (user: SeededUser, section = sectionId) =>
 		[section]
 	);
 
-const close = (user: SeededUser, section = sectionId) =>
-	rpc<Record<string, unknown>>(user, 'public.classroom_hall_pass_close($1::uuid)', [section]);
+/**
+ * THE TWO CLOSES (`0144`), AND THE HELPERS ARE SEPARATE BECAUSE THE FUNCTIONS
+ * ARE. A student's close names nothing and an instructor's names the pass; a
+ * single helper taking a role flag would let a test accidentally exercise the
+ * wrong one and still read as though it had covered both.
+ */
+const closeMine = (user: SeededUser, section = sectionId) =>
+	rpc<Record<string, unknown>>(user, 'public.classroom_hall_pass_close_mine($1::uuid)', [section]);
+
+const closeById = (user: SeededUser, passId: string) =>
+	rpc<Record<string, unknown>>(user, 'public.classroom_hall_pass_close_by_id($1::uuid)', [passId]);
+
+/** The id of the section's currently open pass, read past RLS by the harness. */
+async function openPassId(section = sectionId): Promise<string> {
+	const { rows } = await db.sql<{ id: string }>(
+		'select id from public.classroom_hall_passes where section_id = $1 and closed_at is null',
+		[section]
+	);
+	return rows[0].id;
+}
 
 /** Clears every pass so each test starts from a known, derived-empty state. */
 async function resetPasses(): Promise<void> {
@@ -186,7 +205,7 @@ describe('the pass table is shut', () => {
 		await resetPasses();
 	});
 
-	test('the three functions are granted to authenticated and never to anon', async () => {
+	test('all five functions are granted to authenticated and never to anon', async () => {
 		const { rows } = await db.sql<{ sig: string; anon_x: boolean; auth_x: boolean }>(
 			`select p.oid::regprocedure::text as sig,
 			        has_function_privilege('anon', p.oid, 'execute') as anon_x,
@@ -197,7 +216,7 @@ describe('the pass table is shut', () => {
 		);
 		// Asserting the COUNT so a function added later cannot slip past this
 		// sweep by simply not being in a list somebody wrote out.
-		expect(rows.length).toBe(3);
+		expect(rows.length).toBe(5);
 		for (const r of rows) {
 			expect({ sig: r.sig, anon: r.anon_x, authed: r.auth_x }).toEqual({
 				sig: r.sig,
@@ -286,7 +305,7 @@ describe('what an enrolled student may learn', () => {
 		await resetPasses();
 		for (const s of [ana, ben, ana]) {
 			await open(s);
-			await close(s);
+			await closeMine(s);
 		}
 		const seen = await state(ben);
 		expect(seen?.history).toBeUndefined();
@@ -334,7 +353,7 @@ describe('who may close a pass', () => {
 
 		// Cass cannot even see the section, so she is stopped before the gate --
 		// which is the correct refusal and is asserted as a raise, not a result.
-		const outsider = await close(cass).then(
+		const outsider = await closeMine(cass).then(
 			(r) => ({ raised: false, r }),
 			(e: unknown) => ({ raised: true, r: (e as Error).message })
 		);
@@ -342,7 +361,7 @@ describe('who may close a pass', () => {
 
 		// And a student who IS in the section but does not hold the pass is
 		// refused by the gate itself, structurally rather than by an exception.
-		const peer = await close(ben);
+		const peer = await closeMine(ben);
 		expect(peer.ok).toBe(false);
 		expect(peer.reason).toBe('not_yours');
 		// The refusal names nobody.
@@ -360,21 +379,24 @@ describe('who may close a pass', () => {
 	test('the holder closes their own, and the instructor closes anyone in the section', async () => {
 		await resetPasses();
 		await open(ana);
-		const own = await close(ana);
+		const own = await closeMine(ana);
 		expect(own.ok).toBe(true);
 		// A student closing their own pass is told about their own pass only.
 		expect(own.student_name).toBeNull();
 		expect(own.closed_by_manager).toBe(false);
 
 		await open(ben);
-		const staff = await close(teacher);
+		const staff = await closeById(teacher, await openPassId());
 		expect(staff.ok).toBe(true);
 		expect(staff.closed_by_manager).toBe(true);
 		expect(staff.student_name).toBe(BEN_NAME);
 
-		// An instructor of a DIFFERENT section is not an instructor here.
+		// An instructor of a DIFFERENT section is not an instructor here, and the
+		// refusal is the same sentence a nonexistent pass gets -- see the probe
+		// test in the 0144 block below.
 		await open(ana);
-		const foreign = await close(otherTeacher).then(
+		const anaPass = await openPassId();
+		const foreign = await closeById(otherTeacher, anaPass).then(
 			() => ({ raised: false }),
 			() => ({ raised: true })
 		);
@@ -384,7 +406,7 @@ describe('who may close a pass', () => {
 
 	test('closing when nothing is open is a refusal, not an error', async () => {
 		await resetPasses();
-		const res = await close(ana);
+		const res = await closeMine(ana);
 		expect(res.ok).toBe(false);
 		expect(res.reason).toBe('not_open');
 	});
@@ -501,7 +523,7 @@ describe('state is derived from the rows', () => {
 	test('removing an enrollment cascades its passes rather than stranding them', async () => {
 		await resetPasses();
 		await open(ana);
-		await close(ana);
+		await closeMine(ana);
 		await db.sql('delete from public.classroom_enrollments where section_id = $1 and student_email = $2', [
 			sectionId,
 			ana.email
@@ -511,5 +533,292 @@ describe('state is derived from the rows', () => {
 		);
 		expect(rows[0].n).toBe('0');
 		await enrollStudent(db, { as: teacher, sectionId, email: ana.email, displayName: ANA_NAME });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 0144: THE CLOSE IS SPLIT BY ROLE.
+//
+// The three-way race itself is proven in
+// tests/classroom-hall-pass-race.test.ts, which needs concurrent connections
+// and a blocked transaction. What is here is everything the split has to be
+// true for a wrong result to stay invisible: that a manager's press cannot
+// silently land on somebody else's pass, that a student still names nobody, and
+// that `closed_by` says something true whichever path wrote it.
+// ---------------------------------------------------------------------------
+
+describe('the manager close names the pass (0144)', () => {
+	/**
+	 * THE FILE RE-APPLIES. Re-pasting a migration is ordinary here -- somebody
+	 * re-runs it, or a first attempt failed partway and gets retried -- so a file
+	 * that only works once fails exactly then, with the schema half built. Both
+	 * functions are `create or replace` and the self-check reads the catalog, so
+	 * a second apply must be a no-op that still passes its own assertions.
+	 *
+	 * IT IS APPLIED OVER A DATABASE WITH LIVE ROWS IN IT, not a fresh one, since
+	 * an operator re-pasting does it mid-term: an open pass is left standing
+	 * across the re-apply and asserted to survive untouched.
+	 */
+	test('the migration re-applies over live rows', async () => {
+		const { readFileSync } = await import('node:fs');
+		await resetPasses();
+		await open(ana);
+		const before = await openPassId();
+
+		const sql = readFileSync(
+			'supabase/migrations/0144_classroom_hall_pass_close_by_id.sql',
+			'utf8'
+		);
+		await db.sql(sql);
+
+		// The open pass is untouched -- the file creates functions and backfills
+		// nothing.
+		expect(await openPassId()).toBe(before);
+		// And both functions still work after the second apply.
+		expect((await closeById(teacher, before)).ok).toBe(true);
+		expect((await state(teacher))?.taken).toBe(false);
+
+		// Still exactly one arity each: a re-apply that produced an overload would
+		// make PostgREST unable to resolve the call at all.
+		const { rows } = await db.sql<{ n: string }>(
+			`select count(*)::text as n from pg_proc p
+			 join pg_namespace n on n.oid = p.pronamespace
+			 where n.nspname = 'public'
+			   and p.proname in ('classroom_hall_pass_close_by_id', 'classroom_hall_pass_close_mine')`
+		);
+		expect(rows[0].n).toBe('2');
+	});
+
+	/**
+	 * THE REFUSAL THAT REPLACES THE WRONG CLOSE. Under the section-keyed close,
+	 * this exact fixture -- a pass closed, another opened, and a manager pressing
+	 * with the first one in mind -- closed the SECOND pass. Now the named pass is
+	 * found already closed and the open one is untouched.
+	 *
+	 * THE POSITIVE CONTROL IS THE SECOND HALF: the same manager, on the same
+	 * fixture, closing the pass that IS open succeeds. Without it, a function
+	 * that refused everything would satisfy the assertions above it.
+	 */
+	test('a pass already closed is refused, and whoever is out now is untouched', async () => {
+		await resetPasses();
+		await open(ana);
+		const anasPass = await openPassId();
+		await closeMine(ana);
+
+		// Ben leaves. The pass is legitimately his.
+		await open(ben);
+		const bensPass = await openPassId();
+		expect(bensPass).not.toBe(anasPass);
+
+		// The instructor presses clear with ANA's pass in mind.
+		const late = await closeById(teacher, anasPass);
+		expect(late.ok).toBe(false);
+		expect(late.reason).toBe('already_closed');
+
+		// BEN IS STILL OUT. This is the assertion the whole bundle exists for.
+		const after = await state(teacher);
+		expect(after?.taken).toBe(true);
+		expect((after?.open as Record<string, unknown>)?.pass_id).toBe(bensPass);
+		expect((after?.open as Record<string, unknown>)?.student_email).toBe(ben.email);
+
+		// POSITIVE CONTROL: the same call against the pass that is genuinely open
+		// closes it, so the refusal above is about THAT pass and not about the
+		// function having stopped working.
+		const good = await closeById(teacher, bensPass);
+		expect(good.ok).toBe(true);
+		expect(good.closed_by_manager).toBe(true);
+		expect(good.student_name).toBe(BEN_NAME);
+		expect((await state(teacher))?.taken).toBe(false);
+	});
+
+	/**
+	 * A PASS ID CANNOT BE PROBED. A nonexistent id and a real id in a section
+	 * the caller does not manage must be INDISTINGUISHABLE -- asserted as equal
+	 * message strings rather than as "both threw", because two different
+	 * sentences would still both throw and would still tell an outsider which
+	 * ids are real.
+	 */
+	test('a nonexistent pass and a foreign one raise the identical sentence', async () => {
+		await resetPasses();
+		await open(ana);
+		const real = await openPassId();
+
+		const missing = await closeById(
+			otherTeacher,
+			'00000000-0000-0000-0000-000000000000'
+		).then(
+			() => '',
+			(e: unknown) => (e as Error).message
+		);
+		const foreign = await closeById(otherTeacher, real).then(
+			() => '',
+			(e: unknown) => (e as Error).message
+		);
+
+		expect(missing).not.toBe('');
+		expect(foreign).toBe(missing);
+		// And the sentence names no database object.
+		expect(missing).not.toContain('classroom_hall_passes');
+		expect(missing).not.toContain(ana.email);
+
+		// POSITIVE CONTROL: the id really is a live pass -- the section's own
+		// instructor closes it with the same call that just refused the outsider.
+		expect((await closeById(teacher, real)).ok).toBe(true);
+	});
+
+	/**
+	 * A STUDENT CANNOT USE THE MANAGER PATH, NOT EVEN ON THEIR OWN PASS. Their
+	 * close is the one that names nothing; if this were reachable, a pass id
+	 * would become a thing a student's surface had a reason to hold, which is
+	 * precisely the disclosure the split exists to avoid.
+	 */
+	test('a student calling the by-id close is refused, on their own pass too', async () => {
+		await resetPasses();
+		await open(ana);
+		const hers = await openPassId();
+
+		const own = await closeById(ana, hers).then(
+			() => ({ raised: false }),
+			() => ({ raised: true })
+		);
+		expect(own.raised).toBe(true);
+		const peer = await closeById(ben, hers).then(
+			() => ({ raised: false }),
+			() => ({ raised: true })
+		);
+		expect(peer.raised).toBe(true);
+
+		// POSITIVE CONTROL: the pass is still open after both refusals, and Ana
+		// closes it through the path that IS hers.
+		expect((await state(teacher))?.taken).toBe(true);
+		expect((await closeMine(ana)).ok).toBe(true);
+	});
+
+	/**
+	 * `closed_by` SAYS SOMETHING TRUE ON BOTH PATHS, and it is the only column
+	 * that records who acted. A path that wrote the holder's address whoever
+	 * pressed -- or the manager's on a student's own close -- would be wrong in
+	 * a way no screen shows, because nothing renders this column.
+	 */
+	test('closed_by records whoever actually pressed, on each path', async () => {
+		await resetPasses();
+
+		await open(ana);
+		await closeMine(ana);
+		const { rows: byStudent } = await db.sql<{ closed_by: string }>(
+			'select closed_by from public.classroom_hall_passes order by opened_at desc limit 1'
+		);
+		expect(byStudent[0].closed_by).toBe(ana.email);
+
+		await open(ben);
+		await closeById(teacher, await openPassId());
+		const { rows: byManager } = await db.sql<{ closed_by: string; student_email: string }>(
+			'select closed_by, student_email from public.classroom_hall_passes order by opened_at desc limit 1'
+		);
+		// The instructor pressed, so the instructor is recorded -- and the row is
+		// still BEN's, which is what makes the two columns say different things.
+		expect(byManager[0].closed_by).toBe(teacher.email);
+		expect(byManager[0].student_email).toBe(ben.email);
+	});
+
+	/**
+	 * THE STUDENT'S OWN CLOSE STILL CARRIES NO NAME AND NO EMAIL, asserted as
+	 * the exact key set for the same reason the state projection is: a field
+	 * added later reddens here whether or not anybody wrote an assertion for it.
+	 */
+	test('a student closing their own is told about their own pass and nothing else', async () => {
+		await resetPasses();
+		await open(ana);
+		const res = await closeMine(ana);
+		expect(res.ok).toBe(true);
+		expect(Object.keys(res).sort()).toEqual([
+			'closed_at',
+			'closed_by_manager',
+			'ok',
+			'opened_at',
+			'pass_id',
+			'section_id',
+			'student_email',
+			'student_name'
+		]);
+		expect(res.student_email).toBeNull();
+		expect(res.student_name).toBeNull();
+		expect(res.closed_by_manager).toBe(false);
+		expect(JSON.stringify(res)).not.toContain(ANA_NAME);
+
+		// POSITIVE CONTROL: the manager path on the same shape DOES carry both,
+		// so the two nulls above are a projection decision and not an empty row.
+		await open(ben);
+		const staff = await closeById(teacher, await openPassId());
+		expect(staff.student_email).toBe(ben.email);
+		expect(staff.student_name).toBe(BEN_NAME);
+	});
+});
+
+/**
+ * THE RETIRED PATH HAS NO CLIENT CALLER.
+ *
+ * 0144 deliberately does NOT drop `classroom_hall_pass_close(uuid)` -- the
+ * function has to stay callable while a client that predates this bundle is
+ * still deployed, which is what makes the migration and the deploy independent
+ * events (the 0124 precedent). So the retirement is a CLIENT fact first, and
+ * this is what holds it: nothing under `src/` may name the section-keyed close
+ * again. Without this sweep the old racy RPC is one autocomplete away from
+ * coming back, and a surface calling it would look and behave correctly until
+ * the exact interleaving in the race test.
+ */
+describe('the section-keyed close is retired on the client', () => {
+	test('no source file calls classroom_hall_pass_close', async () => {
+		const { readdirSync, readFileSync, statSync } = await import('node:fs');
+		const { join } = await import('node:path');
+
+		const files: string[] = [];
+		const walk = (dir: string) => {
+			for (const name of readdirSync(dir)) {
+				const full = join(dir, name);
+				if (statSync(full).isDirectory()) walk(full);
+				else if (/\.(ts|svelte|js)$/.test(name)) files.push(full);
+			}
+		};
+		walk('src');
+
+		/**
+		 * MATCHED AS A QUOTED STRING, WHICH IS WHAT A CALL LOOKS LIKE. An RPC
+		 * name reaches PostgREST as a string literal (`supabase.rpc('...')`),
+		 * where a COMMENT naming the retired function -- which both files
+		 * deliberately do, to say why it is retired -- writes it bare or in
+		 * backticks. A bare-substring sweep cannot tell those apart and would
+		 * make documenting the defect impossible.
+		 *
+		 * The negative lookahead keeps the two 0144 names from matching their
+		 * own prefix.
+		 */
+		const CALL = /['"`]classroom_hall_pass_close(?!_by_id|_mine)['"`]/;
+		const stale = files.filter((f) => CALL.test(readFileSync(f, 'utf8')));
+		expect(stale).toEqual([]);
+
+		/**
+		 * TWO POSITIVE CONTROLS, because this sweep has two ways to pass
+		 * vacuously and they need separate answers.
+		 *
+		 * The first is that the PATTERN still bites: put a real call site to the
+		 * retired RPC in front of it and it must match, or `stale` being empty
+		 * says nothing at all. The second is that the WALK found the tree.
+		 */
+		expect(CALL.test(`supabase.rpc('classroom_hall_pass_close', { p_section_id })`)).toBe(true);
+		expect(CALL.test(`supabase.rpc("classroom_hall_pass_close")`)).toBe(true);
+		// ...and does not fire on the two replacements, or every file reddens.
+		expect(CALL.test(`supabase.rpc('classroom_hall_pass_close_by_id')`)).toBe(false);
+		expect(CALL.test(`supabase.rpc('classroom_hall_pass_close_mine')`)).toBe(false);
+
+		const byId = files.filter((f) =>
+			readFileSync(f, 'utf8').includes(`'classroom_hall_pass_close_by_id'`)
+		);
+		const mine = files.filter((f) =>
+			readFileSync(f, 'utf8').includes(`'classroom_hall_pass_close_mine'`)
+		);
+		expect(files.length).toBeGreaterThan(100);
+		expect(byId.length).toBe(1);
+		expect(mine.length).toBe(1);
 	});
 });
