@@ -1,0 +1,301 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "V1 Checkpoint - Your First Hook",
+    "course": "IDEA100",
+    "dueDate": "2026-08-28",
+    "totalPoints": 20,
+    "assignmentId": "idea100-hook-v1",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Built from your own sketch. No tutorial part, no step list.",
+      "title": "The Part",
+      "aiNote": "Unrestricted for driving SolidWorks. Ask the assistant anything about the program, as often as you want. It will not make design decisions for you, and neither will anyone else, because you have to defend every dimension out loud.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload a screenshot of your part in SolidWorks with the **FeatureManager tree visible on the left**. The tree is most of what gets read here.\n\nThen fill the table with what your part actually measures in CAD, and the mass Bambu Studio reports after a slice.\n\n**V1 is allowed to be illegal.** If your throat came out at 0.940 or your mass reads 71 g, write that down. Nothing here is scored on hitting the numbers, because that is what V2 and V3 are for. It is scored on knowing where you stand."
+        },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 4,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 6,
+          "columns": [
+            {
+              "key": "dim",
+              "tip": "Anchor, throat, centres, thickness, mass.",
+              "label": "Dimension"
+            },
+            {
+              "key": "yours",
+              "tip": "From SolidWorks. Mass comes from Bambu.",
+              "label": "What yours measures"
+            },
+            {
+              "key": "legal",
+              "tip": "From the rules guide.",
+              "label": "Legal value"
+            },
+            {
+              "key": "ok",
+              "tip": "Yes or no. No is a normal answer today.",
+              "label": "Inside the rule?"
+            }
+          ],
+          "minRows": 5,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": true
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "r1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Solid body, tree visible",
+              "points": 4,
+              "descriptor": "Screenshot shows a solid body with both features present and the FeatureManager tree readable at full size."
+            },
+            {
+              "label": "Proficient",
+              "short": "Body built, tree cut off",
+              "points": 3,
+              "descriptor": "A solid body with both features, but the tree is cropped, hidden, or unreadable."
+            },
+            {
+              "label": "Developing",
+              "short": "Partial body only",
+              "points": 2,
+              "descriptor": "Screenshot shows a sketch or an incomplete body rather than a hook with both features."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No screenshot, or an image of something other than this student's SolidWorks session."
+            }
+          ],
+          "criterion": "A built part exists and its tree is legible"
+        },
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All five, honestly compared",
+              "points": 6,
+              "descriptor": "All five rows carry a measured value, the legal value beside it, and a verdict, including any that fall outside the rule."
+            },
+            {
+              "label": "Proficient",
+              "short": "Four of five measured",
+              "points": 4,
+              "descriptor": "Four rows carry measured values with comparisons; one is missing a value or a verdict."
+            },
+            {
+              "label": "Developing",
+              "short": "Rules copied, not measured",
+              "points": 2,
+              "descriptor": "Rows repeat the legal values in the measured column, or fewer than four rows carry real measurements."
+            },
+            {
+              "label": "Absent",
+              "short": "Table empty",
+              "points": 0,
+              "descriptor": "No table filled."
+            }
+          ],
+          "criterion": "All five values are measured and compared against the rule"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "m2",
+      "intro": "You named two designs on Thursday. This is where you say what happened to them.",
+      "title": "What You Took From Yesterday",
+      "aiNote": "COACH only. Ask it to explain how a feature works. Do not ask it what your design should be.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You wrote down two designs from the case library and what you were taking from each.\n\nSay what actually made it into V1, and where. Point at a specific part of your hook.\n\n**\"I did not use either one\" is a legitimate answer** if you say what you did instead and why. Abandoning an idea once you start drawing is normal engineering. Pretending you used it is not."
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 5,
+          "prompt": "Which of the two designs you named on Thursday shows up in V1, and where on your part is it? If neither made it in, say what replaced them and what changed your mind.",
+          "maxSentences": 5,
+          "minSentences": 3
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Names design and location",
+              "points": 5,
+              "descriptor": "Names a design from Thursday and the specific place on this hook where it appears, or explains a deliberate abandonment with what replaced it."
+            },
+            {
+              "label": "Proficient",
+              "short": "Names design, vague place",
+              "points": 3,
+              "descriptor": "Names a design and says it influenced the part, but does not locate it on the hook."
+            },
+            {
+              "label": "Developing",
+              "short": "General influence only",
+              "points": 1,
+              "descriptor": "Talks about being influenced without naming a design or a location."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank or contradicts Thursday",
+              "points": 0,
+              "descriptor": "Blank, or names designs that do not match what this student recorded on Thursday."
+            }
+          ],
+          "criterion": "The answer points at a specific feature on the student's own part"
+        }
+      ],
+      "aiLevel": 1
+    },
+    {
+      "id": "m3",
+      "intro": "Thirty seconds. This one is for the course, not for you.",
+      "title": "What Stopped You",
+      "aiNote": "No AI. This is a report on your own period and only you were there.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "One thing stopped you longer than anything else today. Everyone had one.\n\nWrite what it was, and what got you moving again: the assistant, a TA, a neighbour, or working it out yourself.\n\n**Answer this honestly and it is worth full marks whatever it says.** It is the only read anyone gets on whether the assistant and the TAs are actually working, and a room full of \"nothing stopped me\" tells us nothing and changes nothing for Monday."
+        },
+        {
+          "id": "t2",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "stuck",
+              "tip": "Be specific. \"SolidWorks was hard\" is not an answer.",
+              "label": "What stopped you"
+            },
+            {
+              "key": "long",
+              "tip": "Minutes.",
+              "label": "Roughly how long"
+            },
+            {
+              "key": "fixed",
+              "tip": "Assistant, TA, neighbour, or figured it out.",
+              "label": "What got you moving"
+            }
+          ],
+          "minRows": 1,
+          "printRows": 2,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "c1",
+          "type": "checklist",
+          "items": [
+            "I pasted the assistant prompt into a fresh chat at the start of the period",
+            "I kept that same chat open while I worked",
+            "I screenshotted the whole SolidWorks window at least once, tree included",
+            "My V1 file is saved and submitted"
+          ],
+          "points": 2
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "r4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Specific blocker and fix",
+              "points": 3,
+              "descriptor": "Names a particular thing that went wrong, roughly how long it cost, and what resolved it."
+            },
+            {
+              "label": "Proficient",
+              "short": "Named but vague",
+              "points": 2,
+              "descriptor": "Names a blocker in general terms, or gives the blocker without saying what resolved it."
+            },
+            {
+              "label": "Developing",
+              "short": "Nothing stopped me",
+              "points": 1,
+              "descriptor": "Claims nothing caused difficulty, with nothing recorded."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "No rows filled."
+            }
+          ],
+          "criterion": "The blocker is named specifically and its resolution is identified"
+        },
+        {
+          "id": "r5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All four answered",
+              "points": 2,
+              "descriptor": "Every item answered, and the answers match what a TA observed during sweeps."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly answered",
+              "points": 1,
+              "descriptor": "Some items left unanswered."
+            },
+            {
+              "label": "Absent",
+              "short": "Untouched",
+              "points": 0,
+              "descriptor": "Checklist not answered at all."
+            }
+          ],
+          "criterion": "The workflow checklist is answered truthfully"
+        }
+      ],
+      "aiLevel": 0
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
