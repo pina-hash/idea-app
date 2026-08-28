@@ -260,3 +260,131 @@ export function foundryPreviewable(
 	if (app.hidden_at !== null) return false;
 	return version.file_count > 0;
 }
+
+/**
+ * THE DOWNLOAD MOUNT: one version of an app, as a zip the student keeps.
+ *
+ *   /foundry/download/<app id>/<version id>
+ *
+ * WHAT IS IN IT IS WHAT RUNS, REBUILT FROM `student_app_files`, and that is the
+ * decision the whole feature turns on. The RAW UPLOAD is still in
+ * `foundry-uploads` -- `student_app_versions.zip_path` is `not null`, so every
+ * version has one, including the ones a student handed over as a folder or as a
+ * single HTML file, because the browser normalizes those into a zip before
+ * anything is sent. It is still the wrong thing to hand back:
+ *
+ *   IT IS NOT WHAT ANYBODY SEES. Ingest decides what comes out of an archive --
+ *     a wrapper directory stripped, OS noise dropped, an ignored `.md` removed,
+ *     the entry file settled -- so the upload contains files nothing serves and
+ *     a layout nothing runs. That is the same argument the SOURCE VIEWER
+ *     already makes for the review queue: a reviewer reading the upload is
+ *     reading something nobody will execute, and so is an author.
+ *
+ *   IT DOES NOT ROUND-TRIP. Re-uploading what we handed back has to produce the
+ *     same app, and only the stored bundle has that property -- it has already
+ *     been through ingest once and is a fixed point of it. The upload is not:
+ *     it is the input to a transformation, and feeding it back in is how a
+ *     wrapper directory that was stripped once gets stripped again.
+ *
+ * SO THE ARCHIVE IS BUILT PER REQUEST by `downloadBundleZip`, with
+ * `./zip-write`'s `buildZip` -- the SAME writer the browser uses to pack a
+ * folder on the way in, which is what makes the round trip a property of one
+ * codec pair rather than of two implementations agreeing.
+ *
+ * IT ANSWERS ON THE PORTAL ORIGIN, FOR PREVIEW'S REASON. The gate is
+ * `previewViewerMayRun` -- the author or an admin -- and that question can only
+ * be asked where the session cookie is. `/b/` and `/a/` answer on the apps
+ * origin, which deliberately holds none. So this builder takes no origin and
+ * must not gain one, exactly as `foundryPreviewUrl` does not.
+ *
+ * NO TRAILING SLASH, WHICH IS THE ONE PLACE THIS DIFFERS FROM THE OTHER THREE.
+ * The load-bearing slash on `/b/`, `/a/` and `/foundry/preview/` exists because
+ * a BUNDLE DOCUMENT resolves relative assets against its own URL. This response
+ * is a single `application/zip` attachment; nothing resolves anything against
+ * it, there is no second request, and a slash would only be a second spelling
+ * of one URL.
+ */
+export const FOUNDRY_DOWNLOAD_PREFIX = '/foundry/download/';
+
+/**
+ * `/foundry/download/<app>/<version>`, or null when it has nothing to point at.
+ *
+ * NULL IS A REAL ANSWER and the caller renders the absence, exactly as it is
+ * for the other three builders: a control whose only possible outcome is a
+ * refusal must not be offered.
+ */
+export function foundryDownloadUrl(
+	appId: string | null | undefined,
+	versionId: string | null | undefined,
+): string | null {
+	const app = (appId ?? '').trim();
+	const version = (versionId ?? '').trim();
+	if (!app || !version) return null;
+	return `${FOUNDRY_DOWNLOAD_PREFIX}${encodeURIComponent(app)}/${encodeURIComponent(version)}`;
+}
+
+/**
+ * WHAT THE SAVED FILE IS CALLED: the app's ADDRESS and which build it is.
+ *
+ *   `space-shooter-v3.zip`
+ *
+ * THE ADDRESS RATHER THAN THE TITLE, because a title is free text a student
+ * edits -- it carries spaces, punctuation, emoji and any script Unicode has --
+ * and it is not what anything else calls the app. The slug is the app's
+ * permanent, printed, QR-coded name, and `_foundry_slug_ok` already constrains
+ * it to lowercase letters, digits and single hyphens, so it is ASCII by
+ * construction and needs no folding, no escaping and no `filename*` parameter
+ * on the way into a `Content-Disposition` header.
+ *
+ * THE ORDINAL IS THERE BECAUSE A DOWNLOADS FOLDER IS A FLAT NAMESPACE. Two
+ * builds of one app saved on two days are otherwise the same name with a
+ * browser-invented `(1)` between them, and the student is left guessing which
+ * is which at exactly the moment they went looking for an older build.
+ *
+ * IT IS DEFENSIVE ABOUT BOTH INPUTS EVEN THOUGH THE COLUMN CONSTRAINS THEM.
+ * This string is interpolated into a response header, which is the one place a
+ * stray quote or newline stops being a cosmetic problem, and the route reads
+ * its slug through a service-role client that bypasses every check RLS would
+ * have made. Re-applying the slug charset here costs one regex and means the
+ * header cannot be shaped by the column. A slug that survives none of it falls
+ * back to `app`, so the caller always has a name to send.
+ */
+export function foundryDownloadFilename(
+	slug: string | null | undefined,
+	ordinal: number | null | undefined,
+): string {
+	const safe = (slug ?? '')
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9-]+/g, '-')
+		.replace(/-+/g, '-')
+		.replace(/^-|-$/g, '')
+		.slice(0, 64);
+	const name = safe === '' ? 'app' : safe;
+	const n = Number.isFinite(ordinal) && (ordinal as number) > 0 ? Math.floor(ordinal as number) : 0;
+	return n > 0 ? `${name}-v${n}.zip` : `${name}.zip`;
+}
+
+/**
+ * WHETHER A SURFACE SHOULD OFFER A DOWNLOAD OF THIS VERSION.
+ *
+ * IT IS `foundryPreviewable` UNDER A SECOND NAME, ON PURPOSE, AND THE
+ * ASSIGNMENT IS THE MECHANISM RATHER THAN A SHORTHAND. Download and preview sit
+ * behind ONE server gate -- `previewViewerMayRun` decides both, in the same
+ * module, from the same three rows -- so the surface mirror of that gate has to
+ * be one function too. Written out a second time it would be a second copy of
+ * "an upload that never unpacked, and a shelved app", which is the copy that
+ * stops matching the day one of those clauses moves. Written as an assignment
+ * the two names are the same function object, which a test asserts directly.
+ *
+ * IT EXISTS AS A NAME AT ALL because a control reading
+ * `{#if foundryPreviewable(app, v)}` above a Download button reads as a
+ * copy-paste mistake, and the next person to touch it would "fix" it by
+ * spelling out the condition.
+ *
+ * WHAT IT DELIBERATELY DOES NOT ASK IS THE STATUS, for the reason
+ * `foundryPreviewable` gives at length: downloading your own draft is the
+ * ordinary case, and a status clause added here would look correct to anybody
+ * testing with a submitted or approved build.
+ */
+export const foundryDownloadable = foundryPreviewable;

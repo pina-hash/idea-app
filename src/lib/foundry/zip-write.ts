@@ -22,11 +22,25 @@
  * `DecompressionStream('deflate-raw')`. No dependency, and the two halves
  * cannot disagree about the format because they are the same platform codec.
  *
- * NO ZIP64, NO ENCRYPTION, NO DATA DESCRIPTORS. The cap is 25 MB and 500
- * files, which is nowhere near any 32-bit boundary, and sizes are known before
- * a header is written because everything is compressed into memory first. The
- * reader refuses Zip64 markers outright, so writing one would produce an
- * archive our own preflight rejects.
+ * NO ZIP64, NO ENCRYPTION, NO DATA DESCRIPTORS. The caps are 50 MB zipped,
+ * 75 MB unpacked and 1500 files (`FOUNDRY_LIMITS`), which is nowhere near
+ * either 32-bit boundary this format has -- a uint32 for every size and offset,
+ * and a uint16 for the entry count -- and sizes are known before a header is
+ * written because everything is compressed into memory first. The reader
+ * refuses Zip64 markers outright, so writing one would produce an archive our
+ * own preflight rejects. (This paragraph read "25 MB and 500 files" until the
+ * caps moved; the conclusion did not change, only the distance to the
+ * boundary.)
+ *
+ * IT BUFFERS, WHICH IS A CONSTRAINT ON ITS CALLERS AND NOT A BUG. Every entry
+ * is compressed into memory and the whole archive is concatenated into one
+ * array, so the resident set is the input plus the output rather than one entry
+ * at a time. That is free in the browser, where the caller is holding the files
+ * anyway -- and it is the binding fact for `downloadBundleZip`, which runs this
+ * on a serverless function. Measured there against the caps' worst case (1500
+ * files, 75 MB unpacked, fully incompressible): peak RSS 268 MB and 3.5 s,
+ * against a 1024 MB function. A cap above these numbers needs a STREAMING
+ * writer, not a bigger function.
  */
 
 /** One file going into the archive. Paths are already bundle-relative. */
@@ -86,7 +100,9 @@ const UTF8_NAME_FLAG = 0x0800;
  * STORED, NOT DEFLATED, WHEN DEFLATING DOES NOT HELP. A compressed run larger
  * than its input is a real outcome for already-compressed bytes -- a PNG, a
  * woff2, a JPEG -- and writing it would make the archive bigger than the files
- * that went into it, against a 25 MB cap the student has to live under.
+ * that went into it, against `FOUNDRY_LIMITS.maxZipBytes`, which the student has
+ * to live under. (The cap is named rather than written out: this line carried a
+ * stale literal once already.)
  */
 export async function buildZip(entries: ZipEntry[]): Promise<Uint8Array> {
 	const encoder = new TextEncoder();

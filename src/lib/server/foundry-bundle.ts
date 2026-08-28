@@ -6,9 +6,14 @@ import { bundlePathOk } from '$lib/bundle-path';
 import {
 	FOUNDRY_BUNDLE_BUCKET,
 	FOUNDRY_COVER_BUCKET,
-	FOUNDRY_UPLOAD_BUCKET
+	FOUNDRY_UPLOAD_BUCKET,
+	foundryDownloadFilename
 } from '$lib/foundry/bundle-url';
 import { servableFoundryType } from '$lib/foundry/preflight';
+// THE SAME WRITER THE BROWSER PACKS AN UPLOAD WITH. One codec pair on both
+// sides is what makes "the download re-uploads to the same app" a property of
+// one implementation rather than of two agreeing.
+import { buildZip } from '$lib/foundry/zip-write';
 import { FIXTURE_VIEWER, fixtureApp, fixtureVersion, isFixtureApp } from './foundry-dev-fixture';
 
 /**
@@ -531,6 +536,208 @@ export async function previewBundleFile(
 		ok: true,
 		bytes: new Uint8Array(await blob.arrayBuffer()),
 		contentType: servableFoundryType(row.content_type)
+	};
+}
+
+/* -------------------------------------------------------------------------
+ * THE DOWNLOAD: a whole version, as a zip, for the person who wrote it.
+ *
+ * WHAT IS IN THE ARCHIVE IS WHAT RUNS. It is rebuilt from `student_app_files`
+ * and the bytes in `foundry-bundles`, never from the raw upload in
+ * `foundry-uploads` -- and the raw upload does exist for every version
+ * (`zip_path` is `not null`, and the browser packs a folder or a single HTML
+ * file into a zip before anything is sent), so this is a choice and not a
+ * limitation. The reasons are in `bundle-url.ts` beside the URL builder: the
+ * upload contains files nothing serves and a layout nothing runs, and it does
+ * not round-trip, because it is the INPUT to ingest rather than a fixed point
+ * of it. The same argument the source viewer already makes for a reviewer
+ * applies to an author.
+ *
+ * THE GATE IS `previewViewerMayRun` AND IT IS NOT A SECOND COPY OF ANYTHING.
+ * Downloading a build and running a build are the same question about the same
+ * three rows -- is this the author, or an admin, and is this version really
+ * this app's -- so they are one predicate. A student may take any version of an
+ * app they own; an admin may take any version of any app; NOBODY else may take
+ * anything, which is deliberate and not an oversight: peer download is a
+ * different question about student work and nobody has asked it.
+ *
+ * EVERY REFUSAL IS THE SAME EMPTY ANSWER, so a wrong id, another student's app,
+ * a version belonging to a different app and a bundle that never unpacked are
+ * indistinguishable from outside and the URL cannot be used to ask whether a
+ * given student has work in progress.
+ *
+ * IT BUFFERS, AND THAT IS MEASURED RATHER THAN ASSUMED. `buildZip` compresses
+ * every entry into memory and concatenates one output array, so the resident
+ * set is the whole bundle plus the whole archive rather than one entry at a
+ * time. Measured against the caps' worst case -- 1500 files, 75 MB unpacked,
+ * fully incompressible, which is the largest bundle `FOUNDRY_LIMITS` permits to
+ * exist -- peak RSS was 268 MB and the build took 3.5 s, against a Vercel Node
+ * function's 1024 MB. Half-compressible, which is what a real bundle of source
+ * plus PNG and woff2 assets looks like, it was 224 MB and 2.4 s. So the
+ * existing caps are the ceiling and no new one is added here: every version in
+ * the table is already under them by construction, and a download limit lower
+ * than the upload limit would refuse an app that legitimately exists.
+ *
+ * WHAT WOULD ACTUALLY BITE FIRST IS DURATION, NOT MEMORY: 1500 files is 1500
+ * Storage round trips, which is why they are issued in bounded parallel below
+ * rather than one after another. If a future cap raises either byte figure, the
+ * answer is a streaming writer (one entry inflated, compressed and emitted at a
+ * time, as the deck reader's `ZipSource` does), not a bigger function.
+ * ---------------------------------------------------------------------- */
+
+export type FoundryDownloadResult =
+	| { ok: true; bytes: Uint8Array; filename: string }
+	| { ok: false };
+
+const DOWNLOAD_REFUSED: FoundryDownloadResult = { ok: false };
+
+/**
+ * How many bundle objects are fetched at once.
+ *
+ * SEQUENTIAL WOULD BE THE DURATION CEILING. At 1500 files a serial loop pays
+ * 1500 round-trip latencies end to end, which is where a serverless function
+ * runs out of time long before it runs out of memory. Eight is deliberately
+ * modest: the point is to stop latency being multiplied by the file count, not
+ * to open as many sockets as the runtime will allow, and the memory argument
+ * above assumes the whole bundle is resident anyway.
+ */
+const DOWNLOAD_CONCURRENCY = 8;
+
+/**
+ * Fetch every path, in bounded parallel, preserving the input order.
+ *
+ * A SINGLE FAILURE FAILS THE WHOLE ARCHIVE, which is the only honest answer: a
+ * zip missing one file is a zip that opens, looks complete and does not run,
+ * and the student would have no way to tell. There is no partial download.
+ */
+async function fetchBundleBytes(
+	client: AdminClient,
+	appId: string,
+	versionId: string,
+	paths: readonly string[]
+): Promise<Uint8Array[] | null> {
+	const out: (Uint8Array | null)[] = new Array(paths.length).fill(null);
+	let next = 0;
+	let failed = false;
+
+	const worker = async () => {
+		for (;;) {
+			if (failed) return;
+			const i = next++;
+			if (i >= paths.length) return;
+			const path = paths[i]!;
+			const { data: blob, error } = await client.storage
+				.from(FOUNDRY_BUNDLE_BUCKET)
+				.download(`${appId}/${versionId}/${path}`);
+			if (error || !blob) {
+				failed = true;
+				return;
+			}
+			out[i] = new Uint8Array(await blob.arrayBuffer());
+		}
+	};
+
+	await Promise.all(
+		Array.from({ length: Math.min(DOWNLOAD_CONCURRENCY, paths.length) }, worker)
+	);
+
+	if (failed) return null;
+	if (out.some((b) => b === null)) return null;
+	return out as Uint8Array[];
+}
+
+/**
+ * One whole version as a zip, if and only if this viewer may have it.
+ *
+ * `bundlePathOk` RUNS OVER EVERY STORED PATH, as an independent second refusal,
+ * exactly as it does on the serving reads. These paths come from rows ingest
+ * wrote rather than from a URL, so nothing here is caller-controlled -- but a
+ * path that could not be SERVED must not be able to leave in an archive either,
+ * and checking is one predicate.
+ *
+ * A VERSION WITH NO FILES IS REFUSED rather than answered with an empty zip. An
+ * upload whose ingest never finished has nothing in it, and a 0-file archive is
+ * a download that looks like it worked. `foundryDownloadable` mirrors that
+ * clause on the surface so the control is not offered for one.
+ *
+ * IN DEV, WITH NO REAL PROJECT, the rows and bytes come from
+ * `./foundry-dev-fixture`, whose apps carry no owner column -- so this branch
+ * STATES one, `FIXTURE_VIEWER`, exactly as `previewBundleFile` does and for the
+ * same reason: it is what lets the author / not-author / admin split be driven
+ * through the real handler. Fixture versions carry no ordinal either, so the
+ * filename falls back to the slug alone.
+ */
+export async function downloadBundleZip(
+	appId: string,
+	versionId: string,
+	viewer: FoundryPreviewViewer | null
+): Promise<FoundryDownloadResult> {
+	if (!viewer || !viewer.id) return DOWNLOAD_REFUSED;
+
+	if (dev && isFixtureApp(appId)) {
+		const app = fixtureApp(appId);
+		const version = fixtureVersion(versionId);
+		if (!app || !version) return DOWNLOAD_REFUSED;
+		if (
+			!previewViewerMayRun(
+				{ id: app.id, owner: FIXTURE_VIEWER, hidden_at: app.hiddenAt },
+				{ app_id: version.appId },
+				viewer
+			)
+		)
+			return DOWNLOAD_REFUSED;
+
+		const entries = [...version.files.entries()]
+			.filter(([path]) => bundlePathOk(path))
+			.sort((a, b) => a[0].localeCompare(b[0]))
+			.map(([path, f]) => ({ path, bytes: f.bytes }));
+		if (entries.length === 0) return DOWNLOAD_REFUSED;
+
+		return {
+			ok: true,
+			bytes: await buildZip(entries),
+			filename: foundryDownloadFilename(app.slug, null)
+		};
+	}
+
+	const client = admin();
+	if (!client) return DOWNLOAD_REFUSED;
+
+	const { data: version, error: versionErr } = await client
+		.from('student_app_versions')
+		.select('id, app_id, ordinal')
+		.eq('id', versionId)
+		.maybeSingle<{ id: string; app_id: string; ordinal: number | null }>();
+	if (versionErr || !version) return DOWNLOAD_REFUSED;
+
+	const { data: app, error: appErr } = await client
+		.from('student_apps')
+		.select('id, owner, hidden_at, slug')
+		.eq('id', appId)
+		.maybeSingle<{ id: string; owner: string | null; hidden_at: string | null; slug: string | null }>();
+	if (appErr || !app) return DOWNLOAD_REFUSED;
+
+	if (!previewViewerMayRun(app, version, viewer)) return DOWNLOAD_REFUSED;
+
+	const { data: rows, error: rowsErr } = await client
+		.from('student_app_files')
+		.select('path')
+		.eq('version_id', versionId)
+		.order('path');
+	if (rowsErr || !rows) return DOWNLOAD_REFUSED;
+
+	const paths = (rows as { path: string }[])
+		.map((r) => r.path)
+		.filter((p) => bundlePathOk(p));
+	if (paths.length === 0) return DOWNLOAD_REFUSED;
+
+	const bytes = await fetchBundleBytes(client, appId, versionId, paths);
+	if (!bytes) return DOWNLOAD_REFUSED;
+
+	return {
+		ok: true,
+		bytes: await buildZip(paths.map((path, i) => ({ path, bytes: bytes[i]! }))),
+		filename: foundryDownloadFilename(app.slug, version.ordinal)
 	};
 }
 
