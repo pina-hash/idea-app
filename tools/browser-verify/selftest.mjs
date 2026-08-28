@@ -15,7 +15,16 @@
  * touches nothing.
  */
 import { launch, openPage, settle } from './browser.mjs';
-import { horizontalScroll, contrast, tapTargets, presence, domOrder, orderResult, consoleErrors } from './checks.mjs';
+import {
+	horizontalScroll,
+	contrast,
+	tapTargets,
+	presence,
+	domOrder,
+	orderResult,
+	consoleErrors,
+	statePairContrast
+} from './checks.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -169,6 +178,37 @@ const CASES = [
 			name: 'the recorded write matches the expected order',
 			html: shell('<script>window.__order = ["a", "b", "c"];</' + 'script>'),
 			run: (p) => orderResult(p, { evaluate: '() => window.__order', expected: ['a', 'b', 'c'] }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'state-pair-contrast',
+		bad: {
+			/* THE REAL BUG: an "active" rule that restates the ancestor's own
+			   default. `.btn` already sets `color: #78b870`, so an
+			   `[aria-pressed='true']` rule repeating the identical colour on the
+			   identical ground renders pressed and unpressed IDENTICALLY -- only
+			   `aria-pressed` tells them apart, which is invisible to a sighted
+			   reader. Both individually clear 4.5:1 by a wide margin, which is
+			   exactly why a plain per-element `contrast` check would not catch
+			   this. */
+			name: 'the pressed button restates the unpressed default (green-on-green)',
+			html: shell(
+				'<button id="a" class="btn" aria-pressed="true">Active</button>' +
+					'<button id="b" class="btn" aria-pressed="false">Inactive</button>',
+				'.btn{color:#78b870;background:#0d0c0a;border:0}'
+			),
+			run: (p) => statePairContrast(p, { activeSelector: '#a', inactiveSelector: '#b', label: 'test pair' }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the pressed button gives up the shared accent it should not have',
+			html: shell(
+				'<button id="a" class="btn active" aria-pressed="true">Active</button>' +
+					'<button id="b" class="btn" aria-pressed="false">Inactive</button>',
+				'.btn{color:#a39d92;background:#0d0c0a;border:0}.btn.active{color:#78b870}'
+			),
+			run: (p) => statePairContrast(p, { activeSelector: '#a', inactiveSelector: '#b', label: 'test pair' }),
 			expect: 'within'
 		}
 	},

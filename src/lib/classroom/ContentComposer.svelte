@@ -35,6 +35,7 @@
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import {
 		ITEM_KINDS,
+		courseCategorySuggestions,
 		formatBytes,
 		instructorAttachmentSrc,
 		isoToLocalInput,
@@ -411,6 +412,47 @@
 
 	const targetIds = $derived(sections.filter((s) => targets[s.id]).map((s) => s.id));
 	const linkIds = $derived(linkableSections.filter((s) => linkTargets[s.id]).map((s) => s.id));
+
+	/**
+	 * THE COURSE SCOPE FOR THE GRADING-CATEGORY DATALIST: `classroom_units`'s
+	 * own scope, not the section -- a teacher's vocabulary follows the course
+	 * rather than one block of it. On create that is wherever "Post to" is
+	 * currently checked; on edit it is wherever the item already posts, since
+	 * the "Post to" checklist itself only renders on create.
+	 */
+	const categoryCourseIds = $derived(
+		Array.from(
+			new Set(
+				(mode === 'edit' ? postedSections : sections.filter((s) => targets[s.id])).map(
+					(s) => s.course_id
+				)
+			)
+		).sort()
+	);
+	/**
+	 * SUGGESTIONS ONLY, never a constraint: the field beneath this stays a
+	 * plain free-text input regardless of what lands here. Refetched whenever
+	 * the course scope changes; a stale in-flight request is dropped rather
+	 * than allowed to overwrite a newer one.
+	 */
+	let categorySuggestions = $state<string[]>([]);
+	$effect(() => {
+		const courseIds = categoryCourseIds;
+		const load = transports.loadCategorySuggestions;
+		if (!load || courseIds.length === 0) {
+			categorySuggestions = [];
+			return;
+		}
+		let cancelled = false;
+		load(courseIds).then((res) => {
+			if (cancelled) return;
+			categorySuggestions = res.ok ? courseCategorySuggestions(res.data) : [];
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+	const categoryListId = $props.id();
 
 	/**
 	 * The panel's upload transport, bound to the STUDENT-FACING attachment side.
@@ -994,7 +1036,19 @@
 			</label>
 			<label>
 				<span>Grading category</span>
-				<input type="text" bind:value={category} placeholder="Unit Labs" />
+				<input
+					type="text"
+					bind:value={category}
+					placeholder="Unit Labs"
+					list={categorySuggestions.length ? categoryListId : undefined}
+				/>
+				{#if categorySuggestions.length}
+					<datalist id={categoryListId}>
+						{#each categorySuggestions as c (c)}
+							<option value={c}></option>
+						{/each}
+					</datalist>
+				{/if}
 			</label>
 		</div>
 	{/if}
