@@ -99,10 +99,17 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// that reaches the SAME feedback system as everything else: signed in
 		// posts through /api/vanguard-feedback (the RLS-scoped insert, as the
 		// caller), signed out through the shared anonymous route. It is not the
-		// game's older, unrelated in-game "Bug or idea?" composer
+		// game's older in-game "Bug or idea?" composer
 		// (`buildFeedbackComposer`, mounted on the title/pause/game-over
-		// screens), which still exists and still files to VANGUARD's own Apps
-		// Script backend, not to app_feedback.
+		// screens), which still exists and is still a second control -- but it
+		// no longer files anywhere else. Its send used to be an <img> GET at
+		// VANGUARD's own Apps Script backend, which nobody reads and which
+		// cannot report a failure, so it painted "THANKS!" whether the message
+		// landed or vanished; the `/vanguard` endpoint now rewrites that one
+		// call, for every visitor, to reach the SAME endpoint resolved above.
+		// Both controls therefore land in app_feedback, carry the same capture,
+		// and can both say so when a send fails. Whether two controls offering
+		// one thing is one too many is still open; where they wrote was not.
 		match: under('/vanguard'),
 		samples: ['/vanguard']
 	},

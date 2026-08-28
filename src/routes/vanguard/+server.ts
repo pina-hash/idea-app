@@ -431,12 +431,19 @@ function injectionScript(
 	// The captureMeta fields, assembled the same way and read off the page at the
 	// moment the box OPENS. A field a person has to fill in is a field that
 	// arrives empty, so nothing here is asked for.
-	function fbMeta() {
+	//
+	// surface NAMES WHICH CONTROL PRODUCED THE ROW, and both callers pass one:
+	// this page carries TWO ways to report (the injected panel, and the game's own
+	// composer on the title/pause/game-over screens), they file into the same
+	// table, and a row that does not say which it came from cannot be traced back
+	// to the control that needs fixing. Neither is the unlabelled default.
+	function fbMeta(surface) {
 		var g = fbGame(), vp = null, ua = null;
 		try { vp = window.innerWidth + 'x' + window.innerHeight; } catch (e) {}
 		try { ua = (navigator.userAgent || '').trim() || null; } catch (e) {}
 		return {
 			route: '/vanguard',
+			surface: surface,
 			path: (location && location.pathname) || '/vanguard/',
 			role: FB.role,
 			section: null,
@@ -628,7 +635,7 @@ function injectionScript(
 	function fbOpen() {
 		var panel = fbBuildPanel();
 		if (!panel) return;
-		fbMetaCaptured = fbMeta();
+		fbMetaCaptured = fbMeta('report-panel');
 		fbSetStatus('', false);
 		panel.style.display = 'flex';
 		// Focus lands in the field immediately: the game's typingInField() gate
@@ -636,6 +643,104 @@ function injectionScript(
 		// being read as movement while the box is open.
 		try { if (fbText) fbText.focus(); } catch (e) {}
 	}
+
+	// --- THE GAME'S OWN COMPOSER, POINTED AT THE SAME PLACE --------------------
+	// The game carries an older "Bug or idea?" composer of its own on the title,
+	// pause and game-over screens (buildFeedbackComposer). It fired an <img> GET
+	// at VANGUARD's Apps Script backend, which nobody reads, and an <img> GET
+	// cannot report a failure -- so it painted "THANKS!" unconditionally and a
+	// student got the same answer whether the message arrived or vanished.
+	//
+	// The composer STAYS. What is redirected is the one call: it reaches this
+	// hook now, and this hook posts to FB.endpoint -- the SAME endpoint the
+	// injected panel resolved server-side, signed-in or anonymous by the session,
+	// decided once in the GET handler and not re-decided here. Whether two
+	// controls offering the same thing is one too many is a question for later;
+	// one of them writing where nobody reads is the defect.
+	//
+	// THE APPS SCRIPT ENDPOINT IS NOT REMOVED. API_URL still carries the
+	// leaderboard and the run telemetry; only the composer's send moves.
+	//
+	// IT REPORTS INTO THE GAME'S OWN TWO ELEMENTS -- the SEND button and the
+	// character counter beside it -- so it adds no DOM, no listener and no second
+	// idea of what the composer looks like. The counter is 9px and dim by its
+	// class, which is right for a count and unreadable as a refusal, so a message
+	// overrides both inline and the override is undone when the count comes back.
+	function vgcSay(cnt, text, bad) {
+		if (!cnt) return;
+		cnt.textContent = text;
+		cnt.style.color = bad ? '#FF8C00' : '#4A7A52';
+		cnt.style.fontSize = '10px';
+		cnt.style.textAlign = 'left';
+	}
+	function vgcCount(cnt, n) {
+		if (!cnt) return;
+		cnt.textContent = n + ' / 500';
+		cnt.style.color = '';
+		cnt.style.fontSize = '';
+		cnt.style.textAlign = '';
+	}
+	window.__ideaVanguardReport = function (text, initials, ta, cnt, btn, grow) {
+		var msg = String(text == null ? '' : text).trim();
+		if (!msg) return;
+		if (btn) { btn.disabled = true; btn.textContent = 'SENDING'; }
+		vgcSay(cnt, 'Sending...', false);
+
+		// The same capture the panel files, from the same function, so a report
+		// from here is not a second-class row missing the fields that make one
+		// actionable. surface is what tells the two apart.
+		var meta = fbMeta('in-game-composer');
+		// THE ONE THING THIS COMPOSER KNOWS AND THE PANEL DOES NOT: the initials
+		// on the leaderboard row. It goes in meta, which is the free-form
+		// context blob every surface attaches to -- there is no column for it and
+		// none is invented. IT IS NOT AN IDENTITY: three characters a player typed
+		// into a scoreboard, unverified, self-chosen and re-typed every run, so
+		// nothing may read it as who somebody is.
+		meta.initials = initials ? String(initials).slice(0, 8) : null;
+
+		function done(ok, words) {
+			if (btn) { btn.disabled = false; btn.textContent = ok ? 'THANKS!' : 'RETRY'; }
+			// A FAILED SEND KEEPS THE WRITING. Clearing the box on the way out is
+			// what made the old path unrecoverable: the words were gone and the
+			// button said thank you. Only a confirmed landing clears it.
+			if (ok && ta) { ta.value = ''; if (typeof grow === 'function') { try { grow(); } catch (e) {} } }
+			vgcSay(cnt, words, !ok);
+			// A refusal stays up long enough to be read and acted on; an
+			// acknowledgement does not need to.
+			setTimeout(function () {
+				if (btn) btn.textContent = 'SEND';
+				vgcCount(cnt, (ta && ta.value) ? ta.value.length : 0);
+			}, ok ? 1800 : 6000);
+		}
+
+		fetch(FB.endpoint, {
+			method: 'POST', headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				app: 'vanguard',
+				context: '/vanguard',
+				// The composer is deliberately ONE channel with no dropdown ("Bug or
+				// idea? Tell us"), so nobody chose a kind and this must not guess
+				// one. 'other' is the catch-all, and meta.surface says why it is
+				// uninformative here rather than leaving a reader to wonder.
+				kind: 'other',
+				message: msg.slice(0, FB.maxLen),
+				meta: meta
+			})
+		}).then(function (r) {
+			return r.json().then(function (j) { return { ok: r.ok, body: j }; },
+				function () { return { ok: r.ok, body: null }; });
+		}).then(function (res) {
+			var b = res.body || {};
+			if (res.ok && b.ok === true) { done(true, 'Sent. Thank you.'); return; }
+			// Same contract the panel reads, in the same words: a 'reason' means the
+			// far side CONSIDERED this and said no, so it is reported once rather
+			// than re-sent, and fbWords is the one refusal vocabulary.
+			var reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+			done(false, reason ? fbWords(reason) : 'That did not send. Your message is still here, press SEND to try again.');
+		}).catch(function () {
+			done(false, 'That did not send. Check your connection, then press SEND again.');
+		});
+	};
 
 	// --- top nav: return to the IDEA home page + signed-in identity, so a player
 	//     can leave the game and confirm their account. Matches the IDEA green /
@@ -755,6 +860,104 @@ function injectionScript(
 	else init();
 })();
 </script>`;
+}
+
+/**
+ * THE REWRITES EVERY VISITOR GETS, AS DATA -- the second table, and the reason
+ * there are two.
+ *
+ * `_NON_ADMIN_STRIPS` below is applied inside `if (!isAdminUser)`. These are
+ * applied to EVERYONE, admin included, because neither is a gate: one hands the
+ * page a reader for three values the game keeps closure-scoped, and one points
+ * the game's own feedback composer at the portal's feedback table. An entry that
+ * belonged in the strip table would leave an admin's copy writing to the place
+ * this bundle exists to stop writing to.
+ *
+ * IT IS A TABLE FOR THE REASON THE STRIP TABLE IS ONE: a replace whose anchor
+ * has drifted is a SILENT NO-OP, and `String.prototype.replace` neither throws
+ * nor reports a miss. `__ideaGameInfo` was an inline `.replace()` here until this
+ * bundle -- a second implementation of "rewrite the served bytes for everyone",
+ * sitting beside a table built for exactly that -- so it is an entry now.
+ *
+ * A REWRITE PROVES IT FIRED BY ITS `marker`, NOT BY ITS ANCHOR'S ABSENCE, WHICH
+ * IS WHERE THE TWO TABLES DIVERGE. A strip removes, so a surviving anchor is the
+ * failure. A rewrite may APPEND (`__ideaGameInfo` keeps the `const VERSION` line
+ * it is bolted onto), so the anchor is still there afterwards and its presence
+ * says nothing at all. Each entry therefore names a string its replacement
+ * introduces and the raw build does not contain; `tests/vanguard-universal-rewrites.test.ts`
+ * walks THIS list and asserts the anchor matches the build exactly once, the
+ * marker is absent from the build (the positive control, so the next assertion
+ * cannot pass vacuously) and the marker reaches the served page exactly once for
+ * an admin, a student and a signed-out visitor alike.
+ *
+ * ORDER IS NOT SIGNIFICANT, and neither table's anchors lie inside the other's:
+ * the composer is around line 5890 of the build and both stripped blocks start
+ * past 8000.
+ */
+interface VanguardRewrite {
+	/** Stable identifier. A failing assertion names this, never a line number. */
+	name: string;
+	/** Anchor in the raw build. Never global: each must match exactly once. */
+	find: string | RegExp;
+	replace: string;
+	/**
+	 * A string the replacement introduces that the raw build does not contain.
+	 * This is the whole proof the rewrite fired, so it must not be a substring of
+	 * anything already in the file.
+	 */
+	marker: string;
+}
+
+export const _UNIVERSAL_REWRITES: readonly VanguardRewrite[] = [
+	// WHAT THE GAME KNOWS AND THE PAGE CANNOT ASK IT.
+	//
+	// The whole game body is one IIFE, so VERSION, gameMode and sector are
+	// closure-scoped: nothing outside can read them, and a report that had to
+	// leave them out would be a report that cannot say which build of the game
+	// broke or where in a run it happened. This adds a reader for exactly those
+	// three (plus which screen is up) beside the declaration of the first.
+	//
+	// It reads, and it is the only thing it does. No setter, no game function is
+	// exposed, so nothing here can change what a run does.
+	{
+		name: 'gameInfoReader',
+		find: /const VERSION='(\d+)';/,
+		replace:
+			"$& window.__ideaGameInfo=function(){ try{ return { version:VERSION, mode:gameMode, sector:sector, state:state }; }catch(e){ return { version:VERSION, mode:null, sector:null, state:null }; } };",
+		marker: 'window.__ideaGameInfo=function()'
+	},
+	// THE IN-GAME COMPOSER'S SEND, REDIRECTED OFF APPS SCRIPT.
+	//
+	// THE ANCHOR SPANS FOUR LINES ON PURPOSE, AND TAKING ONLY THE `new Image()`
+	// LINE WOULD HAVE MISSED THE POINT OF THE CHANGE. The three lines after it
+	// clear the box and paint "THANKS!" UNCONDITIONALLY -- outside the
+	// `if(API_URL)`, so they ran even when there was no endpoint to send to at
+	// all. Redirecting the request and leaving those behind would produce a
+	// composer that still thanks a student for a message it just failed to send,
+	// which is the exact defect, one layer in.
+	//
+	// So the whole optimistic block is replaced by one call, and the hook the
+	// injection defines owns the outcome: the box is cleared only on a confirmed
+	// landing, a refusal is spoken in the shared vocabulary, and a failure leaves
+	// the writing where the student can press SEND again.
+	{
+		name: 'composerSend',
+		find: /if\(API_URL\)\{ try\{ new Image\(\)\.src=API_URL\+'\?action=feedback[\s\S]*?setTimeout\(\(\)=>\{ btn\.textContent='SEND'; btn\.disabled=false; \},1400\);/,
+		// The guard is a can't-happen: the bootstrap is injected into <head>
+		// unconditionally and defines the hook synchronously, well before any
+		// click. It is here so that if it ever DID happen the composer says the
+		// message did not send and keeps it, rather than throwing inside a click
+		// handler and looking like a dead button.
+		replace:
+			"if(window.__ideaVanguardReport){ window.__ideaVanguardReport(txt,curInitials,ta,cnt,btn,grow); } else { cnt.textContent='Reporting is unavailable here. Your message was not sent.'; }",
+		marker: 'window.__ideaVanguardReport(txt,curInitials,ta,cnt,btn,grow)'
+	}
+];
+
+/** Apply every rewrite in `_UNIVERSAL_REWRITES`, in order. */
+export function _rewriteForEveryone(html: string): string {
+	for (const rw of _UNIVERSAL_REWRITES) html = html.replace(rw.find, rw.replace);
+	return html;
 }
 
 /**
@@ -880,26 +1083,9 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		runStates = (runRes.data ?? []).map((r) => r.data).filter((d) => d != null);
 	}
 
-	let htmlContent = vanguardHtml;
-
-	// WHAT THE GAME KNOWS AND THE PAGE CANNOT ASK IT.
-	//
-	// The whole game body is one IIFE, so VERSION, gameMode and sector are
-	// closure-scoped: nothing outside can read them, and a report that had to
-	// leave them out would be a report that cannot say which build of the game
-	// broke or where in a run it happened. This adds a reader for exactly those
-	// three (plus which screen is up) beside the declaration of the first, at
-	// SERVE TIME -- the same technique as the tune-mode strip below, and the same
-	// promise: the file on disk is never modified.
-	//
-	// It reads, and it is the only thing it does. No setter, no game function is
-	// exposed, so nothing here can change what a run does.
-	htmlContent = htmlContent.replace(
-		/const VERSION='(\d+)';/,
-		(match) =>
-			match +
-			" window.__ideaGameInfo=function(){ try{ return { version:VERSION, mode:gameMode, sector:sector, state:state }; }catch(e){ return { version:VERSION, mode:null, sector:null, state:null }; } };"
-	);
+	// Every visitor first, then the non-admin gate on top. Both are serve-time
+	// edits to the served bytes and neither touches the file on disk.
+	let htmlContent = _rewriteForEveryone(vanguardHtml);
 
 	if (!isAdminUser) {
 		htmlContent = _stripForNonAdmin(htmlContent);

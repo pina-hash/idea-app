@@ -161,16 +161,43 @@ a different identifier).
 checkpoints reach the page through the injection, which reads them server-side in
 the `/vanguard` GET and ships them as `window.__ideaRunStates`; the browser never
 fetches this endpoint. `POST` and `DELETE` on the same route are both called
-(`+server.ts`, the checkpoint saver and clearer).
+(`+server.ts`, the checkpoint saver and clearer). **Re-checked 2026-08-28 and
+still true**: the only three call sites in the repo are the two `POST`s
+(`+server.ts:333` `sendBeacon`, `:336` `fetch`) and the one `DELETE` (`:351`).
+Nothing in `src/lib/legacy/` names the route at all. Deleting the `GET` is safe
+and is the right call whenever a bundle is touching this file -- it is an
+authenticated read of a student's own rows, so it leaks nothing while it sits
+there, which is why it is a tidy-up and not a defect.
 
-**The in-game feedback composer writes to a third-party endpoint, not to the
-portal.** `buildFeedbackComposer` (`index.html:5890`) is mounted in three places
-(`:5915` -- title, pause, game-over) and sends `action=feedback` to the Apps
-Script `API_URL` (`:5451`) as an `<img>` GET. It is fire-and-forget: no response
-is read, so a report that never arrives looks identical to one that did. It is
-unrelated to the portal REPORT control the `/vanguard` endpoint injects (build
-212), which writes to `app_feedback` through `/api/vanguard-feedback`. Both are
-live at once.
+**The in-game feedback composer wrote to a third-party endpoint, not to the
+portal. FIXED IN THE INJECTION, NOT IN THE GAME.** `buildFeedbackComposer`
+(`index.html:5890`) is mounted in three places (`:5915` -- title, pause,
+game-over) and used to send `action=feedback` to the Apps Script `API_URL`
+(`:5451`) as an `<img>` GET. That was fire-and-forget: no response is read, so a
+report that never arrived looked identical to one that did -- and the three lines
+after it cleared the box and painted `THANKS!` UNCONDITIONALLY, outside the
+`if(API_URL)` guard, so a student was thanked even when there was no endpoint at
+all.
+
+**The composer still exists and its bytes on disk are unchanged.** The fix lives
+on the SERVER side of the injection boundary, which this file cannot otherwise
+show: `_UNIVERSAL_REWRITES` in `src/routes/vanguard/+server.ts` replaces that
+whole optimistic block, in the served bytes, for EVERY visitor (admins included
+-- it is not a gate, so it is not in `_NON_ADMIN_STRIPS`), with a call into
+`window.__ideaVanguardReport`, a hook the same bootstrap defines. The hook posts
+to `FB.endpoint` -- the endpoint the injected REPORT panel already resolved
+server-side, signed-in or anonymous by session, decided once -- so both controls
+now land in `app_feedback`, carry the same `fbMeta()` capture (plus
+`meta.surface`, which says which control it was, and `meta.initials`), and can
+report a refusal in the shared vocabulary. A failed send keeps the writing and
+re-arms SEND.
+
+`API_URL` IS NOT REMOVED and must not be: it still carries the run telemetry
+(`:5399`, `:5414`) and the whole leaderboard (`action=top`, `action=submit`).
+This was a redirect of one call.
+
+Two controls offering the same thing on one page is still open as a UX question;
+`tests/vanguard-universal-rewrites.test.ts` covers the routing half.
 
 ---
 
