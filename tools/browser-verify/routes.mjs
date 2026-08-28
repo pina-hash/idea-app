@@ -234,6 +234,92 @@ export const ROUTES = [
 		]
 	},
 	{
+		path: '/dev/classroom-split/s-1?manage=1&state=compose-assignment-rubric',
+		label: 'Class stream composer, assignment kind + staged rubric builder (teacher)',
+		aliasOf: '/dev/classroom-split/s-1?manage=1',
+		/* THE STAGED RUBRIC BUILDER never ran in a browser before this: the
+		   composer defaults to 'post' and `canStageRubric` needs kind ===
+		   'assignment' AND mode === 'create' AND a teacherTransports, none of
+		   which any prior /dev route reached at once. `New post` opens the
+		   composer, then the kind toggle -- plain text, no data-testid on the
+		   three buttons -- is selected by its own label. `RubricBuilder`
+		   mounted with `itemId={null}` (staging mode) is the state: "Build
+		   rubric" / "Generate from spec", nothing saved yet, applied the
+		   moment the create call returns an id. */
+		prepare: [
+			{
+				click: '[data-testid="new-post"]',
+				until: '() => !!document.querySelector(".compose-card .kind-toggle")'
+			},
+			{
+				click: '.compose-card .kind-toggle .kind:has-text("Assignment")',
+				until: '() => !!document.querySelector(".compose-card .attach-editor .rubric-builder")'
+			}
+		],
+		presence: [
+			{ selector: '.compose-card .kind-toggle .kind.active', label: 'kind tab active (Assignment)', expectPresent: 1 },
+			{ selector: '.compose-card .attach-editor .rubric-builder', label: 'staged rubric builder (create, assignment)', expectPresent: 1 }
+		],
+		contrast: [
+			{ selector: '.compose-card .rubric-builder .line', label: 'rubric builder empty-state copy', min: 4.5 }
+		],
+		/* KNOWN FINDING, not a new defect: `.btn.secondary.tiny` measures
+		   ~22.9px here, which is the deliberate "chip beside a heading" size
+		   documented at classroom.css:196 -- only `.cr-console` and
+		   `.engine-host` bump that class to the 44px floor, and the composer's
+		   staged rubric builder is neither wrapper. Left in as a measurement
+		   (CLAUDE.md: every check reports a number, never a bare pass), not
+		   silenced -- this is the first time this control has actually run in
+		   a browser to measure. */
+		tapTargets: [
+			{ selector: '.compose-card .rubric-builder .actions .btn', label: 'rubric builder controls (Build rubric / Generate from spec)', min: 44 }
+		]
+	},
+	{
+		path: '/dev/classroom-split/s-1/item/i-crowded?manage=1',
+		label: 'Item detail, second notebook check-in attach door (teacher, one already attached)',
+		/* THE SECOND DOOR never ran in a browser before this either: the attach
+		   control used to be the {:else} of `{#if checkIns.length}`, so an item
+		   that already carried a check-in had no way to add a second one. It is
+		   now mounted beside the list unconditionally once `canManageCheckIn`
+		   holds. i-crowded carries one check-in (classroom-split/fixture.ts,
+		   CHECK_INS) and this route now wires `checkInTransports` (previously
+		   omitted here entirely, which is the whole reason this state was
+		   unreachable from any dev route this session may touch). The
+		   inspector strip is collapsed by default (`itemInspector.open` starts
+		   false), so it has to be opened first. */
+		prepare: [
+			{
+				click: '[data-testid="inspector-toggle"]',
+				until: '() => !!document.querySelector("#item-inspector-body")'
+			}
+		],
+		presence: [
+			{ selector: '[data-testid="insp-check-in"]', label: 'check-in already attached', expectPresent: 1 },
+			{ selector: '[data-testid="detach-check-in"]', label: 'detach control on the attached check-in', expectPresent: 1 },
+			{ selector: '[data-testid="check-in-open"]', label: 'second attach door (Add a check-in)', expectPresent: 1 }
+		],
+		contrast: [
+			{ selector: '[data-testid="insp-check-in"] strong', label: 'attached check-in label', min: 4.5 }
+		],
+		/* Same known chip-sized-control finding as the composer route above --
+		   `.btn.secondary.tiny` inside the inspector is neither `.cr-console`
+		   nor `.engine-host`, so it stays at the documented ~22.9px chip size
+		   (classroom.css:196). Measured, not silenced. */
+		tapTargets: [
+			{ selector: '[data-testid="check-in-open"]', label: 'second attach door control', min: 44 },
+			{ selector: '[data-testid="detach-check-in"]', label: 'detach control', min: 44 }
+		],
+		/* THE CROWDED FIXTURE'S OWN IMAGE ATTACHMENT (span-photo.jpg), not this
+		   bundle's doing: `AttachmentList` always renders through
+		   `attachmentSrc()` -> `/api/classroom/attachment/<id>`, a real server
+		   route that needs a session this placeholder-.env dev server cannot
+		   provide, so it 401s. Every route in this file with fixture-only
+		   errors gets its own documented ignore, same as the harness's own
+		   external-block pattern above. */
+		ignoreConsole: ['Failed to load resource: the server responded with a status of 401']
+	},
+	{
 		path: '/dev/animated-logo',
 		label: 'Animated emblem harness',
 		presence: [

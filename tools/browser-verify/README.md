@@ -159,8 +159,10 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **22
-controls, 11 negative and 11 positive.** Fixtures rather than a mutation of `src/`
+one, because unlike the measuring run there is a right answer here. **24
+controls, 12 negative and 12 positive** (re-derived from `selftest.mjs`'s own
+`CASES` array 2026-08-28; the file already carried the twelfth group,
+`console-errors (console.error)`, this line had simply drifted). Fixtures rather than a mutation of `src/`
 on purpose: a mutation proves a check once in a tree that then has to be
 restored byte-identically, this proves it on every run and touches nothing.
 

@@ -13,6 +13,7 @@ import type { ClassroomItem, ClassroomSection, ClassroomUnit } from '$lib/classr
 import type { ClassroomDeck } from '$lib/classroom/deck';
 import type { ReferenceSpec } from '$lib/classroom/reference-spec';
 import { SAMPLE_REFERENCE, SAMPLE_REFERENCE_ALT } from '$lib/classroom/dev-reference-fixture';
+import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 
 export const loads = { layout: 0, item: 0 };
 
@@ -192,3 +193,26 @@ export const ITEMS: ClassroomItem[] = [
 export function itemById(id: string): ClassroomItem | null {
 	return ITEMS.find((i) => i.id === id) ?? null;
 }
+
+/**
+ * ONE CHECK-IN ALREADY ATTACHED to the crowded item (0120), so its page reaches
+ * the state that used to have no second door: `checkInTransports` non-null,
+ * `checkIns.length` already nonzero. Status is null throughout -- a manager
+ * has no personal standing on their own class's check-in (see
+ * `ItemDetail`'s own `checkIns` doc comment) -- and this fixture is only ever
+ * read under `?manage=1`, so there is no viewer status to fake.
+ */
+export const CHECK_INS: Record<string, ClassCheckIn[]> = {
+	's-1': [
+		{
+			session_id: 'ns-crowded-1',
+			section_id: 's-1',
+			unit_number: 1,
+			session_date: '2026-08-20',
+			session_label: 'Truss layout sketch',
+			status: null,
+			flag_reason: null,
+			item_id: CROWDED_ID
+		}
+	]
+};
