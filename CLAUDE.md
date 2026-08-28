@@ -3,11 +3,16 @@
 Operating rules for working in this repository. Everything here changes how a
 task is done, whatever the task is.
 
-**The per-bundle historical record lives in [`docs/HISTORY.md`](docs/HISTORY.md)**
--- what each migration and code-only bundle changed, why, what was measured, and
-what was left undone. Read it when diagnosing something in a subsystem with
-history, or when you need the REASON a rule below exists before changing it. It
-is indexed by subsystem and by migration number. Do not read it end to end.
+**The per-bundle historical record lives in [`docs/history/`](docs/history/), ONE
+FILE PER ENTRY** -- what each migration and code-only bundle changed, why, what
+was measured, and what was left undone. Read it when diagnosing something in a
+subsystem with history, or when you need the REASON a rule below exists before
+changing it. **`grep -r` over that directory is how you find an entry**; every
+file's front matter carries its date, branch, migration numbers and subsystem as
+plain text. `npm run history:index` prints the by-subsystem, GREENLINE and
+by-migration indexes, which are GENERATED and never committed. Do not read the
+directory end to end. `docs/HISTORY.md` is now a pointer to it and is never
+edited again -- see "Keeping the documentation current" below for why.
 
 ---
 
@@ -1073,7 +1078,8 @@ explicit ADMIN grant.
 - **Widening a public or preview payload is a DISCLOSURE DECISION, not a field
   addition.** Several payloads deliberately withhold something a caller might expect
   (a disciplinary strike count, a verification target, a student's identity). Check
-  `docs/HISTORY.md` for that surface before adding a field to it.
+  `docs/history/` for that surface before adding a field to it
+  (`grep -r` it, or `npm run history:index`).
 - **A chosen public identity replaces the account identity completely.** Where a
   feature lets someone pick a display name and picture, NO surface -- including a host
   or admin console -- shows the Google account name or avatar behind it.
@@ -1426,7 +1432,8 @@ with its own answer for the rows already stored.
   one row, because that pair links the account to every anonymous report from
   the same address. **This reverses a plan stated three times** (0053, 0085 and
   0126 each said the direct grant would be revoked once the RPC existed); the
-  reasoning is in `docs/HISTORY.md` under the anonymous-path bundle.
+  reasoning is in `docs/history/` under the anonymous-path bundle
+  (`grep -rl 'anonymous report' docs/history`).
   - **THE ADDRESS IS DETERMINED BY THE ROUTE, FROM THE REQUEST.**
     `getClientAddress()`, never a header (a caller can set one, so a rate limit
     keyed on it counts to five over an unbounded set of buckets) and never the
@@ -3393,11 +3400,37 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
 
 The two files have different jobs, and the split is the point.
 
-- **A shipped bundle appends its record to `docs/HISTORY.md`**, at the end,
-  following the existing shape: what changed, the load-bearing decisions and why,
-  what was measured, what is explicitly NOT verified, what was deferred. Add its row
-  to that file's migration index if it ships SQL. **This is the default destination
+- **A shipped bundle writes its record as a NEW FILE:
+  `docs/history/<your branch slug>.md`** -- your session's git branch with the
+  `claude/` or `lane/` prefix removed, so a session on
+  `claude/history-merge-split-vx1fmk` writes
+  `docs/history/history-merge-split-vx1fmk.md`. Follow the existing shape: what
+  changed, the load-bearing decisions and why, what was measured, what is
+  explicitly NOT verified, what was deferred. **This is the default destination
   for a session's writeup.**
+  - **DO NOT APPEND TO A FILE SOMEBODY ELSE IS ALSO APPENDING TO. THAT IS THE
+    WHOLE REASON FOR THE SHAPE.** The record used to be one 35,000-line file with
+    three indexes at its top, so every session wrote to the same few lines and two
+    parallel branches could not be merged -- it blocked an automatic merge on four
+    consecutive batches and GitHub finally refused to resolve it in the web editor
+    at all. One file per entry, named for the branch, means two sessions running at
+    once touch no line in common. **Nobody consolidates these back into one file
+    later**, and nobody may: merging them back restores the exact write point the
+    split removed.
+  - **The name is your branch and nothing else.** The harness mints one branch per
+    session and a branch name cannot be taken twice, which is what makes the
+    filename collision-free BY CONSTRUCTION rather than by anyone checking. Never
+    take a name from a counter, a sequence or a date -- a number a session has to
+    pick is the shared write point again, wearing a different hat.
+  - **Front matter, then one blank line, then the entry opening with its own `##`
+    heading**: `title` (matching the heading exactly), `date`, `branches`,
+    `migrations` (quoted, `["0140"]`, because YAML reads `0140` as octal),
+    `subsystems`. **No `record_order`** -- that field belongs only to the 168
+    `record-*.md` files the split produced. `npm run history:verify` checks all of
+    this; `docs/HISTORY.md` states the full convention.
+  - **There is no index to update, for SQL or anything else.** All three indexes
+    are generated from front matter by `npm run history:index` and are gitignored.
+    Naming the migration in `migrations:` is the whole of it.
 - **Something is promoted into `CLAUDE.md` only when it changes how a FUTURE
   UNRELATED task should be done.**
   - "0117 added restore RPCs" is history.
@@ -3408,8 +3441,10 @@ The two files have different jobs, and the split is the point.
   entry.** Do not append a second, newer statement of the same rule -- `CLAUDE.md`
   must never contain two versions of one rule, and must never grow a section per
   bundle.
-- **`CLAUDE.md` is authoritative. `docs/HISTORY.md` is a dated record** and is not
-  edited to match later changes. If they appear to disagree, `CLAUDE.md` wins.
+- **`CLAUDE.md` is authoritative. `docs/history/` is a dated record** and is not
+  edited to match later changes. If they appear to disagree, `CLAUDE.md` wins. An
+  entry file is written once and left alone; correcting a past bundle's account is
+  a NEW entry saying so, never an edit to the old one.
 - New routes, tiers, roles, env vars, traps or conventions update `CLAUDE.md` in the
   same change that introduces them.
 
@@ -3503,4 +3538,4 @@ reference resolves for the next reader.
   date, no submission and no rubric by being attached, and the unit is still
   graded exactly once through `notebook_unit_items`.
 - The phase-by-phase scope history (Phases 1-5 and what each deferred) is in
-  `docs/HISTORY.md` under "Scope guardrails".
+  `docs/history/record-scope-guardrails.md`.
