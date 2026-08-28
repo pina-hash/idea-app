@@ -6,11 +6,13 @@
 // This is the sibling of tests/vanguard-admin-gate.test.ts, and it exists
 // because the two tables are applied at different times to different people.
 // `_NON_ADMIN_STRIPS` runs inside `if (!isAdminUser)`; `_UNIVERSAL_REWRITES`
-// runs for EVERYONE. Neither of its entries is a gate: one bolts a reader for
-// three closure-scoped values onto the game, and one points the game's own
+// runs for EVERYONE. None of its entries is a gate: one bolts a reader for
+// three closure-scoped values onto the game, one points the game's own
 // feedback composer away from a third-party Apps Script endpoint nobody reads
-// and at `app_feedback`, which is the queue that gets read. Put either in the
-// strip table and an admin's copy keeps the old behaviour.
+// and at `app_feedback`, which is the queue that gets read, and one corrects a
+// comment in the build that says removals stay local (they do not, since the
+// injection wraps `removeItem`). Put any of them in the strip table and an
+// admin's copy keeps the old behaviour.
 //
 // WHY THE ASSERTIONS ARE NOT THE STRIP SUITE'S. A strip proves it fired by its
 // anchor being GONE afterwards. A rewrite may APPEND -- `gameInfoReader` keeps
@@ -123,11 +125,11 @@ async function serveSignedOut(): Promise<string> {
 
 describe('the universal rewrite table is uniquely anchored in the current build', () => {
 	// A sweep that generated no cases passes vacuously, so the count is pinned.
-	it('has the two rewrites, each with a distinct name', () => {
-		expect(_UNIVERSAL_REWRITES).toHaveLength(2);
+	it('has the three rewrites, each with a distinct name', () => {
+		expect(_UNIVERSAL_REWRITES).toHaveLength(3);
 		const names = _UNIVERSAL_REWRITES.map((r) => r.name);
 		expect(new Set(names).size).toBe(names.length);
-		expect(names).toEqual(['gameInfoReader', 'composerSend']);
+		expect(names).toEqual(['gameInfoReader', 'composerSend', 'removalWrappedNote']);
 	});
 
 	it('every anchor matches the build EXACTLY ONCE', () => {

@@ -23,8 +23,10 @@ import type { RequestHandler } from './$types';
  *   - Signed in: synchronously MERGE the user's cloud save into the local
  *     `vanguard_*` keys (progression is unioned/maxed so nothing is clobbered;
  *     preferences are adopted from this device's class bucket), wrap
- *     `localStorage.setItem` to push changes to `/api/vanguard-save`, and render
- *     a floating cloud-save widget (status pill + device tag + Back up / Restore).
+ *     `localStorage.setItem` AND `localStorage.removeItem` to push changes to
+ *     `/api/vanguard-save`, and render a floating cloud-save widget (status pill
+ *     + device tag + Back up / Restore). `localStorage.clear` is deliberately
+ *     left alone -- see the wrapper for why.
  *   - Signed out: render a minimal "sign in to sync" pill; saves stay local.
  *
  * The merge logic mirrored below in JS MUST stay aligned with the canonical TS
@@ -150,6 +152,17 @@ function injectionScript(
 	window.__ideaRunStates = Array.isArray(RUNSTATES) ? RUNSTATES : [];
 	var PREFIX = 'vanguard_';
 	var native = localStorage.setItem.bind(localStorage);
+	// Captured beside \`native\` and for the same reason: the seed and the removal
+	// bookkeeping must reach the real methods, not the wrappers installed below.
+	var nativeRemove = localStorage.removeItem.bind(localStorage);
+	// The reserved value that says "this key is GONE" (REMOVED in vanguard-save.ts).
+	// The bootstrap cannot import that module, so the literal is written twice;
+	// a drift here is a removal the server files as an ordinary string value.
+	var REMOVED = '\\u0000vanguard:removed';
+	// Keys this device has deleted and not yet had a push CONFIRMED for. A removal
+	// is an event with nothing on disk to re-derive it from, so it lives here until
+	// the server has acknowledged it; a failed or retrying push must not drop it.
+	var pendingRemovals = {};
 
 	// --- merge logic (keep aligned with src/lib/vanguard-save.ts) ---
 	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone', 'vanguard_lastInitials', 'vanguard_ach', 'vanguard_ach_best', 'vanguard_ach_title'];
@@ -215,7 +228,23 @@ function injectionScript(
 	var DEVICE = deviceClass();
 
 	function localProgression() { var out = {}; for (var i = 0; i < PROGRESSION_KEYS.length; i++) { var k = PROGRESSION_KEYS[i]; var v = localStorage.getItem(k); if (v != null) out[k] = v; } return out; }
-	function snapshot() { var out = {}; for (var i = 0; i < localStorage.length; i++) { var key = localStorage.key(i); if (key && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) out[key] = localStorage.getItem(key); } return out; }
+	// The snapshot is what this device currently HOLDS, plus what it has DELETED.
+	// A pending removal is emitted as the sentinel only while the key is still
+	// genuinely absent: a remove-then-set inside one debounce window (the game
+	// unwears a title and wears another) must send the new VALUE, not a deletion
+	// followed by nothing. Re-reading localStorage rather than trusting the pending
+	// set is what makes that impossible to get wrong.
+	function snapshot() {
+		var out = {};
+		for (var i = 0; i < localStorage.length; i++) { var key = localStorage.key(i); if (key && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) out[key] = localStorage.getItem(key); }
+		for (var rk in pendingRemovals) {
+			if (!Object.prototype.hasOwnProperty.call(pendingRemovals, rk)) continue;
+			if (Object.prototype.hasOwnProperty.call(out, rk)) continue;
+			try { if (localStorage.getItem(rk) != null) continue; } catch (e) {}
+			out[rk] = REMOVED;
+		}
+		return out;
+	}
 	function applyCloud(cloud) {
 		var merged = mergeProgression((cloud && cloud.progression) || {}, localProgression());
 		// lastInitials follows the account across devices: the cloud value wins on
@@ -264,10 +293,21 @@ function injectionScript(
 	function doPush() {
 		if (!SIGNED_IN) return;
 		setStatus('saving', 'saving...');
+		// The body is built ONCE and the removals it carried are remembered, so the
+		// acknowledgement below clears exactly those and not whatever the set holds
+		// by the time the answer arrives -- a removal made while this request was in
+		// flight was not in it and is still owed.
+		var sent = snapshot();
+		var sentRemovals = [];
+		for (var sk in sent) { if (Object.prototype.hasOwnProperty.call(sent, sk) && sent[sk] === REMOVED) sentRemovals.push(sk); }
 		fetch('/api/vanguard-save', {
 			method: 'POST', headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ deviceClass: DEVICE, snapshot: snapshot() }), keepalive: true
+			body: JSON.stringify({ deviceClass: DEVICE, snapshot: sent }), keepalive: true
 		}).then(function (r) {
+			// Cleared on a CONFIRMED landing, never on dispatch: a removal dropped
+			// after a failed push is a deletion the cloud never hears about, which is
+			// the defect this whole path exists to close.
+			if (r.ok) { for (var i = 0; i < sentRemovals.length; i++) delete pendingRemovals[sentRemovals[i]]; }
 			if (r.ok) { _retried = false; setStatus('saved', fmtTime()); return; }
 			if (!_retried) { _retried = true; setStatus('saving', 'retrying...'); setTimeout(doPush, 4000); }
 			else { _retried = false; setStatus('error', 'try again'); }
@@ -376,7 +416,40 @@ function injectionScript(
 		try {
 			localStorage.setItem = function (key, value) {
 				native(key, value);
-				if (typeof key === 'string' && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) schedulePush();
+				if (typeof key === 'string' && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) {
+					// A write supersedes a pending deletion of the same key.
+					delete pendingRemovals[key];
+					schedulePush();
+				}
+			};
+			// A REMOVAL IS A CHANGE, AND UNTIL NOW IT WAS THE ONE CHANGE THAT DID NOT
+			// PUSH. The game deletes three keys -- 'vanguard_ach_title' when a player
+			// unwears an earned title, 'vanguard_sfx_lvl' on RESET in the audio panel,
+			// 'vanguard_baltune' on RESET ALL in TUNE -- and none of them reached the
+			// cloud. The first is PROGRESSION, so the seed put the removed title
+			// straight back on the next load and the unwear silently undid itself.
+			//
+			// INERT SIGNED OUT BY THE GUARD THAT IS ALREADY HERE, not by a second
+			// check of its own. The bootstrap is emitted byte-identically for
+			// everyone and \`SIGNED_IN\` is a runtime value, so what makes the existing
+			// setItem wrapper inert is the one \`if (SIGNED_IN)\` block both wrappers
+			// now sit inside -- never installed, so a signed-out player keeps the
+			// native methods. \`schedulePush\` and \`doPush\` re-check for themselves on
+			// top of that.
+			//
+			// localStorage.clear IS DELIBERATELY NOT WRAPPED. The game never calls it
+			// (zero occurrences of 'localStorage.clear' in the build), so any caller is
+			// code we cannot identify -- another surface on this origin, an extension,
+			// a console -- and propagating it would let one such call wipe a student's
+			// entire cloud save. A removal we can attribute to a key the game owns is a
+			// different proposition from a wipe we cannot attribute at all. See
+			// docs/VANGUARD_BACKLOG.md.
+			localStorage.removeItem = function (key) {
+				nativeRemove(key);
+				if (typeof key === 'string' && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) {
+					pendingRemovals[key] = 1;
+					schedulePush();
+				}
 			};
 			window.addEventListener('pagehide', function () {
 				try {
@@ -951,6 +1024,26 @@ export const _UNIVERSAL_REWRITES: readonly VanguardRewrite[] = [
 		replace:
 			"if(window.__ideaVanguardReport){ window.__ideaVanguardReport(txt,curInitials,ta,cnt,btn,grow); } else { cnt.textContent='Reporting is unavailable here. Your message was not sent.'; }",
 		marker: 'window.__ideaVanguardReport(txt,curInitials,ta,cnt,btn,grow)'
+	},
+	// A COMMENT IN THE BUILD THAT NOW SAYS THE OPPOSITE OF WHAT HAPPENS.
+	//
+	// The achievements header states, correctly when it was written, that removing
+	// a title is not wrapped and stays local. The injection wraps `removeItem`
+	// now, so a reader of the served page is told the exact inverse of the
+	// behaviour -- and that block is where a future change to title persistence
+	// gets read from, which makes the wrong sentence the one that would be
+	// trusted.
+	//
+	// IT IS A REWRITE RATHER THAN AN EDIT because the build is frozen except for
+	// game-feature work, and serve-time injection is this repo's convention for
+	// anything added to legacy HTML. It costs nothing at runtime: the anchor and
+	// the replacement are both inside a block comment.
+	{
+		name: 'removalWrappedNote',
+		find: 'Removing a title (removeItem) is not wrapped, so clearing one is\n   still a local-only change.',
+		replace:
+			'Removing a title (removeItem) is wrapped too, so clearing one now\n   reaches the cloud save and stays cleared. localStorage.clear is not\n   wrapped and never will be; nothing in this build calls it.',
+		marker: 'Removing a title (removeItem) is wrapped too'
 	}
 ];
 

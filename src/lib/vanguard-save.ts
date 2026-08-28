@@ -11,10 +11,15 @@
  *                     within a class.
  *   - DEVICE-LOCAL -> never synced (e.g. the telemetry device id).
  *
- * NOTE: a compact copy of this classification + `mergeProgression` is mirrored
- * inside the injected bootstrap in `src/routes/vanguard/+server.ts` (it must run
- * synchronously in the browser before the game reads localStorage, so it cannot
- * import this module). Keep the two in sync.
+ * A key the device DELETED is a fourth case, and it is the one the shape could
+ * not express until `REMOVED` below. See that constant for why absence was not
+ * available to mean it.
+ *
+ * NOTE: a compact copy of this classification + `mergeProgression` + the
+ * `REMOVED` sentinel is mirrored inside the injected bootstrap in
+ * `src/routes/vanguard/+server.ts` (it must run synchronously in the browser
+ * before the game reads localStorage, so it cannot import this module). Keep the
+ * two in sync.
  */
 
 export type DeviceClass = 'mobile' | 'desktop';
@@ -51,6 +56,55 @@ export const MIGRATED_PREF_KEYS = ['vanguard_ach', 'vanguard_ach_best', 'vanguar
 
 /** Telemetry / device identity: stays local, never synced. */
 export const DEVICE_LOCAL_KEYS = ['vanguard_did'];
+
+/**
+ * THE ONE THING A SNAPSHOT COULD NOT SAY: "this key is GONE."
+ *
+ * A snapshot is `Record<string, string>` and `StoredSave.progression` is the
+ * same, so every value is a present string and the only other state a key can be
+ * in is ABSENT. But absence is already spoken for: it is how a device says "I
+ * have nothing to contribute about this key", which is precisely what lets a
+ * second device push without wiping the first one's progress. `mergeProgression`
+ * therefore keeps `a` on every branch where `b` is missing -- correctly -- and a
+ * removal expressed as absence is indistinguishable from a device that simply
+ * never had the key. **The stored shape could not express a deletion at all**,
+ * which is why wrapping `removeItem` on its own would have fixed nothing: the
+ * push would have gone out and the merge would have handed the value straight
+ * back.
+ *
+ * So the snapshot gains a RESERVED VALUE. A key mapped to `REMOVED` means the
+ * device deleted it; `splitSnapshot` routes those out of both maps into
+ * `removed`, and `mergeIntoStored` applies them to the stored blob.
+ *
+ * IT RIDES THE SNAPSHOT RATHER THAN A NEW PARAMETER, AND THAT IS A DEPLOY
+ * DECISION AS WELL AS A SHAPE ONE. `src/routes/api/vanguard-save/+server.ts`
+ * calls `mergeIntoStored` at a fixed arity and forwards the snapshot object
+ * through untouched, so a fifth parameter would be dead code until that handler
+ * changed too. Carried as a value, the removal path needs no route change, no
+ * new endpoint and no ordering between the two -- and the client and server
+ * halves ship in the same Vercel deploy, so the two literals can never be out of
+ * step in production the way a migration and a client can.
+ *
+ * IT IS AN EVENT, NOT A TOMBSTONE, AND NOTHING ABOUT IT IS PERSISTED. A stored
+ * tombstone would have to be adjudicated against another device's push, and a
+ * snapshot carries no per-key timestamps to adjudicate WITH -- so the only two
+ * tombstones available are "block this key forever", which stops a student ever
+ * re-earning what they reset, and "block until something overwrites it", which is
+ * what an event already does. Re-earning is the ordinary case: the next snapshot
+ * carries a real value and merges normally.
+ *
+ * THE RESIDUAL, STATED RATHER THAN PAPERED OVER: a SECOND device still holding
+ * the old value contributes it back on its next push. Closing that needs per-key
+ * write stamps in the snapshot, which is a wider change than a removal path; what
+ * is fixed here is the case the defect was actually about, where the device that
+ * did the deleting gets its own deletion back on the next load.
+ *
+ * The value carries a NUL, which no game write can produce: every `vanguard_*`
+ * value the build stores is `JSON.stringify` output or a plain number/flag
+ * string, and the raw build contains no NUL byte anywhere (pinned in
+ * `tests/vanguard-save-removal.test.ts`).
+ */
+export const REMOVED = '\u0000vanguard:removed';
 
 // Everything else that begins with `vanguard_` is treated as a per-device-class
 // PREFERENCE (settings, keybinds, gfx, mute, mode, sfx levels, last initials...).
@@ -255,27 +309,57 @@ export function mergeProgression(
 	return out;
 }
 
-/** Split a flat `vanguard_*` snapshot into progression + preference maps. */
+/**
+ * Split a flat `vanguard_*` snapshot into progression + preference maps, plus the
+ * keys the device REMOVED (see `REMOVED`).
+ *
+ * A removal is routed OUT of both maps rather than left in as a string value, and
+ * that is load-bearing on the preference side as well as the progression one:
+ * `mergeIntoStored` replaces a device's whole pref bucket with `prefs`, so a
+ * sentinel left in there would be written back as the key's new VALUE and seeded
+ * into the game on the next load. Routed out, the key is simply not in the
+ * replacement bucket, which is already exactly what deleting a preference means.
+ * Only progression needs the explicit delete.
+ */
 export function splitSnapshot(snapshot: Record<string, string>): {
 	progression: Record<string, string>;
 	prefs: Record<string, string>;
+	removed: string[];
 } {
 	const progression: Record<string, string> = {};
 	const prefs: Record<string, string> = {};
+	const removed: string[] = [];
 	for (const [k, v] of Object.entries(snapshot || {})) {
 		if (typeof v !== 'string') continue;
 		if (DEVICE_LOCAL_KEYS.includes(k)) continue;
+		if (v === REMOVED) {
+			// A removal is only meaningful for a key this save would ever hold.
+			if (PROGRESSION_KEYS.includes(k) || k.indexOf('vanguard_') === 0) removed.push(k);
+			continue;
+		}
 		if (PROGRESSION_KEYS.includes(k)) progression[k] = v;
 		else if (k.indexOf('vanguard_') === 0) prefs[k] = v;
 	}
-	return { progression, prefs };
+	return { progression, prefs, removed };
 }
 
+/**
+ * Read the string entries off a stored map, DROPPING any that hold the removal
+ * sentinel.
+ *
+ * Fail-safe, not decoration. `REMOVED` is a wire value: meaningful in an incoming
+ * snapshot and meaningless in the stored blob, so a copy that somehow landed
+ * there -- a browser posting to a serverless instance still running the previous
+ * build during a rollout is the realistic window -- would otherwise be handed
+ * back by `GET` and seeded into localStorage as the key's value. Stripped here,
+ * the worst that survives is the key being absent, which is what the device asked
+ * for in the first place.
+ */
 function pickStrings(obj: unknown): Record<string, string> {
 	const out: Record<string, string> = {};
 	if (obj && typeof obj === 'object') {
 		for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-			if (typeof v === 'string') out[k] = v;
+			if (typeof v === 'string' && v !== REMOVED) out[k] = v;
 		}
 	}
 	return out;
@@ -316,7 +400,7 @@ export function mergeIntoStored(
 	nowIso: string
 ): StoredSave {
 	const stored = normalizeStored(storedData);
-	const { progression, prefs } = splitSnapshot(snapshot);
+	const { progression, prefs, removed } = splitSnapshot(snapshot);
 	// The three achievement keys were preferences until they became progression,
 	// so every save written before that carries a copy in a pref bucket. Fold
 	// those in FIRST and as the OLDER side (a), so the badges a second device
@@ -337,6 +421,18 @@ export function mergeIntoStored(
 		}
 	}
 	stored.progression = mergeProgression(stored.progression, progression);
+	// APPLY REMOVALS AFTER THE MERGE, NOT BEFORE, AND ONLY TO PROGRESSION.
+	//
+	// The incoming maps cannot carry a removed key at all (`splitSnapshot` routes
+	// it out), so the merge above has just handed the stored value straight back --
+	// which is the whole defect. Deleting here is what the device asked for, and
+	// doing it last means it also outranks the MIGRATED_PREF_KEYS fold above, so
+	// unwearing a title cannot be undone by a stale pref-bucket copy of it on the
+	// very same request.
+	//
+	// Preferences need nothing here: their bucket is REPLACED below with a map the
+	// removed key is not in, which is already a delete.
+	for (const k of removed) delete stored.progression[k];
 	stored.prefs[deviceClass] = { ...prefs, _ts: nowIso };
 	// lastInitials is progression now; evict any stale copy older builds left in
 	// a pref bucket so the per-device pref can never shadow the synced value.
