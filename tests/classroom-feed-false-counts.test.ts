@@ -23,9 +23,20 @@
 //      last term's overdue rows stayed in this term's count.
 //
 //   3. A CHECK-IN SCHEDULED FOR NEXT MONTH WAS ALREADY MISSING. `checkInStatus`
-//      has no clock, and the class layout load read `notebook_session_postings`
+//      had no clock, and the class layout load read `notebook_session_postings`
 //      with no date bound, so a future check-in came back with no entry against
 //      it, resolved to `missing`, and `isOutstanding` counted it.
+//
+//      THE FIRST FIX WAS A DATE BOUND ON THE READ, AND IT IS GONE. It hid the
+//      row rather than naming it, which was the best answer available until
+//      `0140` gave the teacher's grid a word for "not asked for yet" -- and a
+//      bound that hid a teacher's own scheduled check-in from their own class
+//      page was the mistake `0140` explicitly refused to make on the grid. The
+//      row is read now and resolves to `scheduled`, which `isOutstanding` does
+//      not name, `checkInTone` mutes, and `mergeCheckIns` puts BELOW everything
+//      actionable. So section 3 below asserts a count that did not change and a
+//      row that did: the number this file exists to protect is identical, and
+//      the thing producing it is a status rather than an absence.
 //
 // WHY THIS IS A TEST AND NOT A HARNESS DRIVE. Every one of these fails in the
 // direction nobody investigates: the number is simply larger than it should be
@@ -69,7 +80,11 @@ import {
 	type SectionFeed
 } from '../src/lib/classroom/feed';
 import {
+	checkInIsScheduled,
+	checkInTone,
 	isOutstanding,
+	laCalendarDay,
+	mergeCheckIns,
 	outstandingCheckIns,
 	type ClassCheckIn
 } from '../src/lib/classroom/class-check-ins';
@@ -451,33 +466,104 @@ describe('a concluded class', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. A check-in dated in the future is not outstanding
+// 3. A check-in dated in the future is scheduled, and scheduled is not work
 // ---------------------------------------------------------------------------
 
 describe('a check-in scheduled for the future', () => {
-	test('is not read, not counted and not rendered, while today and yesterday still are', async () => {
+	test('is read and named `scheduled`, while today and yesterday still count', async () => {
 		const data = await runClassLoad(alice, current);
 		const labels = data.checkIns.map((c) => c.session_label).sort();
 
-		// THE FIX.
-		expect(labels).not.toContain('Final assembly photos');
+		// IT IS ON THE PAGE NOW. The date bound that used to drop it is gone, so
+		// this is the assertion that reversed: a student sees the same three
+		// check-ins their teacher scheduled.
+		expect(labels).toEqual(['Final assembly photos', 'Gearbox teardown', 'Shaft stackup calcs']);
+
+		const future = data.checkIns.find((c) => c.session_label === 'Final assembly photos')!;
+		expect(future.session_date).toBe(laDay(30));
+		expect(future.status).toBe('scheduled');
+
+		// THE FIX, WHICH IS NOW ARITHMETIC RATHER THAN ABSENCE. The row is right
+		// there and still does not count.
+		expect(isOutstanding(future.status)).toBe(false);
+
+		// AND IT IS NOT TONED AS WORK. `attention` is the tone `missing` and
+		// `draft` wear; a row a student cannot act on yet must not wear it.
+		expect(checkInTone('scheduled')).toBe('muted');
 
 		// THE POSITIVE CONTROLS. Both of these have no entry filed against them,
-		// so they resolve to `missing` for exactly the reason the future one did
-		// -- the ONLY difference is the date. A bound that filtered on anything
-		// else, or that used `<` where it should use `<=`, drops one of them.
-		expect(labels).toEqual(['Gearbox teardown', 'Shaft stackup calcs']);
-		expect(data.checkIns.every((c) => c.status === 'missing')).toBe(true);
-		expect(data.checkIns.filter((c) => isOutstanding(c.status))).toHaveLength(2);
+		// so they resolve to `missing` for exactly the reason the future one used
+		// to -- the ONLY difference is the date. A comparison that filtered on
+		// anything else, or that used `>=` where it should use `>`, takes one of
+		// them out of the count.
+		const due = data.checkIns.filter((c) => c.session_label !== 'Final assembly photos');
+		expect(due.map((c) => c.status)).toEqual(['missing', 'missing']);
+		expect(due.filter((c) => isOutstanding(c.status))).toHaveLength(2);
 
-		// The badge ClassView actually draws, from this same array.
+		// The badge ClassView actually draws, from this same array. It is the
+		// SAME NUMBER the date bound produced, which is the point: the fix moved
+		// from the read to the status and the total did not move with it.
 		expect(outstandingCheckIns(data.checkIns)).toBe(2);
 	});
 
-	test('is still on the roster grid, so the bound is the class page read and not the schedule', async () => {
+	test('sorts BELOW everything actionable, which is where the original defect did not put it', async () => {
+		// The stream is newest-first and a future date is the newest thing on the
+		// page, so an insertion by date puts a check-in nobody has been asked for
+		// in the FIRST row a student reads -- which is exactly where the
+		// unbounded read used to put it. `mergeCheckIns` appends it instead.
+		const data = await runClassLoad(alice, current);
+		const entries = mergeCheckIns(data.items, data.checkIns);
+
+		const last = entries[entries.length - 1];
+		expect(last.kind).toBe('check-in');
+		expect(last.kind === 'check-in' && last.checkIn.session_label).toBe('Final assembly photos');
+
+		// AND IT IS THE ONLY THING DOWN THERE: every other entry, item and
+		// check-in alike, is above it. Asserting the index rather than only the
+		// tail is what catches a second scheduled row landing mid-list.
+		const scheduledAt = entries.findIndex(
+			(e) => e.kind === 'check-in' && e.checkIn.status === 'scheduled'
+		);
+		expect(scheduledAt).toBe(entries.length - 1);
+
+		// THE POSITIVE CONTROL, and it is the one that matters: an ACTIONABLE
+		// check-in is still merged by DATE among the items, not swept to the
+		// bottom with the scheduled one. A partition that moved every check-in
+		// would pass both assertions above and be a different bug.
+		//
+		// Every item in this fixture was created just now, so all three check-ins
+		// are older than all of them and the walk has nothing to place them above
+		// -- which is a fixture accident, not the rule. So this ages ONE REAL ROW
+		// past the actionable check-ins and re-merges: `mergeCheckIns` is pure, so
+		// the aged copy is the same shape the load returned with one field moved.
+		const oldest = data.items[data.items.length - 1];
+		const aged = data.items.map((i, n) =>
+			n === data.items.length - 1
+				? { ...i, created_at: `${laDay(-5)}T12:00:00.000Z`, pinned: false }
+				: i
+		);
+		const control = mergeCheckIns(aged, data.checkIns);
+		const agedAt = control.findIndex((e) => e.kind === 'item' && e.item.id === oldest.id);
+		const gearboxAt = control.findIndex(
+			(e) => e.kind === 'check-in' && e.checkIn.session_label === 'Gearbox teardown'
+		);
+		expect(agedAt).toBeGreaterThanOrEqual(0);
+		// Dated yesterday, so it belongs ABOVE a five-day-old item, and it is
+		// there.
+		expect(gearboxAt).toBeLessThan(agedAt);
+		// And the scheduled one is still below that item, at the very end.
+		expect(control[control.length - 1].kind).toBe('check-in');
+		expect(
+			control[control.length - 1].kind === 'check-in' &&
+				(control[control.length - 1] as { checkIn: ClassCheckIn }).checkIn.status
+		).toBe('scheduled');
+		expect(agedAt).toBeLessThan(control.length - 1);
+	});
+
+	test('is on the roster grid too, so nothing about the schedule changed', async () => {
 		// The decisive direction: the check-in exists, is posted to this class,
-		// and the database hands it back to a plain read. The class page declines
-		// to ask for it yet; nothing deleted it.
+		// and the database hands it back to a plain read. Nothing deleted it and
+		// nothing moved its date -- only what the page does with it changed.
 		const rows = await db.asUser(alice.id, async (q) =>
 			(
 				await q<{ session_label: string; session_date: string }>(
@@ -498,11 +584,70 @@ describe('a check-in scheduled for the future', () => {
 		expect(rows[2].session_date > laDay(0)).toBe(true);
 	});
 
-	test('a check-in dated today counts, which is the boundary the bound is written on', async () => {
+	test('a check-in dated today counts, which is the boundary the comparison is written on', async () => {
 		const data = await runClassLoad(alice, current);
 		const today = data.checkIns.find((c) => c.session_date === laDay(0));
 		expect(today).toBeDefined();
 		expect(today!.session_label).toBe('Shaft stackup calcs');
+		expect(today!.status).toBe('missing');
 		expect(isOutstanding(today!.status)).toBe(true);
+		// The predicate itself, at the same boundary: today is not scheduled.
+		expect(checkInIsScheduled(laDay(0), laDay(0))).toBe(false);
+		expect(checkInIsScheduled(laDay(1), laDay(0))).toBe(true);
+	});
+
+	test("the manager sees it too, and it is the one status a manager carries", async () => {
+		// The bound's worst direction: it took a teacher's own scheduled check-in
+		// off their own class page. `0140` refused that on the grid for the same
+		// reason -- a teacher schedules ahead, and hiding what they just scheduled
+		// hides their own work from them.
+		const data = await runClassLoad(teacher, current);
+		expect(data.canManage).toBe(true);
+		const byLabel = new Map(data.checkIns.map((c) => [c.session_label, c.status]));
+		expect(byLabel.get('Final assembly photos')).toBe('scheduled');
+
+		// AND NO OTHER STATUS LEAKS ONTO A MANAGER'S CARD. `scheduled` is a fact
+		// about the DAY; every other value would be a claim about work a teacher
+		// does not file, assembled from somebody else's rows.
+		expect(byLabel.get('Gearbox teardown')).toBeNull();
+		expect(byLabel.get('Shaft stackup calcs')).toBeNull();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// 3b. The calendar, at a pinned instant where LA and UTC disagree
+// ---------------------------------------------------------------------------
+
+describe('the calendar the comparison is made in', () => {
+	// 8pm Pacific on 2026-08-27 is 03:00 UTC on 2026-08-28. Everything above
+	// runs against the real wall clock, which agrees with UTC for most of the
+	// working day -- so a bug in the calendar cannot redden any of it unless the
+	// suite happens to run in the evening. These four assertions do not depend
+	// on when the suite runs.
+	const evening = new Date('2026-08-28T03:00:00Z');
+
+	test('reads the America/Los_Angeles day, not the UTC one', () => {
+		expect(laCalendarDay(evening)).toBe('2026-08-27');
+		expect(evening.toISOString().slice(0, 10)).toBe('2026-08-28');
+	});
+
+	test('so tomorrow is still scheduled at 8pm Pacific, where a UTC reading calls it due', () => {
+		// THE SHIPPED RULE.
+		expect(checkInIsScheduled('2026-08-28', laCalendarDay(evening))).toBe(true);
+		// THE REJECTED ONE, spelled out so the difference is a value in the file
+		// rather than a claim in a comment: under UTC the same check-in is due,
+		// every evening, which is exactly when a teacher lays the next day out.
+		expect(checkInIsScheduled('2026-08-28', evening.toISOString().slice(0, 10))).toBe(false);
+	});
+
+	test('and 08:09 Pacific is why that instant is pinned rather than taken from the clock', () => {
+		// The two calendars AGREE for most of the school day, so a check written
+		// against `new Date()` in the morning cannot tell them apart. `0140` hit
+		// exactly this: its UTC mutation did not redden the behavioural assertion
+		// because the run was at 08:09 Pacific.
+		const morning = new Date('2026-08-27T15:09:00Z');
+		expect(laCalendarDay(morning)).toBe('2026-08-27');
+		expect(morning.toISOString().slice(0, 10)).toBe('2026-08-27');
+	});
+});
+

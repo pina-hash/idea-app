@@ -13,7 +13,12 @@ import {
 	loadCourseUnits,
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
-import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
+import {
+	checkInIsScheduled,
+	checkInStatus,
+	laCalendarDay,
+	type ClassCheckIn
+} from '$lib/classroom/class-check-ins';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
@@ -50,25 +55,6 @@ interface PostingRow {
 }
 
 /**
- * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN.
- *
- * `notebook_sessions.session_date` is a bare DATE, and every rule that
- * adjudicates one compares it in America/Los_Angeles --
- * `notebook_get_section_grid`'s `on_time` is
- * `(upload_timestamp at time zone 'America/Los_Angeles')::date <= se.session_date`
- * (0094/0098). A server reading UTC instead would run seven or eight hours
- * ahead of that, so every evening between 5pm Pacific and midnight UTC the next
- * day's check-in would already count as due. That is a smaller version of the
- * exact bug this bound exists to fix, so it is not worth taking.
- *
- * `en-CA` is the YYYY-MM-DD spelling, which is the same string the column
- * holds, so the comparison below is a plain lexical one with no parsing in it.
- */
-function checkInsThrough(now: Date): string {
-	return now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-}
-
-/**
  * The check-ins, and whether this project can say which item each one hangs off.
  *
  * TWO RUNGS (NOTEBOOK_POSTING_SELECTS), widest first, for the reason every
@@ -84,9 +70,7 @@ function checkInsThrough(now: Date): string {
  */
 async function sectionCheckIns(
 	supabase: SupabaseClient,
-	sectionId: string,
-	/** The last day a check-in may be dated and still be read. See below. */
-	through: string
+	sectionId: string
 ): Promise<{
 	rows: Omit<ClassCheckIn, 'status' | 'flag_reason'>[];
 	linksReady: boolean;
@@ -95,43 +79,56 @@ async function sectionCheckIns(
 } | null> {
 	for (const rung of NOTEBOOK_POSTING_SELECTS) {
 		/**
-		 * A CHECK-IN DATED IN THE FUTURE IS NOT READ AT ALL.
+		 * A CHECK-IN DATED IN THE FUTURE IS READ, AND THEN NAMED -- WHICH IS NOT
+		 * WHERE THIS STARTED.
 		 *
 		 * This read had NO DATE BOUND, and nothing downstream supplied one:
-		 * `checkInStatus` has no clock in it, so a check-in a teacher scheduled
+		 * `checkInStatus` had no clock in it, so a check-in a teacher scheduled
 		 * for next month came back with no entry against it, resolved to
 		 * `missing`, and `isOutstanding` counted it. A student opening their
 		 * class page in August was told he owed work due in October -- and
 		 * because the stream is newest-first by date, the thing he did not owe
-		 * was the first row on the page, in the attention tone.
+		 * was the first row on the page, in the attention tone. THAT FAILURE IS
+		 * REAL AND IS WHY THE BOUND EXISTED; nothing below weakens it.
 		 *
-		 * BOUNDING THE READ IS THE WHOLE FIX, because the badge is derived from
-		 * this same array: ClassView computes `outstandingCheckIns(checkIns)`
-		 * for a student, so a row that is not here cannot be counted, cannot be
-		 * toned and cannot be rendered. `checkInStatus` needs no clock and does
-		 * not get one -- a second idea of "is this due yet", one in the loader
-		 * and one in the status function, is the pair that stops agreeing.
+		 * THE BOUND WAS `.lte('notebook_sessions.session_date', <LA today>)` AND
+		 * IT IS GONE, because hiding was the best answer available and no longer
+		 * is. It was defensible while there was no vocabulary for "not asked for
+		 * yet": a row that cannot be told apart from work is better absent than
+		 * mislabelled. `0140` gave the teacher's grid that vocabulary -- a cell
+		 * dated ahead of today reads `scheduled`, stays on the grid, and stops
+		 * counting -- and the two halves of one feature reading off two
+		 * different ideas is what this removes. A student now sees the same
+		 * check-in their teacher scheduled, said in the same word.
 		 *
-		 * A POSTGREST `.lte` ON THE EMBED, which the `!inner` join every rung
-		 * already carries makes a real query bound rather than a row filter --
-		 * `tests/db/postgrest-shim.ts` now implements `.lte()`, so this is
-		 * driven through the real load and proven there rather than asserted
-		 * as equivalent to the row filter it replaces.
+		 * WHAT MAKES A RENDERED ROW SAFE WHERE AN UNMARKED ONE WAS NOT, in three
+		 * parts, each of which is independently load-bearing:
 		 *
-		 * INCLUSIVE, so a check-in dated TODAY is still outstanding -- that is
-		 * the day it is for, not the day after it.
+		 *   1. IT IS NOT COUNTED. `checkInStatus` resolves it to `scheduled`,
+		 *      and `isOutstanding` is a WHITELIST that does not name it -- so
+		 *      the badge ClassView draws from this same array cannot include it.
+		 *      That is the original defect, closed at the arithmetic rather than
+		 *      at the read.
+		 *   2. IT IS NOT TONED AS WORK. `scheduled` takes the `excused` tone and
+		 *      a label that says "Not due yet" in words.
+		 *   3. IT IS NOT AT THE TOP. `mergeCheckIns` appends a scheduled check-in
+		 *      after everything else instead of inserting it by date, so the
+		 *      first row a student reads is still the newest thing that is
+		 *      actually theirs to do.
 		 *
-		 * IT ALSO TAKES A FUTURE CHECK-IN OFF THE STREAM ENTIRELY, for a
-		 * manager as well as a student. That is the honest reading of one
-		 * scheduled read: a class page shows what the class is doing, and a
-		 * manager schedules and edits check-ins on /notebook/review, which
-		 * reads the canonical rows by id and carries no bound of its own.
+		 * THE MANAGER GETS THE SAME ROW, and this is the direction the bound was
+		 * worst in: it took a teacher's own scheduled check-in off their own
+		 * class page, which is the mistake `0140` refused to repeat on the grid
+		 * ("a grid that hid what they had just scheduled would be hiding their
+		 * own work from them"). A manager's check-in carries a null status for
+		 * every other state, because a teacher files nothing; `scheduled` is the
+		 * one status that is a fact about the DAY rather than about a person, so
+		 * it is the one they carry.
 		 */
 		const { data, error: postingError } = await supabase
 			.from('notebook_session_postings')
 			.select(rung.select)
-			.eq('section_id', sectionId)
-			.lte('notebook_sessions.session_date', through);
+			.eq('section_id', sectionId);
 		if (postingError) continue;
 		const rows = ((data ?? []) as unknown as PostingRow[])
 			.filter(
@@ -220,10 +217,22 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		.maybeSingle();
 	if (!sectionRow) error(404, 'Not found');
 
+	/**
+	 * THE ONE CLOCK READ ON THIS SURFACE.
+	 *
+	 * Read here, converted once, and handed down as a STRING -- so every
+	 * check-in in one payload is adjudicated against the same day, and the pure
+	 * module below it never reaches for a clock of its own. `laCalendarDay` owns
+	 * the America/Los_Angeles rule (the calendar `session_date` is written in);
+	 * `checkInIsScheduled` owns the comparison. Neither reads `new Date()`, and
+	 * nothing else here may either.
+	 */
+	const today = laCalendarDay(new Date());
+
 	const [{ data: manages }, content, checkInRows] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
-		sectionCheckIns(supabase, params.sectionId, checkInsThrough(new Date()))
+		sectionCheckIns(supabase, params.sectionId)
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
@@ -365,7 +374,8 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 				...c,
 				status: checkInStatus(
 					entry ? { status: entry.status, submitted: isSubmitted(entry) } : entry,
-					excused.has(c.session_id)
+					excused.has(c.session_id),
+					checkInIsScheduled(c.session_date, today)
 				),
 				// A DRAFT SHOWS NO FLAG REASON even if the row carries one: a flag is
 				// an instructor's note about work they were shown, and an entry
@@ -375,7 +385,25 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 			};
 		});
 	} else if (checkInRows?.rows.length) {
-		checkIns = checkInRows.rows.map((c) => ({ ...c, status: null, flag_reason: null }));
+		/**
+		 * A MANAGER CARRIES EXACTLY ONE STATUS, AND IT IS THE ONE THAT IS NOT
+		 * ABOUT THEM.
+		 *
+		 * `status: null` is what stops a card claiming a state assembled from
+		 * somebody else's rows, and that argument is untouched: a teacher files
+		 * no check-ins, so `filed`, `draft`, `flagged`, `awaiting_review` and
+		 * `missing` are all questions they cannot have an answer to.
+		 * `scheduled` is not one of those. It is a comparison between a column
+		 * and today, identical for every person who loads this page, and a
+		 * teacher who has just laid out next week needs to see that the class
+		 * page agrees with the grid they laid it out on. Withholding it would be
+		 * the bound this bundle removed, wearing a different hat.
+		 */
+		checkIns = checkInRows.rows.map((c) => ({
+			...c,
+			status: checkInIsScheduled(c.session_date, today) ? ('scheduled' as const) : null,
+			flag_reason: null
+		}));
 
 		/**
 		 * The manager's own number: how much notebook work this CLASS is behind

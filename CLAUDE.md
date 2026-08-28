@@ -466,6 +466,47 @@ writing its own `hidden_at is null`, and its two widening flags are gated on
 `is_admin()` inside the function, which is why the admin populations are a
 parameter on one list rather than a second list function.
 
+**EVERY FOUNDRY PLAY FIGURE IS PLAYS THROUGH THE PORTAL, AND THE HOLE IS
+STRUCTURAL (0139).** A play started from an app's own direct address,
+`/a/<appId>/`, is NOT COUNTED: that route is the whole document with no iframe,
+no portal chrome and no session, so there is nothing of ours on the page to see
+it -- and there cannot be without either injecting a script into a student's own
+document (the byte rule forbids it: a stored byte is served back unchanged, so a
+reviewer reads what executes) or scoping the portal's cookies onto the apps host
+(the one thing the origin split exists to prevent). **A shared link opened by
+fifty people adds nothing to any count.** So every surface that renders a figure
+renders `FOUNDRY_PLAY_COVERAGE_NOTE` beside it, zero included -- a zero is
+exactly when somebody reads a count as "nobody opened it". This rule was written
+down ONLY in the migration's header, which is the one place nobody reads; it is
+a rule and not history because it qualifies every number the feature will ever
+show.
+  - **A REVIEW RUN IS NOT A PLAY, AND IT IS EXCLUDED TWICE OVER**, so opening one
+    layer leaves the other closed. `/foundry/review` hands `AppStage` NO
+    recording transport at all -- absence is the mechanism here, exactly as it is
+    for every other omitted transport -- and `foundry_play_start` accepts ONLY
+    the app's `published_version_id`, so a draft the owner is testing and a
+    submitted build are both refused by the database. The CLIENT half is the one
+    that regresses silently: adding a transport "for consistency" does not throw,
+    does not fail a type check and does not look wrong on screen, which is why it
+    has a sweep with a positive control.
+  - **NO PER-PLAYER READ OF PLAY DATA EXISTS FOR ANYONE, ADMIN INCLUDED, AND
+    THAT IS TWO INDEPENDENT REFUSALS.** `student_app_plays` has RLS enabled with
+    NO POLICY and NO GRANT to `anon` or `authenticated`; either alone denies
+    every select. There is no function, view, policy or grant that returns a play
+    ROW to any client. The three read paths answer counts and four scalars, never
+    who -- `foundry_app_play_stats` returns NULL for a non-owner, which is the
+    same answer a nonexistent app gives, so an id cannot be probed. What an admin
+    has that an author does not is OTHER APPS, never more detail about one.
+  - **THE RESUME WINDOW IS THE RATE LIMIT, AND IT IS WRITTEN DOWN ONCE** --
+    `_foundry_play_window()`, thirty minutes. The START resumes inside it and the
+    PING refuses outside it, because they are the same rule about what one
+    session is. Two literals thirty lines apart is how a resume window and a
+    staleness window stop being the same number, which leaves a row a start will
+    not resume and a ping will still extend. It cannot be a unique index -- an
+    index predicate may not contain a volatile expression like `now()` -- so
+    concurrent starts are serialized on the (player, app) pair with
+    `pg_advisory_xact_lock` instead.
+
 ### CLASSROOM FILES -- any type, 200 MB, and the three things that make that safe
 
 **A CLASSROOM ATTACHMENT AND A STUDENT HAND-IN ACCEPT EVERY FILE TYPE, AND
@@ -1914,19 +1955,56 @@ inside the function fails closed rather than falling through to a weaker path.
     lightness moves per plate. **The FILL is a pinned colour, never a `color-mix`
     of the ink:** a fill derived from the ink moves whenever the ink does and hands
     most of the contrast straight back (measured, 4.79 vs 3.84).
-  - **A CHECK-IN DATED IN THE FUTURE IS NOT OUTSTANDING, ON EITHER SIDE, AND THE
-    TWO SIDES ARE FIXED DIFFERENTLY ON PURPOSE.** The STUDENT's class page bounds
-    its read to today or earlier, so a future check-in is not on the page at all;
-    the TEACHER's grid keeps it and gives it a status, because a teacher schedules
-    ahead and needs to see what they scheduled. Do not "make them consistent" by
-    bounding the grid's read -- that hides a teacher's own work from them. The
-    day is the **America/Los_Angeles** calendar day on both sides, which is the
-    calendar `session_date` is adjudicated in; UTC runs seven or eight hours ahead
-    and reproduces a smaller copy of the same bug every evening, which is when a
-    teacher lays out the next day. **`scheduled` is held out of `outstanding` by a
-    WHITELIST sum and out of a student's `total` by the cell's own status** -- so
-    a state that should count has to be added deliberately, and a scheduled day
-    still counts for a student who filed against it early.
+  - **A CHECK-IN DATED IN THE FUTURE IS NOT OUTSTANDING, AND BOTH SIDES NOW SAY
+    SO THE SAME WAY: `scheduled` IS A STATUS, NEVER A FILTER.** The grid gets it
+    from `notebook_get_section_grid`'s own `case` (0140); the class page gets it
+    from `checkInStatus`, which the loader hands the answer to. **This rule used
+    to say the two sides were fixed differently on purpose** -- the student's
+    class page BOUNDED its read to today or earlier, so a future check-in was not
+    on the page at all. That bound is GONE and must not come back. Hiding was
+    defensible only while there was no vocabulary for "not asked for yet"; once
+    there was, the bound was doing to a student's page exactly what this rule
+    already forbade doing to the grid, and it hid a MANAGER's own scheduled
+    check-in from their own class page on the way past. Do not "make them
+    consistent" in the other direction either, by bounding the grid's read --
+    that hides a teacher's own work from them.
+  - **THE DAY IS THE AMERICA/LOS_ANGELES CALENDAR DAY, WHICH IS THE CALENDAR
+    `session_date` IS ADJUDICATED IN.** UTC runs seven or eight hours ahead and
+    reproduces a smaller copy of the same bug every evening, which is when a
+    teacher lays out the next day. **ONE CLOCK, IN THE LOADER.** The grid reads
+    it in SQL, once per payload; the class page reads `new Date()` once in
+    `+layout.server.ts`, converts it with `laCalendarDay` and hands the STRING
+    down. `checkInStatus` takes a BOOLEAN and `checkInIsScheduled` takes two day
+    strings -- neither reaches for a clock, which is what makes both assertable
+    at a pinned instant. A second idea of "is this due yet" is the pair that
+    stops agreeing, so nothing downstream of the loader may compute one.
+  - **A TEST OF THAT CALENDAR NEEDS A PINNED INSTANT WHERE THE TWO DISAGREE.**
+    The LA and UTC days are the same for most of the school day, so a check
+    written against the wall clock cannot tell them apart -- 0140's UTC mutation
+    failed to redden anything because the run was at 08:09 Pacific. 8pm Pacific
+    (`2026-08-28T03:00:00Z`, LA `2026-08-27` and UTC `2026-08-28`) is the
+    instrument.
+  - **`scheduled` IS HELD OUT OF EVERY TOTAL BY NOT BEING NAMED**, on both sides:
+    `gridSummary.outstanding` is a whitelist sum, `isOutstanding` is a whitelist
+    predicate, and a student's `total` comes from the cell's own status. A state
+    that should count has to be added deliberately, and a scheduled day still
+    counts for a student who filed against it early -- which is why an ENTRY
+    outranks `scheduled` in both places, and why `scheduled` in turn outranks a
+    DRAFT on the class page: `isOutstanding` counts a draft, so ranking the draft
+    first would tell a student they owe work nobody has asked for, which is the
+    original defect in a narrower case.
+  - **AND IT RENDERS BELOW EVERYTHING ACTIONABLE, WHICH IS NOT DECORATION.** The
+    class stream is newest-first, so a future date is the newest thing on the
+    page and an insertion by date puts a check-in nobody has been asked for in
+    the FIRST row a student reads -- which is where the defect put it. So
+    `mergeCheckIns` APPENDS a `scheduled` check-in instead of inserting it, and
+    the block runs SOONEST-FIRST: the page reads nearest-to-now first and time
+    runs both ways from today, so ascending below and descending above is one
+    rule, not two. Tone, label and position are three signals of one thing and
+    the row needs all three -- the label says "Not due yet" rather than
+    "Scheduled" because this same stream already renders an amber `.sched-chip`
+    reading "Scheduled" on an ITEM, meaning "students cannot see this yet", which
+    is the opposite claim.
 
 ### Interface standards
 
