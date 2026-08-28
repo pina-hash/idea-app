@@ -1,0 +1,156 @@
+[
+  {
+    "id": "m1-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Solid body, tree visible",
+        "points": 4,
+        "descriptor": "Screenshot shows a solid body with both features present and the FeatureManager tree readable at full size."
+      },
+      {
+        "label": "Proficient",
+        "short": "Body built, tree cut off",
+        "points": 3,
+        "descriptor": "A solid body with both features, but the tree is cropped, hidden, or unreadable."
+      },
+      {
+        "label": "Developing",
+        "short": "Partial body only",
+        "points": 2,
+        "descriptor": "Screenshot shows a sketch or an incomplete body rather than a hook with both features."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No screenshot, or an image of something other than this student's SolidWorks session."
+      }
+    ],
+    "points": 4,
+    "criterion": "The Part: A built part exists and its tree is legible",
+    "incomplete": false
+  },
+  {
+    "id": "m1-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All five, honestly compared",
+        "points": 6,
+        "descriptor": "All five rows carry a measured value, the legal value beside it, and a verdict, including any that fall outside the rule."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four of five measured",
+        "points": 4,
+        "descriptor": "Four rows carry measured values with comparisons; one is missing a value or a verdict."
+      },
+      {
+        "label": "Developing",
+        "short": "Rules copied, not measured",
+        "points": 2,
+        "descriptor": "Rows repeat the legal values in the measured column, or fewer than four rows carry real measurements."
+      },
+      {
+        "label": "Absent",
+        "short": "Table empty",
+        "points": 0,
+        "descriptor": "No table filled."
+      }
+    ],
+    "points": 6,
+    "criterion": "The Part: All five values are measured and compared against the rule",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Names design and location",
+        "points": 5,
+        "descriptor": "Names a design from Thursday and the specific place on this hook where it appears, or explains a deliberate abandonment with what replaced it."
+      },
+      {
+        "label": "Proficient",
+        "short": "Names design, vague place",
+        "points": 3,
+        "descriptor": "Names a design and says it influenced the part, but does not locate it on the hook."
+      },
+      {
+        "label": "Developing",
+        "short": "General influence only",
+        "points": 1,
+        "descriptor": "Talks about being influenced without naming a design or a location."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank or contradicts Thursday",
+        "points": 0,
+        "descriptor": "Blank, or names designs that do not match what this student recorded on Thursday."
+      }
+    ],
+    "points": 5,
+    "criterion": "What You Took From Yesterday: The answer points at a specific feature on the student's own part",
+    "incomplete": false
+  },
+  {
+    "id": "m3-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Specific blocker and fix",
+        "points": 3,
+        "descriptor": "Names a particular thing that went wrong, roughly how long it cost, and what resolved it."
+      },
+      {
+        "label": "Proficient",
+        "short": "Named but vague",
+        "points": 2,
+        "descriptor": "Names a blocker in general terms, or gives the blocker without saying what resolved it."
+      },
+      {
+        "label": "Developing",
+        "short": "Nothing stopped me",
+        "points": 1,
+        "descriptor": "Claims nothing caused difficulty, with nothing recorded."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "No rows filled."
+      }
+    ],
+    "points": 3,
+    "criterion": "What Stopped You: The blocker is named specifically and its resolution is identified",
+    "incomplete": false
+  },
+  {
+    "id": "m3-r5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All four answered",
+        "points": 2,
+        "descriptor": "Every item answered, and the answers match what a TA observed during sweeps."
+      },
+      {
+        "label": "Developing",
+        "short": "Partly answered",
+        "points": 1,
+        "descriptor": "Some items left unanswered."
+      },
+      {
+        "label": "Absent",
+        "short": "Untouched",
+        "points": 0,
+        "descriptor": "Checklist not answered at all."
+      }
+    ],
+    "points": 2,
+    "criterion": "What Stopped You: The workflow checklist is answered truthfully",
+    "incomplete": false
+  }
+]
