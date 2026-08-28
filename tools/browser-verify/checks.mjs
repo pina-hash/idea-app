@@ -116,6 +116,24 @@ const HELPERS = `
     if (cs.contentVisibility === 'hidden') reasons.push('content-visibility:hidden');
     const op = parseFloat(cs.opacity);
     if (!Number.isNaN(op) && op <= 0.01) reasons.push('opacity:' + cs.opacity);
+    /* OPACITY IS NOT INHERITED, SO THE ELEMENT'S OWN VALUE IS NOT THE ANSWER.
+       A child of an \`opacity: 0\` parent computes opacity 1 and is painted
+       nowhere -- which is precisely the false green this check exists to
+       prevent, and the check had it. Found by a LIVE negative control:
+       \`--break invisible\` set opacity 0 on the room wrapper of three routes
+       and every presence row came back visible. Walk up and name the ancestor,
+       so the reason says which element actually did it rather than reporting a
+       bare "opacity:1" nobody can act on. Capped like \`groundOf\`'s walk. */
+    if (!reasons.some((r) => r.startsWith('opacity'))) {
+      let anc = el.parentElement;
+      for (let hops = 0; anc && hops < 60; hops++, anc = anc.parentElement) {
+        const ao = parseFloat(getComputedStyle(anc).opacity);
+        if (!Number.isNaN(ao) && ao <= 0.01) {
+          reasons.push('ancestor-opacity:' + ao + ' on ' + cssPath(anc));
+          break;
+        }
+      }
+    }
     if (rect.width <= 0 || rect.height <= 0) reasons.push('zero-box:' + rect.width.toFixed(1) + 'x' + rect.height.toFixed(1));
     if (el.hasAttribute('hidden')) reasons.push('[hidden]');
     /* aria-hidden is a THIRD question, not a visual one: an element can be on

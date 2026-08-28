@@ -230,6 +230,49 @@ export async function clickUntil(page, selector, until, { attempts = 12, gapMs =
 	return { ok: false, matched, attempts, reason: 'predicate never satisfied' };
 }
 
+/**
+ * Wait for a page-side predicate to hold, and REPORT HOW LONG IT TOOK.
+ *
+ * `clickUntil` covers a state reached by pressing something. This covers the
+ * other case, which the harness had no answer for: a state reached by an ASYNC
+ * PAYLOAD LANDING, where there is nothing to press and pressing something
+ * arbitrary to get a retry loop is a lie about what the step is doing.
+ *
+ * IT IS NOT A LONGER `settleMs`, AND THE DIFFERENCE IS THE WHOLE POINT. A fixed
+ * timeout that happens to be long enough today measures an empty page the day
+ * the payload gets slower, silently, because every selector simply matches
+ * nothing and the checks report honest zeros about a surface that had not
+ * finished loading. MEASURED on /dev/notebook-review: the FIRST visit to a
+ * route pays vite's module-graph compile, and the compliance grid's transport
+ * had not resolved 700ms after `waitForApp` returned -- 30 cells at 1440px
+ * (the warm second visit) against 0 cells at 375px (the cold first one), which
+ * reads exactly like a surface that renders no grid at phone width and is
+ * nothing of the kind. Warm, both widths render the identical 30 cells.
+ *
+ * A predicate that never holds returns `ok: false` and the caller PRINTS
+ * FAILED, so the measurements that follow are read as describing a state the
+ * run never reached, rather than as a finding about the surface.
+ */
+export async function waitUntil(page, until, { timeoutMs = 15_000, pollMs = 100 } = {}) {
+	const started = Date.now();
+	/* Same expression trap as `clickUntil`: `page.evaluate(string)` evaluates
+	   its argument as an EXPRESSION, so an arrow-function source handed over
+	   bare becomes a function OBJECT and is never `=== true`. Invoke it. */
+	const satisfied = async () => {
+		try {
+			return (await page.evaluate(`(${until})()`)) === true;
+		} catch {
+			return false;
+		}
+	};
+	if (await satisfied()) return { ok: true, waitedMs: 0, reason: 'already satisfied' };
+	while (Date.now() - started < timeoutMs) {
+		await page.waitForTimeout(pollMs);
+		if (await satisfied()) return { ok: true, waitedMs: Date.now() - started, reason: 'predicate satisfied' };
+	}
+	return { ok: false, waitedMs: Date.now() - started, reason: `predicate never satisfied within ${timeoutMs}ms` };
+}
+
 /** Settle on a TIMEOUT, never on rAF -- see the harness README. */
 export async function settle(page, { freezeTransitions = true, settleMs = 700 } = {}) {
 	if (freezeTransitions) await page.addStyleTag({ content: FREEZE_TRANSITIONS_CSS });

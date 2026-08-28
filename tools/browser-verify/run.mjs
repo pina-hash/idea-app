@@ -19,7 +19,7 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { launch, openPage, settle, waitForApp, clickUntil } from './browser.mjs';
+import { launch, openPage, settle, waitForApp, clickUntil, waitUntil } from './browser.mjs';
 import { startDevServer } from './server.mjs';
 import {
 	horizontalScroll,
@@ -43,14 +43,25 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
  * Each is the smallest thing that should move exactly one measurement.
  */
 export const BREAKAGE = {
-	/* Something wider than the viewport that cannot wrap. */
-	overflow: '.harness, main, body > div { min-width: 1600px !important; }',
+	/* Something wider than the viewport that cannot wrap.
+	   THE SELECTOR NAMES EVERY ROOM WRAPPER, not just `.harness` and `main`.
+	   Measured: `--break overflow` came back GREEN on /dev/hall-pass, because
+	   that route's root is `div.cr-root.wrap` and the only `body > div` above it
+	   is `display: contents`, which `min-width` cannot inflate. A preset that
+	   silently fails to inject its defect is a live control that proves nothing
+	   -- and it proves nothing in exactly the reassuring direction. */
+	overflow:
+		'.harness, main, .cr-root, .fg-root, .nb-root, .frc-root, .glb, .tnm-root, .gt-root, body > div { min-width: 1600px !important; }',
 	/* Drop every control below the 44px floor. */
 	'tiny-taps': 'button, [role="button"], a.btn { min-height: 0 !important; height: 18px !important; min-width: 0 !important; padding: 0 !important; line-height: 18px !important; }',
 	/* Wash the ink out until it cannot clear 4.5:1 on its own ground. */
 	'low-contrast': '* { color: color-mix(in srgb, currentColor 22%, transparent) !important; }',
-	/* Present in the DOM, painted nowhere -- the case the presence check exists for. */
-	invisible: '.harness, main, h1, table, .chip-grid, .idea-logo, .note { opacity: 0 !important; }',
+	/* Present in the DOM, painted nowhere -- the case the presence check exists
+	   for. Same widening as `overflow` above and for the same measured reason:
+	   a preset that matches nothing on the surface being driven reports a clean
+	   run and is indistinguishable from a working check. */
+	invisible:
+		'.harness, main, h1, table, .chip-grid, .idea-logo, .note, .cr-root, .fg-root, .nb-root { opacity: 0 !important; }',
 	/* Not CSS: a thrown error, which is how the notebook bundle's real
 	   state_unsafe_mutation surfaced -- silently, with dead click handlers. */
 	'console-error': { js: 'throw new Error("state_unsafe_mutation (injected by --break console-error)")' }
@@ -147,20 +158,45 @@ async function runRoute(browser, origin, spec, width, opts) {
 					`${r.ok ? 'clicked' : 'FAILED'} ${step.click} -- ${r.matched} matched, ${r.attempts} attempt(s), ${r.reason}`
 				);
 			}
+			if (step.waitFor) {
+				/* A state reached by an ASYNC PAYLOAD LANDING rather than by a
+				   press. See `waitUntil` in browser.mjs for why this is not a
+				   longer `settleMs`: a fixed timeout measures an empty page the
+				   day the payload gets slower, and reports honest zeros about a
+				   surface that had not finished loading. The wait is REPORTED in
+				   milliseconds, so a step that suddenly needs 4s says so. */
+				const r = await waitUntil(page, step.waitFor, {
+					timeoutMs: step.timeoutMs ?? 15_000
+				});
+				prepared.push(
+					`${r.ok ? 'waited' : 'FAILED'} for ${String(step.waitFor).slice(0, 60)} -- ${r.waitedMs}ms, ${r.reason}`
+				);
+			}
 			if (step.evaluate) {
 				/* `page.evaluate(string)` treats the string as an EXPRESSION -- the
 				   same trap `clickUntil`'s "until" already works around (see
 				   browser.mjs). An arrow-function source handed to `evaluate` bare
 				   evaluates to a FUNCTION OBJECT and is never called, so the step
 				   reports success while doing nothing. Invoke it. */
-				const ok = await page
+				/* THE RETURN VALUE IS PRINTED WHEN THERE IS ONE. A settling step that
+				   reports "settled 0 card(s)" is a silent no-op made visible --
+				   which is what happens the day a class name moves and the step
+				   goes on succeeding while doing nothing. */
+				const out = await page
 					.evaluate(`(${step.evaluate})()`)
-					.then(() => true)
+					.then((v) => ({ ok: true, v }))
 					.catch((e) => {
 						prepared.push(`evaluate FAILED: ${e.message.split('\n')[0]}`);
-						return false;
+						return { ok: false };
 					});
-				if (ok) prepared.push(`evaluated: ${String(step.evaluate).slice(0, 70)}`);
+				if (out.ok) {
+					const said = typeof out.v === 'string' || typeof out.v === 'number' ? ` -- ${out.v}` : '';
+					/* Collapse the source before slicing: a multi-line step
+					   otherwise prints "evaluated: () => {" and takes its own
+					   return value off the end of the line with it. */
+					const src = String(step.evaluate).replace(/\s+/g, ' ').slice(0, 70);
+					prepared.push(`evaluated: ${src}${said}`);
+				}
 			}
 			await page.waitForTimeout(step.waitMs ?? 200);
 		}
