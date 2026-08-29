@@ -208,9 +208,9 @@ because every selector honestly matches nothing.
 ### `evaluate` steps print their return value
 
 An `evaluate` step's return value is printed beside it when it is a string or a
-number. `SETTLE_ENTRANCE` in `routes.mjs` uses that to say how many cards it
-settled -- a settling step that reports `0 course-card(s)` is a silent no-op made
-visible, which is what happens the day a class name moves.
+number. `SETTLE_ENTRANCE` in `routes/_shared.mjs` uses that to say how many cards
+it settled -- a settling step that reports `0 course-card(s)` is a silent no-op
+made visible, which is what happens the day a class name moves.
 
 ## Negative controls -- the part that makes the numbers mean anything
 
@@ -370,6 +370,7 @@ change, not the harness.
 | `browser.mjs` | Executable resolution, launch, `waitForApp`, `clickUntil`, external-request blocking |
 | `server.mjs` | Boots and stops `vite dev`, handing the placeholder public env to the **child process** so no `.env` is written to the repo |
 | `checks.mjs` | The six checks and the in-page colour/visibility helpers |
-| `routes.mjs` | Which dev routes are driven and what is measured on each |
+| `routes.mjs` | Assembles the route table from `routes/`; read it first |
+| `routes/` | One file per route spec -- what is measured on each. See `routes/README.md` before adding one |
 | `probe.mjs` | The environment capability probe |
 | `selftest.mjs` | The negative controls |
