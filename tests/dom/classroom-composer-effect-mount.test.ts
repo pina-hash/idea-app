@@ -69,6 +69,26 @@ describe('ContentComposer settles with injected code that reads and writes state
 		expect(r.suggestions).toEqual(['Bench work', 'Sketching']);
 	});
 
+	it('wires the category field to the list it just rendered', async () => {
+		// A SEPARATE FACT FROM "the options exist", and the one nothing in the
+		// repo asserted. `tests/classroom-category-suggestions.test.ts` proves
+		// the field stays free text and that NO datalist is served -- correctly,
+		// because SSR never runs this effect -- and the test above proves the
+		// options reach the DOM. Neither can see whether the input POINTS at
+		// them, and a browser shows a suggestion only if it does.
+		//
+		// It fails silently in the worst way: `list` pointing at nothing renders
+		// an ordinary field beside an ordinary datalist, with no error and no
+		// empty state, and the feature is simply gone.
+		const r = await mountComposer(Composer);
+
+		// POSITIVE CONTROL: there is something to be wired TO. Without this the
+		// equality below is satisfied by two nulls.
+		expect(r.suggestions.length).toBeGreaterThan(0);
+		expect(r.categoryList.datalistId).toBeTruthy();
+		expect(r.categoryList.inputList).toBe(r.categoryList.datalistId);
+	});
+
 	it('notifies the injected dirty callback without the callback re-triggering the effect', async () => {
 		// The SECOND injected binding, and a different shape: not a transport but
 		// a plain prop callback with no promise in it at all. `ondirtychange` is

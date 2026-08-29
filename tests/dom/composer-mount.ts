@@ -39,6 +39,21 @@ export interface MountOutcome {
 	html: string;
 	/** `<datalist>` options, i.e. the effect's result reaching the DOM. */
 	suggestions: string[];
+	/**
+	 * WHETHER THE FIELD IS ACTUALLY WIRED TO THE LIST IT RENDERED.
+	 *
+	 * `suggestions` above says the options EXIST. It says nothing about whether
+	 * a browser would ever show them, which is a separate fact living in two
+	 * attributes that have to match: the input's `list` and the datalist's
+	 * `id`. Both are computed (`categoryListId`), and a mismatch renders a
+	 * perfectly ordinary field beside a perfectly ordinary datalist that
+	 * nothing points at -- no error, no empty state, just a teacher who never
+	 * sees a suggestion again.
+	 *
+	 * Reported as the two raw values rather than as a boolean, so a failure
+	 * says WHICH half moved instead of just "not wired".
+	 */
+	categoryList: { inputList: string | null; datalistId: string | null };
 }
 
 /**
@@ -102,7 +117,14 @@ export async function mountComposer(
 		html: target.innerHTML,
 		suggestions: Array.from(target.querySelectorAll('datalist option')).map(
 			(o) => (o as HTMLOptionElement).value
-		)
+		),
+		categoryList: {
+			inputList:
+				target
+					.querySelector('input[placeholder="Unit Labs"]')
+					?.getAttribute('list') ?? null,
+			datalistId: target.querySelector('datalist')?.getAttribute('id') ?? null
+		}
 	};
 
 	await unmount(app);

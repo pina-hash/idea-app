@@ -29,6 +29,17 @@
 // render() mounts the REAL components and hands back markup. Assertions are
 // about that markup, which is what a browser actually receives.
 //
+// WHAT THIS FILE CANNOT ASK, AND WHERE THAT NOW LIVES. A render() call produces
+// one string, so no claim here can be about the RELATIONSHIP between two
+// renders -- and `AppStage`'s central guarantee is exactly that: full screen
+// adds a class while the running bundle's <iframe> keeps its identity and its
+// `src`, because a remount would restart a student's app at the moment they
+// asked for more room. Nothing was moved out of this file for it; the claim
+// simply had no home. It is asserted, by mounting the real stage and pressing
+// the real controls, in `tests/dom/foundry-app-stage-mount.test.ts` -- which
+// also drives Stop app tearing the frame down. The two are complements: this
+// file is what a browser RECEIVES, that one is what it then does.
+//
 // EVERY EXPECTED VALUE COMES FROM THE FIXTURES BELOW, never from what the
 // component returned.
 
