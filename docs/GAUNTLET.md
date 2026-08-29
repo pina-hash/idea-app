@@ -370,6 +370,31 @@ remains as unranked supervised practice.** The original manual MVP is
   (for example proving the model was saved after `reveal_at`) is future work. Note
   this only affects time-scored Speedrun; Reverse Engineer is untimed and Feature
   Golf scores on feature count.
+- **CORRECTED 2026-08-29: telemetry is not a cheat detector, and a gate built
+  on it has been proposed twice and retracted both times after measurement.**
+  `0061`'s own header (an applied migration; left as written, not edited) and
+  `docs/audits/2026-07-security-audit.md` both say the same thing about the
+  `gauntlet_macro_start`-then-immediate-submit cheat: "Its only real detector
+  is the `0035` telemetry stream -- a passing run with no modeling events is
+  visibly fake." That premise is false, and it is why the idea keeps coming
+  back: a zero-event run is the ORDINARY case on at least four of the paths
+  that rank or grade, not a tell. The three `.bas` macros never write a
+  telemetry event at all -- only `TelemetryRecorder` in the C# add-in does
+  (see above) -- so every VBA macro submit is a legitimate zero-event run. An
+  add-in build from before the telemetry recorder shipped is another. A room's
+  manual mass entry (`gauntlet_room_manual_submit`) never touches the add-in
+  or the macros. And every knowledge mode (`gauntlet_submit` outside the
+  Speedrun practice branch) has nothing to model in the first place. Gating
+  ranking, or even flagging, on telemetry presence or shape would treat all
+  four as suspicious for doing exactly what they are meant to do. **What
+  telemetry actually is:** `gauntlet_run_events` (`0035`) is anon-granted and
+  client-posted, with no server attestation of any kind -- so even where
+  events exist, their presence corroborates nothing that a forger could not
+  fabricate more cheaply than doing the real modeling work. Before proposing a
+  telemetry gate again, the question to answer first is not "does a passing
+  run usually have events" but "is there anything server-side that a forger
+  cannot produce for less than the cost of earning it" -- and today there is
+  not.
 - **Demo seeds (purged in `0019`).** The original three placeholder Speedrun
   challenges were seeded with internally consistent dummy values
   (`target_mass = target_volume x density`,
@@ -695,6 +720,27 @@ miss.
 | `0061` | `gauntlet_macro_submit` and `gauntlet_run_targets` stop returning the ranked comparison value; coarse unsigned band instead; a failing solo submit costs one of 3 budgeted attempts per reveal |
 | `0038` | Not a GAUNTLET migration: recreates `gauntlet_leaderboards()` (last defined in `0029`) for the pathway work |
 | `0067` | Not a GAUNTLET migration: redefines `is_teacher()` as `is_admin()`, re-gating **every** GAUNTLET authoring, hosting and moderation check at once. See the header |
+| `0146` | Admits Reverse Engineer and Feature Golf to `gauntlet_speedrun_reveal` and `gauntlet_leaderboard`. Its own comment on why Speedrun's board is safe to admit is wrong -- see the correction directly below the table |
+| `0147` | `gauntlet_run_targets` and `gauntlet_macro_submit` stop returning the ranked comparison value on the RPC surface; a coarse unsigned band instead. Left the `challenges` SELECT surface (the `prompt` column, `0004`) untouched -- see `0153` |
+| `0148` | Server-stamps a clock for the knowledge modes, so their board stops ranking a number the browser sent |
+| `0150` | Gives the post-run analysis a class comparison the database can disclose; retires the dead `gauntlet_log_speedrun_attempt` logger |
+| `0151` | Meters the Speedrun practice check per student per challenge, so hammering it for a free search is visible and bounded |
+| `0153` | Strips `target_mass`, `density` and `tolerance_pct` off the stored `prompt` on every existing row. This is what actually closes the `0004` SELECT-grant disclosure `0061` and `0147` each left open in their own headers |
+
+**CORRECTED 2026-08-29: `0146`'s own comment overstates why admitting Speedrun
+to `gauntlet_leaderboard` was safe, and the migration is applied and immutable
+so this correction lives here instead.** `0146`'s view definition says Speedrun
+"ranks on a SERVER-STAMPED clock ... and its client-sent volume only has to
+hit a hidden target, so neither half is authorable." At the time `0146` was
+written the target was not hidden: `challenges.prompt` carried `target_mass`,
+`density` and `tolerance_pct` on every published Speedrun row, and `0004`
+grants `select` on `prompt` to every signed-in student. One ordinary PostgREST
+read, with no reveal and no run token, handed over the ranked comparison
+value directly (see `0153`, above). The clock half of `0146`'s claim holds --
+`started_at`/`revealed_at` are server-stamped and not client-authorable -- but
+the volume half did not, until `0153` closed it. Whether the board should have
+admitted Speedrun before that closure is a question for whoever reviews the
+runs already ranked; this note only corrects the reasoning `0146` recorded.
 
 ## Written and not read (audited 2026-08-29, unchanged)
 
