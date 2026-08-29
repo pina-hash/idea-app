@@ -383,6 +383,42 @@ function runAs<T>(db: TestDb, userId: string | null, fn: (q: QueryFn) => Promise
 }
 
 /**
+ * The answer for a `select` that ran and FAILED against the real Postgres
+ * catalog -- the same conflation `rpcError` above fixed for a function call,
+ * one call shape over.
+ *
+ * THE CONFLATION THIS REPLACES. Every select failure that reached this file
+ * came back as `42P01` (undefined_table), whatever the real SQLSTATE was --
+ * so a project sitting between two migrations (the case this shim's own
+ * comment names) and an RLS denial and a live constraint violation were all
+ * indistinguishable through it. Measured against the real suite: of 430
+ * select failures this file actually produces, 350 are `42703`
+ * (undefined_column, not undefined_table at all), 72 are genuinely `42P01`,
+ * and 8 are `42501` (insufficient_privilege -- a signed-out or unprivileged
+ * caller hitting a table with no matching grant or policy, which is not a
+ * missing-table condition in any sense). A test asserting a specific code off
+ * a select failure would have been asserting the fixture's own conflation
+ * rather than anything Postgres says; none in this suite does (checked by
+ * hand), which is why passing the real code through changes no result.
+ *
+ * SO, EXACTLY AS `rpcError`: THE SHIM DOES NOT CLASSIFY, IT REPORTS. There is
+ * no overload-resolution ambiguity on a select the way `42883` is on an RPC
+ * call, so there is nothing to translate -- the driver's own SQLSTATE is
+ * already the answer PostgREST would carry (as `error.code` on its own
+ * response body), and reporting anything else would be a second, weaker copy
+ * of `$lib/pg-errors`' transient/refusal partition sitting in the fixture.
+ *
+ * A throw with no SQLSTATE is not a database answer and must not be dressed
+ * as one -- the same choice `rpcError` and `routineShape`'s guards make, and
+ * for the same reason.
+ */
+function selectError(error: unknown): ShimError {
+	const code = (error as { code?: unknown } | null)?.code;
+	if (typeof code !== 'string') throw error;
+	return { code, message: (error as Error).message };
+}
+
+/**
  * The builder. Supports exactly what the loads under test call and throws on
  * anything else, so this can never drift into modelling a query that does not
  * ship.
@@ -574,10 +610,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 			if (this.singleRow) return { data: rows[0] ?? null, error: null };
 			return { data: rows, error: null };
 		} catch (error) {
-			const message = (error as Error).message;
-			// A missing table or column is what a project sitting between two
-			// hand-applied migrations actually produces.
-			return { data: null, error: { code: '42P01', message } };
+			return { data: null, error: selectError(error) };
 		}
 	}
 
