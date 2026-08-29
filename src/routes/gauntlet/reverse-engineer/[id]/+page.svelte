@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
 	import ModelingRun from '$lib/gauntlet/ModelingRun.svelte';
-	import { formatDeviation } from '$lib/gauntlet';
+	import { formatDeviation, modeRanks } from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenge, board, myUserId, myBest } = $derived(data);
@@ -32,4 +32,5 @@
 	metricLabel="Deviation"
 	formatMetric={formatDeviation}
 	backHref="/gauntlet/reverse-engineer"
+	ranked={modeRanks('reverse_engineer')}
 />

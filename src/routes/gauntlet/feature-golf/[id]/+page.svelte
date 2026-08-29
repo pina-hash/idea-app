@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
 	import ModelingRun from '$lib/gauntlet/ModelingRun.svelte';
-	import { formatFeatures } from '$lib/gauntlet';
+	import { formatFeatures, modeRanks } from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenge, board, myUserId, myBest } = $derived(data);
@@ -29,4 +29,5 @@
 	metricLabel="Features"
 	formatMetric={formatFeatures}
 	backHref="/gauntlet/feature-golf"
+	ranked={modeRanks('feature_golf')}
 />

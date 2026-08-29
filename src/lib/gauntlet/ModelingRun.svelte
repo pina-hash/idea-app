@@ -45,6 +45,7 @@
 		metricLabel,
 		formatMetric,
 		backHref,
+		ranked,
 		next = null
 	}: {
 		supabase: SupabaseClient;
@@ -56,6 +57,14 @@
 		metricLabel: string;
 		formatMetric: (n: number | null | undefined) => string;
 		backHref: string;
+		/**
+		 * Whether THIS mode's leaderboard can carry a verified run at all
+		 * (`modeRanks` in `$lib/gauntlet`, mirroring `gauntlet_leaderboard`'s
+		 * allowlist from `0146`). An empty board looks identical whether nobody
+		 * has cleared a ranked mode yet or the mode simply never ranks, so the
+		 * caller has to say which -- there is no way to infer it from `board`.
+		 */
+		ranked: boolean;
 		next?: NextChallenge | null;
 	} = $props();
 
@@ -331,9 +340,25 @@
 	</div>
 
 	<h2>Leaderboard</h2>
-	<p class="dim board-note">Machine-verified runs, best first. Failed runs are recorded but do not rank.</p>
+	{#if ranked}
+		<p class="dim board-note">Machine-verified runs, best first. Failed runs are recorded but do not rank.</p>
+	{:else}
+		<p class="dim board-note">
+			This mode is off the leaderboard: its score is not something the server can verify, so no
+			run in it ranks. Runs are still recorded, and a supervised room still ranks it live.
+		</p>
+	{/if}
 	{#if board.length === 0}
-		<div class="card"><p>No verified runs yet. Be the first to clear it.</p></div>
+		<div class="card">
+			<p>
+				{#if ranked}
+					No verified runs yet. Be the first to clear it.
+				{:else}
+					There is no board here to be first on. Clearing this challenge still counts toward
+					your XP, it just does not rank.
+				{/if}
+			</p>
+		</div>
 	{:else}
 		<table class="board">
 			<thead>
