@@ -195,6 +195,11 @@
 
 	let editing = $state(false);
 	let armDelete = $state(false);
+	/**
+	 * THIS COMPONENT'S OWN ACKNOWLEDGEMENT THAT IT DELETED THE ITEM, and it is
+	 * set only when NOBODY ELSE is going to say so. See `remove()`.
+	 */
+	let removed = $state(false);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 	let notice = $state<string | null>(null);
@@ -466,7 +471,36 @@
 			error = res.message;
 			return;
 		}
-		ondeleted?.();
+		/**
+		 * AN ACKNOWLEDGEMENT MUST SURVIVE THE ACT IT REPORTS, and for a delete
+		 * that means it cannot render in the pane the delete just destroyed --
+		 * the recorded lesson from `/foundry/mine`, where the confirmation lived
+		 * in the detail pane, the app delete unmounted that pane, and the card
+		 * simply vanished with nothing anywhere saying a word.
+		 *
+		 * THIS COMPONENT IS THE WHOLE PAGE, so the surface on screen afterwards
+		 * is either whatever a caller navigates to, or -- if nobody navigates --
+		 * this component still mounted, showing an item that no longer exists.
+		 * The second one is what every dev harness has always rendered: `remove()`
+		 * disarmed the confirm, cleared `busy`, called out and did NOTHING to
+		 * itself, so a successful delete left the item on screen unchanged and
+		 * was indistinguishable from a silent failure.
+		 *
+		 * SO THE CALLBACK'S PRESENCE DECIDES, and it is the codebase's ordinary
+		 * absence-is-the-mechanism rule pointed at an outcome rather than at a
+		 * control: wiring `ondeleted` is claiming the outcome, and production
+		 * claims it with `goto()`. Rendering the note anyway would put a "deleted"
+		 * panel on screen for as long as a client-side navigation takes to run
+		 * its loads -- a flash of a page about to be destroyed, and a second
+		 * acknowledgement beside whatever the caller shows. Leaving the note out
+		 * when there is no callback is the defect above. There is no third
+		 * arrangement that is right in both places.
+		 */
+		if (ondeleted) {
+			ondeleted();
+			return;
+		}
+		removed = true;
 	}
 
 	async function togglePin() {
@@ -511,6 +545,36 @@
 	(src/routes/classroom/+layout.svelte), which owns the logo, the section
 	switcher and the breadcrumb trail back up.
 -->
+{#if removed}
+	<!--
+		THE DELETED PAGE. Reached only when no `ondeleted` was wired, which means
+		nothing is going to navigate away from an item that no longer exists (see
+		`remove()`). It REPLACES the page rather than sitting above it: every
+		control below acts on a row that is gone, so leaving the hand-in, the
+		instructor tools and the delete button on screen would offer a second
+		press of a thing already done.
+
+		IT NAMES THE ITEM, because by the time this renders the title is the only
+		remaining evidence of what was deleted, and `role="status"` announces it
+		to a reader who was not looking at this corner of the page.
+	-->
+	<main class="classroom-page">
+		<section class="card removed-card">
+			<h1 class="removed-title">Deleted</h1>
+			<p class="removed-note" role="status" data-testid="item-removed">
+				"{itemTitle(item)}" is deleted. There is nothing here to open any more.
+			</p>
+			<p>
+				<a class="btn secondary" href={`${basePath}/${section.id}`}
+					>Back to {sectionTitle(section)}</a
+				>
+			</p>
+		</section>
+		<footer class="page-footer">
+			<VersionBadge app="classroom" />
+		</footer>
+	</main>
+{:else}
 <main class="classroom-page">
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
@@ -1151,6 +1215,7 @@
 		<VersionBadge app="classroom" />
 	</footer>
 </main>
+{/if}
 
 <style>
 	/* Spacing only: the look lives in classroom.css. */
@@ -1432,5 +1497,23 @@
 		margin-top: 1.4rem;
 		display: flex;
 		justify-content: center;
+	}
+	/* The deleted page. Ordinary card spacing -- this is a plain statement of
+	   fact and a way back, not a warning: the delete was asked for twice and it
+	   worked. */
+	.removed-card {
+		margin-top: var(--space-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.removed-title {
+		margin: 0;
+	}
+	.removed-note {
+		margin: 0;
+	}
+	.removed-card p:last-child {
+		margin: 0;
 	}
 </style>
