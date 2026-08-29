@@ -135,8 +135,8 @@ both before and after. A fresh checkout needed `npm ci`, then a placeholder
 without the `.env` first the count is the documented 11 phantom errors.
 
 **Full suite before: 185 files, 3897 tests, all passing, 140.55s.**
-**After: see the closing line of this entry.** The two new files add 32 + 13 =
-45 tests.
+**After: 187 files, 3942 tests, all passing, 143.62s.** The delta is exactly the
+two new files and their 32 + 13 = 45 tests; nothing else moved.
 
 **Mutation proof, PERMISSIVE direction, both halves.** Ten SQL mutants appended
 to a COPY of 0155 (`/tmp/mutproof/0155.orig`; restore was `cp` from that copy,
@@ -183,8 +183,17 @@ through the shim. The shim is shared and was not this bundle's to change.
 `example-ref` placeholder, so nothing here applied a migration or ran an RPC
 against production), a real signed-in Google session, and screenshots.
 `npm run verify:browser` covers `/dev` routes only and this bundle adds no CSS
-and touches no `/dev` route, so it cannot cover the two panels; the run is
-reported for regression value only.
+and touches no `/dev` route, so it cannot cover the two panels; it was run for
+regression value and reported here rather than skipped. **50 route/width runs,
+418 measurements, 2 outside threshold, exit 0, 127.7s.** Both findings are the
+same one twice (once per width): `tap-target [harness controls] smallest
+194.7x26.2 (min dim 26.2px); 2/2 under 44px, 0 under the 24px floor`. Those are
+the `/dev` harness's OWN buttons on a route this bundle never touched, and they
+are pre-existing -- the diff adds no stylesheet rule anywhere, so nothing in it
+can move a measured box. The two documented harness limits apply to those
+numbers: `fonts.googleapis.com` is blocked so text is measured in the fallback
+stack, and `prefers-reduced-motion` is `no-preference`, so that path is not
+exercised.
 
 ## The UI half: a refusal that is spoken
 
