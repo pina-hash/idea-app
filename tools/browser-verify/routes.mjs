@@ -356,11 +356,14 @@ export const ROUTES = [
 				`classroom.css`'s 24px chip floor either (that rule is scoped to
 				`.btn.tiny`/`.btn.secondary.tiny`, a one-time authoring chip; this is
 				the primary, repeated submit action of the whole compose workflow).
-				Measured with no fix applied: 112.8x39.4 and 130.1x39.4 (min dim
+				Measured with no `.btn` floor: 112.8x39.4 and 130.1x39.4 (min dim
 				39.4px) at BOTH widths, 3 controls -- a real, previously uncaught gap
-				in `src/lib/classroom/ContentComposer.svelte`, not something this
-				session's ownership (`tools/browser-verify/`) extends to fixing.
-				Reported here and left for whoever owns that file.
+				in `src/lib/classroom/ContentComposer.svelte`. **`src/app.css`'s `.btn`
+				now carries a 44px `min-height` floor, and this control was never
+				overriding it** -- re-measured clean at 112.8x44 / 130.1x44, 0/3 under
+				floor, both widths. The check stays: it is what would catch the next
+				regression on this footer specifically, since `.composer-actions` has
+				no height rule of its own to keep it aligned with `.btn`'s floor.
 			*/
 			{ selector: '.compose-card .composer-actions .btn', label: 'composer submit footer (Post now / Save draft / Cancel -- no .tap-44, not a .tiny chip)', min: 44 }
 		]
@@ -752,11 +755,14 @@ export const ROUTES = [
 				buttons in this route's own +page.svelte) carry no `.tap-44` at all,
 				which is exactly the shape a `.btn`-wide CSS floor change would need a
 				check to catch: nothing selector-based here reached them before this
-				line existed. Measured with no fix applied: 12 controls at 95.5x39.4
+				line existed. Measured with no `.btn` floor: 12 controls at 95.5x39.4
 				(min dim 39.4px) at BOTH widths -- 24 readings under the 44px floor,
 				all from this one route. This is the harness's own chrome, not a
 				shipped surface, but it is real `.btn` markup rendered by real CSS,
 				which is exactly what a floor change to `.btn` itself would move.
+				**`src/app.css`'s `.btn` now carries that 44px `min-height` floor**,
+				and this scaffolding had no local override sitting on top of it --
+				re-measured clean at 95.5x44, 0/12 under floor, both widths.
 			*/
 			{ selector: '.h-tabs .btn, .h-buttons .btn', label: 'plain .btn harness controls (tab switcher, drive/raw/run buttons -- no .tap-44)', min: 44 }
 		]
