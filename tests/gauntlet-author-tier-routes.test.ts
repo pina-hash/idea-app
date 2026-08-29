@@ -74,8 +74,40 @@ const CHAIN = [
 	'0155_gauntlet_authoring_tier.sql'
 ] as const;
 
-/** The chain one file short of 0155: a deployment between the push and the apply. */
-const CHAIN_BEFORE = CHAIN.slice(0, -1) as unknown as string[];
+/**
+ * The chain WITHOUT 0155: a deployment between the push and the apply, which is
+ * a real state here because migrations are applied by hand and separately.
+ *
+ * IT NAMES 0155 RATHER THAN COUNTING FROM THE END. This was
+ * `CHAIN.slice(0, -1)`, which means "without 0155" only for as long as 0155
+ * happens to be the last entry on CHAIN -- so appending ANY later migration
+ * silently redefines this constant as "with 0155, without the new one", and the
+ * before/after pair below stops contrasting the thing it names. It does not
+ * fail when that happens: `dbBefore` simply becomes a second copy of the
+ * after-world, and the absence assertions pass because 0155 is applied.
+ *
+ * THE THIRD INSTANCE OF ONE DEFECT. `gauntlet-run-review-route.test.ts` had it
+ * for 0152 and `gauntlet-practice-meter.test.ts` for 0151; both were fixed on
+ * the two branches this file's bundle reconciles, and both reports predicted a
+ * third. This is it, found by sweeping `tests/` for the spelling rather than by
+ * waiting for it to bite. Nothing appends to CHAIN today, so the constant is
+ * still CORRECT as written -- this is closing it while it is cheap, not
+ * repairing a live failure.
+ *
+ * A TRUNCATION AND NOT A FILTER: everything after 0155 on this chain would
+ * depend on it, so dropping 0155 out of the middle would build a state no
+ * operator can reach.
+ */
+const CHAIN_BEFORE = CHAIN.slice(
+	0,
+	CHAIN.indexOf('0155_gauntlet_authoring_tier.sql')
+) as unknown as string[];
+
+// `indexOf` returning -1 would make the slice above an EMPTY chain, which fails
+// in a way that reads as a broken harness rather than as a renamed migration.
+if (!CHAIN.includes('0155_gauntlet_authoring_tier.sql')) {
+	throw new Error('CHAIN_BEFORE cannot be derived: 0155 is not on CHAIN.');
+}
 
 type ForeignKeys = Awaited<ReturnType<typeof loadForeignKeys>>;
 
