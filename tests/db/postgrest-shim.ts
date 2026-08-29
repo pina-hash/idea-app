@@ -280,6 +280,18 @@ function projection(
 
 	for (const node of nodes) {
 		if (node.kind === 'column') {
+			// PostgREST's json-arrow projection (`prompt->>material`,
+			// `prompt->demo`): the result flattens onto the row under the KEY's
+			// own name, per the Speedrun list loader's own doc comment. `->>`
+			// extracts text, `->` extracts jsonb; only the operator differs.
+			const arrow = node.name.match(/^([a-z_][a-z0-9_]*)(->>?)([a-z_][a-z0-9_]*)$/i);
+			if (arrow) {
+				const [, column, op, key] = arrow;
+				const expr = `${alias}.${quote(column)} ${op} '${key}'`;
+				fields.push(`${expr} as ${quote(key)}`);
+				jsonArgs.push(`'${key}', ${expr}`);
+				continue;
+			}
 			fields.push(`${alias}.${quote(node.name)} as ${quote(node.name)}`);
 			jsonArgs.push(`'${node.name}', ${alias}.${quote(node.name)}`);
 			continue;
@@ -356,7 +368,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	private filters: Filter[] = [];
 	private orderBy: { column: string; ascending: boolean } | null = null;
 	private limitTo: number | null = null;
-	private single = false;
+	private singleRow = false;
 
 	constructor(
 		private readonly db: TestDb,
@@ -444,7 +456,19 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	}
 
 	maybeSingle() {
-		this.single = true;
+		this.singleRow = true;
+		return this;
+	}
+
+	/**
+	 * PostgREST's `.single()`: identical to `.maybeSingle()` for this shim's
+	 * purposes -- neither models the "exactly one row or PGRST116" distinction,
+	 * because nothing under test reads the error code either call would set on
+	 * a missing row. A caller wanting that distinction needs a shim change that
+	 * actually models it, not a second alias.
+	 */
+	single() {
+		this.singleRow = true;
 		return this;
 	}
 
@@ -524,7 +548,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 			const rows = await this.db.asUser(this.userId, async (q) =>
 				(await q<{ row: unknown }>(sql, params)).rows.map((r) => r.row)
 			);
-			if (this.single) return { data: rows[0] ?? null, error: null };
+			if (this.singleRow) return { data: rows[0] ?? null, error: null };
 			return { data: rows, error: null };
 		} catch (error) {
 			const message = (error as Error).message;

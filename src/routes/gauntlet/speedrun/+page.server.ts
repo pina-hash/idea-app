@@ -23,9 +23,12 @@ interface SpeedrunListRow {
 
 /**
  * Speedrun challenge list. Loads published Speedrun challenges (framing only,
- * the dimensioned drawing stays hidden in `answer` until Start) plus the user's
- * best PASSING run per challenge from the leaderboard view. The view only ranks
- * passing modeling-mode submissions, so a row here means the student cleared it.
+ * the dimensioned drawing stays hidden in `answer` until Start), the user's
+ * best RANKED run per challenge from the leaderboard view (for bestTime/rank),
+ * and `cleared` from the student's own `submissions` rows directly (0154's
+ * client-side fix). `gauntlet_leaderboard` is a RANKING, not a history: since
+ * 0154 it also drops a passing run under the 30s plausibility floor, so board
+ * presence alone would read a genuine clear as never attempted.
  *
  * IT ASKS FOR NAMED FRAMING FIELDS, NOT FOR `prompt` (0153). It used to select
  * the whole column and read `target_mass` out of it, which put the level's
@@ -77,7 +80,24 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.eq('user_id', claims.sub)
 		.eq('mode', 'speedrun');
 
+	// A student's own history, never the board: the board (above) is a RANKING
+	// and, since 0154, drops a passing run under the 30s plausibility floor from
+	// the board entirely. That run was still genuinely cleared, so "cleared" is
+	// read from the student's own `submissions` rows (RLS: own-row select,
+	// granted since 0004), not from board presence. `mine` above still supplies
+	// bestTime/rank, which are legitimately absent for a sub-floor clear.
+	const { data: mySubmissions } = await supabase
+		.from('submissions')
+		.select('challenge_id, is_correct')
+		.eq('user_id', claims.sub)
+		.eq('mode', 'speedrun');
+
 	const byChallenge = new Map((mine ?? []).map((r) => [r.challenge_id as string, r]));
+	const clearedIds = new Set(
+		(mySubmissions ?? [])
+			.filter((s) => s.is_correct === true)
+			.map((s) => s.challenge_id as string)
+	);
 
 	const list = (challenges ?? []).map((c) => {
 		const row = c as unknown as SpeedrunListRow;
@@ -94,7 +114,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			modelPath: row.model_path ?? null,
 			seriesId: row.series_id ?? null,
 			seriesOrder: row.series_order ?? null,
-			cleared: best !== undefined,
+			cleared: clearedIds.has(row.id),
 			bestTime: (best?.score_metric ?? null) as number | null,
 			rank: (best?.rank ?? null) as number | null
 		};
