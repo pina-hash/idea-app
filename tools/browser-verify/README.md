@@ -65,11 +65,16 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-53 directories under `src/routes/dev` (50 with a page, 3 server-only) and 52
-`+page.svelte` files; `routes.mjs` lists **23 specs over 17 distinct routes**
-(20 over 15 before `/dev/gauntlet-shell` and `/dev/gauntlet-run` joined it on
-2026-08-29, with one alias spec for the armed countdown).
-A 52-route pass nobody waits for is a pass nobody runs. Routes earn a place by
+57 directories under `src/routes/dev` (54 with a page, 3 server-only) and 56
+`+page.svelte` files; `routes.mjs` lists **25 specs over 20 distinct routes**
+(measured 2026-08-29 against `routes/*.mjs`, alias specs resolved to the
+route they measure a different state of). **This count is a snapshot, not a
+derived value, and it WILL go stale the next time a session adds a route --
+do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
+-l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
+against the distinct `path.split('?')[0]` values (alias-resolved) for both
+numbers at once.
+A route pass nobody waits for is a pass nobody runs. Routes earn a place by
 one question -- if this surface broke silently, would anyone find out before a
 student did -- not by existing. `docs/history/dev-routes-audit-5nocl7.md` has
 the audit that produced the current list and the reasons the rest were left
@@ -372,5 +377,6 @@ change, not the harness.
 | `checks.mjs` | The six checks and the in-page colour/visibility helpers |
 | `routes.mjs` | Assembles the route table from `routes/`; read it first |
 | `routes/` | One file per route spec -- what is measured on each. See `routes/README.md` before adding one |
+| `routes/_tools/verify-loader-guards.mjs` | Negative controls for `routes.mjs`'s two load-time refusals (`node tools/browser-verify/routes/_tools/verify-loader-guards.mjs`) -- no browser needed |
 | `probe.mjs` | The environment capability probe |
 | `selftest.mjs` | The negative controls |

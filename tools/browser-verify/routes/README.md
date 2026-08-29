@@ -7,6 +7,16 @@ the array `run.mjs` drives. It exists for the same reason
 `docs/history/history-merge-split-vx1fmk.md` for the full argument, and read
 the top-of-file comment in `../routes.mjs` before adding anything here.
 
+**The loader's two collision guards are exercised by
+`_tools/verify-loader-guards.mjs`** (`node
+tools/browser-verify/routes/_tools/verify-loader-guards.mjs`), which mutates
+this directory in place (a rename, then a decoy file) and restores it from an
+in-memory copy, never with `git checkout --`. Run it after touching the loop
+in `../routes.mjs` -- the order of its checks matters more than it looks: the
+duplicate-path and slug-collision checks must run BEFORE the filename-match
+check, or they become unreachable (see the comment above them in
+`../routes.mjs`).
+
 ## Adding a route
 
 Create `<slug>.mjs`, where `<slug>` is your route's own `path` with the
