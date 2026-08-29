@@ -3675,11 +3675,13 @@ The two files have different jobs, and the split is the point.
     Front matter carries `title`, `date`, `branches`, `migrations` (quoted,
     `["0140"]`, because YAML reads `0140` as octal), `subsystems`. **No
     `record_order`** -- that field belongs only to the 168 `record-*.md` files
-    the split produced. `npm run history:verify` checks all of this;
-    `docs/HISTORY.md` states the fuller convention but is itself a frozen
-    pointer file from before this changed -- its "opening with its own `##`
-    heading" line is stale prose describing the pre-derivation shape and is not
-    edited, per the file's own "never edited again."
+    the split produced. `npm run history:verify` checks all of this, and
+    `docs/HISTORY.md` states the fuller convention. **"Never edited again" is
+    about the 35,000-line record body the split removed, not about
+    `docs/HISTORY.md`'s own instructions for writing an entry** -- those are
+    corrected in place like any other rule when they drift, which its own
+    worked example did for a day after `derive-headings.mjs` (`1fbdf87`)
+    removed the retyped heading; both are fixed now (2026-08-29).
   - **There is no index to update, for SQL or anything else.** All three indexes
     are generated from front matter by `npm run history:index` and are gitignored.
     Naming the migration in `migrations:` is the whole of it.
