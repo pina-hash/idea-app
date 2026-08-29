@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Build, theme, tests, conventions"]
 ---
 
-## `tools/browser-verify/routes.mjs` becomes one file per route spec, for the same reason the history record was split (`claude/browser-verify-routes-refactor-w5dtxf`, docs/tools only, no migration)
-
 `tools/browser-verify/routes.mjs` was a single `export const ROUTES = [ {...},
 {...}, ... ]` array that every lane adding a dev-route check appended a new
 object to, at the same closing `];`. That is the identical shape

@@ -2,15 +2,25 @@
 // The control for the 2026-08-28 split of `docs/HISTORY.md`.
 //
 // It reassembles every `record_order`-carrying file in `docs/history/`, in
-// order, from the bytes that follow each file's front matter, and compares the
-// result against the record body as it stood immediately before the split.
-// It must be byte-identical: the split added front matter and nothing else.
+// order, from the bytes that follow each file's front matter (with each
+// entry's `## <title>` heading synthesized back in -- see below), and
+// compares the result against the record body as it stood immediately before
+// the split. It must be byte-identical: the split added front matter and
+// nothing else, and deriving the heading later added no bytes either.
 //
 // The reference is pinned two ways, because either can be unavailable:
 //   * REFERENCE_COMMIT -- read with `git show`, which gives a real diff on
 //     failure. Absent from a shallow clone that does not reach that commit.
 //   * REFERENCE_SHA256 -- always checkable, but only ever answers yes or no.
 // A run that can do neither reports that it verified nothing, and exits 1.
+//
+// An entry's `## <title>` heading is DERIVED, not stored: the body on disk
+// starts directly at the first real content, and `title` in front matter is
+// the one copy of that sentence. A retyped heading is what drifted three
+// times before this (gauntlet-tolerance-test-fix-u79q4y, and
+// btn-tap-target-floor-verify-6vj8r9 twice over two sessions) -- see
+// docs/history/_tools/derive-headings.mjs, the migration that removed the
+// second copy.
 //
 // Run: npm run history:verify
 
@@ -40,10 +50,10 @@ const seen = new Map();
 for (const e of entries) {
   if (seen.has(e.file)) fail(`duplicate filename: ${e.file}`);
   seen.set(e.file, e);
-  const heading = e.body.split('\n')[0];
-  if (heading !== `## ${e.title}`) {
-    fail(`${e.file}: front-matter title does not match the ## heading\n  title:   ${e.title}\n  heading: ${heading.replace(/^## /, '')}`);
+  if (e.body.startsWith('## ')) {
+    fail(`${e.file}: body still opens with a ## heading. The heading is derived from front-matter title now (see derive-headings.mjs) -- remove the retyped line, do not add a second copy back.`);
   }
+  if (!e.title) fail(`${e.file}: no title in front matter`);
   if (!e.date || !/^\d{4}-\d{2}-\d{2}$/.test(e.date)) fail(`${e.file}: date is missing or not YYYY-MM-DD`);
   if (!e.file.startsWith('record-') && Number.isInteger(e.record_order)) {
     fail(`${e.file}: carries record_order but is not a pre-split archive file. record_order belongs only to the 168 entries the split produced.`);
@@ -63,7 +73,7 @@ if (record.length !== REFERENCE_ENTRIES) {
 
 // --- the reassembly ---------------------------------------------------------
 
-const rebuilt = record.map((e) => e.body).join('');
+const rebuilt = record.map((e) => `## ${e.title}\n\n${e.body}`).join('');
 const rebuiltBytes = Buffer.byteLength(rebuilt, 'utf8');
 const rebuiltSha = createHash('sha256').update(rebuilt, 'utf8').digest('hex');
 

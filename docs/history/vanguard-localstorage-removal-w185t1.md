@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["VANGUARD"]
 ---
 
-## VANGUARD: a removal that never reached the cloud save
-
 The injected bootstrap wrapped `localStorage.setItem` and pushed every write to
 `/api/vanguard-save`. It wrapped neither `removeItem` nor `clear`. Since the
 seed merges the cloud save back INTO localStorage before the game reads it, a

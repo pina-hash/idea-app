@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 50
 ---
 
-## The composer takes the detail pane, and the page gets a gutter (code-only; NO migration)
-
 Four related changes to the classroom shell. No schema change, no new write
 RPC, no migration: the composer, the split shell, the shared stylesheet, and
 the two dev harnesses that drive them.

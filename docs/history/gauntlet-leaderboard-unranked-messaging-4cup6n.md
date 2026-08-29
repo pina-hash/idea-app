@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["GAUNTLET"]
 ---
 
-## The two surfaces the knowledge-clock bundle deferred: an unranked mode's empty board and blurb now say so (`claude/gauntlet-leaderboard-unranked-messaging-4cup6n`)
-
 `0146` took Reverse Engineer and Feature Golf off `gauntlet_leaderboard`, because
 neither ranks on anything the server can check. `claude/knowledge-clock-leaderboard-khus4g`
 (merged into `integration` before this branch started, see

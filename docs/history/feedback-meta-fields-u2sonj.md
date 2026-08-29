@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Feedback", "VANGUARD", "Documentation"]
 ---
 
-## The feedback console reads its own row's meta instead of a fixed list; a dead GET on vanguard-run-state is removed; CLAUDE.md documents the integrate.yml auto-merge (`claude/feedback-meta-fields-u2sonj`, no migration)
-
 Three loose ends, each reported by a session that could not reach the owning
 files. This bundle owned `src/lib/classroom/FeedbackConsole.svelte`,
 `src/routes/api/vanguard-run-state/`, `docs/VANGUARD_BACKLOG.md` and

@@ -6,8 +6,6 @@ migrations: ["0148"]
 subsystems: ["GAUNTLET", "Curriculum, migrations, policy", "Testing"]
 ---
 
-## A server clock for the GAUNTLET knowledge boards, and a passing unranked run that says so (`0148`, `claude/knowledge-clock-leaderboard-khus4g`)
-
 **Branch:** `claude/knowledge-clock-leaderboard-khus4g`, cut from `origin/integration`
 at `7a4ba7b` (not `main`: `0147` is on `integration` and this builds on its payload
 shapes).

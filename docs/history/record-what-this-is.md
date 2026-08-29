@@ -7,8 +7,6 @@ subsystems: ["Platform & access"]
 record_order: 1
 ---
 
-## What this is
-
 `idea-app` is the authenticated foundation for the unified **IDEA portal** at
 Bosco Tech, and beyond that the foundation of the **Bosco Tech student
 platform**: any Bosco Tech student can sign in, and every student is identified

@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 120
 ---
 
-## Foundry, unblocking the ingest function (`0131`)
-
 Two additive fixes to 0130. No drops, no data touched. Written and applied on
 `main`; the ingest function is still NOT deployed.
 

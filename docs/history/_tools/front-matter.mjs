@@ -2,7 +2,9 @@
 //
 // Every file in `docs/history/` is one entry: a small YAML front-matter block
 // between `---` fences, then a blank line, then the entry body verbatim,
-// starting with its `## ` heading.
+// starting directly at its first real content. The entry's `## ` heading is
+// not stored in the body -- it is derived from front matter's `title` at
+// read time (see verify-split.mjs's reassembly and derive-headings.mjs).
 //
 // The parser is deliberately tiny and handles only the shapes this directory
 // uses (scalars, quoted flow lists, and one block list). It is not a YAML

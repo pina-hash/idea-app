@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom", "Digital notebook"]
 record_order: 163
 ---
 
-## A rubric at creation time, and a second notebook check-in on one item (`claude/rubric-staging-creation-k3g9lw`, code only, no migration)
-
 Two composer-adjacent gaps, closed the same way the deck, the spec and the
 first check-in already were.
 

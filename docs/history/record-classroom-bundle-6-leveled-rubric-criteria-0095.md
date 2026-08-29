@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 61
 ---
 
-## Classroom bundle 6: leveled rubric criteria (`0095`)
-
 Migration `0095_classroom_leveled_rubrics.sql` (apply manually after `0094`). A
 criterion was a name, a point value and ONE descriptor, and the grader typed a
 number -- which cannot produce consistent grading across three sections taught

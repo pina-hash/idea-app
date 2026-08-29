@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 128
 ---
 
-## The Foundry author's class, projected inside the definer (`0132`)
-
 > **SUPERSEDED IN PLACE.** The file this describes was never applied to
 > production and has since been corrected there: the pinned course code and the
 > section-label projection below are both gone. See [The IDEA course was a

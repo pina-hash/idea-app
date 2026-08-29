@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 121
 ---
 
-## Foundry, deploying the ingest function and a production round trip
-
 `foundry-ingest` is DEPLOYED to `ifxbufvugkzfxhwcwqhf` (idea-app), version 1,
 ACTIVE, `verify_jwt: true`. It was the FIRST function on the project -- the
 functions list was empty beforehand, so nothing was replaced, and `--prune` was

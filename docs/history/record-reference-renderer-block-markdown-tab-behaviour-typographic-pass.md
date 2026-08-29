@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 64
 ---
 
-## Reference renderer: block markdown, tab behaviour, typographic pass
-
 RENDERING AND INTERACTION ONLY. The reference spec schema, `validateReferenceSpec`,
 the public read path and every migration are untouched; what changed is
 `parseMarkdown`/`parseInline` (the renderer's own markup layer, which lives in

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 52
 ---
 
-## The student notebook's availability check (a stale embed, code-only fix)
-
 `/notebook` reported "Notebook is not available yet -- the notebook tables are
 not in place on this project" against the LIVE database, where they plainly
 were: `/notebook/review` read the same schema correctly at the same moment.

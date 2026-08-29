@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 57
 ---
 
-## Classroom bundle 2: management, attachments, view-as (`0083`)
-
 Migration `0083_classroom_management.sql` (apply manually after 0082). 0082's
 one rule is untouched: ZERO client write grants on any classroom table, every
 write a SECURITY DEFINER RPC that re-checks the caller inside its own body.

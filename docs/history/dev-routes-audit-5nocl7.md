@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["browser-verify harness", "Classroom", "Foundry", "Notebook"]
 ---
 
-## The /dev route audit: 3 routes added to the browser pass, 2 instrument bugs found by its own controls, and 3 real overflow defects reported but not fixed (`claude/dev-routes-audit-5nocl7`, no migration)
-
 Three sessions this week shipped interactive UI, hand-measured it through
 one-off scripts, and could not register the route because `tools/` belonged to
 somebody else. Those measurements ran exactly once. This bundle owns

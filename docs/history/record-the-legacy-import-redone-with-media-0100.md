@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 12
 ---
 
-## The legacy import, redone with media (`0100`)
-
 Migration `0100_coin_legacy_reimport.sql` (apply manually after `0099`). `0084`
 imported the old Sheets ledger when the economy had ONE balance; `0096` made it
 two. This is the same history re-imported with the medium dimension resolved.

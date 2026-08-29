@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["GAUNTLET", "browser-verify harness", "docs"]
 ---
 
-## GAUNTLET's first tests and first component harnesses: 6 of 12 unmeasured components driven, 2 new instrument capabilities, 48 tests over the payload/SQL key contract and the progression model, and docs/GAUNTLET.md corrected from a 0027 snapshot (`claude/gauntlet-component-harnesses-gnddjg`, no migration)
-
 GAUNTLET had **no automated test of any kind** and **twelve components no dev
 route could reach**, eleven of them student-facing. Its design doc stopped at
 migration `0027` and was wrong in ways somebody would have acted on. This bundle

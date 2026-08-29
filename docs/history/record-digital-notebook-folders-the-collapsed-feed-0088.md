@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 26
 ---
 
-## Digital notebook (folders + the collapsed feed, `0088`)
-
 Migration `0088_notebook_folders.sql` (apply manually after `0087`) plus a
 rebuilt `/notebook` feed. The notebook had exactly one view since 0069 -- every
 entry ever made, newest first, each rendered at full column width with every

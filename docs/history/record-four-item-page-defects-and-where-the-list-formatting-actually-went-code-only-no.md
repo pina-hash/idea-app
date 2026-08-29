@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 47
 ---
 
-## Four item-page defects, and where the list formatting actually went (code-only; NO migration)
-
 Four defects reported from production on a real assignment. No schema change,
 no RPC change, no migration: every fix is in the client, one route, or a
 stylesheet.

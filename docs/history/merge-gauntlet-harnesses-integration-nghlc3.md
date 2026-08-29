@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["browser-verify harness", "GAUNTLET"]
 ---
 
-## Merging claude/gauntlet-component-harnesses-gnddjg into integration: a two-append conflict in tools/browser-verify/routes.mjs, resolved by keeping both route sets
-
 `claude/gauntlet-component-harnesses-gnddjg` could not merge into `integration`
 by the automation. The cause was exactly one file: both that branch and
 `integration`'s tip (`51dd94e`, carrying commit `4253321`) appended new entries

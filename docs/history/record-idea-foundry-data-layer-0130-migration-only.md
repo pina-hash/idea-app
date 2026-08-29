@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 118
 ---
 
-## IDEA Foundry, data layer (`0130`, migration ONLY)
-
 **2026-08-23.** A new subsystem: students publish the static web apps they have
 built. This bundle is the DATA LAYER and nothing else -- three tables, their
 policies, three Storage buckets, eleven RPCs and a security suite. There is no

@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry", "Build, theme, tests, conventions"]
 record_order: 167
 ---
 
-## The telemetry gap closed, and Foundry added to the browser-verify route table (code only, no migration, `claude/foundry-telemetry-harness-b1k8sm`)
-
 The previous bundle shipped the telemetry migration and the three surfaces that
 read it -- the gallery's play-count chips, `FoundryPlayStats`, and the admin
 metadata editor -- and named its own gap in the same breath: `/dev/foundry-gallery`

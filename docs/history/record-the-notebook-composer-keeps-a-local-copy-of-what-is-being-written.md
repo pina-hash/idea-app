@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 149
 ---
 
-## The notebook composer keeps a local copy of what is being written
-
 **The failure this fixes**, from a read-only audit of the same code: a student
 wrote a long notebook entry on an iPhone (iOS 18.3 Safari, 390x797), pressed
 Save, turned in the draft, reopened, and it was gone. **No composer content was

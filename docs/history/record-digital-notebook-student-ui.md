@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 24
 ---
 
-## Digital notebook (student UI)
-
 The student-facing half of the notebook: `/notebook` (personal notebook +
 upload) and the `/notebook/review` placeholder. UI ONLY -- it calls the
 existing 0069/0071 data layer as it stands, and touches NOTHING in

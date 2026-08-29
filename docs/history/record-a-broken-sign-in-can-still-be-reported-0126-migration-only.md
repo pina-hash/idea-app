@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 108
 ---
 
-## A broken sign-in can still be reported (`0126`, migration ONLY)
-
 First of three. This bundle ships one migration and changes **no client code and
 no UI**: no route, no endpoint, no component, nothing calls the function it adds.
 The client cutover is the next bundle; the revoke of the direct insert is the one

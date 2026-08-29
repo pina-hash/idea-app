@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 25
 ---
 
-## Digital notebook (written notes, `0078`)
-
 A note is real content now, and an entry is something a student keeps ADDING
 to rather than something they file once. Migration
 `0078_notebook_entry_notes.sql` (apply manually after 0077).

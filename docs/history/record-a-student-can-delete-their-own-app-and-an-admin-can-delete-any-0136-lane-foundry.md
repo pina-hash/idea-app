@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 142
 ---
 
-## A student can delete their own app, and an admin can delete any (`0136`, `lane/foundry-manage`)
-
 **Branch:** `lane/foundry-manage`. **Migration:** `supabase/migrations/0136_foundry_delete.sql`.
 
 ### What was missing

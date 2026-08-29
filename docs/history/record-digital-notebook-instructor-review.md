@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 55
 ---
 
-## Digital notebook (instructor review)
-
 `/notebook/review` is the real per-section compliance grid plus the check-in
 management it depends on, replacing the placeholder that held the URL. UI
 ONLY -- it calls 0069's data layer exactly as it stands, and touches NO

@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Testing", "Toolchain", "Classroom"]
 ---
 
-## A second vitest project gives `tests/dom/` a real DOM and svelte's client build, so an `$effect` can be proven behaviourally; ContentComposer's two `untrack`s are mounted and mutation-checked (`claude/vitest-dom-ssr-projects-5xp8ks`, no migration)
-
 Three bundles this week ended with the same sentence: effects do not run in this
 suite, so a reactivity claim can only be asserted from the source. One of them
 proved a real defect by installing a DOM temporarily, measuring, and removing it

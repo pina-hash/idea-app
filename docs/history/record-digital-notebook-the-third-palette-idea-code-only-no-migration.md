@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 28
 ---
 
-## Digital notebook: the third palette, IDEA (code-only; NO migration)
-
 A green-black IDEA-identity theme beside the light and dark editorial ones. A
 RECOLOUR, not a reskin: `notebook-theme.css` needed exactly ONE edit and all 16
 notebook components needed NONE, so the spacing, the type stack, the whitespace

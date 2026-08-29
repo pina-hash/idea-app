@@ -7,8 +7,6 @@ subsystems: ["GAUNTLET"]
 record_order: 20
 ---
 
-## IDEA // GAUNTLET (CAD skills dojo)
-
 GAUNTLET is a **container for multiple CAD challenge modes**, not a single game.
 Students enter to train SolidWorks skills, get scored, and level up over time
 ("enter weak, leave strong"). The full intent lives in `docs/GAUNTLET.md` (the

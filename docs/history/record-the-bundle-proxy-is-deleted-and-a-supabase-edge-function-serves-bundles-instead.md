@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 140
 ---
 
-## The bundle proxy is deleted, and a Supabase Edge Function serves bundles instead (code only, no migration)
-
 **Branch:** `lane/foundry-direct`.
 
 ### What this replaced

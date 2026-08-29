@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 34
 ---
 
-## The notebook becomes correctable, softly (`0116`)
-
 Migration `0116_notebook_soft_delete.sql` (apply manually after `0115`). A
 student can remove an entry, remove one photo from an entry, and retitle a
 free-form entry; an instructor can remove a student's entry. **DATA LAYER ONLY

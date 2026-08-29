@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Testing", "GAUNTLET"]
 ---
 
-## gauntlet-authoring-tolerance.test.ts asks a real Postgres for the effective tolerance default instead of regex-parsing a `constant` out of migration SQL, so 0147's parallel refactor of `c_volume_tol_pct` into `_gauntlet_tol_pct` stops reddening a passing form (`claude/gauntlet-tolerance-test-fix-u79q4y`, no migration)
-
 ### What was broken, and why it was not a grading regression
 
 `0146_gauntlet_reveal_all_modeling_modes.sql` shipped a test

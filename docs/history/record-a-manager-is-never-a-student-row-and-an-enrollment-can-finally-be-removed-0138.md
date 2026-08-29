@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 152
 ---
 
-## A manager is never a student row, and an enrollment can finally be removed (`0138`)
-
 An instructor with an enrollment row in their own section rendered as a STUDENT.
 The reported shape was the check-in grid: their name, a LEFT status badge, a row
 of dashed uncheckable cells, and a work count beneath it. The same row was also

@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 134
 ---
 
-## Any file type, up to 200 MB, straight to storage (`0133`, `0134`, `lane/attach-any-type`)
-
 **The report that started it: a SolidWorks part attached to an assignment
 failed, and the assignment "did not post at all".** The first half was fully
 explained; the second half was not, and is recorded here unresolved rather than

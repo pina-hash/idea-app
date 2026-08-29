@@ -7,8 +7,6 @@ subsystems: ["Digital notebook", "Home page, launcher, tour"]
 record_order: 112
 ---
 
-## The notebook's console plate, and the launcher's missing identities (code only)
-
 Two token passes, both authored against values that already existed. No SQL, no
 schema, no new dependency.
 

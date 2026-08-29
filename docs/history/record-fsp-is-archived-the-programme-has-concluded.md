@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 75
 ---
 
-## FSP is archived (the programme has concluded)
-
 The Freshman Summer Program is over. It is **archived, not migrated into
 classroom**: it was pre-enrollment content for students who did not yet have
 accounts, which is exactly the audience classroom's enrollment-keyed model

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook", "IDEA Classroom"]
 record_order: 101
 ---
 
-## Both rich-text gates accept a nested list (`0122`, migration ONLY)
-
 `src/lib/server/rich-text-normalize.ts` flattens a sublist: its items become more
 items of the same list, because the stored shape (`ul`/`ol` with one run list per
 item) has nowhere to put a level. Its own header says so and calls the fix "its own

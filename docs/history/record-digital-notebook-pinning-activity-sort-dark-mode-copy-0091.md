@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 27
 ---
 
-## Digital notebook (pinning, activity sort, dark mode, copy, `0091`)
-
 Migration `0091_notebook_pin_and_activity.sql` (apply manually after `0090`)
 plus four additions to the notebook's own surfaces. The theme half needs no
 migration at all.

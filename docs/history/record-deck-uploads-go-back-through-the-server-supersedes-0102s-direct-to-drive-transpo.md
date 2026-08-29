@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 42
 ---
 
-## Deck uploads go back through the server (supersedes `0102`'s direct-to-Drive transport)
-
 Code-only; no migration. `0102` and its own header are LEFT IN PLACE as the
 historical record, and its table (`classroom_deck_uploads`) and three RPCs
 (`classroom_deck_upload_start` / `_claim` / `_cancel`) are UNCHANGED and still

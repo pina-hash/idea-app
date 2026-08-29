@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 124
 ---
 
-## The Foundry bundle proxy: the origin split (code only, NO migration)
-
 Student-written code now runs on a second origin. Built on `lane/foundry-proxy`.
 No migration, no Edge Function change, and still **no gallery and no submit
 surface** -- those are a later lane. What exists is the host branch, the token

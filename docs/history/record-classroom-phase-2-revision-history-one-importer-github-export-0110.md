@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 45
 ---
 
-## Classroom Phase 2: revision history, one importer, GitHub export (`0110`)
-
 Migration `0110_classroom_content_revisions.sql` (apply manually after `0109`)
 plus a consolidated spec importer and a server-side export of every authored
 spec to this repo. `0082`'s rule is untouched: ZERO client write grants on any

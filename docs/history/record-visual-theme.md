@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 80
 ---
 
-## Visual theme
-
 The app shell uses the **IDEA Green** program aesthetic. The token set and font
 stack are the source of truth; do not invent colors or swap fonts.
 

@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 159
 ---
 
-## Nine bundles onto one integration branch (`claude/integration-eight-bundles-jhg2ne`, later re-merged as `claude/integration-nine-bundles-*`, code only, no migration)
-
 Eight finished bundles were sitting unmerged against a `main` that had itself
 moved on. Landed one at a time they would have produced eight conflicting
 merges over the same two ledger files; this carries all eight on one branch so

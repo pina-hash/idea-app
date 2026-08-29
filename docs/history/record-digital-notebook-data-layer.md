@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 23
 ---
 
-## Digital notebook (data layer)
-
 Migration `0069_notebook.sql` (apply manually after 0068) plus
 `src/lib/server/notebook-drive.ts` and the two `/api/notebook/*` routes are
 the DATA LAYER for the digital engineering notebook: students photograph

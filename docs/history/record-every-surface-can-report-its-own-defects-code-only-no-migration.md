@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 97
 ---
 
-## Every surface can report its own defects (code only, no migration)
-
 One shell mount, one exclusion registry, the first error boundary in the repo,
 the first `handleError`, a rebuilt admin console with filters and two exports, a
 new dev harness, and one test file. Nine per-page feedback mounts removed.

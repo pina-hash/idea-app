@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 40
 ---
 
-## Deck ingestion runs in stages (`0105`)
-
 Migration `0105_classroom_deck_ingest.sql` (apply manually after `0104`) plus a
 rewritten ingest route and client driver. **What is STORED is unchanged**: same
 planner, same skipped standalone/template renderings, same hidden

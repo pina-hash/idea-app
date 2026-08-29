@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 168
 ---
 
-## A datalist over a course's own grading-category vocabulary (`claude/grading-category-datalist-z7hloe`, code only, no migration)
-
 `classroom_items.category` (0085) has always been free text with a length
 check, typed into a bare `<input type="text">`; nothing derived a list of
 what teachers had already typed and there was no `datalist` anywhere in

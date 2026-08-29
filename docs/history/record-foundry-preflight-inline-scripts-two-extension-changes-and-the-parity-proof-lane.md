@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 127
 ---
 
-## Foundry preflight: inline scripts, two extension changes, and the parity proof (`lane/foundry-inline-scan`)
-
 No migration. Three items, and the third closed a gap the previous lane
 reported as unverifiable.
 

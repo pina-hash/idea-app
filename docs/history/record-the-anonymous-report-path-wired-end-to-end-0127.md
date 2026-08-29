@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 109
 ---
 
-## The anonymous report path, wired end to end (`0127`)
-
 0126 made an authorless `app_feedback` row possible, rate limited, and writable
 by exactly one function granted to `service_role`. It changed no client code and
 nothing called that function. This bundle is the wiring: a server route that

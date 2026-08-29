@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 147
 ---
 
-## The share link moves to its own component and reaches /foundry/mine (`lane/foundry-mine-share`, code only, no migration)
-
 **Branch:** `lane/foundry-mine-share`. **Migration:** none.
 
 ### What changed

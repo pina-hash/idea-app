@@ -6,8 +6,6 @@ migrations: ["0143"]
 subsystems: ["IDEA Classroom"]
 ---
 
-## The digital bathroom pass (`0143`)
-
 A student can now sign themselves out of a class and back in again, from a card
 at the top of the class page. One student per section may be out at a time.
 

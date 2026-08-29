@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 115
 ---
 
-## Four loose ends: a phone-width overflow, a clipped tap reach, and a baseline that had drifted (code only, NO migration)
-
 Four items handed in from earlier sessions, three of them found in passing. One
 turned out to be already fixed; the write-up says so rather than claiming it.
 

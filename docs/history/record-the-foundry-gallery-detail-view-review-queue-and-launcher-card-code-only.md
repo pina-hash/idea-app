@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry", "Home page, launcher, tour"]
 record_order: 130
 ---
 
-## The Foundry gallery, detail view, review queue and launcher card (code only)
-
 **No migration.** 0132 is applied on production and verified there; everything
 here reads through RPCs that already exist. Landed on `lane/foundry-gallery` and
 merged `--no-ff`.

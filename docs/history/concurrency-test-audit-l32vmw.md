@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Testing", "Classroom", "Coin economy", "Foundry"]
 ---
 
-## Eleven concurrency-shaped tests audited, five guards mutated, and one instrument that measured the wrong lock
-
 No migration, no `src/` file and no tool moved. Two test files changed.
 
 `docs/history/gauntlet-practice-rate-limit-xm7ye3.md` found that the obvious

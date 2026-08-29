@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Classroom", "browser-verify harness"]
 ---
 
-## The 24px chip floor closes for `.btn.tiny`/`.btn.secondary.tiny`, and the harness stops flagging the six controls that already clear it (`claude/classroom-button-sizing-3y81ad`, no migration)
-
 `npm run verify:browser` went from 2 outside threshold to 8 after yesterday's
 `claude/dev-routes-merged-features-pglx6a` bundle wired two previously
 unreachable states (the composer's staged rubric builder, and an item that

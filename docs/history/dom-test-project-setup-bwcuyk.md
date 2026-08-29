@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Testing", "Classroom", "Disclosure", "Classroom files", "Toolchain"]
 ---
 
-## Four SSR files stopped standing in for a browser: the toggle, the write boundary, the drag and the collapse are driven now (`claude/dom-test-project-setup-bwcuyk`, no migration)
-
 The DOM vitest project landed one bundle earlier (`claude/vitest-dom-ssr-projects-5xp8ks`,
 on `integration`). It arrived with one test in it. This bundle spends it.
 

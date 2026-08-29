@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 138
 ---
 
-## The forge: Foundry's own room, its navigation, and submit on the page it is made on (`lane/foundry-forge`, code only)
-
 Foundry had six routes and no identity: four of them sat on the classroom's
 console register, two sat bare on the portal shell, nothing tied them together
 (no masthead, no way back, no way between the surfaces except links scattered

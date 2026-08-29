@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 51
 ---
 
-## Check-ins in the class stream (code-only; NO migration)
-
 A notebook check-in appears in its class's Stream, alongside announcements and
 assignments, showing the student's own status and linking into their notebook
 with that check-in preselected. Plus an outstanding count on the class page's

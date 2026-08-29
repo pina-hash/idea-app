@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 9
 ---
 
-## Legacy Sheets migration (Phase 2 of the coin-system consolidation, `0084`)
-
 Migration `0084_coin_legacy_import.sql` (apply manually after 0083) plus the
 real `/coin-desk/migrate` wizard: the old Google Sheets ledger's history (71
 students, 216 transactions, the contract postings, as of the 2026-08-11 pull)

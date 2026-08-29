@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 63
 ---
 
-## The class page is a two-pane master-detail shell (code-only; NO migration)
-
 `/classroom/[sectionId]` is a persistent navigation pane beside a detail pane
 above 1024px. No URL changed and no route was renamed; what moved is which LOAD
 owns the class, and therefore which component survives opening an item.

@@ -7,8 +7,6 @@ subsystems: ["Home page, launcher, tour"]
 record_order: 78
 ---
 
-## First-time orientation tour
-
 A reusable spotlight tour system plus the portal's first-time walkthrough.
 
 - **Engine (generic, reuse it for future tours):**

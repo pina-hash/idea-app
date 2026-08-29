@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 8
 ---
 
-## The Log area, rebuilt around one constraint (`0115`)
-
 Migration `0115_coin_bulk_log_students.sql` (apply manually after `0114`) plus a
 rebuilt `/coin-desk` Log area. **The rule that drove every decision here:
 LOGGING A TRANSACTION REQUIRES NO SCROLLING AT ALL at a working desktop size.**

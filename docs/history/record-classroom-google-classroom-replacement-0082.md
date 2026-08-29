@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 56
 ---
 
-## Classroom (Google Classroom replacement, `0082`)
-
 The classroom module: courses, sections, email-keyed enrollments, and
 section-scoped posts (announcements) + assignments with linked resources.
 Migration `0082_classroom.sql` (apply manually after 0081). This bundle is

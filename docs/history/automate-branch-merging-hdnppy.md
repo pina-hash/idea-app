@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Repository workflow", "CI"]
 ---
 
-## Green session branches collect themselves onto `integration`, and the deploy stays a person's decision (`claude/automate-branch-merging-hdnppy`, no migration)
-
 Nine one-commit branches landed in a single day this week, each through its own
 pull request, each merged by hand, and every one of those merges was mechanical:
 pull `main`, merge the branch, push, delete the branch. The judgement in that
