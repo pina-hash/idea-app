@@ -31,7 +31,7 @@ import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harn
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
 import { recoveries, type AnswerTruth, type ServedQuestion } from './frc-quiz-disclosure';
 import { POST } from '../src/routes/frc/[domain]/[unit]/quiz/+server';
-import { FRC_QUIZ_COOLDOWNS_SEC } from '../src/lib/frc/track';
+import { FRC_DOMAINS, FRC_QUIZ_COOLDOWNS_SEC } from '../src/lib/frc/track';
 import mdm1Bank from '../src/lib/server/frc/mdm-1-quiz-bank.json';
 import sharedBanks from '../src/lib/server/frc/mdm-quiz-banks.json';
 
@@ -53,7 +53,15 @@ interface BankItem {
 	options: string[];
 	answer: number;
 }
-const BANKS: Record<string, { testLength: number; passPercent: number; items: BankItem[] }> = {
+const BANKS: Record<
+	string,
+	{
+		testLength: number;
+		passPercent: number;
+		items: BankItem[];
+		objectives?: Record<string, string>;
+	}
+> = {
 	'MDM-1': mdm1Bank as never,
 	...((sharedBanks as unknown as { banks: Record<string, never> }).banks)
 };
@@ -199,37 +207,65 @@ describe('the endpoint refuses before it does anything', () => {
 		expect(rows[0].n).toBe(0);
 	});
 
-	it('404s a unit with no bank, an unknown unit, and a domain that is not this one', async () => {
+	it('404s a unit with no bank, an unknown unit, and a domain that is not in the registry', async () => {
 		// MDM-4 through MDM-8 are modeling units: a gauntlet gate, no quiz bank.
 		for (const unit of ['4', '5', '6', '7', '8'])
 			expect((await post({ action: 'start' }, { unit })).status, `unit ${unit}`).toBe(404);
+		// MDM-11 through MDM-16 are registry units with no authored content and
+		// no bank; the rest are not unit numbers at all.
 		for (const unit of ['0', '11', '99', 'abc', '', '1.5', '-1'])
 			expect((await post({ action: 'start' }, { unit })).status, `unit "${unit}"`).toBe(404);
-		for (const domain of ['foundation', 'electrical', ''])
+		// A domain the track registry does not carry, and the empty string.
+		for (const domain of ['electrical', 'cad_mechanical', ''])
+			expect((await post({ action: 'start' }, { domain })).status, domain).toBe(404);
+		// A REGISTERED domain whose units have no banks 404s too -- the refusal
+		// keys on the bank, not on the domain being unknown.
+		for (const domain of ['mechanisms-prototyping', 'programming-controls', 'capstone'])
 			expect((await post({ action: 'start' }, { domain })).status, domain).toBe(404);
 	});
 
-	it('404s the whole Foundation domain, whose units DO have banks -- a live defect', async () => {
-		// PINNED AS BEHAVIOUR, NOT ENDORSED. The handler opens with
-		// `params.domain !== 'cad-mechanical'` and resolves the unit through
-		// `mdmUnitByNumber`, so it answers for the CAD/Mechanical domain only. But
-		// `getQuizBank` carries F1 through F5, every Foundation unit is authored
-		// `gate: quiz`, and the unit page's own load builds a live `gate` whenever
-		// a bank exists -- so all five render "Start quiz" against an endpoint that
-		// 404s them, and FrcQuizGate reports "The quiz is not available right now."
-		// The two halves are asserted together so the pair cannot be half-fixed
-		// silently, and this test is the thing that goes green when it is fixed.
-		const foundationBanks = ['F1', 'F2', 'F3', 'F4', 'F5'];
-		for (const id of foundationBanks) expect(BANKS[id], `${id} has a bank`).toBeDefined();
-		for (let n = 1; n <= 5; n++) {
-			const r = await post({ action: 'start' }, { domain: 'foundation', unit: String(n) });
-			expect(r.status, `foundation/${n}`).toBe(404);
-			expect(r.body).toEqual({ ok: false, reason: 'unavailable' });
+	it('serves EVERY unit with a bank, in every registered domain, and nothing else', async () => {
+		// THE GENERALIZED FORM of the assertion that used to pin the Foundation
+		// 404 as a live defect. The handler opened with
+		// `params.domain !== 'cad-mechanical'`, so all five Foundation units --
+		// every one of which has a bank, is authored `gate: quiz`, and gets a
+		// live `gate` from the unit page's own load -- rendered a "Start quiz"
+		// button against an endpoint that 404'd it. The old test pinned that
+		// 404. This one asserts the RULE the fix installed instead: the endpoint
+		// answers for a (domain, unit) pair if and only if that unit has a bank,
+		// derived from the two registries and naming no domain of its own. It
+		// bites on the original defect (Foundation would 404), and it keeps
+		// biting for a sixth domain nobody has written yet.
+		const served: string[] = [];
+		for (const domain of FRC_DOMAINS) {
+			for (const unit of domain.units) {
+				const r = await post({ action: 'start' }, { domain: domain.id, unit: String(unit.n) });
+				const hasBank = BANKS[unit.id] !== undefined;
+				expect(r.status !== 404, `${domain.id}/${unit.n} (${unit.id}) served`).toBe(hasBank);
+				if (hasBank) {
+					served.push(unit.id);
+					// A served start is a real attempt, keyed to the RESOLVED unit id.
+					expect(r.status, `${unit.id} start`).toBe(200);
+				} else {
+					expect(r.body, `${unit.id}`).toEqual({ ok: false, reason: 'unavailable' });
+				}
+			}
 		}
-		// Nothing was written for any of them, so the refusal is total.
-		expect(
-			(await db.sql(`select count(*)::int as n from public.frc_quiz_attempts`)).rows[0].n
-		).toBe(0);
+		// POSITIVE CONTROL on the sweep itself: it reached every bank there is,
+		// so "nothing 404'd" cannot be a sweep that visited nothing. Asserted as
+		// the bank map's own key set, so a bank added later joins without an
+		// edit here -- and a bank whose unit id is in NO domain's registry (and
+		// which therefore no student could reach) reddens.
+		expect(served.sort()).toEqual(Object.keys(BANKS).sort());
+		expect(served.length).toBe(10);
+		// Every served start really did write its own attempt, under the unit id
+		// the route resolved rather than anything the URL said.
+		const rows = await db.sql<{ unit_id: string; n: number }>(
+			`select unit_id, count(*)::int as n from public.frc_quiz_attempts group by unit_id`
+		);
+		expect(rows.rows.map((r) => r.unit_id).sort()).toEqual(served.slice().sort());
+		expect(rows.rows.every((r) => r.n === 1)).toBe(true);
+		await db.sql(`delete from public.frc_quiz_attempts`);
 	});
 
 	it('400s a body it cannot read, an action it does not have, and a submit with no attempt', async () => {
@@ -442,20 +478,53 @@ describe('the SQL grader agrees with the canonical one at every edge', () => {
 		expect((await gradeSealed(four, ['0', '1', '2', '3'])).body).toMatchObject({ score: 100 });
 	});
 
-	it('a JSON null is graded as option 0, not as "no answer"', async () => {
-		// `Number(null)` is 0, so the endpoint cannot tell an unanswered question
-		// from one where the student chose the first option. It is not a bypass --
-		// after the shuffle the correct index is uniform, so a blank sheet is worth
-		// chance -- but it IS a client-supplied value the server does not
-		// re-derive, and it is why an all-null sheet scores 25 here rather than 0.
+	it('a JSON null is NOT a choice, and scores 0 against every key', async () => {
+		// THE GENERALIZED FORM of the assertion that pinned `Number(null) === 0`.
+		// It used to score 25 against a key containing a zero and 0 against one
+		// that does not -- so "left blank" and "chose the first option" reached
+		// the grader as the same value and the server recorded an answer nobody
+		// gave. `normalizeAnswers` maps it to NO_ANSWER, which no sealed index
+		// can equal, so the score is now 0 against BOTH keys. Asserting both is
+		// the point: a fix that merely moved the collision to some other option
+		// would still pass one of them.
 		expect((await gradeSealed(four, [null, null, null, null])).body).toMatchObject({
-			score: 25
+			score: 0
 		});
-		// Against a key with no zero in it, the same sheet scores nothing.
 		const noZero = four.map((s2) => ({ ...s2, c: 3 }));
 		expect((await gradeSealed(noZero, [null, null, null, null])).body).toMatchObject({
 			score: 0
 		});
+		// And the same for every other shape that Number() would have turned
+		// into a real index. `undefined` and a missing entry are holes in the
+		// array; `false`, `[]` and `''` all coerce to 0 under Number().
+		const zeroKey = four.map((s2) => ({ ...s2, c: 0 }));
+		for (const blank of [undefined, false, [], '', '   ', {}, null])
+			expect(
+				(await gradeSealed(zeroKey, [blank, blank, blank, blank])).body,
+				JSON.stringify(blank) ?? 'undefined'
+			).toMatchObject({ score: 0 });
+		// POSITIVE CONTROL: the same key graded with the real indices is 100, so
+		// the zeroes above are being refused rather than the fixture being broken.
+		expect((await gradeSealed(zeroKey, [0, 0, 0, 0])).body).toMatchObject({ score: 100 });
+	});
+
+	it('a non-integer index is wrong on BOTH graders, so the SQL mirror cannot drift', async () => {
+		// Postgres rounds a numeric bound into an integer[] (2.7 -> 3, measured),
+		// while the canonical TypeScript grader compares 2.7 against an integer
+		// and calls it wrong -- so an unchecked non-integer is the one input the
+		// two graders answer DIFFERENTLY. `normalizeAnswers` maps it to NO_ANSWER
+		// before either sees it, which is what makes the mirror safe here rather
+		// than merely untested.
+		const c2 = four.map((s2) => ({ ...s2, c: 2 }));
+		// 2.7 would ROUND to 3 in SQL and MISS in TS; 1.5 rounds to 2 in SQL and
+		// would have scored 100 against this key. Both are 0 now.
+		expect((await gradeSealed(c2, [2.7, 2.7, 2.7, 2.7])).body).toMatchObject({ score: 0 });
+		expect((await gradeSealed(c2, [1.5, 1.5, 1.5, 1.5])).body).toMatchObject({ score: 0 });
+		expect((await gradeSealed(c2, ['1.5', '1.5', '1.5', '1.5'])).body).toMatchObject({ score: 0 });
+		// POSITIVE CONTROL: the integer that 1.5 would have rounded to scores 100
+		// on the same key, so the refusals above are about integrality and not
+		// about the key being unreachable.
+		expect((await gradeSealed(c2, [2, 2, 2, 2])).body).toMatchObject({ score: 100 });
 	});
 
 	it('an extra answer past the last question cannot score', async () => {
@@ -706,7 +775,7 @@ describe('the URL unit and the attempt unit', () => {
 		await db.sql(`delete from public.frc_user_progress`);
 	});
 
-	it('but the FAIL response reports the URL unit COOLDOWN, which is the divergence', async () => {
+	it('and the FAIL response now reports the ATTEMPT unit, not the URL unit', async () => {
 		await db.sql(`delete from public.frc_quiz_attempts`);
 		// Fail MDM-1 once and then age it past its own 60 second window, so MDM-1
 		// carries a settled log and MDM-9 carries none.
@@ -746,17 +815,36 @@ describe('the URL unit and the attempt unit', () => {
 			{ unit_id: 'MDM-9', status: 'failed' }
 		]);
 
-		// But the cooldown handed back is recomputed over the URL unit's log, and
-		// MDM-1's window has elapsed -- so the student is told there is NO cooldown
-		// on a unit they just failed.
-		expect(r.body.cooldownRemainingSec).toBe(0);
+		// THE GENERALIZED FORM of the assertion that pinned the divergence. The
+		// cooldown used to be recomputed over the URL unit's log -- MDM-1's,
+		// whose window had elapsed -- so the student was told
+		// `cooldownRemainingSec: 0` on a unit they had just failed, while the
+		// gate went on refusing them. It is recomputed over the ATTEMPT's unit
+		// now, so the number the student reads is the number the gate will
+		// enforce.
+		expectCooldownAbout(r.body.cooldownRemainingSec, 59);
 
-		// The GATE itself is unaffected, which is what makes this a reporting
-		// defect rather than a bypass: a start on MDM-9 is still refused, and the
-		// real remaining time is MDM-9's first step.
+		// Which is exactly what a `start` on MDM-9 is refused with: the reported
+		// figure and the enforced one are now the same fact, asserted as a pair
+		// so one of them cannot drift back on its own.
 		const blocked = await post({ action: 'start' }, { unit: '9' });
 		expect(blocked.status).toBe(429);
 		expectCooldownAbout(blocked.body.remainingSec, 59);
+		expect(Math.abs((blocked.body.remainingSec as number) - (r.body.cooldownRemainingSec as number)))
+			.toBeLessThanOrEqual(2);
+
+		// And a start on MDM-1, whose own window HAS elapsed, is still allowed --
+		// the positive control that says the cooldown above is MDM-9's rather
+		// than a blanket refusal of everything.
+		const allowed = await post({ action: 'start' }, { unit: '1' });
+		expect(allowed.status).toBe(200);
+
+		// The missed TOPICS are named out of MDM-9's bank too. MDM-9 and MDM-1
+		// share no objective tag, so a name from the wrong bank is visible.
+		const mdm9Topics = new Set(Object.values(BANKS['MDM-9'].objectives ?? {}));
+		expect((r.body.missedTopics as string[]).length).toBeGreaterThan(0);
+		for (const t of r.body.missedTopics as string[])
+			expect(mdm9Topics.has(t), `"${t}" is an MDM-9 topic`).toBe(true);
 		await db.sql(`delete from public.frc_quiz_attempts`);
 		await db.sql(`delete from public.frc_user_progress`);
 	});
