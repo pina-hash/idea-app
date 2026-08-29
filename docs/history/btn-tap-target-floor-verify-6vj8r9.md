@@ -153,10 +153,10 @@ close, and nothing pre-existing was touched to get there.
 - Full pass run three times total in this session (once before the comment
   edit, twice after); the two owned findings were clean in every run that
   measured them.
-- Full `npm test` suite: see the number reported at the end of this
-  session's final message (this entry was written while the suite was
-  still running in the background; the session's closing report carries the
-  authoritative count).
+- Full `npm test` suite: **170 files, 3628 tests, all passing** (273.65s).
+  No application code was touched this session, so this is a confirmation
+  the two-comment edit in `tools/browser-verify/routes.mjs` broke nothing,
+  not a defense of a code change.
 
 ### Not verified
 
