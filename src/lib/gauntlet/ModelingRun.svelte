@@ -85,6 +85,18 @@
 	// invalidateAll(), which folds the new run into myBest.
 	let bestBeforeRun = $state<{ score_metric: number | null; rank: number } | null>(null);
 
+	/**
+	 * HAS THE POST-RUN RELOAD LANDED YET. The realtime row arrives before the
+	 * load that would fold it into `myBest`, so for one tick after a pass
+	 * `myBest` is still whatever it was BEFORE the run -- null on a first clear.
+	 * The unranked sentence below is keyed on `myBest` being null, so without
+	 * this flag it would flash on a first clear in a mode that DOES rank, and
+	 * tell that student something false about their own board. Set false at the
+	 * moment the result lands and true only when `invalidateAll()` has actually
+	 * resolved, so the sentence is chosen against a settled `myBest`.
+	 */
+	let boardSettled = $state(false);
+
 	const start = async () => {
 		revealing = true;
 		revealError = '';
@@ -147,7 +159,8 @@
 					if (row.source === 'macro' && row.user_id === myUserId) {
 						result = { is_correct: !!row.is_correct, score_metric: row.score_metric ?? null };
 						phase = 'done';
-						invalidateAll();
+						boardSettled = false;
+						void invalidateAll().then(() => (boardSettled = true));
 					}
 				}
 			)
@@ -281,8 +294,35 @@
 					{backHref}
 					onRetry={reset}
 				/>
+				<!--
+					THREE OUTCOMES, NOT TWO, AND THE MISSING ONE WAS A PASS THAT DOES
+					NOT RANK. 0146 took Reverse Engineer and Feature Golf off
+					`gauntlet_leaderboard` because neither ranks on anything the server
+					can check, so `myBest` is now null for every student in both modes
+					this component serves. The old pair of branches keyed the rank
+					sentence on `result.is_correct && myBest` and the miss sentence on
+					`!result.is_correct`, which left a PASS with no board row saying
+					nothing at all: the student cleared the challenge, read "No verified
+					runs yet" under the empty board below, and had no way to tell a pass
+					that does not rank from a run that was not recorded. 0146's own
+					header predicted this as the miss copy showing on a pass; it is
+					narrower than that (the `!result.is_correct` guard holds), and the
+					silence is the defect.
+
+					`boardSettled` is what makes the third branch safe rather than
+					merely likely: `myBest` is also null for one tick after a FIRST
+					clear in a mode that does rank, and this sentence must never be
+					shown to that student. If this component is ever mounted for a
+					ranked mode, that is the thing to check.
+				-->
 				{#if result.is_correct && myBest}
 					<p class="instructions">Ranked <strong>#{myBest.rank}</strong> on the board.</p>
+				{:else if result.is_correct && boardSettled}
+					<p class="instructions">
+						Pass recorded, and it counts toward your XP. This mode is off the global board
+						because its score is not something the server can verify, so no run in it ranks,
+						yours included. Raced in a supervised room it still ranks there, live.
+					</p>
 				{:else if !result.is_correct}
 					<p class="instructions">A miss is recorded but does not rank. Adjust your model and run again.</p>
 				{/if}
