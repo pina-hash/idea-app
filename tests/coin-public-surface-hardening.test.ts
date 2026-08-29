@@ -317,8 +317,13 @@ describe('the caller these three defects were about', () => {
 		const refused = await anon.rpc('coin_role_admin_list_role_questions', {
 			p_role_id: 'safety_officer'
 		});
-		expect(refused.error?.code).toBe('PGRST202');
+		// 42501 is Postgres' own SQLSTATE for a permission denial, which is what
+		// this claim is actually about: anon is refused BY GRANT, not by hitting
+		// a function that does not exist (that would be PGRST202, the shim's
+		// old blanket answer for every RPC failure, this one included).
+		expect(refused.error?.code).toBe('42501');
 		expect(refused.error?.message ?? '').toMatch(/permission denied/i);
+		expect(refused.data).toBeNull();
 		const allowed = await adminClient.rpc('coin_role_admin_list_role_questions', {
 			p_role_id: 'safety_officer'
 		});
