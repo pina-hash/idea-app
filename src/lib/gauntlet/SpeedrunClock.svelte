@@ -275,8 +275,17 @@
 	.sr-rec.label-only {
 		color: var(--dim);
 	}
+	/* STANDBY is what a student reads for the whole window between the drawing
+	   being revealed and the Start macro firing, so it carries the 4.5:1 body
+	   floor rather than a decorative one. #9a5a3a measured 3.39:1 on this
+	   clock's own ground (`--bg2`, which .gt-root re-points to #0e161b), against
+	   5.87 for REC . RANKED and 4.69 for UNRANKED beside it. Hue (20deg) and
+	   saturation (45%) are held and only lightness moves, 41.6% -> 49.6%: the
+	   colour identity is the signal, and desaturating to reach a ratio is how a
+	   state quietly stops looking like itself. Measured at 4.55:1 by
+	   compositing onto the resolved ground and reading the pixel back. */
 	.sr-rec.standby-label {
-		color: #9a5a3a;
+		color: #b86b45;
 	}
 	.sr-dot {
 		width: 7px;

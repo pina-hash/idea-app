@@ -67,8 +67,65 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 	// The suggested next drawing for the post-run results screen.
 	const next = await nextUncleared(supabase, claims.sub, 'speedrun', '/gauntlet/speedrun', params.id);
 
+	// The post-run analysis comparisons (0150). Both are best-effort: the panel
+	// they feed degrades to "first recorded attempt" / "no class comparison yet"
+	// and nothing else on the page depends on either.
+	//
+	// SELF HISTORY carries the EXPLICIT user filter on purpose. `read own
+	// attempts` is `user_id = auth.uid() or public.is_teacher()`, so the same
+	// policy legitimately returns other people's rows to an admin reading it --
+	// and this list is a claim about ATTRIBUTION ("your past attempts"), not about
+	// authorization. Without the filter an admin's own results screen would show
+	// the whole class's runs as their learning curve.
+	const { data: selfHistoryRows } = await supabase
+		.from('gauntlet_speedrun_attempt_history')
+		.select('created_at, elapsed_ms, result')
+		.eq('challenge_id', params.id)
+		.eq('user_id', claims.sub)
+		.order('created_at', { ascending: false })
+		.limit(5);
+
+	// CLASS MEDIANS come from a definer RPC because they cannot come from
+	// anywhere else: every table behind them is RLS-scoped to the caller's own
+	// rows, so a browser cannot aggregate a class even in principle. The floor
+	// that decides whether a median may be disclosed at all lives inside that
+	// function, never here -- a client-side threshold is one a client can skip.
+	//
+	// 0150 is applied by hand, so a deployment sitting ahead of it is a real
+	// state: PGRST202 (and PGRST202 ALONE, so a runtime error inside the function
+	// fails closed rather than degrading to a weaker answer) leaves classStats
+	// null and the panel says so.
+	let classStats: {
+		medianElapsedMs: number | null;
+		medianFeatures: number | null;
+		medianStuckMs: number | null;
+		peersElapsed: number;
+		peersFeatures: number;
+		peersStuck: number;
+	} | null = null;
+	const { data: statsRow, error: statsError } = await supabase.rpc('gauntlet_class_run_stats', {
+		p_challenge_id: params.id
+	});
+	if (!statsError && statsRow) {
+		const r = statsRow as Record<string, number | null>;
+		classStats = {
+			medianElapsedMs: r.median_elapsed_ms ?? null,
+			medianFeatures: r.median_features ?? null,
+			medianStuckMs: r.median_stuck_ms ?? null,
+			peersElapsed: Number(r.peers_elapsed ?? 0),
+			peersFeatures: Number(r.peers_features ?? 0),
+			peersStuck: Number(r.peers_stuck ?? 0)
+		};
+	}
+
 	return {
 		next,
+		selfHistory: (selfHistoryRows ?? []) as Array<{
+			created_at: string;
+			elapsed_ms: number | null;
+			result: string;
+		}>,
+		classStats,
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
 		challenge: {
