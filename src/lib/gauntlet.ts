@@ -271,10 +271,17 @@ export interface SubmitResult {
 
 /**
  * The public `prompt` framing for a modeling challenge (Speedrun, Reverse
- * Engineer, Feature Golf). `target_mass` / `tolerance_pct` here are display
- * copies; the authoritative grading values live in `answer`. For Speedrun and
- * Feature Golf the dimensioned drawing is hidden in `answer` and revealed on
- * Start; Reverse Engineer is untimed, so its `reference` is shown up front.
+ * Engineer, Feature Golf). For Speedrun and Feature Golf the dimensioned drawing
+ * is hidden in `answer` and revealed on Start; Reverse Engineer is untimed, so
+ * its `reference` is shown up front.
+ *
+ * `density`, `target_mass` and `tolerance_pct` ARE NO LONGER WRITTEN HERE and
+ * are LEGACY-ONLY (0153). They are declared so a client deployed ahead of the
+ * hand-applied migration still types a row that has them; nothing may render one
+ * and nothing may compute from one. They were never display copies -- `prompt`
+ * is column-granted to `authenticated` (0004), so publishing them handed the
+ * ranked target and the pass band to every signed-in student in one read. See
+ * `buildPayload`.
  */
 export interface ModelingFraming {
 	/** Stable, url-safe challenge slug (site data). Harmless to expose. */
@@ -282,10 +289,13 @@ export interface ModelingFraming {
 	/** Speedrun only: the unit system every presented property follows. */
 	unit_system?: UnitSystem;
 	material?: string;
+	/** @deprecated LEGACY, pre-0153 rows only. The answer. Never render or divide by this. */
 	density?: number;
 	density_unit?: string;
+	/** @deprecated LEGACY, pre-0153 rows only. The answer. Never render this. */
 	target_mass?: number;
 	mass_unit?: string;
+	/** @deprecated LEGACY, pre-0153 rows only. The pass band. Never render this. */
 	tolerance_pct?: number;
 	length_unit?: string;
 	/** Par time in seconds (Speedrun benchmark, shown next to the challenge). */
@@ -522,35 +532,40 @@ export function formatMass(value: number | null | undefined, unit = 'g'): string
 }
 
 /**
- * The target volume (mm3) implied by a level's PUBLISHED target mass and density.
+ * The gauge's fill, 0 to 100, for a deviation band. DISCRETE and derived from
+ * the band ALONE.
  *
- * READ THE SOURCE OF `massLevel` BEFORE CALLING THIS. It must come from the
- * challenge's `prompt` -- the author's published spec card, which the student is
- * already shown and which reaches the client through the ordinary `challenges`
- * select. It must NEVER come from an RPC, because an RPC value is derived from
- * `challenges.answer` at machine precision and tracks the ranked comparison
- * exactly even where the published copy is rounded, stale or absent.
+ * IT IS THE LABEL REDRAWN, NOT A SECOND CHANNEL. Four steps carrying exactly
+ * what `deviationBandLabel` already says in words, so a reader learns nothing
+ * from the bar that the sentence beside it does not tell them. That is the whole
+ * constraint: the moment this returns a value computed from a mass, a
+ * percentage or a distance, the bar becomes a numeric readout of the deviation
+ * and the search 0147 and 0151 spent two bundles narrowing is back at full
+ * speed. Do not interpolate it, do not smooth it, and do not add a step that
+ * splits an existing band.
  *
- * That distinction is the whole of 0147. This function used to be fed
- * `target_mass_level` straight out of `gauntlet_run_targets`, and its own
- * docstring described that as safe on the grounds that the value was "public
- * framing". It was not: 0061 had removed `target_volume_mm3` from that payload
- * precisely because it is the ranked comparison, and then returned the same
- * number as a mass beside the density that divides it back out. This helper was
- * the divider. It survives because a gauge drawn from what the author chose to
- * publish is a display decision; it is the INPUT that had to change.
+ * `unknown`, `withheld` and an absent band all return null, which draws no bar:
+ * none of them is a claim about how close the part is.
  *
- * `density` is g/cm3; `massLevel` is in the level's own unit, g for MMGS and lb
- * for IPS. Mirrors the server's mass = (volume_mm3 / 1000) * density_g_cm3.
+ * THIS REPLACES `targetVolumeFromMass`, which is DELETED. That helper existed to
+ * divide a published target mass by the level density and recover the ranked
+ * comparison volume; with 0153 there is no published target mass to divide, so
+ * its only caller had no honest input left and the helper itself was a written
+ * recipe for reconstructing the answer. Do not reintroduce it under any name.
  */
-export function targetVolumeFromMass(
-	massLevel: number | null,
-	density: number | null,
-	unitSystem: string
-): number | null {
-	if (massLevel == null || density == null || !(density > 0) || !(massLevel > 0)) return null;
-	const massG = unitSystem.toUpperCase() === 'IPS' ? massLevel * 453.59237 : massLevel;
-	return (massG * 1000) / density;
+export function deviationBandFill(band: string | null | undefined): number | null {
+	switch (band) {
+		case 'pass':
+			return 100;
+		case 'close':
+			return 75;
+		case 'near':
+			return 45;
+		case 'far':
+			return 15;
+		default:
+			return null;
+	}
 }
 
 /** Format a Reverse Engineer deviation metric (percent, lower is better). */
@@ -628,11 +643,28 @@ export interface RunEvent {
 	payload: Record<string, unknown>;
 }
 
-/** The level constants a telemetry view needs to size gauges (from the load). */
+/**
+ * The level constants a telemetry view needs (from the load and, for the
+ * density, from `gauntlet_run_targets` behind the run code).
+ *
+ * `targetVolumeMm3` AND `targetMassLevel` ARE GONE (0153), AND THE ABSENCE IS
+ * THE MECHANISM. They were the level's ranked answer, carried into the client so
+ * a bar could be drawn against them, and their only source was the published
+ * `prompt` copy 0153 strips. There is no honest way to refill them: the value is
+ * in `challenges.answer`, which has no client grant, and any route that handed
+ * it over would be the disclosure 0061, 0147, 0151 and 0153 each narrowed. A
+ * telemetry view says how close the server thinks the part is (`deviationBandFill`
+ * over the band from the metered practice check) and never what it is close TO.
+ *
+ * `densityGcm3` STAYS, and is not the same question. It converts the student's
+ * OWN measured volume into the mass they read off Mass Properties; it is a
+ * material property, recoverable from the material name the spec card already
+ * shows, and it discloses the target only when multiplied by a target the client
+ * no longer has. It arrives from `gauntlet_run_targets`, which is gated on a live
+ * run code (0147), never from the public framing.
+ */
 export interface TelemetryTargets {
-	targetVolumeMm3: number | null;
 	densityGcm3: number | null;
-	targetMassLevel: number | null;
 	massUnit: string;
 	unitSystem: string;
 	parTime: number | null;

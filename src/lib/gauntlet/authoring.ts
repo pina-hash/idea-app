@@ -4,6 +4,12 @@
  * the mode-aware form state into the EXACT `prompt` / `answer` JSONB shapes the
  * play screens and grading RPCs already read (see docs/GAUNTLET.md). Keep these
  * shapes in lock-step with the seeds in supabase/migrations/0004..0008.
+ *
+ * THE SPLIT BETWEEN THE TWO OBJECTS IS AN AUTHORIZATION BOUNDARY, NOT A
+ * CONVENIENCE. `challenges.prompt` carries a column grant to `authenticated`
+ * (0004) and `challenges.answer` carries none, so a field's OBJECT decides
+ * whether every signed-in student can read it. `buildPayload` is where that
+ * decision is made; see its own comment for the three fields 0153 moved.
  */
 
 import {
@@ -166,11 +172,13 @@ export interface AuthorFormState {
 	feature_count: number | null;
 	target_mass: number | null;
 	/**
-	 * Ranked pass band, percent, written into BOTH `prompt` (the student's
-	 * on-page readout) and `answer` (what `gauntlet_macro_submit` grades on,
-	 * where it beats the server's own default). It is seeded to
-	 * GAUNTLET_DEFAULT_TOLERANCE_PCT and must stay equal to the server constant:
-	 * see that constant for why the form cannot simply leave it unset.
+	 * Ranked pass band, percent, written into `answer` ALONE -- what
+	 * `gauntlet_macro_submit` grades on, where it beats the server's own default.
+	 * It used to be written into `prompt` as well, as the student's on-page
+	 * readout; that copy is gone and must not come back (see `buildPayload`). It
+	 * is seeded to GAUNTLET_DEFAULT_TOLERANCE_PCT and must stay equal to the
+	 * server constant: see that constant for why the form cannot simply leave it
+	 * unset.
 	 */
 	tolerance_pct: number | null;
 	/** Par time in seconds (Speedrun benchmark). */
@@ -260,13 +268,27 @@ export function buildPayload(s: AuthorFormState): { prompt: object; answer: obje
 		// Speedrun's density/mass/length units follow its unit_system, never mixed;
 		// Reverse Engineer and Feature Golf keep the original fixed convention.
 		const units = s.mode === 'speedrun' ? UNIT_SYSTEM_UNITS[s.unit_system] : null;
+		// THE THREE ANSWER FIELDS ARE NOT HERE, AND PUTTING ONE BACK REOPENS THE
+		// LEADERBOARD. `density`, `target_mass` and `tolerance_pct` used to be
+		// written into BOTH objects, described as "display copies". They are not
+		// display copies of anything: `prompt` is granted to `authenticated`
+		// column by column (0004), so every published level handed any signed-in
+		// student the ranked target and the pass band in one ordinary PostgREST
+		// read -- no reveal, no run token, no search. 0061 and 0147 each recorded
+		// this in their headers and neither closed it; 0153 strips it from the
+		// rows already stored. They live in `answer`, which has no client grant,
+		// and the author still sees what they typed because `gauntlet_author_get`
+		// returns the whole row to a teacher.
+		//
+		// The unit LABELS stay: they say which units this level is authored in,
+		// which is what a student needs to read their own Mass Properties, and
+		// they name no quantity. `density_unit` outlives the density it labelled
+		// for that reason -- it is one third of the unit convention, not a copy of
+		// a value.
 		const prompt = clean({
 			material: s.material,
-			density: s.density,
 			density_unit: units ? units.density : 'g/cm³',
-			target_mass: s.target_mass,
 			mass_unit: units ? units.mass : 'g',
-			tolerance_pct: s.tolerance_pct,
 			length_unit: units ? units.length : 'mm',
 			note: s.note,
 			// Speedrun site data: stable slug, unit system, par time, and the

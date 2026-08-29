@@ -3,13 +3,38 @@ import type { Actions, PageServerLoad } from './$types';
 import { DEFAULT_SPEEDRUN_RULESET, MODELS_BUCKET, type SpeedrunFraming, type SpeedrunRuleset } from '$lib/gauntlet';
 import { nextUncleared } from '$lib/gauntlet/next-challenge';
 
+/** One row of the named-field projection in the load below. */
+interface SpeedrunDetailRow {
+	id: string;
+	mode: string;
+	title: string;
+	difficulty: number;
+	material: string | null;
+	unit_system: string | null;
+	mass_unit: string | null;
+	note: string | null;
+	model_path: string | null;
+	tutorial_video_id: string | null;
+	par_time: number | null;
+	par_feature_count: number | null;
+}
+
 /**
- * One Speedrun challenge, end to end. The load returns ONLY the public framing
- * (material, density, target mass, tolerance), never the drawing: the
- * dimensioned drawing lives in the hidden `answer` column and is fetched on
- * Start via the `gauntlet_speedrun_reveal` RPC (client side, coupled to the
- * timer). The `submit` action grades the typed mass through `gauntlet_submit`
- * (the only writer of submissions), so is_correct and the time cannot be forged.
+ * One Speedrun challenge, end to end. The load returns ONLY the public framing,
+ * never the drawing: the dimensioned drawing lives in the hidden `answer` column
+ * and is fetched on Start via the `gauntlet_speedrun_reveal` RPC (client side,
+ * coupled to the timer). The `submit` action grades the typed mass through
+ * `gauntlet_submit` (the only writer of submissions), so is_correct and the time
+ * cannot be forged.
+ *
+ * THE FRAMING IS NAMED FIELD BY FIELD, AND THE TARGET IS NOT AMONG THEM (0153).
+ * This used to select `prompt` whole and the page rendered `density`,
+ * `target_mass` and `tolerance_pct` off it as a spec card -- the ranked answer
+ * and the pass band, printed above the drawing, on every published level. What
+ * is listed below is what a student needs in order to MODEL: which material to
+ * assign, which units the level is authored in, what a good time looks like, the
+ * shape-only preview, the author's note, the walkthrough. See the list loader's
+ * header for why this projection is defence in depth rather than the boundary.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims }, params }) => {
 	if (!claims) {
@@ -24,11 +49,22 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 
 	const { data: challenge } = await supabase
 		.from('challenges')
-		.select('id, mode, title, difficulty, prompt')
+		.select(
+			'id, mode, title, difficulty, ' +
+				'prompt->>material, prompt->>unit_system, prompt->>mass_unit, prompt->>note, ' +
+				'prompt->>model_path, prompt->>tutorial_video_id, ' +
+				'prompt->par_time, prompt->par_feature_count'
+		)
 		.eq('id', params.id)
 		.maybeSingle();
 
-	if (!challenge || challenge.mode !== 'speedrun') {
+	// The generated Supabase types cannot describe a `->` projection, so the row
+	// is cast once, here, and every read below goes through it. One cast at the
+	// boundary rather than a cast per field: a second one is where the shape and
+	// the select stop agreeing.
+	const row = challenge as unknown as SpeedrunDetailRow | null;
+
+	if (!row || row.mode !== 'speedrun') {
 		error(404, 'Challenge not found.');
 	}
 
@@ -46,7 +82,20 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		.eq('user_id', claims.sub)
 		.maybeSingle();
 
-	const framing = (challenge.prompt ?? {}) as SpeedrunFraming;
+	// Rebuilt from the named projection rather than read off `prompt`, so the
+	// object the page renders can only ever hold what the select above listed.
+	// `par_time` / `par_feature_count` come back through `->` (a JSON number, not
+	// a string); everything else through `->>`.
+	const framing: SpeedrunFraming = {
+		material: row.material ?? undefined,
+		unit_system: (row.unit_system as SpeedrunFraming['unit_system']) ?? undefined,
+		mass_unit: row.mass_unit ?? undefined,
+		note: row.note ?? undefined,
+		model_path: row.model_path ?? undefined,
+		tutorial_video_id: row.tutorial_video_id ?? undefined,
+		par_time: row.par_time ?? undefined,
+		par_feature_count: row.par_feature_count ?? undefined
+	};
 
 	// The STL model is a shape-only preview (public framing), shown before Start.
 	// The bucket is private, so hand the page a short-lived signed URL.
@@ -129,9 +178,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
 		challenge: {
-			id: challenge.id as string,
-			title: challenge.title as string,
-			difficulty: challenge.difficulty as number,
+			id: row.id,
+			title: row.title,
+			difficulty: row.difficulty,
 			framing
 		},
 		modelUrl,

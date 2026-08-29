@@ -299,7 +299,7 @@ describe('the form default tracks the server default', () => {
 
 describe('what buildPayload writes', () => {
 	it.each(['speedrun', 'reverse_engineer', 'feature_golf'] as const)(
-		'%s: the band lands in answer (which grades) and prompt (which is shown)',
+		'%s: the band lands in answer, which grades, and NOWHERE ELSE',
 		(mode) => {
 			const { prompt, answer } = buildPayload(emptyForm(mode)) as {
 				prompt: Record<string, unknown>;
@@ -308,10 +308,19 @@ describe('what buildPayload writes', () => {
 			// `answer.tolerance_pct` is the one the server reads FIRST, ahead of its
 			// own constant -- that is why the seed mattered at all.
 			expect(answer.tolerance_pct).toBe(GAUNTLET_DEFAULT_TOLERANCE_PCT);
-			// `prompt.tolerance_pct` is the student's on-page +/-% readout. The two
-			// must be the same number or the page describes a band it is not graded
-			// on, which is the defect one level over.
-			expect(prompt.tolerance_pct).toBe(answer.tolerance_pct);
+			// THIS ASSERTION USED TO BE ITS OWN OPPOSITE, and the flip is 0153.
+			// It read `expect(prompt.tolerance_pct).toBe(answer.tolerance_pct)`, on
+			// the reasoning that the two must agree "or the page describes a band it
+			// is not graded on". The reasoning was sound and the premise was not:
+			// the page had no business describing the band at all. `prompt` is
+			// column-granted to `authenticated` (0004), so publishing the width of
+			// the pass band beside the target mass and the density handed every
+			// signed-in student the ranked answer and the tolerance around it. The
+			// two numbers cannot disagree if there is only one of them.
+			expect(prompt).not.toHaveProperty('tolerance_pct');
+			// The control for that exclusion: `prompt` is still a real object with
+			// the framing in it, not an empty one that would satisfy any absence.
+			expect(Object.keys(prompt).length).toBeGreaterThan(0);
 		}
 	);
 

@@ -3,7 +3,7 @@
 	import Header from '$lib/gauntlet/Header.svelte';
 	import PartThumb from '$lib/gauntlet/PartThumb.svelte';
 	import SeriesThumbRotator from '$lib/gauntlet/SeriesThumbRotator.svelte';
-	import { difficultyLabel, formatTime, formatMass, MODELS_BUCKET } from '$lib/gauntlet';
+	import { difficultyLabel, formatTime, MODELS_BUCKET } from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenges, series } = $derived(data);
@@ -84,7 +84,7 @@
 				<span class="challenge-sub">
 					<span class="diff diff-{c.difficulty}">{difficultyLabel(c.difficulty)}</span>
 					<span class="challenge-meta dim">
-						{c.material ?? 'Material TBD'} &middot; target {formatMass(c.targetMass, c.massUnit)}
+						{c.material ?? 'Material TBD'} &middot; {c.massUnit} units
 					</span>
 					{#if c.cleared}
 						<span class="challenge-meta">Best {formatTime(c.bestTime)} &middot; Rank #{c.rank}</span>
@@ -103,9 +103,9 @@
 		<span class="eyebrow">Modeling Mode</span>
 		<h1>Speedrun</h1>
 		<p class="lead">
-			Model a blank part up to a target, given as a material, density, and target mass. Grading is on
-			geometry, shown to you as mass. It is two steps: Start on an empty part begins the clock, then
-			Submit checks your result and ranks you. The clock starts at Start, not when the drawing is
+			Model a blank part from the drawing. Grading is on geometry, checked as mass, and the target is
+			not published: you find it by modelling the part right. It is two steps: Start on an empty part
+			begins the clock, then Submit checks your result and ranks you. The clock starts at Start, not when the drawing is
 			revealed, so you can study the drawing first. Model in IPS or MMGS, whichever you prefer; every
 			property follows your chosen system.
 		</p>

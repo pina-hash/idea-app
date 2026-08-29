@@ -159,15 +159,22 @@
 	const CW = 640;
 	const CH = 160;
 	const PAD = 8;
+	// THE TARGET LINE IS GONE (0153) AND THE CHART IS THE SHAPE OF THE RUN, NOT A
+	// DISTANCE FROM AN ANSWER. It used to draw a dashed rule at
+	// `targets.targetVolumeMm3`, which was the ranked answer taken from the
+	// published `prompt` -- and post-run is exactly when reading it off costs
+	// nothing, because the student can start the level again. The curve still
+	// says everything the panel is for: how the part converged, where it jumped,
+	// where it sat still. Do not restore a reference line here; there is no
+	// source for one that is not the answer.
 	const volChart = $derived.by(() => {
 		if (snaps.length < 1 || !endMs) return null;
-		const maxV = Math.max(targets.targetVolumeMm3 ?? 0, ...snaps.map((s) => s.v), 1);
+		const maxV = Math.max(...snaps.map((s) => s.v), 1);
 		const x = (t: number) => PAD + (t / endMs) * (CW - 2 * PAD);
 		const y = (v: number) => CH - PAD - (v / maxV) * (CH - 2 * PAD);
 		const pts = snaps.map((s) => `${x(s.t).toFixed(1)},${y(s.v).toFixed(1)}`).join(' ');
-		const targetY = targets.targetVolumeMm3 != null ? y(targets.targetVolumeMm3) : null;
 		const area = `${PAD},${CH - PAD} ${pts} ${x(snaps[snaps.length - 1].t).toFixed(1)},${CH - PAD}`;
-		return { pts, area, targetY };
+		return { pts, area };
 	});
 
 	const maxDwell = $derived(dwell.length ? Math.max(...dwell.map((d) => d.ms), 1) : 1);
@@ -254,15 +261,12 @@
 		<!-- Volume over time -->
 		{#if volChart}
 			<div class="pra-block">
-				<span class="pra-label">Volume over time (converging to target)</span>
+				<span class="pra-label">Volume over time</span>
 				<svg class="pra-svg" viewBox="0 0 {CW} {CH}" preserveAspectRatio="none" role="img" aria-label="Volume over time">
 					<polygon class="area" points={volChart.area} />
 					<polyline class="line" points={volChart.pts} />
-					{#if volChart.targetY != null}
-						<line class="target" x1={PAD} y1={volChart.targetY} x2={CW - PAD} y2={volChart.targetY} />
-					{/if}
 				</svg>
-				<span class="pra-sub">Dashed line = target volume. Curve should climb and settle on it.</span>
+				<span class="pra-sub">How the part came together. A flat stretch is time spent stuck.</span>
 			</div>
 		{/if}
 
@@ -438,12 +442,6 @@
 		fill: none;
 		stroke: var(--green, #00ff41);
 		stroke-width: 2;
-		vector-effect: non-scaling-stroke;
-	}
-	.pra-svg .target {
-		stroke: var(--gold, #c8ff00);
-		stroke-width: 1.5;
-		stroke-dasharray: 6 4;
 		vector-effect: non-scaling-stroke;
 	}
 	.pra-bars {
