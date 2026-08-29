@@ -234,7 +234,7 @@ export async function waitForApp(page, { timeoutMs = 45_000 } = {}) {
  * -- it lands on `aria-disabled`, exactly as a finger does, and still misses
  * a genuinely `disabled` control the same way a finger would (the browser
  * itself swallows the event before any handler runs). */
-export async function clickUntil(page, selector, until, { attempts = 12, gapMs = 300 } = {}) {
+export async function clickUntil(page, selector, until, { attempts = 12, gapMs = 300, force = false } = {}) {
 	const matched = await page.locator(selector).count();
 	if (matched === 0) return { ok: false, matched: 0, attempts: 0, reason: 'no match' };
 
@@ -250,7 +250,18 @@ export async function clickUntil(page, selector, until, { attempts = 12, gapMs =
 			return false;
 		}
 	};
-	if ((await satisfied()) === true) return { ok: true, matched, attempts: 0, reason: 'already satisfied' };
+	/* `force` skips ONLY this pre-click short-circuit, not the retry loop below
+	   it. Without `force`, a predicate satisfiable by the component's own
+	   pre-effect DEFAULT (not by the click) reads "already satisfied" here and
+	   the click never physically fires -- see docs/history/
+	   flaky-findings-countdown-notebook-h4qv9t.md and this file's own history
+	   entry for the /dev/notebook case this caught. A caller in that shape
+	   passes `force: true` to guarantee the click always happens at least
+	   once; the retry loop underneath still runs exactly as before, so a click
+	   landing before the page has hydrated its handler (CLAUDE.md: "paint is
+	   not interactivity") still gets its remaining `attempts` retries rather
+	   than being reported as a single unconditional, unverified click. */
+	if (!force && (await satisfied()) === true) return { ok: true, matched, attempts: 0, reason: 'already satisfied' };
 
 	for (let i = 1; i <= attempts; i++) {
 		try {

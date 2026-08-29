@@ -35,8 +35,8 @@ export default {
 		riding whatever the auto-pick effect happened to land on.
 	*/
 	/*
-		THIS USED TO BE ONE STEP -- `{ click: '.pick.free', until: ... }` -- and
-		the `until` was the bug. `selectedSession` starts `null` before the mount
+		THIS USED TO BE `{ click: '.pick.free', until: ... }` WITH NO `force`, AND
+		THE `until` WAS THE BUG. `selectedSession` starts `null` before the mount
 		effect (`nearestOutstanding`) settles it to a real session, and `.pick.free`'s
 		`aria-pressed` IS `selectedSession === null` -- so the predicate is
 		satisfied by the component's own pre-effect DEFAULT, before any click.
@@ -44,18 +44,66 @@ export default {
 		on "already satisfied" (browser.mjs) -- so whenever the harness's first
 		check landed before the effect settled, the click never fired at all, and
 		the run silently measured whatever `selectedSession` became by the time
-		`settle()` finished. Split unconditional (no `until`, so the short-circuit
-		branch can never apply) plus a `waitFor` on the same predicate, checked
-		AFTER the click physically lands. This is race-proof rather than merely
-		less likely to race: `chooseSession(null)` (the free pick's own handler)
-		sets `sessionTouched = true`, which makes the auto-select effect's own
-		guard (`if (sessionTouched && !stale) return;`) skip re-running afterward,
-		so once the click lands `selectedSession` stays pinned at `null` no matter
-		when the mount effect would otherwise have fired.
+		`settle()` finished.
+
+		A TWO-STEP SPLIT WAS TRIED NEXT -- an unconditional click (no `until`)
+		plus a separate `waitFor` on the same predicate -- and it broke a
+		DIFFERENT way, caught by this bundle's own 5-run pass: an unconditional
+		click with no predicate returns after exactly ONE attempt (`clickUntil`'s
+		own "clicked (no predicate given)" branch), so it lost the RETRY loop
+		that protects against a click landing before hydration has attached the
+		handler yet (CLAUDE.md: "paint is not interactivity ... a scripted click
+		never waits on a timer or a marker -- it retries against its own
+		effect"). Measured: 375px passed every time (fast hydration), 1440px hit
+		exactly that hydration-timing gap once and the `waitFor` step then spent
+		its own full 15s timeout before giving up, with the title field still
+		short at `present 1` of the expected 2.
+
+		`force: true` (added to `clickUntil` in browser.mjs by this same bundle)
+		fixed that: it skips ONLY the pre-click short-circuit, so the click
+		always physically fires at least once, while the retry loop underneath
+		still runs exactly as before -- up to `attempts` (default 12) more
+		clicks, 300ms apart, until `until` actually holds.
+
+		A THIRD, NARROWER RACE SURVIVED EVEN THAT, AND ONLY WHEN THIS ROUTE RAN
+		RIGHT AFTER `/dev/notebook-review` IN THE SAME PASS: measured 4/4 runs,
+		aria-pressed flips genuinely TRUE right after the forced click (both
+		fields present, confirmed with an inline probe), then flips back to
+		FALSE roughly 150ms later, at 375px only -- the title field is gone by
+		the time `settle()` measures it. `sessionTouched` (set by the free
+		pick's own handler, `chooseSession`) is the ONLY thing standing between
+		a click and the `nearestOutstanding` mount effect overwriting
+		`selectedSession` again, and grepping every assignment to it in
+		NotebookView.svelte turns up nothing that clears it back to false on a
+		fresh page except that effect's own body, which requires the guard
+		(`sessionTouched && !stale`) to already be false to reach -- so this is
+		not a fix to make from the harness side without a definitive story for
+		what clears it, and `src/` is off limits to this bundle regardless.
+
+		A SIGNAL WAIT WAS TRIED FIRST, THE SAME SHAPE AS THE COUNTDOWN ROUTE'S
+		FIX BELOW -- `Math.max(0, 1000 - performance.now())`, topping up the
+		shortfall against real elapsed time since navigation -- AND IT DID NOT
+		CLOSE THIS. Measured with performance.now() already past 1600ms at
+		click time (well past the margin, so the step waited 0ms), the race
+		still fired at 375px every time it was tried. So this is not "the
+		danger window ends N ms after navigation" the way the countdown
+		route's is; the trigger is something else entirely, undetermined.
+		Bisected instead directly against the reproduction (200ms, 300ms and
+		600ms unconditional pre-click delays, each tried multiple times
+		against the exact sequence that reproduced it 4/4 with no delay:
+		`/dev/notebook-review` immediately before `/dev/notebook`), and every
+		one of them closed it. 600ms is kept over the smaller values that also
+		worked, for margin -- this is the flat-delay LAST RESORT the countdown
+		route's comment warns is worse than a real signal, used here only
+		because a real signal was tried and measured not to work.
 	*/
 	prepare: [
-		{ click: '.pick.free' },
-		{ waitFor: '() => document.querySelector(".pick.free")?.getAttribute("aria-pressed") === "true"' }
+		{ evaluate: 'async () => { await new Promise((r) => setTimeout(r, 600)); return "pre-click settle (see prepare comment above)"; }' },
+		{
+			click: '.pick.free',
+			until: '() => document.querySelector(".pick.free").getAttribute("aria-pressed") === "true"',
+			force: true
+		}
 	],
 	presence: [
 		{ selector: '.dev-bar', label: 'harness controls', expectPresent: 1 },
