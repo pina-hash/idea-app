@@ -34,7 +34,7 @@
 // back as a composite. `routineShape` below reads `proretset` from the catalog
 // so the shape is the database's answer rather than a list anybody maintains.
 
-import type { TestDb } from './harness';
+import type { QueryFn, TestDb } from './harness';
 
 interface ForeignKey {
 	srcTable: string;
@@ -360,6 +360,29 @@ interface Filter {
 }
 
 /**
+ * WHO THE CALL RUNS AS, and `null` is a real answer rather than a missing one.
+ *
+ * A signed-in caller is `db.asUser` -- role `authenticated`, `request.jwt.claims`
+ * set -- which is what every load in this repo is driven as and what this file
+ * modelled for its whole life. But a SIGNED-OUT visitor is not that caller with
+ * a field left blank: PostgREST hands an unauthenticated request to the `anon`
+ * role, which holds a strictly different set of EXECUTE grants (0137 is the
+ * migration whose entire subject is that difference), and `auth.uid()` is null
+ * inside every definer function it reaches.
+ *
+ * So a public surface cannot be driven faithfully by passing some student's id
+ * and hoping the body does not look: the grant is checked before the body runs,
+ * and it is the grant that a public read's exposure actually turns on. `null`
+ * routes through `db.asAnon`, which is `set role anon` with no claims at all.
+ *
+ * ONE helper rather than a branch at each of the three call sites, for the
+ * ordinary reason: three spellings of "who is this" is what stops agreeing.
+ */
+function runAs<T>(db: TestDb, userId: string | null, fn: (q: QueryFn) => Promise<T>): Promise<T> {
+	return userId === null ? db.asAnon(fn) : db.asUser(userId, fn);
+}
+
+/**
  * The builder. Supports exactly what the loads under test call and throws on
  * anything else, so this can never drift into modelling a query that does not
  * ship.
@@ -373,7 +396,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	constructor(
 		private readonly db: TestDb,
 		private readonly fks: readonly ForeignKey[],
-		private readonly userId: string,
+		private readonly userId: string | null,
 		private readonly table: string,
 		private readonly select: string
 	) {}
@@ -545,7 +568,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 		}
 
 		try {
-			const rows = await this.db.asUser(this.userId, async (q) =>
+			const rows = await runAs(this.db, this.userId, async (q) =>
 				(await q<{ row: unknown }>(sql, params)).rows.map((r) => r.row)
 			);
 			if (this.singleRow) return { data: rows[0] ?? null, error: null };
@@ -569,11 +592,17 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 }
 
 /**
- * A client for one signed-in user. `fks` is a snapshot of the catalog taken
- * once, the same way PostgREST caches it -- reload it if a test changes the
- * schema mid-run.
+ * A client for one caller. `userId` is a signed-in user's id, or NULL for a
+ * signed-out visitor -- see `runAs` above for why that is a different role and
+ * not merely a missing claim. `fks` is a snapshot of the catalog taken once,
+ * the same way PostgREST caches it -- reload it if a test changes the schema
+ * mid-run.
  */
-export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], userId: string) {
+export function createPostgrestShim(
+	db: TestDb,
+	fks: readonly ForeignKey[],
+	userId: string | null
+) {
 	return {
 		from(table: string) {
 			return {
@@ -627,7 +656,8 @@ export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], user
 					// on purpose: an aggregate over zero rows still returns exactly one
 					// row, so a `?? []` here would be a branch nothing can ever reach
 					// and no mutation could ever kill.
-					const rows = await db.asUser(
+					const rows = await runAs(
+						db,
 						userId,
 						async (q) =>
 							(
@@ -639,7 +669,8 @@ export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], user
 					);
 					return { data: rows[0].result, error: null };
 				}
-				const rows = await db.asUser(
+				const rows = await runAs(
+					db,
 					userId,
 					async (q) => (await q(`select ${call} as result`, values)).rows
 				);
