@@ -86,6 +86,22 @@ const CHAIN = [
 	'0108_classroom_rich_body.sql',
 	'0109_classroom_scheduled_posting.sql',
 	'0111_classroom_units.sql',
+	// 0138 IS THE ROSTER READ, and the four notebook files ahead of it are what
+	// it needs to apply. Without it the People and Grades loads answer PGRST202
+	// on `classroom_section_roster` and take `loadSectionRoster`'s DEGRADE rung
+	// -- the plain table select, with `managesReady` false and no `manages`
+	// column on any row -- so every assertion below about those two tabs used to
+	// be an assertion about the fallback rather than about the read production
+	// runs. The prerequisites were found by applying and reading the failures:
+	// 0138's `_notebook_section_roster` reads `notebook_entries.deleted_at`
+	// (0116) and `.submitted_at` (0118); 0118 needs `notebook_manages_student`
+	// (0106); 0117 sits between 0116 and 0118. 0137 still goes last, per the
+	// harness note -- it is a sweep over whatever the chain above it created.
+	'0106_notebook_instructor_student_access.sql',
+	'0116_notebook_soft_delete.sql',
+	'0117_notebook_soft_delete_restore.sql',
+	'0118_notebook_draft_state.sql',
+	'0138_classroom_manager_exclusion_and_enrollment_removal.sql',
 	'0137_anon_execute_sweep.sql'
 ];
 
@@ -210,6 +226,27 @@ beforeAll(async () => {
 		email: bruno.email,
 		displayName: 'Bruno Okafor'
 	});
+	// THE TEACHER OF RECORD, ENROLLED IN HER OWN P1. This is the ordinary thing
+	// 0138 exists for -- an instructor adds themselves to see the class the way
+	// a student does, or a roster import sweeps them in -- and it is what makes
+	// the manager exclusion OBSERVABLE in these two payloads rather than merely
+	// applied to a roster with nobody to drop. Nothing above reads p1's
+	// enrollments, so it changes no other assertion in this file.
+	await enrollStudent(db, {
+		as: teacher,
+		sectionId: p1,
+		email: teacher.email,
+		displayName: 'T. Vargas'
+	});
+	// AND A @boscotech.edu ADDRESS THAT MANAGES NOTHING, enrolled in p2. It is
+	// the discriminator for the rule above: an exclusion keyed on the email
+	// domain rather than on the manage flag drops this row too.
+	await enrollStudent(db, {
+		as: teacher,
+		sectionId: p2,
+		email: otherTeacher.email,
+		displayName: 'N. Olan'
+	});
 
 	courseId = (
 		await db.sql<{ course_id: string }>('select course_id from public.classroom_sections where id = $1', [p1])
@@ -296,6 +333,97 @@ describe('People and Grades are not reachable by typing the URL', () => {
 		const res = await runClass(alice, p1);
 		expect(res.canManage).toBe(false);
 		expect(res.items.map((i) => i.id)).toContain(sharedItem);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 1b. The roster the two tabs are built from -- the WIDE rung, and 0138
+// ---------------------------------------------------------------------------
+
+/**
+ * WHY THIS BLOCK EXISTS. `loadSectionRoster` is a two-rung ladder, and until
+ * this file's chain carried 0138 every assertion above ran on the DEGRADE rung:
+ * `classroom_section_roster` answered PGRST202, the load fell back to the plain
+ * `classroom_enrollments` select, `managesReady` was false, and no row carried a
+ * `manages` column at all. The tabs rendered, the tests passed, and 0138's
+ * manager exclusion -- the whole point of the migration -- had never appeared in
+ * a payload any test looked at.
+ *
+ * So the FIRST assertion here is that the wide rung is the one running. It is a
+ * positive control on the chain itself: without it, every claim below could be
+ * satisfied by a fallback that simply has no manager row to drop, and nothing on
+ * screen would say which rung answered.
+ */
+describe('the roster read behind People and Grades', () => {
+	it('takes the WIDE rung, so `manages` is an answer and not an absence', async () => {
+		const people = (await runPeople(teacher, p1)) as {
+			removalReady: boolean;
+			roster: { student_email: string; manages?: boolean }[];
+		};
+		// `removalReady` IS `managesReady`: false is the load saying "this project
+		// has no 0138 and I cannot tell who manages", which is what this file
+		// used to assert without knowing it.
+		expect(people.removalReady).toBe(true);
+		// Every row carries the flag -- an undefined `manages` is the degrade
+		// rung's shape, and `splitRoster` reads `manages === true`, so undefined
+		// and false are the same student row but not the same claim.
+		for (const row of people.roster) expect(typeof row.manages).toBe('boolean');
+	});
+
+	it('SHOWS the manager row on People, because that is the row somebody came to remove', async () => {
+		const people = (await runPeople(teacher, p1)) as {
+			roster: { student_email: string; manages?: boolean }[];
+		};
+		const emails = people.roster.map((r) => r.student_email).sort();
+		expect(emails).toEqual([alice.email, bruno.email, teacher.email].sort());
+		expect(people.roster.find((r) => r.student_email === teacher.email)?.manages).toBe(true);
+		// THE POSITIVE CONTROL, on the same read: `true` is an answer about this
+		// row and not the column's default. Both students come back `false`.
+		expect(people.roster.find((r) => r.student_email === alice.email)?.manages).toBe(false);
+		expect(people.roster.find((r) => r.student_email === bruno.email)?.manages).toBe(false);
+	});
+
+	it('DROPS the manager row from the Grades denominator -- 2 heads, not 3', async () => {
+		// THE ENROLLED COUNT IS ASSERTED BESIDE THE DENOMINATOR, on purpose. A
+		// bare `roster === 2` is satisfied just as well by a fixture with only
+		// two people in it, which is the reading that makes an exclusion test
+		// pass for the wrong reason. The claim is 2 OUT OF 3.
+		const people = (await runPeople(teacher, p1)) as { roster: unknown[] };
+		expect(people.roster.length).toBe(3);
+
+		const grades = (await runGrades(teacher, p1)) as { standings: { roster: number }[] };
+		expect(grades.standings.length).toBeGreaterThan(0);
+		// THE NUMBER THIS BUNDLE MOVES, measured on the degrade rung too: three
+		// rows are enrolled in p1 and the denominator is two, because
+		// `splitRoster` drops the one that can manage the class. Without 0138
+		// this same read answers 3 -- the fraction that could never reach its
+		// own bottom.
+		for (const s of grades.standings) expect(s.roster).toBe(2);
+	});
+
+	it('drops by the MANAGE flag and not by the email domain', async () => {
+		// `otherTeacher` is a @boscotech.edu address enrolled in p2 who manages
+		// NOTHING here, so a rule keyed on the email domain would drop this row
+		// too and answer the right number for the wrong reason.
+		const people = (await runPeople(teacher, p2)) as {
+			roster: { student_email: string; manages?: boolean }[];
+		};
+		expect(people.roster.find((r) => r.student_email === otherTeacher.email)?.manages).toBe(false);
+		const grades = (await runGrades(teacher, p2)) as { standings: { roster: number }[] };
+		for (const s of grades.standings) expect(s.roster).toBe(2);
+	});
+
+	it('answers a manager of the section, whoever they are: the chair sees the same flag', async () => {
+		// The owner manages every section through `is_admin()` rather than through
+		// teacher-of-record, so this is the OTHER branch of
+		// `_classroom_manages_section_email`. Same roster, same flags.
+		const people = (await runPeople(owner, p1)) as {
+			removalReady: boolean;
+			roster: { student_email: string; manages?: boolean }[];
+		};
+		expect(people.removalReady).toBe(true);
+		expect(people.roster.find((r) => r.student_email === teacher.email)?.manages).toBe(true);
+		expect(people.roster.find((r) => r.student_email === alice.email)?.manages).toBe(false);
 	});
 });
 

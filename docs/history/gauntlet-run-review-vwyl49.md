@@ -6,8 +6,6 @@ migrations: ["0152"]
 subsystems: ["GAUNTLET", "Telemetry", "Disclosure", "Testing"]
 ---
 
-## Ranked Speedrun runs get a reader, not a gate (`claude/gauntlet-run-review-vwyl49`, migration 0152)
-
 `supabase/migrations/0152_gauntlet_run_review.sql` adds an admin-only report of
 ranked Speedrun runs, and `/gauntlet/run-review` is the surface that reads it.
 **It ranks nobody, unranks nobody, refuses nothing and changes no
