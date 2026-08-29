@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["gauntlet"]
 ---
 
-## GAUNTLET: widen the target-disclosure suite to the SELECT surface, and correct two false cheat-detection claims
-
 ### What this bundle is
 
 `tests/gauntlet-target-disclosure.test.ts` (0147's own suite) asserts

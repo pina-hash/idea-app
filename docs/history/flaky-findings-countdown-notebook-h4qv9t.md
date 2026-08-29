@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["GAUNTLET", "Notebook", "Build, theme, tests, conventions"]
 ---
 
-## Two flaky browser-verify findings diagnosed to their root cause: both are the harness's to fix, neither is a defect in CountdownOverlay or the notebook composer (`claude/flaky-findings-countdown-notebook-h4qv9t`, no migration)
-
 Scope for this bundle: `src/routes/dev/gauntlet-shell/`, `src/lib/gauntlet/viewport/CountdownOverlay.svelte`, and `src/routes/dev/notebook/` (which exists and needed no change). `tools/browser-verify/`, any migration, and `tests/` were off limits -- a different live session owns the harness. **No file under `src/` was changed.** Both investigations below concluded the fix belongs in a route spec under `tools/browser-verify/routes/`, which is reported precisely and left alone, per the brief's own instruction for that outcome.
 
 ### 1. `/dev/gauntlet-shell-countdown`: a real, measured race -- caused by `ViewportBackground`'s one-time WebGL setup, not by `CountdownOverlay`

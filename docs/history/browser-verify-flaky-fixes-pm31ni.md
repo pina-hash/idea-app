@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Build, theme, tests, conventions"]
 ---
 
-## browser-verify: applied the two diagnosed flaky-finding fixes, swept every `until` predicate for the same shape, and found a third race the diagnosis had not (`claude/browser-verify-flaky-fixes-pm31ni`, no migration)
-
 Scope for this bundle: `tools/browser-verify/` only, per the brief. Starting sha
 `d8405aa` (origin/main), rebased to `origin/integration`'s tip `3992d8f`, which
 already carried `docs/history/flaky-findings-countdown-notebook-h4qv9t.md` --
