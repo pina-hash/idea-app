@@ -1,5 +1,8 @@
 import { redirect } from '@sveltejs/kit';
-import { isAdmin } from '$lib/server/admin';
+import {
+	canAuthorGauntlet,
+	GAUNTLET_AUTHORING_REFUSAL
+} from '$lib/server/gauntlet-authoring';
 import type { PageServerLoad } from './$types';
 import {
 	DEFAULT_SPEEDRUN_RULESET,
@@ -9,20 +12,27 @@ import {
 } from '$lib/gauntlet';
 
 /**
- * ADMIN-only authoring (0067): the challenge management list. Admins see ALL
- * challenges (drafts, published, archived) via the RLS read policy whose
- * is_teacher() now resolves to the admin check; nobody else reaches this
- * route. The gate is server-side, mirroring the dashboard (hooks.server.ts
- * already blocks anonymous users off /gauntlet*), and the authoring RPCs
- * re-check server-side regardless.
+ * The challenge management list, open to the AUTHOR TIER since 0155 and not
+ * only to admins. An author sees ALL challenges (drafts, published, archived)
+ * through the 0004 read policy, which 0155 re-gated onto
+ * `gauntlet_can_author()`; the authoring RPCs re-check server-side regardless,
+ * so this guard is convenience.
+ *
+ * A REFUSED CALLER IS TOLD, NOT BOUNCED. This route used to `redirect(303,
+ * '/gauntlet')`, which is what an audit found reading as a broken link: a
+ * teacher who followed a link somebody sent them landed back on the dojo with
+ * nothing anywhere saying why, and the honest answer -- "you need a permission
+ * you do not have, here is who grants it" -- was the one thing the page could
+ * not say. THE REDIRECT ALSO BOUGHT NO SECRECY: a redirect confirms a route
+ * exists (which is exactly why CLAUDE.md's probing rule uses 404 for surfaces
+ * whose existence is private), so it disclosed the same fact while being less
+ * useful about it. The page now renders `refusal` in the app's own chrome.
+ *
+ * An ANONYMOUS caller still goes to `/`, unchanged: there is nobody to tell.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
 		redirect(303, '/');
-	}
-
-	if (!(await isAdmin(supabase, claims.sub))) {
-		redirect(303, '/gauntlet');
 	}
 
 	const { data: profile } = await supabase
@@ -30,6 +40,21 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.select('full_name, role')
 		.eq('id', claims.sub)
 		.single();
+
+	if (!(await canAuthorGauntlet(supabase, claims.sub))) {
+		// Short-circuit: none of the reads below would raise, they would simply
+		// come back empty under RLS, and an empty authoring console is precisely
+		// the "is it broken or am I refused" ambiguity this branch removes.
+		return {
+			userName: profile?.full_name ?? claims.email ?? 'Signed in',
+			userRole: profile?.role ?? 'student',
+			myUserId: claims.sub,
+			refusal: GAUNTLET_AUTHORING_REFUSAL,
+			challenges: [],
+			series: [],
+			ruleset: DEFAULT_SPEEDRUN_RULESET
+		};
+	}
 
 	const { data: challenges } = await supabase
 		.from('challenges')
@@ -55,6 +80,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		userName: profile?.full_name ?? claims.email ?? 'Teacher',
 		userRole: profile?.role ?? 'teacher',
 		myUserId: claims.sub,
+		refusal: null,
 		challenges: (challenges ?? []) as Array<{
 			id: string;
 			mode: GauntletModeId;

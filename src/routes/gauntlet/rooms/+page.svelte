@@ -4,7 +4,9 @@
 	import { roomStateLabel } from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, isAdmin, hosted, joined } = $derived(data);
+	// 0155: hosting is the AUTHOR TIER, not admin. The flag is named after the
+	// capability so nothing admin-only gets gated on it by mistake.
+	let { supabase, userName, userRole, canHost, refusal, hosted, joined } = $derived(data);
 
 	let joinCode = $state('');
 	let busy = $state(false);
@@ -101,7 +103,7 @@
 
 	{#if error}<p class="warn">{error}</p>{/if}
 
-	{#if isAdmin}
+	{#if canHost}
 		<div class="btn-row">
 			<button class="btn" type="button" disabled={busy} onclick={createRoom}>+ Host a new room</button>
 		</div>
@@ -130,6 +132,21 @@
 				{/each}
 			</ul>
 		{/if}
+	{:else if refusal}
+		<!--
+			HOSTING IS REFUSED, AND SAID SO. Before 0155 this branch simply did not
+			render and a teacher read a rooms page with no way to host and nothing
+			explaining it, which is the same "refused reads as broken" finding the
+			authoring route's redirect produced. JOINING is untouched: the join
+			form above is outside this branch, because anyone may join a room by
+			code and always could.
+		-->
+		<div class="card">
+			<h2>{refusal.title}</h2>
+			<p>{refusal.body}</p>
+			<p>{refusal.ask}</p>
+			<p class="dim">You can still join any room somebody gives you a code for.</p>
+		</div>
 	{/if}
 
 	{#if joined.length}
