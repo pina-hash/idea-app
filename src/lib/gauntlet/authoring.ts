@@ -108,6 +108,45 @@ export function massFromGeometry(
 
 export type AnswerType = 'choice' | 'text' | 'numeric';
 
+/**
+ * The ranked volume pass band, percent, a freshly authored modeling challenge
+ * starts on. It MUST equal the server's own default, `c_volume_tol_pct` in
+ * `gauntlet_macro_submit` (currently 0.1, set by migration 0036 and carried
+ * forward verbatim by 0061), which is also the value the VBA capture macros
+ * (GAUNTLET_VOLUME_TOL_PCT) and the C# add-in (GauntletMath.VolumeTolPct) show
+ * the student live while they model.
+ *
+ * WHY THIS EXISTS AS A CONSTANT AT ALL, rather than the form simply leaving the
+ * field unset and letting the server default govern -- which is what the
+ * no-duplicate-rule instinct asks for, and what was tried first.
+ * `gauntlet_publish_blocker` (0009, last defined in 0034) REFUSES to publish a
+ * modeling challenge whose `answer` carries no `tolerance_pct`:
+ *
+ *     'A tolerance band is required to publish.'
+ *
+ * So an explicit band is mandatory on every published modeling challenge, and
+ * the only question the form gets to answer is which one it starts on. Seeding
+ * null would leave a freshly authored challenge unpublishable until the author
+ * typed a number they have no guidance for, which is how 0.5 gets typed again.
+ *
+ * THE BUG THIS REPLACES. The seed was the literal 0.5 from 0009 onwards. 0036
+ * tightened the server default 0.5 -> 0.1 and kept the macros and the add-in in
+ * sync, but nothing moved the form -- and because `buildPayload` writes the seed
+ * into `answer`, where the per-level override BEATS the server constant, every
+ * challenge authored through the form since 0036 has been graded at 0.5: five
+ * times wider than the default, and five times wider than the band the student
+ * watched while modelling. A part the add-in calls a fail could be a ranked
+ * pass. `tests/gauntlet-authoring-tolerance.test.ts` reads the constant back out
+ * of the live migration SQL and pins the two together so the next tightening
+ * cannot leave the form behind again.
+ *
+ * Already-stored rows are NOT touched by changing this: `formFromChallenge`
+ * reads the challenge's own stored band when editing, so an existing 0.5
+ * challenge keeps grading at 0.5 until somebody decides otherwise. Migration
+ * 0146 prints the counts at apply time.
+ */
+export const GAUNTLET_DEFAULT_TOLERANCE_PCT = 0.1;
+
 /** Flat, editable state behind the authoring form. */
 export interface AuthorFormState {
 	id: string | null;
@@ -126,6 +165,13 @@ export interface AuthorFormState {
 	surface_area_mm2: number | null;
 	feature_count: number | null;
 	target_mass: number | null;
+	/**
+	 * Ranked pass band, percent, written into BOTH `prompt` (the student's
+	 * on-page readout) and `answer` (what `gauntlet_macro_submit` grades on,
+	 * where it beats the server's own default). It is seeded to
+	 * GAUNTLET_DEFAULT_TOLERANCE_PCT and must stay equal to the server constant:
+	 * see that constant for why the form cannot simply leave it unset.
+	 */
 	tolerance_pct: number | null;
 	/** Par time in seconds (Speedrun benchmark). */
 	par_time: number | null;
@@ -168,7 +214,7 @@ export function emptyForm(mode: GauntletModeId): AuthorFormState {
 		surface_area_mm2: null,
 		feature_count: null,
 		target_mass: null,
-		tolerance_pct: 0.5,
+		tolerance_pct: GAUNTLET_DEFAULT_TOLERANCE_PCT,
 		par_time: null,
 		par_features: null,
 		note: '',
