@@ -11,6 +11,7 @@
 import {
 	cooldownState,
 	getQuizBank,
+	maxTestLength,
 	missedTopics,
 	pickAttempt,
 	type AttemptRecord,
@@ -28,12 +29,23 @@ export interface QuizStore {
 		sealed: SealedItem[],
 		passPercent: number
 	): Promise<{ attemptId: string } | { error: string }>;
-	/** Grade + finalize an attempt against its held key; returns only the result. */
+	/**
+	 * Grade + finalize an attempt against its held key; returns only the result.
+	 *
+	 * `unitId` is the unit the ATTEMPT was for, read off the stored row. It is
+	 * optional because a store need not be able to answer it (the dev harness
+	 * mock keys its log by the unit it was handed, so the two can never differ
+	 * there); where it IS answered it OUTRANKS the `unitId` argument
+	 * `submitQuiz` was called with, which is whatever the URL said. See
+	 * `submitQuiz` for why that matters.
+	 */
 	gradeAttempt(
 		userId: string,
 		attemptId: string,
 		answers: number[]
-	): Promise<{ passed: boolean; score: number; missed: string[] } | { error: string }>;
+	): Promise<
+		{ passed: boolean; score: number; missed: string[]; unitId?: string } | { error: string }
+	>;
 }
 
 export type StartResult =
@@ -72,6 +84,70 @@ export async function startQuiz(
 }
 
 /**
+ * An option index that no sealed key can ever hold, so it always grades wrong.
+ * `sealed[i].c` is a position within an option list, hence never negative; SQL
+ * `frc_quiz_grade` already coalesces a missing answer to exactly this value,
+ * so the canonical grader and its SQL mirror agree on what "not answered"
+ * looks like without either being told about the other.
+ */
+export const NO_ANSWER = -1;
+
+/**
+ * Normalize a client's `answers` payload into option indices the graders can
+ * compare. THE ONE IMPLEMENTATION -- every caller of `submitQuiz` gets it,
+ * because `submitQuiz` runs it rather than trusting what it was handed.
+ *
+ * WHAT THIS EXISTS TO REFUSE, and it is not exploitation. The endpoint used to
+ * coerce with `Number(a)` at its own call site, and `Number(null)` is 0: a
+ * question a student LEFT BLANK and a question where they chose the first
+ * option arrived at the grader as the same value, so the server could not tell
+ * them apart -- and a blank sheet scored 25 against a key containing a zero and
+ * 0 against one that does not. Neither opens the gate (after the shuffle the
+ * correct index is uniform, so guessing 0 everywhere is worth chance), but the
+ * server was recording an answer nobody gave.
+ *
+ * NON-INTEGRALITY IS REFUSED FOR A SEPARATE REASON: MIRROR DRIFT. Postgres
+ * `integer[]` ROUNDS a numeric it is handed (2.7 becomes 3, measured), while
+ * the canonical TypeScript grader compares 2.7 against an integer and calls it
+ * wrong. So an unchecked non-integer is the one input on which the two graders
+ * return DIFFERENT verdicts for the same submission -- exactly the silent
+ * divergence a hand-written SQL mirror exists to be protected from. Mapping it
+ * to `NO_ANSWER` here makes both answer "wrong", by construction, before
+ * either sees it.
+ *
+ * RANGE IS DELIBERATELY NOT CHECKED, and does not need to be: an index outside
+ * the option list simply matches no sealed value and is already wrong on both
+ * sides. What IS bounded is the LENGTH, at the largest `testLength` any bank
+ * declares (derived, never a literal), so an unbounded array cannot be pushed
+ * through into an `integer[]` bind. Grading is unaffected -- entries past the
+ * last question were always ignored, since the graders walk `sealed`.
+ *
+ * A NUMERIC STRING IS A REAL CHOICE and still grades: `'0'` is what an older
+ * client or a hand-rolled request may send for option 0, and refusing it would
+ * be a narrowing dressed up as a fix.
+ */
+export function normalizeAnswers(raw: unknown): number[] {
+	if (!Array.isArray(raw)) return [];
+	const n = Math.min(raw.length, maxTestLength());
+	// `Array.from` with a length, NOT `raw.slice().map()`: map SKIPS a hole in a
+	// sparse array and leaves it a hole, so `[0, , 2]` came back as `[0, <hole>,
+	// 2]` -- an array typed `number[]` with an `undefined` in it. It graded
+	// correctly by luck on both sides (undefined matches no index, and JSON
+	// writes a hole as null, which SQL coalesces to -1), but a function whose
+	// whole job is to make "not answered" representable must not hand back the
+	// one value it exists to replace.
+	return Array.from({ length: n }, (_, i) => coerceAnswer(raw[i]));
+}
+
+function coerceAnswer(a: unknown): number {
+	if (typeof a !== 'number' && typeof a !== 'string') return NO_ANSWER;
+	// An empty or blank string is Number()-coerced to 0; it is not a choice.
+	if (typeof a === 'string' && a.trim() === '') return NO_ANSWER;
+	const n = Number(a);
+	return Number.isInteger(n) ? n : NO_ANSWER;
+}
+
+/**
  * Submit an attempt: grade server-side, run `onPass` on a pass, and on a fail
  * return the missed TOPIC NAMES plus the fresh cooldown. Never returns correct
  * answers. `onPass` is a caller-supplied hook only; the real (DB-backed) store
@@ -79,27 +155,44 @@ export async function startQuiz(
  * `frc_quiz_grade` RPC, see 0041_frc_progress_lockdown.sql), so the real
  * endpoint's `onPass` is a no-op — the hook exists for the dev mock and any
  * future non-DB store.
+ *
+ * `answers` is taken RAW and normalized here (see `normalizeAnswers`), so a
+ * caller cannot hand the graders a value they cannot tell apart from a choice.
+ *
+ * THE FAIL RESPONSE FOLLOWS THE ATTEMPT'S UNIT, NEVER THE CALLER'S. `unitId`
+ * is whatever the URL said, and the two can differ: the grade is done against
+ * the sealed key on the attempt row, so an MDM-9 attempt submitted through the
+ * MDM-1 URL is graded and recorded as MDM-9 -- correctly -- while everything
+ * this function then REPORTS used to be looked up under MDM-1. Measured: a
+ * student who fails that way is told `cooldownRemainingSec: 0` on a unit they
+ * just failed, while a `start` on the real unit is still refused, and the
+ * missed topics are named out of the wrong bank. The store's own `unitId`
+ * outranks the argument wherever it answers one.
  */
 export async function submitQuiz(
 	store: QuizStore,
 	userId: string,
 	unitId: string,
 	attemptId: string,
-	answers: number[],
+	answers: unknown,
 	cooldownFn: (failStreak: number) => number,
 	nowMs: number,
 	onPass: () => Promise<void>
 ): Promise<SubmitResult> {
-	const graded = await store.gradeAttempt(userId, attemptId, answers);
+	const graded = await store.gradeAttempt(userId, attemptId, normalizeAnswers(answers));
 	if ('error' in graded) {
 		return { ok: false, reason: graded.error === 'no_attempt' ? 'no_attempt' : 'unavailable' };
 	}
+
+	// The unit that was actually graded, which is the attempt's own wherever the
+	// store can say so. Everything below reports on THAT unit.
+	const gradedUnitId = graded.unitId ?? unitId;
 
 	if (graded.passed) await onPass();
 
 	let cooldownRemainingSec = 0;
 	if (!graded.passed) {
-		const finalized = await store.listFinalized(userId, unitId);
+		const finalized = await store.listFinalized(userId, gradedUnitId);
 		cooldownRemainingSec = cooldownState(finalized, nowMs, cooldownFn).remainingSec;
 	}
 
@@ -107,8 +200,10 @@ export async function submitQuiz(
 		ok: true,
 		passed: graded.passed,
 		score: graded.score,
-		// Name the missed objectives from THIS unit's bank (fallback inside).
-		missedTopics: graded.passed ? [] : missedTopics(graded.missed, getQuizBank(unitId)?.objectives),
+		// Name the missed objectives from the GRADED unit's bank (fallback inside).
+		missedTopics: graded.passed
+			? []
+			: missedTopics(graded.missed, getQuizBank(gradedUnitId)?.objectives),
 		cooldownRemainingSec
 	};
 }
