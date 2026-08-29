@@ -396,14 +396,89 @@ export interface ToolsManifest {
 	addin: ToolTrack;
 }
 
-/** The grading result returned by `gauntlet_submit` for a Speedrun challenge. */
+/**
+ * The coarse, UNSIGNED correctness band that is the only thing a failing submit
+ * learns about how wrong it is (0061, extended to every path in 0147).
+ *
+ * `withheld` is the room path's budgeted form: past the coaching cap the band
+ * goes quiet while the racer can still submit and still pass. `unknown` means
+ * the level carries no target to compare against, which is a level problem, not
+ * a student one.
+ */
+export type DeviationBand = 'pass' | 'close' | 'near' | 'far' | 'unknown' | 'withheld';
+
+const BAND_LABELS: Record<DeviationBand, string> = {
+	pass: 'In tolerance',
+	close: 'Very close',
+	near: 'Outside tolerance',
+	far: 'Well outside',
+	unknown: 'No target set',
+	withheld: 'No more hints this round'
+};
+
+const BAND_HINTS: Record<DeviationBand, string> = {
+	pass: '',
+	close: 'A single feature or a fillet is usually the difference.',
+	near: 'Re-check a dimension against the drawing.',
+	far: 'A dimension has probably been misread, or a feature is missing.',
+	unknown: 'This level has no stored target, so it cannot be checked.',
+	withheld: 'Keep submitting; the check still counts.'
+};
+
+/**
+ * The band's own words. ONE vocabulary, shared by the practice check and the
+ * room board, so the same verdict never reads two ways.
+ *
+ * There is deliberately NO percentage, delta or target here, and nothing that
+ * takes one: a number beside the student's own mass is what 0147 removed from
+ * the payload, and re-deriving one in the client would put it straight back.
+ *
+ * AN ABSENT BAND IS NOT `unknown`, AND THE TWO MUST NOT COLLAPSE. `unknown` is
+ * the server saying the LEVEL has no target to check against; absent means this
+ * caller has no band at all, which happens in two ordinary ways: a room result
+ * rebuilt from a Realtime row (which carries only correctness and a time), and
+ * a client deployed before 0147 is applied by hand. Both are plain misses and
+ * must read as one, so absent falls back to the generic wording rather than
+ * telling a student their level is broken.
+ */
+export function deviationBandLabel(band: string | null | undefined): string {
+	if (band === null || band === undefined || band === '') return 'Outside tolerance';
+	return BAND_LABELS[band as DeviationBand] ?? 'Outside tolerance';
+}
+
+export function deviationBandHint(band: string | null | undefined): string {
+	if (band === null || band === undefined || band === '') return '';
+	return BAND_HINTS[band as DeviationBand] ?? '';
+}
+
+/**
+ * The grading result returned by `gauntlet_submit` for a Speedrun challenge (the
+ * unranked manual practice check).
+ *
+ * `target_mass` and `tolerance_pct` were REMOVED in 0147. They were returned on
+ * every call, pass or fail, to any signed-in caller with nothing but a challenge
+ * id, which made this unlimited free check a one-call read of the ranked answer
+ * key. What is left is the caller's OWN typed mass and the coarse band.
+ */
 export interface SpeedrunResult {
 	mode: 'speedrun';
 	is_correct: boolean;
 	your_mass: number | null;
-	target_mass: number | null;
-	tolerance_pct: number | null;
+	mass_unit: string | null;
+	unit_system: string | null;
+	deviation_band: DeviationBand | null;
 	score_metric: number | null;
+}
+
+/** The result returned by `gauntlet_room_manual_submit` (live room racer). */
+export interface RoomManualResult {
+	is_correct: boolean;
+	score_metric: number | null;
+	rank: number | null;
+	your_mass: number | null;
+	mass_unit: string | null;
+	deviation_band: DeviationBand | null;
+	coaching_remaining: number | null;
 }
 
 /** Format a mass value with its unit for display (e.g. "270 g"). */
@@ -414,18 +489,26 @@ export function formatMass(value: number | null | undefined, unit = 'g'): string
 }
 
 /**
- * The target volume (mm3) implied by a level's target mass and density.
+ * The target volume (mm3) implied by a level's PUBLISHED target mass and density.
  *
- * `gauntlet_run_targets` deliberately stopped returning `target_volume_mm3` in
- * 0061: it is the value the ranked check compares against, and handing it to the
- * caller that submits against it was audit finding F4. Mass is volume x density
- * at a FIXED level density, so the target mass and density the RPC still returns
- * (both public framing, shown on the spec card before the run) reconstruct it for
- * display gauges without the server disclosing the ranked comparison itself.
+ * READ THE SOURCE OF `massLevel` BEFORE CALLING THIS. It must come from the
+ * challenge's `prompt` -- the author's published spec card, which the student is
+ * already shown and which reaches the client through the ordinary `challenges`
+ * select. It must NEVER come from an RPC, because an RPC value is derived from
+ * `challenges.answer` at machine precision and tracks the ranked comparison
+ * exactly even where the published copy is rounded, stale or absent.
  *
- * `density` is always g/cm3 (the RPC normalizes it); `massLevel` is in the
- * level's own unit, g for MMGS and lb for IPS. Mirrors the server's own
- * mass = (volume_mm3 / 1000) * density_g_cm3.
+ * That distinction is the whole of 0147. This function used to be fed
+ * `target_mass_level` straight out of `gauntlet_run_targets`, and its own
+ * docstring described that as safe on the grounds that the value was "public
+ * framing". It was not: 0061 had removed `target_volume_mm3` from that payload
+ * precisely because it is the ranked comparison, and then returned the same
+ * number as a mass beside the density that divides it back out. This helper was
+ * the divider. It survives because a gauge drawn from what the author chose to
+ * publish is a display decision; it is the INPUT that had to change.
+ *
+ * `density` is g/cm3; `massLevel` is in the level's own unit, g for MMGS and lb
+ * for IPS. Mirrors the server's mass = (volume_mm3 / 1000) * density_g_cm3.
  */
 export function targetVolumeFromMass(
 	massLevel: number | null,

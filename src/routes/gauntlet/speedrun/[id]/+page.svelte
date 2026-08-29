@@ -22,6 +22,8 @@
 		formatTime,
 		formatMass,
 		targetVolumeFromMass,
+		deviationBandLabel,
+		deviationBandHint,
 		UNIT_SYSTEM_UNITS,
 		DRAWINGS_BUCKET,
 		type FocusRegion,
@@ -344,15 +346,17 @@
 				({ data: tg }: { data: Record<string, number | string | null> | null }) => {
 					if (!tg) return;
 					const density = (tg.expected_density_g_cm3 as number) ?? null;
-					const targetMassLevel = (tg.target_mass_level as number) ?? null;
 					const unitSystem = (tg.unit_system as string) ?? 'MMGS';
+					// The gauge's target comes from the AUTHOR'S PUBLISHED framing
+					// (`prompt`, the spec card this page already renders above), NEVER
+					// from the RPC. 0147 removed `target_mass_level` from
+					// gauntlet_run_targets: paired with the density in the same object
+					// it reconstructed target_volume_mm3 exactly, which is the ranked
+					// comparison value 0061 set out to withhold. A level whose author
+					// published no target mass simply draws no target line, which is
+					// correct: on that level the target is not public.
+					const targetMassLevel = framing.target_mass ?? null;
 					telemetryTargets = {
-						// The gauge's target volume is DERIVED here, not fetched: since
-						// 0061 the RPC no longer returns target_volume_mm3, because that
-						// is the value the ranked check compares against (audit F4).
-						// Mass is volume x density at a fixed level density, so the
-						// already-public target mass and density reconstruct it for the
-						// gauge without the server handing out the ranked comparison.
 						targetVolumeMm3: targetVolumeFromMass(targetMassLevel, density, unitSystem),
 						densityGcm3: density,
 						targetMassLevel,
@@ -769,9 +773,20 @@
 					</form>
 					{#if practice}
 						<div class="result-banner small" class:ok={practice.is_correct} class:no={!practice.is_correct}>
-							<span class="result-verdict">{practice.is_correct ? 'In tolerance' : 'Outside tolerance'}</span>
-							<span class="result-time">{formatMass(practice.your_mass, unit)} vs {formatMass(practice.target_mass, unit)}</span>
+							<span class="result-verdict">
+								{practice.is_correct
+									? 'In tolerance'
+									: deviationBandLabel(practice.deviation_band)}
+							</span>
+							<!-- The student's OWN typed mass. The target is deliberately not
+							     here (0147): it is on the spec card above if the author
+							     published it, and the server no longer derives it from the
+							     answer key. -->
+							<span class="result-time">You measured {formatMass(practice.your_mass, unit)}</span>
 						</div>
+						{#if !practice.is_correct && deviationBandHint(practice.deviation_band)}
+							<p class="dim">{deviationBandHint(practice.deviation_band)}</p>
+						{/if}
 					{/if}
 				</details>
 

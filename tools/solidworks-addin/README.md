@@ -63,9 +63,10 @@ the credential). Defined in `supabase/migrations/0017_gauntlet_run_status.sql`
 (`gauntlet_macro_start`, superseding `0016`), `0034_gauntlet_volume_only_verification.sql`
 (geometry-only verification; material and document units stopped gating),
 `0036_gauntlet_volume_tolerance_0_1.sql` (tolerance default 0.1%), and
-`0061_gauntlet_target_disclosure.sql` (the live definition of
-`gauntlet_macro_submit` and `gauntlet_run_targets`: no target in either payload,
-budgeted failed submits).
+`0061_gauntlet_target_disclosure.sql` (budgeted failed submits), and
+`0147_gauntlet_close_target_disclosure.sql` (the live definition of
+`gauntlet_macro_submit` and `gauntlet_run_targets`: genuinely no target in either
+payload, and `gauntlet_run_targets` now refuses a spent or expired code).
 
 ```
 POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_start
@@ -81,30 +82,44 @@ POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_submit
              "p_unit_system": "IPS" | "MMGS" | null }
   returns: { "is_correct", "mode", "elapsed_ms", "score_metric", "rank",
              "volume_ok", "deviation_band", "attempts_remaining", "code_retired",
-             "unit_system", "mass_unit", "your_mass_level", "target_mass_level",
+             "unit_system", "mass_unit", "your_mass_level",
              "detected_material", "material_matches" }
 
 POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_run_targets
   body:    { "p_code": "..." }
   returns: { "challenge_id", "title", "expected_density_g_cm3", "density_level",
-             "unit_system", "mass_unit", "length_unit", "target_mass_level",
-             "material" }
+             "unit_system", "mass_unit", "length_unit", "material" }
 ```
 
 Timing and grading are entirely server-side; the add-in never sends a clock or
 a correctness flag. If a migration changes these RPCs, update
 `GauntletClient.cs` in the same change.
 
-**Neither response carries the target volume or the tolerance** (migration
-`0061`, closing audit finding F4). The target volume is the value a ranked submit
-is checked against, and both RPCs are anon-granted with the run code as the only
-credential, so returning it handed the answer key to the caller submitting
-against it. A failing run now gets only `deviation_band`, a coarse UNSIGNED
-closeness band (`close` | `near` | `far`), and failing submits are budgeted:
-`attempts_remaining` counts down and the code retires at zero. Do not add the
-target, the submitted volume beside it, or an exact miss distance back to either
-payload. Mass and density are still returned because they are public spec-card
-framing the student is shown before the run starts.
+**Neither response carries the target, in any form** (migrations `0061` and
+`0147`). The target volume is the value a ranked submit is checked against, and
+both RPCs are anon-granted with the run code as the only credential, so returning
+it handed the answer key to the caller submitting against it.
+
+`0061` removed the volume and the tolerance and then kept returning
+`target_mass_level` beside `expected_density_g_cm3` -- which reconstructs the
+target volume by one division, exactly, because density is a fixed level
+constant. `0147` removed `target_mass_level` from BOTH payloads for that reason.
+`your_mass_level` stays: it is the caller's own submitted volume times a public
+density, so it discloses nothing the caller did not send.
+
+A failing run gets only `deviation_band`, a coarse UNSIGNED closeness band
+(`close` | `near` | `far`), and failing submits are budgeted: `attempts_remaining`
+counts down and the code retires at zero. **Do not add the target back in any
+form** -- not as a volume, a mass, a band edge, a percentage or a miss distance.
+The test to apply is not the field name: any SECOND number beside
+`your_mass_level` whose ratio or difference with it yields the target is the same
+disclosure wearing a different label, which is exactly how `0061` came to ship
+one under a comment forbidding it. Density alone is safe, and is still returned,
+because with no target beside it there is nothing to divide.
+
+An installed build needs no rebuild for correctness: `TargetMassLevel` is a
+`double?` and every use is `.HasValue`-guarded, so a payload without the field
+simply stops printing a target line.
 
 ## Building
 
