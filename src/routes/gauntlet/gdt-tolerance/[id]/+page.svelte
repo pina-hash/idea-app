@@ -17,4 +17,12 @@
 	crumbs={[{ label: 'GD&T and Tolerance', href: '/gauntlet/gdt-tolerance' }, { label: challenge.title }]}
 />
 
-<KnowledgePlay {challenge} {board} {myUserId} {myBest} next={data.next} backHref="/gauntlet/gdt-tolerance" />
+<KnowledgePlay
+	{supabase}
+	{challenge}
+	{board}
+	{myUserId}
+	{myBest}
+	next={data.next}
+	backHref="/gauntlet/gdt-tolerance"
+/>

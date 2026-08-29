@@ -234,6 +234,16 @@ export interface SubmitResult {
 	correct: string | null;
 	explanation: string | null;
 	score_metric: number | null;
+	/**
+	 * 0148, knowledge modes only: was THIS submit the one the server clock was
+	 * running for. False on every later review attempt, whose `score_metric` is
+	 * measured from the ORIGINAL start and so is a wall-clock figure rather than
+	 * a time anybody spent answering. Optional because a deployment sitting
+	 * between the client and the migration does not send it (see the ladder in
+	 * KnowledgePlay), and because `gauntlet_submit`'s Speedrun branch has no
+	 * clock of this kind at all.
+	 */
+	timed_attempt?: boolean;
 }
 
 /**
