@@ -37,6 +37,14 @@ export interface GauntletMode {
 	/** How the mode is scored, shown as the card's metric line. */
 	scoring: string;
 	status: ModeStatus;
+	/**
+	 * Whether a verified run in this mode can appear on ITS OWN leaderboard.
+	 * Mirrors `gauntlet_leaderboard`'s allowlist (`0146`): a mode ranks only when
+	 * its score is something the server can check. This is the one place that
+	 * fact is stated on the client -- a surface that needs to know whether a mode
+	 * ranks reads it here, never a second list of mode names.
+	 */
+	ranked: boolean;
 	/** Route for a live mode; undefined while a mode is still "coming soon". */
 	href?: string;
 }
@@ -52,6 +60,7 @@ export const MODES: GauntletMode[] = [
 		tagline: 'Model a dimensioned part as fast as you can.',
 		scoring: 'Hit the mass, fastest time wins',
 		status: 'live',
+		ranked: true,
 		href: '/gauntlet/speedrun'
 	},
 	{
@@ -61,6 +70,7 @@ export const MODES: GauntletMode[] = [
 		tagline: 'Reproduce a part from an object or its views. No clock.',
 		scoring: 'Closest on volume and area wins',
 		status: 'construction',
+		ranked: false,
 		href: '/gauntlet/reverse-engineer'
 	},
 	{
@@ -70,6 +80,7 @@ export const MODES: GauntletMode[] = [
 		tagline: 'Hit the target geometry in the fewest features.',
 		scoring: 'Correct volume, fewest features wins',
 		status: 'construction',
+		ranked: false,
 		href: '/gauntlet/feature-golf'
 	},
 	{
@@ -79,6 +90,7 @@ export const MODES: GauntletMode[] = [
 		tagline: 'Read orthographic views and match them to the 3D part.',
 		scoring: 'Correctness, time breaks ties',
 		status: 'construction',
+		ranked: true,
 		href: '/gauntlet/drawing-reading'
 	},
 	{
@@ -88,6 +100,7 @@ export const MODES: GauntletMode[] = [
 		tagline: 'Interpret geometric callouts, datums, and fits.',
 		scoring: 'Correctness, time breaks ties',
 		status: 'construction',
+		ranked: true,
 		href: '/gauntlet/gdt-tolerance'
 	},
 	{
@@ -97,6 +110,7 @@ export const MODES: GauntletMode[] = [
 		tagline: 'Find the mistake in a drawing.',
 		scoring: 'Correctness, time breaks ties',
 		status: 'construction',
+		ranked: true,
 		href: '/gauntlet/spot-the-error'
 	}
 ];
@@ -104,6 +118,15 @@ export const MODES: GauntletMode[] = [
 export function modeById(id: string | null | undefined): GauntletMode | undefined {
 	if (!id) return undefined;
 	return MODES.find((m) => m.id === id);
+}
+
+/**
+ * Whether a mode's own leaderboard can carry a verified run. See the `ranked`
+ * field on `GauntletMode` -- this is the one reader, so a caller asks the
+ * catalog rather than typing a mode id into a second list.
+ */
+export function modeRanks(id: GauntletModeId): boolean {
+	return MODES.find((m) => m.id === id)?.ranked ?? false;
 }
 
 const FAMILY_LABELS: Record<ModeFamily, string> = {
