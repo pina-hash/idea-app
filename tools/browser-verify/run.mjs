@@ -173,7 +173,8 @@ async function runRoute(browser, origin, spec, width, opts) {
 			if (step.click) {
 				const r = await clickUntil(page, step.click, step.until, {
 					attempts: step.attempts ?? 12,
-					gapMs: step.gapMs ?? 300
+					gapMs: step.gapMs ?? 300,
+					force: step.force ?? false
 				});
 				prepared.push(
 					`${r.ok ? 'clicked' : 'FAILED'} ${step.click} -- ${r.matched} matched, ${r.attempts} attempt(s), ${r.reason}`
