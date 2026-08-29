@@ -34,7 +34,29 @@ export default {
 		title field's presence deterministic at BOTH widths rather than
 		riding whatever the auto-pick effect happened to land on.
 	*/
-	prepare: [{ click: '.pick.free', until: '() => document.querySelector(".pick.free").getAttribute("aria-pressed") === "true"' }],
+	/*
+		THIS USED TO BE ONE STEP -- `{ click: '.pick.free', until: ... }` -- and
+		the `until` was the bug. `selectedSession` starts `null` before the mount
+		effect (`nearestOutstanding`) settles it to a real session, and `.pick.free`'s
+		`aria-pressed` IS `selectedSession === null` -- so the predicate is
+		satisfied by the component's own pre-effect DEFAULT, before any click.
+		`clickUntil` checks its `until` ONCE, before clicking, and short-circuits
+		on "already satisfied" (browser.mjs) -- so whenever the harness's first
+		check landed before the effect settled, the click never fired at all, and
+		the run silently measured whatever `selectedSession` became by the time
+		`settle()` finished. Split unconditional (no `until`, so the short-circuit
+		branch can never apply) plus a `waitFor` on the same predicate, checked
+		AFTER the click physically lands. This is race-proof rather than merely
+		less likely to race: `chooseSession(null)` (the free pick's own handler)
+		sets `sessionTouched = true`, which makes the auto-select effect's own
+		guard (`if (sessionTouched && !stale) return;`) skip re-running afterward,
+		so once the click lands `selectedSession` stays pinned at `null` no matter
+		when the mount effect would otherwise have fired.
+	*/
+	prepare: [
+		{ click: '.pick.free' },
+		{ waitFor: '() => document.querySelector(".pick.free")?.getAttribute("aria-pressed") === "true"' }
+	],
 	presence: [
 		{ selector: '.dev-bar', label: 'harness controls', expectPresent: 1 },
 		{ selector: '.nb-root', label: 'NotebookView mounted', expectPresent: 1 },
