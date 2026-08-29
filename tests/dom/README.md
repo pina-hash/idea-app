@@ -19,6 +19,36 @@ That is the entire reason the split exists. Everywhere else in the suite,
 invokes its callback **zero times** -- so a reactivity control written outside
 this directory is green and vacuous, which is worse than no control.
 
+It also means real events reach real listeners: `dispatchEvent` on a mounted
+node runs the component's handler, `preventDefault` is readable afterwards, and
+`localStorage` is a real store that survives an unmount. Four files here now
+depend on that -- the disclosure toggle, the manager write boundary, the upload
+drag/drop/paste, and the module collapse.
+
+## THE HARD LIMIT: THERE IS NO LAYOUT ENGINE
+
+happy-dom parses and cascades; it does not lay out. Measured in this project:
+
+| read | happy-dom answers |
+| --- | --- |
+| `el.getBoundingClientRect()` | `{x:0, y:0, width:0, height:0, ...}` |
+| `el.offsetWidth` | `0` |
+| `getComputedStyle(el).color` | `""` (the empty string) |
+| `getComputedStyle(el).display` | `"block"` -- a cascade answer, not a laid-out one |
+
+So a geometry, contrast or tap-target assertion written here **reads zero and
+passes vacuously**. That is not a hypothetical: it is the shape of instrument
+bug that hid in the browser harness for weeks. `display` resolving correctly is
+the trap inside the trap -- some computed properties are real here, which makes
+the ones that are not look trustworthy.
+
+**Those claims belong in `npm run verify:browser` and nowhere else.** It drives
+a real Chromium at 375px and 1440px and reports measured numbers. What belongs
+HERE is structure, events, effects and storage.
+
+An assertion in this directory that reads a box, a colour, or a 44px target is
+a bug in the test, whatever it currently reports.
+
 ## What you should NOT do here
 
 - **Do not `import { render } from 'svelte/server'`.** Components here compile
@@ -32,6 +62,22 @@ this directory is green and vacuous, which is worse than no control.
 - **Do not put a database test here.** The embedded-Postgres cluster is
   `globalSetup` on the node project only; asking for it here would boot a second
   one.
+- **Do not assert geometry, contrast or a tap target here.** See the section
+  above; there is no layout engine and the read comes back zero.
+
+## The instruments
+
+`mount.ts` and `drag-events.ts` are the shared driving code, and
+`composer-mount.ts` is one test's own. They are **not** `.test.ts`, so vitest
+does not collect them, and they are kept apart from the assertions for the
+reason `composer-mount.ts` states in its own header: a mutation proof drives the
+identical instrument against a deliberately broken component, and a body retyped
+into a test file characterizes what somebody believed it did.
+
+`drag-events.ts` documents the one payload happy-dom will not build correctly --
+its `DataTransfer.types` reports a file's MIME type where a browser reports the
+literal `'Files'` that `isFileDrag` reads by specification -- and overrides that
+and nothing else.
 
 ## Which project does my new file land in?
 
@@ -40,6 +86,21 @@ no docblock and no glob to remember:
 
 - a file under `tests/dom/` -> DOM project;
 - a file anywhere else under `tests/` -> node project.
+
+**Prefer the node project when either would do.** A mount costs about an order
+of magnitude more per test than a server render. Measured on the same four
+components, same fixtures, both halves of this directory's classroom work:
+
+| | tests | test time | per test |
+| --- | --- | --- | --- |
+| the four SSR files (node) | 46 | 71ms | ~1.5ms |
+| the four mount files (dom) | 26 | 871ms | ~33ms |
+
+About 22x. In absolute terms that is still small -- the whole DOM project is
+31 tests in ~1.1s of test time, and adding these four files moved the full
+suite's wall clock from 116.3s to 114.8s, i.e. not at all against run-to-run
+noise. So the cost is worth paying for a behavioural claim and is not worth
+paying for one a `render()` string already settles.
 
 Both wrong choices fail rather than pass, which is what makes this safe to
 forget:

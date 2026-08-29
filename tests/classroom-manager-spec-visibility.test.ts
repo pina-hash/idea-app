@@ -14,20 +14,32 @@
 // write into an engine slot from this page -- the grading console is the only
 // instructor-side window onto ANY student's actual answers.
 //
-// THERE IS NO DOM/EVENT-DISPATCH HARNESS IN THIS REPO (no jsdom, no
-// @testing-library -- `vitest.config.ts` runs `environment: 'node'` and uses
-// `svelte/server`'s `render()`, the same SSR-only pattern
-// `classroom-body-render.test.ts` established, deliberately not extended
-// here to keep this file dependency-free). So "dispatched input reaches a
-// control" is proven the way it is provable without one: by asserting on the
-// REAL component's REAL SSR markup that no writable control exists in the
+// WHAT THIS FILE ASSERTS, AND WHERE THE OTHER HALF NOW LIVES. This header used
+// to open "THERE IS NO DOM/EVENT-DISPATCH HARNESS IN THIS REPO" and explain
+// that "dispatched input reaches a control" was therefore proven structurally,
+// closing with "There is no input to dispatch TO, which is the strongest
+// available claim short of an actual DOM". There is an actual DOM now --
+// `tests/dom/` is a second vitest project with happy-dom and svelte's client
+// build -- and `tests/dom/classroom-manager-spec-visibility-mount.test.ts`
+// mounts this render, enumerates every control in the live tree and fires real
+// `input`/`change` at them with a write transport injected.
+//
+// EVERY ASSERTION BELOW STAYS, because it answers a different question: what
+// the browser RECEIVES. A `<textarea>` in the served markup is a regression
+// before a single effect has run, and a mount test cannot see the server's
+// output. So this file still pins that no writable control exists in the SSR
 // output at all -- no `<textarea>`, no un-disabled `<input>` for a table cell
-// or an image caption, and the one control that IS always present
-// (checklist checkboxes, which SpecRenderer renders unconditionally and
-// disables rather than omitting) carries `disabled`, which is what stops a
-// browser from ever firing that control's `onchange` from user input in the
-// first place. There is no input to dispatch TO, which is the strongest
-// available claim short of an actual DOM.
+// or an image caption, and the one control that IS always present (checklist
+// checkboxes, which SpecRenderer renders unconditionally and disables rather
+// than omitting) carrying `disabled`, which is what stops a browser from ever
+// firing that control's `onchange` from user input.
+//
+// One correction the mount file measured and this one should not restate
+// wrongly: `disabled` stops a BROWSER delivering a user's event, it does not
+// unregister the listener, so an explicit `dispatchEvent` still reaches it.
+// The boundary is that the manager's call site wires no write transport at
+// all -- which is what the source assertions at the bottom of this file are
+// for, and why they are the load-bearing half rather than a supplement.
 //
 // POSITIVE CONTROLS, both directions, so a check that always passes cannot
 // hide behind this file:

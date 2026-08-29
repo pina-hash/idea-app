@@ -19,12 +19,16 @@
 //   * HIDES, NEVER REMOVES. A collapse implemented with `{#if}` instead of CSS
 //     renders identically until someone needs the material back, or prints.
 //
-// The fourth claim -- that pressing the trigger toggles -- fails loudly the
-// first time anyone looks, and belongs in the harness (/dev/classroom), not
-// here. There is no DOM or event-dispatch harness in this repo
-// (`environment: 'node'`, `svelte/server`'s `render()` only), which is the
-// same line classroom-manager-spec-visibility.test.ts draws for the same
-// reason.
+// THE FOURTH CLAIM -- that pressing the trigger toggles -- IS NOW ASSERTED,
+// IN `tests/dom/disclosure-instructions-collapse-mount.test.ts`. This comment
+// used to say it belonged in the harness (/dev/classroom) and that there was
+// "no DOM or event-dispatch harness in this repo (`environment: 'node'`,
+// `svelte/server`'s `render()` only)". That is out of date: `tests/dom/` is a
+// second vitest project with happy-dom and svelte's client build, so a mount
+// test can press the control. Nothing here moved -- this file still asserts
+// the pure rule, the SSR markup and ItemDetail's wiring, which is what a
+// browser RECEIVES -- and the mount file asserts what it then does, including
+// the per-viewer storage key nothing anywhere asserted before it.
 //
 // MUTATION-CHECKED (during this bundle; see docs/HISTORY.md for the numbers).
 // Both directions were run, including the REJECTED ALTERNATIVE -- collapsing
@@ -254,10 +258,12 @@ describe('the instructions panel on a module', () => {
 // Part 3: ItemDetail's call site, read from source.
 //
 // ItemDetail needs a section, an item, postings, attachments and a handful of
-// transports to render at all, and this repo has no DOM harness to drive it in.
-// What is worth pinning here is not its markup but its WIRING: that the panel's
-// signal comes from the engine slice the page already holds and carries no role
-// term. Same approach, and same reason, as
+// transports to render at all, so what is worth pinning here is not its markup
+// but its WIRING: that the panel's signal comes from the engine slice the page
+// already holds and carries no role term. A source read is the right instrument
+// for that whatever else the suite can mount -- `tests/dom/` could drive the
+// component, but "no role term appears in this expression" is a claim about the
+// expression. Same approach, and same reason, as
 // classroom-manager-spec-visibility.test.ts's source assertions.
 // ---------------------------------------------------------------------------
 

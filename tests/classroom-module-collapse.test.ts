@@ -10,8 +10,13 @@
 // module a student is halfway through stays open.
 //
 // SAME CONVENTION AS disclosure-instructions-collapse.test.ts: the REAL
-// SpecRenderer, server-rendered (`svelte/server`'s `render()`), no DOM. What
-// would fail SILENTLY and is worth pinning here:
+// SpecRenderer, server-rendered (`svelte/server`'s `render()`). This file is
+// deliberately ONE FRAME -- it asserts what a browser RECEIVES for a given set
+// of values, which is a different question from what a browser then does with
+// it. The behavioural half is `tests/dom/classroom-module-collapse-mount.test.ts`,
+// which mounts the same component and moves BETWEEN these states.
+//
+// What would fail SILENTLY and is worth pinning here:
 //
 //   * COMPLETION, NOT "STARTED". A module halfway done collapsing on its own
 //     would bury work still in progress.
@@ -20,13 +25,14 @@
 //   * HIDES, NEVER REMOVES. A collapsed module's fields must still be in the
 //     DOM, with their values, so the module still prints and re-opening it
 //     costs nothing.
-//   * THE MANUAL OVERRIDE. A person's own toggle beats the completion signal
-//     in both directions, exactly as the instructions panel's does.
+//
+// THE MANUAL OVERRIDE IS NO LONGER PINNED HERE. It was, by writing a fake
+// `localStorage` and re-rendering; see the note where that test used to sit,
+// below.
 
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
-import { disclosureKey, writeDisclosure } from '$lib/disclosure';
 import type { AssignmentSpec, ResponseValue } from '$lib/classroom/assignment-spec';
 
 const PROSE = 'Read this before you start measuring.';
@@ -83,17 +89,6 @@ function moduleTrigger(html: string): string {
 	const match = html.match(/<button[^>]*data-testid="module-body"[^>]*>/);
 	expect(match, 'no module-body disclosure rendered at all').not.toBeNull();
 	return match![0];
-}
-
-function fakeStore() {
-	const map = new Map<string, string>();
-	const store = {
-		getItem: (k: string) => map.get(k) ?? null,
-		setItem: (k: string, v: string) => void map.set(k, v),
-		removeItem: (k: string) => void map.delete(k)
-	};
-	(globalThis as Record<string, unknown>).localStorage = store;
-	return map;
 }
 
 describe('the module body disclosure', () => {
@@ -157,23 +152,27 @@ describe('the module body disclosure', () => {
 		expect(html).toMatch(/class="cell[ "][^>]*>2</);
 	});
 
-	it("lets a person's own toggle override the completion signal in both directions", () => {
-		const key = disclosureKey(null, `${SPEC.meta.assignmentId}:m1:module`);
-		expect(key).not.toBeNull();
-
-		fakeStore();
-		try {
-			// Complete (would collapse on its own), but this person opened it: stays open.
-			writeDisclosure(key, true);
-			expect(moduleTrigger(draw(COMPLETE))).toContain('aria-expanded="true"');
-
-			// Not complete (would stay open on its own), but this person closed it: stays closed.
-			writeDisclosure(key, false);
-			expect(moduleTrigger(draw(FRESH))).toContain('aria-expanded="false"');
-		} finally {
-			delete (globalThis as Record<string, unknown>).localStorage;
-		}
-	});
+	/**
+	 * THE MANUAL OVERRIDE MOVED, IT WAS NOT DROPPED.
+	 *
+	 * There used to be an `it` here called "lets a person's own toggle override
+	 * the completion signal in both directions". It installed a fake
+	 * `localStorage` on `globalThis`, wrote `open`/`closed` under the panel's key
+	 * with `writeDisclosure`, and re-rendered -- SIMULATING the value a press
+	 * would have produced, because there was no way to press anything.
+	 *
+	 * It was a pure stand-in for a client, not a claim about a server render: on
+	 * a real server there IS no `localStorage`, `readDisclosure` returns null and
+	 * this branch cannot execute, so the only configuration it ever described was
+	 * a browser's. `tests/dom/classroom-module-collapse-mount.test.ts` now presses
+	 * the real trigger, writes the real store and reads the answer back after a
+	 * remount, in both directions ("holds a finished module open while it is
+	 * being finished" and "holds an unfinished module closed, and the answer
+	 * survives a remount"), which is the same claim without the simulation.
+	 *
+	 * Everything else in this file stays: it asserts what a browser RECEIVES,
+	 * which is a different question from what a browser then does.
+	 */
 
 	it('gives the instructor the identical panel in the identical state, with no role branch', () => {
 		for (const values of [FRESH, HALFWAY, COMPLETE]) {
