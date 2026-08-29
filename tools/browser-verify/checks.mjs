@@ -498,12 +498,25 @@ export async function statePairContrast(page, { activeSelector, inactiveSelector
 /* ------------------------------------------------------------------ *
  * 4. Presence vs visibility -- two different questions
  * ------------------------------------------------------------------ */
-export async function presence(page, { selector, label = selector, expectPresent = 1, expectVisible = undefined } = {}) {
+export async function presence(page, { selector, label = selector, expectPresent = 1, expectVisible = undefined, maxVisible = undefined } = {}) {
 	/* Present, visible and exposed-to-assistive-tech are THREE questions. A
 	   collapsed Disclosure keeps its region in the DOM at a zero box on purpose
 	   (CLAUDE.md: hidden in CSS, never removed), so `present 2, visible 0` is
 	   the correct reading of a closed panel and not a defect. A spec that means
-	   it says so with expectVisible. */
+	   it says so with expectVisible.
+
+	   `expectVisible` IS A FLOOR AND ONLY A FLOOR, which makes every
+	   `expectVisible: 0` row in routes.mjs vacuous in its second half: `visible
+	   >= 0` holds for any number of visible nodes, so a panel that started
+	   painting itself open would still come back green and the "visible 0" in
+	   the report would simply become "visible 2". `maxVisible` is the CEILING
+	   the floor cannot express. It exists because two rules in this repo are
+	   stated as a prohibition rather than a minimum -- GAUNTLET-DESIGN's
+	   "the FeatureManager rail is hidden by default; do not make it visible by
+	   default", and CLAUDE.md's "a closed Disclosure keeps its region in the
+	   DOM at a zero box" -- and CLAUDE.md's own verification standard requires
+	   asserting BOTH directions of a visibility claim. Omitted, nothing
+	   changes; every existing row keeps its exact previous semantics. */
 	const wantVisible = expectVisible === undefined ? expectPresent : expectVisible;
 	await ensureHelpers(page);
 	const data = await page.evaluate((selector) => {
@@ -527,13 +540,75 @@ export async function presence(page, { selector, label = selector, expectPresent
 		};
 	}, selector);
 
+	const ceilingOk = maxVisible === undefined || data.visible <= maxVisible;
 	return {
 		check: 'presence',
 		selector,
 		label,
 		measured: `present ${data.present}, visible ${data.visible}, aria-hidden ${data.ariaHidden}`,
-		threshold: `>= ${expectPresent} present, >= ${wantVisible} visible`,
-		withinThreshold: data.present >= expectPresent && data.visible >= wantVisible,
+		threshold:
+			maxVisible === undefined
+				? `>= ${expectPresent} present, >= ${wantVisible} visible`
+				: `>= ${expectPresent} present, ${wantVisible} to ${maxVisible} visible`,
+		withinThreshold: data.present >= expectPresent && data.visible >= wantVisible && ceilingOk,
+		data
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * 4b. Text content -- what an element SAYS, not merely that it exists
+ * ------------------------------------------------------------------ */
+export async function textContains(page, { selector, label = selector, must = [], mustNot = [] } = {}) {
+	/* `presence` proves an element is in the DOM and paints; `contrast` proves
+	   its ink is readable. NEITHER READS A WORD OF IT. For a compliance
+	   surface that is the whole question: GAUNTLET's trademark footer is
+	   `docs/GAUNTLET-DESIGN.md`'s nominative-attribution requirement, and a
+	   footer whose sentence had lost "Dassault Systemes" -- or gained a claim
+	   of endorsement -- is present, visible, and clears 4.5:1 exactly as
+	   before. Every other check in this file comes back green on it.
+	   `--break blank-text` is its live control on the real surface.
+
+	   Whitespace is COLLAPSED on both sides before matching, because the text
+	   is authored across source lines and an editor rewrapping a paragraph
+	   must not redden a compliance check. The comparison is otherwise literal
+	   and case-sensitive: "SOLIDWORKS" is a trademark spelling, not a word.
+
+	   `mustNot` is not decoration. It is the direction a `must` list cannot
+	   see -- a sentence can keep every required phrase and still add one that
+	   reverses it -- and CLAUDE.md requires both directions of any claim like
+	   this. */
+	const data = await page.evaluate(
+		({ selector, must, mustNot }) => {
+			const nodes = Array.from(document.querySelectorAll(selector));
+			const norm = (s) => (s ?? '').replace(/\s+/g, ' ').trim();
+			const text = norm(nodes.map((el) => el.textContent).join(' '));
+			return {
+				nodes: nodes.length,
+				text,
+				missing: must.filter((n) => !text.includes(norm(n))),
+				forbidden: mustNot.filter((n) => text.includes(norm(n)))
+			};
+		},
+		{ selector, must, mustNot }
+	);
+
+	/* Zero matched nodes is a FAILURE, never a vacuous pass: a selector that
+	   matches nothing satisfies "no forbidden phrase appears" perfectly. */
+	const withinThreshold = data.nodes > 0 && data.missing.length === 0 && data.forbidden.length === 0;
+	const excerpt = data.text.length > 120 ? `${data.text.slice(0, 117)}...` : data.text;
+	const faults = [
+		data.nodes === 0 ? 'selector matched NOTHING' : null,
+		data.missing.length ? `missing ${JSON.stringify(data.missing)}` : null,
+		data.forbidden.length ? `forbidden ${JSON.stringify(data.forbidden)}` : null
+	].filter(Boolean);
+
+	return {
+		check: 'text-contains',
+		selector,
+		label,
+		measured: `${data.nodes} node(s), ${data.text.length} chars${faults.length ? `; ${faults.join('; ')}` : '; all phrases present, none forbidden'} -- "${excerpt}"`,
+		threshold: `${must.length} required phrase(s), ${mustNot.length} forbidden, over >= 1 node`,
+		withinThreshold,
 		data
 	};
 }

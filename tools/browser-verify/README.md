@@ -66,9 +66,9 @@ build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
 53 directories under `src/routes/dev` (50 with a page, 3 server-only) and 52
-`+page.svelte` files; `routes.mjs` lists **20 specs over 15 distinct routes**
-(17 over 12 before `/dev/notebook`, `/dev/notebook-review-student` and
-`/dev/song-queue` joined it).
+`+page.svelte` files; `routes.mjs` lists **23 specs over 17 distinct routes**
+(20 over 15 before `/dev/gauntlet-shell` and `/dev/gauntlet-run` joined it on
+2026-08-29, with one alias spec for the armed countdown).
 A 52-route pass nobody waits for is a pass nobody runs. Routes earn a place by
 one question -- if this surface broke silently, would anyone find out before a
 student did -- not by existing. `docs/history/dev-routes-audit-5nocl7.md` has
@@ -219,11 +219,12 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **36
-controls, 18 negative and 18 positive** (re-derived from `selftest.mjs`'s own
-`CASES` array 2026-08-28, after `click-through (aria-disabled control)` and the
-two `tap-reach` groups went in alongside `wait-for`; a number written down here
-is a number that drifts, so re-derive it rather than trusting this line).
+one, because unlike the measuring run there is a right answer here. **44
+controls, 22 negative and 22 positive** (re-derived from `selftest.mjs`'s own
+`CASES` array 2026-08-29, after the three `text-contains` groups and the
+`presence (maxVisible)` group went in; it read 36 on 2026-08-28. A number
+written down here is a number that drifts, so re-derive it rather than trusting
+this line).
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
 once in a tree that then has to be restored byte-identically, this proves it on
 every run and touches nothing.
@@ -271,11 +272,56 @@ green, which is the property that makes it worth anything.
 | `low-contrast` | `contrast` |
 | `invisible` | `presence` |
 | `console-error` | `console-errors` |
+| `blank-text` | `text-contains` |
+
+**`blank-text` names the compliance footers rather than sweeping the
+document**, and that is deliberate: blanking every element would redden
+`contrast` and `tap-target` too, and a control that reddens everything proves
+nothing about the one check under test. It empties `.gt-tm p, footer p`, so it
+only bites on a route that renders one. `overflow` and `invisible` name room
+wrappers for the same kind of reason, and both now include `.gt-root`.
+
+### `text-contains` -- what an element SAYS
+
+`presence` proves an element is in the DOM and paints; `contrast` proves its ink
+is readable. **Neither reads a word of it.** For a compliance surface that is
+the whole question: GAUNTLET's trademark footer carries
+`docs/GAUNTLET-DESIGN.md`'s nominative-attribution requirement, and a footer
+whose sentence had lost "Dassault Systemes" is present, visible, and clears
+4.5:1 exactly as before -- every other check in this file comes back green on
+it. `textContains` takes `must` and `mustNot` phrase lists, collapses
+whitespace on both sides (source is wrapped across lines; an editor reflowing a
+paragraph must not redden a compliance check), and **fails on zero matched
+nodes**, because a selector that matches nothing satisfies "no forbidden phrase
+appears" perfectly. `mustNot` is the direction `must` cannot see: a sentence can
+keep every required phrase and add one that reverses it.
+
+### `presence` gained `maxVisible`, the ceiling `expectVisible` cannot express
+
+`expectVisible` is a FLOOR (`visible >= n`), so every `expectVisible: 0` row is
+vacuous in its second half -- a panel that started painting itself open still
+comes back green and the report simply reads "visible 2" instead of "visible 0".
+`maxVisible` is the ceiling. It exists because some rules here are stated as
+prohibitions rather than minimums, and CLAUDE.md requires asserting both
+directions of a visibility claim. Omitting it changes nothing.
+
+**It is not the right tool for an element that is hidden by being moved.**
+Measured on the GAUNTLET FeatureManager rail: at 1440px the collapsed rail is
+`translateX(calc(-100% - 1.5rem))` plus `pointer-events: none`, so it keeps a
+real 232px box entirely off the left edge and `isVisible` correctly reports it
+as painted -- `maxVisible: 0` reddened a rail behaving exactly as designed.
+`isVisible` does not model "outside the viewport" and **must not be taught
+to**: `tapReach` already reports off-screen sample points as a harness
+artefact, so changing that predicate would move readings on routes far from the
+one being worked on. Assert the EFFECT instead, with an `orderResult` probe
+that hit-tests the element's own box (`/dev/gauntlet-shell` does), which
+answers the same for `display: none` at 375 and an off-screen transform at 1440
+-- two mechanisms, one guarantee.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **~101 seconds** (3.4s of it the vite boot) for **20 route specs
-x 2 widths = 40 runs and 306 measurements**; `--selftest` is ~12s (36 controls).
+A full run is **~117 seconds** (2.0s of it the vite boot) for **23 route specs
+x 2 widths = 46 runs and 388 measurements**; `--selftest` is ~15s (44 controls).
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree
@@ -287,10 +333,18 @@ seconds" when the same tree measured **71.9s**. It later read "~91 seconds ...
 already carried (~+15.6s expected for 6 more runs; 9.3s measured -- still in the
 same ballpark, and the discrepancy is plausibly the `/dev/notebook` prepare
 click adding one extra round trip per width rather than a new per-route
-constant). **101 seconds is the point at which this is worth saying out loud
-rather than just running**: it is comfortably still a pass a person will run
-before pushing, but it is no longer the kind of number nobody notices, and the
-next few specs added here should watch it rather than assume it stays flat.
+constant). **Then 2026-08-29 measured the baseline at 94.9s, not 101s**, and
+the task brief written from this file put it at "44 route/width runs at about
+107 seconds" against a tree measuring **40 runs and 94.9s** -- the third time
+a quoted figure here has been wrong. Three GAUNTLET specs took it to
+**116.7s (+21.8s for 6 runs, ~3.6s per route/width)**, which is ABOVE the
+~2.6s estimate: two of the three specs mount a `.gt-root` with a live canvas
+background and an rAF clock, and the countdown alias pays a real 3.5s hydration.
+
+**117 seconds is the point at which this stops being free.** It is still a pass
+a person will run before pushing, but the next session adding specs here should
+budget ~3.5s per route/width for anything with a canvas or an animation loop in
+it, and should say out loud what the run cost.
 
 It is still deliberately outside `npm test` and outside CI:
 
