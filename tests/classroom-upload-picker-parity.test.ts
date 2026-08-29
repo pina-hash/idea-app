@@ -4,18 +4,24 @@
 // (FileUploadPanel, DeckPanel) as an ADDITION over the existing picker, never
 // a replacement -- requirement 4 of the bundle that added them. This is the
 // regression guard for that: the real shipped components, server-rendered
-// (`svelte/server`, the classroom-manager-spec-visibility.test.ts pattern --
-// this repo has no DOM/event-dispatch harness, so an SSR structural
-// assertion is the strongest claim available without one).
+// (`svelte/server`, the classroom-manager-spec-visibility.test.ts pattern).
+// This header used to add "this repo has no DOM/event-dispatch harness, so an
+// SSR structural assertion is the strongest claim available without one".
+// There is one now: `tests/dom/classroom-upload-picker-parity-mount.test.ts`
+// mounts FileUploadPanel and fires a real drag, drop and paste at it. Every
+// claim below stays -- an SSR render is what the browser RECEIVES, and the
+// three surfaces asserted here are three separate mounts of the picker that a
+// single mounted panel says nothing about.
 //
 // What is asserted, both directions:
 //   - the picker `<input type="file">` is still there, unchanged (no
 //     `accept`, `multiple` present, not disabled by default) -- nothing here
 //     may cost the plain click-to-pick path;
-//   - a NEW keyboard trap is not: the drop feedback overlay is `aria-hidden`
-//     and absent from the default render (it exists only while a drag is
-//     literally over the surface), so it adds nothing to the tab order and
-//     nothing reachable only by pointer;
+//   - a NEW keyboard trap is not: the drop feedback overlay is absent from the
+//     default render, so it adds nothing to the tab order and nothing
+//     reachable only by pointer. (That it APPEARS during a drag, and is
+//     `aria-hidden` when it does, is the mount file's -- one frame of SSR
+//     cannot show a state that only exists mid-drag.)
 //   - the panel states its new drag/paste capability in words, not only
 //     through a listener nobody is told about.
 

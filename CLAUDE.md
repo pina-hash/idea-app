@@ -2842,6 +2842,25 @@ belong wherever the app's own behaviour is documented.
     this as a side effect of an unrelated task. Adopting a formatter is its own
     bundle and its diff is the entire repository; smuggling it in under another
     change is how a surgical fix becomes unreviewable.
+- **`npm install` REWRITES `package-lock.json`'s INDENTATION TO MATCH
+  `package.json`'s, WHICH TURNS A ONE-PACKAGE ADD INTO A WHOLE-FILE DIFF.** npm
+  detects a lockfile's formatting from the manifest beside it and writes the
+  whole file back in that style -- silently, exit 0, with nothing in the output
+  saying it reformatted anything. It is the prettier problem one file over, and
+  it has the same cost: the real change becomes unreviewable.
+  - **THIS REPO IS EXACTLY THE DIVERGENT CASE, MEASURED**: `package.json` is
+    TAB-indented and `package-lock.json` is TWO-SPACE indented, and the lockfile
+    is **4,649 lines**. So a one-package add here does not produce a handful of
+    lines, it produces a 4,649-line diff.
+  - **`npm ci` DOES NOT DO THIS.** It installs FROM the lockfile and never
+    writes it, so restoring `node_modules` in a fresh checkout -- which is every
+    cloud session -- is always `npm ci` and never `npm install`.
+  - **WHEN A DEPENDENCY GENUINELY HAS TO BE ADDED**, run the install, then read
+    `git diff --stat package-lock.json` BEFORE committing. A count in the
+    thousands for a one-package add is the reformat, not the dependency:
+    `git checkout package-lock.json` and add the entry so the two files' styles
+    already agree, or commit the reformat as its own commit so the dependency's
+    own diff stays readable. **Never let it ride along inside another change.**
 - **`npm run build` dies on Windows in the Vercel adapter's `closeBundle` with
   `EPERM`** writing a path Windows cannot create. Machine-level and PRE-EXISTING,
   not a code failure; Vercel builds on Linux and is unaffected. It does NOT stop
@@ -2901,9 +2920,35 @@ This is the **only** automated suite, and it is deliberately narrow.
   regression would be SILENT** -- security boundaries, exclusion filters, data
   visibility, migration-over-real-data. Feature correctness that fails visibly
   belongs in a harness.
-- **`vitest.config.ts` is standalone, not an extension of `vite.config.ts`.**
-  These are database tests: no Svelte, no DOM, no SvelteKit. It carries only the
-  aliases needed to import a REAL module rather than a copy of it.
+- **`vitest.config.ts` is standalone, not an extension of `vite.config.ts`.** It
+  carries only the aliases needed to import a REAL module rather than a copy of
+  it, and it declares TWO PROJECTS: `node` (everything under `tests/` except
+  `tests/dom/`, on svelte's SERVER build, which is where the database tests and
+  the twenty-odd `svelte/server` `render()` files live) and `dom`
+  (`tests/dom/**`, happy-dom plus `conditions: ['browser']`, which is the only
+  place `mount()` runs an effect). Its own header and `tests/dom/README.md`
+  carry the argument. **Prefer `node` when either would do**: a mount costs
+  roughly an order of magnitude more per test than a server render, and the
+  client compile is paid per file on top.
+- **happy-dom HAS NO LAYOUT ENGINE, SO NO GEOMETRY, CONTRAST OR TAP-TARGET
+  CLAIM MAY BE ASSERTED IN `tests/dom/`.** Measured there:
+  `getBoundingClientRect()` answers `{x:0, y:0, width:0, height:0}`,
+  `offsetWidth` is `0`, and `getComputedStyle(el).color` is the EMPTY STRING.
+  A test that measures a box, a ratio or a 44px target in that project reads
+  zero and **passes vacuously** -- which is exactly the instrument defect that
+  hid in the browser harness for weeks, arriving as a green tick rather than as
+  an error. **There is no local detector for it**: the file type-checks, the
+  project runs it, and nothing anywhere says the number came from a page that
+  was never laid out.
+  - **THE TRAP INSIDE THE TRAP IS THAT SOME COMPUTED READS ARE REAL.**
+    `getComputedStyle(el).display` answers `"block"` correctly, because the
+    cascade runs even though layout does not. So a computed-style read that
+    works is not evidence that the next one will.
+  - **THOSE CLAIMS BELONG TO `npm run verify:browser` AND NOWHERE ELSE.** It
+    drives a real Chromium at 375px and 1440px and reports measured values.
+    What `tests/dom/` is for is structure, events, effects and storage: a real
+    `dispatchEvent` reaching a real handler, `preventDefault` readable
+    afterwards, `localStorage` surviving an unmount.
 - **The fixture is a REAL embedded Postgres with the REAL migration files applied
   unmodified** (`tests/db/harness.ts`). `tests/db/supabase-stub.sql` supplies only
   what lives OUTSIDE `supabase/migrations` (the roles, `auth.users`/`auth.uid()`,
