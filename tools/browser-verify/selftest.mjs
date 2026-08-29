@@ -21,6 +21,7 @@ import {
 	tapTargets,
 	tapReach,
 	presence,
+	textContains,
 	domOrder,
 	orderResult,
 	datalistOrder,
@@ -437,6 +438,114 @@ const CASES = [
 					withinThreshold: r.ok
 				};
 			},
+			expect: 'within'
+		}
+	},
+	{
+		group: 'text-contains (a required phrase went missing)',
+		bad: {
+			/* The compliance regression exactly: the element is present, it
+			   paints, its ink clears 4.5:1, and the attribution is gone.
+			   `presence` and `contrast` both come back green on this fixture,
+			   which is why this check has to exist at all. */
+			name: 'a trademark footer that dropped the rights holder',
+			html: shell('<footer class="gt-tm"><p id="tm">SOLIDWORKS is a trademark. IDEA GAUNTLET is an educational tool built at Bosco Tech.</p></footer>'),
+			run: (p) =>
+				textContains(p, {
+					selector: '#tm',
+					must: ['SOLIDWORKS is a trademark of Dassault Syst\u00e8mes', 'not affiliated with']
+				}),
+			expect: 'outside'
+		},
+		good: {
+			/* Whitespace COLLAPSED on both sides: the needle is written on one
+			   line and the haystack is wrapped across three, the way the real
+			   footer's source is. A check that matched literally would redden
+			   the day somebody reflowed a paragraph. */
+			name: 'the full sentence, source-wrapped across lines',
+			html: shell(
+				'<footer class="gt-tm"><p id="tm">SOLIDWORKS is a trademark of Dassault Syst\u00e8mes.\n\t\tIDEA GAUNTLET is an educational tool built at Bosco Tech and is\n\t\tnot affiliated with, sponsored by, or endorsed by Dassault Syst\u00e8mes.</p></footer>'
+			),
+			run: (p) =>
+				textContains(p, {
+					selector: '#tm',
+					must: ['SOLIDWORKS is a trademark of Dassault Syst\u00e8mes', 'not affiliated with']
+				}),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'text-contains (a forbidden phrase appeared)',
+		bad: {
+			/* The direction a `must` list cannot see. Every required phrase is
+			   still there; one more has been added that reverses the claim. */
+			name: 'every required phrase present, plus a claim of endorsement',
+			html: shell(
+				'<footer class="gt-tm"><p id="tm">SOLIDWORKS is a trademark of Dassault Syst\u00e8mes. IDEA GAUNTLET is not affiliated with them, and is an officially endorsed partner product.</p></footer>'
+			),
+			run: (p) =>
+				textContains(p, {
+					selector: '#tm',
+					must: ['SOLIDWORKS is a trademark of Dassault Syst\u00e8mes', 'not affiliated with'],
+					mustNot: ['officially endorsed', 'in partnership with']
+				}),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same required phrases with neither forbidden claim',
+			html: shell(
+				'<footer class="gt-tm"><p id="tm">SOLIDWORKS is a trademark of Dassault Syst\u00e8mes. IDEA GAUNTLET is not affiliated with, sponsored by, or endorsed by Dassault Syst\u00e8mes.</p></footer>'
+			),
+			run: (p) =>
+				textContains(p, {
+					selector: '#tm',
+					must: ['SOLIDWORKS is a trademark of Dassault Syst\u00e8mes', 'not affiliated with'],
+					mustNot: ['officially endorsed', 'in partnership with']
+				}),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'text-contains (selector matched nothing)',
+		bad: {
+			/* A selector that matches nothing satisfies "no forbidden phrase
+			   appears" perfectly, and would report a clean compliance reading
+			   about a footer that is not on the page. The day a class name
+			   moves, that is the failure -- silent, and in the reassuring
+			   direction. */
+			name: 'a mustNot-only assertion against a selector that matches nothing',
+			html: shell('<footer class="gt-other"><p>the footer moved to another class</p></footer>'),
+			run: (p) => textContains(p, { selector: '#tm', mustNot: ['officially endorsed'] }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same assertion against the selector it names',
+			html: shell('<footer class="gt-tm"><p id="tm">the footer is where the spec says it is</p></footer>'),
+			run: (p) => textContains(p, { selector: '#tm', mustNot: ['officially endorsed'] }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'presence (maxVisible -- the ceiling expectVisible cannot express)',
+		bad: {
+			/* `expectVisible` is a FLOOR: `visible >= 0` holds for any number,
+			   so every `expectVisible: 0` row in routes.mjs passes on this
+			   fixture and reports "visible 1" as if that were the intended
+			   reading. GAUNTLET-DESIGN states the FeatureManager rail as a
+			   prohibition ("hidden by default; do not make it visible by
+			   default"), which is a ceiling, not a minimum. */
+			name: 'a rail that must be hidden by default, painting itself open',
+			html: shell('<nav id="rail" style="display:block;width:200px;height:300px;background:#123">open</nav>'),
+			run: (p) => presence(p, { selector: '#rail', expectPresent: 1, expectVisible: 0, maxVisible: 0 }),
+			expect: 'outside'
+		},
+		good: {
+			/* Present in the DOM at a zero box, which is what a collapsed rail
+			   and a closed Disclosure both are -- kept so it prints and so
+			   reopening costs nothing. */
+			name: 'the same rail collapsed: in the DOM, painted nowhere',
+			html: shell('<nav id="rail" style="display:none">collapsed</nav>'),
+			run: (p) => presence(p, { selector: '#rail', expectPresent: 1, expectVisible: 0, maxVisible: 0 }),
 			expect: 'within'
 		}
 	},
