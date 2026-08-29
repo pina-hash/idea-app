@@ -310,10 +310,27 @@
 		gap: 0.25rem;
 		flex-wrap: wrap;
 	}
+	/* These are the row-ops chips -- Edit, Delete, Cancel beside a short link
+	   in a table, on an admin-only surface nobody phone-taps -- so
+	   IDEA_INTERFACE_STANDARDS 10's 24px floor applies, not the 44px one,
+	   exactly as `.cr-root .btn.tiny` already decides for the classroom's
+	   chips.
+
+	   IT HAS TO SAY SO HERE, because this component is the one `.btn.tiny`
+	   call site that is NOT inside `.cr-root`: it mounts at /admin/links
+	   under `main.admin-page`, so the classroom's floor never reaches it and
+	   `.btn`'s own 44px floor would otherwise inflate these into buttons.
+	   The dev harness mounts it INSIDE `.cr-root`, which is why the
+	   divergence is invisible there.
+
+	   `min-height` and never a height, and it also closes a defect that was
+	   already here: with no floor at all these measured 22.9px at both 375px
+	   and 1440px, under even the 24px chip floor. */
 	.btn.tiny,
 	.btn.secondary.tiny {
 		font-size: 0.65rem;
 		padding: 0.28rem 0.6rem;
+		min-height: 24px;
 	}
 	.btn.danger {
 		color: var(--crimson);
