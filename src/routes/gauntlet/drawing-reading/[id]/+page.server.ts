@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { rpcErrorStatus } from '$lib/pg-errors';
 import type { Actions, PageServerLoad } from './$types';
 import type { KnowledgePrompt } from '$lib/gauntlet';
 import { nextUncleared } from '$lib/gauntlet/next-challenge';
@@ -79,17 +80,37 @@ export const actions: Actions = {
 		if (typeof answer !== 'string' || answer.length === 0) {
 			return fail(400, { error: 'Pick an answer first.' });
 		}
-		const elapsedRaw = Number(form.get('elapsed_ms'));
-		const elapsed = Number.isFinite(elapsedRaw) ? Math.max(0, Math.round(elapsedRaw)) : 0;
+		/*
+		 * 0148: THE CLOCK IS THE SERVER'S, AND THE ABSENT FIELD IS THE SIGNAL.
+		 *
+		 * The play surface deletes `elapsed_ms` from the form once
+		 * `gauntlet_knowledge_start` has answered, so a missing field means the
+		 * database is timing this run and `p_elapsed_ms` must not be named at
+		 * all. A field that IS present is the pre-0148 rung, where the deployed
+		 * function still scores what it is sent -- and where sending nothing
+		 * would score every knowledge submit on the site at zero. Passing the
+		 * parameter conditionally is what keeps the two deploys independent.
+		 *
+		 * Post-0148 the value is ignored for scoring either way and is recorded
+		 * on the submission as `client_elapsed_ms`, so a forged number is kept
+		 * as evidence rather than trusted or discarded.
+		 */
+		const elapsedField = form.get('elapsed_ms');
+		const args: Record<string, unknown> = { p_challenge_id: params.id, p_value: { answer } };
+		if (typeof elapsedField === 'string' && elapsedField !== '') {
+			const elapsedRaw = Number(elapsedField);
+			args.p_elapsed_ms = Number.isFinite(elapsedRaw) ? Math.max(0, Math.round(elapsedRaw)) : 0;
+		}
 
-		const { data, error: rpcError } = await supabase.rpc('gauntlet_submit', {
-			p_challenge_id: params.id,
-			p_value: { answer },
-			p_elapsed_ms: elapsed
-		});
+		const { data, error: rpcError } = await supabase.rpc('gauntlet_submit', args);
 
 		if (rpcError) {
-			return fail(500, { error: rpcError.message });
+			// A refusal this function CONSIDERED (a missing start row, an
+			// unavailable challenge) is a 400, not a 500: `rpcErrorStatus` is the
+			// repo's one partition of SQLSTATEs, so a deadlock is still reported
+			// as retryable and everything else as a decision about the payload.
+			// The message is rendered verbatim where the student is working.
+			return fail(rpcErrorStatus(rpcError.code), { error: rpcError.message });
 		}
 
 		return { result: data, answered: answer };

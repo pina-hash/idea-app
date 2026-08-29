@@ -6,6 +6,15 @@
 	import Asset from '$lib/gauntlet/Asset.svelte';
 	import RunResults from '$lib/gauntlet/RunResults.svelte';
 	import { difficultyLabel, formatTime, type SubmitResult } from '$lib/gauntlet';
+	import {
+		AHEAD_NOTE,
+		CLOCK_STARTING,
+		clockAcceptsAnswers,
+		clockIsServerSide,
+		reviewNote,
+		startKnowledgeClock,
+		type KnowledgeClock
+	} from '$lib/gauntlet/knowledge-clock';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenge, board, myUserId, myBest } = $derived(data);
@@ -23,8 +32,18 @@
 	let localAnswered = $state<string | null>(null);
 	let localError = $state('');
 
+	// 0148: the ranked clock is the SERVER's. Same module as KnowledgePlay, so
+	// this page and that component cannot come to disagree about whether the
+	// server is timing the run. `startTime` is now only the pre-0148 fallback.
+	let clock = $state<KnowledgeClock>(CLOCK_STARTING);
+
 	onMount(() => {
 		startTime = performance.now();
+		// A plain call in onMount, NOT an $effect: this is the injected client and
+		// an effect calling it would take a dependency on whatever it touches
+		// (CLAUDE.md, the injected-transport rule). Not in the route's load
+		// either, which a hover prefetch would fire.
+		void startKnowledgeClock(supabase, challenge.id).then((c) => (clock = c));
 	});
 
 	const submitEnhance: SubmitFunction = ({ formData, cancel }) => {
@@ -33,7 +52,11 @@
 			return;
 		}
 		formData.set('answer', selected);
-		formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
+		// The successful start is what licenses omitting this; where 0148 is not
+		// applied yet the browser number is sent exactly as before, because that
+		// server scores a MISSING value as zero. See knowledge-clock.ts.
+		if (clockIsServerSide(clock)) formData.delete('elapsed_ms');
+		else formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
 		bestBeforeRun = myBest ?? null;
 		submitting = true;
 		return async ({ result, update }) => {
@@ -41,6 +64,8 @@
 				localResult = result.data.result as SubmitResult;
 				localAnswered = (result.data.answered as string) ?? null;
 				localError = '';
+				// The submit that lands CLOSES the server clock (0148).
+				if (clockIsServerSide(clock)) clock = { ...clock, timed: false };
 			} else if (result.type === 'failure') {
 				localError = (result.data?.error as string) ?? 'Something went wrong.';
 			} else if (result.type === 'error') {
@@ -106,6 +131,12 @@
 			{/if}
 			<p class="question">{challenge.prompt.question}</p>
 
+			{#if clock.state === 'failed'}
+				<p class="warn">{clock.message}</p>
+			{:else if !clock.timed && !answered}
+				<p class="instructions">{AHEAD_NOTE}</p>
+			{/if}
+
 			<form method="POST" action="?/submit" use:enhance={submitEnhance}>
 				<fieldset class="options" disabled={answered || submitting}>
 					{#each challenge.prompt.options ?? [] as opt (opt.id)}
@@ -134,7 +165,11 @@
 				{/if}
 
 				{#if !answered}
-					<button class="btn" type="submit" disabled={!selected || submitting}>
+					<button
+						class="btn"
+						type="submit"
+						disabled={!selected || submitting || !clockAcceptsAnswers(clock)}
+					>
 						{submitting ? 'Checking...' : 'Submit answer'}
 					</button>
 				{/if}
@@ -156,6 +191,9 @@
 					backHref="/gauntlet/drawing-reading"
 					onRetry={tryAgain}
 				/>
+				{#if reviewNote(localResult.timed_attempt)}
+					<p class="instructions">{reviewNote(localResult.timed_attempt)}</p>
+				{/if}
 				{#if localResult.explanation}
 					<p class="explanation">{localResult.explanation}</p>
 				{/if}

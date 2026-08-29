@@ -27,6 +27,7 @@ import {
 	tapTargets,
 	tapReach,
 	presence,
+	textContains,
 	domOrder,
 	orderResult,
 	datalistOrder,
@@ -62,7 +63,16 @@ export const BREAKAGE = {
 	   a preset that matches nothing on the surface being driven reports a clean
 	   run and is indistinguishable from a working check. */
 	invisible:
-		'.harness, main, h1, table, .chip-grid, .idea-logo, .note, .cr-root, .fg-root, .nb-root { opacity: 0 !important; }',
+		'.harness, main, h1, table, .chip-grid, .idea-logo, .note, .cr-root, .fg-root, .nb-root, .gt-root { opacity: 0 !important; }',
+	/* The compliance control for `textContains`. Every other preset here leaves
+	   an element saying exactly what it said; this one empties the words and
+	   leaves the box, which is the shape of the regression that check exists
+	   for -- a trademark footer still present, still visible, still clearing
+	   4.5:1, and no longer attributing anything to anybody. It NAMES the
+	   footers rather than sweeping every element, because blanking the whole
+	   document would redden `contrast` and `tap-target` too and a control that
+	   reddens everything proves nothing about the one check under test. */
+	'blank-text': { js: 'for (const el of document.querySelectorAll(".gt-tm p, footer p")) el.textContent = "";' },
 	/* Not CSS: a thrown error, which is how the notebook bundle's real
 	   state_unsafe_mutation surfaced -- silently, with dead click handlers. */
 	'console-error': { js: 'throw new Error("state_unsafe_mutation (injected by --break console-error)")' }
@@ -219,6 +229,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const t of spec.tapTargets ?? []) results.push(await tapTargets(page, t));
 		for (const t of spec.tapReach ?? []) results.push(await tapReach(page, t));
 		for (const p of spec.presence ?? []) results.push(await presence(page, p));
+		for (const t of spec.textContains ?? []) results.push(await textContains(page, t));
 		for (const o of spec.domOrder ?? []) results.push(await domOrder(page, o));
 		for (const o of spec.orderResult ?? []) results.push(await orderResult(page, o));
 		for (const d of spec.datalistOrder ?? []) results.push(await datalistOrder(page, d));

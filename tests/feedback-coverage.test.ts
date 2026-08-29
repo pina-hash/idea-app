@@ -310,22 +310,36 @@ describe('a signed-out visitor gets the control, which is the point of the bundl
 				anonymous: false
 			}
 		}).body;
-		// The box is closed until the trigger is pressed, so what is asserted
-		// here is the SOURCE wiring plus the note both renders would carry.
+		// WHAT IS STILL ASSERTED HERE IS THE SERVED MARKUP: both configurations
+		// really do render, and each serves exactly ONE trigger. The box itself
+		// is closed until somebody presses that trigger, so nothing inside it
+		// exists in either of these strings.
 		expect(triggers({ anonymous: true })).toBe(1);
+		expect(triggers({ anonymous: false })).toBe(1);
 		expect(anon.length).toBeGreaterThan(0);
 		expect(signedIn.length).toBeGreaterThan(0);
 
-		const site = read('src/lib/feedback/SiteFeedback.svelte');
-		expect(site).toContain('askContact={anonymous}');
-		const box = read('src/lib/feedback/FeedbackBox.svelte');
-		// ABSENCE IS THE MECHANISM one level in: no field, and no `contact` on
-		// the entry at all.
-		expect(box).toContain('{#if askContact}');
-		expect(box).toContain('...(askContact ? { contact } : {})');
-		// PLAINLY OPTIONAL, in the label rather than only in a placeholder.
-		expect(box).toContain('(optional)');
-		expect(box).toContain('Leave it empty and the report is still read.');
+		// FIVE SOURCE-STRING ASSERTIONS USED TO SIT HERE, and they were an
+		// explicit proxy: this test said so itself, in the comment that used to
+		// be above -- "the SOURCE wiring plus the note both renders would
+		// carry". They are asserted directly now, by pressing the trigger and
+		// reading the opened box, in
+		// `tests/dom/feedback-contact-field-mount.test.ts`:
+		//
+		//   `askContact={anonymous}` in SiteFeedback     -> the field appears for
+		//     an anonymous reporter and not for a signed-in one, through the real
+		//     component with the real prop.
+		//   `{#if askContact}` in FeedbackBox            -> the same pair, read
+		//     off the mounted box rather than off the file.
+		//   `...(askContact ? { contact } : {})`         -> `'contact' in entry`
+		//     on the object the transport was actually handed, both directions.
+		//   `(optional)`                                 -> the RENDERED label
+		//     text of `#fb-contact`.
+		//   `Leave it empty and the report is still read.` -> the rendered note
+		//     beside it.
+		//
+		// A string search over a file passes over a branch nothing reaches; the
+		// payload assertion cannot.
 	});
 
 	it('tells a signed-out reporter their report carries no name', () => {

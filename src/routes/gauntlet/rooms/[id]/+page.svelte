@@ -11,6 +11,7 @@
 		formatTime,
 		formatMass,
 		roomStateLabel,
+		deviationBandLabel,
 		DRAWINGS_BUCKET,
 		SUBMIT_MACRO_PATH,
 		UNIT_SYSTEM_UNITS,
@@ -90,7 +91,15 @@
 	});
 	const hasDrawing = $derived(!!(roomDrawingSvg || roomDrawingUrl));
 	// This racer's own result (from the manual RPC or a Realtime submission).
-	let myResult = $state<{ is_correct: boolean; score_metric: number | null } | null>(null);
+	// `band` is the coarse UNSIGNED verdict from gauntlet_room_manual_submit. It
+	// is what a wrong racer learns instead of the exact target, which 0147
+	// removed from that payload; it is null when the result came from the board
+	// (a realtime row) rather than from this racer's own submit.
+	let myResult = $state<{
+		is_correct: boolean;
+		score_metric: number | null;
+		band: string | null;
+	} | null>(null);
 	let mass = $state<number | null>(null);
 	let submitting = $state(false);
 	let submitError = $state('');
@@ -151,7 +160,11 @@
 				(payload) => {
 					const row = payload.new as { user_id?: string; is_correct?: boolean; score_metric?: number | null };
 					if (row.user_id === myUserId) {
-						myResult = { is_correct: !!row.is_correct, score_metric: row.score_metric ?? null };
+						myResult = {
+							is_correct: !!row.is_correct,
+							score_metric: row.score_metric ?? null,
+							band: null
+						};
 					}
 					invalidateAll();
 				}
@@ -216,7 +229,11 @@
 			submitting = false;
 			return;
 		}
-		myResult = { is_correct: !!res.is_correct, score_metric: res.score_metric ?? null };
+		myResult = {
+			is_correct: !!res.is_correct,
+			score_metric: res.score_metric ?? null,
+			band: (res.deviation_band as string) ?? null
+		};
 		submitting = false;
 		await invalidateAll();
 	};
@@ -312,7 +329,9 @@
 
 			{#if myResult}
 				<div class="result-banner" class:ok={myResult.is_correct} class:no={!myResult.is_correct}>
-					<span class="result-verdict">{myResult.is_correct ? 'Pass, verified' : 'Outside tolerance'}</span>
+					<span class="result-verdict">
+						{myResult.is_correct ? 'Pass, verified' : deviationBandLabel(myResult.band)}
+					</span>
 					<span class="result-time">Time {formatTime(myResult.score_metric)}</span>
 				</div>
 				{#if myResult.is_correct}

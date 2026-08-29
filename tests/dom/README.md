@@ -21,9 +21,20 @@ this directory is green and vacuous, which is worse than no control.
 
 It also means real events reach real listeners: `dispatchEvent` on a mounted
 node runs the component's handler, `preventDefault` is readable afterwards, and
-`localStorage` is a real store that survives an unmount. Four files here now
+`localStorage` is a real store that survives an unmount. Six files here now
 depend on that -- the disclosure toggle, the manager write boundary, the upload
-drag/drop/paste, and the module collapse.
+drag/drop/paste, the module collapse, the Foundry stage's full-screen and stop
+controls, and the feedback box's optional contact field.
+
+**And it is the only place a claim about DOM IDENTITY can be made at all.**
+`svelte/server`'s `render()` produces one string per call, so "the same node
+survived this state change" is not a question it can be asked -- there is no
+node, and no second render to compare one against.
+`foundry-app-stage-mount.test.ts` exists for exactly that: full screen must add
+a class to the stage while the running bundle's `<iframe>` keeps its identity
+and its `src`, because a remount restarts a student's app at the moment they
+asked for more room. It renders pixel-identically either way, so nothing else
+can see it.
 
 ## THE HARD LIMIT: THERE IS NO LAYOUT ENGINE
 
@@ -65,10 +76,46 @@ a bug in the test, whatever it currently reports.
 - **Do not assert geometry, contrast or a tap target here.** See the section
   above; there is no layout engine and the read comes back zero.
 
+## Two environment facts measured here, both of which cost a detour
+
+**happy-dom NAVIGATES an `<iframe>` for real.** A frame whose `src` is an
+absolute https URL makes an actual network request when it is connected -- so a
+mount test that renders one reaches the host in the URL, and its teardown
+aborts the request and prints a page of `AsyncTaskManager` traces. Turning it
+off with `disableIframePageLoading` stops the network but reports every blocked
+navigation to the page console instead (12 `NotSupportedError` traces for the
+ten tests in the Foundry stage file), and happy-dom's
+`handleDisabledFileLoadingAsSuccess` is not read on the iframe path -- only by
+script and link elements. **The setting that works is a fetch interceptor**,
+`window.happyDOM.settings.fetch.interceptor`, which answers the frame from
+memory: no socket, no console output, and the element behaves as the component
+expects. `foundry-app-stage-mount.test.ts` sets one in `beforeAll`.
+
+**Tiptap/ProseMirror runs here, fully.** Probed against the real
+`NoteEditor.svelte` (measured, this bundle, not migrated): the editor mounts
+with no throw, the element carries a real `pmViewDesc`, `onready` fires once
+with `{"type":"doc","content":[{"type":"paragraph"}]}`, and a real `paste`
+`ClipboardEvent` carrying `text/html` reaches ProseMirror and produces the
+edited document. Note that `onchange` fires ONCE AT MOUNT from the seeding
+transaction, before anybody has typed -- which is the defect `EditBaseline`
+exists to absorb, and it behaves correctly here too: seeded on the ready doc,
+`changed()` is `false` for that seeding transaction and `true` after the paste.
+So the notebook's dirty-signal surfaces are a viable next bundle rather than a
+dead end. **The pane's keyboard limitation still applies**: drive an editor with
+a `paste` event, not with dispatched Enter/Tab keys.
+
 ## The instruments
 
-`mount.ts` and `drag-events.ts` are the shared driving code, and
-`composer-mount.ts` is one test's own. They are **not** `.test.ts`, so vitest
+`mount.ts`, `drag-events.ts` and `reactive-props.svelte.ts` are the shared
+driving code, and `composer-mount.ts` is one test's own.
+
+`reactive-props.svelte.ts` is what lets a test change a prop on a MOUNTED
+component. `mount(C, { props })` reads props off the object it is handed, so an
+ordinary object is a one-shot and an effect keyed on a prop can never be made to
+re-run; wrapping it in `$state` gives the component the same reactive reads a
+real parent gives it. It is a `.svelte.ts` module because runes need one, and
+`mount.ts` beside it stays plain TypeScript so the files already importing it
+do not move. They are **not** `.test.ts`, so vitest
 does not collect them, and they are kept apart from the assertions for the
 reason `composer-mount.ts` states in its own header: a mutation proof drives the
 identical instrument against a deliberately broken component, and a body retyped

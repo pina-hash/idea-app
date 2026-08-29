@@ -302,12 +302,67 @@ describe('who can read a folder', () => {
 	});
 });
 
+// ---------------------------------------------------------------------------
+// THE WRITE PATH, AND WHY THESE ASSERTIONS CHANGED SHAPE.
+//
+// This block used to assert `rejects 42501` for all three verbs, and it passed
+// only because the fixture was STRICTER THAN PRODUCTION. A hosted Supabase
+// project bootstraps `alter default privileges in schema public grant all on
+// tables to anon, authenticated, service_role`, so `notebook_folders` arrives
+// holding all seven privileges for both client roles before 0088 grants
+// anything -- and 0088, unlike 0069 next door, never wrote the `revoke all ...
+// from anon, authenticated` that would have taken them back. The stub carried
+// only the FUNCTION half of those defaults, so in here the table came out
+// holding exactly what its migration granted and the privilege claim was
+// trivially true. The stub carries the TABLE half now, and the claim is false:
+// MEASURED on the fixture, notebook_folders.relacl is
+// `authenticated=arwdDxtm/postgres`, which is production's whole set.
+//
+// SO WHAT ACTUALLY REFUSES A WRITE IS RLS, AND IT REFUSES THE THREE VERBS IN
+// TWO DIFFERENT WAYS -- which is the finding, and is why one assertion could
+// never have covered them. Measured, as `authenticated`, against a folder the
+// actor owns:
+//
+//   INSERT  -> 42501, "new row violates row-level security policy". A table
+//              with RLS on and no INSERT policy REFUSES.
+//   UPDATE  -> SUCCEEDS, rowCount 0.
+//   DELETE  -> SUCCEEDS, rowCount 0.
+//
+// An UPDATE or DELETE denied by RLS is not an error. The policy set is two
+// SELECT policies and nothing else (`polcmd = 'r'`, both of them), so there
+// are zero updatable rows for anybody and the statement is a SILENT NO-OP. A
+// test keyed on the exception was therefore asserting the grant, not the
+// containment, and would have gone on passing here while every deployed
+// student held UPDATE and DELETE.
+//
+// WHAT IS ASSERTED NOW IS THE GUARANTEE IN THIS BLOCK'S OWN NAME: nothing
+// lands. Either the statement raises, or it touches no rows -- and the folder
+// is READ BACK afterwards and must be unchanged, which the old form never
+// checked at all. That holds in both worlds, before 0149 revokes the inherited
+// grants and after.
+//
+// THE PRIVILEGE CLAIM IS NOT DROPPED, IT MOVED TO WHERE IT IS TRUE.
+// tests/grant-surface.test.ts reconciles the whole catalog against the whole
+// chain -- 0149 included -- and `notebook_folders` appears in neither
+// ANON_SURFACE nor AUTHENTICATED_WRITE_SURFACE, so `authenticated` holding any
+// write on it reddens there. Restating it here, over a chain that stops before
+// 0149, is what produced a green run over a false claim.
+// ---------------------------------------------------------------------------
+
 describe('there is no client write path to notebook_folders', () => {
-	const actors = () => [
-		['a student', ada],
-		['an instructor', instructor],
-		['the chair', chair]
-	] as const;
+	/**
+	 * Runs `statement` as `actor` and answers what the DATABASE did with it, so
+	 * a refusal and a zero-row no-op can be told apart and reported rather than
+	 * collapsed into "it did not work".
+	 */
+	const attempt = async (actorId: string, statement: string, params: unknown[] = []) => {
+		try {
+			const r = await db.asUser(actorId, (q) => q(statement, params));
+			return { raised: null as string | null, rowCount: r.rowCount ?? 0 };
+		} catch (error) {
+			return { raised: (error as { code?: string }).code ?? 'unknown', rowCount: 0 };
+		}
+	};
 
 	for (const [who, user] of [
 		['a student', () => ada],
@@ -316,27 +371,84 @@ describe('there is no client write path to notebook_folders', () => {
 	] as const) {
 		it(`${who} cannot INSERT, UPDATE or DELETE directly`, async () => {
 			const actor = user();
-			await expect(
-				db.asUser(actor.id, (q) =>
-					q(`insert into public.notebook_folders (student_id, name) values ($1, 'Sneaky')`, [
-						actor.id
-					])
-				)
-			).rejects.toMatchObject({ code: '42501' });
+			const before = await db.sql<{ name: string; color: string | null }>(
+				`select name, color from public.notebook_folders where id = $1`,
+				[gearbox]
+			);
+			expect(before.rows, 'The row this test is about must exist, or nothing below means anything.').toHaveLength(1);
 
-			await expect(
-				db.asUser(actor.id, (q) =>
-					q(`update public.notebook_folders set name = 'Renamed' where id = $1`, [gearbox])
-				)
-			).rejects.toMatchObject({ code: '42501' });
+			// INSERT is the one RLS raises on: no INSERT policy means the WITH
+			// CHECK cannot be satisfied, and a failed WITH CHECK is an error.
+			const inserted = await attempt(
+				actor.id,
+				`insert into public.notebook_folders (student_id, name) values ($1, 'Sneaky')`,
+				[actor.id]
+			);
+			expect(
+				inserted.raised,
+				'A folder is created by notebook_upsert_folder and by nothing else.'
+			).toBe('42501');
 
-			await expect(
-				db.asUser(actor.id, (q) =>
-					q(`delete from public.notebook_folders where id = $1`, [gearbox])
-				)
-			).rejects.toMatchObject({ code: '42501' });
+			// UPDATE and DELETE are the two that do NOT raise while the inherited
+			// grant is in place. What must hold is that they change nothing.
+			const updated = await attempt(
+				actor.id,
+				`update public.notebook_folders set name = 'Renamed' where id = $1`,
+				[gearbox]
+			);
+			expect(
+				updated.rowCount,
+				`UPDATE as ${who} touched a row. RLS is the only thing standing between a client ` +
+					'and this table until 0149 revokes the inherited grant, so a policy added for a ' +
+					'read is capable of opening a write here.'
+			).toBe(0);
+
+			const deleted = await attempt(
+				actor.id,
+				`delete from public.notebook_folders where id = $1`,
+				[gearbox]
+			);
+			expect(deleted.rowCount, `DELETE as ${who} touched a row.`).toBe(0);
+
+			// The point of the whole block, stated as data rather than as an
+			// exception type: the folder is exactly as it was.
+			const after = await db.sql<{ name: string; color: string | null }>(
+				`select name, color from public.notebook_folders where id = $1`,
+				[gearbox]
+			);
+			expect(
+				after.rows,
+				'Neither statement raised on every path, so the row itself is the assertion.'
+			).toEqual(before.rows);
 		});
 	}
+
+	/**
+	 * The positive control for the three above. Every one of them is an absence
+	 * assertion over statements that RETURN NORMALLY, so if `attempt` ever
+	 * stopped reaching the database -- a renamed column, a role that failed to
+	 * switch -- they would all report zero rows touched and pass. This drives
+	 * the real RPC as the same actor and requires it to move the same row.
+	 */
+	it('the RPC that is the only write path does move the row', async () => {
+		const { rows: before } = await db.sql<{ name: string }>(
+			`select name from public.notebook_folders where id = $1`,
+			[gearbox]
+		);
+		await db.asUser(ada.id, (q) =>
+			q(`select public.notebook_upsert_folder($1, null, $2)`, ['Gearbox renamed', gearbox])
+		);
+		const { rows: after } = await db.sql<{ name: string }>(
+			`select name from public.notebook_folders where id = $1`,
+			[gearbox]
+		);
+		expect(after[0].name).toBe('Gearbox renamed');
+		expect(after[0].name).not.toBe(before[0].name);
+		// Put it back: the tests below read this folder by name.
+		await db.asUser(ada.id, (q) =>
+			q(`select public.notebook_upsert_folder($1, null, $2)`, [before[0].name, gearbox])
+		);
+	});
 
 	it('and none of the folder RPCs are reachable by anon', async () => {
 		const { rows } = await db.sql<{ fn: string; granted: boolean }>(
@@ -349,7 +461,6 @@ describe('there is no client write path to notebook_folders', () => {
 		);
 		expect(rows).toHaveLength(3);
 		for (const row of rows) expect(row.granted).toBe(false);
-		void actors;
 	});
 });
 

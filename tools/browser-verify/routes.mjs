@@ -941,6 +941,358 @@ export const ROUTES = [
 				until: '() => !!document.querySelector(\'[data-mount="student / at the cap"] [data-testid="song-queue-notice"]\')'
 			}
 		]
+	},
+	{
+		path: '/dev/frc',
+		label: 'FRC Training shell nav, admin state (widest header configuration)',
+		/*
+			REGRESSION GUARD FOR c04e448. `.frc-nav` stayed `nowrap` even though
+			`.frc-header` itself already wraps, so the nav's own min-content (two
+			links, the admin "View as student" toggle, the rank badge, the
+			profile menu) forced the header wider than a 375px viewport --
+			silently, because `body` clips horizontal overflow. `min-width: 0`
+			alone did NOT fix this shape: it only let the row shrink below that
+			sum, and the overflow reappeared one flex level down, on the rank
+			badge's own nowrap text. `flex-wrap: wrap` on `.frc-nav` is what
+			actually converged (0px overflow at 375px, unchanged at 1440px).
+
+			This route's default state already carries the widest nav with no
+			prepare step: `rankCount={count}` is 0, not null, so the badge
+			renders, and `simulateTeacher` (adminOverride) defaults true, so the
+			admin toggle renders too.
+		*/
+		presence: [
+			{ selector: '.frc-header', label: 'FRC header', expectPresent: 1 },
+			{ selector: '.frc-nav', label: 'FRC nav', expectPresent: 1 },
+			{ selector: '.frc-nav .frc-view-toggle', label: 'admin "View as student" toggle', expectPresent: 1 },
+			{ selector: '.frc-nav .rank-chip', label: 'rank badge (chip)', expectPresent: 1 }
+		],
+		/*
+			ONE LINE AT >=1024px IS THE OUTCOME, ASSERTED DIRECTLY -- NOT A RULE
+			ABOUT flex-wrap. `min-width: 0` alone had already been tried and
+			converged on the WRONG outcome (zero overflow, but by forcing the
+			rank badge's own text to overhang instead); `flex-wrap: wrap` is
+			what made both true at once. The horizontal-scroll check already
+			measured for every route covers the overflow half; this is the half
+			it cannot state -- that the wrap did not cost the 1440px nav its
+			single line (hand-measured at 28.7px tall in c04e448, reproduced
+			here). Below 1024px the nav is EXPECTED to wrap onto more than one
+			line, so the same evaluate is a deliberate no-op there rather than a
+			claim it was never meant to hold.
+
+			COMPARING EACH CHILD'S ROUNDED `top` IS NOT "ONE LINE": the three
+			links, the admin toggle and the rank chip do not share one box
+			height (`align-items: center` centers each against the tallest), so
+			their tops differ by ~2px even sitting on the identical line --
+			measured [216, 216, 216, 218, 218], two distinct rounded values from
+			a single-line render. A wrapped nav's second line differs by a
+			whole line-plus-gap (~35px+), so comparing the ROW'S OWN height
+			against its tallest child (with a few px of slack for that same
+			centering) is the discriminator that survives it.
+		*/
+		orderResult: [
+			{
+				evaluate: `() => {
+					const nav = document.querySelector('.frc-nav');
+					if (!nav) return [false];
+					if (document.documentElement.clientWidth < 1024) return [true];
+					const navH = nav.getBoundingClientRect().height;
+					const maxChildH = Math.max(...[...nav.children].map((el) => el.getBoundingClientRect().height));
+					return [navH <= maxChildH + 4];
+				}`,
+				expected: [true],
+				label: '.frc-nav is one line at >=1024px (free to wrap narrower, where zero-overflow is the only claim)'
+			}
+		]
+	},
+	{
+		path: '/dev/classroom-deck',
+		label: 'Classroom deck harness controls (long select option text)',
+		/*
+			REGRESSION GUARD FOR c04e448. `.controls` wraps (flex-wrap: wrap),
+			but a flex child's automatic minimum is still its own min-content --
+			here the mode `<select>`'s widest OPTION text ("normal export
+			(wrapper folder + hidden state file)"), wider than a 375px viewport
+			on its own (CLAUDE.md: "min-width: 0 on grid/flex children").
+			Wrapping the LABEL onto its own row does nothing for a label that is,
+			by itself, wider than the row; `min-width: 0` on `.controls label` is
+			what lets the select shrink to fit. The default 'panel' view renders
+			`.controls` immediately, no prepare step needed.
+		*/
+		presence: [
+			{ selector: '.controls', label: 'mode/fault controls', expectPresent: 1 },
+			{ selector: '.controls select', label: 'mode + fault selects', expectPresent: 2 }
+		]
+	},
+	{
+		path: '/dev/gauntlet-shell',
+		label: 'GAUNTLET viewport chrome -- trademark footer, FeatureManager rail, cursor layer',
+		/*
+			THREE COMPONENTS THE GAUNTLET LAYOUT PUTS ON EVERY PAGE, none of
+			which had ever been measured: TrademarkFooter, FeatureTreeNav and
+			CursorLayer are mounted in `src/routes/gauntlet/+layout.svelte` and
+			were reachable from no dev route at all, so every student in every
+			mode has been looking at them and no instrument has.
+
+			The footer is COMPLIANCE-CRITICAL rather than cosmetic
+			(docs/GAUNTLET-DESIGN.md: nominative SOLIDWORKS text only, never the
+			logo or a lookalike), which is why it gets a `textContains` row and
+			an `img/svg` exclusion rather than a presence row. A footer that had
+			lost the rights holder from its sentence is present, visible, and
+			clears its contrast minimum exactly as before.
+		*/
+		textContains: [
+			{
+				selector: '.gt-tm p',
+				label: 'trademark disclaimer, verbatim',
+				must: [
+					'SOLIDWORKS is a trademark of Dassault Systèmes',
+					'IDEA GAUNTLET is an educational tool built at Bosco Tech',
+					'not affiliated with, sponsored by, or endorsed by Dassault Systèmes'
+				],
+				/*
+					The forbidden half is not decoration: a sentence can keep
+					every required phrase and add one that reverses it, and a
+					`must` list cannot see that. These are the claims the
+					disclaimer exists to deny.
+				*/
+				mustNot: ['officially endorsed', 'in partnership with', 'a Dassault Systèmes product']
+			}
+		],
+		presence: [
+			{ selector: '.gt-tm', label: 'trademark footer', expectPresent: 1, expectVisible: 1 },
+			/*
+				"Nominative text only, never the logo or a lookalike" as a
+				STRUCTURAL exclusion. No image and no inline mark may appear
+				inside the footer, in any form.
+			*/
+			{ selector: '.gt-tm img, .gt-tm svg, .gt-tm picture', label: 'no mark of any kind inside the footer', expectPresent: 0, expectVisible: 0 },
+			/*
+				GAUNTLET-DESIGN states the FeatureManager rail as a
+				PROHIBITION -- "hidden by default; do not make it visible by
+				default" -- and the rail is present in the DOM either way, so
+				a presence row alone says nothing about it. The claim is the
+				`orderResult` reachability probe below; what is asserted HERE
+				is only that it exists and is hidden from assistive tech,
+				which is the half a hit test cannot see.
+
+				THE FIRST DRAFT OF THIS ROW WAS `maxVisible: 0`, AND IT WAS
+				WRONG IN A WAY WORTH WRITING DOWN. At 1440px the collapsed
+				rail is not `display: none` -- it is `translateX(calc(-100% -
+				1.5rem))` plus `pointer-events: none`, so it keeps a real
+				232px box, entirely off the left edge of the viewport, and
+				`isVisible` correctly reports it as painted. The ceiling
+				therefore reddened on a rail that is behaving exactly as
+				designed. `isVisible` does not model "outside the viewport"
+				and must not be taught to: `tapReach` already reports
+				off-screen sample points as a harness artefact, so changing
+				that predicate would move readings on routes this bundle does
+				not own. The effect is what gets asserted instead.
+			*/
+			{ selector: '.gt-tree', label: 'FeatureManager rail, present (display:none at 375, slid off the left edge at 1440)', expectPresent: 1, expectVisible: 0 },
+			{ selector: '.gt-tree[aria-hidden="true"]', label: 'collapsed rail hidden from assistive tech', expectPresent: 1, expectVisible: 0 },
+			/*
+				The tab is `display: none` below 1440px along with the rail it
+				reveals, so `expectVisible: 0` is the width-safe floor and the
+				printed count is the reading: 0 at 375, 1 at 1440.
+			*/
+			{ selector: '.gt-tree-tab', label: 'the rail’s reveal tab (display:none below 1440px: 0 visible at 375, 1 at 1440)', expectPresent: 1, expectVisible: 0 },
+			/*
+				`cursor: none` is applied by CursorLayer adding `.gt-cursor-on`
+				to `.gt-root`, and it must not be applied until the first real
+				mousemove has seeded the reticle a position -- otherwise there
+				is a window in which the native cursor is hidden and nothing
+				has replaced it. The harness never moves the mouse before
+				measuring, so the class must be absent here.
+			*/
+			{ selector: '.gt-root.gt-cursor-on', label: 'native cursor NOT hidden before the first mousemove', expectPresent: 0, expectVisible: 0 },
+			{ selector: '.gt-cursor-layer', label: 'cursor layer mounted', expectPresent: 1 },
+			/*
+				The countdown renders NOTHING when inactive, which is its state
+				on every page that is not mid-room-start. Absence is the
+				mechanism; the alias below is its positive control.
+			*/
+			{ selector: '.gt-countdown', label: 'countdown overlay, inactive', expectPresent: 0, expectVisible: 0 }
+		],
+		contrast: [
+			{ selector: '.gt-tm p', label: 'trademark disclaimer copy', min: 4.5 },
+			{ selector: '.harness h1', label: 'h1 on the VIEWPORT plate', min: 4.5 }
+		],
+		/*
+			THE HIT TEST IS THE HIGHEST-VALUE ROW ON THIS ROUTE. `.gt-cursor-layer`
+			is `position: fixed; inset: 0; z-index: 900` -- it covers the entire
+			viewport of every GAUNTLET page. It is `pointer-events: none`, and if
+			that ever stopped being true the whole section would go unclickable
+			with nothing on screen looking wrong and no console error. The probe
+			asks the DOM what a tap at the centre of a control actually lands on.
+		*/
+		orderResult: [
+			/*
+				"HIDDEN BY DEFAULT" AS THE EFFECT, NOT AS A PROXY FOR IT. The
+				rail is unreachable at 375 because it is `display: none`, and
+				unreachable at 1440 because it is translated off the left edge
+				with `pointer-events: none`. Those are two different
+				mechanisms producing one guarantee, and a probe that asked
+				about either mechanism would be width-dependent and would go
+				green the day the other one changed. This one samples the
+				rail's own box, clamped into the viewport, and asks the DOM
+				what a pointer at each point actually lands on -- so a rail
+				that started painting itself open, by any means, comes back
+				'reachable' at both widths.
+			*/
+			{
+				label: 'the FeatureManager rail cannot be reached by a pointer on arrival',
+				evaluate:
+					'() => { const rail = document.querySelector(".gt-tree"); if (!rail) return ["NO RAIL"]; const r = rail.getBoundingClientRect(); if (r.width === 0 || r.height === 0) return ["unreachable"]; const xs = [0.1, 0.5, 0.9].map((f) => r.left + r.width * f); const ys = [0.1, 0.5, 0.9].map((f) => r.top + r.height * f); for (const x of xs) { for (const y of ys) { if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) continue; const hit = document.elementFromPoint(x, y); if (hit && (hit === rail || rail.contains(hit))) return ["reachable"]; } } return ["unreachable"]; }',
+				expected: ['unreachable']
+			},
+			{
+				label: 'a tap reaches the page through the full-viewport cursor layer',
+				evaluate:
+					'() => { const b = document.querySelector(\'[data-testid="under-overlay"]\'); if (!b) return ["NO CONTROL"]; b.scrollIntoView({ block: "center", behavior: "instant" }); const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return [hit ? (hit.getAttribute("data-testid") || hit.className || hit.tagName) : "NOTHING"]; }',
+				expected: ['under-overlay']
+			}
+		],
+		tapTargets: [{ selector: '.harness .bar button', label: 'harness controls', min: 44 }]
+	},
+	{
+		path: '/dev/gauntlet-shell-countdown',
+		label: 'GAUNTLET viewport chrome, room-start countdown armed',
+		aliasOf: '/dev/gauntlet-shell',
+		/*
+			The countdown is a 3-2-1-BUILD sequence that tears itself down at
+			3.7s, so this variant asserts only what can be read inside that
+			window and nothing that needs a long settle. That is a real limit,
+			not a shortcut: the numeral is painted with `background-clip: text`
+			over `color: transparent`, so it HAS no computed foreground colour
+			and a contrast row on it would report the transparent value and
+			pass vacuously. It is deliberately absent.
+
+			What is worth reading is that the overlay is inert while it covers
+			the page: `pointer-events: none` and `aria-hidden`, over a full
+			`position: fixed; inset: 0` box at z-index 800.
+		*/
+		prepare: [
+			{
+				click: '[data-drive="countdown"]',
+				until: '() => !!document.querySelector(".gt-countdown .numeral")',
+				attempts: 6,
+				waitMs: 120
+			}
+		],
+		settleMs: 150,
+		presence: [
+			{ selector: '.gt-countdown', label: 'countdown overlay, armed', expectPresent: 1, expectVisible: 1 },
+			{ selector: '.gt-countdown .numeral', label: 'the numeral currently on screen', expectPresent: 1, expectVisible: 1 },
+			/*
+				The overlay is decoration over a server-authoritative clock and
+				announces nothing; it carries aria-hidden on its root, so the
+				count reads 1 rather than 0.
+			*/
+			{ selector: '.gt-countdown[aria-hidden="true"]', label: 'overlay hidden from assistive tech', expectPresent: 1 }
+		],
+		orderResult: [
+			{
+				label: 'a tap reaches the page THROUGH the armed countdown overlay',
+				evaluate:
+					'() => { const b = document.querySelector(\'[data-testid="under-overlay"]\'); if (!b) return ["NO CONTROL"]; b.scrollIntoView({ block: "center", behavior: "instant" }); const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return [hit ? (hit.getAttribute("data-testid") || hit.className || hit.tagName) : "NOTHING"]; }',
+				expected: ['under-overlay']
+			}
+		],
+		contrast: [],
+		tapTargets: []
+	},
+	{
+		path: '/dev/gauntlet-run',
+		label: 'GAUNTLET run surfaces -- RunResults in four verdict states, SpeedrunClock in three',
+		/*
+			RunResults is the post-run screen for ALL SIX MODES and SpeedrunClock
+			is on screen for the whole of every ranked run. Neither was reachable
+			from any dev route.
+
+			THE FLOURISH IS AN EXCLUSION WITH A POSITIVE CONTROL IN THE SAME
+			MEASUREMENT. `celebrate` is `firstClear || beatPb`, so it must fire
+			on exactly two of the four mounts. A clear that was SLOWER than the
+			standing personal best is still a clear, and a regression that
+			derived the flourish from `correct` alone would congratulate a
+			student for going backwards -- and would look completely fine on
+			screen. `present 2` over four mounts is the assertion; `present 4`
+			for the results themselves is what stops it passing on a page that
+			rendered two results.
+		*/
+		presence: [
+			{ selector: '.run-results', label: 'the four verdict mounts', expectPresent: 4, expectVisible: 4 },
+			{ selector: '.run-results.celebrate', label: 'celebrating results (first clear + PB beaten ONLY)', expectPresent: 2, expectVisible: 2, maxVisible: 2 },
+			{ selector: '.pb-flash', label: 'the flourish banner, one per celebrating result', expectPresent: 2, expectVisible: 2, maxVisible: 2 },
+			{ selector: '.result-banner.no', label: 'the not-cleared banner', expectPresent: 1, expectVisible: 1, maxVisible: 1 },
+			{ selector: '.sr-clock', label: 'the three clock states', expectPresent: 3, expectVisible: 3 },
+			/*
+				STANDBY is the state between pressing reveal and the SolidWorks
+				Start macro firing -- `running` true, `serverStartMs` still
+				null -- and it is the one nothing else in the repo renders. It
+				must be exactly one of the three, and the live ranked clock
+				must NOT be wearing it.
+			*/
+			{ selector: '.sr-clock.standby', label: 'standby treatment, ranked-armed-but-not-started', expectPresent: 1, expectVisible: 1, maxVisible: 1 },
+			{ selector: '.sr-clock.unranked', label: 'the calmer unranked variant', expectPresent: 1, expectVisible: 1, maxVisible: 1 }
+		],
+		textContains: [
+			/*
+				The three clock labels are the student's only statement of what
+				the run is worth. STANDBY and REC . RANKED are different claims
+				about the same ranked clock and the fixture renders both, so
+				the presence of one is not evidence of the other.
+			*/
+			{
+				selector: '.sr-clock .sr-rec',
+				label: 'clock status labels across the three states',
+				must: ['STANDBY', 'REC . RANKED', 'UNRANKED']
+			},
+			/*
+				XP comes from `xpForRun`, whose arithmetic is pinned in
+				tests/gauntlet-progression.test.ts. What is asserted HERE is
+				only what reaches the screen: the first-attempt first-clear
+				mount is worth 15 + 120, and a repeat run of an
+				already-cleared challenge banks nothing and must say so rather
+				than printing "+0 XP".
+			*/
+			{
+				selector: '[data-mount="first clear"] .run-results',
+				label: 'first clear reports the run XP it earned',
+				must: ['+135 XP']
+			},
+			{
+				selector: '[data-mount="cleared slower"] .run-results',
+				label: 'an already-banked run says so instead of printing +0',
+				must: ['Already banked for this one'],
+				mustNot: ['+0 XP']
+			}
+		],
+		contrast: [
+			{ selector: '.result-verdict', label: 'run verdict', min: 4.5 },
+			{ selector: '.result-detail .key', label: 'result field labels', min: 4.5 },
+			{ selector: '.result-detail .val', label: 'result field values', min: 4.5 },
+			/*
+				The ranked clock's chrome is the one place in GAUNTLET that
+				paints crimson-adjacent ink as a matter of course (REC . RANKED
+				is the live/rec reservation, legitimately). It is small mono
+				type at 0.58rem on `--bg2`, which is exactly the shape of thing
+				that is authored by eye and never measured.
+			*/
+			/*
+				`:not(.standby)` IS LOAD-BEARING. The standby clock is ALSO
+				`.ranked` -- standby is a state of a ranked clock, not a
+				fourth kind -- so the bare descendant selector matched both
+				labels and reported the WORSE of the two under the REC row's
+				name, while the STANDBY row beneath reported the same figure
+				again. Two rows measuring one element is how a real finding
+				gets counted twice and its actual owner never named.
+			*/
+			{ selector: '.sr-clock.ranked:not(.standby) .sr-rec', label: 'REC . RANKED label on the clock plate', min: 4.5 },
+			{ selector: '.sr-clock.unranked .sr-rec', label: 'UNRANKED label on the clock plate', min: 4.5 },
+			{ selector: '.sr-clock.standby .sr-rec', label: 'STANDBY label on the clock plate', min: 4.5 }
+		],
+		tapTargets: [{ selector: '.run-results .btn-row .btn', label: 'post-run actions (retry / next / back)', min: 44 }]
 	}
 ];
 

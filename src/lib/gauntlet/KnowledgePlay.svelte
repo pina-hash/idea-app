@@ -6,6 +6,16 @@
 	import Asset from '$lib/gauntlet/Asset.svelte';
 	import RunResults from '$lib/gauntlet/RunResults.svelte';
 	import type { NextChallenge } from '$lib/gauntlet/next-challenge';
+	import {
+		AHEAD_NOTE,
+		CLOCK_STARTING,
+		clockAcceptsAnswers,
+		clockIsServerSide,
+		reviewNote,
+		startKnowledgeClock,
+		type KnowledgeClock
+	} from '$lib/gauntlet/knowledge-clock';
+	import type { SupabaseClient } from '@supabase/supabase-js';
 
 	/**
 	 * Shared play flow for the web-only knowledge modes (Drawing Reading is its
@@ -29,6 +39,7 @@
 	}
 
 	let {
+		supabase,
 		challenge,
 		board,
 		myUserId,
@@ -36,6 +47,7 @@
 		backHref,
 		next = null
 	}: {
+		supabase: SupabaseClient;
 		challenge: Challenge;
 		board: BoardRow[];
 		myUserId: string;
@@ -59,11 +71,22 @@
 	// run into myBest, so the results screen compares against the snapshot.
 	let bestBeforeRun = $state<typeof myBest>(null);
 
+	// 0148: the ranked clock is the SERVER's. `startKnowledgeClock` stamps it and
+	// says whether it is available at all here; see that module for the ladder.
+	// `startTime` below is now only the fallback for a deployment where 0148 has
+	// not been applied yet.
+	let clock = $state<KnowledgeClock>(CLOCK_STARTING);
+
 	const answerValue = $derived(isChoice ? selected : typed.trim());
 	const answered = $derived(!!localResult);
 
 	onMount(() => {
 		startTime = performance.now();
+		// A plain call in onMount, NOT an $effect: this is somebody else's client
+		// and an effect calling it would take a dependency on whatever it touches
+		// (CLAUDE.md, the injected-transport rule). It also must not run on hover
+		// prefetch, which is why it is not in the route's load.
+		void startKnowledgeClock(supabase, challenge.id).then((c) => (clock = c));
 	});
 
 	const submitEnhance: SubmitFunction = ({ formData, cancel }) => {
@@ -72,7 +95,12 @@
 			return;
 		}
 		formData.set('answer', answerValue);
-		formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
+		// THE SUCCESSFUL START IS WHAT LICENSES OMITTING THIS. Where the server is
+		// timing the run the field is deleted outright, so the browser genuinely
+		// supplies no elapsed time; where 0148 is not applied yet it is sent
+		// exactly as before, because that server scores a missing value as zero.
+		if (clockIsServerSide(clock)) formData.delete('elapsed_ms');
+		else formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
 		bestBeforeRun = myBest ?? null;
 		submitting = true;
 		return async ({ result, update }) => {
@@ -80,6 +108,10 @@
 				localResult = result.data.result as SubmitResult;
 				localAnswered = answerValue;
 				localError = '';
+				// The submit that lands CLOSES the server clock (0148), so Try again is
+				// practice from here on and has to say so BEFORE the next answer, not
+				// only after it.
+				if (clockIsServerSide(clock)) clock = { ...clock, timed: false };
 			} else if (result.type === 'failure') {
 				localError = (result.data?.error as string) ?? 'Something went wrong.';
 			} else if (result.type === 'error') {
@@ -128,6 +160,12 @@
 			{/if}
 			<p class="question">{prompt.question}</p>
 
+			{#if clock.state === 'failed'}
+				<p class="warn">{clock.message}</p>
+			{:else if !clock.timed && !answered}
+				<p class="instructions">{AHEAD_NOTE}</p>
+			{/if}
+
 			<form method="POST" action="?/submit" use:enhance={submitEnhance}>
 				{#if isChoice}
 					<fieldset class="options" disabled={answered || submitting}>
@@ -172,7 +210,11 @@
 				{#if localError}<p class="warn">{localError}</p>{/if}
 
 				{#if !answered}
-					<button class="btn" type="submit" disabled={!answerValue || submitting}>
+					<button
+						class="btn"
+						type="submit"
+						disabled={!answerValue || submitting || !clockAcceptsAnswers(clock)}
+					>
 						{submitting ? 'Checking...' : 'Submit answer'}
 					</button>
 				{/if}
@@ -198,6 +240,9 @@
 					{backHref}
 					onRetry={tryAgain}
 				/>
+				{#if reviewNote(localResult.timed_attempt)}
+					<p class="instructions">{reviewNote(localResult.timed_attempt)}</p>
+				{/if}
 				{#if localResult.explanation}
 					<p class="explanation">{localResult.explanation}</p>
 				{/if}
