@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 67
 ---
 
-## Shared feedback box
-
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
 GREENLINE is the first consumer and VANGUARD is the intended second; nothing
 in the component or the seam knows what a race, a lap, or a wave is.

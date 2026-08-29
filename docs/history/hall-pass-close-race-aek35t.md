@@ -6,8 +6,6 @@ migrations: ["0144"]
 subsystems: ["classroom", "hall pass"]
 ---
 
-## The hall pass close is split by role so a manager's press cannot land on the pass that replaced the one they meant (`claude/hall-pass-close-race-aek35t`, migration 0144)
-
 `0143` shipped the digital hall pass with one close, `classroom_hall_pass_close(p_section_id)`,
 serving both callers. It takes a SECTION and closes whatever is open in it. The
 bundle that built it flagged the consequence itself: an instructor clearing the

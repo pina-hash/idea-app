@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["GAUNTLET", "Testing"]
 ---
 
-## Speedrun's target is recoverable, the board ranks the forgery, and a reveal budget would not have touched it (no migration)
-
 **This bundle ships no migration.** `0151_gauntlet_bound_the_search.sql` was
 reserved for a reveal budget and **was not written**, because the measurement it
 was supposed to rest on disproved its premise: the search consumes no reveals,

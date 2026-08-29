@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 153
 ---
 
-## A published app keeps its saved data, and the portal origin stops depending on a Vercel variable (`claude/foundry-sandbox-origin-gtimhj` + `claude/foundry-portal-origin-3n3jq5`, code only, no migration)
-
 Two bundles, recorded together because the second exists only to stop the first
 being silently inert. The first shipped and merged as
 [#16](https://github.com/pina-hash/idea-app/pull/16) with no history entry; this

@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 10
 ---
 
-## The Ledger is the live student hub again (Phase 3, `0089`)
-
 `static/coins/index.html` -- the IDEA Coin Ledger -- reads the real Supabase
 economy now instead of the frozen Google Sheets export, and is once more what
 it always was: ONE hub carrying balance, leaderboard, transaction log,

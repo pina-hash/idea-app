@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 126
 ---
 
-## Foundry submit surface (`lane/foundry-submit`)
-
 `/foundry/submit`, `/foundry/mine` and `/foundry/contract`, plus the
 client-side normalization that lets a student hand over a zip, a folder or a
 single HTML file. No migration: 0130/0131 already had every RPC this needed,

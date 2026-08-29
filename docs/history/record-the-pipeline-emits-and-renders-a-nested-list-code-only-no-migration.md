@@ -7,8 +7,6 @@ subsystems: ["Digital notebook", "IDEA Classroom"]
 record_order: 103
 ---
 
-## The pipeline emits and renders a nested list (code only, NO migration)
-
 `0122` widened both rich-text storage gates to accept a nested list and shipped
 alone, inert by construction: nothing emitted the shape and nothing rendered it.
 This is the other half. The walk now emits a sublist inside the item it hangs

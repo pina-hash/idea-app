@@ -6,8 +6,6 @@ migrations: ["0151"]
 subsystems: ["GAUNTLET", "Testing"]
 ---
 
-## The Speedrun practice check gets a floor and a detector, and neither of them closes the hole (0151)
-
 `supabase/migrations/0151_gauntlet_meter_practice.sql` puts a **two second
 minimum interval, per student per challenge**, on `gauntlet_submit`'s Speedrun
 practice branch, and adds `gauntlet_practice_pressure()` so an admin can ask

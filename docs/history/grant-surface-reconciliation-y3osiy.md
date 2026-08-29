@@ -6,8 +6,6 @@ migrations: ["0149"]
 subsystems: ["Database", "Security", "Testing", "Tournaments", "FSP", "Notebook", "Coin economy", "GAUNTLET"]
 ---
 
-## A privilege nobody wrote: the grant surface reconciled against the migrations, and the test that would have caught it (`claude/grant-surface-reconciliation-y3osiy`, migration 0149)
-
 A view holding a grant nobody wrote exposed student full names and room
 participation for roughly two months. `0060` fixed three objects and stated the
 mechanism in its header. A catalog sweep of production on 2026-08-28 found six

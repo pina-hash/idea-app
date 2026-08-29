@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Build, theme, tests, conventions"]
 ---
 
-## The record becomes one file per entry, because a shared append point cannot be merged (`claude/history-merge-split-vx1fmk`, docs only, no migration)
-
 `docs/HISTORY.md` had blocked an automatic merge on four consecutive batches and
 GitHub had stopped offering to resolve it in the web editor. The cause was not
 the file's size on its own: it was that **every session wrote to the same two

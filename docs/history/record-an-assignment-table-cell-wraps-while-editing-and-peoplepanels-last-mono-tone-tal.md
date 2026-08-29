@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 164
 ---
 
-## An assignment table cell wraps while editing, and PeoplePanel's last mono-tone tally gets a hue (code only, no migration)
-
 Two small, unrelated fixes scoped to `SpecRenderer.svelte` and
 `PeoplePanel.svelte`, done together because both were reported in one
 session and neither touches the other's surface.

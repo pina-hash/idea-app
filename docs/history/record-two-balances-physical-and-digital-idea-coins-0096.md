@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 11
 ---
 
-## Two balances: physical and digital IDEA Coins (`0096`)
-
 Migration `0096_coin_medium.sql` (apply manually after `0095`). The economy
 tracks TWO balances per student instead of one, with exactly one path between
 them.

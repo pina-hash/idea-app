@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 146
 ---
 
-## The test that could not be kept green (`lane/ci-green`, code only, no migration)
-
 **Branch:** `lane/ci-green`. **Migration:** none.
 
 ### The standing failure

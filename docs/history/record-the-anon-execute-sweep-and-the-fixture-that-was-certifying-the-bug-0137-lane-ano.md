@@ -7,8 +7,6 @@ subsystems: ["Platform & access", "Curriculum, migrations, policy"]
 record_order: 145
 ---
 
-## The anon EXECUTE sweep, and the fixture that was certifying the bug (`0137`, `lane/anon-execute-sweep`)
-
 **Branch:** `lane/anon-execute-sweep`. **Migration:** `supabase/migrations/0137_anon_execute_sweep.sql`.
 
 ### What it closes

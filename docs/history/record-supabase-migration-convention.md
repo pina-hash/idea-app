@@ -7,8 +7,6 @@ subsystems: ["Curriculum, migrations, policy"]
 record_order: 17
 ---
 
-## Supabase migration convention
-
 - SQL lives in `supabase/migrations/`, sequentially numbered:
   `0001_*.sql`, `0002_*.sql`, ...
 - Migrations are applied **manually in the Supabase SQL editor** (no automated

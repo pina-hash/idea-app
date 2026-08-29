@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 58
 ---
 
-## Classroom bundle 3: canonical items + postings (`0085`)
-
 Migration `0085_classroom_canonical_items.sql` (apply manually after 0084).
 0082's one rule is untouched: ZERO client write grants on any classroom table,
 every write a SECURITY DEFINER RPC that re-checks the caller inside its own

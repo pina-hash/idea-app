@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 162
 ---
 
-## A check-in dated in the future is scheduled, not missing (`0140`, `claude/scheduled-checkin-future-status-vqlnpu`)
-
 Mr. Cosso lays out a unit's notebook check-ins on the first day of the unit. From
 that moment his compliance grid reported every one of them, for every student, as
 `missing` -- because `notebook_get_section_grid` decided a cell in three arms

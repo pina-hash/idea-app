@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 81
 ---
 
-## Automated tests
-
 `npm test` (vitest, config in `vitest.config.ts`, specs in `tests/`). This is
 the **only** automated test suite in the repo, and it is deliberately narrow:
 everything else here is verified by dev harnesses and browser passes, which

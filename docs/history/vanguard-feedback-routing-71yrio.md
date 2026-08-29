@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["VANGUARD", "Feedback"]
 ---
 
-## VANGUARD's in-game composer stops writing to Apps Script and files into `app_feedback`, through a second serve-time rewrite table (`claude/vanguard-feedback-routing-71yrio`, no migration)
-
 VANGUARD carried two ways to report a problem and only one of them reached
 anybody. The injected REPORT panel posts to `/api/vanguard-feedback` when signed
 in and the shared anonymous route otherwise, landing in `app_feedback` -- the

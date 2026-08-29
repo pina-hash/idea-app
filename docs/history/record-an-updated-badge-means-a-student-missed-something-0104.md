@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 39
 ---
 
-## An "Updated" badge means a student missed something (`0104`)
-
 Migration `0104_classroom_edit_visibility.sql` (apply manually after `0103`)
 plus one client change. Nothing about instructor-only materials (`0090`) or
 what a student may READ changed; what changed is when the badge fires.

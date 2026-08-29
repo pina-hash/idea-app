@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions", "IDEA Classroom"]
 record_order: 117
 ---
 
-## Bundle -- the classroom and portal contrast sweep (no SQL)
-
 **Why.** c71e92d changed two SHARED components and measured one room. `--stamp-ink`
 is a hook on `.nb-root` that `.version-badge` now reads, and `.sep`'s opacity moved
 0.6 -> 0.8; both ship into the classroom and the portal, and neither was measured

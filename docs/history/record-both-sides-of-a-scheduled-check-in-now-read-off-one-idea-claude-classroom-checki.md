@@ -7,8 +7,6 @@ subsystems: ["Digital notebook", "IDEA Classroom"]
 record_order: 166
 ---
 
-## Both sides of a scheduled check-in now read off one idea (`claude/classroom-checkin-scheduled-xwhxj2`)
-
 No migration. `0140` had already given the TEACHER's grid a word for a check-in
 dated ahead of today; this gives the STUDENT's class page the same word, and
 deletes the date bound that had been standing in for it.

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 102
 ---
 
-## A check-in carries an instructor's guidance prompt (`0123`, migration ONLY)
-
 A notebook check-in had a label and a date and nothing else an instructor could
 write in. What to photograph and what to write about it lived in the label, in the
 classroom item beside it, or on the whiteboard. `notebook_sessions` gains

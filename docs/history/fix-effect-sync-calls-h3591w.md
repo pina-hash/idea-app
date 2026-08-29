@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Classroom", "Foundry", "GAUNTLET", "Svelte 5 reactivity", "Testing"]
 ---
 
-## The injected-callback checker goes repo-wide and the six calls it found are wrapped, with a per-site allowlist instead of a method-name heuristic (`claude/fix-effect-sync-calls-h3591w`, no migration)
-
 The previous bundle fixed two `$effect`s in `ContentComposer` that called an
 injected transport synchronously, wrote the rule into `CLAUDE.md`, and left a
 source checker parsing that one component. This bundle points the checker at the

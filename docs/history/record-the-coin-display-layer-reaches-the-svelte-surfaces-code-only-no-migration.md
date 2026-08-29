@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 15
 ---
 
-## The coin display layer reaches the Svelte surfaces (code-only; NO migration)
-
 `0103` and `0107` taught the LEDGER (`static/coins/index.html`) how to render a
 correction, a withdrawal and a split balance. The three Svelte surfaces that
 show the same rows -- the student's own balance page, the Coin Desk log, and

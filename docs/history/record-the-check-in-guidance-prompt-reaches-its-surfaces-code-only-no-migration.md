@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 105
 ---
 
-## The check-in guidance prompt reaches its surfaces (code only, NO migration)
-
 `0123` shipped the column and the write and no client code at all -- the deploy
 ordering, stated in its own header. This is the other half: the three places an
 instructor writes a prompt, the three places it is read, and the ladders that let

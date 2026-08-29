@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 91
 ---
 
-## Grading console: a console, not a column
-
 **Code only. No migration.** Six changes to
 `src/routes/classroom/[sectionId]/item/[itemId]/grade/` and
 `src/lib/classroom/GradingConsole.svelte`, plus two shared primitives the rest

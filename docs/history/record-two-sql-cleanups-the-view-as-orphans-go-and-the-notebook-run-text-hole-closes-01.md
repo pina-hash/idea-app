@@ -7,8 +7,6 @@ subsystems: ["Digital notebook", "IDEA Classroom"]
 record_order: 106
 ---
 
-## Two SQL cleanups: the view-as orphans go, and the notebook run-text hole closes (`0124`, `0125`, SQL ONLY)
-
 Two unrelated migrations, no client code, shipped in one bundle because both are
 schema-only and neither touches the other's subsystem. `0124` drops five
 functions nothing calls; `0125` closes a gate that has been accepting a

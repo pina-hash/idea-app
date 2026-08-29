@@ -3664,12 +3664,22 @@ The two files have different jobs, and the split is the point.
     filename collision-free BY CONSTRUCTION rather than by anyone checking. Never
     take a name from a counter, a sequence or a date -- a number a session has to
     pick is the shared write point again, wearing a different hat.
-  - **Front matter, then one blank line, then the entry opening with its own `##`
-    heading**: `title` (matching the heading exactly), `date`, `branches`,
-    `migrations` (quoted, `["0140"]`, because YAML reads `0140` as octal),
-    `subsystems`. **No `record_order`** -- that field belongs only to the 168
-    `record-*.md` files the split produced. `npm run history:verify` checks all of
-    this; `docs/HISTORY.md` states the full convention.
+  - **Front matter, then one blank line, then the entry body -- opening directly
+    at the first real content, with NO retyped `## <title>` heading line.** The
+    heading is DERIVED from front-matter `title` (`verify-split.mjs` synthesizes
+    `## ${title}` at reassembly time); the body on disk never repeats it. This
+    used to be a second hand-typed copy of the same sentence and it drifted
+    three times (`gauntlet-tolerance-test-fix-u79q4y`, and
+    `btn-tap-target-floor-verify-6vj8r9` twice over two sessions) before
+    `docs/history/_tools/derive-headings.mjs` removed the second copy for good.
+    Front matter carries `title`, `date`, `branches`, `migrations` (quoted,
+    `["0140"]`, because YAML reads `0140` as octal), `subsystems`. **No
+    `record_order`** -- that field belongs only to the 168 `record-*.md` files
+    the split produced. `npm run history:verify` checks all of this;
+    `docs/HISTORY.md` states the fuller convention but is itself a frozen
+    pointer file from before this changed -- its "opening with its own `##`
+    heading" line is stale prose describing the pre-derivation shape and is not
+    edited, per the file's own "never edited again."
   - **There is no index to update, for SQL or anything else.** All three indexes
     are generated from front matter by `npm run history:index` and are gitignored.
     Naming the migration in `migrations:` is the whole of it.

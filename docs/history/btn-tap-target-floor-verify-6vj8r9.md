@@ -1,12 +1,10 @@
 ---
-title: "The .btn tap-target coverage this session's predecessor added is verified against the real floor (`claude/btn-tap-target-floor-verify-6vj8r9`, no migration)"
+title: "The `.btn` tap-target coverage this session's predecessor added is verified against the real floor (`claude/btn-tap-target-floor-verify-6vj8r9`, no migration)"
 date: 2026-08-29
 branches: [claude/btn-tap-target-floor-verify-6vj8r9]
 migrations: []
 subsystems: ["browser-verify harness", "classroom composer"]
 ---
-
-## The `.btn` tap-target coverage this session's predecessor added is verified against the real floor (`claude/btn-tap-target-floor-verify-6vj8r9`, no migration)
 
 **The premise handed to this session:** `claude/tap-target-btn-coverage-sket8k`
 (merged into `integration` at `0638bcd`) added four `.btn` tap-target

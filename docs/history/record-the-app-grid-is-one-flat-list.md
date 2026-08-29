@@ -7,8 +7,6 @@ subsystems: ["Home page, launcher, tour"]
 record_order: 73
 ---
 
-## The app grid is one flat list
-
 The launcher's Games / Tools / Class sections are gone, and with them
 `AppGroupId`, `APP_GROUPS`, `PortalApp.group`, the per-group order map, the
 collapsed-group set and `orderedGroupApps`. At a dozen cards the headers cost a

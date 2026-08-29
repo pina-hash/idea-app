@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["GAUNTLET", "Curriculum, migrations, policy", "Testing"]
 ---
 
-## Rebuilding `integration` after a bundle was built twice (`claude/reconcile-integration-main-lzqcu7`)
-
 **`main` and `integration` had diverged and could not auto-merge.** The cause
 was a duplicate: the same GAUNTLET bundle was built independently, twice, as
 two different `claude/**` branches --

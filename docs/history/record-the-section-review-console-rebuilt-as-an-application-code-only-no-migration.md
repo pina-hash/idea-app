@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 89
 ---
 
-## The section review console, rebuilt as an application (code-only; NO migration)
-
 No SQL. It is the client half of `0121`: the acknowledgement that migration
 added is now something an instructor can actually record, and the console it is
 recorded from is a screen you can review a whole class on without scrolling.

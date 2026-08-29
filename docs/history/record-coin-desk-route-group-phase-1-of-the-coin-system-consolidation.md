@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 7
 ---
 
-## Coin Desk route group (Phase 1 of the coin-system consolidation)
-
 `/coin-desk` was one long scrolling page mounting every manager component at
 once. It is a ROUTE GROUP now: same components, same RPCs, same rules -- a
 UI/route reorganization with NO schema change, no new migration, and no

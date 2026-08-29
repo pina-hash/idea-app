@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 160
 ---
 
-## Nine loose ends from the eight/nine-bundle integration, closed (code only, no migration)
-
 Nine deferred items the prior integration bundle reported and could not reach
 from inside its own lane. All nine are closed; none needed a migration.
 

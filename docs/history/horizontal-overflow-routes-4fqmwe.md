@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["browser-verify", "FRC", "classroom", "documentation"]
 ---
 
-## Two overflow fixes registered, three CLAUDE.md traps written down, two false comments corrected
-
 Scoped session, file ownership: `tools/browser-verify/`, `CLAUDE.md`,
 `src/lib/file-drop.ts` only. Started from `origin/main` at `319fc76`
 (matched `HEAD`, already the designated branch).

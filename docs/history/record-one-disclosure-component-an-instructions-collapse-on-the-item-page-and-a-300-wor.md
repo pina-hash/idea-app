@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom", "Build, theme, tests, conventions"]
 record_order: 99
 ---
 
-## One disclosure component, an instructions collapse on the item page, and a 300-word guard (code only, NO migration)
-
 Three things, and the first exists because the second needed it.
 
 ### What was there

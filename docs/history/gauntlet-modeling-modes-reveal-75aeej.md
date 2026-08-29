@@ -6,8 +6,6 @@ migrations: ["0146"]
 subsystems: ["GAUNTLET"]
 ---
 
-## Reverse Engineer and Feature Golf can start again, and neither ranks (`0146`)
-
 Two of GAUNTLET's six modes have been unable to begin a run since `0015`. This
 bundle restores the gate that starts them, and in the same migration removes
 both from the global leaderboard, because neither ranks on anything the server

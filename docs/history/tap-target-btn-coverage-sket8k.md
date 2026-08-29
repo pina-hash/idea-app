@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["browser-verify harness"]
 ---
 
-## verify:browser closes the plain-.btn tap-target hole its own coverage had (`claude/tap-target-btn-coverage-sket8k`, no migration)
-
 **The premise handed to this session:** a bundle raising `.btn` to a 44px
 floor in `src/app.css` would move zero of `verify:browser`'s 306
 measurements, because no registered route's `tapTargets` selector reaches a

@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 72
 ---
 
-## Home page: the live IDEA Classroom feed (the legacy class cards are retired)
-
 The home page's pre-classroom class-content system is **gone**. That system was
 the pinned FSP card plus the six empty year-grouped course cards, all rendered
 from hardcoded `curriculum.ts` data through a local `sectionCard` snippet, with

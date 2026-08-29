@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 94
 ---
 
-## Figures in authored prose, both material kinds (code-only; NO migration)
-
 Images can sit inside `instructions` prose on an assignment spec and inside
 `instructions` / `callout` prose on a reference document. **No migration, and
 none was needed:** block types are unchanged and the `instructions` content

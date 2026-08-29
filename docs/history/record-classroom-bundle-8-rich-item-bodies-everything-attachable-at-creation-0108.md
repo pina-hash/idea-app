@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 43
 ---
 
-## Classroom bundle 8: rich item bodies + everything attachable at creation (`0108`)
-
 Migration `0108_classroom_rich_body.sql` (apply manually after `0107`). Two
 changes that ship together: an item body is an authored RICH DOCUMENT, and every
 attachment type is reachable from the composer on create as well as edit.

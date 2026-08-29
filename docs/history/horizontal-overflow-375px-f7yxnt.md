@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["browser-verify harness", "Notebook", "FRC", "Classroom"]
 ---
 
-## The 375px overflow trio fixed, three routes registered, and a real click-through bug in the harness itself (`claude/horizontal-overflow-375px-f7yxnt`, no migration)
-
 `claude/dev-routes-audit-5nocl7` audited every `/dev` route, found three real
 horizontal-overflow defects at 375px and left all three unfixed because it was
 scoped to `tools/`. This bundle owns the source files those defects live in

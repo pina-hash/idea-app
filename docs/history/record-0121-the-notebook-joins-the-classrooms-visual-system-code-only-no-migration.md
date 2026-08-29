@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 87
 ---
 
-## 0121 -- The notebook joins the classroom's visual system (code only, no migration)
-
 **What it is.** The digital notebook had its own type stack, its own corner radii
 and its own spacing rhythm, so a student moving between a class and their notebook
 moved between two products. This puts the notebook on the platform's structural

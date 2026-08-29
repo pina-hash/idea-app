@@ -7,8 +7,6 @@ subsystems: ["Curriculum, migrations, policy"]
 record_order: 16
 ---
 
-## 2026-27 curriculum (a LOOKUP, no longer a picker)
-
 `src/lib/curriculum.ts` is **plain data** (no `?raw`/`$lib/legacy` imports) so it
 is safe in the client bundle.
 

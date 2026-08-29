@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 82
 ---
 
-## Working conventions
-
 - **No em dashes in user-facing copy.** Use commas, periods, or "to" for ranges.
 - **`i¢` is the IDEA Coin symbol, written as the raw character**, never the
   `i&cent;` entity and never the word "coins" beside a rendered value. Two

@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["VANGUARD", "portal injection"]
 ---
 
-## The DEV console is removed from a student's bytes rather than declining to activate, the non-admin gate becomes an asserted table, and two dead portal globals go (`claude/vanguard-backlog-audit-onl0tb`, no migration)
-
 Started as a read-only audit of `docs/VANGUARD_BACKLOG.md` against the code. The
 audit's four findings were handed back as claims to verify rather than facts to
 act on, which was the right instruction: one of them was stated too strongly and

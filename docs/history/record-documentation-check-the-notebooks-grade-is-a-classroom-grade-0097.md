@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 30
 ---
 
-## Documentation Check: the notebook's grade is a Classroom grade (`0097`)
-
 Migration `0097_notebook_documentation_check.sql` (apply manually after
 `0096`). A notebook unit is graded as an ordinary IDEA Classroom assignment,
 so a Documentation Check lands in `classroom_submissions` beside every other

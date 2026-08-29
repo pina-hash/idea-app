@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 37
 ---
 
-## Classroom bundle 7: presentation decks (`0101`)
-
 Migration `0101_classroom_decks.sql` (apply manually after `0100`). A deck
 authored in Claude Design and exported as a "Project HTML" zip is uploaded to a
 classroom item, unpacked server-side, stored file-by-file in Drive, and served

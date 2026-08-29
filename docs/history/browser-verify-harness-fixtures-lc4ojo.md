@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["browser-verify harness", "Classroom", "Foundry"]
 ---
 
-## Two features shipped without harness fixtures get them: the composer's grading-category datalist and the Foundry download control (`claude/browser-verify-harness-fixtures-lc4ojo`, no migration)
-
 Two features landed on `main` this week whose harness fixtures were left for
 somebody else, because the files they needed touched belonged to other live
 sessions. This bundle owns `src/routes/dev/` and `tools/browser-verify/` only

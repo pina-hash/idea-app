@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 123
 ---
 
-## A build-time deploy gate was tried, broke production, and was reverted
-
 **Do not put the test suite on the Vercel build's critical path again without
 reading this first.**
 

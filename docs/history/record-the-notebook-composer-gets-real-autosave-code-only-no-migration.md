@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 111
 ---
 
-## The notebook composer gets real autosave (code only, NO migration)
-
 ### What shipped
 
 The notebook's compose form had **no persistence mechanism at all**. Nothing was

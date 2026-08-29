@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 95
 ---
 
-## Every surface that persists work has an honest save state (code only, no migration)
-
 One new primitive, one navigation guard, one shared indicator, six consumers,
 one test file, and a fault-injection panel on the classroom harness.
 

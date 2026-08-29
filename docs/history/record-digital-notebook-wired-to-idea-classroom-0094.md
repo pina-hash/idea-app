@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 29
 ---
 
-## Digital notebook (wired to IDEA Classroom, `0094`)
-
 Migration `0094_notebook_classroom_sections.sql` (apply manually after `0093`).
 The notebook stops keeping its own parallel idea of a class: sections and
 rosters are Classroom's (0082/0083), and the notebook reads them. **Schema and

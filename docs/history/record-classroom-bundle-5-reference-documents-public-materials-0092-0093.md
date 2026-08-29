@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 62
 ---
 
-## Classroom bundle 5: reference documents + public materials (`0092`, `0093`)
-
 Materials can render structured, interactive reference documents instead of
 plain rich text, and one can be made readable with no account at all. Migrations
 `0092_classroom_reference_specs.sql` and `0093_short_links.sql`, applied

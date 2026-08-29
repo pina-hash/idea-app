@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["VANGUARD"]
 ---
 
-## VANGUARD: dead exports removed, CHANGELOG check made real
-
 Two independent pieces of cleanup in `src/lib/vanguard-save.ts` and the
 version/changelog tooling around the VANGUARD build, both scoped by an
 explicit file-ownership list (a sibling session owns `CLAUDE.md` and

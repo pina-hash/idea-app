@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 77
 ---
 
-## FSP day decks (archive)
-
 `/fsp/day1`, `/fsp/day2`, ... are **archive viewers** for each day's slides,
 not live presentation controllers. Presentations run live from **Claude
 Design** externally (see "FSP live Q&A" above); these routes just host the

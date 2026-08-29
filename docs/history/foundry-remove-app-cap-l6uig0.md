@@ -6,8 +6,6 @@ migrations: ["0141"]
 subsystems: ["IDEA Foundry"]
 ---
 
-## The five-app cap is gone, and a student can take their own build home (`0141`)
-
 Two changes to IDEA Foundry that share a migration filename and almost nothing
 else. `foundry_create_app` no longer counts a person's apps, and there is a new
 portal-origin route that hands the author (or an admin) one whole version of a

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 96
 ---
 
-## The "Has photos" chip stops counting removed pages, and the sweep is re-run (code only)
-
 `0116` gave photos a `removed_at` and left the liveness rule to the client, on a
 deliberate contract: the feed's load carries a removed photo through unfiltered
 so the student's own "removed photos" disclosure and the restore control can see

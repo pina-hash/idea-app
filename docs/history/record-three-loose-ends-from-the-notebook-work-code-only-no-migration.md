@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 90
 ---
 
-## Three loose ends from the notebook work (code-only; NO migration)
-
 Follow-up to `0121` and the surrounding notebook/classroom bundles: one
 reported-but-unfixed contrast value, and one route that had never been
 verified because no harness reproduced its actual nesting.

@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["tools/browser-verify"]
 ---
 
-## The route-specs split's guards get exercised, and one of them turns out to be dead code (`claude/route-specs-loader-guards-kplx8h`, tools/browser-verify only, no migration)
-
 A prior session (branch `claude/browser-verify-routes-refactor-w5dtxf`, commit
 `dfa8572`, already merged into `integration`) split `routes.mjs`'s single
 route-spec array into `routes/`, one file per route, for the same reason

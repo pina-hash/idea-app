@@ -7,8 +7,6 @@ subsystems: ["Platform & access"]
 record_order: 2
 ---
 
-## Access model
-
 The site is **public-first**: signing in is optional and only unlocks extra
 ability, it is not required to browse the portal.
 

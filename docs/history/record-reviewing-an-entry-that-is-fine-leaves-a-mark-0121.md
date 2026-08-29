@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 88
 ---
 
-## Reviewing an entry that is fine leaves a mark (`0121`)
-
 Migration `0121_notebook_review_acknowledged.sql` (apply manually after `0120`).
 Data layer only: two new RPCs, one grid function rewritten, three tables added
 to the realtime publication. No route, component or transport changed, so

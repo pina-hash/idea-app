@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 148
 ---
 
-## `docs/standards/` gained a README and a REGISTER: project knowledge was the only copy
-
 **The failure this fixes:** on 2026-08-23, two chats each edited the same
 standards document starting from the same base version -- because project
 knowledge was the *only* copy of any governing standards document, with no

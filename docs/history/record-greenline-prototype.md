@@ -80,8 +80,6 @@ greenline_bundles:
   - "Self-crossing tracks (overpasses): detection, local boundary enforcement, overpass-aware deck structure"
 ---
 
-## GREENLINE (prototype)
-
 GREENLINE is a 3D combat racing game in its earliest exploration phase. The
 only artifact so far is the movement + track prototype at
 `/dev/greenline-movement` (dev-only harness, 404 in production, no auth or

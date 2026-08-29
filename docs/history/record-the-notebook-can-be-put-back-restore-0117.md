@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 35
 ---
 
-## The notebook can be put back: restore (`0117`)
-
 Migration `0117_notebook_soft_delete_restore.sql` (apply manually after `0116`)
 closes the gap 0116 shipped on purpose and widens one gate that fell short of a
 read predicate it should have matched. Three new RPCs, on the exact shape 0116's

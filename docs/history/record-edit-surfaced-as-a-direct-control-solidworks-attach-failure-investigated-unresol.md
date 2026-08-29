@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 151
 ---
 
-## Edit surfaced as a direct control; SolidWorks attach failure investigated, unresolved (`claude/classroom-edit-solidworks-yujdug`)
-
 **Item 1: Edit was buried.** On an item page, Edit lived only inside the
 collapsed "Instructor tools" disclosure (`ItemDetail.svelte`), alongside Pin,
 Copy and Delete. It is now a direct control rendered above the disclosure
