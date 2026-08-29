@@ -12,6 +12,7 @@ npm run verify:browser -- --probe       # what this container's browser can do
 npm run verify:browser -- --selftest    # negative controls; exits 1 if a check is broken
 npm run verify:browser -- --route pathways --width 375
 npm run verify:browser -- --break tiny-taps --route spec-table
+npm run verify:browser -- --break motion --route marks
 npm run verify:browser -- --json out.json --verbose
 ```
 
@@ -65,10 +66,10 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-57 directories under `src/routes/dev` (54 with a page, 3 server-only) and 56
-`+page.svelte` files; `routes.mjs` lists **25 specs over 20 distinct routes**
-(measured 2026-08-29 against `routes/*.mjs`, alias specs resolved to the
-route they measure a different state of). **This count is a snapshot, not a
+directories under `src/routes/dev` with a page, and `routes.mjs` lists **29
+specs over 24 distinct routes** (re-derived 2026-08-29 against `routes/*.mjs`
+after the marks, room-split, coin-preview and short-link specs went in; it
+read 25 over 20 the same day, before them). **This count is a snapshot, not a
 derived value, and it WILL go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
@@ -79,6 +80,13 @@ one question -- if this surface broke silently, would anyone find out before a
 student did -- not by existing. `docs/history/dev-routes-audit-5nocl7.md` has
 the audit that produced the current list and the reasons the rest were left
 out.
+
+**A ROUTE IS ONLY AS GOOD AS THE ROOM IT MOUNTS IN.** A `/dev` route has no
+layout above it, so it carries whatever scoped-theme wrapper its own page puts
+there -- and four harnesses were found measuring a different room from the one
+production gives them (`docs/history/marks-reduced-motion-test-kzaoyk.md`, and
+`routes/README.md` has the working rules). Check the layout chain before
+trusting any contrast or geometry number here.
 
 **It cannot reach a real route.** `/classroom`, `/notebook`, `/foundry` and the
 rest need a Bosco Tech Google session, and OAuth against a real school account
@@ -98,22 +106,46 @@ Two further limits belong in any report that quotes these numbers:
   resolved by painting the computed `color`/`background` and reading the
   pixel back (see below), which does not depend on which face rendered the
   glyphs. Every run prints the blocked count and says so.
-- **`prefers-reduced-motion` is `no-preference`.** The harness never sets the
-  reduced-motion media feature, so that path is **not exercised** -- a finding
-  from a route with `prefers-reduced-motion: no-preference` behaviour (an
-  entrance fade, a spin, a transform) describes only that state, never the
-  reduced one, and neither state is inferable from the other.
+- **`prefers-reduced-motion` is `no-preference` for every check except
+  `motion`.** The context is opened at `no-preference` and left there, so a
+  contrast, geometry or presence finding describes that state and never the
+  reduced one -- the two are not inferable from each other. **`motion` is the
+  exception and the only one**: it emulates the media feature itself, measures
+  both states, and puts the page back to `no-preference` before it returns, so
+  nothing measured after it is reading a page left in the wrong state. This
+  paragraph used to say the reduced path was "not exercised" flatly; that was
+  true until `/dev/marks` and is now true only of the other seven checks.
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 2 measurements outside threshold**, and they are
-the two below -- the same finding at each width. Anything else is new.
+**The whole run reports exactly 6 measurements outside threshold** (measured
+2026-08-29: 58 route/width runs, 532 measurements), and they are three findings
+seen at each of the two widths. Anything else is new.
 
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
   directly -- the true box under Rajdhani may differ slightly, though not
   enough to cross the 44px line from 26.2px.
+- **`/dev/coin-preview`: the student picker measures 19px tall** (247.3x19 at
+  375px, 352x19 at 1440px), under the 44px floor AND under the 24px absolute
+  floor. `/coin-desk/preview` is admin-only, so the 24px floor is the
+  applicable one and it still fails. **Owned by
+  `src/lib/coin-desk/StudentPreview.svelte`** (`.preview-picker select`), not by
+  this harness: it measured 19px before the `.cd-root` room went in too, and the
+  room only changed its width.
+- **`/dev/short-links`: the composer's save control measures 76.1x24px** at
+  both widths -- the primary action of the add/re-point form, under the 44px
+  floor. It carries `class="btn tiny"`, and
+  `src/lib/ShortLinkManager.svelte`'s own `.btn.tiny` rule pins
+  `min-height: 24px` with a comment justifying that floor for "the row-ops chips
+  -- Edit, Delete, Cancel beside a short link in a table". The save button is
+  not a row-ops chip; it took the chip floor by sharing the class. **Owned by
+  that component.** The six genuine row-ops chips (48.6x24 to 76.1x24) are
+  asserted at the documented 24px floor `IDEA_INTERFACE_STANDARDS` 10 gives an
+  admin-only, non-student-facing surface -- and the check still prints every box
+  and still counts anything under 24px separately, so nothing is hidden by
+  naming the right number.
 - **The chip label on its own fill measures 4.84:1** on `/dev/pathways`,
   which passes. This is a **contrast measurement**, which the font-loading
   limit does not qualify (see above) -- the ratio is real regardless of which
@@ -137,6 +169,7 @@ threshold exists it is printed beside the measurement, never instead of it.
 | `presence` | **present**, **visible** and **aria-hidden** counts -- three different questions -- with a reason for every invisible node |
 | `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
 | `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen |
+| `motion` | Per ELEMENT, in BOTH media states: how many elements animate under `no-preference`, and how many are still moving, still transformed or unpainted under `reduce`, plus the lowest resting opacity in the set |
 | `console-errors` | Console errors and uncaught exceptions during the run |
 
 Three details are deliberate:
@@ -224,12 +257,11 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **44
-controls, 22 negative and 22 positive** (re-derived from `selftest.mjs`'s own
-`CASES` array 2026-08-29, after the three `text-contains` groups and the
-`presence (maxVisible)` group went in; it read 36 on 2026-08-28. A number
-written down here is a number that drifts, so re-derive it rather than trusting
-this line).
+one, because unlike the measuring run there is a right answer here. **54
+controls, 27 negative and 27 positive** (re-derived from `selftest.mjs`'s own
+`CASES` array 2026-08-29, after the five `motion` groups went in; it read 44
+the same day, and 36 on 2026-08-28. A number written down here is a number
+that drifts, so re-derive it rather than trusting this line).
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
 once in a tree that then has to be restored byte-identically, this proves it on
 every run and touches nothing.
@@ -278,6 +310,7 @@ green, which is the property that makes it worth anything.
 | `invisible` | `presence` |
 | `console-error` | `console-errors` |
 | `blank-text` | `text-contains` |
+| `motion` | `motion` |
 
 **`blank-text` names the compliance footers rather than sweeping the
 document**, and that is deliberate: blanking every element would redden
@@ -323,10 +356,66 @@ that hit-tests the element's own box (`/dev/gauntlet-shell` does), which
 answers the same for `display: none` at 375 and an off-screen transform at 1440
 -- two mechanisms, one guarantee.
 
+### `motion` -- the reduced-motion gate, measured in the state that is hard to see
+
+`CLAUDE.md` states one rule three times and not identically in any two of them.
+The narrowest is under the launcher-card section: "Every other app mark is a
+component in `$lib/marks` with a 3-4.6s loop gated behind
+`prefers-reduced-motion: no-preference`, and **nothing is hidden in a base
+state**: with the animation cancelled every animated element is at full opacity
+and no transform, so a reduced-motion reader sees the whole glyph." The two
+looser ones are "Everything animated is gated behind `prefers-reduced-motion`"
+and AnimatedLogo's "spin is gated behind `prefers-reduced-motion:
+no-preference`". The FRC exception is the other direction: "THE FRC MARK IS
+NEVER ANIMATED ... FIRST's brand guidelines prohibit altering the mark, and
+motion is an alteration."
+
+**MEASURING THE ANIMATION RUNNING PROVES NOTHING ABOUT THE CANCELLED STATE**,
+which is the whole difficulty. So the check flips Chromium's own emulation of
+the media feature and reads the SAME elements twice:
+
+- **RUNNING** (`no-preference`) discovers which elements animate at all. That
+  set is the POSITIVE CONTROL: an `expect: 'gated'` entry that finds NOTHING to
+  animate FAILS, because a sweep with an empty case list satisfies "nothing
+  moves under reduce" perfectly and is exactly the shape a renamed class
+  silently produces.
+- **REDUCED** re-reads those elements. Each must have no animation attached,
+  `animation-name: none`, `transform: none`, and must still be painted.
+
+**DISCOVERY IS `Element.getAnimations()`, NOT A WALK OF `document.styleSheets`.**
+The stylesheet walk is the worse instrument here for a reason `CLAUDE.md`
+already names: `CSSStyleRule` has a `cssRules` property now (CSS Nesting) and
+an empty `CSSRuleList` is truthy, so the ordinary shape for walking a sheet
+skips every plain rule's declarations and comes back with zero matches -- which
+reads exactly like a clean result. Asking the element what is attached to it has
+no selector to fail to parse and no sheet to fail to read, and it reports an
+`animation-play-state: paused` animation too, which is correct: paused is
+attached.
+
+**THE PAINTED PREDICATE IS NOT `isVisible`, DELIBERATELY.** `isVisible` flags a
+zero-area box, which is right for a laid-out element and wrong for SVG stroke
+geometry -- `<path d="M5 10v20" />` is a vertical line, so its box is 0px wide,
+and every animated rail, tick and node in these marks would report itself
+invisible. `motion` keeps the opacity/display/visibility half (ancestor walk
+included, because `opacity` is not inherited) and drops the geometry half.
+
+**"FULL OPACITY" IS REPORTED, NOT GATED, AND THAT IS ON PURPOSE.** These glyphs
+author depth with opacity -- `.node { opacity: 0.35 }` in `GauntletMark` is its
+resting value, not a dimmed frame -- so a gate at 1.0 would fail correct marks
+and a gate at 0.35 would be fitted to today's data. What is GATED is "painted at
+all", on the harness's own existing 0.01 floor; what is REPORTED is every
+animated element's resting opacity and the lowest in the set, which is the
+number a future reader can audit.
+
+**ONE CALL SWEEPS EVERY ENTRY IN A SPEC.** Each media flip costs a settle, and
+eleven marks measured one at a time would pay twenty-two per route/width. Two
+flips serve the whole spec, which is why `motionSweep` returns an ARRAY of
+results rather than one.
+
 ## Why it is not in `npm test` and not in CI
 
-A full run is **~117 seconds** (2.0s of it the vite boot) for **23 route specs
-x 2 widths = 46 runs and 388 measurements**; `--selftest` is ~15s (44 controls).
+A full run is **144.8 seconds** (2.4s of it the vite boot) for **29 route specs
+x 2 widths = 58 runs and 532 measurements**; `--selftest` is ~19s (54 controls).
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree
@@ -346,10 +435,23 @@ a quoted figure here has been wrong. Three GAUNTLET specs took it to
 ~2.6s estimate: two of the three specs mount a `.gt-root` with a live canvas
 background and an rAF clock, and the countdown alias pays a real 3.5s hydration.
 
-**117 seconds is the point at which this stops being free.** It is still a pass
+Then 2026-08-29 added four specs -- `/dev/marks`, `/dev/animated-logo-room`,
+`/dev/coin-preview`, `/dev/short-links` -- and measured **144.8s for 58 runs**,
+**+27.9s for 8 more runs, ~3.5s per route/width**. That is at the high end of
+the range this line already carried and above the ~2.6s estimate, which is worth
+knowing: none of the four mounts a canvas, so ~3.5s looks like the current
+per-route/width cost rather than a surcharge for animation. `/dev/marks` mounts
+twelve glyphs and runs the `motion` check's two media flips, and still came in
+at 5.6s of measuring for both widths.
+
+**The marks are ELEVEN GLYPHS ON ONE ROUTE for exactly this reason.** One route
+per mark would have been twenty-two runs and roughly 77 seconds for
+measurements that share a single page load; `data-mark` keeps the reporting
+per-mark anyway. A pass nobody waits for is a pass nobody runs.
+
+**~145 seconds is the point at which this stops being free.** It is still a pass
 a person will run before pushing, but the next session adding specs here should
-budget ~3.5s per route/width for anything with a canvas or an animation loop in
-it, and should say out loud what the run cost.
+budget ~3.5s per route/width, and should say out loud what the run cost.
 
 It is still deliberately outside `npm test` and outside CI:
 

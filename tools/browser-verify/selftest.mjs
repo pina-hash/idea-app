@@ -26,7 +26,8 @@ import {
 	orderResult,
 	datalistOrder,
 	consoleErrors,
-	statePairContrast
+	statePairContrast,
+	motionSweep
 } from './checks.mjs';
 
 const shell = (body, head = '') =>
@@ -550,6 +551,124 @@ const CASES = [
 		}
 	},
 	{
+		/* The whole point of the check: a page measured with the animation
+		   RUNNING says nothing about what a reduced-motion reader sees. */
+		group: 'motion (an animation reduced motion does not switch off)',
+		bad: {
+			name: 'a spin declared outside any media query',
+			html: shell(
+				'<div data-mark="x"><span id="g" class="g">g</span></div>',
+				'@keyframes spin{to{transform:rotate(360deg)}} .g{display:block;width:20px;height:20px;animation:spin 2s linear infinite}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'ungated' }]),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same spin behind prefers-reduced-motion: no-preference',
+			html: shell(
+				'<div data-mark="x"><span id="g" class="g">g</span></div>',
+				'@keyframes spin{to{transform:rotate(360deg)}} .g{display:block;width:20px;height:20px}' +
+					'@media (prefers-reduced-motion: no-preference){.g{animation:spin 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'gated' }]),
+			expect: 'within'
+		}
+	},
+	{
+		/* "Nothing is hidden in a base state" -- the half a whole-component
+		   check cannot see, because the other elements settle correctly. */
+		group: 'motion (hidden in the cancelled state)',
+		bad: {
+			name: 'an element the animation FADES IN, invisible once cancelled',
+			html: shell(
+				'<div data-mark="x"><span class="a">a</span><span class="b">b</span></div>',
+				'@keyframes in{to{opacity:1}} .a,.b{display:block;width:20px;height:20px}' +
+					'.b{opacity:0}' +
+					'@media (prefers-reduced-motion: no-preference){.a,.b{animation:in 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'fade-in base state' }]),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same pair resting at their authored opacity',
+			html: shell(
+				'<div data-mark="x"><span class="a">a</span><span class="b">b</span></div>',
+				'@keyframes in{to{opacity:1}} .a,.b{display:block;width:20px;height:20px}' +
+					'.b{opacity:0.35}' +
+					'@media (prefers-reduced-motion: no-preference){.a,.b{animation:in 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'authored resting opacity' }]),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'motion (a residual transform once the animation is cancelled)',
+		bad: {
+			name: 'an element parked off its own glyph by a base transform',
+			html: shell(
+				'<div data-mark="x"><span class="a">a</span></div>',
+				'@keyframes slide{to{transform:translateY(0)}} .a{display:block;width:20px;height:20px;transform:translateY(20px)}' +
+					'@media (prefers-reduced-motion: no-preference){.a{animation:slide 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'residual transform' }]),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same animation over a base state with no transform',
+			html: shell(
+				'<div data-mark="x"><span class="a">a</span></div>',
+				'@keyframes slide{to{transform:translateY(0)}} .a{display:block;width:20px;height:20px}' +
+					'@media (prefers-reduced-motion: no-preference){.a{animation:slide 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'no residual transform' }]),
+			expect: 'within'
+		}
+	},
+	{
+		/* A sweep that generated no cases satisfies "nothing moves under reduce"
+		   perfectly. CLAUDE.md: assert the case count of a generated sweep, so a
+		   sweep that generated nothing cannot pass. */
+		group: 'motion (the sweep found nothing to animate)',
+		bad: {
+			name: 'a subtree with no animation anywhere -- a renamed class, silently',
+			html: shell('<div data-mark="x"><span class="a">a</span></div>', '.a{display:block;width:20px;height:20px}'),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'nothing animated' }]),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same subtree with one gated animation in it',
+			html: shell(
+				'<div data-mark="x"><span class="a">a</span></div>',
+				'@keyframes in{to{opacity:1}} .a{display:block;width:20px;height:20px}' +
+					'@media (prefers-reduced-motion: no-preference){.a{animation:in 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="x"]', label: 'one gated animation' }]),
+			expect: 'within'
+		}
+	},
+	{
+		/* The FRC direction. Asserted in the RUNNING phase: under reduce a
+		   merely-gated animation is indistinguishable from none, which is the
+		   one thing this mark may not have. */
+		group: "motion (expect 'never' -- the FRC brand rule)",
+		bad: {
+			name: 'the mark carrying a gated animation, which is still an alteration',
+			html: shell(
+				'<div data-mark="frc"><span class="a">a</span></div>',
+				'@keyframes in{to{opacity:1}} .a{display:block;width:20px;height:20px}' +
+					'@media (prefers-reduced-motion: no-preference){.a{animation:in 2s linear infinite}}'
+			),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="frc"]', label: 'FRC', expect: 'never' }]),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the mark with no animation in either state',
+			html: shell('<div data-mark="frc"><span class="a">a</span></div>', '.a{display:block;width:20px;height:20px}'),
+			run: (p) => motionSweep(p, [{ selector: '[data-mark="frc"]', label: 'FRC', expect: 'never' }]),
+			expect: 'within'
+		}
+	},
+	{
 		group: 'console-errors (thrown)',
 		bad: {
 			name: 'a script that throws on load',
@@ -586,7 +705,12 @@ async function measure(browser, fixture, width) {
 	try {
 		await page.setContent(fixture.html, { waitUntil: 'load' });
 		await settle(page, { settleMs: 250 });
-		return await fixture.run(page, errs);
+		/* `motionSweep` sweeps every entry in ONE pair of media flips and so
+		   returns an ARRAY of results, one per entry. A fixture here hands it a
+		   single entry, so take the one row; every other check returns its
+		   result object directly. */
+		const out = await fixture.run(page, errs);
+		return Array.isArray(out) ? out[0] : out;
 	} finally {
 		await context.close();
 	}
