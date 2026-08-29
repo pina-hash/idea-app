@@ -1,5 +1,45 @@
 # IDEA // GAUNTLET, design doc
 
+> **READ THIS FIRST: A CLAIM IN THIS DOCUMENT IS A LEAD, NOT A FACT.**
+>
+> This file was written against a snapshot of the code and **nothing keeps it
+> honest** -- no test reads it, no build step checks it, and no rule anywhere
+> requires a session that changes GAUNTLET to touch it. That is a structural
+> property, not an accusation about any past session, and it is the same
+> failure the VANGUARD backlog had: a document that is authoritative in tone,
+> stale in fact, and impossible to tell apart from a current one by reading it.
+>
+> It stopped being maintained after migration `0027` and stood unchanged
+> through **ten later GAUNTLET migrations** (`0028`-`0031`, `0033`-`0036`,
+> `0060`, `0061`), two redefinitions that changed its meaning from outside
+> (`0038`, `0067`), and the entire C# SolidWorks add-in. The 2026-08-29 audit
+> that produced this header corrected everything it could verify and is
+> recorded in `docs/history/gauntlet-component-harnesses-gnddjg.md`; anything
+> not touched by that audit has been unverified since `0027`.
+>
+> **Before acting on a statement here, check it against the code.** The
+> migrations in `supabase/migrations/` are the applied record and win; a
+> function is resolved BY NAME at call time, so its LAST `create or replace` is
+> the live definition. `CLAUDE.md` wins on how work in this repo is done.
+> `docs/GAUNTLET-DESIGN.md` is the VIEWPORT design system and is separate.
+
+> **AND THE SINGLE MOST MISLEADING THING BELOW: "TEACHER" IN THIS DOCUMENT
+> MEANS ADMIN.** Every authoring, hosting and moderation gate in GAUNTLET is
+> written `is_teacher()` in SQL, and **`0067` redefined `is_teacher()` to
+> return `is_admin()`** -- one function body, re-gating roughly ninety
+> already-applied references at once. `teacher` is auto-granted by email
+> domain and on its own now grants **nothing** in GAUNTLET. A Bosco Tech
+> teacher who is not a row in `public.app_admins` **cannot author a challenge,
+> cannot host a live room, and cannot reach `/gauntlet/author` at all** -- the
+> route answers a redirect, not a permission message, so the failure reads as
+> a broken link rather than as a missing grant. The routes were updated to
+> `isAdmin()` and only this document was not. **This is a capability question
+> about a colleague, not a naming quibble:** if a teacher reports that
+> authoring is missing, the answer is an `admin_grant`, not a bug report.
+> Every "teacher" below should be read as "admin"; the word is left in place
+> where it is quoting a migration or a policy NAME, which cannot be renamed
+> (see `CLAUDE.md`'s naming trap).
+
 The north star for the GAUNTLET section of `idea-app`. Read this before adding a
 mode, a scoring rule, or schema. It exists so later work does not drift from the
 original intent.
@@ -51,15 +91,33 @@ These never touch SolidWorks. They are answer-graded in the browser/server.
   density, and a target mass, the way real practice problems are stated. Mass is
   presentation; volume is the truth we check against (mass = volume x density,
   so a correct volume in the stated material yields the target mass).
-- **Verify the material by DENSITY, not by name (0027).** The applied material's
-  density is `mass / volume`, geometry independent, so the macro submit checks
-  the measured density against the challenge's expected density (normalized to
-  g/cm3 from its unit system) within a tolerance (default 1%). This replaced the
-  brittle exact-name match of 0026, which rejected correct parts whenever a
-  custom-library name (e.g. `6061-T6 (SS)`) differed from the authored name or
-  failed to read. The server blocks a submit only when there is genuinely no
-  material (no name AND a default/zero density); a present-but-wrong material
-  grades as not-correct (unranked, retry on the same clock), never a hard block.
+- **CORRECTED 2026-08-29 -- RANKED VERIFICATION IS VOLUME ONLY, AND NOTHING
+  ABOUT THE STUDENT'S MATERIAL OR DOCUMENT UNITS GATES ANYTHING (`0034`).**
+  What this bullet used to say -- that the macro submit checks the measured
+  density against the challenge's expected density within ~1%, and blocks a
+  submit with no material -- described `0027`, and **`0034` removed every one
+  of those gates.** The chain it reverses is worth knowing, because all three
+  steps were the same mistake: `0026` gated on the part's assigned material
+  NAME, `0027` gated on its assigned material DENSITY, and `0030` additionally
+  blocked on the DOCUMENT unit system. Each read something off the student's
+  part other than its geometry, so a missing, custom or mismatched material --
+  or simply an IPS document -- hard-failed a geometrically correct part.
+  - **The live model.** Ranked correctness is the measured geometric volume
+    against the level's stored `answer->>'target_volume_mm3'`, within
+    tolerance. Volume as a checksum, and nothing else.
+  - **Mass is computed from the LEVEL'S density**, never from the part's
+    assigned material: `mass = measured_volume x level_density`. Because the
+    density is a fixed level constant, hitting target mass IS hitting target
+    volume, so there is no second mass gate to keep in step.
+  - **`p_material` and `p_unit_system` survive as advisory display fields
+    only.** `material_matches` is reported and never affects pass/fail;
+    `p_mass_g` (the part's assigned-material mass) is not read for any
+    verification value at all.
+  - **The default tolerance is 0.1%, not 0.5% (`0036`).** `0034` shipped
+    `GAUNTLET_VOLUME_TOL_PCT = 0.5` and `0036` redefined both carrying
+    functions to `0.1`. It is a DEFAULT: a level that sets its own
+    `answer->>'tolerance_pct'` still wins. The constant is shared with the VBA
+    macros and the C# add-in, which are preview-only; keep the three in sync.
 - **Capture surface area and feature count for audit**, even when they are not
   the ranking metric, so a submission can be inspected later.
 - **Manual mass entry is the supervised-trust MVP.** A student types the mass
@@ -99,7 +157,7 @@ and two Storage references,
 (dimensioned PNG, in `answer`, gated and revealed on Start). The drawing (PNG)
 and 3D model (STL) are pure-geometry artifacts with no identity/metadata; they
 live in the private `gauntlet-drawings` / `gauntlet-models` buckets (authenticated
-read, teacher write), served as short-lived signed URLs. One **global ruleset**
+read, admin write), served as short-lived signed URLs. One **global ruleset**
 (`gauntlet_speedrun_ruleset`, a singleton row: units label, projection, rule
 lines) is shared across every Speedrun challenge, not repeated per record.
 `StlViewer.svelte` (three.js + STLLoader, orbit controls, auto-fit, shape only)
@@ -110,13 +168,22 @@ drawing.
 required by `gauntlet_publish_blocker`): every presented property (density,
 target mass, the drawing's dimension-reading convention) follows the selected
 system, never mixed within one challenge. The authoring form derives
-`density_unit` / `mass_unit` / `length_unit` from it instead of teachers typing
-them; Reverse Engineer and Feature Golf keep their original fixed g/cm3
+`density_unit` / `mass_unit` / `length_unit` from it instead of the author
+typing them; Reverse Engineer and Feature Golf keep their original fixed g/cm3
 convention (no `unit_system` field). The play/room pages show the
 per-challenge system's dimension label in place of the global ruleset's
 generic one when a challenge sets it. The ruleset's `projection` field is
-still stored (teacher-editable via the same singleton row) but no longer
-rendered anywhere; it was a confusing, unused "rule line" in the ruleset panel.
+still stored but no longer rendered anywhere; it was a confusing, unused "rule
+line" in the ruleset panel. **CORRECTED 2026-08-29: it is not
+teacher-editable, and it is not editable by anyone.** `0015` grants `update` on
+`gauntlet_speedrun_ruleset` to `authenticated` behind an admin policy, so the
+column is writable *in principle* -- but **no surface in the app binds an input
+to it**. There is no authoring form for the ruleset at all: the two readers
+(`/gauntlet/speedrun/[id]` and `/gauntlet/rooms/[id]`) select the singleton row
+and render it. Changing `projection` today means a hand-written SQL statement in
+the Supabase editor. Read the phrase as "changeable by an admin with SQL
+access", which is what "teacher-editable" would have to mean here anyway (see
+the admin header at the top).
 
 `0019` fixes a real "cannot be deleted" bug: `gauntlet_author_delete` archives
 a challenge instead of removing it once it has submissions (so board history
@@ -155,10 +222,14 @@ correctness, metric, rank), never raw answer values.
   the `gauntlet_submit` SECURITY DEFINER RPC, which reads the hidden answer,
   grades, and inserts with `user_id = auth.uid()`. Direct client inserts are
   blocked (no grant) so a student cannot forge `is_correct` or a zero time.
-- **Teachers** (the existing `profiles.role`) author challenges, gated by RLS.
-  Any future staff cross-user write (for example a teacher entering a student's
-  measured mass) routes through a SECURITY DEFINER RPC, never a direct client
-  write.
+- **ADMINS author challenges, gated by RLS. CORRECTED 2026-08-29: not
+  `profiles.role`.** This bullet said "Teachers (the existing `profiles.role`)",
+  and that has not been how the gate resolves since `0067`: the policies name
+  `is_teacher()`, which now returns `is_admin()`, which reads
+  `public.app_admins` -- an email-keyed roster, not the role column. A
+  `profiles.role` of `teacher` grants nothing here. Any staff cross-user write
+  (for example an admin entering a student's measured mass) routes through a
+  SECURITY DEFINER RPC, never a direct client write.
 
 Trade-off noted for later: the board ranks the *best* attempt, and the grading
 RPC reveals the correct answer after an attempt (good for learning). For
@@ -190,17 +261,51 @@ remains as unranked supervised practice.** The original manual MVP is
   Re-revealing retires the prior unused code and mints a fresh one, a new run with
   a fresh clock. See **Residual trust** below for the supervised-trust caveat on
   re-reveal.
-- **Machine submit (ranked).** `gauntlet_macro_submit(code, volume_mm3,
-  surface_area_mm2, feature_count, mass_g)` is a SECURITY DEFINER RPC the macro
-  posts to via PostgREST with the **public anon key** (not a user session); the
-  submit code is the credential, so it is granted to `anon`. It validates the
-  code (exists, unused, unexpired), resolves user/challenge/`reveal_at`, computes
-  **elapsed = now() - reveal_at** (server-stamped, so there is no client clock to
-  tamper with), verifies correctness **on volume**
-  against `target_volume_mm3` within tolerance (never a client correctness flag),
-  marks the code used, and records a submission with `source = 'macro'`,
-  `score_metric` = elapsed, and volume/area/feature_count/mass in `value`.
-  Returns pass/fail, elapsed, and rank.
+- **Machine submit (ranked). CORRECTED 2026-08-29: the signature is EIGHT
+  arguments and a solo run is timed from `started_at`, not from `reveal_at`.**
+  The live definition is in `0061`:
+
+  ```
+  gauntlet_macro_submit(
+      p_code text, p_volume_mm3 numeric, p_run_id text default null,
+      p_surface_area_mm2 numeric default null, p_feature_count integer default null,
+      p_mass_g numeric default null,        -- IGNORED for mass and verification
+      p_material text default null,         -- advisory only, never gates
+      p_unit_system text default null       -- informational only, never gates
+  ) returns jsonb
+  ```
+
+  It is a SECURITY DEFINER RPC the macro and the add-in post to via PostgREST
+  with the **public anon key** (not a user session); the submit code is the
+  credential, so it is granted to `anon`. It validates the code (exists,
+  unused, unexpired), verifies correctness on VOLUME against
+  `answer->>'target_volume_mm3'` within tolerance (never a client correctness
+  flag), records a submission with `source = 'macro'` and `score_metric` =
+  elapsed, and returns pass/fail and rank.
+  - **THE CLOCK MOVED IN `0016` AND THIS DOCUMENT NEVER FOLLOWED IT.**
+    `reveal_at` timed a run from the instant the student revealed the drawing,
+    which does not establish that they started from a blank part. `0016` added
+    `gauntlet_macro_start(p_code, p_volume_mm3)`, which rejects a non-blank
+    part and stamps `started_at` plus a fresh `run_id` on the token. **A SOLO
+    run is timed `now() - started_at` and requires `p_run_id` to match the
+    issued `run_id`.** A ROOM run is unchanged and still keeps the shared
+    `reveal_at` clock, so `p_run_id` is ignored for it -- the two clocks
+    coexist and which one applies is decided by whether the token carries a
+    room.
+  - **IT NO LONGER RETURNS THE COMPARISON VALUE (`0061`).** `target_volume_mm3`,
+    `your_volume_mm3` and `tolerance_pct` are gone from the response, replaced
+    by a coarse UNSIGNED deviation band (`pass` | `close` | `near` | `far`)
+    whose finest step is 10x the default pass band, so it cannot be bisected
+    into the tolerance. `gauntlet_run_targets` dropped the same two fields.
+  - **AND A FAILING SOLO SUBMIT NOW COSTS AN ATTEMPT (`0061`).**
+    `gauntlet_run_tokens.failed_attempts` budgets 3 failures per reveal;
+    exhausting it retires the code, so more guesses need a fresh reveal, which
+    needs a session and lands an attributable row in
+    `gauntlet_speedrun_attempts` (`0033`). Together these close the exploit
+    chain recorded as F4 in `docs/audits/2026-07-security-audit.md`: reveal ->
+    start with a client-attested blank value -> read the target back out of the
+    response -> submit it. It ranked a machine-verified run without opening
+    SolidWorks.
 - **Manual practice (unranked).** `gauntlet_submit` still grades a typed mass
   within tolerance and records `source = 'manual'` (the default). It is a quick
   self-check; it does not rank.
@@ -212,17 +317,48 @@ remains as unranked supervised practice.** The original manual MVP is
 - **Live result.** The play screen shows the submit code prominently with a link
   to the macro, and subscribes via Supabase **Realtime** to submissions for the
   challenge, reacting to the user's own macro row (RLS scopes students to their
-  own rows; the handler also checks `user_id` because teachers can read all), so
+  own rows; the handler also checks `user_id` because admins can read all), so
   the macro's result and the updated board appear automatically. A manual Refresh
   is the fallback.
-- **The macro doubles as the authoring capture tool.** `static/gauntlet/`
-  `idea-gauntlet-speedrun.bas` reads mass properties in SI (`UseSystemUnits =
-  True`), normalizes to mm3 / mm2 / g, and reads the feature count. **Student
-  submit** posts a run; **Author capture** prints canonical
-  `target_volume_mm3` / `surface_area_mm2` / `feature_count` / `mass_g` (from a
-  prompted density) for seeding real challenges. The endpoint URL + public anon
-  key are clearly-marked constants at the top (not secrets). It is linked from
-  the Speedrun screen and `/gauntlet/tools`.
+- **CORRECTED 2026-08-29 -- THE TOOLING IS FOUR FILES IN `static/tools/`, NOT
+  ONE IN `static/gauntlet/`, AND THERE IS ALSO A C# ADD-IN THIS DOCUMENT NEVER
+  MENTIONED.** `static/gauntlet/` does not exist and
+  `idea-gauntlet-speedrun.bas` does not exist. The single macro was split into
+  three when the clock moved to `started_at` (`0016`), because Start and Submit
+  became two separate posts:
+
+  | File | Role |
+  | --- | --- |
+  | `static/tools/idea-gauntlet-start.bas` | Start: rejects a non-blank part, stamps `started_at` + `run_id` |
+  | `static/tools/idea-gauntlet-submit.bas` | Student submit: posts the run |
+  | `static/tools/idea-gauntlet-author.bas` | **Admin only** on `/gauntlet/tools`. Author capture: prints canonical `target_volume_mm3` / `surface_area_mm2` / `feature_count` / `mass_g` for the paste box |
+  | `static/tools/idea-gauntlet-addin.zip` | The compiled C# SolidWorks add-in |
+  | `static/tools/tools-manifest.json` | Versions, dates and changelog, read by `/gauntlet/tools` so a stale local copy is obvious |
+
+  All of them read mass properties in SI (`UseSystemUnits = True`) and
+  normalize to mm3 / mm2. The endpoint URL and public anon key are
+  clearly-marked constants at the top (not secrets).
+
+- **THE C# ADD-IN IS THE PRIMARY RUN TOOL NOW, and it is a whole subsystem this
+  document was written before.** Source is in the repo at
+  `tools/solidworks-addin/IdeaGauntletAddin/` (`SwAddin.cs`,
+  `TaskPaneControl.cs`, `PartReader.cs`, `GauntletClient.cs`, `GauntletMath.cs`,
+  `TelemetryRecorder.cs`, `AddinUpdate.cs`, `AddinIcons.cs`); the compiled
+  binary is not checked in and ships as the zip above, mirrored into the public
+  `gauntlet-tools` bucket by `0031`. It is a task pane rather than a macro
+  prompt: it loads a level, runs the same Start/Submit RPCs, and adds two things
+  the macros do not have.
+  - **`GauntletMath.VolumeTolPct` is the third copy of the shared tolerance
+    constant** (0.1 since `0036`), alongside the VBA `GAUNTLET_VOLUME_TOL_PCT`
+    and the two SQL functions. All four are preview-or-ranked copies of one
+    number and drift silently.
+  - **`TelemetryRecorder` writes the modeling-process stream (`0035`)**:
+    append-only `gauntlet_run_events` through `gauntlet_run_events_insert`, plus
+    a materialized per-run summary through `gauntlet_run_analysis_upsert`. It is
+    FAIL-SAFE and non-blocking by design -- telemetry never affects a run's
+    outcome -- and it is what feeds `LiveTelemetry.svelte` and
+    `PostRunAnalysis.svelte`. See "Written and not read" at the end of this
+    document for what happens to the summary it writes.
 - **Residual trust.** The submit token moves the clock server-side (no client
   timer to tamper with) and is single-use. Two trust assumptions remain,
   consistent with the supervised model: (1) the posted *geometry* is trusted from
@@ -362,12 +498,15 @@ canvas** (click the flawed spot on the drawing) is logged as a v2 enhancement.
 
 GAUNTLET is a new **auth-gated section**: any signed-in user (student or
 teacher) may enter; anonymous visitors are redirected off `/gauntlet*` by
-`hooks.server.ts` (a new gated tier alongside the teacher-only dashboard). It
+`hooks.server.ts` (a new gated tier alongside the ADMIN-only dashboard --
+`/dashboard` is admin-only, not teacher-only, per `CLAUDE.md`'s access model).
+It
 uses the app-shell side of the IDEA Green design system (not the legacy-index
 landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 
 - `/gauntlet`: the dojo landing (identity + progression) and a mode-select grid
-  of all six modes. Role-aware: teachers see the authoring entry point.
+  of all six modes. Role-aware: **admins** see the authoring entry point (the
+  route reads `isAdmin()` from `$lib/server/admin`, not the role column).
 - `/gauntlet/drawing-reading`: the challenge list for the first mode.
 - `/gauntlet/drawing-reading/[id]`: a single challenge, end to end (drawing +
   question, answer, submit, score, per-challenge leaderboard).
@@ -381,17 +520,30 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
   (shared `ModelingRun.svelte`).
 - `/gauntlet/gdt-tolerance` and `/gauntlet/spot-the-error` (+ `/.../[id]`): the
   two remaining knowledge modes (shared `KnowledgePlay.svelte`).
-- `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
+- `/gauntlet/tools`: download + setup for the SolidWorks add-in and the three
+  VBA macros. The **author-capture macro is admin-only on this page**; the run
+  tools are not.
+- **ADDED 2026-08-29, three routes that exist and were unlisted:**
+  - `/gauntlet/leaderboard`: the cross-mode standings board
+    (`gauntlet_leaderboards`, last redefined in `0038`; the Speedrun records
+    list lost its tier partition in `0029` and is now flat, ordered by
+    difficulty then title).
+  - `/gauntlet/speedrun/history`: the signed-in student's own attempt history,
+    over the `gauntlet_speedrun_attempt_history` view (`0033`), which persists
+    EVERY attempt -- completed, failed, and started-but-abandoned -- not only
+    the ones that produced a submission.
+  - `/gauntlet/speedrun/quickstart`: the short path into a run.
 - `/gauntlet/author`, `/gauntlet/author/new`, `/gauntlet/author/[id]`: the
-  teacher-only authoring tool (see "Authoring" below).
+  **admin-only** authoring tool (see "Authoring" below). A non-admin, teacher
+  included, gets a redirect rather than a permission message.
 - `/gauntlet/rooms` and `/gauntlet/rooms/[id]`: live synchronized rooms (host +
   racers/spectators; see "Live Rooms" below).
 
 ## Authoring
 
 The web authoring tool (`0009_gauntlet_authoring.sql`) replaces hand-edited SQL
-seeds: teachers create, edit, publish, and delete challenges across all six
-modes from the browser. The seeds still work; this supplements them and is how
+seeds: **admins** (not teachers -- see the header) create, edit, publish, and
+delete challenges across all six modes from the browser. The seeds still work; this supplements them and is how
 the demo placeholders get replaced by real captured parts.
 
 - **Status lifecycle.** A `status` column (`draft` | `published` | `archived`)
@@ -400,11 +552,13 @@ the demo placeholders get replaced by real captured parts.
   (`published = status = 'published'`), so every existing RLS policy, the
   leaderboard view, the play RPCs, and the published-filtered list queries keep
   working unchanged. **Students only ever see published** (drafts and archived
-  have `published = false`); teachers see and can test drafts via the teacher RLS
-  read policy.
+  have `published = false`); **admins** see and can test drafts via the RLS read
+  policy still NAMED for teachers, which cannot be renamed (`CLAUDE.md`'s naming
+  trap: ~90 applied references resolve it by name).
 - **Server-side writes only.** Direct client INSERT/UPDATE/DELETE on
   `challenges` is revoked. All writes go through SECURITY DEFINER RPCs that
-  re-check `is_teacher()`: `gauntlet_author_upsert` (create/edit),
+  re-check `is_teacher()` -- **which is `is_admin()` since `0067`** --
+  `gauntlet_author_upsert` (create/edit),
   `gauntlet_author_set_status` (publish/unpublish/archive),
   `gauntlet_author_delete`, and `gauntlet_author_get` (returns the full
   challenge, including the hidden `answer`, for the edit form). Publishing runs
@@ -422,8 +576,14 @@ the demo placeholders get replaced by real captured parts.
   mismatch warning; knowledge modes get the question, answer type (choice / exact
   text / numeric), options, correct answer, and explanation. Spot the Error is a
   multiple-choice challenge (the enumerated callouts are the options).
-- **Assets.** A public Storage bucket `gauntlet` holds uploaded drawings and
-  reference images (teachers upload; everyone reads via the public URL). The
+- **Assets. CORRECTED 2026-08-29: there are FOUR GAUNTLET buckets, not one.**
+  `gauntlet` (public, `0009`) holds uploaded drawings and reference images:
+  admins upload, everyone reads via the public URL, and it is the bucket this
+  bullet describes. The other three are `gauntlet-drawings` and
+  `gauntlet-models` (both PRIVATE, `0015`: authenticated read, admin write,
+  served as short-lived signed URLs -- the gated dimensioned PNG and the STL
+  shape preview) and `gauntlet-tools` (public, `0031`, the compiled add-in
+  build, which is a binary and is not checked in). The
   asset can also be pasted inline SVG. It is written into the same payload slot
   the play screens already read (`prompt.drawing` for knowledge,
   `prompt.reference` for Reverse Engineer, the hidden `answer.drawing` for
@@ -432,7 +592,7 @@ the demo placeholders get replaced by real captured parts.
   only the reveal RPC hands it back. A shared `Asset.svelte` renders an asset as
   inline SVG or an `<img>` by sniffing the leading `<`.
 - **The capture workflow.** Modeling challenges get real geometry from the
-  macro's **Author capture** mode: a teacher models the canonical part, runs the
+  macro's **Author capture** mode: an admin models the canonical part, runs the
   macro in Author mode, and pastes the printed values
   (`target_volume_mm3` / `surface_area_mm2` / `feature_count` / `mass_g`) into the
   form's paste box. This is the supported path to replace the demo placeholders.
@@ -454,7 +614,8 @@ slot in without reworking submissions.
   leave it null). The single active round lives on the room; a future rounds
   table can take over `started_at`/`current_challenge_id` with `room_id` still
   the submission link.
-- **Host flow (teacher).** `gauntlet_room_create` mints the join code and lands
+- **Host flow (ADMIN, not teacher -- see the header).** `gauntlet_room_create`
+  mints the join code and lands
   in lobby; `gauntlet_room_set_challenge` (lobby, published Speedrun only);
   `gauntlet_room_start` and `gauntlet_room_set_state` for live/results. All are
   host-only, enforced by `host_id` server-side, not just hidden in the UI.
@@ -498,18 +659,73 @@ All six modes ship eventually. The sequence:
    the full data model, and the leaderboard mechanism.
 2. **Speedrun** (built): the flagship modeling mode, on manual mass entry first.
    See "Speedrun" below.
-3. **The VBA macro** (built): the SolidWorks capture macro, now the ranked path
-   for Speedrun (server-authoritative timing, volume verification). See
-   "Speedrun" below.
+3. **The SolidWorks tooling** (built): three VBA macros and, since, a C# add-in
+   -- the ranked path for Speedrun (server-authoritative timing, volume
+   verification). See "Speedrun" below. This step said "the VBA macro",
+   singular, and predates both the Start/Submit split and the add-in.
 4. **Reverse Engineer and Feature Golf** (built): two more modeling modes on the
    macro path. See "Reverse Engineer and Feature Golf" above.
 5. **GD&T and Tolerance and Spot the Error** (built): the last two knowledge
    modes, web-only and answer-graded like Drawing Reading. **All six modes now
    ship.** See "GD&T and Tolerance and Spot the Error" above.
-6. **The authoring tool** (built): teachers create and manage challenges from the
+6. **The authoring tool** (built): admins create and manage challenges from the
    browser, replacing hand-edited SQL seeds. See "Authoring" above.
 7. **Live rooms** (built): host-controlled synchronized Speedrun sessions. See
    "Live Rooms" above.
+
+## What happened after `0027` (added 2026-08-29)
+
+The document above stopped at `0027`. These are the GAUNTLET migrations that
+landed afterwards, in apply order, so a reader can tell at a glance whether a
+subsystem they care about moved. The two at the end are not GAUNTLET migrations
+and changed GAUNTLET's meaning anyway, which is exactly why they are easy to
+miss.
+
+| Migration | What it changed |
+| --- | --- |
+| `0028` | Rooms: a short 4-character join code, and the host races too |
+| `0029` | Dropped the Speedrun `tier` concept entirely; `prompt->>'tier'` stripped from every challenge and the records board flattened |
+| `0030` | `unit_system` made authoritative and enforced on the macro submit path -- **and then un-enforced by `0034`** |
+| `0031` | The public `gauntlet-tools` bucket, for the compiled add-in build |
+| `0033` | `gauntlet_speedrun_attempts`: every attempt persisted, including abandoned ones, plus the history view `/gauntlet/speedrun/history` reads |
+| `0034` | **Ranked verification is volume only.** Removed the material-name (`0026`), material-density (`0027`) and document-unit (`0030`) gates |
+| `0035` | Append-only telemetry `gauntlet_run_events` + the materialized `gauntlet_run_analysis` summary, both written by the add-in, fail-safe |
+| `0036` | Default volume tolerance 0.5% -> **0.1%** |
+| `0060` | Row-scoping fix for the two room views; asserts none of the three owner-privileged GAUNTLET views is readable by `anon` |
+| `0061` | `gauntlet_macro_submit` and `gauntlet_run_targets` stop returning the ranked comparison value; coarse unsigned band instead; a failing solo submit costs one of 3 budgeted attempts per reveal |
+| `0038` | Not a GAUNTLET migration: recreates `gauntlet_leaderboards()` (last defined in `0029`) for the pathway work |
+| `0067` | Not a GAUNTLET migration: redefines `is_teacher()` as `is_admin()`, re-gating **every** GAUNTLET authoring, hosting and moderation check at once. See the header |
+
+## Written and not read (audited 2026-08-29, unchanged)
+
+Three things exist, are correct, and reach nobody. They are recorded here
+because "it is already built" and "a student can see it" are different claims,
+and the gap between them is invisible from the code.
+
+- **`gauntlet_log_speedrun_attempt` is DEAD.** `0033` defines it and grants it
+  to `authenticated`; **nothing calls it** -- not the app, not the macros, not
+  the add-in, not another function. The attempt history it was meant to feed is
+  populated by `gauntlet_attempt_from_submission` and
+  `gauntlet_attempt_from_token` instead, which is why nobody noticed. It is
+  removable.
+- **`gauntlet_run_analysis` is HALF-BUILT: written, never read.** The add-in
+  posts to `gauntlet_run_analysis_upsert` (`GauntletClient.cs`), the table has
+  RLS with an own-row read policy and a `select` grant to `authenticated` -- and
+  **no query anywhere in `src/` selects from it.** The post-run screen derives
+  everything it shows from the raw `gauntlet_run_events` stream instead, so the
+  materialized summary that exists to make history and leaderboard reads fast is
+  accumulating one row per run and serving none of them. The read side is the
+  missing half, not the write side.
+- **`PostRunAnalysis`'s learning curve and class-median comparison are
+  HALF-BUILT.** The component takes `selfHistory` (the student's prior attempts
+  on this level) and `classStats` (class medians) and renders real comparisons
+  from them. **The only caller that passes either is `/dev/run-analysis`**, the
+  dev harness. The production mount at `src/routes/gauntlet/speedrun/[id]/+page.svelte`
+  passes `events` and `targets` only, so both props take their empty defaults and
+  the two comparisons degrade to nothing. A student has never seen either.
+  Everything needed to finish it is already in the schema -- `0033`'s attempt
+  history is the self-history, and the medians are an aggregate over it -- so
+  what is missing is a load, not a feature.
 
 ## Out of scope (later prompts)
 
