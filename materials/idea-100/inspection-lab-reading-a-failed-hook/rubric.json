@@ -1,0 +1,170 @@
+[
+  {
+    "id": "m1-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both hooks, called first",
+        "points": 2,
+        "descriptor": "Both rows filled, each carrying a call made before the pull and what actually happened beside it."
+      },
+      {
+        "label": "Developing",
+        "short": "One row or called late",
+        "points": 1,
+        "descriptor": "Only one hook recorded, or the call column was filled in once the result was already known."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing recorded",
+        "points": 0,
+        "descriptor": "Table empty, or written from memory after the demonstration ended."
+      }
+    ],
+    "points": 2,
+    "criterion": "The Match: A call was made before the pull and both hooks are recorded",
+    "incomplete": false
+  },
+  {
+    "id": "m1-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Cites visible damage",
+        "points": 2,
+        "descriptor": "Names something specific observed on the surviving hook and reasons from it to a decision."
+      },
+      {
+        "label": "Developing",
+        "short": "Decides without evidence",
+        "points": 1,
+        "descriptor": "Reaches a decision but supports it with general reasoning rather than with what is on the part."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank or interchangeable",
+        "points": 0,
+        "descriptor": "Blank, or an answer that would read identically for any hook in any condition."
+      }
+    ],
+    "points": 2,
+    "criterion": "The Match: The send-or-hold judgment reasons from the survivor's actual condition",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All five, real numbers",
+        "points": 4,
+        "descriptor": "All five checks carry a reading with units, and a legality call beside each one."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four of five",
+        "points": 3,
+        "descriptor": "Four checks carry readings with units; one is missing a value or its units."
+      },
+      {
+        "label": "Developing",
+        "short": "Verdicts, few numbers",
+        "points": 2,
+        "descriptor": "Most rows record only legal or illegal, or units are missing throughout."
+      },
+      {
+        "label": "Absent",
+        "short": "No measurements taken",
+        "points": 0,
+        "descriptor": "Table empty, or filled from the rules guide rather than from an instrument."
+      }
+    ],
+    "points": 4,
+    "criterion": "The Lab: Measurements are recorded as instrument readings, not as verdicts",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Cites own numbers",
+        "points": 2,
+        "descriptor": "Names a specific check and points at a reading from the table above as the reason."
+      },
+      {
+        "label": "Developing",
+        "short": "Plausible, unsupported",
+        "points": 1,
+        "descriptor": "Names a check but gives a general reason rather than a number from the table."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer or unrelated",
+        "points": 0,
+        "descriptor": "Blank, or names something that is not one of the inspection checks."
+      }
+    ],
+    "points": 2,
+    "criterion": "The Lab: The hardest-check judgment is supported by the student's own readings",
+    "incomplete": false
+  },
+  {
+    "id": "m3-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Two designs, both justified",
+        "points": 2,
+        "descriptor": "Two distinct designs named, each with a specific feature and a reason tied to the match or to a measurement taken today."
+      },
+      {
+        "label": "Developing",
+        "short": "Describes rather than borrows",
+        "points": 1,
+        "descriptor": "Two designs named but described in general terms, or only one reason connects to today's evidence."
+      },
+      {
+        "label": "Absent",
+        "short": "Fewer than two",
+        "points": 0,
+        "descriptor": "One design or none, or the same design listed twice."
+      }
+    ],
+    "points": 2,
+    "criterion": "Two Designs You Are Borrowing From: Each borrowed idea is specific and tied to evidence from today",
+    "incomplete": false
+  },
+  {
+    "id": "m4-r5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Five dimensions, all legal",
+        "points": 3,
+        "descriptor": "All five dimensions present and readable, and every one falls inside the rules."
+      },
+      {
+        "label": "Proficient",
+        "short": "Five present, one illegal",
+        "points": 2,
+        "descriptor": "All five dimensions present, but at least one value breaks a rule in the guide."
+      },
+      {
+        "label": "Developing",
+        "short": "Three or four dimensions",
+        "points": 1,
+        "descriptor": "Sketch uploaded with three or four dimensions on it, or values given as ranges rather than numbers."
+      },
+      {
+        "label": "Absent",
+        "short": "No sketch or undimensioned",
+        "points": 0,
+        "descriptor": "Nothing uploaded, or a drawing with fewer than three dimensions on it."
+      }
+    ],
+    "points": 3,
+    "criterion": "Concept Sketch: The sketch is dimensioned well enough to build from",
+    "incomplete": false
+  }
+]
