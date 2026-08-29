@@ -1,8 +1,10 @@
 -- supabase-stub.sql
 -- The parts of a Supabase project that live OUTSIDE supabase/migrations and
--- that the migrations therefore assume already exist: the two client roles, the
--- `auth` schema (users table + auth.uid()), and enough of `storage` for 0020's
--- avatars bucket. Applied to a bare embedded Postgres before any migration.
+-- that the migrations therefore assume already exist: the three client roles,
+-- THE PROJECT'S BOOTSTRAP DEFAULT PRIVILEGES (see below -- they are the reason
+-- an assertion here means what it says), the `auth` schema (users table +
+-- auth.uid()), and enough of `storage` for 0020's avatars bucket. Applied to a
+-- bare embedded Postgres before any migration.
 --
 -- Nothing here is a substitute for a migration. It is deliberately the SMALLEST
 -- stub that lets the real, unmodified migration files run, so that what the
@@ -38,16 +40,22 @@ grant usage on schema public to anon, authenticated, service_role;
 -- THE DEFAULT PRIVILEGES A REAL SUPABASE PROJECT SHIPS WITH.
 --
 -- A hosted project bootstraps `alter default privileges in schema public grant
--- execute on functions to anon, authenticated, service_role`. That writes a
--- DIRECT grant to each of the three roles into every new function's `proacl`
--- AT CREATION TIME -- it is not the SQL default, which is a single grant to
--- PUBLIC.
+-- execute on functions` AND `grant all on tables` AND `grant all on sequences`
+-- to anon, authenticated, service_role. That writes a DIRECT grant to each of
+-- the three roles into every new object's ACL AT CREATION TIME -- it is not the
+-- SQL default, which is a single grant to PUBLIC on functions and NOTHING AT
+-- ALL on tables.
 --
--- THE DIFFERENCE IS INVISIBLE UNTIL A MIGRATION TRIES TO NARROW A FUNCTION.
--- `revoke all on function f from public` removes the PUBLIC entry and NOTHING
--- ELSE, so on a real project `anon` keeps a direct EXECUTE it was never meant
--- to have, while on a fixture without these defaults the same statement leaves
--- the function correctly closed. Measured, on a function created each way:
+-- THE DIFFERENCE IS INVISIBLE UNTIL A MIGRATION TRIES TO NARROW SOMETHING, AND
+-- IT IS INVISIBLE IN THE DIRECTION THAT CERTIFIES A BUG. A fixture without
+-- these lines is STRICTER than production, so every assertion that a client
+-- role cannot reach something passes here and means nothing there.
+--
+-- FUNCTIONS. `revoke all on function f from public` removes the PUBLIC entry
+-- and NOTHING ELSE, so on a real project `anon` keeps a direct EXECUTE it was
+-- never meant to have, while on a fixture without these defaults the same
+-- statement leaves the function correctly closed. Measured, on a function
+-- created each way:
 --
 --   without these defaults, after `revoke ... from public`:
 --     proacl  postgres=X/postgres | authenticated=X/postgres     anon=false
@@ -57,21 +65,53 @@ grant usage on schema public to anon, authenticated, service_role;
 --             | authenticated=X/postgres | service_role=X/postgres
 --     anon=TRUE
 --
--- WITHOUT THESE THREE LINES THIS FILE CERTIFIES A BUG. 0136 shipped with
--- exactly that gap: its own self-check asserting `anon` holds no EXECUTE
--- passed here and raised on production. And it was never one migration's
--- problem -- 41 assertions across 32 files, written deliberately by past
--- sessions, were all passing vacuously, because a stub more permissive than
--- the real thing does not fail loudly.
+-- WITHOUT THAT LINE THIS FILE CERTIFIED A BUG. 0136 shipped with exactly that
+-- gap: its own self-check asserting `anon` holds no EXECUTE passed here and
+-- raised on production. And it was never one migration's problem -- 41
+-- assertions across 32 files, written deliberately by past sessions, were all
+-- passing vacuously, because a stub more permissive than the real thing does
+-- not fail loudly. It ARRIVED WITH 0137, which is the migration that closes the
+-- gap on every function that should never have had it. That ordering was the
+-- point: the line and that file are one change, so the fixture started telling
+-- the truth in the same commit that made the truth green.
 --
--- THEY ARRIVE WITH 0137, which is the migration that closes the gap on every
--- function that should never have had it. That ordering is the point: this
--- line and that file are one change, so the fixture starts telling the truth
--- in the same commit that makes the truth green.
+-- TABLES AND SEQUENCES, AND THE SAME STORY TOLD A SECOND TIME. The table half
+-- was NOT added with the function half, and the identical vacuum opened one
+-- object class over: every table and view a migration creates arrives holding
+-- SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES and TRIGGER for both
+-- client roles BEFORE the migration grants anything, and `create or replace
+-- view` preserves grants, so an inherited privilege survives every later
+-- recreation. A view over student full names and room participation was open to
+-- the public internet for roughly two months and no test could see it, because
+-- in the fixture an object came out holding exactly what its migration granted.
+-- MEASURED: with these lines a view created by a migration comes out
+-- `anon=arwdDxtm/postgres`, which is exactly production's DELETE,INSERT,
+-- REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE; without them, only what the
+-- migration wrote. Applied to the full chain they reproduce the 2026-08-28
+-- production sweep OBJECT FOR OBJECT: nineteen objects reachable by `anon`,
+-- the same nineteen.
+--
+-- THEY ARRIVE WITH 0149, the same way. They lived in
+-- tests/grant-surface.test.ts's own prelude for one bundle, so that a red suite
+-- could be told apart from a bad revoke while the revokes were being written;
+-- that reason expired the moment 0149 landed, and leaving them there left every
+-- OTHER db suite running against a fixture that could not reproduce the defect.
+--
+-- tests/grant-surface.test.ts probes a table it creates itself and fails if
+-- `anon` does not inherit all seven. THAT GUARD IS WHAT STANDS BETWEEN THAT
+-- FILE AND A GREEN RUN OVER A FIXTURE THAT CANNOT REPRODUCE THE DEFECT IT
+-- EXISTS FOR; if these lines are ever moved or narrowed, that is where it says
+-- so.
 -- ---------------------------------------------------------------------------
 
 alter default privileges in schema public
 	grant execute on functions to anon, authenticated, service_role;
+
+alter default privileges in schema public
+	grant all on tables to anon, authenticated, service_role;
+
+alter default privileges in schema public
+	grant all on sequences to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- auth

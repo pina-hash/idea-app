@@ -323,11 +323,82 @@ describe('the activity view adds no reach', () => {
 		expect(unseen.rows).toHaveLength(0);
 	});
 
-	it('anon can read nothing from it', async () => {
-		const { rows } = await db.sql<{ ok: boolean }>(
-			`select has_table_privilege('anon', 'public.notebook_entry_activity', 'select') as ok`
+	// -----------------------------------------------------------------------
+	// THIS TEST USED TO ASSERT `has_table_privilege('anon', <the view>,
+	// 'select')` IS FALSE, AND THAT CLAIM IS FALSE IN PRODUCTION.
+	//
+	// A hosted Supabase project bootstraps `alter default privileges in schema
+	// public grant all on tables to anon, authenticated, service_role`, so
+	// 0091's view arrives holding all seven privileges for both client roles
+	// before the migration grants anything -- and `create or replace view`
+	// preserves them, so every later recreation keeps them. The fixture carried
+	// only the FUNCTION half of those defaults, so the view came out holding
+	// exactly what 0091 wrote and this assertion was trivially true. With the
+	// table half in the shared stub it is trivially false: MEASURED,
+	// notebook_entry_activity.relacl is `anon=arwdDxtm/postgres`. It is one of
+	// the six objects a production catalog sweep found on 2026-08-28, and 0149
+	// -- which this chain deliberately predates -- is what revokes it.
+	//
+	// SO THE GRANT WAS NEVER WHAT MADE THE HEADING TRUE. What makes it true is
+	// the pair below, and both halves are necessary: the view is
+	// `security_invoker = true`, so it runs as the CALLER rather than as its
+	// owner, and the base table `notebook_entries` holds NOTHING for `anon`
+	// because 0069 wrote the `revoke all ... from anon, authenticated` that
+	// 0091 did not. Measured: notebook_entries.relacl is
+	// `{postgres=arwdDxtm, service_role=arwdDxtm, authenticated=r}` -- `anon`
+	// absent entirely.
+	//
+	// It is asserted by DRIVING a real signed-out session rather than by
+	// reading an ACL, because the reach is the question and the privilege was
+	// only ever a proxy for it. The privilege claim itself is not dropped: it
+	// moved to tests/grant-surface.test.ts, which reconciles the whole catalog
+	// over the whole chain, 0149 included, and where an `anon` grant on this
+	// view reddens because ANON_SURFACE does not declare it.
+	// -----------------------------------------------------------------------
+	it('anon can read nothing THROUGH it, whatever the view itself holds', async () => {
+		const refusal = await db
+			.asAnon((q) => q(`select * from public.notebook_entry_activity`))
+			.then(
+				(r) => ({ code: null as string | null, rowCount: r.rowCount ?? 0 }),
+				(e: { code?: string }) => ({ code: e.code ?? 'unknown', rowCount: 0 })
+			);
+		expect(
+			refusal.code,
+			'A signed-out request must be refused outright, not merely filtered. If this ever ' +
+				'returns rows instead, the view has stopped being security_invoker or the base ' +
+				'table has been granted to anon.'
+		).toBe('42501');
+		expect(refusal.rowCount).toBe(0);
+
+		// The mechanism, so a green run says WHY rather than only THAT. This is
+		// the assertion the removed one was standing in for, made about the
+		// object that actually carries the containment.
+		const { rows } = await db.sql<{ priv: string; held: boolean }>(
+			`select p.priv, has_table_privilege('anon', 'public.notebook_entries', p.priv) as held
+			   from unnest(array['select','insert','update','delete','truncate','references','trigger'])
+			        as p(priv)`
 		);
-		expect(rows[0].ok).toBe(false);
+		expect(
+			rows.filter((r) => r.held).map((r) => r.priv),
+			'0069 revoked the project defaults off notebook_entries and granted back SELECT to ' +
+				'`authenticated` alone. That revoke is the whole of what makes the view inert, and ' +
+				'it is the thing 0091 forgot to write for the view itself.'
+		).toEqual([]);
+	});
+
+	/**
+	 * The positive control. Everything above is an absence assertion driven
+	 * through db.asAnon, and an asAnon that stopped switching role -- or a view
+	 * that stopped existing -- would refuse or return nothing for reasons that
+	 * have nothing to do with the guarantee. A signed-in owner must be able to
+	 * read their own row through the same view in the same fixture.
+	 */
+	it('and the same view is readable by the student it belongs to', async () => {
+		const entryId = await newEntry(ada, 'A row for the control');
+		const { rows } = await db.asUser(ada.id, (q) =>
+			q<{ id: string }>(`select id from public.notebook_entry_activity where id = $1`, [entryId])
+		);
+		expect(rows).toHaveLength(1);
 	});
 
 	it('it is genuinely security_invoker, which is what makes all of the above true', async () => {
