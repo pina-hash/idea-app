@@ -15,28 +15,32 @@
 // which (a view over student full names and room participation) had been open
 // for roughly two months.
 //
-// WHY THE SUITE COULD NOT SEE ANY OF IT. tests/db/supabase-stub.sql carries the
-// FUNCTION half of those default privileges and its own header explains, at
+// WHY THE SUITE COULD NOT SEE ANY OF IT. tests/db/supabase-stub.sql carried the
+// FUNCTION half of those default privileges and its own header explained, at
 // length, why a stub more permissive than the real thing "does not fail
 // loudly". The TABLE half was never added. So in the fixture an object came out
 // holding exactly what its migration granted, the reconciliation was trivially
 // true, and the defect was invisible by construction -- the identical vacuum
 // 0137 closed for functions, one object class over.
-// tests/db/hosted-table-default-privileges.sql supplies it. MEASURED: with that
-// file a view created by a migration comes out `anon=arwdDxtm/postgres`, which
-// is exactly production's DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,
-// UPDATE; without it, only what the migration wrote. Applied to the full chain
-// it reproduces the production sweep object for object: nineteen objects
-// reachable by `anon`, the same nineteen.
 //
-// IT IS THIS FILE'S OWN PRELUDE, NOT THE SHARED STUB, and that is a deliberate
-// limit rather than an oversight. Turning it on in the stub changes what all 48
-// database files apply, which is a decision for a bundle that owns them; folded
-// in here it would also have arrived in the same commit as the revokes, so a
-// red suite could not be told apart from a bad revoke. The consequence is worth
-// knowing: OTHER db suites still run without table default privileges, so an
-// assertion elsewhere that `anon` cannot select something is still weaker than
-// it looks. Moving these lines into the stub is the right eventual home.
+// THE TABLE HALF IS IN THE SHARED STUB NOW, WHICH IS THE POINT OF THIS FILE'S
+// SECOND BUNDLE. It spent one bundle in this file's own prelude, so that a red
+// suite could be told apart from a bad revoke while the revokes were being
+// written; that reason expired when 0149 landed, and the cost of leaving it was
+// that every OTHER db suite still ran against a fixture where an assertion that
+// `anon` cannot reach something was weaker than it looked. MEASURED, unchanged
+// by the move: a view created by a migration comes out `anon=arwdDxtm/postgres`,
+// which is exactly production's DELETE,INSERT,REFERENCES,SELECT,TRIGGER,
+// TRUNCATE,UPDATE; without those lines, only what the migration wrote. Applied
+// to the full chain it reproduces the production sweep object for object:
+// nineteen objects reachable by `anon`, the same nineteen.
+//
+// WHAT IS LEFT IN THIS FILE'S PRELUDE IS NOT THE DEFAULTS. It is
+// tests/db/full-chain-fixture-completion.sql: auth.jwt() (read by 0043) and an
+// empty supabase_realtime publication (0064 adds a table to it). The
+// publication in particular MUST NOT move into the shared stub --
+// tests/notebook-review-acknowledged.test.ts asserts the fixture has none and
+// creates one itself to exercise the other world.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS FILE ASSERTS
@@ -93,8 +97,12 @@ const ALL_MIGRATIONS = readdirSync(MIGRATION_DIR)
 	.filter((f) => f.endsWith('.sql'))
 	.sort();
 
-/** Applied first, before 0001. See the header. */
-const HOSTED_DEFAULTS = '../../tests/db/hosted-table-default-privileges.sql';
+/**
+ * Applied first, before 0001: auth.jwt() and the empty realtime publication.
+ * NOT the hosted default privileges, which are in the shared stub. See the
+ * header.
+ */
+const FIXTURE_COMPLETION = '../../tests/db/full-chain-fixture-completion.sql';
 
 const TABLE_PRIVILEGES = [
 	'select',
@@ -295,7 +303,7 @@ describe('grant surface: the migrations against the catalog', () => {
 	let authedHeld: Held[];
 
 	beforeAll(async () => {
-		db = await startTestDb([HOSTED_DEFAULTS, ...ALL_MIGRATIONS]);
+		db = await startTestDb([FIXTURE_COMPLETION, ...ALL_MIGRATIONS]);
 		anonHeld = await heldBy(db, 'anon');
 		authedHeld = await heldBy(db, 'authenticated');
 	}, 300_000);
@@ -306,9 +314,19 @@ describe('grant surface: the migrations against the catalog', () => {
 
 	// -----------------------------------------------------------------------
 	// The fixture has to be able to REPRODUCE the defect before any absence
-	// assertion below means anything. Without the prelude every object comes
-	// out holding exactly what its migration granted and all three
-	// reconciliations pass vacuously.
+	// assertion below means anything. Without the hosted table default
+	// privileges every object comes out holding exactly what its migration
+	// granted and all three reconciliations pass vacuously.
+	//
+	// THE LINES IT PROBES ARE IN THE SHARED STUB NOW, WHICH MAKES THIS GUARD
+	// MORE LOAD-BEARING THAN IT WAS, NOT LESS. When they sat in this file's own
+	// prelude the chain named them literally, so a reader of the beforeAll
+	// could see them; now they are one line in a file 48 db suites share and
+	// nothing in this file mentions them. This is the only thing standing
+	// between this file and a green run over a fixture that cannot reproduce
+	// the defect it exists for. It probes an object it creates ITSELF rather
+	// than reading pg_default_acl, because what matters is what a new object
+	// actually inherits, which is the thing production does differently.
 	// -----------------------------------------------------------------------
 	it('the fixture actually carries the hosted default privileges', async () => {
 		await db.sql(`create table if not exists public.zz_default_privilege_probe (id int)`);
@@ -322,8 +340,10 @@ describe('grant surface: the migrations against the catalog', () => {
 			expect(
 				missing,
 				'A table created here must inherit the full privilege set for `anon`, the way it does ' +
-					'on a hosted project. If this fails, tests/db/hosted-table-default-privileges.sql is ' +
-					'not being applied and every absence assertion in this file is vacuous.'
+					'on a hosted project. If this fails, the `alter default privileges ... grant all on ' +
+					'tables` line in tests/db/supabase-stub.sql has been moved, narrowed or lost, every ' +
+					'absence assertion in this file is vacuous -- and so is every assertion in the other ' +
+					'db suites that a client role cannot reach something.'
 			).toEqual([]);
 		} finally {
 			await db.sql(`drop table if exists public.zz_default_privilege_probe`);
