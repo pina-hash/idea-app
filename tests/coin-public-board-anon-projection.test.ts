@@ -93,7 +93,15 @@ const CHAIN = [
 	'0096_coin_medium.sql',
 	'0103_coin_public_medium_display.sql',
 	'0107_coin_public_adjustment_bucket.sql',
-	'0137_anon_execute_sweep.sql'
+	'0137_anon_execute_sweep.sql',
+	// 0157 REPLACES THE UNNAMED-STUDENT FALLBACK THIS FILE ORIGINALLY PINNED.
+	// It is on the chain rather than left off because this file is the repo's
+	// statement of what a stranger receives, and a suite pinning a projection
+	// the deployed schema no longer produces is worse than no pin. The two
+	// assertions whose SUBJECT was the local part are rewritten below and say
+	// so; the other forty are untouched and pass unchanged, which is the real
+	// check that 0157 moved only what it meant to.
+	'0157_coin_public_surface_hardening.sql'
 ] as const;
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -579,31 +587,34 @@ describe('the contracts board, called by a signed-out visitor', () => {
 		expect(cart.contractors as string).not.toContain('@');
 	});
 
-	test('BUT AN UNNAMED CLAIMANT IS PUBLISHED AS THE LOCAL PART OF THEIR ADDRESS', async () => {
-		// This is the trade, and it is not hypothetical: `_coin_public_roster`'s
-		// last rung and `coin_public_contracts`' own inner coalesce BOTH fall
-		// through to split_part(email, '@', 1). The student domain is a single
-		// fixed string (`role_for_email`: @boscotech.net), so a local part on a
-		// public page plus that constant reconstructs the whole address. It is
-		// not a leak of a field somebody forgot -- 0089's header states the
-		// resolution chain openly -- but it is the widest thing this board says
-		// about a named person, and until now nothing asserted it either way.
+	test('AN UNNAMED CLAIMANT IS THE GENERIC WORD, BY BOTH PATHS (0157)', async () => {
+		// THIS ASSERTION USED TO SAY THE OPPOSITE, AND THE REVERSAL IS THE POINT.
+		// As written by this file's own bundle it read "BUT AN UNNAMED CLAIMANT IS
+		// PUBLISHED AS THE LOCAL PART OF THEIR ADDRESS", and argued the trade:
+		// `_coin_public_roster`'s last rung and `coin_public_contracts`' own inner
+		// coalesce both fell through to split_part(email, '@', 1), the student
+		// domain is a single fixed string, and a local part plus that constant
+		// reconstructs the whole address. It was not a field somebody forgot --
+		// 0089's header states the chain openly -- and the alternative offered was
+		// a claimant rendering as nothing.
 		//
-		// The alternative is a claimant who renders as nothing, on a board whose
-		// entire purpose is saying who is on a job, so the trade is deliberate.
-		// What is worth catching is a CHANGE to it: this pin reddens if the
-		// fallback ever widens to the whole address, and reddens equally if
-		// somebody removes the fallback and the board starts publishing blanks.
+		// 0157 took the third option that argument missed: a GENERIC WORD, which
+		// is what `gauntlet_room_board` has done since 0010 and what
+		// `_coin_public_name_fallback()` now says in one place for both sites. A
+		// board that names its claimants still names the ones who have a name, and
+		// nobody is identified by an address any more.
 		const rows = await readPublic('coin_public_contracts');
 		const cart = rows.find((r) => r.title === 'Rebuild the shop cart')!;
 		const names = (cart.contractors as string).split(' | ');
-		expect(names).toContain('quiet.claimant');
+		expect(names).toContain('Student');
+		expect(names).not.toContain('quiet.claimant');
 		expect(names).not.toContain(noName.email);
 
 		// And the SECOND copy of that rule, in the function's own body rather
-		// than in the roster: a claimant the roster does not carry at all.
+		// than in the roster: a claimant the roster does not carry at all. It
+		// resolves to the same word, which is what one shared definition buys.
 		const deburr = rows.find((r) => r.title === 'Deburr the plate stock')!;
-		expect(deburr.contractors).toBe('no.roster');
+		expect(deburr.contractors).toBe('Student');
 		// Its positive control -- she really is absent from the roster, so this
 		// really is the function's own branch and not the roster's.
 		const { rows: rosterRows } = await db.sql<{ n: string }>(
@@ -693,11 +704,19 @@ describe('/api/coin/public?action=contracts, driven as a signed-out visitor', ()
 		expect(body).not.toContain('created_at');
 	});
 
-	test('no address reaches the browser, and the unnamed claimant is the local part', async () => {
+	test('no address AND NO PART OF ONE reaches the browser (0157)', async () => {
+		// The second half of this used to assert the local parts were present.
+		// Since 0157 the whole point is that they are not: a local part is the
+		// recoverable half of an address on a page anybody can open, so it is
+		// swept for BY NAME rather than by the presence of an `@`.
 		const body = (await route('contracts')).body;
 		expect(body).not.toMatch(/@boscotech\.(net|edu)/);
-		expect(body).toContain('quiet.claimant');
-		expect(body).toContain('no.roster');
+		expect(body).not.toContain('quiet.claimant');
+		expect(body).not.toContain('no.roster');
+		// POSITIVE CONTROL: the board is not simply empty -- the claimant who
+		// HAS a name is still named, and the ones who do not read as the word.
+		expect(body).toContain('Ada Lovelace');
+		expect(body).toContain('Student');
 	});
 });
 
