@@ -10,9 +10,7 @@
 	 * in-browser without SolidWorks or Supabase.
 	 */
 	const targets: TelemetryTargets = {
-		targetVolumeMm3: 52000,
 		densityGcm3: 2.7,
-		targetMassLevel: 140.4,
 		massUnit: 'g',
 		unitSystem: 'MMGS',
 		parTime: 90,

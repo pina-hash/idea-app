@@ -439,7 +439,7 @@ describe('the aggregate returns no per-person anything', () => {
 // ---------------------------------------------------------------------------
 describe('the SQL dwell mirrors the component\'s own dwell', () => {
 	const targets: TelemetryTargets = {
-		targetVolumeMm3: null, densityGcm3: null, targetMassLevel: null,
+		densityGcm3: null,
 		massUnit: 'g', unitSystem: 'MMGS', parTime: null, parFeatures: null
 	};
 

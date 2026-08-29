@@ -21,11 +21,11 @@
 		difficultyLabel,
 		formatTime,
 		formatMass,
-		targetVolumeFromMass,
 		deviationBandLabel,
 		deviationBandHint,
 		UNIT_SYSTEM_UNITS,
 		DRAWINGS_BUCKET,
+		type DeviationBand,
 		type FocusRegion,
 		type SpeedrunReveal,
 		type SpeedrunResult,
@@ -62,14 +62,13 @@
 	const dimensionLabel = $derived(
 		framing.unit_system ? UNIT_SYSTEM_UNITS[framing.unit_system].dimensionLabel : ruleset.units_label
 	);
-	const band = $derived(
-		framing.target_mass != null && framing.tolerance_pct != null
-			? {
-					lo: framing.target_mass - (framing.target_mass * framing.tolerance_pct) / 100,
-					hi: framing.target_mass + (framing.target_mass * framing.tolerance_pct) / 100
-				}
-			: null
-	);
+	// THE PASS WINDOW USED TO BE COMPUTED HERE AND IS GONE (0153). It read
+	// `framing.target_mass` and `framing.tolerance_pct` off the published prompt
+	// and printed the two edges of the ranked band on the spec card. Neither
+	// field is published any more and neither may be re-derived: the only source
+	// left is `challenges.answer`, which has no client grant. What tells a
+	// student whether they are inside the band is the server, through the metered
+	// practice check below.
 
 	// Reveal-on-start state. The macro is the ranked path: reveal mints a
 	// single-use submit code and a server-side reveal_at, the student models the
@@ -349,6 +348,15 @@
 	// is an inline, unranked self-check that never ends or blocks the run.
 	let result = $state<{ is_correct: boolean; score_metric: number | null } | null>(null);
 	let practice = $state<SpeedrunResult | null>(null);
+	// The gauge's closeness reading, and the ONE place it comes from: whatever
+	// verdict the server last returned for a practice check on this run. The
+	// panel never derives it, because there is nothing left in the client to
+	// derive it from. `gauntlet_submit`'s Speedrun branch is metered by 0151 at a
+	// two-second floor per student per challenge, which is the rate this reading
+	// can move at -- see the note under the Check control for why the page does
+	// not poll it on the student's behalf.
+	let practiceBand = $state<DeviationBand | null>(null);
+	let practiceBandAtMs = $state<number | null>(null);
 	let mass = $state<number | null>(null);
 	let submitting = $state(false);
 	let submitError = $state('');
@@ -409,6 +417,8 @@
 		phase = 'running';
 		result = null;
 		practice = null;
+		practiceBand = null;
+		practiceBandAtMs = null;
 		mass = null;
 		submitError = '';
 		// Standby until the Start macro fires; Realtime (or the poll fallback) arms it.
@@ -424,19 +434,16 @@
 					if (!tg) return;
 					const density = (tg.expected_density_g_cm3 as number) ?? null;
 					const unitSystem = (tg.unit_system as string) ?? 'MMGS';
-					// The gauge's target comes from the AUTHOR'S PUBLISHED framing
-					// (`prompt`, the spec card this page already renders above), NEVER
-					// from the RPC. 0147 removed `target_mass_level` from
-					// gauntlet_run_targets: paired with the density in the same object
-					// it reconstructed target_volume_mm3 exactly, which is the ranked
-					// comparison value 0061 set out to withhold. A level whose author
-					// published no target mass simply draws no target line, which is
-					// correct: on that level the target is not public.
-					const targetMassLevel = framing.target_mass ?? null;
+					// THERE IS NO TARGET IN HERE, FROM EITHER SIDE (0153). 0147 removed
+					// `target_mass_level` from this RPC because paired with the density
+					// in the same object it reconstructed the ranked volume exactly;
+					// the client then rebuilt it from the PUBLISHED framing instead,
+					// which was the same number by a longer road. Both roads are shut:
+					// the prompt copy is gone and nothing here divides one value by
+					// another. The density stays because it converts the student's own
+					// measured volume into their own mass, and converts nothing else.
 					telemetryTargets = {
-						targetVolumeMm3: targetVolumeFromMass(targetMassLevel, density, unitSystem),
 						densityGcm3: density,
-						targetMassLevel,
 						massUnit: (tg.mass_unit as string) ?? 'g',
 						unitSystem,
 						parTime: framing.par_time ?? null,
@@ -496,6 +503,8 @@
 		return async ({ result: r, update }) => {
 			if (r.type === 'success' && r.data?.result) {
 				practice = r.data.result as SpeedrunResult;
+				practiceBand = practice.deviation_band ?? null;
+				practiceBandAtMs = Date.now();
 				submitError = '';
 			} else if (r.type === 'failure') {
 				submitError = (r.data?.error as string) ?? 'Something went wrong.';
@@ -524,6 +533,8 @@
 		code = null;
 		result = null;
 		practice = null;
+		practiceBand = null;
+		practiceBandAtMs = null;
 		mass = null;
 		submitError = '';
 		revealError = '';
@@ -699,19 +710,12 @@
 					<span class="val">{framing.material ?? 'TBD'}</span>
 				</div>
 				<div class="field">
-					<span class="key">Density</span>
-					<span class="val meta">{framing.density ?? '--'} {framing.density_unit ?? ''}</span>
+					<span class="key">Mass in</span>
+					<span class="val meta">{unit}</span>
 				</div>
 				<div class="field">
-					<span class="key">Target mass</span>
-					<span class="val meta">{formatMass(framing.target_mass, unit)}</span>
-				</div>
-				<div class="field">
-					<span class="key">Tolerance</span>
-					<span class="val meta">
-						&plusmn;{framing.tolerance_pct ?? '--'}%
-						{#if band}<span class="dim"> ({formatMass(band.lo, unit)} to {formatMass(band.hi, unit)})</span>{/if}
-					</span>
+					<span class="key">Target</span>
+					<span class="val meta dim">Not published &mdash; check your mass during the run</span>
 				</div>
 				{#if framing.par_time != null}
 					<div class="field">
@@ -811,6 +815,9 @@
 						targets={telemetryTargets}
 						elapsedMs={serverStartMs != null ? currentElapsedMs() : null}
 						live={phase === 'running'}
+						band={practiceBand}
+						bandAtMs={practiceBandAtMs}
+						nowMs={Date.now()}
 					/>
 				{/if}
 
@@ -818,6 +825,7 @@
 					<summary>Practice manually (unranked)</summary>
 					<p class="instructions">
 						A quick self-check without the macro. It does not rank; only macro-verified runs do.
+						Each check also updates the Last check reading in Live analysis above.
 					</p>
 					<div class="clock-wrap">
 						<SpeedrunClock
@@ -859,9 +867,9 @@
 									: deviationBandLabel(practice.deviation_band)}
 							</span>
 							<!-- The student's OWN typed mass. The target is deliberately not
-							     here (0147): it is on the spec card above if the author
-							     published it, and the server no longer derives it from the
-							     answer key. -->
+							     here (0147) and is not on the spec card either (0153): it is
+							     not published anywhere, and neither the server nor the client
+							     derives it from the answer key. -->
 							<span class="result-time">You measured {formatMass(practice.your_mass, unit)}</span>
 						</div>
 						{#if !practice.is_correct && deviationBandHint(practice.deviation_band)}

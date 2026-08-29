@@ -29,10 +29,11 @@ const ROUTE_DIR = join(process.cwd(), 'src/routes/gauntlet/speedrun/[id]');
 const PAGE = readFileSync(join(ROUTE_DIR, '+page.svelte'), 'utf8');
 const LOAD = readFileSync(join(ROUTE_DIR, '+page.server.ts'), 'utf8');
 
+// 0153: `targetVolumeMm3` and `targetMassLevel` are gone from TelemetryTargets.
+// They were the level's ranked answer, and the panel's volume chart no longer
+// draws a reference line from them -- see PostRunAnalysis's own comment.
 const targets: TelemetryTargets = {
-	targetVolumeMm3: 52000,
 	densityGcm3: 2.7,
-	targetMassLevel: 140.4,
 	massUnit: 'g',
 	unitSystem: 'MMGS',
 	parTime: 600,
