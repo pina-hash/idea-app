@@ -108,10 +108,19 @@ const client = (who: SeededUser) => createPostgrestShim(db, fks, who.id);
 
 /**
  * Every RPC here is set-returning, so a successful call answers an ARRAY. A
- * refusal inside a function body reaches the shim as PGRST202 (see that file's
- * own note), and every caller in this file expects rows or an empty array, so
- * an error is surfaced rather than swallowed -- a test that read an error as
- * "no rows" would pass for a denial that never happened.
+ * refusal reaches the shim as an ERROR carrying its own SQLSTATE -- `42501` for
+ * the grant denial one of these calls produces, `P0001` for a raise inside a
+ * body -- and every caller in this file expects rows or an empty array, so an
+ * error is surfaced rather than swallowed: a test that read an error as "no
+ * rows" would pass for a denial that never happened.
+ *
+ * THIS NOTE USED TO SAY "reaches the shim as PGRST202", which was true of the
+ * fixture and not of PostgREST. `tests/db/postgrest-shim.ts` reported every RPC
+ * throw as PGRST202, so a missing function and a live one refusing were one
+ * answer; it passes the SQLSTATE through now. Nothing here changed result --
+ * this helper keys on `res.error` being set and never on its code -- but the
+ * sentence would have been a fixture description that no longer described the
+ * fixture, which is how the next reader ends up asserting the wrong thing.
  */
 async function rows(
 	who: SeededUser,

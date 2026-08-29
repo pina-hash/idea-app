@@ -592,6 +592,50 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 }
 
 /**
+ * PostgREST's answer for a function call that RAISED, which is two different
+ * answers and used to be one.
+ *
+ * THE CONFLATION THIS REPLACES. Every throw out of an RPC call came back as
+ * `PGRST202`, so a function that does not exist and a live function raising
+ * `P0001` were indistinguishable through this fixture. That is not a cosmetic
+ * gap: `PGRST202` is the one code this codebase DEGRADES on, deliberately and
+ * on that code ALONE (`$lib/server/admin.ts`, `$lib/classroom/transports.ts`,
+ * `$lib/gauntlet/knowledge-clock.ts`, the short-link and reference loads), and
+ * the rule exists so a runtime error inside a function fails CLOSED instead of
+ * falling through to a weaker path. A fixture that answers `PGRST202` for a
+ * refusal makes that rule untestable in the one direction that matters: a
+ * mutant degrading on ANY error passed all ten database-driven assertions of
+ * the roster read, because through this shim there was no other error to have.
+ *
+ * WHAT POSTGREST ACTUALLY DOES. A call it cannot resolve against its schema
+ * cache -- no such function, or no overload matching the named arguments --
+ * is a 404 carrying `PGRST202`. A call that RESOLVED and then raised is
+ * reported with the SQLSTATE as the code: `P0001` for a `raise exception`,
+ * `42501` for a permission denial, class 23 for a constraint. Postgres itself
+ * draws exactly that line, so the discriminator is the driver's own SQLSTATE
+ * (`42883`, undefined_function) rather than anything this file decides.
+ *
+ * SO THE SHIM DOES NOT CLASSIFY, IT REPORTS. Passing the SQLSTATE through is
+ * what makes `$lib/pg-errors`' transient/refusal partition -- which reads
+ * `23505`, `40001`, `40P01` and friends off exactly this field -- reachable
+ * from a database test at all; a whitelist here would be a second copy of that
+ * partition, in the fixture, able to stop agreeing with the one that ships.
+ *
+ * A THROW WITH NO SQLSTATE IS NOT A DATABASE ANSWER and must not be dressed as
+ * one. That is a driver or fixture failure, and it rethrows -- the same choice
+ * `routineShape`'s two guards above make, and for the same reason.
+ */
+function rpcError(error: unknown): ShimError {
+	const code = (error as { code?: unknown } | null)?.code;
+	if (typeof code !== 'string') throw error;
+	const message = (error as Error).message;
+	// PostgREST resolves against a schema cache, so a name it does not hold and
+	// a name whose arguments match no overload are ONE answer. Postgres raises
+	// `42883` for both.
+	return { code: code === '42883' ? 'PGRST202' : code, message };
+}
+
+/**
  * A client for one caller. `userId` is a signed-in user's id, or NULL for a
  * signed-out visitor -- see `runAs` above for why that is a different role and
  * not merely a missing claim. `fks` is a snapshot of the catalog taken once,
@@ -631,8 +675,8 @@ export function createPostgrestShim(
 
 			// OUTSIDE the try: an overload disagreement and an unmodelled
 			// set-of-scalars are defects in this fixture, not answers PostgREST
-			// gives, and reporting either as PGRST202 would put a test on the
-			// degrade path of whatever load it is driving.
+			// gives, and reporting either as an error at all would put a test on
+			// the degrade path of whatever load it is driving.
 			const shape = await routineShape(db, name);
 			if (shape?.set && !shape.rowObjects) {
 				throw new Error(
@@ -676,10 +720,7 @@ export function createPostgrestShim(
 				);
 				return { data: (rows[0] as { result: unknown } | undefined)?.result ?? null, error: null };
 			} catch (error) {
-				// PostgREST reports a function that does not exist -- including one
-				// whose arguments do not match any overload -- as PGRST202, which
-				// $lib/server/admin.ts matches on by code.
-				return { data: null, error: { code: 'PGRST202', message: (error as Error).message } };
+				return { data: null, error: rpcError(error) };
 			}
 		}
 	};
