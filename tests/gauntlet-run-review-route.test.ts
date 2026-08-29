@@ -103,53 +103,18 @@ let student: SeededUser;
 let challengeId: string;
 
 /**
- * The shared shim plus a SET-RETURNING `rpc`.
+ * The shared shim, unwrapped.
  *
- * `tests/db/postgrest-shim.ts` calls every function as `select f(...) as
- * result` and hands back `rows[0].result`. That is right for the scalar and
- * jsonb-returning RPCs it was written for, and WRONG for a `returns table`
- * function: PostgREST issues `select * from f(...)` and answers with an ARRAY,
- * while the scalar form yields one composite per row and the shim keeps only
- * the first. A test built on it would hand this page a non-array and prove
- * nothing about the shape the deployed client actually receives.
- *
- * So `rpc` is replaced here, keyed on `pg_proc.proretset` read from the real
- * catalog rather than on a list of names -- the same call in named notation the
- * shim already builds, and the same PGRST202 mapping, so a caller naming a
- * parameter the function does not have still fails the way it would in
- * production. `from()` is the shim's, untouched.
- *
- * This is deliberately LOCAL rather than a change to the shared harness: other
- * sessions are working against that file, and the gap is recorded in this
- * bundle's history entry for whoever fixes it centrally.
+ * This was a LOCAL `rpc` override until the shim was fixed centrally:
+ * `tests/db/postgrest-shim.ts` called every function as `select f(...) as
+ * result`, which collapses a `returns table` result to its first row and hands
+ * that row back as a composite, so a test built on it proved nothing about the
+ * shape this page receives. The shim now reads `proretset` from the catalog
+ * itself and answers a set-returning call with an array of row objects, in
+ * JSON, so the copy that lived here is gone rather than kept beside it.
  */
 function client(who: SeededUser) {
-	const base = createPostgrestShim(db, fks, who.id);
-	return {
-		...base,
-		async rpc(name: string, args?: Record<string, unknown>) {
-			const entries = Object.entries(args ?? {});
-			const q = (s: string) => '"' + s.replace(/"/g, '""') + '"';
-			const call = `public.${q(name)}(${entries
-				.map(([k], i) => `${q(k)} => $${i + 1}`)
-				.join(', ')})`;
-			try {
-				const set = await db.sql<{ proretset: boolean }>(
-					`select p.proretset from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-					 where n.nspname = 'public' and p.proname = $1`,
-					[name]
-				);
-				if (!set.rows[0]?.proretset) return base.rpc(name, args);
-				const out = await db.asUser(
-					who.id,
-					async (fn) => (await fn(`select * from ${call}`, entries.map(([, v]) => v))).rows
-				);
-				return { data: out, error: null };
-			} catch (error) {
-				return { data: null, error: { code: 'PGRST202', message: (error as Error).message } };
-			}
-		}
-	};
+	return createPostgrestShim(db, fks, who.id);
 }
 
 /**
