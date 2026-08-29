@@ -243,9 +243,90 @@ describe('the pending cap is the database, not the button', () => {
 	});
 
 	/**
-	 * THE BURST, WHICH IS THE CASE A COUNT-THEN-INSERT ACTUALLY LOSES. Starting
-	 * from TWO pending rather than three: without the lock both remaining callers
-	 * read two, both pass, and the student ends with four.
+	 * THE LOCK IS HELD FROM OUTSIDE AND THE WAIT IS MEASURED -- which is the
+	 * deterministic proof that the count is taken AFTER the lock rather than
+	 * beside it.
+	 *
+	 * THIS REPLACES A CLAIM THE BURST BELOW WAS MAKING AND COULD NOT KEEP.
+	 * That test was headed "THE BURST, WHICH IS THE CASE A COUNT-THEN-INSERT
+	 * ACTUALLY LOSES". Measured against a scratch copy of 0145 with the
+	 * `for update` deleted from `classroom_song_request`, it passed 3 runs out
+	 * of 3 -- four concurrent submits from one student still left exactly three
+	 * on a function with no lock in it at all. The calls never overlapped: the
+	 * role switch and claims round trip ahead of each `asUser` call stagger them
+	 * past each other, so every caller read a settled count and the burst
+	 * measured a sequence. That is the 0134 lesson and the one that kept the
+	 * GAUNTLET practice meter green 31 times out of 31 over a deleted advisory
+	 * lock (docs/history/gauntlet-practice-rate-limit-xm7ye3.md).
+	 *
+	 * So the contention is MANUFACTURED. A separate transaction takes the very
+	 * enrollment row the RPC locks and holds it; the measurement is how long the
+	 * submit then waits. With `for update` in the function that is most of a
+	 * second, and without it the submit reads straight past the held row and
+	 * returns in milliseconds.
+	 */
+	test('the submit WAITS for the enrollment row lock, with an unblocked control', async () => {
+		const HOLD_MS = 1_200;
+		// `for no key update`, NOT `for update`, AND THE DIFFERENCE IS THE WHOLE
+		// INSTRUMENT. `classroom_song_requests` carries a COMPOSITE FOREIGN KEY
+		// to this enrollment row (0145's header calls it the guarantee that the
+		// parent exists), so the RPC's INSERT takes `for key share` on the very
+		// row being held -- and `for key share` conflicts with `for update`.
+		// Holding `for update` here would therefore stall the submit through the
+		// FOREIGN KEY whether or not the function locks anything itself, and the
+		// measurement would pass on a function with no lock in it. Measured on
+		// the sibling instrument in tests/coin-contracts.test.ts, which has the
+		// same parent/child shape: the `for update` draft was GREEN 3 of 3
+		// against the lock-deleted mutant.
+		//
+		// `for no key update` conflicts with `for update` and NOT with
+		// `for key share`, so the only thing that can wait on it is the RPC's
+		// own `... for update`. The FK check walks straight past.
+		//
+		// Simple protocol (no parameters) so all four statements run as ONE
+		// transaction on ONE connection. Both values are server-generated.
+		const holder = db.sql(
+			`begin;
+			 select 1 from public.classroom_enrollments
+			   where section_id = '${sectionId}' and student_email = '${ana.email}'
+			   for no key update;
+			 select pg_sleep(${HOLD_MS / 1000});
+			 commit;`
+		);
+		// Let the holder actually acquire before the submit goes in.
+		await new Promise((r) => setTimeout(r, 250));
+
+		const t0 = Date.now();
+		const first = await submit(ana, 'https://example.com/held');
+		const waitedMs = Date.now() - t0;
+		await holder;
+
+		// THE PROOF: it queued behind Ana's enrollment row rather than counting
+		// past it.
+		expect(waitedMs, `the submit did not wait for the row lock (${waitedMs}ms)`).toBeGreaterThan(
+			500
+		);
+		// And once it held the row it did the ordinary thing.
+		expect(first.ok).toBe(true);
+
+		// POSITIVE CONTROL, on the same fixture and the same clock: Ben's submit
+		// is not behind that row, so it is fast. Without this the wait above
+		// could be a slow database rather than a held lock, and a loaded machine
+		// would read as a working guard.
+		const t1 = Date.now();
+		expect((await submit(ben, 'https://example.com/control')).ok).toBe(true);
+		const uncontendedMs = Date.now() - t1;
+		expect(uncontendedMs, `the unblocked submit was slow (${uncontendedMs}ms)`).toBeLessThan(400);
+	}, 30_000);
+
+	/**
+	 * THE BURST IS AN OUTCOME CHECK AND IS NOT THE PROOF OF ANYTHING. Kept
+	 * because the row count it asserts is worth asserting -- four submits must
+	 * leave three rows and one `pending_cap` -- but it is GREEN ON A FUNCTION
+	 * WITH NO LOCK IN IT (measured, 3 of 3 runs), so it must never be read as
+	 * evidence that the cap survives concurrency. The test above is that
+	 * evidence. Do not delete this one in the belief that it covers the race,
+	 * and do not add a bigger burst in the belief that more callers would.
 	 */
 	test('four concurrent submits from one student still leave exactly three', async () => {
 		const results = await Promise.all(
