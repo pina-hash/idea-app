@@ -26,6 +26,13 @@
 // RLS is real: every read runs through the harness's asUser, so the connection
 // is `authenticated` with request.jwt.claims set, and an embedded resource's
 // own policies apply inside its subquery just as PostgREST applies them.
+//
+// AN RPC IS THE SAME ARGUMENT ONE CALL SHAPE OVER. PostgREST answers a
+// SET-RETURNING function with an ARRAY of row objects and a scalar one with the
+// value; this file called every function the scalar way for its whole life,
+// which collapsed a `returns table` result to its first row and handed that row
+// back as a composite. `routineShape` below reads `proretset` from the catalog
+// so the shape is the database's answer rather than a list anybody maintains.
 
 import type { TestDb } from './harness';
 
@@ -139,6 +146,77 @@ export async function loadForeignKeys(db: TestDb): Promise<ForeignKey[]> {
 		tgtTable: r.tgt_table,
 		tgtCols: r.tgt_cols
 	}));
+}
+
+/**
+ * What SHAPE PostgREST answers a call to `name` with, read from the REAL
+ * catalog rather than from a list somebody maintains.
+ *
+ * PostgREST issues `select * from f(...)` for a SET-RETURNING function and
+ * answers with an ARRAY of row objects; for a scalar-returning one it issues
+ * `select f(...)` and answers with the single value. Calling EVERY function
+ * the scalar way -- which this shim did until this was fixed -- is wrong twice
+ * over for a `returns table` function: it collapses the whole set to its first
+ * row, AND it wraps that row in a COMPOSITE (node-postgres hands one back as
+ * the raw `(a,b,c)` string) instead of the named columns a client receives. A
+ * test built on that hands the code under test a shape production never
+ * produces, and every assertion over it is an assertion about the fixture.
+ *
+ * The three answers:
+ *
+ *   - `proretset = false` -> a scalar. `select f(...) as result`.
+ *   - `proretset = true` and the function has OUT/TABLE columns, or returns a
+ *     composite type -> an array of row objects. `select * from f(...)`.
+ *   - `proretset = true` and it returns a bare `setof <scalar>` -> PostgREST
+ *     answers an array of VALUES, not of objects, and `select *` cannot
+ *     produce that (it names the single column after the function). NO
+ *     function in the migrations is this shape, so it THROWS rather than being
+ *     modelled wrong -- the same choice every other unsupported query in this
+ *     file makes, and the reason is the same: a shim more permissive than the
+ *     real thing does not fail loudly, it certifies a bug.
+ *
+ * IT CANNOT GO STALE, because nothing here names a function. A `returns table`
+ * migration written next week is covered the moment it applies; a function
+ * whose return shape changes changes this answer in the same statement. A
+ * pinned list is exactly the thing that would have to be remembered, and
+ * `proretset` is a fact the database already keeps.
+ *
+ * OVERLOADS ARE READ TOGETHER AND A DISAGREEMENT THROWS. The signature trap
+ * (see CLAUDE.md) leaves real overload PAIRS standing in this schema, so a
+ * name can resolve to more than one row here. Every such pair today agrees
+ * about its shape -- an overload is created by adding a PARAMETER, not by
+ * changing what the function returns -- and if one ever does not, PostgREST
+ * would resolve one of them by argument name and this shim has no way to tell
+ * which. Guessing there would be the certified bug again.
+ */
+export interface RoutineShape {
+	/** `proretset`: PostgREST answers an array. */
+	set: boolean;
+	/** The rows are objects with named columns rather than bare values. */
+	rowObjects: boolean;
+}
+
+export async function routineShape(db: TestDb, name: string): Promise<RoutineShape | null> {
+	const { rows } = await db.sql<{ is_set: boolean; row_objects: boolean }>(
+		`select p.proretset as is_set,
+		        (t.typtype = 'c' or coalesce(p.proargmodes, '{}'::"char"[]) && '{o,b,t}'::"char"[])
+		          as row_objects
+		   from pg_proc p
+		   join pg_type t on t.oid = p.prorettype
+		   join pg_namespace n on n.oid = p.pronamespace
+		  where n.nspname = 'public' and p.prokind = 'f' and p.proname = $1`,
+		[name]
+	);
+	if (rows.length === 0) return null;
+	const sets = new Set(rows.map((r) => r.is_set));
+	const objects = new Set(rows.map((r) => r.row_objects));
+	if (sets.size > 1 || objects.size > 1) {
+		throw new Error(
+			`Overloads of public.${name} disagree about their result shape. PostgREST would ` +
+				`resolve one of them by argument name; this shim cannot tell which, and will not guess.`
+		);
+	}
+	return { set: rows[0].is_set, rowObjects: rows[0].row_objects };
 }
 
 export type Relationship =
@@ -496,10 +574,50 @@ export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], user
 						.map(([key], i) => `${quote(key)} => $${i + 1}`)
 						.join(', ')})`
 				: `public.${quote(name)}()`;
+			const values = entries.map(([, v]) => v);
+
+			// OUTSIDE the try: an overload disagreement and an unmodelled
+			// set-of-scalars are defects in this fixture, not answers PostgREST
+			// gives, and reporting either as PGRST202 would put a test on the
+			// degrade path of whatever load it is driving.
+			const shape = await routineShape(db, name);
+			if (shape?.set && !shape.rowObjects) {
+				throw new Error(
+					`public.${name} returns a set of bare scalars. PostgREST answers an array of ` +
+						`VALUES for that, which this shim does not model -- see routineShape().`
+				);
+			}
+
 			try {
+				if (shape?.set) {
+					// ONE json array, not the driver's own row objects, for exactly
+					// the reason the `from()` path builds json_build_object: PostgREST
+					// answers JSON over the wire, so a timestamptz reaches the load as
+					// an ISO STRING and a bigint as a NUMBER. node-postgres would hand
+					// back a Date and a string respectively, which is not what the
+					// code under test will ever see in production.
+					// The `coalesce` is what makes an EMPTY set an empty ARRAY rather
+					// than null -- and null is what a MISSING function looks like, so
+					// without it a load could not tell "nobody is on this roster" from
+					// "this RPC is not applied yet". There is no JS fallback beside it
+					// on purpose: an aggregate over zero rows still returns exactly one
+					// row, so a `?? []` here would be a branch nothing can ever reach
+					// and no mutation could ever kill.
+					const rows = await db.asUser(
+						userId,
+						async (q) =>
+							(
+								await q<{ result: unknown }>(
+									`select coalesce(json_agg(r), '[]'::json) as result from ${call} r`,
+									values
+								)
+							).rows
+					);
+					return { data: rows[0].result, error: null };
+				}
 				const rows = await db.asUser(
 					userId,
-					async (q) => (await q(`select ${call} as result`, entries.map(([, v]) => v))).rows
+					async (q) => (await q(`select ${call} as result`, values)).rows
 				);
 				return { data: (rows[0] as { result: unknown } | undefined)?.result ?? null, error: null };
 			} catch (error) {
