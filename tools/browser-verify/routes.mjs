@@ -347,7 +347,22 @@ export const ROUTES = [
 		   every `.btn.tiny`/`.btn.secondary.tiny`, so this check asserts the
 		   floor that actually applies to this control. */
 		tapTargets: [
-			{ selector: '.compose-card .rubric-builder .actions .btn', label: 'rubric builder controls (Build rubric / Generate from spec)', min: 24 }
+			{ selector: '.compose-card .rubric-builder .actions .btn', label: 'rubric builder controls (Build rubric / Generate from spec)', min: 24 },
+			/*
+				ANOTHER PLAIN `.btn` NO EXISTING CHECK REACHED: ContentComposer's own
+				submit footer (`ContentComposer.svelte`'s `.composer-actions`, "Post
+				now"/"Save & publish"/"Save draft"/"Cancel") is `.btn`/`.btn.secondary`
+				with no `.tap-44` and is NOT `.btn.tiny` -- so it does not fall under
+				`classroom.css`'s 24px chip floor either (that rule is scoped to
+				`.btn.tiny`/`.btn.secondary.tiny`, a one-time authoring chip; this is
+				the primary, repeated submit action of the whole compose workflow).
+				Measured with no fix applied: 112.8x39.4 and 130.1x39.4 (min dim
+				39.4px) at BOTH widths, 3 controls -- a real, previously uncaught gap
+				in `src/lib/classroom/ContentComposer.svelte`, not something this
+				session's ownership (`tools/browser-verify/`) extends to fixing.
+				Reported here and left for whoever owns that file.
+			*/
+			{ selector: '.compose-card .composer-actions .btn', label: 'composer submit footer (Post now / Save draft / Cancel -- no .tap-44, not a .tiny chip)', min: 44 }
 		]
 	},
 	{
@@ -724,7 +739,26 @@ export const ROUTES = [
 			moves the boxes this check exists to report.
 		*/
 		tapTargets: [
-			{ selector: '.fdy-issues .btn', label: 'per-issue and copy-all controls', min: 44 }
+			{ selector: '.fdy-issues .btn', label: 'per-issue and copy-all controls', min: 44 },
+			/*
+				THE COVERAGE HOLE THIS ROUTE CLOSES. Every `.btn` mounted by the REAL
+				Foundry components on this page (`FoundrySubmit`, `FoundryMine`,
+				`FoundryContract`, `FoundryIssues`) already carries `.tap-44` --
+				checked across every render site in `src/lib/foundry/` -- so a
+				`.btn`-shaped check pointed at any of them would pass whether or not
+				a plain, unopted-in `.btn` anywhere else was under floor. The harness's
+				OWN scaffolding controls (the Submit/My apps/Contract tabs and the
+				"Drive an input shape" / "Raw normalize" / "Run the React fixture"
+				buttons in this route's own +page.svelte) carry no `.tap-44` at all,
+				which is exactly the shape a `.btn`-wide CSS floor change would need a
+				check to catch: nothing selector-based here reached them before this
+				line existed. Measured with no fix applied: 12 controls at 95.5x39.4
+				(min dim 39.4px) at BOTH widths -- 24 readings under the 44px floor,
+				all from this one route. This is the harness's own chrome, not a
+				shipped surface, but it is real `.btn` markup rendered by real CSS,
+				which is exactly what a floor change to `.btn` itself would move.
+			*/
+			{ selector: '.h-tabs .btn, .h-buttons .btn', label: 'plain .btn harness controls (tab switcher, drive/raw/run buttons -- no .tap-44)', min: 44 }
 		]
 	},
 	{
@@ -841,7 +875,20 @@ export const ROUTES = [
 			{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 }
 		],
 		contrast: [{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 }],
-		tapTargets: [{ selector: '.compose-card input[type="text"], .compose-card select', label: 'compose form controls', min: 44 }],
+		tapTargets: [
+			{ selector: '.compose-card input[type="text"], .compose-card select', label: 'compose form controls', min: 44 },
+			/*
+				THE STUDENT-FACING "Turn in" / "Save draft" CONTROLS ARE PLAIN `.btn`
+				(NotebookView.svelte's `.actions` block, no `.tap-44`) and until this
+				line nothing measured them -- exactly the shape a `.btn`-wide CSS
+				change would need a check to catch, on the one surface where that
+				would matter most (a student, submitting their own work). Measured
+				clean today: 72.9x44 at 375px, 64.7x44 at 1440px (min dim 44px,
+				already clearing floor by other means) -- added for regression
+				protection, not because it is currently broken.
+			*/
+			{ selector: '.compose-card .btn', label: 'compose form submit controls (Turn in / Save draft -- plain .btn)', min: 44 }
+		],
 		/*
 			THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER
 			NOTEBOOK ROUTE'S DO: `<img>` against the real `/api/notebook/photo/
@@ -878,6 +925,18 @@ export const ROUTES = [
 			{ selector: '[data-testid="staff-restore-entry"]', label: 'Restore control (self-deleted entry only)', expectPresent: 1 }
 		],
 		contrast: [{ selector: '.back-strip .who', label: 'back-strip student line', min: 4.5 }],
+		/*
+			`NotebookDeletedZone`'s restore control is `.btn.secondary.restore-btn`,
+			plain -- no `.tap-44` -- and this route had no tap-target check at all
+			before this line, on a staff-facing action that restores a student's
+			own deleted entry. Measured clean today: 104.2x44 at both widths
+			(already clearing floor by other means); added for regression
+			protection against the same `.btn`-wide coverage hole foundry-submit's
+			harness controls exposed.
+		*/
+		tapTargets: [
+			{ selector: '[data-testid="staff-restore-entry"]', label: 'restore control (plain .btn, no .tap-44)', min: 44 }
+		],
 		ignoreConsole: [
 			'\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/ana-p1\\?',
 			'\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/ana-p2-live\\?'
