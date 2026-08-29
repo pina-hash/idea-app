@@ -10,16 +10,17 @@
  * decides what to do with them (stage it, upload it, refuse it) exactly as it
  * already does for a picked file.
  *
- * THE STATEFUL LOGIC IS PLAIN FUNCTIONS, NOT A DOM LISTENER, on purpose. This
- * repo has no DOM/event-dispatch harness (see
- * tests/classroom-manager-spec-visibility.test.ts) -- `vitest.config.ts` runs
- * `environment: 'node'`, so a test cannot construct a real `<div>` and fire a
- * real `DragEvent` at it. `createDropController` is what a test CAN drive: it
- * takes synthetic event-shaped objects and calls back exactly what a real
- * drag sequence would have. `dropTarget`, the Svelte action, is the thin (and
- * therefore untested-directly, like every other DOM-wiring action in this
- * codebase) layer that connects that controller to real `addEventListener`
- * calls on the node it is placed on.
+ * THE STATEFUL LOGIC IS PLAIN FUNCTIONS, NOT A DOM LISTENER, on purpose.
+ * `createDropController` is what `tests/classroom-file-drop.test.ts` drives in
+ * the plain node project: synthetic event-shaped objects, no DOM needed, and it
+ * calls back exactly what a real drag sequence would have. `tests/dom/` is a
+ * second vitest project with a real DOM (happy-dom) and svelte's client build,
+ * where `dropTarget`, the Svelte action, is driven directly through real
+ * `dispatchEvent` calls against a mounted node -- see
+ * `tests/dom/classroom-upload-picker-parity-mount.test.ts` and
+ * `tests/dom/drag-events.ts`. The plain-function split still earns its keep: it
+ * is what makes the drag/leave/drop/paste STATE MACHINE (the `dragDepth`
+ * counting below) assertable without mounting a component for every case.
  *
  * A drop is UNFILTERED, matching the picker it sits beside: any file type,
  * because "no accept on the picker, anywhere" already governs what these
@@ -94,8 +95,8 @@ export function filesFromClipboard(e: PasteLikeEvent): File[] {
 
 /**
  * The event handling behind the shared drop target, as PLAIN FUNCTIONS a test
- * can drive with synthetic events -- see the module note for why this is
- * split out of the Svelte action rather than tested through one.
+ * can drive with synthetic events -- see the module note for the DOM-project
+ * counterpart that drives the Svelte action itself with real events.
  *
  * `dragDepth` is what makes leaving the target reliable: a drag over a child
  * element fires `dragleave` on the parent before `dragenter` on the child, so

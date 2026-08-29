@@ -950,6 +950,20 @@ test file, never the full suite; restore the mutated file byte-identically
 policy commented out entirely fails closed and reddens almost nothing, while
 `using (true)` reproduces the real leak.
 
+**`git checkout -- <file>` RESTORES FROM HEAD, NOT FROM WHATEVER A MUTATION
+SCRIPT SAVED, AND IT DISCARDS UNCOMMITTED WORK SILENTLY.** Three sessions in one
+week ran it inside a mutation script against an uncommitted tree -- to "restore"
+the file they had just mutated -- and it discarded every one of their own
+uncommitted edits along with the mutation, back to the last commit. The
+remaining mutants in the same run then applied against a PRISTINE original with
+none of the session's changes in it, and every one of them "passed" -- which
+reads as a clean mutation proof and is actually a script silently testing code
+that was no longer there. **THE TELL IS A MUTATION SUITE THAT SUDDENLY ALL
+PASSES.** A restore step in a mutation script copies the file first (`cp`, or
+read its content into memory) and restores FROM THAT COPY, never from git --
+`git checkout --`/`restore` is a discard-to-HEAD, not a scoped undo, and has no
+idea a mutation script exists.
+
 Mutation proof is **not** required for UI gates, presence-of-control checks, or
 anything that fails visibly the first time someone looks.
 
@@ -2636,6 +2650,17 @@ These have each cost a debugging session. They are not hypothetical.
 - **A genuinely `disabled` control swallows pointer events**, so a "why is this
   disabled" cue can never fire from it. Use `aria-disabled` when the control must
   still explain itself.
+- **`dispatchEvent` RUNS A `disabled` CONTROL'S LISTENER ANYWAY.** `disabled`
+  bars real user interaction (a click, a tab stop) and the DOM's own `.click()`
+  method; it does not bar a script constructing an event and handing it to
+  `dispatchEvent` directly, which reaches the listener exactly as if the control
+  were enabled. A `tests/dom/` test that fires an event at a `disabled` control
+  and expects nothing to happen is asserting something that is not true of the
+  DOM, and will pass for the wrong reason if the handler happens to no-op on
+  its own. Assert the CONTRACT instead: that the control genuinely carries the
+  `disabled` attribute (or `aria-disabled`, per the rule above, for one that must
+  still explain itself) and would therefore refuse a real click -- not that a
+  synthetic dispatch was refused, which it never is.
 - **`File.type` is legitimately EMPTY** when the platform cannot determine a media
   type -- the norm for HEIC off an iPhone. Key a media allowlist on the type OR the
   filename extension, never the type alone.
