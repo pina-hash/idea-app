@@ -252,14 +252,32 @@
 	.sr-clock.unranked .sr-live .sr-cc {
 		color: var(--dim);
 	}
-	/* Standby: armed but not started; dim the digits, drop the glow. */
+	/* Standby: armed but not started; dim the digits, drop the glow.
+	   The placeholder 00:00 is read for the same whole pre-start window the
+	   STANDBY label is (see the comment on .standby-label below) -- it is the
+	   actual instrument reading, not decoration, so it owes the same floor a
+	   label does: 3.0 for .sr-main (40px bold, large text) and 4.5 for
+	   .sr-sep/.sr-cc (22.08px at weight 500, which is neither 24px nor bold,
+	   so it does NOT qualify as large text and gets the body floor). The old
+	   values failed both, measured on this clock's own ground (`--bg2`,
+	   `.gt-root` re-points it to #0e161b, confirmed the SAME ground the
+	   Document-Picture-in-Picture window uses -- `popout.ts` tags the PiP
+	   body `gt-root` too, so there is one ground here, not two): #7a3320
+	   measured 2.02:1 against the 3.0 floor, #6a4a1a measured 2.27:1 against
+	   4.5. Hue and saturation held, only lightness raised, exactly the
+	   label's own method: #7a3320 is hsl(13, 58.4%, 30.2%) -> #ae492e is
+	   hsl(13, 58.4%, 43%), 3.30:1 (0.3 of margin over the 3.0 floor, not the
+	   0.006 the label fix rejected). #6a4a1a is hsl(36, 60.6%, 25.9%) ->
+	   #ac782a is hsl(36, 60.6%, 42%), 4.76:1 (0.26 of margin over 4.5). The
+	   dimming stays a real signal against the live glow: the hue identity
+	   (orange-red main, amber separator/centiseconds) is untouched. */
 	.sr-clock.standby .sr-live .sr-main {
-		color: #7a3320;
+		color: #ae492e;
 		text-shadow: none;
 	}
 	.sr-clock.standby .sr-live .sr-sep,
 	.sr-clock.standby .sr-live .sr-cc {
-		color: #6a4a1a;
+		color: #ac782a;
 	}
 
 	.sr-rec {
@@ -283,9 +301,13 @@
 	   saturation (45%) are held and only lightness moves, 41.6% -> 49.6%: the
 	   colour identity is the signal, and desaturating to reach a ratio is how a
 	   state quietly stops looking like itself. Measured at 4.55:1 by
-	   compositing onto the resolved ground and reading the pixel back. */
+	   compositing onto the resolved ground and reading the pixel back.
+	   The resulting #b86b45 is now `--standby` in viewport.css: it was the
+	   third hardcoded orange in this one component, and the file's own
+	   header forbids a hardcoded aesthetic value. STANDBY is a run-state
+	   colour exactly as REC is, so it sits beside `--crimson` the same way. */
 	.sr-rec.standby-label {
-		color: #b86b45;
+		color: var(--standby);
 	}
 	.sr-dot {
 		width: 7px;

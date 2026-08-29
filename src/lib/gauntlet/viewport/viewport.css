@@ -19,6 +19,9 @@
 	--lime: #c8ff00; /* gold-green accent: hover shift, callouts */
 	--steel: #3b6e8f; /* ambient viewport light (fog, particulate) */
 	--crimson: #ff3355; /* RESERVED: live/rec/error states ONLY */
+	--standby: #b86b45; /* RESERVED: STANDBY run-state text ONLY -- the armed-
+		but-not-started counterpart to --crimson's LIVE, SpeedrunClock.svelte's
+		REC . STANDBY label. Hue 20deg / sat 45%, measured 4.55:1 on --panel-2. */
 
 	/* --- Origin triad --- */
 	--ax-x: #ff4d57;
