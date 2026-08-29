@@ -78,12 +78,17 @@ async function loadRoutes() {
 			throw new Error(`routes/${file} has no default export with a string \`path\``);
 		}
 		const slug = slugify(spec.path);
-		const expected = file.slice(0, -'.mjs'.length);
-		if (slug !== expected) {
-			throw new Error(
-				`routes/${file}: filename does not match its own path -- expected routes/${slug}.mjs for path ${spec.path}`
-			);
-		}
+		// The duplicate-path and slug-collision checks run BEFORE the
+		// filename-match check below, and must: `slug` is a pure function of
+		// `spec.path`, so a file that reaches the filename-match check and
+		// passes it is BY DEFINITION the unique file on disk named
+		// `${slug}.mjs` -- readdirSync never returns two entries with the same
+		// name, so no second file could ever also pass that check for the
+		// same path or the same slug. Checking duplicates only after the
+		// filename match would make both of these guards unreachable dead
+		// code: reordering is what makes a same-path or same-slug collision
+		// surface as ITS OWN error rather than being pre-empted by whichever
+		// of the two files happens to carry the wrong name.
 		if (seenPath.has(spec.path)) {
 			throw new Error(`duplicate route path ${spec.path} in routes/${file} and routes/${seenPath.get(spec.path)}`);
 		}
@@ -92,6 +97,12 @@ async function loadRoutes() {
 			throw new Error(`slug collision "${slug}" between routes/${file} and routes/${seenSlug.get(slug)}`);
 		}
 		seenSlug.set(slug, file);
+		const expected = file.slice(0, -'.mjs'.length);
+		if (slug !== expected) {
+			throw new Error(
+				`routes/${file}: filename does not match its own path -- expected routes/${slug}.mjs for path ${spec.path}`
+			);
+		}
 		entries.push({ file, order: mod.order, spec });
 	}
 	entries.sort(byPosition);
