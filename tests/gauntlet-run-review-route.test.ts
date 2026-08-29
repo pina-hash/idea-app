@@ -62,11 +62,47 @@ const CHAIN = [
 	'0148_gauntlet_knowledge_clock.sql',
 	'0150_gauntlet_connect_run_analysis.sql',
 	'0151_gauntlet_meter_practice.sql',
-	'0152_gauntlet_run_review.sql'
+	'0152_gauntlet_run_review.sql',
+	// The tail this file stopped short of. None of the three moves an
+	// assertion here (measured); they are on the chain so this suite describes
+	// the database an operator will actually have once the queued files are
+	// pasted, rather than a snapshot that happens to end at its own subject.
+	'0153_gauntlet_unpublish_the_target.sql',
+	'0154_gauntlet_rank_what_is_checkable.sql',
+	'0155_gauntlet_authoring_tier.sql'
 ] as const;
 
-/** The chain one file short of 0152: a deployment between the push and the apply. */
-const CHAIN_BEFORE = CHAIN.slice(0, -1) as unknown as string[];
+/**
+ * The chain WITHOUT 0152: a deployment between the push and the apply, which is
+ * the degrade rung this file exists to cover.
+ *
+ * IT NAMES 0152 RATHER THAN COUNTING FROM THE END. This was
+ * `CHAIN.slice(0, -1)`, which means "without 0152" only for as long as 0152
+ * happens to be the last entry -- and appending anything silently turns it into
+ * "without whatever is last now", leaving 0152 applied and the degrade test
+ * asserting the opposite of its own name. That is not hypothetical: adding the
+ * queued tail above is exactly what broke it, and the failure read as a
+ * behavioural change rather than as a chain that had stopped meaning what it
+ * said.
+ *
+ * The cut is at the INDEX of 0152, not a filter, because everything after 0152
+ * depends on it -- 0154 refuses to apply without it, by its own guard ("this
+ * floor is pinned to its threshold and is not meant to stand alone"). A
+ * deployment that has not applied 0152 has not applied 0153-0155 either, so
+ * truncating is the faithful shape and filtering 0152 out of the middle would
+ * build a database no operator can have.
+ */
+const CHAIN_BEFORE = CHAIN.slice(
+	0,
+	CHAIN.indexOf('0152_gauntlet_run_review.sql')
+) as unknown as string[];
+
+// `indexOf` returning -1 would make the slice above an EMPTY chain, and an
+// empty chain fails in a way that looks like a harness problem rather than a
+// renamed migration. Fail here instead, naming the cause.
+if (!CHAIN.includes('0152_gauntlet_run_review.sql')) {
+	throw new Error('CHAIN_BEFORE cannot be derived: 0152 is not on CHAIN.');
+}
 
 const TARGET_VOLUME_MM3 = 61237.4408;
 

@@ -127,7 +127,19 @@ const CHAIN = [
 	'0036_gauntlet_volume_tolerance_0_1.sql',
 	'0061_gauntlet_target_disclosure.sql',
 	'0137_anon_execute_sweep.sql',
-	'0147_gauntlet_close_target_disclosure.sql'
+	'0147_gauntlet_close_target_disclosure.sql',
+	// The tail this file stopped short of. 0151 is the one that matters: it
+	// puts a MINIMUM INTERVAL on the very Speedrun practice branch this file's
+	// probe calls, so two submissions to one level by one student inside two
+	// seconds are refused. The probe steps past it deliberately (see
+	// `stepPastPracticeMeter`); everything the file asserts is unchanged.
+	'0148_gauntlet_knowledge_clock.sql',
+	'0150_gauntlet_connect_run_analysis.sql',
+	'0151_gauntlet_meter_practice.sql',
+	'0152_gauntlet_run_review.sql',
+	'0153_gauntlet_unpublish_the_target.sql',
+	'0154_gauntlet_rank_what_is_checkable.sql',
+	'0155_gauntlet_authoring_tier.sql'
 ] as const;
 
 /**
@@ -181,6 +193,30 @@ async function seedBandedLevel(
  * unranked practice branch: no run token needed) and reports whether the
  * server graded it correct.
  */
+/**
+ * Puts this caller's last practice check on this level far enough in the past
+ * that 0151's minimum interval does not refuse the next one.
+ *
+ * THIS FILE IS NOT TESTING THE METER, and saying so is the point of doing it
+ * this way rather than sleeping or spreading the probe over several students.
+ * 0151 refuses a second practice check on the same (student, challenge) inside
+ * two seconds; the probe below deliberately submits twice on one level, because
+ * a pass and a fail against the SAME band is what makes it an instrument. Only
+ * the clock is moved -- the same student, the same level, the same two masses,
+ * the same RPC -- so nothing the assertions read is touched.
+ * `tests/gauntlet-practice-meter.test.ts` is where the interval itself is
+ * asserted, and it is left alone.
+ */
+async function stepPastPracticeMeter(db: TestDb, student: SeededUser, challengeId: string) {
+	await db.sql(
+		`update public.submissions
+		    set created_at = created_at - interval '1 hour'
+		  where user_id = $1::uuid and challenge_id = $2::uuid
+		    and mode = 'speedrun' and source = 'manual' and room_id is null`,
+		[student.id, challengeId]
+	);
+}
+
 async function submitMass(
 	db: TestDb,
 	student: SeededUser,
@@ -233,6 +269,7 @@ describe('the form default tracks the server default', () => {
 				challengeId,
 				massAtDeviation(targetMassG, knownTolerancePct * 0.9)
 			);
+			await stepPastPracticeMeter(db, student, challengeId);
 			const outside = await submitMass(
 				db,
 				student,
@@ -274,6 +311,7 @@ describe('the form default tracks the server default', () => {
 			challengeId,
 			massAtDeviation(targetMassG, GAUNTLET_DEFAULT_TOLERANCE_PCT * 0.9)
 		);
+		await stepPastPracticeMeter(db, student, challengeId);
 		const outside = await submitMass(
 			db,
 			student,
