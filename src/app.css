@@ -226,11 +226,15 @@ a:hover {
    control that owns its row and one sitting inside a line of text want
    opposite things.
 
-   THEY ARE OPT-IN CLASSES RATHER THAN A SWEEP OVER `.btn`, and that is the
-   whole point. A blanket rule cannot tell a student's photo picker from an
-   instructor console's chip, and this repo has ~50 controls under the floor
-   across both. Written in the markup, the set that was raised is greppable,
-   testable, and cannot pick up a control nobody measured.
+   THEY ARE OPT-IN CLASSES, AND THEY COVER WHAT IS NOT A `.btn`. A picker, a
+   select, a checkbox row, a tab, a bare `<button>` in somebody's own scoped
+   stylesheet: a blanket rule cannot tell a student's photo picker from an
+   instructor console's chip, so those are raised by hand, in the markup,
+   where the set is greppable, testable, and cannot pick up a control nobody
+   measured. `.btn` ITSELF now carries its own 44px floor down at the button
+   rule below -- it is one rule with one padding scale, so its height was
+   never the open question these classes exist for, and leaving it out meant
+   every `.btn` not stretched by a taller flex sibling measured 39.4px.
 
    NEITHER ONE SETS A HEIGHT, ONLY A FLOOR. Snapping a control to a size
    rounds both ways: a mechanical sweep that "snaps to the nearest token" can
@@ -297,6 +301,30 @@ a:hover {
 	border: 1px solid var(--green);
 	border-radius: var(--radius-control);
 	padding: 0.7rem 1.3rem;
+	/* THE FLOOR IS THE RULE'S, NOT THE ROW'S. Measured against the real
+	   cascade at 375px and 1440px: a `.btn` sitting on its own is 39.4px,
+	   and the only reason a `.btn-row` ever cleared 44 was that the row did
+	   not wrap, so `align-items: normal` stretched every control to the
+	   tallest sibling on the line. A `<button>` takes `line-height: normal`
+	   while an `<a class="btn">` beside it inherits 1.6, so the anchor was
+	   carrying the button: 45.4px at 1440 unwrapped, 39.4px at 375 the
+	   moment the row wrapped and the button was alone on its line. That is
+	   a pass contingent on two accidents -- the viewport not wrapping the
+	   row, and a taller sibling happening to be present -- and neither is
+	   a rule anyone wrote down.
+
+	   `min-height`, never a height, and the block padding above is what
+	   carries it: type size and horizontal rhythm are untouched, and a
+	   label that wraps to two lines still grows the box instead of
+	   clipping. `display: inline-flex` + `align-items: center` are already
+	   on this rule, so the content stays centred in the taller box with no
+	   padding change. This is the same shape `.cr-root .cr-console .btn`
+	   and `.cr-root .engine-host .btn` already use, one scope wider.
+
+	   A CHIP OPTS BACK DOWN AND MUST DECLARE IT. `.cr-root .btn.tiny` sets
+	   its own 24px floor and outranks this rule; any OTHER surface wanting
+	   the chip size has to say so the same way, or it is a 44px control. */
+	min-height: 44px;
 	cursor: pointer;
 	text-decoration: none;
 	transition:
