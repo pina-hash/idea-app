@@ -34,8 +34,20 @@
 	} from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, challenge, board, myUserId, myBest, modelUrl, ruleset, next } =
-		$derived(data);
+	let {
+		supabase,
+		userName,
+		userRole,
+		challenge,
+		board,
+		myUserId,
+		myBest,
+		modelUrl,
+		ruleset,
+		next,
+		selfHistory,
+		classStats
+	} = $derived(data);
 
 	// PB context frozen at reveal time: the realtime result triggers
 	// invalidateAll(), which folds the new run into myBest, so the results
@@ -95,6 +107,69 @@
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let telemetryChannel: any = null;
 
+	/**
+	 * The add-in's own end-of-run summary (`gauntlet_run_analysis`, 0035). It is
+	 * upserted on the add-in's FINAL FLUSH at submit, so unlike the event stream
+	 * there is nothing to subscribe to during the run and nothing to read until
+	 * the result has landed -- and the table is not in the realtime publication
+	 * (0035 added only `gauntlet_run_events`), so this is a short bounded poll
+	 * rather than a subscription.
+	 *
+	 * It carries two things the events cannot give: the mass SolidWorks actually
+	 * evaluated for the part, and the add-in's own active/idle accounting. See
+	 * PostRunAnalysis's `analysis` prop for why neither is derivable.
+	 *
+	 * Best-effort in the same sense the rest of the telemetry is: the add-in
+	 * posts it fire-and-forget and swallows every failure, so it may simply never
+	 * arrive. Nothing here may throw and nothing on the page depends on it.
+	 */
+	type RunAnalysis = {
+		computed_mass: number | null;
+		mass_unit: string | null;
+		active_ms: number | null;
+		idle_ms: number | null;
+	};
+	let telemetryAnalysis = $state<RunAnalysis | null>(null);
+	let analysisPolls = 0;
+	let analysisTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const stopAnalysisPoll = () => {
+		if (analysisTimer) {
+			clearTimeout(analysisTimer);
+			analysisTimer = null;
+		}
+	};
+
+	/**
+	 * The summary is posted right after the submission that ends the run, so the
+	 * realtime result can beat it to the client by a moment. Three tries at 2s is
+	 * enough for that gap and short enough that a run with no add-in summary at
+	 * all stops asking. It is a fixed budget rather than a retry loop: there is no
+	 * failure to recover from here, only a row that may never exist.
+	 */
+	const pollRunAnalysis = (runId: string | null) => {
+		stopAnalysisPoll();
+		if (!runId) return;
+		analysisPolls = 0;
+		const attempt = () => {
+			analysisPolls += 1;
+			supabase
+				.from('gauntlet_run_analysis')
+				.select('computed_mass, mass_unit, active_ms, idle_ms')
+				.eq('run_id', runId)
+				.maybeSingle()
+				.then(({ data: row }: { data: RunAnalysis | null }) => {
+					if (row) {
+						telemetryAnalysis = row;
+						stopAnalysisPoll();
+						return;
+					}
+					if (analysisPolls < 3) analysisTimer = setTimeout(attempt, 2000);
+				});
+		};
+		attempt();
+	};
+
 	const maybeSubscribeTelemetry = (runId: string | null | undefined) => {
 		if (!runId || runId === liveRunId) return;
 		liveRunId = runId;
@@ -127,6 +202,8 @@
 		liveRunId = null;
 		telemetryEvents = [];
 		telemetryTargets = null;
+		stopAnalysisPoll();
+		telemetryAnalysis = null;
 	};
 
 	// Server-anchored elapsed ms right now (for the manual-practice self-check).
@@ -475,6 +552,8 @@
 						bringBack();
 						result = { is_correct: !!row.is_correct, score_metric: row.score_metric ?? null };
 						phase = 'done';
+						// The add-in's summary lands moments after this submission.
+						pollRunAnalysis(liveRunId);
 						invalidateAll();
 					}
 				}
@@ -497,6 +576,7 @@
 
 		return () => {
 			supabase.removeChannel(channel);
+			stopAnalysisPoll();
 			stopStatusPoll();
 			clearTelemetry();
 			// Return the drawing node inline before the component tears down.
@@ -817,7 +897,13 @@
 					<p class="instructions">A miss is recorded but does not rank. Adjust your model and run again.</p>
 				{/if}
 				{#if telemetryTargets && telemetryEvents.length > 1}
-					<PostRunAnalysis events={telemetryEvents} targets={telemetryTargets} />
+					<PostRunAnalysis
+						events={telemetryEvents}
+						targets={telemetryTargets}
+						{selfHistory}
+						{classStats}
+						analysis={telemetryAnalysis}
+					/>
 				{/if}
 			{/if}
 		</div>

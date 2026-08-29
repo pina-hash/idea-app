@@ -13,17 +13,50 @@
 		events = [],
 		targets,
 		selfHistory = [],
-		classStats = null
+		classStats = null,
+		analysis = null
 	}: {
 		events?: RunEvent[];
 		targets: TelemetryTargets;
 		/** This student's prior attempts on the same level (for the learning curve). */
 		selfHistory?: { created_at: string; elapsed_ms: number | null; result: string }[];
-		/** Class medians for the same level. */
+		/** Class medians for the same level. Server-aggregated: see the note below. */
 		classStats?: {
 			medianElapsedMs?: number | null;
 			medianFeatures?: number | null;
 			medianStuckMs?: number | null;
+			/** How many PEERS each median was taken over (0 = withheld). */
+			peersElapsed?: number;
+			peersFeatures?: number;
+			peersStuck?: number;
+		} | null;
+		/**
+		 * The add-in's own end-of-run summary row (`gauntlet_run_analysis`), when
+		 * one landed. TWO of its fields are not in the event stream and cannot be
+		 * derived from it, which is the whole reason this prop exists:
+		 *
+		 *   * `computed_mass` is the mass SOLIDWORKS evaluated for the student's
+		 *     actual part, with the material actually assigned to it. Everything
+		 *     below derives mass instead as volume x the LEVEL'S EXPECTED density,
+		 *     which by construction cannot disagree with the target -- so the
+		 *     derived figure is silently right in exactly the case the student got
+		 *     the material wrong, which is a graded failure mode.
+		 *   * `active_ms` / `idle_ms` are accrued inside the add-in at its refresh
+		 *     tick with a 4s idle threshold. `activeIdle` below re-derives them
+		 *     from gaps BETWEEN EVENTS at 8s, and events are only emitted when the
+		 *     geometry changed -- so the two are different numbers under one label,
+		 *     and only one of them saw the ticks that produced no event.
+		 *
+		 * Everything else the summary carries is either also an event (undo, redo,
+		 * the integrity stamp) or is written as a hard-coded zero by the deployed
+		 * add-in (`rebuild_ms`, `error_count`, `warning_count`) or never written at
+		 * all (`stuck_point`). Those are NOT read here; see docs/history.
+		 */
+		analysis?: {
+			computed_mass?: number | null;
+			mass_unit?: string | null;
+			active_ms?: number | null;
+			idle_ms?: number | null;
 		} | null;
 	} = $props();
 
@@ -44,11 +77,28 @@
 	const endMs = $derived(events.length ? events[events.length - 1].t_ms : 0);
 	const finalVol = $derived(snaps.length ? snaps[snaps.length - 1].v : 0);
 	const finalFeat = $derived(snaps.length ? snaps[snaps.length - 1].f : featureAdds.length);
-	const finalMass = $derived.by(() => {
+	/** Volume x the level's expected density: what the mass WOULD be at par. */
+	const estimatedMass = $derived.by(() => {
 		if (!finalVol || targets.densityGcm3 == null) return null;
 		const g = (finalVol / 1000) * targets.densityGcm3;
 		return targets.unitSystem === 'IPS' ? g / 453.59237 : g;
 	});
+	/** SolidWorks' own evaluation of the part, when the add-in's summary landed. */
+	const measuredMass = $derived(
+		analysis?.computed_mass != null && Number.isFinite(analysis.computed_mass)
+			? analysis.computed_mass
+			: null
+	);
+	const finalMass = $derived(measuredMass ?? estimatedMass);
+	/**
+	 * The two numbers mean different things, so the LABEL moves with the source.
+	 * A measured mass that silently wore the estimate's label would read as
+	 * agreement with the target in precisely the case they disagree.
+	 */
+	const massIsMeasured = $derived(measuredMass != null);
+	const massUnitShown = $derived(
+		(massIsMeasured ? analysis?.mass_unit : null) || targets.massUnit
+	);
 
 	// Per-feature dwell: time from each feature_add to the next (or run end).
 	const dwell = $derived.by(() => {
@@ -67,8 +117,9 @@
 		return dwell.reduce((a, b) => (b.ms > a.ms ? b : a), dwell[0]);
 	});
 
-	// Active vs idle: gaps over 8s between consecutive events read as idle.
-	const activeIdle = $derived.by(() => {
+	// Active vs idle, ESTIMATED: gaps over 8s between consecutive events read as
+	// idle. Only a fallback -- the add-in's own accounting is preferred below.
+	const estimatedActiveIdle = $derived.by(() => {
 		let active = 0;
 		let idle = 0;
 		for (let i = 1; i < events.length; i++) {
@@ -79,6 +130,20 @@
 		}
 		return { active, idle };
 	});
+	/**
+	 * The add-in accrued these itself at its refresh tick; the estimate above can
+	 * only see the moments that produced an event. Prefer the summary when it
+	 * landed, and say which one is showing rather than letting two different
+	 * numbers share a label.
+	 */
+	const activeIdleMeasured = $derived(
+		analysis?.active_ms != null && analysis?.idle_ms != null
+	);
+	const activeIdle = $derived(
+		activeIdleMeasured
+			? { active: Math.max(0, analysis?.active_ms ?? 0), idle: Math.max(0, analysis?.idle_ms ?? 0) }
+			: estimatedActiveIdle
+	);
 
 	// Command usage breakdown.
 	const commands = $derived.by(() => {
@@ -148,6 +213,18 @@
 		return out.slice(0, 4);
 	});
 
+	/**
+	 * The server withholds each median independently below its own peer floor, so
+	 * a non-null `classStats` whose every median came back null is still "no class
+	 * comparison" -- an empty list under a heading reads as a broken panel.
+	 */
+	const hasClassStats = $derived(
+		!!classStats &&
+			(classStats.medianElapsedMs != null ||
+				classStats.medianFeatures != null ||
+				(classStats.medianStuckMs != null && !!stuck))
+	);
+
 	const integrity = $derived(events.filter((e) => e.event_type === 'integrity'));
 	const hasData = $derived(events.length > 1);
 </script>
@@ -158,11 +235,11 @@
 		<p class="pra-empty">No telemetry was captured for this run (the add-in records it live).</p>
 	{:else}
 		<div class="pra-stats">
-			<div class="pra-stat"><span class="n">{formatMass(finalMass, targets.massUnit)}</span><span class="l">Final mass {targets.massUnit}</span></div>
+			<div class="pra-stat"><span class="n">{formatMass(finalMass, massUnitShown)}</span><span class="l">{massIsMeasured ? 'Measured mass' : 'Est. mass'} {massUnitShown}</span></div>
 			<div class="pra-stat"><span class="n">{finalVol ? finalVol.toFixed(0) : '--'}</span><span class="l">Final vol mm3</span></div>
 			<div class="pra-stat"><span class="n" class:warn={targets.parFeatures != null && finalFeat > targets.parFeatures}>{finalFeat}{#if targets.parFeatures}/{targets.parFeatures}{/if}</span><span class="l">Features / par</span></div>
-			<div class="pra-stat"><span class="n">{fmtMs(activeIdle.active)}</span><span class="l">Active</span></div>
-			<div class="pra-stat"><span class="n" class:warn={activeIdle.idle > activeIdle.active}>{fmtMs(activeIdle.idle)}</span><span class="l">Idle</span></div>
+			<div class="pra-stat"><span class="n">{fmtMs(activeIdle.active)}</span><span class="l">Active{activeIdleMeasured ? '' : ' (est.)'}</span></div>
+			<div class="pra-stat"><span class="n" class:warn={activeIdle.idle > activeIdle.active}>{fmtMs(activeIdle.idle)}</span><span class="l">Idle{activeIdleMeasured ? '' : ' (est.)'}</span></div>
 			<div class="pra-stat"><span class="n" class:warn={undoCount + redoCount >= 4}>{undoCount}/{redoCount}</span><span class="l">Undo / redo</span></div>
 			<div class="pra-stat"><span class="n" class:warn={errorCount > 0}>{errorCount}/{warningCount}</span><span class="l">Errors / warns</span></div>
 		</div>
@@ -221,14 +298,17 @@
 		<div class="pra-block pra-compare">
 			<div class="pra-cmp">
 				<span class="pra-label">Vs class median</span>
-				{#if classStats}
+				{#if hasClassStats}
 					<ul>
-						{#if classStats.medianElapsedMs != null}<li>Time: {formatTime(endMs / 1000)} vs {formatTime(classStats.medianElapsedMs / 1000)} median</li>{/if}
-						{#if classStats.medianFeatures != null}<li>Features: {finalFeat} vs {classStats.medianFeatures} median</li>{/if}
-						{#if classStats.medianStuckMs != null && stuck}<li>Longest dwell: {fmtMs(stuck.ms)} vs {fmtMs(classStats.medianStuckMs)} median</li>{/if}
+						{#if classStats?.medianElapsedMs != null}<li>Time: {formatTime(endMs / 1000)} vs {formatTime(classStats.medianElapsedMs / 1000)} median{#if classStats.peersElapsed}<span class="pra-sub"> ({classStats.peersElapsed} classmates)</span>{/if}</li>{/if}
+						{#if classStats?.medianFeatures != null}<li>Features: {finalFeat} vs {classStats.medianFeatures} median{#if classStats.peersFeatures}<span class="pra-sub"> ({classStats.peersFeatures} classmates)</span>{/if}</li>{/if}
+						{#if classStats?.medianStuckMs != null && stuck}<li>Longest dwell: {fmtMs(stuck.ms)} vs {fmtMs(classStats.medianStuckMs)} median{#if classStats.peersStuck}<span class="pra-sub"> ({classStats.peersStuck} classmates)</span>{/if}</li>{/if}
 					</ul>
 				{:else}
-					<p class="pra-sub">No class data yet.</p>
+					<p class="pra-sub">
+						No class comparison yet: a median is only shown once enough classmates
+						have run this level, so that it describes a class rather than a person.
+					</p>
 				{/if}
 			</div>
 			<div class="pra-cmp">
