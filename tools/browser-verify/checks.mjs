@@ -313,6 +313,118 @@ export async function tapTargets(page, { selector, label = selector, min = 44, f
 }
 
 /* ------------------------------------------------------------------ *
+ * 3a. Tap REACH -- a `.tap-reach-44` control's expanded hit area, not its box
+ * ------------------------------------------------------------------ */
+/**
+ * `.tap-reach-44` (app.css) grows a control's HIT AREA with a centred
+ * `::after` pseudo-element instead of growing the control's own box, for a
+ * control sitting inside a line of text or a table header where inflating
+ * the box would reflow the writing around it (CLAUDE.md, IDEA_INTERFACE_
+ * STANDARDS 10). `tapTargets` measures the element's own rendered box, which
+ * for one of these is BY DESIGN under 44px -- so pointing that check at a
+ * `.tap-reach-44` selector reports a finding on every one of them, on a
+ * surface that is actually fine. This measures the REACH instead: the
+ * pseudo-element's box, computed the way the CSS computes it (centred,
+ * `max(ownWidth, --tap-reach-w)` x `max(ownHeight, 44px)`), and HIT-TESTS
+ * five points across it -- the centre and the midpoint of each edge, inset
+ * 1px so a point never lands exactly on a shared boundary with a neighbour
+ * -- rather than trusting the box's geometry alone. A neighbouring reach
+ * overlapping this one steals a tap silently; measuring the box cannot see
+ * that, only a hit test can (CLAUDE.md: "Verify a reach by HIT-TESTING it").
+ *
+ * `document.elementFromPoint` answers null OUTSIDE the viewport, and this
+ * harness never scrolls (CLAUDE.md, the /dev/foundry-submit case: five
+ * controls ~3000px down all read `centreHitsSelf: false`, an artefact of the
+ * instrument rather than a finding). A point outside `window.inner{Width,
+ * Height}` is therefore marked `offscreen` and excluded from the STOLEN
+ * count and from the pass/fail gate -- geometry is still measured and
+ * reported for it, only the hit test is skipped.
+ */
+export async function tapReach(page, { selector, label = selector, min = 44 } = {}) {
+	await ensureHelpers(page);
+	const data = await page.evaluate(
+		({ selector }) => {
+			const h = window.__bvHelpers;
+			const nodes = Array.from(document.querySelectorAll(selector));
+			const results = nodes.map((el) => {
+				const vis = h.isVisible(el);
+				const own = el.getBoundingClientRect();
+				const cs = getComputedStyle(el);
+				/* THE PSEUDO-ELEMENT MUST ACTUALLY EXIST. There is no API for a
+				   pseudo-element's own geometry, so this recomputes it the way
+				   the CSS computes it -- but only for a control the CSS pair
+				   actually applies to. `content: none` is what a `::after`
+				   reports when no rule defines one; without that check, every
+				   element would be credited with a reach it does not have,
+				   which is a WORSE defect than the one this check exists to
+				   catch (a "44px, 0 stolen" report for a control with no reach
+				   mechanism at all). */
+				const after = getComputedStyle(el, '::after');
+				const hasReach = after.content !== 'none' && after.content !== '';
+				const reachW = hasReach ? parseFloat(cs.getPropertyValue('--tap-reach-w')) || 44 : 0;
+				const w = hasReach ? Math.max(own.width, reachW) : own.width;
+				const ht = hasReach ? Math.max(own.height, 44) : own.height;
+				const cx = own.x + own.width / 2;
+				const cy = own.y + own.height / 2;
+				const box = { left: cx - w / 2, top: cy - ht / 2, right: cx + w / 2, bottom: cy + ht / 2, width: w, height: ht };
+				const inset = 1;
+				const points = [
+					[cx, cy],
+					[box.left + inset, cy],
+					[box.right - inset, cy],
+					[cx, box.top + inset],
+					[cx, box.bottom - inset]
+				];
+				const hits = points.map(([x, y]) => {
+					const offscreen = x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight;
+					if (offscreen) return { x: +x.toFixed(1), y: +y.toFixed(1), offscreen: true, hitsSelf: null, hitPath: null };
+					const hit = document.elementFromPoint(x, y);
+					const hitsSelf = !!hit && (hit === el || el.contains(hit) || hit.contains(el));
+					return { x: +x.toFixed(1), y: +y.toFixed(1), offscreen: false, hitsSelf, hitPath: hit ? h.cssPath(hit) : null };
+				});
+				const onscreen = hits.filter((p) => !p.offscreen);
+				return {
+					path: h.cssPath(el),
+					hasReach,
+					ownW: +own.width.toFixed(1),
+					ownH: +own.height.toFixed(1),
+					reachW: +w.toFixed(1),
+					reachH: +ht.toFixed(1),
+					minDim: +Math.min(w, ht).toFixed(1),
+					allHit: onscreen.every((p) => p.hitsSelf),
+					stolen: onscreen.filter((p) => !p.hitsSelf).length,
+					offscreenCount: hits.length - onscreen.length,
+					hits,
+					visible: vis.visible,
+					invisibleBecause: vis.reasons
+				};
+			});
+			return { matchCount: nodes.length, results };
+		},
+		{ selector }
+	);
+
+	const measurable = data.results.filter((r) => r.visible);
+	const smallest = measurable.reduce((a, r) => (a === null || r.minDim < a.minDim ? r : a), null);
+	const under = measurable.filter((r) => r.minDim < min).length;
+	const stolenTotal = measurable.reduce((a, r) => a + r.stolen, 0);
+	const offscreenTotal = measurable.reduce((a, r) => a + r.offscreenCount, 0);
+	return {
+		check: 'tap-reach',
+		selector,
+		label,
+		measured:
+			measurable.length === 0
+				? `${data.matchCount} matched, 0 visible/measurable`
+				: `smallest reach ${smallest.reachW}x${smallest.reachH} (min dim ${smallest.minDim}px, own box ${smallest.ownW}x${smallest.ownH}); ${under}/${measurable.length} reaches under ${min}px, ${stolenTotal} tap(s) stolen of ${measurable.length * 5 - offscreenTotal} on-screen sample points (${offscreenTotal} offscreen, not scrolled into view -- an artefact of the harness, not a finding)`,
+		threshold: `${min}px reach, 0 stolen taps`,
+		withinThreshold: measurable.length > 0 && under === 0 && stolenTotal === 0,
+		matchCount: data.matchCount,
+		data
+	};
+}
+
+/* ------------------------------------------------------------------ *
  * 3b. Active-vs-inactive state distinctness
  * ------------------------------------------------------------------ */
 /**

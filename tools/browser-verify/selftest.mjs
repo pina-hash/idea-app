@@ -14,11 +14,12 @@
  * byte-identically; this proves it on every run, for any future session, and
  * touches nothing.
  */
-import { launch, openPage, settle, waitUntil } from './browser.mjs';
+import { launch, openPage, settle, waitUntil, clickUntil } from './browser.mjs';
 import {
 	horizontalScroll,
 	contrast,
 	tapTargets,
+	tapReach,
 	presence,
 	domOrder,
 	orderResult,
@@ -114,6 +115,71 @@ const CASES = [
 			name: 'the same 22px input in a 44px label',
 			html: shell('<label style="display:inline-flex;align-items:center;min-height:44px;min-width:44px"><input id="i" type="checkbox" style="width:22px;height:22px;margin:0"></label>'),
 			run: (p) => tapTargets(p, { selector: '#i', min: 44 }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			`.tap-reach-44` grows a small control's HIT AREA with a centred
+			`::after` pseudo-element rather than growing the control's own box
+			(app.css), for a control inside a line of text where inflating the
+			box would reflow the writing around it. The ordinary `tapTargets`
+			check measures the element's own box, which is BY DESIGN under 44px
+			here -- so this fixture reproduces the real CSS mechanism (not a
+			simplification of it) and proves `tapReach` measures the REACH
+			instead: the bad case has no reach mechanism at all (a plain small
+			link), the good case has the actual `.tap-reach-44`/`::after` rule
+			pair.
+		*/
+		group: 'tap-reach (small control, no reach vs the real mechanism)',
+		bad: {
+			name: 'a 20px-tall inline link with no reach mechanism',
+			html: shell('<a id="a" href="#" style="display:inline-block;height:20px;line-height:20px">x</a>'),
+			run: (p) => tapReach(p, { selector: '#a', min: 44 }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same link with the real .tap-reach-44/::after pair',
+			html: shell(
+				'<a id="a" class="reach" href="#" style="display:inline-block;height:20px;line-height:20px">x</a>',
+				'.reach{position:relative}.reach::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:max(100%,44px);height:max(100%,44px)}'
+			),
+			run: (p) => tapReach(p, { selector: '#a', min: 44 }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			GEOMETRY ALONE CANNOT SEE THIS ONE: the reach box measures 44px
+			either way, so only a HIT TEST catches a neighbouring OPAQUE
+			element sitting on top of part of it and stealing the tap
+			(CLAUDE.md: "Verify a reach by HIT-TESTING it"). The bad fixture
+			overlaps the reach's left edge with a sibling; the good one moves
+			the sibling clear of it.
+		*/
+		group: 'tap-reach (a neighbour steals part of the reach)',
+		bad: {
+			name: 'an opaque sibling covering the reach’s left edge',
+			html: shell(
+				'<span style="position:relative;display:inline-block">' +
+					'<a id="a" class="reach" href="#" style="display:inline-block;height:20px;line-height:20px">x</a>' +
+					'<span style="position:absolute;left:-15px;top:-12px;width:20px;height:44px;background:#000"></span>' +
+					'</span>',
+				'.reach{position:relative}.reach::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:max(100%,44px);height:max(100%,44px)}'
+			),
+			run: (p) => tapReach(p, { selector: '#a', min: 44 }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same pair with the sibling clear of the reach',
+			html: shell(
+				'<span style="position:relative;display:inline-block">' +
+					'<a id="a" class="reach" href="#" style="display:inline-block;height:20px;line-height:20px">x</a>' +
+					'<span style="position:absolute;left:200px;top:-12px;width:20px;height:44px;background:#000"></span>' +
+					'</span>',
+				'.reach{position:relative}.reach::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:max(100%,44px);height:max(100%,44px)}'
+			),
+			run: (p) => tapReach(p, { selector: '#a', min: 44 }),
 			expect: 'within'
 		}
 	},
@@ -308,6 +374,66 @@ const CASES = [
 					check: 'wait-for',
 					measured: `${r.reason} after ${r.waitedMs}ms`,
 					threshold: 'the predicate holds',
+					withinThreshold: r.ok
+				};
+			},
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			NOT A CHECK EITHER -- the CLICK MECHANISM `prepare` steps use to reach
+			a state, and it gets a control for the reason CLAUDE.md names: this
+			repo uses `aria-disabled` over `disabled` deliberately, in several
+			places, so a blocked control can still explain itself when tapped.
+			Playwright's `locator.click()` performs an actionability check that
+			treats `aria-disabled="true"` as disabled and refuses to click --
+			silently, from the harness's point of view, as a click that "never
+			satisfies its predicate". A route driving a blocked control through
+			the ordinary click path reads as a dead button and measures nothing
+			about what it actually does.
+		*/
+		group: 'click-through (aria-disabled control)',
+		bad: {
+			name: "Playwright's own locator.click() refuses an aria-disabled control",
+			html: shell(
+				'<button id="btn" aria-disabled="true" onclick="document.getElementById(\'out\').textContent=\'clicked\'">Blocked</button>' +
+					'<div id="out">not clicked</div>'
+			),
+			run: async (p) => {
+				let clicked = true;
+				try {
+					await p.locator('#btn').click({ timeout: 1200 });
+				} catch {
+					clicked = false;
+				}
+				const text = await p.locator('#out').textContent();
+				return {
+					check: 'click-through',
+					measured: `locator.click() ${clicked ? 'reported success' : 'refused/timed out'}; output reads "${text}"`,
+					threshold: 'the tap reaches the control despite aria-disabled',
+					withinThreshold: text === 'clicked'
+				};
+			},
+			expect: 'outside'
+		},
+		good: {
+			name: "clickUntil's coordinate click lands on an aria-disabled control",
+			html: shell(
+				'<button id="btn" aria-disabled="true" onclick="document.getElementById(\'out\').textContent=\'clicked\'">Blocked</button>' +
+					'<div id="out">not clicked</div>'
+			),
+			run: async (p) => {
+				const r = await clickUntil(
+					p,
+					'#btn',
+					'() => document.getElementById("out").textContent === "clicked"',
+					{ attempts: 3, gapMs: 100 }
+				);
+				return {
+					check: 'click-through',
+					measured: `${r.reason} after ${r.attempts} attempt(s)`,
+					threshold: 'the tap reaches the control despite aria-disabled',
 					withinThreshold: r.ok
 				};
 			},

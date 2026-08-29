@@ -2,9 +2,15 @@
  * VANGUARD run-history types + summary math (client-safe, no legacy/?raw imports).
  *
  * A `VanguardRun` mirrors one row of the `vanguard_runs` table (migration 0014).
- * `summarizeRuns` is a pure aggregate over an array of runs; both the read
- * endpoint (`/api/vanguard-run` GET) and the portal history page call it so the
- * stat math lives in exactly one place.
+ * `summarizeRuns` is a pure aggregate over an array of runs. It has EXACTLY ONE
+ * caller: `/api/vanguard-run` GET, which computes the summary server-side and
+ * ships it beside the rows. The in-game history overlay reads that summary off
+ * the response; there is no portal history page and no second consumer.
+ *
+ * This comment used to claim a portal history page called it as well, which is
+ * how a function gets kept general for a caller that does not exist -- so if a
+ * change here would be simpler with the shape the one real caller needs, take
+ * it. Adding a second caller means correcting this line in the same commit.
  */
 
 export interface VanguardRun {

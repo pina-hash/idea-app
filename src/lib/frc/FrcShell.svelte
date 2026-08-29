@@ -216,6 +216,26 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 1.1rem;
+		/* `.frc-header` wraps (`flex-wrap: wrap`), but that only reflows its
+		   OWN direct children (.frc-brand, .frc-nav) onto separate lines; it
+		   says nothing about how nav lays out ITS OWN children, which stayed
+		   `nowrap` (the flex default). A nowrap flex row's automatic minimum
+		   is the SUM of every child's own min-content -- with three links, an
+		   admin toggle, a rank badge and the profile menu all on one line,
+		   that sum is wider than a phone viewport on its own, so header
+		   (and the page) got forced wider than the screen even though header
+		   itself already wraps (CLAUDE.md: "an item's automatic minimum is
+		   its min-content, so a nowrap row forces the whole page wider than
+		   the viewport"). `min-width: 0` alone does not fix this shape: it
+		   only lets the ROW shrink below that sum, and shrinking a nowrap row
+		   below its content's minimum does not make the content narrower --
+		   it just pushes the overflow out through whichever child cannot
+		   shrink further (here, the rank badge's own `white-space: nowrap`),
+		   one flex level down. Letting the row itself WRAP is what actually
+		   gives the content somewhere to go: each item keeps its own text
+		   legible, and the row grows downward instead of running off the
+		   right edge. */
+		flex-wrap: wrap;
 	}
 	.frc-nav a {
 		font-weight: 700;

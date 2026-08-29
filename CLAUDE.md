@@ -1419,6 +1419,41 @@ with its own answer for the rows already stored.
   own-row `WITH CHECK`, because there is nothing to forge in a comment about
   yourself; and the legacy coin import writes rows directly because they are
   HISTORY, not events, and no live rule should read them.
+- **EVERY PUBLIC COIN WRITE FUNCTION IS ADMIN-ONLY, AND 0145 IS THE FIRST
+  DELIBERATE EXCEPTION.** `coin_log_transaction`, `coin_log_extra_credit`,
+  `coin_bulk_log_section` and `coin_payout_student` each open with the
+  identical `if not public.is_admin() then raise exception 'Only site admins
+  can log IDEA Coin transactions.';`, and a nested SECURITY DEFINER call does
+  not escape it: `is_admin()` reads the session's JWT claims, so it answers
+  about the ORIGINAL caller regardless of how many definer functions sit
+  between them and `_coin_insert`.
+  - **`0145` (the classroom song queue) is the first path that moves a coin
+    with no admin in the chain.** Approving a song request charges the
+    requester 2i¢ from their digital balance, and approval is available to any
+    SECTION MANAGER (`classroom_manages_section`), which is routinely a
+    teacher who is not an admin. It cannot call `coin_log_transaction` --
+    that would raise the sentence above at exactly the person the feature is
+    for -- so `classroom_song_approve` mints the row itself, straight through
+    `_coin_insert` (the row shape) and `_coin_balance` (the digital-balance
+    debt check), with the price read from `coin_categories` rather than
+    written down twice.
+  - **THE REASONING, KEPT BESIDE THE RULE IT BENDS:** the teacher of a room
+    should be able to moderate their own room without an admin in the loop; the
+    amount is fixed by the `song_request` category row, never chosen by the
+    approver, so a manager cannot set an arbitrary price; and the alternative --
+    an instructor unable to approve a song in their own class -- is worse than
+    the admin-only rule being not-quite-universal. This is a narrow, named
+    exception, not a second authorization model: every OTHER coin-moving path
+    stays admin-gated, and a new one needs its own stated reason here, not a
+    silent second call to `_coin_insert`.
+  - **THE RETROFIT THAT WOULD REMOVE THE EXCEPTION**, named in 0145's own
+    header so it is not reinvented: give `coin_log_transaction` an
+    authorization seam other than `is_admin()`, or extract its
+    price/sign/debt/insert middle into a private helper both it and a
+    non-admin caller like this one can reach. Either is a change to the
+    busiest function in the coin system and belongs in its own bundle with its
+    own answer for every existing caller, not something to fold into a
+    narrow feature's migration.
 - **`app_feedback` HAS TWO WRITE PATHS ON PURPOSE, AND THEY DO NOT CONVERGE.**
   A signed-in report is the direct insert above, whose `WITH CHECK` pins
   `user_id` to `auth.uid()`; an anonymous one goes through
@@ -2807,6 +2842,25 @@ belong wherever the app's own behaviour is documented.
     this as a side effect of an unrelated task. Adopting a formatter is its own
     bundle and its diff is the entire repository; smuggling it in under another
     change is how a surgical fix becomes unreviewable.
+- **`npm install` REWRITES `package-lock.json`'s INDENTATION TO MATCH
+  `package.json`'s, WHICH TURNS A ONE-PACKAGE ADD INTO A WHOLE-FILE DIFF.** npm
+  detects a lockfile's formatting from the manifest beside it and writes the
+  whole file back in that style -- silently, exit 0, with nothing in the output
+  saying it reformatted anything. It is the prettier problem one file over, and
+  it has the same cost: the real change becomes unreviewable.
+  - **THIS REPO IS EXACTLY THE DIVERGENT CASE, MEASURED**: `package.json` is
+    TAB-indented and `package-lock.json` is TWO-SPACE indented, and the lockfile
+    is **4,649 lines**. So a one-package add here does not produce a handful of
+    lines, it produces a 4,649-line diff.
+  - **`npm ci` DOES NOT DO THIS.** It installs FROM the lockfile and never
+    writes it, so restoring `node_modules` in a fresh checkout -- which is every
+    cloud session -- is always `npm ci` and never `npm install`.
+  - **WHEN A DEPENDENCY GENUINELY HAS TO BE ADDED**, run the install, then read
+    `git diff --stat package-lock.json` BEFORE committing. A count in the
+    thousands for a one-package add is the reformat, not the dependency:
+    `git checkout package-lock.json` and add the entry so the two files' styles
+    already agree, or commit the reformat as its own commit so the dependency's
+    own diff stays readable. **Never let it ride along inside another change.**
 - **`npm run build` dies on Windows in the Vercel adapter's `closeBundle` with
   `EPERM`** writing a path Windows cannot create. Machine-level and PRE-EXISTING,
   not a code failure; Vercel builds on Linux and is unaffected. It does NOT stop
@@ -2866,9 +2920,35 @@ This is the **only** automated suite, and it is deliberately narrow.
   regression would be SILENT** -- security boundaries, exclusion filters, data
   visibility, migration-over-real-data. Feature correctness that fails visibly
   belongs in a harness.
-- **`vitest.config.ts` is standalone, not an extension of `vite.config.ts`.**
-  These are database tests: no Svelte, no DOM, no SvelteKit. It carries only the
-  aliases needed to import a REAL module rather than a copy of it.
+- **`vitest.config.ts` is standalone, not an extension of `vite.config.ts`.** It
+  carries only the aliases needed to import a REAL module rather than a copy of
+  it, and it declares TWO PROJECTS: `node` (everything under `tests/` except
+  `tests/dom/`, on svelte's SERVER build, which is where the database tests and
+  the twenty-odd `svelte/server` `render()` files live) and `dom`
+  (`tests/dom/**`, happy-dom plus `conditions: ['browser']`, which is the only
+  place `mount()` runs an effect). Its own header and `tests/dom/README.md`
+  carry the argument. **Prefer `node` when either would do**: a mount costs
+  roughly an order of magnitude more per test than a server render, and the
+  client compile is paid per file on top.
+- **happy-dom HAS NO LAYOUT ENGINE, SO NO GEOMETRY, CONTRAST OR TAP-TARGET
+  CLAIM MAY BE ASSERTED IN `tests/dom/`.** Measured there:
+  `getBoundingClientRect()` answers `{x:0, y:0, width:0, height:0}`,
+  `offsetWidth` is `0`, and `getComputedStyle(el).color` is the EMPTY STRING.
+  A test that measures a box, a ratio or a 44px target in that project reads
+  zero and **passes vacuously** -- which is exactly the instrument defect that
+  hid in the browser harness for weeks, arriving as a green tick rather than as
+  an error. **There is no local detector for it**: the file type-checks, the
+  project runs it, and nothing anywhere says the number came from a page that
+  was never laid out.
+  - **THE TRAP INSIDE THE TRAP IS THAT SOME COMPUTED READS ARE REAL.**
+    `getComputedStyle(el).display` answers `"block"` correctly, because the
+    cascade runs even though layout does not. So a computed-style read that
+    works is not evidence that the next one will.
+  - **THOSE CLAIMS BELONG TO `npm run verify:browser` AND NOWHERE ELSE.** It
+    drives a real Chromium at 375px and 1440px and reports measured values.
+    What `tests/dom/` is for is structure, events, effects and storage: a real
+    `dispatchEvent` reaching a real handler, `preventDefault` readable
+    afterwards, `localStorage` surviving an unmount.
 - **The fixture is a REAL embedded Postgres with the REAL migration files applied
   unmodified** (`tests/db/harness.ts`). `tests/db/supabase-stub.sql` supplies only
   what lives OUTSIDE `supabase/migrations` (the roles, `auth.users`/`auth.uid()`,
