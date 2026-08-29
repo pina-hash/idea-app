@@ -700,13 +700,34 @@ export function createPostgrestShim(
 					// on purpose: an aggregate over zero rows still returns exactly one
 					// row, so a `?? []` here would be a branch nothing can ever reach
 					// and no mutation could ever kill.
+					// THE AGGREGATE IS TAKEN OVER `select * from f(...)`, NEVER OVER
+					// `from f(...) r` DIRECTLY, and the difference is invisible until
+					// exactly one function in the schema meets it. A `returns table`
+					// with TWO OR MORE columns compiles to `prorettype = record`, so
+					// the alias `r` is a COMPOSITE and `json_agg(r)` yields objects.
+					// A `returns table` with ONE column compiles to `prorettype =
+					// <that base type>` -- measured: `returns table (contract_id
+					// uuid)` gives typname `uuid`, typtype `b`, proargmodes `{t}` --
+					// so `r` is a bare SCALAR and `json_agg(r)` yields an array of
+					// VALUES. PostgREST answers objects for both, because it selects
+					// the function's OUT column names, and `select *` recovers them
+					// (measured: the field really is named `contract_id`).
+					//
+					// `coin_my_contract_claims` (0089) is the ONE function in the
+					// migrations of that shape, and it is the one nothing had ever
+					// driven through this shim, which is why the gap never showed.
+					// Its shipped reader, `src/routes/api/coin/claim/+server.ts`,
+					// does `rows.map((r) => r.contract_id)` -- so production receives
+					// objects, and the old form here would have handed a test an
+					// array of strings and certified a route that cannot work.
 					const rows = await runAs(
 						db,
 						userId,
 						async (q) =>
 							(
 								await q<{ result: unknown }>(
-									`select coalesce(json_agg(r), '[]'::json) as result from ${call} r`,
+									`select coalesce(json_agg(row_to_json(r)), '[]'::json) as result
+									   from (select * from ${call}) r`,
 									values
 								)
 							).rows
