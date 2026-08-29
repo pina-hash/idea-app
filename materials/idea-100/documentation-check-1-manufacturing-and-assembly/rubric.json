@@ -1,0 +1,130 @@
+[
+  {
+    "id": "m1-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All 4 sessions",
+        "points": 7,
+        "descriptor": "All four Phase 2 sessions appear as rows in the table, and the notebook carries an entry for each one."
+      },
+      {
+        "label": "Proficient",
+        "short": "3 of 4 sessions",
+        "points": 5,
+        "descriptor": "Three of the four Phase 2 sessions appear with a notebook entry behind them."
+      },
+      {
+        "label": "Developing",
+        "short": "2 of 4 sessions",
+        "points": 3,
+        "descriptor": "Two of the four Phase 2 sessions appear with a notebook entry behind them."
+      },
+      {
+        "label": "Absent",
+        "short": "1 or none",
+        "points": 0,
+        "descriptor": "One session or none, or the table is not filled."
+      }
+    ],
+    "points": 7,
+    "criterion": "Phase 2 Record: An entry exists for every build and test session",
+    "incomplete": false
+  },
+  {
+    "id": "m1-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Paper behind every session",
+        "points": 5,
+        "descriptor": "Uploaded photographs show handwritten pages covering all four sessions, carrying numbers rather than narrative."
+      },
+      {
+        "label": "Proficient",
+        "short": "Paper behind 2 or 3",
+        "points": 3,
+        "descriptor": "Uploaded photographs show handwritten pages covering two or three sessions."
+      },
+      {
+        "label": "Developing",
+        "short": "Paper behind 1",
+        "points": 2,
+        "descriptor": "Uploaded photographs show a handwritten page covering one session, or the pages carry no recorded values."
+      },
+      {
+        "label": "Absent",
+        "short": "No paper record",
+        "points": 0,
+        "descriptor": "No photographs uploaded, or the uploads are typed or written after the fact rather than during the session."
+      }
+    ],
+    "points": 5,
+    "criterion": "Phase 2 Record: Entries hold raw data as recorded, not reconstructed afterward",
+    "incomplete": false
+  },
+  {
+    "id": "m1-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All dated, all readable",
+        "points": 4,
+        "descriptor": "Every table row and every uploaded photograph carries its session date, and every photograph is readable at full size."
+      },
+      {
+        "label": "Proficient",
+        "short": "One date or photo fails",
+        "points": 3,
+        "descriptor": "One row or photograph is missing its date, or one photograph is not readable at full size."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or more fail",
+        "points": 2,
+        "descriptor": "Two or more rows or photographs are missing dates, or two or more photographs are not readable."
+      },
+      {
+        "label": "Absent",
+        "short": "No dates or unreadable",
+        "points": 0,
+        "descriptor": "No dates recorded anywhere, or no photograph is readable."
+      }
+    ],
+    "points": 4,
+    "criterion": "Phase 2 Record: Entries are dated and legible",
+    "incomplete": false
+  },
+  {
+    "id": "m1-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Station, operation, value",
+        "points": 4,
+        "descriptor": "Every table row names a station and a recorded value, and the written response names the station, the operation, and the value worked to."
+      },
+      {
+        "label": "Proficient",
+        "short": "One element missing",
+        "points": 3,
+        "descriptor": "One table row is missing its station or its value, or the written response omits the value worked to."
+      },
+      {
+        "label": "Developing",
+        "short": "Names work only",
+        "points": 2,
+        "descriptor": "Rows and response name what was worked on but do not name the station or any recorded value."
+      },
+      {
+        "label": "Absent",
+        "short": "States work happened",
+        "points": 0,
+        "descriptor": "Rows or response state only that work happened, with no station, operation, or value anywhere."
+      }
+    ],
+    "points": 4,
+    "criterion": "Phase 2 Record: Entries are specific enough that another student could repeat your work",
+    "incomplete": false
+  }
+]
