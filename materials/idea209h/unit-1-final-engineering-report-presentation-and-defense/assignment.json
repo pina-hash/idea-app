@@ -20,20 +20,20 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Present from this. The 25 points on this assignment are scored against it.",
-      "title": "Engineering Report",
-      "aiNote": "AI can draft and tighten. Every number, property, and part number is checked against the page it came from.",
+      "intro": "Due end of the writing session. You present from your slides; the criteria are read against the report.",
+      "title": "Engineering Report and Slides",
+      "aiNote": "AI can draft and tighten your writing and help build slides. Every number, property, and part number is checked against the page it came from.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Summarize. Do not paste your checkpoint work in whole.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
+          "content": "Four sections, then a link to your slides. Do not paste your checkpoint work in whole.\n\nSlides: four, one per section. This is a formatting job, not a design project.\n\nSet sharing so anyone with the link can open it. A link nobody can open is a missing submission.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
         },
         {
           "id": "f1",
           "type": "textField",
-          "prompt": "Design summary. The scenario in your own words, then five results with the method behind each: holding torque, reduction, which requirement governed it, shaft load, load per bolt with factor of safety. No arithmetic.",
-          "maxSentences": 9,
-          "minSentences": 6
+          "prompt": "Results. Your five governing values with the method behind each: holding torque, reduction, which requirement governed it, shaft load, load per bolt with factor of safety. No arithmetic.",
+          "maxSentences": 8,
+          "minSentences": 5
         },
         {
           "id": "f2",
@@ -46,8 +46,8 @@
           "id": "f3",
           "type": "textField",
           "prompt": "BOM status. What changed since Checkpoint 2 and why. Flag any line missing a vendor, part number, or quantity.",
-          "maxSentences": 5,
-          "minSentences": 3
+          "maxSentences": 4,
+          "minSentences": 2
         },
         {
           "id": "f4",
@@ -55,10 +55,115 @@
           "prompt": "Trade-offs. One candidate you rejected, what it lost on, and what would have to change for it to win.",
           "maxSentences": 5,
           "minSentences": 3
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "columns": [
+            {
+              "key": "link",
+              "tip": "Paste the share URL. Test it in a private window before you submit.",
+              "label": "Slide deck link"
+            },
+            {
+              "key": "tool",
+              "tip": "Google Slides, Canva, PowerPoint, whatever you built it in.",
+              "label": "Tool used"
+            }
+          ],
+          "minRows": 1,
+          "printRows": 1,
+          "rowImages": false,
+          "statusColumn": false
         }
       ],
-      "points": 0,
-      "rubric": [],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Four sections, nothing missing",
+              "points": 4,
+              "descriptor": "All four sections are present and each one answers everything its prompt asked for."
+            },
+            {
+              "label": "Proficient",
+              "short": "One item missing",
+              "points": 3,
+              "descriptor": "All four sections are present; one section omits one item its prompt asked for."
+            },
+            {
+              "label": "Developing",
+              "short": "A section missing or empty",
+              "points": 1,
+              "descriptor": "One section is missing or empty, or two or more sections omit an item they asked for."
+            },
+            {
+              "label": "Absent",
+              "short": "Two or more sections missing",
+              "points": 0,
+              "descriptor": "Two or more sections are missing or empty."
+            }
+          ],
+          "criterion": "All four sections complete"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All sourced",
+              "points": 4,
+              "descriptor": "Every published property named in the report carries its value and the vendor page, datasheet, or catalog it was read from."
+            },
+            {
+              "label": "Proficient",
+              "short": "One source missing",
+              "points": 3,
+              "descriptor": "One property is named with its value but no source, or with a source too vague to find again."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or three unsourced",
+              "points": 1,
+              "descriptor": "Two or three properties are named with no source, or are asserted with no value at all."
+            },
+            {
+              "label": "Absent",
+              "short": "Four or more unsourced",
+              "points": 0,
+              "descriptor": "Four or more properties carry no source, or the report names no published property."
+            }
+          ],
+          "criterion": "Every value and property carries its source"
+        },
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Follows on one read",
+              "points": 2,
+              "descriptor": "A reader who has not seen the checkpoints can follow the report on one read."
+            },
+            {
+              "label": "Proficient",
+              "short": "One passage needs rereading",
+              "points": 1,
+              "descriptor": "One passage has to be reread or guessed at, but the rest follows."
+            },
+            {
+              "label": "Absent",
+              "short": "Cannot be followed",
+              "points": 0,
+              "descriptor": "The report cannot be followed without asking the writer what was meant."
+            }
+          ],
+          "criterion": "Readable without asking the writer"
+        }
+      ],
       "aiLevel": 2
     },
     {
@@ -68,30 +173,30 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Six minutes: set up, present, defend. Present from your report and keep it open in front of you. Questions come from the class and the instructor.\n\nWhat the three criteria read:\n\n| Criterion | Max | Read against |\n|---|---|---|\n| Selection rationale | 8 | Section 2 |\n| Defends every value | 10 | Section 1 |\n| Responds to questions | 7 | Whatever is asked |\n\nSaying you do not know a value and naming where you would look it up counts as an answer. Inventing one does not.\n\nA number or decision you cannot defend comes back as a comment on this assignment in IDEA Classroom, due end of the same day. That section's share of the 25 points is held until it is in."
+          "content": "Your slot is 5 minutes 30 seconds and it runs on a visible timer.\n\n| | Cap |\n|---|---|\n| Open your link | 0:30 |\n| Present | 3:00 |\n| Questions | 2:00 |\n\nBoth caps are hard stops. Practice the 3 minutes.\n\nQuestions come from the class and the instructor. What the criteria read:\n\n| Criterion | Max | Read against |\n|---|---|---|\n| Selection rationale | 5 | Section 2 |\n| Defends every value | 6 | Section 1 |\n| Responds to questions | 4 | Whatever is asked |\n\nSaying you do not know a value and naming where you would look it up counts as an answer. Inventing one does not.\n\nA value or decision you cannot defend comes back as a comment on this assignment in IDEA Classroom, due end of the same day. That section's share of the 15 points is held until it is in.\n\nNo AI badge on this module: it is live, nothing is submitted here, and level 0 OFF is enforced by the setting."
         }
       ],
-      "points": 25,
+      "points": 15,
       "rubric": [
         {
-          "id": "c1",
+          "id": "c4",
           "levels": [
             {
               "label": "Complete",
               "short": "All components, property named",
-              "points": 8,
-              "descriptor": "Presents every component on the bill of materials, naming for each the published property or rating it was selected against and that property's value."
+              "points": 5,
+              "descriptor": "Presents every component on the bill of materials, naming for each the published property it was selected against and that property's value."
             },
             {
               "label": "Proficient",
               "short": "All components, one unnamed",
-              "points": 6,
+              "points": 4,
               "descriptor": "Presents every component but leaves the governing property unnamed on one, or names properties throughout while omitting one component."
             },
             {
               "label": "Developing",
               "short": "Half or more, properties thin",
-              "points": 3,
+              "points": 2,
               "descriptor": "Presents at least half the components, with the governing property named on fewer than half of those presented."
             },
             {
@@ -104,25 +209,25 @@
           "criterion": "Selection rationale presented"
         },
         {
-          "id": "c2",
+          "id": "c5",
           "levels": [
             {
               "label": "Complete",
-              "short": "All five results defended",
-              "points": 10,
-              "descriptor": "For each of the five governing results, states the method and the inputs it was run on when asked, and the stated value matches the report."
+              "short": "All five values defended",
+              "points": 6,
+              "descriptor": "For each of the five governing values, states the method and the inputs it was run on when asked, and the stated value matches the report."
             },
             {
               "label": "Proficient",
               "short": "Four of five defended",
-              "points": 7,
+              "points": 4,
               "descriptor": "Defends four of the five with method and inputs; one is restated without a method, or its value disagrees with the report."
             },
             {
               "label": "Developing",
               "short": "Two or three defended",
-              "points": 4,
-              "descriptor": "Defends two or three of the five with method and inputs; the rest are asserted or read off with no method stated."
+              "points": 2,
+              "descriptor": "Defends two or three of the five with method and inputs; the rest are asserted with no method stated."
             },
             {
               "label": "Absent",
@@ -134,25 +239,25 @@
           "criterion": "Defends every numerical value"
         },
         {
-          "id": "c3",
+          "id": "c6",
           "levels": [
             {
               "label": "Complete",
               "short": "Every question answered new",
-              "points": 7,
+              "points": 4,
               "descriptor": "Answers every question with information not already in the presented section, or states the answer is not known and names where it would be looked up."
             },
             {
               "label": "Proficient",
-              "short": "One answer restates report",
-              "points": 5,
-              "descriptor": "Answers all but one question with new information; one repeats what the report already said without adding to it."
+              "short": "One answer restates slides",
+              "points": 3,
+              "descriptor": "Answers all but one question with new information; one repeats what was already presented without adding to it."
             },
             {
               "label": "Developing",
-              "short": "Half restate the report",
-              "points": 3,
-              "descriptor": "Half or more of the answers repeat the report without adding information, while at least one adds something new."
+              "short": "Half restate the slides",
+              "points": 1,
+              "descriptor": "Half or more of the answers repeat what was already presented, while at least one adds something new."
             },
             {
               "label": "Absent",
