@@ -20,9 +20,9 @@
 //
 // THE CHAIN IS PRODUCTION ORDER, AND 0137 IS NOT LAST IN IT. CLAUDE.md's rule
 // that the anon-EXECUTE sweep goes last is about a chain that STOPS at 0137:
-// it is a sweep over whatever the migrations above it created. 0161-0163 are
+// it is a sweep over whatever the migrations above it created. 0161-0165 are
 // numbered after it, ship their own `revoke ... from public, anon,
-// authenticated` on every function they create, and 0162's public search
+// authenticated` on every function they create or replace, and 0162's public search
 // surface is granted to `anon` deliberately -- a grant 0137's keep-list
 // predates and would therefore revoke. Applying 0137 after them would model a
 // world that does not exist: on production 0137 was applied first and the maps
@@ -44,7 +44,13 @@ export const MAPS_MIGRATIONS = [
 	'0137_anon_execute_sweep.sql',
 	'0161_maps_core.sql',
 	'0162_maps_search.sql',
-	'0163_maps_media.sql'
+	'0163_maps_media.sql',
+	// 0165 REDEFINES maps_search, so a chain that stopped at 0163 would measure
+	// a superseded function -- both the corpus's ranks and the boundary suite's
+	// anon-execute and published-only claims are claims about the definition in
+	// place, and after 0165 that is 0165's. 0164 is deliberately absent: it
+	// creates only the search LOG's prune trigger, which no maps test reads.
+	'0165_maps_search_conjunctive_tsquery.sql'
 ] as const;
 
 /** The pinned owner constant from 0067. `is_admin()` self-heals to it. */

@@ -24,12 +24,24 @@
 // twelve runs of one such query gave one ordering). Those entries assert the
 // SET occupying a rank RANGE, which is a rank claim and not a membership one.
 //
-// THE CORPUS CAN FAIL, AND THE PROOF IS AT THE BOTTOM OF THIS FILE. Four
+// THE CORPUS CAN FAIL, AND THE PROOF IS AT THE BOTTOM OF THIS FILE. Five
 // mutations are applied to the real search objects IN-DATABASE -- the
 // shallower-wins tie break inverted, the alias band removed, the tag band
-// removed, and the trigram similarity threshold raised -- and each is required
-// to demote at least one named query. A corpus that cannot go red is a corpus
-// that will never catch anything.
+// removed, the trigram similarity threshold raised, and the final-token prefix
+// term OR'd back into the whole query instead of conjoined -- and each is
+// required to demote at least one named query. A corpus that cannot go red is a
+// corpus that will never catch anything.
+//
+// THE PINNED GAP IS GONE BECAUSE 0165 CLOSED IT, and the two place queries are
+// ordinary acceptance cases now. 0162's header line 35 claimed "mill room
+// caliper" narrowed by place; its body OR'd the final-token prefix term into
+// the whole query, so any caliper anywhere matched, and this file pinned that
+// as a known gap rather than leaving it to be rediscovered. 0165 conjoins the
+// prefix term instead. Both word orders are asserted below, deliberately: the
+// defect was ORDER-DEPENDENT -- "caliper mill room" put 'room' in the prefix
+// slot and appeared to narrow while doing nothing of the kind -- so a corpus
+// carrying only one of the two orders is a corpus that would have missed it.
+// The fifth mutation restores exactly that defect and both must demote.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
@@ -213,26 +225,61 @@ function corpus(): Case[] {
 			]
 		},
 		{
-			query: 'caliper mill room',
-			spec: '5.1 ancestor chain names; 5.2 band D',
+			query: 'mill room caliper',
+			spec: '5.1 "so \'mill room caliper\' narrows by place"; 5.2 band D',
 			why:
-				'THE PLACE-NARROWED QUERY. The same item type sits in two rooms at the SAME depth, so ' +
-				'depth cannot separate them and only the ancestor band can: the Mill Room placement ' +
-				'must be the top-ranked PLACEMENT and the Machine Shop placement must not appear at ' +
-				'all. The Mill Room node itself outranks it, which is correct -- the query names a ' +
-				'room, and the room is a legitimate answer to a question about a room -- so the claim ' +
-				'is about the first result a student could pick UP.',
-			count: 5,
-			at: [
-				{ rank: 1, ids: () => [world.node['Mill Room']] },
-				{ rank: 2, ids: () => [calMill()] }
-			],
+				'THE PLACE-NARROWED QUERY, in the spec\'s own words. The same item type sits in two ' +
+				'rooms at the SAME depth, so depth cannot separate them and only the ancestor band ' +
+				'can. Every term the student typed is required, so the only published caliper left ' +
+				'is the one whose chain carries BOTH "mill" and "room": it is the single result and ' +
+				'therefore rank 1. The Mill Room node is not a result and must not be -- the student ' +
+				'also typed "caliper", and a room carries no caliper vocabulary in any band, so a ' +
+				'query that returned it would be one where the words are alternatives rather than ' +
+				'requirements. That is precisely the defect 0165 fixed.',
+			count: 1,
+			at: [{ rank: 1, ids: () => [calMill()] }],
 			absent: () => [
 				{
 					id: calShop(),
 					why:
 						'the identical tool in the OTHER room. If this appears, the query did not narrow ' +
-						'by place and the D band is doing nothing.'
+						'by place and the D band is doing nothing -- this is the exact row 0162 returned.'
+				},
+				{
+					id: calItem(),
+					why:
+						'the drawer-level caliper, which is under Machine Shop too. A narrowing that ' +
+						'dropped only the room-level twin would be depth doing the work, not place.'
+				}
+			]
+		},
+		{
+			query: 'caliper mill room',
+			spec: '5.1 ancestor chain names; 5.2 band D',
+			why:
+				'THE SAME QUESTION IN THE OTHER ORDER, and it must give the SAME answer. This is not ' +
+				'a duplicate: under 0162 these two phrasings disagreed, because whichever word landed ' +
+				'last became a free-standing prefix alternative -- "room" here, which happens to ' +
+				'exclude everything under Machine Shop, so this order looked correct while narrowing ' +
+				'nothing. Word order is not a search operator, so the count, the rank and the traps ' +
+				'are identical to the entry above.\n' +
+				'THIS ENTRY CHANGED WITH 0165, and both halves of the old expectation were artifacts ' +
+				'of the defect: it asserted 5 results with the Mill Room NODE at rank 1 and the ' +
+				'caliper at rank 2. The node, the Bridgeport Mill, the Bench Cabinet and the ' +
+				'micrometer were all admitted by that free "room":* term alone, none of them carries ' +
+				'"caliper" anywhere, and none is an answer to what was asked.',
+			count: 1,
+			at: [{ rank: 1, ids: () => [calMill()] }],
+			absent: () => [
+				{
+					id: calShop(),
+					why: 'the identical tool in the OTHER room; its absence IS the narrowing'
+				},
+				{
+					id: world.node['Mill Room'],
+					why:
+						'the room itself. Admitted by 0162 through the OR\'d prefix term; a room is not ' +
+						'a caliper and the student typed both words.'
 				}
 			]
 		},
@@ -307,11 +354,12 @@ describe('IDEA Maps search: the acceptance corpus (spec 5.5)', () => {
 			'Mitutoyo',
 			'505-742',
 			'thing that cuts aluminum',
+			'mill room caliper',
 			'caliper mill room',
 			'hex key set',
 			'zzqqxx'
 		]);
-		expect(specs.length).toBe(10);
+		expect(specs.length).toBe(11);
 	});
 
 	for (const c of corpus()) {
@@ -333,7 +381,7 @@ describe('IDEA Maps search: the acceptance corpus (spec 5.5)', () => {
 			report.push(`"${c.query}": anon ${anon.length}, admin ${admin.length}`);
 		}
 		proof.push('ANON/ADMIN COUNTS\n  ' + report.join('\n  '));
-		expect(report.length).toBe(10);
+		expect(report.length).toBe(11);
 	});
 
 	it('a missed query is loggable by the anonymous reader who missed it', async () => {
@@ -352,43 +400,46 @@ describe('IDEA Maps search: the acceptance corpus (spec 5.5)', () => {
 	});
 
 	// -----------------------------------------------------------------------
-	// A KNOWN GAP, PINNED SO IT CANNOT BE LOST.
+	// THE GAP THIS FILE USED TO PIN IS CLOSED. See the file header.
+	//
+	// What stood here was `PINNED GAP: the spec's own phrasing "mill room
+	// caliper" does NOT narrow by place`, which asserted the DEFECT: that every
+	// hit saturated to exactly 1.0, that the caliper in the other room came back
+	// anyway, and that ranks 1 and 2 were indistinguishable on all three sort
+	// keys. Its own comment said "THIS TEST IS EXPECTED TO GO RED WHEN THE GAP IS
+	// FIXED", and 0165 is that fix, so it is replaced by the two acceptance cases
+	// above rather than deleted quietly. The reasoning is in
+	// docs/history/maps-search-tsquery-fix-1hkd03.md.
+	//
+	// One thing the old test measured is worth keeping as a claim in its own
+	// right, because it is what made the defect survive a reading: WORD ORDER IS
+	// NOT A SEARCH OPERATOR. The two corpus entries above assert the same count,
+	// the same rank and the same traps, which already forces agreement; this
+	// asserts it directly, over the case-and-whitespace variants a person
+	// actually types, so a future change that reintroduces an order dependence
+	// names itself rather than showing up as two unrelated corpus failures.
 	// -----------------------------------------------------------------------
-	it('PINNED GAP: the spec\'s own phrasing "mill room caliper" does NOT narrow by place', async () => {
-		// 0162's header states: "websearch AND-semantics is what makes 'mill room
-		// caliper' narrow by place through the D band." Measured, it does not, and
-		// the cause is in the same function: the live-typing prefix term is OR'd
-		// into the tsquery UNCONDITIONALLY, including for a settled multi-word
-		// query. The tsquery for this phrase comes out
-		//   'mill' & 'room' & 'calip' | 'mill' & 'room' & 'caliper' | 'caliper':*
-		// so the trailing `| 'caliper':*` admits every caliper in the building at
-		// full rank, and `least(ts_rank_cd * 2, 1.0)` then saturates all of them to
-		// exactly 1.0. Score, depth and label are all equal for the two room-level
-		// placements, so their order is unspecified.
-		//
-		// Reordering the same words FIXES it -- "caliper mill room" puts the place
-		// token last, the prefix term becomes 'room':*, and the Machine Shop
-		// placement drops out entirely. That case is asserted as a real acceptance
-		// case above; this one is the gap.
-		//
-		// THIS TEST IS EXPECTED TO GO RED WHEN THE GAP IS FIXED. That redness is
-		// the fix landing, not a regression: read
-		// docs/history/maps-rls-boundary-tests-tvjq7v.md, then replace this test
-		// with the rank claim the spec asks for. It is pinned rather than left
-		// unwritten because a gap nothing measures is one that gets rediscovered
-		// at full price.
-		const rows = await search(db, null, 'mill room caliper');
-		const scores = rows.map((r) => r.score);
-		expect(scores.every((s) => s === 1), 'every hit saturates to exactly 1.0').toBe(true);
+	it('the same three words in any order, case or spacing give the same answer', async () => {
+		const forms = [
+			'mill room caliper',
+			'caliper mill room',
+			'MILL ROOM CALIPER',
+			'mill  room   caliper',
+			'Mill Room Caliper '
+		];
+		const seen: string[] = [];
+		for (const f of forms) {
+			const rows = await search(db, null, f);
+			seen.push(`${JSON.stringify(f)} -> [${namesOf(rows).join(', ')}]`);
+		}
+		const expected = `[stock:Dial Caliper@Mill Room]`;
 		expect(
-			rows.map((r) => r.result_id),
-			'the caliper in the OTHER room is still returned, so no narrowing happened'
-		).toContain(world.stock['Dial Caliper@Machine Shop']);
-		const top = rows.slice(0, 2).map((r) => ({ d: r.depth, s: r.score, l: r.label }));
-		expect(
-			top[0],
-			'ranks 1 and 2 are indistinguishable on all three sort keys, so their order is unspecified'
-		).toEqual(top[1]);
+			seen.map((line) => line.slice(line.indexOf('-> ') + 3)),
+			'every phrasing must resolve to the one caliper in the named room; under 0162 the ' +
+				'"...caliper" orders returned all three calipers and the "...room" order returned five ' +
+				'rows led by the room itself'
+		).toEqual(forms.map(() => expected));
+		proof.push('\nWORD ORDER IS NOT AN OPERATOR\n  ' + seen.join('\n  '));
 	});
 
 	it('PINNED GAP: a British spelling finds nothing', async () => {
@@ -411,7 +462,7 @@ describe('IDEA Maps search: the acceptance corpus (spec 5.5)', () => {
 // THE CORPUS FAILURE PROOF.
 //
 // A corpus that cannot go red is a corpus that will never catch anything, so
-// four mutations are applied to the REAL search objects in this file's own
+// five mutations are applied to the REAL search objects in this file's own
 // disposable database and each is required to demote at least one named query.
 // The mutations are applied to the definition text read back out of the catalog
 // with `pg_get_functiondef`, and the RESTORE re-executes that captured text and
@@ -423,10 +474,15 @@ describe('IDEA Maps search: the acceptance corpus (spec 5.5)', () => {
 // COUNT, and the catalog text is asserted to have changed. A mutation that
 // never landed is indistinguishable from a mutation nothing catches.
 //
-// ONE OF THE FOUR IS THE REJECTED ALTERNATIVE RATHER THAN A BREAKAGE (addenda
+// ONE OF THE FIVE IS THE REJECTED ALTERNATIVE RATHER THAN A BREAKAGE (addenda
 // rule 9): inverting the tie break to deeper-wins is a design somebody could
 // reasonably refactor toward, and the corpus has to notice that too, not only
 // obvious damage.
+//
+// AND ONE IS THE HISTORICAL DEFECT ITSELF. The fifth mutation puts 0162's OR'd
+// prefix term back. A regression proof written after a fix, that cannot
+// reproduce the fault the fix was for, has proven only that the new code agrees
+// with itself.
 // ---------------------------------------------------------------------------
 
 interface Mutation {
@@ -503,6 +559,26 @@ const MUTATIONS: Mutation[] = [
 		mustDemote: ['thing that cuts aluminum']
 	},
 	{
+		name: "the final-token prefix term OR'd into the whole query (the 0162 defect)",
+		intent:
+			'THE DEFECT 0165 FIXED, restored exactly. 0162 built the query as ' +
+			'`websearch(english) || websearch(simple) || to_tsquery(last || \':*\')`, and `||` on ' +
+			'tsquery is OR, so the final token stood alone as an alternative and any row carrying ' +
+			'it matched whatever else was typed. Flipping the two `&&` operators back to `||` ' +
+			'reproduces that -- the prefix term becomes a free alternative again -- and both place ' +
+			'queries must go red. A corpus that could not catch the bug it was just corrected for ' +
+			'is a corpus that certified the correction and nothing else.',
+		edits: [
+			{
+				fn: SEARCH_FN,
+				find: '&& v_pref',
+				replace: '|| v_pref',
+				occurrences: 2
+			}
+		],
+		mustDemote: ['mill room caliper', 'caliper mill room']
+	},
+	{
 		name: 'trigram similarity threshold raised to 0.9',
 		intent:
 			'ONE THRESHOLD. `<%` uses pg_trgm.word_similarity_threshold, 0.6 by default; the typo ' +
@@ -533,7 +609,7 @@ describe('IDEA Maps search: the corpus can fail', () => {
 		const fails: string[] = [];
 		for (const c of corpus()) fails.push(...(await runCase(c)));
 		expect(fails).toEqual([]);
-		proof.push('\nBASELINE: all 10 corpus queries pass.');
+		proof.push('\nBASELINE: all 11 corpus queries pass.');
 	});
 
 	for (const m of MUTATIONS) {
@@ -579,7 +655,7 @@ describe('IDEA Maps search: the corpus can fail', () => {
 					`\nMUTATION: ${m.name}\n` +
 						`  intent : ${m.intent}\n` +
 						`  edits  : ${m.edits.map((e) => `${e.occurrences}x ${JSON.stringify(e.find)} in ${e.fn}`).join('; ')}\n` +
-						`  BEFORE : all 10 corpus queries pass\n` +
+						`  BEFORE : all 11 corpus queries pass\n` +
 						`  AFTER  : ${m.mustDemote.length} demoted\n${demoted.join('\n')}`
 				);
 			} finally {
@@ -596,7 +672,7 @@ describe('IDEA Maps search: the corpus can fail', () => {
 			const after: string[] = [];
 			for (const c of corpus()) after.push(...(await runCase(c)));
 			expect(after, `${m.name}: the corpus is not green again after the restore`).toEqual([]);
-			proof.push(`  RESTORED: definitions byte-identical, all 10 corpus queries pass again.`);
+			proof.push(`  RESTORED: definitions byte-identical, all 11 corpus queries pass again.`);
 		}, 180_000);
 	}
 });
