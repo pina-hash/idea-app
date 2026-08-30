@@ -147,8 +147,24 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'foundry',
 		href: '/foundry',
 		cta: 'Browse',
-		// Signed-in: the gallery mints a token per launch, and a token names the
-		// viewer. There is no anonymous read of a student bundle.
+		// Signed-in: this flag is about the GALLERY, and it is not a claim about
+		// the bundles. It used to read "the gallery mints a token per launch, and
+		// a token names the viewer. There is no anonymous read of a student
+		// bundle." BOTH CLAUSES ARE FALSE NOW. There is no mint: the token proxy
+		// and its secret are deleted, and a frame src is `/b/<app>/<version>/` on
+		// the apps origin, plain and unsigned. And `/a/<app>/` is a DELIBERATE
+		// anonymous read -- a published app has a public address anyone can open
+		// without signing in, which is the whole point of the share control.
+		//
+		// WHAT BOUNDS THAT ANONYMOUS READ, since this is where somebody will come
+		// looking: it serves only the app's `published_version_id`, never a draft,
+		// a rejected build or a hidden app; it answers only on the apps origin,
+		// which holds no session cookie of ours; and it projects one column of the
+		// app row plus that version's files, never the author, the class, the
+		// description or the build notes. The WORK is public; the STUDENT is not.
+		//
+		// The flag stays true because everything at /foundry -- browsing the
+		// gallery, publishing, My apps -- is the signed-in tier.
 		requiresAuth: true
 	},
 	{

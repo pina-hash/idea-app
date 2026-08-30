@@ -47,12 +47,16 @@ export default {
 	],
 	presence: [
 		{ selector: '[data-testid="grid-scroll"]', label: 'compliance grid', expectPresent: 1 },
-		{ selector: '.cell', label: 'grid cells', expectPresent: 30 },
+		{ selector: '.cell', label: 'grid cells', expectPresent: 30, maxPresent: 30 },
 		/* SEVEN STATES PLUS THE not-reviewed DOT. The legend is always
 		   visible on purpose -- CLAUDE.md forbids putting words in a cell to
 		   satisfy a label audit, so this row and the hint above the grid are
 		   what carry the meaning. */
-		{ selector: '.legend li', label: 'always-visible legend (7 states + not-reviewed)', expectPresent: 8 },
+		/* A CEILING, because "7 states + not-reviewed" is a closed set: a ninth
+		   legend row means a state was added without the five contrast rows
+		   below it being asked about, which is exactly what the locked contract
+		   forbids arriving quietly. */
+		{ selector: '.legend li', label: 'always-visible legend (7 states + not-reviewed)', expectPresent: 8, maxPresent: 8 },
 		/* The two states this fixture does not produce, asserted as absent so
 		   the five contrast rows below cannot be read as covering all seven. */
 		{ selector: '.cell.ontime, .cell.await', label: 'states absent from this fixture (ontime, await)', expectPresent: 0, expectVisible: 0 }

@@ -1,23 +1,113 @@
 [
   {
-    "id": "m2-c1",
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Four sections, nothing missing",
+        "points": 4,
+        "descriptor": "All four sections are present and each one answers everything its prompt asked for."
+      },
+      {
+        "label": "Proficient",
+        "short": "One item missing",
+        "points": 3,
+        "descriptor": "All four sections are present; one section omits one item its prompt asked for."
+      },
+      {
+        "label": "Developing",
+        "short": "A section missing or empty",
+        "points": 1,
+        "descriptor": "One section is missing or empty, or two or more sections omit an item they asked for."
+      },
+      {
+        "label": "Absent",
+        "short": "Two or more sections missing",
+        "points": 0,
+        "descriptor": "Two or more sections are missing or empty."
+      }
+    ],
+    "points": 4,
+    "criterion": "Engineering Report and Slides: All four sections complete",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All sourced",
+        "points": 4,
+        "descriptor": "Every published property named in the report carries its value and the vendor page, datasheet, or catalog it was read from."
+      },
+      {
+        "label": "Proficient",
+        "short": "One source missing",
+        "points": 3,
+        "descriptor": "One property is named with its value but no source, or with a source too vague to find again."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or three unsourced",
+        "points": 1,
+        "descriptor": "Two or three properties are named with no source, or are asserted with no value at all."
+      },
+      {
+        "label": "Absent",
+        "short": "Four or more unsourced",
+        "points": 0,
+        "descriptor": "Four or more properties carry no source, or the report names no published property."
+      }
+    ],
+    "points": 4,
+    "criterion": "Engineering Report and Slides: Every value and property carries its source",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Follows on one read",
+        "points": 2,
+        "descriptor": "A reader who has not seen the checkpoints can follow the report on one read."
+      },
+      {
+        "label": "Proficient",
+        "short": "One passage needs rereading",
+        "points": 1,
+        "descriptor": "One passage has to be reread or guessed at, but the rest follows."
+      },
+      {
+        "label": "Absent",
+        "short": "Cannot be followed",
+        "points": 0,
+        "descriptor": "The report cannot be followed without asking the writer what was meant."
+      }
+    ],
+    "points": 2,
+    "criterion": "Engineering Report and Slides: Readable without asking the writer",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c4",
     "levels": [
       {
         "label": "Complete",
         "short": "All components, property named",
-        "points": 8,
-        "descriptor": "Presents every component on the bill of materials, naming for each the published property or rating it was selected against and that property's value."
+        "points": 5,
+        "descriptor": "Presents every component on the bill of materials, naming for each the published property it was selected against and that property's value."
       },
       {
         "label": "Proficient",
         "short": "All components, one unnamed",
-        "points": 6,
+        "points": 4,
         "descriptor": "Presents every component but leaves the governing property unnamed on one, or names properties throughout while omitting one component."
       },
       {
         "label": "Developing",
         "short": "Half or more, properties thin",
-        "points": 3,
+        "points": 2,
         "descriptor": "Presents at least half the components, with the governing property named on fewer than half of those presented."
       },
       {
@@ -27,30 +117,30 @@
         "descriptor": "Presents fewer than half the components, or does not present."
       }
     ],
-    "points": 8,
+    "points": 5,
     "criterion": "Presentation and Defense: Selection rationale presented",
     "incomplete": false
   },
   {
-    "id": "m2-c2",
+    "id": "m2-c5",
     "levels": [
       {
         "label": "Complete",
-        "short": "All five results defended",
-        "points": 10,
-        "descriptor": "For each of the five governing results, states the method and the inputs it was run on when asked, and the stated value matches the report."
+        "short": "All five values defended",
+        "points": 6,
+        "descriptor": "For each of the five governing values, states the method and the inputs it was run on when asked, and the stated value matches the report."
       },
       {
         "label": "Proficient",
         "short": "Four of five defended",
-        "points": 7,
+        "points": 4,
         "descriptor": "Defends four of the five with method and inputs; one is restated without a method, or its value disagrees with the report."
       },
       {
         "label": "Developing",
         "short": "Two or three defended",
-        "points": 4,
-        "descriptor": "Defends two or three of the five with method and inputs; the rest are asserted or read off with no method stated."
+        "points": 2,
+        "descriptor": "Defends two or three of the five with method and inputs; the rest are asserted with no method stated."
       },
       {
         "label": "Absent",
@@ -59,30 +149,30 @@
         "descriptor": "Defends fewer than two of the five, or does not present."
       }
     ],
-    "points": 10,
+    "points": 6,
     "criterion": "Presentation and Defense: Defends every numerical value",
     "incomplete": false
   },
   {
-    "id": "m2-c3",
+    "id": "m2-c6",
     "levels": [
       {
         "label": "Complete",
         "short": "Every question answered new",
-        "points": 7,
+        "points": 4,
         "descriptor": "Answers every question with information not already in the presented section, or states the answer is not known and names where it would be looked up."
       },
       {
         "label": "Proficient",
-        "short": "One answer restates report",
-        "points": 5,
-        "descriptor": "Answers all but one question with new information; one repeats what the report already said without adding to it."
+        "short": "One answer restates slides",
+        "points": 3,
+        "descriptor": "Answers all but one question with new information; one repeats what was already presented without adding to it."
       },
       {
         "label": "Developing",
-        "short": "Half restate the report",
-        "points": 3,
-        "descriptor": "Half or more of the answers repeat the report without adding information, while at least one adds something new."
+        "short": "Half restate the slides",
+        "points": 1,
+        "descriptor": "Half or more of the answers repeat what was already presented, while at least one adds something new."
       },
       {
         "label": "Absent",
@@ -91,7 +181,7 @@
         "descriptor": "No question is answered beyond a restatement, or no questions are taken."
       }
     ],
-    "points": 7,
+    "points": 4,
     "criterion": "Presentation and Defense: Responds to technical questions",
     "incomplete": false
   }

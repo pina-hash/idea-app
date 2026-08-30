@@ -35,6 +35,7 @@
 	import { formatBytes, type FoundryIssue } from './preflight.ts';
 	import {
 		FOUNDRY_METADATA_FIELDS,
+		FOUNDRY_PREVIEW_STORAGE_NOTE,
 		deleteAppCostLine,
 		draftIsSubmittable,
 		metadataIsLive,
@@ -692,12 +693,14 @@
 					ONCE, NOT PER VERSION. It is a fact about previewing, not about any
 					particular build, and repeating it down a list of six versions is
 					how a true sentence stops being read.
+
+					AND THE WORDS THEMSELVES LIVE IN `surface.ts`, for the reason
+					`deleteAppCostLine` does. /foundry/submit offers a preview the moment
+					an upload unpacks, so a student reads whichever surface they reach
+					first, and two typed copies of a sentence about what storage does are
+					two copies that can stop agreeing about it.
 				-->
-				<p class="fdy-hint">
-					A preview runs your app exactly as it will run published, with one
-					difference: saved data does not survive a reload in a preview, and it does
-					once the app is live. Anything that works in a preview works published.
-				</p>
+				<p class="fdy-hint">{FOUNDRY_PREVIEW_STORAGE_NOTE}</p>
 
 				{#if transports.rollback && targets.length > 0}
 					<p class="fdy-hint">

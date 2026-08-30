@@ -27,7 +27,10 @@ import {
 	datalistOrder,
 	consoleErrors,
 	statePairContrast,
-	motionSweep
+	motionSweep,
+	prepareClickResult,
+	prepareWaitResult,
+	prepareEvalResult
 } from './checks.mjs';
 
 const shell = (body, head = '') =>
@@ -669,6 +672,193 @@ const CASES = [
 		}
 	},
 	{
+		/*
+			THE ABSENCE ROW, WHICH WAS THE MOST-USED SHAPE IN `routes/` AND THE
+			ONE THAT COULD NOT FAIL. `expectPresent` is a floor, so
+			`expectPresent: 0` meant `present >= 0` and every "must be absent"
+			row in this directory -- about 30 of them across both trees -- was
+			green whatever the page rendered. Measured on the real surface
+			rather than reasoned: an `<svg>` injected into `TrademarkFooter`
+			gave `ok presence [no mark of any kind inside the footer] present 1,
+			visible 1` and a run reporting 0 outside threshold, on the one row
+			whose whole job is `docs/GAUNTLET-DESIGN.md`'s "nominative text
+			only, never the logo or a lookalike".
+
+			`expectPresent: 0` now implies a ceiling of 0. The fixture pair is
+			the forbidden element present, and the same page without it.
+		*/
+		group: 'presence (expectPresent 0 is an EQUALITY, not a floor)',
+		bad: {
+			name: 'the element the row says must be absent is in the DOM',
+			html: shell('<footer id="tm"><p>nominative text</p><svg width="8" height="8"><rect width="8" height="8"/></svg></footer>'),
+			run: (p) => presence(p, { selector: '#tm svg, #tm img', expectPresent: 0 }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same footer with no mark in it',
+			html: shell('<footer id="tm"><p>nominative text</p></footer>'),
+			run: (p) => presence(p, { selector: '#tm svg, #tm img', expectPresent: 0 }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			A LIMIT, PROVED RATHER THAN LEFT TO BE REDISCOVERED, which is why
+			BOTH slots here expect `within`. No ceiling can tell "the rule holds"
+			apart from "the selector matches nothing because the markup was
+			renamed" -- `present 0` is the identical reading. The forbidden
+			element below is genuinely on the page under a different class, and
+			the check correctly and uselessly passes.
+
+			THE ANSWER IS NOT A CLEVERER CHECK, IT IS A POSITIVE CONTROL IN THE
+			SAME SPEC, and every absence row in `routes/` has one: the footer's
+			own `.gt-tm`, the song queue's `[aria-disabled]` twin, the 30 grid
+			cells beside the two absent cell states, the 25 student rows beside
+			the eleven manager-only controls. A new absence row without one is
+			an assertion about a selector, not about a surface.
+		*/
+		group: 'presence (an absence row cannot see a RENAMED selector -- the limit)',
+		bad: {
+			name: 'the forbidden element is present under another class; the row still passes',
+			html: shell('<footer id="tm"><p>text</p><svg class="renamed" width="8" height="8"><rect width="8" height="8"/></svg></footer>'),
+			run: (p) => presence(p, { selector: '#tm .mark-glyph', expectPresent: 0 }),
+			expect: 'within'
+		},
+		good: {
+			name: 'its positive control, which is what actually carries the claim',
+			html: shell('<footer id="tm"><p>text</p><svg class="renamed" width="8" height="8"><rect width="8" height="8"/></svg></footer>'),
+			run: (p) => presence(p, { selector: '#tm svg, #tm img, #tm picture', expectPresent: 0 }),
+			expect: 'outside'
+		}
+	},
+	{
+		/*
+			THE PRE-CLICK SHORT-CIRCUIT. `clickUntil` checks a step's `until`
+			BEFORE clicking and returns "already satisfied" when it holds, which
+			is correct and is a trap: a predicate satisfiable by the page's
+			RESTING state means the click never physically fires and the report
+			still says "clicked". It has bitten twice for real in this repo
+			(`/dev/classroom-split/s-1?manage=1` when the bulk bar started
+			rendering at rest, `/dev/notebook` when `.pick.free` started
+			`aria-pressed` true), and both times the state the spec exists to
+			measure was never reached.
+
+			THE FIXTURES DIFFER ONLY IN THE PREDICATE, on purpose: the same
+			page, the same control, the same click. `#out` exists at rest, so a
+			predicate naming it holds before anything happens; `#out.done` is
+			produced by the handler alone. That is the whole distinction a
+			prepare predicate has to make.
+		*/
+		group: 'prepare-click (a predicate the page satisfies at REST)',
+		bad: {
+			name: 'the `until` already holds, so the click never fires',
+			html: shell(
+				'<button id="btn" onclick="document.getElementById(\'out\').className=\'done\'">go</button><div id="out">at rest</div>'
+			),
+			run: async (p) => {
+				const step = { click: '#btn', until: '() => !!document.querySelector("#out")' };
+				const r = await clickUntil(p, step.click, step.until, { attempts: 3, gapMs: 80 });
+				return prepareClickResult(step, r);
+			},
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same click under a predicate only the click can satisfy',
+			html: shell(
+				'<button id="btn" onclick="document.getElementById(\'out\').className=\'done\'">go</button><div id="out">at rest</div>'
+			),
+			run: async (p) => {
+				const step = { click: '#btn', until: '() => !!document.querySelector("#out.done")' };
+				const r = await clickUntil(p, step.click, step.until, { attempts: 3, gapMs: 80 });
+				return prepareClickResult(step, r);
+			},
+			expect: 'within'
+		}
+	},
+	{
+		/* A click with no `until` returns after ONE attempt with nothing
+		   verified (`clickUntil`'s own "clicked (no predicate given)" branch).
+		   No route spec does this today; the control is what keeps it that way. */
+		group: 'prepare-click (a click with no `until` verifies nothing)',
+		bad: {
+			name: 'no predicate: the step reports success having checked nothing',
+			html: shell('<button id="btn">go</button>'),
+			run: async (p) => {
+				const step = { click: '#btn' };
+				const r = await clickUntil(p, step.click, undefined, { attempts: 3, gapMs: 80 });
+				return prepareClickResult(step, r);
+			},
+			expect: 'outside'
+		},
+		good: {
+			name: 'a selector that matches nothing is already reported, and still is',
+			html: shell('<button id="btn" onclick="this.id=\'done\'">go</button>'),
+			run: async (p) => {
+				const step = { click: '#btn', until: '() => !!document.querySelector("#done")' };
+				const r = await clickUntil(p, step.click, step.until, { attempts: 3, gapMs: 80 });
+				return prepareClickResult(step, r);
+			},
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			A PREPARE STEP IS A MEASUREMENT NOW, AND THIS IS THE CONTROL FOR
+			THAT. These used to be prose printed above the results, so a step
+			that failed outright counted for nothing: a spec given a throwing
+			`evaluate`, a `click` matching nothing and a `waitFor` that times
+			out reported "4 measurement(s), 0 outside threshold" and `--strict`
+			EXITED 0, over a route whose every number described a state the run
+			never reached.
+		*/
+		group: 'prepare-eval / prepare-wait (a step that fails is a FINDING)',
+		bad: {
+			name: 'an evaluate that throws, and a wait whose predicate never holds',
+			html: shell('<div id="here">nothing else is coming</div>'),
+			run: async (p) => {
+				const evalStep = { evaluate: '() => { throw new Error("boom"); }' };
+				const out = await p
+					.evaluate(`(${evalStep.evaluate})()`)
+					.then((v) => ({ ok: true, v }))
+					.catch((e) => ({ ok: false, err: e.message.split('\n')[0] }));
+				const evalRow = prepareEvalResult(evalStep, out);
+				const waitStep = { waitFor: '() => !!document.querySelector("#late")' };
+				const waitRow = prepareWaitResult(waitStep, await waitUntil(p, waitStep.waitFor, { timeoutMs: 800 }));
+				return {
+					check: 'prepare-step',
+					measured: `evaluate: ${evalRow.measured}; wait: ${waitRow.measured}`,
+					threshold: 'both steps succeed',
+					withinThreshold: evalRow.withinThreshold && waitRow.withinThreshold
+				};
+			},
+			expect: 'outside'
+		},
+		good: {
+			name: 'both steps doing what they say',
+			html: shell(
+				'<div id="here">waiting</div><script>setTimeout(() => { const d = document.createElement("div"); d.id = "late"; document.body.appendChild(d); }, 200)</' +
+					'script>'
+			),
+			run: async (p) => {
+				const evalStep = { evaluate: '() => "settled 1 thing"' };
+				const out = await p
+					.evaluate(`(${evalStep.evaluate})()`)
+					.then((v) => ({ ok: true, v }))
+					.catch((e) => ({ ok: false, err: e.message.split('\n')[0] }));
+				const evalRow = prepareEvalResult(evalStep, out);
+				const waitStep = { waitFor: '() => !!document.querySelector("#late")' };
+				const waitRow = prepareWaitResult(waitStep, await waitUntil(p, waitStep.waitFor, { timeoutMs: 5000 }));
+				return {
+					check: 'prepare-step',
+					measured: `evaluate: ${evalRow.measured}; wait: ${waitRow.measured}`,
+					threshold: 'both steps succeed',
+					withinThreshold: evalRow.withinThreshold && waitRow.withinThreshold
+				};
+			},
+			expect: 'within'
+		}
+	},
+	{
 		group: 'console-errors (thrown)',
 		bad: {
 			name: 'a script that throws on load',
@@ -732,8 +922,17 @@ export async function runSelfTest({ width = 375 } = {}) {
 				const got = r.withinThreshold;
 				const correct = got === wanted;
 				if (!correct) failures++;
+				/* THE LABEL FOLLOWS `expect`, NOT THE SLOT NAME. Most groups pair
+				   a slot that must come out OUTSIDE with one that must come out
+				   WITHIN, so bad/good and negative/positive coincided. One group
+				   here does not: the renamed-selector group proves a LIMIT, so its
+				   `bad` slot is the one expected to PASS (the wrong selector
+				   sees nothing) and its `good` slot is the one expected to FAIL
+				   (the right selector finds the element). Printing "negative"
+				   over a control expected to pass is how the next reader
+				   concludes the instrument is broken. */
 				console.log(
-					`  ${correct ? 'PROVED  ' : 'BROKEN  '}${kind === 'bad' ? 'negative' : 'positive'}: ${f.name}`
+					`  ${correct ? 'PROVED  ' : 'BROKEN  '}${f.expect === 'outside' ? 'negative' : 'positive'}: ${f.name}`
 				);
 				console.log(`            measured ${r.measured}   (threshold ${r.threshold})`);
 				console.log(
@@ -746,8 +945,11 @@ export async function runSelfTest({ width = 375 } = {}) {
 		await browser.close();
 	}
 
-	const total = CASES.length * 2;
+	const slots = CASES.flatMap((c) => [c.bad, c.good]);
+	const negative = slots.filter((f) => f.expect === 'outside').length;
 	console.log('---');
-	console.log(`${total} controls run (${CASES.length} negative, ${CASES.length} positive), ${failures} instrument failure(s)`);
+	console.log(
+		`${slots.length} controls run (${negative} negative, ${slots.length - negative} positive), ${failures} instrument failure(s)`
+	);
 	return failures;
 }

@@ -22,6 +22,15 @@
 		},
 		{
 			"date": "2026-08-30",
+			"title": "Photos you hand in are shown at their own shape",
+			"body": "A photograph taken on a phone is tall rather than wide, and until now the classroom stretched every one of them to the full width of its box and then painted empty bars down either side of the picture inside the frame. The same thing happened to files your teacher attaches to an assignment and to the extra files you hand in: the bordered panel around the picture stood at the full width of the page while the picture itself sat small at one end of it. Both are fixed. A picture is now framed at its own shape, and the frame is drawn around the picture rather than around a box it never filled. Two photos handed in on a wide screen now share the room between them instead of sitting in the first two slots of a row of empty ones, and the list of your classes does the same. Diagrams inside an assignment's instructions are no longer blown up past their own size, so a small one stays sharp instead of going soft. Nothing changed about what you can hand in or how you hand it in.",
+			"tags": [
+				"Assignments",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "Longer item titles are readable on the class page",
 			"body": "On a class page, an item's name used to be squeezed by whatever sat beside it, so a post carrying a pin, a due date, a file or a link could end up showing only the first few words of its title and nothing that told you which one it was. The name now gets the width first and runs to a second line if it needs one, and the small labels beside it move underneath. What this means for you: you can tell items apart in the list without opening each one, and this is the same at phone width, where the drag handle your teacher uses for reordering (which never worked by touch anyway) no longer takes room from the name.",
 			"tags": [

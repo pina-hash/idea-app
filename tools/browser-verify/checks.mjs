@@ -498,7 +498,7 @@ export async function statePairContrast(page, { activeSelector, inactiveSelector
 /* ------------------------------------------------------------------ *
  * 4. Presence vs visibility -- two different questions
  * ------------------------------------------------------------------ */
-export async function presence(page, { selector, label = selector, expectPresent = 1, expectVisible = undefined, maxVisible = undefined } = {}) {
+export async function presence(page, { selector, label = selector, expectPresent = 1, maxPresent = undefined, expectVisible = undefined, maxVisible = undefined } = {}) {
 	/* Present, visible and exposed-to-assistive-tech are THREE questions. A
 	   collapsed Disclosure keeps its region in the DOM at a zero box on purpose
 	   (CLAUDE.md: hidden in CSS, never removed), so `present 2, visible 0` is
@@ -517,6 +517,33 @@ export async function presence(page, { selector, label = selector, expectPresent
 	   DOM at a zero box" -- and CLAUDE.md's own verification standard requires
 	   asserting BOTH directions of a visibility claim. Omitted, nothing
 	   changes; every existing row keeps its exact previous semantics. */
+	/* `expectPresent` IS A FLOOR TOO, AND AT ZERO THAT FLOOR ASSERTS NOTHING AT
+	   ALL -- which is the same defect one axis over, and the worse one, because
+	   every absence row in `routes/` is written as `expectPresent: 0`. `present
+	   >= 0` holds for any number of nodes, so a row reading "no mark of any kind
+	   inside the trademark footer" comes back green with a mark inside the
+	   trademark footer. MEASURED, not reasoned: a `<svg>` injected into
+	   `TrademarkFooter.svelte` gave `ok presence [no mark of any kind inside the
+	   footer] present 1, visible 1` and a run reporting 0 outside threshold.
+
+	   `maxPresent` is the ceiling, and IT DEFAULTS TO ZERO WHEN
+	   `expectPresent` IS ZERO. That default is the fix rather than the
+	   parameter: a caller asking for zero is stating an absence in every one of
+	   the ~30 rows that do it across this directory, and a floor of zero is not
+	   a weaker assertion than they wanted, it is no assertion. There is no
+	   legitimate `>= 0`, so nothing is taken away by refusing to offer one. A
+	   row that genuinely wants a floor above zero (`/dev/pathways` counts chips
+	   across every stage on purpose) simply leaves `maxPresent` unset and keeps
+	   the floor it always had.
+
+	   A ceiling ON AN ABSENCE ROW STILL CANNOT SEE A SELECTOR THAT MATCHES
+	   NOTHING because the markup was renamed -- `present 0` is the same reading
+	   either way, and no ceiling can tell those apart. That is why every
+	   absence row in this directory sits beside a positive control in the same
+	   spec (the footer's own `.gt-tm`, the queue's `[aria-disabled]` twin, the
+	   30 grid cells beside the two absent states), and why `--selftest` carries
+	   a control PROVING the limit rather than leaving it to be rediscovered. */
+	const presentCeiling = maxPresent === undefined ? (expectPresent === 0 ? 0 : undefined) : maxPresent;
 	const wantVisible = expectVisible === undefined ? expectPresent : expectVisible;
 	await ensureHelpers(page);
 	const data = await page.evaluate((selector) => {
@@ -541,16 +568,34 @@ export async function presence(page, { selector, label = selector, expectPresent
 	}, selector);
 
 	const ceilingOk = maxVisible === undefined || data.visible <= maxVisible;
+	const presentOk = presentCeiling === undefined || data.present <= presentCeiling;
+
+	/* THE THRESHOLD STRING SAYS WHERE THERE IS NO CEILING, IN WORDS. A row
+	   printing ">= 0 visible" reads like a measurement and is a blank; printing
+	   "visible unconstrained" is the same fact stated so the next reader sees
+	   it. The remaining unconstrained half in this directory is deliberate --
+	   `.gt-tree` is painted at 1440 and not at 375 and the spec says so -- but
+	   deliberate and invisible are different things. */
+	const presentPart =
+		presentCeiling === undefined
+			? `>= ${expectPresent} present`
+			: presentCeiling === expectPresent
+				? `exactly ${expectPresent} present`
+				: `${expectPresent} to ${presentCeiling} present`;
+	const visiblePart =
+		maxVisible !== undefined
+			? `${wantVisible} to ${maxVisible} visible`
+			: wantVisible > 0
+				? `>= ${wantVisible} visible`
+				: 'visible unconstrained';
+
 	return {
 		check: 'presence',
 		selector,
 		label,
 		measured: `present ${data.present}, visible ${data.visible}, aria-hidden ${data.ariaHidden}`,
-		threshold:
-			maxVisible === undefined
-				? `>= ${expectPresent} present, >= ${wantVisible} visible`
-				: `>= ${expectPresent} present, ${wantVisible} to ${maxVisible} visible`,
-		withinThreshold: data.present >= expectPresent && data.visible >= wantVisible && ceilingOk,
+		threshold: `${presentPart}, ${visiblePart}`,
+		withinThreshold: data.present >= expectPresent && presentOk && data.visible >= wantVisible && ceilingOk,
 		data
 	};
 }
@@ -982,6 +1027,98 @@ export function consoleErrors(collected, { ignore = [], blockedCount = 0 } = {})
 		threshold: '0',
 		withinThreshold: kept.length === 0,
 		data: { errors: kept.slice(0, 20), ignored: ignored.slice(0, 10), totalSeen: collected.length }
+	};
+}
+
+
+/* ------------------------------------------------------------------ *
+ * 10. PREPARE STEPS, judged rather than narrated
+ *
+ * These live here rather than in `run.mjs` for the reason every other check
+ * does: they return MEASURED VALUES with a threshold beside them, they are
+ * counted in the run's summary, and `--selftest` puts them to a fixture. They
+ * used to be strings pushed onto a `prepared` array and printed above the
+ * results, which meant a step that failed outright -- or, worse, one that
+ * silently did nothing -- was invisible to the summary count and to `--strict`.
+ * MEASURED: a spec handed three broken steps at once reported "0 outside
+ * threshold" and `--strict` exited 0.
+ * ------------------------------------------------------------------ */
+
+/**
+ * A `prepare` CLICK step, judged rather than narrated.
+ *
+ * THE PRE-CLICK SHORT-CIRCUIT IS THE FINDING THIS EXISTS FOR. `clickUntil`
+ * evaluates the step's own `until` BEFORE clicking and returns "already
+ * satisfied" if it holds (browser.mjs explains why, and offers `force` to skip
+ * it). That is correct behaviour and a silent trap: a predicate satisfiable by
+ * the page's RESTING state means the click never physically fires, the state
+ * the spec exists to measure is never reached, and the report says "clicked".
+ * MEASURED on /dev/song-queue: with the component's `notice` seeded non-null,
+ * the step printed `1 matched, 0 attempt(s), already satisfied`, the
+ * aria-disabled click-through contract went entirely unproven, and the run
+ * reported 0 measurements outside threshold. It has bitten twice for real --
+ * `/dev/classroom-split/s-1?manage=1` when the bulk bar started rendering at
+ * rest, and `/dev/notebook` when `.pick.free` started `aria-pressed` true.
+ *
+ * So a click step passes only when the click ACTUALLY FIRED (attempts >= 1)
+ * and a predicate then confirmed its effect. The two ways out are both
+ * deliberate and both visible in the report: fix the predicate so it names
+ * something only the click can produce, or pass `force: true` -- which
+ * guarantees the click fires and is annotated below, because a forced step is
+ * one whose predicate is NOT required to discriminate and the next reader
+ * should know that from the line rather than from the spec file.
+ */
+export function prepareClickResult(step, r) {
+	const forced = step.force === true;
+	const hasPredicate = !!step.until;
+	const skipped = r.ok && r.attempts === 0;
+	const ok = r.ok && r.attempts > 0 && hasPredicate;
+	const why = !r.ok
+		? r.reason
+		: skipped
+			? 'the predicate ALREADY HELD, so the click never fired -- this step reached no state'
+			: !hasPredicate
+				? 'clicked, but with no `until` the effect was never verified'
+				: r.reason;
+	return {
+		check: 'prepare-click',
+		label: step.click,
+		measured: `${r.matched} matched, ${r.attempts} attempt(s), ${why}${forced ? '  [force: predicate not required to discriminate]' : ''}`,
+		threshold: 'the click fires at least once and its `until` then holds',
+		withinThreshold: ok,
+		data: { ...r, forced, hasPredicate }
+	};
+}
+
+/** A `prepare` WAIT step. */
+export function prepareWaitResult(step, r) {
+	/* `already satisfied` at 0ms is NOT a finding here, and that is the whole
+	   difference from a click: waiting is not supposed to CAUSE anything, so a
+	   payload that had already landed is the step working. A click that never
+	   fired is a step that did not happen. */
+	return {
+		check: 'prepare-wait',
+		label: String(step.waitFor).replace(/\s+/g, ' ').slice(0, 60),
+		measured: `${r.waitedMs}ms, ${r.reason}`,
+		threshold: 'the predicate holds within the timeout',
+		withinThreshold: r.ok,
+		data: r
+	};
+}
+
+/** A `prepare` EVALUATE step. `out` is `{ ok, v }` or `{ ok: false, err }`. */
+export function prepareEvalResult(step, out) {
+	const said = typeof out.v === 'string' || typeof out.v === 'number' ? ` -- ${out.v}` : '';
+	/* Collapse the source before slicing: a multi-line step otherwise prints
+	   "() => {" and takes its own return value off the end of the line. */
+	const src = String(step.evaluate).replace(/\s+/g, ' ').slice(0, 70);
+	return {
+		check: 'prepare-eval',
+		label: src,
+		measured: out.ok ? `returned${said || ' (nothing printable)'}` : `THREW: ${out.err}`,
+		threshold: 'the step runs without throwing',
+		withinThreshold: out.ok,
+		data: out
 	};
 }
 

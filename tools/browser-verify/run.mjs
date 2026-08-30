@@ -33,7 +33,10 @@ import {
 	datalistOrder,
 	consoleErrors,
 	statePairContrast,
-	motionSweep
+	motionSweep,
+	prepareClickResult,
+	prepareWaitResult,
+	prepareEvalResult
 } from './checks.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
@@ -168,6 +171,8 @@ async function runRoute(browser, origin, spec, width, opts) {
 	const url = `${origin}${urlFor(spec)}`;
 	let navStatus = null;
 	let hydration = { hydrated: false, waitedMs: 0 };
+	/* `--break` is the one thing still narrated rather than measured: it is a
+	   deliberate defect the operator asked for, not a step that can fail. */
 	const prepared = [];
 	try {
 		const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -190,9 +195,22 @@ async function runRoute(browser, origin, spec, width, opts) {
 		/* Reach the state the spec means to measure. A surface can load with
 		   something on top of it -- /dev/pathways mounts the real first-login
 		   picker, whose overlay covers the page -- and measuring through it is
-		   a true reading of the wrong thing. Every step is REPORTED, attempt
-		   count included, so the report says which state the numbers describe
-		   and how hard it was to get there. */
+		   a true reading of the wrong thing.
+		 *
+		 * EVERY STEP IS A MEASUREMENT, NOT A NARRATION, AND THAT IS THE FIX FOR
+		 * A WHOLE CLASS OF SILENT PASS. These used to be strings pushed onto
+		 * `prepared` and printed above the results -- so a step that failed
+		 * outright was invisible to the summary count and to `--strict`.
+		 * MEASURED rather than reasoned: a spec given three broken steps at
+		 * once (an `evaluate` that throws, a `click` whose selector matches
+		 * nothing, a `waitFor` that times out) reported "4 measurement(s), 0
+		 * outside threshold" and `--strict` EXITED 0. Every check after such a
+		 * step is an honest reading of a state the run never reached, which is
+		 * the most expensive kind of green there is.
+		 *
+		 * They are pushed into `results` FIRST, so the report reads in the
+		 * order the run happened and a red step sits above the numbers it
+		 * invalidates. */
 		for (const step of spec.prepare ?? []) {
 			if (step.click) {
 				const r = await clickUntil(page, step.click, step.until, {
@@ -200,9 +218,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 					gapMs: step.gapMs ?? 300,
 					force: step.force ?? false
 				});
-				prepared.push(
-					`${r.ok ? 'clicked' : 'FAILED'} ${step.click} -- ${r.matched} matched, ${r.attempts} attempt(s), ${r.reason}`
-				);
+				results.push(prepareClickResult(step, r));
 			}
 			if (step.waitFor) {
 				/* A state reached by an ASYNC PAYLOAD LANDING rather than by a
@@ -214,9 +230,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 				const r = await waitUntil(page, step.waitFor, {
 					timeoutMs: step.timeoutMs ?? 15_000
 				});
-				prepared.push(
-					`${r.ok ? 'waited' : 'FAILED'} for ${String(step.waitFor).slice(0, 60)} -- ${r.waitedMs}ms, ${r.reason}`
-				);
+				results.push(prepareWaitResult(step, r));
 			}
 			if (step.evaluate) {
 				/* `page.evaluate(string)` treats the string as an EXPRESSION -- the
@@ -231,18 +245,8 @@ async function runRoute(browser, origin, spec, width, opts) {
 				const out = await page
 					.evaluate(`(${step.evaluate})()`)
 					.then((v) => ({ ok: true, v }))
-					.catch((e) => {
-						prepared.push(`evaluate FAILED: ${e.message.split('\n')[0]}`);
-						return { ok: false };
-					});
-				if (out.ok) {
-					const said = typeof out.v === 'string' || typeof out.v === 'number' ? ` -- ${out.v}` : '';
-					/* Collapse the source before slicing: a multi-line step
-					   otherwise prints "evaluated: () => {" and takes its own
-					   return value off the end of the line with it. */
-					const src = String(step.evaluate).replace(/\s+/g, ' ').slice(0, 70);
-					prepared.push(`evaluated: ${src}${said}`);
-				}
+					.catch((e) => ({ ok: false, err: e.message.split('\n')[0] }));
+				results.push(prepareEvalResult(step, out));
 			}
 			await page.waitForTimeout(step.waitMs ?? 200);
 		}
@@ -322,7 +326,7 @@ async function main() {
 					`${spec.path}  @${width}px   HTTP ${run.navStatus}   ` +
 						`app ${run.hydration.hydrated ? 'rendered' : 'DID NOT RENDER'}${run.hydration.domStable ? '' : ' (DOM never settled)'} in ${run.hydration.waitedMs}ms   ${spec.label ?? ''}`
 				);
-				for (const step of run.prepared) console.log(`         prepare: ${step}`);
+				for (const note of run.prepared) console.log(`         note: ${note}`);
 				for (const r of run.results) {
 					printResult(r);
 					if (!r.withinThreshold || opts.verbose) printDetail(r);

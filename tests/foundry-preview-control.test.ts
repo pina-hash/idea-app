@@ -29,6 +29,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { foundryPreviewUrl, foundryPreviewable } from '$lib/foundry/bundle-url';
+import { FOUNDRY_PREVIEW_STORAGE_NOTE } from '$lib/foundry/surface';
 import type { FoundryVersion, FoundryVersionStatus } from '$lib/foundry/transports';
 
 const LIVE = { hidden_at: null };
@@ -158,14 +159,24 @@ describe('the surface reads the predicate and carries the sentence', () => {
 	 * `localStorage` is the injected in-memory shim and nothing in it survives a
 	 * reload; a published app is on a real origin and its saves persist. Without
 	 * this sentence the first student with a high score files a bug about it.
+	 *
+	 * ASSERTED THROUGH THE SHARED CONSTANT RATHER THAN AS A TYPED LITERAL, which
+	 * is a GENERALIZATION of what this used to say and not a relaxation of it.
+	 * The words moved to `surface.ts` when /foundry/submit started offering a
+	 * preview too, for `deleteAppCostLine`'s reason: a student reads whichever
+	 * surface they reach first, and two typed copies of a sentence about what
+	 * storage does are two copies that can stop agreeing about it. Spelling the
+	 * literal here would have been a THIRD copy, and the one nobody renders.
 	 */
 	it('says the saved-data difference, once', () => {
-		const sentence = 'saved data does not survive a reload in a preview';
-		expect(SOURCE).toContain(sentence);
+		expect(SOURCE).toContain('{FOUNDRY_PREVIEW_STORAGE_NOTE}');
 		// ONCE, NOT PER VERSION: it is a fact about previewing rather than about
 		// any one build, and repeating it down a list of six is how a true
 		// sentence stops being read.
-		expect(SOURCE.split(sentence)).toHaveLength(2);
+		expect(SOURCE.split('{FOUNDRY_PREVIEW_STORAGE_NOTE}')).toHaveLength(2);
+		// And the component imports it, so the braces above are an interpolation
+		// rather than three literal words in a paragraph.
+		expect(SOURCE).toContain('FOUNDRY_PREVIEW_STORAGE_NOTE,');
 	});
 
 	/**
@@ -175,7 +186,103 @@ describe('the surface reads the predicate and carries the sentence', () => {
 	 * surprise anybody.
 	 */
 	it('says the difference only runs the safe way', () => {
-		expect(SOURCE).toContain('Anything that works in a preview works published');
+		expect(FOUNDRY_PREVIEW_STORAGE_NOTE).toContain(
+			'saved data does not survive a reload in a preview'
+		);
+		expect(FOUNDRY_PREVIEW_STORAGE_NOTE).toContain(
+			'Anything that works in a preview works published'
+		);
+		// No em dashes in student-facing copy.
+		expect(FOUNDRY_PREVIEW_STORAGE_NOTE).not.toContain('\u2014');
+	});
+});
+
+/**
+ * THE SUBMIT SURFACE OFFERS THE SAME PREVIEW, AT THE MOMENT IT IS MOST WANTED.
+ *
+ * WHAT WAS MISSING AND WHY IT WAS INVISIBLE. Every piece worked: the portal
+ * route, the author-or-admin gate, the strict sandbox, the pure URL builder and
+ * the control on /foundry/mine. The done panel on /foundry/submit rendered the
+ * file list, a Submit press and a link to My apps, and no preview -- with the
+ * app id and the version id both in scope. Nothing failed; a student who
+ * uploaded simply never saw their app.
+ *
+ * SOURCE-READ FOR `FoundryMine`'s REASON, one file over. The done panel is
+ * reached only by driving five async transports to completion, so `render()`
+ * under `svelte/server` never produces it and a test asserting over that render
+ * would pass for reasons having nothing to do with the claim. These are
+ * presence checks over a file people edit in commits, each with a positive
+ * control, each guarding a regression that is silent.
+ */
+describe('the submit surface offers the preview it just created', () => {
+	const SUBMIT = readFileSync(
+		fileURLToPath(new URL('../src/lib/foundry/FoundrySubmit.svelte', import.meta.url)),
+		'utf8'
+	);
+
+	it('read the right file', () => {
+		// POSITIVE CONTROL: a wrong path would report every string below as
+		// missing and every assertion would be about an empty file.
+		expect(SUBMIT.length).toBeGreaterThan(1000);
+		expect(SUBMIT).toContain('Submit for review');
+	});
+
+	/**
+	 * THE BUILDER, NOT A HAND-WRITTEN PATH. `/foundry/preview/<app>/<version>/`
+	 * typed out is a path that keeps its trailing slash by luck, and the slash is
+	 * what makes every relative asset in the bundle resolve.
+	 */
+	it('builds the href with the builder', () => {
+		expect(SUBMIT).toContain('foundryPreviewUrl(createdVersionAppId, createdVersionId)');
+		// NEGATIVE CONTROL: nothing on this surface writes the prefix by hand.
+		expect(SUBMIT).not.toContain("'/foundry/preview/");
+		expect(SUBMIT).not.toContain('`/foundry/preview/');
+	});
+
+	/**
+	 * AND IT GATES ON THE ONE PREDICATE. Every other control in this panel is
+	 * status-gated and this surface's version is ALWAYS a draft, so a status
+	 * clause added inline here would be invisible until the day it was not.
+	 */
+	it('gates on the shared predicate rather than an inline expression', () => {
+		expect(SUBMIT).toContain('foundryPreviewable(');
+	});
+
+	it('opens in a new tab, with noopener and a visible word', () => {
+		const i = SUBMIT.indexOf('href={previewHref}');
+		expect(i).toBeGreaterThan(-1);
+		const block = SUBMIT.slice(i, i + 400);
+		expect(block).toContain('target="_blank"');
+		expect(block).toContain('rel="noopener"');
+		expect(block).toContain('Run a preview');
+		// A 44px target on a student-facing surface (IDEA_INTERFACE_STANDARDS 10).
+		expect(block).toContain('tap-44');
+	});
+
+	/**
+	 * THE SENTENCE COMES WITH THE CONTROL. A student previewing here is in
+	 * exactly the position it exists for, and it is the shared constant so the
+	 * two surfaces cannot describe storage differently.
+	 */
+	it('carries the shared saved-data note, once', () => {
+		expect(SUBMIT).toContain('{FOUNDRY_PREVIEW_STORAGE_NOTE}');
+		expect(SUBMIT.split('{FOUNDRY_PREVIEW_STORAGE_NOTE}')).toHaveLength(2);
+	});
+
+	/**
+	 * THE APP ID IS STAMPED WITH THE VERSION ID, which is what makes the pair
+	 * unable to name different things. `createdAppId` is the new-app path's
+	 * RESUME handle and is null for the whole add-a-version path, so a preview
+	 * built from it would simply never appear for a student uploading a second
+	 * version -- a silent half-feature.
+	 */
+	it('stamps the app id beside the version id, on both paths', () => {
+		const i = SUBMIT.indexOf('createdVersionId = version.versionId;');
+		expect(i).toBeGreaterThan(-1);
+		expect(SUBMIT.slice(i, i + 200)).toContain('createdVersionAppId = appId;');
+		// POSITIVE CONTROL: `appId` at that point is the settled one, which the
+		// existing-app path reaches through `existingAppId`.
+		expect(SUBMIT).toContain("let appId = mode === 'existing' ? existingAppId : createdAppId;");
 	});
 });
 

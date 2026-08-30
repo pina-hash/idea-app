@@ -1,0 +1,336 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Simulation Setup",
+    "course": "IDEA100",
+    "subtitle": "How to find out where your hook will break, before you print it",
+    "referenceId": "idea100-sim-setup",
+    "buildVersion": "v5"
+  },
+  "sections": [
+    {
+      "slug": "start",
+      "blurb": "Read this page once. Then follow the pictures.",
+      "title": "Start Here",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You are going to run a test on your hook without printing it.\n\nThe computer pulls on your hook and shows you where the stress builds up. Wherever it turns red is where your real hook is going to snap. That is the whole point. You find the weak spot now, and you fix it tomorrow.\n\n### Four words you will see\n\n**Study.** The test itself. You set one up, then you run it.\n\n**Face.** One surface on your part. Your hook has a lot of them.\n\n**Fixture.** The face that gets held still, like the rig holding your anchor.\n\n**Load.** The pull. Yours is 400 pounds, at the throat.\n\nIt takes about six minutes once you know where things are. The first time takes longer. That is normal."
+        },
+        {
+          "type": "callout",
+          "title": "Every picture has a bar on top",
+          "content": "The bar tells you the step number, what to do, and whether to click or just look. The mouse icon on the right shows which button. An eye means look at your screen and check it matches, do not click anything.",
+          "variant": "required"
+        }
+      ]
+    },
+    {
+      "slug": "part1",
+      "blurb": "Steps 1 to 5. Nothing here is about your hook yet.",
+      "title": "Part 1: Turn It On And Start A Study",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Simulation is an add-in. It is switched off until you switch it on, and there is no Simulation tab anywhere until you do. If you get stuck on step 1, everything after it is unfindable, so do not skip ahead."
+        },
+        {
+          "type": "instructions",
+          "content": "![Check the box. If this is unchecked there is no Simulation tab at all.](attachment:SIM_01_Turn_the_Simulation_add_in_on.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![This is what you are looking for. If you cannot see it, go back.](attachment:SIM_02_The_Simulation_tab_appears.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Open your own V1. Not a friend's file, not an example part.](attachment:SIM_03_Your_hook_before_anything.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "Now start the study. **Static** means the pull is steady, not a hit or a vibration. That is what the rig does to your hook, so that is the one you want."
+        },
+        {
+          "type": "instructions",
+          "content": "![Static. Not frequency, not thermal.](attachment:SIM_04_New_study_static.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![The study tree starts empty. Everything below fills it in, top to bottom.](attachment:SIM_05_The_empty_study_tree.png)"
+        }
+      ]
+    },
+    {
+      "slug": "part2",
+      "blurb": "Steps 6 and 7.",
+      "title": "Part 2: Tell It What Your Hook Is Made Of",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You are printing in HIPS. You are going to tell the computer Nylon 101 instead.\n\nThat sounds wrong and it is on purpose. SolidWorks does not handle HIPS or ABS well and will give you a useless answer. And it barely matters: in a part made of one material, where the stress piles up depends on the **shape**, not the plastic. So the red spot you find with Nylon 101 is the red spot your HIPS hook actually has."
+        },
+        {
+          "type": "instructions",
+          "content": "![Nylon 101, under Plastics.](attachment:SIM_06_Pick_Nylon_101_under_Plastics.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Your part now says Nylon 101 in the study tree. The part file itself still says no material, and that is correct. Leave it.](attachment:SIM_07_Material_applied.png)"
+        }
+      ]
+    },
+    {
+      "slug": "part3",
+      "blurb": "Steps 8 and 9. This is the anchor end.",
+      "title": "Part 3: Hold The Hook Still",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "If nothing holds your hook, the computer just pushes it away into space and refuses to solve. So you tell it which face the rig is gripping.\n\nThat is the anchor hole. Use the whole hole. This is the one place in the whole setup where you do not have to be picky."
+        },
+        {
+          "type": "instructions",
+          "content": "![Open the fixtures advisor.](attachment:SIM_08_Open_the_fixtures_advisor.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![The whole anchor hole. Green arrows will appear on it once you accept.](attachment:SIM_09_Select_the_anchor_hole.png)"
+        }
+      ]
+    },
+    {
+      "slug": "part4",
+      "blurb": "Steps 10 to 17. This is the long part and the part people get wrong.",
+      "title": "Part 4: Push On It",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Here is the problem. Your throat is one big curved face. But the other hook does not press on all of it. It presses on one small patch, about the size of the bar it hooks onto.\n\nIf you load the whole face, the computer spreads 400 pounds across material nothing is even touching, and your answer is junk.\n\nSo you cut a patch out of that face first. That is called a **split**. And you do it from inside the load window, without leaving it."
+        },
+        {
+          "type": "instructions",
+          "content": "![Open the external loads advisor.](attachment:SIM_11_Open_the_external_loads_advisor.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Two tabs at the top: Type and Split. Also look at Units. It says SI and the force says 1 N. You fix that later, at step 17.](attachment:SIM_12_The_force_panel_has_two_tabs.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Switch to Split. Pick Sketch, then Create Sketch. Ignore Intersection, that is for assemblies.](attachment:SIM_13_Switch_to_the_Split_tab.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Pick the flat side of your hook to draw on.](attachment:SIM_14_Start_a_sketch_on_the_side_of_the_hook.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Draw a circle roughly where the other hook will press. Do not dimension it. You are pointing at a spot, not designing a part.](attachment:SIM_15_Draw_a_circle_where_the_other_hook_press.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Exit the sketch first. Then pick the face in the SECOND box, not the first.](attachment:SIM_16_Exit_the_sketch_then_pick_the_face.png)"
+        },
+        {
+          "type": "instructions",
+          "content": "![Create Split. Your throat now has a separate patch on it. That patch is what you load.](attachment:SIM_17_Create_Split_The_face_divides.png)"
+        },
+        {
+          "type": "callout",
+          "title": "Two things to get right in the next window",
+          "content": "**Units first.** The box opens on SI, which is newtons. Switch it to English (IPS) BEFORE you type the number. Type 400 first and you have applied 400 newtons, which is about a fifth of what you meant, and the study will run happily and lie to you.\n\n**Selected direction, not Normal.** Normal means straight out of the face, and on a curve that points a different way at every single point, so half your pull cancels the other half. Selected direction picks one plane and pulls the same way everywhere.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "![Units on English (IPS), Selected direction chosen, a plane picked, 400 in the lbf box, and the arrows sitting on the patch instead of the whole face.](attachment:SIM_18_Selected_direction_a_plane_400_lbf.png)"
+        }
+      ]
+    },
+    {
+      "slug": "part5",
+      "blurb": "Step 18.",
+      "title": "Part 5: Look At The Answer",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Mesh it and run it. The mesh is the computer chopping your hook into thousands of tiny blocks so it can do the math. The default settings are fine."
+        },
+        {
+          "type": "instructions",
+          "content": "![Red is where your hook breaks. Write down where it is before you leave. Tomorrow starts from it.](attachment:SIM_19_Read_the_von_Mises_plot.png)"
+        },
+        {
+          "type": "callout",
+          "title": "Three numbers on this screen that are wrong for your hook",
+          "content": "**Factor of safety. Displacement. How much load it will hold.**\n\nYou told the computer your hook is Nylon 101. It is not. It is HIPS, printed in layers, with gaps inside it. Ask a computer how strong a part is and it answers for the solid block of plastic you claimed. Ask it where the stress piles up and it answers for the shape, and your shape is real.\n\nUsing one of these numbers in a later assignment costs you marks.\n\nThe simulation tells you WHERE. The scale test tells you whether your shape survived a printer. The rig tells you HOW MUCH.",
+          "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "compare",
+      "blurb": "Put this next to your own plot.",
+      "title": "What It Looks Like When You Skip The Split",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "![The same hook, loaded on the whole throat face instead of a patch. The pull is being carried by material the other hook never touches, so the red is in the wrong place. This is the mistake the split prevents.](attachment:SIM_X2_The_same_hook_loaded_on_the_whole_face.png)"
+        }
+      ]
+    },
+    {
+      "slug": "stuck",
+      "blurb": "Find your symptom in the left column.",
+      "title": "When It Will Not Work",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "looks": "There is no Simulation tab.",
+              "usually": "The add-in is off. Step 1."
+            },
+            {
+              "looks": "It says the model is not restrained, or your hook flies off.",
+              "usually": "No fixture, or one that does not hold it still. Go back to step 9."
+            },
+            {
+              "looks": "Create Split does nothing.",
+              "usually": "Your circle does not actually cross the face you picked, or you exited the sketch after picking instead of before."
+            },
+            {
+              "looks": "The mesh fails.",
+              "usually": "Something on your hook is much thinner than everything around it, or there is a leftover sliver from a trim. Find it before you change mesh settings."
+            },
+            {
+              "looks": "It solves but the whole hook is one color.",
+              "usually": "The load landed on nothing. Check it is on the patch."
+            },
+            {
+              "looks": "The answer looks about five times too small.",
+              "usually": "You typed 400 while Units still said SI. That is 400 newtons, not 400 pounds."
+            },
+            {
+              "looks": "The red is somewhere strange, nowhere near the throat.",
+              "usually": "Your patch is on the wrong side of the throat. It goes where the other hook actually presses."
+            }
+          ],
+          "type": "dataTable",
+          "title": "",
+          "columns": [
+            {
+              "key": "looks",
+              "label": "What you see"
+            },
+            {
+              "key": "usually",
+              "label": "What it usually means"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "When a button is not where this says",
+          "content": "Do not go hunting. Type the command name into the search box at the top right of SolidWorks, with the drop-down set to **Commands**. Then click the little eye next to the result and SolidWorks points at its own button with a red arrow. Pressing **S** opens the same search.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "![The search box, set to Commands. This works for anything in SolidWorks, not just simulation.](attachment:SIM_E1_Type_a_command_into_the_search_box.png)"
+        },
+        {
+          "type": "callout",
+          "title": "Your split stays in the part",
+          "content": "Making the split from inside the load still leaves a Split Line in your part list. When you move material around in V2 it can turn red. That is normal and your hook is not broken. Delete it and make it again from the load window. It takes thirty seconds. Do not spend your build time on it.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "settings",
+      "blurb": "Everything above, on one page, for when you have done it once already.",
+      "title": "The Short Version",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "value": "SOLIDWORKS Simulation, checked.",
+              "search": "Add-Ins",
+              "setting": "Add-in"
+            },
+            {
+              "value": "Static.",
+              "search": "New Study",
+              "setting": "Study type"
+            },
+            {
+              "value": "Nylon 101, under Plastics.",
+              "search": "Apply Material",
+              "setting": "Material"
+            },
+            {
+              "value": "The whole anchor hole.",
+              "search": "Fixtures Advisor",
+              "setting": "Fixture"
+            },
+            {
+              "value": "An undimensioned circle where the other hook presses.",
+              "search": "External Loads Advisor",
+              "setting": "Split"
+            },
+            {
+              "value": "English (IPS). Set this BEFORE typing the force.",
+              "search": "",
+              "setting": "Units"
+            },
+            {
+              "value": "400 lbf on the patch, Selected direction.",
+              "search": "",
+              "setting": "Load"
+            },
+            {
+              "value": "Default.",
+              "search": "Create Mesh",
+              "setting": "Mesh"
+            },
+            {
+              "value": "von Mises stress.",
+              "search": "Run This Study",
+              "setting": "Plot"
+            }
+          ],
+          "type": "dataTable",
+          "title": "",
+          "columns": [
+            {
+              "key": "setting",
+              "label": "Setting"
+            },
+            {
+              "key": "value",
+              "label": "Use this"
+            },
+            {
+              "key": "search",
+              "label": "Type this in the search box"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "sources",
+      "blurb": "What this was built from.",
+      "title": "Sources",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "- Hook Design and Manufacturing Guide, Simulation tab. The guide wins if the two ever disagree.\n- SOLIDWORKS Help, help.solidworks.com. The Force PropertyManager and its Selected direction option, Splitting a Face using the Split tab, the SOLIDWORKS Materials library, fixtures on a static study, and Searching for Commands.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration, which is what the red is.\n- The screenshots are of a real hook, shot in the IDEA lab on SOLIDWORKS 2025.\n- IDEA AI Use Policy."
+        }
+      ]
+    }
+  ],
+  "printTrigger": "print trigger 5",
+  "schemaVersion": 2
+}

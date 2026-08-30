@@ -322,12 +322,24 @@
 		border-bottom: none;
 	}
 
-	/* A FIGURE TAKES THE FULL MEASURE OF THE COLUMN IT IS IN. `width: 100%` with
-	   `height: auto` is what keeps the intrinsic aspect ratio: the browser scales
-	   the box from the image's own dimensions, so nothing is squashed and no
-	   ratio has to be authored. `aspect-ratio` is deliberately NOT set -- it
-	   would need a per-image value the spec does not carry, and getting it wrong
-	   crops. */
+	/* A FIGURE TAKES AT MOST THE MEASURE OF THE COLUMN IT IS IN, AND NEVER MORE
+	   THAN ITS OWN PIXELS. This rule was `width: 100%` with `height: auto`,
+	   which keeps the aspect ratio in both directions but is a floor as well as
+	   a ceiling: a small diagram was BLOWN UP to the full column and rendered
+	   soft. Measured at 1440 before the change, a 200x150 diagram painted 736px
+	   wide -- 3.67x its own width; at 375 it painted 341px, 1.7x. A 600x900
+	   portrait was upscaled 1.22x at 1440 for the same reason.
+
+	   Both dimensions automatic with `max-width: 100%` is the whole fix: the
+	   intrinsic size wins until the column is narrower, and then the column
+	   does. `aspect-ratio` is still deliberately NOT set -- it would need a
+	   per-image value the spec does not carry, and getting it wrong crops.
+
+	   `align-self: flex-start` IS THE OTHER HALF, and it is the same one the
+	   print block below found by measuring. `.md-figure` is a flex COLUMN, so
+	   the default stretch alignment sizes the img box to the figure's full
+	   width whatever `width: auto` says -- which with `object-fit` at its
+	   default `fill` does not letterbox, it DISTORTS. */
 	.md :global(.md-figure) {
 		margin: 0;
 		display: flex;
@@ -336,7 +348,8 @@
 	}
 	.md :global(.md-figure img) {
 		display: block;
-		width: 100%;
+		align-self: flex-start;
+		width: auto;
 		height: auto;
 		max-width: 100%;
 		border: 1px solid var(--hairline);
@@ -407,32 +420,29 @@
 		/* FIGURES PRINT. They are content, not chrome: a procedure that says
 		   "match the surface to the photograph" is unusable on paper without it.
 
-		   CAPPED AT 4in, WHICH IS THE WHOLE RULE. US Letter leaves roughly 9in of
-		   printable height, so a figure can take a little under half a page and
-		   never the whole of one -- otherwise a single tall image pushes every
-		   step of the procedure it belongs to onto the following sheet, which is
-		   the failure this cap exists to prevent. `width: auto` alongside it is
-		   load-bearing: with the screen rule's `width: 100%` still applying, the
-		   max-height would be overridden by the width and the cap would do
-		   nothing. Both dimensions go automatic and the intrinsic ratio decides.
+		   CAPPED AT 4in, WHICH IS NOW THE WHOLE OF WHAT THIS BLOCK ADDS. US Letter
+		   leaves roughly 9in of printable height, so a figure can take a little
+		   under half a page and never the whole of one -- otherwise a single tall
+		   image pushes every step of the procedure it belongs to onto the
+		   following sheet, which is the failure this cap exists to prevent.
 
-		   `align-self: flex-start` IS THE OTHER HALF, AND IT WAS FOUND BY
-		   MEASURING RATHER THAN BY READING. `.md-figure` is a flex COLUMN, so the
+		   `width: auto`, `height: auto` and `align-self: flex-start` USED TO BE
+		   STATED HERE TOO, and they are gone from this block because the screen
+		   rule above carries all three now. They are not lost, and the reasoning
+		   that found them is worth keeping: `.md-figure` is a flex COLUMN, so the
 		   default stretch alignment sizes the img box to the figure's full width
 		   whatever `width: auto` says -- and `max-height` then clamps the height
 		   independently of it. With `object-fit` at its default `fill`, that does
 		   not letterbox, it DISTORTS: a 1202x1202 square measured 846x384 in the
-		   print box, squashed to 45% of its height. Aligning to the start lets the
-		   box shrink to its content, and the same image measures 384x384. */
+		   print box, squashed to 45% of its height, and 384x384 once aligned to
+		   the start. That measurement is what the screen rule was eventually
+		   fixed FROM; restating it here would be a second copy of one decision,
+		   and the copy is the one that stops matching. */
 		.md :global(.md-figure) {
 			break-inside: avoid;
 			page-break-inside: avoid;
 		}
 		.md :global(.md-figure img) {
-			align-self: flex-start;
-			width: auto;
-			height: auto;
-			max-width: 100%;
 			max-height: 4in;
 			border-color: #999;
 			background: none;

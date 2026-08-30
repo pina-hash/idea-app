@@ -8,9 +8,21 @@ export default {
 		ALREADY CLEAN AT BOTH WIDTHS -- 0px overflow, measured -- and the only
 		reason it was not already listed is that nothing had driven it. The
 		default student ('ana') carries one self-deleted and one
-		staff-deleted entry, so both `NotebookDeletedZone` branches (a
+		staff-deleted entry.
+
+		THIS PARAGRAPH USED TO SAY "both `NotebookDeletedZone` branches (a
 		Restore control on the first, a bare refusal reading on the
-		second) are on screen without a click.
+		second)", AND THERE IS NO SUCH PAIR OF BRANCHES. `NotebookDeletedZone`
+		renders a Restore control for EVERY row it is handed whenever a
+		`restoreEntry` transport is present, deliberately -- the dev route's
+		own fixture says so in as many words ("Both deleted entries render
+		identically here: the RPC's own gate is what actually decides who may
+		restore what, not a flag this page keeps in sync with it"). The row
+		below asserted `expectPresent: 1`, which is a FLOOR, and it has been
+		reading `present 2` at both widths for as long as this route has been
+		listed: the spec described behaviour the component does not have and
+		the check could not tell anyone. Corrected to the measurement, with a
+		ceiling, so the count is now the assertion in both directions.
 
 		THE 401s ARE THE FIXTURE, NOT A DEFECT: `NotebookView` here (like
 		every other notebook route in this file) renders `<img>` tags
@@ -22,10 +34,10 @@ export default {
 		ana's fixture makes and nothing else that happens to also 401.
 	*/
 	presence: [
-		{ selector: '.back-strip', label: 'StudentReviewBackStrip', expectPresent: 1 },
-		{ selector: '.nb-root', label: 'NotebookView mounted (read-only)', expectPresent: 1 },
-		{ selector: '[data-testid="staff-deleted-zone"]', label: 'deleted-entries disclosure', expectPresent: 1 },
-		{ selector: '[data-testid="staff-restore-entry"]', label: 'Restore control (self-deleted entry only)', expectPresent: 1 }
+		{ selector: '.back-strip', label: 'StudentReviewBackStrip', expectPresent: 1, maxPresent: 1 },
+		{ selector: '.nb-root', label: 'NotebookView mounted (read-only)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="staff-deleted-zone"]', label: 'deleted-entries disclosure', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="staff-restore-entry"]', label: 'Restore control (one per deleted entry -- 2, see the header)', expectPresent: 2, maxPresent: 2 }
 	],
 	contrast: [{ selector: '.back-strip .who', label: 'back-strip student line', min: 4.5 }],
 	/*

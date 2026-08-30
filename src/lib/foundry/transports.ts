@@ -235,12 +235,29 @@ export interface FoundryAppSummary extends FoundryAuthor {
  * this app and signed that decision into a thirty-minute token. The frame src
  * was the token URL.
  *
- * `foundry-bundles` is a PUBLIC bucket now (0135) and the frame points at the
- * Storage object URL, which `foundryBundleUrl` builds from the two ids and
- * nothing else. There is no decision left to carry, no secret to reach and no
- * round trip to make, so a transport for it would be an injection point with
- * nothing injected -- and an interface member nobody can implement wrongly is
- * better than one three surfaces have to implement identically.
+ * THE FRAME POINTS AT A SVELTEKIT ROUTE ON THE APPS ORIGIN, and this paragraph
+ * used to say something else entirely: "`foundry-bundles` is a PUBLIC bucket
+ * now (0135) and the frame points at the Storage object URL". Every part of
+ * that was wrong. The bucket is PRIVATE and carries no storage policy at all,
+ * which is the mechanism -- `storage.objects` has RLS on, so a bucket no policy
+ * names denies `anon` and `authenticated` by default and only `service_role`
+ * reaches it. 0135 is the classroom's instructor-attachment migration and has
+ * nothing to do with Foundry. And a Storage object URL could never have been
+ * the frame src anyway: storage-api rewrites any `text/html` content type to
+ * `text/plain`, unconditionally, so a framed bundle would render its own source
+ * as text.
+ *
+ * What is actually there: `foundryBundleUrl` builds
+ * `<apps origin>/b/<app>/<version>/` from the two ids and nothing else, and
+ * `src/routes/b/[appId]/[versionId]/[...path]/+server.ts` reads the bytes with
+ * the service-role key and re-checks every rule RLS would have enforced. The
+ * URL carries no token and the licence comes from the version's own status.
+ *
+ * SO THERE IS STILL NO DECISION FOR A TRANSPORT TO CARRY, no secret to reach
+ * and no round trip to make -- which is the part of the old paragraph that was
+ * true and is the reason there is no `launch` here. An injection point with
+ * nothing injected is worse than an absence: an interface member nobody can
+ * implement wrongly beats one three surfaces have to implement identically.
  *
  * `AppStage` builds the URL itself and renders no launch control when it
  * cannot. Absence is still the mechanism; what is absent is now a URL rather
