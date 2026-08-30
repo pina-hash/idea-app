@@ -7,7 +7,7 @@
     "dueDate": "2026-08-31",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-sim",
-    "buildVersion": "v3",
+    "buildVersion": "v4",
     "headerFields": [
       "studentName",
       "date"
@@ -23,38 +23,27 @@
       "aiNote": "Unrestricted for driving SolidWorks. Ask it anything, as often as you want.",
       "blocks": [
         {
-          "type": "instructions",
-          "content": "Upload one screenshot of your solved plot with the color scale showing.\n\nMark two things on it:\n\n1. Where it goes red.\n2. Where your part is thinnest.\n\nWrite the red spot in your notebook before you leave. Tomorrow starts from it."
-        },
-        {
           "id": "c1",
           "type": "checklist",
           "items": [
             "Ran on my own V1 part",
             "Both faces split, fixture and load on the outer halves",
-            "Nylon 101, force on Selected direction"
+            "Nylon 101, force on Selected direction",
+            "It solved"
           ],
-          "points": 3
-        },
-        {
-          "id": "z1",
-          "type": "imageZone",
-          "points": 3,
-          "printAs": "notebookRef",
-          "captions": false,
-          "minImages": 1
+          "points": 4
         }
       ],
-      "points": 6,
+      "points": 4,
       "rubric": [
         {
           "id": "r1",
           "levels": [
             {
               "label": "Complete",
-              "short": "All three checks true",
-              "points": 3,
-              "descriptor": "Own part, both faces split with fixture and load on the outer halves, Nylon 101, force on Selected direction."
+              "short": "All four true",
+              "points": 4,
+              "descriptor": "Own part, both faces split with fixture and load on the outer halves, Nylon 101, Selected direction, solved."
             },
             {
               "label": "Developing",
@@ -70,7 +59,51 @@
             }
           ],
           "criterion": "Study set up as the guide specifies, on the student's own part"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "m2",
+      "intro": "One screenshot, two questions. Two sentences each is plenty.",
+      "title": "Your Plot, And What You See",
+      "aiNote": "Ask it what a von Mises plot is. Do not ask it where your red spot is. You will be asked to point at it.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "**Taking the screenshot.** Press **Windows + Shift + S**. Drag a box around your plot, with the color scale inside it.\n\n**Handing it in.** Click in either answer box below and press **Ctrl + V**. It lands in the photo zone by itself. If you saved the image instead, use Choose files.\n\nMark two things on it: where it goes red, and where your part is thinnest.\n\nWrite the red spot in your notebook before you leave. Tomorrow starts from it."
         },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 4,
+          "prompt": "Where is the red, described on your part and not on your screen? Same place as your thinnest section, or somewhere else?",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 4,
+          "prompt": "Your study also shows a load number. Why is that number wrong for your hook when the red spot is right?",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Simulation tab and Where Hooks Break.\n- SOLIDWORKS Help, help.solidworks.com.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 11,
+      "rubric": [
         {
           "id": "r2",
           "levels": [
@@ -94,52 +127,20 @@
             }
           ],
           "criterion": "Screenshot shows a solved plot with the red spot and the thinnest section marked"
-        }
-      ],
-      "aiLevel": 3
-    },
-    {
-      "id": "m2",
-      "intro": "Two questions. Two sentences each is plenty.",
-      "title": "What You See",
-      "aiNote": "Ask it what a von Mises plot is. Do not ask it where your red spot is. You will be asked to point at it.",
-      "blocks": [
-        {
-          "id": "f1",
-          "type": "textField",
-          "points": 5,
-          "prompt": "Where is the red, described on your part and not on your screen? Same place as your thinnest section, or somewhere else?",
-          "maxSentences": 3,
-          "minSentences": 2
         },
-        {
-          "id": "f2",
-          "type": "textField",
-          "points": 4,
-          "prompt": "Your study also shows a load number. Why is that number wrong for your hook when the red spot is right?",
-          "maxSentences": 3,
-          "minSentences": 2
-        },
-        {
-          "type": "instructions",
-          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Simulation tab and Where Hooks Break.\n- SOLIDWORKS Help, help.solidworks.com.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015.\n- IDEA AI Use Policy."
-        }
-      ],
-      "points": 9,
-      "rubric": [
         {
           "id": "r3",
           "levels": [
             {
               "label": "Complete",
               "short": "Named on part, compared",
-              "points": 5,
+              "points": 4,
               "descriptor": "Names a feature of the hook rather than a region of the screen, and says whether it coincides with the thinnest section."
             },
             {
               "label": "Proficient",
               "short": "Named, no comparison",
-              "points": 3,
+              "points": 2,
               "descriptor": "Red spot named on the part, comparison missing or unclear."
             },
             {
