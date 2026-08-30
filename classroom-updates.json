@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-08-30",
+			"title": "Photos you hand in are shown at their own shape",
+			"body": "A photograph taken on a phone is tall rather than wide, and until now the classroom stretched every one of them to the full width of its box and then painted empty bars down either side of the picture inside the frame. The same thing happened to files your teacher attaches to an assignment and to the extra files you hand in: the bordered panel around the picture stood at the full width of the page while the picture itself sat small at one end of it. Both are fixed. A picture is now framed at its own shape, and the frame is drawn around the picture rather than around a box it never filled. Two photos handed in on a wide screen now share the room between them instead of sitting in the first two slots of a row of empty ones, and the list of your classes does the same. Diagrams inside an assignment's instructions are no longer blown up past their own size, so a small one stays sharp instead of going soft. Nothing changed about what you can hand in or how you hand it in.",
+			"tags": [
+				"Assignments",
+				"Classwork"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "New assignments arrive with their rubric already on them",
 			"body": "When your teacher builds an assignment from one of the prepared assignment files, the grading rubric written into that file now comes across with the assignment automatically, with all of its levels. Before this, the assignment would arrive with no rubric attached even though the file described one, and the rubric had to be rebuilt by hand or was simply missed. What this means for you: on a new assignment you can see up front exactly what each criterion is worth and what the top level asks for, instead of finding out when the grade comes back. Your teacher can still edit any of it, so what you see is what they decided to keep.",
 			"tags": [

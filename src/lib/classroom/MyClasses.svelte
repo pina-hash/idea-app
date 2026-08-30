@@ -190,9 +190,18 @@
 	.note a {
 		color: var(--gold);
 	}
+	/* `auto-fit`, NOT `auto-fill`: a student in two classes must not be handed
+	   two cards and an empty track beside them. Empty tracks collapse and the
+	   sections that exist share the measure -- the same decision ClassView's
+	   stream, the grading console's roster and the Foundry gallery each already
+	   made, and the rule CLAUDE.md states. Measured at 1440 before the change:
+	   two sections laid out in three tracks and left 303.5px of void.
+
+	   `min(16rem, 100%)` keeps the track from overflowing a viewport narrower
+	   than one column. */
 	.class-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
 		gap: 0.9rem;
 	}
 	/* Uniform gold accent (the launcher's shared --acc convention): every card

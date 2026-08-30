@@ -87,8 +87,22 @@
 		gap: 0.3rem;
 		min-width: 0;
 	}
+	/* `align-self: flex-start` IS WHAT STOPS THE FRAME STANDING WIDER THAN THE
+	   PICTURE, and it is the fix MarkdownText's print block already found by
+	   measuring (a 1202x1202 square in a stretched box: 846x384 before, 384x384
+	   after). `.file-row` is a flex COLUMN, so the default stretch alignment sizes
+	   this wrapper to the whole row while the img inside it -- `width: auto`,
+	   `height: auto` -- shrinks to its own intrinsic size. The wrapper draws a
+	   border and a `--surface-2` ground, so what is left over is a bordered
+	   empty panel beside the hand-in. Measured at 1440 before the change: a
+	   600x900 image sat 234.7px wide inside a 1406px frame, 1171.3px of panel;
+	   a 200x150 one, 1206px.
+
+	   The border and the background stay: they are what says where a picture
+	   ends against the plate. They are drawn around the picture now. */
 	.file-preview {
 		display: block;
+		align-self: flex-start;
 		max-width: 100%;
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
