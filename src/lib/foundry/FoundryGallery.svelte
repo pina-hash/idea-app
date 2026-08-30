@@ -73,7 +73,38 @@
 		 * each, and there is no third field it could grow that would still be a
 		 * count over an app.
 		 */
-		playCounts = {}
+		playCounts = {},
+		/**
+		 * THE STAFF ROUTE FOR THE APP THAT IS OPEN, OR NOTHING.
+		 *
+		 * WHAT IT CLOSES. Every admin control in this feature -- approve, reject,
+		 * edit metadata, replace the cover, clear the metadata flag, hide,
+		 * restore, delete, read the file tree, download, read play stats -- lives
+		 * in `FoundryInspector`, and the only surface that mounts one is
+		 * /foundry/review. That route's lists are built from SUBMITTED versions
+		 * and from HIDDEN apps, so an app that is published, not hidden and has
+		 * nothing pending is on neither of them -- while the route's own load
+		 * will serve exactly that app the moment its slug is in the URL. So the
+		 * controls all worked and the only way to reach them was to know the slug
+		 * and type it.
+		 *
+		 * IT IS A STRING THE CALLER BUILDS, AND ABSENCE IS THE MECHANISM. This
+		 * component holds no idea of who is admin and no idea of the review
+		 * route's URL shape: a caller that has both hands one over, and a caller
+		 * that has neither hands nothing and there is no control. That is the
+		 * same arrangement every optional transport here has, and it means a
+		 * student's page cannot render this by getting a boolean wrong.
+		 *
+		 * IT IS NOT A GATE. /foundry/review answers 404 to a non-admin and
+		 * `is_admin()` inside the RPCs is the boundary; this only decides whether
+		 * somebody is offered a door they can already open.
+		 *
+		 * AND IT IS RENDERED IN THIS COMPONENT'S OWN WRAPPER, NEVER INSIDE
+		 * `FoundryDetail`. That component has no staff branch and must not gain
+		 * one: the review queue mounts the IDENTICAL file, which is what makes
+		 * "what does a student see" answerable by reading it straight through.
+		 */
+		staffHref = null
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -83,6 +114,7 @@
 		onSelect: (slug: string | null) => void;
 		appsOrigin?: string | undefined;
 		playCounts?: FoundryPlayCounts;
+		staffHref?: string | null;
 	} = $props();
 
 	/**
@@ -237,6 +269,24 @@
 		-->
 		{#key selected.slug}
 			<div class="fdy-gal-detail">
+				{#if staffHref}
+					<!--
+						THE STAFF DOOR, ABOVE THE STUDENT PAGE AND OUTSIDE IT. It is in
+						this wrapper rather than in `FoundryDetail` because that component
+						is the ONE render path the gallery and the review queue share and
+						it has no staff branch in it.
+
+						IT SAYS WHAT IS THROUGH IT. "Review" alone reads as a decision
+						waiting to be made, and this app has none: what is on the other
+						side is the inspector, which for a settled published app is the
+						editing, hiding and deleting controls.
+					-->
+					<p class="fdy-gal-staff">
+						<a class="btn tap-44" href={staffHref} data-testid="foundry-gallery-staff">
+							Open review controls
+						</a>
+					</p>
+				{/if}
 				<FoundryDetail
 					app={selected}
 					{transports}
@@ -254,6 +304,12 @@
 		flex-direction: column;
 		gap: var(--space-4, 1rem);
 		min-width: 0;
+	}
+
+	/* A row of its own above the student page, so nothing about the app's own
+	   layout moves when it is there and when it is not. */
+	.fdy-gal-staff {
+		margin: 0 0 var(--space-3, 0.75rem);
 	}
 
 	.fdy-gal-head {

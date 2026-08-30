@@ -69,6 +69,35 @@
 		}
 	};
 
+	/**
+	 * THE ADMIN'S WAY INTO THE CONTROLS FOR THE APP THAT IS OPEN.
+	 *
+	 * WHY THIS AND NOT A THIRD LIST ON /foundry/review. The review route already
+	 * loads every app, so a "published" list there is free -- and it would be a
+	 * second gallery inside the review console, which is the one thing that
+	 * surface is written not to be ("deliberately NOT a second gallery with
+	 * extra columns"). The gallery is ALREADY the enumeration of published apps,
+	 * with the covers, the sort and the author lines, and an admin who wants to
+	 * act on one is by definition looking at it. So the missing piece was a
+	 * door, not a directory.
+	 *
+	 * The queue's two lists also mean something precise -- what is waiting, and
+	 * what is shelved -- and a third list of everything settled would be the
+	 * longest of the three and the only one with nothing to do in it, which is
+	 * how the two that DO need reading stop being read.
+	 *
+	 * NULL FOR EVERYONE ELSE, AND NULL WITH NOTHING OPEN. `isAdmin` rides on
+	 * `page.data` from the root layout, so this resolves it a second time
+	 * nowhere. No gate is added: /foundry/review answers 404 to a non-admin and
+	 * `is_admin()` inside the RPCs is the boundary. This decides only whether a
+	 * door somebody can already open is visible.
+	 */
+	const staffHref = $derived(
+		data.isAdmin && data.selected
+			? `/foundry/review?app=${encodeURIComponent(data.selected.slug)}`
+			: null
+	);
+
 	function select(slug: string | null) {
 		const target = slug ? `/foundry?app=${encodeURIComponent(slug)}` : '/foundry';
 		// `keepFocus` so picking a card with the keyboard does not throw focus
@@ -103,6 +132,7 @@
 		playCounts={data.playCounts}
 		{transports}
 		{coverUrl}
+		{staffHref}
 		onSelect={select}
 	/>
 </div>

@@ -16,13 +16,19 @@ import shareTechMono400 from '@fontsource/share-tech-mono/files/share-tech-mono-
  *   /_platform/fonts.css
  *   /_platform/fonts/<file>.woff2
  *
- * IT IS ON THE MAIN HOST NOW, AND IT IS REFERENCED BY ABSOLUTE URL. There used
- * to be a second origin for bundles and this pair 404'd anywhere else, so a
- * student could write the root-relative `/_platform/fonts.css` and have it
- * resolve. A bundle is served off the Supabase project host now, where a
- * leading slash resolves to Supabase and not to us -- so the root-relative
- * form CANNOT work, whatever we serve, and the build contract names the whole
- * URL instead. See `FOUNDRY_PLATFORM_ORIGIN` in `$lib/foundry/preflight`.
+ * IT IS ON THE MAIN HOST, AND IT IS REFERENCED BY ABSOLUTE URL. This pair used
+ * to answer on whatever host a bundle was served from, so a student could write
+ * the root-relative `/_platform/fonts.css` and have it resolve.
+ *
+ * THE REASON THAT STOPPED IS THE ORIGIN SPLIT, NOT SUPABASE, and this paragraph
+ * used to say Supabase. Bundles are served by the `/b/` and `/a/` SvelteKit
+ * routes answering on `apps.ideabosco.com`; this route answers on
+ * `ideabosco.com`. So a leading slash written inside a bundle resolves against
+ * the apps origin, where there is no `/_platform` -- which is why the
+ * root-relative form CANNOT work whatever we serve, and why the build contract
+ * names the whole URL instead. See `FOUNDRY_PLATFORM_ORIGIN` in
+ * `$lib/foundry/preflight`. The rule is the same one it always was; the host it
+ * fails against is the part that was written down wrong.
  *
  * `Access-Control-Allow-Origin: *` IS LOAD-BEARING AND IS NOT DECORATION. The
  * bundle document sits in an OPAQUE origin, so its `Origin` header is the

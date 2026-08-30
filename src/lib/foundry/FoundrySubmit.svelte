@@ -41,7 +41,12 @@
 		foundryFixPrompt,
 		type FoundryIssue
 	} from './preflight.ts';
-	import { slugLooksOk, suggestSlug } from './surface.ts';
+	import { foundryPreviewUrl, foundryPreviewable } from './bundle-url.ts';
+	import {
+		FOUNDRY_PREVIEW_STORAGE_NOTE,
+		slugLooksOk,
+		suggestSlug
+	} from './surface.ts';
 	import { FOUNDRY_STARTER_PATH } from './preflight.ts';
 	import type { FoundrySubmitTransports, IngestOutcome } from './transports.ts';
 
@@ -208,9 +213,59 @@
 	let createdSlug = $state<string | null>(null);
 	/** The version this flow just made, which is what the submit press queues. */
 	let createdVersionId = $state<string | null>(null);
+	/**
+	 * THE APP THAT VERSION BELONGS TO, WHICH IS NOT `createdAppId`.
+	 *
+	 * `createdAppId` is the RESUME handle for the new-app path only: it exists so
+	 * a retry after a partial create does not make a second app, and on the
+	 * add-a-version path it is null for the whole flow. The preview URL needs the
+	 * app id whichever path got here, so it is stamped from the settled `appId`
+	 * at the same moment the version id is, and the two can therefore never name
+	 * different things.
+	 */
+	let createdVersionAppId = $state<string | null>(null);
 	let createdOrdinal = $state<number | null>(null);
 	let submitting = $state(false);
 	let submittedForReview = $state(false);
+
+	/**
+	 * THE PREVIEW OF WHAT WAS JUST UPLOADED.
+	 *
+	 * WHY IT BELONGS HERE AND NOT ONLY ON /foundry/mine. This is the moment a
+	 * student most wants to run the thing they just made, and until now the done
+	 * panel offered a file list, a Submit press and a link to another page --
+	 * so the only way to actually SEE the upload was to leave, find the app, open
+	 * it and find the version. The two ids are both in hand at this point and the
+	 * builder is pure, so the control costs one line and a fact.
+	 *
+	 * IT IS `foundryPreviewable`, NOT AN INLINE CONDITION, for the reason that
+	 * predicate's own header gives: written out, that expression is the one
+	 * somebody adds a status clause to, and this surface's version is ALWAYS a
+	 * draft, so a status clause here would be invisible until the day it was not.
+	 * One predicate, two surfaces, one server gate behind both.
+	 *
+	 * `hidden_at: null` IS DERIVED RATHER THAN ASSUMED, and it is the only clause
+	 * this surface cannot read off a row. Both paths into it settle it:
+	 *
+	 *   A NEW APP. `foundry_create_app` has no way to produce a hidden one --
+	 *     hiding is `foundry_set_app_hidden`, which is admin only (0130) and is a
+	 *     separate act after the fact.
+	 *
+	 *   AN EXISTING APP. The choice comes from `transports.existingApps`, which
+	 *     the route fills from `foundry_list_apps` WITHOUT `p_include_hidden`,
+	 *     and `_foundry_app_in_population` gates that flag on `is_admin()` inside
+	 *     itself -- so a hidden app is not in the list to be chosen, for an admin
+	 *     uploading their own work either.
+	 *
+	 * The cost of being wrong is a link that 404s in a new tab, never a
+	 * disclosure: `previewViewerMayRun` is the boundary and it reads the flag
+	 * itself.
+	 */
+	const previewHref = $derived(
+		foundryPreviewable({ hidden_at: null }, { file_count: ingest?.fileCount ?? 0 })
+			? foundryPreviewUrl(createdVersionAppId, createdVersionId)
+			: null
+	);
 
 	async function send() {
 		if (!canSend || !normalized?.zip) return;
@@ -297,6 +352,7 @@
 			return;
 		}
 		createdVersionId = version.versionId;
+		createdVersionAppId = appId;
 		createdOrdinal = version.ordinal;
 
 		busyLabel = 'Unpacking and checking on the server';
@@ -753,6 +809,26 @@
 					</ul>
 				</details>
 				<div class="fdy-done-actions">
+					<!--
+						RUN IT, FIRST IN THE ROW. The version that just unpacked is a DRAFT
+						and nothing on the apps origin will serve one, so the preview mount
+						on the portal is the only way to see it at all -- and this is the
+						moment somebody wants to. It sits ahead of Submit for review on
+						purpose and in the same order /foundry/mine uses: look at the build,
+						then decide about it. Submitting stays the deliberate second press.
+
+						A NEW TAB, exactly as on /foundry/mine: a student needs to actually
+						play the thing -- type into it, lose, reload, try again -- and this
+						page still holds the Submit press they came back for.
+						`rel="noopener"` because the opened document is a student's own
+						bundle; the preview response's sandbox already denies it
+						`window.opener`, and stating it costs nothing.
+					-->
+					{#if previewHref}
+						<a class="btn tap-44" href={previewHref} target="_blank" rel="noopener">
+							Run a preview
+						</a>
+					{/if}
 					{#if !submittedForReview && transports.submitVersion && createdVersionId}
 						<button
 							type="button"
@@ -765,6 +841,15 @@
 					{/if}
 					<a class="btn tap-44" href="/foundry/mine">Go to My apps</a>
 				</div>
+				<!--
+					WHAT THE PREVIEW DOES NOT PROVE, beside the control that offers it.
+					The words are `surface.ts`'s, not this file's, so this surface and
+					/foundry/mine cannot end up describing what storage does differently.
+					Only rendered when there is a preview to describe.
+				-->
+				{#if previewHref}
+					<p class="fdy-hint">{FOUNDRY_PREVIEW_STORAGE_NOTE}</p>
+				{/if}
 			</div>
 		{/if}
 

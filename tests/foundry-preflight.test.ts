@@ -632,6 +632,34 @@ describe('resolveBundleReference', () => {
 		expect(resolveBundleReference('index.html', 'art/bg.png#frag')).toBe('art/bg.png');
 	});
 
+	/**
+	 * A REFERENCE THAT LEAVES THE BUNDLE RESOLVES TO NOTHING INSIDE IT.
+	 *
+	 * THE REGRESSION THIS PINS WAS SHIPPED AND FAILED IN THE REASSURING
+	 * DIRECTION. Since the network stopped being a rule, `classifyReference`
+	 * answers `ok` for an absolute URL -- so it reached this walk, which drops
+	 * the empty segment after the colon and produced the string
+	 * `https:/ideabosco.com/_platform/fonts.css`. Nothing ever matched that, so
+	 * the missing-asset sweep warned that the upload was missing a file at a
+	 * mangled path -- about the ONE URL the build contract tells the student to
+	 * write, and about every CDN tag it also endorses. Nothing failed; the
+	 * student simply read a paragraph that was not true.
+	 */
+	it('has nothing to resolve for a reference that leaves the bundle', () => {
+		expect(resolveBundleReference('index.html', PLATFORM_FONTS_URL)).toBeNull();
+		expect(
+			resolveBundleReference('index.html', 'https://unpkg.com/react@18.3.1/umd/react.js')
+		).toBeNull();
+		expect(resolveBundleReference('index.html', 'http://example.com/a.png')).toBeNull();
+		expect(resolveBundleReference('index.html', '//cdn.example.com/a.js')).toBeNull();
+		expect(resolveBundleReference('index.html', 'data:image/png;base64,AAA')).toBeNull();
+		expect(resolveBundleReference('index.html', 'mailto:someone@example.com')).toBeNull();
+		// POSITIVE CONTROL: it is a SCHEME test, not a "contains a colon or a
+		// slash" test, so an ordinary relative path still resolves.
+		expect(resolveBundleReference('index.html', 'art/bg.png')).toBe('art/bg.png');
+		expect(resolveBundleReference('pages/help.html', '../logo.png')).toBe('logo.png');
+	});
+
 	it('has nothing to check for a bare fragment or query', () => {
 		expect(resolveBundleReference('index.html', '#top')).toBeNull();
 		expect(resolveBundleReference('index.html', '?x=1')).toBeNull();
