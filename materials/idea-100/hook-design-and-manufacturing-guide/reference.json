@@ -6,7 +6,7 @@
     "course": "IDEA100",
     "subtitle": "Tournament of Hooks, IDEA100 Rotation 1, Fall 2026",
     "referenceId": "idea100-hook-rules",
-    "buildVersion": "v8"
+    "buildVersion": "v12"
   },
   "sections": [
     {
@@ -27,7 +27,7 @@
           "items": [
             {
               "label": "Material",
-              "value": "Provided HIPS. Any colour you like."
+              "value": "Provided HIPS. Any color you like."
             },
             {
               "label": "Print profile",
@@ -43,10 +43,10 @@
             },
             {
               "label": "Both openings measure",
-              "value": "0.75 in clear."
+              "value": "1.00 in clear."
             },
             {
-              "label": "Centre to centre",
+              "label": "Center to center",
               "value": "2.000 in to 2.500 in."
             },
             {
@@ -76,16 +76,16 @@
         {
           "rows": [
             {
-              "feature": "Centre-to-centre distance",
-              "requirement": "2.000 in to 2.500 in between the centres of the two 0.75 in features."
+              "feature": "Center-to-center distance",
+              "requirement": "2.000 in to 2.500 in between the centers of the two 1.00 in features."
             },
             {
               "feature": "Anchor side",
-              "requirement": "One 0.750 in diameter closed hole or loop."
+              "requirement": "One 1.000 in diameter closed hole or loop."
             },
             {
               "feature": "Hook side opening",
-              "requirement": "A minimum 0.750 in clear opening extending all the way to the edge."
+              "requirement": "A minimum 1.000 in clear opening extending all the way to the edge."
             },
             {
               "feature": "Maximum final mass",
@@ -112,17 +112,17 @@
         {
           "type": "callout",
           "title": "The slide-in requirement",
-          "content": "The hook side must open all the way to the edge, so a 0.75 in cylinder could slide straight into the throat from outside without interference. It is verified with calipers: measure the opening at its narrowest point anywhere along that path. That number is what counts, not the width at the mouth.",
+          "content": "The hook side must open all the way to the edge, so a 1.00 in cylinder could slide straight into the throat from outside without interference. It is verified with calipers: measure the opening at its narrowest point anywhere along that path. That number is what counts, not the width at the mouth.",
           "variant": "required"
         },
         {
           "type": "instructions",
-          "content": "### Tolerancing\n\nA 0.750 in opening modelled in CAD will usually come out tight in the printed part. Use your test hooks to find how much you need to oversize it in SolidWorks. Do not guess it once and print the real thing.\n\n### Mass\n\nThe number that counts is the one on the scale, not the one in CAD or the slicer. Leave yourself a buffer. A part at 59.8 g in Bambu Studio is not a part at 59.8 g on the bench.\n\n### Thickness\n\n0.75 in is your ceiling, not your starting point. Running the full thickness everywhere puts you over 60 g before you have done anything clever. Thickness is something you spend where the stress is, and take away everywhere else."
+          "content": "### Tolerancing\n\nA 1.000 in opening modeled in CAD will usually come out tight in the printed part. Use your test hooks to find how much you need to oversize it in SolidWorks. Do not guess it once and print the real thing.\n\n### Mass\n\nThe number that counts is the one on the scale, not the one in CAD or the slicer. Leave yourself a buffer. A part at 59.8 g in Bambu Studio is not a part at 59.8 g on the bench.\n\n### Thickness\n\n0.75 in is your ceiling, not your starting point. Running the full thickness everywhere puts you over 60 g before you have done anything clever. Thickness is something you spend where the stress is, and take away everywhere else."
         },
         {
           "type": "callout",
           "title": "Retractable hook allowance",
-          "content": "A closed-loop design such as a carabiner-style gate is permitted on the hook side, provided a 0.75 in cylinder can pass into the throat when the mechanism is fully opened. The mechanism must be non-permanent and integral to the hook. It must be secured and actuated within 10 seconds at technical inspection.",
+          "content": "A closed-loop design such as a carabiner-style gate is permitted on the hook side, provided a 1.00 in cylinder can pass into the throat when the mechanism is fully opened. The mechanism must be non-permanent and integral to the hook. It must be secured and actuated within 10 seconds at technical inspection.",
           "variant": "info"
         }
       ]
@@ -181,12 +181,12 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "There is no CAD etiquette requirement in this project. Sketches do not have to be fully defined. Fixed geometry is allowed. Your design tree does not have to be organised or renamed.\n\nModel it however you can get it done. What is graded is whether the hook is finished, functional, and legal, and whether you can explain the decisions in it.\n\n### Make it interesting anyway\n\nA blocky hook is a weak hook, and that is a structural claim rather than an aesthetic one. Sharp corners concentrate stress and flat slabs waste mass. Splines, variable fillets, and cut-out patterns produce shapes that are lighter and stronger at the same time, and they happen to look better."
+          "content": "There is no CAD etiquette requirement in this project. Sketches do not have to be fully defined. Fixed geometry is allowed. Your design tree does not have to be organized or renamed.\n\nModel it however you can get it done. What is graded is whether the hook is finished, functional, and legal, and whether you can explain the decisions in it.\n\n### Make it interesting anyway\n\nA blocky hook is a weak hook, and that is a structural claim rather than an aesthetic one. Sharp corners concentrate stress and flat slabs waste mass. Splines, variable fillets, and cut-out patterns produce shapes that are lighter and stronger at the same time, and they happen to look better."
         },
         {
           "type": "callout",
           "title": "Effort is protected",
-          "content": "A complex design showing real design intent is protected from small non-structural modelling errors that would sink a simpler part. Ambition is not punished here. Reach past what you know how to do.",
+          "content": "A complex design showing real design intent is protected from small non-structural modeling errors that would sink a simpler part. Ambition is not punished here. Reach past what you know how to do.",
           "variant": "info"
         }
       ]
@@ -198,7 +198,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Every hook in the box behind you came out of a previous tournament, and they fail in a small number of ways. Learn to recognise them now and you will design around them instead of discovering them in September."
+          "content": "Every hook in the box behind you came out of a previous tournament, and they fail in a small number of ways. Learn to recognize them now and you will design around them instead of discovering them in September."
         },
         {
           "type": "instructions",
@@ -297,6 +297,12 @@
           "variant": "required"
         },
         {
+          "type": "callout",
+          "title": "Split two faces before you set anything up",
+          "content": "A real hook does not push on your whole anchor bore or your whole throat. Split each one and use only the half that bears.\n\n**Which half.** The rig pulls your anchor away from your throat. The other hook pulls your throat away from your anchor. Both bearing halves face outward.\n\n**Where the split goes.** Through each center, perpendicular to the line joining your two centers. One sketch, one split feature, both faces.\n\n**Set the force to Selected direction, not Normal.** Normal points a different way at every point on a curve and cancels itself out. Check the arrow runs along the pull.",
+          "variant": "required"
+        },
+        {
           "rows": [
             {
               "value": "Static.",
@@ -307,11 +313,11 @@
               "setting": "Material"
             },
             {
-              "value": "The upper internal face of the anchor hole.",
+              "value": "The outer half of the anchor bore, split. Not the whole bore.",
               "setting": "Fixture"
             },
             {
-              "value": "400 lbf tensile, on the inner radius of the hook opening.",
+              "value": "400 lbf, on the outer half of the throat face, split. Selected direction, along the pull. Not Normal.",
               "setting": "Load"
             },
             {
@@ -334,12 +340,18 @@
         },
         {
           "type": "instructions",
-          "content": "### What you read off the plot\n\n**Location.** Where is the red. That is where your hook will break.\n\n**Relative magnitude.** How much worse is the throat than the shank. That tells you where material is worth adding and where it is worth removing.\n\n### What you do not read off the plot\n\nFactor of safety, displacement, and predicted failure load. Those numbers are wrong here because the material is a stand-in, and quoting one in your write-up is a mistake rather than a shortcut.\n\nThe honest division of labour across the whole project: **the simulation tells you where, the scale test tells you whether your geometry survived contact with a printer, and the rig tells you how much.**"
+          "content": "### What you read off the plot\n\n**Location.** Where is the red. That is where your hook will break.\n\n**Relative magnitude.** How much worse is the throat than the shank. That tells you where material is worth adding and where it is worth removing.\n\n### What you do not read off the plot\n\nFactor of safety, displacement, and predicted failure load. Those numbers are wrong here because the material is a stand-in, and quoting one in your write-up is a mistake rather than a shortcut.\n\nThe honest division of labor across the whole project: **the simulation tells you where, the scale test tells you whether your geometry survived contact with a printer, and the rig tells you how much.**"
         },
         {
           "type": "callout",
           "title": "AI is unrestricted for the software",
           "content": "There is no limit on AI help for driving SolidWorks in this project. Paste the assistant prompt from Your SolidWorks Assistant and ask it anything about the program, as often as you like. The one thing it will not do is make your design decisions, because those are the part you have to defend out loud.",
+          "variant": "info"
+        },
+        {
+          "type": "callout",
+          "title": "Your split line is disposable",
+          "content": "It points at the geometry it split, so it can go red when you move material in V2. Expected. Delete it and draw it again, thirty seconds. Do not debug it, and keep it last in your feature list.",
           "variant": "info"
         }
       ]
@@ -353,7 +365,7 @@
           "rows": [
             {
               "item": "Filament",
-              "rule": "Provided HIPS only. Any colour on the shelf."
+              "rule": "Provided HIPS only. Any color on the shelf."
             },
             {
               "item": "Profile",
@@ -476,13 +488,24 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Every item is pass or fail. A fail does not enter the bracket.\n\n1. Printed in the provided HIPS.\n2. Mass on the scale is 60.0 g or under.\n3. Thickness is 0.75 in or under.\n4. Anchor hole measures 0.750 in diameter or greater on calipers.\n5. Throat opening measures 0.750 in or greater at its narrowest point, and runs to the edge.\n6. Centre-to-centre distance measures between 2.000 in and 2.500 in.\n7. No screws, tape, glue, or external reinforcement anywhere on the part.\n8. Any gate mechanism secures and actuates inside 10 seconds.\n9. The design is your own."
+          "content": "Every item is pass or fail. A fail does not enter the bracket.\n\n1. Printed in the provided HIPS.\n2. Mass on the scale is 60.0 g or under.\n3. Thickness is 0.75 in or under.\n4. Anchor hole measures 1.000 in diameter or greater on calipers.\n5. Throat opening measures 1.000 in or greater at its narrowest point, and runs to the edge.\n6. Center-to-center distance measures between 2.000 in and 2.500 in.\n7. No screws, tape, glue, or external reinforcement anywhere on the part.\n8. Any gate mechanism secures and actuates inside 10 seconds.\n9. The design is your own."
         },
         {
           "type": "callout",
           "title": "Check your own part the night before",
           "content": "Every item on this list can be checked at open shop with calipers and the scale sitting on the bench. A hook that fails inspection on tournament day failed it days earlier and nobody looked.",
           "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "sources",
+      "blurb": "What this document was built from.",
+      "title": "Sources",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### Where the facts in this guide come from\n\nEvery rule here is either a decision Bosco Tech made for this competition or a\nfact that comes from somewhere. The decisions are ours and you can argue with\nthem. The facts are listed below and you can go and check them.\n\n#### Stress and failure\n\n- Shigley's Mechanical Engineering Design, 10th edition. Budynas and Nisbett,\n  McGraw-Hill, 2015. Stress concentration at fillets, holes, and changes of\n  section. This is behind the claim that a sharp inside corner is where a part\n  lets go.\n- Machine Elements in Mechanical Design, 6th edition. Mott, Vavrek and Wang,\n  Pearson, 2018. Chapter 3, stress and deformation analysis.\n\n#### Measurement and dimensions\n\n- Machinery's Handbook, 31st edition. Industrial Press, 2020. Caliper practice,\n  decimal-inch dimensioning, and additive manufacturing. This is behind the\n  three-decimal dimensions and behind the rule that what counts is what the\n  calipers read at the narrowest point.\n\n#### Printing\n\n- Bambu Lab Official Wiki, wiki.bambulab.com, and the Bambu Lab 3D Printing\n  User Manual for the X1 Carbon and the H2D. Printer capability and Bambu\n  Studio.\n\n#### Simulation\n\n- SOLIDWORKS Help, Material dialog and the SOLIDWORKS Materials library,\n  Plastics category, help.solidworks.com. The Nylon 101 entry named in the\n  Simulation tab.\n\n#### The hooks themselves\n\n- The box of hooks from previous tournaments, IDEA lab. The failure photographs\n  in Where Hooks Break are of those parts. It is a primary source and it is\n  sitting on the bench.\n\nThe three books are in the IDEA reference library. Ask and one gets opened in\nclass. You are held to this standard on your own work, which is why this tab\nexists."
         }
       ]
     }
