@@ -9,6 +9,8 @@ Answers, for every standards file at once:
   - does REGISTER.md agree with the version header of the file it names
   - is there a file in docs/standards/ that no register row covers, or a row
     naming a file that is not there
+  - is a delivered file in neither the mirror nor the register, which is what a
+    brand new standards document looks like
 
 It reads. It writes nothing outside its own temporary clone, commits nothing,
 and touches no git state in any working repo, so it is safe to run at any time
@@ -195,21 +197,56 @@ def main():
                     "because a register row is only ever read from a mirrored file"
                 )
 
+        # A closing chat's most common delivery is a file that has never been mirrored
+        # and has no register row, and until 2026-08-30 such a file produced no row and
+        # no finding at all: the sweep iterated the mirror and the register only, so the
+        # one file the closeout existed to place was the one thing it could not see.
+        delivered_names = set()
+        if args.delivered and os.path.isdir(args.delivered):
+            delivered_names = {f for f in os.listdir(args.delivered)
+                               if f.endswith(".md") and f not in NOT_STANDARDS}
+
         for name in on_disk:
             if name not in registered and name not in NOT_STANDARDS:
                 findings.append(f"UNREGISTERED  {name} is in {STD_PATH}/ with no REGISTER.md row")
         for name in registered:
             if name not in on_disk:
                 findings.append(f"MISSING       REGISTER.md names {name}, which is not in {STD_PATH}/")
+        for name in sorted(delivered_names - set(on_disk) - set(registered)):
+            findings.append(
+                f"NEW           {name} was delivered and is in neither {STD_PATH}/ nor "
+                "REGISTER.md. Decide whether it is a standards file. If it is, mirror it "
+                "and add a register row in the same commit, or it has no freshness "
+                "authority and the next chat to edit it cannot tell that it forked"
+            )
 
-        for name in sorted(set(on_disk) | set(registered)):
+        for name in sorted(set(on_disk) | set(registered) | delivered_names):
             if name in NOT_STANDARDS:
                 continue
             mirror_text = read(os.path.join(mirror_dir, name))
             if mirror_text is None:
+                local_text = read(os.path.join(args.local, name)) if args.local else None
+                delivered_text = (read(os.path.join(args.delivered, name))
+                                  if args.delivered else None)
+                for label, text in (("local", local_text), ("delivered", delivered_text)):
+                    if text is None:
+                        continue
+                    h = version_of(text)[0]
+                    c = changelog_version(text)
+                    if h and c and h != c:
+                        findings.append(
+                            f"SELF          {name} ({label} copy): the header says {h}, its "
+                            f"newest changelog entry says {c}. Write the missing entry before "
+                            "this is mirrored; CI refuses the copy otherwise"
+                        )
                 rows.append({"file": name, "register": registered.get(name, ("-",))[0],
-                             "mirror": "-", "local": "-", "local_state": "-",
-                             "delivered": "-", "delivered_state": "-"})
+                             "mirror": "-",
+                             "local": version_of(local_text)[0] or "-",
+                             "local_state": "UNMIRRORED" if local_text else "-",
+                             "local_note": "",
+                             "delivered": version_of(delivered_text)[0] or "-",
+                             "delivered_state": "UNMIRRORED" if delivered_text else "-",
+                             "delivered_note": ""})
                 continue
 
             m_ver, m_date = version_of(mirror_text)
