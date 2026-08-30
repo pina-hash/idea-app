@@ -1,0 +1,277 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Simulation Lab - Where Is This Going To Break",
+    "course": "IDEA100",
+    "dueDate": "2026-08-31",
+    "totalPoints": 15,
+    "assignmentId": "idea100-hook-sim",
+    "buildVersion": "v2",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Same setup decisions for everyone. Your part, so your result.",
+      "title": "The Study",
+      "aiNote": "Unrestricted for driving SolidWorks, including the Simulation add-in. Ask the assistant where anything lives and ask it as many times as you need. What it will not do is tell you what your plot means.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Run a static study on your own V1 part. The setup is the same for every student, because the point of today is that your *geometry* is the only thing that differs.\n\n**Split the two faces that bear, first.** Your anchor bore is one face and your throat is one face. A real hook does not push on all of either. The rig pulls your anchor away from your throat; the other hook pulls your throat away from your anchor. Both bearing surfaces face outward, away from each other. Split each one through its center, perpendicular to the line joining your two centers.\n\n**Material is Nylon 101.** Not HIPS, not an ABS entry. SolidWorks is badly conditioned for ABS-family polymers and will not give you a usable study. In a single-material part under a fixed load the stress pattern barely depends on which plastic you pick, so the hot spot you find with Nylon 101 is the hot spot your real part has.\n\n**Fixed on the outer half of the anchor bore. 400 lbf on the outer half of the throat, Selected direction, along the pull.** Not Normal. On a curved face Normal points a different way at every point and the load cancels itself.\n\nFill the table with what you actually set. If it will not solve, that is a result: say so and say what it told you.\n\n**This is not a step list and there will not be one.** You have the assistant and you have the person next to you."
+        },
+        {
+          "id": "c1",
+          "type": "checklist",
+          "items": [
+            "The study ran on my own V1 part, not a shared or example file",
+            "Both faces are split and the fixture and load are on the outer halves",
+            "Material is Nylon 101 and the force is on Selected direction, not Normal"
+          ],
+          "points": 2
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "setting",
+              "tip": "Material, where the split went, fixture half, load size and direction, solved yes or no.",
+              "label": "Setting"
+            },
+            {
+              "key": "yours",
+              "tip": "What is actually in your study right now.",
+              "label": "What you set"
+            },
+            {
+              "key": "note",
+              "tip": "A split that would not project, a mesh that failed, a face you could not select. Blank is fine.",
+              "label": "Anything odd"
+            }
+          ],
+          "minRows": 5,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "r1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Split, own part, set right",
+              "points": 2,
+              "descriptor": "Both faces split at the centers, fixture and load on the outer halves, Nylon 101, and the force on Selected direction along the pull."
+            },
+            {
+              "label": "Developing",
+              "short": "One condition wrong",
+              "points": 1,
+              "descriptor": "Study exists but one condition is wrong: a face unsplit, a fixture or load on the inner half, or the force left on Normal."
+            },
+            {
+              "label": "Absent",
+              "short": "No study set up",
+              "points": 0,
+              "descriptor": "No study, or the study is on a file that is not the student's own part."
+            }
+          ],
+          "criterion": "Both bearing faces are split, and the study is set up on the student's own part with the required conditions"
+        },
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Five rows, honestly recorded",
+              "points": 3,
+              "descriptor": "All five rows carry the value actually in the study, and a study that failed to solve is recorded as such rather than left blank."
+            },
+            {
+              "label": "Proficient",
+              "short": "Mostly recorded, one gap",
+              "points": 2,
+              "descriptor": "Four rows carry real values; one is missing or repeats the instruction rather than the setting."
+            },
+            {
+              "label": "Developing",
+              "short": "Copied, not recorded",
+              "points": 1,
+              "descriptor": "Rows restate the four required conditions rather than what the student set, or fewer than four rows carry values."
+            },
+            {
+              "label": "Absent",
+              "short": "Table empty",
+              "points": 0,
+              "descriptor": "No table filled."
+            }
+          ],
+          "criterion": "The setup table records what was actually set, including anything that went wrong"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "m2",
+      "intro": "One screenshot. Two things marked on it.",
+      "title": "The Plot",
+      "aiNote": "Ask it what a von Mises plot is and what the colors mean. Do not ask it where your hot spot is. That is the one thing on this page you have to be able to point at yourself, and you will be asked to.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload one screenshot of your solved plot with the color scale visible.\n\n**Mark two places on it.** Draw on it, annotate it, or point at it with arrows, whatever tool you have.\n\n1. **The hot spot.** Where the plot goes red. That is where your hook breaks.\n2. **The thinnest section.** Where there is least material.\n\nThose are often the same place and often not, and which one you have is the most useful thing you will learn today. Same place means the part is telling you it is starved exactly where it is loaded. Different places means you have material sitting somewhere it is doing nothing for you.\n\nThen say in your own words where the red is, in terms of the part rather than the picture. \"Upper left of the screen\" is not an answer. \"Inside corner of the throat, on the side toward the anchor\" is.\n\nWrite the hot spot in your notebook before you leave. Tomorrow starts from it."
+        },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Where is the red, described in terms of your part? And is it the same place as your thinnest section, or somewhere else?",
+          "maxSentences": 4,
+          "minSentences": 2
+        }
+      ],
+      "points": 6,
+      "rubric": [
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Solved plot, both marked",
+              "points": 3,
+              "descriptor": "Plot is solved with the color scale visible, and both the hot spot and the thinnest section are marked and distinguishable."
+            },
+            {
+              "label": "Proficient",
+              "short": "Plot shown, one marked",
+              "points": 2,
+              "descriptor": "Solved plot uploaded with only one of the two marked, or the two marks cannot be told apart."
+            },
+            {
+              "label": "Developing",
+              "short": "Plot shown, nothing marked",
+              "points": 1,
+              "descriptor": "A plot is uploaded but nothing is marked on it, or the color scale is cropped out."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No screenshot uploaded."
+            }
+          ],
+          "criterion": "The screenshot shows a solved plot with the hot spot and the thinnest section marked"
+        },
+        {
+          "id": "r4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Located on the part, compared",
+              "points": 3,
+              "descriptor": "Names a feature of the hook rather than a region of the screen, and states whether it coincides with the thinnest section."
+            },
+            {
+              "label": "Proficient",
+              "short": "Located, no comparison",
+              "points": 2,
+              "descriptor": "Hot spot is named on the part but the comparison against the thinnest section is missing or unclear."
+            },
+            {
+              "label": "Developing",
+              "short": "Described by screen position",
+              "points": 1,
+              "descriptor": "Answer describes where the red sits in the picture rather than where it sits on the part."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "The hot spot is located in terms of the part, and compared against the thinnest section"
+        }
+      ],
+      "aiLevel": 1
+    },
+    {
+      "id": "m3",
+      "intro": "The study is a diagnostic. It tells you where. It does not tell you how much.",
+      "title": "What This Plot Cannot Tell You",
+      "aiNote": "Fine to ask it what a factor of safety is or what displacement means. The answer to why those numbers are wrong on your study has to be yours.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your plot puts three numbers on the screen that are wrong for your hook, and quoting any of them in a later assignment costs you marks. They are **factor of safety**, **displacement**, and **predicted failure load**.\n\nThey are wrong for a reason worth understanding rather than memorizing. You told SolidWorks the part is Nylon 101. It is not. It is going to be printed in HIPS, in layers, with walls and gaps inside it, on a machine. Ask a solver how much load a part carries and it answers for the solid block of material you claimed. Ask it where the stress piles up and it answers for the shape, and the shape is real.\n\nSo the division of labor for the rest of this phase is:\n\n- **The simulation tells you where.**\n- **The scale test tells you whether your geometry survived a printer.**\n- **The rig tells you how much.**\n\nAnswer the question below in your own words. There is no trick in it.\n\n### Sources\n\n- Hook Design and Manufacturing Guide, Simulation tab. The study settings and the read and do-not-read lists come from there unchanged.\n- SOLIDWORKS Help, help.solidworks.com. The SOLIDWORKS Materials library and its Nylon 101 entry, the Force PropertyManager and its Selected direction option, and Split Line.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration, which is what the red is.\n- IDEA AI Use Policy, which sets the AI level on each module above."
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 4,
+          "prompt": "Your study says your hook holds a certain load. Why is that number not worth writing down, when the red spot on the same plot is?",
+          "maxSentences": 4,
+          "minSentences": 2
+        }
+      ],
+      "points": 4,
+      "rubric": [
+        {
+          "id": "r5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Material substitution, shape survives",
+              "points": 4,
+              "descriptor": "Connects the wrong magnitude to the substituted material or the printed structure, and states that the stress pattern follows the geometry, which is real."
+            },
+            {
+              "label": "Proficient",
+              "short": "Right idea, one half",
+              "points": 3,
+              "descriptor": "Correctly says the number is unreliable and gives a real reason, but does not explain why the location is still trustworthy."
+            },
+            {
+              "label": "Developing",
+              "short": "Restates without reasoning",
+              "points": 2,
+              "descriptor": "Repeats that the number should not be used without giving a reason, or gives a reason that is not about the material or the print."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Explains why location transfers from this study and magnitude does not"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
