@@ -118,34 +118,25 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 6 measurements outside threshold** (measured
-2026-08-29: 58 route/width runs, 532 measurements), and they are three findings
-seen at each of the two widths. Anything else is new.
+**The whole run reports exactly 2 measurements outside threshold** (re-derived
+2026-08-30: 66 route/width runs, 662 measurements), and they are one finding
+seen at each of the two widths. Anything else is new. **This paragraph is a
+snapshot and it drifts** -- the run above it is the authority, and a session
+measuring a different number corrects this line in the same change, saying
+which finding moved.
 
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
   directly -- the true box under Rajdhani may differ slightly, though not
   enough to cross the 44px line from 26.2px.
-- **`/dev/coin-preview`: the student picker measures 19px tall** (247.3x19 at
-  375px, 352x19 at 1440px), under the 44px floor AND under the 24px absolute
-  floor. `/coin-desk/preview` is admin-only, so the 24px floor is the
-  applicable one and it still fails. **Owned by
-  `src/lib/coin-desk/StudentPreview.svelte`** (`.preview-picker select`), not by
-  this harness: it measured 19px before the `.cd-root` room went in too, and the
-  room only changed its width.
-- **`/dev/short-links`: the composer's save control measures 76.1x24px** at
-  both widths -- the primary action of the add/re-point form, under the 44px
-  floor. It carries `class="btn tiny"`, and
-  `src/lib/ShortLinkManager.svelte`'s own `.btn.tiny` rule pins
-  `min-height: 24px` with a comment justifying that floor for "the row-ops chips
-  -- Edit, Delete, Cancel beside a short link in a table". The save button is
-  not a row-ops chip; it took the chip floor by sharing the class. **Owned by
-  that component.** The six genuine row-ops chips (48.6x24 to 76.1x24) are
-  asserted at the documented 24px floor `IDEA_INTERFACE_STANDARDS` 10 gives an
-  admin-only, non-student-facing surface -- and the check still prints every box
-  and still counts anything under 24px separately, so nothing is hidden by
-  naming the right number.
+- **Two findings this paragraph used to list no longer reproduce**, measured
+  rather than assumed on the same run: `/dev/coin-preview`'s student picker is
+  **352x44** (it was 19px tall) and `/dev/short-links`'s composer save control
+  is **112.8x44** (it was 76.1x24). Both were owned by their components rather
+  than by this harness, and both have since been fixed there. They are named
+  here rather than deleted because a finding that vanishes without a word reads
+  like a check that stopped running.
 - **The chip label on its own fill measures 4.84:1** on `/dev/pathways`,
   which passes. This is a **contrast measurement**, which the font-loading
   limit does not qualify (see above) -- the ratio is real regardless of which

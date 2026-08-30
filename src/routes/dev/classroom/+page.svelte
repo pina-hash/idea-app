@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import MyClasses from '$lib/classroom/MyClasses.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
+	import { createBulkStore, BULK_SECTION } from './bulk-fixture.svelte';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import AdminConsole from '$lib/classroom/AdminConsole.svelte';
@@ -2119,6 +2120,8 @@
 		['class2-teacher', 'Class P2 (teacher)'],
 		['class2', 'Class P2 (student)'],
 		['class-empty', 'Class page: empty'],
+		['class-bulk', 'Class: bulk + units (teacher)'],
+		['class-bulk-student', 'Class: bulk + units (student)'],
 		['item', 'Item detail'],
 		['item-teacher', 'Item detail (teacher)'],
 		['assignment', 'Assignment engine (student)'],
@@ -2382,6 +2385,28 @@
 	 * to profiles.preferences and the harness has no profile.
 	 */
 	let devCollapsed = $state<string[]>([]);
+
+	/**
+	 * THE BULK / UNITS VIEWS' OWN STORE. See bulk-fixture.svelte.ts for why it
+	 * is separate from everything above rather than more rows in `items`.
+	 *
+	 * `bulkUnitsExist` is the toggle the harness needs and the global
+	 * `unitsApplied` one cannot give: "units are applied but this course has
+	 * none yet" is a real and common state (it is what every class looks like
+	 * before a teacher makes their first one), and it is the ONLY state the
+	 * units prompt renders in. Turning `unitsApplied` off instead would take
+	 * the unit TRANSPORTS away with the units, which is a different thing
+	 * entirely -- a deployment sitting before 0111.
+	 */
+	const bulk = createBulkStore((line) => note(line, {}));
+	let bulkUnitsExist = $state(true);
+	let bulkCollapsed = $state<string[]>([]);
+	function toggleBulkGroup(groupId: string) {
+		bulkCollapsed = bulkCollapsed.includes(groupId)
+			? bulkCollapsed.filter((id) => id !== groupId)
+			: [...bulkCollapsed, groupId];
+	}
+
 	function toggleGroup(groupId: string) {
 		devCollapsed = devCollapsed.includes(groupId)
 			? devCollapsed.filter((id) => id !== groupId)
@@ -2692,6 +2717,34 @@
 		checkIns={checkInsApplied ? CHECK_INS['s-2'] : []}
 		{transports}
 		{fetchPreview}
+		notebookHref="/dev/notebook"
+	/>
+{:else if view === 'class-bulk' || view === 'class-bulk-student'}
+	{@const manage = view === 'class-bulk'}
+	<div class="harness-bar">
+		<label class="harness-toggle">
+			<input type="checkbox" bind:checked={bulkUnitsExist} data-testid="sim-bulk-units" />
+			this course has units
+		</label>
+		<button type="button" class="harness-view" onclick={() => bulk.reset()}>reset fixture</button>
+	</div>
+	<!--
+		THE REAL ClassView, one section, 29 items: 22 in Unit 1 (one of them the
+		crowded row every width measurement here is about, and co-posted to a
+		section this teacher does NOT manage so a bulk publish over it is really
+		refused), 4 in Unit 2, an EMPTY Unit 3 and 3 unfiled. Untick the toggle
+		for the state a class starts in: unit transports present, no units yet.
+	-->
+	<ClassView
+		section={BULK_SECTION}
+		items={manage ? bulk.items : bulk.items.filter((i) => i.published)}
+		sections={[BULK_SECTION]}
+		canManage={manage}
+		units={bulkUnitsExist ? bulk.units : []}
+		unitTransports={manage ? bulk.unitTransports : null}
+		transports={manage ? bulk.transports : null}
+		collapsed={bulkCollapsed}
+		onToggleGroup={toggleBulkGroup}
 		notebookHref="/dev/notebook"
 	/>
 {:else if view === 'class-empty'}

@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-30",
+			"title": "Longer item titles are readable on the class page",
+			"body": "On a class page, an item's name used to be squeezed by whatever sat beside it, so a post carrying a pin, a due date, a file or a link could end up showing only the first few words of its title and nothing that told you which one it was. The name now gets the width first and runs to a second line if it needs one, and the small labels beside it move underneath. What this means for you: you can tell items apart in the list without opening each one, and this is the same at phone width, where the drag handle your teacher uses for reordering (which never worked by touch anyway) no longer takes room from the name.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "New assignments arrive with their rubric already on them",
 			"body": "When your teacher builds an assignment from one of the prepared assignment files, the grading rubric written into that file now comes across with the assignment automatically, with all of its levels. Before this, the assignment would arrive with no rubric attached even though the file described one, and the rubric had to be rebuilt by hand or was simply missed. What this means for you: on a new assignment you can see up front exactly what each criterion is worth and what the top level asks for, instead of finding out when the grade comes back. Your teacher can still edit any of it, so what you see is what they decided to keep.",
 			"tags": [
