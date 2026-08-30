@@ -1,6 +1,7 @@
 // tests/short-link-reserved-names.test.ts
 //
-// `_app_short_link_reserved` (0093, redefined by 0156) is a hand-typed list.
+// `_app_short_link_reserved` (0093, redefined by 0156 and again by 0166) is a
+// hand-typed list.
 // SQL cannot read the filesystem, so the list can never derive itself -- what
 // this file buys instead is that the NEXT drift is loud.
 //
@@ -118,7 +119,11 @@ const CHAIN = [
 	'0067_admin_tier.sql',
 	'0093_short_links.sql',
 	'0137_anon_execute_sweep.sql',
-	'0156_short_link_reserved_names.sql'
+	'0156_short_link_reserved_names.sql',
+	// 0166 adds `maps` (the IDEA Maps top-level route). The SQL <-> TypeScript
+	// check below reads the LAST definition to apply, so a chain stopping at
+	// 0156 would assert against a predicate production no longer runs.
+	'0166_short_link_reserve_maps.sql'
 ] as const;
 
 let db: TestDb;
