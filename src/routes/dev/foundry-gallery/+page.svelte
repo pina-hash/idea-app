@@ -102,6 +102,28 @@
 
 	const galleryTransports: FoundryGalleryTransports = {};
 
+	/**
+	 * THE STAFF DOOR, DRIVEN FROM BOTH SIDES.
+	 *
+	 * `staffHref` is what closes the gap where a published, unhidden app with
+	 * nothing pending appeared on neither of /foundry/review's two lists while the
+	 * route would happily serve it from a slug in the URL. Absence is the
+	 * mechanism -- the route hands a string only when `isAdmin` and something is
+	 * open -- so the ONLY way to know the absence is real is to be able to produce
+	 * both states here. A harness that could only render the admin case would
+	 * prove the control exists and nothing at all about the student who must not
+	 * see it.
+	 *
+	 * The expression is the route's own, character for character, so what is
+	 * driven here is what ships.
+	 */
+	let galleryIsAdmin = $state(true);
+	const galleryStaffHref = $derived(
+		galleryIsAdmin && gallerySelected
+			? `/foundry/review?app=${encodeURIComponent(gallerySelected.slug)}`
+			: null
+	);
+
 	const reviewTransports: FoundryReviewTransports = {
 		async listFiles(versionId) {
 			const files = data.files[versionId] ?? [];
@@ -214,6 +236,15 @@
 			>
 				deselect
 			</button>
+			<button
+				type="button"
+				class="hbtn"
+				data-testid="gallery-admin"
+				aria-pressed={galleryIsAdmin}
+				onclick={() => (galleryIsAdmin = !galleryIsAdmin)}
+			>
+				{galleryIsAdmin ? 'viewing as admin' : 'viewing as student'}
+			</button>
 		</h2>
 		<!-- The harness has no PUBLIC_FOUNDRY_APPS_ORIGIN to read, and an unset one
 		     correctly removes the frame AND the share link -- which would leave
@@ -224,6 +255,7 @@
 			transports={galleryTransports}
 			onSelect={(slug) => (gallerySlug = slug)}
 			appsOrigin="https://apps.ideabosco.com"
+			staffHref={galleryStaffHref}
 			{playCounts}
 		/>
 	</section>

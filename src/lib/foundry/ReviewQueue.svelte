@@ -24,7 +24,15 @@
 	 *
 	 * THE VERSION UNDER REVIEW IS WHAT RUNS, and it is by definition not the
 	 * published one -- that is the whole reason `FoundryDetail` takes a
-	 * `versionId` and the reason the mint issues a review-kind token.
+	 * `versionId` at all.
+	 *
+	 * THERE IS NO MINT AND NO REVIEW-KIND TOKEN. This sentence used to end with
+	 * one; the token proxy, its endpoint and its secret are deleted, and
+	 * `tests/foundry-bundle-url.test.ts` sweeps the tree for every one of those
+	 * names. What licenses the queue to run an unapproved build is the VERSION'S
+	 * OWN STATUS: `serveBundleFile` answers for a version that is the app's
+	 * `published_version_id` OR whose status is `submitted`, and a submitted
+	 * version is by definition not the published one.
 	 */
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';

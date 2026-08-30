@@ -201,11 +201,24 @@ export const FOUNDRY_LIMITS = {
  *
  * It used to be the root-relative `/_platform/fonts.css`, and it used to be
  * the ONE absolute path an app was allowed to write, because bundles were
- * served from a host of ours where that path resolved. They are served off the
- * Supabase project host now, where a leading slash resolves to Supabase and
- * finds nothing -- so the root-relative form cannot be made to work by
- * anything we serve, and a contract that still promised it would be promising
- * a stylesheet that silently never arrives.
+ * served from the same host this route answers on.
+ *
+ * THE REASON THAT ENDED IS A SECOND ORIGIN, NOT SUPABASE, and this paragraph
+ * used to say Supabase. Bundles are served by ordinary SvelteKit routes -- `/b/`
+ * and `/a/` -- answering on `apps.ideabosco.com`, a second domain on the same
+ * Vercel project, and NOT on `ideabosco.com` where `/_platform/*` lives. So a
+ * leading slash in a bundle resolves against the APPS origin, which has no
+ * `/_platform` on it. (Nothing Supabase-hosted ever served a bundle, and
+ * nothing can: storage-api rewrites `text/html` to `text/plain` and the Edge
+ * Function gateway replaced the function's own CSP wholesale. Two measurements,
+ * two runtimes, one refusal.)
+ *
+ * The CONCLUSION is unchanged and was always right: the root-relative form
+ * cannot be made to work by anything we serve, and a contract that still
+ * promised it would be promising a stylesheet that silently never arrives. Only
+ * the host it fails to resolve against is different, which matters because
+ * anyone re-deriving the rule from the old sentence would go looking at
+ * Supabase and find nothing to look at.
  *
  * So the contract names the whole URL. Nothing has to be special-cased for it
  * any more: an `https://` reference is simply allowed now, like every other
@@ -834,11 +847,13 @@ const ALLOWED_SCHEMES = ['http:', 'https:', 'data:', 'mailto:', 'tel:', 'blob:']
  * WHAT IS LEFT TO REFUSE, now that the network is not a rule:
  *
  *   absolute   a leading slash. It resolves against the ORIGIN the bundle is
- *              served from, which is the Supabase project host, where the
- *              app's own folder is nowhere near the root. It has never
- *              resolved to anything useful and now it cannot be made to: there
- *              is no longer an exception for `/_platform`, because that path
- *              is on a different host and is written as a whole URL instead.
+ *              served from, which is the APPS ORIGIN (`apps.ideabosco.com`,
+ *              answered by the `/b/` and `/a/` routes) and not the Supabase
+ *              project host this line used to name. Either way the app's own
+ *              folder is nowhere near the root, so it has never resolved to
+ *              anything useful and now it cannot be made to: there is no longer
+ *              an exception for `/_platform`, because that path is on the MAIN
+ *              host and is written as a whole URL instead.
  *   scheme     anything else -- `file:`, `ftp:`, `chrome:`. A `file:` path is
  *              a real and common mistake (an app that worked because the
  *              author opened it off their desktop) and is worth naming.
@@ -1243,6 +1258,39 @@ function baseHrefWarning(path: string, line: number | null, value: string): stri
 export function resolveBundleReference(fromPath: string, rawValue: string): string | null {
 	const stripped = rawValue.split(/[?#]/)[0];
 	if (stripped === '') return null;
+
+	/*
+	 * A REFERENCE THAT LEAVES THE BUNDLE HAS NOTHING TO RESOLVE INSIDE IT, and
+	 * this guard is a REPAIR of a sentence that was telling students something
+	 * false.
+	 *
+	 * Since the network stopped being a preflight rule, `classifyReference`
+	 * answers `ok` for http, https, protocol-relative, `data:`, `mailto:`,
+	 * `tel:` and `blob:` -- so every one of them reached the missing-asset
+	 * sweep below, where the split-on-slash walk turned
+	 * `https://ideabosco.com/_platform/fonts.css` into the string
+	 * `https:/ideabosco.com/_platform/fonts.css` (the empty segment after the
+	 * colon is dropped like any other) and no stored path ever matched it.
+	 * MEASURED on the dev harness: the platform font link that the BUILD
+	 * CONTRACT ITSELF tells students to write earned "this upload does not
+	 * include a file at https:/ideabosco.com/_platform/fonts.css" -- a
+	 * mangled path, about a file that is not supposed to be in the upload, on
+	 * the one reference the platform hands them. React and Babel from a CDN,
+	 * which the contract also endorses, earned three more.
+	 *
+	 * IT IS A NARROWING OF A WARNING AND CAN REFUSE NOTHING. This sweep only
+	 * ever pushes into `warnings`, and `null` already means "nothing to check
+	 * here" (a bare fragment or query takes the same exit), so no upload that
+	 * passes today can start failing. What it removes is a false sentence.
+	 *
+	 * THE TEST IS `classifyReference`'s OWN, NOT A SECOND SCHEME LIST. Asking
+	 * it whether the value is bundle-relative is what keeps this from becoming
+	 * a copy of the rule that could stop agreeing with it: a scheme added or
+	 * removed there moves both at once. `//host/path` is checked separately
+	 * because it is protocol-relative -- `ok`, and not `kind: 'scheme'`.
+	 */
+	if (stripped.startsWith('//')) return null;
+	if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(stripped)) return null;
 	let decoded = stripped;
 	try {
 		decoded = decodeURIComponent(stripped);
@@ -1877,15 +1925,26 @@ export const FOUNDRY_STARTER_PATH = '/foundry/starter';
  *
  * WHAT IT IS FOR. The shape a student's own wrapper was reaching for. Almost
  * every generated React app arrives as one HTML file with a few CDN tags in
- * the head, and the two things nobody told the student about are that
- * `localStorage` throws in the sandbox and that the platform has its own
- * fonts. Both are here, correct, in order.
+ * the head, and the two things nobody told the student about are what a bare
+ * storage key costs on a host every published app shares, and that the platform
+ * has its own fonts. Both are here, correct, in order.
  *
- * THE SHIM IS THE FIRST THING IN `<head>` AND THAT IS THE POINT. It is the
- * same string `foundry-serve` injects and the same string the build contract
- * hands out; a student who starts from this file gets an app that behaves
- * identically opened off their own filesystem, which is what the contract
- * tells them to check before uploading.
+ * ITS STORAGE PARAGRAPH IS THE CONTRACT'S, SAID SHORTER, AND IT USED TO
+ * CONTRADICT IT. It read "They are IN MEMORY: nothing is written to disk and
+ * everything is lost when the page reloads" -- which was true of every bundle
+ * while every bundle ran on an opaque origin, and became FALSE the day
+ * `foundrySandboxFlags` started granting `allow-same-origin` on the apps host.
+ * `STORAGE_SECTION` below said the opposite, emphatically and correctly, in
+ * this same file; the wrong one was the copy that went home with the student.
+ * Both halves now say: it works and it survives a reload, the key name is the
+ * part to get right, and a preview and a `file://` page are the two exceptions.
+ *
+ * THE SHIM IS THE FIRST THING IN `<head>` AND THAT IS THE POINT. It is the same
+ * string the serving routes inject and the same string the build contract hands
+ * out; a student who starts from this file gets an app that behaves identically
+ * opened off their own filesystem, which is what the contract tells them to
+ * check before uploading. The shim PROBES before it replaces anything, so
+ * pasting it costs a published app nothing.
  *
  * THE LIBRARY TAGS ARE CDN TAGS NOW, and used not to be. The platform hosted
  * its own copies under `/_platform/lib/` and rewrote CDN references at ingest,
@@ -1910,11 +1969,28 @@ export function foundryStarterFile(): string {
   THE STORAGE SHIM. Leave this exactly where it is: first inside <head>, before
   every other script and stylesheet.
 
-  Your app runs in a sandbox with no storage area, where READING localStorage
-  throws an error and stops your whole script before anything is drawn. This
-  gives you a localStorage and a sessionStorage that work normally for the rest
-  of the page. They are IN MEMORY: nothing is written to disk and everything is
-  lost when the page reloads.
+  localStorage and sessionStorage WORK in your published app, and what you save
+  SURVIVES A RELOAD. Build the save slot, the high score table, the settings
+  panel that remembers.
+
+  PREFIX EVERY KEY WITH YOUR APP'S OWN NAME. Every published app is served from
+  the same address, so every published app shares one storage area. A key called
+  "save" is a key every other published app can read and overwrite, and it will
+  happen, because "save" is what every app calls it. Write
+  localStorage.setItem('my-app:save', data), never a bare 'save'. Pick the
+  prefix once, at the top of this file, and build every key from it.
+
+  TWO PLACES WHERE SAVED DATA DOES NOT STICK, and the snippet below is what
+  keeps your app running in both instead of dying on its first line. A PREVIEW,
+  which is how you run a build before it is approved: it has no storage area at
+  all, so saves last until you reload and no longer. And YOUR OWN COMPUTER, if
+  you open this file straight off the disk, because some browsers deny storage
+  to a file:// page. In both of those, READING localStorage throws an error and
+  stops your whole script before anything is drawn.
+
+  So the snippet checks whether real storage works and steps aside when it does.
+  It never replaces the real one, and it never throws away a published app's
+  saved data.
 -->
 ${FOUNDRY_STORAGE_SHIM_TAG}
 

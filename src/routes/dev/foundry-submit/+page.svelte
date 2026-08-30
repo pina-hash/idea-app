@@ -29,7 +29,7 @@
 	import '$lib/foundry/forge.css';
 	import FoundrySubmit from '$lib/foundry/FoundrySubmit.svelte';
 	import { normalizeFoundryInput } from '$lib/foundry/normalize';
-	import { foundryBuildContract } from '$lib/foundry/preflight';
+	import { PLATFORM_FONTS_URL, foundryBuildContract } from '$lib/foundry/preflight';
 	import { preflightZipInBrowser } from '$lib/foundry/preflight-browser';
 	import { buildZip } from '$lib/foundry/zip-write';
 	import type {
@@ -46,12 +46,26 @@
 
 	/* ------------------------------------------------------------ fixtures */
 
+	/*
+	 * THE FONT LINK IS THE CONSTANT, NOT A TYPED PATH, AND THAT IS A REPAIR.
+	 *
+	 * Both fixtures wrote the root-relative `/_platform/fonts.css`, which is
+	 * exactly what `classifyReference` refuses -- so "Zip (passes)" DID NOT
+	 * PASS. Driving it produced a leading-slash refusal, the surface stayed on
+	 * `blocked`, and the done panel this harness exists to reach was
+	 * unreachable. It failed in the reassuring direction: the button said
+	 * passes, the refusal that came back was a real and correct one, and
+	 * nothing on screen said the fixture was the thing that was wrong.
+	 *
+	 * Interpolating `PLATFORM_FONTS_URL` is what stops it happening again: the
+	 * fixture now says whatever the rule says, in the same commit.
+	 */
 	const GOOD_HTML = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Tide Clock</title>
-<link rel="stylesheet" href="/_platform/fonts.css">
+<link rel="stylesheet" href="${PLATFORM_FONTS_URL}">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -145,7 +159,7 @@ fetch('https://api.example.com/data').then((r) => r.json());
 <head>
 <meta charset="utf-8">
 <title>Tide Clock</title>
-<link rel="stylesheet" href="/_platform/fonts.css">
+<link rel="stylesheet" href="${PLATFORM_FONTS_URL}">
 </head>
 <body>
 <h1>Tide Clock</h1>
