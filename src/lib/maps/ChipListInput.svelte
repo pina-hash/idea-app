@@ -158,8 +158,18 @@
 	}
 	input {
 		flex: 1 1 8rem;
-		min-width: 8rem;
-		min-height: 32px;
+		/* `min-width` in a WRAPPING flex row, not a fixed basis: the box wraps,
+		   so 8rem is a preference and 0 is the floor that keeps a long chip
+		   from pushing the row past a 375px viewport. */
+		min-width: 0;
+		/* 44px, MEASURED. This was 32px, which the browser pass caught on the
+		   shelf-entry surface at 375px -- the width this component's busiest
+		   caller is actually used at, standing at a toolbox with a phone. It is
+		   the one control in that flow a person types the search vocabulary
+		   into, so it is not a candidate for the 24px density exemption the
+		   chip's own remove button takes (that one is 24px because a 44px
+		   target would overlap the chip beside it and steal its taps). */
+		min-height: 44px;
 		border: 0;
 		background: transparent;
 		color: var(--white);

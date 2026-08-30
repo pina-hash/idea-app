@@ -66,18 +66,21 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-**64** directories under `src/routes/dev` with a page, and `routes.mjs` lists
-**57 specs over 31 distinct routes** (re-derived 2026-08-30 against `ROUTES`
-itself, on this branch merged with `integration`: this branch's
-classroom-view-as-notebook and notebook-review-realtime-stalled specs plus the
-coins, coin-desk, frc-state, maps-placement and notebook-review-viewer specs
-`integration` brought). Neither parent's line survived, and one was stale before
-the merge: this branch read 45 over 32, `integration`'s line still read 44 over
-28 while `integration` itself measured 55 over 30. Earlier readings, oldest
-last: 36 over 28 the same day, 29 over 24 on 2026-08-29, and 25 over 20 the same
-day, before the marks, room-split, coin-preview and short-link specs. The two
-maps placement specs are why a spec count can move without the route count
-moving: `?state=place` is a fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
+**65** directories under `src/routes/dev` with a page, and `routes.mjs` lists
+**59 specs over 32 distinct routes** (re-derived 2026-08-30 against `ROUTES`
+itself, on this branch merged with `integration` at `cadf918`: this branch's
+classroom-view-as-notebook and notebook-review-realtime-stalled specs, plus the
+coins, coin-desk, frc-state, maps-placement, maps shelf-entry and
+notebook-review-viewer specs `integration` brought). This line has been
+re-derived twice on this branch in one session, because `integration` moved
+underneath it both times: it read 45 over 32 on `main`, then 57 over 31 against
+`integration` at `47c77b1`, and 59 over 32 against `integration` at `cadf918`.
+`integration`'s own copy of this line was stale throughout (it stated 44 over 28
+against a tree measuring 55 over 30). Earlier readings, oldest last: 36 over 28
+the same day, 29 over 24 on 2026-08-29, and 25 over 20 the same day, before the
+marks, room-split, coin-preview and short-link specs. The two maps placement
+specs are why a spec count can move without the route count moving:
+`?state=place` is a fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
 go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
@@ -127,9 +130,9 @@ Two further limits belong in any report that quotes these numbers:
 ### Known findings, and the two limits above as they apply to them
 
 **The whole run reports exactly 6 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration`: **114 route/width runs,
-1460 measurements**), and they are THREE findings: two seen at both widths, and
-one seen at 375px only on two different routes. Anything
+2026-08-30 on this branch merged with `integration` at `cadf918`: **118
+route/width runs, 1538 measurements**), and they are THREE findings: two seen at
+both widths, and one seen at 375px only on two different routes. Anything
 else is new. **This paragraph is a snapshot and it drifts** -- the run above it
 is the authority, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
@@ -150,21 +153,26 @@ that stopped running.
   files `touch`ed afterwards, per the stash trap in `CLAUDE.md`) and it
   reproduces identically. It is the foundry lane's -- neither the notebook
   branch nor `integration` touches a file this route loads -- and is recorded
-  here rather than fixed across a lane boundary.
+  here rather than fixed across a lane boundary. **A sibling branch,
+  `claude/navigation-loading-indicator-laqsgc`, corrects this spec**, so a tree
+  carrying that branch reports 4 outside threshold where this one reports 6.
+- **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
+  dimension 26.2px), under the 44px floor at both widths. This number is a
+  **tap-target measurement**, so the fallback-stack limit above applies to it
+  directly -- the true box under Rajdhani may differ slightly, though not
+  enough to cross the 44px line from 26.2px.
 - **`/dev/coins` and `/dev/coins-signedin-1`: 51px of horizontal overflow at
   375px** (scrollWidth 426 vs clientWidth 375; the overhanging nodes are
   `#student-drawer`'s header and body, its close button, and the drawer's name,
   stats and transaction-title rows, each reaching right=750 or 727.6 against a
   375 viewport). **At 375px only -- 1440px is clean on both routes**, which is
   why one finding accounts for two of the six measurements rather than the four
-  a both-widths finding would give. It arrived with `integration`'s coin-ledger
-  specs, not with this bundle. The drawer is in the LEGACY coin ledger's
-  shipping bytes, which are frozen, so it is recorded here and not fixed.
-- **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
-  dimension 26.2px), under the 44px floor at both widths. This number is a
-  **tap-target measurement**, so the fallback-stack limit above applies to it
-  directly -- the true box under Rajdhani may differ slightly, though not
-  enough to cross the 44px line from 26.2px.
+  a both-widths finding would give. It arrived with the coin-ledger specs rather
+  than with this bundle, and `integration`'s own copy of this paragraph never
+  recorded it because that copy had gone stale (it stated 44 specs against a
+  tree carrying 55). The drawer is in the LEGACY coin ledger's shipping bytes,
+  which are frozen, so it is recorded here and not fixed: `/dev/coins` is
+  labelled "shipping bytes" for exactly that reason.
 - **Two findings this list used to carry no longer reproduce**, measured on the
   same run rather than assumed: `/dev/coin-preview`'s student picker is
   **352x44** (it was 247.3x19 at 375px and 352x19 at 1440px, under the 24px
@@ -506,15 +514,16 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **253.3 seconds** (2.5s of it the vite boot) for **57 route specs
-x 2 widths = 114 runs and 1460 measurements**; `--selftest` is ~32s (64
-controls). That is measured 2026-08-30 on this branch merged with `integration`.
-The two parents read 184.7s for 72 runs and 780 measurements (this branch, whose
-findings paragraph separately recorded a 90-run/1064-measurement reading with no
-wall clock beside it) and 207.1s for 88 runs and 1076 measurements
-(`integration`); it read 152.2s for 58 runs and 580 measurements on `main`
-alone. The per-route/width cost has held at roughly 2.2s across that whole
-range.
+A full run is **265.6 seconds** (2.4s of it the vite boot) for **59 route specs
+x 2 widths = 118 runs and 1538 measurements**; `--selftest` is ~32s (64
+controls). That is measured 2026-08-30 on this branch merged with `integration`
+at `cadf918`. Against `integration` at `47c77b1` the same branch read 253.3s for
+114 runs and 1460 measurements; `integration` itself read 207.1s for 88 runs and
+1076 measurements. This branch's own findings paragraph earlier recorded a
+90-run/1064-measurement reading with no wall clock beside it; it read 184.7s for
+72 runs and 780 measurements earlier the same day, and 152.2s for 58 runs and
+580 measurements on `main` alone. The per-route/width cost has held at roughly
+2.2s across that whole range.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree
