@@ -7,7 +7,7 @@
     "dueDate": "2026-08-31",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-sim",
-    "buildVersion": "v4",
+    "buildVersion": "v5",
     "headerFields": [
       "studentName",
       "date"
@@ -17,13 +17,13 @@
   "print": {},
   "modules": [
     {
-      "id": "m1",
+      "id": "study",
       "intro": "Setup is in the guide, Simulation tab. Run it on your own part.",
       "title": "Your Study",
       "aiNote": "Unrestricted for driving SolidWorks. Ask it anything, as often as you want.",
       "blocks": [
         {
-          "id": "c1",
+          "id": "study-checks",
           "type": "checklist",
           "items": [
             "Ran on my own V1 part",
@@ -37,7 +37,7 @@
       "points": 4,
       "rubric": [
         {
-          "id": "r1",
+          "id": "study-setup",
           "levels": [
             {
               "label": "Complete",
@@ -64,7 +64,7 @@
       "aiLevel": 3
     },
     {
-      "id": "m2",
+      "id": "plot",
       "intro": "One screenshot, two questions. Two sentences each is plenty.",
       "title": "Your Plot, And What You See",
       "aiNote": "Ask it what a von Mises plot is. Do not ask it where your red spot is. You will be asked to point at it.",
@@ -74,7 +74,7 @@
           "content": "**Taking the screenshot.** Press **Windows + Shift + S**. Drag a box around your plot, with the color scale inside it.\n\n**Handing it in.** Click in either answer box below and press **Ctrl + V**. It lands in the photo zone by itself. If you saved the image instead, use Choose files.\n\nMark two things on it: where it goes red, and where your part is thinnest.\n\nWrite the red spot in your notebook before you leave. Tomorrow starts from it."
         },
         {
-          "id": "z1",
+          "id": "plot-image",
           "type": "imageZone",
           "points": 3,
           "printAs": "notebookRef",
@@ -82,7 +82,7 @@
           "minImages": 1
         },
         {
-          "id": "f1",
+          "id": "red-location",
           "type": "textField",
           "points": 4,
           "prompt": "Where is the red, described on your part and not on your screen? Same place as your thinnest section, or somewhere else?",
@@ -90,7 +90,7 @@
           "minSentences": 2
         },
         {
-          "id": "f2",
+          "id": "why-load-number-wrong",
           "type": "textField",
           "points": 4,
           "prompt": "Your study also shows a load number. Why is that number wrong for your hook when the red spot is right?",
@@ -105,7 +105,7 @@
       "points": 11,
       "rubric": [
         {
-          "id": "r2",
+          "id": "plot-marked",
           "levels": [
             {
               "label": "Complete",
@@ -129,7 +129,7 @@
           "criterion": "Screenshot shows a solved plot with the red spot and the thinnest section marked"
         },
         {
-          "id": "r3",
+          "id": "red-located",
           "levels": [
             {
               "label": "Complete",
@@ -159,7 +159,7 @@
           "criterion": "Locates the red spot on the part and compares it to the thinnest section"
         },
         {
-          "id": "r4",
+          "id": "magnitude-reasoning",
           "levels": [
             {
               "label": "Complete",

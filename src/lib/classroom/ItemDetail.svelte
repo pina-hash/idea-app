@@ -437,6 +437,43 @@
 			!!revisionTransports
 	);
 	/**
+	 * THE THREE GROUPS THE BODY IS SORTED INTO, and each is an OR of exactly the
+	 * gates of the blocks inside it -- nothing here is a new condition and
+	 * nothing here is a boundary. They exist for one reason: a group with
+	 * nothing in it for this item must not render as a heading over empty space.
+	 *
+	 * The sort is by what a block DOES, not by the order the blocks arrived in:
+	 *
+	 *   CONTENT AND WORK -- everything that changes what a student opens, reads
+	 *   or hands in: the deck, the reference document, the assignment engine,
+	 *   the wording editor and the notebook check-in.
+	 *
+	 *   INSTRUCTOR ONLY -- the material no student ever sees. Its own group
+	 *   because "who may read this" is the question it answers, and that is a
+	 *   different question from the one every other block here answers.
+	 *
+	 *   THIS POST -- the post as an object rather than as content: where it sits
+	 *   (pin), copies of it, whether it exists at all (delete), and the record
+	 *   of what has changed (history). LAST, because the destructive control is
+	 *   in it and nothing here is what a teacher opens the tools to reach.
+	 */
+	const groupContent = $derived(
+		canManageDeck || canEditReference || canEditAssignment || !!wordingSpec || canManageCheckIn
+	);
+	const groupPrivate = $derived(hasInstructorMaterial);
+	const groupPost = $derived(editable || !!revisionTransports);
+	/**
+	 * THE HEADER'S SHORTCUT TO THE GRADING CONSOLE.
+	 *
+	 * The SAME condition and the SAME href as the link inside the assignment
+	 * block -- it signposts a destination that was already there rather than
+	 * widening who can reach it. It is in the header because that row is on
+	 * screen whether the tools are open or shut, so reaching the console costs
+	 * neither an expansion nor a scroll; the in-context link stays where it is,
+	 * beside the rubric it grades against.
+	 */
+	const quickGradeHref = $derived(canEditAssignment && gradeHref ? gradeHref : null);
+	/**
 	 * Open state lives in a module (inspector.svelte.ts), NOT here: this
 	 * component is the page, so clicking through to another item remounts it and
 	 * a local `$state` would collapse the tools on every single item.
@@ -591,24 +628,85 @@
 	{#if canManage && hasInspector}
 		<section class="inspector" data-testid="item-inspector">
 			<!--
+				ONE HEADER ROW: the disclosure toggle and the two controls a
+				teacher reaches most often, on the same line.
+
 				EDIT IS A DIRECT CONTROL, not buried behind "Instructor tools":
 				per IDEA_INTERFACE_STANDARDS, whether a teacher can change what is
-				on screen must not cost an extra click to discover. Everything
-				else instructor-only (pin, copy, delete, the deck, the check-in
-				attach/detach) stays behind the disclosure below.
+				on screen must not cost an extra click to discover. It used to be
+				a row of its own ABOVE the toggle, which spent a whole line and a
+				rule on one chip-sized button; it sits beside the toggle now and
+				the rule between them went with it. What CANNOT move up here is
+				the composer it expands into -- a full editing surface is not a
+				header control -- so that, and the "also posted to" sentence that
+				qualifies it, stay below at full width.
+
+				GRADE IS THE SECOND, and it is a SIGNPOST rather than a new door:
+				the same condition and the same href as the link beside the rubric
+				below. Its point is that this row is on screen whether the tools
+				are open or shut, so reaching the console costs neither an
+				expansion nor a scroll.
 			-->
-			{#if editable}
-				<div class="insp-edit" data-testid="item-edit-direct">
-					<span class="card-actions">
-						<button
-							type="button"
-							class="btn secondary tiny"
-							disabled={busy}
-							onclick={() => (editing = !editing)}
-						>
-							{editing ? 'Close editor' : 'Edit'}
-						</button>
+			<div class="insp-head">
+				<button
+					type="button"
+					class="insp-strip"
+					aria-expanded={inspectorOpen}
+					aria-controls="item-inspector-body"
+					data-testid="inspector-toggle"
+					onclick={toggleItemInspector}
+				>
+					<span class="insp-caret" aria-hidden="true">{inspectorOpen ? '▾' : '▸'}</span>
+					<span class="insp-glyph" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
+							<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+						</svg>
 					</span>
+					<span class="insp-label">Instructor tools</span>
+					<!-- STATE RIDES THE COLLAPSED STRIP, on purpose: whether a class
+					     can see this at all is the one thing a teacher must not have
+					     to expand anything to find out.
+
+					     THE CHIPS ARE THE ELEMENT THAT ABSORBS SLACK in this row, so
+					     putting controls beside the toggle costs them width first.
+					     That is why `.insp-head` WRAPS rather than letting them
+					     truncate: a header that becomes two rows on a phone is a
+					     smaller loss than a "Scheduled" chip clipped to nothing on
+					     the one surface that says whether a class can see this. -->
+					<span class="insp-state">
+						{#if !item.published}
+							<span class="draft-chip">Draft</span>
+						{:else if isScheduled(item)}
+							<span class="sched-chip" title="Students see this from {scheduleLabel(item)}"
+								>Scheduled &middot; {scheduleLabel(item)}</span
+							>
+						{/if}
+						{#if item.is_public}<span class="chip pin-chip">Public link</span>{/if}
+					</span>
+					<span class="insp-hint">{inspectorOpen ? 'Hide' : 'Show'}</span>
+				</button>
+				{#if editable || quickGradeHref}
+					<span class="insp-quick">
+						{#if editable}
+							<button
+								type="button"
+								class="btn secondary tiny insp-quick-btn"
+								data-testid="item-edit-toggle"
+								disabled={busy}
+								onclick={() => (editing = !editing)}
+							>
+								{editing ? 'Close editor' : 'Edit'}
+							</button>
+						{/if}
+						{#if quickGradeHref}
+							<a class="btn tiny insp-quick-btn" href={quickGradeHref} data-testid="insp-quick-grade">Grade</a>
+						{/if}
+					</span>
+				{/if}
+			</div>
+			{#if editable && (alsoIn.length || editing)}
+				<div class="insp-edit" data-testid="item-edit-direct">
 					{#if alsoIn.length}
 						<p class="also-line">
 							Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy,
@@ -632,264 +730,246 @@
 					{/if}
 				</div>
 			{/if}
-			<button
-				type="button"
-				class="insp-strip"
-				aria-expanded={inspectorOpen}
-				aria-controls="item-inspector-body"
-				data-testid="inspector-toggle"
-				onclick={toggleItemInspector}
-			>
-				<span class="insp-caret" aria-hidden="true">{inspectorOpen ? '▾' : '▸'}</span>
-				<span class="insp-glyph" aria-hidden="true">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-						<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
-						<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
-					</svg>
-				</span>
-				<span class="insp-label">Instructor tools</span>
-				<!-- STATE RIDES THE COLLAPSED STRIP, on purpose: whether a class can
-				     see this at all is the one thing a teacher must not have to
-				     expand anything to find out. -->
-				<span class="insp-state">
-					{#if !item.published}
-						<span class="draft-chip">Draft</span>
-					{:else if isScheduled(item)}
-						<span class="sched-chip" title="Students see this from {scheduleLabel(item)}"
-							>Scheduled &middot; {scheduleLabel(item)}</span
-						>
-					{/if}
-					{#if item.is_public}<span class="chip pin-chip">Public link</span>{/if}
-				</span>
-				<span class="insp-hint">{inspectorOpen ? 'Hide' : 'Show'}</span>
-			</button>
 
 			{#if inspectorOpen}
 				<div class="insp-body" id="item-inspector-body">
 					{#if error}<p class="feedback error">{error}</p>{/if}
 					{#if notice}<p class="feedback ok">{notice}</p>{/if}
 
-					{#if editable}
-						<div class="insp-block">
-							<span class="card-actions">
-								<button type="button" class="btn secondary tiny" disabled={busy} onclick={togglePin}>
-									{item.pinned ? 'Unpin' : 'Pin'}
-								</button>
-								<button type="button" class="btn secondary tiny" disabled={busy} onclick={duplicate}
-									>Copy</button
-								>
-								<button
-									type="button"
-									class="btn secondary tiny danger"
-									disabled={busy}
-									onclick={remove}
-								>
-									{armDelete ? 'Really delete?' : 'Delete'}
-								</button>
-							</span>
-						</div>
-					{/if}
-
-					{#if canManageDeck}
-						<!-- The CONTROLS only. The deck's own open link is content and
-						     stays in the reading order below, for a teacher exactly as
-						     for a student. -->
-						<div class="insp-block">
-							<DeckPanel
-								{deck}
-								itemId={item.id}
-								sectionId={section.id}
-								{basePath}
-								{canManage}
-								transports={deckTransports}
-								mode="manage"
-								{onchanged}
-							/>
-						</div>
-					{/if}
-
-					{#if canManageCheckIn}
-						<!-- ATTACH AND DETACH, the management half. The check-in
-						     itself reads in the content flow above for everyone.
-						     Editing its date, its name or which classes it runs in
-						     stays in /notebook/review's SessionManager, which owns
-						     the check-in; this only decides what it hangs off. -->
-						<div class="insp-block">
-							{#if checkIns.length}
-								<h2 class="section-label">
-									{checkIns.length === 1 ? 'Notebook check-in' : 'Notebook check-ins'}
-								</h2>
-								{#each checkIns as checkIn (checkIn.session_id)}
-									<p class="insp-line" data-testid="insp-check-in">
-										<strong>{checkIn.session_label}</strong>
-										<span class="ci-meta">{checkInMeta(checkIn)}</span>
-									</p>
-									<!--
-										THE EDIT AFFORDANCE for the prompt the card above renders (0123).
-										It is in the inspector because this block IS the item page's
-										instructor region; the CONTENT itself is one render path for both
-										roles, which is what keeps a manager reading the student's page.
-
-										IT WRITES THROUGH THE NARROW RPC and moves nothing else on the
-										check-in. Its date, its name and which classes it runs in stay in
-										/notebook/review's SessionManager, which owns them -- and which
-										offers this same field on this same component, so a teacher who is
-										already in there fixing a date does not have to come here.
-
-										`{#key}`ED ON THE CHECK-IN: Tiptap takes `value` once, on mount,
-										so without the key a second check-in on this item would open
-										showing the first one's paragraph over its own save.
-									-->
-									{#if canWriteGuidance}
-										{#key checkIn.session_id}
-											<CheckInGuidance
-												value={checkIn.guidance_doc ?? null}
-												disabled={checkInBusy}
-												testId="insp-check-in-guidance"
-												hint="Students read this in their notebook, above the entry they are about to file. Leave it empty to remove it."
-												onchange={() => {}}
-												onsave={saveGuidance(checkIn.session_id)}
-											/>
-										{/key}
-									{/if}
-									{#if detaching === checkIn.session_id}
-										<!-- Names what it costs before the confirm: nothing is
-										     destroyed, and saying so is the honest version. -->
-										<p class="hint" data-testid="detach-warning">
-											It goes back to being its own row in the class. The check-in, and
-											every entry filed against it, stay exactly as they are.
-										</p>
-										<span class="ci-actions">
-											<button
-												type="button"
-												class="btn secondary tiny"
-												data-testid="detach-confirm"
-												disabled={checkInBusy}
-												onclick={() => detachCheckIn(checkIn)}
-											>
-												{checkInBusy ? 'Detaching...' : 'Yes, detach it'}
-											</button>
-											<button
-												type="button"
-												class="btn secondary tiny"
-												data-testid="detach-cancel"
-												disabled={checkInBusy}
-												onclick={() => (detaching = null)}
-											>
-												Keep it here
-											</button>
-										</span>
-									{:else}
-										<span class="ci-actions">
-											<button
-												type="button"
-												class="btn secondary tiny"
-												data-testid="detach-check-in"
-												disabled={checkInBusy}
-												onclick={() => (detaching = checkIn.session_id)}
-											>
-												Detach check-in
-											</button>
-										</span>
-									{/if}
-								{/each}
-							{/if}
-							<!--
-								OPENING THE SECOND DOOR (0139). Several check-ins on one item
-								are separate sessions, one per date -- the schema already
-								permits it (`checkIns` is plural and the create RPC can be
-								called repeatedly) -- so this stays mounted once check-ins
-								already exist rather than being the `{:else}` of the block
-								above. Attaching one is an EDIT-TIME action; the composer
-								still stages exactly one at creation.
-							-->
-							<CheckInStager
-								guidanceAvailable={canWriteGuidance}
-								label="Notebook check-in"
-								submitLabel={checkInBusy
-									? 'Attaching...'
-									: checkIns.length
-										? 'Attach another check-in'
-										: 'Attach check-in'}
-								hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class this item is posted to."
-								busy={checkInBusy}
-								onstage={attachCheckIn}
-							/>
-							{#if checkInError}
-								<p class="feedback error" data-testid="check-in-error">{checkInError}</p>
-							{/if}
-						</div>
-					{/if}
-
-					{#if canEditReference}
-						<div class="insp-block engine-tools">
-							<h2 class="section-label">Reference document</h2>
-							<SpecImporter
-								kind="reference"
-								itemId={item.id}
-								spec={referenceSpec}
-								isPublic={item.is_public === true}
-								attachmentCount={item.attachments.length}
-								transports={referenceTransports!}
-								onchanged={() => onchanged?.()}
-							/>
-						</div>
-					{/if}
-
-					{#if canEditAssignment}
-						<div class="insp-block engine-tools">
-							<h2 class="section-label">Assignment engine</h2>
-							<SpecImporter
-								kind="assignment"
-								itemId={item.id}
-								{spec}
-								transports={teacherTransports!}
-								onchanged={() => onchanged?.()}
-							/>
-							<hr class="tool-rule" />
-							<RubricBuilder
-								itemId={item.id}
-								criteria={rubric}
-								{spec}
-								transports={teacherTransports!}
-								onchanged={() => onchanged?.()}
-							/>
-							{#if gradeHref}
-								<hr class="tool-rule" />
-								<a class="btn tiny" href={gradeHref}>Open grading console</a>
-							{/if}
-						</div>
-					{/if}
-
 					<!--
-						THE WORDING EDITOR. Its own block rather than a panel inside
-						the two importers above, because it is the control for a
-						DIFFERENT job: the importer replaces the document, this one
-						may only reword it, and the guard behind it refuses a save
-						that did anything else. Collapsed behind the shared
-						Disclosure because it is as long as the document it edits.
+						THREE GROUPS, AND THE BLOCKS INSIDE THEM ARE THE SAME EIGHT BLOCKS
+						UNDER THE SAME EIGHT GATES. Nothing was added, removed, widened or
+						narrowed here -- what changed is that a flat list of up to eight
+						siblings separated by nothing but a hairline now says, three words
+						at a time, which of them is the one you came for.
+
+						EACH GROUP IS GATED ON THE OR OF ITS MEMBERS' OWN GATES (see
+						`groupContent` / `groupPrivate` / `groupPost` in the script above),
+						so a group with nothing in it for this item renders nothing at all
+						rather than a heading over empty space. That derivation is NOT a
+						boundary and must never become one: every block still carries the
+						exact condition it carried before, unchanged, inside the group.
+
+						THE ORDER IS BY WHAT A BLOCK DOES, not by when it arrived. Content
+						first, because it is what a teacher opens the tools to change;
+						instructor-only second, because "who may read this" is a different
+						question from the one every other block answers; the post itself
+						last, because the destructive control lives in it and none of it is
+						what anybody came here for.
 					-->
-					{#if wordingSpec}
-						<div class="insp-block">
-							<Disclosure
-								label="Edit the wording"
-								scope={`item:${item.id}:wording`}
-								testId="item-wording-disclosure"
-							>
-								<SpecTextEditor
-									spec={wordingSpec}
-									kind={wordingKind}
-									upload={uploadProseImage}
-									save={saveWording}
-									onchanged={() => onchanged?.()}
-								/>
-							</Disclosure>
-						</div>
+					{#if groupContent}
+						<section class="insp-group" data-testid="insp-group-content">
+							<h2 class="insp-group-label">Content and work</h2>
+							{#if canManageDeck}
+								<!-- The CONTROLS only. The deck's own open link is content and
+								     stays in the reading order below, for a teacher exactly as
+								     for a student. -->
+								<div class="insp-block">
+									<DeckPanel
+										{deck}
+										itemId={item.id}
+										sectionId={section.id}
+										{basePath}
+										{canManage}
+										transports={deckTransports}
+										mode="manage"
+										{onchanged}
+									/>
+								</div>
+							{/if}
+
+							{#if canEditReference}
+								<div class="insp-block engine-tools">
+									<h3 class="section-label">Reference document</h3>
+									<SpecImporter
+										kind="reference"
+										itemId={item.id}
+										spec={referenceSpec}
+										isPublic={item.is_public === true}
+										attachmentCount={item.attachments.length}
+										transports={referenceTransports!}
+										onchanged={() => onchanged?.()}
+									/>
+								</div>
+							{/if}
+
+							{#if canEditAssignment}
+								<div class="insp-block engine-tools">
+									<h3 class="section-label">Assignment engine</h3>
+									<SpecImporter
+										kind="assignment"
+										itemId={item.id}
+										{spec}
+										transports={teacherTransports!}
+										onchanged={() => onchanged?.()}
+									/>
+									<hr class="tool-rule" />
+									<RubricBuilder
+										itemId={item.id}
+										criteria={rubric}
+										{spec}
+										transports={teacherTransports!}
+										onchanged={() => onchanged?.()}
+									/>
+									{#if gradeHref}
+										<hr class="tool-rule" />
+										<a class="btn tiny" href={gradeHref}>Open grading console</a>
+									{/if}
+								</div>
+							{/if}
+
+							<!--
+								THE WORDING EDITOR. Its own block rather than a panel inside
+								the two importers above, because it is the control for a
+								DIFFERENT job: the importer replaces the document, this one
+								may only reword it, and the guard behind it refuses a save
+								that did anything else. Collapsed behind the shared
+								Disclosure because it is as long as the document it edits.
+							-->
+							{#if wordingSpec}
+								<div class="insp-block">
+									<Disclosure
+										label="Edit the wording"
+										scope={`item:${item.id}:wording`}
+										testId="item-wording-disclosure"
+									>
+										<SpecTextEditor
+											spec={wordingSpec}
+											kind={wordingKind}
+											upload={uploadProseImage}
+											save={saveWording}
+											onchanged={() => onchanged?.()}
+										/>
+									</Disclosure>
+								</div>
+							{/if}
+
+							{#if canManageCheckIn}
+								<!-- ATTACH AND DETACH, the management half. The check-in
+								     itself reads in the content flow above for everyone.
+								     Editing its date, its name or which classes it runs in
+								     stays in /notebook/review's SessionManager, which owns
+								     the check-in; this only decides what it hangs off. -->
+								<div class="insp-block">
+									<!-- UNCONDITIONAL, and it used to sit INSIDE the count test
+									     below -- so an item with no check-in attached yet rendered
+									     this block with no heading over it at all, which is exactly
+									     the state a teacher is in when they come here to attach the
+									     first one. The plural still follows the count. -->
+									<h3 class="section-label">
+										{checkIns.length === 1 ? 'Notebook check-in' : 'Notebook check-ins'}
+									</h3>
+									{#if checkIns.length}
+										{#each checkIns as checkIn (checkIn.session_id)}
+											<p class="insp-line" data-testid="insp-check-in">
+												<strong>{checkIn.session_label}</strong>
+												<span class="ci-meta">{checkInMeta(checkIn)}</span>
+											</p>
+											<!--
+												THE EDIT AFFORDANCE for the prompt the card above renders (0123).
+												It is in the inspector because this block IS the item page's
+												instructor region; the CONTENT itself is one render path for both
+												roles, which is what keeps a manager reading the student's page.
+
+												IT WRITES THROUGH THE NARROW RPC and moves nothing else on the
+												check-in. Its date, its name and which classes it runs in stay in
+												/notebook/review's SessionManager, which owns them -- and which
+												offers this same field on this same component, so a teacher who is
+												already in there fixing a date does not have to come here.
+
+												`{#key}`ED ON THE CHECK-IN: Tiptap takes `value` once, on mount,
+												so without the key a second check-in on this item would open
+												showing the first one's paragraph over its own save.
+											-->
+											{#if canWriteGuidance}
+												{#key checkIn.session_id}
+													<CheckInGuidance
+														value={checkIn.guidance_doc ?? null}
+														disabled={checkInBusy}
+														testId="insp-check-in-guidance"
+														hint="Students read this in their notebook, above the entry they are about to file. Leave it empty to remove it."
+														onchange={() => {}}
+														onsave={saveGuidance(checkIn.session_id)}
+													/>
+												{/key}
+											{/if}
+											{#if detaching === checkIn.session_id}
+												<!-- Names what it costs before the confirm: nothing is
+												     destroyed, and saying so is the honest version. -->
+												<p class="hint" data-testid="detach-warning">
+													It goes back to being its own row in the class. The check-in, and
+													every entry filed against it, stay exactly as they are.
+												</p>
+												<span class="ci-actions">
+													<button
+														type="button"
+														class="btn secondary tiny"
+														data-testid="detach-confirm"
+														disabled={checkInBusy}
+														onclick={() => detachCheckIn(checkIn)}
+													>
+														{checkInBusy ? 'Detaching...' : 'Yes, detach it'}
+													</button>
+													<button
+														type="button"
+														class="btn secondary tiny"
+														data-testid="detach-cancel"
+														disabled={checkInBusy}
+														onclick={() => (detaching = null)}
+													>
+														Keep it here
+													</button>
+												</span>
+											{:else}
+												<span class="ci-actions">
+													<button
+														type="button"
+														class="btn secondary tiny"
+														data-testid="detach-check-in"
+														disabled={checkInBusy}
+														onclick={() => (detaching = checkIn.session_id)}
+													>
+														Detach check-in
+													</button>
+												</span>
+											{/if}
+										{/each}
+									{/if}
+									<!--
+										OPENING THE SECOND DOOR (0139). Several check-ins on one item
+										are separate sessions, one per date -- the schema already
+										permits it (`checkIns` is plural and the create RPC can be
+										called repeatedly) -- so this stays mounted once check-ins
+										already exist rather than being the `{:else}` of the block
+										above. Attaching one is an EDIT-TIME action; the composer
+										still stages exactly one at creation.
+									-->
+									<CheckInStager
+										guidanceAvailable={canWriteGuidance}
+										label="Notebook check-in"
+										submitLabel={checkInBusy
+											? 'Attaching...'
+											: checkIns.length
+												? 'Attach another check-in'
+												: 'Attach check-in'}
+										hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class this item is posted to."
+										busy={checkInBusy}
+										onstage={attachCheckIn}
+									/>
+									{#if checkInError}
+										<p class="feedback error" data-testid="check-in-error">{checkInError}</p>
+									{/if}
+								</div>
+							{/if}
+						</section>
 					{/if}
 
-					{#if hasInstructorMaterial}
-						<div class="insp-block">
-							<h2 class="section-label instructor-section-label">
+					{#if groupPrivate}
+						<section class="insp-group" data-testid="insp-group-private">
+							<!-- THE BLOCK'S OWN HEADING IS THE GROUP'S HEADING. It already
+							     said the one thing this group is about, so restating it a
+							     level down would be the same sentence twice. -->
+							<h2 class="insp-group-label instructor-section-label">
 								<span class="lock-glyph" aria-hidden="true">
 									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 										<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
@@ -898,33 +978,68 @@
 								</span>
 								Instructor only
 							</h2>
-							<p class="note instructor-note">
-								Visible only to this item's teachers of record and admins.
-							</p>
-							{#if instructorLinks.length}
-								<div class="link-list">
-									{#each instructorLinks as l (l.id ?? l.url)}
-										<LinkPreviewCard link={l} {fetchPreview} />
-									{/each}
+							{#if hasInstructorMaterial}
+								<div class="insp-block">
+									<p class="note instructor-note">
+										Visible only to this item's teachers of record and admins.
+									</p>
+									{#if instructorLinks.length}
+										<div class="link-list">
+											{#each instructorLinks as l (l.id ?? l.url)}
+												<LinkPreviewCard link={l} {fetchPreview} />
+											{/each}
+										</div>
+									{/if}
+									{#if instructorAttachments.length}
+										<AttachmentList
+											attachments={instructorAttachments}
+											resolveSrc={(a) => instructorAttachmentSrc(a.id)}
+										/>
+									{/if}
 								</div>
 							{/if}
-							{#if instructorAttachments.length}
-								<AttachmentList
-									attachments={instructorAttachments}
-									resolveSrc={(a) => instructorAttachmentSrc(a.id)}
-								/>
-							{/if}
-						</div>
+						</section>
 					{/if}
 
-					{#if revisionTransports}
-						<div class="insp-block">
-							<RevisionHistory
-								itemId={item.id}
-								transports={revisionTransports}
-								onchanged={() => onchanged?.()}
-							/>
-						</div>
+					{#if groupPost}
+						<section class="insp-group" data-testid="insp-group-post">
+							<h2 class="insp-group-label">This post</h2>
+							{#if editable}
+								<div class="insp-block">
+									<!-- THE ONE BLOCK THAT CARRIED NO LABEL OF ANY KIND. Three
+									     unrelated verbs in a row of chips is not self-describing, and
+									     one of them is destructive. The heading names what the row
+									     does rather than a category somebody has to decode first. -->
+									<h3 class="section-label">Pin, copy or delete</h3>
+									<span class="card-actions">
+										<button type="button" class="btn secondary tiny" disabled={busy} onclick={togglePin}>
+											{item.pinned ? 'Unpin' : 'Pin'}
+										</button>
+										<button type="button" class="btn secondary tiny" disabled={busy} onclick={duplicate}
+											>Copy</button
+										>
+										<button
+											type="button"
+											class="btn secondary tiny danger"
+											disabled={busy}
+											onclick={remove}
+										>
+											{armDelete ? 'Really delete?' : 'Delete'}
+										</button>
+									</span>
+								</div>
+							{/if}
+
+							{#if revisionTransports}
+								<div class="insp-block">
+									<RevisionHistory
+										itemId={item.id}
+										transports={revisionTransports}
+										onchanged={() => onchanged?.()}
+									/>
+								</div>
+							{/if}
+						</section>
 					{/if}
 				</div>
 			{/if}
@@ -1247,22 +1362,84 @@
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
 	}
-	/* Sits above the disclosure strip, always visible for a teacher: whether
-	   they can edit is not something opening "Instructor tools" should be
-	   required to learn. */
+	/* THE HEADER IS ONE ROW. The disclosure toggle and the quick controls used
+	   to be two stacked rows separated by a rule -- a whole line and a border
+	   spent on one chip-sized Edit button. They share a line now and the rule
+	   is gone with the stacking.
+
+	   IT WRAPS, and that is the deliberate answer to the cost of merging them:
+	   `.insp-state` inside the strip is `flex: 1 1 auto` with `overflow:
+	   hidden`, so it is the element that gives up width first, and at 375px a
+	   non-wrapping row would clip "Scheduled &middot; <date>" down to nothing.
+	   A header that becomes two rows on a phone is a smaller loss than the one
+	   thing on this surface that says whether a class can see this item.
+	   `flex-basis` on the strip is what decides where it breaks. */
+	.insp-head {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.2rem 0.4rem;
+	}
+	/* THE QUICK CONTROLS: Edit, and Grade where there is a console to open.
+	   `margin-left: auto` keeps them on the trailing edge on the line they end
+	   up on, wrapped or not. */
+	/* THE RIGHT PADDING IS HERE AND NOT ON `.insp-head`, and the difference is
+	   9.6px of chip. On the row it would inset the STRIP too, which already
+	   carries its own -- measured at 375px, `.insp-state` lost exactly that
+	   0.6rem and its clipping went from 16px to 25px against the same fixture.
+	   The chips are the element that pays for anything taken off this row. */
+	.insp-quick {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		flex: none;
+		margin-left: auto;
+		padding: 0.2rem 0.6rem 0.3rem 0;
+	}
+	/* 44px, NOT the classroom's 24px chip floor. `.cr-root .btn.tiny`
+	   (classroom.css:195) takes IDEA_INTERFACE_STANDARDS 10's 24px allowance
+	   for "a chip sitting beside a heading, on a page somebody is reading" --
+	   which these are not. They are the two controls a teacher reaches most on
+	   this surface, they sit in the page's own header row, and one of them is
+	   the door to the grading console. `min-height` and block padding only, so
+	   type size and horizontal rhythm are untouched, exactly as `.cr-console`
+	   and `.engine-host` do it one scope over. */
+	/* THE SELECTOR HAS TO OUTRANK `.cr-root .btn.secondary.tiny`, WHICH IS FOUR
+	   CLASSES AND WOULD OTHERWISE TIE ON SOURCE ORDER -- measured: written as
+	   `.insp-quick .btn.tiny` this rule was in the sheet and the button still
+	   computed `min-height: 24px`. Hence the marker class, which makes it five
+	   and says what it is at the same time. */
+	.insp-quick :global(.btn.insp-quick-btn.tiny) {
+		min-height: 44px;
+		padding-block: var(--space-2);
+	}
+	/* Below the header row, full width: the "also posted to" sentence that
+	   qualifies Edit, and the composer Edit expands into. A full editing
+	   surface is not a header control, which is the whole reason the BUTTON
+	   moved up and this did not. */
 	.insp-edit {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
-		padding: 0.6rem 0.6rem 0.5rem;
-		border-bottom: 1px solid var(--hairline);
+		padding: 0 0.6rem 0.5rem;
 	}
 	.insp-strip {
 		appearance: none;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		width: 100%;
+		/* 22rem IS MEASURED, NOT ROUND. The strip's fixed content -- caret,
+		   lock, "INSTRUCTOR TOOLS", Show/Hide and four gaps -- is ~197px, and
+		   the widest chip this surface produces ("Scheduled &middot; Fri, Sep 5,
+		   3:30 PM") measures 153px. A basis under their sum lets the quick
+		   controls share the line at a width where the chips then have nowhere
+		   to go, which is the one outcome merging the rows must not buy: at a
+		   375px viewport the pane is 341px, so the controls take their own line
+		   there and the strip gets the full measure it had before it had
+		   neighbours. Above that -- the 736px detail pane at 1440px -- 352 + 110
+		   + a gap fits with 270px to spare and the header is one row. */
+		flex: 1 1 22rem;
+		min-width: 0;
 		min-height: 44px;
 		padding: 0.35rem 0.6rem;
 		background: none;
@@ -1318,15 +1495,39 @@
 	.insp-body .feedback {
 		margin: 0;
 	}
+	/* --- The groups -------------------------------------------------------
+	   Gold, matching the region's own marking and the strip's label, and one
+	   step LOUDER than a block's cyan `.section-label`: two levels, told apart
+	   by hue and by size, so scanning the body is reading three words rather
+	   than eight blocks. A rule between groups and a hairline between the
+	   blocks inside one, for the same reason. */
+	.insp-group + .insp-group {
+		margin-top: var(--space-3);
+		border-top: 1px solid var(--boundary);
+		padding-top: var(--space-3);
+	}
+	.insp-group-label {
+		margin: 0 0 var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--gold);
+	}
 	/* A plain block, NOT a second dashed gold box: the region already says whose
 	   these are, and nesting the marking would only shout. */
 	.insp-block {
 		border-top: 1px solid var(--hairline);
 		padding-top: var(--space-3);
+		margin-top: var(--space-3);
 	}
-	.insp-block:first-child {
+	/* `:first-of-type` and NOT `:first-child`: the group's heading is the first
+	   child now, so `:first-child` would match nothing and every block in every
+	   group would draw a rule immediately under its own group label. */
+	.insp-group > .insp-block:first-of-type {
 		border-top: none;
 		padding-top: 0;
+		margin-top: 0;
 	}
 
 	.meta-line,
