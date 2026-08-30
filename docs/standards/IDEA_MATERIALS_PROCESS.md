@@ -1,6 +1,21 @@
 # IDEA Materials Production Process
-**Version 2.6 - 2026-08-25**
+**Version 3.1 - 2026-08-28**
 Pathway-wide. Governs how all IDEA course materials are created, for IDEA100, IDEA209H, and every course after.
+
+**Changed in v3.1:** merge release reconciling two parallel forks of this file. See the
+changelog. Added "One File, One Fork" below, because the version number did not and could
+not detect the collision: both forks passed a version check against the same base and both
+renumbered into the same slots.
+
+**Changed in v3.0:** four rules from the Day 7 to Day 9 build. Student-facing materials name no weekday. Rendered artifacts are verified by inspecting what the file contains, not only by looking at a picture of it. Generated geometry is regenerated from source rather than patched by string replacement. Mechanical drawings route to Mr. Pina, not to this assistant.
+
+**Changed in v2.9:** clarified that the print triggers govern the delivery of content and say nothing about providing a work surface. A printed sheet a student draws, measures, or logs on is not an exception needing a trigger.
+
+**Changed in v2.8:** notebook work is no longer delivered as a standalone Classroom post. It attaches to the assignment whose work it records. Established 2026-08-27, after three standalone notebook entries were authored for IDEA100 Days 7 and 8 and the pattern was rejected.
+
+**Changed in v2.7:** added the delivered-filename convention. A batch of materials whose names do not say which day they belong to costs Mr. Pina time at exactly the moment he is trying to move, and the fix belongs in the process rather than in each batch.
+
+**Changed in v2.6:** restored print trigger 5, which was added on 2026-08-18 and then silently deleted. Two different v2.4s were written the same week from the same v2.3 base, one adding trigger 5 and one rewriting the Claude Design section; the second was authored from a copy that predated the first and overwrote it, changelog entry included, so the loss was invisible in the delivered file. Trigger 5 is restored at the level of the principle rather than the single case it was written for, because the narrow version did not cover the second material that needed it. Added the paired requirement that a print trigger is named in the delivered material's own record.
 
 **Changed in v2.5:** added "An Instrument Is Not a Material." A non-graded instrument that collects student input matches neither spec kind and had no route, which turned a routing question into an open architecture question every time one was needed. Added its row to the material type table.
 
@@ -124,6 +139,20 @@ What does not count, and must never appear in a sources block:
 - A prior chat. A remembered fact is a claim, not a source.
 - A file that was searched but not read. `fullText contains` returning a hit proves the
   string is in the document, not that the passage was consulted.
+- A source whose currency was assumed from a publication date. A page's displayed or
+  crawled date is not evidence its content is current. Established 2026-08-27, when a
+  community vendor directory surfaced as updated May 2026 and was in fact last edited in
+  2020, still listing suppliers that had left the market. Check the content for a last-edit
+  or closed date before citing a list as live.
+
+**A textbook is not the only kind of source, and treating it as one blocks work that a
+search would close.** Established 2026-08-27, when two fastener values sat unverified
+across three sessions because this document names textbooks as owning the subject and that
+was read as meaning only textbooks count. Both were published standard values, findable in
+one search, and both closed immediately once looked for: SAE J429 for the grade strength
+and IFI Inch Fastener Standards 7th ed. B-8 for the shear approximation. Where a named
+standard, a manufacturer's own documentation, or an industry body publishes the value, that
+is a source under the list above. Ask for a file only when no published source answers it.
 
 ### The Sources block
 
@@ -136,6 +165,16 @@ in it.
 | Reference document | A final section, slug `sources`, title `Sources` |
 | Deck | One sheet immediately before the closing bookend |
 | Print rendering | Same position as the material it renders, never dropped to save a page |
+
+### Student-facing derivatives of graded material
+
+A study aid built from a graded scenario carries every worked number of that scenario
+unless something removes them. Where one is authored, the worked examples are rebuilt on a
+**different mechanism with different values**, and the removal is verified by extracting
+the text of the rendered artifact and searching it for each graded answer. Reading back
+over the draft does not count: the same reading that wrote the number does not notice it.
+Established 2026-08-27 on the Unit 1 student walkthrough, equation library, and
+compatibility guide, each of which was checked this way before delivery.
 
 Each entry names the work, its version or edition, and where the student can reach it.
 Entries are one line. A sources block is not a bibliography exercise and carries no
@@ -158,6 +197,38 @@ grades a selection against published properties rather than against plausibility
 material that cites nothing while demanding citation teaches that values come from
 nowhere and that authority is a matter of who is speaking. The sources block is the
 worked example of the behavior the defense is about to test.
+
+---
+
+## One File, One Fork
+
+**Two chats editing the same standards file from the same correct base both pass every
+check this project has.** The version number cannot detect it. Both forks read v2.5,
+both incremented to v2.6, and both were internally consistent, correctly changelogged,
+and wrong about each other's existence.
+
+This is the third occurrence. The first silently deleted print trigger 5 in August and
+was found weeks later. The second produced `IDEA_MATERIALS_PROCESS (2).md` beside a
+canonical copy at a lower version. The third produced two different v2.6s and two
+different v2.7s of this file, discovered only because both landed in the same merge pass.
+
+**Before editing any standards file, fetch the mirror copy and diff it against the local
+copy in both directions.** The mirror ahead means the local copy is stale. The local copy
+ahead means an earlier delivery never landed. Content in one and not the other, in both
+directions at once, means a fork, and a fork is merged rather than resolved by picking
+the higher number.
+
+**A version bump is never evidence of descent.** Where two copies of a file carry the same
+version and different content, neither is canonical and the higher number is not the
+winner. Reconcile by content, section by section, and record in the changelog that the
+number was reused.
+
+**Where a session hands off to another session that will edit the same file, the handoff
+names the file and the version it is leaving behind.** A handoff that lists a file as an
+upload without naming what changed in it gives the receiving session no way to notice it
+is about to fork.
+
+Established 2026-08-28, on the merge of the Day 7 to Day 9 fork and the Hook phase fork.
 
 ---
 
@@ -254,18 +325,175 @@ and is neither.
 
 ---
 
+## Student-Facing Materials Name No Weekday
+
+Write "tomorrow", "at the next class", "before you leave". Never "on Monday".
+
+A weekday is a hardcoded dependency on a schedule that moves, and it fails silently: the
+sheet still reads perfectly well while being wrong, so nothing downstream catches it. Day
+numbers and dates are fine in instructor-facing material, where a wrong one is obvious
+against the schedule.
+
+Established 2026-08-27, when the Day 8 sketch sheet told students to type their dimensions
+into SolidWorks "on Monday". V1 had moved to Friday two days earlier when V0 was cut. The
+sentence survived the move intact because nothing about it looked broken.
+
+## Verify The Artifact, Not A Picture Of It
+
+Rendering a file and looking at the result proves one renderer agrees with you. It does not
+prove the file is correct, because the defect can live in the file's internal representation
+where no pixel will show it.
+
+- **Print artifacts.** Rasterising the PDF is necessary and not sufficient. Also inspect what
+  the PDF actually contains: `pdftocairo -svg` and count tiling patterns, check for alpha
+  where none was intended.
+- **Physical scale.** A sheet that claims 1:1 gets measured at a known DPI against a known
+  feature, not asserted from CSS pixel arithmetic.
+- **Measurement code is code.** A detector that reports an impossible number is a broken
+  detector, not a finding. Three separate measurements in one session returned nonsense
+  because the sampler caught a label, an antialiased edge, and a neighbouring line.
+
+Established 2026-08-27. A sketch sheet built from four stacked `repeating-linear-gradient`
+layers with `transparent` stops rasterised correctly under `pdftoppm`, sampled as pure white
+with grey grid lines, and rendered as a solid pink block in Mr. Pina's viewer. Chromium had
+compiled it into a tiling pattern with an alpha channel. Nothing about looking at my own
+render could have caught it.
+
+## Regenerate Geometry, Never Patch It
+
+A drawing produced by a generator is edited by changing the generator's parameters and
+re-running it. Never by string-replacing coordinates in the emitted output.
+
+The generator writes `y1="264.0"`; a patch searching `y1="264"` misses every occurrence,
+the file still validates, still renders on one page, and still carries the updated label.
+Only the geometry is wrong.
+
+Established 2026-08-27, when a thickness envelope stayed drawn at 1.00 in under a label
+reading 0.75 MAX. It surfaced only because the envelope was measured in the PDF afterward
+rather than trusted because the label said so.
+
+## Mechanical Drawings Route To Mr. Pina
+
+This assistant does not produce dimensioned mechanical drawings of parts for a CAD
+instructor. Not at any effort level, not at any model tier.
+
+The failure is not prompt quality and is not fixed by a render-and-inspect loop. That loop
+catches layout defects: clipped text, overlapping labels, malformed paths. It cannot catch a
+drawing that fails to be a correct depiction of the part, because the check is the drawing
+against the assistant's own idea of the part, and that idea is the thing that is wrong.
+
+What this assistant does instead: build the layout, the annotation, the constraint envelope,
+the grid, the scale, and leave a frame for a drawing view Mr. Pina exports from the real
+model. A SolidWorks export is dimensionally correct by construction.
+
+Photographs beat both where the subject physically exists. A hook, a rig, a fracture surface.
+
+Established 2026-08-27, after three rejected attempts across two different approaches.
+
+## Printed Work Surfaces Are Not An Exception
+
+The five triggers govern **delivering content** to a student on paper instead of on a screen.
+They say nothing about **providing a surface to work on**, and that is a different question.
+
+A sketch sheet, a score sheet, a data log, a bracket board: the deliverable is a hand
+drawing or a handwritten reading, and paper is the medium of the work itself rather than a
+delivery channel that was chosen over the app. None of these needs a trigger, because
+there was never an engine version of them to route away from.
+
+Three tests, all of which have to hold:
+
+1. **The student produces marks on it.** A sheet that is only read is content delivery and
+   needs a trigger.
+2. **The output is handwritten or hand-drawn.** If the same output could be typed into the
+   engine with nothing lost, it belongs in the engine.
+3. **It carries no content the engine should have owned.** A rules reference printed onto
+   the margin of a work surface is fine; a work surface that is mostly a rules reference is
+   a print material wearing a disguise, and it needs a trigger.
+
+Where such a sheet also feeds a graded assignment, the assignment stays the system of
+record. The sheet is photographed and uploaded, or transcribed, or taped into the notebook.
+It is never the submission.
+
+Established 2026-08-27, when the Day 8 concept sketch sheet was justified under trigger 5
+and did not fit it, because nothing was competing for the student's screen.
+
+## Notebook Work Attaches To An Assignment
+
+A notebook entry is never a standalone Classroom post. It is one or more modules inside
+the assignment whose work it records: a lab, a build checkpoint, a test session.
+
+The reason is not tidiness. A standalone post has no rubric, no due date that anything
+enforces, and no submission the student can fail to make. It reads as optional, and it
+gets treated as optional, which is exactly backwards for the artifact that carries the
+raw record of what happened.
+
+Inside an assignment the same content gets a point value, a leveled rubric, and a
+deadline, and the raw record becomes a gate on credit rather than a suggestion.
+
+**The raw and refined split survives the move.** Paper still holds what was written while
+it happened, at the bench or the rig. The assignment holds the transcription, the analysis,
+and the photograph of the paper. Scoring a criterion against the photographed paper rather
+than the typed transcription is what keeps a reconstructed entry from passing as a
+contemporaneous one.
+
+**Documentation Checks are unaffected.** They score whether the notebook was kept properly
+across a whole phase and remain their own graded instrument at phase boundaries. A lab
+scores the lab; a Documentation Check scores the habit.
+
+Established 2026-08-27.
+
+## Delivered Filenames
+
+A delivered file has to identify itself from its name alone, in a download list, with no
+chat open beside it. Anything less halts the person using it.
+
+```
+<COURSE>_<SCOPE>_<Thing>[_v<N>].<ext>
+```
+
+`SCOPE` is the narrowest true one:
+
+| Scope | Use | Example |
+|---|---|---|
+| `D07`, `D08` | Belongs to one class day | `IDEA100_D07_AI_Worksheet.pdf` |
+| `HOOK`, `BLADE` | Spans a project phase | `IDEA100_HOOK_Rules_Guide.reference.json` |
+| `R1`, `U1` | Spans a rotation or unit | `IDEA100_R1_TA_Sheet.pdf` |
+
+Rules:
+
+- **Zero-pad the day number.** `D07`, not `D7`, so a directory sorts correctly past day nine.
+- **Scope is where the thing is used, not where it was built.** The TA sheet is written for
+  Day 9 and carried every day after it, so it is `R1`, not `D09`.
+- **Version suffix only where the file is reissued in place.** A schedule that gets rebuilt
+  carries `_v7`; a worksheet that gets edited before it is ever printed does not.
+- **The internal id is not the filename.** A reference spec's `referenceId` and an
+  assignment's `assignmentId` follow their own schema conventions and are unaffected.
+- **Renaming a delivered file is a redelivery.** Ship the renamed file, do not send a
+  rename instruction.
+
+Established 2026-08-26. A batch of ten IDEA100 files arrived with names like
+`idea100-doc-01.spec.json` and `IDEA100_Day7_Worksheet.pdf` in the same list, and neither
+form answered which day it was for at a glance.
+
 ## When Print Is Still Correct
 
-Four triggers. If none apply, the material goes in the app.
+Five triggers. If none apply, the material goes in the app.
 
 1. **A physical signature is required.** Syllabus acknowledgment, safety certification sign-off, permission and release forms. A signature has to come back on paper.
 2. **The work is AI level 0 OFF and timed.** Final exams and in-class timed assessments. A device in hand defeats the point, and the printed instrument is the control.
 3. **It has to leave the building.** Anything going home to a parent who will not log in, or handed out at Open House.
 4. **Contingency.** A printed fallback for a graded activity that cannot slip if the network or the app is down on the day. Judgment call, made per material, not a standing habit.
+5. **The screen is already committed to the activity, so it cannot also be the capture surface.** A student cannot record on the device that is simultaneously running the thing being recorded. Two established cases:
+   - **The device is the subject.** Students run AI prompts and record what came back. The tool under examination occupies the only screen they have. This is the case trigger 5 was originally written for, on 2026-08-18, for the IDEA209H Day 2 AI worksheet.
+   - **The device would compete with projected content.** Students take notes against a video or a demonstration at the front of the room. A laptop open during a projection is a second screen fighting the first, and the notes are what the lesson is for.
+
+   **This is not trigger 2 and not a synonym for it.** Trigger 2 is the inverse: a device *defeats the point*, so it is excluded. Trigger 5 is where the device *is the point*, or where something else already owns the student's attention, and the paper exists because the screen is spoken for. Neither one requires the work to be graded, and trigger 5 does not require it to be timed.
 
 Everything else, including lab worksheets, goes in the engine. Bench work was always handwritten in the physical notebook and photographed; that is unchanged and is not a reason to print a worksheet.
 
-`IDEA_PRINT_STANDARDS.md` remains fully active. Its scope narrows to the four triggers above.
+**Name the trigger in the material's own record, not only in the chat that produced it.** A print material whose trigger lives only in a conversation cannot defend itself against a later pass that re-derives the routing from this list and finds no reason to print. That is exactly how trigger 5 came to be deleted with nothing downstream noticing: the two materials relying on it carried no statement of what they relied on. The print source names its trigger in an HTML comment at the top; a spec names it in the delivery note filed alongside.
+
+`IDEA_PRINT_STANDARDS.md` remains fully active. Its scope narrows to the five triggers above.
 
 ---
 
@@ -382,7 +610,7 @@ Out of the workflow. IDEA Classroom on ideabosco.com is the posting, distributio
 | `IDEA_MATERIALS_PROCESS.md` (this file) | Active | Pipeline, placement, tool roles, phases |
 | `IDEA_MATERIAL_SPEC_v2.md` | Active, load-bearing | Assignment and reference spec schemas. Validated server-side on every write. |
 | `IDEA_RUBRIC_STANDARDS.md` | Active | Leveled rubric criteria, descriptor writing, grading behavior |
-| `IDEA_PRINT_STANDARDS.md` | Active, narrowed scope | Print rendering rules, for the four triggers above |
+| `IDEA_PRINT_STANDARDS.md` | Active, narrowed scope | Print rendering rules, for the five triggers above |
 | `IDEA_Design_System.md` | **Retired 2026-08-25** | Nothing. Absorbed into `IDEA_CLAUDE_DESIGN_STANDARDS.md` 2.0 |
 | `IDEA_CLAUDE_DESIGN_STANDARDS.md` | Active, sole design standard | Visual identity: colors, typography, effects, voice, print accent mapping, motion. Plus scoping protocol, prompt skeleton, inheritance rules, reveals, image slots, pre-delivery audit, live evolution |
 | `IDEA_DS_DIGEST.md` | Active, generated, not a standard | Chat-facing extract of the Claude Design bundle. Descriptive evidence, never authority for a rule. Not hand-edited. Regenerated via `build_ds_digest.py` |
@@ -403,17 +631,40 @@ Handoff rule: chat decides and specifies, Design lays out, Code implements and m
 
 ## Changelog
 
-- **2.6 (2026-08-25)** - Added "Every Material Cites Its Sources" as a governing section,
-  from a standing correction by Alejandro. Two halves: nothing is authored from general
-  knowledge where an owning source exists, and every material ships a student-visible
-  Sources block naming what it was built from. Defines what counts as a source and, more
-  usefully, what does not: general knowledge, an AI's recollection, a prior chat, and a
-  file that was searched but never read. Places the block per material kind. Restates
-  that citing is not excerpting, since naming a copyrighted textbook is not permission to
-  reproduce from it. Pipeline step 6 updated to make a missing Sources block a rejection
-  rather than a note.
+- **3.1 (2026-08-28)** - Merge release. Reconciles two independent forks of this file that
+  both branched from v2.5 and were developed in parallel across two chats, each blind to the
+  other. Fork A added "Every Material Cites Its Sources" at 2.6 and the source-currency rule,
+  the textbook-is-not-the-only-source rule, and student-facing derivatives of graded material
+  at its 2.7. Fork B restored print trigger 5 at its 2.6 and added delivered filenames at 2.7,
+  notebook attachment at 2.8, printed work surfaces at 2.9, and four rules at 3.0. Neither
+  file contained any part of the other. No content was dropped in the merge: the sources
+  section is restored whole, with the pipeline step 6 rejection condition, and every fork B
+  section is retained. Both forks had also silently renumbered, producing two different 2.6s
+  and two different 2.7s that a version check could not distinguish.
+- **3.0 (2026-08-28)** - Four rules from the Day 7 to Day 9 build. Student-facing materials
+  name no weekday. Rendered artifacts are verified by inspecting what the file contains, not
+  a rasterised picture of it. Generated geometry is regenerated from its parameters, never
+  string-patched in its output. Mechanical drawings of parts route to Mr. Pina at any effort
+  level.
+- **2.9 (2026-08-27)** - Clarified that the print triggers govern the delivery of content and
+  say nothing about providing a work surface. A printed sheet a student writes on is not a
+  print material and needs no trigger.
+- **2.8 (2026-08-27)** - Notebook work is no longer delivered as a standalone Classroom post.
+  It attaches to the assignment whose work it records.
+- **2.7 (2026-08-27)** - Added the delivered-filename convention: names lead with course and
+  day so a folder sorts chronologically. Spec IDs never carry a day number. Added, from fork
+  A on the same number, the source-currency rule, the textbook-is-not-the-only-source rule,
+  and the student-facing-derivatives requirement.
+- **2.6 (2026-08-25)** - Restored print trigger 5, at the level of the principle rather than
+  the single case it was written for, with the paired requirement that a print trigger is
+  named in the delivered material's own record. Added, from fork A on the same number, "Every
+  Material Cites Its Sources" as a governing section: nothing is authored from general
+  knowledge where an owning source exists, every material ships a student-visible Sources
+  block, and the section defines what counts as a source and what does not. Pipeline step 6
+  makes a missing Sources block a rejection condition.
 - **2.5 (2026-08-25)** - Added "An Instrument Is Not a Material," after an FRC orientation intake was scoped as an assignment spec and turned out to match neither kind: `assignment` cannot express zero points without producing degenerate rubric levels and a graded row, and `reference` rejects `points` and `rubric` outright and collects nothing. Recorded the routing rule that an instrument is an app surface owned by whichever app consumes the answers, and the requirement to audit for an existing collector before specifying a new one. Added the type table row.
-
+- **2.4 (2026-08-18)** - Claude Design work placed under `IDEA_CLAUDE_DESIGN_STANDARDS.md`.
+  Added `IDEA_DS_DIGEST.md` to Session Prerequisites. Corrected the version line.
 - **2.3 (2026-08-16)** - Added Session Prerequisites, requiring `print.css` and the reference-spec validator to be uploaded before authoring rather than after delivery. Added Inherit Before Authoring. Added Reference Documents Are Never Built As Code, covering the syllabus paired-deliverable rule, the markup-only constraint on print sources, and the short-link ordering dependency.
 - **2.2 (2026-08-15)** - Facilitation guides deferred to the end of a unit's build and made request-only, with the rationale and the distinction from answer keys, sample keys, and setup notes. Material type table updated.
 - **2.1 (2026-08-13)** - Added Placement as pipeline step 7, with its trigger, required contents, the canonical repo layout, the repo-relative asset path convention, and a destinations table. Added reference documents to the material type table and to Phase 3. Updated the standards map for `IDEA_MATERIAL_SPEC_v2.md` and `IDEA_RUBRIC_STANDARDS.md`.
