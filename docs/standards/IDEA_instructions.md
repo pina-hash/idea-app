@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.13 - 2026-08-30**
+**Version 4.14 - 2026-08-30**
 
 ## These Instructions Evolve
 
@@ -865,6 +865,18 @@ costs nothing to keep.
   parameter, carried no session guard, and was `SECURITY DEFINER` over `app_admins`: an
   unauthenticated admin-roster oracle, reachable from the open internet.
 
+  **Corrected 2026-08-30, and the correction narrows the reason without weakening the
+  rule.** `CREATE OR REPLACE FUNCTION` over a function that already exists **preserves its
+  ACL**: default privileges apply at create, not at replace. So a `create or replace` in a
+  migration replacing a function 0137 already repaired was not silently reopening it, and
+  the 2026-08-25 branch above was dangerous because its four functions were *new*, which is
+  precisely the case where the defaults do apply. Measured on `0166`, whose `proacl` after
+  two applies held `postgres` and `service_role` and nothing else. **The rule stands
+  unchanged**, because every migration here must be safe from a fresh chain and on a fresh
+  chain a `create or replace` is a create. What changes is what may be said about a past
+  file: a bare `revoke ... from public` over an existing function did not reopen anything,
+  and describing one as though it had is an accusation the catalog does not support.
+
   Before landing any migration older than the tip, list every migration that landed since
   it was cut and read each one for a rule, a form or an invariant this migration predates.
   Then **measure the end state rather than reason about it**: apply the chain plus the new
@@ -905,6 +917,16 @@ costs nothing to keep.
   which files a commit touches, and what a version line says are properties of the branch and
   are safe to assert. Behind-count is not. Where being behind matters, state the consequence
   instead: proceed as long as the incoming commits do not touch the files this bundle owns.
+- **`raw.githubusercontent.com` is CDN-cached, so a fetch within minutes of a push returns
+  the pre-push file.** The read succeeds, the content is stale, and the failure is
+  indistinguishable from the merge never having happened. Established 2026-08-30, by the
+  assistant rather than by a session: a bundle was confirmed absent from `main` by `curl`
+  and reported as unmerged to Mr. Pina, who could see on GitHub that it had merged and the
+  branch had been auto-deleted. **Confirm a merge with `git clone`, which reads the git
+  protocol rather than the CDN**, and treat a raw fetch as a cheap first look that cannot
+  distinguish "not there" from "not there yet". This narrows the rule below rather than
+  replacing it: reading the artifact is still the confirmation, but the transport decides
+  whether the artifact you read is the current one.
 - **A merge is confirmed by reading the artifact on `main`, not by a merge report, a branch
   page, or a green check.** Also observed 2026-08-26, and by the assistant rather than by a
   session: a file was fetched, the old value was found, and Mr. Pina was told his work might
@@ -1536,6 +1558,28 @@ Read the relevant file before starting any task that touches those domains.
   while `main` lags.** With `main` 75 behind, every branch read as "76 ahead" and one of
   them was superseded work with a single unique commit. The real question is whether
   `integration` already contains it, which the branches page cannot show.
+- **`integration` falls behind `main` by design, and nothing in this workflow says so.**
+  Migrations go straight to `main` and never through a branch, so every migration bundle
+  puts commits on `main` that `integration` has never seen. A branch cut from `integration`
+  therefore lacks them, and a test pinned to the migration chain reddens on that branch for
+  a reason that has nothing to do with the branch. Established 2026-08-30: the IDEA Maps
+  editor branch sat red on the reserved-slug test because `0166` was on `main` and not on
+  `integration`, and the branch was updated from `main` directly rather than merging `main`
+  into `integration`, because two other lanes were live and the shared branch is the wrong
+  thing to move under running work. **Merging `main` into `integration` is the real fix and
+  it is safe** - `integration` is not deployed, so the worst case is a conflict - but it is
+  done when the lanes are quiet, not in the middle of them. Say which of the two is being
+  done and why, because the direction that is dangerous is the other one and Mr. Pina has
+  correctly refused this on sight.
+- **A migration and the test that pins its behaviour land in the same commit, on `main`.**
+  `tests/db/` runs the real migration chain, so a migration that changes behaviour changes
+  what an existing test observes the moment it lands. Landing the migration alone turns
+  `main` red; landing the test alone turns `main` red. They cannot be separated, and the
+  bundle says so in its own text so that nobody later reads it as licence to ship
+  application code beside a migration. Three occurrences by 2026-08-30: the maps search
+  corpus with `0165`, and `RESERVED_SLUGS` plus the reserved-names chain with `0166`, where
+  the TypeScript mirror and the deployed predicate are asserted equal to each other and
+  moving either one alone just relocates the failure.
 
 ### Writing a manual instruction Mr. Pina can actually follow
 
@@ -1948,6 +1992,22 @@ component or token exists, the digest governs and the standard is corrected.
 
 ## Changelog
 
+- **2026-08-30 (4.14)** - Four rules from the IDEA Maps P1 build, three of them earned by
+  the assistant getting something wrong rather than by a session. `raw.githubusercontent.com`
+  is CDN-cached, so a merge confirmed by `curl` within minutes of a push reads the pre-push
+  file and reports a landed bundle as absent; Mr. Pina was told his work had not merged
+  while GitHub showed the branch merged and auto-deleted. Confirm with `git clone`. Second,
+  `integration` falls behind `main` by design, because migrations go straight to `main` and
+  never through a branch, so branches cut from `integration` lack them and redden on tests
+  pinned to the chain; merging `main` into `integration` is the fix and is safe, but not
+  under running lanes, and the direction matters enough that it is stated rather than
+  assumed. Third, a migration and the test that pins its behaviour cannot be separated:
+  `tests/db/` runs the real chain, so either half landing alone turns `main` red, three
+  occurrences by this date. Fourth, a correction that narrows a reason without weakening
+  its rule: `CREATE OR REPLACE FUNCTION` preserves an existing function's ACL, so a bare
+  `revoke ... from public` over an already-repaired function was not reopening anything and
+  0156 should not be described as though it had. The rule to name roles stands, because on
+  a fresh chain a replace is a create.
 - **2026-08-30 (4.13)** - New rule 6, a count is not a manifest, found one message after
   4.12 shipped and from the same list. "Drag in all 8 files from mirror-drop" gives a
   number and no names, so he cannot tell a complete drop from one missing a file, and

@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.1 - 2026-08-29**
+**Version 2.2 - 2026-08-30**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -215,6 +215,24 @@ The same file's `rpc()` reported every failure as `PGRST202`, so a missing funct
 
 **A shared fixture is load-bearing in proportion to how many suites import it**, and a correction to one is expected to change results elsewhere. Every changed result is a finding to name, never an assertion to weaken.
 
+## 31. A negative control that removes access cannot detect an over-permissive gate
+
+Mutating a published-only RLS policy by DROPPING it looks like the obvious negative control and proves nothing. Dropping the policy that grants anonymous read makes the anonymous caller see *nothing*, so the assertion "a draft row is invisible to anon" still passes, and passes vacuously. The suite goes green against a database with no boundary at all.
+
+**Mutate in the direction of the failure being defended against, not away from it.** For a published-only gate that is `ALTER POLICY ... USING (true)`: confirm the draft assertion then fails, restore the exact original predicate, confirm it passes again. Established 2026-08-30, when the IDEA Maps schema bundle was handed a prompt specifying the drop form, recognised that it could not fail, and substituted the permissive form on its own.
+
+The general shape: a control must move the system toward the defect, and a control whose mutation makes the assertion trivially true has tested the assertion's phrasing rather than the gate. **Do this for every policy the suite claims to cover, not one representative**, since a mutation proof opens only the layer it actually mutates.
+
+The related trap on the other side: a probe can be swallowed before it reaches the gate. Two delete probes in that same bundle could not leak under a fully-opened policy because a foreign-key `on delete restrict` refused them first, so `leaked = false` meant "refused by something else" rather than "refused by the policy". Every probe carries an admin control running the identical statement, so a `false` can only mean the policy held.
+
+## 32. A shallow clone answers history questions wrongly rather than refusing
+
+`git clone --depth 1` produces a repository that runs history commands successfully and returns fiction. `git log -1 --name-only` on a depth-1 clone lists **every file in the tree** as added by the single commit, because there is no parent to diff against. Nothing errors, nothing warns, and the output has exactly the shape the correct answer would have.
+
+Established 2026-08-30, by the assistant rather than by a session, checking which files a commit touched: it read the whole repository as the commit's file set and was seconds from reporting a bundle had rewritten the project. The file set was verified by reading the files' contents instead.
+
+The standards sweep already carries this rule for its own use and states it in its docstring. The rule generalises: **a shallow clone is a source for file contents and directory listings at HEAD and for nothing else.** Where a history question must be answered, clone with history or answer it another way, and prefer answering it another way, since the cheap check is usually to read the artifact and see what it says.
+
 ## Note on internal organization
 
 This section was written as a merge plan for a document that does not exist. It is kept because the groupings are real and a future reorganization of this file should follow them, not because anything is waiting to move.
@@ -225,6 +243,7 @@ Rules 1 through 3 form one lesson and should probably merge as one clause with t
 
 ## Changelog
 
+- **2.2 (2026-08-30)** - Two rules from the IDEA Maps P1 build, both about a control that cannot fail. Rule 31: a negative control that DROPS a published-only RLS policy makes the anonymous caller see nothing, so the draft-invisibility assertion passes vacuously and the suite goes green against a database with no boundary; the mutation must run toward the defect (`USING (true)`), across every policy the suite claims rather than one representative, and every probe needs an admin control beside it because a foreign-key `on delete restrict` can refuse a delete probe before the policy is ever consulted. The prompt that started that bundle specified the drop form; the session caught it. Rule 32: a `--depth 1` clone runs history commands successfully and returns fiction, with `git log -1 --name-only` listing the entire tree as the single commit's file set, and the assistant nearly reported a three-file bundle as a whole-repository rewrite on exactly that output.
 - **2.1 (2026-08-29)** - Ten rules from one very long day, every one of them a green test that was proving nothing. Rule 21: a burst of concurrent calls does not test a lock, after a function with its advisory lock deleted passed an eight-way burst four runs running, and after the deterministic replacement built to fix it passed against the mutant too because it was stalling the call through a foreign-key constraint rather than the lock. Rule 22: repetition is not a nondeterminism detector, since `distinct on` without a sort is unspecified rather than random and agrees with itself on the broken function. Rule 23: a prepare step whose predicate the starting state already satisfies never acts, and the check after it measures whatever was there. Rule 24: a visibility predicate reading an element's own opacity missed inherited opacity, and seven assertions had been measuring contrast and tap geometry on invisible elements since the harness shipped. Rule 25: happy-dom answers some computed styles and not others, which is worse than answering none, and has no layout engine at all. Rule 26: a check over source text matches the comment explaining the absence of what it searches for, and a check coupled to how SQL is written breaks when the same value is refactored. Rule 27: a characterisation test is retired to a contract in both directions rather than deleted. Rule 28: a test that builds its own chain is pinned to a world that moves, with the sweep that classifies 28 candidate files into three named outcomes. Rule 29: a positive control that can go to zero rows silently is not a control, after an exclusion assertion nearly certified an empty view. Rule 30: a permissive fixture answers a different question from production for every suite that imports it, after table default privileges were found missing from the shared stub, an RPC error path was found conflating every failure into one code, and a single-column `returns table` was found handing back bare scalars.
 
 - **2.0 (2026-08-25)** - Promoted from staging to the owning verification standard, and retitled. No rule changed. The preamble had described this file as holding rules that belonged in `IDEA_VERIFICATION_STANDARDS.md` and could not be merged because that document's authoring copy was unavailable; that document has never existed, which two other standards files had already recorded while this one still deferred to it. An unavailable file and a nonexistent one read identically and license opposite behavior, so the deferral is closed rather than reworded. The scope note is retitled as an internal organization note for the same reason: it was a merge plan for a destination that was never going to arrive, and a standard that calls itself provisional invites sessions to treat its rules as provisional. Registered in the standards file list in `IDEA_instructions.md`, which had carried it since 2026-08-21 while the file itself denied being a standard.
