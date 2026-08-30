@@ -26,7 +26,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Four sections, then a link to your slides. Do not paste your checkpoint work in whole.\n\nSlides: four, one per section. This is a formatting job, not a design project.\n\nSet sharing so anyone with the link can open it. A link nobody can open is a missing submission.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
+          "content": "Four sections, then a link to your slides. Do not paste your checkpoint work in whole.\n\nSlides: four, one per section.\n\nSet sharing so anyone with the link can open it. A link nobody can open is a missing submission.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
         },
         {
           "id": "f1",
@@ -62,13 +62,8 @@
           "columns": [
             {
               "key": "link",
-              "tip": "Paste the share URL. Test it in a private window before you submit.",
+              "tip": "Test it in a private window before you submit.",
               "label": "Slide deck link"
-            },
-            {
-              "key": "tool",
-              "tip": "Google Slides, Canva, PowerPoint, whatever you built it in.",
-              "label": "Tool used"
             }
           ],
           "minRows": 1,
