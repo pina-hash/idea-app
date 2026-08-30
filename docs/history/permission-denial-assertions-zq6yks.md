@@ -6,7 +6,6 @@ migrations: []
 subsystems: ["Coin economy", "Testing"]
 ---
 
-## What this bundle changed
 
 `tests/db/postgrest-shim.ts` (commit `2053942`, a different bundle) stopped
 reporting every RPC failure as a blanket `PGRST202` and started passing the
