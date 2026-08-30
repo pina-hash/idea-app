@@ -55,7 +55,9 @@ import { load as SHORTLINK_LOAD } from '../src/routes/[shortlink]/+page.server';
  * 0067 for `is_admin()` (the upsert's own gate), and 0137 last per the harness
  * note -- it is the sweep over whatever the chain above it created, and it is
  * the migration that KEPT `anon` on `app_short_link_target` while revoking it
- * from the admin sibling.
+ * from the admin sibling. 0156 redefines `_app_short_link_reserved` with the
+ * current route tree's names; it goes after 0137 since it is a plain
+ * `create or replace` with no grants of its own to reconcile.
  */
 const CHAIN = [
 	'0001_profiles.sql',
@@ -63,11 +65,18 @@ const CHAIN = [
 	'0020_profiles_identity.sql',
 	'0067_admin_tier.sql',
 	'0093_short_links.sql',
-	'0137_anon_execute_sweep.sql'
+	'0137_anon_execute_sweep.sql',
+	'0156_short_link_reserved_names.sql'
 ] as const;
 
-/** The same chain with 0093 REMOVED -- the pre-0093 deployment, claim 4. */
-const PRE_CHAIN = CHAIN.filter((f) => f !== '0093_short_links.sql');
+/**
+ * The same chain with 0093 REMOVED -- the pre-0093 deployment, claim 4. 0156
+ * goes with it: it redefines a function 0093 creates and reports on a table
+ * 0093 creates, so it cannot apply without 0093 either.
+ */
+const PRE_CHAIN = CHAIN.filter(
+	(f) => f !== '0093_short_links.sql' && f !== '0156_short_link_reserved_names.sql'
+);
 
 let db: TestDb;
 let preDb: TestDb;
@@ -292,30 +301,45 @@ describe('the fragment a visitor scanned is what survives', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * 0093's list, transcribed. It is transcribed rather than read out of the
- * function because the assertion is that each of these is REFUSED -- deriving
- * the list from the predicate under test would make the sweep unable to fail.
+ * 0156's list (0093's own copy is unrelated -- it is the immutable applied
+ * record of 0093 and was never updated), transcribed. It is transcribed
+ * rather than read out of the function because the assertion is that each of
+ * these is REFUSED -- deriving the list from the predicate under test would
+ * make the sweep unable to fail. tests/short-link-reserved-names.test.ts is
+ * the separate check that this transcription, the SQL function and the real
+ * route tree all still agree.
  */
 const RESERVED = [
+	'a',
 	'admin',
 	'api',
 	'archive',
 	'assignments',
 	'auth',
+	'b',
 	'classroom',
-	'coins',
 	'coin-balance',
 	'coin-desk',
 	'coin-entry',
+	'coins',
 	'contracts',
 	'dashboard',
 	'dev',
+	'downloads',
+	'foundry',
 	'frc',
 	'fsp',
+	'fsp-pulse',
+	'fsp-tech-selection',
 	'gauntlet',
 	'greenline',
+	'manifest.webmanifest',
 	'notebook',
+	'push-sw.js',
 	'reference',
+	'robots.txt',
+	'sitemap.xml',
+	'tools',
 	'tournaments',
 	'vanguard'
 ] as const;
@@ -323,8 +347,8 @@ const RESERVED = [
 describe('a slug that shadows a real page cannot be created', () => {
 	// A generated sweep asserts its own case count, or a sweep that generated
 	// nothing passes.
-	test('the sweep has 21 names in it', () => {
-		expect(RESERVED.length).toBe(21);
+	test('the sweep has 32 names in it', () => {
+		expect(RESERVED.length).toBe(32);
 	});
 
 	for (const name of RESERVED) {

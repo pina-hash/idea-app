@@ -32,31 +32,53 @@ export interface ShortLinkTransports {
 export const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
 
 /**
- * Slugs that name a real single-segment route. SvelteKit resolves a static
- * route ahead of the [shortlink] catch-all, so one of these would never be
- * reached -- accepting it would only mislead whoever created it. Mirrors
- * _app_short_link_reserved in 0093; change both together.
+ * Slugs that name a real single-segment route, or a top-level entry under
+ * static/ (which is served ahead of routing entirely -- CLAUDE.md, "Carrying
+ * over legacy content"). SvelteKit resolves either one ahead of the
+ * [shortlink] catch-all, so one of these would never be reached -- accepting
+ * it would only mislead whoever created it.
+ *
+ * Mirrors _app_short_link_reserved, redefined in 0156 (0093's own copy is an
+ * immutable applied record and is never edited to match this one); change
+ * both together. tests/short-link-reserved-names.test.ts asserts they agree,
+ * and separately walks the real route tree so a route added later reddens
+ * the suite instead of drifting silently the way this list did for a year.
+ *
+ * NOT here, deliberately: `_platform` (leading `_`) and `IDEA` (uppercase) --
+ * both fail the slug shape check before a reserved check could ever matter,
+ * so listing them would be dead code.
  */
 export const RESERVED_SLUGS = [
+	'a',
 	'admin',
 	'api',
 	'archive',
 	'assignments',
 	'auth',
+	'b',
 	'classroom',
-	'coins',
 	'coin-balance',
 	'coin-desk',
 	'coin-entry',
+	'coins',
 	'contracts',
 	'dashboard',
 	'dev',
+	'downloads',
+	'foundry',
 	'frc',
 	'fsp',
+	'fsp-pulse',
+	'fsp-tech-selection',
 	'gauntlet',
 	'greenline',
+	'manifest.webmanifest',
 	'notebook',
+	'push-sw.js',
 	'reference',
+	'robots.txt',
+	'sitemap.xml',
+	'tools',
 	'tournaments',
 	'vanguard'
 ];
