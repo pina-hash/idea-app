@@ -66,8 +66,8 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-directories under `src/routes/dev` with a page, and `routes.mjs` lists **36
-specs over 28 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
+directories under `src/routes/dev` with a page, and `routes.mjs` lists **45
+specs over 29 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
 on this branch merged with `integration`, which is what brought the
 classroom-inspector and class-bulk specs in; it read 29 over 24 on 2026-08-29,
 and 25 over 20 the same day, before the marks, room-split, coin-preview and
@@ -120,9 +120,9 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 2 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration`: 72 route/width runs, 780
-measurements), and they are one finding seen at each of the two widths. Anything
+**The whole run reports exactly 4 measurements outside threshold** (re-derived
+2026-08-30 on `main` plus the shelf-entry bundle: **90 route/width runs, 1080
+measurements**), and they are TWO findings each seen at both widths. Anything
 else is new. **This paragraph is a snapshot and it drifts** -- the run above it
 is the authority, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
@@ -136,6 +136,13 @@ paragraph used to list are down to one. The other two are named below rather
 than deleted, because a finding that vanishes without a word reads like a check
 that stopped running.
 
+- **`/dev/foundry-submit`: the preflight sentence sweep measures 2 nodes where
+  it states 4** (`refusal + warning sentences (leading slash, 2 missing refs,
+  storage)`, `present 2, visible 2` against `exactly 4`). Seen at both widths on
+  2026-08-30, on `main`, and it belongs to that surface rather than to this
+  harness -- recorded here rather than fixed because the session that measured
+  it was working in `src/lib/maps` and a foundry preflight change is somebody's
+  whole bundle.
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
@@ -481,10 +488,13 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **184.7 seconds** (3.2s of it the vite boot) for **36 route specs
-x 2 widths = 72 runs and 780 measurements**; `--selftest` is ~32s (64 controls).
-That is measured on this branch merged with `integration`; it was 152.2s for 58
-runs and 580 measurements on `main` alone.
+A full run is **204.0 seconds** (2.4s of it the vite boot) for **45 route specs
+x 2 widths = 90 runs and 1080 measurements**; `--selftest` is ~32s (64
+controls). That is measured 2026-08-30 on `main` plus the shelf-entry bundle's
+two specs; it read 184.7s for 72 runs and 780 measurements the same day on a
+branch merged with `integration`, and 152.2s for 58 runs and 580 measurements on
+`main` alone. The per-route/width cost has held at roughly 2.3s across that
+whole range.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree

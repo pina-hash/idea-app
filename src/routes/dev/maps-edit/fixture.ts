@@ -201,6 +201,10 @@ export function mapsEditFixture(): MapsEditorData {
 				updated_at: T
 			}
 		],
+		/* 0163's photo rows. Empty here: the editor harness predates photos
+		   and asserts nothing about them; the SHELF harness composes this
+		   fixture and pushes rows into it as uploads land. */
+		photos: [],
 		pending: [
 			{
 				id: 'pending-mill-room',

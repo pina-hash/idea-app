@@ -7,6 +7,13 @@ import type { PageServerLoad } from './$types';
  * THE MAPS EDITOR'S READ. Admin only, and THE LOAD ITSELF REFUSES -- a
  * non-admin never receives a page that renders empty.
  *
+ * THE GATE ITSELF NOW LIVES IN `+layout.server.ts`, hoisted there when this
+ * area gained its second page, so a new one cannot ship ungated. The identical
+ * check below is DEFENCE IN DEPTH and not a second rule: both call the one
+ * `isAdmin` helper, and a mutation test that opens either layer alone must
+ * still find the other closed (CLAUDE.md). A non-admin gets 404 from whichever
+ * runs first.
+ *
  * A NON-ADMIN GETS 404, NOT A REDIRECT AND NOT 403, the same answer `/admin`,
  * `/coin-desk` and `/foundry/review` give: an editor lane's existence is not
  * public, and a redirect would confirm there is one to be turned away from.

@@ -16,6 +16,8 @@
  * a drift between the two reddens rather than shipping.
  */
 
+import type { MapsPhoto } from './media';
+
 export type MapsKind = 'site' | 'building' | 'outdoor_zone' | 'room' | 'unit' | 'compartment';
 
 /** Ladder order, roots first. The order is presentation; the RULE is the pair function. */
@@ -307,6 +309,8 @@ export interface MapsEditorData {
 	items: MapsItem[];
 	stock: MapsStock[];
 	pending: MapsPending[];
+	/** 0163's photo rows. A photo has no publish state: it is content of its owner. */
+	photos: MapsPhoto[];
 }
 
 export function pendingFor(pending: MapsPending[], table: MapsTable, id: string): MapsPending | null {
