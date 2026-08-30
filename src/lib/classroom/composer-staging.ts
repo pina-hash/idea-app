@@ -22,7 +22,8 @@
 
 import type { ClassroomItemKind } from '$lib/classroom/classroom';
 import type { CheckInDraft } from '$lib/classroom/class-check-ins';
-import type { RubricCriterion } from '$lib/classroom/assignment-spec';
+import { rubricFromSpec } from '$lib/classroom/assignment-spec';
+import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
 import { deckUploadSizeIssue, type DeckTransports, type DeckUploadProgress } from '$lib/classroom/deck';
 
 /**
@@ -84,6 +85,53 @@ export function stagedSpecKind(kind: ClassroomItemKind): 'assignment' | 'referen
  */
 export function stagedDeckIssue(file: File): string | null {
 	return deckUploadSizeIssue(file.size);
+}
+
+/**
+ * WHAT THE STAGED RUBRIC BECOMES WHEN A SPEC IS STAGED.
+ *
+ * A SPEC'S RUBRIC AND AN ITEM'S RUBRIC ARE TWO DIFFERENT RECORDS, and nothing
+ * used to carry one into the other at creation. The criteria a spec author
+ * writes live inside the spec JSON (`classroom_set_spec`); grading reads a
+ * separate row written only by `classroom_set_rubric`, and the item page loads
+ * it from `classroom_rubrics`. So an assignment created from a spec carrying a
+ * full leveled rubric arrived with NO rubric to grade against -- the spec said
+ * how the work would be scored and the grading console had nothing to score
+ * with -- and the only translator, `rubricFromSpec`, sat behind a "Generate
+ * from spec" button somebody had to know to press and then save a second time.
+ * Staging a spec now runs that same translator on the way in.
+ *
+ * `rubricFromSpec` IS THE ONE TRANSLATOR and is called rather than mirrored, so
+ * the criteria, their LEVELS and their authored short forms arrive exactly as
+ * the builder's own button produces them. A flattened import is still a failed
+ * import, and a second idea here of what a spec's rubric becomes is what would
+ * flatten it.
+ *
+ * `derived` IS WHAT KEEPS THIS FROM EATING SOMEBODY'S WORK. A rubric that came
+ * from a spec is REPLACED when a corrected spec is pasted over it -- leaving
+ * the stale one would put a rubric on screen that silently disagrees with the
+ * spec beside it -- and a rubric that went through the builder is never touched
+ * again, because at that point it is authored and the spec is only where it
+ * started. `rubricFromSpec`'s `previous` argument keeps the ids already in play
+ * for each slot across that replacement, which is what stops a re-paste
+ * orphaning scores.
+ *
+ * A SPEC WITH NO RUBRIC ROWS STAGES NOTHING rather than an empty list:
+ * `classroom_set_rubric` refuses a rubric with no criteria ("A rubric needs at
+ * least one criterion"), so staging `[]` would turn a valid post into a named
+ * failure over something the author never asked for.
+ */
+export function stagedRubricAfterSpec(
+	spec: unknown | null,
+	canStageRubric: boolean,
+	current: { rubric: RubricCriterion[] | null; derived: boolean }
+): { rubric: RubricCriterion[] | null; derived: boolean } {
+	if (!canStageRubric) return current;
+	// Authored in the builder: theirs, not the spec's.
+	if (current.rubric != null && !current.derived) return current;
+	const generated = spec ? rubricFromSpec(spec as AssignmentSpec, current.rubric) : [];
+	if (!generated.length) return { rubric: null, derived: false };
+	return { rubric: generated, derived: true };
 }
 
 export interface StagedExtras {

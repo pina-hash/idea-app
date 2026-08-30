@@ -151,7 +151,21 @@
 		return { error: null, retryable: false };
 	};
 
+	/**
+	 * A BULK STATUS CHANGE IS N INDEPENDENT WRITES, so a PARTIAL result is an
+	 * ordinary outcome here rather than an edge case -- there is no bulk RPC to
+	 * make it atomic. The interesting half is what the console says afterwards:
+	 * which reports moved and which did not. A harness whose writes always land
+	 * cannot drive that at all, so this refuses every second row on demand.
+	 */
+	let statusRefusals = $state(false);
+	let statusCalls = $state(0);
+
 	const setStatus = async (id: string, status: FeedbackStatus) => {
+		statusCalls += 1;
+		if (statusRefusals && statusCalls % 2 === 0) {
+			return { ok: false, message: 'Simulated refusal: that row could not be updated.' };
+		}
 		sink = sink.map((r) =>
 			r.id === id ? { ...r, status, reviewed_at: new Date().toISOString(), reviewed_by: 'harness' } : r
 		);
@@ -386,6 +400,12 @@
 		</section>
 	{:else}
 		<div class="cr-root">
+			<div class="hx-row">
+				<label class="hx-check">
+					<input type="checkbox" bind:checked={statusRefusals} />
+					<span>refuse every second status write (drives a PARTIAL bulk result)</span>
+				</label>
+			</div>
 			<FeedbackConsole rows={sink} {setStatus} />
 		</div>
 	{/if}
@@ -433,6 +453,13 @@
 	.hx-btn.on {
 		color: var(--green);
 		border-color: var(--green);
+	}
+	.hx-check {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.8rem;
+		min-height: 44px;
 	}
 	.hx-note {
 		color: var(--dim);
