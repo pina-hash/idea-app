@@ -4,9 +4,9 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All three checks true",
-        "points": 3,
-        "descriptor": "Own part, both faces split with fixture and load on the outer halves, Nylon 101, force on Selected direction."
+        "short": "All four true",
+        "points": 4,
+        "descriptor": "Own part, both faces split with fixture and load on the outer halves, Nylon 101, Selected direction, solved."
       },
       {
         "label": "Developing",
@@ -21,12 +21,12 @@
         "descriptor": "No study, or run on a file that is not the student's own part."
       }
     ],
-    "points": 3,
+    "points": 4,
     "criterion": "Your Study: Study set up as the guide specifies, on the student's own part",
     "incomplete": false
   },
   {
-    "id": "m1-r2",
+    "id": "m2-r2",
     "levels": [
       {
         "label": "Complete",
@@ -48,7 +48,7 @@
       }
     ],
     "points": 3,
-    "criterion": "Your Study: Screenshot shows a solved plot with the red spot and the thinnest section marked",
+    "criterion": "Your Plot, And What You See: Screenshot shows a solved plot with the red spot and the thinnest section marked",
     "incomplete": false
   },
   {
@@ -57,13 +57,13 @@
       {
         "label": "Complete",
         "short": "Named on part, compared",
-        "points": 5,
+        "points": 4,
         "descriptor": "Names a feature of the hook rather than a region of the screen, and says whether it coincides with the thinnest section."
       },
       {
         "label": "Proficient",
         "short": "Named, no comparison",
-        "points": 3,
+        "points": 2,
         "descriptor": "Red spot named on the part, comparison missing or unclear."
       },
       {
@@ -79,8 +79,8 @@
         "descriptor": "Nothing written."
       }
     ],
-    "points": 5,
-    "criterion": "What You See: Locates the red spot on the part and compares it to the thinnest section",
+    "points": 4,
+    "criterion": "Your Plot, And What You See: Locates the red spot on the part and compares it to the thinnest section",
     "incomplete": false
   },
   {
@@ -106,7 +106,7 @@
       }
     ],
     "points": 4,
-    "criterion": "What You See: Explains why magnitude does not transfer from this study but location does",
+    "criterion": "Your Plot, And What You See: Explains why magnitude does not transfer from this study but location does",
     "incomplete": false
   }
 ]
