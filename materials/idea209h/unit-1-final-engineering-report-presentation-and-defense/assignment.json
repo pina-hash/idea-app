@@ -20,39 +20,39 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "No points of its own. This is what you present from and what the 25 points are scored against. The assignment will not submit without it.",
+      "intro": "Present from this. The 25 points on this assignment are scored against it.",
       "title": "Engineering Report",
-      "aiNote": "AI can draft and tighten the writing. Every number, property, and part number is checked against the catalog page or datasheet it came from.",
+      "aiNote": "AI can draft and tighten. Every number, property, and part number is checked against the page it came from.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Four sections. Summarise; do not paste your checkpoint work in whole.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
+          "content": "Summarise. Do not paste your checkpoint work in whole.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
         },
         {
           "id": "f1",
           "type": "textField",
-          "prompt": "Design summary. The scenario in your own words, then your five governing results: holding torque, reduction, which requirement governed it, shaft load, load per bolt with its factor of safety. Name the method behind each. No arithmetic.",
-          "maxSentences": 8,
-          "minSentences": 5
+          "prompt": "Design summary. The scenario in your own words, then five results with the method behind each: holding torque, reduction, which requirement governed it, shaft load, load per bolt with factor of safety. No arithmetic.",
+          "maxSentences": 9,
+          "minSentences": 6
         },
         {
           "id": "f2",
           "type": "textField",
-          "prompt": "Selection justification. Each component on your BOM in turn: the published property you selected against, its value, and the source. \"Appropriate\" or \"sufficient\" is not a justification.",
+          "prompt": "Selection justification. Each component on your BOM: the published property you selected against, its value, its source. \"Appropriate\" is not a justification.",
           "maxSentences": 12,
           "minSentences": 6
         },
         {
           "id": "f3",
           "type": "textField",
-          "prompt": "BOM status. What changed after Checkpoint 2 and why. Confirm every line has a vendor, part number, and quantity. Name any line that does not.",
+          "prompt": "BOM status. What changed since Checkpoint 2 and why. Flag any line missing a vendor, part number, or quantity.",
           "maxSentences": 5,
           "minSentences": 3
         },
         {
           "id": "f4",
           "type": "textField",
-          "prompt": "Trade-offs. One candidate you rejected, the trade-off it lost on, and what would have to change for it to win.",
+          "prompt": "Trade-offs. One candidate you rejected, what it lost on, and what would have to change for it to win.",
           "maxSentences": 5,
           "minSentences": 3
         }
