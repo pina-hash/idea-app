@@ -17,8 +17,10 @@ export default {
 
 		This route's default state already carries the widest nav with no
 		prepare step: `rankCount={count}` is 0, not null, so the badge
-		renders, and `simulateTeacher` (adminOverride) defaults true, so the
-		admin toggle renders too.
+		renders, and `simulateReviewer` (reviewerOverride, the 0167 reviewer
+		tier) defaults true, so the view-as toggle AND the "Gate review" tab
+		render too -- one tab wider than when this guard was written, which
+		only strengthens it.
 	*/
 	presence: [
 		{ selector: '.frc-header', label: 'FRC header', expectPresent: 1 },

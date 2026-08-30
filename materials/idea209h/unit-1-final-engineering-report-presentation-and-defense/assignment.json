@@ -20,13 +20,13 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Due end of the writing session. You present from your slides; the criteria are read against the report.",
-      "title": "Engineering Report and Slides",
+      "intro": "Due end of the writing session. The criteria are read against this text.",
+      "title": "Engineering Report",
       "aiNote": "AI can draft and tighten your writing and help build slides. Every number, property, and part number is checked against the page it came from.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Four sections, then a link to your slides. Do not paste your checkpoint work in whole.\n\nSlides: four, one per section.\n\nSet sharing so anyone with the link can open it. A link nobody can open is a missing submission.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
+          "content": "Four sections. Do not paste your checkpoint work in whole.\n\nSources: IDEA209H syllabus v4; approved IDEA209 course description, Unit 1."
         },
         {
           "id": "f1",
@@ -55,21 +55,6 @@
           "prompt": "Trade-offs. One candidate you rejected, what it lost on, and what would have to change for it to win.",
           "maxSentences": 5,
           "minSentences": 3
-        },
-        {
-          "id": "t1",
-          "type": "table",
-          "columns": [
-            {
-              "key": "link",
-              "tip": "Test it in a private window before you submit.",
-              "label": "Slide deck link"
-            }
-          ],
-          "minRows": 1,
-          "printRows": 1,
-          "rowImages": false,
-          "statusColumn": false
         }
       ],
       "points": 10,
@@ -163,12 +148,28 @@
     },
     {
       "id": "m2",
-      "intro": "Scored live in your slot. Nothing is submitted here.",
-      "title": "Presentation and Defense",
+      "intro": "Slides due with the report. The 15 points are scored live in your slot.",
+      "title": "Slides, Presentation, and Defense",
+      "aiNote": "Level 2 applies to building the slides. Every fact on them traces to the source your report cites, not to what AI recalls. The defense itself is unaided, enforced by the setting.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Your slot is 5 minutes 30 seconds and it runs on a visible timer.\n\n| | Cap |\n|---|---|\n| Open your link | 0:30 |\n| Present | 3:00 |\n| Questions | 2:00 |\n\nBoth caps are hard stops. Practice the 3 minutes.\n\nQuestions come from the class and the instructor. What the criteria read:\n\n| Criterion | Max | Read against |\n|---|---|---|\n| Selection rationale | 5 | Section 2 |\n| Defends every value | 6 | Section 1 |\n| Responds to questions | 4 | Whatever is asked |\n\nSaying you do not know a value and naming where you would look it up counts as an answer. Inventing one does not.\n\nA value or decision you cannot defend comes back as a comment on this assignment in IDEA Classroom, due end of the same day. That section's share of the 15 points is held until it is in.\n\nNo AI badge on this module: it is live, nothing is submitted here, and level 0 OFF is enforced by the setting."
+          "content": "Four slides, one per report section. Set sharing so anyone with the link can open it. A link nobody can open is a missing submission.\n\nWorked example: Unit 1 Sample Slides. Built on the practice mechanism, not yours.\n\nYour slot is 5:30 on a visible timer.\n\n| | Min | Max |\n|---|---|---|\n| Open your link | | 0:30 |\n| Present | 2:00 | 3:00 |\n| Questions | | 2:00 |\n\n3:00 is a hard stop and you are cut off at it. Under 2:00 means you have not covered six components, and the criteria below will show that. Practice against a timer.\n\nQuestions come from the class and the instructor. What the criteria read:\n\n| Criterion | Max | Read against |\n|---|---|---|\n| Selection rationale | 5 | Report section 2 |\n| Defends every value | 6 | Report section 1 |\n| Responds to questions | 4 | Whatever is asked |\n\nSaying you do not know a value and naming where you would look it up counts as an answer. Inventing one does not.\n\nA value or decision you cannot defend comes back as a comment on this assignment in IDEA Classroom, due end of the same day. That section's share of the 15 points is held until it is in."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "columns": [
+            {
+              "key": "link",
+              "tip": "Test it in a private window before you submit.",
+              "label": "Slide deck link"
+            }
+          ],
+          "minRows": 1,
+          "printRows": 1,
+          "rowImages": false,
+          "statusColumn": false
         }
       ],
       "points": 15,
@@ -264,7 +265,7 @@
           "criterion": "Responds to technical questions"
         }
       ],
-      "aiLevel": null
+      "aiLevel": 2
     }
   ],
   "approvalGate": null,

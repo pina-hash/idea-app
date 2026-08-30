@@ -18,10 +18,19 @@ import type { PageServerLoad } from './$types';
  * notebook has no section table of its own any more -- scoped to what the
  * viewer may actually touch:
  *
- *   * CHAIR (0067 admin) -- every section.
- *   * INSTRUCTOR -- only sections where they are the TEACHER OF RECORD, which
- *     is exactly what `classroom_manages_section()` checks inside every
- *     notebook RPC and policy.
+ *   * CHAIR (0067 admin) -- every section, `manages: true` on all of them.
+ *   * INSTRUCTOR -- sections where they are the TEACHER OF RECORD
+ *     (`manages: true`), which is exactly what `classroom_manages_section()`
+ *     checks inside every notebook RPC and policy.
+ *   * SECTION REVIEWER (0169) -- sections granted on the reviewer allowlist,
+ *     `manages: false`: the console renders the grid and the review actions
+ *     for these and withholds the manage-only panels (check-ins, doc-check
+ *     grading, staff deletes) on that flag. The rows come from
+ *     `notebook_reviewed_sections()` via notebookAccess, because a reviewer
+ *     cannot read `classroom_sections` at all (0082's policy covers members
+ *     and managers) and would otherwise hold a grant they could not name.
+ *     One person can be both -- teacher of P1, reviewer of P2 -- so the two
+ *     lists MERGE, and a section on both keeps `manages: true`.
  *
  * The teacher_email filter is doing real work, not just tidying: 0082 lets an
  * ENROLLED STUDENT read their own sections too, so an unfiltered select here
@@ -72,7 +81,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 
 	// PostgREST types an embedded to-one as an object, but the generated client
 	// types it as a possible array; normalize rather than trust either.
-	const sections: ReviewSection[] = ((data ?? []) as Row[]).map((row) => {
+	const managed: ReviewSection[] = ((data ?? []) as Row[]).map((row) => {
 		const course = Array.isArray(row.classroom_courses)
 			? row.classroom_courses[0]
 			: row.classroom_courses;
@@ -82,9 +91,19 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 			block: row.block,
 			teacher_email: row.teacher_email,
 			course_code: course?.code ?? '',
-			course_title: course?.title ?? ''
+			course_title: course?.title ?? '',
+			manages: true
 		};
 	});
+
+	// The 0169 reviewer grants, merged AFTER the managed list so a section the
+	// viewer holds both ways keeps `manages: true`. Sorted once at the end:
+	// the two sources are each ordered but their union is not.
+	const managedIds = new Set(managed.map((s) => s.id));
+	const sections: ReviewSection[] = [
+		...managed,
+		...access.reviewsSections.filter((s) => !managedIds.has(s.id))
+	].sort((a, b) => a.label.localeCompare(b.label));
 
 	/**
 	 * `?section=` -- how a class page links straight into its own grid.

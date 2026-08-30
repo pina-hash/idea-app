@@ -11,7 +11,7 @@
  * log, and the admin balance panel) each rendered their own copy of the same
  * transaction row, and the copies had drifted: all three styled a BALANCE
  * CORRECTION exactly like an ordinary award or fine, and none of them knew a
- * payout is two linked rows. The Ledger (static/coins/index.html) had been
+ * payout is two linked rows. The Ledger (src/lib/legacy/coins/index.html) had been
  * taught both rules and they had not. The rules live here now, once, and those
  * surfaces render through CoinTransactionRows.svelte.
  *

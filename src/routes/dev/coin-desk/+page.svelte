@@ -11,6 +11,10 @@
 	import type { CoinDeskAreaId } from '$lib/coin-desk/nav';
 	import type { CoinCategory, CoinDeskPrefs } from '$lib/coin-desk';
 	import '$lib/shell/split.css';
+	// The room's geometry, the SAME file the real layout imports. A harness
+	// with its own copy of a page measure is a harness that can measure a
+	// width production does not have.
+	import '$lib/coin-desk/coin-desk.css';
 	import type { CoinSectionRow } from '$lib/coin-desk/sections';
 	import {
 		createFakeLedger,
@@ -230,10 +234,18 @@
 </div>
 
 <style>
+	/*
+	 * THE TOOLBAR FLOATS ONLY WHERE THERE IS ROOM BESIDE THE PAGE, and it did
+	 * not used to. Fixed at top-right on a 375px viewport it measured
+	 * 268x88 at (99, 8) and covered the sub-nav row at y=66 -- hit-tested:
+	 * Students, Contracts and Roles all answered the toolbar's own <label>,
+	 * so three of the five areas could not be reached at phone width at all
+	 * and had never been measured there. It flows above the room instead, and
+	 * floats again once the window is wide enough to have a margin to float in.
+	 */
 	.dev-toolbar {
-		position: fixed;
-		top: 0.5rem;
-		right: 0.5rem;
+		position: static;
+		margin: 0.5rem;
 		z-index: 20;
 		background: var(--bg1);
 		border: 1px solid var(--line-strong);
@@ -248,43 +260,24 @@
 		align-items: center;
 		gap: 0.4rem;
 		cursor: pointer;
+		/* A harness control is still a control somebody taps. */
+		min-height: 44px;
 	}
-	.coin-desk-page {
-		max-width: var(--cr-measure, 52rem);
-		margin: 0 auto;
-		padding: 0 var(--cr-gutter, 1.2rem) 2rem;
+	@media (min-width: 1024px) {
+		.dev-toolbar {
+			position: fixed;
+			top: 0.5rem;
+			right: 0.5rem;
+			margin: 0;
+		}
 	}
-	/*
-	 * A MASTHEAD LINE, not a landing-page hero. The shared `.hero` is
-	 * `padding: 4rem 1rem 2.5rem` with a centred stack under it, which measured
-	 * 191px -- a fifth of a 900px viewport, above the split, on every load, on
-	 * a tool whose whole constraint is that the form fits without scrolling.
-	 * The eyebrow and the title say which tool this is on one row instead.
-	 */
-	.hero {
-		display: flex;
-		align-items: baseline;
-		gap: 0.7rem;
-		text-align: left;
-		padding: 0.9rem 0 0.5rem;
-	}
-	.hero :global(.eyebrow) {
-		display: inline-block;
-		margin-bottom: 0;
-	}
-	.hero h1 {
-		font-size: 1.15rem;
-		margin: 0;
-		letter-spacing: 0.04em;
-	}
+	/* The page measure, the masthead line and the card rhythm are in
+	   `$lib/coin-desk/coin-desk.css`, imported above -- not restated here. */
 	.prefs-log {
 		color: var(--cyan);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.7rem;
 		margin-top: 0.8rem;
-	}
-	.coin-desk-page > :global(.card) {
-		margin-bottom: 1.1rem;
 	}
 	.coin-desk-page h2 {
 		margin-top: 0;

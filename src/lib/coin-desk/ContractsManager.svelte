@@ -327,7 +327,7 @@
 			{:else if !filteredContracts.length}
 				<p class="note">No contracts{statusFilter === 'all' ? ' yet' : ` with status "${statusFilter}"`}.</p>
 			{:else}
-				<div class="rows contract-rows">
+				<div class="rows contract-rows cd-cols cd-card-rows">
 					{#each filteredContracts as c (c.id)}
 						{@const feedback = completeFeedback[c.id]}
 						<div class="row contract-row">
@@ -559,7 +559,13 @@
 		display: flex;
 		flex-direction: column;
 	}
+	/* THE COLUMN MINIMUM IS MEASURED, NOT PICKED. Driving this list's own
+	   container from 260px to 780px in 20px steps at 1440, its total height
+	   stops gaining at 26rem and is flat from there through the next step up,
+	   so that is the width above which the content gains nothing.
+	   `.cd-cols` / `.cd-card-rows` are in $lib/coin-desk/coin-desk.css. */
 	.contract-rows {
+		--cd-col: 26rem;
 		margin-top: 0.4rem;
 	}
 	.row {

@@ -50,26 +50,49 @@
 	 *
 	 * Viewers:
 	 *  - "instructor" -- teaches section A only. Must not see section B.
+	 *  - "reviewer"   -- the 0169 SECTION REVIEWER tier: reviews section A,
+	 *                    manages nothing. Sees A's grid and review actions and
+	 *                    must see NO Check-ins tab, NO Grade unit tab and NO
+	 *                    delete controls.
 	 *  - "chair"      -- the 0067 admin tier. Sees both.
 	 */
 
-	type Viewer = 'instructor' | 'chair';
-	let viewer = $state<Viewer>('instructor');
+	type Viewer = 'instructor' | 'chair' | 'reviewer';
+	/**
+	 * `?viewer=` and `?nosections=1` seed the switches, so the browser-verify
+	 * specs can drive a fixed viewer without scripting the select. Seeded ONCE,
+	 * exactly like `initialSectionId`: the harness bar owns them afterwards.
+	 */
+	const askedViewer = page.url.searchParams.get('viewer');
+	let viewer = $state<Viewer>(
+		askedViewer === 'chair' || askedViewer === 'reviewer' ? askedViewer : 'instructor'
+	);
 	let log = $state<string[]>([]);
 	/** 0069 unapplied (the fail-soft card), the /dev/notebook toggle. */
 	let configured = $state(true);
 	/** 0097 unapplied: the Documentation Check panel is simply absent. */
 	let docCheckReady = $state(true);
-	/** A reviewer who is not yet the instructor of anything. */
-	let noSections = $state(false);
+	/** A teacher of some OTHER section: nothing here is theirs to see. */
+	let noSections = $state(page.url.searchParams.get('nosections') === '1');
 
 	// Staff identity is an EMAIL since 0094 (classroom_sections.teacher_email),
 	// so the old instructor/chair uuids are gone with the check that used them.
 	const INSTRUCTOR_EMAIL = 'ines.tructor@boscotech.edu';
 
+	/**
+	 * The 0169 SECTION REVIEWER viewer: holds a notebook_section_reviewers row
+	 * for P2 (sec-a) and manages nothing anywhere. The console must show them
+	 * the grid and the review actions for that one section, and NO Check-ins
+	 * tab, NO Grade unit tab and NO delete controls -- absence, per section,
+	 * on the `manages` flag the server load computes.
+	 */
+	const REVIEWED_SECTION_IDS = new Set(['sec-a']);
+
 	// Since 0094 these are CLASSROOM sections (0082) and "the instructor" is the
-	// teacher of record, matched by email rather than by uuid.
-	const SECTIONS: ReviewSection[] = [
+	// teacher of record, matched by email rather than by uuid. `manages` is the
+	// VIEWER's flag, not the section's, so it is computed per viewer where
+	// `visibleSections` is built, never stored here.
+	const SECTIONS: Omit<ReviewSection, 'manages'>[] = [
 		{
 			id: 'sec-a',
 			course_code: 'ENG1H',
@@ -524,7 +547,21 @@
 	/** `public.classroom_manages_section(section)` -- teacher of record or admin. */
 	function mayManage(sectionId: string): boolean {
 		if (isChair) return true;
-		return SECTIONS.some((s) => s.id === sectionId && s.teacher_email === INSTRUCTOR_EMAIL);
+		return (
+			viewer === 'instructor' &&
+			SECTIONS.some((s) => s.id === sectionId && s.teacher_email === INSTRUCTOR_EMAIL)
+		);
+	}
+
+	/**
+	 * `public.notebook_reviews_section(section)` (0169) -- manage folded in
+	 * first, then the section-scoped reviewer row, exactly the predicate's own
+	 * shape. This is what the REVIEW transports check; the manage transports
+	 * (sessions, deletes, doc-check) stay on `mayManage`.
+	 */
+	function mayReview(sectionId: string): boolean {
+		if (mayManage(sectionId)) return true;
+		return viewer === 'reviewer' && REVIEWED_SECTION_IDS.has(sectionId);
 	}
 
 	/**
@@ -944,10 +981,10 @@
 			if (!SECTIONS.some((s) => s.id === sectionId)) {
 				return { ok: false, error: 'That section does not exist.' };
 			}
-			if (!mayManage(sectionId)) {
+			if (!mayReview(sectionId)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can view the notebook grid.'
+					error: 'Only the section instructor, a section reviewer, or a site admin can view the notebook grid.'
 				};
 			}
 			return { ok: true, value: buildGrid(sectionId, unitNumber) };
@@ -958,7 +995,7 @@
 			const entry = entries.find((e) => e.id === entryId);
 			// RLS: staff read entries of sections they own; anything else is
 			// simply not there.
-			if (!entry || !mayManage(entry.section_id)) {
+			if (!entry || !mayReview(entry.section_id)) {
 				return { ok: false, error: 'That entry is no longer available.' };
 			}
 			return { ok: true, value: { ...entry } as ReviewEntry };
@@ -974,10 +1011,10 @@
 			);
 			const entry = entries.find((e) => e.id === entryId);
 			if (!entry) return { ok: false, error: 'That entry does not exist.' };
-			if (!mayManage(entry.section_id)) {
+			if (!mayReview(entry.section_id)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can flag notebook entries.'
+					error: 'Only the section instructor, a section reviewer, or a site admin can flag notebook entries.'
 				};
 			}
 			entries = entries.map((e) =>
@@ -998,10 +1035,10 @@
 			);
 			const entry = entries.find((e) => e.id === entryId);
 			if (!entry) return { ok: false, error: 'That entry does not exist.' };
-			if (!mayManage(entry.section_id)) {
+			if (!mayReview(entry.section_id)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can resolve notebook entries.'
+					error: 'Only the section instructor, a section reviewer, or a site admin can resolve notebook entries.'
 				};
 			}
 			entries = entries.map((e) =>
@@ -1027,10 +1064,10 @@
 			note(`rpc notebook_accept_entry ${JSON.stringify({ p_entry_id: entryId })}`);
 			const entry = entries.find((e) => e.id === entryId);
 			if (!entry) return { ok: false, error: 'That entry does not exist.' };
-			if (!mayManage(entry.section_id)) {
+			if (!mayReview(entry.section_id)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can review notebook entries.'
+					error: 'Only the section instructor, a section reviewer, or a site admin can review notebook entries.'
 				};
 			}
 			entries = entries.map((e) =>
@@ -1047,10 +1084,10 @@
 			note(`rpc notebook_unaccept_entry ${JSON.stringify({ p_entry_id: entryId })}`);
 			const entry = entries.find((e) => e.id === entryId);
 			if (!entry) return { ok: false, error: 'That entry does not exist.' };
-			if (!mayManage(entry.section_id)) {
+			if (!mayReview(entry.section_id)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can review notebook entries.'
+					error: 'Only the section instructor, a section reviewer, or a site admin can review notebook entries.'
 				};
 			}
 			if (entry.status === 'flagged') {
@@ -1130,13 +1167,19 @@
 		return rest;
 	});
 
-	/** Exactly what the route's load hands the console: scoped per viewer. */
-	const visibleSections = $derived(
+	/**
+	 * Exactly what the route's load hands the console: scoped per viewer, with
+	 * the per-section `manages` flag the load computes -- reviewed-only
+	 * sections arrive `manages: false`, which is what withholds the Check-ins
+	 * tab, the Grade unit tab and the delete controls for them.
+	 */
+	const visibleSections: ReviewSection[] = $derived(
 		noSections
 			? []
-			: isChair
-				? SECTIONS
-				: SECTIONS.filter((s) => s.teacher_email === INSTRUCTOR_EMAIL)
+			: SECTIONS.filter((s) => mayReview(s.id)).map((s) => ({
+					...s,
+					manages: mayManage(s.id)
+				}))
 	);
 
 	/**
@@ -1185,7 +1228,7 @@
 	}
 
 	/** `classroom_can_review_submission(item, email)`, mirrored exactly. */
-	function mayReview(itemId: string, email: string): boolean {
+	function mayReviewSubmission(itemId: string, email: string): boolean {
 		const item = ITEMS.find((i) => i.id === itemId);
 		if (!item) return false;
 		return item.section_ids.some(
@@ -1258,7 +1301,7 @@
 				...log,
 				`classroom_grade_submission(${itemId}, ${studentEmail}, ${JSON.stringify(scores)}, ${JSON.stringify(comment)}, ${release}, ${JSON.stringify(criterionComments)})`
 			];
-			if (!mayReview(itemId, studentEmail)) {
+			if (!mayReviewSubmission(itemId, studentEmail)) {
 				return docFail("Only a teacher of record for this student's class can grade this.");
 			}
 			const criteria = docRubrics[itemId];
@@ -1399,6 +1442,7 @@
 		viewer
 		<select bind:value={viewer}>
 			<option value="instructor">instructor (teaches P2 only)</option>
+			<option value="reviewer">section reviewer (reviews P2)</option>
 			<option value="chair">chair / admin (all sections)</option>
 		</select>
 	</label>

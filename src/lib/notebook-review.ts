@@ -46,6 +46,16 @@ export interface ReviewSection {
 	label: string;
 	block: string | null;
 	teacher_email: string;
+	/**
+	 * May the VIEWER manage this section -- teacher of record, or chair? Since
+	 * 0169 a section can also be held on the REVIEWER tier, which reads the
+	 * grid and reviews entries but does not author check-ins, link items,
+	 * grade or delete; the console withholds those panels per section on this
+	 * flag. Computed server-side by the review load (the client cannot derive
+	 * chair-ness), and REQUIRED so a constructor cannot forget the decision --
+	 * the database refuses a manage write either way.
+	 */
+	manages: boolean;
 }
 
 /** "IDEA209H · Section 1 · Block 2" -- how a section reads wherever it is named. */
@@ -162,7 +172,12 @@ export interface GridCell {
 }
 
 export interface SectionGrid {
-	section: ReviewSection;
+	/**
+	 * The RPC's own projection of the section -- metadata only, no `manages`:
+	 * whether the VIEWER manages a section is the load's per-viewer computation
+	 * on the `sections` list, not a fact the grid payload carries.
+	 */
+	section: Omit<ReviewSection, 'manages'>;
 	unit_number: number | null;
 	generated_at: string;
 	sessions: GridSession[];

@@ -66,12 +66,18 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-directories under `src/routes/dev` with a page, and `routes.mjs` lists **45
-specs over 29 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
-on this branch merged with `integration`, which is what brought the
-classroom-inspector and class-bulk specs in; it read 29 over 24 on 2026-08-29,
-and 25 over 20 the same day, before the marks, room-split, coin-preview and
-short-link specs). **This count is a snapshot, not a derived value, and it WILL
+**65** directories under `src/routes/dev` with a page, and `routes.mjs` lists
+**57 specs over 31 distinct routes** (re-derived 2026-08-30 against `ROUTES`
+itself, on this branch merged with `integration`, which is what brought the
+coins, coin-desk, frc-state and notebook-review-viewer specs in on top of this
+bundle's own shelf-entry pair). **Neither parent's line survived the merge, and
+one of them was already stale before it**: this branch read 45 over 29,
+`integration`'s line still read 44 over 28 while `integration` itself measured
+55 over 30. Earlier readings, oldest last: 36 over 28 earlier the same day, 29
+over 24 on 2026-08-29, and 25 over 20 the same day, before the marks,
+room-split, coin-preview and short-link specs. The two maps placement specs are
+why a spec count can move without the route count moving: `?state=place` is a
+fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
 go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
@@ -120,9 +126,10 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 4 measurements outside threshold** (re-derived
-2026-08-30 on `main` plus the shelf-entry bundle: **90 route/width runs, 1080
-measurements**), and they are TWO findings each seen at both widths. Anything
+**The whole run reports exactly 6 measurements outside threshold** (re-derived
+2026-08-30 on this branch merged with `integration`: **114 route/width runs, 1476
+measurements**), and they are THREE findings: two seen at both widths, and one
+seen at 375px only, on two different routes. Anything
 else is new. **This paragraph is a snapshot and it drifts** -- the run above it
 is the authority, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
@@ -148,6 +155,18 @@ that stopped running.
   **tap-target measurement**, so the fallback-stack limit above applies to it
   directly -- the true box under Rajdhani may differ slightly, though not
   enough to cross the 44px line from 26.2px.
+- **`/dev/coins` and `/dev/coins-signedin-1`: 51px of horizontal overflow at
+  375px** (scrollWidth 426 vs clientWidth 375; the overhanging nodes are
+  `#student-drawer`'s header and body, its close button, and the drawer's name,
+  stats and transaction-title rows, each reaching right=750 or 727.6 against a
+  375 viewport). **At 375px only -- 1440px is clean on both routes**, which is
+  why one finding accounts for two of the six measurements rather than the four
+  a both-widths finding would give. It arrived with the coin-ledger specs rather
+  than with this bundle, and `integration`'s own copy of this paragraph never
+  recorded it because that copy had gone stale (it stated 44 specs against a
+  tree carrying 55). The drawer is in the LEGACY coin ledger's shipping bytes,
+  which are frozen, so it is recorded here and not fixed: `/dev/coins` is
+  labelled "shipping bytes" for exactly that reason.
 - **Two findings this list used to carry no longer reproduce**, measured on the
   same run rather than assumed: `/dev/coin-preview`'s student picker is
   **352x44** (it was 247.3x19 at 375px and 352x19 at 1440px, under the 24px
@@ -488,13 +507,15 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **204.0 seconds** (2.4s of it the vite boot) for **45 route specs
-x 2 widths = 90 runs and 1080 measurements**; `--selftest` is ~32s (64
-controls). That is measured 2026-08-30 on `main` plus the shelf-entry bundle's
-two specs; it read 184.7s for 72 runs and 780 measurements the same day on a
-branch merged with `integration`, and 152.2s for 58 runs and 580 measurements on
-`main` alone. The per-route/width cost has held at roughly 2.3s across that
-whole range.
+A full run is **259.0 seconds** (2.5s of it the vite boot) for **57 route specs
+x 2 widths = 114 runs and 1476 measurements**; `--selftest` is ~32s (64
+controls). That is measured 2026-08-30 on this branch merged with `integration`;
+the same tree measured twice read 262.4s and 259.0s, so treat the wall clock as
+plus or minus a few seconds and the run counts as exact. The two parents of that
+merge read 204.0s for 90 runs and 1080 measurements, and 207.1s for 88 runs and
+1076 measurements; it read 184.7s for 72 runs and 780 measurements earlier the
+same day, and 152.2s for 58 runs and 580 measurements on `main` alone. The
+per-route/width cost has held at roughly 2.3s across that whole range.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree

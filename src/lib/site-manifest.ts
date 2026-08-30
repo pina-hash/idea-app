@@ -54,7 +54,12 @@ export const APPS: SiteApp[] = [
 	{
 		id: 'coins',
 		label: 'IDEA Coins',
-		prefixes: ['static/coins/', 'src/routes/contracts/', 'src/lib/contracts/'],
+		prefixes: [
+			'src/lib/legacy/coins/',
+			'src/routes/coins/',
+			'src/routes/contracts/',
+			'src/lib/contracts/'
+		],
 		contains: ['coin']
 	},
 	{

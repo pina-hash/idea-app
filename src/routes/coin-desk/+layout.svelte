@@ -15,6 +15,14 @@
 	 * two rooms) supplies.
 	 */
 	import '$lib/shell/split.css';
+	/**
+	 * THE ROOM'S OWN GEOMETRY, in one file both this layout and the dev harness
+	 * import. It used to be a scoped style block here and a byte-identical copy
+	 * in `/dev/coin-desk` -- two copies of a page measure, which is exactly the
+	 * arrangement where a harness measures a width the real page does not have
+	 * and nothing says so.
+	 */
+	import '$lib/coin-desk/coin-desk.css';
 
 	/**
 	 * The persistent chrome for the /coin-desk route group: header, hero, and
@@ -63,52 +71,11 @@
 
 <style>
 	/*
-	 * `--cr-measure` is the shell's page-measure property. split.css sets it to
-	 * --measure-split on a room that CONTAINS a split (the `:has()` rule), so
-	 * the Log area widens to both panes and every other area keeps the 52rem
-	 * reading column -- one declaration, no per-route width.
+	 * EVERY RULE THIS BLOCK USED TO HOLD IS NOW IN `$lib/coin-desk/coin-desk.css`
+	 * -- the page measure, the masthead line and the card rhythm -- because the
+	 * dev harness needs the identical geometry and a scoped block cannot be
+	 * shared. What is left here is what belongs to this layout alone.
 	 */
-	.coin-desk-page {
-		max-width: var(--cr-measure, 52rem);
-		margin: 0 auto;
-		padding: 0 var(--cr-gutter, 1.2rem) 2rem;
-	}
-	/*
-	 * A MASTHEAD LINE, not a landing-page hero. The shared `.hero` is
-	 * `padding: 4rem 1rem 2.5rem` with a centred stack under it, which measured
-	 * 191px -- a fifth of a 900px viewport, above the split, on every load, on
-	 * a tool whose whole constraint is that the form fits without scrolling.
-	 * The eyebrow and the title say which tool this is on one row instead.
-	 */
-	.hero {
-		display: flex;
-		align-items: baseline;
-		gap: 0.7rem;
-		text-align: left;
-		padding: 0.9rem 0 0.5rem;
-	}
-	.hero :global(.eyebrow) {
-		display: inline-block;
-		margin-bottom: 0;
-	}
-	.hero h1 {
-		font-size: 1.15rem;
-		margin: 0;
-		letter-spacing: 0.04em;
-	}
-	/*
-	 * The cards live in the child route's own component, so Svelte's scoping
-	 * cannot reach them from here -- :global is the one way this shell can own
-	 * the spacing between them rather than every area repeating it.
-	 */
-	.coin-desk-page > :global(.card) {
-		margin-bottom: 1.1rem;
-	}
-	/* A split IS the area's whole surface, so it owns its own internal spacing
-	   and the shell's card rhythm would only add a gap under it. */
-	.coin-desk-page > :global(.cr-split) {
-		margin-bottom: 0;
-	}
 	.page-footer {
 		margin-top: 1.2rem;
 		display: flex;

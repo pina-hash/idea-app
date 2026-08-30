@@ -26,7 +26,13 @@
  * remember it, which is the same reason the affordance is mounted in the shell
  * in the first place.
  */
-export type FeedbackExclusionId = 'deck' | 'gauntlet' | 'greenline' | 'vanguard' | 'error';
+export type FeedbackExclusionId =
+	| 'deck'
+	| 'gauntlet'
+	| 'greenline'
+	| 'vanguard'
+	| 'coins'
+	| 'error';
 
 export interface FeedbackExclusionRule {
 	id: FeedbackExclusionId;
@@ -112,6 +118,32 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// one thing is one too many is still open; where they wrote was not.
 		match: under('/vanguard'),
 		samples: ['/vanguard']
+	},
+	{
+		id: 'coins',
+		label: 'IDEA Coin Ledger',
+		relocatedTo: "the Ledger's own Report button, in the page header beside Share",
+		// The Ledger is carried-over legacy HTML served from a `+server.ts`
+		// (`src/routes/coins/[...path]/+server.ts`) and renders no layout at all,
+		// so this rule excludes nothing the shell mount could ever have reached
+		// -- the same standing VANGUARD's rule has, and for the same reason it
+		// stands: a coin surface that DOES render the shell inherits the
+		// exclusion rather than discovering it in front of a class.
+		//
+		// The page carries a real report control now, injected into the served
+		// HTML by `$lib/server/legacy-report-panel.ts`, reaching the SAME
+		// feedback system as everything else: signed in posts through
+		// `/api/coin-feedback` (the RLS-scoped insert, as the caller), signed
+		// out through the shared anonymous route. Both land in `app_feedback`
+		// carrying the same capture. Unlike VANGUARD there is only ONE control
+		// on this page.
+		//
+		// `/coin-desk` and `/coin-balance` are NOT claimed by this rule.
+		// `appForRouteId` folds all three onto the app id 'coins', but those two
+		// are ordinary Svelte pages under the root layout and keep the shell's
+		// own floating control; only the served-HTML surface is excluded.
+		match: (routeId) => routeId === '/coins' || routeId === '/coins/[...path]',
+		samples: ['/coins', '/coins/[...path]']
 	},
 	{
 		id: 'error',

@@ -164,17 +164,22 @@ export function unitState(unit: FrcUnit, completed: ReadonlySet<string>): UnitSt
 }
 
 // ---------------------------------------------------------------------------
-// Teacher "view as student" context (FrcShell sets it, DomainLanding /
-// per-page loads consume it): lets a teacher preview the track exactly as a
-// student would, with the working gate and no teacher-override controls.
+// Reviewer "view as student" context (FrcShell sets it, DomainLanding /
+// per-page loads consume it): lets a reviewer preview the track exactly as a
+// student would, with the working gate and no reviewer-override controls.
+// Since 0167 the gate is the FRC REVIEWER tier (`frc_can_review()`, an
+// explicit allowlist with admin folded in), not `isAdmin` -- the field used
+// to be named `isAdmin` and saying so would now be wrong for an allowlisted
+// non-admin reviewer.
 // ---------------------------------------------------------------------------
 
 export const FRC_VIEW_CONTEXT_KEY = 'frc-view';
 
 export interface FrcViewContext {
-	readonly isAdmin: boolean;
+	/** The caller passes the FRC reviewer tier (0167): admin OR allowlisted. */
+	readonly canReview: boolean;
 	readonly viewAsStudent: boolean;
-	/** True only for an admin NOT currently previewing as a student. */
+	/** True only for a reviewer NOT currently previewing as a student. */
 	readonly showOverride: boolean;
 }
 

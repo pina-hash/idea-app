@@ -3240,7 +3240,18 @@ carried-over content must follow one of these three patterns:**
 
 1. **Public static** -- copy unchanged into `static/`; served at the site root.
    **Link to the explicit `index.html`**: the Vite dev server does not resolve a
-   bare directory to it (Vercel does), so `/coins/index.html` works in both.
+   bare directory to it (Vercel does).
+   - **PATTERN 1 HAS NO SERVE-TIME HOOK, AND THAT IS WHAT DECIDES BETWEEN IT AND
+     PATTERN 2.** A static asset is served by the platform BEFORE any SvelteKit
+     code runs, so a route under the same path is shadowed and never called;
+     the only way to change what such a page carries is to edit the frozen file,
+     which the freeze below forbids. **The IDEA Coin Ledger moved from 1 to 2
+     for exactly that reason** -- it had no report-a-problem control and could
+     not be given one -- so it is now `src/lib/legacy/coins/index.html` served
+     by `src/routes/coins/[...path]/+server.ts`. The file is byte-identical to
+     the one that was in `static/`, `/coins`, `/coins/` and `/coins/index.html`
+     all still answer, and anything else under `/coins/` is a 404. **The move is
+     the pattern's own escape hatch, not a licence to unfreeze a file.**
 2. **Public raw-import endpoint** -- HTML lives OUTSIDE `static/` in
    `src/lib/legacy/`, pulled in at build time via Vite raw imports
    (`import.meta.glob(..., { query: '?raw' })`), **never runtime `fs` reads**, so it
@@ -3253,6 +3264,26 @@ carried-over content must follow one of these three patterns:**
 **Serve-time injection is the convention for anything added to legacy HTML** (link
 rewriting, the version badge, VANGUARD's cloud-save bootstrap): applied to the
 served STRING, never to the source file on disk.
+
+- **THE REPORT CONTROL FOR A LEGACY PAGE IS `$lib/server/legacy-report-panel.ts`,
+  AND A THIRD SURFACE IS A CALLER OF IT.** `SiteFeedback` is mounted once in the
+  root layout, which is what makes report coverage something a new route
+  INHERITS; a page served from a `+server.ts` renders no layout and inherits
+  nothing, so the control is injected. Every string that could drift is
+  IMPORTED -- the kind list, the caps, the refusal wording, `describeBuild` --
+  and the row lands in `app_feedback` through the same two endpoints as every
+  other surface. **`$lib/server/legacy-feedback-post.ts` is the one signed-in
+  handler**, called by `/api/vanguard-feedback` and `/api/coin-feedback`, which
+  differ by one `app` string; the ANONYMOUS endpoint is taken from the shared
+  constant and no caller can override it, so a signed-out report cannot be
+  pointed anywhere but `/api/feedback`.
+- **VANGUARD'S OWN INJECTED PANEL PREDATES THAT MODULE AND IS A MIGRATION
+  CANDIDATE, NOT A SECOND SANCTIONED PATTERN** (the standing the hand-rolled
+  disclosures have). It is woven into the GAME -- it wears `.fbovl` so the
+  game's pointer, mouse and wheel handlers stand down, it reads
+  `__ideaGameInfo` for the mode and sector, it shares VANGUARD's own button
+  factory -- so folding it in belongs in a bundle that can play the game to
+  check it.
 
 **Asset paths.** Legacy files assume the old `/IDEA/` base path. Three mechanisms
 resolve it without editing them: the `static/IDEA/` icon mirror,
@@ -3299,8 +3330,9 @@ the source of truth; **do not invent colours or swap fonts.**
 - **`--green` is for primary actions, active navigation, focus, success and
   completion** -- not static labels, quiet borders, data values, or decoration.
 - **Fonts:** `Rajdhani` (display, body, input values) and `Share Tech Mono`
-  (metadata, button/nav labels, mono chrome), via `@fontsource`. `/` and `/archive`
-  additionally use `Orbitron`. **Never Arial, Inter, Roboto, or system fonts** in
+  (metadata, button/nav labels, mono chrome), via `@fontsource`. `/`, `/archive`
+  and the COIN DESK's chrome (its masthead line and its sub-nav, which took the
+  IDEA Coin Ledger's own tab-bar treatment) additionally use `Orbitron`. **Never Arial, Inter, Roboto, or system fonts** in
   the IDEA shell -- the notebook's system-sans stack was the last exception and it
   is gone. **A face is named through its TOKEN, never as a literal:**
   `--font-display`, `--font-mono`, `--font-title` (Orbitron), `--font-hero`. Each
@@ -3553,6 +3585,30 @@ properly. That is a bundle, not a line.
     folder colours, `--nb-cell-*` and `--nb-shot-*`.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
+- **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the
+  portal's own dark plate and borrows nothing but geometry. `.cd-root` is
+  registered in `$lib/shell/split.css` (gutter, scrollbars, the split) and
+  `$lib/coin-desk/coin-desk.css` holds what belongs to the desk alone -- the
+  page measure, the masthead line, the card rhythm, the reading cap and the
+  `.cd-cols` column rule. **BOTH `/coin-desk/+layout.svelte` AND
+  `/dev/coin-desk` IMPORT IT**, which is the point of it existing: the two used
+  to carry byte-identical scoped copies of the page measure, so the harness
+  could measure a width the real page did not have with nothing to say so.
+  - **THE DESK IS ONE WIDTH, AND IT USED TO BE TWO.** The measure defaults to
+    `--measure-split` (92rem), which is what split.css already gave the Log
+    area through `:has(.cr-split)`; every other area read `--measure-panel`
+    (52rem) and measured 832px of a 1440px window. **Prose is capped
+    separately at `--measure-reading`** -- widening a page is not widening a
+    sentence, and the two have to be said in different rules or the first
+    ruins the second.
+  - **IT TAKES THE LEDGER'S PATTERNS AND NOT THE LEDGER'S PALETTE.** The tab
+    bar's shape, its Orbitron uppercase and its underline are
+    `src/lib/legacy/coins/index.html`'s; the ACTIVE COLOUR is not. That page
+    marks its current tab in gold, and in this register `--gold` is "special
+    callouts" while `--green` is "active navigation" -- matching a legacy
+    page's palette is not a licence to reassign a fixed semantic role. Same
+    call for a FINE, which the Ledger paints red and the desk paints
+    `--amber`: `--crimson` is reserved for LIVE/REC/error and never identity.
 - **`.fg-root` -- the Foundry FORGE** (`src/lib/foundry/forge.css`, mounted by
   `src/routes/foundry/+layout.svelte` with the persistent `FoundryShell`).
   Molten metal poured, worked, cooled, finished: GREEN stays the driving colour
@@ -3863,6 +3919,39 @@ reference resolves for the next reader.
   `docs/coin-economy/idea_coin_economy_draft_v3.md` and
   `idea_coin_quick_reference.md`. Read those before changing a price. Supabase is
   the sole system of record for IDEA Coins; there is no second ledger.
+- **A TRANSACTION TYPE HAS ONE VOCABULARY, ONE TONE AND ONE GLYPH, AND ALL
+  THREE ARE KEYED ON `COIN_TXN_TYPES`.** `coinTxnType()` in
+  `$lib/coin-format.ts` derives a row's type exactly the way
+  `coin_public_transactions` derives it in SQL (0103) and is the ONLY
+  derivation -- the category picker asks it too, which is why `coin_payout`
+  offers a payout glyph in the list it is chosen from and a payout chip in the
+  history it lands in rather than two answers to one question.
+  `$lib/coin-desk/transaction-types.ts` adds the presentation over that union
+  and nothing else may: a sixth type added to `coin-format.ts` with no entry
+  there renders an EMPTY `<svg>` in the tone of `--dim`, which throws nothing
+  and type-checks, so `tests/coin-transaction-types.test.ts` asserts both maps
+  exhaustive at runtime.
+  - **GLYPH PER TYPE, NEVER PER CATEGORY.** Five types against forty-odd
+    categories: five silhouettes a reader can learn beats forty they cannot,
+    and forty would mean inventing lookalikes, which is worse than no glyph.
+  - **COLOUR IS NEVER THE ONLY SIGNAL AND NEVER THE ONLY THING THAT MOVED.**
+    Every place a type is rendered carries the glyph, the tone AND the type's
+    own word; the glyph is `aria-hidden` precisely because the word is always
+    beside it.
+  - **THE ORDER IS STATIC AND SAYS SO.** "Most used" is a table in that module
+    derived from `docs/coin-economy/archive/2026-08-11-transactions.csv`, the
+    committed export of the retired Sheets ledger -- 163 of its 216 rows map
+    onto live category ids through an exported map, and the test RE-COUNTS the
+    CSV through that map rather than trusting the table. **Nothing on
+    `/coin-desk` loads a per-category tally**, so a live count is a query this
+    does not make; if one is ever added, it replaces the table and this rule
+    with it. `sortByUse` is STABLE, so everything unused keeps
+    `coin_categories.sort_order` and a picker never reshuffles between two
+    renders of one list.
+  - **THE PICKER IS SORTED BY USE AND THE PRICE LIST IS NOT.** `/coin-desk`'s
+    combobox is a control somebody touches forty times a period; the price
+    list at `/coin-desk/economy` is a reference document, and a reference
+    document ordered by how often each row is used is not one.
 - **AI levels on assignments are set by ASKING THE INSTRUCTOR**, never inferred
   from the content. `docs/policy/IDEA_AI_Use_Policy.md`'s category-defaults table is
   the starting point for that conversation, not a rule that self-applies.
