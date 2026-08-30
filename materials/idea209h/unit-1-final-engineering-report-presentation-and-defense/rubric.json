@@ -1,0 +1,98 @@
+[
+  {
+    "id": "m2-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All components, property named",
+        "points": 8,
+        "descriptor": "Presents every component on the bill of materials, naming for each one the published property or rating it was selected against and the value of that property."
+      },
+      {
+        "label": "Proficient",
+        "short": "All components, one unnamed",
+        "points": 6,
+        "descriptor": "Presents every component but leaves the governing property unnamed on one of them, or names properties for every component while omitting one component entirely."
+      },
+      {
+        "label": "Developing",
+        "short": "Half or more, properties thin",
+        "points": 3,
+        "descriptor": "Presents at least half the components, with the governing property named on fewer than half of those presented."
+      },
+      {
+        "label": "Absent",
+        "short": "Under half presented",
+        "points": 0,
+        "descriptor": "Presents fewer than half the components, or does not present."
+      }
+    ],
+    "points": 8,
+    "criterion": "Presentation and Defense: Selection rationale presented",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All five results defended",
+        "points": 10,
+        "descriptor": "For each of the five governing results in the report, states the method used and the inputs it was run on when asked, and the stated value matches the report."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four of five defended",
+        "points": 7,
+        "descriptor": "Defends four of the five governing results with method and inputs; one is restated without a method, or its value disagrees with the report."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or three defended",
+        "points": 4,
+        "descriptor": "Defends two or three of the five with method and inputs; the rest are asserted or read off without a stated method."
+      },
+      {
+        "label": "Absent",
+        "short": "Under two defended",
+        "points": 0,
+        "descriptor": "Defends fewer than two of the five governing results, or does not present."
+      }
+    ],
+    "points": 10,
+    "criterion": "Presentation and Defense: Defends every numerical value",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Every question answered new",
+        "points": 7,
+        "descriptor": "Answers every question asked with information not already in the presented section, or states plainly that the answer is not known and names where it would be looked up."
+      },
+      {
+        "label": "Proficient",
+        "short": "One answer restates report",
+        "points": 5,
+        "descriptor": "Answers all but one question with new information; one answer repeats what the report already said without adding to it."
+      },
+      {
+        "label": "Developing",
+        "short": "Half restate the report",
+        "points": 3,
+        "descriptor": "Half or more of the answers repeat the report without adding information, while at least one answer adds something new."
+      },
+      {
+        "label": "Absent",
+        "short": "No question answered",
+        "points": 0,
+        "descriptor": "No question is answered with information beyond a restatement, or no questions are taken."
+      }
+    ],
+    "points": 7,
+    "criterion": "Presentation and Defense: Responds to technical questions",
+    "incomplete": false
+  }
+]
