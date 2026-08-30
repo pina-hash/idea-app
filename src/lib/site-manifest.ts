@@ -96,6 +96,11 @@ export const APPS: SiteApp[] = [
 		contains: ['foundry']
 	},
 	{
+		id: 'maps',
+		label: 'IDEA Maps',
+		prefixes: ['src/routes/maps/', 'src/lib/maps/', 'src/routes/dev/maps-edit/']
+	},
+	{
 		id: 'notebook',
 		label: 'Notebook',
 		prefixes: [

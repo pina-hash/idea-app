@@ -37,8 +37,11 @@ IDEA Classroom (`/classroom`), the digital notebook (`/notebook`), the IDEA Coin
 economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
-programme), IDEA Foundry (student-published static web apps), and the portal
-shell (`/`, `/dashboard`, `/admin`).
+programme), IDEA Foundry (student-published static web apps), IDEA Maps
+(`/maps/edit`, the admin editor; the public viewer at `/maps` is a later bundle
+-- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165, writes through
+the `is_admin()` RLS policies with `maps_publish` as the one RPC per 0161's own
+header), and the portal shell (`/`, `/dashboard`, `/admin`).
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
@@ -1007,7 +1010,9 @@ it is not required to browse.
   the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
   tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`), the Foundry source reader
-  (`POST /api/foundry/source`) and GAUNTLET's ranked-run review
+  (`POST /api/foundry/source`), the IDEA Maps editor (`/maps/edit` -- the
+  future `/maps` viewer is PUBLIC per the maps spec and must never be
+  prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
