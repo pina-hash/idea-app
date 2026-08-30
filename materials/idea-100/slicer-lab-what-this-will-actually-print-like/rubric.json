@@ -1,0 +1,106 @@
+[
+  {
+    "id": "plate-plate-setup",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All four true",
+        "points": 4,
+        "descriptor": "V2 at 50 percent, flat on the plate, sliced, and the layer preview looked at."
+      },
+      {
+        "label": "Developing",
+        "short": "One check wrong",
+        "points": 2,
+        "descriptor": "Sliced but one condition is wrong: V1 imported, wrong scale, or standing on edge."
+      },
+      {
+        "label": "Absent",
+        "short": "Not sliced",
+        "points": 0,
+        "descriptor": "No slice, or nothing set up."
+      }
+    ],
+    "points": 4,
+    "criterion": "On The Plate: The scale article is set up as specified and sliced",
+    "incomplete": false
+  },
+  {
+    "id": "readings-preview-shown",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Preview and mass shown",
+        "points": 2,
+        "descriptor": "Screenshot is of the layer preview and the estimated mass is readable in it."
+      },
+      {
+        "label": "Developing",
+        "short": "One of the two",
+        "points": 1,
+        "descriptor": "A slicer screenshot, but either not the layer preview or the mass is not readable."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No screenshot."
+      }
+    ],
+    "points": 2,
+    "criterion": "Two Numbers And A Question: Layer preview screenshot with the estimated mass visible",
+    "incomplete": false
+  },
+  {
+    "id": "readings-mass-scaling",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Scaled and compared",
+        "points": 2,
+        "descriptor": "Gives both masses, shows how one was got from the other rather than only asserting it, and states whether the full size hook is under 60.0 g."
+      },
+      {
+        "label": "Developing",
+        "short": "Numbers, no method",
+        "points": 1,
+        "descriptor": "Reports masses or a comparison without showing how the projection was made, or doubles the mass instead of scaling it by volume."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 2,
+    "criterion": "Two Numbers And A Question: Projects full size mass from the scale article and checks it against the limit",
+    "incomplete": false
+  },
+  {
+    "id": "readings-wall-reasoning",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Read and connected",
+        "points": 2,
+        "descriptor": "Says what the preview shows at the thinnest section and why solid walls carry a pull that infill does not."
+      },
+      {
+        "label": "Developing",
+        "short": "Read, not connected",
+        "points": 1,
+        "descriptor": "Describes what the preview shows without saying why it matters, or the reverse."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 2,
+    "criterion": "Two Numbers And A Question: Reads walls against infill at the thin section and connects it to strength",
+    "incomplete": false
+  }
+]

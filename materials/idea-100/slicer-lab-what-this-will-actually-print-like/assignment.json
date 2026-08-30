@@ -1,0 +1,188 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Slicer Lab - What This Will Actually Print Like",
+    "course": "IDEA100",
+    "dueDate": "2026-09-02",
+    "totalPoints": 10,
+    "assignmentId": "idea100-hook-slicer",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "plate",
+      "intro": "Your V2, at half scale, laid flat. Set it up and check it before you slice.",
+      "title": "On The Plate",
+      "aiNote": "Unrestricted for driving Bambu Studio. Ask it anything about the slicer.",
+      "blocks": [
+        {
+          "id": "plate-checks",
+          "type": "checklist",
+          "items": [
+            "V2 imported, not V1",
+            "Scaled to 50 percent",
+            "Lying flat on the plate, not standing on edge",
+            "Sliced, and I looked at the layer preview"
+          ],
+          "points": 4
+        }
+      ],
+      "points": 4,
+      "rubric": [
+        {
+          "id": "plate-setup",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All four true",
+              "points": 4,
+              "descriptor": "V2 at 50 percent, flat on the plate, sliced, and the layer preview looked at."
+            },
+            {
+              "label": "Developing",
+              "short": "One check wrong",
+              "points": 2,
+              "descriptor": "Sliced but one condition is wrong: V1 imported, wrong scale, or standing on edge."
+            },
+            {
+              "label": "Absent",
+              "short": "Not sliced",
+              "points": 0,
+              "descriptor": "No slice, or nothing set up."
+            }
+          ],
+          "criterion": "The scale article is set up as specified and sliced"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "readings",
+      "intro": "The slicer knows things about your part that SolidWorks does not.",
+      "title": "Two Numbers And A Question",
+      "aiNote": "Ask it what infill is. The arithmetic and the decision are yours.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload one screenshot of the layer preview with the estimated mass showing.\n\n**Windows + Shift + S**, then **Ctrl + V** in an answer box below.\n\nYour test article is half the size of your real hook in every direction. So it is not half the material. Work out what your full size hook will weigh, say how you got there, and compare it to the 60.0 g limit.\n\nThen look at the preview and find where the slicer put solid walls and where it put infill."
+        },
+        {
+          "id": "preview-image",
+          "type": "imageZone",
+          "points": 2,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "mass-projection",
+          "type": "textField",
+          "points": 2,
+          "prompt": "What does your half scale article weigh, what will the full size hook weigh, and how did you get from one to the other? Are you under 60.0 g?",
+          "maxSentences": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "walls-vs-infill",
+          "type": "textField",
+          "points": 2,
+          "prompt": "Look at the layer preview where your hook is thinnest. Did that part come out as solid walls, or as walls with infill between them? Why does that matter for a part that gets pulled until it breaks?",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Designing for the Printer and Manufacturing tabs.\n- Bambu Lab Official Wiki, wiki.bambulab.com, and the Bambu Lab 3D Printing User Manual for the X1 Carbon and the H2D. Plate setup, wall loops against infill, and the estimated mass readout.\n- Machinery's Handbook, 31st edition, Industrial Press, 2020. Additive manufacturing.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 6,
+      "rubric": [
+        {
+          "id": "preview-shown",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Preview and mass shown",
+              "points": 2,
+              "descriptor": "Screenshot is of the layer preview and the estimated mass is readable in it."
+            },
+            {
+              "label": "Developing",
+              "short": "One of the two",
+              "points": 1,
+              "descriptor": "A slicer screenshot, but either not the layer preview or the mass is not readable."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No screenshot."
+            }
+          ],
+          "criterion": "Layer preview screenshot with the estimated mass visible"
+        },
+        {
+          "id": "mass-scaling",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Scaled and compared",
+              "points": 2,
+              "descriptor": "Gives both masses, shows how one was got from the other rather than only asserting it, and states whether the full size hook is under 60.0 g."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers, no method",
+              "points": 1,
+              "descriptor": "Reports masses or a comparison without showing how the projection was made, or doubles the mass instead of scaling it by volume."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Projects full size mass from the scale article and checks it against the limit"
+        },
+        {
+          "id": "wall-reasoning",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Read and connected",
+              "points": 2,
+              "descriptor": "Says what the preview shows at the thinnest section and why solid walls carry a pull that infill does not."
+            },
+            {
+              "label": "Developing",
+              "short": "Read, not connected",
+              "points": 1,
+              "descriptor": "Describes what the preview shows without saying why it matters, or the reverse."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Reads walls against infill at the thin section and connects it to strength"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}

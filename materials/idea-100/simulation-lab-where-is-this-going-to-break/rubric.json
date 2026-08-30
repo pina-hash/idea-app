@@ -1,6 +1,6 @@
 [
   {
-    "id": "m1-r1",
+    "id": "study-study-setup",
     "levels": [
       {
         "label": "Complete",
@@ -26,7 +26,7 @@
     "incomplete": false
   },
   {
-    "id": "m2-r2",
+    "id": "plot-plot-marked",
     "levels": [
       {
         "label": "Complete",
@@ -52,7 +52,7 @@
     "incomplete": false
   },
   {
-    "id": "m2-r3",
+    "id": "plot-red-located",
     "levels": [
       {
         "label": "Complete",
@@ -84,7 +84,7 @@
     "incomplete": false
   },
   {
-    "id": "m2-r4",
+    "id": "plot-magnitude-reasoning",
     "levels": [
       {
         "label": "Complete",
