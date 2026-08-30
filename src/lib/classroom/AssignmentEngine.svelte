@@ -17,8 +17,7 @@
 		type AssignmentEngineTransports,
 		type ResponseValue,
 		type StudentEngineData,
-		type SubmissionFileRow,
-		type UnmetEntry
+		type SubmissionFileRow
 	} from '$lib/classroom/assignment-spec';
 	import type { ClassroomItem } from '$lib/classroom/classroom';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
@@ -64,7 +63,6 @@
 
 	let busy = $state(false);
 	let notice = $state<string | null>(null);
-	let serverUnmet = $state<UnmetEntry[] | null>(null);
 	let uploadError = $state<string | null>(null);
 
 	const spec = $derived(engine.spec);
@@ -161,7 +159,6 @@
 
 	function queueSave(blockId: string, value: ResponseValue) {
 		values[blockId] = value;
-		serverUnmet = null;
 		dirtyBlocks.add(blockId);
 		save.markDirty();
 	}
@@ -253,10 +250,25 @@
 		}
 	}
 
+	/**
+	 * SINCE 0160 AN UNFINISHED SUBMISSION IS ACCEPTED, so there is no
+	 * `incomplete` refusal left to render. `classroom_submit_assignment` still
+	 * RUNS `_classroom_spec_unmet` and still returns the answer; it now rides
+	 * along with `ok: true` instead of standing in front of it. The migration's
+	 * own self-check raises at apply time if the literal `'reason',
+	 * 'incomplete'` survives in the function body, so the branch that used to
+	 * read it here could not fire again even on a database mid-deploy.
+	 *
+	 * AND NOTHING READS THE ACCEPTANCE'S `unmet` EITHER, deliberately.
+	 * `liveUnmet` is `specUnmet` over the responses this component already
+	 * holds, which is the same pure mirror of `_classroom_spec_unmet` the
+	 * grading console computes for the teacher, so the two halves read one
+	 * answer. A payload copied into a second piece of state would be the copy
+	 * that goes stale the moment anything below it is edited.
+	 */
 	async function submit() {
 		busy = true;
 		notice = null;
-		serverUnmet = null;
 		await flushSaves();
 		const res = await transports.submitAssignment(item.id);
 		busy = false;
@@ -265,9 +277,7 @@
 			return;
 		}
 		if (res.data.ok === false) {
-			if (res.data.reason === 'incomplete') {
-				serverUnmet = res.data.unmet ?? [];
-			} else if (res.data.reason === 'nothing_attached') {
+			if (res.data.reason === 'nothing_attached') {
 				notice = 'Attach at least one file before submitting.';
 			} else if (res.data.reason === 'already_submitted') {
 				notice = 'Already submitted.';
@@ -296,7 +306,7 @@
 					: 'This is not currently submitted.';
 			return;
 		}
-		notice = 'Unsubmitted -- you can keep working and submit again.';
+		notice = 'Unsubmitted. You can keep working and submit again.';
 		await refresh();
 	}
 
@@ -338,7 +348,7 @@
 	{#if returned && submission}
 		<section class="card grade-card">
 			<h3 class="grade-head">
-				Returned{submission.score != null ? ` -- ${submission.score} / ${outOf} pts` : ''}
+				Returned{submission.score != null ? `: ${submission.score} / ${outOf} pts` : ''}
 			</h3>
 			{#if rubric?.length}
 				<RubricView
@@ -436,27 +446,43 @@
 		</section>
 	{/if}
 
-	<!-- Preflight + submit -->
+	<!--
+		WHAT IS STILL UNFINISHED, AND IT IS ADVICE RATHER THAN A GATE (0160).
+		The heading used to read "Before you can submit", which described a
+		refusal the database no longer makes: a student who reads that today
+		believes they are blocked when they are not, and the whole point of
+		accepting unfinished work is that a wrong assignment or a wrong sentence
+		counter must not trap somebody at 11pm.
+
+		IT RENDERS IN BOTH STATES, which is why it sits OUTSIDE the `editable`
+		block the submit row keeps. The teacher now sees this same list beside
+		the hand-in, and the copy says so; a student who submitted and then saw
+		nothing would have no way to know what their teacher is looking at.
+	-->
+	{#if spec && liveUnmet.length}
+		<section class="card preflight-card" data-testid="engine-unfinished">
+			<h3 class="section-label">Still unfinished</h3>
+			<p class="preflight-note" data-testid="engine-unfinished-note">
+				{editable
+					? 'You can submit without finishing these. Your teacher sees this same list beside your work.'
+					: 'You submitted with these unfinished. Your teacher sees this same list beside your work.'}
+			</p>
+			<ul class="unmet-list">
+				{#each liveUnmet as entry, i (i)}
+					<li>{unmetLabel(spec, entry)}</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
+	<!-- Submit -->
 	{#if editable}
-		{@const shown = serverUnmet ?? liveUnmet}
-		{#if spec && shown.length}
-			<section class="card preflight-card" class:server={serverUnmet != null}>
-				<h3 class="section-label">
-					{serverUnmet != null ? 'The submission was refused -- still needed:' : 'Before you can submit'}
-				</h3>
-				<ul class="unmet-list">
-					{#each shown as entry, i (i)}
-						<li>{unmetLabel(spec, entry)}</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
 		<div class="submit-row">
-			<button type="button" class="btn" disabled={busy} onclick={submit}>
+			<button type="button" class="btn" data-testid="engine-submit" disabled={busy} onclick={submit}>
 				{subState === 'returned' ? 'Resubmit' : 'Submit'}
 			</button>
 			{#if spec}
-				<span class="submit-hint">
+				<span class="submit-hint" data-testid="engine-submit-hint">
 					{liveUnmet.length === 0
 						? 'Everything required is done.'
 						: `${liveUnmet.length} requirement${liveUnmet.length === 1 ? '' : 's'} left.`}
@@ -578,8 +604,10 @@
 	.preflight-card {
 		border-color: var(--amber);
 	}
-	.preflight-card.server .section-label {
-		color: var(--amber);
+	.preflight-note {
+		margin: 0 0 var(--space-2);
+		font-size: 0.85rem;
+		color: var(--text-1);
 	}
 	.unmet-list {
 		margin: 0;

@@ -479,7 +479,7 @@
 									{#if rows.length === 0}
 										<tr>
 											<td colspan={block.columns.length + (canEdit ? 1 : 0)} class="empty-cell">
-												{#if canEdit}No rows yet -- add one below.{:else}—{/if}
+												{#if canEdit}No rows yet. Add one below.{:else}—{/if}
 											</td>
 										</tr>
 									{/if}
@@ -682,7 +682,7 @@
 		<section class="card gate-card" class:approved>
 			<span class="gate-label">{spec.approvalGate?.label ?? 'Instructor Approval Required'}</span>
 			<span class="gate-state">
-				{#if approved}Approved -- the modules below are unlocked.{:else}Show your teacher your work so far. The modules below unlock once they approve it.{/if}
+				{#if approved}Approved. The modules below are unlocked.{:else}Show your teacher your work so far. The modules below unlock once they approve it.{/if}
 			</span>
 		</section>
 	{/if}

@@ -580,8 +580,8 @@
 	{:else}
 		<p class="spec-line none">
 			{isReference
-				? 'No reference document -- this material shows its written details instead.'
-				: 'No interactive spec -- students see a plain file hand-in.'}
+				? 'No reference document. This material shows its written details instead.'
+				: 'No interactive spec. Students see a plain file hand-in.'}
 		</p>
 	{/if}
 
@@ -699,7 +699,7 @@
 			     you" legible without a sentence explaining it. -->
 			{#if parsed && !blocking}
 				<p class="valid-line" data-testid="spec-valid">
-					Valid: "{parsed.meta.title}" -- {previewMeta}.
+					Valid: "{parsed.meta.title}", {previewMeta}.
 				</p>
 			{/if}
 
@@ -720,7 +720,7 @@
 
 			{#if parsed}
 				<div class="preview" data-testid="spec-preview">
-					<p class="mini-label preview-label">Preview -- what students see</p>
+					<p class="mini-label preview-label">Preview: what students see</p>
 					<div class="preview-frame">
 						{#key parsed}
 							{#if isReference}
