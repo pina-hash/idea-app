@@ -28,6 +28,7 @@ import type {
 	MapsPending,
 	MapsStock
 } from './maps';
+import type { MapsPhoto } from './media';
 
 export const MAPS_NODE_COLUMNS =
 	'id, parent_id, kind, name, subtype, description, outline, position_x_in, position_y_in, rotation_deg, elevation_order, elevation_h_in, elevation_w_in, status, published_at, created_at, updated_at';
@@ -44,6 +45,14 @@ export const MAPS_STOCK_COLUMNS =
 export const MAPS_PENDING_COLUMNS =
 	'id, node_id, item_type_id, item_id, stock_id, snapshot, created_at';
 
+/**
+ * 0163's photo rows. No rung of their own: 0163 is part of the 0161-0165 wave
+ * this module's header already says landed together, so there is no deployment
+ * where `maps_nodes` answers and `maps_photos` does not.
+ */
+export const MAPS_PHOTO_COLUMNS =
+	'id, node_id, item_type_id, item_id, storage_key, caption, sort_order, created_at, updated_at';
+
 /** The slice of a Supabase client this read needs -- server and browser alike. */
 export interface MapsReadClient {
 	from(table: string): {
@@ -57,14 +66,15 @@ export interface MapsReadClient {
 }
 
 export async function loadMapsEditorData(supabase: MapsReadClient): Promise<MapsEditorData> {
-	const [nodes, itemTypes, items, stock, pending] = await Promise.all([
+	const [nodes, itemTypes, items, stock, pending, photos] = await Promise.all([
 		supabase.from('maps_nodes').select(MAPS_NODE_COLUMNS),
 		supabase.from('maps_item_types').select(MAPS_ITEM_TYPE_COLUMNS),
 		supabase.from('maps_items').select(MAPS_ITEM_COLUMNS),
 		supabase.from('maps_stock').select(MAPS_STOCK_COLUMNS),
-		supabase.from('maps_revisions').select(MAPS_PENDING_COLUMNS).eq('state', 'pending')
+		supabase.from('maps_revisions').select(MAPS_PENDING_COLUMNS).eq('state', 'pending'),
+		supabase.from('maps_photos').select(MAPS_PHOTO_COLUMNS)
 	]);
-	for (const result of [nodes, itemTypes, items, stock, pending]) {
+	for (const result of [nodes, itemTypes, items, stock, pending, photos]) {
 		if (result.error) throw new Error(result.error.message);
 	}
 	const byName = (a: { name?: string | null }, b: { name?: string | null }) =>
@@ -74,6 +84,7 @@ export async function loadMapsEditorData(supabase: MapsReadClient): Promise<Maps
 		itemTypes: ((itemTypes.data ?? []) as MapsItemType[]).slice().sort(byName),
 		items: ((items.data ?? []) as MapsItem[]).slice(),
 		stock: ((stock.data ?? []) as MapsStock[]).slice(),
-		pending: (pending.data ?? []) as MapsPending[]
+		pending: (pending.data ?? []) as MapsPending[],
+		photos: (photos.data ?? []) as MapsPhoto[]
 	};
 }

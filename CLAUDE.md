@@ -38,10 +38,31 @@ economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), IDEA Maps
-(`/maps/edit`, the admin editor; the public viewer at `/maps` is a later bundle
--- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165, writes through
-the `is_admin()` RLS policies with `maps_publish` as the one RPC per 0161's own
-header), and the portal shell (`/`, `/dashboard`, `/admin`).
+(`/maps/edit`, the admin editor, and `/maps/edit/shelf`, ITEM ENTRY AT THE
+SHELF -- a phone-first flow used standing at a toolbox, so 375px is its primary
+width and not the one checked afterwards; the public viewer at `/maps` is a
+later bundle -- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165
+plus the `maps-media` bucket, writes through the `is_admin()` RLS policies with
+`maps_publish` as the one RPC per 0161's own header), and the portal shell
+(`/`, `/dashboard`, `/admin`).
+  - **THE `/maps/edit` GATE IS THE AREA'S `+layout.server.ts`**, hoisted there
+    the moment there was a second page, so a third cannot ship ungated by
+    somebody forgetting to copy a check. The editor page keeps its own identical
+    `isAdmin` call as defence in depth; the shelf page deliberately carries none,
+    which `tests/maps-shelf-route.test.ts` asserts in both directions.
+  - **A MAP PHOTO'S MEDIA TYPE COMES FROM THE EXTENSION WHEN THE BROWSER GIVES
+    NONE, AND THAT IS 0163'S OWN INSTRUCTION TO THE EDITOR.** `File.type` is
+    legitimately EMPTY for HEIC off an iPhone, an empty type uploads as
+    `application/octet-stream`, and the `maps-media` bucket refuses it -- so a
+    perfectly good camera photo fails at the far end unless the type is
+    resolved first. `mapsImageMime` in `$lib/maps/media.ts` is the one place
+    that happens, and the size ceiling beside it (20 MiB) is refused from
+    `File.size` BEFORE the transfer, because a refusal after a minute of school
+    wifi is the same refusal at the worst moment.
+  - **THE BUCKET'S `image/*` WILDCARD ADMITS SVG AND THE CLIENT REFUSES IT
+    ANYWAY.** An SVG is a document, not a picture, and `maps-media` is PUBLIC --
+    closing it properly is a migration replacing the wildcard with a concrete
+    raster list, which no bundle has written yet.
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
@@ -1010,9 +1031,9 @@ it is not required to browse.
   the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
   tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`), the Foundry source reader
-  (`POST /api/foundry/source`), the IDEA Maps editor (`/maps/edit` -- the
-  future `/maps` viewer is PUBLIC per the maps spec and must never be
-  prefix-guarded) and GAUNTLET's ranked-run review
+  (`POST /api/foundry/source`), the IDEA Maps editor (everything under
+  `/maps/edit`, gated once in its own `+layout.server.ts` -- the future `/maps`
+  viewer is PUBLIC per the maps spec and must never be prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
