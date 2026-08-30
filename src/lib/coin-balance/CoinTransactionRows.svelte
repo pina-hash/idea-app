@@ -7,6 +7,7 @@
 		COIN_TXN_TYPE_LABELS,
 		type CoinDisplayRow
 	} from '$lib/coin-format';
+	import CoinTypeGlyph from '$lib/coin-desk/CoinTypeGlyph.svelte';
 
 	/**
 	 * One student's transaction history, rendered.
@@ -65,7 +66,13 @@
 			<div class="row" data-testid="coin-row">
 				<div class="who">
 					<span class="reason">{t.isTransfer ? 'Withdrawal' : t.category_name}</span>
+					<!-- GLYPH, TONE AND WORD, the same three signals the category
+					     picker carries, from the same module -- so a fine reads as a
+					     fine in the list you choose it from and in the history it
+					     lands in. The word is never dropped: the glyph is
+					     `aria-hidden` and decorative by construction. -->
 					<span class="type-chip {type}" data-testid="type-chip">
+						<CoinTypeGlyph {type} size={12} />
 						{t.isTransfer ? 'Withdrawal' : COIN_TXN_TYPE_LABELS[type]}
 					</span>
 				</div>
@@ -131,7 +138,7 @@
 		color: var(--dim);
 	}
 	.since {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.65rem;
 		color: var(--dim);
 	}
@@ -146,28 +153,56 @@
 	/* The type is named as well as coloured. A correction that reads only as a
 	   violet number still depends on someone knowing what violet means here. */
 	.type-chip {
-		font-family: 'Share Tech Mono', monospace;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-family: var(--font-mono);
 		font-size: 0.55rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
+		white-space: nowrap;
 		border: 1px solid var(--line);
 		border-radius: 3px;
 		padding: 0.05rem 0.3rem;
 		color: var(--dim);
+	}
+	/* THE THREE THAT USED TO HAVE NO TONE AT ALL. A fine, an award and a
+	   purchase all fell through to --dim, so the one distinction a reader
+	   scanning a history actually wants was the one the chip did not draw.
+	   Every token below is in its documented role: --green success, --amber
+	   warning, --gold the secondary brass accent. --crimson is deliberately
+	   NOT here for a fine -- it is reserved for LIVE/REC/error and never for
+	   identity, which is the same call src/app.css's feed flags made. */
+	.type-chip.award {
+		color: var(--green);
+		border-color: color-mix(in srgb, var(--green) 40%, transparent);
+		background: color-mix(in srgb, var(--green) 6%, transparent);
+	}
+	.type-chip.fine {
+		color: var(--amber);
+		border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+		background: color-mix(in srgb, var(--amber) 6%, transparent);
+	}
+	.type-chip.purchase {
+		color: var(--gold);
+		border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+		background: color-mix(in srgb, var(--gold) 6%, transparent);
 	}
 	/* The WORD takes the ink, the EDGE keeps the accent -- see --violet-ink in
 	   $lib/design-system/colors.css. Raw --violet measured 2.45:1 here. */
 	.type-chip.adjustment {
 		color: var(--violet-ink);
 		border-color: var(--violet);
+		background: color-mix(in srgb, var(--violet) 8%, transparent);
 	}
 	.type-chip.payout {
 		color: var(--cyan);
 		border-color: var(--cyan);
+		background: color-mix(in srgb, var(--cyan) 6%, transparent);
 	}
 
 	.medium-chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.58rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -185,7 +220,7 @@
 	}
 
 	.amount {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 	}
 	.amount.positive {
 		color: var(--green);

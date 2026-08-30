@@ -140,7 +140,7 @@
 		color: var(--white);
 	}
 	.feedback {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		padding: 0.45rem 0.7rem;
 		border-radius: 5px;
@@ -161,7 +161,7 @@
 		border-radius: 6px;
 	}
 	.coin-balance {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 1.4rem;
 		color: var(--green);
 	}
@@ -173,7 +173,7 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.8rem;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--dim);
 	}
@@ -188,14 +188,14 @@
 		gap: 0.05rem;
 	}
 	.split-label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.6rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--dim);
 	}
 	.split-value {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.95rem;
 		color: var(--cyan);
 	}
@@ -203,7 +203,7 @@
 		color: var(--amber);
 	}
 	.strike-chip {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.65rem;
 		color: var(--amber);
 		border: 1px solid var(--amber);

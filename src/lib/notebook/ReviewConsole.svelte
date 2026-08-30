@@ -268,6 +268,25 @@
 	}
 
 	const section = $derived(sections.find((s) => s.id === sectionId) ?? null);
+	/**
+	 * MANAGE-ONLY PANELS ARE PER SECTION NOW, NOT PER VIEWER (0169). A viewer
+	 * can be teacher of record of one section and a section REVIEWER of the
+	 * next, so "may they author check-ins / grade / delete here" is a property
+	 * of the SELECTED section. The flag arrives computed from the server load
+	 * (the client cannot derive chair-ness); no section selected withholds the
+	 * manage panels, which is also what they render for. The database refuses
+	 * a reviewer's manage write regardless -- this only keeps the console from
+	 * offering a control whose only possible answer is that refusal.
+	 */
+	const sectionManages = $derived(section?.manages ?? false);
+	/**
+	 * What SessionManager may TARGET: a check-in is authored only into
+	 * sections the viewer manages. For every pre-0169 viewer this is the whole
+	 * list (a non-chair's list was exactly their taught sections); it exists so
+	 * a reviewed-only section is never offered as a posting target the RPC
+	 * would refuse.
+	 */
+	const manageableSections = $derived(sections.filter((s) => s.manages));
 	const units = $derived(unitsOf(sessions));
 
 	/**
@@ -308,13 +327,17 @@
 	 * cannot answer: the mode button says why it is disabled.
 	 */
 	$effect(() => {
-		if (mode === 'grade' && (unit === null || !docCheck)) mode = 'review';
+		if (mode === 'grade' && (unit === null || !docCheck || !sectionManages)) mode = 'review';
 		// THE SAME FALLBACK FOR THE LOG, and it is not decoration: an admin who
 		// opens the log and is then demoted mid-session (or whose page is
 		// re-hydrated with no transport) must land on a mode that renders, not on
 		// an empty body. The table's own RLS policy is what actually withholds the
 		// rows; this only keeps the console coherent.
 		if (mode === 'log' && !adminLog) mode = 'review';
+		// And for the check-in manager (0169): switching from a managed section
+		// to one the viewer only REVIEWS must land back on Review, because the
+		// manager's every write would be refused for that section.
+		if (mode === 'checkins' && !sectionManages) mode = 'review';
 	});
 
 	/**
@@ -911,11 +934,13 @@
 					onResolve={resolveEntry}
 					onAccept={canAccept ? acceptEntry : undefined}
 					onUnaccept={canAccept && transports.unacceptEntry ? unacceptEntry : undefined}
-					onDelete={transports.deleteEntry ? deleteEntry : undefined}
-					onDeleteNote={transports.deleteNote
+					onDelete={transports.deleteEntry && sectionManages ? deleteEntry : undefined}
+					onDeleteNote={transports.deleteNote && sectionManages
 						? (noteId) => deleteNote(entryId, noteId)
 						: undefined}
-					onRestoreNote={staffNote ? (noteId) => restoreNote(entryId, noteId) : undefined}
+					onRestoreNote={staffNote && sectionManages
+						? (noteId) => restoreNote(entryId, noteId)
+						: undefined}
 					onClose={closeEntry}
 				>
 					{#snippet excusal()}
@@ -1050,15 +1075,21 @@
 					data-testid="mode-review"
 					onclick={() => (mode = 'review')}>Review</button
 				>
-				<button
-					type="button"
-					class="mode"
-					class:on={mode === 'checkins'}
-					aria-pressed={mode === 'checkins'}
-					data-testid="mode-checkins"
-					onclick={() => (mode = 'checkins')}>Check-ins</button
-				>
-				{#if docCheck}
+				<!-- MANAGE-ONLY (0169): a section REVIEWER reads and reviews but does
+				     not author the section's check-ins, so the tab is absent for a
+				     section they only review -- absence, not a disabled control,
+				     because there is nothing they could do to enable it here. -->
+				{#if sectionManages}
+					<button
+						type="button"
+						class="mode"
+						class:on={mode === 'checkins'}
+						aria-pressed={mode === 'checkins'}
+						data-testid="mode-checkins"
+						onclick={() => (mode = 'checkins')}>Check-ins</button
+					>
+				{/if}
+				{#if docCheck && sectionManages}
 					<button
 						type="button"
 						class="mode"
@@ -1159,12 +1190,12 @@
 			{#if actionNote}
 				<p class="action-note" role="status" data-testid="action-note">{actionNote}</p>
 			{/if}
-		{:else if mode === 'checkins'}
+		{:else if mode === 'checkins' && sectionManages}
 			<div class="console-panel scrolls">
 				{#if sectionId}
 					<SessionManager
 						{sectionId}
-						{sections}
+						sections={manageableSections}
 						{sessions}
 						onSave={saveSession}
 						onDelete={deleteSession}
@@ -1177,7 +1208,7 @@
 					/>
 				{/if}
 			</div>
-		{:else if mode === 'grade' && docCheck && section && unit !== null}
+		{:else if mode === 'grade' && docCheck && section && sectionManages && unit !== null}
 			<div class="console-panel scrolls">
 				<DocumentationCheck {section} unitNumber={unit} {grid} transports={docCheck} />
 			</div>

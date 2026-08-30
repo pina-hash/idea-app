@@ -66,8 +66,12 @@
 	homeHref="/notebook/review"
 />
 
+<!-- The restore transport is withheld for a 0169 reviewer-only viewer:
+     `notebook_staff_restore_entry` stays manage-gated (restore is deletion's
+     undo, and neither is review), and absence of the prop is what removes the
+     control -- the same mechanism as every omitted transport above. -->
 <NotebookDeletedZone
 	entries={data.deletedEntries}
 	studentName={data.student.display_name ?? data.student.email}
-	{restoreEntry}
+	restoreEntry={data.canRestore ? restoreEntry : undefined}
 />

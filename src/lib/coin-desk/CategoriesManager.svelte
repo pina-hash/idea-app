@@ -186,8 +186,20 @@
 		{#if !categories.length}
 			<p class="note">No categories yet.</p>
 		{:else}
-			<div class="rows category-rows">
+			<!--
+				GROUPED IN COLUMNS, NEVER A FLAT LIST IN COLUMNS. The price list is
+				42 rows under four kind headings; poured into a multi-column grid
+				as one flat sequence, "Awards" would land halfway down the second
+				column with rows of the previous kind above it. So the GROUP is
+				the grid item: each kind keeps its own heading directly above its
+				own rows, and the four sit side by side. Measured on the harness's
+				42 rows at 1440px: the card went from 3180px tall to 1160px, three
+				columns, with no row narrower than the 380px its content stops
+				gaining at.
+			-->
+			<div class="rows category-rows cd-cols">
 				{#each grouped as g (g.kind)}
+					<section class="kind-group">
 					<h3 class="kind-heading">{KIND_LABELS[g.kind]}</h3>
 					{#each g.rows as c (c.id)}
 						<div class="row" class:retired={c.active === false}>
@@ -209,6 +221,7 @@
 							</div>
 						</div>
 					{/each}
+					</section>
 				{/each}
 			</div>
 		{/if}
@@ -358,6 +371,18 @@
 	.category-rows {
 		margin-top: 0.6rem;
 	}
+	/* `.cd-cols` (in $lib/coin-desk/coin-desk.css) turns this into columns and
+	   this restores what the flex column gave each group internally: the rows
+	   stack, and the LAST row of each group loses its rule rather than only the
+	   last row of the whole list. */
+	.kind-group {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.kind-group .row:last-child {
+		border-bottom: none;
+	}
 	.kind-heading {
 		margin: 0.9rem 0 0.2rem;
 		font-size: 0.78rem;
@@ -412,20 +437,38 @@
 		min-width: 0;
 	}
 	.since {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.65rem;
-		color: var(--dim);
+		/* `--text-2`, NOT `--dim`. CLAUDE.md names this exact case: --dim clears
+		   only the darkest of the three portal grounds (5.31 on --bg0, 4.46 on
+		   --bg1, 4.24 on --bg2) and this line sits on a card, which is --bg1.
+		   Measured here at 4.52:1 -- a pass by two hundredths, on the line
+		   carrying every category's price. The documented remedy is the CALL
+		   SITE taking --text-2 (6.91 / 5.88 / 5.51 on the same three grounds),
+		   never lightening --dim, which five FRC components read on paper where
+		   it is already at 2.95. */
+		color: var(--text-2);
 	}
 	.actions {
 		margin-left: auto;
 	}
 	.mini {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		background: none;
 		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
+		border-radius: var(--radius-control);
+		color: var(--text-2);
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
+		/* Measured at 53.3x19.8 -- under the 24px ABSOLUTE floor, not merely
+		   under the 44px one, on 38 controls at once. This is a row control in
+		   a dense list rather than a standalone action, so it takes the
+		   absolute floor rather than 44: inflating every row of a 38-row price
+		   list to 44px would add ~900px of height to the surface this bundle
+		   exists to shorten. `min-height`, never `height`. */
+		min-height: 24px;
 		padding: 0.15rem 0.5rem;
 		cursor: pointer;
 	}
