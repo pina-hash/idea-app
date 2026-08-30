@@ -29,6 +29,7 @@
  */
 
 import { isTransientSqlstate } from '$lib/pg-errors';
+import { MAPS_MEDIA_BUCKET, mapsPhotoOwnerColumn, type MapsPhotoOwner } from './media';
 import type { MapsEditorData, MapsTable } from './maps';
 import { MAPS_PENDING_COLUMN } from './maps';
 import { loadMapsEditorData, type MapsReadClient } from './selects';
@@ -65,6 +66,45 @@ export interface MapsTransports {
 	reload(): Promise<MapsResult<MapsEditorData>>;
 }
 
+/**
+ * PHOTOS ARE A SEPARATE INJECTED OBJECT, not four more methods on the one
+ * above, and the split is the repo's own "an omitted optional transport
+ * REMOVES the control it drives" rule taken at face value: a surface handed no
+ * photo transports renders no camera and no picker, so read-only is structural
+ * rather than a discipline. It also keeps `MapsTable` meaning what it means --
+ * the four tables that carry draft/publish state and revisions -- while
+ * `maps_photos` carries none of that (0163: a photo is CONTENT OF its owner and
+ * has no publish state of its own).
+ *
+ * TWO WRITES, IN ONE ORDER, AND THE ORDER IS THE ARGUMENT. The object goes to
+ * Storage FIRST and the row second. Row-first would leave a row naming bytes
+ * that are not there, which renders as a broken image on a public map and
+ * which nobody can repair without the file; object-first leaves at worst an
+ * orphaned public image nobody references, which is the same acceptable
+ * failure the Foundry delete argues for in the other direction. 0163 says the
+ * same thing about deletion ("deleting a photo ROW does not delete the
+ * OBJECT ... orphaned public image bytes are the acceptable failure").
+ */
+export interface MapsPhotoTransports {
+	/**
+	 * Uploads the bytes under `storageKey` with a CONCRETE `image/*` content
+	 * type, then inserts the `maps_photos` row pointing at them.
+	 *
+	 * The content type is a parameter rather than read from the File here,
+	 * because `File.type` is legitimately empty for an iPhone HEIC and the
+	 * bucket refuses the `application/octet-stream` that an empty type
+	 * defaults to -- 0163 names that as this bundle's obligation, and
+	 * `mapsImageMime` is the one place it is discharged.
+	 */
+	attachPhoto(args: {
+		owner: MapsPhotoOwner;
+		ownerId: string;
+		file: Blob;
+		storageKey: string;
+		mimeType: string;
+	}): Promise<MapsResult<{ id: string; storage_key: string }>>;
+}
+
 interface DbError {
 	code?: string;
 	message: string;
@@ -78,6 +118,19 @@ export interface MapsWriteClient extends MapsReadClient {
 		name: string,
 		args?: Record<string, unknown>
 	): PromiseLike<{ data: unknown; error: DbError | null }>;
+}
+
+/** The storage slice, kept apart so a caller with no photos needs no bucket. */
+export interface MapsStorageClient {
+	storage: {
+		from(bucket: string): {
+			upload(
+				path: string,
+				body: Blob,
+				options?: { contentType?: string; upsert?: boolean; cacheControl?: string }
+			): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+		};
+	};
 }
 
 /**
@@ -249,6 +302,56 @@ export function mapsTransports(supabase: MapsWriteClient): MapsTransports {
 					message: cause instanceof Error ? cause.message : 'The reload failed.'
 				};
 			}
+		}
+	};
+}
+
+/**
+ * The real photo transports, over the browser Supabase client and the
+ * `maps-media` bucket. Storage first, row second (see `MapsPhotoTransports`).
+ *
+ * NO SIGNING ROUTE AND NO SERVICE ROLE, which is 0163's own call: the bucket's
+ * policies admit an `is_admin()` caller's own client directly, so the write
+ * runs as the person doing it and the database stays the boundary. A server
+ * route holding a key would be a second authorization model for a bucket that
+ * already has one.
+ */
+export function mapsPhotoTransports(
+	supabase: MapsWriteClient & MapsStorageClient
+): MapsPhotoTransports {
+	return {
+		async attachPhoto({ owner, ownerId, file, storageKey, mimeType }) {
+			const uploaded = await supabase.storage
+				.from(MAPS_MEDIA_BUCKET)
+				.upload(storageKey, file, { contentType: mimeType, upsert: false });
+			if (uploaded.error) {
+				return {
+					ok: false,
+					// Storage's own refusals here are the bucket's two rules --
+					// the 20 MiB ceiling and images-only -- which the client
+					// checked before sending. Reaching one means the two
+					// disagree, so the message is passed through rather than
+					// reworded into a guess about which.
+					retryable: /network|fetch|timeout|failed to fetch/i.test(uploaded.error.message),
+					message: `The photo did not upload: ${uploaded.error.message}`
+				};
+			}
+			const column = mapsPhotoOwnerColumn(owner);
+			const { data, error } = await supabase
+				.from('maps_photos')
+				.insert({ [column]: ownerId, storage_key: storageKey })
+				.select('id, storage_key')
+				.single();
+			if (error) {
+				return {
+					ok: false,
+					retryable: isTransientSqlstate(error.code),
+					// The bytes ARE up. Saying so is the difference between a
+					// retry that re-uploads 8 MB and one that writes a row.
+					message: `The photo uploaded but was not attached: ${error.message}`
+				};
+			}
+			return { ok: true, data: data as { id: string; storage_key: string } };
 		}
 	};
 }
