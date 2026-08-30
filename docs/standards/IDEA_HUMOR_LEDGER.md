@@ -1,5 +1,5 @@
 # IDEA Humor Ledger
-**Version 1.2 - 2026-08-25**
+**Version 1.4 - 2026-08-25**
 
 The anti-repetition record for every humor insertion in an IDEA or Team 5669 artifact. Governed by `IDEA_HUMOR_STANDARDS.md`. Read before the Step 6b humor pass, written in the same pass as delivery.
 
@@ -61,6 +61,11 @@ Six rating rounds, 2026-08-24 to 2026-08-25, which produced the 2.0 gates. Kept 
 | 2026-08-25 | IDEA209H Unit 1.2 | IDEA209H-F26 | 6 | Inherited | Reveal | `krynen-chandelier` | None, in-house | Local | "Your tuition money at work" | Shipped. Mr. Cosso's own gag on his own slide 39, carried forward. Mandated by Mr. Pina over chat's recommendation to cut it, which is the case that rewrote reject mode 4 |
 | 2026-08-25 | IDEA209H Unit 1.2 | IDEA209H-F26 | 11 | Rubric ambush | Refusal | Native | None | Native | "4 - Proficient. Rounded down. Everything else right. You still lost the point, and the chandelier is now hanging at 2.92." | Shipped. Cut once under the old density cap, restored when 2.1 retired it. Quotes the live `c4` level, so the score it names is the real score |
 | 2026-08-25 | IDEA209H Unit 1.2 | IDEA209H-F26 | 12 | Deep fry | In-house | Native | None | Native | n/a | **Cut.** Wanted the tie rod figure, which students then read for 20 minutes during the activity. Destroying the artifact they are working from is harmful, not funny |
+| 2026-08-25 | IDEA209H Unit 1.3, Day 7 | IDEA209H-F26 | 2 | Two buttons | Dilemma | `two-buttons-sweating-guy` | Daily Struggle | Nostalgia canon | n/a | **Cut, rated dumb.** Payload was the Picture Day pull. Mr. Pina does not know when in the period it lands, and the pacing sheet logs the estimate as unconfirmed. Chat treated that uncertainty as the joke when it is what makes the joke unbuildable: an insertion whose subject has no known shape at build time cannot be timed, cannot be read for landing, and may be describing something that already happened |
+| 2026-08-25 | IDEA209H Unit 1.3, Day 7 | IDEA209H-F26 | 12 | Absurdist non-sequitur | Comparison | Native | None | Native | n/a | **Cut, rated poor.** A Sharpie as a fifth cross-section in the shaft-profile lineup. No cause given and none is invented here. Chat's own read, recorded as a hypothesis rather than as a rating: the calibrated example is a whole object given full spec treatment, and this was a caption appended to someone else's diagram, with a second joke bolted on the end |
+| 2026-08-25 | IDEA209H Unit 1.3, Day 7 | IDEA209H-F26 | 18 | Fake post or comment section | Escalation | Native | None | Native | n/a | **Cut, rated bad.** Five reviews under the vendor listing. The comments were specific, which is what the craft rule asks for, and it still failed: they were specific about invented strangers rather than about this room. Specificity is not the same as locality, and the format's calibrated success was comments on the class's own render |
+| 2026-08-25 | IDEA209H Unit 1.3, Day 7 | IDEA209H-F26 | 7 | Scooby Doo mask | Reveal | `scooby-doo-mask` | Scooby Doo | Nostalgia canon | n/a | **Cut by chat before proposal.** Root-cause gag, "THE BOLT" unmasking as "TWO THREADS OF ENGAGEMENT". Structurally clean and does the pedagogy for free. Cut on payload: no specific class, part, or failure in this room. Worth revisiting once a real joint has failed in this course |
+| 2026-08-25 | IDEA209H Unit 1.3, Day 7 | IDEA209H-F26 | 15 | Gru's plan | Sequence | `grus-plan` | Despicable Me | Nostalgia canon | n/a | **Cut by chat before proposal.** Stages multiply rather than add. Sheet 15's own build 2 already calls out the product versus the sum, so the gag would have restated the sheet's argument instead of sitting beside it. Reject mode 3 |
 
 ---
 
@@ -83,6 +88,14 @@ Derived from the table above. Restate on every write so a session reading only t
 sourced reference, so it carries no reference cooldown. Nothing is blocked for any
 other cohort.
 
+**Unit 1.3 spent nothing.** Five formats were generated for it and all five were cut, so
+Two buttons, Absurdist non-sequitur, Fake post or comment section, Scooby Doo mask, and
+Gru's plan are all still available, and the `IDEA209H-F26` sourced-universe budget remains
+at one of two with only Drake spent. A cut row records that a candidate was considered and
+rejected; it does not burn a cooldown, on the same footing as the Unit 1.2 deep fry. Any
+session reading this block should not infer a spent budget from the number of Unit 1.3
+rows above it.
+
 ---
 
 ## Budget spent by deck
@@ -93,11 +106,26 @@ One row per deck, including decks that spent zero. A zero row is meaningful: it 
 |---|---|---|---|---|---|
 | FSP Day 2, DWG 003 / 010 | FSP-2026 | 10 | 2 | 1 | Built before the standard existed. Second slot unspent |
 | IDEA209H Unit 1.2 | IDEA209H-F26 | 12 logical, 36 physical | none, capped retired at 2.1 | 3, one cut | Slides 3, 6, 11. Gaps of two and four clean sheets. Three distinct structures: comparison, reveal, refusal |
+| IDEA209H Unit 1.3, Day 7 | IDEA209H-F26 | 20 | none, ceilings retired at 2.1 | **0**, five generated and all five cut | Zero row, and a deliberate one. Three candidates reached Mr. Pina and all three were rejected, two more were cut by chat before proposal. Common cause across every one: no real local payload existed to build on. The Overheard log is empty and no class mistake, failed part, or shop phrase is on record anywhere chat can read, so the payload well was dry and chat generated plausible local color instead of saying so. This is the case behind `IDEA_HUMOR_STANDARDS.md` 2.2 |
 
 ---
 
 ## Changelog
 
+- **1.4 (2026-08-25)** - Unit 1.3 (Day 7) recorded as a zero row. Five candidates, all
+  cut, three of them by Mr. Pina on sight and two by chat before proposal. Every rejection
+  is written with its cause, including the one where no cause was given, which is recorded
+  as chat's hypothesis and explicitly labelled as not a rating. No cooldown is spent and
+  the sourced-universe budget stays at one of two, stated in the cooldown block so a later
+  session does not read five Unit 1.3 rows as five spent formats. The finding behind all
+  of it went into `IDEA_HUMOR_STANDARDS.md` 2.2: with an empty Overheard log and no logged
+  class material, the correct output of a humor pass is a zero row rather than invented
+  local color.
+- **1.3 (2026-08-25)** - **Void, never a real state.** Recorded the three Unit 1.3
+  candidates as shipped and burned two cooldowns plus the cohort's entire sourced-universe
+  budget on insertions that were rejected within the hour. Superseded by 1.4, which is
+  rebuilt from 1.2 rather than edited forward, so the wrong cooldowns never have to be
+  argued back out. If a 1.3 copy of this file exists anywhere, discard it.
 - **1.2 (2026-08-25)** - First `IDEA209H-F26` entries, three shipped and one cut, written alongside `IDEA_HUMOR_STANDARDS.md` 2.1. Budget column now records that per-deck ceilings are retired while the cooldowns are not, since the two protect against different failures and only the ceiling was found to be measuring the wrong thing. Noted that a recurring in-house fixture authored by a colleague carries no reference cooldown, on the same footing as a house-cast character.
 - **1.1 (2026-08-25)** - Two sections added alongside `IDEA_HUMOR_STANDARDS.md` 2.0. The Overheard log makes this file the currency authority, replacing web search, which produced a slate of six references that were all rejected as old or cringe. The Calibration record preserves the six rating rounds including the rejects with their causes, since chat re-proposed the crude-drawing family four times for want of a written reason. Reference cooldown now exempts house-cast characters, which is the operational reason the cast is worth building.
 - **1.0 (2026-08-24)** - Initial ledger, created with `IDEA_HUMOR_STANDARDS.md` 1.0. Seeded with the FSP Day 2 Stark insertion, which is the only humor insertion known to have shipped in an IDEA artifact and is the case the standard was written from. Establishes the cohort list, the cross-cohort reuse rule, the derived live-cooldown block, and the per-deck budget table with its zero-row requirement.
