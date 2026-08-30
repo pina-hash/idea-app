@@ -18,6 +18,7 @@
 		type ComposerDraft,
 		saveTarget,
 		stagedDeckIssue,
+		stagedRubricAfterSpec,
 		stagedSpecKind
 	} from '$lib/classroom/composer-staging';
 	import {
@@ -261,6 +262,24 @@
 	 * item page owns the deck and the spec once the item exists.
 	 */
 	let stagedRubric = $state<RubricCriterion[] | null>(null);
+	/**
+	 * WHETHER THE STAGED RUBRIC WAS DERIVED FROM THE SPEC rather than authored.
+	 *
+	 * The spec's rubric and the item's rubric are two different records: the
+	 * criteria live inside the spec JSON (`classroom_set_spec`), and grading
+	 * reads a separate row written only by `classroom_set_rubric`. Nothing used
+	 * to bridge them at creation, so an assignment made from a spec carrying a
+	 * full leveled rubric arrived with no rubric to grade against, and the only
+	 * translator (`rubricFromSpec`) sat behind a button somebody had to know to
+	 * press. `stageSpec` now runs it on the way in.
+	 *
+	 * The flag is what keeps that from overwriting a person's own work: a
+	 * derived rubric is REPLACED when a corrected spec is pasted over it (the
+	 * alternative leaves a stale rubric silently disagreeing with the spec
+	 * beside it), and a rubric that went through the builder is never touched
+	 * again. Cleared wherever the staged rubric itself is.
+	 */
+	let stagedRubricDerived = $state(false);
 	/** The shared drop target's feedback for the staged-deck picker below. */
 	let deckDragActive = $state(false);
 
@@ -302,6 +321,25 @@
 		stagedSpec == null ? null : (stagedSpec as AssignmentSpec | ReferenceSpec)
 	);
 
+	/**
+	 * STAGE A SPEC, AND THE RUBRIC INSIDE IT.
+	 *
+	 * The decision is `stagedRubricAfterSpec`'s, out in composer-staging.ts with
+	 * the rest of the staging rules -- a rubric that fails to arrive here is
+	 * invisible until somebody opens the grading console and finds nothing to
+	 * score with, which is exactly the kind of guarantee that belongs in a plain
+	 * function with a test on it rather than inside an event handler.
+	 */
+	function stageSpec(raw: unknown) {
+		stagedSpec = raw;
+		const next = stagedRubricAfterSpec(raw, canStageRubric, {
+			rubric: stagedRubric,
+			derived: stagedRubricDerived
+		});
+		stagedRubric = next.rubric;
+		stagedRubricDerived = next.derived;
+	}
+
 	/** The size/type check a staged deck goes through, whichever way it arrived. */
 	function stageDeckFile(file: File) {
 		const issue = stagedDeckIssue(file);
@@ -342,7 +380,10 @@
 	$effect(() => {
 		void editingKind;
 		if (!canStageSpec) stagedSpec = null;
-		if (!canStageRubric) stagedRubric = null;
+		if (!canStageRubric) {
+			stagedRubric = null;
+			stagedRubricDerived = false;
+		}
 	});
 
 	// --- Attachments ------------------------------------------------------
@@ -901,6 +942,10 @@
 			stagedCheckIn = extras.checkIn;
 			stagedCheckInSessionId = extras.checkInSessionId;
 			stagedRubric = extras.rubric;
+			// Only a rubric that LANDED stops being the spec's: one still staged
+			// because its write was refused is still the derived one, so a
+			// corrected spec pasted before the retry must still replace it.
+			if (extras.rubric == null) stagedRubricDerived = false;
 			failures.push(...extras.failures);
 		}
 
@@ -966,6 +1011,7 @@
 			stagedDeck = null;
 			stagedSpec = null;
 			stagedRubric = null;
+			stagedRubricDerived = false;
 			stagedCheckIn = null;
 			stagedCheckInSessionId = null;
 			deckIssue = null;
@@ -1235,7 +1281,7 @@
 				kind={specKind}
 				itemId={null}
 				staged={stagedSpecShown}
-				onstage={(raw) => (stagedSpec = raw)}
+				onstage={(raw) => stageSpec(raw)}
 			/>
 		</div>
 	{/if}
@@ -1252,7 +1298,10 @@
 				staged={stagedRubric}
 				spec={stagedSpecShown as AssignmentSpec | null}
 				transports={teacherTransports!}
-				onstage={(criteria) => (stagedRubric = criteria)}
+				onstage={(criteria) => {
+					stagedRubric = criteria;
+					stagedRubricDerived = false;
+				}}
 			/>
 		</div>
 	{/if}
