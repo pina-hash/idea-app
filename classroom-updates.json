@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-30",
+			"title": "Your notebook only shows \"Recently deleted\" when there is something in it",
+			"body": "The chip used to sit in the filter row whether or not you had deleted anything, and pressing it just told you the list was empty. Now it appears only when you actually have a deleted entry, and it disappears again once you have restored the last one. Nothing about deleting or restoring an entry has changed, and nothing that was in that list has gone anywhere.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "The page tells you it heard you",
 			"body": "Opening a class, an assignment or a reference used to show nothing at all until the new page appeared. On a slow connection that meant clicking something and watching the screen not change, with no way to tell whether the tap had landed. A thin green bar now runs across the very top of the window while a page is on its way. It only appears if the page is actually taking a moment, so an ordinary quick click looks exactly as it did before, and it never pushes the page around. Screen readers announce it. Separately, the places that say they are loading something now all say it the same way, and each one names what it is waiting for instead of just saying \"Loading\".",
 			"tags": [

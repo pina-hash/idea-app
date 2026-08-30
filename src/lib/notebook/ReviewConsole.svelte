@@ -27,6 +27,10 @@
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import '$lib/notebook/notebook-theme.css';
 	import {
+		NOTEBOOK_LIVE_HINT,
+		NOTEBOOK_LIVE_LABEL,
+		NOTEBOOK_STALLED_HINT,
+		NOTEBOOK_STALLED_LABEL,
 		REVIEW_KEYS,
 		cellReviewed,
 		clampCursor,
@@ -42,6 +46,7 @@
 		type GridCell,
 		type GridCursor,
 		type GridSession,
+		type NotebookLiveStatus,
 		type ReviewAction,
 		type ReviewSection,
 		type ReviewTransports,
@@ -204,7 +209,18 @@
 	let loadError = $state<string | null>(null);
 	/** A live update landed and the grid is being re-read. Never blanks anything. */
 	let liveTick = $state(0);
-	let live = $state(false);
+	/**
+	 * WHAT THE CHANNEL IS DOING, reported by the transport, never inferred.
+	 *
+	 * This was `let live = $state(false)` set TRUE the moment `subscribe`
+	 * returned -- which asserted that a transport EXISTS, not that a channel
+	 * came up. The route called `.subscribe()` with no status callback, so a
+	 * publication that does not carry the notebook tables and a socket that
+	 * never joined both produced a green Live pill over a console that would
+	 * silently never update again. The one thing an instructor cannot see for
+	 * themselves is exactly the thing it was getting wrong.
+	 */
+	let channel = $state<NotebookLiveStatus>('connecting');
 
 	/**
 	 * The open cell is identified by its ENTRY ID and the cell itself is
@@ -260,11 +276,26 @@
 	 *
 	 * COURTESY, NOT A BOUNDARY. The RPC re-checks every caller regardless of
 	 * what this returns.
+	 *
+	 * IT CARRIES `?section=` SO THE WAY BACK CAN. /notebook/review reads that
+	 * param and preselects the section (validated against the viewer's own
+	 * list there, so a foreign or made-up id just falls back to the default) --
+	 * and StudentReviewBackStrip's link is the only thing that puts one in
+	 * front of it. Without it, returning from a student reset the console to
+	 * the first section with the cursor gone, and the instructor re-found the
+	 * row by eye.
+	 *
+	 * THE UNIT IS NOT CARRIED, because /notebook/review reads no unit from the
+	 * URL: `unitChoice` is this component's own state and there is no
+	 * `?unit=` to hand it. Inventing one is a second piece of URL state to
+	 * keep valid against a section's own unit list, which is a bigger change
+	 * than this one and not this bundle's.
 	 */
 	function studentNotebookHref(student: SectionGridData['students'][number]): string | null {
 		if (!student.email) return null;
 		if (!isChair && !student.enrolled) return null;
-		return `/notebook/review/student/${encodeURIComponent(student.email)}`;
+		const href = `/notebook/review/student/${encodeURIComponent(student.email)}`;
+		return sectionId ? `${href}?section=${encodeURIComponent(sectionId)}` : href;
 	}
 
 	const section = $derived(sections.find((s) => s.id === sectionId) ?? null);
@@ -492,20 +523,30 @@
 		if (!id || !subscribe) return;
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let stopped = false;
+		channel = 'connecting';
 		const unsubscribe = untrack(() =>
-			subscribe(id, () => {
-				if (stopped) return;
-				clearTimeout(timer);
-				timer = setTimeout(() => {
-					void refresh(id, untrack(() => unit), { quiet: true });
-					void reloadOpenEntry();
-				}, 250);
-			})
+			subscribe(
+				id,
+				() => {
+					if (stopped) return;
+					clearTimeout(timer);
+					timer = setTimeout(() => {
+						void refresh(id, untrack(() => unit), { quiet: true });
+						void reloadOpenEntry();
+					}, 250);
+				},
+				// Ignored after teardown: `removeChannel` reports CLOSED on the way
+				// out, and painting "not live" as the console unmounts a channel it
+				// asked to close would be an alarm about a normal event.
+				(status) => {
+					if (stopped) return;
+					channel = status;
+				}
+			)
 		);
-		live = true;
 		return () => {
 			stopped = true;
-			live = false;
+			channel = 'connecting';
 			clearTimeout(timer);
 			unsubscribe();
 		};
@@ -1123,14 +1164,34 @@
 
 			<div class="bar-status">
 				{#if loading}<span class="pill">Loading...</span>{/if}
-				{#if live}
+				<!--
+					THREE CHANNEL STATES, TWO OF WHICH SAY SOMETHING.
+
+					`connecting` renders NOTHING, which is both the ordinary
+					sub-second state after a subscribe and what a transport that
+					reports no status gets. A pill that flickers on every section
+					change is noise, and a console that is about to be live is not a
+					fault worth announcing.
+
+					`stalled` is worth announcing, quietly: a dropped socket is common
+					and usually rejoins on its own, but until it does, new work does
+					not appear and NOTHING ELSE ON THIS SCREEN SAYS SO. So the words
+					are the one fact the reader cannot see for themselves, in the same
+					muted ink as "Loading..." rather than in a warning colour -- the
+					grid is not wrong, it is only not moving.
+				-->
+				{#if channel === 'live'}
 					<!-- Word and mark, never a green dot on its own. -->
 					<span
 						class="pill live"
 						data-testid="live-pill"
 						data-live-updates={liveTick}
-						title="Updating as students file work"
-						><span class="live-dot" aria-hidden="true"></span>Live</span
+						title={NOTEBOOK_LIVE_HINT}
+						><span class="live-dot" aria-hidden="true"></span>{NOTEBOOK_LIVE_LABEL}</span
+					>
+				{:else if channel === 'stalled'}
+					<span class="pill stalled" data-testid="stalled-pill" title={NOTEBOOK_STALLED_HINT}
+						>{NOTEBOOK_STALLED_LABEL}</span
 					>
 				{/if}
 			</div>
@@ -1367,6 +1428,15 @@
 	}
 	.pill.live {
 		color: var(--nb-ok);
+	}
+	/*
+	   --text-2, not --nb-warn: this is a statement of fact about the socket,
+	   not a problem with the work on screen, and the room's amber is what the
+	   grid uses for a LATE check-in. Real instructional copy, so it takes the
+	   same tier .bar-keys does rather than the tertiary ink .pill defaults to.
+	*/
+	.pill.stalled {
+		color: var(--text-2);
 	}
 	.live-dot {
 		width: 0.4rem;

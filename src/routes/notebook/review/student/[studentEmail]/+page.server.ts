@@ -37,7 +37,7 @@ import type { PageServerLoad } from './$types';
  * kind, and 0106 ships no write counterpart to this RPC -- the same property
  * the view-as notebook rests on, not a discipline this page has to keep.
  */
-export const load: PageServerLoad = async ({ params, locals: { supabase, claims } }) => {
+export const load: PageServerLoad = async ({ params, url, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
 	const studentEmail = decodeURIComponent(params.studentEmail).trim().toLowerCase();
@@ -70,6 +70,22 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		activity: { id: string; last_activity_at: string }[];
 	};
 
+	/**
+	 * WHERE THE READER CAME FROM, echoed straight back onto the return link so
+	 * /notebook/review reopens on the section they left rather than its first
+	 * one. NOT VALIDATED HERE and deliberately not: that page checks the id
+	 * against the viewer's OWN section list and falls back to the default when
+	 * it does not match, so a second copy of that check here could only stop
+	 * agreeing with it. A uuid shape is all this asks, so nothing else a caller
+	 * types reaches an href.
+	 *
+	 * Reading `url` is safe in a PAGE load (it re-runs on navigation anyway);
+	 * it is a LAYOUT load that must never.
+	 */
+	const askedSection = url.searchParams.get('section');
+	const fromSectionId =
+		askedSection && /^[0-9a-f-]{36}$/i.test(askedSection) ? askedSection : null;
+
 	return {
 		/**
 		 * May the viewer RESTORE one of this student's deleted entries? The RPC
@@ -83,6 +99,16 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		 */
 		canRestore: access.isChair || access.isInstructor,
 		student: payload.student,
+		fromSectionId,
+		/**
+		 * The caller's own uuid, so a row THEY deleted reads "you" rather than
+		 * "staff" in the Deleted section. Already in the validated claims -- a
+		 * rename, not a read -- and it is the ONLY identity resolved beyond the
+		 * student's own, exactly as /notebook/review's admin log resolves only
+		 * this one: joining `profiles` for arbitrary actor uuids would add a read
+		 * of other people's rows to a page that needs none.
+		 */
+		viewerId: claims.sub,
 		sectionLabel: payload.section_label,
 		entries: payload.entries ?? [],
 		// 0117: deliberately not fed to NotebookView, whose `entries` must stay

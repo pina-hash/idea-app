@@ -67,20 +67,21 @@ build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
 **69** directories under `src/routes/dev` with a page, and `routes.mjs` lists
-**61 specs over 34 distinct routes** (re-derived 2026-08-30 against `ROUTES`
-itself, on this branch merged with `integration`: this branch's four
-`navigation*` specs, plus the coins, coin-desk, frc-state, maps-placement,
-maps shelf-entry and notebook-review-viewer specs `integration` brought). This
-line has been re-derived twice on this branch in one session, because
-`integration` moved underneath it both times: it read 47 over 31 on `main`, then
-59 over 33 against `integration` at `47c77b1`, and 61 over 34 against
-`integration` at `cadf918`. `integration`'s own copy of this line was stale
-throughout (it stated 44 over 28 against a tree measuring 55 over 30). Earlier
-readings, oldest last: 36 over 28 the same day, 29 over 24 on 2026-08-29, and 25
-over 20 the same day, before the marks, room-split, coin-preview and short-link
-specs. The two maps placement specs are why a spec count can move without the
-route count moving: `?state=place` is a fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
- the next time a session adds a route --
+**63 specs over 35 distinct routes** (re-derived 2026-08-30 against `ROUTES`
+itself, on this branch merged with `integration` at `52f4804`: this branch's
+classroom-view-as-notebook and notebook-review-realtime-stalled specs, plus the
+coins, coin-desk, frc-state, maps-placement, maps shelf-entry, navigation and
+notebook-review-viewer specs `integration` brought). This line has been
+re-derived three times on this branch in one session, because `integration`
+moved underneath it each time: 45 over 32 on `main`, 57 over 31 against
+`integration` at `47c77b1`, 59 over 32 at `cadf918`, and 63 over 35 at
+`52f4804`. `integration`'s own copy of this line was stale throughout (it stated
+44 over 28 against a tree measuring 55 over 30). Earlier readings, oldest last:
+36 over 28 the same day, 29 over 24 on 2026-08-29, and 25 over 20 the same day,
+before the marks, room-split, coin-preview and short-link specs. The two maps
+placement specs are why a spec count can move without the route count moving:
+`?state=place` is a fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
+go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
 against the distinct `path.split('?')[0]` values (alias-resolved) for both
@@ -129,25 +130,11 @@ Two further limits belong in any report that quotes these numbers:
 ### Known findings, and the two limits above as they apply to them
 
 **The whole run reports exactly 4 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration` at `cadf918`: **122
-route/width runs, 1554 measurements**), and they are TWO findings: one seen at
-both widths, and one seen at 375px only on two different routes. Anything else
-is new.
-
-**Two things this paragraph used to say are now measured false, and both moved
-because of the merge rather than because a check changed.** It read "36
-measurements outside threshold ... 94 route/width runs" against this branch off
-`main`, of which the bulk was a cluster on `/dev/notebook`,
-`/dev/notebook-review-student` and the two `/dev/gauntlet-shell` specs where the
-component under test did not mount at all (`present 0` on every row, plus
-console errors), confirmed pre-existing at the time against a clean
-`origin/main` worktree. **On this merged tree that cluster is gone**: all three
-routes report zero findings and all 122 runs are console-error-clean, so
-whatever owned it was fixed on `integration`. The `/dev/foundry-submit` stale
-sentence count is gone too, corrected by this branch's own specs -- which is why
-this tree reports 4 where a tree without those corrections reports 6. **This
-paragraph is a snapshot and it drifts** -- the run above it
-, and a session measuring a different number corrects this line
+2026-08-30 on this branch merged with `integration` at `52f4804`: **126
+route/width runs, 1616 measurements**), and they are TWO findings: one seen at
+both widths, and one seen at 375px only on two different routes. Anything
+else is new. **This paragraph is a snapshot and it drifts** -- the run above it
+is the authority, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
 
 The count moved for two independent reasons and neither of them is a check being
@@ -160,10 +147,11 @@ than deleted, because a finding that vanishes without a word reads like a check
 that stopped running.
 
 - **`/dev/foundry-submit`'s stale sentence count no longer reproduces.** It read
-  `present 2, visible 2` against `exactly 4` at both widths on 2026-08-30; on
-  this merged tree the spec passes at both widths, corrected by this branch's
-  own specs. It is named rather than deleted, because a finding that vanishes
-  without a word reads like a check that stopped running.
+  `present 2, visible 2` against `exactly 4` at both widths, and still
+  reproduced on this branch against `integration` at `cadf918`; the fix reached
+  `integration` with `claude/navigation-loading-indicator-laqsgc`, and the spec
+  now passes at both widths. It is named rather than deleted, because a finding
+  that vanishes without a word reads like a check that stopped running.
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
@@ -364,8 +352,9 @@ break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
 one, because unlike the measuring run there is a right answer here. **64
 controls, 32 negative and 32 positive** (re-derived from a `--selftest` run
-2026-08-30, after the `maxPresent`, prepare-step and absence-limit controls went
-in; it read 54 on 2026-08-29, 44 the same day, and 36 on 2026-08-28. A number
+2026-08-30 on `claude/notebook-audit-fixes-0tkfek`, unchanged by it -- that
+branch added route specs, not checks; it read 54 on 2026-08-29, 44 the same day,
+and 36 on 2026-08-28. A number
 written down here is a number that drifts, so re-derive it rather than trusting
 this line).
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
@@ -549,16 +538,17 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **276.8 seconds** (2.4s of it the vite boot) for **61 route specs
-x 2 widths = 122 runs and 1554 measurements**; `--selftest` is ~32s (64
+A full run is **282.8 seconds** (2.5s of it the vite boot) for **63 route specs
+x 2 widths = 126 runs and 1616 measurements**; `--selftest` is ~32s (64
 controls). That is measured 2026-08-30 on this branch merged with `integration`
-at `cadf918`. Against `integration` at `47c77b1` the same branch read 265.8s for
-118 runs and 1476 measurements, and off `main` it read 192.7s for 94 runs and
-1080 measurements (against a 171.2s/86-run `origin/main` control on the same
-machine); `integration` itself read 207.1s for 88 runs and 1076 measurements. It
-read 184.7s for 72 runs and 780 measurements earlier the same day, and 152.2s
-for 58 runs and 580 measurements on `main` alone. The per-route/width cost has
-held at roughly 2.3s across that whole range.
+at `52f4804`. The same branch read 265.6s for 118 runs and 1538 measurements
+against `integration` at `cadf918`, and 253.3s for 114 runs and 1460
+measurements at `47c77b1`; `integration` itself read 207.1s for 88 runs and 1076
+measurements. This branch's own findings paragraph earlier recorded a
+90-run/1064-measurement reading with no wall clock beside it; it read 184.7s for
+72 runs and 780 measurements earlier the same day, and 152.2s for 58 runs and
+580 measurements on `main` alone. The per-route/width cost has held at roughly
+2.2s across that whole range.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree

@@ -43,7 +43,10 @@ export default {
 		until the payload got slower again; the predicate cannot.
 	*/
 	prepare: [
-		{ waitFor: '() => document.querySelectorAll(".cell").length > 0', timeoutMs: 20000 }
+		{ waitFor: '() => document.querySelectorAll(".cell").length > 0', timeoutMs: 20000 },
+		/* The channel status lands on a microtask after subscribe, like the real
+		   one; without this the pill row races the join on a cold pass. */
+		{ waitFor: '() => !!document.querySelector(\'[data-testid="live-pill"]\')', timeoutMs: 10000 }
 	],
 	presence: [
 		{ selector: '[data-testid="grid-scroll"]', label: 'compliance grid', expectPresent: 1 },
@@ -59,7 +62,18 @@ export default {
 		{ selector: '.legend li', label: 'always-visible legend (7 states + not-reviewed)', expectPresent: 8, maxPresent: 8 },
 		/* The two states this fixture does not produce, asserted as absent so
 		   the five contrast rows below cannot be read as covering all seven. */
-		{ selector: '.cell.ontime, .cell.await', label: 'states absent from this fixture (ontime, await)', expectPresent: 0, expectVisible: 0 }
+		{ selector: '.cell.ontime, .cell.await', label: 'states absent from this fixture (ontime, await)', expectPresent: 0, expectVisible: 0 },
+		/*
+			THE LIVE PILL, AND ITS PAIR ON `?realtime=stalled`. The default mode
+			here JOINS, so this is the surface where the green pill is correct --
+			and it is the POSITIVE CONTROL for the stalled route's absence row.
+			Neither alone proves anything: an absence assertion with no matching
+			presence is a selector that could have stopped matching, and a
+			presence assertion with no matching absence is a pill that renders
+			unconditionally, which is exactly what the defect was.
+		*/
+		{ selector: '[data-testid="live-pill"]', label: 'green Live pill (this mode joins)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="stalled-pill"]', label: '"not live" pill (must NOT render when the join succeeded)', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [
 		{ selector: '.cell.late', label: 'cell: late', min: 4.5 },

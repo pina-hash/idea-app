@@ -312,7 +312,7 @@
 		 * The handler takes no payload deliberately -- see `subscribe` in
 		 * notebook-review.ts for why re-reading beats patching.
 		 */
-		subscribe(sectionId, onChange) {
+		subscribe(sectionId, onChange, onStatus) {
 			const channel = data.supabase
 				.channel(`notebook-review-${sectionId}`)
 				.on(
@@ -335,7 +335,23 @@
 					{ event: '*', schema: 'public', table: 'notebook_entry_notes' },
 					() => onChange()
 				)
-				.subscribe();
+				/**
+				 * THE STATUS CALLBACK IS WHAT MAKES THE Live PILL TRUE. Without it
+				 * `.subscribe()` reports nothing back and the console could only
+				 * assert that this function returned -- so a publication that does
+				 * not carry the notebook tables, a failed join and a dead socket all
+				 * showed a green Live pill over a grid that would never update.
+				 *
+				 * supabase-js answers SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT or
+				 * CLOSED. Only the first is live; the other three are the same
+				 * answer as far as an instructor is concerned (new work will not
+				 * arrive on its own), and the console ignores anything that lands
+				 * after its own teardown, so a normal unsubscribe's CLOSED paints
+				 * nothing.
+				 */
+				.subscribe((status) => {
+					onStatus(status === 'SUBSCRIBED' ? 'live' : 'stalled');
+				});
 			return () => {
 				data.supabase.removeChannel(channel);
 			};
