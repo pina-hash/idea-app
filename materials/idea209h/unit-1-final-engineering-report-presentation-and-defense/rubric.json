@@ -36,31 +36,31 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All sourced and traced",
+        "short": "All sourced",
         "points": 4,
-        "descriptor": "Every published property carries its value, the exact part number it was read from, and a record trace row naming the notebook page and date it was first written down."
+        "descriptor": "Every published property named in the report carries its value and the vendor page, datasheet, or catalog it was read from."
       },
       {
         "label": "Proficient",
-        "short": "One trace missing",
+        "short": "One source missing",
         "points": 3,
-        "descriptor": "One property is missing its part number, or one record trace row is missing its page or date."
+        "descriptor": "One property is named with its value but no source, or with a source too vague to find again."
       },
       {
         "label": "Developing",
-        "short": "Two or three untraceable",
+        "short": "Two or three unsourced",
         "points": 1,
-        "descriptor": "Two or three properties cannot be traced to a part number, or the record trace is present but fewer than three rows carry a page and date."
+        "descriptor": "Two or three properties are named with no source, or are asserted with no value at all."
       },
       {
         "label": "Absent",
-        "short": "Untraceable or trace empty",
+        "short": "Four or more unsourced",
         "points": 0,
-        "descriptor": "Four or more properties carry no part number, or the record trace is empty, or no notebook page named in it exists in the collected notebook."
+        "descriptor": "Four or more properties carry no source, or the report names no published property."
       }
     ],
     "points": 4,
-    "criterion": "Engineering Report: Every property is traceable",
+    "criterion": "Engineering Report: Every value and property carries its source",
     "incomplete": false
   },
   {
