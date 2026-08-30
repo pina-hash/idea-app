@@ -20,11 +20,16 @@ export default {
 		rendered two results.
 	*/
 	presence: [
-		{ selector: '.run-results', label: 'the four verdict mounts', expectPresent: 4, expectVisible: 4 },
-		{ selector: '.run-results.celebrate', label: 'celebrating results (first clear + PB beaten ONLY)', expectPresent: 2, expectVisible: 2, maxVisible: 2 },
-		{ selector: '.pb-flash', label: 'the flourish banner, one per celebrating result', expectPresent: 2, expectVisible: 2, maxVisible: 2 },
-		{ selector: '.result-banner.no', label: 'the not-cleared banner', expectPresent: 1, expectVisible: 1, maxVisible: 1 },
-		{ selector: '.sr-clock', label: 'the three clock states', expectPresent: 3, expectVisible: 3 },
+		/* `maxPresent` ON EVERY ROW HERE, because every one of them is an
+		   EXCLUSION wearing a count. The `maxVisible` ceilings were already
+		   right about what paints; the PRESENT half was still a floor, so a
+		   fifth mount, a third celebrating result or a fourth clock would have
+		   satisfied all five of these rows and the paragraph above them. */
+		{ selector: '.run-results', label: 'the four verdict mounts', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		{ selector: '.run-results.celebrate', label: 'celebrating results (first clear + PB beaten ONLY)', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
+		{ selector: '.pb-flash', label: 'the flourish banner, one per celebrating result', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
+		{ selector: '.result-banner.no', label: 'the not-cleared banner', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
+		{ selector: '.sr-clock', label: 'the three clock states', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		/*
 			STANDBY is the state between pressing reveal and the SolidWorks
 			Start macro firing -- `running` true, `serverStartMs` still
@@ -32,8 +37,8 @@ export default {
 			must be exactly one of the three, and the live ranked clock
 			must NOT be wearing it.
 		*/
-		{ selector: '.sr-clock.standby', label: 'standby treatment, ranked-armed-but-not-started', expectPresent: 1, expectVisible: 1, maxVisible: 1 },
-		{ selector: '.sr-clock.unranked', label: 'the calmer unranked variant', expectPresent: 1, expectVisible: 1, maxVisible: 1 }
+		{ selector: '.sr-clock.standby', label: 'standby treatment, ranked-armed-but-not-started', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
+		{ selector: '.sr-clock.unranked', label: 'the calmer unranked variant', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 }
 	],
 	textContains: [
 		/*
