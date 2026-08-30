@@ -78,11 +78,52 @@ const CHAIN = [
 	// Nothing it touches is read or written by 0151 -- it names no function and
 	// no table this file goes near.
 	'0150_gauntlet_connect_run_analysis.sql',
-	'0151_gauntlet_meter_practice.sql'
+	'0151_gauntlet_meter_practice.sql',
+	// 0158 RECONCILES 0151 WITH 0148, AND THIS FILE IS WHY IT HAD TO EXIST.
+	// 0151 redefines `gauntlet_submit` from 0147's text and so drops the
+	// server-stamped knowledge clock 0148 put in the same function; 0158 is the
+	// single body carrying both. It is on this chain because the meter this file
+	// tests lives in that body, and a suite that stopped at 0151 would be
+	// asserting the meter against a definition nobody will ever run.
+	//
+	// It is worse than an untested definition, though, and that is the part
+	// worth keeping in front of the next reader: the knowledge test below
+	// ASSERTED THE REWOUND BEHAVIOUR AS CORRECT for as long as this chain ended
+	// at 0151. It submitted three knowledge answers with no start row and
+	// required all three to resolve -- which is only true of a body with no
+	// clock in it. The chain was manufacturing the evidence for its own
+	// assertion.
+	'0158_gauntlet_submit_reconcile.sql'
 ] as const;
 
-/** The chain one file short of 0151 -- the world as it is deployed today. */
-const CHAIN_BEFORE = CHAIN.slice(0, -1) as unknown as string[];
+/**
+ * The chain WITHOUT 0151: the pre-meter world, which is this file's positive
+ * control.
+ *
+ * IT NAMES 0151 RATHER THAN COUNTING FROM THE END. This was
+ * `CHAIN.slice(0, -1)`, which means "without 0151" only while 0151 happens to
+ * be the last entry -- and appending 0158 above turned it into "without 0158",
+ * leaving 0151 applied and the control asserting the opposite of its own name.
+ * Measured, not feared: that is exactly what happened when 0158 was added, and
+ * the failure read as a behavioural change rather than as a chain that had
+ * stopped meaning what it said. The same defect was found and fixed in
+ * `gauntlet-run-review-route.test.ts` one bundle earlier; this is its twin.
+ *
+ * A TRUNCATION AND NOT A FILTER, deliberately: 0158 refuses to apply without
+ * `_gauntlet_practice_min_interval()`, so a database that has not applied 0151
+ * cannot have 0158 either. Filtering 0151 out of the middle would build a
+ * state no operator can reach.
+ */
+const CHAIN_BEFORE = CHAIN.slice(
+	0,
+	CHAIN.indexOf('0151_gauntlet_meter_practice.sql')
+) as unknown as string[];
+
+// `indexOf` returning -1 would make the slice above an EMPTY chain, which
+// fails in a way that reads as a harness fault rather than a renamed file.
+if (!CHAIN.includes('0151_gauntlet_meter_practice.sql')) {
+	throw new Error('CHAIN_BEFORE cannot be derived: 0151 is not on CHAIN.');
+}
 
 // ---------------------------------------------------------------------------
 // The level. Nothing here is round, so a recovered number could not have come
@@ -531,6 +572,20 @@ describe('the refusal is written for a person, and names nothing', () => {
 
 describe('the meter is scoped to the practice branch', () => {
 	it('does not meter the knowledge modes -- with a positive control beside it', async () => {
+		// THIS TEST USED TO SUBMIT THREE KNOWLEDGE ANSWERS WITH NO START ROW AND
+		// ASSERT ALL THREE RESOLVED, AND THAT DESCRIBED THE REVERTED WORLD.
+		//
+		// 0148 requires a `gauntlet_knowledge_starts` row and refuses without
+		// one ("This question was not started on this device..."), so under 0148
+		// the FIRST of those three would have raised. It passed only because
+		// 0151 redefines `gauntlet_submit` from 0147's text and drops that
+		// clock -- this file's own chain was the thing making the assertion
+		// true. With 0158 on the chain the clock is back, so the fixture has to
+		// start the question the way the deployed client does.
+		//
+		// THE SUBJECT IS UNCHANGED: still "three back to back, no ageing, all
+		// resolve", still proving the two-second floor is not on this branch.
+		// Only the setup moved, and it moved toward what a real caller does.
 		const u = await createUser(w.db, 'quiz@boscotech.net', 'Quiz Taker');
 		const answer = () =>
 			w.db.asUser(u.id, (q) =>
@@ -538,7 +593,20 @@ describe('the meter is scoped to the practice branch', () => {
 					w.knowledgeId
 				])
 			);
-		// Three back to back, no ageing at all.
+
+		// THE CLOCK IS STILL THERE. Asserted FIRST, and by its refusal rather than
+		// by reading SQL: without a start row this call raises, which is exactly
+		// what the old version of this test proved was no longer happening. This
+		// is the assertion 0158 exists to make true again, and it is what makes
+		// the three resolves below mean "unmetered" rather than "ungated".
+		await expect(answer()).rejects.toThrow(/was not started on this device/);
+
+		await w.db.asUser(u.id, (q) =>
+			q(`select public.gauntlet_knowledge_start($1::uuid)`, [w.knowledgeId])
+		);
+
+		// NOW the original claim, on a started question: three back to back, no
+		// ageing at all, none of them metered.
 		await expect(answer()).resolves.toBeDefined();
 		await expect(answer()).resolves.toBeDefined();
 		await expect(answer()).resolves.toBeDefined();
@@ -548,6 +616,90 @@ describe('the meter is scoped to the practice branch', () => {
 		// would pass just as happily against a guard that had stopped working.
 		expect((await check(w, u, w.otherSpeedrunId, MISS_MASS_G)).ok).toBe(true);
 		expect((await check(w, u, w.otherSpeedrunId, MISS_MASS_G)).ok).toBe(false);
+	});
+
+	it('THE TWO REFUSALS ARE DIFFERENT, and only one of them is the meter', async () => {
+		// The other half of "the meter is scoped to the practice branch", and
+		// the assertion that would have caught the revert from this file rather
+		// than from the clock suite. A knowledge answer with NO start row is
+		// refused -- by 0148's clock, not by 0151's floor -- so the two guards
+		// on this one function are told apart by the sentence they raise.
+		const u = await createUser(w.db, 'unstarted@boscotech.net', 'Never Started');
+		const unstarted = w.db.asUser(u.id, (q) =>
+			q(`select public.gauntlet_submit($1::uuid, jsonb_build_object('answer', 'x')) as r`, [
+				w.knowledgeId
+			])
+		);
+		await expect(unstarted).rejects.toThrow(/not started on this device/i);
+		// And it is NOT the meter's sentence, which is what makes this a
+		// scoping assertion rather than a duplicate of the clock suite's.
+		await expect(
+			w.db.asUser(u.id, (q) =>
+				q(`select public.gauntlet_submit($1::uuid, jsonb_build_object('answer', 'x')) as r`, [
+					w.knowledgeId
+				])
+			)
+		).rejects.not.toThrow(/check it again/i);
+	});
+
+	it('scores a knowledge answer on the SERVER clock, which is the half 0151 dropped', async () => {
+		// From claude/gauntlet-submit-reconcile-mzqr4t, kept because it asserts the
+		// clock BEHAVIOURALLY on the one chain that carries both migrations. The
+		// refusal above proves the gate is present; this proves the number it
+		// produces is the server's. `gauntlet-knowledge-clock.test.ts` asserts the
+		// same thing, but its mutants pin its chain at 0148, so this file is where
+		// a future `create or replace` that rewinds the clock over the FULL chain
+		// reddens.
+		const u = await createUser(w.db, 'clocked@boscotech.net', 'Clocked');
+		await w.db.asUser(u.id, (q) =>
+			q(`select public.gauntlet_knowledge_start($1::uuid)`, [w.knowledgeId])
+		);
+		// Age the start row so the server's answer is unmistakably not the
+		// client's, and not zero either.
+		await w.db.sql(
+			`update public.gauntlet_knowledge_starts set started_at = now() - interval '7 seconds'
+			  where user_id = $1 and challenge_id = $2`,
+			[u.id, w.knowledgeId]
+		);
+		const out = await w.db.asUser(u.id, (q) =>
+			q<{ r: Record<string, unknown> }>(
+				`select public.gauntlet_submit($1::uuid, jsonb_build_object('answer', 'x'), $2::int) as r`,
+				[w.knowledgeId, 999_999]
+			)
+		);
+		// The browser claimed 999999ms. The server scored ~7s from its own row.
+		expect(Number(out.rows[0].r.score_metric)).toBeGreaterThanOrEqual(7);
+		expect(Number(out.rows[0].r.score_metric)).toBeLessThan(9);
+
+		const stored = await w.db.sql<{ value: Record<string, unknown> }>(
+			`select value from public.submissions where user_id = $1 and challenge_id = $2`,
+			[u.id, w.knowledgeId]
+		);
+		expect(stored.rows[0].value.clock).toBe('server');
+		// The client's number is KEPT, as evidence, never as the score.
+		expect(stored.rows[0].value.client_elapsed_ms).toBe(999_999);
+		expect(Number(stored.rows[0].value.elapsed_ms)).toBeGreaterThanOrEqual(7000);
+
+		// AND THE ZERO CASE, which is the one that would reach production: the
+		// deployed client OMITS p_elapsed_ms once its start succeeds. Under the
+		// rewound body that omission scores 0.00. Here it scores the real
+		// elapsed, because the parameter is not read on this path.
+		const u2 = await createUser(w.db, 'omitter@boscotech.net', 'Omitter');
+		await w.db.asUser(u2.id, (q) =>
+			q(`select public.gauntlet_knowledge_start($1::uuid)`, [w.knowledgeId])
+		);
+		await w.db.sql(
+			`update public.gauntlet_knowledge_starts set started_at = now() - interval '5 seconds'
+			  where user_id = $1 and challenge_id = $2`,
+			[u2.id, w.knowledgeId]
+		);
+		const omitted = await w.db.asUser(u2.id, (q) =>
+			q<{ r: Record<string, unknown> }>(
+				`select public.gauntlet_submit($1::uuid, jsonb_build_object('answer', 'x')) as r`,
+				[w.knowledgeId]
+			)
+		);
+		expect(Number(omitted.rows[0].r.score_metric)).toBeGreaterThanOrEqual(5);
 	});
 
 	it('does not meter the ranked room path, and a room submit is not practice', async () => {

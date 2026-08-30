@@ -73,6 +73,71 @@ const CHAIN_0147 = [
 const FILE_0148 = '0148_gauntlet_knowledge_clock.sql';
 const CHAIN_0148 = [...CHAIN_0147, FILE_0148] as const;
 
+/**
+ * THE WORLD AS IT WILL ACTUALLY STAND, and the reason this constant exists.
+ *
+ * This file was, for a while, the ONLY one of the twelve test files carrying
+ * 0148 that did NOT also carry 0151 -- which is precisely why the rewind below
+ * was invisible. 0151 redefines `gauntlet_submit` from a base of 0147, so on a
+ * chain that has both, 0148's clock is simply gone: the knowledge branch goes
+ * back to `greatest(coalesce(p_elapsed_ms, 0), 0)` and every assertion in this
+ * file about a server-stamped clock would be describing a function nobody runs.
+ *
+ * SO EVERY PLAIN ASSERTION BELOW RUNS ON THIS CHAIN, not on `CHAIN_0148`. A
+ * suite that detects a revert but never applies the reverting file is not a
+ * suite, and moving the ten `seed()` calls is the whole of what closes that.
+ *
+ * `CHAIN_0148` SURVIVES FOR EXACTLY TWO USES, and both need 0148 to be the
+ * LAST word on `gauntlet_submit`:
+ *
+ *   * the before/after pair, whose subject is what 0148 itself changed
+ *     against 0147, and which says nothing about anything later;
+ *   * the two MUTANTS, which `seed()` applies as extra SQL AFTER the chain.
+ *     A mutated 0148 pasted over 0158 would put a body carrying no practice
+ *     meter in front of the assertions -- the mutation proof would still pass
+ *     and would silently have stopped describing the shipped function.
+ *
+ * 0150 rides along because 0151's own suite carries it. 0152 to 0155 are here
+ * because they are what production will actually have between 0151 and 0158;
+ * nothing in this file reads any of them.
+ */
+const FILE_0151 = '0151_gauntlet_meter_practice.sql';
+const FILE_0158 = '0158_gauntlet_submit_reconcile.sql';
+const CHAIN_TODAY = [
+	...CHAIN_0148,
+	'0150_gauntlet_connect_run_analysis.sql',
+	FILE_0151,
+	'0152_gauntlet_run_review.sql',
+	'0153_gauntlet_unpublish_the_target.sql',
+	'0154_gauntlet_rank_what_is_checkable.sql',
+	'0155_gauntlet_authoring_tier.sql',
+	FILE_0158
+] as const;
+
+/**
+ * The same world ONE FILE SHORT of the reconciliation: the rewind, kept so it
+ * can be asserted rather than described.
+ *
+ * DERIVED BY TRUNCATING AT THE NAMED FILE, never by `CHAIN_TODAY.slice(0, -1)`.
+ * That spelling means "without 0158" only while 0158 happens to be last, so
+ * appending anything to `CHAIN_TODAY` would silently turn this control into
+ * "with 0158, without whatever is newest" -- and it would keep passing, because
+ * the thing it asserts absent arrives at 0158 either way. The identical defect
+ * was found and fixed in `gauntlet-practice-meter.test.ts` and in
+ * `gauntlet-run-review-route.test.ts`; this is the shape that does not have it.
+ */
+const CHAIN_REWOUND = CHAIN_TODAY.slice(
+	0,
+	CHAIN_TODAY.indexOf(FILE_0158)
+) as unknown as string[];
+
+// `indexOf` returning -1 would make the slice above the WHOLE chain, so the
+// control would quietly become a duplicate of CHAIN_TODAY and assert the
+// opposite of its own name.
+if (!CHAIN_TODAY.includes(FILE_0158)) {
+	throw new Error('CHAIN_REWOUND cannot be derived: 0158 is not on CHAIN_TODAY.');
+}
+
 const migrationText = (file: string) =>
 	readFileSync(join(process.cwd(), 'supabase', 'migrations', file), 'utf8');
 
@@ -333,7 +398,7 @@ describe('the clock is the server\'s, not the form\'s', () => {
 // ---------------------------------------------------------------------------
 describe('a submit with no start is refused, and says what to do', () => {
 	it('refuses, and names the action', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await expect(submit(w, CORRECT, 0)).rejects.toThrow(/not started on this device/i);
 			// The refusal names the ACTION, because the honest way to reach it is a
@@ -348,7 +413,7 @@ describe('a submit with no start is refused, and says what to do', () => {
 	});
 
 	it('POSITIVE CONTROL: the identical call succeeds once the question is started', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await start(w);
 			const r = await submit(w, CORRECT, 0);
@@ -372,7 +437,7 @@ describe('a submit with no start is refused, and says what to do', () => {
 // ---------------------------------------------------------------------------
 describe('what a SECOND start does: the decision, in all three cases', () => {
 	it('UNANSWERED and FRESH: the first start stands (reload-before-answering buys nothing)', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			const first = await start(w);
 			const again = await start(w);
@@ -385,7 +450,7 @@ describe('what a SECOND start does: the decision, in all three cases', () => {
 	});
 
 	it('UNANSWERED and STALE: the clock restarts, so an abandoned tab is not a life sentence', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			const first = await start(w);
 			// Past the 30 minute window: the student closed the tab and came back.
@@ -404,7 +469,7 @@ describe('what a SECOND start does: the decision, in all three cases', () => {
 	});
 
 	it('just INSIDE the window is not stale, so the boundary is the window and not "a while"', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await start(w);
 			await backdate(w, '29 minutes');
@@ -421,7 +486,7 @@ describe('what a SECOND start does: the decision, in all three cases', () => {
 	});
 
 	it('ANSWERED: the clock is closed forever, at any age', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await start(w);
 			await backdate(w, '40 seconds');
@@ -447,7 +512,7 @@ describe('what a SECOND start does: the decision, in all three cases', () => {
 	});
 
 	it('so the read-the-key-and-resubmit loop costs the whole detour', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await start(w);
 			// Two seconds in, submit garbage to read the key off the refusal.
@@ -570,7 +635,7 @@ describe('the start RPC applies the same gates the submit does', () => {
 	});
 
 	it('refuses an unpublished challenge to a student and allows it to a teacher', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			const teacher = await createUser(w.db, 'staff@boscotech.edu', 'Staff One');
 			const draft = await w.db.sql<{ id: string }>(
@@ -592,7 +657,7 @@ describe('the start RPC applies the same gates the submit does', () => {
 	});
 
 	it('one student\'s clock is not another\'s', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await start(w, w.student.id);
 			await backdate(w, '10 minutes', w.student.id);
@@ -642,7 +707,7 @@ describe('nothing else about gauntlet_submit moved', () => {
 	});
 
 	it('re-applying 0148 over an already-migrated database is a no-op', async () => {
-		const w = await seed(CHAIN_0148);
+		const w = await seed(CHAIN_TODAY);
 		try {
 			await start(w);
 			const stampBefore = (await attemptRow(w)).started_at.getTime();
@@ -652,6 +717,132 @@ describe('nothing else about gauntlet_submit moved', () => {
 			expect((await attemptRow(w)).started_at.getTime()).toBe(stampBefore);
 			const r = await submit(w, CORRECT, 0);
 			expect(r.is_correct).toBe(true);
+		} finally {
+			await w.db.stop();
+		}
+	});
+});
+
+
+// ---------------------------------------------------------------------------
+// THE CHAIN THIS FILE USED TO STOP SHORT OF
+// ---------------------------------------------------------------------------
+describe('the clock survives the rest of the chain, which it did not before 0158', () => {
+	it('IS REWOUND by 0151 alone -- the positive control on why 0158 exists', async () => {
+		// THE FINDING, PINNED SO IT CANNOT COME BACK QUIETLY. On 0148 + 0151 with
+		// no 0158, `gauntlet_submit` no longer reads the start table at all: 0151
+		// was written as a diff against 0147 and its `create or replace` drops
+		// 0148's whole knowledge branch.
+		//
+		// This asserts the BROKEN world deliberately. Without it, the tests below
+		// would prove only that the clock works on a chain carrying 0158, and
+		// nothing would say that the chain WITHOUT it is the state production is
+		// one hand-applied migration away from.
+		const w = await seed(CHAIN_REWOUND);
+		try {
+			const { rows } = await w.db.sql<{ reads_starts: boolean }>(
+				`select p.prosrc like '%gauntlet_knowledge_starts%' as reads_starts
+				   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+				  where n.nspname = 'public' and p.proname = 'gauntlet_submit'`
+			);
+			expect(rows[0].reads_starts).toBe(false);
+
+			// AND THE CONSEQUENCE, behaviourally rather than from the catalog: a
+			// submit with NO start row is accepted, and the client's number is
+			// scored again. This is the exact shape that fills a board with 0.00
+			// rows, because the deployed client omits the parameter entirely once
+			// its start call has succeeded.
+			const r = await submit(w, CORRECT, 4000);
+			expect(r.score_metric).toBe(4);
+
+			const omitted = await w.db.asUser(w.other.id, async (q) => {
+				const { rows: o } = await q<{ r: SubmitResult }>(
+					`select public.gauntlet_submit($1::uuid, $2::jsonb) as r`,
+					[w.challengeId, JSON.stringify({ answer: CORRECT })]
+				);
+				return o[0].r;
+			});
+			// ZERO. This is the production defect, reproduced.
+			expect(omitted.score_metric).toBe(0);
+		} finally {
+			await w.db.stop();
+		}
+	});
+
+	it('is restored by 0158: the refusal, the server stamp and the evidence all hold', async () => {
+		const w = await seed(CHAIN_TODAY);
+		try {
+			// 1. THE REFUSAL. Byte-identical to 0148's, because a student who has
+			//    met this sentence before must not read a new one now.
+			await expect(submit(w, CORRECT, 0)).rejects.toThrow(
+				/was not started on this device/
+			);
+
+			// 2. THE SERVER STAMP, with the client claiming something absurd.
+			await start(w);
+			await backdate(w, '9 seconds');
+			const r = await submit(w, CORRECT, 999_999);
+			expect(r.score_metric).toBeGreaterThanOrEqual(9);
+			expect(r.score_metric).toBeLessThan(11);
+			expect(r.timed_attempt).toBe(true);
+
+			// 3. THE EVIDENCE. The browser's number is kept, never scored.
+			const { rows } = await w.db.sql<{ value: Record<string, unknown> }>(
+				`select value from public.submissions where user_id = $1 and challenge_id = $2`,
+				[w.student.id, w.challengeId]
+			);
+			expect(rows[0].value.clock).toBe('server');
+			expect(rows[0].value.client_elapsed_ms).toBe(999_999);
+			expect(Number(rows[0].value.elapsed_ms)).toBeGreaterThanOrEqual(9000);
+
+			// 4. THE CLOCK CLOSES, so a later review attempt is not a second
+			//    ranked run. 0148's `coalesce(answered_at, now())`.
+			expect((await attemptRow(w)).answered_at).not.toBeNull();
+			const again = await submit(w, CORRECT, 0);
+			expect(again.timed_attempt).toBe(false);
+		} finally {
+			await w.db.stop();
+		}
+	});
+
+	it('and 0151\'s practice meter is still there beside it, on the same body', async () => {
+		// The other half of the reconciliation. If 0158 had been built by simply
+		// re-applying 0148 -- the obvious repair -- this would redden, and the
+		// board would be correct while the free pass/fail oracle was unmetered
+		// again. Both halves or neither.
+		const w = await seed(CHAIN_TODAY);
+		try {
+			const { rows } = await w.db.sql<{ meters: boolean; clocks: boolean }>(
+				`select p.prosrc like '%_gauntlet_practice_min_interval%' as meters,
+				        p.prosrc like '%gauntlet_knowledge_starts%' as clocks
+				   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+				  where n.nspname = 'public' and p.proname = 'gauntlet_submit'`
+			);
+			expect(rows[0]).toEqual({ meters: true, clocks: true });
+
+			// Behaviourally, on the modeling challenge this fixture already seeds:
+			// two practice checks back to back, the second refused by the floor.
+			const check = () =>
+				w.db.asUser(w.student.id, (q) =>
+					q(`select public.gauntlet_submit($1::uuid, jsonb_build_object('mass', '150.25')) as r`, [
+						w.modelingId
+					])
+				);
+			await expect(check()).resolves.toBeDefined();
+			await expect(check()).rejects.toThrow(/checked this part a moment ago/);
+		} finally {
+			await w.db.stop();
+		}
+	});
+
+	it('leaves exactly one gauntlet_submit overload on the full chain', async () => {
+		const w = await seed(CHAIN_TODAY);
+		try {
+			const { rows } = await w.db.sql<{ n: string }>(
+				`select count(*)::text as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+				  where n.nspname = 'public' and p.proname = 'gauntlet_submit'`
+			);
+			expect(Number(rows[0].n)).toBe(1);
 		} finally {
 			await w.db.stop();
 		}
