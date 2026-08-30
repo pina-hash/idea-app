@@ -16,8 +16,8 @@ export default {
 		   background is what says the room is really mounted -- which the
 		   contrast row below reads as its ground. */
 		{ selector: '.cr-root .app-header.ref-header', label: 'the room header slot', expectPresent: 1 },
-		{ selector: '.cr-root .idea-logo', label: 'emblem roots in the room', expectPresent: 3 },
-		{ selector: '.cr-root .idea-logo img.gear', label: 'emblem gear layers', expectPresent: 3 }
+		{ selector: '.cr-root .idea-logo', label: 'emblem roots in the room', expectPresent: 3, maxPresent: 3 },
+		{ selector: '.cr-root .idea-logo img.gear', label: 'emblem gear layers', expectPresent: 3, maxPresent: 3 }
 	],
 	contrast: [
 		{ selector: '.cr-root .room-page h1', label: 'heading on the room plate', min: 4.5 },

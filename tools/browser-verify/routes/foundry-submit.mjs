@@ -50,14 +50,19 @@ export default {
 			FAILED. The note below is the same fact stated positively.
 		*/
 		{ selector: '[data-testid="drive-note"]', label: 'the drive note (the input was found and handed the files)', expectPresent: 1 },
-		{ selector: '.fdy-issues', label: 'issues panels after the bad zip', expectPresent: 1 },
+		/* TWO PANELS, MEASURED, NOT ONE. `FoundryIssues` renders one section per
+		   TONE and the bad fixture produces both a `failure` and a `warning`,
+		   so `expectPresent: 1` was a floor passing on a reading of 2 -- and
+		   would have gone on passing if the warning panel stopped rendering,
+		   which is the storage sentence CLAUDE.md calls unconditional. */
+		{ selector: '.fdy-issues', label: 'issues panels after the bad zip (failure + warning tones)', expectPresent: 2, maxPresent: 2 },
 		/*
 			FOUR SENTENCES, not "at least one": the bad fixture trips a leading
 			slash, two references to files the upload does not contain, and the
 			unconditional localStorage warning. A count of 1 would pass on a
 			panel that had lost three of them.
 		*/
-		{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, 2 missing refs, storage)', expectPresent: 4 }
+		{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, 2 missing refs, storage)', expectPresent: 4, maxPresent: 4 }
 	],
 	contrast: [
 		{ selector: '.fdy-issue-message', label: 'refusal sentence on its panel', min: 4.5 }

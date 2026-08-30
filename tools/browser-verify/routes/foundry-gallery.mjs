@@ -23,8 +23,8 @@ export default {
 	],
 	presence: [
 		{ selector: '.harness h1', label: 'page heading', expectPresent: 1 },
-		{ selector: '[data-testid="foundry-gallery-grid"] li', label: 'gallery cards', expectPresent: 3 },
-		{ selector: '.fdy-gal-sort-btn', label: 'gallery sort buttons', expectPresent: 3 },
+		{ selector: '[data-testid="foundry-gallery-grid"] li', label: 'gallery cards', expectPresent: 3, maxPresent: 3 },
+		{ selector: '.fdy-gal-sort-btn', label: 'gallery sort buttons', expectPresent: 3, maxPresent: 3 },
 		/*
 			TWO OF THREE FIXTURE APPS CARRY A NONZERO PLAY COUNT; the third is
 			zero on purpose (`playCountLabel` renders no chip for zero), so this
@@ -32,7 +32,13 @@ export default {
 			painted, never 3, proves the zero case is genuinely rendering
 			nothing rather than the fixture simply lacking a third number.
 		*/
-		{ selector: '[data-testid="fdy-card-plays"]', label: 'play-count chips (2 of 3 apps played)', expectPresent: 2 },
+		/* `maxPresent` IS WHAT MAKES THE SENTENCE ABOVE TRUE. `expectPresent` is
+		   a FLOOR, so "never 3" was not measured: giving the third fixture app
+		   `plays: 7` painted a third chip and this row came back
+		   `ok ... present 3` against `>= 2`, with its own label still reading
+		   "2 of 3 apps played". The zero case is the assertion; a ceiling is
+		   the only way to state it. */
+		{ selector: '[data-testid="fdy-card-plays"]', label: 'play-count chips (2 of 3 apps played)', expectPresent: 2, maxPresent: 2 },
 		{ selector: '[data-testid="foundry-inspector"]', label: 'review inspector (admin path)', expectPresent: 1 },
 		{ selector: '[data-testid="foundry-play-stats"]', label: 'FoundryPlayStats block', expectPresent: 1 },
 		{ selector: '[data-testid="foundry-metadata-edit"]', label: 'admin metadata editor', expectPresent: 1 },
