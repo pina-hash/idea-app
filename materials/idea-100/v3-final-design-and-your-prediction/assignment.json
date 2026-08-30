@@ -2,12 +2,12 @@
   "kind": "assignment",
   "meta": {
     "theme": "idea-green",
-    "title": "V3 - Final Design And Your Prediction",
+    "title": "Scale Test - Break It On Purpose",
     "course": "IDEA100",
-    "dueDate": "2026-09-04",
-    "totalPoints": 20,
-    "assignmentId": "idea100-hook-v3",
-    "buildVersion": "v1",
+    "dueDate": "2026-09-03",
+    "totalPoints": 15,
+    "assignmentId": "idea100-hook-scale-test",
+    "buildVersion": "v2",
     "headerFields": [
       "studentName",
       "date"
@@ -17,20 +17,19 @@
   "print": {},
   "modules": [
     {
-      "id": "legal",
-      "intro": "Last check before this becomes the hook that fights. Nothing after this.",
-      "title": "Still Legal",
-      "aiNote": "Unrestricted for driving SolidWorks. Measure in the model.",
+      "id": "test",
+      "intro": "Record what happened, from the score sheet and from your own eyes.",
+      "title": "The Pull",
+      "aiNote": "No AI on this module. You were at the rig; nothing else was.",
       "blocks": [
         {
-          "id": "legal-checks",
+          "id": "test-checks",
           "type": "checklist",
           "items": [
-            "Saved as a new file. V2 still exists",
-            "Anchor hole still 1.000 in, throat still 1.000 in clear to the edge",
-            "Center to center still between 2.000 and 2.500 in",
-            "Thickness still 0.75 in or under",
-            "Projected full size mass still under 60.0 g"
+            "My scale article was pulled at the rig",
+            "I read my breaking load off the score sheet and wrote it down",
+            "I kept both pieces",
+            "I photographed the fracture before putting it away"
           ],
           "points": 5
         }
@@ -38,44 +37,44 @@
       "points": 5,
       "rubric": [
         {
-          "id": "v3-legal",
+          "id": "test-done",
           "levels": [
             {
               "label": "Complete",
-              "short": "New file, all legal",
+              "short": "Tested and recorded",
               "points": 5,
-              "descriptor": "V2 preserved, V3 saved separately, all four dimensional rules hold and the projected mass is under the limit."
+              "descriptor": "Article pulled, load read from the score sheet, both pieces kept and the fracture photographed."
             },
             {
               "label": "Developing",
-              "short": "One check fails",
+              "short": "Tested, record incomplete",
               "points": 3,
-              "descriptor": "V3 exists but one rule is broken or the mass was not checked."
+              "descriptor": "Article was pulled but the load, the pieces or the photograph is missing."
             },
             {
               "label": "Absent",
-              "short": "No V3",
+              "short": "Not tested",
               "points": 0,
-              "descriptor": "No V3 file."
+              "descriptor": "No test."
             }
           ],
-          "criterion": "V3 is a separate file that passes every rule including mass"
+          "criterion": "The article was tested and the result recorded from the rig"
         }
       ],
-      "aiLevel": 3
+      "aiLevel": 0
     },
     {
-      "id": "v3",
-      "intro": "Your scale article broke somewhere and at some load. Both of those are evidence.",
-      "title": "What You Changed, And What You Expect",
-      "aiNote": "Ask it how to build a shape. The change and the prediction are yours to defend at the rig.",
+      "id": "result",
+      "intro": "The rig tells you how much. Your own part tells you where. Compare that to what the simulation predicted.",
+      "title": "Where It Broke",
+      "aiNote": "Ask it what a fracture surface tells you. Do not ask it to explain your own break; you are the one who saw it.",
       "blocks": [
         {
           "type": "instructions",
-          "content": "Upload a screenshot of V3 with the change marked. **Windows + Shift + S**, then **Ctrl + V** in an answer box.\n\nThen predict. Your scale article was half size in every direction and it broke at a load you know. Your full size hook is not going to break at that same load. Work out what you think it will hold and say how you got there.\n\nBeing wrong costs you nothing here. Having no reasoning does."
+          "content": "Upload your fracture photograph. Get close, get the broken face in focus, and put something in the frame for scale if you can.\n\nYou have had a prediction sitting in your notebook since the simulation lab. This is the day you find out whether it was right. A wrong prediction is worth the same marks as a right one here, as long as you say plainly which it was."
         },
         {
-          "id": "v3-image",
+          "id": "fracture-image",
           "type": "imageZone",
           "points": 3,
           "printAs": "notebookRef",
@@ -83,80 +82,76 @@
           "minImages": 1
         },
         {
-          "id": "v3-change",
+          "id": "break-location",
           "type": "textField",
           "points": 4,
-          "prompt": "What did you change from V2, and where? Say what in your scale test made you change that.",
+          "prompt": "Where did it break, described on the part? Did it snap, or did it pull open and stop being a hook?",
           "maxSentences": 4,
           "minSentences": 2
         },
         {
-          "id": "predicted-load",
+          "id": "sim-vs-reality",
           "type": "textField",
-          "points": 4,
-          "prompt": "What load will your full size hook hold, and how did you get that number from your half scale result?",
-          "maxSentences": 4,
-          "minSentences": 2
-        },
-        {
-          "id": "predicted-location",
-          "type": "textField",
-          "points": 4,
-          "prompt": "Where will it break this time? Name the place on the part, and say why it is not the place it broke last time.",
+          "points": 3,
+          "prompt": "Your simulation put the red somewhere. Is that where it actually broke? Say which, and if it was not, where the break was instead.",
           "maxSentences": 3,
           "minSentences": 2
         },
         {
           "type": "instructions",
-          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Dimensions, Design and CAD, and Where Hooks Break tabs.\n- Your own scale test result, and your own simulation.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Load carried scales with cross-sectional area.\n- IDEA AI Use Policy."
+          "content": "### Before you leave\n\nStart V3 now, while the broken piece is still in your hand. You do not have to finish it, but it has to be **sliceable** by the end of the block, because there are two print windows today and only three left after that.\n\nA hook that waits gets one chance. A hook that is ready now gets five."
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Where Hooks Break and Tournament Rules tabs.\n- Your own V2 simulation study and your own scale article.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration and modes of failure.\n- IDEA AI Use Policy."
         }
       ],
-      "points": 15,
+      "points": 10,
       "rubric": [
         {
-          "id": "v3-shown",
+          "id": "fracture-shown",
           "levels": [
             {
               "label": "Complete",
-              "short": "V3 shown, change marked",
+              "short": "Fracture in focus",
               "points": 3,
-              "descriptor": "Screenshot is of V3 and the changed area is marked."
+              "descriptor": "The broken face is visible and in focus and is this student's own article."
             },
             {
               "label": "Developing",
-              "short": "Shown, not marked",
+              "short": "Part shown, break unclear",
               "points": 2,
-              "descriptor": "Screenshot uploaded but nothing marked, or it is V2."
+              "descriptor": "A photograph of the article where the fracture cannot be made out."
             },
             {
               "label": "Absent",
               "short": "Nothing uploaded",
               "points": 0,
-              "descriptor": "No screenshot."
+              "descriptor": "No photograph."
             }
           ],
-          "criterion": "Screenshot of V3 with the change marked"
+          "criterion": "Photograph of the actual fracture on this student's article"
         },
         {
-          "id": "change-from-evidence",
+          "id": "break-described",
           "levels": [
             {
               "label": "Complete",
-              "short": "Change tied to test",
+              "short": "Located and named",
               "points": 4,
-              "descriptor": "Names the change, its location, and the specific thing the scale test showed that caused it."
+              "descriptor": "Names the feature of the hook where it failed and says whether it fractured or deformed open."
             },
             {
               "label": "Proficient",
-              "short": "Change, weak tie",
+              "short": "Located, mode missing",
               "points": 2,
-              "descriptor": "Names the change but the connection to the test result is vague or asserted."
+              "descriptor": "Says where it broke without saying how, or the reverse."
             },
             {
               "label": "Developing",
-              "short": "Change only",
+              "short": "Vague description",
               "points": 1,
-              "descriptor": "Says what changed with no reference to the test."
+              "descriptor": "Says it broke without saying where on the part."
             },
             {
               "label": "Absent",
@@ -165,67 +160,31 @@
               "descriptor": "Nothing written."
             }
           ],
-          "criterion": "Ties the V3 change to what the scale test showed"
+          "criterion": "Locates the break on the part and names the failure mode"
         },
         {
-          "id": "load-prediction",
+          "id": "prediction-checked",
           "levels": [
             {
               "label": "Complete",
-              "short": "Predicted, area reasoning",
-              "points": 4,
-              "descriptor": "Gives a number and reasons from how much cross section carries the pull at full size against half size, rather than from length alone."
-            },
-            {
-              "label": "Proficient",
-              "short": "Predicted, simple scaling",
-              "points": 2,
-              "descriptor": "Gives a number and a stated method, but scales by size directly rather than by the area carrying the load."
+              "short": "Compared, either way",
+              "points": 3,
+              "descriptor": "States plainly whether the break matched the red spot, and where it went instead if it did not. A miss stated clearly is full marks."
             },
             {
               "label": "Developing",
-              "short": "Number, no method",
-              "points": 1,
-              "descriptor": "Gives a number with no reasoning behind it."
+              "short": "Compared, vaguely",
+              "points": 2,
+              "descriptor": "Refers to the simulation without saying clearly whether it called the location."
             },
             {
               "label": "Absent",
               "short": "No answer",
               "points": 0,
-              "descriptor": "Nothing written."
+              "descriptor": "Nothing written, or claims a match with no location given."
             }
           ],
-          "criterion": "Predicts full size load from the half scale result with stated reasoning"
-        },
-        {
-          "id": "location-prediction",
-          "levels": [
-            {
-              "label": "Complete",
-              "short": "Located and distinguished",
-              "points": 4,
-              "descriptor": "Names where it will fail and says why that differs from where the scale article failed, or why it is the same place despite the change."
-            },
-            {
-              "label": "Proficient",
-              "short": "Located, no reasoning",
-              "points": 2,
-              "descriptor": "Names a location with no account of why it moved or did not."
-            },
-            {
-              "label": "Developing",
-              "short": "Vague location",
-              "points": 1,
-              "descriptor": "Does not name a place on the part."
-            },
-            {
-              "label": "Absent",
-              "short": "No answer",
-              "points": 0,
-              "descriptor": "Nothing written."
-            }
-          ],
-          "criterion": "Predicts the failure location and distinguishes it from the last one"
+          "criterion": "Compares the actual break against the simulation prediction, honestly"
         }
       ],
       "aiLevel": 1
