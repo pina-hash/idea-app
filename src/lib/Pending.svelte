@@ -42,7 +42,21 @@
 	const text = $derived(pendingLabel(label));
 </script>
 
-<p class="pending {variant}" role="status" aria-live="polite">{text}</p>
+<!--
+	THE ELEMENT FOLLOWS THE VARIANT, and it is a correctness rule rather than a
+	styling one. The inline variant sits INSIDE a sentence, and a `<p>` nested in
+	a `<p>` is invalid HTML: the parser closes the outer paragraph at the inner
+	one's start tag, so a server-rendered page and a client-rendered one produce
+	two different DOMs from the same source. This route's own harness rendered it
+	client-side (`ssr = false`) where `appendChild` has no such restriction, so
+	the nesting appeared to work -- which is exactly how a defect like this
+	reaches a server-rendered surface unnoticed.
+-->
+{#if variant === 'inline'}
+	<span class="pending inline" role="status" aria-live="polite">{text}</span>
+{:else}
+	<p class="pending block" role="status" aria-live="polite">{text}</p>
+{/if}
 
 <style>
 	/*

@@ -102,6 +102,19 @@ bespoke room styling to lose: `GradingConsole`, `RevisionHistory`,
 retains other `.note` usages, so no scoped rule was orphaned and the
 `css_unused_selector` count did not move.
 
+**The inline variant renders a `<span>`, and finding out why is worth
+recording.** It first rendered a `<p>` for both variants, and the harness page
+puts the inline one inside a sentence -- a `<p>` nested in a `<p>`, which is
+invalid HTML: the parser closes the outer paragraph at the inner one's start
+tag. The dev route is `ssr = false`, and `appendChild` has no such restriction,
+so the client-rendered DOM nested it happily and the harness's own contrast row
+printed the path `p.note > p.pending.inline` without complaint. Every check was
+green over markup a server render would have produced differently. Proven on the
+`svelte/server` path rather than argued: `render(Pending, { variant: 'block' })`
+emits `<p class="pending block" role="status" ...>` and
+`{ variant: 'inline' }` emits `<span class="pending inline" role="status" ...>`,
+with no `<p` anywhere in the second.
+
 **Left alone, deliberately**, with the reason in each case:
 
 - **`LinkPreviewCard`** -- named in the brief and correct as it stands. It
