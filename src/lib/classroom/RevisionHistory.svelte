@@ -9,6 +9,7 @@
 		type RevisionTransports
 	} from '$lib/classroom/revisions';
 	import { shortWhen } from '$lib/classroom/classroom';
+	import Pending from '$lib/Pending.svelte';
 
 	/**
 	 * Every version of this item's content, newest first.
@@ -142,7 +143,7 @@
 	{#if open}
 		<div id="revision-list" class="history-body">
 			{#if loading}
-				<p class="note">Loading…</p>
+				<Pending label="Loading earlier versions" />
 			{:else if error}
 				<p class="feedback error" data-testid="history-error">{error}</p>
 			{:else if !rows.length}

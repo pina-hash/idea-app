@@ -22,6 +22,16 @@
 		},
 		{
 			"date": "2026-08-30",
+			"title": "The page tells you it heard you",
+			"body": "Opening a class, an assignment or a reference used to show nothing at all until the new page appeared. On a slow connection that meant clicking something and watching the screen not change, with no way to tell whether the tap had landed. A thin green bar now runs across the very top of the window while a page is on its way. It only appears if the page is actually taking a moment, so an ordinary quick click looks exactly as it did before, and it never pushes the page around. Screen readers announce it. Separately, the places that say they are loading something now all say it the same way, and each one names what it is waiting for instead of just saying \"Loading\".",
+			"tags": [
+				"classroom",
+				"notebook",
+				"accessibility"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "You can report a problem on the IDEA Coin Ledger",
 			"body": "Every other page on the site has a way to tell us when something looks wrong, and the Coin Ledger was the one that did not. There is now a Report button at the top of the Ledger, next to Share. Press it, say what you noticed, and send. It works whether or not you are signed in: if you are signed in the report comes from your account, and if you are not it carries no name at all, so you can also leave a way to be reached if you want an answer. Either way the page you were on, which tab you were looking at, your browser and the version of the site are attached for you, so you do not have to describe any of that. What this means for you: if your balance looks wrong, a transaction is missing, or something on the leaderboard does not add up, say so from the page itself instead of waiting to catch a teacher.",
 			"tags": [

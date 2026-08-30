@@ -21,6 +21,7 @@
 		type ReviewTransports
 	} from '$lib/notebook-review';
 	import { formatSectionLabel } from '$lib/section-label';
+	import Pending from '$lib/Pending.svelte';
 
 	/**
 	 * ONE class's people and settings: the roster (add, correct, deactivate, CSV
@@ -616,7 +617,7 @@
 		<section class="card">
 			<h2>Notebook compliance</h2>
 			{#if notebookLoading}
-				<p class="note">Loading...</p>
+				<Pending label="Loading notebook compliance" />
 			{:else if notebookError}
 				<p class="note" data-testid="nb-compliance-error">{notebookError}</p>
 			{:else if notebook}
