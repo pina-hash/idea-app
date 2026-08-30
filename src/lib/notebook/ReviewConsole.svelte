@@ -49,6 +49,7 @@
 		type ReviewEntry
 	} from '$lib/notebook-review';
 	import type { DocCheckTransports } from '$lib/notebook-documentation-check';
+	import Pending from '$lib/Pending.svelte';
 
 	/**
 	 * The whole instructor review screen, factored out of /notebook/review so
@@ -884,7 +885,7 @@
 {#snippet entryPane()}
 	<div class="entry-col" aria-label="Open entry">
 		{#if entryLoading}
-			<section class="card"><p class="note">Loading entry...</p></section>
+			<section class="card"><Pending label="Loading the entry" /></section>
 		{:else if entryError}
 			<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
 		{:else if openEntry && openCell}

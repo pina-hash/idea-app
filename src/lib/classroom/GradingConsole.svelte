@@ -7,6 +7,7 @@
 	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
 	import { anchored } from '$lib/shell/anchored';
 	import { isTypingTarget, keyAction, type KeyBinding } from '$lib/shell/keys';
+	import Pending from '$lib/Pending.svelte';
 	import {
 		criterionIncomplete,
 		criterionMax,
@@ -722,7 +723,7 @@
 	{#if loadError}
 		<p class="feedback error">{loadError}</p>
 	{:else if !data}
-		<p class="note">Loading the roster…</p>
+		<Pending label="Loading the roster" />
 	{:else}
 		{#if !rubric?.length}
 			<section class="card warn-card">

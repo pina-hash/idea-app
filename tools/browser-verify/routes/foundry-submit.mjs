@@ -25,8 +25,32 @@ export default {
 		`File`, hands it to the component's own input through a real `change`
 		event, and the route runs `preflightZipInBrowser` over the same
 		normalized zip the surface would have uploaded -- the same module the
-		server runs, with the same wording. Measured: 4 sentences render, at
+		server runs, with the same wording. Measured: 2 sentences render, at
 		14.27:1, at both widths.
+
+		THIS SPEC READ `exactly 4` AND THE SURFACE READ `present 2`, AND THE
+		SPEC WAS THE STALE HALF. It was written at 09:30 on 2026-08-30; at
+		11:15 the same day, `6cf8f11` narrowed the missing-asset sweep in
+		`preflight.ts` so a reference that LEAVES the bundle is no longer put
+		to it. Two of the four sentences counted here were exactly that: the
+		fixture's `https://fonts.googleapis.com/...` stylesheet and its
+		`https://cdn.jsdelivr.net/npm/chart.js` script, each earning "this
+		upload does not include a file at ..." over a mangled split-on-slash
+		path, about files that were never supposed to be in the upload. The
+		narrowing's own header calls them false sentences and notes it can
+		refuse nothing (the sweep only ever pushes warnings), so nothing that
+		passed then can fail now.
+
+		NO SENTENCE IS MISSING FROM THE SURFACE. Read back off the rendered
+		panels rather than reasoned about: the two that remain are the leading
+		slash on `/art/logo.png` (the failure) and the unconditional
+		`localStorage` warning on `app.js` line 2 (the warning). They are one
+		per tone, which is what keeps the two-panel row below honest.
+
+		THE FIX IS HERE AND NOT IN FOUNDRY. The application change was
+		deliberate, is documented in its own header, and removed advice that
+		was wrong; a spec pinned to the count it produced before that is a
+		ratchet recording what last happened.
 	*/
 	prepare: [
 		{
@@ -57,12 +81,17 @@ export default {
 		   which is the storage sentence CLAUDE.md calls unconditional. */
 		{ selector: '.fdy-issues', label: 'issues panels after the bad zip (failure + warning tones)', expectPresent: 2, maxPresent: 2 },
 		/*
-			FOUR SENTENCES, not "at least one": the bad fixture trips a leading
-			slash, two references to files the upload does not contain, and the
-			unconditional localStorage warning. A count of 1 would pass on a
-			panel that had lost three of them.
+			TWO SENTENCES, not "at least one": the bad fixture trips a leading
+			slash (a failure) and the unconditional localStorage warning. One per
+			tone, which is what makes the two-panel row above and this row say
+			different things -- a count of 1 would pass on a panel that had lost
+			one of them, and the ceiling catches the reverse.
+
+			IT READ 4 UNTIL 2026-08-30. See the header: two of those four were
+			missing-asset warnings about CDN URLs, which `6cf8f11` stopped
+			emitting on purpose. Nothing here regressed.
 		*/
-		{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, 2 missing refs, storage)', expectPresent: 4, maxPresent: 4 }
+		{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, storage)', expectPresent: 2, maxPresent: 2 }
 	],
 	contrast: [
 		{ selector: '.fdy-issue-message', label: 'refusal sentence on its panel', min: 4.5 }

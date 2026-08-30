@@ -2454,6 +2454,68 @@ inside the function fails closed rather than falling through to a weaker path.
       not acknowledged, plus any boundary the click still owes. The button and
       the handler read the SAME derived predicate; two spellings of it is the
       thing that stops matching.
+- **A NAVIGATION IS THE ONE PENDING STATE THAT IS GLOBAL, AND IT IS MOUNTED
+  ONCE.** `NavigationProgress.svelte` reads `navigating` from `$app/state` and
+  sits in `src/routes/+layout.svelte` beside `SiteFeedback`, for the same
+  reason: there are no layout resets in `src/routes`, so every page route
+  INHERITS the indicator instead of having to remember one. This is the
+  deliberate opposite of the save state's per-instance rule -- a save state is
+  per-surface because a global one would speak for work it cannot see, and a
+  navigation is exactly one event with exactly one answer at a time. Before it,
+  `navigating` in EITHER spelling (the `$app/state` rune or the deprecated
+  `$app/navigation` store) was imported by zero files under `src/`, and every
+  navigation in the app showed nothing until the new page painted.
+  - **THE DELAY IS THE DESIGN, AND IT IS `NAV_INDICATOR_DELAY_MS` (250ms) IN
+    `$lib/pending.ts`.** Below it nothing is drawn: a bar that flashes on every
+    click turns an instantaneous navigation into a visible event and teaches a
+    reader to ignore the one signal that matters. Above it the reader is past
+    the ~100ms band in which a UI still feels like a direct response, and far
+    enough below the ~1s point at which they click again. Measured on the
+    harness: a warm client-side navigation between two `/dev` routes completes
+    in **31-44ms** and draws nothing; a 1200ms load draws at **260-266ms**.
+  - **ZERO LAYOUT SHIFT IS STRUCTURAL, NOT TUNED.** The wrapper is
+    `position: fixed` and never takes a line box, so it cannot push anything;
+    `pointer-events: none` so an overlay across the top of every page cannot eat
+    a tap meant for the masthead. Measured, with the negative control in the
+    same reading: CLS 0 and 0px reference movement for the real bar, against
+    CLS 0.0056 / 3px for the identical bar put back in flow.
+  - **THE TRACK IS THE STATE AND THE SWEEP IS THE DECORATION**, which is what
+    makes the reduced-motion path work rather than merely not crash: with the
+    animation cancelled the mark is still painted at full opacity with no
+    transform, so `reduce` conveys the same state by presence. Nothing is hidden
+    in a base state. Measured 7.52:1 against the page and 3.80:1 against its own
+    track -- the 3:1 non-text floor, because the bar is a graphical object.
+  - **THE LIVE REGION IS ALWAYS MOUNTED AND ONLY ITS TEXT MOVES.** Several
+    screen readers only announce a `role="status"` they were already observing,
+    so the region exists empty from the first frame and the `{#if}` wraps the
+    BAR. An empty region correctly holds a ZERO BOX (measured 375x0 and 1440x0)
+    -- a spec asserting it visible at rest is asserting a permanent bar.
+- **EVERY OTHER PENDING STATE IS `$lib/Pending.svelte`, AND ITS WORDS ARE
+  `$lib/pending.ts`.** Same division of labour as `SaveIndicator` /
+  `save-state.svelte.ts`: the module owns the sentence, the component owns only
+  how it looks. Swept before it existed, `src/` carried roughly twenty
+  paragraph-level pending states with no shared component and the ellipsis in
+  THREE spellings -- `Loading…`, `Loading...` and `Loading&hellip;` -- which is
+  not a cosmetic problem but the tell that nothing owned the decision, and also
+  why none of them was a live region and none said what was pending.
+  - **`pendingLabel` NORMALISES RATHER THAN TRUSTING THE CALLER.** A constant
+    only makes the right spelling available; stripping whatever ellipsis was
+    typed and appending the one is what makes it the only reachable one. Every
+    existing call site was a hand-written string WITH its own ellipsis, so a
+    component that merely appended would render `Loading……`.
+  - **THE LABEL IS REQUIRED AND THERE IS NO ZERO-ARGUMENT FORM.** `Loading…`
+    alone is the same sentence on a roster, a photo and a revision list.
+  - **NO SPINNER.** Every surface it replaces was text, several with a comment
+    saying so; the route indicator carries the motion, once, where a whole page
+    is being waited on. **Do not add a pending state to something that already
+    degrades correctly** -- `LinkPreviewCard` renders a working link from the
+    first frame and upgrades it if metadata arrives, so there is no window to
+    report and a placeholder there would replace a usable control.
+  - **IT READS `var(--pending-ink, var(--text-2))`**, the room-hook mechanism
+    `Disclosure` uses for `--disc-accent`. `--text-2` and NOT `--dim`, which
+    clears only the darkest of the three portal grounds. Measured in all three
+    rooms it ships in: portal 5.88:1, classroom card 7.27:1, and the notebook's
+    default / light / IDEA plates at 7.27 / 7.75 / 9.18:1.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
