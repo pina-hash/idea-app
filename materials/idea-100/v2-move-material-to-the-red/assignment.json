@@ -1,0 +1,258 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "V2 - Move Material To The Red",
+    "course": "IDEA100",
+    "dueDate": "2026-09-01",
+    "totalPoints": 20,
+    "assignmentId": "idea100-hook-v2",
+    "buildVersion": "v3",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "V2 has to pass the same inspection V1 did. Check before you hand in.",
+      "title": "Still Legal",
+      "aiNote": "Unrestricted for driving SolidWorks. Measure in the model, do not eyeball it.",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "checklist",
+          "items": [
+            "Saved as a new file. V1 still exists untouched",
+            "Anchor hole still 1.000 in, throat still 1.000 in clear to the edge",
+            "Center to center still between 2.000 and 2.500 in",
+            "Thickness still 0.75 in or under"
+          ],
+          "points": 5
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "r1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "New file, all legal",
+              "points": 5,
+              "descriptor": "V1 preserved, V2 saved separately, and all four dimensional checks hold."
+            },
+            {
+              "label": "Developing",
+              "short": "One check fails",
+              "points": 3,
+              "descriptor": "V2 exists but one dimensional rule is broken, or V1 was overwritten."
+            },
+            {
+              "label": "Absent",
+              "short": "No V2",
+              "points": 0,
+              "descriptor": "No V2 file."
+            }
+          ],
+          "criterion": "V2 is a separate file that still passes every dimensional rule"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "m2",
+      "intro": "Yesterday's red spot is the whole brief. Two sentences per answer is plenty.",
+      "title": "What Changed, And Why",
+      "aiNote": "Ask it how to build a shape. Do not ask it what shape to build. The last question is about the assistant itself, so answer that one yourself.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload one screenshot of V2. Mark the place you changed.\n\n**Windows + Shift + S** to grab it, then **Ctrl + V** in any answer box below.\n\nEvery hook has a mass limit, so material you add somewhere is usually material you took from somewhere else. The last question is about that trade, and \"I did not have to\" is a real answer if you can say why."
+        },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 4,
+          "prompt": "What did you change, and where? Name the place on the part, and say whether it is the spot your simulation went red.",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Why there? What do you expect it to do to the stress?",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "id": "f3",
+          "type": "textField",
+          "points": 2,
+          "prompt": "What did it cost you? Mass, material removed elsewhere, or nothing. Say why if it was nothing.",
+          "maxSentences": 3,
+          "minSentences": 1
+        },
+        {
+          "id": "f4",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Did your SolidWorks assistant get anything wrong today? Paste any [MISS] lines it printed. If it never got anything wrong, just say so.",
+          "maxSentences": 3,
+          "minSentences": 1
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Dimensions, Design and CAD, and Simulation tabs.\n- Your V1 simulation study, run in the Simulation Lab.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration and the effect of a fillet.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 15,
+      "rubric": [
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "V2 shown, change marked",
+              "points": 3,
+              "descriptor": "Screenshot is of V2 and the changed area is marked."
+            },
+            {
+              "label": "Developing",
+              "short": "Shown, not marked",
+              "points": 2,
+              "descriptor": "Screenshot uploaded but nothing is marked, or it is a picture of V1."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No screenshot."
+            }
+          ],
+          "criterion": "Screenshot of V2 with the changed area marked"
+        },
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Located, tied to red",
+              "points": 4,
+              "descriptor": "Names where on the hook the change is and says whether it is where the study went red."
+            },
+            {
+              "label": "Proficient",
+              "short": "Located, not tied",
+              "points": 2,
+              "descriptor": "Says what changed but does not connect it to the simulation result."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague change",
+              "points": 1,
+              "descriptor": "Says something changed without saying where."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "The change is located on the part and tied to the simulation result"
+        },
+        {
+          "id": "r4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Reason and prediction",
+              "points": 3,
+              "descriptor": "Explains why that location and what it should do to the stress there."
+            },
+            {
+              "label": "Proficient",
+              "short": "Reason, no prediction",
+              "points": 2,
+              "descriptor": "Gives a reason but no expected effect, or an effect with no reason."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written, or a reason that is not about stress or strength."
+            }
+          ],
+          "criterion": "Gives a reason for the change and a predicted effect on stress"
+        },
+        {
+          "id": "r5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Trade named honestly",
+              "points": 2,
+              "descriptor": "Names what the change cost, or argues convincingly that it cost nothing."
+            },
+            {
+              "label": "Proficient",
+              "short": "Named, not explained",
+              "points": 1,
+              "descriptor": "Says a cost or says none, without a reason."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Accounts for the trade the change required"
+        },
+        {
+          "id": "r6",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Answered either way",
+              "points": 3,
+              "descriptor": "Pastes the [MISS] lines the assistant printed, or states plainly that it got nothing wrong. Both are full marks."
+            },
+            {
+              "label": "Developing",
+              "short": "Answered, not usable",
+              "points": 1,
+              "descriptor": "Something is written but it does not say whether the assistant was wrong, or is too vague to act on."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Left blank."
+            }
+          ],
+          "criterion": "Reports whether the assistant was wrong, either way"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
