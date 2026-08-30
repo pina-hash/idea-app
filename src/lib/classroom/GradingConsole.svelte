@@ -10,19 +10,24 @@
 	import {
 		criterionIncomplete,
 		criterionMax,
+		filesByBlockCount,
 		gateApproved,
 		gradesCsv,
 		isOverrideScore,
 		levelIndexForScore,
 		levelShort,
+		responsesMap,
 		rubricTotal,
 		scoresTotal,
+		specUnmet,
 		submissionStateLabel,
+		unmetLabel,
 		type AssignmentSpec,
 		type AssignmentTeacherTransports,
 		type GradingData,
 		type RubricCriterion,
 		type StudentWork,
+		type UnmetEntry,
 		studentWorkRows
 	}	from '$lib/classroom/assignment-spec';
 	import {
@@ -289,6 +294,53 @@
 			needComment = needComment.filter((id) => id !== c.id);
 		}
 	}
+
+	/**
+	 * WHAT THE SPEC STILL ASKS FOR, FOR ONE STUDENT, COMPUTED HERE AND STORED
+	 * NOWHERE (0160).
+	 *
+	 * `classroom_submit_assignment` used to refuse a submission whose spec
+	 * checks were not all met; since 0160 it ACCEPTS it and returns the unmet
+	 * list alongside `ok: true`. That is deliberate -- sometimes the assignment
+	 * is wrong and sometimes an automated check is wrong, and a student must
+	 * never be trapped at 11pm by a defect in the instrument -- and it means
+	 * incomplete work now reaches this console. Rendering it identically to
+	 * finished work is what would make the first such hand-in get graded as
+	 * though it were finished.
+	 *
+	 * NO COLUMN AND NO RPC. `specUnmet` is the pure mirror of
+	 * `_classroom_spec_unmet`, and `StudentWork` already carries the three
+	 * things it reads -- responses, files and approvals -- beside the spec this
+	 * component is handed. A stored flag would be a second answer to a question
+	 * that already has one, and it is the copy that goes stale the moment a
+	 * RETURNED student edits and hands in again.
+	 */
+	function unmetFor(s: StudentWork): UnmetEntry[] {
+		if (!spec) return [];
+		return specUnmet(spec, responsesMap(s.responses), filesByBlockCount(s.files), s.approvals);
+	}
+
+	/**
+	 * ONLY WORK THAT WAS ACTUALLY HANDED IN CARRIES THE MARK.
+	 *
+	 * Every student still working is unfinished by definition -- that is what
+	 * `In progress` already says -- so marking them too would light the whole
+	 * roster up on day one and the signal would mean nothing by the time it
+	 * mattered. A RETURNED row keeps it: the student may edit and resubmit, so
+	 * the count is live rather than a snapshot, and a grader reopening the row
+	 * should see what it says now.
+	 */
+	function handedIn(s: StudentWork): boolean {
+		const state = s.submission?.state ?? null;
+		return state === 'submitted' || state === 'returned';
+	}
+
+	/** How many spec checks this student's handed-in work leaves unmet. 0 = none. */
+	function incompleteCount(s: StudentWork): number {
+		return handedIn(s) ? unmetFor(s).length : 0;
+	}
+
+	const selectedUnmet = $derived(selected && handedIn(selected) ? unmetFor(selected) : []);
 
 	function statusChip(s: StudentWork): { label: string; cls: string } {
 		const state = s.submission?.state ?? null;
@@ -716,6 +768,7 @@
 				<ul class="roster-list">
 					{#each students as s (s.email)}
 						{@const chip = statusChip(s)}
+						{@const short = incompleteCount(s)}
 						<li>
 							<button
 								type="button"
@@ -725,7 +778,23 @@
 								onclick={() => requestSelect(s)}
 							>
 								<span class="roster-name">{s.displayName}</span>
-								<span class="roster-chip {chip.cls}">{chip.label}</span>
+								<span class="roster-chips">
+									<span class="roster-chip {chip.cls}">{chip.label}</span>
+									<!--
+										A SECOND CHIP, NOT A SECOND WORD IN THE FIRST ONE.
+										"Did this arrive" and "was it finished when it arrived"
+										are two questions, and a row can answer them
+										independently: a returned 9/20 may have come in
+										incomplete and a submitted one may not have. Folding the
+										count into the state chip would make one mark stand for
+										both and there would be no way to read either.
+									-->
+									{#if short > 0}
+										<span class="roster-chip incomplete" data-testid="roster-incomplete">
+											Incomplete &middot; {short}
+										</span>
+									{/if}
+								</span>
 							</button>
 						</li>
 					{/each}
@@ -809,6 +878,47 @@
 						-->
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<div class="work-col work-left" tabindex="0" role="region" aria-label="Work handed in">
+							<!--
+								WHAT CAME IN UNFINISHED, NAMED (0160).
+
+								The count on the roster says THAT something is missing; a
+								grader needs to know WHAT, and needs it before they read the
+								responses rather than after. The sentences are `unmetLabel`'s
+								own -- byte for byte the ones the student read on the
+								assignment before they pressed Submit -- so the two sides are
+								looking at the same list and neither has to be told what the
+								other saw.
+
+								IT IS NEUTRAL BY CONSTRUCTION. Turning in unfinished work is
+								something the database now allows on purpose, so this is a
+								note about the work and never a finding about the student, and
+								it changes no score: there is no control in this card, nothing
+								here reaches the rubric, the total, the override path or the
+								return flow, and grading an incomplete submission works
+								exactly as grading any other one does.
+							-->
+							{#if selectedUnmet.length > 0}
+								<div class="card incomplete-card" data-testid="incomplete-card">
+									<h3 class="section-label incomplete-head">
+										Handed in with {selectedUnmet.length}
+										{selectedUnmet.length === 1 ? 'requirement' : 'requirements'} unfinished
+									</h3>
+									<p class="incomplete-note">
+										Work can be turned in before everything is finished, so this is a note
+										about the work and not a flag on the student.
+										{selectedUnmet.length === 1
+											? 'This is the same note the student saw before submitting.'
+											: 'These are the same notes the student saw before submitting.'}
+										Score and return it as you would any other submission.
+									</p>
+									<ul class="incomplete-list" data-testid="incomplete-list">
+										{#each selectedUnmet as entry, i (i)}
+											<li>{unmetLabel(spec, entry)}</li>
+										{/each}
+									</ul>
+								</div>
+							{/if}
+
 							{#if spec && gateModule}
 								{@const approved = gateApproved(spec, selected.approvals)}
 								<div class="card gate-row" class:approved>
@@ -1220,6 +1330,59 @@
 	.roster-chip.progress {
 		color: var(--teal);
 		border-color: var(--teal);
+	}
+	/* --gold, and the two tokens it is NOT are the argument.
+
+	   --amber is this file's warning edge (the off-roster line), and an
+	   incomplete hand-in is not a warning: since 0160 it is a thing the database
+	   accepts on purpose, so an amber pill would tell a grader who has never met
+	   the distinction that a student did something wrong. --boundary is this
+	   file's neutral edge (the manager note), and that is too quiet for the one
+	   instructor this exists for -- a mark he has to already know about to
+	   notice is not a mark. --gold is the register's special-callout token:
+	   loud enough to be read at a glance, and carrying no verdict. --crimson is
+	   reserved for live / rec / error and is not a candidate.
+
+	   Measured on both grounds this pill lands on: 7.94:1 on --surface-2 (the
+	   row's own fill) and 8.55:1 on --surface-0 (an active row). The WORD carries
+	   the meaning either way -- colour is never the only signal. */
+	.roster-chip.incomplete {
+		color: var(--gold);
+		border-color: var(--gold);
+	}
+	/* The two chips are their own group so a long name shrinks against the pair
+	   rather than shoving the second one out of the row, and so they wrap
+	   together at 375px instead of one at a time. */
+	.roster-chips {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		align-items: center;
+		gap: 0.25rem;
+	}
+	/* Same shape as .off-roster and .manager-note above -- this is the third
+	   member of that family -- with the callout token rather than either of
+	   theirs, for the reason written on .roster-chip.incomplete. */
+	.incomplete-card {
+		border-color: var(--gold);
+	}
+	.incomplete-head {
+		color: var(--gold);
+	}
+	.incomplete-note {
+		margin: 0 0 var(--space-2);
+		font-size: 0.76rem;
+		line-height: 1.45;
+		color: var(--text-1);
+	}
+	.incomplete-list {
+		margin: 0;
+		padding-left: 1.1rem;
+		display: grid;
+		gap: 0.3rem;
+		font-size: 0.8rem;
+		line-height: 1.45;
+		color: var(--text-1);
 	}
 	.work {
 		display: flex;
