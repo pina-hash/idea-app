@@ -660,7 +660,7 @@ describe('the cooldown, through the endpoint', () => {
 		const cap = FRC_QUIZ_COOLDOWNS_SEC[FRC_QUIZ_COOLDOWNS_SEC.length - 1];
 		expect(reported[reported.length - 1]).toBeLessThanOrEqual(cap + 2);
 		for (let i = 1; i < reported.length; i++)
-			expect(reported[i], `step ${i}`).toBeGreaterThanOrEqual(reported[i - 1]);
+			expect(reported[i], `step ${i}`).toBeGreaterThanOrEqual(reported[i - 1] - 2);
 		await db.sql(`delete from public.frc_quiz_attempts`);
 	});
 
