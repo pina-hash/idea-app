@@ -6,6 +6,8 @@
 	import CoinTransactionRows from '$lib/coin-balance/CoinTransactionRows.svelte';
 	import { coins, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
 	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
+	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
+	import { categoryTxnType, sortByUse } from './transaction-types';
 	import {
 		balanceFor,
 		coinDefaultMedium,
@@ -112,10 +114,21 @@
 		onPrefs?: (next: CoinDeskPrefs) => void;
 	} = $props();
 
-	// The load already filters to loggable categories; this is the active-only
-	// subset every picker below offers (a retired category stays readable in
-	// history but can never be logged again).
-	const selectableCategories = $derived(categories.filter((c) => c.active !== false));
+	/**
+	 * The load already filters to loggable categories; this is the active-only
+	 * subset every picker below offers (a retired category stays readable in
+	 * history but can never be logged again).
+	 *
+	 * MOST-LOGGED FIRST, THEN THE PRICE LIST'S OWN ORDER. `sortByUse` is
+	 * stable, so this is the `sort_order` the load asked for with the
+	 * frequently-logged categories lifted out of it -- see
+	 * `transaction-types.ts` for where the counts come from and what they are
+	 * not. It is applied HERE and not on the price list at `/coin-desk/economy`:
+	 * this is a picker somebody uses forty times a period, that is a reference
+	 * document, and a reference document sorted by how often each row is used
+	 * is not a reference document.
+	 */
+	const selectableCategories = $derived(sortByUse(categories.filter((c) => c.active !== false)));
 
 	/**
 	 * category id -> kind, for the history rows. Built from the list this view
@@ -1214,13 +1227,21 @@
 										type="button"
 										role="option"
 										aria-selected={i === highlighted}
-										class="combo-option"
+										class="combo-option tone-{categoryTxnType(c)}"
 										class:highlighted={i === highlighted}
+										data-type={categoryTxnType(c)}
 										onmousedown={() => pickCategory(c)}
 										onmouseenter={() => (highlighted = i)}
 									>
 										<span class="combo-name">{c.name}</span>
-										<span class="combo-kind">{KIND_LABELS[c.kind]}</span>
+										<!-- THREE SIGNALS, NONE OF THEM ALONE. The chip carries the
+										     type's glyph, the type's tone and the type's WORD, so the
+										     row is identifiable at a glance, in greyscale, and to a
+										     screen reader, and no one of the three is load-bearing. -->
+										<span class="combo-kind">
+											<CoinTypeGlyph type={categoryTxnType(c)} />
+											{KIND_LABELS[c.kind]}
+										</span>
 										<span class="combo-price">{priceHint(c)}</span>
 									</button>
 								</li>
@@ -1538,7 +1559,7 @@
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 1rem;
 		padding: 0.45rem 0.6rem;
 	}
@@ -1547,7 +1568,7 @@
 		outline-offset: 1px;
 	}
 	.busy {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--dim);
 	}
@@ -1564,7 +1585,7 @@
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.85rem;
 		padding: 0.3rem 0.45rem;
 	}
@@ -1573,7 +1594,7 @@
 		border: none;
 		color: var(--cyan);
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		padding: 0.35rem 0.4rem;
 		text-decoration: underline;
@@ -1589,7 +1610,7 @@
 		padding: 0.25rem 0.5rem;
 	}
 	.bulk-count {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--white);
 	}
@@ -1631,9 +1652,15 @@
 		border-radius: 3px;
 		color: var(--white);
 		cursor: pointer;
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.9rem;
 		text-align: left;
+		/* 44px, the tap-target floor. It was 25.1px, measured: the roster is
+		   how an operator picks a student for every single entry and the rows
+		   sit directly against each other, so a mis-tap logs against the wrong
+		   person. `min-height` and not `height`: a wrapped name is free to make
+		   a row taller and never shorter. */
+		min-height: 44px;
 		padding: 0.16rem 0.35rem;
 	}
 	.roster-row:hover,
@@ -1658,7 +1685,7 @@
 	}
 	.roster-email {
 		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		margin-left: auto;
 		overflow: hidden;
@@ -1675,7 +1702,7 @@
 	}
 	.off-roster-head {
 		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -1693,7 +1720,7 @@
 		border-radius: 4px;
 		color: var(--dim);
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		padding: 0.3rem 0.6rem;
 	}
@@ -1712,12 +1739,12 @@
 		padding: 0.35rem 0.6rem;
 	}
 	.strip-who {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--white);
 	}
 	.strip-total {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 1.05rem;
 		color: var(--green);
 	}
@@ -1727,7 +1754,7 @@
 	}
 	.strip-split,
 	.strip-meta {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--dim);
 	}
@@ -1744,7 +1771,7 @@
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.4rem 0.55rem;
 	}
@@ -1776,11 +1803,21 @@
 		background: none;
 		border: none;
 		border-bottom: 1px solid var(--line);
+		/* THE LEDGER'S CARD SIGNATURE, ON A ROW. `.coin-card` in the IDEA Coin
+		   Ledger is a `--bg1` panel with `border-left: 3px solid <accent>`; a
+		   picker row is the smallest thing that can wear the same stripe, and
+		   it is what makes the list scannable by type once the order stops
+		   being grouped by type. `transparent` is the default so a type with no
+		   tone can never paint a stripe in the ink colour by accident. */
+		border-left: 3px solid var(--cd-tone-accent, transparent);
 		color: var(--white);
 		cursor: pointer;
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		text-align: left;
-		padding: 0.32rem 0.55rem;
+		/* 44px, the tap-target floor: this list is a phone's whole way of
+		   choosing a category and the rows sit directly against each other. */
+		min-height: 44px;
+		padding: 0.4rem 0.55rem;
 	}
 	.combo-option.highlighted {
 		background: var(--bg2);
@@ -1792,16 +1829,64 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.combo-kind {
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		text-transform: uppercase;
-	}
 	.combo-price {
 		color: var(--cyan);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
+	}
+
+	/* --- The type chip -------------------------------------------------------
+	   GLYPH + TONE + WORD, and the recipe is the one already in `src/app.css`
+	   for the home feed's flags (`color-mix` at 30% for the edge and 6% for the
+	   fill over the row's own ground) rather than a fourth spelling of it.
+	   `--cd-tone-accent` is set on the SAME element the stripe reads it from,
+	   which keeps the var()-resolves-where-declared trap off this: it is not a
+	   descendant redeclaration. ---------------------------------------------- */
+	.combo-kind {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.28rem;
+		color: var(--dim);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		border: 1px solid var(--line);
+		border-radius: 2px;
+		padding: 0.1rem 0.34rem;
+	}
+	/* THE PAIR IS DECLARED ON THE ROW, NOT ON THE CHIP, and that is forced
+	   rather than tidy: a custom property inherits DOWNWARD only, and the
+	   stripe above reads `--cd-tone-accent` on `.combo-option` itself while
+	   the chip inside reads both. Declared on the chip they would reach the
+	   stripe never. */
+	.combo-option.tone-award {
+		--cd-tone-accent: var(--green);
+		--cd-tone-ink: var(--green);
+	}
+	.combo-option.tone-fine {
+		--cd-tone-accent: var(--amber);
+		--cd-tone-ink: var(--amber);
+	}
+	.combo-option.tone-purchase {
+		--cd-tone-accent: var(--gold);
+		--cd-tone-ink: var(--gold);
+	}
+	/* The WORD takes the ink and the EDGE keeps the accent: raw --violet
+	   measures 2.45:1 as text on --bg1. Same pair CoinTransactionRows uses. */
+	.combo-option.tone-adjustment {
+		--cd-tone-accent: var(--violet);
+		--cd-tone-ink: var(--violet-ink);
+	}
+	.combo-option.tone-payout {
+		--cd-tone-accent: var(--cyan);
+		--cd-tone-ink: var(--cyan);
+	}
+	.combo-option[class*='tone-'] .combo-kind {
+		color: var(--cd-tone-ink);
+		border-color: color-mix(in srgb, var(--cd-tone-accent) 30%, transparent);
+		background: color-mix(in srgb, var(--cd-tone-accent) 6%, transparent);
 	}
 	.combo-empty {
 		color: var(--dim);
@@ -1817,7 +1902,7 @@
 	.field-row label,
 	.field-label {
 		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
@@ -1829,7 +1914,7 @@
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		padding: 0.35rem 0.5rem;
 		width: 100%;
@@ -1852,7 +1937,7 @@
 		border-radius: 4px;
 		color: var(--dim);
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		padding: 0.25rem 0.6rem;
 	}
@@ -1884,12 +1969,12 @@
 	}
 	.pending-hint {
 		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.68rem;
 	}
 
 	.feedback {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.76rem;
 		padding: 0.35rem 0.6rem;
 		border-radius: 4px;
@@ -1916,7 +2001,7 @@
 	.debt summary {
 		color: var(--dim);
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		padding: 0.15rem 0;
 	}
@@ -1944,7 +2029,7 @@
 		border-radius: 3px;
 		color: var(--white);
 		cursor: pointer;
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		padding: 0.22rem 0.4rem;
 		text-align: left;
@@ -1972,7 +2057,7 @@
 		align-items: baseline;
 		gap: 0.5rem;
 		border-bottom: 1px solid var(--line);
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		padding: 0.18rem 0;
 	}
