@@ -4,25 +4,25 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Split, own part, set right",
-        "points": 2,
-        "descriptor": "Both faces split at the centers, fixture and load on the outer halves, Nylon 101, and the force on Selected direction along the pull."
+        "short": "All three checks true",
+        "points": 3,
+        "descriptor": "Own part, both faces split with fixture and load on the outer halves, Nylon 101, force on Selected direction."
       },
       {
         "label": "Developing",
-        "short": "One condition wrong",
-        "points": 1,
-        "descriptor": "Study exists but one condition is wrong: a face unsplit, a fixture or load on the inner half, or the force left on Normal."
+        "short": "One check wrong",
+        "points": 2,
+        "descriptor": "Study runs but one setup condition is wrong or missing."
       },
       {
         "label": "Absent",
-        "short": "No study set up",
+        "short": "No study",
         "points": 0,
-        "descriptor": "No study, or the study is on a file that is not the student's own part."
+        "descriptor": "No study, or run on a file that is not the student's own part."
       }
     ],
-    "points": 2,
-    "criterion": "The Study: Both bearing faces are split, and the study is set up on the student's own part with the required conditions",
+    "points": 3,
+    "criterion": "Your Study: Study set up as the guide specifies, on the student's own part",
     "incomplete": false
   },
   {
@@ -30,31 +30,25 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Five rows, honestly recorded",
+        "short": "Solved, both marked",
         "points": 3,
-        "descriptor": "All five rows carry the value actually in the study, and a study that failed to solve is recorded as such rather than left blank."
-      },
-      {
-        "label": "Proficient",
-        "short": "Mostly recorded, one gap",
-        "points": 2,
-        "descriptor": "Four rows carry real values; one is missing or repeats the instruction rather than the setting."
+        "descriptor": "Color scale visible, both marks present and distinguishable."
       },
       {
         "label": "Developing",
-        "short": "Copied, not recorded",
-        "points": 1,
-        "descriptor": "Rows restate the four required conditions rather than what the student set, or fewer than four rows carry values."
+        "short": "One mark missing",
+        "points": 2,
+        "descriptor": "Plot uploaded with only one of the two marked, or the scale cropped out."
       },
       {
         "label": "Absent",
-        "short": "Table empty",
+        "short": "Nothing uploaded",
         "points": 0,
-        "descriptor": "No table filled."
+        "descriptor": "No screenshot."
       }
     ],
     "points": 3,
-    "criterion": "The Study: The setup table records what was actually set, including anything that went wrong",
+    "criterion": "Your Study: Screenshot shows a solved plot with the red spot and the thinnest section marked",
     "incomplete": false
   },
   {
@@ -62,31 +56,31 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Solved plot, both marked",
-        "points": 3,
-        "descriptor": "Plot is solved with the color scale visible, and both the hot spot and the thinnest section are marked and distinguishable."
+        "short": "Named on part, compared",
+        "points": 5,
+        "descriptor": "Names a feature of the hook rather than a region of the screen, and says whether it coincides with the thinnest section."
       },
       {
         "label": "Proficient",
-        "short": "Plot shown, one marked",
-        "points": 2,
-        "descriptor": "Solved plot uploaded with only one of the two marked, or the two marks cannot be told apart."
+        "short": "Named, no comparison",
+        "points": 3,
+        "descriptor": "Red spot named on the part, comparison missing or unclear."
       },
       {
         "label": "Developing",
-        "short": "Plot shown, nothing marked",
+        "short": "Screen position only",
         "points": 1,
-        "descriptor": "A plot is uploaded but nothing is marked on it, or the color scale is cropped out."
+        "descriptor": "Describes where the red sits in the picture rather than on the part."
       },
       {
         "label": "Absent",
-        "short": "Nothing uploaded",
+        "short": "No answer",
         "points": 0,
-        "descriptor": "No screenshot uploaded."
+        "descriptor": "Nothing written."
       }
     ],
-    "points": 3,
-    "criterion": "The Plot: The screenshot shows a solved plot with the hot spot and the thinnest section marked",
+    "points": 5,
+    "criterion": "What You See: Locates the red spot on the part and compares it to the thinnest section",
     "incomplete": false
   },
   {
@@ -94,63 +88,25 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Located on the part, compared",
-        "points": 3,
-        "descriptor": "Names a feature of the hook rather than a region of the screen, and states whether it coincides with the thinnest section."
-      },
-      {
-        "label": "Proficient",
-        "short": "Located, no comparison",
-        "points": 2,
-        "descriptor": "Hot spot is named on the part but the comparison against the thinnest section is missing or unclear."
-      },
-      {
-        "label": "Developing",
-        "short": "Described by screen position",
-        "points": 1,
-        "descriptor": "Answer describes where the red sits in the picture rather than where it sits on the part."
-      },
-      {
-        "label": "Absent",
-        "short": "No answer",
-        "points": 0,
-        "descriptor": "Nothing written."
-      }
-    ],
-    "points": 3,
-    "criterion": "The Plot: The hot spot is located in terms of the part, and compared against the thinnest section",
-    "incomplete": false
-  },
-  {
-    "id": "m3-r5",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Material substitution, shape survives",
+        "short": "Material stand-in, shape real",
         "points": 4,
-        "descriptor": "Connects the wrong magnitude to the substituted material or the printed structure, and states that the stress pattern follows the geometry, which is real."
-      },
-      {
-        "label": "Proficient",
-        "short": "Right idea, one half",
-        "points": 3,
-        "descriptor": "Correctly says the number is unreliable and gives a real reason, but does not explain why the location is still trustworthy."
+        "descriptor": "Ties the wrong number to the substituted material or the printed structure, and says the stress pattern follows the geometry, which is real."
       },
       {
         "label": "Developing",
-        "short": "Restates without reasoning",
+        "short": "Right idea, half of it",
         "points": 2,
-        "descriptor": "Repeats that the number should not be used without giving a reason, or gives a reason that is not about the material or the print."
+        "descriptor": "Says the number is unreliable with a real reason, but does not say why the location still holds."
       },
       {
         "label": "Absent",
         "short": "No answer",
         "points": 0,
-        "descriptor": "Nothing written."
+        "descriptor": "Nothing written, or restates the rule with no reason."
       }
     ],
     "points": 4,
-    "criterion": "What This Plot Cannot Tell You: Explains why location transfers from this study and magnitude does not",
+    "criterion": "What You See: Explains why magnitude does not transfer from this study but location does",
     "incomplete": false
   }
 ]
