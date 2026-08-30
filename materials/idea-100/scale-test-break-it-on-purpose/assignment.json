@@ -7,7 +7,7 @@
     "dueDate": "2026-09-03",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-scale-test",
-    "buildVersion": "v1",
+    "buildVersion": "v2",
     "headerFields": [
       "studentName",
       "date"
@@ -96,6 +96,10 @@
           "prompt": "Your simulation put the red somewhere. Is that where it actually broke? Say which, and if it was not, where the break was instead.",
           "maxSentences": 3,
           "minSentences": 2
+        },
+        {
+          "type": "instructions",
+          "content": "### Before you leave\n\nStart V3 now, while the broken piece is still in your hand. You do not have to finish it, but it has to be **sliceable** by the end of the block, because there are two print windows today and only three left after that.\n\nA hook that waits gets one chance. A hook that is ready now gets five."
         },
         {
           "type": "instructions",
