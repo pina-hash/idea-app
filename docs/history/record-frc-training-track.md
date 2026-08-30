@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 68
 ---
 
-## FRC Training track
-
 The Team 5669 FRC training track at `/frc`. Signed-in tier, any role; the
 whole track is open access and **pathway is identity, never a gate**, nothing
 in the track may wall off content by pathway. Structure, theme, two domains'

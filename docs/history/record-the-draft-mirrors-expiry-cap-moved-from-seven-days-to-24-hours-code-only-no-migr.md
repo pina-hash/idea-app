@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 150
 ---
 
-## The draft mirror's expiry cap moved from seven days to 24 hours (code only, no migration)
-
 **WHY.** The prior bundle shipped the seven-day cap and named the trade it was
 making explicitly in its own "NOT verified" section, quoted just above: a
 shared machine holds a student's unsaved writing in plain `localStorage`, not

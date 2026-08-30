@@ -54,7 +54,21 @@ const CHAIN = [
 	'0061_gauntlet_target_disclosure.sql',
 	'0067_admin_tier.sql',
 	'0137_anon_execute_sweep.sql',
-	'0146_gauntlet_reveal_all_modeling_modes.sql'
+	'0146_gauntlet_reveal_all_modeling_modes.sql',
+	// The tail this file stopped short of. 0154 is the one that matters here:
+	// it adds a PLAUSIBILITY FLOOR to the view this whole describe block reads
+	// (a modeling run ranks only if `value->>'elapsed_ms' >= 30000`), and 0153
+	// requires 0147 while 0154 requires 0152, so the intervening files come
+	// with it. 0149 is deliberately absent, matching the sibling gauntlet
+	// suites.
+	'0147_gauntlet_close_target_disclosure.sql',
+	'0148_gauntlet_knowledge_clock.sql',
+	'0150_gauntlet_connect_run_analysis.sql',
+	'0151_gauntlet_meter_practice.sql',
+	'0152_gauntlet_run_review.sql',
+	'0153_gauntlet_unpublish_the_target.sql',
+	'0154_gauntlet_rank_what_is_checkable.sql',
+	'0155_gauntlet_authoring_tier.sql'
 ] as const;
 
 let db: TestDb;
@@ -112,6 +126,13 @@ async function reveal(user: SeededUser, mode: string) {
  * submit: driving the real RPC would need a started run token per row and would
  * make the exclusion assertions depend on the whole timing path.
  */
+/**
+ * 0154's plausibility floor, in milliseconds, written down once. The view
+ * ranks a macro run only when `(value->>'elapsed_ms')::numeric >= 30000`, and
+ * a run without the key at all fails closed.
+ */
+const CLOCK_FLOOR_MS = 30_000;
+
 async function seedPassingRun(user: SeededUser, mode: string, score: number, elapsedMs = 1000) {
 	await db.sql(
 		`insert into public.submissions (user_id, challenge_id, mode, value, is_correct, score_metric, source)
@@ -182,9 +203,16 @@ describe('gauntlet_leaderboard: ranks only what the server can check', () => {
 	beforeAll(async () => {
 		// One passing macro run per modeling mode, for two different players, so
 		// the board has something to rank if it is going to.
+		// BOTH CLOCKS ARE ABOVE 0154'S FLOOR, and they used to be 12_500 and
+		// 30_000. The lower one was under the floor, so once 0154 applies the
+		// player's run stops ranking and the two-row control below collapses to
+		// one -- which is a FIXTURE that is no longer something the producer can
+		// emit, not an assertion that changed its mind. The rank order is still
+		// carried by `score_metric` (12.5 before 30.0), so nothing about what
+		// the control checks moves; only the clock does.
 		for (const mode of MODELING) {
-			await seedPassingRun(player, mode, 12.5, 12_500);
-			await seedPassingRun(other, mode, 30.0, 30_000);
+			await seedPassingRun(player, mode, 12.5, CLOCK_FLOOR_MS + 15_000);
+			await seedPassingRun(other, mode, 30.0, CLOCK_FLOOR_MS + 30_000);
 		}
 		// A knowledge submission, which reaches the board by the OTHER branch of
 		// the view's WHERE and must be unaffected by this change.
@@ -224,9 +252,46 @@ describe('gauntlet_leaderboard: ranks only what the server can check', () => {
 	it.each(['feature_golf', 'reverse_engineer'] as const)(
 		'%s does not reach the board',
 		async (mode) => {
+			// THE CONTROL IS INSIDE THE EXCLUSION, not merely above it. Read as
+			// a bare `toEqual([])` this passes just as well against a view that
+			// matches NOTHING -- which is exactly the state 0154's clock floor
+			// silently put this fixture into, and the reason the two-row
+			// assertion above had to be repaired rather than re-pinned. An
+			// emptied board can no longer satisfy an emptiness claim.
+			expect(await boardRows('speedrun')).toHaveLength(2);
 			expect(await boardRows(mode)).toEqual([]);
 		}
 	);
+
+	it('THE FLOOR BITES: a passing run under the clock floor does not rank', async () => {
+		// The other half of the repair. Raising the seeded clocks above the
+		// floor would otherwise leave this file with no statement at all about
+		// why the number is what it is, and a later session could lower it back
+		// under 30s without anything reddening.
+		const slow = await createUser(db, 'sandbagger@boscotech.net', 'Sandbagger Three');
+		await seedPassingRun(slow, 'speedrun', 1.0, CLOCK_FLOOR_MS - 1);
+		const rows = await boardRows('speedrun');
+		// Its score_metric of 1.0 is the best on the board, so if the floor were
+		// not there this run would be RANK ONE -- the assertion cannot pass by
+		// the run merely sorting last.
+		expect(rows.map((r) => r.user_id)).not.toContain(slow.id);
+		expect(rows).toHaveLength(2);
+
+		// POSITIVE CONTROL: the same run one millisecond over the floor DOES
+		// rank, and takes rank one. Without this, "under the floor is absent"
+		// would pass against a view that had stopped admitting speedrun at all.
+		const quick = await createUser(db, 'honest@boscotech.net', 'Honest Four');
+		await seedPassingRun(quick, 'speedrun', 1.0, CLOCK_FLOOR_MS);
+		const after = await boardRows('speedrun');
+		expect(after.map((r) => r.user_id)).toContain(quick.id);
+		expect(after[0].user_id).toBe(quick.id);
+		expect(after).toHaveLength(3);
+
+		// Leave the board as the other tests found it.
+		await db.sql(`delete from public.submissions where user_id = any($1::uuid[])`, [
+			[slow.id, quick.id]
+		]);
+	});
 
 	// "while still recording" is the other half of the requirement, and it is the
 	// half a plain exclusion could silently take with it.

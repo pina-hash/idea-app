@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 36
 ---
 
-## A notebook entry can be a draft (`0118`)
-
 Migration `0118_notebook_draft_state.sql` (apply manually after `0117`). One
 nullable column decides it: `notebook_entries.submitted_at`, **null = a draft,
 private to the student; set = turned in, and staff can see it.** DATA LAYER

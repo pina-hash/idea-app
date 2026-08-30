@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 76
 ---
 
-## FSP live Q&A
-
 `/fsp/ask` + `/fsp/live` are the FSP live audience Q&A: students submit
 questions from their phones and Mr. Pina runs the feed on a projected display.
 

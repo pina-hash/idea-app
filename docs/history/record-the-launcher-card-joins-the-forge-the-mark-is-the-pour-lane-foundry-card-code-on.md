@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry", "Home page, launcher, tour"]
 record_order: 139
 ---
 
-## The launcher card joins the forge: the mark is the pour (`lane/foundry-card`, code only)
-
 The brief said the Foundry launcher card carried a game controller; what `main`
 actually carried was the crucible-pouring-into-a-browser-window mark from the
 accent-restoration bundle. Reported rather than silently resolved, because the

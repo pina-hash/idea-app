@@ -1,5 +1,26 @@
 <script lang="ts">
 	import StudentPreview from '$lib/coin-desk/StudentPreview.svelte';
+	/**
+	 * THE COIN DESK'S ROOM, imported here and wrapped below, because production
+	 * has it and this harness did not.
+	 *
+	 * The preview route's own page component mounts the component and nothing
+	 * else; the room arrives from `/coin-desk/+layout.svelte`, which wraps every
+	 * area in `.cd-root` and imports exactly this stylesheet. Both halves are
+	 * needed -- `split.css` is where `.cd-root` is REGISTERED (`--cr-gutter`,
+	 * `--cr-thumb`, the scrollbar treatment, the split geometry), so without the
+	 * import the wrapper is a class with no rules: a room in the markup that
+	 * paints nothing, which is a worse fixture than no wrapper at all.
+	 *
+	 * WHAT THIS ROOM DOES NOT DO IS REPAINT, and that is worth having measured
+	 * rather than assumed. split.css says it in words: "the coin desk sits on
+	 * the portal's own dark plate rather than bringing a room palette." So
+	 * unlike `.cr-root` or `.gt-root`, this wrapper moves geometry and
+	 * scrollbars and not colour -- the banner and picker ratios came back
+	 * identical either side of it (10.67:1 and 5.31:1), and what moved was the
+	 * page measure.
+	 */
+	import '$lib/shell/split.css';
 
 	/**
 	 * Dev harness for /coin-desk/preview (404 in production, no auth, no
@@ -181,4 +202,25 @@
 	};
 </script>
 
-<StudentPreview {data} />
+<!-- The room, and the same `main.coin-desk-page` measure the layout gives every
+     coin desk area. Not an approximation of the chain: `split.css` sets
+     `--cr-measure` on a room that CONTAINS a split, and the page measure is read
+     off `--cr-measure` on the page element, so a harness that dropped the main
+     would be measuring an unbounded column no coin desk area ever renders at. -->
+<div class="cd-root">
+	<main class="coin-desk-page">
+		<StudentPreview {data} />
+	</main>
+</div>
+
+<style>
+	/* Copied from `/coin-desk/+layout.svelte`, which is where production's copy
+	   lives; a harness cannot import a layout's scoped styles. Two declarations,
+	   and they are the page measure and the gutter -- everything else on this
+	   page comes from the room or from the component. */
+	.coin-desk-page {
+		max-width: var(--cr-measure, 52rem);
+		margin: 0 auto;
+		padding: 0 var(--cr-gutter, 1.2rem) 2rem;
+	}
+</style>

@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 85
 ---
 
-## The split collapses when nothing is open, and the class stream uses the width (code-only; NO migration)
-
 `.cr-split` held `minmax(0, 26rem) minmax(0, 1fr)` whether or not anything was
 selected. Measured on the class page at 1440x900: a 416px list beside a 921px
 detail pane whose entire content was a 31px line of hint text -- 65% of the

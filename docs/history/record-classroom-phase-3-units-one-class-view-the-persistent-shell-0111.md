@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 46
 ---
 
-## Classroom Phase 3: units, one class view, the persistent shell (`0111`)
-
 Migration `0111_classroom_units.sql` (apply manually after `0110`) plus a
 navigation rework. The module had grown feature by feature, so every capability
 owned a route with no structure between them, and the Stream/Classwork pair was

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 114
 ---
 
-## Autosave stops minting a revision per keystroke burst (`0129`)
-
 ### What shipped
 
 The composer's autosave (a0d43ba, code only) wrote through the ordinary note

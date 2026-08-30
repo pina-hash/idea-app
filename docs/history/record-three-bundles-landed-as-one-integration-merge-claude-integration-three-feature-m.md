@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 165
 ---
 
-## Three bundles landed as one integration merge (`claude/integration-three-feature-merges-8i1zec`, no migration of its own)
-
 Three independently-developed branches, merged into one integration branch with
 `--no-ff` in this order so they land as a single merge rather than three that
 conflict in sequence: `claude/scheduled-checkin-future-status-vqlnpu` (a check-in

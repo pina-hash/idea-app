@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Classroom", "browser-verify harness"]
 ---
 
-## Two of three merged-feature states never driven in a browser now are, through the classroom-split harness (`claude/dev-routes-merged-features-pglx6a`, no migration)
-
 Three features merged into `main` in the two days before this session, and none
 had ever run in a real browser -- each because the session that built it could
 not reach the state from any dev route it was allowed to touch. This bundle

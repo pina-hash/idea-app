@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 13
 ---
 
-## The coin display layer: two balances, honest signs, one withdrawal (`0103`)
-
 Migration `0103_coin_public_medium_display.sql` (apply manually after `0102`)
 plus a scoped edit to `static/coins/index.html`. `0096` split the economy into
 two balances and made a payout a transfer, and said in its own header that a

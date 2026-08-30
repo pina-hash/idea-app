@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 107
 ---
 
-## The load-bearing boundary token, student-facing tap targets, and false dirty on mount (code only, NO migration)
-
 Three items, each starting from a measurement somebody else had already taken.
 
 ### 1. `--boundary`: two tokens, not one raised hairline

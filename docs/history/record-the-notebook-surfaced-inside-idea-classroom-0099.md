@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 32
 ---
 
-## The notebook, surfaced inside IDEA Classroom (`0099`)
-
 Migration `0099_notebook_view_as.sql` (apply manually after `0098`) plus three
 UI surfaces. The notebook stops being a place you have to already know about:
 it is reachable from the class it belongs to, its compliance state is visible

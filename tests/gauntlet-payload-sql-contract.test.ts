@@ -98,6 +98,24 @@ const NOT_AUTHORED: Record<string, string> = {
 	demo: 'purge predicate in gauntlet_author_delete (0019), written by seeds, never by the form'
 };
 
+/**
+ * Keys the SQL still reads from `prompt` that the form now writes only into
+ * `answer`. Each is a LEGACY FALLBACK over rows written before 0153, kept so a
+ * database sitting between the deploy and the hand-applied migration still
+ * grades; the value is authorable, on the other side of the boundary.
+ *
+ * THE LIST IS PINNED FOR THE SAME REASON `NOT_AUTHORED` IS, AND FOR A SHARPER
+ * ONE. The cheap way to make the sweep below pass after moving a field out of
+ * the public `prompt` is to add it here -- and the cheap way to make it pass
+ * after moving a field the WRONG WAY, back into `prompt`, is also to add it
+ * here. So an entry must be genuinely emittable into `answer`, which the test
+ * checks rather than takes on trust, and adding one has to be visible.
+ */
+const LEGACY_PROMPT_FALLBACKS: Record<string, string> = {
+	density:
+		'0153 stopped publishing it; `_gauntlet_density_g_cm3` (0147) and `gauntlet_run_targets` still coalesce answer over prompt for pre-0153 rows'
+};
+
 /** A form with every field populated, per mode, so the union is the full emit set. */
 function fullForm(mode: GauntletModeId): AuthorFormState {
 	return {
@@ -159,7 +177,8 @@ describe('every jsonb key the live grading SQL reads is a key the author form ca
 		expect(sql.answer.size).toBeGreaterThanOrEqual(10);
 		expect(sql.prompt.size).toBeGreaterThanOrEqual(4);
 		expect(emit.answer.size).toBeGreaterThanOrEqual(10);
-		expect(emit.prompt.size).toBeGreaterThanOrEqual(8);
+		// 0153 took three keys out of `prompt`, so this floor moved with them.
+		expect(emit.prompt.size).toBeGreaterThanOrEqual(5);
 	});
 
 	it('reads exactly one deliberately non-authored key, and it is named with its reason', () => {
@@ -173,9 +192,23 @@ describe('every jsonb key the live grading SQL reads is a key the author form ca
 		expect(missing).toEqual([]);
 	});
 
-	it('every prompt key the SQL reads is emittable', () => {
-		const missing = [...sql.prompt].filter((k) => !emit.prompt.has(k) && !(k in NOT_AUTHORED));
+	it('every prompt key the SQL reads is emittable, into `prompt` or (for a named legacy fallback) into `answer`', () => {
+		const missing = [...sql.prompt].filter(
+			(k) => !emit.prompt.has(k) && !(k in NOT_AUTHORED) && !(k in LEGACY_PROMPT_FALLBACKS)
+		);
 		expect(missing).toEqual([]);
+	});
+
+	it('every legacy prompt fallback is still authorable on the other side, and the list is short', () => {
+		// Without this, the fallback list is a hole: anything dropped into it
+		// stops being checked at all. Each entry must still be a key the form can
+		// write -- into `answer`, where 0153 moved it.
+		for (const key of Object.keys(LEGACY_PROMPT_FALLBACKS)) {
+			expect(sql.prompt.has(key), `${key} is no longer read from prompt by any live function`).toBe(true);
+			expect(emit.answer.has(key), `${key} is not written to the answer either`).toBe(true);
+			expect(emit.prompt.has(key), `${key} is being published again`).toBe(false);
+		}
+		expect(Object.keys(LEGACY_PROMPT_FALLBACKS)).toHaveLength(1);
 	});
 
 	it('names the four keys a wrong spelling would cost a ranked run, so a rename cannot pass silently', () => {

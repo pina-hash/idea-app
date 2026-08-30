@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 60
 ---
 
-## Assignment engine polish: sentence counting, file previews, upload progress, split grading (`0112`)
-
 Four fixes to the 0086 assignment engine and its grading console, all
 reported from a real student/teacher test run. No schema change except the
 one migration named below.

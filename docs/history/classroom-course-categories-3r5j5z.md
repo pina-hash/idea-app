@@ -6,8 +6,6 @@ migrations: ["0142"]
 subsystems: ["IDEA Classroom"]
 ---
 
-## The grading-category datalist gets the read it never had (`0142`)
-
 An earlier bundle shipped the whole suggestion surface for
 `classroom_items.category` -- the `datalist`, the `list` attribute, the pure
 ranking function `courseCategorySuggestions`, its tests, and the optional

@@ -1,26 +1,66 @@
 <script lang="ts">
-	import { eventNum, formatMass, type RunEvent, type TelemetryTargets } from '$lib/gauntlet';
+	import {
+		eventNum,
+		formatMass,
+		deviationBandFill,
+		deviationBandLabel,
+		type DeviationBand,
+		type RunEvent,
+		type TelemetryTargets
+	} from '$lib/gauntlet';
 
 	/**
 	 * Live in-run analysis for a Speedrun (0035). Renders from the append-only
 	 * telemetry stream (`events`, fed live via Realtime on the play page, or a
-	 * synthetic replay in /dev/run-telemetry): volume vs target, computed mass vs
-	 * target (from the LEVEL density), running feature count, a live feature
-	 * activity feed, rebuild health, and pace vs par. Display only; it never
-	 * affects the run. VIEWPORT styling, Share Tech Mono numerics, a crimson LIVE
-	 * badge, all motion behind prefers-reduced-motion.
+	 * synthetic replay in /dev/run-telemetry): the part's own measured volume and
+	 * mass, how close the SERVER says that is, a running feature count, a live
+	 * feature activity feed, rebuild health, and pace vs par. Display only; it
+	 * never affects the run. VIEWPORT styling, Share Tech Mono numerics, a crimson
+	 * LIVE badge, all motion behind prefers-reduced-motion.
+	 *
+	 * THE CLOSENESS READING IS THE SERVER'S, AND THE TARGET IS NOT HERE (0153).
+	 * This used to draw the measured volume against `targets.targetVolumeMm3` and
+	 * the computed mass against `targets.targetMassLevel` -- two copies of the
+	 * ranked answer, taken from the published `prompt`, which is column-granted to
+	 * every signed-in student. Both fields are gone from `TelemetryTargets` and
+	 * there is no honest way to refill them. What replaces them is `band`: the
+	 * verdict `gauntlet_submit`'s Speedrun practice branch returns for the mass
+	 * the student checked, which is coarse, unsigned, metered by 0151, and says
+	 * how close without saying to what.
+	 *
+	 * `volume` and `computedMassLevel` STAY, and are not a disclosure: they are
+	 * measurements of the student's OWN part, which they can read off Mass
+	 * Properties without this panel. What was disclosed was the number beside
+	 * them.
 	 */
 	let {
 		events = [],
 		targets,
 		elapsedMs = null,
-		live = true
+		live = true,
+		band = null,
+		bandAtMs = null,
+		nowMs: nowClockMs = null
 	}: {
 		events?: RunEvent[];
 		targets: TelemetryTargets;
 		/** Server-authoritative elapsed ms; falls back to the latest event time. */
 		elapsedMs?: number | null;
 		live?: boolean;
+		/**
+		 * The server's verdict on the student's most recent practice check, or
+		 * null when they have not checked yet. NEVER derived here: this component
+		 * has nothing to compare against and must not acquire anything.
+		 */
+		band?: DeviationBand | null;
+		/** Epoch ms the band was answered, so the panel can say how stale it is. */
+		bandAtMs?: number | null;
+		/**
+		 * Epoch ms now, threaded from the caller. A component that reads its own
+		 * clock disagrees with the surface it is rendered in (CLAUDE.md); null
+		 * simply drops the staleness note rather than inventing one.
+		 */
+		nowMs?: number | null;
 	} = $props();
 
 	const snapshots = $derived(events.filter((e) => e.event_type === 'snapshot'));
@@ -29,17 +69,21 @@
 	const volume = $derived(latest ? eventNum(latest.payload, 'volume_mm3') : null);
 	const featureCount = $derived(latest ? eventNum(latest.payload, 'feature_count') : null);
 
-	const volumePct = $derived(
-		volume != null && targets.targetVolumeMm3
-			? Math.min(150, (volume / targets.targetVolumeMm3) * 100)
-			: null
-	);
 	// Computed mass = measured volume x the LEVEL density (never the part material).
 	const computedMassLevel = $derived.by(() => {
 		if (volume == null || targets.densityGcm3 == null) return null;
 		const g = (volume / 1000) * targets.densityGcm3;
 		return targets.unitSystem === 'IPS' ? g / 453.59237 : g;
 	});
+
+	// The closeness bar. Four discrete steps straight off the band; see
+	// `deviationBandFill` for why it may never be computed from a quantity.
+	const bandFill = $derived(deviationBandFill(band));
+	const bandAgeS = $derived(
+		band != null && bandAtMs != null && nowClockMs != null
+			? Math.max(0, Math.round((nowClockMs - bandAtMs) / 1000))
+			: null
+	);
 
 	const rebuilds = $derived(events.filter((e) => e.event_type === 'rebuild'));
 	const errorCount = $derived(
@@ -91,25 +135,30 @@
 	<div class="lt-gauges">
 		<div class="lt-gauge">
 			<div class="lt-gauge-top">
-				<span class="lt-label">Volume vs target</span>
-				<span class="lt-num">{volume != null ? volume.toFixed(0) : '--'}<span class="lt-unit">mm3</span></span>
+				<span class="lt-label">Last check</span>
+				<span class="lt-num band-{band ?? 'none'}">{band != null ? deviationBandLabel(band) : 'Not checked'}</span>
 			</div>
-			<div class="lt-bar"><div class="lt-fill vol" style="width:{Math.min(100, volumePct ?? 0)}%"></div>
-				{#if volumePct != null && volumePct > 100}<div class="lt-over" style="left:100%"></div>{/if}
+			<div class="lt-bar">
+				<div class="lt-fill band-{band ?? 'none'}" style="width:{bandFill ?? 0}%"></div>
 			</div>
 			<span class="lt-sub">
-				target {targets.targetVolumeMm3 ? targets.targetVolumeMm3.toFixed(0) : '--'} mm3
-				{#if volumePct != null} · {volumePct.toFixed(0)}%{/if}
+				{#if band == null}
+					Check your mass below to see how close you are
+				{:else if bandAgeS != null}
+					Checked {fmtT(bandAgeS * 1000)} ago
+				{:else}
+					Checked against the server
+				{/if}
 			</span>
 		</div>
 
 		<div class="lt-gauge">
 			<div class="lt-gauge-top">
-				<span class="lt-label">Mass (level density)</span>
+				<span class="lt-label">Your part</span>
 				<span class="lt-num">{computedMassLevel != null ? formatMass(computedMassLevel, targets.massUnit) : '--'}</span>
 			</div>
 			<div class="lt-sub">
-				target {targets.targetMassLevel != null ? formatMass(targets.targetMassLevel, targets.massUnit) : '--'}
+				{volume != null ? volume.toFixed(0) : '--'} mm3 measured
 			</div>
 		</div>
 	</div>
@@ -239,12 +288,32 @@
 		background: var(--green, #00ff41);
 		transition: width 0.4s ease;
 	}
-	.lt-over {
-		position: absolute;
-		top: 0;
-		width: 3px;
-		height: 100%;
+	/* The band's own hue, matching the words beside it. Colour is never the only
+	   signal: the label spells the verdict out and the bar's LENGTH is the
+	   ordering, which is why `near` and `far` share amber rather than reaching for
+	   a second warning hue. `--crimson` is deliberately not used -- this room
+	   reserves it for live/rec/error, and a miss is a grading outcome, not an
+	   error; `.gauntlet .result-banner.no` already spells the same verdict amber
+	   two panels down. */
+	.lt-fill.band-pass {
+		background: var(--green, #00ff41);
+	}
+	.lt-fill.band-close {
+		background: var(--teal, #2ec4a6);
+	}
+	.lt-fill.band-near,
+	.lt-fill.band-far {
 		background: var(--amber, #ff8c00);
+	}
+	.lt-num.band-pass {
+		color: var(--green, #00ff41);
+	}
+	.lt-num.band-near,
+	.lt-num.band-far {
+		color: var(--amber, #ff8c00);
+	}
+	.lt-num.band-none {
+		color: var(--dim, #5f8a78);
 	}
 	.lt-sub {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);

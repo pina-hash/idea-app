@@ -74,7 +74,12 @@
 
 <div class="preview-picker">
 	<label for="preview-student">Student</label>
-	<select id="preview-student" bind:value={picked} onchange={() => open(picked)}>
+	<select
+		id="preview-student"
+		class="tap-44"
+		bind:value={picked}
+		onchange={() => open(picked)}
+	>
 		<option value="">Choose a student&hellip;</option>
 		{#each data.students as s (s.email)}
 			<option value={s.email}>{s.name}</option>

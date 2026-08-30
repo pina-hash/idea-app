@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 31
 ---
 
-## Check-ins are multi-section, the Classroom way (`0098`)
-
 Migration `0098_notebook_session_postings.sql` (apply manually after `0097`).
 IDEA209H runs three sections on identical pacing; `notebook_sessions.section_id`
 tied a check-in to exactly one, so a five-check-in unit was fifteen manual

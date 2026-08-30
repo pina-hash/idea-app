@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 133
 ---
 
-## The bundle root, which is the only URL the frame ever requests
-
 `lane/foundry-entry-path`. No SQL.
 
 Every app ever published rendered blank. The frame's `src` is

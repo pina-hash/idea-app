@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 119
 ---
 
-## IDEA Foundry, the ingest Edge Function (code only, NO migration)
-
 `supabase/functions/foundry-ingest` plus the shared preflight rules in
 `src/lib/foundry/`. Takes a zip a student has already uploaded to
 `foundry-uploads`, preflights it, and on a pass extracts it into

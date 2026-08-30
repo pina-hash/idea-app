@@ -7,6 +7,13 @@ file per entry. Do not add an entry here.**
 appended to it again, which is the point: a file nobody edits is a file that
 never conflicts.
 
+**"Nothing is appended to it again" is about the 35,000-line record body that
+used to live here, not about this pointer's own instructions.** Those
+instructions are edited in place when they are wrong, the same as any other
+rule -- 2026-08-29 corrected the worked example below, which still showed a
+retyped `## ` heading after `derive-headings.mjs` (`1fbdf87`) removed that
+second copy, and would have produced a file `npm run history:verify` refuses.
+
 ---
 
 ## Why it was split
@@ -47,8 +54,10 @@ that pretends to be one.
 
 ## The shape of an entry file
 
-YAML front matter, one blank line, then the entry, opening with its own `##`
-heading:
+YAML front matter, one blank line, then the entry body -- **with no `##`
+heading of its own**. The heading is derived from `title` at read time
+(`docs/history/_tools/derive-headings.mjs`, `verify-split.mjs`'s reassembly),
+so the body starts directly at the first real sentence:
 
 ```
 ---
@@ -59,15 +68,18 @@ migrations: ["0140"]
 subsystems: ["Digital notebook"]
 ---
 
-## A check-in dated in the future is scheduled, not missing (`0140`)
-
 ...the entry, in the shape the record has always used: what changed, the
 load-bearing decisions and why, what was measured, what is explicitly NOT
 verified, and what was deferred.
 ```
 
-- `title` must match the `##` heading exactly. `npm run history:verify` compares
-  them, so the two cannot drift.
+- **Do not retype the title as a `## ` line at the top of the body.** It
+  drifted from the front-matter `title` three times before the heading was
+  made derived instead of stored; `npm run history:verify` now refuses a body
+  that opens with `## `.
+- `title` is the one copy of the heading text. `npm run history:verify`
+  synthesizes `## <title>` at reassembly time, so a wrong `title` is a wrong
+  heading with nothing to compare it against.
 - `migrations` is quoted (`"0140"`, not `0140`, which YAML reads as octal) and
   is `[]` for a code-only bundle.
 - `subsystems` uses the group names `docs/history/_tools/index.mjs` sorts by;

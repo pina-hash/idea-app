@@ -7,6 +7,15 @@
 	import { PATHWAYS, pathwayInk } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
 	import { store } from './store';
+	/**
+	 * THE GAUNTLET ROOM'S OWN STYLESHEET, imported for the `.gt-root` stage
+	 * below and for nothing else. `/gauntlet/+layout.svelte` imports the same
+	 * file, and without it `.gt-root` is a class with no rules -- a wrapper that
+	 * looks like a room in the markup and paints nothing, which is a worse
+	 * fixture than no wrapper at all. Every selector in it is scoped under
+	 * `.gt-root`, so the roomless stages above are untouched.
+	 */
+	import '$lib/gauntlet/viewport/viewport.css';
 
 	/**
 	 * Manual verification harness for the pathway identity system (dev-only).
@@ -118,6 +127,65 @@
 		</div>
 	</div>
 
+	<!--
+		THE SAME TWO COMPONENTS IN THE ROOM THEY ALSO SHIP IN.
+
+		`Avatar` and `PathwayChip` are mounted directly by exactly two routes:
+		`/dashboard`, which carries no scoped theme (the stages above are that
+		one), and `/gauntlet/leaderboard`, which renders inside
+		`/gauntlet/+layout.svelte`'s `.gt-root`. Every reading this harness had
+		ever taken was the portal one -- CLAUDE.md's rule is to MEASURE when a
+		shared component enters a new room, and the GAUNTLET viewport re-points
+		`--bg0`, `--bg1`, `--bg2`, `--white`, `--dim`, `--green`, `--cyan` and
+		`--gold` on `.gt-root` itself, so a chip whose fill is 12% alpha over
+		whatever is behind it is a different colour in there.
+
+		A SECOND STAGE, NOT A REPLACEMENT. The component genuinely ships in both
+		rooms, so one harness cannot stand for both -- and the roomless stages
+		are the ones `/dashboard` and `ProfileMenu` are read from. `.gt-root >
+		main.gauntlet > table.board` is the leaderboard's own chain, not an
+		approximation of it: `viewport.css` has rules keyed on `.gt-root
+		.gauntlet`, so a stage that skipped `main.gauntlet` would be a third
+		plate belonging to nobody.
+
+		WHAT THIS STAGE DOES NOT REPRODUCE, and it changes what the number means:
+		the real room mounts `ViewportBackground`, a WebGL canvas painting over
+		`.gt-root`'s own `background: var(--void)`. This stage measures the solid
+		void base, which viewport.css describes as the state that "stands alone
+		while the volumetric scene loads (and if WebGL is unavailable, when the
+		canvas stays empty)" -- a real state of the real room, and the one a
+		contrast reading can be taken against at all, since a ratio over a live
+		canvas is a ratio against whatever frame it was on.
+	-->
+	<h2>The same pair inside GAUNTLET's room (/gauntlet/leaderboard)</h2>
+	<div class="stage gt-stage">
+		<div class="gt-root">
+			<main class="gauntlet">
+				<table class="board lb-board">
+					<thead>
+						<tr><th class="rank-col">#</th><th>Student</th><th class="num-col">XP</th></tr>
+					</thead>
+					<tbody>
+						{#each PATHWAYS as p, i (p.id)}
+							{@const sp = sampleProfile(p.id)}
+							<tr>
+								<td class="rank-col">{i + 1}</td>
+								<td>
+									<span class="lb-who">
+										<Avatar profile={sp} size={26} />
+										<span class="lb-name">{displayName(sp)}</span>
+										<PathwayChip pathway={p.id} size="sm" />
+									</span>
+								</td>
+								<td class="num-col">{(6 - i) * 120}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</main>
+		</div>
+	</div>
+
 	<h2>ProfileMenu with the mock student</h2>
 	<p class="note">
 		No chip until a pathway is chosen in the picker; afterwards the chip sits beside the avatar in
@@ -132,6 +200,35 @@
 </div>
 
 <style>
+	/* The room stage is given a real box and nothing else: `.gt-root` brings its
+	   own plate (`background: var(--void)`) and its own token set, and a harness
+	   rule that painted over either would be measuring this file instead of the
+	   room. */
+	.gt-stage {
+		padding: 0;
+	}
+	.gt-stage .gt-root {
+		padding: 1rem;
+		border-radius: 6px;
+	}
+	.gt-stage .lb-who {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.gt-stage table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	.gt-stage :is(th, td) {
+		text-align: left;
+		padding: 0.35rem 0.5rem;
+	}
+	.gt-stage .num-col,
+	.gt-stage .rank-col {
+		text-align: right;
+		width: 3rem;
+	}
 	.harness {
 		max-width: 760px;
 		margin: 0 auto;

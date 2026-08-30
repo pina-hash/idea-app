@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 157
 ---
 
-## The build contract gets a permanent tab, and the gallery thumbnail gets a shape
-
 A code-only bundle scoped to `FoundryGallery.svelte`, `FoundryDetail.svelte`,
 `FoundryShell.svelte`, `nav.ts` and `forge.css` (an explicit file ownership boundary
 for this session; `FoundryInspector.svelte`, `ReviewQueue.svelte`, `transports.ts`

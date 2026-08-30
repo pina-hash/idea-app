@@ -12,6 +12,7 @@
 		formatMass,
 		roomStateLabel,
 		deviationBandLabel,
+		deviationBandFill,
 		DRAWINGS_BUCKET,
 		SUBMIT_MACRO_PATH,
 		UNIT_SYSTEM_UNITS,
@@ -42,14 +43,6 @@
 	// authoritative over the global ruleset's generic dimension-reading line.
 	const dimensionLabel = $derived(
 		framing?.unit_system ? UNIT_SYSTEM_UNITS[framing.unit_system].dimensionLabel : ruleset.units_label
-	);
-	const band = $derived(
-		framing?.target_mass != null && framing?.tolerance_pct != null
-			? {
-					lo: framing.target_mass - (framing.target_mass * framing.tolerance_pct) / 100,
-					hi: framing.target_mass + (framing.target_mass * framing.tolerance_pct) / 100
-				}
-			: null
 	);
 	// The room's single authoritative clock: every racer's token shares this
 	// reveal_at, so one clock (fed to SpeedrunClock, display-only) is correct
@@ -99,7 +92,12 @@
 		is_correct: boolean;
 		score_metric: number | null;
 		band: string | null;
+		your_mass: number | null;
 	} | null>(null);
+	// The four-step closeness bar, straight off the band a check returned;
+	// see `LiveTelemetry.svelte`'s own comment for why it may never be
+	// computed from a quantity. Null (no bar) until a manual check answers.
+	const myResultFill = $derived(deviationBandFill(myResult?.band ?? null));
 	let mass = $state<number | null>(null);
 	let submitting = $state(false);
 	let submitError = $state('');
@@ -163,7 +161,8 @@
 						myResult = {
 							is_correct: !!row.is_correct,
 							score_metric: row.score_metric ?? null,
-							band: null
+							band: null,
+							your_mass: null
 						};
 					}
 					invalidateAll();
@@ -232,7 +231,8 @@
 		myResult = {
 			is_correct: !!res.is_correct,
 			score_metric: res.score_metric ?? null,
-			band: (res.deviation_band as string) ?? null
+			band: (res.deviation_band as string) ?? null,
+			your_mass: (res.your_mass as number) ?? null
 		};
 		submitting = false;
 		await invalidateAll();
@@ -243,15 +243,14 @@
 	{#if framing}
 		<div class="spec card">
 			<div class="field"><span class="key">Material</span><span class="val">{framing.material ?? 'TBD'}</span></div>
-			<div class="field"><span class="key">Density</span><span class="val meta">{framing.density ?? '--'} {framing.density_unit ?? ''}</span></div>
-			<div class="field"><span class="key">Target mass</span><span class="val meta">{formatMass(framing.target_mass, unit)}</span></div>
-			<div class="field">
-				<span class="key">Tolerance</span>
-				<span class="val meta">
-					&plusmn;{framing.tolerance_pct ?? '--'}%
-					{#if band}<span class="dim"> ({formatMass(band.lo, unit)} to {formatMass(band.hi, unit)})</span>{/if}
-				</span>
-			</div>
+			<div class="field"><span class="key">Mass in</span><span class="val meta">{unit}</span></div>
+			<!-- Not the target, its density or its tolerance band: a room run
+			     carries `source = 'macro'` or a supervised manual entry and ranks
+			     on the same global board a solo run does, so reading the target
+			     off this page forges a ranked row from a supervised seat exactly
+			     as reading it off the solo page would (0153). The host watches
+			     the room, not the leaderboard. -->
+			<div class="field"><span class="key">Target</span><span class="val meta dim">Not published &mdash; check your mass during the run</span></div>
 		</div>
 	{/if}
 {/snippet}
@@ -334,6 +333,17 @@
 					</span>
 					<span class="result-time">Time {formatTime(myResult.score_metric)}</span>
 				</div>
+				{#if myResult.band != null}
+					<!-- The four-step closeness bar, straight off the band the check
+					     returned, the same shape LiveTelemetry draws for a solo run
+					     (0153). The word "target" is absent on purpose. -->
+					<div class="band-bar">
+						<div class="band-fill band-{myResult.band}" style="width:{myResultFill ?? 0}%"></div>
+					</div>
+				{/if}
+				{#if myResult.your_mass != null}
+					<p class="dim">You measured {formatMass(myResult.your_mass, unit)}</p>
+				{/if}
 				{#if myResult.is_correct}
 					<p class="dim">Your run is in. See the board below.</p>
 				{:else}
@@ -415,7 +425,6 @@
 						{#if framing}
 							<div class="field"><span class="key">Challenge</span><span class="val">{framing.title}</span></div>
 							<div class="field"><span class="key">Material</span><span class="val meta">{framing.material ?? 'TBD'}</span></div>
-							<div class="field"><span class="key">Target mass</span><span class="val meta">{formatMass(framing.target_mass, unit)}</span></div>
 						{:else}
 							<p class="dim">Pick a published Speedrun challenge to race.</p>
 						{/if}
@@ -553,4 +562,34 @@
 		</aside>
 	</div>
 </main>
+
+<style>
+	/* The four-step closeness bar off a check's own band (0153), the room's
+	   copy of LiveTelemetry's shape. New classes, not an override of anything
+	   in app.css: this page has no shared stylesheet entry of its own. */
+	.band-bar {
+		position: relative;
+		height: 8px;
+		margin: 0.35rem 0;
+		background: rgba(255, 255, 255, 0.06);
+		border-radius: 5px;
+		overflow: hidden;
+	}
+	.band-fill {
+		height: 100%;
+		border-radius: 5px;
+		background: var(--green, #00ff41);
+		transition: width 0.4s ease;
+	}
+	.band-fill.band-pass {
+		background: var(--green, #00ff41);
+	}
+	.band-fill.band-close {
+		background: var(--teal, #2ec4a6);
+	}
+	.band-fill.band-near,
+	.band-fill.band-far {
+		background: var(--amber, #ff8c00);
+	}
+</style>
 

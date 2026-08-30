@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 44
 ---
 
-## Classroom Phase 1: scheduling, the calm surfaces, and the composer (`0109`)
-
 Migration `0109_classroom_scheduled_posting.sql` (apply manually after `0108`)
 plus a visual pass over every classroom and reference surface. `0108`'s rich
 bodies were already shipped and wired; this is the layer on top.

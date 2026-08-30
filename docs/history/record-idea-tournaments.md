@@ -7,8 +7,6 @@ subsystems: ["Tournaments"]
 record_order: 22
 ---
 
-## IDEA Tournaments
-
 Phase 1 of the tournament subsystem (migration `0062_tournaments.sql`, apply
 manually after 0061): registration through a live, fully PUBLIC, host-run
 double-elimination bracket with optional head-to-head qualifying pools. No

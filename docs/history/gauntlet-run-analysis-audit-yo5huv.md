@@ -6,8 +6,6 @@ migrations: ["0150"]
 subsystems: ["GAUNTLET", "Telemetry", "Disclosure", "Accessibility"]
 ---
 
-## Three built-and-disconnected GAUNTLET features, wired (`claude/gauntlet-run-analysis-audit-yo5huv`, migration 0150)
-
 An audit reported three things in GAUNTLET that were built and not connected,
 plus one contrast failure measured by an earlier session. All four were put to
 the code before anything was changed; all four held, and one of them held for a

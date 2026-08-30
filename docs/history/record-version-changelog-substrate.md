@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 79
 ---
 
-## Version + changelog substrate
-
 The site changelog AND every page's version are **auto-generated from git
 history** and never hand-edited. `vite.config.ts` exposes a
 `virtual:site-versions` module: at build / dev-server start it runs `git log

@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 143
 ---
 
-## Give published apps room to run: a direct page per app, full screen, and a share link (`lane/foundry-fullpage`, code only, no migration)
-
 **Branch:** `lane/foundry-fullpage`. **Migration:** none.
 
 ### The problem

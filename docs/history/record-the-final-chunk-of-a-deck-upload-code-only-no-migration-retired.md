@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 41
 ---
 
-## The final chunk of a deck upload (code-only; NO migration) -- RETIRED
-
 **This whole diagnosis belongs to the chunked, direct-to-Drive uploader, which
 is gone.** Live testing (see "Deck uploads go back through the server" below)
 found the browser could not reach Google's chunked-upload endpoint at all in

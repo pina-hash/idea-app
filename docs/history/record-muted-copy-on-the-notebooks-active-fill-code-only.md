@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 113
 ---
 
-## Muted copy on the notebook's active fill (code only)
-
 The one finding the console-plate bundle raised and did not fix. One CSS rule,
 plus the sweep that found a second thing and then unfound it.
 

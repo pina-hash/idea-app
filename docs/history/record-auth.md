@@ -7,8 +7,6 @@ subsystems: ["Platform & access"]
 record_order: 3
 ---
 
-## Auth
-
 Server-side auth uses the current `@supabase/ssr` pattern (not the deprecated
 `auth-helpers`):
 

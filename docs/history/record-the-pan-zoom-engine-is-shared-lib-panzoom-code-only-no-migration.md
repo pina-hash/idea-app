@@ -7,8 +7,6 @@ subsystems: ["GAUNTLET"]
 record_order: 21
 ---
 
-## The pan/zoom engine is shared (`$lib/panzoom`, code-only; NO migration)
-
 `DrawingViewer.svelte` carried the only real pan/zoom implementation in the app,
 and a second room needed it. It is a module now: `$lib/panzoom/transform.ts`
 (pure arithmetic) and `$lib/panzoom/controller.ts` (the DOM half). It sits

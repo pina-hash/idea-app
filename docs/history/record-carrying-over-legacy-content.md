@@ -7,8 +7,6 @@ subsystems: ["Legacy content & VANGUARD"]
 record_order: 19
 ---
 
-## Carrying over legacy content
-
 Legacy content from the old static IDEA site is brought over without rebuilding
 or modifying its HTML internals. There are a few serving patterns. All later
 content must follow one of them.

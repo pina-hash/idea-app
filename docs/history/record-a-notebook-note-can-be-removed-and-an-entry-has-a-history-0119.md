@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 84
 ---
 
-## A notebook note can be removed, and an entry has a history (`0119`)
-
 Migration `0119_notebook_note_delete.sql` (apply manually after `0118`). One
 nullable column pair on `notebook_entry_notes` -- `deleted_at` / `deleted_by` --
 four RPCs, one refusal added to `notebook_edit_note`, and an exclusion sweep

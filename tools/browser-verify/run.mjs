@@ -5,7 +5,7 @@
  *   npm run verify:browser                 both widths, every listed dev route
  *   npm run verify:browser -- --probe      environment capability probe only
  *   npm run verify:browser -- --selftest   negative controls (exits 1 if a check is broken)
- *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error
+ *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error|blank-text|motion
  *                                          inject that defect into the REAL page and confirm the
  *                                          matching check reddens on this surface
  *   npm run verify:browser -- --route pathways --route spec-table
@@ -32,7 +32,8 @@ import {
 	orderResult,
 	datalistOrder,
 	consoleErrors,
-	statePairContrast
+	statePairContrast,
+	motionSweep
 } from './checks.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
@@ -73,6 +74,19 @@ export const BREAKAGE = {
 	   document would redden `contrast` and `tap-target` too and a control that
 	   reddens everything proves nothing about the one check under test. */
 	'blank-text': { js: 'for (const el of document.querySelectorAll(".gt-tm p, footer p")) el.textContent = "";' },
+	/* The live control for `motion`. It NAMES the mark cells rather than
+	   sweeping the document, for `blank-text`'s reason and one of its own: an
+	   `!important` rotate on every element moves every tap-target box and every
+	   contrast ground with it, and a preset that reddens everything proves
+	   nothing about the one check under test. Declared OUTSIDE any media query
+	   on purpose -- that is the defect, an animation reduced motion does not
+	   switch off, and it lands on the FRC image in the same stroke, which is
+	   the OTHER direction the check measures. */
+	motion: {
+		css:
+			'@keyframes bv-break-spin { to { transform: rotate(360deg); } }' +
+			'[data-mark] svg *, [data-mark] img { animation: bv-break-spin 2s linear infinite !important; }'
+	},
 	/* Not CSS: a thrown error, which is how the notebook bundle's real
 	   state_unsafe_mutation surfaced -- silently, with dead click handlers. */
 	'console-error': { js: 'throw new Error("state_unsafe_mutation (injected by --break console-error)")' }
@@ -133,6 +147,15 @@ function printDetail(r, indent = '        ') {
 			console.log(`${indent}present but NOT visible (${x.reasons.join(', ')}) box=${x.box}  ${x.path}`);
 		}
 	}
+	if (r.check === 'motion') {
+		for (const o of r.data.offenders) {
+			console.log(`${indent}NOT SETTLED under reduce: ${o.why.join('; ')}  (rest opacity ${o.opacity})  ${o.path}`);
+		}
+		for (const p of r.data.unexpected) console.log(`${indent}animated where it must never be: ${p}`);
+		for (const e of r.data.elements) {
+			console.log(`${indent}${e.running} -> rest opacity ${e.restOpacity}, transform ${e.restTransform}, ${e.restAnimations} animation(s)  ${e.path}`);
+		}
+	}
 	if (r.check === 'console-errors') {
 		for (const e of r.data.errors) console.log(`${indent}[${e.type}] ${e.text.split('\n')[0].slice(0, 200)}`);
 		for (const e of r.data.ignored) console.log(`${indent}(ignored) ${e.text.split('\n')[0].slice(0, 140)}`);
@@ -159,6 +182,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 			const defect = BREAKAGE[opts.brk];
 			if (!defect) throw new Error(`Unknown --break preset "${opts.brk}". Known: ${Object.keys(BREAKAGE).join(', ')}`);
 			if (typeof defect === 'string') await page.addStyleTag({ content: defect });
+			else if (defect.css) await page.addStyleTag({ content: defect.css });
 			else await page.addScriptTag({ content: defect.js }).catch(() => {});
 			prepared.push(`INJECTED DEFECT "${opts.brk}" -- this run is a negative control, not a reading of the real surface`);
 		}
@@ -173,7 +197,8 @@ async function runRoute(browser, origin, spec, width, opts) {
 			if (step.click) {
 				const r = await clickUntil(page, step.click, step.until, {
 					attempts: step.attempts ?? 12,
-					gapMs: step.gapMs ?? 300
+					gapMs: step.gapMs ?? 300,
+					force: step.force ?? false
 				});
 				prepared.push(
 					`${r.ok ? 'clicked' : 'FAILED'} ${step.click} -- ${r.matched} matched, ${r.attempts} attempt(s), ${r.reason}`
@@ -234,6 +259,13 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const o of spec.orderResult ?? []) results.push(await orderResult(page, o));
 		for (const d of spec.datalistOrder ?? []) results.push(await datalistOrder(page, d));
 		for (const s of spec.statePairs ?? []) results.push(await statePairContrast(page, s));
+		/* ONE call for every motion entry, not one per entry: the check flips
+		   Chromium's `prefers-reduced-motion` emulation and settles twice, and
+		   eleven marks measured separately would pay twenty-two settles per
+		   route/width. It restores `no-preference` before returning, so
+		   `consoleErrors` below and anything a later spec measures still
+		   describe the state every other check in this file assumes. */
+		results.push(...(await motionSweep(page, spec.motion ?? [])));
 		results.push(consoleErrors(errs, { ignore: spec.ignoreConsole ?? [], blockedCount: blockedExternal.length }));
 	} finally {
 		await context.close();

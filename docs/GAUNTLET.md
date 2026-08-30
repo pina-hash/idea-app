@@ -23,22 +23,40 @@
 > the live definition. `CLAUDE.md` wins on how work in this repo is done.
 > `docs/GAUNTLET-DESIGN.md` is the VIEWPORT design system and is separate.
 
-> **AND THE SINGLE MOST MISLEADING THING BELOW: "TEACHER" IN THIS DOCUMENT
-> MEANS ADMIN.** Every authoring, hosting and moderation gate in GAUNTLET is
+> **AND THE SECOND MOST MISLEADING THING BELOW: "TEACHER" IN THIS DOCUMENT
+> USUALLY MEANS ADMIN, BUT NOT UNIVERSALLY SINCE `0155` (QUEUED, NOT
+> APPLIED).** Most authoring, hosting and moderation gates in GAUNTLET are
 > written `is_teacher()` in SQL, and **`0067` redefined `is_teacher()` to
 > return `is_admin()`** -- one function body, re-gating roughly ninety
 > already-applied references at once. `teacher` is auto-granted by email
-> domain and on its own now grants **nothing** in GAUNTLET. A Bosco Tech
-> teacher who is not a row in `public.app_admins` **cannot author a challenge,
-> cannot host a live room, and cannot reach `/gauntlet/author` at all** -- the
-> route answers a redirect, not a permission message, so the failure reads as
-> a broken link rather than as a missing grant. The routes were updated to
-> `isAdmin()` and only this document was not. **This is a capability question
-> about a colleague, not a naming quibble:** if a teacher reports that
-> authoring is missing, the answer is an `admin_grant`, not a bug report.
-> Every "teacher" below should be read as "admin"; the word is left in place
-> where it is quoting a migration or a policy NAME, which cannot be renamed
-> (see `CLAUDE.md`'s naming trap).
+> domain and on its own grants **nothing** in GAUNTLET, then or now.
+>
+> **`0155` adds a THIRD, narrower tier on top of that**, `gauntlet_authors` /
+> `gauntlet_can_author()`, which grants authoring, publishing and room hosting
+> to an explicit allowlist without granting admin -- see CLAUDE.md's "GAUNTLET
+> AUTHOR TIER" for the full shape and the census of which of the eleven
+> GAUNTLET gates moved onto it (challenge read/write, series, the three
+> challenge-asset buckets, room create/delete) versus which stayed on
+> `is_admin()` (every student-work read, `gauntlet_run_review`,
+> `gauntlet_practice_meter`, the global Speedrun ruleset). **`0155` is QUEUED,
+> not applied** (see "Applied vs. queued" below the migration table), so as of
+> this writing the two-tier world is still the live one: a Bosco Tech teacher
+> who is not a row in `public.app_admins` cannot author a challenge or host a
+> live room. **This is a capability question about a colleague, not a naming
+> quibble:** if a teacher reports that authoring is missing, the live answer
+> is an `admin_grant`; once `0155` is applied, the narrower `gauntlet_author_grant`
+> is the right one instead.
+>
+> **The redirect this paragraph used to describe is fixed.** `/gauntlet/author`
+> and `/gauntlet/rooms` now render a spoken refusal panel in the app's own
+> chrome rather than a silent redirect, per
+> `docs/history/gauntlet-authoring-allowlist-xui3ps.md` and
+> `docs/history/gauntlet-authoring-quiz-harness-it0oat.md` (the latter also
+> wired the `/gauntlet` landing page's Authoring card onto the new check).
+> Every "teacher" below should be read as "admin" unless it names one of the
+> eleven `0155`-moved sites; the word is left in place where it is quoting a
+> migration or a policy NAME, which cannot be renamed (see `CLAUDE.md`'s
+> naming trap).
 
 The north star for the GAUNTLET section of `idea-app`. Read this before adding a
 mode, a scoring rule, or schema. It exists so later work does not drift from the
@@ -370,6 +388,31 @@ remains as unranked supervised practice.** The original manual MVP is
   (for example proving the model was saved after `reveal_at`) is future work. Note
   this only affects time-scored Speedrun; Reverse Engineer is untimed and Feature
   Golf scores on feature count.
+- **CORRECTED 2026-08-29: telemetry is not a cheat detector, and a gate built
+  on it has been proposed twice and retracted both times after measurement.**
+  `0061`'s own header (an applied migration; left as written, not edited) and
+  `docs/audits/2026-07-security-audit.md` both say the same thing about the
+  `gauntlet_macro_start`-then-immediate-submit cheat: "Its only real detector
+  is the `0035` telemetry stream -- a passing run with no modeling events is
+  visibly fake." That premise is false, and it is why the idea keeps coming
+  back: a zero-event run is the ORDINARY case on at least four of the paths
+  that rank or grade, not a tell. The three `.bas` macros never write a
+  telemetry event at all -- only `TelemetryRecorder` in the C# add-in does
+  (see above) -- so every VBA macro submit is a legitimate zero-event run. An
+  add-in build from before the telemetry recorder shipped is another. A room's
+  manual mass entry (`gauntlet_room_manual_submit`) never touches the add-in
+  or the macros. And every knowledge mode (`gauntlet_submit` outside the
+  Speedrun practice branch) has nothing to model in the first place. Gating
+  ranking, or even flagging, on telemetry presence or shape would treat all
+  four as suspicious for doing exactly what they are meant to do. **What
+  telemetry actually is:** `gauntlet_run_events` (`0035`) is anon-granted and
+  client-posted, with no server attestation of any kind -- so even where
+  events exist, their presence corroborates nothing that a forger could not
+  fabricate more cheaply than doing the real modeling work. Before proposing a
+  telemetry gate again, the question to answer first is not "does a passing
+  run usually have events" but "is there anything server-side that a forger
+  cannot produce for less than the cost of earning it" -- and today there is
+  not.
 - **Demo seeds (purged in `0019`).** The original three placeholder Speedrun
   challenges were seeded with internally consistent dummy values
   (`target_mass = target_volume x density`,
@@ -546,6 +589,15 @@ seeds: **admins** (not teachers -- see the header) create, edit, publish, and
 delete challenges across all six modes from the browser. The seeds still work; this supplements them and is how
 the demo placeholders get replaced by real captured parts.
 
+**`0155` (queued, not applied -- see "Applied vs. queued" above) narrows "admins"
+to "admins, plus anyone on the `gauntlet_authors` allowlist" for everything in
+this section except the RLS read policy's "admins see and can test drafts"
+clause two paragraphs down, which stays admin-only.** Once applied, read every
+"admins" below as "admins or GAUNTLET authors" for create/edit/publish/delete,
+series grouping, and the three challenge-asset buckets; see CLAUDE.md's
+"GAUNTLET AUTHOR TIER" for the exact eleven sites and the ones deliberately left
+on `is_admin()`.
+
 - **Status lifecycle.** A `status` column (`draft` | `published` | `archived`)
   is the authoring source of truth; new challenges default to **draft**. The
   existing `published` boolean is now a **trigger-derived** column
@@ -695,6 +747,63 @@ miss.
 | `0061` | `gauntlet_macro_submit` and `gauntlet_run_targets` stop returning the ranked comparison value; coarse unsigned band instead; a failing solo submit costs one of 3 budgeted attempts per reveal |
 | `0038` | Not a GAUNTLET migration: recreates `gauntlet_leaderboards()` (last defined in `0029`) for the pathway work |
 | `0067` | Not a GAUNTLET migration: redefines `is_teacher()` as `is_admin()`, re-gating **every** GAUNTLET authoring, hosting and moderation check at once. See the header |
+| `0146` | Admits Reverse Engineer and Feature Golf to `gauntlet_speedrun_reveal` and `gauntlet_leaderboard`. Its own comment on why Speedrun's board is safe to admit is wrong -- see the correction directly below the table |
+| `0147` | `gauntlet_run_targets` and `gauntlet_macro_submit` stop returning the ranked comparison value on the RPC surface; a coarse unsigned band instead. Left the `challenges` SELECT surface (the `prompt` column, `0004`) untouched -- see `0153` |
+| `0148` | Server-stamps a clock for the knowledge modes, so their board stops ranking a number the browser sent |
+| `0149` | Not a GAUNTLET-only migration: a `public`-wide grant-surface reconciliation. Its GAUNTLET slice revokes `anon` from `gauntlet_speedrun_attempt_history`, `gauntlet_leaderboard`, `gauntlet_room_board` and `gauntlet_room_roster`, all four of which had been reachable by `anon` since the view creating them, on the hosted-project default-privileges defect `0060` first found and never generalized |
+| `0150` | Gives the post-run analysis a class comparison the database can disclose; retires the dead `gauntlet_log_speedrun_attempt` logger |
+| `0151` | Meters the Speedrun practice check per student per challenge, so hammering it for a free search is visible and bounded. **Also silently reverts `0148`'s knowledge clock fix if applied over it** -- see "Applied vs. queued" below |
+| `0152` | `gauntlet_run_review`: a ranked-run forensics report (telemetry event/snapshot counts, feature-add cadence, observations like a fast finish with no telemetry) for `/gauntlet/run-review`, admin only. A REPORT, not a gate -- it ranks nobody and refuses nothing; four measured facts in its own header rule out making it a play-time gate instead |
+| `0153` | Strips `target_mass`, `density` and `tolerance_pct` off the stored `prompt` on every existing row. This is what actually closes the `0004` SELECT-grant disclosure `0061` and `0147` each left open in their own headers |
+| `0154` | **Changes what a student sees on the board.** A knowledge row (Drawing Reading, GD&T and Tolerance, Spot the Error) ranks only if `is_correct = true`, closing an asymmetry the modeling branch never had. A modeling run ranks only if its server-stamped clock is at least 30 seconds. No row is deleted -- both are narrowings of `gauntlet_leaderboard`'s WHERE clause, so applying this removes rows that currently hold a seat, including possibly rank 1 |
+| `0155` | `gauntlet_authors` / `gauntlet_can_author()`: a third tier, narrower than admin, granting GAUNTLET challenge authoring, publishing and room hosting without granting `is_admin()`. Re-gates the eleven sites listed in CLAUDE.md's "GAUNTLET AUTHOR TIER" section; the four student-work reads, `gauntlet_run_review` (`0152`) and `gauntlet_practice_meter` (`0151`) are deliberately left on `is_admin()`. See CLAUDE.md for the tier's full shape -- this file does not restate it |
+
+### Applied vs. queued, and why that distinction matters here
+
+**Everything from `0151` through `0155`, plus `0157` (a Coin-economy migration,
+not GAUNTLET), is QUEUED -- written, pushed, and NOT yet pasted into the live
+project** as of the 2026-08-29 sweep recorded in
+`docs/history/anon-coin-public-projections-mrlg0d-queued-migration-sweep.md`.
+`0149` and everything before it in the table above is applied. **This is a
+measurement, not a standing fact** -- migrations here are applied by hand and
+separately from a deploy, so check a live catalog read (`supabase migration
+list --linked`, or `select version from supabase_migrations.schema_migrations`
+if that table exists on this project) rather than trusting a snapshot in a doc
+that nothing keeps current.
+
+Two consequences worth knowing before reading the sections below as describing
+today's board or today's authoring surface:
+
+- **The board students see today still holds every wrong knowledge answer and
+  every under-floor modeling run that `0154` would remove.** A reader taking
+  `0154` as live will reason about a leaderboard that no longer has its old
+  rows; it does.
+- **`0155`'s author tier is not live.** `canAuthorGauntlet` (the app-side
+  check) degrades on `PGRST202` to `isAdmin`, so today the only person who can
+  author a GAUNTLET challenge or host a room is an `app_admins` row, exactly as
+  before this migration was written -- see CLAUDE.md's "GAUNTLET AUTHOR TIER"
+  for the app-side mechanics.
+- **`0151` is not safe to paste over `0148` as it stands.** The same sweep
+  found `0151` was diffed against `0147` and silently drops `0148`'s
+  server-stamped-clock fix for the knowledge modes, reopening the exploit
+  `0148` closed. `tests/gauntlet-knowledge-clock.test.ts` documents this on a
+  chain that stops at `0148` on purpose. Whoever applies `0151` needs to fix
+  that regression first or bring `0148`'s clock block over by hand.
+
+**CORRECTED 2026-08-29: `0146`'s own comment overstates why admitting Speedrun
+to `gauntlet_leaderboard` was safe, and the migration is applied and immutable
+so this correction lives here instead.** `0146`'s view definition says Speedrun
+"ranks on a SERVER-STAMPED clock ... and its client-sent volume only has to
+hit a hidden target, so neither half is authorable." At the time `0146` was
+written the target was not hidden: `challenges.prompt` carried `target_mass`,
+`density` and `tolerance_pct` on every published Speedrun row, and `0004`
+grants `select` on `prompt` to every signed-in student. One ordinary PostgREST
+read, with no reveal and no run token, handed over the ranked comparison
+value directly (see `0153`, above). The clock half of `0146`'s claim holds --
+`started_at`/`revealed_at` are server-stamped and not client-authorable -- but
+the volume half did not, until `0153` closed it. Whether the board should have
+admitted Speedrun before that closure is a question for whoever reviews the
+runs already ranked; this note only corrects the reasoning `0146` recorded.
 
 ## Written and not read (audited 2026-08-29, unchanged)
 

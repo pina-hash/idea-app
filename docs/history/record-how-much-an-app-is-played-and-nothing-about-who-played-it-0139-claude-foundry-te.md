@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 161
 ---
 
-## How much an app is played, and nothing about who played it (`0139`, `claude/foundry-telemetry-migration-dnzvh3`)
-
 **Branch:** `claude/foundry-telemetry-migration-dnzvh3`. **Migration:**
 `supabase/migrations/0139_foundry_telemetry.sql`. **NOT APPLIED** at the time of
 writing: it is pasted into the Supabase SQL editor by hand after the merge, as

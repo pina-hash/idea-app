@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Testing", "Database", "Security", "Notebook"]
 ---
 
-## The table default privileges move into the shared stub, and two notebook tests stop asserting a grant production does not have (`claude/grant-surface-table-defaults-owxlua`, no migration)
-
 The previous bundle (`claude/grant-surface-reconciliation-y3osiy`, migration
 `0149`) measured that `tests/db/supabase-stub.sql` carried the FUNCTION half of a
 hosted Supabase project's bootstrap default privileges and never the TABLE half,

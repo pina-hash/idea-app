@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 5
 ---
 
-## IDEA Coin ledger: RETIRED (2026-08-12)
-
 The IDEA Coin economy ran on a **Google Sheets / Apps Script ledger** from its
 start until August 2026. That system is **retired**. Its entire history -- 71
 students, 216 transactions, 12 contracts -- was imported into Supabase under

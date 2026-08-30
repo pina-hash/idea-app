@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 93
 ---
 
-## Three fixture follow-ups, and two tokens measured rather than changed (code-only; NO migration)
-
 The three follow-ups the nested-bullet bundle named in its own "left undone",
 plus a measurement pass that deliberately changes nothing.
 

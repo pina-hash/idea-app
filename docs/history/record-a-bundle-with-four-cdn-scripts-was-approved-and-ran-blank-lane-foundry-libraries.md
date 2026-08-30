@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 131
 ---
 
-## A bundle with four CDN scripts was approved and ran blank (`lane/foundry-libraries`, part 1)
-
 A student submitted a single 25 KB HTML file whose `<head>` carried four
 external script tags -- react, react-dom, `@babel/standalone` and lucide, all
 from unpkg. Every one is a hard fail under the reference rule. All four passed,

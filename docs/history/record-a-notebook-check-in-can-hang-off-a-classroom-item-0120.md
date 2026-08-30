@@ -7,8 +7,6 @@ subsystems: ["Digital notebook", "IDEA Classroom"]
 record_order: 86
 ---
 
-## A notebook check-in can hang off a classroom item (`0120`)
-
 A check-in was a `notebook_sessions` row unioned into the class stream in the
 VIEW layer, with no foreign key to `classroom_items` at all. So "read the shop
 floor rules" and "photograph your notes on the shop floor rules" were two

@@ -3,7 +3,6 @@
 	import { invalidateAll } from '$app/navigation';
 	import {
 		difficultyLabel,
-		formatMass,
 		START_MACRO_PATH,
 		SUBMIT_MACRO_PATH,
 		type ModelingFraming,
@@ -45,6 +44,7 @@
 		metricLabel,
 		formatMetric,
 		backHref,
+		ranked,
 		next = null
 	}: {
 		supabase: SupabaseClient;
@@ -56,19 +56,19 @@
 		metricLabel: string;
 		formatMetric: (n: number | null | undefined) => string;
 		backHref: string;
+		/**
+		 * Whether THIS mode's leaderboard can carry a verified run at all
+		 * (`modeRanks` in `$lib/gauntlet`, mirroring `gauntlet_leaderboard`'s
+		 * allowlist from `0146`). An empty board looks identical whether nobody
+		 * has cleared a ranked mode yet or the mode simply never ranks, so the
+		 * caller has to say which -- there is no way to infer it from `board`.
+		 */
+		ranked: boolean;
 		next?: NextChallenge | null;
 	} = $props();
 
 	const framing = $derived(challenge.framing);
 	const unit = $derived(framing.mass_unit ?? 'g');
-	const band = $derived(
-		framing.target_mass != null && framing.tolerance_pct != null
-			? {
-					lo: framing.target_mass - (framing.target_mass * framing.tolerance_pct) / 100,
-					hi: framing.target_mass + (framing.target_mass * framing.tolerance_pct) / 100
-				}
-			: null
-	);
 
 	// Drawings/references are teacher/seed authored (trusted), so {@html} is OK.
 	type Phase = 'framing' | 'running' | 'done';
@@ -211,19 +211,16 @@
 					<span class="val">{framing.material ?? 'TBD'}</span>
 				</div>
 				<div class="field">
-					<span class="key">Density</span>
-					<span class="val meta">{framing.density ?? '--'} {framing.density_unit ?? ''}</span>
+					<span class="key">Mass in</span>
+					<span class="val meta">{unit}</span>
 				</div>
+				<!-- Not the target, its density or its tolerance band (0153): a
+				     macro-verified run here ranks the same way a Speedrun run does,
+				     and the target is not published anywhere a student can read it
+				     without a reveal, a run token and a search. -->
 				<div class="field">
-					<span class="key">Target mass</span>
-					<span class="val meta">{formatMass(framing.target_mass, unit)}</span>
-				</div>
-				<div class="field">
-					<span class="key">Tolerance</span>
-					<span class="val meta">
-						&plusmn;{framing.tolerance_pct ?? '--'}%
-						{#if band}<span class="dim"> ({formatMass(band.lo, unit)} to {formatMass(band.hi, unit)})</span>{/if}
-					</span>
+					<span class="key">Target</span>
+					<span class="val meta dim">Not published</span>
 				</div>
 				{#if framing.par_features != null}
 					<div class="field">
@@ -331,9 +328,25 @@
 	</div>
 
 	<h2>Leaderboard</h2>
-	<p class="dim board-note">Machine-verified runs, best first. Failed runs are recorded but do not rank.</p>
+	{#if ranked}
+		<p class="dim board-note">Machine-verified runs, best first. Failed runs are recorded but do not rank.</p>
+	{:else}
+		<p class="dim board-note">
+			This mode is off the leaderboard: its score is not something the server can verify, so no
+			run in it ranks. Runs are still recorded, and a supervised room still ranks it live.
+		</p>
+	{/if}
 	{#if board.length === 0}
-		<div class="card"><p>No verified runs yet. Be the first to clear it.</p></div>
+		<div class="card">
+			<p>
+				{#if ranked}
+					No verified runs yet. Be the first to clear it.
+				{:else}
+					There is no board here to be first on. Clearing this challenge still counts toward
+					your XP, it just does not rank.
+				{/if}
+			</p>
+		</div>
 	{:else}
 		<table class="board">
 			<thead>

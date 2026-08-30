@@ -563,6 +563,155 @@ describe('the migration itself', () => {
 });
 
 
+// ---------------------------------------------------------------------------
+// 0153: the SELECT surface. Every describe block above asserts non-disclosure
+// over an RPC RETURN VALUE -- gauntlet_run_targets, gauntlet_macro_submit,
+// gauntlet_submit, gauntlet_room_manual_submit. None of them ever ran a plain
+// `select ... from public.challenges`, and that is exactly the surface that
+// shipped the target for the whole of 0061's and 0147's life: 0004 grants
+// `select (id, mode, title, difficulty, asset_ref, prompt, author_id,
+// published, created_at, updated_at) on public.challenges to authenticated`,
+// and `prompt` carried `target_mass`, `density` and `tolerance_pct` on every
+// published row. Twenty-six tests could pass while that column-level grant
+// handed the answer to any signed-in student with no reveal, no run token, no
+// clock and no rate limit -- which is precisely what happened. 0153 is the fix
+// (it strips those keys off the stored `prompt`); this is what stops them
+// coming back, and it is written against the SHAPE, not the three field
+// names, for the same reason the RPC detector above is: a renamed key or a
+// unit conversion reconstructs the target exactly as well as the original
+// name did, and a field-name assertion would not notice.
+// ---------------------------------------------------------------------------
+describe('the challenges SELECT surface (0004s column grant, never touched by an RPC)', () => {
+	// The chain as production stood right before 0153, mirroring
+	// tests/gauntlet-published-answer.test.ts's own CHAIN_BEFORE: 0153 is a
+	// one-time strip over EXISTING rows, so proving what it fixes means seeding
+	// the pre-migration shape and applying the file by hand over the top, not
+	// booting a chain that always had it.
+	const CHAIN_PRE_0153 = [
+		'0001_profiles.sql',
+		'0003_profile_section.sql',
+		'0020_profiles_identity.sql',
+		'0067_admin_tier.sql',
+		'0004_gauntlet.sql',
+		'0005_gauntlet_speedrun.sql',
+		'0006_gauntlet_macro.sql',
+		'0007_gauntlet_modeling_modes.sql',
+		'0008_gauntlet_knowledge_modes.sql',
+		'0009_gauntlet_authoring.sql',
+		'0010_gauntlet_rooms.sql',
+		'0015_gauntlet_speedrun_formalize.sql',
+		'0016_gauntlet_speedrun_start.sql',
+		'0017_gauntlet_run_status.sql',
+		'0018_gauntlet_speedrun_units.sql',
+		'0021_gauntlet_progression.sql',
+		'0022_gauntlet_drawing_series.sql',
+		'0023_gauntlet_reveal_focus_regions.sql',
+		'0024_gauntlet_leaderboards.sql',
+		'0026_gauntlet_material_gate.sql',
+		'0027_gauntlet_material_density_gate.sql',
+		'0028_gauntlet_room_code_and_host_play.sql',
+		'0029_gauntlet_drop_tiers.sql',
+		'0030_gauntlet_unit_system.sql',
+		'0033_gauntlet_speedrun_attempts.sql',
+		'0034_gauntlet_volume_only_verification.sql',
+		'0035_gauntlet_run_events.sql',
+		'0036_gauntlet_volume_tolerance_0_1.sql',
+		'0061_gauntlet_target_disclosure.sql',
+		'0137_anon_execute_sweep.sql',
+		'0146_gauntlet_reveal_all_modeling_modes.sql',
+		'0147_gauntlet_close_target_disclosure.sql',
+		'0148_gauntlet_knowledge_clock.sql',
+		// 0149 deliberately absent -- see gauntlet-published-answer.test.ts.
+		'0150_gauntlet_connect_run_analysis.sql',
+		'0151_gauntlet_meter_practice.sql'
+	] as const;
+	const FILE_0153 = '0153_gauntlet_unpublish_the_target.sql';
+	const SELECT_COLS =
+		'id, mode, title, difficulty, asset_ref, prompt, author_id, published, created_at, updated_at';
+
+	let db: TestDb;
+	let student: SeededUser;
+	let challengeId: string;
+	let beforeRow: Record<string, unknown>;
+	let afterRow: Record<string, unknown>;
+
+	beforeAll(async () => {
+		db = await startTestDb([...CHAIN_PRE_0153]);
+		student = await createUser(db, 'select-surface@boscotech.net', 'Select Surface Student');
+
+		const prompt = {
+			material: 'Aluminum 6061',
+			density: DENSITY_G_CM3,
+			density_unit: 'g/cm³',
+			target_mass: TARGET_MASS_G,
+			mass_unit: 'g',
+			tolerance_pct: TOLERANCE_PCT,
+			unit_system: 'MMGS'
+		};
+		const answer = {
+			target_volume_mm3: TARGET_VOLUME_MM3,
+			target_mass: TARGET_MASS_G,
+			density: DENSITY_G_CM3,
+			tolerance_pct: TOLERANCE_PCT,
+			drawing: '<svg/>'
+		};
+		const { rows } = await db.sql<{ id: string }>(
+			`insert into public.challenges (mode, title, difficulty, prompt, answer, status)
+			 values ('speedrun', 'Select Surface Fixture', 2, $1::jsonb, $2::jsonb, 'published') returning id`,
+			[JSON.stringify(prompt), JSON.stringify(answer)]
+		);
+		challengeId = rows[0].id;
+
+		const readRow = () =>
+			db.asUser(student.id, async (q) => {
+				const r = await q<Record<string, unknown>>(
+					`select ${SELECT_COLS} from public.challenges where id = $1`,
+					[challengeId]
+				);
+				return r.rows[0];
+			});
+
+		// BEFORE: the ordinary column-level grant, no 0153 applied yet.
+		beforeRow = await readRow();
+
+		// The migration, applied by hand over the seeded row, exactly as it will
+		// be pasted in production.
+		const sqlText = readFileSync(join(process.cwd(), 'supabase', 'migrations', FILE_0153), 'utf8');
+		await db.sql(sqlText);
+
+		afterRow = await readRow();
+	}, 120_000);
+
+	afterAll(async () => {
+		await db?.stop();
+	});
+
+	it('POSITIVE CONTROL: before 0153 an ordinary signed-in select discloses the target', () => {
+		const hits = reconstructions(beforeRow, factsFor(SUBMITTED_VOLUME_MM3));
+		expect(hits.length).toBeGreaterThan(0);
+	});
+
+	it('after 0153 no number in the granted select surface reconstructs the target', () => {
+		expect(reconstructions(afterRow, factsFor(SUBMITTED_VOLUME_MM3))).toEqual([]);
+	});
+
+	it('what survives is still what the student needs to model, so this is a narrowing and not a blanking', () => {
+		const p = afterRow.prompt as Record<string, unknown>;
+		expect(p.material).toBe('Aluminum 6061');
+		expect(p.mass_unit).toBe('g');
+		expect(p.unit_system).toBe('MMGS');
+		expect(afterRow.title).toBe('Select Surface Fixture');
+		expect(afterRow.published).toBe(true);
+	});
+
+	it('the fixture proves 0147 alone did not close this: 0147 is already applied in the pre-0153 chain', () => {
+		// CHAIN_PRE_0153 carries 0147, and the POSITIVE CONTROL above still fires
+		// against it -- so the RPC-only fix left this surface exactly as open as
+		// it was at 0061.
+		expect(reconstructions(beforeRow, factsFor(SUBMITTED_VOLUME_MM3)).length).toBeGreaterThan(0);
+	});
+});
+
 describe('the band vocabulary the two surfaces share', () => {
 	// This is what makes the "either deploy order is safe" claim in 0147's header
 	// true on screen rather than just in the payload. A client shipped before the

@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 92
 ---
 
-## Nested bullets stopped being eaten (code-only; NO migration)
-
 An interim fix for a silent data-loss defect that existed identically in both
 rich-text normalizers, plus the extraction that makes "identically in both"
 impossible to say again, plus the fixture work that explains why nothing caught

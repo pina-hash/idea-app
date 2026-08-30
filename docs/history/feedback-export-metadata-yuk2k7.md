@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Site feedback", "IDEA Coin economy"]
 ---
 
-## The markdown feedback export widened to every meta key, and the coin admin-only rule written down
-
 Two unrelated pieces of work, scoped to `src/lib/feedback/console.ts`, `CLAUDE.md`
 and the feedback test files.
 

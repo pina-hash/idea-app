@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 132
 ---
 
-## The platform hosts the runtime libraries (`lane/foundry-vendor`, part 2, code only)
-
 Part 1 established that a bundle whose HTML the checker could not read is no
 longer published, and closed the specific escape that let a React app through
 with four dead CDN script tags in its head. It did not make that app RUN. This

@@ -7,8 +7,6 @@ subsystems: ["Curriculum, migrations, policy"]
 record_order: 18
 ---
 
-## AI use policy
-
 `docs/policy/IDEA_AI_Use_Policy.md` (pathway-wide) and
 `docs/policy/IDEA209H_AI_Policy_Quick_Reference.md` (standalone instructor copy)
 govern how AI may be used in producing student work across the IDEA courses:

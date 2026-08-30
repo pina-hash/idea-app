@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Classroom", "Svelte 5 reactivity"]
 ---
 
-## ContentComposer stops calling an injected transport inside its effect's tracking window, and the rule is written down as a property of injected callbacks (`claude/composer-effect-reactivity-84ph5s`, no migration)
-
 `ContentComposer`'s grading-category effect read `categoryCourseIds`, looked up
 `transports.loadCategorySuggestions`, and then CALLED it, all synchronously in
 the effect body. Reading state inside an `$effect` subscribes to it, including

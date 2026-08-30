@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 158
 ---
 
-## A student can run their own app before handing it in (`claude/foundry-preview-drafts-60xko9`, code only, no migration)
-
 ### The problem
 
 `serveBundleFile` serves a version when it is the app's `published_version_id`

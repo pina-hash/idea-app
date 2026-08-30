@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry", "Curriculum, migrations, policy"]
 record_order: 144
 ---
 
-## `revoke ... from public` does not close a function on Supabase (`0136` corrected, `lane/foundry-manage`)
-
 **Migration:** `supabase/migrations/0136_foundry_delete.sql`, corrected IN PLACE.
 
 ### Why in place rather than a 0137

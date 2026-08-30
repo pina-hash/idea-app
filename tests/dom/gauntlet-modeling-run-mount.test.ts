@@ -93,7 +93,10 @@ const FRAMING = {
 	tolerance_pct: 2
 };
 
-function mountRun(opts: { myBest: { score_metric: number | null; rank: number } | null }) {
+function mountRun(opts: {
+	myBest: { score_metric: number | null; rank: number } | null;
+	ranked?: boolean;
+}) {
 	const stub = channelStub();
 	const m = mountInto(ModelingRun as unknown as Component<Record<string, unknown>>, {
 		supabase: stub.supabase,
@@ -105,6 +108,10 @@ function mountRun(opts: { myBest: { score_metric: number | null; rank: number } 
 		metricLabel: 'Time',
 		formatMetric: formatTime,
 		backHref: '/gauntlet/feature-golf',
+		// Every existing case here plays a mode that does not rank (Feature
+		// Golf, Reverse Engineer), so that is the default; tests about the
+		// board note itself pass `ranked` explicitly, in both directions.
+		ranked: opts.ranked ?? false,
 		next: null
 	});
 	return { m, stub };
@@ -123,9 +130,13 @@ const MISS_COPY = /A miss is recorded but does not rank/i;
  * DOES rank.
  */
 async function runTo(
-	opts: { myBest: { score_metric: number | null; rank: number } | null; correct: boolean }
+	opts: {
+		myBest: { score_metric: number | null; rank: number } | null;
+		correct: boolean;
+		ranked?: boolean;
+	}
 ) {
-	const { m, stub } = mountRun({ myBest: opts.myBest });
+	const { m, stub } = mountRun({ myBest: opts.myBest, ranked: opts.ranked });
 	m.one<HTMLButtonElement>('.start-gate .btn').click();
 	await m.settle();
 	stub.emit({ source: 'macro', user_id: ME, is_correct: opts.correct, score_metric: 74.5 });
@@ -211,6 +222,57 @@ describe('the unranked sentence cannot flash at a first clear in a ranked mode',
 		// And the reload was genuinely requested, rather than the flag being set
 		// by something that never asked for one.
 		expect(nav.calls.filter((c) => c.fn === 'invalidateAll').length).toBeGreaterThan(0);
+		await m.stop();
+	});
+});
+
+describe('the leaderboard note and the empty board card say what the mode is', () => {
+	// A ranked mode with no clears and an unranked mode look IDENTICAL from
+	// `board` alone (both are `[]`), so the two claims below can only come from
+	// the `ranked` prop, never from anything the component can infer on its
+	// own -- there is no way to tell "nobody has cleared it yet" from "nobody
+	// ever will rank here" by looking at an empty array.
+	const RANKED_CARD = /No verified runs yet\. Be the first to clear it/i;
+	const UNRANKED_CARD = /no board here to be first on/i;
+	const RANKED_BLURB = /Machine-verified runs, best first/i;
+	const UNRANKED_BLURB = /off the leaderboard/i;
+
+	function cardText(m: Mounted) {
+		return m.one<HTMLElement>('.card p').textContent?.trim() ?? '';
+	}
+	function blurbText(m: Mounted) {
+		return m.one<HTMLElement>('.board-note').textContent?.trim() ?? '';
+	}
+
+	it('RANKED, no clears yet: still says "be the first to clear it"', async () => {
+		const { m } = mountRun({ myBest: null, ranked: true });
+		await m.settle();
+		expect(cardText(m)).toMatch(RANKED_CARD);
+		expect(cardText(m)).not.toMatch(UNRANKED_CARD);
+		expect(blurbText(m)).toMatch(RANKED_BLURB);
+		expect(blurbText(m)).not.toMatch(UNRANKED_BLURB);
+		await m.stop();
+	});
+
+	it('UNRANKED, nobody has run it: the empty board reads as a property of the mode', async () => {
+		const { m } = mountRun({ myBest: null, ranked: false });
+		await m.settle();
+		expect(cardText(m)).toMatch(UNRANKED_CARD);
+		expect(cardText(m)).not.toMatch(RANKED_CARD);
+		expect(blurbText(m)).toMatch(UNRANKED_BLURB);
+		expect(blurbText(m)).not.toMatch(RANKED_BLURB);
+		await m.stop();
+	});
+
+	it('UNRANKED, after a passing run: still says a mode property, not a verdict on the student', async () => {
+		// The card and blurb sit below the post-run screen and do not depend on
+		// `result` at all -- they describe the MODE, not the run that was just
+		// made. A student who just cleared it must not be told to "be the
+		// first", which is the ranked card's claim and is simply false here.
+		const { m } = await runTo({ myBest: null, correct: true, ranked: false });
+		expect(cardText(m)).toMatch(UNRANKED_CARD);
+		expect(cardText(m)).not.toMatch(RANKED_CARD);
+		expect(blurbText(m)).toMatch(UNRANKED_BLURB);
 		await m.stop();
 	});
 });

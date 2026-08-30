@@ -51,7 +51,15 @@ const CHAIN = [
 	'0084_coin_legacy_import.sql',
 	'0087_coin_weekly_wage_tier.sql',
 	'0089_coin_public_ledger.sql',
-	'0137_anon_execute_sweep.sql'
+	'0137_anon_execute_sweep.sql',
+	// 0157 REPLACES THE LAST RUNG OF THE NAMING CHAIN THIS FILE ASSERTS.
+	// Added rather than left off: this suite is 0089's own, and 0089's headline
+	// rule is "NO PUBLIC RESPONSE EVER CONTAINS AN EMAIL ADDRESS, UNDER ANY
+	// PARAMETER" -- a suite enforcing that rule against a chain where the rule
+	// is still half-broken is the one place it must not stop short. It goes
+	// after 0137 because it states its own grant end state rather than relying
+	// on the sweep.
+	'0157_coin_public_surface_hardening.sql'
 ] as const;
 
 let db: TestDb;
@@ -223,8 +231,37 @@ describe('no public payload contains an email address', () => {
 		// not an empty result set.
 		expect(text).toContain('Ada Lovelace');
 		expect(text).toContain('Walkup, Student');
-		// The orphan is named by the local part alone, with the domain gone.
-		expect(text).toContain('orphan.only');
+
+		// THE ORPHAN USED TO BE NAMED BY THE LOCAL PART OF THEIR ADDRESS, AND
+		// THIS ASSERTION USED TO SAY SO: `expect(text).toContain('orphan.only')`,
+		// with a comment reading "named by the local part alone, with the domain
+		// gone". That was true of this chain and false of 0089's own headline
+		// rule -- the student domain is one fixed string (0001's role_for_email:
+		// @boscotech.net), so a local part on a public page reconstructs the
+		// whole address, which is the thing the sweep above exists to refuse.
+		//
+		// 0157 replaces that rung with a generic word. The assertion is
+		// STRONGER, not merely different: it pins the absence of the local part
+		// as well as the presence of the replacement, so a revert reddens here
+		// and not only in 0157's own suite.
+		expect(text).not.toContain('orphan.only');
+		expect(text).toContain('Student');
+		// POSITIVE CONTROL for that pair: the orphan really is on the board and
+		// really is the one row no earlier rung could name, so 'Student' above
+		// is this student's name and not a word that happened to be in the
+		// payload. `coin_students` names the walk-up and `profiles` names the
+		// two on the roster; nothing names this address at all.
+		const orphanId = (
+			await db.sql<{ n: string }>(
+				`select count(*)::text as n from public.coin_transactions
+				  where student_email = 'orphan.only@boscotech.net'`
+			)
+		).rows[0].n;
+		expect(Number(orphanId)).toBeGreaterThan(0);
+		const named = (payloads.leaderboard as { name: string }[]).filter(
+			(r) => r.name === 'Student'
+		);
+		expect(named).toHaveLength(1);
 	});
 
 	test('signed in as a student: same reads, still no address', async () => {

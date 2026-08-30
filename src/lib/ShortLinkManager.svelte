@@ -132,7 +132,7 @@
 				<span class="field-label">Label (optional)</span>
 				<input type="text" bind:value={label} placeholder="IDEA209H syllabus" autocomplete="off" />
 			</label>
-			<button type="button" class="btn tiny" disabled={!canSave} onclick={save}>
+			<button type="button" class="btn" disabled={!canSave} onclick={save}>
 				{existing ? 'Re-point' : 'Add link'}
 			</button>
 		</div>

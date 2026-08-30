@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 71
 ---
 
-## FSP Pulse Check
-
 `/fsp-pulse` is a **separate, later tool from `/fsp-tech-selection` above**.
 The earlier tool's specific proposal (a 4-of-6 ranking framed as tech
 selection) was rejected; `/fsp-pulse` is NOT a revival of it and never uses the

@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 125
 ---
 
-## Foundry origin split: the two holes production found (`lane/foundry-host-holes`)
-
 A production verification pass over the merged origin split found two ways the
 bundle host was not "bundles and nothing else". Neither was hypothetical and
 neither was visible from the suite, which was green throughout. No migration.

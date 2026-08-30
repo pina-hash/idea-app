@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 155
 ---
 
-## `tools/browser-verify` -- the visual pass, made repeatable instead of lucky
-
 Code-only. No SQL, no migration, and **nothing under `src/`**: other sessions
 were live in `src/lib/classroom/` and `src/lib/foundry/`, so this bundle owns
 `package.json`, `package-lock.json`, `tools/browser-verify/`, `CLAUDE.md` and

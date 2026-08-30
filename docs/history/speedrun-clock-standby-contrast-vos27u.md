@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["GAUNTLET", "Accessibility", "Testing"]
 ---
 
-## The SpeedrunClock STANDBY digits get their own contrast floor, the STANDBY orange becomes a viewport.css token, and a history entry's own heading is brought back in line with its title (`claude/speedrun-clock-standby-contrast-vos27u`, no migration)
-
 ### 1. The STANDBY digits: worse than the label was, and they owe the same floor
 
 `gauntlet-run-analysis-audit-yo5huv` fixed `.sr-rec.standby-label` (3.39:1 ->

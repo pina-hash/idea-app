@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 48
 ---
 
-## The view-as preview catches up with 0108 and 0111 (`0113`)
-
 Migration `0113_classroom_view_as_body_doc_units.sql` (apply manually after
 `0112`) plus one prop on the view-as class page. **What the payload CONTAINS
 changed; who may read it did not.**

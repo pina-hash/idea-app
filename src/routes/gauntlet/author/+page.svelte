@@ -4,7 +4,7 @@
 	import { MODES, familyLabel, difficultyLabel, modeById } from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, challenges } = $derived(data);
+	let { supabase, userName, userRole, challenges, refusal } = $derived(data);
 
 	let busy = $state('');
 	let actionError = $state('');
@@ -191,6 +191,27 @@
 <Header {supabase} {userName} {userRole} crumbs={[{ label: 'Authoring' }]} />
 
 <main class="gauntlet">
+	{#if refusal}
+		<!--
+			REFUSED, AND SAID OUT LOUD. This route used to redirect to /gauntlet,
+			which an audit found reading as a broken link. The panel is the whole
+			page: nothing below it is rendered, so there is no control here whose
+			every action would fail. Absence is the mechanism, as it is everywhere
+			else in this codebase; the sentence is what the absence was missing.
+		-->
+		<section class="mode-hero">
+			<span class="eyebrow">Teacher Tools</span>
+			<h1>{refusal.title}</h1>
+			<p class="lead">{refusal.body}</p>
+		</section>
+		<div class="card">
+			<p>{refusal.ask}</p>
+			<div class="btn-row">
+				<a class="btn secondary" href="/gauntlet">Back to dojo</a>
+				<a class="btn secondary" href="/gauntlet/rooms">Join a live room</a>
+			</div>
+		</div>
+	{:else}
 	<section class="mode-hero">
 		<span class="eyebrow">Teacher Tools</span>
 		<h1>Challenge Authoring</h1>
@@ -342,4 +363,5 @@
 		captured parts using the macro's Author capture and the paste box on the
 		{modeById('speedrun')?.name} form.
 	</p>
+	{/if}
 </main>

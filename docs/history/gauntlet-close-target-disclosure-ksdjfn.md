@@ -6,8 +6,6 @@ migrations: ["0147"]
 subsystems: ["GAUNTLET", "Curriculum, migrations, policy", "Testing"]
 ---
 
-## Closing the GAUNTLET target disclosures 0061 left open (`0147`, `claude/gauntlet-close-target-disclosure-ksdjfn`)
-
 **Branch:** `claude/gauntlet-close-target-disclosure-ksdjfn`.
 **Migration:** `supabase/migrations/0147_gauntlet_close_target_disclosure.sql`.
 **`0147` HAS NOT BEEN APPLIED.** `0061` IS applied on production (given to this

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 116
 ---
 
-## Save draft is a checkpoint, and the light plate is measured on six grounds
-
 Two independent passes, kept separately reviewable. Part A is a behaviour defect
 a0d43ba introduced in the notebook composer. Part B closes the colour findings
 the previous bundle raised and deliberately deferred (see "Fixed in passing, and

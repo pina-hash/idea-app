@@ -103,12 +103,35 @@ jobs:
         continue-on-error: true
         run: node tools/check-vanguard-changelog.mjs
 
+      # `npm run history:verify` (docs/history/_tools/verify-split.mjs)
+      # reassembles the 168 pre-split docs/history/record-*.md files and
+      # compares a sha256 of the result against the pinned pre-split body --
+      # fast (~1.3s wall including node startup, measured; no embedded
+      # Postgres, no network) and deterministic (it reads only committed
+      # files and hashes them). It also tries a byte-for-byte `git show`
+      # against the pre-split commit, but that leg is best-effort: this
+      # checkout is shallow (actions/checkout@v4 defaults to fetch-depth 1),
+      # so that commit is normally unreachable here and the script falls back
+      # to the sha256 compare alone, exactly as it does when run locally
+      # against a shallow clone -- this is not a reason it can fail. The only
+      # way this step goes red is a genuinely malformed or drifted entry (a
+      # retyped `## ` heading, a title that stopped matching, a broken
+      # record_order, or the reassembled body itself changing), which is
+      # exactly what it exists to catch before a bad entry reaches `main` and
+      # a push to `main` deploys mid-class.
+      - name: History record check
+        id: history-verify
+        if: always()
+        continue-on-error: true
+        run: npm run history:verify
+
       - name: Fail the job if any step failed
         if: always()
         run: |
           echo "check:              ${{ steps.check.outcome }}"
           echo "test:               ${{ steps.test.outcome }}"
           echo "vanguard-changelog: ${{ steps.vanguard-changelog.outcome }}"
-          if [ "${{ steps.check.outcome }}" != "success" ] || [ "${{ steps.test.outcome }}" != "success" ] || [ "${{ steps.vanguard-changelog.outcome }}" != "success" ]; then
+          echo "history-verify:     ${{ steps.history-verify.outcome }}"
+          if [ "${{ steps.check.outcome }}" != "success" ] || [ "${{ steps.test.outcome }}" != "success" ] || [ "${{ steps.vanguard-changelog.outcome }}" != "success" ] || [ "${{ steps.history-verify.outcome }}" != "success" ]; then
             exit 1
           fi

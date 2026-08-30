@@ -7,8 +7,6 @@ subsystems: ["Build, theme, tests, conventions"]
 record_order: 83
 ---
 
-## Scope guardrails
-
 Phase 1 (done) was the **foundation**: Google login, profiles/roles backend,
 and the public-vs-protected route split.
 

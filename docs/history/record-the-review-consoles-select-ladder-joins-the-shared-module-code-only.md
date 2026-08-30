@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 49
 ---
 
-## The review console's select ladder joins the shared module (code-only)
-
 `/notebook/review` hand-wrote a three-rung PostgREST ladder inline, naming
 `notebook_entry_photos`, `notebook_entry_notes` and `notebook_folders` as
 embeds. `src/lib/notebook-selects.ts` exists precisely because an embed is an

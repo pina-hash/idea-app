@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 14
 ---
 
-## Adjustments are their own bucket (`0107`)
-
 Migration `0107_coin_public_adjustment_bucket.sql` (apply manually after
 `0106`) plus a scoped edit to `static/coins/index.html`. It changes NO stored
 data and NO write path: one read function, the CSV layer above it, and how the

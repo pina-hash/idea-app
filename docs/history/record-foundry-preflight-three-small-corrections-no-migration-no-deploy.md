@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 122
 ---
 
-## Foundry preflight, three small corrections (no migration, no deploy)
-
 ### 1. mailto: and tel: are permitted references now
 
 Both carry no network request -- they hand off to the device's mail or phone

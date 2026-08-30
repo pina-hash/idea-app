@@ -7,8 +7,6 @@ subsystems: ["IDEA Coin economy"]
 record_order: 6
 ---
 
-## IDEA Coin economy (Supabase foundation, `0070`)
-
 A second, independent coin system living in Supabase, built to eventually
 **replace** the Sheets/Apps Script ledger above as the source of truth.
 Migration `0070_coin_economy.sql` (apply manually after `0069`) is

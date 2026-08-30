@@ -1,21 +1,24 @@
 import { error, redirect } from '@sveltejs/kit';
-import { isAdmin } from '$lib/server/admin';
+import { canAuthorGauntlet } from '$lib/server/gauntlet-authoring';
 import type { PageServerLoad } from './$types';
 
 /**
- * Edit-challenge form. Admin-only since 0067 (server-checked). The full
- * challenge, including the hidden `answer`, is fetched through the SECURITY
- * DEFINER `gauntlet_author_get` RPC, which does its own is_teacher() check --
- * and that now resolves to the admin check, so answers are admin-readable
- * only.
+ * Edit-challenge form. Open to the AUTHOR TIER since 0155 (server-checked). The
+ * full challenge, including the hidden `answer`, is fetched through the
+ * SECURITY DEFINER `gauntlet_author_get` RPC, which does its own
+ * `gauntlet_can_author()` check -- so answers are readable by an admin or an
+ * allowlisted author, and by nobody else.
+ *
+ * A refused caller goes to `/gauntlet/author`, which speaks the refusal. See
+ * the new-challenge route for why the sentence lives in one place.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims }, params }) => {
 	if (!claims) {
 		redirect(303, '/');
 	}
 
-	if (!(await isAdmin(supabase, claims.sub))) {
-		redirect(303, '/gauntlet');
+	if (!(await canAuthorGauntlet(supabase, claims.sub))) {
+		redirect(303, '/gauntlet/author');
 	}
 
 	const { data: profile } = await supabase

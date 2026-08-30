@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 141
 ---
 
-## Bundles are served by a SvelteKit route on the apps origin, and the Edge Function is deleted (code only, no migration)
-
 **Branch:** `lane/foundry-serve-vercel`.
 
 ### The measurement that decided this

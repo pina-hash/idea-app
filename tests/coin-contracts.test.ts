@@ -279,6 +279,107 @@ describe('concurrency: the capacity lock under REAL concurrent connections', () 
 	});
 });
 
+/**
+ * THE DETERMINISTIC HALF OF THE CAPACITY PROOF, AND WHY THE BURSTS ABOVE ARE
+ * NOT THE WHOLE OF IT.
+ *
+ * The bursts DO bite here -- measured against a scratch copy of 0077 with the
+ * `for update` deleted from `coin_contract_self_claim`, the five-round one-slot
+ * race reddened 3 of 3 runs and double-booked as far as 4 accepted claims on a
+ * 1-slot contract. But it reddens BY CONTENTION, which is luck this suite does
+ * not control: across those same three runs the three-slot burst reddened only
+ * 1 of 3. A capacity guard whose only proof is a burst is a guard whose proof
+ * can go quiet on a loaded machine and certify nothing while still passing --
+ * the 0134 lesson, and the one that let the GAUNTLET practice meter keep a
+ * deleted advisory lock green 31 times out of 31
+ * (docs/history/gauntlet-practice-rate-limit-xm7ye3.md).
+ *
+ * So the overlap is MANUFACTURED here rather than hoped for. A separate
+ * transaction takes the very row lock the RPC needs and HOLDS it; the
+ * measurement is how long a claim then waits. With `for update` in the function
+ * that is most of a second. Without it the claim reads straight past the held
+ * row and returns in milliseconds, which reddens this test every time rather
+ * than when the scheduler happens to cooperate.
+ */
+describe('concurrency: the capacity lock, held from outside and measured', () => {
+	const HOLD_MS = 1_200;
+
+	/**
+	 * Holds a lock on ONE contract row for HOLD_MS on its own connection.
+	 *
+	 * `for no key update`, NOT `for update`, AND THE DIFFERENCE IS THE WHOLE
+	 * INSTRUMENT. `coin_contract_claims.contract_id` is a foreign key, so the
+	 * RPC's INSERT takes `for key share` on this same parent row on its way
+	 * past -- and `for key share` conflicts with `for update`. Holding
+	 * `for update` here therefore stalls the claim through the FOREIGN KEY
+	 * whether or not the function locks anything itself, which makes the
+	 * measurement pass on a function with no lock in it. Measured, exactly
+	 * that: the first draft of this test was GREEN 3 of 3 against the
+	 * lock-deleted mutant.
+	 *
+	 * `for no key update` conflicts with `for update` and NOT with
+	 * `for key share`, so the only thing that can wait on it is the RPC's own
+	 * `select ... for update`. The FK check walks straight past.
+	 *
+	 * Simple protocol (no parameters) so all four statements run as a single
+	 * transaction on a single connection; the id is a server-generated uuid.
+	 */
+	function holdContractRow(contractId: string): Promise<unknown> {
+		return db.sql(
+			`begin;
+			 select 1 from public.coin_contracts where id = '${contractId}' for no key update;
+			 select pg_sleep(${HOLD_MS / 1000});
+			 commit;`
+		);
+	}
+
+	test('a claim WAITS for the contract row lock, with an uncontended control', async () => {
+		const contended = await postContract('Lock-held contract', 10, 3);
+		const free = await postContract('Uncontended contract', 10, 3);
+
+		const holder = holdContractRow(contended);
+		// Let the holder actually acquire before the claim goes in.
+		await new Promise((r) => setTimeout(r, 250));
+
+		const t0 = Date.now();
+		const result = await claim(studentA.id, contended);
+		const waitedMs = Date.now() - t0;
+		await holder;
+
+		// THE PROOF: it queued behind the row rather than counting past it.
+		expect(waitedMs, `the claim did not wait for the row lock (${waitedMs}ms)`).toBeGreaterThan(500);
+		// And once it held the row it did the ordinary thing.
+		expect(result.ok).toBe(true);
+
+		// POSITIVE CONTROL, same fixture and same clock: an uncontended claim is
+		// fast. Without it the wait above could be a slow database rather than a
+		// held lock, and a loaded machine would read as a working guard.
+		const t1 = Date.now();
+		expect((await claim(studentB.id, free)).ok).toBe(true);
+		const uncontendedMs = Date.now() - t1;
+		expect(uncontendedMs, `uncontended claim was slow (${uncontendedMs}ms)`).toBeLessThan(400);
+	}, 30_000);
+
+	test('the lock is per contract, so one contract never serializes another', async () => {
+		// Keyed on anything shared -- the table, a global -- one student's in-flight
+		// claim would stall every claim in the school behind it, which is a
+		// performance defect nothing on screen would ever report. This is the same
+		// measurement with the expectation inverted, so it cannot pass by the
+		// clock being slow either.
+		const held = await postContract('Held contract', 10, 3);
+		const other = await postContract('Other contract', 10, 3);
+
+		const holder = holdContractRow(held);
+		await new Promise((r) => setTimeout(r, 250));
+
+		const t0 = Date.now();
+		expect((await claim(studentC.id, other)).ok).toBe(true);
+		const waitedMs = Date.now() - t0;
+		await holder;
+		expect(waitedMs, `a claim on a different contract waited (${waitedMs}ms)`).toBeLessThan(400);
+	}, 30_000);
+});
+
 describe('admin lifecycle', () => {
 	test('post -> list shows it with computed status and claimants', async () => {
 		const id = await postContract('Lifecycle contract', 60, 2);

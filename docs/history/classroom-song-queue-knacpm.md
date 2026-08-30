@@ -6,8 +6,6 @@ migrations: ["0145"]
 subsystems: ["IDEA Classroom", "IDEA Coin economy"]
 ---
 
-## The classroom song queue (`0145`)
-
 A student pastes a link to a song; an instructor of that section approves or
 rejects it; approval charges the student two coins. The approved list is what
 the instructor plays from. It sits in a card beneath the hall pass at the top of

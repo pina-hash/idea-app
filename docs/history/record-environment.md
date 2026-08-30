@@ -7,8 +7,6 @@ subsystems: ["Platform & access"]
 record_order: 4
 ---
 
-## Environment
-
 Env vars are read via `$env/static/public`:
 
 - `PUBLIC_SUPABASE_URL`

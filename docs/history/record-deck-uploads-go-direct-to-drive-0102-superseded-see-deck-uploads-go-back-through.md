@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 38
 ---
 
-## Deck uploads go direct to Drive (`0102`) -- SUPERSEDED, see "Deck uploads go back through the server" below
-
 **This transport is RETIRED.** Live testing found the browser could not reach
 Google's chunked-upload endpoint AT ALL in this environment -- not for a large
 deck across several chunks, not for a small one in a single chunk -- which is

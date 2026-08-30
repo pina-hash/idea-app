@@ -2,23 +2,36 @@
 	import { onMount } from 'svelte';
 	import LiveTelemetry from '$lib/gauntlet/LiveTelemetry.svelte';
 	import '$lib/gauntlet/viewport/viewport.css';
-	import type { RunEvent, TelemetryTargets } from '$lib/gauntlet';
+	import type { DeviationBand, RunEvent, TelemetryTargets } from '$lib/gauntlet';
 
 	/**
 	 * Dev-only harness for the live in-run analysis (LiveTelemetry). Replays a
 	 * synthetic modeling-session event stream (no SolidWorks, no Supabase) so the
-	 * live UI can be verified in-browser: the volume gauge fills toward target,
-	 * the feature count climbs, the activity feed scrolls, an undo and a rebuild
-	 * error land, and the pace crosses par.
+	 * live UI can be verified in-browser: the closeness bar moves as the server's
+	 * verdict changes, the measured volume and mass climb, the feature count
+	 * rises, the activity feed scrolls, an undo and a rebuild error land, and the
+	 * pace crosses par.
+	 *
+	 * IT MIRRORS THE WHOLE MECHANISM, INCLUDING WHERE THE VERDICT COMES FROM. The
+	 * band is a value the SERVER answers for a practice check the student made;
+	 * there is no target in the client to compute one from, so the harness has a
+	 * band PICKER rather than a target constant. A harness that derived the band
+	 * from its own fixture volume would be verifying a page that does not exist.
 	 */
 	const targets: TelemetryTargets = {
-		targetVolumeMm3: 52000,
 		densityGcm3: 2.7,
-		targetMassLevel: 140.4, // 52000 mm3 -> 52 cm3 * 2.7 g/cm3
 		massUnit: 'g',
 		unitSystem: 'MMGS',
 		parTime: 90,
 		parFeatures: 7
+	};
+
+	const BANDS: (DeviationBand | null)[] = [null, 'far', 'near', 'close', 'pass'];
+	let band = $state<DeviationBand | null>(null);
+	let bandAtMs = $state<number | null>(null);
+	const setBand = (b: DeviationBand | null) => {
+		band = b;
+		bandAtMs = b == null ? null : Date.now();
 	};
 
 	// Build a realistic stream: features land over time, volume ramps to target,
@@ -77,9 +90,10 @@
 	<div class="harness">
 		<h1>Live in-run telemetry harness</h1>
 		<p class="note">
-			Dev-only replay of a synthetic modeling session. The volume gauge should fill toward target, the
-			feature count climb to 6, the activity feed scroll (with an undo and a rebuild error), and pace
-			cross par. No SolidWorks or Supabase.
+			Dev-only replay of a synthetic modeling session. Your part's measured volume and mass should
+			climb, the feature count reach 6, the activity feed scroll (with an undo and a rebuild error),
+			and pace cross par. No SolidWorks or Supabase. The Last check bar is the SERVER's verdict, so
+			it moves only when the band picker below changes it, never with the volume.
 		</p>
 		<div class="bar">
 			<button type="button" onclick={() => (playing = !playing)}>{playing ? 'Pause' : 'Play'}</button>
@@ -87,11 +101,50 @@
 			<span class="state">event {idx} / {all.length}{done ? ' · done' : ''}</span>
 		</div>
 
-		<LiveTelemetry events={shown} {targets} {elapsedMs} live={!done} />
+		<div class="band-picker">
+			<span class="state">last check:</span>
+			{#each BANDS as b (b ?? 'none')}
+				<button type="button" class="band-btn" class:on={band === b} onclick={() => setBand(b)}>
+					{b ?? 'not checked'}
+				</button>
+			{/each}
+		</div>
+		<LiveTelemetry
+			events={shown}
+			{targets}
+			{elapsedMs}
+			live={!done}
+			{band}
+			{bandAtMs}
+			nowMs={Date.now()}
+		/>
 	</div>
 </div>
 
 <style>
+	.band-picker {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+	.band-btn {
+		min-height: 44px;
+		min-width: 44px;
+		padding: 0 0.8rem;
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.7rem;
+		color: var(--dim, #5f8a78);
+		background: var(--bg2, #0a1512);
+		border: 1px solid var(--boundary, #2c4a3e);
+		border-radius: 4px;
+		cursor: pointer;
+	}
+	.band-btn.on {
+		color: var(--green, #00ff41);
+		border-color: var(--green, #00ff41);
+	}
 	.harness {
 		max-width: 640px;
 		margin: 0 auto;

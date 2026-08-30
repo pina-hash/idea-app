@@ -7,8 +7,6 @@ subsystems: ["Home page, launcher, tour"]
 record_order: 74
 ---
 
-## The pathway-year picker is retired (and two launcher cards with it)
-
 The home page's "Your Pathway Year" divider, its picker card, the pinned-class
 summary, the staff note and the signed-out note are all **gone**, along with the
 `#your-class` anchor and the `data-tour="your-class"` hook. The GAUNTLET

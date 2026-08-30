@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 98
 ---
 
-## Feedback export: what leaves the triage queue
-
 **Subsystem:** feedback (`src/lib/feedback/*`, `src/lib/classroom/FeedbackConsole.svelte`).
 **Code only. No migration, no RPC signature change, no new grant.**
 

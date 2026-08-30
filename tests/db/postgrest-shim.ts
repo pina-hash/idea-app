@@ -26,8 +26,15 @@
 // RLS is real: every read runs through the harness's asUser, so the connection
 // is `authenticated` with request.jwt.claims set, and an embedded resource's
 // own policies apply inside its subquery just as PostgREST applies them.
+//
+// AN RPC IS THE SAME ARGUMENT ONE CALL SHAPE OVER. PostgREST answers a
+// SET-RETURNING function with an ARRAY of row objects and a scalar one with the
+// value; this file called every function the scalar way for its whole life,
+// which collapsed a `returns table` result to its first row and handed that row
+// back as a composite. `routineShape` below reads `proretset` from the catalog
+// so the shape is the database's answer rather than a list anybody maintains.
 
-import type { TestDb } from './harness';
+import type { QueryFn, TestDb } from './harness';
 
 interface ForeignKey {
 	srcTable: string;
@@ -141,6 +148,77 @@ export async function loadForeignKeys(db: TestDb): Promise<ForeignKey[]> {
 	}));
 }
 
+/**
+ * What SHAPE PostgREST answers a call to `name` with, read from the REAL
+ * catalog rather than from a list somebody maintains.
+ *
+ * PostgREST issues `select * from f(...)` for a SET-RETURNING function and
+ * answers with an ARRAY of row objects; for a scalar-returning one it issues
+ * `select f(...)` and answers with the single value. Calling EVERY function
+ * the scalar way -- which this shim did until this was fixed -- is wrong twice
+ * over for a `returns table` function: it collapses the whole set to its first
+ * row, AND it wraps that row in a COMPOSITE (node-postgres hands one back as
+ * the raw `(a,b,c)` string) instead of the named columns a client receives. A
+ * test built on that hands the code under test a shape production never
+ * produces, and every assertion over it is an assertion about the fixture.
+ *
+ * The three answers:
+ *
+ *   - `proretset = false` -> a scalar. `select f(...) as result`.
+ *   - `proretset = true` and the function has OUT/TABLE columns, or returns a
+ *     composite type -> an array of row objects. `select * from f(...)`.
+ *   - `proretset = true` and it returns a bare `setof <scalar>` -> PostgREST
+ *     answers an array of VALUES, not of objects, and `select *` cannot
+ *     produce that (it names the single column after the function). NO
+ *     function in the migrations is this shape, so it THROWS rather than being
+ *     modelled wrong -- the same choice every other unsupported query in this
+ *     file makes, and the reason is the same: a shim more permissive than the
+ *     real thing does not fail loudly, it certifies a bug.
+ *
+ * IT CANNOT GO STALE, because nothing here names a function. A `returns table`
+ * migration written next week is covered the moment it applies; a function
+ * whose return shape changes changes this answer in the same statement. A
+ * pinned list is exactly the thing that would have to be remembered, and
+ * `proretset` is a fact the database already keeps.
+ *
+ * OVERLOADS ARE READ TOGETHER AND A DISAGREEMENT THROWS. The signature trap
+ * (see CLAUDE.md) leaves real overload PAIRS standing in this schema, so a
+ * name can resolve to more than one row here. Every such pair today agrees
+ * about its shape -- an overload is created by adding a PARAMETER, not by
+ * changing what the function returns -- and if one ever does not, PostgREST
+ * would resolve one of them by argument name and this shim has no way to tell
+ * which. Guessing there would be the certified bug again.
+ */
+export interface RoutineShape {
+	/** `proretset`: PostgREST answers an array. */
+	set: boolean;
+	/** The rows are objects with named columns rather than bare values. */
+	rowObjects: boolean;
+}
+
+export async function routineShape(db: TestDb, name: string): Promise<RoutineShape | null> {
+	const { rows } = await db.sql<{ is_set: boolean; row_objects: boolean }>(
+		`select p.proretset as is_set,
+		        (t.typtype = 'c' or coalesce(p.proargmodes, '{}'::"char"[]) && '{o,b,t}'::"char"[])
+		          as row_objects
+		   from pg_proc p
+		   join pg_type t on t.oid = p.prorettype
+		   join pg_namespace n on n.oid = p.pronamespace
+		  where n.nspname = 'public' and p.prokind = 'f' and p.proname = $1`,
+		[name]
+	);
+	if (rows.length === 0) return null;
+	const sets = new Set(rows.map((r) => r.is_set));
+	const objects = new Set(rows.map((r) => r.row_objects));
+	if (sets.size > 1 || objects.size > 1) {
+		throw new Error(
+			`Overloads of public.${name} disagree about their result shape. PostgREST would ` +
+				`resolve one of them by argument name; this shim cannot tell which, and will not guess.`
+		);
+	}
+	return { set: rows[0].is_set, rowObjects: rows[0].row_objects };
+}
+
 export type Relationship =
 	| { kind: 'many-to-one'; fk: ForeignKey }
 	| { kind: 'one-to-many'; fk: ForeignKey }
@@ -202,6 +280,18 @@ function projection(
 
 	for (const node of nodes) {
 		if (node.kind === 'column') {
+			// PostgREST's json-arrow projection (`prompt->>material`,
+			// `prompt->demo`): the result flattens onto the row under the KEY's
+			// own name, per the Speedrun list loader's own doc comment. `->>`
+			// extracts text, `->` extracts jsonb; only the operator differs.
+			const arrow = node.name.match(/^([a-z_][a-z0-9_]*)(->>?)([a-z_][a-z0-9_]*)$/i);
+			if (arrow) {
+				const [, column, op, key] = arrow;
+				const expr = `${alias}.${quote(column)} ${op} '${key}'`;
+				fields.push(`${expr} as ${quote(key)}`);
+				jsonArgs.push(`'${key}', ${expr}`);
+				continue;
+			}
 			fields.push(`${alias}.${quote(node.name)} as ${quote(node.name)}`);
 			jsonArgs.push(`'${node.name}', ${alias}.${quote(node.name)}`);
 			continue;
@@ -270,6 +360,65 @@ interface Filter {
 }
 
 /**
+ * WHO THE CALL RUNS AS, and `null` is a real answer rather than a missing one.
+ *
+ * A signed-in caller is `db.asUser` -- role `authenticated`, `request.jwt.claims`
+ * set -- which is what every load in this repo is driven as and what this file
+ * modelled for its whole life. But a SIGNED-OUT visitor is not that caller with
+ * a field left blank: PostgREST hands an unauthenticated request to the `anon`
+ * role, which holds a strictly different set of EXECUTE grants (0137 is the
+ * migration whose entire subject is that difference), and `auth.uid()` is null
+ * inside every definer function it reaches.
+ *
+ * So a public surface cannot be driven faithfully by passing some student's id
+ * and hoping the body does not look: the grant is checked before the body runs,
+ * and it is the grant that a public read's exposure actually turns on. `null`
+ * routes through `db.asAnon`, which is `set role anon` with no claims at all.
+ *
+ * ONE helper rather than a branch at each of the three call sites, for the
+ * ordinary reason: three spellings of "who is this" is what stops agreeing.
+ */
+function runAs<T>(db: TestDb, userId: string | null, fn: (q: QueryFn) => Promise<T>): Promise<T> {
+	return userId === null ? db.asAnon(fn) : db.asUser(userId, fn);
+}
+
+/**
+ * The answer for a `select` that ran and FAILED against the real Postgres
+ * catalog -- the same conflation `rpcError` above fixed for a function call,
+ * one call shape over.
+ *
+ * THE CONFLATION THIS REPLACES. Every select failure that reached this file
+ * came back as `42P01` (undefined_table), whatever the real SQLSTATE was --
+ * so a project sitting between two migrations (the case this shim's own
+ * comment names) and an RLS denial and a live constraint violation were all
+ * indistinguishable through it. Measured against the real suite: of 430
+ * select failures this file actually produces, 350 are `42703`
+ * (undefined_column, not undefined_table at all), 72 are genuinely `42P01`,
+ * and 8 are `42501` (insufficient_privilege -- a signed-out or unprivileged
+ * caller hitting a table with no matching grant or policy, which is not a
+ * missing-table condition in any sense). A test asserting a specific code off
+ * a select failure would have been asserting the fixture's own conflation
+ * rather than anything Postgres says; none in this suite does (checked by
+ * hand), which is why passing the real code through changes no result.
+ *
+ * SO, EXACTLY AS `rpcError`: THE SHIM DOES NOT CLASSIFY, IT REPORTS. There is
+ * no overload-resolution ambiguity on a select the way `42883` is on an RPC
+ * call, so there is nothing to translate -- the driver's own SQLSTATE is
+ * already the answer PostgREST would carry (as `error.code` on its own
+ * response body), and reporting anything else would be a second, weaker copy
+ * of `$lib/pg-errors`' transient/refusal partition sitting in the fixture.
+ *
+ * A throw with no SQLSTATE is not a database answer and must not be dressed
+ * as one -- the same choice `rpcError` and `routineShape`'s guards make, and
+ * for the same reason.
+ */
+function selectError(error: unknown): ShimError {
+	const code = (error as { code?: unknown } | null)?.code;
+	if (typeof code !== 'string') throw error;
+	return { code, message: (error as Error).message };
+}
+
+/**
  * The builder. Supports exactly what the loads under test call and throws on
  * anything else, so this can never drift into modelling a query that does not
  * ship.
@@ -278,12 +427,12 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	private filters: Filter[] = [];
 	private orderBy: { column: string; ascending: boolean } | null = null;
 	private limitTo: number | null = null;
-	private single = false;
+	private singleRow = false;
 
 	constructor(
 		private readonly db: TestDb,
 		private readonly fks: readonly ForeignKey[],
-		private readonly userId: string,
+		private readonly userId: string | null,
 		private readonly table: string,
 		private readonly select: string
 	) {}
@@ -366,7 +515,19 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	}
 
 	maybeSingle() {
-		this.single = true;
+		this.singleRow = true;
+		return this;
+	}
+
+	/**
+	 * PostgREST's `.single()`: identical to `.maybeSingle()` for this shim's
+	 * purposes -- neither models the "exactly one row or PGRST116" distinction,
+	 * because nothing under test reads the error code either call would set on
+	 * a missing row. A caller wanting that distinction needs a shim change that
+	 * actually models it, not a second alias.
+	 */
+	single() {
+		this.singleRow = true;
 		return this;
 	}
 
@@ -443,16 +604,13 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 		}
 
 		try {
-			const rows = await this.db.asUser(this.userId, async (q) =>
+			const rows = await runAs(this.db, this.userId, async (q) =>
 				(await q<{ row: unknown }>(sql, params)).rows.map((r) => r.row)
 			);
-			if (this.single) return { data: rows[0] ?? null, error: null };
+			if (this.singleRow) return { data: rows[0] ?? null, error: null };
 			return { data: rows, error: null };
 		} catch (error) {
-			const message = (error as Error).message;
-			// A missing table or column is what a project sitting between two
-			// hand-applied migrations actually produces.
-			return { data: null, error: { code: '42P01', message } };
+			return { data: null, error: selectError(error) };
 		}
 	}
 
@@ -467,11 +625,61 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 }
 
 /**
- * A client for one signed-in user. `fks` is a snapshot of the catalog taken
- * once, the same way PostgREST caches it -- reload it if a test changes the
- * schema mid-run.
+ * PostgREST's answer for a function call that RAISED, which is two different
+ * answers and used to be one.
+ *
+ * THE CONFLATION THIS REPLACES. Every throw out of an RPC call came back as
+ * `PGRST202`, so a function that does not exist and a live function raising
+ * `P0001` were indistinguishable through this fixture. That is not a cosmetic
+ * gap: `PGRST202` is the one code this codebase DEGRADES on, deliberately and
+ * on that code ALONE (`$lib/server/admin.ts`, `$lib/classroom/transports.ts`,
+ * `$lib/gauntlet/knowledge-clock.ts`, the short-link and reference loads), and
+ * the rule exists so a runtime error inside a function fails CLOSED instead of
+ * falling through to a weaker path. A fixture that answers `PGRST202` for a
+ * refusal makes that rule untestable in the one direction that matters: a
+ * mutant degrading on ANY error passed all ten database-driven assertions of
+ * the roster read, because through this shim there was no other error to have.
+ *
+ * WHAT POSTGREST ACTUALLY DOES. A call it cannot resolve against its schema
+ * cache -- no such function, or no overload matching the named arguments --
+ * is a 404 carrying `PGRST202`. A call that RESOLVED and then raised is
+ * reported with the SQLSTATE as the code: `P0001` for a `raise exception`,
+ * `42501` for a permission denial, class 23 for a constraint. Postgres itself
+ * draws exactly that line, so the discriminator is the driver's own SQLSTATE
+ * (`42883`, undefined_function) rather than anything this file decides.
+ *
+ * SO THE SHIM DOES NOT CLASSIFY, IT REPORTS. Passing the SQLSTATE through is
+ * what makes `$lib/pg-errors`' transient/refusal partition -- which reads
+ * `23505`, `40001`, `40P01` and friends off exactly this field -- reachable
+ * from a database test at all; a whitelist here would be a second copy of that
+ * partition, in the fixture, able to stop agreeing with the one that ships.
+ *
+ * A THROW WITH NO SQLSTATE IS NOT A DATABASE ANSWER and must not be dressed as
+ * one. That is a driver or fixture failure, and it rethrows -- the same choice
+ * `routineShape`'s two guards above make, and for the same reason.
  */
-export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], userId: string) {
+function rpcError(error: unknown): ShimError {
+	const code = (error as { code?: unknown } | null)?.code;
+	if (typeof code !== 'string') throw error;
+	const message = (error as Error).message;
+	// PostgREST resolves against a schema cache, so a name it does not hold and
+	// a name whose arguments match no overload are ONE answer. Postgres raises
+	// `42883` for both.
+	return { code: code === '42883' ? 'PGRST202' : code, message };
+}
+
+/**
+ * A client for one caller. `userId` is a signed-in user's id, or NULL for a
+ * signed-out visitor -- see `runAs` above for why that is a different role and
+ * not merely a missing claim. `fks` is a snapshot of the catalog taken once,
+ * the same way PostgREST caches it -- reload it if a test changes the schema
+ * mid-run.
+ */
+export function createPostgrestShim(
+	db: TestDb,
+	fks: readonly ForeignKey[],
+	userId: string | null
+) {
 	return {
 		from(table: string) {
 			return {
@@ -496,17 +704,77 @@ export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], user
 						.map(([key], i) => `${quote(key)} => $${i + 1}`)
 						.join(', ')})`
 				: `public.${quote(name)}()`;
+			const values = entries.map(([, v]) => v);
+
+			// OUTSIDE the try: an overload disagreement and an unmodelled
+			// set-of-scalars are defects in this fixture, not answers PostgREST
+			// gives, and reporting either as an error at all would put a test on
+			// the degrade path of whatever load it is driving.
+			const shape = await routineShape(db, name);
+			if (shape?.set && !shape.rowObjects) {
+				throw new Error(
+					`public.${name} returns a set of bare scalars. PostgREST answers an array of ` +
+						`VALUES for that, which this shim does not model -- see routineShape().`
+				);
+			}
+
 			try {
-				const rows = await db.asUser(
+				if (shape?.set) {
+					// ONE json array, not the driver's own row objects, for exactly
+					// the reason the `from()` path builds json_build_object: PostgREST
+					// answers JSON over the wire, so a timestamptz reaches the load as
+					// an ISO STRING and a bigint as a NUMBER. node-postgres would hand
+					// back a Date and a string respectively, which is not what the
+					// code under test will ever see in production.
+					// The `coalesce` is what makes an EMPTY set an empty ARRAY rather
+					// than null -- and null is what a MISSING function looks like, so
+					// without it a load could not tell "nobody is on this roster" from
+					// "this RPC is not applied yet". There is no JS fallback beside it
+					// on purpose: an aggregate over zero rows still returns exactly one
+					// row, so a `?? []` here would be a branch nothing can ever reach
+					// and no mutation could ever kill.
+					// THE AGGREGATE IS TAKEN OVER `select * from f(...)`, NEVER OVER
+					// `from f(...) r` DIRECTLY, and the difference is invisible until
+					// exactly one function in the schema meets it. A `returns table`
+					// with TWO OR MORE columns compiles to `prorettype = record`, so
+					// the alias `r` is a COMPOSITE and `json_agg(r)` yields objects.
+					// A `returns table` with ONE column compiles to `prorettype =
+					// <that base type>` -- measured: `returns table (contract_id
+					// uuid)` gives typname `uuid`, typtype `b`, proargmodes `{t}` --
+					// so `r` is a bare SCALAR and `json_agg(r)` yields an array of
+					// VALUES. PostgREST answers objects for both, because it selects
+					// the function's OUT column names, and `select *` recovers them
+					// (measured: the field really is named `contract_id`).
+					//
+					// `coin_my_contract_claims` (0089) is the ONE function in the
+					// migrations of that shape, and it is the one nothing had ever
+					// driven through this shim, which is why the gap never showed.
+					// Its shipped reader, `src/routes/api/coin/claim/+server.ts`,
+					// does `rows.map((r) => r.contract_id)` -- so production receives
+					// objects, and the old form here would have handed a test an
+					// array of strings and certified a route that cannot work.
+					const rows = await runAs(
+						db,
+						userId,
+						async (q) =>
+							(
+								await q<{ result: unknown }>(
+									`select coalesce(json_agg(row_to_json(r)), '[]'::json) as result
+									   from (select * from ${call}) r`,
+									values
+								)
+							).rows
+					);
+					return { data: rows[0].result, error: null };
+				}
+				const rows = await runAs(
+					db,
 					userId,
-					async (q) => (await q(`select ${call} as result`, entries.map(([, v]) => v))).rows
+					async (q) => (await q(`select ${call} as result`, values)).rows
 				);
 				return { data: (rows[0] as { result: unknown } | undefined)?.result ?? null, error: null };
 			} catch (error) {
-				// PostgREST reports a function that does not exist -- including one
-				// whose arguments do not match any overload -- as PGRST202, which
-				// $lib/server/admin.ts matches on by code.
-				return { data: null, error: { code: 'PGRST202', message: (error as Error).message } };
+				return { data: null, error: rpcError(error) };
 			}
 		}
 	};

@@ -2,7 +2,6 @@
 	import '$lib/classroom/classroom.css';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
-	import ShortLinkManager from '$lib/ShortLinkManager.svelte';
 	import { OVERFLOW_REFERENCE, SAMPLE_REFERENCE } from '$lib/classroom/dev-reference-fixture';
 	// The REAL public page component, mounted with fixture data. /reference/[itemId]
 	// resolves its document through one RPC against a live project, which this
@@ -22,7 +21,6 @@
 		ClassroomSection,
 		LinkPreview
 	} from '$lib/classroom/classroom';
-	import type { ShortLinkRow, ShortLinkTransports } from '$lib/short-links';
 	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
 
 	/**
@@ -42,9 +40,18 @@
 
 	/**
 	 * Dev harness for the reference-document system (404 in production, no auth,
-	 * no Supabase, no network). It mounts the REAL components -- ReferenceDoc,
-	 * SpecImporter, ShortLinkManager -- against in-memory transports, so every
-	 * interaction verified here is the shipping one.
+	 * no Supabase, no network). It mounts the REAL components -- ReferenceDoc and
+	 * SpecImporter -- against in-memory transports, so every interaction verified
+	 * here is the shipping one.
+	 *
+	 * `ShortLinkManager` USED TO BE A TAB HERE AND IS NOT ANY MORE. This page
+	 * wraps everything in `.cr-root` deliberately, because the reference
+	 * components ship in that room and a harness that rendered them on the
+	 * portal's green plate would be showing surfaces they were moved OFF. That
+	 * argument does not extend to the short-link manager: it is mounted by
+	 * exactly one route, `/admin/links`, which carries NO room, so measuring it
+	 * in here was measuring the wrong plate. It has its own harness at
+	 * `/dev/short-links`, with `/admin/links`'s own chrome around it.
 	 *
 	 * The public/private BOUNDARY is deliberately not simulated here: it is
 	 * enforced by RLS and two SECURITY DEFINER functions, and pretending to
@@ -52,7 +59,7 @@
 	 * half is covered against a real Postgres in tests/classroom-reference.test.ts
 	 * and tests/classroom-reference-route.test.ts.
 	 */
-	type View = 'reader' | 'stacked' | 'item-plain' | 'item-ref' | 'item-ref-manage' | 'public' | 'tools' | 'links';
+	type View = 'reader' | 'stacked' | 'item-plain' | 'item-ref' | 'item-ref-manage' | 'public' | 'tools';
 	let view = $state<View>('reader');
 
 	let spec = $state<ReferenceSpec>(SAMPLE_REFERENCE);
@@ -158,51 +165,6 @@
 		postings: [{ section_id: 's-1' }]
 	};
 
-	// ------------------------------------------------------------------
-	// Short links, in memory (mirroring 0093's own rules).
-	// ------------------------------------------------------------------
-	let linkRows = $state<ShortLinkRow[]>([
-		{
-			slug: '209h',
-			target: '/reference/00000000-0000-0000-0000-0000000209ab',
-			label: 'IDEA209H syllabus',
-			active: true,
-			created_by: 'apina@boscotech.edu',
-			created_at: '2026-08-13T00:00:00Z',
-			updated_at: '2026-08-13T00:00:00Z'
-		}
-	]);
-	const linkTransports: ShortLinkTransports = {
-		async upsert(slug, target, label, active) {
-			const existing = linkRows.find((r) => r.slug === slug);
-			if (existing) {
-				linkRows = linkRows.map((r) =>
-					r.slug === slug ? { ...r, target, label, active, updated_at: '2026-08-13T00:00:00Z' } : r
-				);
-			} else {
-				linkRows = [
-					...linkRows,
-					{
-						slug,
-						target,
-						label,
-						active,
-						created_by: 'apina@boscotech.edu',
-						created_at: '2026-08-13T00:00:00Z',
-						updated_at: '2026-08-13T00:00:00Z'
-					}
-				];
-			}
-			return { ok: true };
-		},
-		async remove(slug) {
-			linkRows = linkRows.filter((r) => r.slug !== slug);
-			return { ok: true };
-		},
-		async reload() {
-			return [...linkRows].sort((a, b) => a.slug.localeCompare(b.slug));
-		}
-	};
 </script>
 <svelte:head><title>dev // classroom reference</title></svelte:head>
 
@@ -224,7 +186,7 @@
      measure. -->
 <div class="dev-page" class:full={view === 'public' || view === 'item-plain' || view === 'item-ref' || view === 'item-ref-manage'}>
 	<nav class="views">
-		{#each [['reader', 'Reader (tabs)'], ['stacked', 'Reader (stacked)'], ['item-plain', 'Material: no document'], ['item-ref', 'Material: with document'], ['item-ref-manage', 'Material: manage + wording editor'], ['public', 'Public page (/reference)'], ['tools', 'Teacher tools'], ['links', 'Short links']] as [id, label] (id)}
+		{#each [['reader', 'Reader (tabs)'], ['stacked', 'Reader (stacked)'], ['item-plain', 'Material: no document'], ['item-ref', 'Material: with document'], ['item-ref-manage', 'Material: manage + wording editor'], ['public', 'Public page (/reference)'], ['tools', 'Teacher tools']] as [id, label] (id)}
 			<button
 				type="button"
 				class="btn secondary tiny"
@@ -312,8 +274,6 @@
 				<p class="hint">Nothing yet.</p>
 			{/if}
 		</section>
-	{:else}
-		<ShortLinkManager links={linkRows} transports={linkTransports} />
 	{/if}
 </div>
 </div>

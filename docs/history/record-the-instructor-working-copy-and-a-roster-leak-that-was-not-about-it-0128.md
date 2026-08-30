@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 110
 ---
 
-## The instructor working copy, and a roster leak that was not about it (`0128`)
-
 An instructor can now fill an assignment out themselves, on the same renderer a
 student uses, with the answers autosaving the same way. One copy per item can be
 designated the ANSWER KEY, which every instructor on that item can then read. In

@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 156
 ---
 
-## Five staff capabilities that were live, granted and uncalled get their controls (`claude/notebook-excusal-grid-control-0ub2q2`, code only, no migration)
-
 An audit named five SECURITY DEFINER functions in the notebook's data layer that
 were applied, granted to `authenticated`, gated inside their own bodies, and
 called from nowhere in `src/`. All five claims were re-derived here against the

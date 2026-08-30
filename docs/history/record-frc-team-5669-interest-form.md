@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 70
 ---
 
-## FRC Team 5669 interest form
-
 `/fsp/frc-interest` is a standalone, **public, unauthenticated** intake form
 for FRC Team 5669 (distinct from the `/frc` training track above and from
 `/fsp-pulse`'s FRC-interest question): full name, email, optional phone,

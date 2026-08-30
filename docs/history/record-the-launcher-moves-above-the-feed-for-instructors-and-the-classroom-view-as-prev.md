@@ -7,8 +7,6 @@ subsystems: ["Home page, launcher, tour", "IDEA Classroom"]
 record_order: 100
 ---
 
-## The launcher moves above the feed for instructors, and the classroom view-as preview is deleted (code only, NO migration)
-
 Two unrelated items in one bundle, and one of them leaves SQL behind on purpose.
 
 ### 1. The home page's section order

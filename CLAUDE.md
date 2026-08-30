@@ -1003,12 +1003,15 @@ it is not required to browse.
   uuids in the URL. See the origin split).
   `hooks.server.ts` redirects anonymous users off a LIST of authed prefixes.
 - **Admin tier:** `/dashboard`, `/coin-desk`, `/admin`, `/greenline/moderation`,
-  the notebook Drive connect flow, GAUNTLET authoring / room hosting, FRC
-  completion overrides and gate reviews, the FSP FRC-interest roster, GREENLINE
-  decal + community-track moderation, tournament deletion, the all-users feedback
-  read, VANGUARD's TUNE mode, the Foundry review queue (`/foundry/review`) and
-  the Foundry source reader (`POST /api/foundry/source`) -- both of which answer
+  the notebook Drive connect flow, FRC completion overrides and gate reviews,
+  the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
+  tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
+  Foundry review queue (`/foundry/review`), the Foundry source reader
+  (`POST /api/foundry/source`) and GAUNTLET's ranked-run review
+  (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
+  **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
+  GAUNTLET AUTHOR TIER below.
 - **The homepage `/` IS the student dashboard.** Students have no separate one;
   `/dashboard` is admin-only.
   - **ITS SECTION ORDER TURNS ON WHAT THE VIEWER MANAGES, never on their role.**
@@ -1027,11 +1030,14 @@ it is not required to browse.
 anything else -> visitor. Roles are intentionally open-ended; adding one means
 extending the CHECK constraint and `role_for_email`, not a rebuild.
 
-### ADMIN TIER -- this supersedes every "teacher-only" claim anywhere
+### ADMIN TIER -- this supersedes every "teacher-only" claim anywhere, EXCEPT the GAUNTLET author tier below
 
 `teacher` is auto-granted by domain and marks staff apart from students, but **on
 its own it grants nothing privileged**. Every elevated capability requires an
-explicit ADMIN grant.
+explicit ADMIN grant, with ONE deliberate exception carved out of it: GAUNTLET
+challenge authoring, publishing and room hosting, which since `0155` has its own
+narrower allowlist and does not require admin. See "GAUNTLET AUTHOR TIER" below
+for that tier; everything in this section still governs admin.
 
 - **`is_admin()` is the check.** `public.app_admins` is the roster, keyed by
   LOWERCASED EMAIL (not user id), so an account can be authorized before it has
@@ -1057,7 +1063,11 @@ explicit ADMIN grant.
   re-gated ~90 already-applied references at once, because migrations here are an
   immutable applied record and Postgres resolves a function by name at call time.
   **`is_teacher()` does NOT mean "is a teacher". Never write a new call to it;
-  use `is_admin()`.**
+  use `is_admin()` -- EXCEPT the eleven GAUNTLET authoring/publishing/hosting
+  sites `0155` re-gated onto `gauntlet_can_author()` instead. See "GAUNTLET
+  AUTHOR TIER" below before writing a twelfth GAUNTLET gate: check its census
+  first, most GAUNTLET checks (every student-work read, room-review analytics,
+  the global Speedrun ruleset) still belong on `is_admin()`.**
 - **The owner is pinned in the schema.** `admin_owner_email()` is a hardcoded
   constant (`apina@boscotech.edu`); `is_admin()`/`is_owner()` fall back to it, so
   the owner keeps access even if `app_admins` is emptied. Only the owner can
@@ -1077,6 +1087,56 @@ explicit ADMIN grant.
 - **Role editing:** admins, not teachers. No one can change their own role; the
   owner's role cannot be changed by anyone. Enforced server-side
   (`enforce_role_change` + RLS), never in client code.
+
+### GAUNTLET AUTHOR TIER -- the one carve-out from "every elevated capability requires admin"
+
+**`0155` (`gauntlet_authors`, `gauntlet_can_author()`) is a third tier, strictly
+narrower than admin and granted independently of it.** It exists because 0067's
+`is_teacher()` -> `is_admin()` narrowing was about BREADTH (role editing, the
+FSP/FRC roster, every student's graded work, moderation, permanent deletion),
+never about GAUNTLET specifically -- authoring a challenge is writing content
+with no student data in it, so it did not need to stay behind the same gate as
+those.
+
+- **An ALLOWLIST, never an inference.** `gauntlet_authors` mirrors
+  `app_admins`: lowercased-email keyed, `@boscotech.edu`-only grants, the same
+  `granted_by`/`granted_at`/`note` shape, SECURITY DEFINER + `set search_path = ''`.
+  `gauntlet_can_author()` is granted to `authenticated` exactly as `is_admin()`
+  is, and folds `is_admin()` in -- every admin authors too, so the tier can only
+  WIDEN a gate, never narrow one. Grant/revoke (`gauntlet_author_grant`,
+  `gauntlet_author_revoke`, both admin-gated, not owner-gated -- authoring does
+  not propagate) and the roster read (`gauntlet_author_roster`, admin-only) have
+  no caller in `src/` yet; granting or revoking today is SQL-editor only.
+- **App side:** `canAuthorGauntlet` in `src/lib/server/gauntlet-authoring.ts` is
+  the ONE server helper, mirroring `isAdmin`'s ladder -- calls
+  `gauntlet_can_author()`, degrades to `isAdmin` on `PGRST202` ALONE (the
+  migration not being applied yet is a real, separate deployment state -- see
+  below), denies on any other error. `GAUNTLET_AUTHORING_REFUSAL` is the one
+  spelling of the refusal a non-author reads on `/gauntlet/author` and
+  `/gauntlet/rooms` (a rendered panel, never a redirect -- a redirect would
+  confirm the route exists to someone it is refusing). The `/gauntlet` landing
+  page's Authoring card is gated on it too.
+- **Exactly eleven re-gated sites, and it is a CENSUS, not a rename.** Reading
+  and writing challenges, series grouping, the three challenge-asset storage
+  buckets, and room create/delete -- see `0155` section 4/5 for the full table.
+  **Left on `is_admin()` deliberately**, because authoring a question is not a
+  licence to read what was answered: every student-work read (own submissions,
+  own run events, own run analysis), `gauntlet_run_review` (`0152`, the ranked
+  forensics console at `/gauntlet/run-review`) and `gauntlet_practice_meter`
+  (`0151`), the global Speedrun ruleset singleton, the unread `gauntlet-tools`
+  bucket, and all eleven `not v_published and not is_teacher()` draft-PLAY
+  gates (an author publishes and plays like anyone else; test-driving a DRAFT
+  run stays admin-only).
+- **`0155` IS QUEUED, NOT APPLIED, as of this writing.** The full unapplied set
+  measured against `origin/main` (2026-08-29) is `0151`-`0155` and `0157`, per
+  the sweep recorded in
+  `docs/history/anon-coin-public-projections-mrlg0d-queued-migration-sweep.md`
+  -- check a live catalog read or `supabase migration list --linked` rather
+  than trusting a static list here, since a hand-pasted apply is not recorded
+  in this file. Until `0155` is pasted, every GAUNTLET gate still reads
+  `is_teacher()` (i.e. `is_admin()`), the app-side `PGRST202` degrade makes
+  `canAuthorGauntlet` behave exactly like `isAdmin`, and the only GAUNTLET
+  author is whoever holds an `app_admins` row.
 
 ### Probing must reveal nothing
 
@@ -3664,12 +3724,24 @@ The two files have different jobs, and the split is the point.
     filename collision-free BY CONSTRUCTION rather than by anyone checking. Never
     take a name from a counter, a sequence or a date -- a number a session has to
     pick is the shared write point again, wearing a different hat.
-  - **Front matter, then one blank line, then the entry opening with its own `##`
-    heading**: `title` (matching the heading exactly), `date`, `branches`,
-    `migrations` (quoted, `["0140"]`, because YAML reads `0140` as octal),
-    `subsystems`. **No `record_order`** -- that field belongs only to the 168
-    `record-*.md` files the split produced. `npm run history:verify` checks all of
-    this; `docs/HISTORY.md` states the full convention.
+  - **Front matter, then one blank line, then the entry body -- opening directly
+    at the first real content, with NO retyped `## <title>` heading line.** The
+    heading is DERIVED from front-matter `title` (`verify-split.mjs` synthesizes
+    `## ${title}` at reassembly time); the body on disk never repeats it. This
+    used to be a second hand-typed copy of the same sentence and it drifted
+    three times (`gauntlet-tolerance-test-fix-u79q4y`, and
+    `btn-tap-target-floor-verify-6vj8r9` twice over two sessions) before
+    `docs/history/_tools/derive-headings.mjs` removed the second copy for good.
+    Front matter carries `title`, `date`, `branches`, `migrations` (quoted,
+    `["0140"]`, because YAML reads `0140` as octal), `subsystems`. **No
+    `record_order`** -- that field belongs only to the 168 `record-*.md` files
+    the split produced. `npm run history:verify` checks all of this, and
+    `docs/HISTORY.md` states the fuller convention. **"Never edited again" is
+    about the 35,000-line record body the split removed, not about
+    `docs/HISTORY.md`'s own instructions for writing an entry** -- those are
+    corrected in place like any other rule when they drift, which its own
+    worked example did for a day after `derive-headings.mjs` (`1fbdf87`)
+    removed the retyped heading; both are fixed now (2026-08-29).
   - **There is no index to update, for SQL or anything else.** All three indexes
     are generated from front matter by `npm run history:index` and are gitignored.
     Naming the migration in `migrations:` is the whole of it.

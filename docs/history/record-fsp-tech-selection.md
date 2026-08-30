@@ -7,8 +7,6 @@ subsystems: ["FRC / FSP / feedback"]
 record_order: 69
 ---
 
-## FSP tech selection
-
 `/fsp-tech-selection` is a **schoolwide** (not IDEA-branded) live tech-ranking
 tool for incoming freshmen during the Freshman Summer Program (FSP), reached
 COLD from a QR code (no prior idea-app visit assumed). It is the one place that

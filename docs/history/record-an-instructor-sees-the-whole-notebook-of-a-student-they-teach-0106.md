@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 33
 ---
 
-## An instructor sees the whole notebook of a student they teach (`0106`)
-
 Migration `0106_notebook_instructor_student_access.sql` (apply manually after
 `0105`) plus one new read-only route and a link on the compliance grid. Two
 gaps, and only the first needed schema.

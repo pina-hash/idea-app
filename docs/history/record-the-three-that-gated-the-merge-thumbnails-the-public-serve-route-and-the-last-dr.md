@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 136
 ---
 
-## The three that gated the merge: thumbnails, the public serve route, and the last Drive upload
-
 **Branch:** `lane/attach-any-type`. **Migrations:** none. 0133, 0134 and 0135
 were already applied to production by hand; everything here is the code half
 that had been left explicitly undone, listed as "NOT DONE, and not attempted"

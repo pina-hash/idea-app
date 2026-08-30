@@ -7,8 +7,6 @@ subsystems: ["Home page, launcher, tour"]
 record_order: 104
 ---
 
-## Launcher accents restored as stylesheet data, and measured for the first time
-
 Code only, no SQL. Reverts the second half of item 1 in `f734e7c`. The section
 ordering that bundle shipped is untouched and stays.
 

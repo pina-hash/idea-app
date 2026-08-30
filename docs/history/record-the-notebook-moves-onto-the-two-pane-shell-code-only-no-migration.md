@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 53
 ---
 
-## The notebook moves onto the two-pane shell (code-only; NO migration)
-
 Both notebook screens sit on the SAME split the class page does. No schema
 change, no new RPC, no write path touched, and every `readOnly` guarantee,
 omitted transport and `canReview` gate is exactly what it was.

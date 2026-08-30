@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 59
 ---
 
-## Classroom bundle 4: the assignment engine (`0086`)
-
 Migration `0086_classroom_assignment_engine.sql` (apply manually after 0085):
 file submissions on every assignment, spec-driven interactive assignments,
 autosaved responses, rubrics, grading, and the approval gate. 0082's one rule

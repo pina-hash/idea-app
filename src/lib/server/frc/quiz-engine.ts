@@ -4,8 +4,9 @@
  * item banks, so it must never be reachable from client code.
  *
  * It serves a PER-UNIT item bank: MDM-1 from its own file, and MDM-2 / MDM-3 /
- * MDM-9 / MDM-10 / F1 (Foundation domain) from the `banks` map in
- * `mdm-quiz-banks.json` (the name predates F1; it is not MDM-exclusive).
+ * MDM-9 / MDM-10 plus F1 through F5 (the whole Foundation domain) from the
+ * `banks` map in `mdm-quiz-banks.json` (the name predates the F units; it is
+ * not MDM-exclusive).
  * Every path keys off the unit id (`getQuizBank`) and uses that unit's own
  * items, `testLength`, and `passPercent`, so the selection, sealing, cooldown,
  * and grading are all per unit.
@@ -46,9 +47,9 @@ interface QuizBank {
 }
 
 const MDM1_BANK = mdm1Bank as QuizBank;
-// The additional per-unit banks (MDM-2, MDM-3, MDM-9, MDM-10, and F1 from the
-// Foundation domain) share one file, a `banks` map keyed by unit id; each
-// carries its own items/testLength/passPercent.
+// The additional per-unit banks (MDM-2, MDM-3, MDM-9, MDM-10, and F1 through
+// F5, the whole Foundation domain) share one file, a `banks` map keyed by unit
+// id; each carries its own items/testLength/passPercent.
 const SHARED_BANKS = (extraBanks as unknown as { banks: Record<string, QuizBank> }).banks;
 
 /** Unit id -> its quiz bank. */
@@ -57,6 +58,23 @@ const BANKS: Record<string, QuizBank> = { 'MDM-1': MDM1_BANK, ...SHARED_BANKS };
 /** The quiz bank for a unit, or undefined if the unit has no quiz gate. */
 export function getQuizBank(unitId: string): QuizBank | undefined {
 	return BANKS[unitId];
+}
+
+/** Every unit id that has a quiz bank. The gate's population, derived. */
+export function quizBankUnitIds(): string[] {
+	return Object.keys(BANKS);
+}
+
+/**
+ * The largest `testLength` any bank declares -- the most questions any single
+ * attempt can ever serve. DERIVED from the banks rather than written down, so
+ * a bank that grows a longer test does not silently outgrow the bound. Used to
+ * cap a submitted answer array (see `normalizeAnswers`); grading never reads
+ * past `sealed`, so the cap can only drop entries no grader would have looked
+ * at.
+ */
+export function maxTestLength(): number {
+	return Math.max(...Object.values(BANKS).map((b) => b.testLength));
 }
 
 /** A client-safe question: stem + shuffled options, no answer. */

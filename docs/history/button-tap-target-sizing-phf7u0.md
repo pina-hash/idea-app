@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Interface standards", "Design tokens", "GAUNTLET", "Foundry", "Admin"]
 ---
 
-## `.btn` gets its own 44px floor, because the only thing holding the old one up was an unwrapped flex row stretching every control to its tallest sibling (`claude/button-tap-target-sizing-phf7u0`, no migration)
-
 Files owned and touched: `src/app.css` and `src/lib/ShortLinkManager.svelte`.
 Nothing under `tools/browser-verify/`, `src/routes/dev/`, `src/lib/gauntlet/`,
 `supabase/` or `CLAUDE.md` was modified; two other sessions were live on

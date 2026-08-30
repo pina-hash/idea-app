@@ -7,8 +7,6 @@ subsystems: ["Digital notebook"]
 record_order: 54
 ---
 
-## Two notebook fixes from the first day of classes (`0114`)
-
 Two defects reported once real students were on the notebook. They are
 unrelated to each other and were fixed together because they were reported
 together.

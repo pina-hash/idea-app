@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 154
 ---
 
-## Editing what a student reads, in place, with a guard that refuses everything else (`claude/assignment-spec-editor-6q4n3f`, code only, no migration)
-
 Changing one sentence in a published assignment meant editing raw JSON and
 re-importing the whole spec. This adds a wording editor over both spec kinds --
 the assignment spec and the reference spec -- that renders the document's own

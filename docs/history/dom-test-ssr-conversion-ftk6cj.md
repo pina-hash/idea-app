@@ -6,8 +6,6 @@ migrations: []
 subsystems: ["Testing", "Foundry", "Feedback", "Classroom", "Notebook", "Toolchain"]
 ---
 
-## A running app survives full screen: the claim SSR cannot express, the feedback contact field, and a Tiptap probe that came back green (`claude/dom-test-ssr-conversion-ftk6cj`, no migration)
-
 The bundle before this one (`claude/dom-test-project-setup-bwcuyk`) converted four
 SSR files whose own comments said they could not make the claim they existed to
 make, and listed three more candidates. This is those three, plus a probe that

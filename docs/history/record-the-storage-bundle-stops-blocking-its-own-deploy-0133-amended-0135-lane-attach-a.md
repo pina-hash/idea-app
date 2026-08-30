@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 135
 ---
 
-## The storage bundle stops blocking its own deploy (`0133` amended, `0135`, `lane/attach-any-type`)
-
 Four things, three of which were defects in the bundle above rather than new
 features. The SQL and its tests are on `main`; the build change and the harness
 are on `lane/attach-any-type`. NOTHING was merged to `main` from the lane.

@@ -128,7 +128,15 @@ const CHAIN = [
 	'0117_notebook_soft_delete_restore.sql',
 	'0118_notebook_draft_state.sql',
 	'0120_notebook_session_item_link.sql',
-	'0121_notebook_review_acknowledged.sql'
+	'0121_notebook_review_acknowledged.sql',
+	// 0138 IS THE FOURTH FALSE COUNT, and this file ran without it until now.
+	// The home load calls `loadSectionRoster(supabase, null)` to build
+	// `feedManagerEmails`, which `buildFeed` uses to keep an instructor's own
+	// hand-in out of their own to-grade tally. Without the migration that call
+	// answers PGRST202, `loadSectionRoster` takes its DEGRADE rung, the map is
+	// `{}` -- the honest pre-0138 answer -- and the exclusion has never once
+	// been exercised through this load. Section 4 below is what that costs.
+	'0138_classroom_manager_exclusion_and_enrollment_removal.sql'
 ] as const;
 
 let db: TestDb;
@@ -146,6 +154,8 @@ let dueSoon: string; // assignment, due in 3 days, never handed in -> counts
 let undated: string; // assignment, NO due date, no submission -> the bug
 let undatedHandedIn: string; // undated, alice DID hand in -> must not count either
 let announcement: string; // a post, so the card is not all assignments
+/** An undated assignment BRUNO and the TEACHER both hand in -- section 4. */
+let managerHandIn: string;
 let archivedWork: string; // an overdue assignment in the ARCHIVED class
 
 /** Check-in dates, on the same calendar `session_date` is adjudicated in. */
@@ -290,11 +300,25 @@ beforeAll(async () => {
 		displayName: 'Bruno Okafor'
 	});
 
+	// THE MANAGER, ENROLLED IN HER OWN CLASS. Ordinary and common: an instructor
+	// adds themselves to see the class the way a student does, or a roster
+	// import sweeps them in. It is the state 0138 exists for, and nothing in
+	// sections 1 to 3 reads this section's enrollments.
+	await enrollStudent(db, {
+		as: teacher,
+		sectionId: current,
+		email: teacher.email,
+		displayName: 'T. Vargas'
+	});
+
 	dated = await mkItem('assignment', [current], 'Truss bridge sketch', OVERDUE_AT);
 	dueSoon = await mkItem('assignment', [current], 'Tolerance worksheet', SOON_AT);
 	undated = await mkItem('assignment', [current], 'Bench measurement check', null);
 	undatedHandedIn = await mkItem('assignment', [current], 'Shop safety quiz', null);
 	announcement = await mkItem('post', [current], 'Field trip permission slips', null);
+	// UNDATED on purpose, so it ranks for nobody as a student (section 1 is the
+	// proof of that) and section 4's numbers are about the to-grade tally alone.
+	managerHandIn = await mkItem('assignment', [current], 'Bench torque log', null);
 	archivedWork = await mkItem('assignment', [concluded], 'Last term: final portfolio', OVERDUE_AT);
 
 	// Alice really did hand one thing in, so "no submission row" is a fact about
@@ -322,6 +346,22 @@ beforeAll(async () => {
 		null
 	]);
 	await rpc(bruno.id, 'public.classroom_submit_assignment($1::uuid)', [dated]);
+
+	// Section 4's pair: bruno's hand-in is real work to grade, the teacher's is
+	// her own copy and is not. On the degrade rung the tally cannot tell them
+	// apart and answers 2.
+	for (const who of [bruno, teacher]) {
+		await rpc(who.id, 'public.classroom_add_submission_file($1::uuid, $2, $3, $4, $5, $6, $7)', [
+			managerHandIn,
+			`drive-${who.email}-torque`,
+			'torque.jpg',
+			'image/jpeg',
+			1234,
+			null,
+			null
+		]);
+		await rpc(who.id, 'public.classroom_submit_assignment($1::uuid)', [managerHandIn]);
+	}
 
 	// Check-ins in the CURRENT class: one yesterday, one today, one next month.
 	// Alice files nothing against any of them, so each resolves on its date
@@ -651,3 +691,72 @@ describe('the calendar the comparison is made in', () => {
 	});
 });
 
+// ---------------------------------------------------------------------------
+// 4. An instructor's own hand-in is not work for them to grade
+// ---------------------------------------------------------------------------
+
+describe("a manager enrolled in their own class", () => {
+	/**
+	 * THE FOURTH FALSE COUNT, and the one this file could not see until its
+	 * chain carried 0138. It runs in the same direction as the other three --
+	 * the number is simply larger than the work is -- and it is invisible for
+	 * the same reason: one extra head in a to-grade tally looks exactly like
+	 * one more student who handed something in.
+	 *
+	 * IT IS ALSO THE ONE THAT PROVES THE WIDE RUNG IS RUNNING. `feedManagerEmails`
+	 * is `{}` on `loadSectionRoster`'s degrade rung, so every assertion here is
+	 * a statement about which rung answered as much as about the tally.
+	 */
+	test('is kept out of their own to-grade tally, while the student beside it still counts', async () => {
+		const data = await runHomeLoad(teacher);
+
+		// THE RUNG. An empty map is what a project without 0138 returns, and it
+		// is indistinguishable from "nobody enrolled who manages" unless the
+		// value is read.
+		expect(data.feedManagerEmails[current]).toEqual([teacher.email]);
+
+		const feeds = feedFor(data, teacher, false, NOW);
+		const card = cardFor(feeds, current)!;
+
+		// THE FIX. Two people handed this in and exactly one of them is work.
+		expect(card.urgent.find((e) => e.item.id === managerHandIn)?.reason).toBe('ungraded');
+		expect(card.urgent.find((e) => e.item.id === managerHandIn)?.count).toBe(1);
+
+		// THE POSITIVE CONTROLS, on the same read. The exclusion is a TALLY
+		// decision, not a missing row: both submissions are in the payload, and
+		// the two items only a student handed in still count exactly 1 each. An
+		// over-filtering regression -- one that dropped every submission on an
+		// item a manager also touched, or that read the whole class as managers
+		// -- reddens these rather than passing by counting nothing.
+		const onItem = data.feedSubmissions.filter((s) => s.item_id === managerHandIn);
+		expect(onItem.map((s) => s.student_email).sort()).toEqual(
+			[bruno.email, teacher.email].sort()
+		);
+		expect(card.urgent.find((e) => e.item.id === dated)?.count).toBe(1);
+		expect(card.urgent.find((e) => e.item.id === undatedHandedIn)?.count).toBe(1);
+	});
+
+	test('the map is a MANAGEMENT read: a student gets nothing at all from it', async () => {
+		// `classroom_section_roster(null)` gates per row on
+		// `classroom_manages_section`, so alice does not even get her own row --
+		// and she is enrolled in a class whose manager IS enrolled, which is the
+		// only fixture where the difference is visible.
+		const asStudent = await runHomeLoad(alice);
+		expect(asStudent.feedManagerEmails).toEqual({});
+
+		// THE POSITIVE CONTROL: the same call, same fixture, same section, made
+		// by the manager, is not empty. Without it an empty map here is equally
+		// well explained by 0138 not being applied.
+		const asTeacher = await runHomeLoad(teacher);
+		expect(asTeacher.feedManagerEmails[current]).toEqual([teacher.email]);
+	});
+
+	test('and her own class card is unchanged for the student in it', async () => {
+		// The exclusion touches the TEACHER'S tally and nothing else: alice's
+		// chip is the same 2 it has been through sections 1 to 3, with the new
+		// undated item ranking for her exactly as `undated` does -- not at all.
+		const feeds = feedFor(await runHomeLoad(alice), alice, false, NOW);
+		expect(cardFor(feeds, current)!.actionCount).toBe(2);
+		expect(reasonForItem(feeds, current, managerHandIn)).toBeNull();
+	});
+});

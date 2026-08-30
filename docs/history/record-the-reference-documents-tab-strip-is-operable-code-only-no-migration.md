@@ -7,8 +7,6 @@ subsystems: ["IDEA Classroom"]
 record_order: 65
 ---
 
-## The reference document's tab strip is operable (code-only; NO migration)
-
 The section tab strip could scroll and offered nothing that scrolled it. One
 pass fixed its scroll containment and keyboard reach; the next hid its scrollbar
 "because the edge fade replaced the affordance". **A gradient says there is

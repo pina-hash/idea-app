@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 129
 ---
 
-## The IDEA course was a predicate all along (`0132`, corrected IN PLACE)
-
 **`0132_foundry_author_class.sql`**, edited rather than followed by an 0133.
 The file had **never been applied to production**, which is the only reason
 that is allowed: a migration is an immutable applied record from the moment it

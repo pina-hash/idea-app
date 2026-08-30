@@ -7,8 +7,6 @@ subsystems: ["IDEA Foundry"]
 record_order: 137
 ---
 
-## Nothing runs after the hook on the bundle host (`lane/foundry-host-shortcircuit`, code only)
-
 The lane before this one instrumented the bundle path so a production 404 could
 say which check refused it. The probe answered, and it eliminated every
 candidate on the list:

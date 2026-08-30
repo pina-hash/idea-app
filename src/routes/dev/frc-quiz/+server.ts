@@ -84,14 +84,16 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	}
 
 	if (body.action === 'submit') {
-		const answers = Array.isArray(body.answers) ? body.answers.map((a) => Number(a)) : [];
 		if (!body.attemptId) return json({ ok: false, reason: 'bad_request' }, { status: 400 });
 		const result = await submitQuiz(
 			store,
 			'dev-user',
 			unitId,
 			body.attemptId,
-			answers,
+			// RAW, deliberately -- normalizeAnswers inside submitQuiz is the one
+			// implementation. A `Number(a)` here grades a JSON `null` as option 0,
+			// making "left blank" indistinguishable from "chose the first option".
+			body.answers,
 			devCooldown,
 			now,
 			async () => {}
