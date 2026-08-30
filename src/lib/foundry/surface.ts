@@ -178,6 +178,35 @@ export function deleteAppCostLine(app: FoundryApp): string {
 }
 
 /**
+ * WHAT A PREVIEW DOES NOT PROVE, AS THE ONE SENTENCE EVERY SURFACE THAT OFFERS
+ * A PREVIEW SHOWS.
+ *
+ * A preview answers on the PORTAL origin, and `foundryPreviewResponse` hands
+ * the header builder the same origin twice -- so `allow-same-origin` cannot be
+ * granted there in any configuration and the document is on an OPAQUE origin.
+ * An opaque origin has no storage area, so the injected shim is the only
+ * `localStorage` a preview has and nothing in it survives a reload. A PUBLISHED
+ * app is served from the apps origin, which is a real origin and does get the
+ * grant, so its saves persist.
+ *
+ * IT SAYS WHICH DIRECTION THE DIFFERENCE RUNS, which is the half that actually
+ * helps: everything else about a preview is the published response, byte for
+ * byte and header for header, minus that one sandbox flag. So a preview that
+ * works is a published app that works, and only the reverse can surprise
+ * anybody.
+ *
+ * ONE STRING, TWO SURFACES, for `deleteAppCostLine`'s reason. /foundry/mine
+ * offers a preview per version and /foundry/submit offers one the moment an
+ * upload unpacks; a student reads whichever they reach first, and two copies of
+ * a sentence about storage are two copies that can stop agreeing about what
+ * storage does. That is exactly the failure this bundle was written to fix.
+ */
+export const FOUNDRY_PREVIEW_STORAGE_NOTE =
+	'A preview runs your app exactly as it will run published, with one difference: ' +
+	'saved data does not survive a reload in a preview, and it does once the app is ' +
+	'live. Anything that works in a preview works published.';
+
+/**
  * WHICH METADATA FIELDS GO LIVE IMMEDIATELY, stated as data rather than as a
  * branch in the markup.
  *

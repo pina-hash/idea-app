@@ -15,9 +15,16 @@
 </svelte:head>
 
 <div class="fdy-page">
-	<!-- The contract is a reference INSIDE the publish flow (the shell marks
-	     the Publish tab active here), so it carries its own way back rather
-	     than being a place someone has to know the URL of. -->
+	<!-- The contract has its OWN top-level tab in the shell, and this comment
+	     used to say the shell marked the Publish tab active here. `locateFoundry`
+	     resolves /foundry/contract to `contract`; only /foundry/starter still
+	     resolves to `submit`. It got the tab because a student who has already
+	     published once has no other link to it, and it is the one document
+	     everyone needs before building anything.
+
+	     The crumb below is kept anyway: the contract is still READ from inside
+	     the publish flow, and a way back to where you came from is not the same
+	     affordance as a tab that is always there. -->
 	<nav class="fdy-crumb" aria-label="Back">
 		<a class="btn tap-44" href="/foundry/submit">Back to publishing</a>
 	</nav>

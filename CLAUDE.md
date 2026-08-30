@@ -3548,9 +3548,10 @@ properly. That is a bundle, not a line.
   shared vocabulary onto its own plate the `.nb-root` way (source and target on
   `.fg-root` itself) and does NOT re-point the semantic accents. It is in
   `split.css`'s room lists like `.cd-root`. `$lib/foundry/nav.ts` is the one
-  statement of the IA (contract and starter resolve to the `submit` tab); the
-  shell's Review tab renders for admins only, with the pending count asked only
-  for admins in the layout load -- null, never zero, for everyone else.
+  statement of the IA (the contract has a TOP-LEVEL tab of its own; only the
+  starter still resolves to the `submit` tab); the shell's Review tab renders
+  for admins only, with the pending count asked only for admins in the layout
+  load -- null, never zero, for everyone else.
 - **`.glb` -- GREENLINE brand** (`Greenline Art Direction Reference.html`,
   direction "1A / IMPACT"). Chrome/steel dominant; **GREEN is surgical** (one
   signature thread, the player's own machine); **AMBER is impact state only**, never

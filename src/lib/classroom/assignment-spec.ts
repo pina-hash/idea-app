@@ -967,8 +967,8 @@ export function unmetLabel(spec: AssignmentSpec | null, entry: UnmetEntry): stri
 	if (entry.kind === 'declaration') return 'Check the academic integrity declaration.';
 	if (entry.kind === 'approval') {
 		return spec?.approvalGate?.label
-			? `${spec.approvalGate.label} -- ask your teacher to approve your work so far.`
-			: 'Instructor approval is still needed before this can be submitted.';
+			? `${spec.approvalGate.label}: ask your teacher to approve your work so far.`
+			: 'Instructor approval is still needed on the work so far.';
 	}
 	const mod = spec?.modules.find((m) => m.id === entry.module_id);
 	const block = mod?.blocks.find(

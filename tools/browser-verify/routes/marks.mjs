@@ -37,13 +37,23 @@ const GATED = [
 export default {
 	path: '/dev/marks',
 	label: 'App marks: the reduced-motion gate, both directions',
+	/*
+	 * `maxPresent` PINS THE ROSTER, AND THAT IS THE POINT RATHER THAN A COST.
+	 * `GATED` above is a hand-maintained list of eleven ids; the `motion` sweep
+	 * below covers exactly what is in it. As a FLOOR, `expectPresent: 12` went
+	 * on passing at 13 mark cells -- so a twelfth gated mark added to the page
+	 * and forgotten here would be swept by nothing and reported by nothing. The
+	 * ceiling is what turns that into a red row. A mark added on purpose is one
+	 * line here and one line in `GATED`, which is the pair that has to move
+	 * together anyway.
+	 */
 	presence: [
-		{ selector: '.harness [data-mark]', label: 'mark cells', expectPresent: 12 },
+		{ selector: '.harness [data-mark]', label: 'mark cells', expectPresent: 12, maxPresent: 12 },
 		/* Every mark ships at 34px on the launcher card as well as at reading
 		   size, and a glyph that only survives at 96px is a glyph nobody sees. */
-		{ selector: '.harness [data-mark] .icon.sm', label: 'launcher-size mounts', expectPresent: 12 },
-		{ selector: '.harness [data-mark]:not(.frc) svg', label: 'component marks are svg', expectPresent: 22 },
-		{ selector: '.harness [data-mark].frc img', label: 'FRC stays an unmodified image', expectPresent: 2 }
+		{ selector: '.harness [data-mark] .icon.sm', label: 'launcher-size mounts', expectPresent: 12, maxPresent: 12 },
+		{ selector: '.harness [data-mark]:not(.frc) svg', label: 'component marks are svg', expectPresent: 22, maxPresent: 22 },
+		{ selector: '.harness [data-mark].frc img', label: 'FRC stays an unmodified image', expectPresent: 2, maxPresent: 2 }
 	],
 	contrast: [
 		{ selector: '.harness h1', label: 'page heading', min: 4.5 },

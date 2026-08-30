@@ -15,7 +15,7 @@ export default {
 	   every one renders its own "Download v<ordinal>" control. Hand-measured
 	   previously at 138.8 x 45.4, 7.97:1. */
 	presence: [
-		{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'per-version download controls (ember-clock, 5 versions)', expectPresent: 5 }
+		{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'per-version download controls (ember-clock, 5 versions)', expectPresent: 5, maxPresent: 5 }
 	],
 	contrast: [
 		{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'FoundryMine download control', min: 4.5 }

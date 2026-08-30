@@ -787,11 +787,23 @@
 	.app-card[data-app='foundry'] {
 		--acc-primary: var(--green);
 		--acc-secondary: var(--cyan);
-		/* Horizontal hairlines at 7px: the casting channel's flow lines (the
-		   room's molten seam runs horizontally under every Foundry masthead),
-		   and distinct from GAUNTLET's blueprint grid and GREENLINE's diagonals
-		   so the three do not read as one family. The value predates the forge
-		   mark and did not move; only what it quotes did. */
+		/* Horizontal hairlines at 7px, in the CYAN above rather than in any heat
+		   colour, and distinct from GAUNTLET's blueprint grid and GREENLINE's
+		   diagonals so the three do not read as one family.
+
+		   THIS COMMENT USED TO SAY THE LINES QUOTE THE ROOM'S MOLTEN SEAM. They
+		   do not and cannot: `MoltenSeam` is the `--fg-heat-*` scale, amber
+		   through ember to a white-hot core, and this value is
+		   rgba(0, 240, 255, ...). What the texture actually quotes is the pair
+		   two lines up -- the room's own --cyan, the colour /foundry uses for an
+		   author line -- so it is the card's own accent drawn faintly, which is
+		   the honest reading and needs no seam in it.
+
+		   THE COLOUR IS NOT CHANGED HERE. Heat means IN PROGRESS in this room
+		   and a launcher card is not a progress state, so quoting the seam would
+		   be the wrong claim as well as a different colour;
+		   tests/home-order-and-accent.test.ts pins the pair, and a repaint is a
+		   design decision rather than a comment correction. */
 		--card-texture: repeating-linear-gradient(
 			to bottom,
 			rgba(0, 240, 255, 0.035) 0 1px,

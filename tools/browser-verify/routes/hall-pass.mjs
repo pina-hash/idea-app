@@ -27,7 +27,7 @@ export default {
 	*/
 	presence: [
 		/* SIX MOUNTS: the five payload projections plus the read-only one. */
-		{ selector: '[data-testid="hall-pass"]', label: 'hall pass mounts (5 projections + read-only)', expectPresent: 6 },
+		{ selector: '[data-testid="hall-pass"]', label: 'hall pass mounts (5 projections + read-only)', expectPresent: 6, maxPresent: 6 },
 		/*
 			ABSENCE IS THE MECHANISM, and this is the assertion for it. The
 			sixth mount is handed `transports={null}`, so the whole actions
@@ -44,7 +44,11 @@ export default {
 			deliberately: `present` says the read-only mount rendered nothing,
 			`visible` says exactly one of the five holds no control.
 		*/
-		{ selector: '.hp-actions', label: 'action blocks (read-only renders none; manager-empty renders an empty one)', expectPresent: 5, expectVisible: 4 },
+		/* `maxPresent: 5` AND `maxVisible: 4` BECAUSE THE PARAGRAPH ABOVE STATES
+		   BOTH AS EXCLUSIONS -- "5 `.hp-actions`, never 6" and "exactly one of
+		   the five holds no control". Both were floors and neither number was
+		   being measured in the direction the prose claims. */
+		{ selector: '.hp-actions', label: 'action blocks (read-only renders none; manager-empty renders an empty one)', expectPresent: 5, maxPresent: 5, expectVisible: 4, maxVisible: 4 },
 		/*
 			THE aria-disabled CONTRACT, ASSERTED IN BOTH DIRECTIONS. The
 			blocked student's control must carry `aria-disabled="true"` so it
@@ -54,7 +58,7 @@ export default {
 			that bites: a `disabled` added "to be consistent" looks correct in
 			every screenshot.
 		*/
-		{ selector: '[data-mount="student-blocked"] [data-testid="hall-pass-open"][aria-disabled="true"]', label: 'blocked control is aria-disabled', expectPresent: 1 },
+		{ selector: '[data-mount="student-blocked"] [data-testid="hall-pass-open"][aria-disabled="true"]', label: 'blocked control is aria-disabled', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="hall-pass-open"][disabled], [data-testid="hall-pass-close"][disabled]', label: 'no control carries a real disabled attribute', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [

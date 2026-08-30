@@ -448,7 +448,7 @@ describe('grant surface: the migrations against the catalog', () => {
 			// If heldBy() ever returns nothing -- a renamed role, a typo in the
 			// privilege list, a catalog query that stopped matching -- every
 			// `toEqual([])` below passes and reports a clean database.
-			expect(new Set(anonHeld.map((h) => h.name)).size, 'anon: the twelve tournament tables plus fsp_frc_interest.').toBe(ANON_SURFACE_SIZE);
+			expect(new Set(anonHeld.map((h) => h.name)).size, 'anon: the twelve tournament tables, the six IDEA Maps tables, and fsp_frc_interest.').toBe(ANON_SURFACE_SIZE);
 			expect(
 				new Set(
 					authedHeld

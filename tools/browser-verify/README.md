@@ -66,11 +66,13 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-directories under `src/routes/dev` with a page, and `routes.mjs` lists **29
-specs over 24 distinct routes** (re-derived 2026-08-29 against `routes/*.mjs`
-after the marks, room-split, coin-preview and short-link specs went in; it
-read 25 over 20 the same day, before them). **This count is a snapshot, not a
-derived value, and it WILL go stale the next time a session adds a route --
+directories under `src/routes/dev` with a page, and `routes.mjs` lists **36
+specs over 28 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
+on this branch merged with `integration`, which is what brought the
+classroom-inspector and class-bulk specs in; it read 29 over 24 on 2026-08-29,
+and 25 over 20 the same day, before the marks, room-split, coin-preview and
+short-link specs). **This count is a snapshot, not a derived value, and it WILL
+go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
 against the distinct `path.split('?')[0]` values (alias-resolved) for both
@@ -119,24 +121,34 @@ Two further limits belong in any report that quotes these numbers:
 ### Known findings, and the two limits above as they apply to them
 
 **The whole run reports exactly 2 measurements outside threshold** (re-derived
-2026-08-30: 66 route/width runs, 662 measurements), and they are one finding
-seen at each of the two widths. Anything else is new. **This paragraph is a
-snapshot and it drifts** -- the run above it is the authority, and a session
-measuring a different number corrects this line in the same change, saying
-which finding moved.
+2026-08-30 on this branch merged with `integration`: 72 route/width runs, 780
+measurements), and they are one finding seen at each of the two widths. Anything
+else is new. **This paragraph is a snapshot and it drifts** -- the run above it
+is the authority, and a session measuring a different number corrects this line
+in the same change, saying which finding moved.
+
+The count moved for two independent reasons and neither of them is a check being
+added -- one reason from each of the two lanes that corrected this paragraph.
+The 28 `prepare` steps are measurements now, at two widths each, which took
+`main`'s own tree from 532 to 580; and `integration` carries seven route specs
+`main` does not, which is the rest of the way to 780. The three findings this
+paragraph used to list are down to one. The other two are named below rather
+than deleted, because a finding that vanishes without a word reads like a check
+that stopped running.
 
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
   directly -- the true box under Rajdhani may differ slightly, though not
   enough to cross the 44px line from 26.2px.
-- **Two findings this paragraph used to list no longer reproduce**, measured
-  rather than assumed on the same run: `/dev/coin-preview`'s student picker is
-  **352x44** (it was 19px tall) and `/dev/short-links`'s composer save control
-  is **112.8x44** (it was 76.1x24). Both were owned by their components rather
-  than by this harness, and both have since been fixed there. They are named
-  here rather than deleted because a finding that vanishes without a word reads
-  like a check that stopped running.
+- **Two findings this list used to carry no longer reproduce**, measured on the
+  same run rather than assumed: `/dev/coin-preview`'s student picker is
+  **352x44** (it was 247.3x19 at 375px and 352x19 at 1440px, under the 24px
+  absolute floor as well as the 44px one) and `/dev/short-links`'s composer save
+  control is **112.8x44** (it was 76.1x24, a primary action that had taken
+  `ShortLinkManager`'s row-ops chip floor by sharing `.btn.tiny`). Both were
+  owned by their components rather than by this harness, and both have since
+  been fixed there.
 - **The chip label on its own fill measures 4.84:1** on `/dev/pathways`,
   which passes. This is a **contrast measurement**, which the font-loading
   limit does not qualify (see above) -- the ratio is real regardless of which
@@ -215,6 +227,40 @@ A `prepare` predicate is a function **source string**, invoked as `(${src})()`.
 function source evaluates to a function object and is never `=== true`; that bug
 reported twelve failed attempts on steps whose clicks were working perfectly.
 
+### Every step is a MEASUREMENT, not a narration
+
+Prepare steps used to be prose printed above the results (`prepare: clicked
+...`). They are `prepare-click`, `prepare-wait` and `prepare-eval` rows now,
+counted in the summary and gating `--strict`, because the old shape let a step
+fail for nothing: a spec handed three broken steps at once -- an `evaluate` that
+throws, a `click` whose selector matches nothing, a `waitFor` that times out --
+reported **"4 measurement(s), 0 outside threshold" and `--strict` exited 0**,
+over a route whose every number described a state the run never reached.
+
+**A click step passes only when the click ACTUALLY FIRED.** `clickUntil`
+evaluates the step's `until` BEFORE clicking and short-circuits on "already
+satisfied" (browser.mjs explains why). That is correct behaviour and a silent
+trap: a predicate satisfiable by the page's RESTING state means the click never
+physically fires, and the report still says "clicked". It has bitten twice for
+real -- `/dev/classroom-split/s-1?manage=1` when the bulk bar started rendering
+at rest, `/dev/notebook` when `.pick.free` started `aria-pressed` true -- and
+measured on `/dev/song-queue` with the component's `notice` seeded non-null, the
+step printed `1 matched, 0 attempt(s), already satisfied`, the whole
+aria-disabled click-through contract went unproven, and the run reported 0
+outside threshold.
+
+So `attempts === 0` is a finding, and so is a click with no `until` at all. The
+two ways out are both deliberate and both visible in the report: **write a
+predicate naming something only the click can produce** (the preferred one --
+`bulk-count` rather than `bulk-bar`), or pass **`force: true`**, which
+guarantees the click fires and annotates the row `[force: predicate not required
+to discriminate]` so the next reader learns it from the line rather than from
+the spec file.
+
+**`waitFor` returning at 0ms is NOT a finding**, and that is the difference from
+a click: waiting is not supposed to cause anything, so a payload that had
+already landed is the step working.
+
 ### `waitFor` -- the state that arrives rather than being pressed
 
 `clickUntil` covers a state reached by pressing something. **`{ waitFor: '<predicate
@@ -248,11 +294,12 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **54
-controls, 27 negative and 27 positive** (re-derived from `selftest.mjs`'s own
-`CASES` array 2026-08-29, after the five `motion` groups went in; it read 44
-the same day, and 36 on 2026-08-28. A number written down here is a number
-that drifts, so re-derive it rather than trusting this line).
+one, because unlike the measuring run there is a right answer here. **64
+controls, 32 negative and 32 positive** (re-derived from a `--selftest` run
+2026-08-30, after the `maxPresent`, prepare-step and absence-limit controls went
+in; it read 54 on 2026-08-29, 44 the same day, and 36 on 2026-08-28. A number
+written down here is a number that drifts, so re-derive it rather than trusting
+this line).
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
 once in a tree that then has to be restored byte-identically, this proves it on
 every run and touches nothing.
@@ -325,14 +372,43 @@ nodes**, because a selector that matches nothing satisfies "no forbidden phrase
 appears" perfectly. `mustNot` is the direction `must` cannot see: a sentence can
 keep every required phrase and add one that reverses it.
 
-### `presence` gained `maxVisible`, the ceiling `expectVisible` cannot express
+### `presence`: both counts are FLOORS, and both have a ceiling
 
-`expectVisible` is a FLOOR (`visible >= n`), so every `expectVisible: 0` row is
-vacuous in its second half -- a panel that started painting itself open still
-comes back green and the report simply reads "visible 2" instead of "visible 0".
-`maxVisible` is the ceiling. It exists because some rules here are stated as
-prohibitions rather than minimums, and CLAUDE.md requires asserting both
-directions of a visibility claim. Omitting it changes nothing.
+`expectPresent` and `expectVisible` are floors (`>= n`). A floor is the right
+default for "the page rendered these at all" and the wrong one for every claim
+of the form "and no more than these".
+
+**`expectPresent: 0` NOW MEANS EXACTLY ZERO, and it used to mean nothing at
+all.** `present >= 0` holds for any number of nodes, so every "must be absent"
+row in `routes/` -- around thirty of them -- could not fail. Measured rather
+than reasoned: an `<svg>` injected into `TrademarkFooter.svelte` produced
+`ok presence [no mark of any kind inside the footer] present 1, visible 1` and a
+run reporting 0 measurements outside threshold, on the one row whose whole job
+is `docs/GAUNTLET-DESIGN.md`'s "nominative text only, never the logo or a
+lookalike". `maxPresent` is the ceiling, **and it defaults to 0 whenever
+`expectPresent` is 0** -- a caller asking for zero is always stating an absence,
+and a floor of zero is not a weaker assertion than they meant, it is no
+assertion. Pass `maxPresent` explicitly on any row whose own prose states a
+count ("2 chips painted, never 3", "5 action blocks, never 6"); leave it off
+where a floor is genuinely wanted (`/dev/pathways` counts chips across every
+stage on purpose, and says so).
+
+**AN ABSENCE ROW STILL CANNOT SEE A RENAMED SELECTOR.** `present 0` reads the
+same whether the rule holds or the markup moved, and no ceiling can separate
+those. Every absence row in `routes/` therefore sits beside a positive control
+in the same spec -- the footer's own `.gt-tm`, the song queue's `[aria-disabled]`
+twin, the 30 grid cells beside the two absent cell states -- and `--selftest`
+carries a control that PROVES the limit rather than leaving it to be
+rediscovered. A new absence row without a positive control is an assertion about
+a selector, not about a surface.
+
+`maxVisible` is the same ceiling one axis over, and it exists because some rules
+here are stated as prohibitions rather than minimums. Where the visible half has
+no ceiling the threshold column now prints **`visible unconstrained`** rather
+than `>= 0 visible`: the remaining unconstrained rows are deliberate
+(`.gt-tree` paints at 1440 and not at 375, and the spec says so), but deliberate
+and invisible are different things. Omitting either ceiling on a row whose floor
+is above zero changes nothing.
 
 **It is not the right tool for an element that is hidden by being moved.**
 Measured on the GAUNTLET FeatureManager rail: at 1440px the collapsed rail is
@@ -405,8 +481,10 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **144.8 seconds** (2.4s of it the vite boot) for **29 route specs
-x 2 widths = 58 runs and 532 measurements**; `--selftest` is ~19s (54 controls).
+A full run is **184.7 seconds** (3.2s of it the vite boot) for **36 route specs
+x 2 widths = 72 runs and 780 measurements**; `--selftest` is ~32s (64 controls).
+That is measured on this branch merged with `integration`; it was 152.2s for 58
+runs and 580 measurements on `main` alone.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree
@@ -435,14 +513,29 @@ per-route/width cost rather than a surcharge for animation. `/dev/marks` mounts
 twelve glyphs and runs the `motion` check's two media flips, and still came in
 at 5.6s of measuring for both widths.
 
+Then 2026-08-30 made every `prepare` step a measurement, which added **48
+measurements (24 steps x 2 widths) and no routes**: the same 58 runs measured
+**152.2s**, +7.4s over 144.8s on an identical route list. Roughly 0.15s per
+extra measurement, which is the cost of a step being JUDGED rather than
+narrated, and it is paid whether or not the step passes.
+
+Then merging `integration` in brought the route list to **36 specs, 72 runs and
+780 measurements** at **184.7s** -- **+32.5s for 14 more runs, ~2.3s per
+route/width**, which is BELOW the ~3.5s this line had settled on. The fourteen
+are the classroom-inspector and class-bulk specs, which mount fixture data with
+no canvas, no rAF clock and no media flip, so the per-route/width figure is a
+range set by what a route mounts rather than a constant -- budget ~3.5s for a
+route with animation in it and ~2.3s for one without.
+
 **The marks are ELEVEN GLYPHS ON ONE ROUTE for exactly this reason.** One route
 per mark would have been twenty-two runs and roughly 77 seconds for
 measurements that share a single page load; `data-mark` keeps the reporting
 per-mark anyway. A pass nobody waits for is a pass nobody runs.
 
-**~145 seconds is the point at which this stops being free.** It is still a pass
+**~185 seconds is the point at which this stops being free.** It is still a pass
 a person will run before pushing, but the next session adding specs here should
-budget ~3.5s per route/width, and should say out loud what the run cost.
+budget somewhere in the ~2.3s to ~3.5s per route/width the paragraph above
+brackets, and should say out loud what the run cost.
 
 It is still deliberately outside `npm test` and outside CI:
 

@@ -58,12 +58,17 @@ export default {
   that case, and the two specs' filenames are independently derived from
   their own (different) `path`s regardless.
 - `prepare` -- `[{ click }|{ waitFor }|{ evaluate }, waitMs?]`, reaching the
-  state to measure. `click` presses a selector and waits on a `until`
+  state to measure. `click` presses a selector and waits on an `until`
   predicate SOURCE; `waitFor` is a page-side predicate SOURCE waited on until
   it holds, for a state reached by an async payload landing rather than a
-  press (the wait is reported in ms and a predicate that never holds prints
-  FAILED); `evaluate` runs a page-side function SOURCE and reports its return
+  press; `evaluate` runs a page-side function SOURCE and reports its return
   value.
+  **Every step is a measurement** (`prepare-click`, `prepare-wait`,
+  `prepare-eval`), counted in the summary and gating `--strict`. A click step
+  passes only if the click ACTUALLY FIRED: a `until` the page satisfies at REST
+  short-circuits `clickUntil` and the step reaches no state, which is a finding.
+  Write the predicate against something only the click can produce; `force: true`
+  is the escape hatch and annotates itself in the report.
 - `settleMs` -- how long to let entrance animations finish before measuring.
 - `contrast` -- `[{ selector, label, min }]` -- 4.5 for copy, 3 for a
   boundary.
@@ -71,7 +76,15 @@ export default {
 - `tapReach` -- `[{ selector, label, min }]` -- for a `.tap-reach-44` control
   whose HIT AREA is grown by a pseudo-element rather than its own box; see
   `checks.mjs`.
-- `presence` -- `[{ selector, label, expectPresent, expectVisible }]`.
+- `presence` -- `[{ selector, label, expectPresent, maxPresent, expectVisible,
+  maxVisible }]`. The two `expect*` values are FLOORS; the two `max*` values are
+  the ceilings. **`expectPresent: 0` implies `maxPresent: 0`** -- a floor of
+  zero asserts nothing, and every absence row in this directory means exactly
+  zero. State `maxPresent` explicitly wherever the row's own prose names a count
+  ("2 chips, never 3"); leave it off only where a floor is genuinely wanted, and
+  say so in the comment. An absence row cannot tell "the rule holds" from "the
+  selector was renamed", so it belongs beside a positive control in the same
+  spec.
 - `domOrder` -- `[{ before, after, label }]` -- asserts one selector precedes
   another in DOM order.
 - `orderResult` -- `[{ evaluate, expected, label }]` -- asserts a page-side

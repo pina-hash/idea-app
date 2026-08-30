@@ -27,8 +27,8 @@ export default {
 		{ selector: '.cr-root, .nb-root, .gt-root, .cd-root, .fg-root, .frc-root, .tnm-root, .fsp-root', label: 'no scoped room around it', expectPresent: 0, expectVisible: 0, maxVisible: 0 },
 		{ selector: 'main.admin-page', label: "the /admin/links measure", expectPresent: 1 },
 		{ selector: 'main.admin-page .form', label: 'the link composer', expectPresent: 1 },
-		{ selector: 'main.admin-page .form input[type="text"]', label: 'composer fields', expectPresent: 3 },
-		{ selector: 'main.admin-page table tbody tr', label: 'one row per link', expectPresent: 2 }
+		{ selector: 'main.admin-page .form input[type="text"]', label: 'composer fields', expectPresent: 3, maxPresent: 3 },
+		{ selector: 'main.admin-page table tbody tr', label: 'one row per link', expectPresent: 2, maxPresent: 2 }
 	],
 	contrast: [
 		{ selector: 'main.admin-page h1', label: 'page heading', min: 4.5 },
