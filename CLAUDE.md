@@ -37,8 +37,11 @@ IDEA Classroom (`/classroom`), the digital notebook (`/notebook`), the IDEA Coin
 economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
-programme), IDEA Foundry (student-published static web apps), and the portal
-shell (`/`, `/dashboard`, `/admin`).
+programme), IDEA Foundry (student-published static web apps), IDEA Maps
+(`/maps/edit`, the admin editor; the public viewer at `/maps` is a later bundle
+-- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165, writes through
+the `is_admin()` RLS policies with `maps_publish` as the one RPC per 0161's own
+header), and the portal shell (`/`, `/dashboard`, `/admin`).
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
@@ -1007,7 +1010,9 @@ it is not required to browse.
   the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
   tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`), the Foundry source reader
-  (`POST /api/foundry/source`) and GAUNTLET's ranked-run review
+  (`POST /api/foundry/source`), the IDEA Maps editor (`/maps/edit` -- the
+  future `/maps` viewer is PUBLIC per the maps spec and must never be
+  prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
@@ -3543,9 +3548,10 @@ properly. That is a bundle, not a line.
   shared vocabulary onto its own plate the `.nb-root` way (source and target on
   `.fg-root` itself) and does NOT re-point the semantic accents. It is in
   `split.css`'s room lists like `.cd-root`. `$lib/foundry/nav.ts` is the one
-  statement of the IA (contract and starter resolve to the `submit` tab); the
-  shell's Review tab renders for admins only, with the pending count asked only
-  for admins in the layout load -- null, never zero, for everyone else.
+  statement of the IA (the contract has a TOP-LEVEL tab of its own; only the
+  starter still resolves to the `submit` tab); the shell's Review tab renders
+  for admins only, with the pending count asked only for admins in the layout
+  load -- null, never zero, for everyone else.
 - **`.glb` -- GREENLINE brand** (`Greenline Art Direction Reference.html`,
   direction "1A / IMPACT"). Chrome/steel dominant; **GREEN is surgical** (one
   signature thread, the player's own machine); **AMBER is impact state only**, never
