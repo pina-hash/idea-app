@@ -1,0 +1,112 @@
+[
+  {
+    "id": "test-test-done",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Tested and recorded",
+        "points": 5,
+        "descriptor": "Article pulled, load read from the score sheet, both pieces kept and the fracture photographed."
+      },
+      {
+        "label": "Developing",
+        "short": "Tested, record incomplete",
+        "points": 3,
+        "descriptor": "Article was pulled but the load, the pieces or the photograph is missing."
+      },
+      {
+        "label": "Absent",
+        "short": "Not tested",
+        "points": 0,
+        "descriptor": "No test."
+      }
+    ],
+    "points": 5,
+    "criterion": "The Pull: The article was tested and the result recorded from the rig",
+    "incomplete": false
+  },
+  {
+    "id": "result-fracture-shown",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Fracture in focus",
+        "points": 3,
+        "descriptor": "The broken face is visible and in focus and is this student's own article."
+      },
+      {
+        "label": "Developing",
+        "short": "Part shown, break unclear",
+        "points": 2,
+        "descriptor": "A photograph of the article where the fracture cannot be made out."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No photograph."
+      }
+    ],
+    "points": 3,
+    "criterion": "Where It Broke: Photograph of the actual fracture on this student's article",
+    "incomplete": false
+  },
+  {
+    "id": "result-break-described",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Located and named",
+        "points": 4,
+        "descriptor": "Names the feature of the hook where it failed and says whether it fractured or deformed open."
+      },
+      {
+        "label": "Proficient",
+        "short": "Located, mode missing",
+        "points": 2,
+        "descriptor": "Says where it broke without saying how, or the reverse."
+      },
+      {
+        "label": "Developing",
+        "short": "Vague description",
+        "points": 1,
+        "descriptor": "Says it broke without saying where on the part."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "Where It Broke: Locates the break on the part and names the failure mode",
+    "incomplete": false
+  },
+  {
+    "id": "result-prediction-checked",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Compared, either way",
+        "points": 3,
+        "descriptor": "States plainly whether the break matched the red spot, and where it went instead if it did not. A miss stated clearly is full marks."
+      },
+      {
+        "label": "Developing",
+        "short": "Compared, vaguely",
+        "points": 2,
+        "descriptor": "Refers to the simulation without saying clearly whether it called the location."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written, or claims a match with no location given."
+      }
+    ],
+    "points": 3,
+    "criterion": "Where It Broke: Compares the actual break against the simulation prediction, honestly",
+    "incomplete": false
+  }
+]
