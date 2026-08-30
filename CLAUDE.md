@@ -1564,6 +1564,25 @@ with its own answer for the rows already stored.
   copy), never `_classroom_manages_item`; an UNDESIGNATED copy is private to its
   author; undesignating is the author, the designator or an admin, and anyone
   else REPLACES instead.
+- **A SPEC'S RUBRIC AND AN ITEM'S RUBRIC ARE TWO DIFFERENT RECORDS, AND ONLY ONE
+  OF THEM IS GRADED AGAINST.** The criteria an author writes live inside the
+  spec JSON (`classroom_set_spec`, validated by `_classroom_check_spec`);
+  grading reads `classroom_rubrics`, written only by `classroom_set_rubric` and
+  loaded by the item page as its own `rubric`. Nothing in the database bridges
+  them, and nothing should -- a rubric is editable after generation, so a
+  derived copy is the point rather than a duplication. **`rubricFromSpec` is the
+  ONE translator between the two** and every path that needs one calls it: the
+  builder's "Generate from spec", `levelShort`'s spec lookup, and
+  `stagedRubricAfterSpec`, which is what carries a spec's rubric onto an
+  assignment at CREATION (staging it exactly as the spec itself is staged, since
+  `classroom_set_rubric` needs the item to exist). **A second implementation
+  flattens the levels**, which is the failure this is most likely to take: a
+  rubric imported without them is not a partially imported rubric, it is a
+  broken one, because every leveled criterion collapses to a number a grader has
+  to override to reach. **A rubric that went through the builder is never
+  re-derived** -- `stagedRubricAfterSpec`'s `derived` flag is what tells the two
+  apart, and without it re-pasting a corrected spec eats whatever somebody
+  typed.
 - **A cross-user staff write is always an RPC**, never a direct client write.
 - **Nested SECURITY DEFINER calls are the reuse mechanism.** `is_admin()` /
   `current_user_email()` read the session's JWT claims, not the executing role, so

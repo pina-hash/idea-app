@@ -717,3 +717,89 @@ export function feedbackExportName(kind: 'md' | 'json', stamp: string): string {
 	const safe = stamp.replace(/[^0-9A-Za-z-]/g, '-').replace(/-+/g, '-');
 	return `idea-feedback-${safe}.${kind}`;
 }
+
+// ---------------------------------------------------------------------------
+// Bulk status changes
+// ---------------------------------------------------------------------------
+
+/**
+ * HOW MANY NAMES A BULK RESULT SPELLS OUT before it starts counting.
+ *
+ * The queue exists to be worked through in batches, so a bulk result over
+ * forty reports would otherwise be forty lines of quoted message where a
+ * confirmation should be. The cap is stated in the sentence whenever it cut
+ * anything, exactly as the markdown export states its own budget: a list that
+ * silently stops reads as the whole list.
+ */
+export const FEEDBACK_BULK_NAME_LIMIT = 6;
+
+/**
+ * A REPORT AS A PERSON RECOGNISES IT: where it came from, then the opening of
+ * what they wrote.
+ *
+ * A feedback row has no title -- nothing here is authored with a name on it --
+ * so an id would be the only other thing to say, and an id names a row to the
+ * database and to nobody else. The route is what places it and the first words
+ * are what identify it among the four other reports from the same route.
+ *
+ * THE EXCERPT IS FLATTENED AND CAPPED. A report is free text a student typed,
+ * routinely several lines of it, and a confirmation line that swallows a
+ * paragraph is a confirmation nobody reads. It is interpolated as plain text by
+ * every caller (this console raw-renders nothing), so there is no escaping
+ * decision here beyond keeping it to one line.
+ */
+export function feedbackRowLabel(row: FeedbackRow): string {
+	const flat = row.message.replace(/\s+/g, ' ').trim();
+	const excerpt = flat.length > 48 ? `${flat.slice(0, 45)}...` : flat;
+	return excerpt ? `${rowRoute(row)} "${excerpt}"` : rowRoute(row);
+}
+
+/** One report's outcome in a bulk status change. */
+export interface FeedbackBulkOutcome {
+	row: FeedbackRow;
+	ok: boolean;
+	message?: string | null;
+}
+
+function nameList(rows: FeedbackRow[]): string {
+	const named = rows.slice(0, FEEDBACK_BULK_NAME_LIMIT).map(feedbackRowLabel);
+	const rest = rows.length - named.length;
+	return rest > 0 ? `${named.join('; ')} (and ${rest} more)` : named.join('; ');
+}
+
+/**
+ * WHAT A BULK STATUS CHANGE SAYS AFTERWARDS, and it always says which reports
+ * moved rather than only how many.
+ *
+ * There is no bulk RPC behind this: `app_feedback_set_status` takes one id, so
+ * a batch is N independent writes and a partial result is an ORDINARY outcome
+ * rather than an edge case. The dangerous version of that is a set left half
+ * changed with nothing on screen saying which half, because the next thing
+ * anybody does is press it again over the same selection.
+ *
+ * SO BOTH HALVES ARE NAMED, and the refusals carry the server's own first
+ * message. Reporting "12 of 30 updated" and stopping is precisely the answer
+ * that cannot be acted on.
+ */
+export function feedbackBulkSummary(
+	status: FeedbackStatus,
+	outcomes: FeedbackBulkOutcome[]
+): string {
+	const moved = outcomes.filter((o) => o.ok).map((o) => o.row);
+	const failed = outcomes.filter((o) => !o.ok);
+	const parts: string[] = [];
+	if (moved.length) {
+		parts.push(
+			`Moved ${moved.length} report${moved.length === 1 ? '' : 's'} to ${status}: ${nameList(moved)}.`
+		);
+	} else {
+		parts.push(`Nothing moved to ${status}.`);
+	}
+	if (failed.length) {
+		const why = failed.find((f) => f.message)?.message;
+		parts.push(
+			`${failed.length} did not move${why ? ` (${why})` : ''}: ${nameList(failed.map((f) => f.row))}.`
+		);
+	}
+	return parts.join(' ');
+}

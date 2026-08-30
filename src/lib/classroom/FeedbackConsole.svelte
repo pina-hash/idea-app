@@ -1,13 +1,16 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import { runBulk } from '$lib/classroom/classroom';
 	import type { FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
 	import {
 		EMPTY_FEEDBACK_FILTER,
 		facetValues,
+		feedbackBulkSummary,
 		feedbackExportName,
 		feedbackJson,
 		feedbackMarkdown,
 		filterFeedback,
+		type FeedbackBulkOutcome,
 		rowBuild,
 		rowContact,
 		rowDistinctPath,
@@ -189,6 +192,96 @@
 		moved = { ...moved, [row.id]: status };
 	}
 
+	// --- Bulk status ------------------------------------------------------
+	//
+	// THE SAME SELECTION PATTERN THE CLASS STREAM ALREADY USES: a checkbox per
+	// row, a bar that appears only while something is checked, and `runBulk`
+	// for the writes -- the shared implementation, so one refusal never
+	// obscures whether the rest landed and a partial result leaves exactly the
+	// refused ids selected for the retry.
+	//
+	// THERE IS NO BULK RPC AND THIS DOES NOT WANT ONE. `app_feedback_set_status`
+	// takes a single id, so a batch is N independent writes that cannot be
+	// atomic; the answer the constraint calls for is a PER-ITEM OUTCOME, which
+	// is what `feedbackBulkSummary` reports.
+	let selected = $state<Set<string>>(new Set());
+	let bulkBusy = $state(false);
+	let bulkNote = $state<string | null>(null);
+
+	/**
+	 * WHAT A BULK ACTION WOULD ACTUALLY TOUCH, and every count, label and write
+	 * below reads it rather than `selected` itself.
+	 *
+	 * A BULK ACTION OVER ROWS NOBODY CAN SEE is the failure this queue is least
+	 * able to report: the filters here are the working surface (filter first,
+	 * then act), so ids checked under one filter are routinely off screen under
+	 * the next. Intersecting with `visible` at the point of use means a hidden
+	 * row can never be moved by a press, while narrowing a facet and widening
+	 * it again does not silently throw the selection away.
+	 */
+	const selectedRows = $derived(visible.filter((r) => selected.has(r.id)));
+	const allShownSelected = $derived(
+		visible.length > 0 && visible.every((r) => selected.has(r.id))
+	);
+
+	function toggleSelected(id: string) {
+		const next = new Set(selected);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selected = next;
+	}
+
+	function selectAllShown() {
+		selected = new Set(visible.map((r) => r.id));
+		bulkNote = null;
+	}
+
+	function clearSelection() {
+		selected = new Set();
+		bulkNote = null;
+	}
+
+	async function bulkMove(status: FeedbackStatus) {
+		const batch = selectedRows;
+		if (bulkBusy || batch.length === 0) return;
+		bulkBusy = true;
+		error = null;
+		bulkNote = null;
+		// THE BUSY FLAG CLEARS IN `finally`. `runBulk` is a `Promise.all`, so a
+		// transport that THROWS rather than answering `{ok:false}` rejects the
+		// whole batch -- and a busy flag left set disables every control in this
+		// bar for the rest of the session, over a queue somebody is part-way
+		// through moving.
+		try {
+			const outcome = await runBulk(
+				batch.map((r) => r.id),
+				(id) => setStatus(id, status)
+			);
+			const landed = new Set(outcome.succeededIds);
+			// Optimistic, exactly as the single-row move is: what landed shows its
+			// new status before the parent reloads.
+			const next = { ...moved };
+			for (const id of outcome.succeededIds) next[id] = status;
+			moved = next;
+			const outcomes: FeedbackBulkOutcome[] = batch.map((row) => ({
+				row,
+				ok: landed.has(row.id),
+				message: landed.has(row.id) ? null : outcome.firstFailureMessage
+			}));
+			bulkNote = feedbackBulkSummary(status, outcomes);
+			// Only what did NOT move stays checked, so pressing again retries the
+			// rest rather than re-sending the ones already through.
+			selected = new Set(outcome.failedIds);
+		} catch (e) {
+			// A THROW SAYS NOTHING ABOUT WHICH WRITES LANDED, so the selection is
+			// left exactly as it was and the sentence says so rather than
+			// implying none of them did.
+			error = `${(e as Error).message || 'That batch failed.'} Some of the selected reports may already have moved -- reload before pressing again.`;
+		} finally {
+			bulkBusy = false;
+		}
+	}
+
 	let exportNote = $state<string | null>(null);
 
 	/**
@@ -346,6 +439,19 @@
 			<span class="export-count">
 				{visible.length} of {rows.length} shown
 			</span>
+			<!-- FILTER FIRST, THEN SELECT. It sits beside the count it acts on
+			     rather than in the bulk bar below, because the bulk bar appears
+			     only once something is checked and a select-all inside it would
+			     be a control you can only reach after doing its job by hand. -->
+			<button
+				type="button"
+				class="fbc-control btn secondary"
+				disabled={visible.length === 0 || allShownSelected}
+				data-testid="fbc-select-all"
+				onclick={selectAllShown}
+			>
+				Select all shown
+			</button>
 			<label class="export-identity" for="fbc-identity">
 				<input
 					id="fbc-identity"
@@ -379,6 +485,43 @@
 			<p class="note export-note" aria-live="polite">{exportNote}</p>
 		{/if}
 
+		<!-- THE BULK BAR, on the class stream's own terms: it appears only while
+		     something is checked, it sits above the list it acts on, and its
+		     controls carry the 44px floor because a mis-hit here moves somebody
+		     else's reports. -->
+		{#if selectedRows.length > 0}
+			<div class="bulk-bar" data-testid="fbc-bulk-bar">
+				<span class="bulk-count" data-testid="fbc-bulk-count">
+					{selectedRows.length} selected
+				</span>
+				{#each STATUSES as s (s.id)}
+					<button
+						type="button"
+						class="fbc-control btn secondary"
+						disabled={bulkBusy}
+						data-testid="fbc-bulk-{s.id}"
+						onclick={() => bulkMove(s.id)}
+					>
+						{s.label}
+					</button>
+				{/each}
+				<button
+					type="button"
+					class="fbc-control btn secondary"
+					disabled={bulkBusy}
+					data-testid="fbc-bulk-clear"
+					onclick={clearSelection}
+				>
+					Clear selection
+				</button>
+			</div>
+		{/if}
+		{#if bulkNote}
+			<!-- NAMED, NOT COUNTED. A partial batch has to say which reports
+			     moved, or the next press repeats the half that already did. -->
+			<p class="note bulk-note" aria-live="polite" data-testid="fbc-bulk-note">{bulkNote}</p>
+		{/if}
+
 		{#if visible.length === 0}
 			<section class="card">
 				<p class="note">Nothing matches those filters.</p>
@@ -387,6 +530,14 @@
 			{#each visible as row (row.id)}
 				<article class="card fb-row" class:resolved={statusOf(row) === 'resolved'}>
 					<div class="fb-head">
+						<input
+							type="checkbox"
+							class="fbc-control fb-select"
+							checked={selected.has(row.id)}
+							aria-label="Select the report from {rowRoute(row)}"
+							data-testid="fbc-select-{row.id}"
+							onchange={() => toggleSelected(row.id)}
+						/>
 						<span class="fb-kind">{row.kind}</span>
 						<span class="fb-page">{rowRoute(row)}</span>
 						<span class="fb-when">{whenLabel(row.created_at)}</span>
@@ -567,6 +718,35 @@
 	}
 	.export-note {
 		margin: 0 0 var(--space-3);
+	}
+	/* THE BULK BAR: a peer of the export row above it, appearing only while
+	   something is checked, and sitting above the list it acts on. Its
+	   controls carry `.fbc-control` like every other control on this page, so
+	   the 44px floor is stated once rather than re-derived per bar. */
+	.bulk-bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+	}
+	.bulk-count {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+		margin-right: var(--space-1);
+	}
+	.bulk-note {
+		margin: 0 0 var(--space-3);
+	}
+	/* The checkbox leads the row's head line; `flex: none` keeps it from being
+	   stretched by the wrapping row around it. */
+	.fb-select {
+		flex: none;
 	}
 	.export-identity {
 		display: flex;

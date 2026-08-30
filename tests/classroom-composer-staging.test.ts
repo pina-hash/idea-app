@@ -4,11 +4,13 @@ import {
 	composerHasWork,
 	saveTarget,
 	stagedDeckIssue,
+	stagedRubricAfterSpec,
 	stagedSpecKind,
 	type ComposerDraft,
 	type StagedExtrasTransports
 } from '../src/lib/classroom/composer-staging';
 import { DECK_UPLOAD_MAX_ZIP_BYTES } from '../src/lib/classroom/deck';
+import { validateSpec } from '../src/lib/classroom/assignment-spec';
 
 /**
  * THE COMPOSER'S SECOND PHASE, where every failure is a silent one.
@@ -489,5 +491,145 @@ describe('is there work in here to lose', () => {
 			})
 		).toBe(true);
 		expect(composerHasWork({ ...empty, rubric: RUBRIC })).toBe(true);
+	});
+});
+
+/**
+ * THE RUBRIC INSIDE A STAGED SPEC, which used never to arrive at all.
+ *
+ * A spec's rubric and an item's rubric are two different records: the criteria
+ * live inside the spec JSON, and grading reads a separate row written only by
+ * `classroom_set_rubric`. Creating an assignment from a spec carrying a full
+ * leveled rubric therefore produced an item whose spec described exactly how
+ * the work would be scored and whose grading console had nothing to score
+ * with. NOTHING SAYS SO AT THE TIME -- the post succeeds, the class page looks
+ * right, and the gap surfaces days later in front of a pile of submissions --
+ * which is what puts this here rather than in a harness.
+ *
+ * THE FIXTURE IS PUT THROUGH THE REAL VALIDATOR FIRST, so these assertions
+ * cannot be about a spec no author could ever have pasted: `validateSpec` is
+ * the same gate SpecImporter runs before anything is staged, and a fixture it
+ * rejects is a fixture the composer would never have seen.
+ */
+const LEVELED_SPEC = {
+	schemaVersion: 1,
+	meta: { assignmentId: 'a-bridge', title: 'Bridge stackup', totalPoints: 20 },
+	modules: [
+		{
+			id: 'm1',
+			title: 'Measure',
+			points: 12,
+			blocks: [{ type: 'textField', id: 'b1', prompt: 'What did the caliper read?' }],
+			rubric: [
+				{
+					id: 'craft',
+					criterion: 'Craftsmanship',
+					levels: [
+						{ points: 12, label: 'Complete', descriptor: 'Every face measured twice.', short: 'Twice' },
+						{ points: 7, label: 'Developing', descriptor: 'Some faces measured once.' },
+						{ points: 0, label: 'Absent', descriptor: 'Nothing measured.' }
+					]
+				}
+			]
+		},
+		{
+			id: 'm2',
+			title: 'Report',
+			points: 8,
+			blocks: [{ type: 'textField', id: 'b2', prompt: 'Where would this break?' }],
+			rubric: [
+				{
+					criterion: 'Reasoning',
+					levels: [
+						{ points: 8, label: 'Complete', descriptor: 'Names the failure mode.' },
+						{ points: 4, label: 'Developing', descriptor: 'Names a failure.' },
+						{ points: 0, label: 'Absent', descriptor: 'No reasoning.' }
+					]
+				}
+			]
+		}
+	]
+};
+
+describe('the rubric inside a staged spec', () => {
+	it('the fixture is a spec the real validator accepts', () => {
+		const res = validateSpec(LEVELED_SPEC);
+		expect(res.errors).toEqual([]);
+		expect(res.spec).not.toBeNull();
+	});
+
+	it('LANDS, with every level intact -- a flattened import is still a failure', () => {
+		const next = stagedRubricAfterSpec(LEVELED_SPEC, true, { rubric: null, derived: false });
+		expect(next.derived).toBe(true);
+		expect(next.rubric).toHaveLength(2);
+		// Levels, not just criteria: rubrics here are leveled, never flat.
+		expect(next.rubric?.map((c) => c.levels?.length)).toEqual([3, 3]);
+		expect(next.rubric?.map((c) => c.points)).toEqual([12, 8]);
+		// The module title is carried into the criterion, and the authored short
+		// form survives -- both are what `rubricFromSpec` alone produces, which
+		// is the point of calling it rather than mirroring it.
+		expect(next.rubric?.[0].criterion).toBe('Measure: Craftsmanship');
+		expect(next.rubric?.[0].levels?.[0].short).toBe('Twice');
+		expect(next.rubric?.[0].id).toBe('m1-craft');
+		expect(next.rubric?.[1].id).toBe('m2-r1');
+	});
+
+	/**
+	 * THE POSITIVE CONTROL'S OPPOSITE NUMBER. Staging is offered only where a
+	 * rubric could be attached at all, so an announcement or a material must
+	 * come back untouched -- and the flag with it, or the next spec paste would
+	 * treat a hand-built rubric as replaceable.
+	 */
+	it('is left alone where a rubric cannot be staged', () => {
+		const current = { rubric: RUBRIC, derived: false };
+		expect(stagedRubricAfterSpec(LEVELED_SPEC, false, current)).toBe(current);
+	});
+
+	it('never overwrites a rubric that went through the builder', () => {
+		const current = { rubric: RUBRIC, derived: false };
+		expect(stagedRubricAfterSpec(LEVELED_SPEC, true, current)).toBe(current);
+	});
+
+	/**
+	 * A CORRECTED SPEC REPLACES THE RUBRIC IT PRODUCED. Leaving the first one
+	 * standing puts a rubric on screen that silently disagrees with the spec
+	 * directly above it, which is the failure mode this whole item is about,
+	 * one paste later.
+	 */
+	it('replaces a rubric it derived itself when the spec is re-staged', () => {
+		const first = stagedRubricAfterSpec(LEVELED_SPEC, true, { rubric: null, derived: false });
+		const trimmed = { ...LEVELED_SPEC, modules: [LEVELED_SPEC.modules[0]] };
+		const second = stagedRubricAfterSpec(trimmed, true, first);
+		expect(second.rubric).toHaveLength(1);
+		expect(second.derived).toBe(true);
+		// The id already in play for that slot is kept, so scores keyed under it
+		// are not orphaned by the re-paste.
+		expect(second.rubric?.[0].id).toBe('m1-craft');
+	});
+
+	/**
+	 * A SPEC WITH NO RUBRIC ROWS STAGES NOTHING, not an empty list.
+	 * `classroom_set_rubric` refuses a rubric with no criteria, so staging `[]`
+	 * would turn a perfectly good post into a named failure over something the
+	 * author never asked for.
+	 */
+	it('stages nothing for a spec that carries no rubric', () => {
+		const bare = {
+			schemaVersion: 1,
+			meta: { assignmentId: 'a-none', title: 'Read this', totalPoints: 0 },
+			modules: [
+				{ id: 'm1', title: 'Read', points: 0, blocks: [{ type: 'instructions', content: 'Read it.' }] }
+			]
+		};
+		expect(validateSpec(bare).errors).toEqual([]);
+		expect(stagedRubricAfterSpec(bare, true, { rubric: null, derived: false })).toEqual({
+			rubric: null,
+			derived: false
+		});
+	});
+
+	it('a cleared spec clears the rubric it derived', () => {
+		const first = stagedRubricAfterSpec(LEVELED_SPEC, true, { rubric: null, derived: false });
+		expect(stagedRubricAfterSpec(null, true, first)).toEqual({ rubric: null, derived: false });
 	});
 });

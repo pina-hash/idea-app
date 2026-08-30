@@ -13,6 +13,15 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-30",
+			"title": "New assignments arrive with their rubric already on them",
+			"body": "When your teacher builds an assignment from one of the prepared assignment files, the grading rubric written into that file now comes across with the assignment automatically, with all of its levels. Before this, the assignment would arrive with no rubric attached even though the file described one, and the rubric had to be rebuilt by hand or was simply missed. What this means for you: on a new assignment you can see up front exactly what each criterion is worth and what the top level asks for, instead of finding out when the grade comes back. Your teacher can still edit any of it, so what you see is what they decided to keep.",
+			"tags": [
+				"Assignments",
+				"Grades"
+			]
+		},
+		{
 			"date": "2026-08-28",
 			"title": "Ask for a song to be played in class",
 			"body": "Your class page now has a Class music card. Paste a link to a song and your teacher decides whether it gets played. Asking is free. If your teacher approves it you are charged 2 IDEA Coins; if they say no you are charged nothing at all, and they leave you a short reason so you know what to change. You can have three requests waiting at a time in each class, and asking again is fine as soon as one of them has been looked at. Everyone in the class can see the approved list, but nobody else can see a request that is still waiting or one that was turned down, and the approved list does not say who asked. Nothing plays on the website itself: your teacher opens the link and plays it however they normally would, so send a link rather than a file.",
