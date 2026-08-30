@@ -1,0 +1,156 @@
+[
+  {
+    "id": "m1-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Split, own part, set right",
+        "points": 2,
+        "descriptor": "Both faces split at the centers, fixture and load on the outer halves, Nylon 101, and the force on Selected direction along the pull."
+      },
+      {
+        "label": "Developing",
+        "short": "One condition wrong",
+        "points": 1,
+        "descriptor": "Study exists but one condition is wrong: a face unsplit, a fixture or load on the inner half, or the force left on Normal."
+      },
+      {
+        "label": "Absent",
+        "short": "No study set up",
+        "points": 0,
+        "descriptor": "No study, or the study is on a file that is not the student's own part."
+      }
+    ],
+    "points": 2,
+    "criterion": "The Study: Both bearing faces are split, and the study is set up on the student's own part with the required conditions",
+    "incomplete": false
+  },
+  {
+    "id": "m1-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Five rows, honestly recorded",
+        "points": 3,
+        "descriptor": "All five rows carry the value actually in the study, and a study that failed to solve is recorded as such rather than left blank."
+      },
+      {
+        "label": "Proficient",
+        "short": "Mostly recorded, one gap",
+        "points": 2,
+        "descriptor": "Four rows carry real values; one is missing or repeats the instruction rather than the setting."
+      },
+      {
+        "label": "Developing",
+        "short": "Copied, not recorded",
+        "points": 1,
+        "descriptor": "Rows restate the four required conditions rather than what the student set, or fewer than four rows carry values."
+      },
+      {
+        "label": "Absent",
+        "short": "Table empty",
+        "points": 0,
+        "descriptor": "No table filled."
+      }
+    ],
+    "points": 3,
+    "criterion": "The Study: The setup table records what was actually set, including anything that went wrong",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Solved plot, both marked",
+        "points": 3,
+        "descriptor": "Plot is solved with the color scale visible, and both the hot spot and the thinnest section are marked and distinguishable."
+      },
+      {
+        "label": "Proficient",
+        "short": "Plot shown, one marked",
+        "points": 2,
+        "descriptor": "Solved plot uploaded with only one of the two marked, or the two marks cannot be told apart."
+      },
+      {
+        "label": "Developing",
+        "short": "Plot shown, nothing marked",
+        "points": 1,
+        "descriptor": "A plot is uploaded but nothing is marked on it, or the color scale is cropped out."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No screenshot uploaded."
+      }
+    ],
+    "points": 3,
+    "criterion": "The Plot: The screenshot shows a solved plot with the hot spot and the thinnest section marked",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Located on the part, compared",
+        "points": 3,
+        "descriptor": "Names a feature of the hook rather than a region of the screen, and states whether it coincides with the thinnest section."
+      },
+      {
+        "label": "Proficient",
+        "short": "Located, no comparison",
+        "points": 2,
+        "descriptor": "Hot spot is named on the part but the comparison against the thinnest section is missing or unclear."
+      },
+      {
+        "label": "Developing",
+        "short": "Described by screen position",
+        "points": 1,
+        "descriptor": "Answer describes where the red sits in the picture rather than where it sits on the part."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 3,
+    "criterion": "The Plot: The hot spot is located in terms of the part, and compared against the thinnest section",
+    "incomplete": false
+  },
+  {
+    "id": "m3-r5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Material substitution, shape survives",
+        "points": 4,
+        "descriptor": "Connects the wrong magnitude to the substituted material or the printed structure, and states that the stress pattern follows the geometry, which is real."
+      },
+      {
+        "label": "Proficient",
+        "short": "Right idea, one half",
+        "points": 3,
+        "descriptor": "Correctly says the number is unreliable and gives a real reason, but does not explain why the location is still trustworthy."
+      },
+      {
+        "label": "Developing",
+        "short": "Restates without reasoning",
+        "points": 2,
+        "descriptor": "Repeats that the number should not be used without giving a reason, or gives a reason that is not about the material or the print."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "What This Plot Cannot Tell You: Explains why location transfers from this study and magnitude does not",
+    "incomplete": false
+  }
+]
