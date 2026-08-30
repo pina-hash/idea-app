@@ -83,7 +83,8 @@
 		type RubricCriterion,
 		type StudentEngineData,
 		type SubmissionFileRow,
-		type SubmissionRow
+		type SubmissionRow,
+		type UnmetEntry
 	} from '$lib/classroom/assignment-spec';
 	import {
 		gridSummary,
@@ -1742,21 +1743,25 @@
 			if (sub?.state === 'submitted') {
 				return { ok: true, data: { ok: false, reason: 'already_submitted' } };
 			}
+			// 0160: AN UNFINISHED SUBMISSION IS ACCEPTED. The preflight still runs
+			// and its answer still comes back -- on the ACCEPTANCE now, exactly as
+			// `classroom_submit_assignment` returns it -- so this harness mirrors
+			// the whole mechanism rather than the half of it that used to refuse.
+			// A fake that still returned `{ok:false, reason:'incomplete'}` would
+			// keep a branch alive here that production can no longer reach.
+			let unmet: UnmetEntry[] = [];
 			if (engineSpec) {
-				const unmet = specUnmet(
+				unmet = specUnmet(
 					engineSpec,
 					responsesMap(responsesOf(STUDENT_EMAIL)),
 					filesByBlockCount(filesOf(STUDENT_EMAIL)),
 					approvalsOf(STUDENT_EMAIL)
 				);
-				if (unmet.length) {
-					return { ok: true, data: { ok: false, reason: 'incomplete', unmet } };
-				}
 			} else if (filesOf(STUDENT_EMAIL).length === 0) {
 				return { ok: true, data: { ok: false, reason: 'nothing_attached' } };
 			}
 			patchSubmission(STUDENT_EMAIL, { state: 'submitted', submitted_at: new Date().toISOString() });
-			return { ok: true, data: { ok: true, state: 'submitted' } };
+			return { ok: true, data: { ok: true, state: 'submitted', unmet } };
 		},
 		async unsubmitAssignment(itemId) {
 			note('unsubmitAssignment', { itemId });
