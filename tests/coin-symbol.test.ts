@@ -153,10 +153,10 @@ describe('no other spelling survives anywhere in the coin sources', () => {
 });
 
 describe('the Ledger keeps its own single copy in step', () => {
-	// static/coins/index.html is a standalone file and cannot import $lib, so
+	// src/lib/legacy/coins/index.html is a standalone file and cannot import $lib, so
 	// it declares the constant itself. That is fine as long as it is ONE
 	// declaration and it says the same thing.
-	const LEDGER = 'static/coins/index.html';
+	const LEDGER = 'src/lib/legacy/coins/index.html';
 
 	it('declares the symbol exactly once, and it matches', () => {
 		const src = read(LEDGER);
