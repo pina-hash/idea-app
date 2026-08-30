@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 /**
  * The public, read-only coin surface the IDEA Coin Ledger
- * (`static/coins/index.html`) runs on.
+ * (`src/lib/legacy/coins/index.html`) runs on.
  *
  * No session is required — the Ledger is public tier by design — and the
  * action ALLOWLIST is what keeps this from being a general proxy onto the

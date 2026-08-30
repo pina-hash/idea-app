@@ -31,46 +31,48 @@
 
 	// `rankCount` is an optional override for the dev harness; in the real track
 	// it falls back to the /frc layout's frcCompletedCount (page data).
-	// `adminOverride` likewise lets the dev harness simulate an admin without
-	// a real Supabase session; the real track derives it from the signed-in
-	// profile's role.
+	// `reviewerOverride` likewise lets the dev harness simulate an allowlisted
+	// FRC reviewer without a real Supabase session; the real track derives it
+	// from the /frc layout's `frcCanReview` (canReviewFrc, migration 0167).
 	let {
 		children,
 		rankCount,
-		adminOverride
-	}: { children: import('svelte').Snippet; rankCount?: number; adminOverride?: boolean } =
+		reviewerOverride
+	}: { children: import('svelte').Snippet; rankCount?: number; reviewerOverride?: boolean } =
 		$props();
 
 	const path = $derived(page.url.pathname);
 	const onHome = $derived(path === '/frc');
 	const onRefs = $derived(path.startsWith('/frc/references'));
+	const onReview = $derived(path.startsWith('/frc/review'));
 
 	// The rank chip appears for a signed-in user (student's profile surface within
 	// the track), or whenever the harness supplies a count.
 	const showRank = $derived(rankCount != null || !!page.data.claims);
 	const rank = $derived(rankCount ?? (page.data.frcCompletedCount as number | undefined) ?? 0);
 
-	// ------ Teacher "view as student" ------
-	// A teacher can preview the track exactly as a student sees it: real
-	// per-account progress states and a working gate, with teacher-only
+	// ------ Reviewer "view as student" ------
+	// A reviewer can preview the track exactly as a student sees it: real
+	// per-account progress states and a working gate, with reviewer-only
 	// override controls hidden. Any page under /frc reads this via
 	// getContext(FRC_VIEW_CONTEXT_KEY); FrcShell is the sole owner of the
 	// toggle so it survives navigation between /frc pages (this layout
 	// component stays mounted while its child pages change).
-	// Admin, not teacher (0067): frc_mark_complete and the gate-review RPCs are
-	// admin-only, so the tools that call them show only to admins.
-	const isAdmin = $derived(adminOverride ?? page.data.isAdmin === true);
+	// The FRC REVIEWER tier (0167), not admin: frc_mark_complete and the
+	// gate-review reads are gated on frc_can_review() (an explicit allowlist
+	// with admin folded in), so the tools that call them show to reviewers.
+	const canReview = $derived(reviewerOverride ?? page.data.frcCanReview === true);
 	let viewAsStudent = $state(false);
 
 	setContext<FrcViewContext>(FRC_VIEW_CONTEXT_KEY, {
-		get isAdmin() {
-			return isAdmin;
+		get canReview() {
+			return canReview;
 		},
 		get viewAsStudent() {
 			return viewAsStudent;
 		},
 		get showOverride() {
-			return isAdmin && !viewAsStudent;
+			return canReview && !viewAsStudent;
 		}
 	});
 </script>
@@ -97,8 +99,13 @@
 		<nav class="frc-nav" aria-label="FRC Training">
 			<a href="/frc" class:active={onHome}>Track home</a>
 			<a href="/frc/references" class:active={onRefs}>References</a>
+			{#if canReview && !viewAsStudent}
+				<!-- A reviewer tool like the override strip, so "View as student"
+				     hides it too (the preview banner promises exactly that). -->
+				<a href="/frc/review" class:active={onReview}>Gate review</a>
+			{/if}
 			<a href="/" class="portal">IDEA Portal</a>
-			{#if isAdmin}
+			{#if canReview}
 				<button
 					type="button"
 					class="frc-view-toggle"
@@ -114,9 +121,9 @@
 		</nav>
 	</header>
 
-	{#if isAdmin && viewAsStudent}
+	{#if canReview && viewAsStudent}
 		<div class="frc-preview-banner" role="status">
-			Previewing the track as a student sees it. Teacher tools are hidden.
+			Previewing the track as a student sees it. Reviewer tools are hidden.
 		</div>
 	{/if}
 

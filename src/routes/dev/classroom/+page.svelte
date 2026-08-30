@@ -2564,7 +2564,7 @@
 			// Verbatim what notebook_get_section_grid raises.
 			return {
 				ok: false,
-				error: 'Only the section instructor or a site admin can view the notebook grid.'
+				error: 'Only the section instructor, a section reviewer, or a site admin can view the notebook grid.'
 			};
 		}
 		return { ok: true, value: grid };

@@ -37,6 +37,18 @@ export interface PendingSubmission {
 	submittedAt: string | null;
 }
 
+/**
+ * A pending submission with the submitter's identity, from the
+ * `frc_review_queue` RPC (0167). The identity comes from the DEFINER
+ * projection, never from a client-side profiles read: `profiles` is
+ * own-row-or-admin, so an allowlisted non-admin reviewer has no other way to
+ * put a name beside a submission.
+ */
+export interface ReviewQueueRow extends PendingSubmission {
+	studentName: string | null;
+	studentEmail: string | null;
+}
+
 interface Row {
 	user_id: string;
 	unit_id: string;
@@ -100,6 +112,33 @@ export async function loadPendingSubmissions(
 		link: (r as Row).link ?? '',
 		notes: (r as Row).notes ?? '',
 		submittedAt: (r as Row).submitted_at
+	}));
+	return { ready: true, rows };
+}
+
+/**
+ * Load the review queue WITH submitter identity, through the `frc_review_queue`
+ * RPC (0167): every submission awaiting review, oldest first, each carrying the
+ * student's name and email as the definer function projects them. `ready` is
+ * false when the RPC is missing (0167 unapplied) or errors, so the /frc/review
+ * console can show an apply-migration note instead of a broken panel. A caller
+ * who is not a reviewer gets an EMPTY queue from the function itself -- the
+ * same answer an empty queue gives -- but never lands here in practice, since
+ * the route 404s them first.
+ */
+export async function loadReviewQueue(
+	supabase: SupabaseClient
+): Promise<{ ready: boolean; rows: ReviewQueueRow[] }> {
+	const { data, error } = await supabase.rpc('frc_review_queue');
+	if (error) return { ready: false, rows: [] };
+	const rows = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+		userId: r.user_id as string,
+		unitId: r.unit_id as string,
+		link: (r.link as string) ?? '',
+		notes: (r.notes as string) ?? '',
+		submittedAt: (r.submitted_at as string | null) ?? null,
+		studentName: (r.student_name as string | null) ?? null,
+		studentEmail: (r.student_email as string | null) ?? null
 	}));
 	return { ready: true, rows };
 }

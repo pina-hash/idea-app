@@ -9,8 +9,10 @@ import { error } from '@sveltejs/kit';
  * in-memory transports that mirror 0161's refusals. This is the page
  * tools/browser-verify drives at 375px and 1440px.
  *
- * `?state=` opens a selection: `node-pending`, `compartment`, `unit`,
- * `type-pending`, `new-root`. Reading `url` here is fine -- this is a PAGE
+ * `?state=` opens a selection: `node-pending`, `compartment`, `unit`
+ * (the front elevation, on a unit that has compartments), `place` (the plan
+ * canvas on a unit that has none, so the placement checks measure the canvas
+ * on its own), `type-pending`, `new-root`. Reading `url` here is fine -- this is a PAGE
  * load, so a state change re-runs it, which is exactly what the harness wants.
  */
 export const prerender = false;

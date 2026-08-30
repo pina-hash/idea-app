@@ -7,7 +7,8 @@
 	import FrcRankBadge from '$lib/frc/FrcRankBadge.svelte';
 	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
 	import FrcReviewQueue from '$lib/frc/FrcReviewQueue.svelte';
-	import type { GateSubmission } from '$lib/frc/gate-submissions';
+	import FrcReviewConsole from '$lib/frc/FrcReviewConsole.svelte';
+	import type { GateSubmission, ReviewQueueRow } from '$lib/frc/gate-submissions';
 	import { domainById, completedCadCount, rankForCount, FRC_RANKS } from '$lib/frc/track';
 	import { MDM_UNITS, mdmUnitByNumber, mdmUnitById, type MdmUnit } from '$lib/frc/mdm-content';
 	import { FOUNDATION_UNITS, foundationUnitById } from '$lib/frc/foundation-content';
@@ -23,18 +24,29 @@
 	 * — including the "not yet added" state on units with no authored answer
 	 * key — can be checked on any unit, not just MDM-1.
 	 *
-	 * "Simulate admin" drives FrcShell's `adminOverride` prop, standing in
-	 * for a real signed-in teacher profile so the "View as student" toggle (the
-	 * real header button, rendered by FrcShell itself) and the in-track
-	 * teacher-override strip on the CAD domain landing can be verified without
-	 * Supabase. DomainLanding reads FrcShell's FrcViewContext itself, so no
-	 * separate simulated toggle is needed here; this harness just supplies the
-	 * in-memory mark/unmark handler real pages point at the RPC-backed one.
+	 * "Simulate reviewer" drives FrcShell's `reviewerOverride` prop, standing
+	 * in for a real signed-in account on the FRC reviewer tier (0167) so the
+	 * "View as student" toggle, the "Gate review" tab (both real header
+	 * controls, rendered by FrcShell itself) and the in-track override strip on
+	 * the CAD domain landing can be verified without Supabase. Unchecked = an
+	 * ordinary student, the positive control: every one of those controls must
+	 * then be ABSENT. DomainLanding reads FrcShell's FrcViewContext itself, so
+	 * no separate simulated toggle is needed here; this harness just supplies
+	 * the in-memory mark/unmark handler real pages point at the RPC-backed one.
 	 */
 
-	type View = 'progression' | 'home' | 'cad' | 'unit' | 'quiz' | 'model' | 'placeholder' | 'refs';
+	type View =
+		| 'progression'
+		| 'home'
+		| 'cad'
+		| 'unit'
+		| 'quiz'
+		| 'model'
+		| 'review'
+		| 'placeholder'
+		| 'refs';
 	let view: View = $state('progression');
-	let simulateTeacher = $state(true);
+	let simulateReviewer = $state(true);
 
 	const cad = domainById('cad-mechanical')!;
 	const foundation = domainById('foundation')!;
@@ -193,6 +205,48 @@
 		completed = completed.filter((id) => !MODEL_UNIT_IDS.includes(id));
 	};
 
+	// Review console view (/frc/review): mounts the REAL FrcReviewConsole over
+	// the same in-memory submission store the Model-gate view writes, so
+	// submit -> appears in console -> approve/revise -> completion is one loop.
+	// `consoleReady` exercises the 0167-unapplied note. The seed button fills
+	// the queue without driving the model view first.
+	let consoleReady = $state(true);
+	const consoleRows: ReviewQueueRow[] = $derived(
+		Object.entries(modelSubs)
+			.filter(([, s]) => s.status === 'submitted')
+			.map(([unitId, s]) => ({
+				userId: 'dev-student',
+				unitId,
+				link: s.link,
+				notes: s.notes,
+				submittedAt: s.submittedAt,
+				studentName: 'Dev Student',
+				studentEmail: 'student@boscotech.net'
+			}))
+	);
+	const seedConsole = () => {
+		const now = new Date().toISOString();
+		modelSubs = {
+			...modelSubs,
+			'MDM-4': {
+				status: 'submitted',
+				link: 'https://drive.example/pack-and-go-mdm4.zip',
+				notes: 'First solid + drawing, per the unit brief.',
+				feedback: '',
+				submittedAt: now,
+				reviewedAt: null
+			},
+			'MDM-6': {
+				status: 'submitted',
+				link: 'https://drive.example/assembly-mdm6.zip',
+				notes: 'Assembly with three mates modified from the COTS base.',
+				feedback: '',
+				submittedAt: now,
+				reviewedAt: null
+			}
+		};
+	};
+
 	const VIEWS: { id: View; label: string }[] = [
 		{ id: 'progression', label: 'Progression (interactive)' },
 		{ id: 'home', label: 'Track home' },
@@ -200,6 +254,7 @@
 		{ id: 'unit', label: 'Unit page' },
 		{ id: 'quiz', label: 'Quiz gate' },
 		{ id: 'model', label: 'Model gate' },
+		{ id: 'review', label: 'Review console' },
 		{ id: 'placeholder', label: 'Placeholder domain' },
 		{ id: 'refs', label: 'Reference shelf' }
 	];
@@ -215,8 +270,8 @@
 		</button>
 	{/each}
 	<label class="sim-teacher">
-		<input type="checkbox" bind:checked={simulateTeacher} />
-		Simulate admin
+		<input type="checkbox" bind:checked={simulateReviewer} />
+		Simulate reviewer
 	</label>
 </div>
 
@@ -261,6 +316,16 @@
 			</span>
 		</div>
 	</div>
+{:else if view === 'review'}
+	<div class="sim-panel">
+		<div class="sim-row">
+			<strong>Review console (in-memory, same store as Model gate):</strong>
+			<button type="button" onclick={seedConsole}>Seed 2 pending</button>
+			<button type="button" onclick={resetModel}>Reset</button>
+			<label class="sim-teacher"><input type="checkbox" bind:checked={consoleReady} /> migration applied</label>
+			<span class="sim-count">pending={consoleRows.length}</span>
+		</div>
+	</div>
 {:else if view === 'model'}
 	<div class="sim-panel">
 		<div class="sim-row">
@@ -280,7 +345,7 @@
 	</div>
 {/if}
 
-<FrcShell rankCount={count} adminOverride={simulateTeacher}>
+<FrcShell rankCount={count} reviewerOverride={simulateReviewer}>
 	{#if view === 'progression'}
 		<TrackHome {count} />
 		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
@@ -322,6 +387,14 @@
 			<h3>Teacher review queue (dashboard)</h3>
 			<FrcReviewQueue items={reviewItems} onApprove={approveModel} onRequestRevision={reviseModel} />
 		</div>
+		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
+	{:else if view === 'review'}
+		<FrcReviewConsole
+			queueReady={consoleReady}
+			rows={consoleRows}
+			onApprove={approveModel}
+			onRequestRevision={reviseModel}
+		/>
 		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
 	{:else if view === 'placeholder'}
 		<DomainLanding domain={emptyDomain} />

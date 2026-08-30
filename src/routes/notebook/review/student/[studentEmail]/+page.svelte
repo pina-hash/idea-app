@@ -75,11 +75,18 @@
 	list is mixed -- the payload carries no `deleted_by` filter, deliberately --
 	so without them the section could only make one claim over both kinds, and
 	the one it used to make named the student for staff removals too.
+
+	The restore transport is withheld for a 0169 reviewer-only viewer:
+	`notebook_staff_restore_entry` stays manage-gated (restore is deletion's undo,
+	and neither is review), and absence of the prop is what removes the control --
+	the same mechanism as every omitted transport above. The two are orthogonal:
+	attribution says who removed a row, `canRestore` says whether this viewer may
+	undo it, and a reviewer who may not restore still reads the correct name.
 -->
 <NotebookDeletedZone
 	entries={data.deletedEntries}
 	studentName={data.student.display_name ?? data.student.email}
 	studentUserId={data.student.user_id}
 	viewerId={data.viewerId}
-	{restoreEntry}
+	restoreEntry={data.canRestore ? restoreEntry : undefined}
 />

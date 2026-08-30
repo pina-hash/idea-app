@@ -1,6 +1,6 @@
 /**
  * The public read layer behind `/api/coin/*` — what the IDEA Coin Ledger
- * (`static/coins/index.html`) reads instead of the frozen Google Sheets
+ * (`src/lib/legacy/coins/index.html`) reads instead of the frozen Google Sheets
  * export.
  *
  * TWO RULES GOVERN THIS MODULE.

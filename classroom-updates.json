@@ -22,6 +22,14 @@
 		},
 		{
 			"date": "2026-08-30",
+			"title": "You can report a problem on the IDEA Coin Ledger",
+			"body": "Every other page on the site has a way to tell us when something looks wrong, and the Coin Ledger was the one that did not. There is now a Report button at the top of the Ledger, next to Share. Press it, say what you noticed, and send. It works whether or not you are signed in: if you are signed in the report comes from your account, and if you are not it carries no name at all, so you can also leave a way to be reached if you want an answer. Either way the page you were on, which tab you were looking at, your browser and the version of the site are attached for you, so you do not have to describe any of that. What this means for you: if your balance looks wrong, a transaction is missing, or something on the leaderboard does not add up, say so from the page itself instead of waiting to catch a teacher.",
+			"tags": [
+				"IDEA Coins"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "You can turn work in before every check is finished",
 			"body": "An assignment that carries completion checks used to refuse your submission until every one of them was met, so a check that was wrong about your work, or a requirement you genuinely could not meet, left you with no way to hand anything in at all. You can now submit whenever you are ready. The list of what is still unfinished has not gone away: it sits above the Submit button exactly as before, so you can see what is missing and decide for yourself. What this means for you: if part of an assignment is unfinished, hand it in anyway and tell your teacher why. When they open your work they see the same list you saw, so they know what was unfinished when it arrived rather than having to guess.",
 			"tags": [

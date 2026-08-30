@@ -23,11 +23,12 @@
 	 * to open yet). Real per-user progression (`completed`, the set of
 	 * completed unit ids) still drives the Complete/Suggested badge.
 	 *
-	 * `showOverride` renders the teacher-only completion override
+	 * `showOverride` renders the reviewer-only completion override
 	 * (FrcUnitOverride) for the caller's own account, scoped to this domain's
 	 * content-backed units. Defaults to FrcShell's `FrcViewContext` (true only
-	 * for a teacher not previewing "as a student"); an explicit prop overrides
-	 * it, the same optional-override pattern FrcShell uses for `rankCount`.
+	 * for an FRC reviewer, 0167, not previewing "as a student"); an explicit
+	 * prop overrides it, the same optional-override pattern FrcShell uses for
+	 * `rankCount`.
 	 */
 
 	let {
@@ -84,7 +85,7 @@
 {#if resolvedShowOverride && domain.contentSet && overrideUnits.length}
 	<div class="teacher-override">
 		<div class="teacher-override-head">
-			<span class="teacher-override-label">Teacher tools &middot; your account</span>
+			<span class="teacher-override-label">Reviewer tools &middot; your account</span>
 			<span class="teacher-override-hint">
 				Mark or clear your own completion to preview progress states. Hidden in "View as student".
 			</span>
