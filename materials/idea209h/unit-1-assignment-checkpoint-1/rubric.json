@@ -1,0 +1,188 @@
+[
+  {
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both loads, both distances",
+        "points": 10,
+        "descriptor": "Both gravitational loads listed with correct magnitudes and correct distances from the pivot, and direction stated for each."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both loads, one value off",
+        "points": 7,
+        "descriptor": "Both gravitational loads listed, with one magnitude, distance, or direction incorrect or missing."
+      },
+      {
+        "label": "Developing",
+        "short": "One load only",
+        "points": 4,
+        "descriptor": "Only one of the two gravitational loads identified, or both listed with two or more values incorrect."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "No forces identified, or the table is empty."
+      }
+    ],
+    "points": 10,
+    "criterion": "Forces and Holding Torque: Force identification",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Correct, substitution shown",
+        "points": 12,
+        "descriptor": "Correct holding torque, with conversions shown, a substituted line carrying units, and the result stated with units."
+      },
+      {
+        "label": "Proficient",
+        "short": "Correct, setup incomplete",
+        "points": 7,
+        "descriptor": "Correct holding torque, but the substituted line is missing or units are dropped somewhere in the working."
+      },
+      {
+        "label": "Developing",
+        "short": "Method right, result wrong",
+        "points": 4,
+        "descriptor": "Each force multiplied by its own distance and summed, but an arithmetic or conversion error produces the wrong result."
+      },
+      {
+        "label": "Absent",
+        "short": "Wrong method or none",
+        "points": 0,
+        "descriptor": "Forces summed before applying a distance, an average distance used, or not attempted."
+      }
+    ],
+    "points": 12,
+    "criterion": "Forces and Holding Torque: Torque calculation and work shown",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Second method, agreement stated",
+        "points": 3,
+        "descriptor": "A second route to the same quantity is worked and whether the two agree is stated explicitly."
+      },
+      {
+        "label": "Proficient",
+        "short": "Second method, no verdict",
+        "points": 2,
+        "descriptor": "A second route is worked but the response does not say whether it agrees."
+      },
+      {
+        "label": "Absent",
+        "short": "No check",
+        "points": 0,
+        "descriptor": "No second route attempted."
+      }
+    ],
+    "points": 3,
+    "criterion": "Forces and Holding Torque: Independent check",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both values, source named",
+        "points": 5,
+        "descriptor": "Free speed and stall torque both stated with units, and the specific published source named."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both values, vague source",
+        "points": 3,
+        "descriptor": "Both values stated correctly but the source is named only generally, such as the internet or a search."
+      },
+      {
+        "label": "Developing",
+        "short": "One value, or no source",
+        "points": 1,
+        "descriptor": "Only one value stated, or both stated with no source given at all."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "Neither value stated."
+      }
+    ],
+    "points": 5,
+    "criterion": "Gear Ratio and Shaft Load: Motor specification sourced",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both worked, governing one named",
+        "points": 9,
+        "descriptor": "Both the torque-driven and speed-driven ratios calculated and reported, with the governing requirement identified and a reason given."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both worked, no reason",
+        "points": 6,
+        "descriptor": "Both ratios calculated correctly but the response does not say which governs, or names one without a reason."
+      },
+      {
+        "label": "Developing",
+        "short": "One requirement only",
+        "points": 3,
+        "descriptor": "Only one of the two requirements worked, or both attempted with a calculation error in one."
+      },
+      {
+        "label": "Absent",
+        "short": "Neither worked",
+        "points": 0,
+        "descriptor": "Neither ratio calculated, or not attempted."
+      }
+    ],
+    "points": 9,
+    "criterion": "Gear Ratio and Shaft Load: Gear ratio, both requirements",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c6",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Correct, substitution shown",
+        "points": 6,
+        "descriptor": "Correct shaft load, with a substituted line carrying units and the result stated with units."
+      },
+      {
+        "label": "Proficient",
+        "short": "Correct, setup incomplete",
+        "points": 4,
+        "descriptor": "Correct shaft load but the substituted line is missing or units are dropped."
+      },
+      {
+        "label": "Developing",
+        "short": "Confused with torque",
+        "points": 2,
+        "descriptor": "A moment arm is applied to the forces, or the answer is reported in torque units."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "No shaft load reported."
+      }
+    ],
+    "points": 6,
+    "criterion": "Gear Ratio and Shaft Load: Shaft load",
+    "incomplete": false
+  }
+]
