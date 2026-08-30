@@ -676,24 +676,46 @@
 
 	// ---- LIVE UPDATES, mirrored --------------------------------------------
 	//
-	// THREE STATES, because "realtime is unavailable" is two different things
-	// and the console has to survive both:
+	// FOUR STATES, because "realtime is unavailable" is several different
+	// things and the console has to survive all of them:
 	//
-	//   on      the channel delivers. Every write to this store -- including a
-	//           second client's -- calls every listener, which is what the real
-	//           publication does (your own writes echo back too).
-	//   silent  the channel is registered and NOTHING EVER ARRIVES. A dead
-	//           socket, a missing publication row, a proxy eating websockets.
-	//           The console must still refetch after its own writes.
-	//   off     there is no `subscribe` transport at all -- an older deploy, or
-	//           a mount that never had one. The console must not show a live
-	//           indicator and must still work.
+	//   on       the channel joins and delivers. Every write to this store --
+	//            including a second client's -- calls every listener, which is
+	//            what the real publication does (your own writes echo back too).
+	//   silent   the channel JOINS (status live) and NOTHING EVER ARRIVES: a
+	//            publication that does not carry these tables, or a proxy
+	//            eating the frames after the join. The console must still
+	//            refetch after its own writes.
+	//   stalled  the channel FAILS TO JOIN -- CHANNEL_ERROR or TIMED_OUT --
+	//            which is the case the status callback exists for. This is what
+	//            used to show a green Live pill over a console that would never
+	//            update again.
+	//   off      there is no `subscribe` transport at all -- an older deploy,
+	//            or a mount that never had one. The console must show no
+	//            indicator of any kind and must still work.
+	//
+	// `silent` AND `stalled` ARE NOT THE SAME STATE, and the difference is the
+	// residual gap this harness exists to keep visible: a status callback can
+	// only report what the SOCKET did, so `silent` still shows Live and still
+	// never updates. Closing that would need a heartbeat, which is a different
+	// bundle. `stalled` is the half a status callback CAN answer.
 	//
 	// The listeners are the channel. `subscribe` returning its own teardown is
 	// the same contract `removeChannel` gives the real one, and the log records
 	// both ends so a leak is visible rather than inferred.
-	type RealtimeMode = 'on' | 'silent' | 'off';
-	let realtime = $state<RealtimeMode>('on');
+	type RealtimeMode = 'on' | 'silent' | 'stalled' | 'off';
+	/**
+	 * `?realtime=` -- so a repeatable pass can LAND in a mode rather than have
+	 * to drive a <select> to reach one. The picker still works and still
+	 * re-subscribes; this only chooses where the page starts. An unrecognised
+	 * value falls back to `on` rather than putting the harness in a state no
+	 * branch renders, which is the preferences rule one surface over.
+	 */
+	const REALTIME_MODES: RealtimeMode[] = ['on', 'silent', 'stalled', 'off'];
+	const askedRealtime = page.url.searchParams.get('realtime') as RealtimeMode | null;
+	let realtime = $state<RealtimeMode>(
+		askedRealtime && REALTIME_MODES.includes(askedRealtime) ? askedRealtime : 'on'
+	);
 	/** 0121 applied: the grid carries the reviewed dimension and accept works. */
 	let reviewReady = $state(true);
 	let listeners: (() => void)[] = [];
@@ -1106,10 +1128,20 @@
 			return { ok: true, value: undefined };
 		},
 
-		subscribe(sectionId, onChange) {
+		subscribe(sectionId, onChange, onStatus) {
 			note(`realtime subscribe channel=notebook-review-${sectionId}`);
 			const fn = onChange;
 			listeners = [...listeners, fn];
+			// Reported the way the real transport reports it: the join is an
+			// ANSWER, not the act of registering. Asynchronous on purpose -- the
+			// real one is, and a console that only ever saw a synchronous 'live'
+			// would never render the connecting state at all.
+			const mode = realtime;
+			queueMicrotask(() => {
+				const status = mode === 'stalled' ? 'stalled' : 'live';
+				note(`realtime status ${status}`);
+				onStatus(status);
+			});
 			return () => {
 				note(`realtime removeChannel notebook-review-${sectionId}`);
 				listeners = listeners.filter((l) => l !== fn);
@@ -1125,9 +1157,18 @@
 	 * they are not the same state.
 	 */
 	const transports = $derived.by((): ReviewTransports => {
-		if (realtime !== 'off') return baseTransports;
-		const { subscribe: _dropped, ...rest } = baseTransports;
-		return rest;
+		if (realtime === 'off') {
+			const { subscribe: _dropped, ...rest } = baseTransports;
+			return rest;
+		}
+		// A FRESH OBJECT PER MODE, so flipping the picker actually resubscribes.
+		// `subscribe` reads `realtime` when it is CALLED, and the console's
+		// effect only re-runs when the transports it was handed change identity
+		// -- returning `baseTransports` unchanged would leave a channel that
+		// joined under the old mode still reporting the old status, and the
+		// picker would look broken while behaving exactly as the console does.
+		void realtime;
+		return { ...baseTransports };
 	});
 
 	/** Exactly what the route's load hands the console: scoped per viewer. */
@@ -1409,8 +1450,9 @@
 	<label>
 		realtime
 		<select bind:value={realtime} data-testid="realtime-mode">
-			<option value="on">on (delivers)</option>
-			<option value="silent">silent (dead socket)</option>
+			<option value="on">on (joins, delivers)</option>
+			<option value="silent">silent (joins, delivers nothing)</option>
+			<option value="stalled">stalled (join fails)</option>
 			<option value="off">off (no transport)</option>
 		</select>
 	</label>

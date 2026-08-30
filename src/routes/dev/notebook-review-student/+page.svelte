@@ -26,16 +26,34 @@
 	 * Two students:
 	 *  - "ana"  -- live entries (one with a removed photo, to prove the
 	 *              read-only page never offers to restore a PHOTO -- that
-	 *              control needs a transport this page never hands down), one
-	 *              entry she deleted herself, and one a staff account deleted.
-	 *              Both deleted entries render identically here: the RPC's own
-	 *              gate is what actually decides who may restore what, not a
-	 *              flag this page keeps in sync with it.
+	 *              control needs a transport this page never hands down), and
+	 *              FOUR deleted entries, one per value of `deletedEntryActor`:
+	 *              one she removed herself, one the VIEWER removed, one another
+	 *              staff account removed, and one whose actor uuid is null
+	 *              (0116's `on delete set null` -- the account has since gone).
+	 *              Each carries the same Restore control, because the RPC's own
+	 *              gate is what decides who may restore what -- but each SAYS
+	 *              who removed it, which is a different claim and is the one
+	 *              that used to name the student for all of them. Four rows so
+	 *              each sentence is the positive control for the others.
+	 *  - "cara" -- an entry only STAFF removed, so the staff sentence can be
+	 *              read with no student-removed row on screen to borrow from.
 	 *  - "ben"  -- live entries only. The Deleted section must be ABSENT, not
 	 *              empty.
 	 */
 
-	type StudentId = 'ana' | 'ben';
+	type StudentId = 'ana' | 'ben' | 'cara';
+
+	/** The instructor doing the reading, so one row can read "you". */
+	const VIEWER_ID = 'u-instructor';
+	/** Somebody else on staff, so another can read "staff". */
+	const OTHER_STAFF_ID = 'u-other-staff';
+	/**
+	 * The section the console was left on. Real pages get it from `?section=`
+	 * on the URL; the picker below drives it so the back link is measurable
+	 * with and without one.
+	 */
+	const SECTION_ID = '11111111-2222-4333-8444-555555555555';
 
 	interface Student {
 		id: StudentId;
@@ -59,6 +77,13 @@
 			display_name: 'Ben Okafor',
 			user_id: 'u-ben',
 			section_label: 'ENG1H · Period 2'
+		},
+		cara: {
+			id: 'cara',
+			email: 'cara.novak@boscotech.net',
+			display_name: 'Cara Novak',
+			user_id: 'u-cara',
+			section_label: 'ENG1H · Period 2'
 		}
 	};
 
@@ -69,6 +94,26 @@
 	};
 
 	function makeEntries(id: StudentId): NotebookEntry[] {
+		if (id === 'cara') {
+			return [
+				{
+					id: 'cara-e1',
+					session_id: 'ses-1',
+					section_id: 'sec-1',
+					folder_id: null,
+					pinned_at: null,
+					custom_label: 'Fit tolerances',
+					upload_timestamp: '2026-02-09T13:10:00Z',
+					submitted_at: '2026-02-09T13:10:00Z',
+					status: 'compliant',
+					flag_reason: null,
+					instructor_comment: null,
+					session: SESSION,
+					photos: [],
+					notes: []
+				}
+			];
+		}
 		if (id === 'ben') {
 			return [
 				{
@@ -165,14 +210,27 @@
 
 	function makeDeletedEntries(id: StudentId): NotebookDeletedEntry[] {
 		if (id === 'ben') return [];
+		if (id === 'cara') {
+			return [
+				{
+					id: 'cara-e2-staff-deleted',
+					custom_label: 'Duplicate upload',
+					session: null,
+					upload_timestamp: '2026-02-04T11:00:00Z',
+					deleted_at: '2026-02-04T16:40:00Z',
+					deleted_by: OTHER_STAFF_ID
+				}
+			];
+		}
 		return [
-			// She removed this one herself.
+			// She removed this one herself: deleted_by IS her own user id.
 			{
 				id: 'ana-e3-self-deleted',
 				custom_label: 'Old sketch, wrong units',
 				session: null,
 				upload_timestamp: '2026-02-05T13:00:00Z',
-				deleted_at: '2026-02-06T09:15:00Z'
+				deleted_at: '2026-02-06T09:15:00Z',
+				deleted_by: STUDENTS.ana.user_id
 			},
 			// A staff account removed this one (notebook_staff_delete_entry).
 			{
@@ -184,13 +242,43 @@
 					session_date: '2026-02-01'
 				},
 				upload_timestamp: '2026-02-01T15:20:00Z',
-				deleted_at: '2026-02-03T10:00:00Z'
+				deleted_at: '2026-02-03T10:00:00Z',
+				deleted_by: OTHER_STAFF_ID
+			},
+			// THE VIEWER removed this one. The only actor uuid besides the
+			// student's that this page resolves, exactly as the admin log
+			// resolves only "You".
+			{
+				id: 'ana-e5-viewer-deleted',
+				custom_label: 'Blurred page, re-shot',
+				session: null,
+				upload_timestamp: '2026-02-07T09:00:00Z',
+				deleted_at: '2026-02-07T12:30:00Z',
+				deleted_by: VIEWER_ID
+			},
+			// Null actor: 0116 declares `on delete set null`, so the account that
+			// removed this has since been deleted. Guessing "staff" here would
+			// attribute a removal on no evidence.
+			{
+				id: 'ana-e6-unknown-deleted',
+				custom_label: 'Bench notes, unit 1',
+				session: null,
+				upload_timestamp: '2026-01-28T10:00:00Z',
+				deleted_at: '2026-01-30T08:05:00Z',
+				deleted_by: null
 			}
 		];
 	}
 
 	let studentId = $state<StudentId>('ana');
 	const student = $derived(STUDENTS[studentId]);
+	/**
+	 * Whether the reader arrived with `?section=` on the URL. Both are real:
+	 * ReviewConsole's own link now carries one, and an address typed straight
+	 * into the bar does not. The back link has to be right either way.
+	 */
+	let carrySection = $state(true);
+	const fromSectionId = $derived(carrySection ? SECTION_ID : null);
 
 	let entries = $state<NotebookEntry[]>(makeEntries('ana'));
 	let deletedEntries = $state<NotebookDeletedEntry[]>(makeDeletedEntries('ana'));
@@ -266,7 +354,16 @@
 			onclick={() => selectStudent('ben')}
 			data-testid="pick-ben">Ben (no deletions)</button
 		>
+		<button
+			type="button"
+			class:active={studentId === 'cara'}
+			onclick={() => selectStudent('cara')}
+			data-testid="pick-cara">Cara (staff removal only)</button
+		>
 	</div>
+	<label>
+		<input type="checkbox" bind:checked={carrySection} data-testid="carry-section" /> arrived with ?section=
+	</label>
 	{#if log.length}
 		<pre class="log" data-testid="rpc-log">{log.join('\n')}</pre>
 	{/if}
@@ -275,7 +372,11 @@
 <!-- Everything below this line mounts the SAME components
      src/routes/notebook/review/student/[studentEmail]/+page.svelte mounts. -->
 
-<StudentReviewBackStrip displayName={student.display_name} email={student.email} />
+<StudentReviewBackStrip
+	displayName={student.display_name}
+	email={student.email}
+	sectionId={fromSectionId}
+/>
 
 {#if student.user_id === null}
 	<NotebookNoAccountNotice displayName={student.display_name} email={student.email} />
@@ -296,6 +397,8 @@
 <NotebookDeletedZone
 	entries={deletedEntries}
 	studentName={student.display_name ?? student.email}
+	studentUserId={student.user_id}
+	viewerId={VIEWER_ID}
 	{restoreEntry}
 />
 

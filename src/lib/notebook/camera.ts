@@ -19,13 +19,18 @@
  * The client-side ceiling for an upload, deliberately UNDER the server's own
  * 4 MB cap (MAX_PHOTO_BYTES in $lib/server/notebook-upload).
  *
- * The margin is not decoration. Vercel rejects a request BODY past ~4.5 MB
- * at the platform edge, before the route runs, and a multipart body is the
- * file plus its part headers plus the other fields -- so a file that is
- * exactly at the server's limit can still lose the whole request to a
- * platform 413 whose body is HTML, which the client can only report as a
- * bare status code. Staying under both numbers is what keeps a failure
- * legible.
+ * The margin is not decoration, but the reason written here used to be wrong:
+ * it said Vercel rejects a request BODY past ~4.5 MB at the platform edge.
+ * That figure is HISTORICAL and the platform now accepts far more, so no
+ * outside limit sits between these two numbers.
+ *
+ * What the margin actually buys is that a multipart body is the file plus its
+ * part headers plus the other fields, so a file sized EXACTLY at the server's
+ * own MAX_PHOTO_BYTES still posts a body over it and loses the whole request
+ * to a 413 -- and refusing in the browser, before the request, is how the
+ * student reads a sentence with the limit in it instead of a bare status
+ * code. Both numbers are this application's own choice; see MAX_PHOTO_BYTES
+ * in $lib/server/notebook-upload for what holds them where they are.
  *
  * A REAL 12 MP phone capture measures ~4-6 MB, i.e. routinely over the cap,
  * which is why fitForUpload() exists at all rather than being a safety net.

@@ -6,7 +6,24 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/** Vercel serverless rejects request bodies past ~4.5 MB; stay safely under. */
+/**
+ * THE CAP ON ONE UPLOADED PHOTO. It is THIS APPLICATION'S CHOICE, not a
+ * platform limit, and the comment here used to say otherwise: "Vercel
+ * serverless rejects request bodies past ~4.5 MB; stay safely under."
+ *
+ * That figure is HISTORICAL. Vercel now accepts request bodies far larger, and
+ * the classroom went further and stopped POSTing bytes to our own functions at
+ * all (0133/0135: browser to a private bucket against a signed upload URL,
+ * which is what let its own cap move from 4 MiB to 200 MB). So nothing outside
+ * this repo is holding this number where it is.
+ *
+ * WHAT DOES hold it is that these two routes still buffer the whole file in
+ * the function and hand it to Drive, and that a phone photograph of a notebook
+ * page is legible well under this. Raising it is a real decision with a
+ * transcode question attached -- fitForUpload() already re-encodes over
+ * MAX_UPLOAD_BYTES in $lib/notebook/camera -- and belongs in its own bundle,
+ * not in a comment correction.
+ */
 export const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 
 const IMAGE_EXT: Record<string, string> = {

@@ -48,7 +48,11 @@
 	into a console that flags and grades, from a surface whose whole point is
 	reading; the way back is the banner's own link to the grid this arrived from.
 -->
-<StudentReviewBackStrip displayName={data.student.display_name} email={data.student.email} />
+<StudentReviewBackStrip
+	displayName={data.student.display_name}
+	email={data.student.email}
+	sectionId={data.fromSectionId}
+/>
 
 {#if data.student.user_id === null}
 	<NotebookNoAccountNotice displayName={data.student.display_name} email={data.student.email} />
@@ -66,8 +70,16 @@
 	homeHref="/notebook/review"
 />
 
+<!--
+	`studentUserId` and `viewerId` are what let each row say WHO removed it. The
+	list is mixed -- the payload carries no `deleted_by` filter, deliberately --
+	so without them the section could only make one claim over both kinds, and
+	the one it used to make named the student for staff removals too.
+-->
 <NotebookDeletedZone
 	entries={data.deletedEntries}
 	studentName={data.student.display_name ?? data.student.email}
+	studentUserId={data.student.user_id}
+	viewerId={data.viewerId}
 	{restoreEntry}
 />

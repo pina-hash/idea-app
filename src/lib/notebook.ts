@@ -252,6 +252,73 @@ export interface NotebookDeletedEntry {
 	 * boundary there, not this flag.
 	 */
 	restorable?: boolean;
+	/**
+	 * WHO REMOVED IT -- a bare uuid, projected by the payload functions (0117)
+	 * and never resolved to a name here. See `deletedEntryActor` for the whole
+	 * of what is derived from it and why nothing joins `profiles` to say more.
+	 *
+	 * OPTIONAL because the student's own "Recently deleted" list has
+	 * `restorable` instead, which already answers "was it me" for the only
+	 * question that surface asks. Absent is `unknown`, which is what a surface
+	 * that cannot tell must say.
+	 */
+	deleted_by?: string | null;
+}
+
+/**
+ * WHO REMOVED A DELETED ENTRY, as far as ids alone can say.
+ *
+ * The staff Deleted section lists student-deleted and staff-deleted entries
+ * together -- `notebook_review_student_notebook` carries no `deleted_by`
+ * filter, deliberately, because a manager may restore either -- so a single
+ * sentence over the list can only be wrong about half of it. This is the
+ * per-row answer.
+ *
+ * IT RESOLVES NO UUID TO A NAME, which is the AdminLogPanel rule (0069's
+ * "a log row must survive the deletion of what it describes"): joining
+ * `profiles` for arbitrary user ids adds a read of other people's rows to a
+ * page that needs none, for a cosmetic gain. The two ids the caller already
+ * holds -- the student whose notebook this is, and the viewer themselves --
+ * are the only ones resolved, exactly as the admin log resolves only "You".
+ *
+ * NULL IS `unknown`, NOT `staff`. 0116 declares `deleted_by uuid references
+ * auth.users (id) on delete set null`, so a null names an actor whose account
+ * has since gone -- guessing "staff" there would attribute a removal to
+ * somebody on no evidence at all.
+ *
+ * THE STUDENT IS CHECKED FIRST. On this surface the viewer is by construction
+ * not the student, but the order makes the answer total rather than resting on
+ * that.
+ */
+export type DeletedEntryActor = 'student' | 'viewer' | 'staff' | 'unknown';
+
+export function deletedEntryActor(
+	deletedBy: string | null | undefined,
+	studentUserId: string | null | undefined,
+	viewerId: string | null | undefined
+): DeletedEntryActor {
+	if (!deletedBy) return 'unknown';
+	if (studentUserId && deletedBy === studentUserId) return 'student';
+	if (viewerId && deletedBy === viewerId) return 'viewer';
+	return 'staff';
+}
+
+/**
+ * The one spelling of each answer, so the zone's markup holds no branch of its
+ * own. `studentName` is whatever the caller already shows them as (display
+ * name, else address) -- this never reaches for one.
+ */
+export function deletedEntryActorName(actor: DeletedEntryActor, studentName: string): string {
+	switch (actor) {
+		case 'student':
+			return studentName;
+		case 'viewer':
+			return 'you';
+		case 'staff':
+			return 'staff';
+		case 'unknown':
+			return 'an account that no longer exists';
+	}
 }
 
 /** Session label, else the entry's own title, else the placeholder -- entryTitle's first two steps, without photos or notes to fall through to. */

@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-08-30",
+			"title": "Your notebook only shows \"Recently deleted\" when there is something in it",
+			"body": "The chip used to sit in the filter row whether or not you had deleted anything, and pressing it just told you the list was empty. Now it appears only when you actually have a deleted entry, and it disappears again once you have restored the last one. Nothing about deleting or restoring an entry has changed, and nothing that was in that list has gone anywhere.",
+			"tags": [
+				"notebook"
+			]
+		},
+		{
+			"date": "2026-08-30",
 			"title": "You can turn work in before every check is finished",
 			"body": "An assignment that carries completion checks used to refuse your submission until every one of them was met, so a check that was wrong about your work, or a requirement you genuinely could not meet, left you with no way to hand anything in at all. You can now submit whenever you are ready. The list of what is still unfinished has not gone away: it sits above the Submit button exactly as before, so you can see what is missing and decide for yourself. What this means for you: if part of an assignment is unfinished, hand it in anyway and tell your teacher why. When they open your work they see the same list you saw, so they know what was unfinished when it arrived rather than having to guess.",
 			"tags": [

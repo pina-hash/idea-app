@@ -66,12 +66,15 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-directories under `src/routes/dev` with a page, and `routes.mjs` lists **36
-specs over 28 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
-on this branch merged with `integration`, which is what brought the
-classroom-inspector and class-bulk specs in; it read 29 over 24 on 2026-08-29,
-and 25 over 20 the same day, before the marks, room-split, coin-preview and
-short-link specs). **This count is a snapshot, not a derived value, and it WILL
+directories under `src/routes/dev` with a page, and `routes.mjs` lists **45
+specs over 32 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
+on `claude/notebook-audit-fixes-0tkfek`, which added the
+classroom-view-as-notebook and notebook-review-realtime-stalled specs; it read
+36 over 28 earlier the same day on a branch merged with `integration` -- and
+those 9 specs, not 2, are the gap, because THIS branch is off `main` and does
+not carry integration's seven. It read 29 over 24 on 2026-08-29, and 25 over 20
+the same day, before the marks, room-split, coin-preview and short-link
+specs). **This count is a snapshot, not a derived value, and it WILL
 go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
@@ -120,9 +123,10 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 2 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration`: 72 route/width runs, 780
-measurements), and they are one finding seen at each of the two widths. Anything
+**The whole run reports exactly 4 measurements outside threshold** (re-derived
+2026-08-30 on `claude/notebook-audit-fixes-0tkfek`, which is off `main` and
+carries none of integration's seven specs: 90 route/width runs, 1064
+measurements), and they are TWO findings, each seen at both widths. Anything
 else is new. **This paragraph is a snapshot and it drifts** -- the run above it
 is the authority, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
@@ -136,6 +140,13 @@ paragraph used to list are down to one. The other two are named below rather
 than deleted, because a finding that vanishes without a word reads like a check
 that stopped running.
 
+- **`/dev/foundry-submit`: the refusal/warning sentence row reads `present 2`
+  against an expected 4**, at both widths. NOT introduced by the branch that
+  found it: measured on a `git stash`ed tree with that branch's changes removed
+  entirely (and the foundry files `touch`ed afterwards, per the stash trap in
+  `CLAUDE.md`) and it reproduces identically, `2 outside threshold` on the same
+  two runs. It is the foundry lane's -- the notebook branch touches no file this
+  route loads -- and is recorded here rather than fixed across a lane boundary.
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
@@ -296,8 +307,9 @@ break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
 one, because unlike the measuring run there is a right answer here. **64
 controls, 32 negative and 32 positive** (re-derived from a `--selftest` run
-2026-08-30, after the `maxPresent`, prepare-step and absence-limit controls went
-in; it read 54 on 2026-08-29, 44 the same day, and 36 on 2026-08-28. A number
+2026-08-30 on `claude/notebook-audit-fixes-0tkfek`, unchanged by it -- that
+branch added route specs, not checks; it read 54 on 2026-08-29, 44 the same day,
+and 36 on 2026-08-28. A number
 written down here is a number that drifts, so re-derive it rather than trusting
 this line).
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check

@@ -108,7 +108,17 @@ export default {
 	presence: [
 		{ selector: '.dev-bar', label: 'harness controls', expectPresent: 1 },
 		{ selector: '.nb-root', label: 'NotebookView mounted', expectPresent: 1 },
-		{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 }
+		{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 },
+		/*
+			THE POSITIVE CONTROL FOR `/dev/notebook-review-student`'s ABSENCE ROW.
+			That page asserts the "Recently deleted" chip does NOT render, because
+			the staff mount hands `NotebookView` no deleted list and the chip's
+			only possible outcome there was an empty state. An absence assertion
+			with nothing paired to it is a selector that could simply have stopped
+			matching -- so the SAME component, on the student's own view, with a
+			pre-seeded trash fixture behind it, must still render exactly one.
+		*/
+		{ selector: '[data-testid="filter-deleted"]', label: "Recently deleted chip (student's own view: a list IS behind it)", expectPresent: 1, maxPresent: 1 }
 	],
 	contrast: [{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 }],
 	tapTargets: [
@@ -123,7 +133,23 @@ export default {
 			already clearing floor by other means) -- added for regression
 			protection, not because it is currently broken.
 		*/
-		{ selector: '.compose-card .btn', label: 'compose form submit controls (Turn in / Save draft -- plain .btn)', min: 44 }
+		{ selector: '.compose-card .btn', label: 'compose form submit controls (Turn in / Save draft -- plain .btn)', min: 44 },
+		/*
+			THE FREE-ENTRY CHIP, MEASURED RATHER THAN ASSUMED. This route already
+			CLICKS `.pick.free` in `prepare` -- it is the control that makes the
+			title field render at all -- and until this line nothing had ever
+			measured its box. It is a `.pick` in the check-in picker, a
+			student-facing surface at every width, so the 44px floor applies with
+			no density-contract exemption to claim.
+
+			LISTED WHATEVER IT MEASURES. If it is under the floor that is a
+			finding to report and not a number to soften: the fix is a rule in
+			NotebookView's own stylesheet, and a check that only exists once it
+			passes is a check that has never told anyone anything. The
+			fallback-stack limit in ../README.md applies to this number like every
+			other geometry measurement here.
+		*/
+		{ selector: '.pick.free', label: 'free-entry check-in chip (student-facing, no density exemption)', min: 44 }
 	],
 	/*
 		THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER
