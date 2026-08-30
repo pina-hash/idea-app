@@ -1,0 +1,175 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Unit 1 Final: Engineering Report, Presentation, and Defense",
+    "course": "IDEA209H",
+    "dueDate": "2026-09-01",
+    "totalPoints": 25,
+    "assignmentId": "idea209h-u1-final",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Assignments"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "The report carries no points of its own. It is the document your presentation and defense are scored against, and the assignment cannot be submitted without it.",
+      "title": "Engineering Report",
+      "aiNote": "AI may help you draft and tighten the writing. Every number, property, and part number you put in the report is checked against the catalog page or datasheet it came from, not against what AI remembers of one.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "The approved course description for this unit requires one engineering report holding all calculations, a written justification for every selection referencing specific published material properties, and a sourced bill of materials. You present that report to the class and defend it. The 25 points on this assignment are scored during the defense, against what is written below.\n\nWrite in full sentences. Do not paste your Checkpoint 1 or Checkpoint 2 work in whole; this is the summary a reader who has not seen your checkpoints would need.\n\nDetails on each section are in the Unit 1 Report Structure reference.\n\n**Sources**\n\n- IDEA209H Course Syllabus, Fall 2026, v4 (Grading table; Rule 2, Defend it or fix it)\n- IDEA209 Engineering I Honors, approved UC A-G course description, Unit 1 Unit Assignment paragraph\n- IDEA209H Unit 1 Rubric, Assignment section, revised 2026-08-25b"
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "prompt": "Design summary. State the loading scenario in your own words, then give your five governing results: holding torque, the reduction you selected, which of the two requirements governed it, the shaft load, and the load per bolt with its factor of safety. Name the method behind each number, not the arithmetic.",
+          "maxSentences": 8,
+          "minSentences": 5
+        },
+        {
+          "id": "f2",
+          "type": "textField",
+          "prompt": "Selection justification. Take every component on your Checkpoint 2 bill of materials in turn. For each one, name the published property or rating you selected against, the value, and the source it came from. A selection justified only as appropriate or sufficient does not count.",
+          "maxSentences": 12,
+          "minSentences": 6
+        },
+        {
+          "id": "f3",
+          "type": "textField",
+          "prompt": "Bill of materials status. State whether any component changed after you submitted Checkpoint 2 and why. Confirm that every line carries a vendor, a part number, and a quantity. Name any line that is still missing one of the three.",
+          "maxSentences": 5,
+          "minSentences": 3
+        },
+        {
+          "id": "f4",
+          "type": "textField",
+          "prompt": "Trade-offs. Name one candidate you looked at and rejected, state the trade-off it lost on, and state what would have to change about the scenario for that rejected candidate to become the better choice.",
+          "maxSentences": 5,
+          "minSentences": 3
+        }
+      ],
+      "points": 0,
+      "rubric": [],
+      "aiLevel": 2
+    },
+    {
+      "id": "m2",
+      "intro": "Scored live during your slot. Nothing is submitted here. The three criteria below are read against your report, section by section.",
+      "title": "Presentation and Defense",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your slot is six minutes: setting up, presenting, and answering. Present from your report. You may have it open in front of you.\n\nExpect to be asked where a number came from and why you chose one part over another. Questions come from the class as well as the instructor.\n\nA number or decision you cannot defend is corrected, not penalised. It is returned to you as a comment on this assignment in IDEA Classroom and is due back by the end of that same day. That section of the report is not complete, and its share of the 25 points is not awarded, until the correction is in.\n\nNo AI badge appears on this module because it is a live component. You are answering out loud, from your own work.\n\n**Sources**\n\n- IDEA209H Course Syllabus, Fall 2026, v4 (Grading table; Rule 2, Defend it or fix it)\n- IDEA209 Engineering I Honors, approved UC A-G course description, Unit 1 Unit Assignment paragraph\n- IDEA209H Unit 1 Rubric, Assignment section, revised 2026-08-25b"
+        }
+      ],
+      "points": 25,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All components, property named",
+              "points": 8,
+              "descriptor": "Presents every component on the bill of materials, naming for each one the published property or rating it was selected against and the value of that property."
+            },
+            {
+              "label": "Proficient",
+              "short": "All components, one unnamed",
+              "points": 6,
+              "descriptor": "Presents every component but leaves the governing property unnamed on one of them, or names properties for every component while omitting one component entirely."
+            },
+            {
+              "label": "Developing",
+              "short": "Half or more, properties thin",
+              "points": 3,
+              "descriptor": "Presents at least half the components, with the governing property named on fewer than half of those presented."
+            },
+            {
+              "label": "Absent",
+              "short": "Under half presented",
+              "points": 0,
+              "descriptor": "Presents fewer than half the components, or does not present."
+            }
+          ],
+          "criterion": "Selection rationale presented"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All five results defended",
+              "points": 10,
+              "descriptor": "For each of the five governing results in the report, states the method used and the inputs it was run on when asked, and the stated value matches the report."
+            },
+            {
+              "label": "Proficient",
+              "short": "Four of five defended",
+              "points": 7,
+              "descriptor": "Defends four of the five governing results with method and inputs; one is restated without a method, or its value disagrees with the report."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or three defended",
+              "points": 4,
+              "descriptor": "Defends two or three of the five with method and inputs; the rest are asserted or read off without a stated method."
+            },
+            {
+              "label": "Absent",
+              "short": "Under two defended",
+              "points": 0,
+              "descriptor": "Defends fewer than two of the five governing results, or does not present."
+            }
+          ],
+          "criterion": "Defends every numerical value"
+        },
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every question answered new",
+              "points": 7,
+              "descriptor": "Answers every question asked with information not already in the presented section, or states plainly that the answer is not known and names where it would be looked up."
+            },
+            {
+              "label": "Proficient",
+              "short": "One answer restates report",
+              "points": 5,
+              "descriptor": "Answers all but one question with new information; one answer repeats what the report already said without adding to it."
+            },
+            {
+              "label": "Developing",
+              "short": "Half restate the report",
+              "points": 3,
+              "descriptor": "Half or more of the answers repeat the report without adding information, while at least one answer adds something new."
+            },
+            {
+              "label": "Absent",
+              "short": "No question answered",
+              "points": 0,
+              "descriptor": "No question is answered with information beyond a restatement, or no questions are taken."
+            }
+          ],
+          "criterion": "Responds to technical questions"
+        }
+      ],
+      "aiLevel": null
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
