@@ -956,9 +956,20 @@
 		align-items: baseline;
 		gap: 0.6rem;
 	}
+	/* `auto-fit`, NOT `auto-fill`: two photographs in a wide pane must not lay
+	   themselves out as two thumbnails and six empty tracks of blank space to
+	   their right. Empty tracks collapse and the hand-ins that exist share the
+	   measure -- the same decision ClassView's stream, the grading console's
+	   roster and the Foundry gallery each already made, and the rule CLAUDE.md
+	   states. Measured on this grid at 1440: two hand-ins left 1025.7px of void
+	   to the right of the second one, and four left 683.8px.
+
+	   `min(9rem, 100%)` keeps the track from overflowing a pane narrower than
+	   one column -- a bare `minmax(9rem, 1fr)` in a 144px-or-less pane is a
+	   9rem minimum inside a box that cannot hold it. */
 	.zone-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
 		gap: 0.6rem;
 		margin: var(--space-2) 0;
 	}
@@ -970,15 +981,50 @@
 	}
 	/* The thumbnail's own anchor: a block so it does not collapse to a text
 	   line box around the picture, and line-height 0 so no descender gap sits
-	   under it. Its hit area is the whole thumbnail (9rem minimum column width
-	   by up to 12rem tall), which clears the 44px floor by a wide margin. */
+	   under it.
+
+	   ITS HIT AREA USED TO BE GUARANTEED BY THE TRACK AND IS NOW GUARANTEED BY
+	   ITSELF. While the picture was stretched to the full column the anchor was
+	   at least 9rem wide whatever was in it; shrunk to the picture, a small
+	   hand-in (a screenshot of a dialogue box, a cropped detail) would be a
+	   target the size of the file. The floor is stated here instead, as
+	   `min-*` and never a height, and it costs nothing on screen: this anchor
+	   paints neither a background nor a border, so the reach beyond a small
+	   picture is hit area rather than blank. A photograph clears it several
+	   times over. */
+	/* `align-self: flex-start` IS THE OTHER HALF OF THE RULE BELOW. `.zone-item`
+	   is a flex COLUMN, so the default stretch alignment would size this anchor
+	   -- and with it the picture's own box -- to the whole track whatever the
+	   img's `width: auto` says. Aligning to the start lets it shrink to the
+	   picture it wraps. */
 	.zone-shot {
 		display: block;
+		align-self: flex-start;
+		min-width: 44px;
+		min-height: 44px;
 		line-height: 0;
 		border-radius: var(--radius-card);
 	}
+	/* THE PICTURE'S BOX IS THE PICTURE, WHICH IS WHY BOTH DIMENSIONS ARE
+	   AUTOMATIC. This was `width: 100%` with a `max-height` cap and
+	   `object-fit: contain`, which forced every thumbnail to the full track
+	   width and then clamped its height -- so a PORTRAIT photograph, which is
+	   what a phone takes and therefore what most hand-ins are, was letterboxed
+	   inside its own box and painted `--surface-0` bars either side of itself,
+	   inside the border. Measured at 1440 before the change: a 600x900 hand-in
+	   sat 126.7px wide in a 288px box, 161.3px of painted bar; a 800x800 one,
+	   98px.
+
+	   The border and the background still do their job -- they are what says
+	   where a picture ends against the plate, which matters most for a
+	   photograph with a pale edge -- they are simply drawn around the picture
+	   now instead of around a box it does not fill. `object-fit` is kept as the
+	   backstop it was: with both dimensions automatic it has nothing to do, and
+	   it is what stops a distortion if either one is ever pinned again. */
 	.zone-item img {
-		width: 100%;
+		width: auto;
+		height: auto;
+		max-width: 100%;
 		max-height: 12rem;
 		object-fit: contain;
 		background: var(--surface-0);
