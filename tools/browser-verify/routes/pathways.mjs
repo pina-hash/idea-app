@@ -21,13 +21,16 @@ export default {
 		   plate again. The contrast rows are what catch the colour; this catches
 		   the mount. */
 		{ selector: '.gt-stage .gt-root main.gauntlet', label: 'GAUNTLET room stage', expectPresent: 1 },
-		{ selector: '.gt-stage span.pathway-chip', label: 'chips inside .gt-root', expectPresent: 6 },
+		{ selector: '.gt-stage span.pathway-chip', label: 'chips inside .gt-root', expectPresent: 6, maxPresent: 6 },
 		/* DELIBERATELY UNANCHORED: the total across every stage, room one
 		   included, which is why the count reads higher than it did before the
 		   `.gt-root` stage went in (19 -> 25 at the time of writing). It is a
 		   floor, and what it is a floor ON is "the page rendered chips at all". */
-		{ selector: 'span.pathway-chip', label: 'pathway chips (all stages)', expectPresent: 6 },
-		{ selector: '.chip-grid .chip-cell', label: 'one cell per pathway', expectPresent: 6 },
+		{ selector: 'span.pathway-chip', label: 'pathway chips (all stages -- a deliberate floor, measured 25)', expectPresent: 6 },
+		/* "One cell per pathway" is a count of `PATHWAYS`, which is six and is
+		   fixed by `src/lib/pathways.ts`. A seventh cell means the grid grew a
+		   row no chip row above accounts for. */
+		{ selector: '.chip-grid .chip-cell', label: 'one cell per pathway', expectPresent: 6, maxPresent: 6 },
 		{ selector: '.pwp-overlay', label: 'picker overlay (dismissed)', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [

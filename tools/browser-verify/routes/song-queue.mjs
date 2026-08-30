@@ -21,9 +21,9 @@ export default {
 		20 links are not 20 findings.
 	*/
 	presence: [
-		{ selector: 'section.mount[data-mount]', label: 'the seven state mounts', expectPresent: 7 },
-		{ selector: '[data-testid="song-queue"]', label: 'SongQueue card, one per mount', expectPresent: 7 },
-		{ selector: '[data-mount="student / at the cap"] [data-testid="song-queue-send"][aria-disabled="true"]', label: 'capped student control is aria-disabled', expectPresent: 1 },
+		{ selector: 'section.mount[data-mount]', label: 'the seven state mounts', expectPresent: 7, maxPresent: 7 },
+		{ selector: '[data-testid="song-queue"]', label: 'SongQueue card, one per mount', expectPresent: 7, maxPresent: 7 },
+		{ selector: '[data-mount="student / at the cap"] [data-testid="song-queue-send"][aria-disabled="true"]', label: 'capped student control is aria-disabled', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="song-queue-send"][disabled], [data-testid="song-queue-approve"][disabled], [data-testid="song-queue-reject"][disabled]', label: 'no control carries a real disabled attribute', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [
