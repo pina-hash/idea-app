@@ -1,0 +1,164 @@
+[
+  {
+    "id": "m1-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "New file, all legal",
+        "points": 5,
+        "descriptor": "V1 preserved, V2 saved separately, and all four dimensional checks hold."
+      },
+      {
+        "label": "Developing",
+        "short": "One check fails",
+        "points": 3,
+        "descriptor": "V2 exists but one dimensional rule is broken, or V1 was overwritten."
+      },
+      {
+        "label": "Absent",
+        "short": "No V2",
+        "points": 0,
+        "descriptor": "No V2 file."
+      }
+    ],
+    "points": 5,
+    "criterion": "Still Legal: V2 is a separate file that still passes every dimensional rule",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "V2 shown, change marked",
+        "points": 3,
+        "descriptor": "Screenshot is of V2 and the changed area is marked."
+      },
+      {
+        "label": "Developing",
+        "short": "Shown, not marked",
+        "points": 2,
+        "descriptor": "Screenshot uploaded but nothing is marked, or it is a picture of V1."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No screenshot."
+      }
+    ],
+    "points": 3,
+    "criterion": "What Changed, And Why: Screenshot of V2 with the changed area marked",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Located, tied to red",
+        "points": 4,
+        "descriptor": "Names where on the hook the change is and says whether it is where the study went red."
+      },
+      {
+        "label": "Proficient",
+        "short": "Located, not tied",
+        "points": 2,
+        "descriptor": "Says what changed but does not connect it to the simulation result."
+      },
+      {
+        "label": "Developing",
+        "short": "Vague change",
+        "points": 1,
+        "descriptor": "Says something changed without saying where."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "What Changed, And Why: The change is located on the part and tied to the simulation result",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Reason and prediction",
+        "points": 3,
+        "descriptor": "Explains why that location and what it should do to the stress there."
+      },
+      {
+        "label": "Proficient",
+        "short": "Reason, no prediction",
+        "points": 2,
+        "descriptor": "Gives a reason but no expected effect, or an effect with no reason."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written, or a reason that is not about stress or strength."
+      }
+    ],
+    "points": 3,
+    "criterion": "What Changed, And Why: Gives a reason for the change and a predicted effect on stress",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Trade named honestly",
+        "points": 2,
+        "descriptor": "Names what the change cost, or argues convincingly that it cost nothing."
+      },
+      {
+        "label": "Proficient",
+        "short": "Named, not explained",
+        "points": 1,
+        "descriptor": "Says a cost or says none, without a reason."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 2,
+    "criterion": "What Changed, And Why: Accounts for the trade the change required",
+    "incomplete": false
+  },
+  {
+    "id": "m2-r6",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Answered either way",
+        "points": 3,
+        "descriptor": "Pastes the [MISS] lines the assistant printed, or states plainly that it got nothing wrong. Both are full marks."
+      },
+      {
+        "label": "Developing",
+        "short": "Answered, not usable",
+        "points": 1,
+        "descriptor": "Something is written but it does not say whether the assistant was wrong, or is too vague to act on."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Left blank."
+      }
+    ],
+    "points": 3,
+    "criterion": "What Changed, And Why: Reports whether the assistant was wrong, either way",
+    "incomplete": false
+  }
+]
