@@ -1,0 +1,194 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Scale Test - Break It On Purpose",
+    "course": "IDEA100",
+    "dueDate": "2026-09-03",
+    "totalPoints": 15,
+    "assignmentId": "idea100-hook-scale-test",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "test",
+      "intro": "Record what happened, from the score sheet and from your own eyes.",
+      "title": "The Pull",
+      "aiNote": "No AI on this module. You were at the rig; nothing else was.",
+      "blocks": [
+        {
+          "id": "test-checks",
+          "type": "checklist",
+          "items": [
+            "My scale article was pulled at the rig",
+            "I read my breaking load off the score sheet and wrote it down",
+            "I kept both pieces",
+            "I photographed the fracture before putting it away"
+          ],
+          "points": 5
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "test-done",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Tested and recorded",
+              "points": 5,
+              "descriptor": "Article pulled, load read from the score sheet, both pieces kept and the fracture photographed."
+            },
+            {
+              "label": "Developing",
+              "short": "Tested, record incomplete",
+              "points": 3,
+              "descriptor": "Article was pulled but the load, the pieces or the photograph is missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Not tested",
+              "points": 0,
+              "descriptor": "No test."
+            }
+          ],
+          "criterion": "The article was tested and the result recorded from the rig"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "result",
+      "intro": "The rig tells you how much. Your own part tells you where. Compare that to what the simulation predicted.",
+      "title": "Where It Broke",
+      "aiNote": "Ask it what a fracture surface tells you. Do not ask it to explain your own break; you are the one who saw it.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload your fracture photograph. Get close, get the broken face in focus, and put something in the frame for scale if you can.\n\nYou have had a prediction sitting in your notebook since the simulation lab. This is the day you find out whether it was right. A wrong prediction is worth the same marks as a right one here, as long as you say plainly which it was."
+        },
+        {
+          "id": "fracture-image",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "break-location",
+          "type": "textField",
+          "points": 4,
+          "prompt": "Where did it break, described on the part? Did it snap, or did it pull open and stop being a hook?",
+          "maxSentences": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "sim-vs-reality",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Your simulation put the red somewhere. Is that where it actually broke? Say which, and if it was not, where the break was instead.",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Where Hooks Break and Tournament Rules tabs.\n- Your own V2 simulation study and your own scale article.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration and modes of failure.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "fracture-shown",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Fracture in focus",
+              "points": 3,
+              "descriptor": "The broken face is visible and in focus and is this student's own article."
+            },
+            {
+              "label": "Developing",
+              "short": "Part shown, break unclear",
+              "points": 2,
+              "descriptor": "A photograph of the article where the fracture cannot be made out."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No photograph."
+            }
+          ],
+          "criterion": "Photograph of the actual fracture on this student's article"
+        },
+        {
+          "id": "break-described",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Located and named",
+              "points": 4,
+              "descriptor": "Names the feature of the hook where it failed and says whether it fractured or deformed open."
+            },
+            {
+              "label": "Proficient",
+              "short": "Located, mode missing",
+              "points": 2,
+              "descriptor": "Says where it broke without saying how, or the reverse."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague description",
+              "points": 1,
+              "descriptor": "Says it broke without saying where on the part."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Locates the break on the part and names the failure mode"
+        },
+        {
+          "id": "prediction-checked",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Compared, either way",
+              "points": 3,
+              "descriptor": "States plainly whether the break matched the red spot, and where it went instead if it did not. A miss stated clearly is full marks."
+            },
+            {
+              "label": "Developing",
+              "short": "Compared, vaguely",
+              "points": 2,
+              "descriptor": "Refers to the simulation without saying clearly whether it called the location."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written, or claims a match with no location given."
+            }
+          ],
+          "criterion": "Compares the actual break against the simulation prediction, honestly"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}

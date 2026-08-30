@@ -165,6 +165,40 @@ const ANON_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
 			{ privileges: ['select'] as const, reason: TOURNAMENT_PUBLIC_REASON }
 		])
 	),
+	maps_nodes: {
+		privileges: ['select'],
+		reason:
+			'The spatial containers: rooms, storage units, compartments. ' +
+			'IDEA Maps is public-read by design and this is the headline decision of the feature: IDEA_MAPS_SPEC.md section 2, "Read access: fully public, no sign-in. Published data is anonymously readable on every read path." Explicit, not inherited: 0161:8 is `revoke all ... from public, anon, authenticated` followed by `grant select ... to anon, authenticated` on each of the four content tables. SELECT alone -- anon holds no write privilege on any of them, which 0161\'s own self-check raises on. What anon can SEE is narrowed a second time by RLS rather than by the grant: the only anon-facing policy is `using (status = \'published\')`, so a DRAFT row is unreachable through this grant. tests/maps-rls-boundary.test.ts proves both halves and mutation-proves the policy.'
+	},
+	maps_item_types: {
+		privileges: ['select'],
+		reason:
+			'The searchable vocabulary (spec 5.1): names, aliases, tags, brand, part number. ' +
+			'IDEA Maps is public-read by design and this is the headline decision of the feature: IDEA_MAPS_SPEC.md section 2, "Read access: fully public, no sign-in. Published data is anonymously readable on every read path." Explicit, not inherited: 0161:8 is `revoke all ... from public, anon, authenticated` followed by `grant select ... to anon, authenticated` on each of the four content tables. SELECT alone -- anon holds no write privilege on any of them, which 0161\'s own self-check raises on. What anon can SEE is narrowed a second time by RLS rather than by the grant: the only anon-facing policy is `using (status = \'published\')`, so a DRAFT row is unreachable through this grant. tests/maps-rls-boundary.test.ts proves both halves and mutation-proves the policy.'
+	},
+	maps_items: {
+		privileges: ['select'],
+		reason:
+			'Unique items -- this specific machine, with its serial. ' +
+			'IDEA Maps is public-read by design and this is the headline decision of the feature: IDEA_MAPS_SPEC.md section 2, "Read access: fully public, no sign-in. Published data is anonymously readable on every read path." Explicit, not inherited: 0161:8 is `revoke all ... from public, anon, authenticated` followed by `grant select ... to anon, authenticated` on each of the four content tables. SELECT alone -- anon holds no write privilege on any of them, which 0161\'s own self-check raises on. What anon can SEE is narrowed a second time by RLS rather than by the grant: the only anon-facing policy is `using (status = \'published\')`, so a DRAFT row is unreachable through this grant. tests/maps-rls-boundary.test.ts proves both halves and mutation-proves the policy.'
+	},
+	maps_stock: {
+		privileges: ['select'],
+		reason:
+			'Stocked types placed somewhere, with a quantity. ' +
+			'IDEA Maps is public-read by design and this is the headline decision of the feature: IDEA_MAPS_SPEC.md section 2, "Read access: fully public, no sign-in. Published data is anonymously readable on every read path." Explicit, not inherited: 0161:8 is `revoke all ... from public, anon, authenticated` followed by `grant select ... to anon, authenticated` on each of the four content tables. SELECT alone -- anon holds no write privilege on any of them, which 0161\'s own self-check raises on. What anon can SEE is narrowed a second time by RLS rather than by the grant: the only anon-facing policy is `using (status = \'published\')`, so a DRAFT row is unreachable through this grant. tests/maps-rls-boundary.test.ts proves both halves and mutation-proves the policy.'
+	},
+	maps_photos: {
+		privileges: ['select'],
+		reason:
+			'Photo rows for nodes, item types and items (spec 4.4), on the same public-read decision as the four content tables above. 0163:173 revokes from public, anon, authenticated and grants SELECT back to anon, authenticated; the row is reachable only where its parent object is published, and the BYTES are a separate decision -- the maps-media bucket carries its own storage.objects policy. No anon write of any kind.'
+	},
+	maps_search_log: {
+		privileges: ['insert'],
+		reason:
+			'The one anon WRITE in IDEA Maps, and it is the feature working rather than a hole. Spec 5.4: "Every query is logged with its result count and timestamp, no identity (readers are anonymous)" -- the vocabulary grows from misses, and the readers who miss are by definition not signed in, so a signed-in-only log would collect nothing from the people it exists for. This is the repo\'s documented anonymous-intake shape (CLAUDE.md, Write path): there is nothing to forge in a query string. The table has NO identity column of any kind -- query, result_count, created_at, and a uuid key rather than a sequence -- so an inserted row cannot be tied to a person even by whoever reads it. 0162:5 grants INSERT to anon and SELECT to authenticated only, and the sole SELECT policy is `to authenticated using (public.is_admin())`, so anon can write and can never read back. No UPDATE or DELETE exists for any client role: the misses it exists to surface must not be editable into silence.'
+	},
 	fsp_frc_interest: {
 		privileges: ['insert'],
 		reason:
@@ -181,7 +215,7 @@ const ANON_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
 };
 
 /** Pinned so an entry added silently fails. */
-const ANON_SURFACE_SIZE = 13;
+const ANON_SURFACE_SIZE = 19;
 
 // ---------------------------------------------------------------------------
 // B. THE CLIENT WRITE SURFACE.
@@ -222,6 +256,45 @@ const AUTHENTICATED_WRITE_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
 	fsp_config: {
 		privileges: ['update'],
 		reason: 'The FSP live-session config row, updated in place by staff under its own policy.'
+	},
+	maps_nodes: {
+		privileges: ['insert', 'update', 'delete'],
+		reason:
+			'IDEA Maps editor, admin-only in P1. ' +
+			'0161\'s header states the deviation and its scope: "WRITE ACCESS IS EDITOR-ROLE RLS POLICIES ON public.is_admin() (0067), the predicate this repo already uses for the admin tier -- not a new one. This is a stated deviation from the repo\'s every-write-is-a-definer-RPC default: P1\'s editor is admin-only and writes through these policies; maps_publish is the one RPC because promote-and-retain must be atomic." So the GRANT is deliberately wide and the POLICY is the boundary: every one of the insert/update/delete policies is `to authenticated` with `public.is_admin()` in its USING and WITH CHECK, so a signed-in non-admin holding this grant is refused by RLS at 42501 and writes nothing. That is the layer tests/maps-rls-boundary.test.ts mutation-proves, table by table and policy by policy -- the grant alone would not stop anybody, and the suite asserts the anon refusal (grant layer) and the signed-in non-admin refusal (RLS layer) as two separate proofs. The P2 student-grant tier is a widening with its own bundle.'
+	},
+	maps_item_types: {
+		privileges: ['insert', 'update', 'delete'],
+		reason:
+			'IDEA Maps editor: the item-type vocabulary. ' +
+			'0161\'s header states the deviation and its scope: "WRITE ACCESS IS EDITOR-ROLE RLS POLICIES ON public.is_admin() (0067), the predicate this repo already uses for the admin tier -- not a new one. This is a stated deviation from the repo\'s every-write-is-a-definer-RPC default: P1\'s editor is admin-only and writes through these policies; maps_publish is the one RPC because promote-and-retain must be atomic." So the GRANT is deliberately wide and the POLICY is the boundary: every one of the insert/update/delete policies is `to authenticated` with `public.is_admin()` in its USING and WITH CHECK, so a signed-in non-admin holding this grant is refused by RLS at 42501 and writes nothing. That is the layer tests/maps-rls-boundary.test.ts mutation-proves, table by table and policy by policy -- the grant alone would not stop anybody, and the suite asserts the anon refusal (grant layer) and the signed-in non-admin refusal (RLS layer) as two separate proofs. The P2 student-grant tier is a widening with its own bundle.'
+	},
+	maps_items: {
+		privileges: ['insert', 'update', 'delete'],
+		reason:
+			'IDEA Maps editor: unique items. ' +
+			'0161\'s header states the deviation and its scope: "WRITE ACCESS IS EDITOR-ROLE RLS POLICIES ON public.is_admin() (0067), the predicate this repo already uses for the admin tier -- not a new one. This is a stated deviation from the repo\'s every-write-is-a-definer-RPC default: P1\'s editor is admin-only and writes through these policies; maps_publish is the one RPC because promote-and-retain must be atomic." So the GRANT is deliberately wide and the POLICY is the boundary: every one of the insert/update/delete policies is `to authenticated` with `public.is_admin()` in its USING and WITH CHECK, so a signed-in non-admin holding this grant is refused by RLS at 42501 and writes nothing. That is the layer tests/maps-rls-boundary.test.ts mutation-proves, table by table and policy by policy -- the grant alone would not stop anybody, and the suite asserts the anon refusal (grant layer) and the signed-in non-admin refusal (RLS layer) as two separate proofs. The P2 student-grant tier is a widening with its own bundle.'
+	},
+	maps_stock: {
+		privileges: ['insert', 'update', 'delete'],
+		reason:
+			'IDEA Maps editor: stock placements. ' +
+			'0161\'s header states the deviation and its scope: "WRITE ACCESS IS EDITOR-ROLE RLS POLICIES ON public.is_admin() (0067), the predicate this repo already uses for the admin tier -- not a new one. This is a stated deviation from the repo\'s every-write-is-a-definer-RPC default: P1\'s editor is admin-only and writes through these policies; maps_publish is the one RPC because promote-and-retain must be atomic." So the GRANT is deliberately wide and the POLICY is the boundary: every one of the insert/update/delete policies is `to authenticated` with `public.is_admin()` in its USING and WITH CHECK, so a signed-in non-admin holding this grant is refused by RLS at 42501 and writes nothing. That is the layer tests/maps-rls-boundary.test.ts mutation-proves, table by table and policy by policy -- the grant alone would not stop anybody, and the suite asserts the anon refusal (grant layer) and the signed-in non-admin refusal (RLS layer) as two separate proofs. The P2 student-grant tier is a widening with its own bundle.'
+	},
+	maps_photos: {
+		privileges: ['insert', 'update', 'delete'],
+		reason:
+			'IDEA Maps photo rows (spec 4.4), on the same admin-only editor path as the four content tables above: 0163 grants insert/update/delete to authenticated and gates all three on `public.is_admin()` in the policy. The bytes behind a row live in the maps-media bucket and are governed separately by storage.objects policies, which are admin-only for every write.'
+	},
+	maps_revisions: {
+		privileges: ['insert', 'update', 'delete'],
+		reason:
+			'The draft-and-publish staging table (spec 4.3), and the write grant is narrowed by policy in TWO independent ways rather than one. Admin: all four policies carry `public.is_admin()`. And STATE: the insert, update and delete policies each additionally require `state = \'pending\'`, so a client can stage, adjust and discard a pending edit and can never touch a RETAINED row. Retained history is minted only by the SECURITY DEFINER trigger _maps_retain_revision (which is what makes retention a property of the table rather than of client discipline) and removed only by the FK cascade when its object is deleted. anon holds no grant here in any direction.'
+	},
+	maps_search_log: {
+		privileges: ['insert'],
+		reason:
+			'The signed-in half of the anonymous search log. 0162 grants INSERT to anon AND authenticated for the same reason 0046 does on the FSP form: being signed in must not be the thing that stops your missed query teaching the vocabulary anything. INSERT only -- no UPDATE and no DELETE for any client role, because an append-only miss log that can be edited is one whose misses can be tidied away. SELECT is authenticated-only and admin-gated by policy.'
 	},
 	gauntlet_series: {
 		privileges: ['insert', 'update', 'delete'],
@@ -265,7 +338,7 @@ const AUTHENTICATED_WRITE_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
 };
 
 /** Pinned so an entry added silently fails. */
-const AUTHENTICATED_WRITE_SURFACE_SIZE = 14;
+const AUTHENTICATED_WRITE_SURFACE_SIZE = 21;
 
 const WRITE_PRIVILEGES = ['insert', 'update', 'delete', 'truncate'] as const;
 

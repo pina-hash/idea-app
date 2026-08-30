@@ -1,0 +1,150 @@
+[
+  {
+    "id": "legal-v3-legal",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "New file, all legal",
+        "points": 5,
+        "descriptor": "V2 preserved, V3 saved separately, all four dimensional rules hold and the projected mass is under the limit."
+      },
+      {
+        "label": "Developing",
+        "short": "One check fails",
+        "points": 3,
+        "descriptor": "V3 exists but one rule is broken or the mass was not checked."
+      },
+      {
+        "label": "Absent",
+        "short": "No V3",
+        "points": 0,
+        "descriptor": "No V3 file."
+      }
+    ],
+    "points": 5,
+    "criterion": "Still Legal: V3 is a separate file that passes every rule including mass",
+    "incomplete": false
+  },
+  {
+    "id": "v3-v3-shown",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "V3 shown, change marked",
+        "points": 3,
+        "descriptor": "Screenshot is of V3 and the changed area is marked."
+      },
+      {
+        "label": "Developing",
+        "short": "Shown, not marked",
+        "points": 2,
+        "descriptor": "Screenshot uploaded but nothing marked, or it is V2."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No screenshot."
+      }
+    ],
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: Screenshot of V3 with the change marked",
+    "incomplete": false
+  },
+  {
+    "id": "v3-change-from-evidence",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Change tied to test",
+        "points": 4,
+        "descriptor": "Names the change, its location, and the specific thing the scale test showed that caused it."
+      },
+      {
+        "label": "Proficient",
+        "short": "Change, weak tie",
+        "points": 2,
+        "descriptor": "Names the change but the connection to the test result is vague or asserted."
+      },
+      {
+        "label": "Developing",
+        "short": "Change only",
+        "points": 1,
+        "descriptor": "Says what changed with no reference to the test."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "What You Changed, And What You Expect: Ties the V3 change to what the scale test showed",
+    "incomplete": false
+  },
+  {
+    "id": "v3-load-prediction",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Predicted, area reasoning",
+        "points": 4,
+        "descriptor": "Gives a number and reasons from how much cross section carries the pull at full size against half size, rather than from length alone."
+      },
+      {
+        "label": "Proficient",
+        "short": "Predicted, simple scaling",
+        "points": 2,
+        "descriptor": "Gives a number and a stated method, but scales by size directly rather than by the area carrying the load."
+      },
+      {
+        "label": "Developing",
+        "short": "Number, no method",
+        "points": 1,
+        "descriptor": "Gives a number with no reasoning behind it."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "What You Changed, And What You Expect: Predicts full size load from the half scale result with stated reasoning",
+    "incomplete": false
+  },
+  {
+    "id": "v3-location-prediction",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Located and distinguished",
+        "points": 4,
+        "descriptor": "Names where it will fail and says why that differs from where the scale article failed, or why it is the same place despite the change."
+      },
+      {
+        "label": "Proficient",
+        "short": "Located, no reasoning",
+        "points": 2,
+        "descriptor": "Names a location with no account of why it moved or did not."
+      },
+      {
+        "label": "Developing",
+        "short": "Vague location",
+        "points": 1,
+        "descriptor": "Does not name a place on the part."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "What You Changed, And What You Expect: Predicts the failure location and distinguishes it from the last one",
+    "incomplete": false
+  }
+]

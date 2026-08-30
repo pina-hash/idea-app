@@ -66,11 +66,13 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-directories under `src/routes/dev` with a page, and `routes.mjs` lists **29
-specs over 24 distinct routes** (re-derived 2026-08-29 against `routes/*.mjs`
-after the marks, room-split, coin-preview and short-link specs went in; it
-read 25 over 20 the same day, before them). **This count is a snapshot, not a
-derived value, and it WILL go stale the next time a session adds a route --
+directories under `src/routes/dev` with a page, and `routes.mjs` lists **36
+specs over 28 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
+on this branch merged with `integration`, which is what brought the
+classroom-inspector and class-bulk specs in; it read 29 over 24 on 2026-08-29,
+and 25 over 20 the same day, before the marks, room-split, coin-preview and
+short-link specs). **This count is a snapshot, not a derived value, and it WILL
+go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
 against the distinct `path.split('?')[0]` values (alias-resolved) for both
@@ -119,19 +121,20 @@ Two further limits belong in any report that quotes these numbers:
 ### Known findings, and the two limits above as they apply to them
 
 **The whole run reports exactly 2 measurements outside threshold** (re-derived
-2026-08-30 on `main`: 58 route/width runs, 580 measurements), and they are one
-finding seen at each of the two widths. Anything else is new. **This paragraph
-is a snapshot and it drifts** -- the run above it is the authority, and a
-session measuring a different number corrects this line in the same change,
-saying which finding moved.
+2026-08-30 on this branch merged with `integration`: 72 route/width runs, 780
+measurements), and they are one finding seen at each of the two widths. Anything
+else is new. **This paragraph is a snapshot and it drifts** -- the run above it
+is the authority, and a session measuring a different number corrects this line
+in the same change, saying which finding moved.
 
-The measurement count moved from 532 to 580 without a route being added: the 24
-`prepare` steps are measurements now, at two widths each. The three findings
-this paragraph used to list are down to one -- `/dev/coin-preview`'s picker and
-`/dev/short-links`'s save control were both owned by their components and have
-since been fixed there (re-measured 352x44 and 112.8x44). They are named below
-rather than deleted, because a finding that vanishes without a word reads like a
-check that stopped running.
+The count moved for two independent reasons and neither of them is a check being
+added -- one reason from each of the two lanes that corrected this paragraph.
+The 28 `prepare` steps are measurements now, at two widths each, which took
+`main`'s own tree from 532 to 580; and `integration` carries seven route specs
+`main` does not, which is the rest of the way to 780. The three findings this
+paragraph used to list are down to one. The other two are named below rather
+than deleted, because a finding that vanishes without a word reads like a check
+that stopped running.
 
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
@@ -291,11 +294,12 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **54
-controls, 27 negative and 27 positive** (re-derived from `selftest.mjs`'s own
-`CASES` array 2026-08-29, after the five `motion` groups went in; it read 44
-the same day, and 36 on 2026-08-28. A number written down here is a number
-that drifts, so re-derive it rather than trusting this line).
+one, because unlike the measuring run there is a right answer here. **64
+controls, 32 negative and 32 positive** (re-derived from a `--selftest` run
+2026-08-30, after the `maxPresent`, prepare-step and absence-limit controls went
+in; it read 54 on 2026-08-29, 44 the same day, and 36 on 2026-08-28. A number
+written down here is a number that drifts, so re-derive it rather than trusting
+this line).
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
 once in a tree that then has to be restored byte-identically, this proves it on
 every run and touches nothing.
@@ -477,8 +481,10 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **152.2 seconds** (2.7s of it the vite boot) for **29 route specs
-x 2 widths = 58 runs and 580 measurements**; `--selftest` is ~24s (64 controls).
+A full run is **184.7 seconds** (3.2s of it the vite boot) for **36 route specs
+x 2 widths = 72 runs and 780 measurements**; `--selftest` is ~32s (64 controls).
+That is measured on this branch merged with `integration`; it was 152.2s for 58
+runs and 580 measurements on `main` alone.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree
@@ -513,14 +519,23 @@ measurements (24 steps x 2 widths) and no routes**: the same 58 runs measured
 extra measurement, which is the cost of a step being JUDGED rather than
 narrated, and it is paid whether or not the step passes.
 
+Then merging `integration` in brought the route list to **36 specs, 72 runs and
+780 measurements** at **184.7s** -- **+32.5s for 14 more runs, ~2.3s per
+route/width**, which is BELOW the ~3.5s this line had settled on. The fourteen
+are the classroom-inspector and class-bulk specs, which mount fixture data with
+no canvas, no rAF clock and no media flip, so the per-route/width figure is a
+range set by what a route mounts rather than a constant -- budget ~3.5s for a
+route with animation in it and ~2.3s for one without.
+
 **The marks are ELEVEN GLYPHS ON ONE ROUTE for exactly this reason.** One route
 per mark would have been twenty-two runs and roughly 77 seconds for
 measurements that share a single page load; `data-mark` keeps the reporting
 per-mark anyway. A pass nobody waits for is a pass nobody runs.
 
-**~145 seconds is the point at which this stops being free.** It is still a pass
+**~185 seconds is the point at which this stops being free.** It is still a pass
 a person will run before pushing, but the next session adding specs here should
-budget ~3.5s per route/width, and should say out loud what the run cost.
+budget somewhere in the ~2.3s to ~3.5s per route/width the paragraph above
+brackets, and should say out loud what the run cost.
 
 It is still deliberately outside `npm test` and outside CI:
 
