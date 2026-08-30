@@ -220,21 +220,54 @@ describe('what the component has done to itself by the time ondeleted fires', ()
 		expect(deleteButton(d).textContent?.trim()).toBe('Delete');
 	});
 
-	it('with NO callback -- every harness -- the write lands and the screen does not move', async () => {
-		// The undriven arrangement, asserted rather than described. This is what a
-		// reviewer driving `/dev/classroom` sees today: a successful delete that
-		// looks identical to a delete that silently failed.
+	it('with NO callback the page is REPLACED, and names what happened', async () => {
+		// `ondeleted`'s absence is the mechanism: with nobody to navigate away,
+		// the component acknowledges the delete itself rather than leaving the
+		// deleted item on screen looking untouched (the finding this file was
+		// first written to pin -- see ItemDetail.svelte's comment on `remove()`).
 		const rec = recorder();
 		const d = track(mountManager(rec));
-		const before = d.target.textContent ?? '';
 		deleteButton(d).click();
 		await d.settle();
 		deleteButton(d).click();
 		await d.settle();
 
 		expect(rec.order).toEqual(['deleteItem']);
-		expect(d.target.textContent).toContain(ITEM.title);
+		// The note names the item and says what happened.
+		const note = d.target.querySelector('[data-testid="item-removed"]');
+		expect(note).not.toBeNull();
+		expect(note?.textContent).toContain(ITEM.title);
+		expect(note?.textContent ?? '').toMatch(/is deleted/i);
+		// The page is REPLACED: no instructor tools, no delete button, no
+		// hand-in surface survives beside the note -- a second press of a
+		// thing already done is not on offer.
+		expect(d.all('button.danger').length).toBe(0);
+	});
+
+	it('with a callback, the page renders byte-identically to the pre-press page', async () => {
+		// `goto()` runs the caller's own navigation, so this component must do
+		// NOTHING to itself when a callback is wired -- rendering the removed
+		// note here too would be a flash of a page about to be destroyed, plus
+		// a second acknowledgement beside whatever the caller shows next. This
+		// is the half a naive fix gets wrong: acknowledging unconditionally
+		// fixes the no-callback case and breaks this one.
+		const rec = recorder();
+		const d = track(mountManager(rec, { ondeleted: () => rec.order.push('ondeleted') }));
+		const before = d.target.textContent ?? '';
+		deleteButton(d).click();
+		await d.settle();
+		const beforeSecondPress = d.target.textContent ?? '';
+		deleteButton(d).click();
+		await d.settle();
+
+		expect(rec.order).toEqual(['deleteItem', 'ondeleted']);
+		// Byte-identical to the pre-press page at every step: the confirm arm
+		// is the only thing that may have changed the label, and by the time
+		// the callback fires the delete button read is back to disarmed, so
+		// the two full-page snapshots agree.
+		expect(beforeSecondPress).not.toBe(before);
 		expect(d.target.textContent).toBe(before);
+		expect(d.target.querySelector('[data-testid="item-removed"]')).toBeNull();
 	});
 });
 
