@@ -15,6 +15,7 @@
 		'node-pending': { kind: 'node', id: FIX.millRoom },
 		compartment: { kind: 'node', id: FIX.drawer1 },
 		unit: { kind: 'node', id: FIX.toolChest },
+		place: { kind: 'node', id: FIX.workbench },
 		'type-pending': { kind: 'type', id: FIX.hexKeyType },
 		'new-root': { kind: 'new-node', parentId: null, presetKind: null }
 	};
@@ -29,7 +30,7 @@
 	<p class="harness-note">
 		Dev harness: the real MapsEditor over fixture data, in-memory transports.
 		States: <a href="/dev/maps-edit">none</a>, <a href="/dev/maps-edit?state=node-pending">node-pending</a>,
-		<a href="/dev/maps-edit?state=compartment">compartment</a>, <a href="/dev/maps-edit?state=unit">unit</a>,
+		<a href="/dev/maps-edit?state=compartment">compartment</a>, <a href="/dev/maps-edit?state=unit">unit</a>, <a href="/dev/maps-edit?state=place">place</a>,
 		<a href="/dev/maps-edit?state=type-pending">type-pending</a>, <a href="/dev/maps-edit?state=new-root">new-root</a>.
 	</p>
 	{#key data.state}
