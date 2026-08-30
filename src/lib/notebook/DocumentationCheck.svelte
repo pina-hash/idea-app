@@ -8,6 +8,7 @@
 		type RubricCriterion
 	} from '$lib/classroom/assignment-spec';
 	import { sectionName, summarize, type ReviewSection, type SectionGrid } from '$lib/notebook-review';
+	import Pending from '$lib/Pending.svelte';
 	import {
 		DOC_CHECK_CRITERIA,
 		DOC_CHECK_PRESENCE_ID,
@@ -318,7 +319,7 @@
 			of work and export from there.
 		</p>
 	{:else if loading && !data}
-		<p class="note">Loading…</p>
+		<Pending label="Loading the Documentation Check" />
 	{:else if loadError}
 		<p class="msg error" role="alert">{loadError}</p>
 	{:else if !data}

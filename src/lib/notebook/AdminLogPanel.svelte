@@ -7,6 +7,7 @@
 		type AdminLogRow,
 		type AdminLogTransports
 	} from '$lib/notebook/admin-actions';
+	import Pending from '$lib/Pending.svelte';
 
 	/**
 	 * THE RECORD OF WHO OVERRODE OR EXCUSED WHAT.
@@ -116,7 +117,7 @@
 	{#if loadError}
 		<p class="msg error" role="alert" data-testid="admin-log-error">{loadError}</p>
 	{:else if loading && !loaded}
-		<p class="note">Loading the log...</p>
+		<Pending label="Loading the log" />
 	{:else if rows.length === 0}
 		<!-- EMPTY IS AMBIGUOUS HERE AND THE SENTENCE SAYS SO. The policy answers
 		     an empty set to a non-admin rather than refusing, so "nothing has

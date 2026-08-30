@@ -66,19 +66,21 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-**65** directories under `src/routes/dev` with a page, and `routes.mjs` lists
-**57 specs over 31 distinct routes** (re-derived 2026-08-30 against `ROUTES`
-itself, on this branch merged with `integration`, which is what brought the
-coins, coin-desk, frc-state and notebook-review-viewer specs in on top of this
-bundle's own shelf-entry pair). **Neither parent's line survived the merge, and
-one of them was already stale before it**: this branch read 45 over 29,
-`integration`'s line still read 44 over 28 while `integration` itself measured
-55 over 30. Earlier readings, oldest last: 36 over 28 earlier the same day, 29
-over 24 on 2026-08-29, and 25 over 20 the same day, before the marks,
-room-split, coin-preview and short-link specs. The two maps placement specs are
-why a spec count can move without the route count moving: `?state=place` is a
-fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
-go stale the next time a session adds a route --
+**69** directories under `src/routes/dev` with a page, and `routes.mjs` lists
+**61 specs over 34 distinct routes** (re-derived 2026-08-30 against `ROUTES`
+itself, on this branch merged with `integration`: this branch's four
+`navigation*` specs, plus the coins, coin-desk, frc-state, maps-placement,
+maps shelf-entry and notebook-review-viewer specs `integration` brought). This
+line has been re-derived twice on this branch in one session, because
+`integration` moved underneath it both times: it read 47 over 31 on `main`, then
+59 over 33 against `integration` at `47c77b1`, and 61 over 34 against
+`integration` at `cadf918`. `integration`'s own copy of this line was stale
+throughout (it stated 44 over 28 against a tree measuring 55 over 30). Earlier
+readings, oldest last: 36 over 28 the same day, 29 over 24 on 2026-08-29, and 25
+over 20 the same day, before the marks, room-split, coin-preview and short-link
+specs. The two maps placement specs are why a spec count can move without the
+route count moving: `?state=place` is a fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
+ the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
 against the distinct `path.split('?')[0]` values (alias-resolved) for both
@@ -126,12 +128,26 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 6 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration`: **114 route/width runs, 1476
-measurements**), and they are THREE findings: two seen at both widths, and one
-seen at 375px only, on two different routes. Anything
-else is new. **This paragraph is a snapshot and it drifts** -- the run above it
-is the authority, and a session measuring a different number corrects this line
+**The whole run reports exactly 4 measurements outside threshold** (re-derived
+2026-08-30 on this branch merged with `integration` at `cadf918`: **122
+route/width runs, 1554 measurements**), and they are TWO findings: one seen at
+both widths, and one seen at 375px only on two different routes. Anything else
+is new.
+
+**Two things this paragraph used to say are now measured false, and both moved
+because of the merge rather than because a check changed.** It read "36
+measurements outside threshold ... 94 route/width runs" against this branch off
+`main`, of which the bulk was a cluster on `/dev/notebook`,
+`/dev/notebook-review-student` and the two `/dev/gauntlet-shell` specs where the
+component under test did not mount at all (`present 0` on every row, plus
+console errors), confirmed pre-existing at the time against a clean
+`origin/main` worktree. **On this merged tree that cluster is gone**: all three
+routes report zero findings and all 122 runs are console-error-clean, so
+whatever owned it was fixed on `integration`. The `/dev/foundry-submit` stale
+sentence count is gone too, corrected by this branch's own specs -- which is why
+this tree reports 4 where a tree without those corrections reports 6. **This
+paragraph is a snapshot and it drifts** -- the run above it
+, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
 
 The count moved for two independent reasons and neither of them is a check being
@@ -143,13 +159,11 @@ paragraph used to list are down to one. The other two are named below rather
 than deleted, because a finding that vanishes without a word reads like a check
 that stopped running.
 
-- **`/dev/foundry-submit`: the preflight sentence sweep measures 2 nodes where
-  it states 4** (`refusal + warning sentences (leading slash, 2 missing refs,
-  storage)`, `present 2, visible 2` against `exactly 4`). Seen at both widths on
-  2026-08-30, on `main`, and it belongs to that surface rather than to this
-  harness -- recorded here rather than fixed because the session that measured
-  it was working in `src/lib/maps` and a foundry preflight change is somebody's
-  whole bundle.
+- **`/dev/foundry-submit`'s stale sentence count no longer reproduces.** It read
+  `present 2, visible 2` against `exactly 4` at both widths on 2026-08-30; on
+  this merged tree the spec passes at both widths, corrected by this branch's
+  own specs. It is named rather than deleted, because a finding that vanishes
+  without a word reads like a check that stopped running.
 - **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
   dimension 26.2px), under the 44px floor at both widths. This number is a
   **tap-target measurement**, so the fallback-stack limit above applies to it
@@ -160,7 +174,7 @@ that stopped running.
   `#student-drawer`'s header and body, its close button, and the drawer's name,
   stats and transaction-title rows, each reaching right=750 or 727.6 against a
   375 viewport). **At 375px only -- 1440px is clean on both routes**, which is
-  why one finding accounts for two of the six measurements rather than the four
+  why one finding accounts for two of the four measurements rather than the four
   a both-widths finding would give. It arrived with the coin-ledger specs rather
   than with this bundle, and `integration`'s own copy of this paragraph never
   recorded it because that copy had gone stale (it stated 44 specs against a
@@ -233,6 +247,34 @@ Three details are deliberate:
   verdict: `tapTargets` gates on the geometry alone. Do not "fix" it by
   scrolling before measuring -- that moves the boxes the check exists to
   report.
+
+### A ZERO-BOX `[data-testid]` EARLY IN THE BODY DISABLES THE WHOLE HARNESS
+
+`waitForApp` decides a page has painted by taking the **first** match of
+`main, h1, [data-testid], .harness` and requiring it to have a non-zero box. It
+takes ONE candidate, not the first candidate that has a box -- so an element
+that matches, comes first in document order, and is legitimately zero-box makes
+that predicate never hold, on **every route in the application**.
+
+**Measured, not reasoned.** A `role="status"` live region added to
+`src/routes/+layout.svelte` (the route-transition indicator, which is correctly
+an empty 375x0 wrapper at rest) carried a `data-testid`. `/dev/marks`, a route
+that component has nothing to do with, went from **"app rendered in 479ms" to
+"app DID NOT RENDER (DOM never settled) in 30007ms"**, and every route/width run
+from ~2.2s to ~31s -- a full pass from ~3 minutes to ~50. Nothing failed: every
+check still ran and still reported the right numbers, so the only visible symptom
+was the run taking sixteen times as long and a line most readers skim.
+
+Two ways out, and the first is the one available to a lane that does not own
+this directory: **do not put `data-testid` on a shell-mounted element that can
+be zero-box** (that indicator uses `data-nav-progress` instead, and says why in
+its own source). The second is to teach `waitForApp` to take the first candidate
+WITH a box rather than the first candidate; it has not been done, deliberately,
+because it changes the paint predicate for every route at once and belongs to
+whoever owns `browser.mjs`.
+
+**The tell is a run that got slow rather than a run that went red**, which is
+why it is written down here: nothing about it looks like a failure.
 
 ## Reaching a state: `prepare`, and why it retries
 
@@ -507,15 +549,16 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **259.0 seconds** (2.5s of it the vite boot) for **57 route specs
-x 2 widths = 114 runs and 1476 measurements**; `--selftest` is ~32s (64
-controls). That is measured 2026-08-30 on this branch merged with `integration`;
-the same tree measured twice read 262.4s and 259.0s, so treat the wall clock as
-plus or minus a few seconds and the run counts as exact. The two parents of that
-merge read 204.0s for 90 runs and 1080 measurements, and 207.1s for 88 runs and
-1076 measurements; it read 184.7s for 72 runs and 780 measurements earlier the
-same day, and 152.2s for 58 runs and 580 measurements on `main` alone. The
-per-route/width cost has held at roughly 2.3s across that whole range.
+A full run is **276.8 seconds** (2.4s of it the vite boot) for **61 route specs
+x 2 widths = 122 runs and 1554 measurements**; `--selftest` is ~32s (64
+controls). That is measured 2026-08-30 on this branch merged with `integration`
+at `cadf918`. Against `integration` at `47c77b1` the same branch read 265.8s for
+118 runs and 1476 measurements, and off `main` it read 192.7s for 94 runs and
+1080 measurements (against a 171.2s/86-run `origin/main` control on the same
+machine); `integration` itself read 207.1s for 88 runs and 1076 measurements. It
+read 184.7s for 72 runs and 780 measurements earlier the same day, and 152.2s
+for 58 runs and 580 measurements on `main` alone. The per-route/width cost has
+held at roughly 2.3s across that whole range.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree

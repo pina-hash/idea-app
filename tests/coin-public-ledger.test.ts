@@ -269,36 +269,105 @@ describe('no public payload contains an email address', () => {
 		expect(JSON.stringify(payloads)).not.toMatch(/@boscotech/i);
 	});
 
-	test('the opaque id is stable, opaque, and not an email in disguise', async () => {
-		const first = await db.asAnon(async (q) => {
-			const { rows } = await q<{ student_id: string; name: string }>(
-				`select student_id, name from public.coin_public_leaderboard() where name = 'Ada Lovelace'`
-			);
-			return rows[0];
-		});
-		const second = await db.asAnon(async (q) => {
-			const { rows } = await q<{ student_id: string }>(
-				`select student_id from public.coin_public_leaderboard() where name = 'Ada Lovelace'`
-			);
-			return rows[0];
-		});
-		expect(first.student_id).toBe(second.student_id);
+	test('the opaque id is stable, distinct, and NOT derivable from the address', async () => {
+		const board = () =>
+			db.asAnon(async (q) => {
+				const { rows } = await q<{ student_id: string; name: string }>(
+					`select student_id, name from public.coin_public_leaderboard()`
+				);
+				return rows;
+			});
+
+		const rows = await board();
+		expect(rows.length).toBeGreaterThan(1); // the comparisons below have cases
+		const first = rows.find((r) => r.name === 'Ada Lovelace')!;
+		expect(first).toBeDefined();
 		expect(first.student_id).toMatch(/^[0-9a-f]{32}$/);
-		// It cannot be the email, nor a trivial encoding of one. Decoded as
-		// latin1, which is byte-preserving -- utf8 replaces every invalid
-		// sequence with U+FFFD, so a substring search over it is searching
-		// mangled text.
-		//
-		// LOOKING FOR THE ADDRESS, NOT FOR AN '@'. The id is md5(salt || email),
-		// i.e. 16 UNIFORMLY RANDOM bytes, and one of them is 0x40 ('@') about 6%
-		// of the time -- so the older bare-'@' form of this assertion failed
-		// roughly one run in sixteen, at random, on a salt that is regenerated
-		// every time the migration is applied. Measured, and reproduced.
-		const decoded = Buffer.from(first.student_id, 'hex').toString('latin1');
-		for (const needle of [studentA.email, 'ada.lovelace', 'lovelace', 'boscotech']) {
-			expect(decoded.toLowerCase()).not.toContain(needle.toLowerCase());
-			expect(first.student_id).not.toContain(needle.toLowerCase());
+
+		// STABLE. A second read is the same id: a drawer is addressed by it, so
+		// an id that moved between two page loads is a different bug in the same
+		// field.
+		expect((await board()).find((r) => r.name === 'Ada Lovelace')!.student_id).toBe(
+			first.student_id
+		);
+
+		// DISTINCT. A collision is worse than a leak: two students would share
+		// one drawer and each would read the other's history.
+		expect(new Set(rows.map((r) => r.student_id)).size).toBe(rows.length);
+
+		// NOT COMPUTABLE FROM WHAT A VISITOR ALREADY HOLDS. The leaderboard hands
+		// out the display name and the school's address format is public, so
+		// sweep every digest an attacker can build from those alone. md5(email)
+		// is the one that matters: "it looks like a hash" is otherwise satisfied
+		// by a value that is a dictionary attack over one school's address space.
+		const publicKnowledge = [
+			studentA.email,
+			studentA.email.toLowerCase(),
+			studentA.email.split('@')[0],
+			'Ada Lovelace',
+			'ada lovelace'
+		];
+		const { rows: guesses } = await db.sql<{ candidate: string; d: string }>(
+			`select c as candidate, md5(c) as d from unnest($1::text[]) as c`,
+			[publicKnowledge]
+		);
+		expect(guesses).toHaveLength(publicKnowledge.length); // the sweep generated cases
+		for (const g of guesses) {
+			expect(first.student_id, `id equals md5(${g.candidate})`).not.toBe(g.d);
 		}
+
+		// AND THE REASON IT IS NOT: the id is md5(SECRET SALT || email), and the
+		// salt is minted at apply time into a table with no grant and no policy
+		// (the test below holds that half). This is the assertion that SAYS so
+		// rather than implying it -- rotate the secret as the connection owner
+		// and every id moves while every address stays exactly where it was. An
+		// id that survived a rotation would be a function of the address, which
+		// is the whole claim.
+		//
+		// THIS REPLACES FIVE ASSERTIONS THAT COULD NOT FAIL. Four of them read
+		// `expect(first.student_id).not.toContain(needle)` over the needles
+		// `studentA.email`, 'ada.lovelace', 'lovelace' and 'boscotech' -- and
+		// `student_id` is asserted one line above to be /^[0-9a-f]{32}$/, while
+		// '.', '@', 'l', 'o', 's', 'v', 't' and 'h' are none of them hex digits.
+		// No hex string can contain any of the four, so all four were green from
+		// the day they were written and tested nothing. The fifth,
+		// `expect(decoded).not.toContain(studentA.email)` over the digest's 16
+		// decoded bytes, was vacuous by LENGTH: the address is longer than the
+		// string being searched. Substring-freedom was standing in for
+		// non-derivability; it is a consequence of the rotation proof now rather
+		// than a coincidence to check. (The three remaining decoded-substring
+		// needles went with them: 'lovelace' in 16 uniformly random bytes is a
+		// probabilistic assertion about a coincidence, not about the property,
+		// and its sibling in tests/coin-public-anon-projection.test.ts records a
+		// measured 1-run-in-132 flake from exactly that shape.)
+		const { rows: before } = await db.sql<{ salt: string }>(
+			`select salt from public.coin_public_id_secret where id limit 1`
+		);
+		const originalSalt = before[0].salt;
+		expect(typeof originalSalt).toBe('string'); // the secret really is there
+		try {
+			await db.sql(
+				`update public.coin_public_id_secret
+				    set salt = gen_random_uuid()::text || gen_random_uuid()::text
+				  where id`
+			);
+			const rotated = await board();
+			expect(rotated).toHaveLength(rows.length); // the comparison below has cases
+			for (const row of rotated) {
+				const was = rows.find((r) => r.name === row.name)!;
+				expect(row.student_id, `${row.name}'s id survived a salt rotation`).not.toBe(
+					was.student_id
+				);
+				expect(row.student_id).toMatch(/^[0-9a-f]{32}$/);
+			}
+		} finally {
+			await db.sql(`update public.coin_public_id_secret set salt = $1 where id`, [originalSalt]);
+		}
+		// Restored, so any id the rest of this file addresses a drawer with is the
+		// one it started with.
+		expect((await board()).find((r) => r.name === 'Ada Lovelace')!.student_id).toBe(
+			first.student_id
+		);
 	});
 
 	test('the id salt is unreadable by anon, authenticated, and an admin', async () => {

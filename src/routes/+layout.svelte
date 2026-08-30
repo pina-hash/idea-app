@@ -21,6 +21,7 @@
 	import InstallPrompt from '$lib/InstallPrompt.svelte';
 	import PathwayPicker from '$lib/PathwayPicker.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
+	import NavigationProgress from '$lib/NavigationProgress.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 
@@ -70,6 +71,12 @@
 </script>
 
 <div class="bg-fx" aria-hidden="true"></div>
+<!-- THE ONE ROUTE-TRANSITION INDICATOR. Mounted here for the reason SiteFeedback
+     is: there are no layout resets in src/routes, so every page route inherits
+     it rather than having to remember one. It reads `navigating` from
+     `$app/state` and draws nothing until a navigation has been in flight for
+     NAV_INDICATOR_DELAY_MS, so an instant click stays silent. -->
+<NavigationProgress />
 {@render children()}
 <!-- First-login pathway picker: renders only for a signed-in student with no
      pathway set (self-contained, reads page data like ProfileMenu). -->
