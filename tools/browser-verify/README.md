@@ -66,12 +66,13 @@ data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
 **It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-directories under `src/routes/dev` with a page, and `routes.mjs` lists **36
-specs over 28 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
-on this branch merged with `integration`, which is what brought the
-classroom-inspector and class-bulk specs in; it read 29 over 24 on 2026-08-29,
-and 25 over 20 the same day, before the marks, room-split, coin-preview and
-short-link specs). **This count is a snapshot, not a derived value, and it WILL
+directories under `src/routes/dev` with a page, and `routes.mjs` lists **47
+specs over 31 distinct routes** (re-derived 2026-08-30 against `ROUTES` itself,
+on `claude/navigation-loading-indicator-laqsgc`, off `main`, whose four
+`navigation*` specs are the most recent addition; it read 36 over 28 the same
+day on a tree merged with `integration`, 29 over 24 on 2026-08-29, and 25 over
+20 the same day, before the marks, room-split, coin-preview and short-link
+specs). **This count is a snapshot, not a derived value, and it WILL
 go stale the next time a session adds a route --
 do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
 -l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
@@ -120,10 +121,24 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 2 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration`: 72 route/width runs, 780
-measurements), and they are one finding seen at each of the two widths. Anything
-else is new. **This paragraph is a snapshot and it drifts** -- the run above it
+**The whole run reports 36 measurements outside threshold** (re-derived
+2026-08-30 on `claude/navigation-loading-indicator-laqsgc`, off `main`: 94
+route/width runs, 1080 measurements). **The same run on an untouched
+`origin/main` worktree, same machine, same session, reports 38 over 86 runs and
+1002 measurements** -- and that control is what makes the first number readable
+rather than alarming: the branch adds four specs that all pass and corrects one
+stale count on `/dev/foundry-submit` seen at each width, so 38 - 2 = 36 and it
+introduced nothing. **A total is worth nothing without its control.** Take both
+before calling any of it a regression; the previous reading of this line was
+"exactly 2", on a differently-merged tree, and a session comparing 36 against
+that would have reported 34 phantom regressions.
+
+Beyond `/dev/pathways`'s two harness controls (below), the 36 are a cluster on
+`/dev/notebook`, `/dev/notebook-review-student` and the two `/dev/gauntlet-shell`
+specs where the component under test does not mount at all -- `present 0` on
+every row, plus console errors. **Confirmed PRE-EXISTING against the clean
+`origin/main` worktree** rather than assumed, and not investigated: they belong
+to whoever owns those routes. Anything outside that set is new. **This paragraph is a snapshot and it drifts** -- the run above it
 is the authority, and a session measuring a different number corrects this line
 in the same change, saying which finding moved.
 
@@ -207,6 +222,34 @@ Three details are deliberate:
   verdict: `tapTargets` gates on the geometry alone. Do not "fix" it by
   scrolling before measuring -- that moves the boxes the check exists to
   report.
+
+### A ZERO-BOX `[data-testid]` EARLY IN THE BODY DISABLES THE WHOLE HARNESS
+
+`waitForApp` decides a page has painted by taking the **first** match of
+`main, h1, [data-testid], .harness` and requiring it to have a non-zero box. It
+takes ONE candidate, not the first candidate that has a box -- so an element
+that matches, comes first in document order, and is legitimately zero-box makes
+that predicate never hold, on **every route in the application**.
+
+**Measured, not reasoned.** A `role="status"` live region added to
+`src/routes/+layout.svelte` (the route-transition indicator, which is correctly
+an empty 375x0 wrapper at rest) carried a `data-testid`. `/dev/marks`, a route
+that component has nothing to do with, went from **"app rendered in 479ms" to
+"app DID NOT RENDER (DOM never settled) in 30007ms"**, and every route/width run
+from ~2.2s to ~31s -- a full pass from ~3 minutes to ~50. Nothing failed: every
+check still ran and still reported the right numbers, so the only visible symptom
+was the run taking sixteen times as long and a line most readers skim.
+
+Two ways out, and the first is the one available to a lane that does not own
+this directory: **do not put `data-testid` on a shell-mounted element that can
+be zero-box** (that indicator uses `data-nav-progress` instead, and says why in
+its own source). The second is to teach `waitForApp` to take the first candidate
+WITH a box rather than the first candidate; it has not been done, deliberately,
+because it changes the paint predicate for every route at once and belongs to
+whoever owns `browser.mjs`.
+
+**The tell is a run that got slow rather than a run that went red**, which is
+why it is written down here: nothing about it looks like a failure.
 
 ## Reaching a state: `prepare`, and why it retries
 
@@ -481,10 +524,12 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **184.7 seconds** (3.2s of it the vite boot) for **36 route specs
-x 2 widths = 72 runs and 780 measurements**; `--selftest` is ~32s (64 controls).
-That is measured on this branch merged with `integration`; it was 152.2s for 58
-runs and 580 measurements on `main` alone.
+A full run is **192.7 seconds** for **47 route specs x 2 widths = 94 runs and
+1080 measurements**; `--selftest` is ~32s (64 controls). That is measured on
+`claude/navigation-loading-indicator-laqsgc`, off `main`, on the same machine
+that ran the 86-run `origin/main` control in **171.2s**. It read 184.7s for 72
+runs on a tree merged with `integration`, and 152.2s for 58 runs and 580
+measurements on `main` alone before that.
 
 **MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
 direction that matters: it read "~34 seconds ... 8 route specs" against a tree

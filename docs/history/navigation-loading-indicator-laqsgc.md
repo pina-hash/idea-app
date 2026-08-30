@@ -215,6 +215,39 @@ work; md5 verified after each restore.
   CONTROL on `/dev/navigation?force=1` reddened at both widths. That is the
   pairing the harness README requires, demonstrated rather than asserted.
 
+### 4b. The worst thing this bundle did, and it never went red
+
+The indicator's wrapper carried `data-testid="nav-progress"`. It is mounted in
+the ROOT layout, so its element is the first one in the body on every page in
+the application, and at rest it is correctly a ZERO BOX.
+
+`waitForApp` decides a page has painted by taking the **first** match of
+`main, h1, [data-testid], .harness` and requiring a non-zero box -- one
+candidate, not the first candidate with a box. So the predicate picked a 375x0
+element and never held, **on every route in the harness**.
+
+Measured on `/dev/marks`, a route this bundle has nothing to do with, by
+removing the mount and putting it back:
+
+| | with the mount | mount removed |
+| --- | --- | --- |
+| `/dev/marks` @375 | **app DID NOT RENDER (DOM never settled) in 30007ms** | **app rendered in 479ms** |
+| wall clock, one route/width | 31.8s | 2.2s |
+
+A full pass would have gone from about three minutes to about fifty. **Nothing
+failed.** Every check still ran and still reported correct numbers; the only
+symptom was a slow run and a status line most readers skim. It was found by
+noticing that a background full pass had been going for seventeen minutes.
+
+The hook is `data-nav-progress` now, with the measurement in the component's own
+source. The deeper fragility is `waitForApp`'s, and it is NOT fixed here:
+`browser.mjs` is harness core and outside this lane. It is written up in
+`tools/browser-verify/README.md` under its own heading so the next component to
+do this is caught by reading rather than by re-measuring.
+
+**This is also why the `--strict` runs earlier in this entry were not enough.**
+Four specs green over eight runs said nothing about the other 86.
+
 ### 5. Orphan A -- five assertions in `coin-public-ledger` that could not fail
 
 `tests/coin-public-ledger.test.ts` asserted the opaque student id was not an
@@ -297,10 +330,21 @@ change is a ratchet.
 - **`prefers-reduced-motion` is `no-preference` for every check except
   `motion`**, which emulates both states itself. Every geometry and contrast
   number above describes the unreduced state.
-- **"app DID NOT RENDER (DOM never settled) in ~30s" appears on all three new
-  routes and is PRE-EXISTING** -- `/dev/marks` on an untouched tree reports the
-  identical line. It is not caused by anything in this bundle and was not
-  investigated.
+- **The 36 findings a full pass reports are pre-existing, and that is measured
+  against a control rather than assumed.** Full pass on this branch: **94
+  route/width runs, 1080 measurements, 36 outside threshold, 192.7s**. The same
+  run on an untouched `origin/main` worktree, same machine, same session:
+  **86 runs, 1002 measurements, 38 outside threshold, 171.2s**. The difference
+  is exactly the two this bundle FIXED on `/dev/foundry-submit`, one per width;
+  it introduces none. The 36 are `/dev/pathways`'s two harness controls and a
+  cluster on `/dev/notebook`, `/dev/notebook-review-student` and the two
+  `/dev/gauntlet-shell` specs where the component does not mount at all
+  (`present 0` on every row, plus console errors) -- reproduced identically on
+  the control, out of this lane, and not investigated.
+- **A `504 (Outdated Optimize Dep)` appeared once mid-session** and did not
+  reproduce on a fresh dep cache. It is vite's optimizer racing a tree being
+  edited under a long-lived dev server, not a code defect; the numbers above are
+  from a run started after `rm -rf node_modules/.vite`.
 - **The indicator was never seen by a human.** Every claim above is a measured
   number from a headless Chromium.
 

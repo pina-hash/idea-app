@@ -58,7 +58,7 @@
 			 */
 			style.setAttribute('data-shift-control', '1');
 			style.textContent =
-				'[data-testid="nav-progress-forced"] { position: static !important; }';
+				'[data-nav-progress="nav-progress-forced"] { position: static !important; }';
 			document.head.appendChild(style);
 		}
 
@@ -170,7 +170,7 @@
 		   nulls -- which reads exactly like a broken selector and is nothing of
 		   the kind. Settled on a timeout, never rAF, for the reason above. */
 		await settle();
-		const root = document.querySelector('[data-testid="nav-progress-forced"]')!;
+		const root = document.querySelector('[data-nav-progress="nav-progress-forced"]')!;
 		const track = root.querySelector('.nav-prog-track') as HTMLElement | null;
 		const sweep = root.querySelector('.nav-prog-sweep') as HTMLElement | null;
 		const ground = getComputedStyle(document.body).backgroundColor;
@@ -255,7 +255,7 @@
 <!-- The REAL component, pinned on, so the painted bar can be measured without
      racing a navigation. Its own testid so it is distinguishable from the live
      one the root layout mounts. -->
-<NavigationProgress force={forced || pinned} testid="nav-progress-forced" />
+<NavigationProgress force={forced || pinned} hook="nav-progress-forced" />
 
 <div class="page">
 	<section class="card">

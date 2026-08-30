@@ -42,15 +42,29 @@
 		 */
 		force = null,
 		/**
-		 * The real mount keeps the default, so a spec's selector for the live
-		 * indicator is stable; a harness pinning a SECOND, forced instance
-		 * renames its own so the two are distinguishable in a presence count.
+		 * The value of this element's `data-nav-progress` attribute. The real
+		 * mount keeps the default, so a spec's selector for the live indicator is
+		 * stable; a harness pinning a SECOND, forced instance renames its own so
+		 * the two are distinguishable in a presence count.
+		 *
+		 * IT IS NOT `data-testid`, AND THAT IS NOT A NAMING PREFERENCE. This
+		 * component is mounted in the ROOT LAYOUT, so its element is the first
+		 * one in the body on every page in the application, and at rest it is
+		 * correctly a ZERO BOX. `tools/browser-verify`'s `waitForApp` decides a
+		 * page has painted by taking the FIRST match of
+		 * `main, h1, [data-testid], .harness` and requiring it to have a box --
+		 * so a `data-testid` here made that predicate pick a 375x0 element and
+		 * never hold. Measured: `/dev/marks`, a route this component has nothing
+		 * to do with, went from "app rendered in 479ms" to "app DID NOT RENDER
+		 * (DOM never settled) in 30007ms", and a whole-suite pass from ~2.2s per
+		 * route/width to ~31s. Every route in the harness, silently, from one
+		 * attribute on one element in the shell.
 		 */
-		testid = 'nav-progress'
+		hook = 'nav-progress'
 	}: {
 		delayMs?: number;
 		force?: boolean | null;
-		testid?: string;
+		hook?: string;
 	} = $props();
 
 	let elapsed = $state(false);
@@ -91,7 +105,7 @@
 	const shown = $derived(force === null ? elapsed : force);
 </script>
 
-<div class="nav-prog" role="status" aria-live="polite" data-testid={testid}>
+<div class="nav-prog" role="status" aria-live="polite" data-nav-progress={hook}>
 	{#if shown}
 		<!--
 			THE TRACK IS THE STATE AND THE SWEEP IS THE DECORATION, which is what

@@ -33,7 +33,7 @@ export default {
 	presence: [
 		/*
 			THE POSITIVE CONTROL FOR THE ABSENCE ROW ON `/dev/navigation`. That
-			route asserts `[data-testid="nav-progress"] .nav-prog-track` is
+			route asserts `[data-nav-progress="nav-progress"] .nav-prog-track` is
 			exactly 0 at rest, and an absence row cannot tell "the rule holds"
 			from "the selector was renamed". This row proves the same class name
 			matches something real when the bar IS drawn, on the same page, in
@@ -43,7 +43,7 @@ export default {
 			one is correctly empty here: nothing is navigating.
 		*/
 		{
-			selector: '[data-testid="nav-progress-forced"] .nav-prog-track',
+			selector: '[data-nav-progress="nav-progress-forced"] .nav-prog-track',
 			label: 'the track paints when the indicator is on (control for the absence row)',
 			expectPresent: 1,
 			maxPresent: 1,
@@ -51,7 +51,7 @@ export default {
 			maxVisible: 1
 		},
 		{
-			selector: '[data-testid="nav-progress-forced"] .nav-prog-sweep',
+			selector: '[data-nav-progress="nav-progress-forced"] .nav-prog-sweep',
 			label: 'the sweep paints when the indicator is on',
 			expectPresent: 1,
 			maxPresent: 1,
@@ -66,7 +66,7 @@ export default {
 			rule forbids and the thing nothing else here would notice.
 		*/
 		{
-			selector: '[data-testid="nav-progress"], [data-testid="nav-progress-forced"]',
+			selector: '[data-nav-progress="nav-progress"], [data-nav-progress="nav-progress-forced"]',
 			label: 'exactly two indicator regions: the live one and this route\'s pinned one',
 			expectPresent: 2,
 			maxPresent: 2,
@@ -81,7 +81,7 @@ export default {
 			maxVisible: 1
 		},
 		{
-			selector: '[data-testid="nav-progress-forced"][role="status"]',
+			selector: '[data-nav-progress="nav-progress-forced"][role="status"]',
 			label: 'the indicator is reachable as a status, not as decoration',
 			expectPresent: 1,
 			maxPresent: 1
@@ -96,7 +96,7 @@ export default {
 			`mustNot` catches the case where the region is present and empty.
 		*/
 		{
-			selector: '[data-testid="nav-progress-forced"] .nav-prog-label',
+			selector: '[data-nav-progress="nav-progress-forced"] .nav-prog-label',
 			label: 'the live region carries a sentence, in the one spelling',
 			must: ['Loading the next page…'],
 			mustNot: ['...', '&hellip;']

@@ -62,7 +62,7 @@
 	 */
 	let running = false;
 
-	const TRACK = '[data-testid="nav-progress"] .nav-prog-track';
+	const TRACK = '[data-nav-progress="nav-progress"] .nav-prog-track';
 
 	/**
 	 * Watch one real navigation from the moment `goto` is called until

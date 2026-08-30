@@ -2490,6 +2490,20 @@ inside the function fails closed rather than falling through to a weaker path.
     so the region exists empty from the first frame and the `{#if}` wraps the
     BAR. An empty region correctly holds a ZERO BOX (measured 375x0 and 1440x0)
     -- a spec asserting it visible at rest is asserting a permanent bar.
+  - **ITS HARNESS HOOK IS `data-nav-progress`, NEVER `data-testid`, AND THAT IS
+    NOT A NAMING PREFERENCE.** `tools/browser-verify`'s `waitForApp` decides a
+    page has painted by taking the FIRST match of
+    `main, h1, [data-testid], .harness` and requiring it to have a box -- one
+    candidate, not the first one with a box. A shell-mounted element is first in
+    the body on every page, and this one is correctly zero-box at rest, so a
+    `data-testid` here made that predicate never hold **on every route in the
+    harness**. Measured on `/dev/marks`, which has nothing to do with it: "app
+    rendered in 479ms" became "app DID NOT RENDER (DOM never settled) in
+    30007ms", and a full pass would have gone from ~3 minutes to ~50. **Nothing
+    went red** -- every check still ran and still reported correct numbers, so
+    the only symptom was a slow run. Anything else mounted in the shell that can
+    be zero-box takes a hook of its own for the same reason; the harness
+    README's own section has the full write-up.
 - **EVERY OTHER PENDING STATE IS `$lib/Pending.svelte`, AND ITS WORDS ARE
   `$lib/pending.ts`.** Same division of labour as `SaveIndicator` /
   `save-state.svelte.ts`: the module owns the sentence, the component owns only

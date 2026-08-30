@@ -149,7 +149,7 @@ export default {
 			alone would not notice the two merging.
 		*/
 		{
-			selector: '[data-testid="nav-progress"]',
+			selector: '[data-nav-progress="nav-progress"]',
 			label: 'the live indicator region mounted by the root layout',
 			expectPresent: 1,
 			maxPresent: 1,
@@ -185,7 +185,7 @@ export default {
 			track PRESENT by the identical selector.
 		*/
 		{
-			selector: '[data-testid="nav-progress"] .nav-prog-track',
+			selector: '[data-nav-progress="nav-progress"] .nav-prog-track',
 			label: 'no bar painted with no navigation in flight',
 			expectPresent: 0
 		},
