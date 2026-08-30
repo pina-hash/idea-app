@@ -42,18 +42,24 @@ function section(html: string, testid: string): string {
 }
 
 describe('nothing selected: the tree, with state visible from the list', () => {
-	it('renders all 7 fixture nodes with their publish states, and no detail pane', () => {
+	it('renders all 8 fixture nodes with their publish states, and no detail pane', () => {
 		const html = renderEditor();
-		expect(count(html, 'tree-row')).toBeGreaterThanOrEqual(7);
+		expect(count(html, 'tree-row')).toBeGreaterThanOrEqual(8);
 		// One pending chip (Mill Room), two draft chips (Drawer 2, Prototype
-		// Lab), four published -- the whole fixture accounted for, so a chip
+		// Lab), five published -- the whole fixture accounted for, so a chip
 		// that stopped rendering moves a number instead of vanishing quietly.
+		// The fifth published node is Workbench B, added as the sibling the
+		// plan canvas's snap targets need something to be.
 		expect(count(html, 'data-state="pending"')).toBe(1);
 		expect(count(html, 'data-state="draft"')).toBe(2);
-		expect(count(html, 'data-state="published"')).toBe(4);
-		// The absent half: no detail pane, no canvas (drawing is bundle B).
+		expect(count(html, 'data-state="published"')).toBe(5);
+		// The absent half: no detail pane -- and no PLAN CANVAS either, which
+		// is a real absence now that one exists. It is a property of the
+		// SELECTION (a canvas needs a node open), and its positive control is
+		// the ?state=place assertions below, where the same testid matches.
 		expect(count(html, 'maps-node-detail')).toBe(0);
-		expect(count(html, '<canvas')).toBe(0);
+		expect(count(html, 'maps-plan-canvas')).toBe(0);
+		expect(count(html, 'maps-unit-elevation')).toBe(0);
 		// The root ladder, before the action: exactly the three legal kinds.
 		const addRoot = html.slice(html.indexOf('maps-add-root'));
 		expect(addRoot).toContain('Add site');
@@ -167,5 +173,57 @@ describe('creation completeness: what can be created can be deleted, and a block
 		expect(html).toContain('Create &amp; publish');
 		// The geometry is part of the create form, not a come-back-later panel.
 		expect(count(html, 'maps-geometry-fields')).toBe(1);
+	});
+});
+
+describe('the two placement surfaces, in the markup the route serves', () => {
+	/* The POSITIVE CONTROLS for the two absences asserted at the top of this
+	   file (no canvas and no elevation while nothing is selected): the same two
+	   selectors match here, so those zeros are about the SELECTION rather than
+	   about a testid that was renamed. */
+	it('a placed unit carries the plan canvas, with its sibling drawn as context', () => {
+		const html = renderEditor({ kind: 'node', id: FIX.workbench });
+		expect(count(html, 'maps-plan-canvas')).toBe(1);
+		expect(count(html, 'maps-plan-shape')).toBe(1);
+		// Machine Shop holds Tool Chest A besides this bench.
+		expect(count(html, 'maps-plan-sibling')).toBe(1);
+		// The rule the surface exists to keep, in words, on the page itself.
+		expect(html).toContain('never resizes it');
+		expect(html).toContain('does not put it inside it');
+	});
+
+	it('a top-level node gets the section and no shape, with the reason in its place', () => {
+		const html = renderEditor({ kind: 'node', id: FIX.building });
+		expect(count(html, 'maps-plan-canvas')).toBe(1);
+		// The absence: nothing to place a building against. Its control is the
+		// `maps-plan-shape` count of 1 in the test above.
+		expect(count(html, 'maps-plan-shape')).toBe(0);
+		expect(html).toContain('no frame to be placed in');
+	});
+
+	it('a unit carries the front elevation of its compartments, top slot first', () => {
+		const html = renderEditor({ kind: 'node', id: FIX.toolChest });
+		const stack = section(html, 'maps-unit-elevation');
+		expect(count(html, 'maps-unit-elevation')).toBe(1);
+		expect(stack.indexOf('Drawer 1')).toBeGreaterThan(-1);
+		// Slot order, not alphabetical accident: Drawer 1 (order 1) precedes
+		// Drawer 2 (order 2) in the rendered stack.
+		expect(stack.indexOf('Drawer 1')).toBeLessThan(stack.indexOf('Drawer 2'));
+		expect(stack).toContain('nothing has to be retyped');
+	});
+
+	it('a unit with no compartments says so instead of rendering an empty stack', () => {
+		const html = renderEditor({ kind: 'node', id: FIX.workbench });
+		expect(count(html, 'maps-elevation-empty')).toBe(1);
+		expect(count(html, 'maps-elevation-rows')).toBe(0);
+	});
+
+	it('a ROOM has no front elevation at all: the elevation belongs to the unit', () => {
+		const html = renderEditor({ kind: 'node', id: FIX.machineShop });
+		expect(count(html, 'maps-unit-elevation')).toBe(0);
+		// Positive control in the same read: the room DOES get the canvas, so
+		// this zero is about the elevation rather than about the whole detail
+		// pane failing to render.
+		expect(count(html, 'maps-plan-canvas')).toBe(1);
 	});
 });
