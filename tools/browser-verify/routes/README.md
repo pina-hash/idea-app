@@ -84,6 +84,14 @@ export default {
   input's `list` attribute resolves to a real datalist, options in the order
   a page-side probe function produces (`evaluateExpected` calls that probe
   rather than a list retyped here).
+- `motion` -- `[{ selector, label, expect }]`, where `expect` is `'gated'`
+  (default) or `'never'`. Sweeps every element under `selector` in BOTH
+  reduced-motion states: `'gated'` needs at least one element animating under
+  `no-preference` and none of them still moving, still transformed or unpainted
+  under `reduce`; `'never'` needs zero animated elements in either state (the
+  FRC brand rule). Every entry in one spec is measured in ONE pair of media
+  flips, so adding entries is cheap; see `checks.mjs` and the harness README's
+  `motion` section.
 - `textContains` -- `[{ selector, label, must, mustNot }]`.
 - `ignoreConsole` -- regex sources for errors that belong to the FIXTURE.
 
@@ -91,6 +99,45 @@ Selectors are ANCHORED (a component root, then the element) rather than bare
 tag names. A bare `svg` on `/dev/animated-logo` matched the site-feedback
 glyph mounted by the root layout and reported it as a failure; the emblem
 there is not an svg at all.
+
+## A harness must be in the room production is in
+
+A spec's numbers are only as good as the layout chain the harness mounts. Room
+classes come from the LAYOUT chain (`/coin-desk/+layout.svelte` gives every area
+`.cd-root`, `/gauntlet/+layout.svelte` gives `.gt-root`, `/reference/+layout.svelte`
+gives `.cr-root`), so a dev route -- which has no such layout above it -- carries
+whatever wrapper its own page puts there, and by default that is none.
+
+Four mismatches were found and closed at once, each one measured rather than
+assumed: `ShortLinkManager` was harnessed inside `.cr-root` while `/admin/links`
+has no room; `AnimatedLogo`, `PathwayChip`, `Avatar` and `StudentPreview` were
+harnessed with no room while `/reference/[itemId]`, `/gauntlet/leaderboard` and
+`/coin-desk/preview` are `.cr-root`, `.gt-root` and `.cd-root`.
+
+Three things that fall out of fixing them are worth knowing before doing it
+again:
+
+- **A room class needs its stylesheet imported too.** `.cd-root` is registered
+  in `$lib/shell/split.css`, `.gt-root` in
+  `$lib/gauntlet/viewport/viewport.css`, `.cr-root` in
+  `$lib/classroom/classroom.css`. Without the import the wrapper is a class with
+  no rules: a room in the markup that paints nothing, which is a worse fixture
+  than no wrapper at all. Every room fix here therefore carries a `presence` row
+  asserting the room actually mounted, because the contrast rows alone would
+  quietly go on reporting the portal plate.
+- **A room can repaint the whole page, not just its subtree.**
+  `classroom.css` carries `body:has(.cr-root) { background: var(--surface-0) }`,
+  so a `.cr-root` section added to a roomless harness takes the plate out from
+  under the roomless half. Measured on `/dev/animated-logo`: the note copy's
+  ground moved rgb(18, 26, 18) -> rgb(10, 12, 11) and its ratio 5.31:1 ->
+  5.87:1. That is what forced `/dev/animated-logo-room` to be a second ROUTE
+  rather than a section, and it is the general shape of "where a component ships
+  in two rooms it needs two harnesses".
+  `.gt-root` has no such rule, which is why `/dev/pathways` could take a second
+  stage in the same page.
+- **Anchor a contrast selector away from the new stage.** `contrast` reports the
+  WORST match, so an unanchored selector silently folds two rooms into one
+  number and the second row becomes a duplicate of the first.
 
 ## Shared values
 

@@ -10,8 +10,21 @@
 	<h1>// AnimatedLogo harness</h1>
 	<p class="note">
 		The gear should turn slowly behind the text plate. Under
-		<code>prefers-reduced-motion: reduce</code> it must be perfectly still. Toggle your OS
-		reduced-motion setting to check the gate.
+		<code>prefers-reduced-motion: reduce</code> it must be perfectly still; the browser pass
+		asserts that by emulating the media feature (see <code>motionSweep</code> in
+		<code>tools/browser-verify/checks.mjs</code>) rather than by asking anyone to toggle an OS
+		setting.
+	</p>
+	<p class="note">
+		THIS PAGE IS THE PORTAL PLATE, WITH NO SCOPED ROOM, which is what
+		<code>/</code>, <code>/admin</code> and <code>/admin/links</code> give the emblem. The other
+		rooms it ships in are a SEPARATE route,
+		<a href="/dev/animated-logo-room">/dev/animated-logo-room</a> -- they cannot share a page,
+		because <code>classroom.css</code> repaints the canvas through
+		<code>body:has(.cr-root)</code> and a room section here would take the plate out from under
+		this one. Measured: the note copy's ground moved from rgb(18, 26, 18) to rgb(10, 12, 11) and
+		its ratio from 5.31:1 to 5.87:1 the moment a <code>.cr-root</code> wrapper was added to this
+		page.
 	</p>
 
 	<section>

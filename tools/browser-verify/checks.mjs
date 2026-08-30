@@ -727,7 +727,241 @@ export async function datalistOrder(page, { inputSelector, evaluateExpected, lab
 }
 
 /* ------------------------------------------------------------------ *
- * 8. Console errors during the run
+ * 8. Motion under prefers-reduced-motion -- BOTH directions, per element
+ * ------------------------------------------------------------------ */
+
+/**
+ * THE PROBE, run once per media state. Returns one row per element in each
+ * matched subtree, in document order.
+ *
+ * `Element.getAnimations()` IS THE DISCOVERY MECHANISM, not a parse of the
+ * stylesheet. Walking `document.styleSheets` for rules that declare an
+ * animation was the other candidate and it is the worse instrument here for a
+ * reason CLAUDE.md already names: `CSSStyleRule` has a `cssRules` property now
+ * (CSS Nesting) and an empty `CSSRuleList` is truthy, so the ordinary shape for
+ * walking a sheet skips every plain rule's declarations and comes back with
+ * zero matches, which reads exactly like a clean result. `getAnimations()` asks
+ * the ELEMENT what is actually attached to it, in the media state the page is
+ * currently in, so there is no selector to fail to parse and no sheet to fail
+ * to read. It reports a `animation-play-state: paused` animation too (FoundryMark
+ * pauses rather than removes), which is correct: paused is attached.
+ *
+ * `paintedOf` IS NOT `isVisible`, DELIBERATELY. `isVisible` flags a zero-area
+ * box, which is the right answer for a laid-out element and the WRONG one for
+ * SVG stroke geometry: `<path d="M5 10v20" />` is a vertical line, so its
+ * bounding box is 0px wide and every animated rail, tick and node in these
+ * marks would report itself invisible. What "nothing is hidden in a base state"
+ * asks is whether the element is PAINTED, which is the opacity/display/
+ * visibility half of that predicate and not the geometry half. The ancestor
+ * opacity walk is kept verbatim, because `opacity` is not inherited and a child
+ * of an `opacity: 0` group computes 1 -- the exact false green `isVisible`'s own
+ * walk exists to prevent.
+ */
+const MOTION_PROBE = `(selector) => {
+  const h = window.__bvHelpers;
+  /* Force a style recalc so a media-state flip has landed before anything is
+     read. Chromium recomputes lazily and getComputedStyle is what pays for it. */
+  void document.body.offsetHeight;
+  const paintedOf = (el) => {
+    const cs = getComputedStyle(el);
+    const reasons = [];
+    if (cs.display === 'none') reasons.push('display:none');
+    if (cs.visibility === 'hidden' || cs.visibility === 'collapse') reasons.push('visibility:' + cs.visibility);
+    if (el.hasAttribute && el.hasAttribute('hidden')) reasons.push('[hidden]');
+    const op = parseFloat(cs.opacity);
+    if (!Number.isNaN(op) && op <= 0.01) reasons.push('opacity:' + cs.opacity);
+    else {
+      let anc = el.parentElement;
+      for (let hops = 0; anc && hops < 60; hops++, anc = anc.parentElement) {
+        const ao = parseFloat(getComputedStyle(anc).opacity);
+        if (!Number.isNaN(ao) && ao <= 0.01) { reasons.push('ancestor-opacity:' + ao + ' on ' + h.cssPath(anc)); break; }
+      }
+    }
+    return { painted: reasons.length === 0, reasons, opacity: Number.isNaN(op) ? 1 : op };
+  };
+  const rows = [];
+  for (const root of document.querySelectorAll(selector)) {
+    const all = [root, ...root.querySelectorAll('*')];
+    for (const el of all) {
+      const anims = typeof el.getAnimations === 'function' ? el.getAnimations() : [];
+      const cs = getComputedStyle(el);
+      const p = paintedOf(el);
+      rows.push({
+        path: h.cssPath(el),
+        tag: el.tagName.toLowerCase(),
+        animations: anims.length,
+        animationNames: anims.map((a) => (a.animationName || (a.effect && a.effect.getKeyframes ? 'effect' : 'anim'))).slice(0, 4),
+        playStates: anims.map((a) => a.playState).slice(0, 4),
+        animationName: cs.animationName,
+        transform: cs.transform,
+        opacity: +p.opacity.toFixed(3),
+        painted: p.painted,
+        reasons: p.reasons
+      });
+    }
+  }
+  return rows;
+}`;
+
+/**
+ * `prefers-reduced-motion`, measured in BOTH states, per ELEMENT.
+ *
+ * WHAT IT ASSERTS is CLAUDE.md's rule for the app marks, which is stated in
+ * three places and is not identical in any two of them. The narrowest and
+ * strongest wording is the one under the launcher-card section: "Every other
+ * app mark is a component in `$lib/marks` with a 3-4.6s loop gated behind
+ * `prefers-reduced-motion: no-preference`, and **nothing is hidden in a base
+ * state**: with the animation cancelled every animated element is at full
+ * opacity and no transform, so a reduced-motion reader sees the whole glyph."
+ * Two more say the same thing more loosely: "Everything animated is gated
+ * behind `prefers-reduced-motion`", and AnimatedLogo's "spin is gated behind
+ * `prefers-reduced-motion: no-preference`". The FRC half is the other
+ * direction: "THE FRC MARK IS NEVER ANIMATED ... FIRST's brand guidelines
+ * prohibit altering the mark, and motion is an alteration."
+ *
+ * THE HARD PART IS THE CANCELLED STATE, AND MEASURING THE ANIMATION RUNNING
+ * PROVES NOTHING ABOUT IT. So this flips Chromium's own emulation of the media
+ * feature and measures the SAME elements twice:
+ *
+ *   phase RUNNING (`prefers-reduced-motion: no-preference`) -- discover which
+ *     elements are animated at all. That set is the POSITIVE CONTROL: an
+ *     `expect: 'gated'` entry that finds nothing to animate FAILS, because a
+ *     sweep with an empty case list satisfies "nothing moves under reduce"
+ *     perfectly and is the shape a renamed class silently produces.
+ *   phase REDUCED (`prefers-reduced-motion: reduce`) -- re-read exactly those
+ *     elements. Each must have NO animation attached, `animation-name: none`,
+ *     `transform: none`, and must still be PAINTED.
+ *
+ * `expect: 'never'` is the FRC direction: zero animated elements in the RUNNING
+ * phase, which is the phase where every other mark is moving. Asserting it in
+ * the reduced phase alone would be satisfied by an animation that is merely
+ * gated -- the one thing this mark may not have.
+ *
+ * ONE CALL SWEEPS EVERY ENTRY, and that is a runtime decision rather than a
+ * shape preference: each media flip costs a settle, and eleven marks measured
+ * one at a time would pay twenty-two of them per route/width. Two flips serve
+ * the whole spec.
+ *
+ * THE MEASURED VALUE IS NOT A PASS. Every row reports how many elements were
+ * swept, how many animate, how many are still moving under reduce, how many
+ * carry a residual transform, how many are unpainted, and the LOWEST resting
+ * opacity in the set -- which is the number "full opacity" is really about and
+ * the one a future reader can audit. It is REPORTED rather than gated, because
+ * these glyphs legitimately author depth with opacity (`.node { opacity: 0.35 }`
+ * in GauntletMark is its resting value, not a dimmed frame); what is GATED is
+ * "painted at all", on the harness's own existing 0.01 floor.
+ */
+export async function motionSweep(page, entries, { settleMs = 160 } = {}) {
+	if (!entries || entries.length === 0) return [];
+	await ensureHelpers(page);
+
+	/* `page.evaluate(string)` treats its argument as an EXPRESSION and IGNORES
+	   any second argument -- the same trap `clickUntil` and `waitUntil` already
+	   work around in browser.mjs. Handed the probe source and a selector, it
+	   evaluated to a FUNCTION OBJECT, returned undefined, and every row below
+	   read `length` off nothing. The selector is interpolated into the call
+	   instead, JSON-encoded so a quote in it cannot break out. */
+	const readAll = async () => {
+		const out = [];
+		for (const e of entries) {
+			out.push(await page.evaluate(`(${MOTION_PROBE})(${JSON.stringify(e.selector)})`));
+		}
+		return out;
+	};
+
+	/* RUNNING first: the set of animated elements can only be discovered in the
+	   state that runs them, and it is what makes the reduced-phase zero mean
+	   something. */
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await page.waitForTimeout(settleMs);
+	const running = await readAll();
+
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.waitForTimeout(settleMs);
+	const reduced = await readAll();
+
+	/* Leave the page in the state the rest of the run expects. Every other
+	   check in this file measures the no-preference surface, and a page left in
+	   `reduce` would silently move whatever ran after it. */
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+	return entries.map((entry, i) => {
+		const { selector, label = selector, expect = 'gated' } = entry;
+		const run = running[i];
+		const red = reduced[i];
+
+		/* A flip must not change the DOM. If it did, the two phases are not
+		   describing the same elements and every count below is meaningless --
+		   so that is its own failure rather than a silently mismatched zip. */
+		const shapeOk = run.length === red.length;
+		const animatedIdx = run.map((r, j) => (r.animations > 0 ? j : -1)).filter((j) => j >= 0);
+		const offenders = [];
+		if (shapeOk) {
+			for (const j of animatedIdx) {
+				const r = red[j];
+				const why = [];
+				if (r.animations > 0) why.push(`still animating (${r.animationName}, ${r.playStates.join('/')})`);
+				else if (r.animationName !== 'none') why.push(`animation-name ${r.animationName}`);
+				if (r.transform !== 'none') why.push(`transform ${r.transform}`);
+				if (!r.painted) why.push(`not painted (${r.reasons.join(', ')})`);
+				if (why.length) offenders.push({ path: r.path, opacity: r.opacity, why });
+			}
+		}
+		const restingOpacities = shapeOk ? animatedIdx.map((j) => red[j].opacity) : [];
+		const minResting = restingOpacities.length ? Math.min(...restingOpacities) : null;
+
+		const swept = run.length;
+		const animated = animatedIdx.length;
+		const measured =
+			`${swept} element(s) swept, ${animated} animated under no-preference, ` +
+			`${offenders.length} not settled under reduce` +
+			(minResting === null ? '' : `, lowest resting opacity ${minResting}`);
+
+		let withinThreshold;
+		let threshold;
+		if (expect === 'never') {
+			threshold = '0 animated elements, in either media state';
+			withinThreshold = shapeOk && swept > 0 && animated === 0 && red.every((r) => r.animations === 0);
+		} else {
+			threshold = '>= 1 animated; 0 still moving, transformed or unpainted under reduce';
+			withinThreshold = shapeOk && animated > 0 && offenders.length === 0;
+		}
+
+		return {
+			check: 'motion',
+			selector,
+			label,
+			measured: shapeOk ? measured : `DOM changed across the media flip (${run.length} then ${red.length} elements)`,
+			threshold,
+			withinThreshold,
+			data: {
+				expect,
+				shapeOk,
+				swept,
+				animated,
+				minResting,
+				offenders: offenders.slice(0, 12),
+				/* The animated elements themselves, both phases, so the report
+				   can print what each one rests at rather than only naming the
+				   ones that failed. */
+				elements: shapeOk
+					? animatedIdx.slice(0, 16).map((j) => ({
+							path: run[j].path,
+							running: run[j].animationNames.join(','),
+							restOpacity: red[j].opacity,
+							restTransform: red[j].transform,
+							restAnimations: red[j].animations
+						}))
+					: [],
+				/* For `expect: 'never'`, what DID animate is the finding. */
+				unexpected: expect === 'never' ? animatedIdx.slice(0, 8).map((j) => run[j].path) : []
+			}
+		};
+	});
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. Console errors during the run
  * ------------------------------------------------------------------ */
 export function consoleErrors(collected, { ignore = [], blockedCount = 0 } = {}) {
 	/* The harness aborts external requests on purpose, and Chromium logs a
