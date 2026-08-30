@@ -1,6 +1,8 @@
 <script lang="ts">
+	import Disclosure from '$lib/Disclosure.svelte';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
+	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import {
 		validateSpec,
 		type AssignmentSpec,
@@ -61,6 +63,45 @@
 	 * line still renders beside it, so a teacher can see at a glance that they
 	 * are being told something rather than stopped. The two are told apart by a
 	 * WORD as well as a colour, because colour is never the only signal.
+	 *
+	 * THE APP IS A ROUTE TO ITS OWN DATA. Until this bundle it was not: the
+	 * attached spec was described by a summary line (title, id, module count,
+	 * points) and the JSON itself was rendered NOWHERE in the application. The
+	 * only way to read it was the GitHub export under `materials/`, which an
+	 * instructor teaching the course does not necessarily have and which
+	 * nothing on screen mentions. So a teacher who did not author a spec could
+	 * not read it, could not copy it, and -- because "Replace spec" opened an
+	 * EMPTY box -- could not change one word of it without first finding the
+	 * original somewhere outside the app. Three things follow from that, and
+	 * they are one feature rather than three:
+	 *
+	 *   1. THE JSON IS ON THE PAGE, in a collapsed Disclosure under the summary
+	 *      line. Collapsed because a spec is tens of kilobytes and the person is
+	 *      here to manage an item, not to read JSON; present because "there is a
+	 *      document here and this is it" is the whole defect.
+	 *   2. ONE PRESS COPIES IT, from the always-visible action row rather than
+	 *      from inside the panel, so reading it and taking it are separate jobs.
+	 *   3. THE EDITOR OPENS ON WHAT IS ATTACHED, so replacing a spec starts from
+	 *      the spec rather than from nothing.
+	 *
+	 * IT IS SERIALIZED FROM THE STORED OBJECT, WHICH IS NOT THE AUTHORED BYTES.
+	 * `spec` arrives as the row's jsonb, so key order and whitespace are
+	 * Postgres's rather than the author's. It is the same document -- it
+	 * validates, it republishes, it is what an AI tool should be handed -- but
+	 * it is not a byte-for-byte copy of the file somebody once pasted, and
+	 * nothing here should claim otherwise.
+	 *
+	 * SEEDING MAKES AN ACCIDENTAL REPUBLISH POSSIBLE, SO ONE IS REFUSED. An
+	 * empty box could not overwrite anything by accident; a seeded one is one
+	 * stray click away from writing a revision that changes nothing, which is
+	 * exactly the "a save that changed nothing is not an edit" case the item
+	 * page already cares about. The guard is a COMPARISON and not a flag:
+	 * `EditBaseline` records what the box opened on and answers whether it has
+	 * moved off it, so "is there content in here" can never be mistaken for
+	 * "has this been edited" (the presence-of-state bug, which is why that class
+	 * exists). ONE predicate -- `publishReady` -- drives both the control and
+	 * the handler, and the control is `aria-disabled` rather than `disabled` so
+	 * that pressing it explains itself instead of doing nothing.
 	 */
 
 	type ImporterKind = 'assignment' | 'reference';
@@ -121,6 +162,43 @@
 	let notice = $state<string | null>(null);
 	let armRemove = $state(false);
 	let armPublic = $state(false);
+
+	/**
+	 * THE ATTACHED DOCUMENT AS TEXT -- the one serialization, read by the
+	 * viewer, the copy control and the seed alike. Three spellings of "the
+	 * spec as JSON" is how the panel comes to show one thing and the clipboard
+	 * to carry another.
+	 */
+	const specJsonText = $derived(shown ? JSON.stringify(shown, null, 2) : '');
+	const specJsonStats = $derived.by(() => {
+		if (!specJsonText) return '';
+		const lines = specJsonText.split('\n').length;
+		const kb = specJsonText.length / 1024;
+		return `${lines} lines · ${kb < 1 ? `${specJsonText.length} chars` : `${kb.toFixed(1)} kB`}`;
+	});
+
+	/** What the box opened on, so a real edit can be told from a seeding. */
+	const baseline = new EditBaseline();
+	/** Seeded, and not yet moved off the seed: publishing would change nothing. */
+	const seededUnchanged = $derived(baseline.seeded && !baseline.changed(raw));
+	/**
+	 * The ONE answer to "would pressing Publish do anything". The button reads
+	 * it and so does the handler; two spellings of this is what produces a
+	 * click that silently does nothing.
+	 */
+	const publishReady = $derived(!!parsed && !busy && !seededUnchanged);
+
+	type CopyNote = { tone: 'ok' | 'error'; text: string };
+	let copyNote = $state<CopyNote | null>(null);
+	let copyTimer: ReturnType<typeof setTimeout> | null = null;
+	/**
+	 * A clipboard the browser refused. It opens the JSON panel, because the
+	 * refusal's advice -- select it yourself -- is only true if the text is
+	 * actually on screen. It survives until the next copy attempt: a refusal
+	 * that faded out would leave a reader who looked away believing the copy
+	 * worked.
+	 */
+	let copyRefused = $state(false);
 
 	// The flag lives on the row, but the toggle has to reflect a just-made
 	// change before the page reloads, so it tracks locally from the RPC's answer.
@@ -196,6 +274,7 @@
 	$effect(() => {
 		return () => {
 			if (timer) clearTimeout(timer);
+			if (copyTimer) clearTimeout(copyTimer);
 		};
 	});
 
@@ -228,10 +307,141 @@
 		raw = '';
 		parsed = null;
 		problems = [];
+		// The box no longer holds what it opened on, so there is nothing to
+		// compare against. Leaving a stale baseline standing would make the
+		// NEXT thing typed in here look unchanged from a document it never
+		// opened on.
+		baseline.clear();
+	}
+
+	/**
+	 * OPEN THE EDITOR ON WHAT IS ATTACHED.
+	 *
+	 * Only when the box is EMPTY. Closing the editor has never discarded a
+	 * draft, and seeding over one would throw away work somebody left there on
+	 * purpose -- the seed is for opening on nothing, which is the case the
+	 * defect was about.
+	 *
+	 * `flushValidation` rather than `queueValidate`: this is a single
+	 * deliberate press, so the box answers immediately rather than making the
+	 * reader wait out a debounce they did not cause, exactly as an upload does.
+	 */
+	function toggleEditor() {
+		if (open) {
+			open = false;
+			return;
+		}
+		open = true;
+		if (!specJsonText || raw.trim()) return;
+		raw = specJsonText;
+		flushValidation();
+		baseline.seed(specJsonText);
+	}
+
+	/**
+	 * A LAST RESORT, NOT A PREFERENCE. The async clipboard is refused on an
+	 * insecure origin and by a dismissed permission prompt, both of which are
+	 * ordinary; a selected off-screen textarea is still reachable in several
+	 * of those cases. Returns whether it actually worked, because the whole
+	 * point here is that a copy which did not happen must not be reported as
+	 * one.
+	 */
+	function copyBySelection(text: string): boolean {
+		if (typeof document === 'undefined') return false;
+		const scratch = document.createElement('textarea');
+		scratch.value = text;
+		scratch.setAttribute('readonly', '');
+		scratch.style.position = 'fixed';
+		scratch.style.top = '0';
+		scratch.style.opacity = '0';
+		document.body.appendChild(scratch);
+		let ok = false;
+		try {
+			scratch.select();
+			ok = document.execCommand('copy') === true;
+		} catch {
+			ok = false;
+		}
+		document.body.removeChild(scratch);
+		return ok;
+	}
+
+	/**
+	 * THE REFUSAL IS THE INTERESTING HALF. A copy control that silently does
+	 * nothing where the clipboard is unavailable is worse than no control at
+	 * all: the reader walks away believing they are holding the spec. So every
+	 * path here ends in a sentence -- the success one times out, the refusal
+	 * one does not, and the refusal also opens the panel so that "select it
+	 * yourself" names something the reader can actually see.
+	 */
+	async function copyJson() {
+		if (!specJsonText) return;
+		if (copyTimer) {
+			clearTimeout(copyTimer);
+			copyTimer = null;
+		}
+		let ok = false;
+		try {
+			if (navigator?.clipboard?.writeText) {
+				await navigator.clipboard.writeText(specJsonText);
+				ok = true;
+			}
+		} catch {
+			ok = false;
+		}
+		if (!ok) ok = copyBySelection(specJsonText);
+
+		if (ok) {
+			copyRefused = false;
+			copyNote = { tone: 'ok', text: `Copied. ${specJsonStats}.` };
+			copyTimer = setTimeout(() => (copyNote = null), 2500);
+			return;
+		}
+		copyRefused = true;
+		copyNote = {
+			tone: 'error',
+			text: `This browser did not let the page use the clipboard. The ${words.noun} JSON is shown below instead: select it and copy it yourself.`
+		};
+	}
+
+	/**
+	 * WHY THE PRESS DID NOTHING, in the one list problems already appear in.
+	 *
+	 * The unchanged case is a WARNING rather than an error: nothing is wrong
+	 * with the document, and the "Valid:" line beside it stays, which is what
+	 * makes "you are being told something, not stopped" legible without a
+	 * sentence explaining it. The blank-box case is an error because there
+	 * genuinely is nothing. A box with content that failed to parse needs
+	 * nothing added -- `flushValidation` has just filled the list with the
+	 * actual reasons.
+	 */
+	function explainRefusal() {
+		if (busy) return;
+		if (seededUnchanged) {
+			problems = [
+				{
+					tone: 'warning',
+					text: `This is the ${words.noun} already attached, unchanged. Edit it before publishing, or close the editor to leave it as it is.`
+				}
+			];
+			return;
+		}
+		if (!parsed && !raw.trim()) {
+			problems = [
+				{ tone: 'error', text: `Nothing to publish: paste or upload a ${words.noun} first.` }
+			];
+		}
 	}
 
 	async function publish() {
 		flushValidation();
+		// ONE predicate, read after the flush so a teacher who pastes and
+		// presses immediately is judged on what is in the box rather than on
+		// what a 250ms timer had got round to.
+		if (!publishReady) {
+			explainRefusal();
+			return;
+		}
 		if (!parsed) return;
 
 		// Staging: nothing exists to attach TO yet.
@@ -376,9 +586,27 @@
 	{/if}
 
 	<span class="tool-actions">
-		<button type="button" class="btn secondary tiny" onclick={() => (open = !open)}>
+		<button
+			type="button"
+			class="btn secondary tiny"
+			data-testid="spec-open-editor"
+			onclick={toggleEditor}
+		>
 			{open ? 'Close import' : shown ? `Replace ${words.noun}` : `Import ${words.noun}`}
 		</button>
+		{#if shown}
+			<!-- IN THE ALWAYS-VISIBLE ROW, not inside the panel below: reading the
+			     document and taking it are different jobs, and the common one is
+			     handing the JSON to something else. -->
+			<button
+				type="button"
+				class="btn secondary tiny"
+				data-testid="spec-copy"
+				onclick={copyJson}
+			>
+				Copy JSON
+			</button>
+		{/if}
 		{#if shown && isReference && itemId}
 			<a
 				class="btn secondary tiny"
@@ -395,14 +623,49 @@
 	</span>
 
 	{#if notice}<p class="feedback ok">{notice}</p>{/if}
+	{#if copyNote}
+		<p class="feedback {copyNote.tone}" data-testid="spec-copy-note" data-tone={copyNote.tone}>
+			{copyNote.text}
+		</p>
+	{/if}
+
+	{#if shown}
+		<!--
+			THE DOCUMENT ITSELF, on the page.
+
+			COLLAPSED BY DEFAULT (`collapseWhen`), because a spec is tens of
+			kilobytes and nobody opens an item page to read JSON -- but present,
+			in the DOM, hidden in CSS rather than removed, so it prints and so
+			opening it costs nothing. A refused clipboard flips `collapseWhen`,
+			which is the one moment the reading IS what this person came for.
+
+			`scope` is null in staging mode on purpose: a manual open/closed
+			choice is remembered per item, and an item that does not exist yet
+			has nothing to remember it against.
+		-->
+		<Disclosure
+			label={`${words.Noun} JSON`}
+			testId="spec-json-toggle"
+			collapseWhen={!copyRefused}
+			scope={itemId ? `spec-json:${kind}:${itemId}` : null}
+		>
+			{#snippet meta()}{specJsonStats}{/snippet}
+			<p class="note json-note">
+				This is what is stored. Key order and spacing are the database's, not the author's, so it
+				is the same document rather than a copy of the original file.
+			</p>
+			<pre class="json-view" data-testid="spec-json">{specJsonText}</pre>
+		</Disclosure>
+	{/if}
 
 	{#if open}
 		<div class="import-body">
 			<p class="note import-hint">
-				Paste or upload the JSON. It is checked as you go, and the preview below is what students
-				will actually see.
-				{#if shown}Publishing replaces the current {words.noun}; the old one is kept in this item's
-					history.{/if}
+				{#if shown}The attached {words.noun} is already in the box. Edit it, or paste and upload over
+					it. It is checked as you go, and the preview below is what students will actually see.
+					Publishing replaces the current {words.noun}; the old one is kept in this item's history.
+				{:else}Paste or upload the JSON. It is checked as you go, and the preview below is what
+					students will actually see.{/if}
 			</p>
 			<label class="btn secondary tiny file-pick">
 				Upload .json
@@ -441,11 +704,14 @@
 			{/if}
 
 			<span class="tool-actions">
+				<!-- `aria-disabled`, never `disabled`: a genuinely disabled control
+				     swallows the press, so it can never say why it refused. The
+				     unchanged-from-attached case is the one that most needs to. -->
 				<button
 					type="button"
 					class="btn tiny"
 					data-testid="spec-publish"
-					disabled={!parsed || busy}
+					aria-disabled={!publishReady}
 					onclick={publish}
 				>
 					{stagingMode ? `Use this ${words.noun}` : words.publish}
@@ -540,6 +806,39 @@
 		flex-direction: column;
 		gap: 0.45rem;
 	}
+	.json-note {
+		margin: 0 0 0.35rem;
+	}
+	/* THE DOCUMENT, SELECTABLE AND BOUNDED.
+
+	   `white-space: pre` and not `pre-wrap`: a spec carries long single-line
+	   strings, and wrapping them re-flows the indentation that makes JSON
+	   readable in the first place. Long lines scroll HERE, inside this box,
+	   which is what keeps the page itself from ever scrolling sideways --
+	   `min-width: 0` is the half of that which is easy to forget, because a
+	   grid/flex child's automatic minimum is its min-content and `overflow`
+	   alone does not reduce it.
+
+	   The scrollbar is left alone. A region that scrolls says so. */
+	.json-view {
+		margin: 0;
+		max-height: 22rem;
+		min-width: 0;
+		overflow: auto;
+		white-space: pre;
+		tab-size: 2;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-0);
+		padding: 0.6rem 0.7rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		line-height: 1.55;
+		color: var(--text-2);
+		/* Selecting the whole document by dragging is the fallback the refusal
+		   sentence points at, so it must actually be selectable. */
+		user-select: text;
+	}
 	.import-hint {
 		margin: 0;
 	}
@@ -631,6 +930,10 @@
 	@media (max-width: 32rem) {
 		.preview-frame {
 			max-height: 24rem;
+			padding: 0.5rem;
+		}
+		.json-view {
+			max-height: 18rem;
 			padding: 0.5rem;
 		}
 	}
