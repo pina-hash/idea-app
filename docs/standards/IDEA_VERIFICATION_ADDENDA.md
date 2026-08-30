@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.0 - 2026-08-25**
+**Version 2.1 - 2026-08-29**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -161,6 +161,60 @@ The tell is an assertion written by running the code and pinning the result. Tha
 
 ---
 
+## 21. A burst of concurrent calls does not test a lock
+
+N simultaneous callers is the obvious concurrency test and it proves nothing here. The role switch ahead of each call staggers them so they never overlap the critical section: a function with its advisory lock **deleted** passed a two-way burst, then an eight-way burst, four runs in a row, 31 of 31 green. A second file's burst test, headed with the case it believed it was proving, passed 3 of 3 against a lockless function and survived only because a real instrument sat beside it.
+
+The instrument is deterministic: a separate transaction holds the same lock from outside and the test measures how long the call waits, with a positive control on the same clock so a slow or loaded machine cannot pass for a held lock. Different guards need different instruments. A partial unique index cannot be held from outside; it is held by an uncommitted INSERT and observed in `pg_stat_activity`.
+
+And the lock the instrument holds must be the lock under test. A first attempt at this passed against the mutant because the RPC's INSERT takes `FOR KEY SHARE` on a foreign-key parent, which conflicts with a `FOR UPDATE` holder: the instrument was stalling the call through the constraint, green and deterministic-looking, measuring nothing. `FOR NO KEY UPDATE` was the discriminator.
+
+## 22. Repetition is not a nondeterminism detector
+
+Three mutants of a `distinct on` with no `order by` reddened nothing under a test that ran the query twelve times. Unspecified is not random: Postgres agrees with itself on the broken function as readily as on the fixed one. The guard has to be structural, pinning the `order by` clause expression for expression off the catalog. The repetition test is worth keeping and worth labelling as a weak control.
+
+## 23. A prepare step whose predicate the pre-action state already satisfies never acts
+
+A browser-harness route reported `0 attempts, already satisfied` and never fired its click, so every assertion after it measured whatever happened to be on the page. It reproduced 6 of 6 in isolation and had been reported as an intermittent finding for days. **Any "do this until that" step needs a predicate the starting state cannot satisfy**, or an unconditional action with a separate wait. Sweeping every such predicate in one harness found two unsafe and fourteen sound; the sweep is cheap and the failure is invisible.
+
+## 24. A visibility predicate that reads an element's own value misses what it inherits
+
+`isVisible` read each element's own opacity. Opacity is not inherited as a computed value, so an element inside a container at `opacity: 0` reported itself visible. **Seven assertions across two routes had been measuring contrast and tap geometry on invisible elements, at every width, on every run since the harness shipped.** Fixing the predicate exposed them; writing `expectVisible: 0` to match would have recorded the vacuum as the intended reading.
+
+The same shape has a second face: a floor is not a ceiling. `expectVisible: 0` asserts "at least none," which every page satisfies. A count assertion needs both ends.
+
+## 25. A DOM environment that answers some computed styles is more dangerous than one that answers none
+
+happy-dom returns `""` for `getComputedStyle().color` and `"block"` for `.display`. **One working computed read is not evidence about the next.** It has no layout engine at all: `getBoundingClientRect()` is 0x0 and `offsetWidth` is 0, so a geometry assertion there reads zero and passes vacuously. Geometry, contrast and tap targets belong in the real browser and nowhere else. It also navigates iframes over the real network unless a fetch interceptor stops it.
+
+## 26. A test that reads source text can match the comment explaining the absence of the thing it searches
+
+A migration's own self-check raised on the file that fixed the defect, because `pg_proc.prosrc` keeps comments and the new body documented what the old rung had been. A test grepping for a symbol matched a comment saying the symbol was deliberately absent. **A check over source strips comments first, or it is checking prose.**
+
+Its sibling: a check that reads a definition's text is coupled to how the SQL is written rather than to what it means. A regex scanning for `c_volume_tol_pct constant numeric` went red when a later migration refactored the same constant into a shared function with the same value. The instrument was wrong and the test was right; the repair is to ask the database what the effective value is, since the suite already applies the real chain.
+
+## 27. A characterisation test is retired to a contract, never deleted and never left to rot
+
+A test written to pin a defect must go red the day the defect is fixed; its author said so in the file. When that happened it was rewritten to assert the contract in both directions rather than removed, and mutation-proved both ways: reverting the fix reddens the no-callback case, and over-applying the fix reddens the with-callback case. **That second direction is the half a naive fix gets wrong** and the reason a characterisation test earns a replacement rather than a deletion.
+
+## 28. A test that builds its own migration chain is pinned to a world, and the world moves
+
+Tests here construct chains, often stopping short. **An assertion can be green, true of its chain, and false of production.** With six migrations queued, a structural sweep over 104 test files found 28 that could even accept one, of which four carried assertions about behaviour a queued migration removes, four were deliberately about the short chain because a degrade rung was their subject, and twenty were silent. Each of those three outcomes has to be named; the classification is the deliverable and the edits follow from it. Widening every chain would have destroyed the deliberate before-and-after pairs, and a naive widening did exactly that before it was caught.
+
+One hazard belongs with it: `CHAIN_BEFORE = CHAIN.slice(0, -1)` means "without that migration" only while that migration is last. Appending anything silently redefines it. Three instances were found in one day, each by a session that had just fixed another.
+
+## 29. A positive control that can go to zero rows silently is not a control
+
+An exclusion assertion of the form "this mode does not reach the board" passes perfectly against a board matching nothing at all. The guard beside it, "the ranked mode still appears, both players, in score order," went to zero rows under a queued migration and failed loudly, which is the only reason the four exclusions below it were not left certifying an empty view. **Bind the exclusion to its control in the same test**, so an emptied result cannot satisfy an emptiness claim.
+
+## 30. A permissive fixture answers a different question from production, quietly, for everyone
+
+`tests/db/supabase-stub.sql` carried hosted default privileges for functions and never for tables. Every object in the fixture therefore held exactly what its migration granted, so **every assertion anywhere in the suite that an anonymous caller could not reach something was passing for the wrong reason**, and the whole defect class was invisible by construction. Measured rather than argued: with the table defaults added, a migration-created view comes out holding the same seven privileges production showed, and the full chain reproduced a live catalog sweep object for object.
+
+The same file's `rpc()` reported every failure as `PGRST202`, so a missing function and a live one raising were indistinguishable and a mutant survived on exactly that. Its `select` path did the same with `42P01`. And a `returns table` with one column compiles to a base type rather than a composite, so a set-returning call handed back bare scalars where PostgREST emits row objects, certifying a route that could not work.
+
+**A shared fixture is load-bearing in proportion to how many suites import it**, and a correction to one is expected to change results elsewhere. Every changed result is a finding to name, never an assertion to weaken.
+
 ## Note on internal organization
 
 This section was written as a merge plan for a document that does not exist. It is kept because the groupings are real and a future reorganization of this file should follow them, not because anything is waiting to move.
@@ -170,6 +224,8 @@ Rules 1 through 3 form one lesson and should probably merge as one clause with t
 ---
 
 ## Changelog
+
+- **2.1 (2026-08-29)** - Ten rules from one very long day, every one of them a green test that was proving nothing. Rule 21: a burst of concurrent calls does not test a lock, after a function with its advisory lock deleted passed an eight-way burst four runs running, and after the deterministic replacement built to fix it passed against the mutant too because it was stalling the call through a foreign-key constraint rather than the lock. Rule 22: repetition is not a nondeterminism detector, since `distinct on` without a sort is unspecified rather than random and agrees with itself on the broken function. Rule 23: a prepare step whose predicate the starting state already satisfies never acts, and the check after it measures whatever was there. Rule 24: a visibility predicate reading an element's own opacity missed inherited opacity, and seven assertions had been measuring contrast and tap geometry on invisible elements since the harness shipped. Rule 25: happy-dom answers some computed styles and not others, which is worse than answering none, and has no layout engine at all. Rule 26: a check over source text matches the comment explaining the absence of what it searches for, and a check coupled to how SQL is written breaks when the same value is refactored. Rule 27: a characterisation test is retired to a contract in both directions rather than deleted. Rule 28: a test that builds its own chain is pinned to a world that moves, with the sweep that classifies 28 candidate files into three named outcomes. Rule 29: a positive control that can go to zero rows silently is not a control, after an exclusion assertion nearly certified an empty view. Rule 30: a permissive fixture answers a different question from production for every suite that imports it, after table default privileges were found missing from the shared stub, an RPC error path was found conflating every failure into one code, and a single-column `returns table` was found handing back bare scalars.
 
 - **2.0 (2026-08-25)** - Promoted from staging to the owning verification standard, and retitled. No rule changed. The preamble had described this file as holding rules that belonged in `IDEA_VERIFICATION_STANDARDS.md` and could not be merged because that document's authoring copy was unavailable; that document has never existed, which two other standards files had already recorded while this one still deferred to it. An unavailable file and a nonexistent one read identically and license opposite behavior, so the deferral is closed rather than reworded. The scope note is retitled as an internal organization note for the same reason: it was a merge plan for a destination that was never going to arrive, and a standard that calls itself provisional invites sessions to treat its rules as provisional. Registered in the standards file list in `IDEA_instructions.md`, which had carried it since 2026-08-21 while the file itself denied being a standard.
 

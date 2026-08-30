@@ -1,5 +1,5 @@
 # IDEA Material Spec - Schema v2
-**Version 2.3 - 2026-08-20**
+**Version 2.4 - 2026-08-27**
 The canonical authoring format for IDEA course materials. One spec per material. The spec is the durable, version-controlled asset; every rendering is generated from it.
 
 **Changed in v2:** schema gains a `kind` discriminator. `assignment` is everything v1 described, unchanged. `reference` is new: structured, tabbed, read-only documents that render as IDEA Classroom Materials. Validation is now enforced server-side on every write, so this document describes rules the database will actually reject, not conventions. Rubrics moved to leveled descriptors per `IDEA_RUBRIC_STANDARDS.md`. Supersedes v1.0 (2026-08-10).
@@ -113,6 +113,18 @@ Blocks appear in `blocks[]` in display order.
 ```json
 { "type": "textField", "id": "f1", "prompt": "Explain why 304 stainless resists corrosion better than 1018 steel.", "minSentences": 3, "maxSentences": 5, "points": 5 }
 ```
+
+`minSentences` is a floor on effort, and it is authored against the number of discrete
+things the prompt asks for, not chosen by feel. A prompt that asks for four values with a
+floor of three lets a student satisfy the field while omitting one of the items the
+criterion grades. Count the required items and set the floor to at least that number.
+`maxSentences` is set at no less than 1.5 times the floor, or the field has no room for a
+student to explain anything. Established 2026-08-27, when a Checkpoint 2 field asking for
+force, area, capacity, and margin shipped with a floor of three.
+
+**Block `id` values are unique across the whole spec, not per module.** Two modules each
+carrying a `t1` may or may not collide depending on how the engine scopes them, and
+relying on the answer is guessing at behavior. Number straight through.
 
 **table** - structured data entry. Students add rows.
 ```json
@@ -316,6 +328,20 @@ Spec files are the version-controlled record. `buildVersion` bumps on breaking c
 ---
 
 ## Changelog
+
+- **2.4 (2026-08-27)** - Two rules, both from the Checkpoint 2 build. `minSentences` is a
+  floor authored against the number of discrete things the prompt asks for rather than
+  chosen by feel, after a field asking for force, area, capacity and margin shipped with a
+  floor of three, which let a student satisfy the field while omitting one of the items the
+  criterion grades; `maxSentences` is set at no less than 1.5 times the floor. And block
+  `id` values are unique across the whole spec rather than per module, since two modules
+  each carrying a `t1` may or may not collide depending on how the engine scopes them and
+  relying on the answer is guessing at behavior. **This entry was written on 2026-08-30,
+  three days after the fact.** 2.4 shipped with its header bumped and both sections added
+  and no changelog entry at all, which left the file claiming 2.4 while its newest entry
+  said 2.3. Nothing noticed until the copy was mirrored and
+  `tests/standards-version-header.test.ts` refused it. No content of 2.4 changed here; only
+  this record of it was missing.
 
 - **2.3 (2026-08-20)** - The figure gate comes off: figures in `instructions` content shipped in `cc9f9aa` and are now authorable in both kinds. Added a short note on what a figure costs, since it is a block rather than an inline and takes the full measure of its column. The two corrections in 2.2 are updated to past tense: `printAs` is removed, and `docs/IDEA_MATERIAL_SPEC_v1.md` is now a stub naming this document as canonical, with two applied migrations still citing the old path by comment and deliberately left, because an applied migration is an immutable record and the citation resolves to a stub that declares itself non-authoritative.
 

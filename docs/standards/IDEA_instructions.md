@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.9 - 2026-08-27**
+**Version 4.13 - 2026-08-30**
 
 ## These Instructions Evolve
 
@@ -1057,6 +1057,147 @@ assumption of Opus 4.8, which is exactly the kind of drift worth catching early.
 
 ---
 
+### Session control: the things that waste a session outright
+
+These are not style notes. Each one cost at least one whole session in a single day, and
+every prompt that routes work to Claude Code carries the relevant ones inline, because a
+session cannot read this file.
+
+**Long commands run in the foreground.** Five sessions in one day wedged by backgrounding
+a command, spawning a monitor to watch it, then waiting on the monitor. When the
+underlying process exits without the notification firing, the session waits forever: the
+worst observed was fifty-one minutes on a browser pass with a known runtime of about two
+and a half. The full suite is roughly three minutes and the browser pass roughly two.
+**If a wait exceeds the thing's known runtime, the notification is not coming and the run
+is gone.** Every prompt says so.
+
+**Commit and push when the session's own work is proven.** Four sessions held a finished,
+mutation-proved bundle hostage to one more measurement and pushed nothing. An unpushed
+branch is worth nothing; a pushed one with a stated gap is worth almost everything. Every
+prompt says: if a final measurement is slow or unavailable, commit with the per-file
+results you have and name exactly what you could not measure.
+
+**`git checkout --` restores from HEAD and silently discards uncommitted work.** Five
+sessions lost their own edits to it inside a mutation script, and the tell is not an
+error: the remaining mutants then run against pristine originals and report nothing,
+which reads as "all mutations pass." **A mutation proof copies the file first and
+restores from the copy**, verified by hash. Every prompt says this in those words.
+
+**A mutation that reddens nothing has three possible causes and only one is a finding.**
+The guard genuinely does not bite; or the mutant never applied; or the harness never ran
+the test. Sessions have hit all three. `0141` refuses a mutant outright by self-check, so
+fourteen tests reported SKIPPED and the colour looked like a pass. A bare `npx vitest run`
+over two database files hits the parallelism trap and one suite silently never runs.
+**Check the count, not the colour**, and run database test files with
+`--no-file-parallelism`.
+
+**Write `.env` before `svelte-kit sync`, and re-sync after changing base.** Sync reads
+`.env` at sync time, so running it first reports eleven phantom errors. And the stale
+route-types trap fires on a base change, not only on a fresh clone: one session chased a
+phantom `svelte-check` error in a file it had never touched because its `.svelte-kit` was
+generated against the old base.
+
+**Prettier is not a project dependency here.** There is no config, and a bare `prettier`
+resolves to a global install in the session environment that reformats a tab-indented
+codebase to two-space defaults and turns a surgical diff into a whole-file churn. Every
+prompt says do not run it.
+
+### Prompt hygiene: one prompt, one session, and what that rule collides with
+
+**A prompt that has already been pasted is never pasted again.** Three occurrences in one
+day. The cheapest cost a duplicated ten-item bundle; the worst produced two different
+migrations claiming `0146`, one merged to `main` and applied to production while the other
+sat on `integration`, and only luck made them agree on the behaviour that mattered. The
+third produced two branches both carrying `0158` plus rival edits to the same two test
+files.
+
+**So every prompt for fresh work carries a duplicate check**, in these words: run
+`git log --oneline origin/main..origin/integration`, read the subjects, and stop if a
+bundle already there did this.
+
+**And every prompt whose premise is that an earlier bundle landed must disable that check
+explicitly.** A session halted correctly and unhelpfully when told both to stop if the
+work was already done and to require that the fix it was reconciling had already merged.
+The two clauses contradict each other and the literal reading wins. Those prompts say:
+*do not apply a duplicate-work check to this prompt; the bundle it reconciles has landed
+and that is the reason for the work.*
+
+**A precondition is stated as the condition to proceed, not as a condition to halt on.**
+The same session inverted a `HALT IF FALSE` because the thing it was told to check was
+the thing that made the work necessary. Write the halt against the state that means the
+work is unnecessary, and quote the exact line or symbol a session should look for.
+
+**The harness may mint a branch slug that already has a shipped history entry.** Two
+sessions hit this. Writing to that slug overwrites somebody's record and stacks commits
+on merged history. Every prompt says: if the slug already has an entry, suffix yours and
+say why, or take a new descriptive name.
+
+**Do not cite a document as premise without confirming a session can read it.** Four
+sessions were pointed at history entries that did not exist on their ref, usually because
+the entry was still on an unpushed branch. Each one proceeded from primary sources and
+said so, which is the right behaviour, but the prompt should have said "read it if it is
+there, otherwise verify from the code" rather than presenting it as the specification.
+
+### A measured number in a prompt carries a date and a source, or it is not written
+
+I handed sessions five wrong figures in one day, every one taken from a report I had read
+and then repeated later without checking: a browser-pass runtime that had grown from 22s
+to 95s, a hall-pass tap-target figure with no instrument behind it, a route-table spec
+count, a migration range that omitted the most dangerous file in it and included one that
+did not exist, and "sixteen references" that was a whole-file grep where the function body
+had three.
+
+**A figure goes into a prompt with the date it was measured and what measured it, or the
+prompt tells the session to measure it.** Sessions correct these reliably, which is the
+system working, but each correction costs a round trip and one of them nearly sent a
+bundle to fix a mode that was never broken.
+
+### Lane discipline: what the cap is actually protecting
+
+The three-lane cap exists because parallel sessions cannot see each other, and every
+failure that cost a whole session on 2026-08-29 came from that and not from tokens.
+
+**Lane boundaries are drawn from where a feature lives, not from where it seems to
+belong.** A file list in a prompt is the boundary; anything outside it is reported and
+left. Sessions honour this reliably, and three separate bundles diagnosed a defect
+precisely and stopped at the file boundary, each costing a round trip. **That round trip
+is the price of the cap and it is worth paying**, because the alternative is what happened
+the twice a boundary was loose: two sessions rewriting one file.
+
+**A standing branch is a signal, not a leftover.** Under the integrate workflow a branch
+disappears when its CI goes green and it merges. One still standing means its CI failed or
+its merge conflicted, and after two hours it means something systemic.
+
+**Count branches before opening lanes.** Adding a lane while branches are standing makes
+the eventual merge harder rather than the queue shorter. Eight standing branches is not a
+shortage of work; it is the thing to fix first. When the branch list is long, the right
+next move is a merge, not a prompt.
+
+**Say when the queue is empty.** The app queue reached genuine empty on 2026-08-29 and I
+kept generating lanes anyway because they were asked for. The honest answer is the count:
+what is left, what is optional, what is his rather than a session's, and what has actual
+deadlines. **Stopping is a deliverable.**
+
+### An audit is the highest-yield thing available, and it is not a build
+
+Read-only audits found, in one day: an anon grant exposing student names for two months, a
+published answer key that made a 300-probe search unnecessary, two dead game modes, a
+migration silently reverting another, five untested admin gates over other students' rows,
+and a documentation premise that had invited the same wrong proposal from two separate
+sessions.
+
+**An audit prompt writes no files, makes no commits, changes no git state, and does not run
+the suite.** It answers a fixed list of questions and ends with three things it would do
+first. It collides with nothing, so it can run beside a full set of lanes. When the build
+queue is thin or the picture is unclear, audit rather than invent work.
+
+**Ask an audit the question nobody has asked.** The most productive framings were: what
+does this document claim that the code contradicts; what exists and cannot be reached; what
+is client-supplied that the server never re-derives; and what has never been looked at at
+all.
+
+---
+
 ## Claude Design Prompting
 
 Two systems, two standards, and they never mix. IDEA pathway artifacts follow
@@ -1346,6 +1487,167 @@ Read the relevant file before starting any task that touches those domains.
   file globs, and where a component tree is split across two lanes, say which files each
   owns rather than which surface.
 
+---
+
+- **Delivered, landed, and applied are three different states, and a migration is the
+  only artifact where all three come apart.** A bundle can be pushed and never merged; a
+  file can be merged and its SQL never run. On 2026-08-29 four migrations sat on `main`
+  with their client halves deployed and their SQL never pasted, `0060` had been written
+  and reviewed in July and left unapplied while an audit recorded "until it is applied,
+  both RPCs still return the target," and a version of this instructions file believed
+  delivered mid-chat was never mirrored. **Confirm each state separately.** A session says
+  plainly that its migration has not been applied; a chat confirms a merge by reading the
+  artifact; and the applied set is a question only a catalog query against production can
+  answer.
+- **Two migrations may not redefine the same object, and the check is a sweep rather than
+  a hope.** `0151` restored `gauntlet_submit` from `0147`'s body while `0148` had already
+  rewritten it, deleting a server-stamped clock. Its own header, written against `0148`,
+  said "0148 already gave them a clock" while the `create or replace` beneath the sentence
+  removed it. Nothing detected it: no test carried both migrations, the client half was
+  already deployed omitting the parameter the reverted body scores as zero, and applying
+  in numeric order would have filled every knowledge board with 0.00. **Before applying any
+  queued set, sweep every `create [or replace]` across the unapplied range for an object
+  defined by two files.** One run of that sweep over 32 functions found exactly one, which
+  is what makes it cheap.
+- **A migration header states what it assumes about the state before it, and what it does
+  when that assumption is false.** The whole class of defect above is a migration written
+  against a base that is not the base it will meet. A file that raises and applies nothing
+  is recoverable; one that half-applies is not.
+- **Deploy order is decided per migration and is not always migration-first.** `0147`
+  removes fields the deployed client still reads, so it goes after the deploy. `0148` needs
+  its client deployed first, because the pre-`0148` function scores a missing parameter as
+  zero and a client that stopped sending one early would fill every board with zeros.
+  Each migration says which, in its header, in those terms.
+- **`integration` gets no CI run of its own, so it can go red silently and stop
+  everything.** Pushes made by the integrate workflow use `GITHUB_TOKEN`, and GitHub's own
+  loop-breaker will not start another Actions run from them. On 2026-08-29 two bundles
+  landed carrying assertions the code had moved past, `integration` went red, the workflow
+  merges only on green, and **eight branches from eight sessions stood unmerged for hours
+  while every one of them inherited somebody else's failing tests** including a branch that
+  touched only Markdown. A red `integration` is fixed before anything else merges, and the
+  first thing to check when nothing is sweeping is whether it is green.
+- **A shared append-only file is a fork waiting to happen.** `docs/HISTORY.md` was split
+  into one file per entry for this reason and stopped conflicting. `tools/browser-verify/routes.mjs`
+  then took its place, blocked a merge outright and was hand-resolved three times in a day
+  before it was split the same way. **When two lanes keep appending to the end of one file,
+  the fix is one file per entry with names that cannot collide by construction**, not more
+  careful appending.
+- **A branch's Ahead count on GitHub compares against the default branch and means nothing
+  while `main` lags.** With `main` 75 behind, every branch read as "76 ahead" and one of
+  them was superseded work with a single unique commit. The real question is whether
+  `integration` already contains it, which the branches page cannot show.
+
+### Writing a manual instruction Mr. Pina can actually follow
+
+The rule above says a manual instruction is the last resort. When one is unavoidable it
+is written in the format below. This is a format, not a set of aspirations: a response
+that asks him to do something with his hands and does not look like the template has
+failed, however good the prose is.
+
+**The trigger is any action he has to take, down to one.** Uploading a file, clicking a
+button, pasting a prompt, deleting a row. There is no floor. "Just re-upload the file and
+you're set" is a manual instruction written as prose, and prose is the failure mode this
+section exists to stop.
+
+#### The format
+
+    DO THIS
+
+    1. <verb> <target> <object>
+    2. <verb> <target> <object>
+    3. Check: <what it should look like>
+
+    Stop and tell me if <the thing that means it went wrong>.
+
+Rules, all of them hard:
+
+1. **A plain numbered list. No checkbox glyph.** `[ ]` does not render as anything
+   tickable in the chat surface; it renders as two literal brackets in front of every
+   line, which is noise added to solve a problem it does not solve. A tickable list is a
+   document, not a chat message. If one is wanted, build the document.
+2. **One line per step. One action per step.** If a step needs a comma and an "and," it
+   is two steps. If it wraps on a phone, cut words until it does not.
+3. **Start with a verb.** Open, click, delete, upload, paste, run, confirm. Never "you'll
+   want to" or "next, go ahead and."
+4. **Every step names its target, not just its action.** Which repository, which app,
+   which file, which screen, which account. "Open a Claude Code session" is not a step;
+   "Open a Claude Code session on **pina-hash/idea-app**" is. The step is written for
+   somebody with several repositories, several Supabase projects, and four apps open, and
+   the one thing he cannot supply from context is the thing this assistant left out.
+   Established 2026-08-30, when a step said to open a session and did not say where.
+5. **Name the control exactly as it appears, in bold.** Click **New pull request**. Not
+   "start a PR."
+6. **A count is not a manifest.** A step that acts on a group names what is in the group,
+   or points at a list printed immediately above the steps. "Drag in all 8 files from
+   mirror-drop" tells him how many things to expect and not one of their names, so he
+   cannot tell a complete drop from a drop missing one, and he cannot tell whether the
+   folder itself counts. Where the list is longer than about four names, put it above the
+   list as a block and have the step point at it. Established 2026-08-30, one message
+   after rule 4, from the same list.
+7. **No reasoning inside the list.** No parentheticals, no "because," no "this is
+   important since." Reasoning goes above the list in at most two lines, or below it, or
+   nowhere.
+8. **A check step is the second to last step, and a stop-and-report line closes it.** He
+   should find a wrong turn at step three, not at step twenty.
+9. **Eight steps is the ceiling.** Past eight, split into phases with their own headers
+   and their own counts, so the end of one is visible from the start of it.
+10. **Never a diagnostic errand and a destructive action in the same list.** Separate
+   lists, separate messages. On 2026-08-29 one message asked him to open a branch to read
+   a CI error and, in the same breath, to delete two other branches. He deleted the one he
+   had been sent to look at. That was my error, not his.
+11. **The list goes last in the response.** Everything he needs to do is the last thing he
+    reads, not buried under a summary of what was found.
+12. **When he says the instructions were unclear, do not explain. Rewrite them shorter.**
+    The correct answer to "give me clear instructions for once" is the list with the prose
+    deleted, not the same list with an apology on top.
+
+A step is finished when a stranger holding only that line could do the thing. Read each
+one back with the rest of the response covered up. Anything the step needs and does not
+say is missing, however obvious it is from the paragraph above it.
+
+#### What this looks like when it goes wrong
+
+Prose form, which is what this section was written to stop:
+
+> Replace the project instructions field with the new file. Delete
+> `IDEA_Chat_Handoff_Standard.md` from project knowledge, confirm it is gone, upload the
+> new one. Then drop the eight files in `mirror-drop/` into a Claude Code session with the
+> prompt.
+
+Six actions, three of them inside one sentence, none of them tickable, and the reader has
+to parse the paragraph to find out how many things there are.
+
+The same content in format:
+
+    DO THIS
+
+    1. Paste the new IDEA_Project_Instructions.md into the project instructions field
+    2. Delete IDEA_Chat_Handoff_Standard.md from project knowledge
+    3. Upload the new IDEA_Chat_Handoff_Standard.md
+    4. Confirm exactly one copy of it exists
+    5. Open a Claude Code session on pina-hash/idea-app
+    6. Drag in the 8 files listed above
+    7. Paste CC_Standards_Mirror_Closeout_20260829_PROMPT.txt
+    8. Check: the session reports a branch name and 7 version bumps
+
+    Stop and tell me if any version header does not match the table in the prompt.
+
+Step 6 refers to a list of eight filenames printed as a block immediately above the
+steps, because eight names inside a step would break rule 2 and eight names left unstated
+would break rule 6. That is the general shape: a long group goes above the list and the
+step points at it.
+
+Step 5 is the one worth studying. The first version of this list said "Open a Claude Code
+session" and stopped there. Five repositories are in play in this project and the response
+around the list never named one, so the step was unanswerable by the person who had to do
+it. That is rule 4, and it was broken in the same response that introduced it.
+
+**Anything the software could tell him, it should.** Every manual step in the 2026-08-29
+stretch existed because a check that could have run did not: `integration` had no CI run,
+no workflow reported why nothing was sweeping, and no test asserted the history-entry
+format until it was wired in the same day. Each hand-executed procedure is a defect
+report about the automation, and the fix goes in the automation. A list that keeps
+appearing across chats is a script that has not been written yet.
 ---
 
 ## Output Defaults
@@ -1645,6 +1947,71 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-08-30 (4.13)** - New rule 6, a count is not a manifest, found one message after
+  4.12 shipped and from the same list. "Drag in all 8 files from mirror-drop" gives a
+  number and no names, so he cannot tell a complete drop from one missing a file, and
+  cannot tell whether the folder itself is being counted. A step that acts on a group
+  names the group's contents, or points at a list printed immediately above the steps
+  when the names run past about four. This is the third consecutive revision of this
+  section caught by Mr. Pina rather than by me, which is itself the finding: the closing
+  test in this section is read too gently. Read each step as somebody who has the folder
+  open and cannot see the rest of the response. 4.12 was never mirrored and this
+  supersedes it outright.
+- **2026-08-30 (4.12)** - Two corrections to the format 4.11 introduced, both found by
+  Mr. Pina in the response that shipped it. The checkbox glyph is gone: `[ ]` renders as
+  two literal brackets in the chat surface rather than as anything tickable, so it added
+  noise and solved nothing. A tickable list is a document, and where one is wanted the
+  document gets built. New rule 4, every step names its target and not only its action:
+  which repository, which app, which file, which screen. The example list said "Open a
+  Claude Code session" with five repositories in play and never said which one, which
+  made the step unanswerable by the only person who had to answer it. The worked example
+  in that section now carries the corrected list and a note on the step that failed.
+  Added the closing test: read each step back with the rest of the response covered, and
+  anything the step needs and does not say is missing however obvious it is from the
+  paragraph above it. 4.11 was never mirrored and this supersedes it outright.
+- **2026-08-29 (4.11)** - "Writing a manual instruction" rewritten from a set of
+  principles into a mandatory format, after 4.10 stated every one of those principles
+  correctly and the very next response closed with a six-action paragraph of prose. The
+  principles were not the problem; having no format was. Manual steps are now a numbered
+  checkbox list, one action and one line per step, verb first, control names bold and
+  exact, no reasoning inside the list, a check step and a stop-and-report line at the end,
+  eight steps to a phase, and the list last in the response. The trigger is any action Mr.
+  Pina takes with his hands, down to a single one, because "just re-upload it and you're
+  set" is a manual instruction wearing prose. Carries the failing example and its
+  corrected form side by side, since the failure is invisible when only the rule is
+  stated. Also records that a list which keeps reappearing across chats is a script
+  nobody has written yet.
+- **2026-08-29 (4.10)** - The longest working session this project has run: roughly
+  seventy bundles across three parallel lanes, ending with eight branches deadlocked
+  behind a silently red `integration`. Every addition here is a failure that cost at
+  least one whole session. **Session control** is new and its rules go inline into every
+  Claude Code prompt, because a session cannot read this file: long commands run in the
+  foreground after five sessions wedged on background waits and monitors, the worst for
+  fifty-one minutes; a session commits when its own work is proven rather than holding a
+  finished bundle for one more measurement, which four did; `git checkout --` restores
+  from HEAD and silently discards a session's own edits, which five lost; a mutation that
+  reddens nothing may be a mutant that never applied or a harness that never ran, so
+  check the count and not the colour; `.env` is written before `svelte-kit sync` and the
+  sync is repeated after a base change; prettier is not a project dependency and a bare
+  invocation reformats the repo. **Prompt hygiene** records that one prompt goes to one
+  session, after three duplications, the worst producing two different migrations claiming
+  `0146` with one already applied to production; every fresh-work prompt now carries a
+  duplicate check and every prompt whose premise is a landed bundle explicitly disables
+  it, after a session halted correctly on the contradiction. **A measured number carries a
+  date and a source**, after I handed sessions five stale or misscoped figures in one day.
+  New Hard Rules on the three states of a migration, the two-authors sweep that caught
+  `0151` reverting `0148` before it reached production, per-migration deploy order,
+  `integration` getting no CI run of its own and therefore going red silently, shared
+  append-only files as forks waiting to happen, and GitHub's Ahead column being meaningless
+  while `main` lags. **Writing a manual instruction** is new: one action per step, exact
+  control names, no interleaved commentary, and never a diagnostic errand beside a
+  destructive action, after I sent him to read a CI error on one branch in the same message
+  that told him to delete two others and he deleted the one I had pointed at. **Lane
+  discipline** records that the cap protects against sessions that cannot see each other,
+  that a standing branch is a signal, that counting branches comes before opening lanes,
+  and that stopping is a deliverable. **Audits** are recorded as the highest-yield
+  instrument available and the one that collides with nothing.
 
 - **2026-08-27** - Two Hard Rules, both from one reply that handed over three manual
   tasks when the correct number was zero. A manual instruction is now the last resort
