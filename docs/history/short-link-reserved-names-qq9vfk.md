@@ -6,7 +6,6 @@ migrations: ["0156"]
 subsystems: ["short-links"]
 ---
 
-## The short-link reserved-name list is derived and cross-checked, not just retyped
 
 ### What changed
 
