@@ -30,8 +30,16 @@ export default {
 	   order). i-2b is dragged onto i-1's row: `dragReorderedIds` moves it
 	   from index 3 to index 1, giving
 	   ['i-crowded','i-2b','i-1','i-2','i-3','i-4','i-5','i-6','i-7']. */
+	/* THE PREDICATE IS THE COUNT, NOT THE BAR, and this is the pre-click
+	   short-circuit `clickUntil` documents rather than a new mechanism. The bar
+	   renders at REST now (it is what tells a manager the checkboxes drive
+	   anything at all), so `!!document.querySelector('[data-testid="bulk-bar"]')`
+	   is true before the click and the click never physically fired: the whole
+	   selected state went unmeasured and both tap-target rows reported "0
+	   matched". `bulk-count` exists only while something is selected, so it
+	   answers the question the step is actually asking. */
 	prepare: [
-		{ click: '[data-testid="row-select-i-1"]', until: '() => !!document.querySelector(\'[data-testid="bulk-bar"]\')' },
+		{ click: '[data-testid="row-select-i-1"]', until: '() => !!document.querySelector(\'[data-testid="bulk-count"]\')' },
 		{
 			evaluate: `() => {
 				const dt = new DataTransfer();

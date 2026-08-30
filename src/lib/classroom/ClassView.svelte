@@ -206,9 +206,14 @@
 	let menuHost = $state<HTMLElement | null>(null);
 
 	/**
-	 * BULK SELECTION. Global to the pane, not per group -- "bundle multiple
-	 * posts together" is a page-level ask, and a unit's own contents are
-	 * usually a small fraction of what a teacher wants to touch at once.
+	 * BULK SELECTION. The SET is global to the pane, not per group -- "bundle
+	 * multiple posts together" is a page-level ask, and selecting one unit then
+	 * another accumulates rather than replacing.
+	 *
+	 * The select-all CONTROLS are per group (plus one for the pane), which is
+	 * not a contradiction: a group control is a fast way to fill this one set,
+	 * and "publish Unit 2" is the scope a teacher actually thinks in. See
+	 * `openGroupIds` for the one thing neither control will do.
 	 */
 	let bulkSelected = $state<Set<string>>(new Set());
 	let armBulkDelete = $state(false);
@@ -504,6 +509,57 @@
 		bulkSelected = new Set();
 		armBulkDelete = false;
 	}
+
+	/**
+	 * SELECT-ALL REACHES WHAT IS ON SCREEN, NEVER A ROW NOBODY CAN SEE.
+	 *
+	 * A collapsed group's rows are not rendered, and the next click after a
+	 * selection can be Delete -- which this pane has no undo for and whose whole
+	 * hazard is already that "the person cannot see everything it touches". A
+	 * pane-wide select-all that swept up a folded unit would make that hazard
+	 * the DEFAULT rather than the edge case, so the pane's own control takes the
+	 * OPEN groups only and each group header carries its own.
+	 *
+	 * A check-in is not a `classroom_items` row, has no checkbox and is not in
+	 * any of these counts.
+	 */
+	const openGroupIds = $derived(
+		groups.filter((g) => !isCollapsed(g.id)).flatMap((g) => g.items.map((i) => i.id))
+	);
+
+	function allSelected(ids: string[]): boolean {
+		return ids.length > 0 && ids.every((id) => bulkSelected.has(id));
+	}
+
+	/**
+	 * ONE PREDICATE DRIVES THE LABEL AND THE HANDLER, the `reviewCanSend`
+	 * convention: two spellings of "is this set already selected" is what
+	 * produces a control whose word disagrees with what pressing it does.
+	 */
+	function toggleAll(ids: string[]) {
+		const next = new Set(bulkSelected);
+		if (allSelected(ids)) for (const id of ids) next.delete(id);
+		else for (const id of ids) next.add(id);
+		bulkSelected = next;
+		armBulkDelete = false;
+	}
+
+	/**
+	 * THE UNITS PROMPT'S FLOOR, and it is a threshold rather than "any items at
+	 * all" on purpose: below it, one list IS the right answer and a panel
+	 * recommending units would be advice to ignore, which is how a first-run
+	 * prompt trains somebody to skip the next one. Four is the point at which a
+	 * class page stops being readable in a glance.
+	 */
+	const UNITS_PROMPT_MIN = 4;
+	const showUnitsPrompt = $derived(
+		editable &&
+			!!unitTransports &&
+			!!section.course &&
+			!unitsOpen &&
+			orderedUnits.length === 0 &&
+			items.length >= UNITS_PROMPT_MIN
+	);
 
 	async function bulkPublish(ids: string[]) {
 		if (!transports || !ids.length) return;
@@ -842,15 +898,17 @@
 	>
 		<div class="row" data-testid="item-row" data-selected={selectedItemId === item.id ? 'true' : undefined}>
 			{#if editable}
-				<input
-					type="checkbox"
-					class="row-select"
-					checked={bulkSelected.has(item.id)}
-					aria-label="Select {itemTitle(item)}"
-					data-testid="row-select-{item.id}"
-					onclick={(e) => e.stopPropagation()}
-					onchange={() => toggleSelected(item.id)}
-				/>
+				<label class="row-select-hit">
+					<input
+						type="checkbox"
+						class="row-select"
+						checked={bulkSelected.has(item.id)}
+						aria-label="Select {itemTitle(item)}"
+						data-testid="row-select-{item.id}"
+						onclick={(e) => e.stopPropagation()}
+						onchange={() => toggleSelected(item.id)}
+					/>
+				</label>
 				<span
 					class="row-grip"
 					aria-hidden="true"
@@ -880,15 +938,18 @@
 			>
 				{@render kindGlyph(item.kind)}
 				<!--
-					TWO LINES, NEVER MORE. The title takes the slack and ellipsises;
-					the chips beside it keep their own width. Attachment and link
-					counts are small inline INDICATORS on that same line rather than a
-					row of pills on one of their own -- at 26rem, a third line per row
-					is ten rows a screen instead of eighteen.
+					THE NAME IS WHAT IDENTIFIES THE ROW, so it is what gets the width.
+					The title line WRAPS: a name longer than the line takes the whole
+					line (up to two of them) and the chips beside it fall below,
+					rather than the name ellipsising at whatever the chips left over.
+					A row with a short name is unchanged and still two lines total --
+					only the rows that were unreadable pay a third. Attachment and
+					link counts stay small inline INDICATORS rather than a row of
+					pills of their own.
 				-->
 				<span class="row-text">
 					<span class="row-title">
-						<span class="row-name">{itemTitle(item)}</span>
+						<span class="row-name" title={itemTitle(item)}>{itemTitle(item)}</span>
 						{#if item.attachments.length || item.links.length}
 							<span class="row-inds" aria-hidden="true">
 								{#if item.attachments.length}
@@ -1211,9 +1272,37 @@
 		selected again and this bar has no unpublish action, but the per-row
 		menu's own toggle still reaches each one directly.
 	-->
-	{#if editable && bulkSelected.size > 0}
-		<div class="bulk-bar" data-testid="bulk-bar">
-			<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
+	{#if editable && (openGroupIds.length > 0 || bulkSelected.size > 0)}
+		<div class="bulk-bar" class:resting={bulkSelected.size === 0} data-testid="bulk-bar">
+			<!--
+				THE BAR IS WHAT THE CHECKBOXES ARE FOR, AND IT HAS TO SAY SO BEFORE
+				THE FIRST TICK. It used to render only once something was selected,
+				so a manager read a column of checkboxes with nothing anywhere
+				naming what they drive, and the actions went unused. At rest it is
+				ONE line -- a sentence and a select-all -- not the action set greyed
+				out: five disabled buttons above every class is the clutter this is
+				trying not to become, and a disabled control cannot explain itself
+				either.
+			-->
+			{#if bulkSelected.size === 0}
+				<span class="bulk-hint" data-testid="bulk-hint">
+					Tick items to publish, file or delete several at once.
+				</span>
+			{:else}
+				<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
+			{/if}
+			<button
+				type="button"
+				class="btn secondary tiny"
+				disabled={busy}
+				data-testid="bulk-select-all"
+				onclick={() => toggleAll(openGroupIds)}
+			>
+				{allSelected(openGroupIds)
+					? `Deselect all (${openGroupIds.length})`
+					: `Select all (${openGroupIds.length})`}
+			</button>
+		{#if bulkSelected.size > 0}
 			<button
 				type="button"
 				class="btn secondary tiny"
@@ -1265,6 +1354,7 @@
 			>
 				Clear selection
 			</button>
+		{/if}
 		</div>
 	{/if}
 
@@ -1275,6 +1365,40 @@
 	{/if}
 	{#if shownNotice}
 		<p class="feedback ok" data-testid="pane-notice">{shownNotice}</p>
+	{/if}
+
+	<!--
+		UNITS ARE UNDISCOVERABLE FROM A BUTTON LABELLED "Add units", which is
+		what the toolbar shows a teacher who has never made one. The control was
+		there the whole time; nothing on the page said what a unit IS, what it
+		buys, or that the class could be anything other than one long list. So
+		the capability introduces itself, ONCE, on exactly the class where it
+		would help: no units, and enough posted that the list has stopped being
+		readable in a glance.
+
+		It self-terminates. The moment a unit exists this never renders again --
+		that is what makes it onboarding rather than a permanent banner, and it
+		is why it is allowed to take a card while the resting bulk bar above is
+		held to one line.
+	-->
+	{#if showUnitsPrompt}
+		<section class="card units-prompt" data-testid="units-prompt">
+			<h2 class="units-prompt-title">Group this class into units</h2>
+			<p class="note">
+				This class is one list of {items.length} items. A unit is your own heading over part
+				of it (Unit 1, Rotation 2), it folds shut, and students see the work they are on now
+				instead of the six weeks behind it. Units belong to
+				{section.course?.code ?? 'this course'}, so every class of it gets the same ones.
+			</p>
+			<button
+				type="button"
+				class="btn secondary tiny units-prompt-open"
+				data-testid="units-prompt-open"
+				onclick={() => (unitsOpen = true)}
+			>
+				Set up units
+			</button>
+		</section>
 	{/if}
 
 	{#if editable && unitsOpen && unitTransports && section.course}
@@ -1301,21 +1425,49 @@
 			{@const folded = isCollapsed(group.id)}
 			<section class="card group-card" data-testid="unit-group">
 				{#if !bare}
-					<button
-						type="button"
-						class="group-head"
-						aria-expanded={!folded}
-						aria-controls={`group-${group.id}`}
-						data-testid="group-head"
-						onclick={() => onToggleGroup?.(group.id)}
-					>
-						<span class="group-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span>
-						<span class="group-label">{group.label}</span>
-						<span class="group-count">
-							{entries.length}
-							{entries.length === 1 ? 'item' : 'items'}
-						</span>
-					</button>
+					<!--
+						THE HEADER IS A ROW NOW, not a single button: a checkbox or a
+						second button cannot be nested inside the collapse control, and
+						selecting a unit is the one bulk scope a teacher actually
+						thinks in ("publish Unit 2", "file these into Rotation 1").
+						It renders only while the group is OPEN, because a control that
+						selected rows it had just folded away is the invisible-selection
+						hazard the pane-level one is written to avoid.
+					-->
+					<div class="group-bar">
+						<button
+							type="button"
+							class="group-head"
+							aria-expanded={!folded}
+							aria-controls={`group-${group.id}`}
+							data-testid="group-head"
+							onclick={() => onToggleGroup?.(group.id)}
+						>
+							<span class="group-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span>
+							<span class="group-label">{group.label}</span>
+							<span class="group-count">
+								{entries.length}
+								{entries.length === 1 ? 'item' : 'items'}
+							</span>
+						</button>
+						{#if editable && !folded && group.items.length > 0}
+							{@const groupIds = group.items.map((i) => i.id)}
+							<button
+								type="button"
+								class="btn secondary tiny group-select"
+								disabled={busy}
+								data-testid="group-select-{group.id}"
+								aria-label="{allSelected(groupIds)
+									? 'Deselect'
+									: 'Select'} all {groupIds.length} item{groupIds.length === 1
+									? ''
+									: 's'} in {group.label}"
+								onclick={() => toggleAll(groupIds)}
+							>
+								{allSelected(groupIds) ? 'Deselect all' : 'Select all'}
+							</button>
+						{/if}
+					</div>
 				{/if}
 
 				{#if !folded}
@@ -1324,8 +1476,8 @@
 							<li class="empty-row">
 								<p class="note">
 									{#if canManage}
-										Nothing filed here yet. Pick this unit in a row's Unit box to file something
-										into it.
+										Nothing filed here yet. Open a row's actions menu (&#8942;) and pick this unit
+										under Unit, or tick several rows and use File into&hellip; in the bar above.
 									{:else}
 										Nothing here yet.
 									{/if}
@@ -1501,13 +1653,27 @@
 		gap: var(--space-2);
 		margin-bottom: var(--space-4);
 	}
+	/* Both classes, per the `.cr-root .btn.tiny` note on `.group-bar` below.
+	   These measured 24px beside a `.manage-link` that had already taken the
+	   floor with its own comment, so one row carried two different answers to
+	   the same question. New post and Units are this pane's primary actions. */
+	.pane-tools .btn,
+	.pane-tools .btn.tiny {
+		min-height: 44px;
+		padding-block: var(--space-2);
+	}
 	.tool-panel {
 		margin-bottom: var(--space-4);
 	}
-	/* THE BULK BAR: a peer of the actions row above it, appearing only while
-	   something is checked. It sits BELOW pane-tools and ABOVE the status
-	   line, matching the toolbar-then-status ordering the rest of the pane
-	   already follows. */
+	/* THE BULK BAR: a peer of the actions row above it. It sits BELOW
+	   pane-tools and ABOVE the status line, matching the toolbar-then-status
+	   ordering the rest of the pane already follows.
+	   
+	   IT IS PRESENT BEFORE THE FIRST SELECTION, in a RESTING state that is one
+	   sentence and one control -- see the markup for why that is not the same
+	   thing as showing the action set greyed out. The resting state drops the
+	   filled surface and the border so a line that is on screen permanently for
+	   a manager does not read at the weight of the content beneath it. */
 	.bulk-bar {
 		display: flex;
 		flex-wrap: wrap;
@@ -1519,11 +1685,25 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 	}
-	.bulk-count {
+	.bulk-bar.resting {
+		background: none;
+		border-color: transparent;
+		padding-inline: 0;
+	}
+	.bulk-count,
+	.bulk-hint {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		margin-right: var(--space-1);
+	}
+	/* The sentence gives way before the control does: on a 356px pane the
+	   Select all button keeps its width and the hint wraps under it rather than
+	   pushing the row sideways. */
+	.bulk-hint {
+		flex: 1 1 12rem;
+		min-width: 0;
+		line-height: 1.35;
 	}
 	/* THIS BAR DELETES SEVERAL ITEMS AT ONCE, so its controls take the same
 	   44px floor the console and the engine host do (classroom.css), not the
@@ -1600,7 +1780,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		width: 100%;
+		flex: 1 1 auto;
 		min-width: 0;
 		padding: 0.3rem 0.1rem;
 		background: none;
@@ -1613,6 +1793,27 @@
 		   unit, so it takes the 44px floor (IDEA_INTERFACE_STANDARDS 10). Block
 		   padding carries it; the type is untouched. */
 		min-height: 44px;
+	}
+	/* The header row: the collapse control takes the slack, the select control
+	   keeps its width. Both clear 44px on their own, so the row does too. */
+	.group-bar {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+	/* BOTH CLASSES, like `.bulk-bar` above and for the same reason: `.cr-root
+	   .btn.tiny` pins a 24px chip floor and outranks a single-class rule, so a
+	   plain `.group-select { min-height: 44px }` measured 24px. This selects
+	   this control out of a whole class of items, which is the 44px case. */
+	.group-bar .btn,
+	.group-bar .btn.tiny {
+		flex: none;
+		min-height: 44px;
+		padding-block: var(--space-2);
+		display: inline-flex;
+		align-items: center;
+		white-space: nowrap;
 	}
 	.group-caret {
 		flex: none;
@@ -1677,8 +1878,27 @@
 		gap: 0.3rem;
 		min-width: 0;
 	}
-	.row-select {
+	/* THE CHECKBOX IS THE CONTROL THIS WHOLE LANE IS ABOUT, and it measured
+	   18x18 -- under the 24px ABSOLUTE floor, never mind the 44px one. A
+	   checkbox has no box of its own to grow without redrawing it, so the
+	   `<label>` around it is the target: the browser hit-tests the label and
+	   forwards the click, which is what a finger actually lands on.
+	   
+	   30px WIDE, NOT 44, and it takes the exact exception `.row-expand` already
+	   carries two controls along: the grip sits 4.8px to its right, so a
+	   44px-wide box would overlap it and hand the drag handle's taps to the
+	   selection. 30px is what the grip and the expand control are, so the three
+	   of them line up, and it clears the 24px floor. The HEIGHT is the full
+	   44px, which is the axis with room. */
+	.row-select-hit {
 		flex: none;
+		width: 30px;
+		min-height: 44px;
+		display: grid;
+		place-items: center;
+		cursor: pointer;
+	}
+	.row-select {
 		width: 18px;
 		height: 18px;
 		margin: 0;
@@ -1775,15 +1995,29 @@
 		min-width: 0;
 		flex: 1 1 auto;
 	}
-	/* TWO LINES MAXIMUM, and this rule is what holds that. `nowrap` plus a
-	   title that is the only shrinkable child: chips and indicators keep the
-	   width they need and the NAME gives way, ellipsised, rather than the line
-	   becoming two. */
+	/* THE TITLE LINE WRAPS, AND THE NAME CLAMPS AT TWO LINES.
+	   
+	   It was `nowrap` with the name as the only shrinkable child, so every chip
+	   on the row took its width FIRST and the name ellipsised into whatever was
+	   left: a pinned assignment with files and links had about 200px of a 356px
+	   column to identify itself in, and the column is 356px at every width the
+	   pane ships at (see `--cr-stream-col`) -- so widening the page gained the
+	   name nothing at all.
+	   
+	   Wrapping fixes the ORDER the width is handed out in. A short name still
+	   shares line one with its chips and the row is the same two lines it always
+	   was; a long one is the first item on the line, so it takes the full column
+	   and the chips wrap under it. Only the rows that could not be read pay a
+	   third line, which is the trade the old rule made in reverse.
+	   
+	   `overflow-wrap: anywhere` is what keeps that promise against a single
+	   unbroken token (a pasted filename, a URL in a title): without it the name's
+	   min-content is the whole word and the row overflows the pane sideways. */
 	.row-title {
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;
-		flex-wrap: nowrap;
+		flex-wrap: wrap;
 		min-width: 0;
 		font-weight: 700;
 		font-size: 0.9rem;
@@ -1791,10 +2025,13 @@
 	}
 	.row-name {
 		flex: 1 1 auto;
-		min-width: 2.5rem;
-		white-space: nowrap;
+		min-width: 0;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
+		overflow-wrap: anywhere;
 	}
 	.row-meta {
 		font-family: var(--font-mono);
@@ -1888,10 +2125,15 @@
 		position: relative;
 		flex: none;
 	}
+	/* 32x40 measured, so the HEIGHT was under the floor with nothing anywhere
+	   claiming an exception for it -- the WIDTH has one (the row's other two
+	   controls are 30px for the same reason), the height never did. This is the
+	   control every management action on a row now lives behind, filing into a
+	   unit included, so a mis-hit here is the whole feature. */
 	.menu-trigger {
 		appearance: none;
 		width: 32px;
-		min-height: 40px;
+		min-height: 44px;
 		display: grid;
 		place-items: center;
 		background: none;
@@ -2051,12 +2293,49 @@
 		justify-content: flex-start;
 	}
 
-	/* Phone: the row is the same two lines it is in the pane -- the title
-	   ellipsises rather than the line wrapping, which is what keeps the list
-	   scannable at 375px too. Only the detail's indent gives way. */
+	/* THE UNITS PROMPT. A card, because it is teaching a capability rather than
+	   reporting a state, and it is gone for good once the first unit exists. */
+	.units-prompt {
+		margin: 0 0 var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		border-color: var(--cyan);
+	}
+	.units-prompt-title {
+		margin: 0 0 var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--cyan);
+	}
+	.units-prompt .note {
+		margin: 0 0 var(--space-3);
+	}
+	.units-prompt .btn,
+	.units-prompt .btn.tiny {
+		min-height: 44px;
+		padding-block: var(--space-2);
+		display: inline-flex;
+		align-items: center;
+	}
+
+	/* Phone: a row is still two lines whenever its name fits one, and the name
+	   is what takes a second line when it does not -- see `.row-title`. Only the
+	   detail's indent gives way. */
 	@media (max-width: 640px) {
 		.row-detail {
 			padding-left: 0.4rem;
+		}
+		/* THE GRIP IS INERT ON A PHONE AND WAS COSTING THE NAME 30px THERE.
+		   It initiates an HTML5 drag, which has no touch equivalent at all -- so
+		   below this breakpoint it is a control nobody can operate, sitting in
+		   the middle of the row that identifies the item. Measured at 375px on
+		   the harness's crowded class: the name goes 134.3px to 164.3px, which
+		   is 44 characters of the long title to 55. Reordering is still reachable
+		   from the row menu's Move up / Move down, which is already the keyboard
+		   and assistive-tech path and says so. */
+		.row-grip {
+			display: none;
 		}
 	}
 </style>
