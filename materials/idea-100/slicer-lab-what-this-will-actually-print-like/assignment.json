@@ -7,7 +7,7 @@
     "dueDate": "2026-09-02",
     "totalPoints": 10,
     "assignmentId": "idea100-hook-slicer",
-    "buildVersion": "v1",
+    "buildVersion": "v2",
     "headerFields": [
       "studentName",
       "date"
@@ -18,18 +18,23 @@
   "modules": [
     {
       "id": "plate",
-      "intro": "Your V2, at half scale, laid flat. Set it up and check it before you slice.",
+      "intro": "Your V2, at half scale, one part per plate. Set it up, check it, print it.",
       "title": "On The Plate",
       "aiNote": "Unrestricted for driving Bambu Studio. Ask it anything about the slicer.",
       "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your test article prints **today**, not overnight. There are eight printers and three print windows, so sign the print board for a window and start your own file.\n\n**One part per plate.** Yours only. A plate that fails takes everything on it with it."
+        },
         {
           "id": "plate-checks",
           "type": "checklist",
           "items": [
             "V2 imported, not V1",
             "Scaled to 50 percent",
-            "Lying flat on the plate, not standing on edge",
-            "Sliced, and I looked at the layer preview"
+            "Lying flat on the plate, one part per plate",
+            "Sliced, and I looked at the layer preview",
+            "Signed the print board for a window"
           ],
           "points": 4
         }
@@ -41,15 +46,15 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "All four true",
+              "short": "All five true",
               "points": 4,
-              "descriptor": "V2 at 50 percent, flat on the plate, sliced, and the layer preview looked at."
+              "descriptor": "V2 at 50 percent, flat, one part per plate, sliced, layer preview looked at, and a print window signed for."
             },
             {
               "label": "Developing",
-              "short": "One check wrong",
+              "short": "One thing wrong or missing",
               "points": 2,
-              "descriptor": "Sliced but one condition is wrong: V1 imported, wrong scale, or standing on edge."
+              "descriptor": "Sliced but one condition is wrong: V1 imported, wrong scale, standing on edge, or no window signed for."
             },
             {
               "label": "Absent",
