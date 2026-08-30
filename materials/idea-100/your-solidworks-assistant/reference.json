@@ -16,7 +16,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Two ways in. Both give you the same assistant, so use whichever is less annoying on the machine you are sitting at.\n\n**Paste it.** Open any AI tool, copy the block on the next tab, and paste it as your **first message** in a brand new chat.\n\n**Upload it.** Download **SolidWorks Assistant 2025** from the files on this material and attach it to a new chat instead. Same text, nothing to select.\n\nEither way it answers with one short line and then you just ask. Start a **new chat** each class and set it up again. A chat that has been running for days drifts back into long answers and starts guessing at menus."
+          "content": "Two ways in. Both give you the same assistant, so use whichever is less annoying on the machine you are sitting at.\n\n**Paste it.** Open any AI tool (Gemini and Co-Pilot have the highest free plan limits), copy the block on the next tab, and paste it as your **first message** in a brand new chat.\n\n**Upload it.** Download **SolidWorks Assistant 2025** from the files on this material and attach it to a new chat instead. Same text, nothing to select.\n\nEither way it answers with one short line and then you just ask. Start a **new chat** each class and set it up again. A chat that has been running for days drifts back into long answers and starts guessing at menus."
         },
         {
           "type": "callout",
