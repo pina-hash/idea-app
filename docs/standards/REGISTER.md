@@ -19,6 +19,7 @@ this directory shows `not yet mirrored` in both cells rather than a guess.
 | `IDEA_REFERENCE_LIBRARY.md` | 4.2 | 2026-08-26 | Owning document for the two Google Drive reference libraries: what they hold, retrieval rules, consult-before-authoring |
 | `IDEA_Chat_Handoff_Standard.md` | 1.1 | 2026-08-29 | Governs every prompt written for a new claude.ai chat: when a handoff happens, the mandatory routing header, chat model routing, kickoff content rules, and closing a chat, where the closing chat writes the closeout kickoff prompt itself |
 | `IDEA_CLASSROOM_REBUILD_PLAN.md` | 1.21 | 2026-08-24 | Records the locked decisions and phase history of the IDEA Classroom / notebook rebuild |
+| `IDEA_MAPS_SPEC.md` | 1.1 | 2026-08-30 | The locked scoping decisions and build contract for IDEA Maps, the public spatial index of the IDEA building: domain model, draft-and-publish, search requirement, viewer, editor, phasing, verification requirements, and what was deliberately left undecided |
 | `IDEA_context.md` | 2.0 | 2026-08-20 | Program-level facts that rarely change: school, pathway, courses, platforms, A-G status |
 | `FRC_Design_System.md` | 1.6 | 2026-08-23 | FRC Team 5669's visual identity system: brand, marks, grounds, color roles, typography, motion, component manifest |
 | `FRC_CLAUDE_DESIGN_STANDARDS.md` | 2.4 | 2026-08-25 | FRC counterpart to the IDEA Claude Design standard: scoping and prompting rules for every FRC artifact authored in Claude Design |
