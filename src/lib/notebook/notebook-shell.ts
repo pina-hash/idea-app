@@ -133,3 +133,31 @@ export function clampSelection(entries: NotebookEntry[], selectedId: string | nu
 	if (!selectedId) return null;
 	return entries.some((entry) => entry.id === selectedId) ? selectedId : null;
 }
+
+/**
+ * THE READ-ONLY VOICE FOR EVERY FILTER HINT THAT ADDRESSES THE AUTHOR.
+ *
+ * NotebookView is ONE component and two audiences: the student whose notebook
+ * it is, and -- through `readOnly` -- an instructor reading it on
+ * /notebook/review/student/[email] or /classroom/view-as/[email]/notebook. The
+ * shared hints in `$lib/notebook-folders` are written in the second person,
+ * which is right for the first audience and addressed to the wrong person for
+ * the second: "Entries you have written something on" beside a list nobody
+ * reading it wrote.
+ *
+ * KEYED BY FILTER ID AND SPARSE ON PURPOSE. A hint that says nothing about who
+ * wrote the work ("Entries with at least one page photographed") is already
+ * correct for both readers and must NOT be restated here -- a second copy of a
+ * string that did not need changing is a second copy to keep in step. An id
+ * absent from this map falls through to the shared hint, which is the whole of
+ * how `filterHint` behaves.
+ *
+ * THE SHARED CONSTANTS ARE NOT REWRITTEN, deliberately. The student's own view
+ * is the common case and keeps its own words; re-voicing at the point of use is
+ * what lets both readers be addressed correctly from one set of chips.
+ */
+export const READ_ONLY_FILTER_HINTS: Record<string, string> = {
+	notes: 'Entries with something written on them',
+	drafts: 'Entries not turned in yet',
+	deleted: 'Entries this student or an instructor removed'
+};

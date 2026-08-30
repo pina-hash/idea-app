@@ -32,6 +32,7 @@
 	} from '$lib/notebook/draft-mirror';
 	import {
 		NOTEBOOK_DISCARD_WARNING,
+		READ_ONLY_FILTER_HINTS,
 		clampSelection,
 		notebookComposerHasWork,
 		notebookUnsavedReason,
@@ -253,6 +254,15 @@
 		 * 0117 applied. False hides the "Recently deleted" chip outright -- the
 		 * same rung `deletionReady` in the +page.server.ts load reports, since
 		 * `deleted_at` does not exist on a project without it.
+		 *
+		 * IT IS NOT THE WHOLE GATE ON THE CHIP, AND ALONE IT WAS THE WRONG ONE.
+		 * Both flags DEFAULT TO ON (`deletionReady = true`, `deletedEntries =
+		 * []`), so every surface that mounts this view without mentioning either
+		 * -- the staff review page and /classroom/view-as's notebook, neither of
+		 * which loads a deleted list at all -- rendered the chip over a list that
+		 * is permanently empty. Clicking it swapped the pane to copy promising
+		 * the student nothing was there, on the staff page directly above a
+		 * Deleted section that was listing the removals. See `deletedOffered`.
 		 */
 		deletionReady?: boolean;
 		/**
@@ -416,6 +426,35 @@
 	 * state, which is the whole of what that surface has to offer.
 	 */
 	const composerMounted = $derived(!readOnly && (!wide || composing));
+
+	/**
+	 * IS THERE A "RECENTLY DELETED" LIST TO OFFER -- the one predicate behind
+	 * both the chip and the empty-state link, which is what stops them
+	 * disagreeing about when the pane may be swapped.
+	 *
+	 * THE LENGTH IS PART OF THE GATE, not just the count in the label. A chip
+	 * whose only possible outcome is an empty state is a control that cannot
+	 * do anything: `deletionReady` says the SCHEMA can answer the question and
+	 * says nothing about whether this caller was handed an answer. The
+	 * empty-state link below already asked both; the chip asked only the first.
+	 */
+	const deletedOffered = $derived(deletionReady && deletedEntries.length > 0);
+
+	/**
+	 * WHOSE NOTEBOOK THE READER IS LOOKING AT, in the second person or not.
+	 *
+	 * Said once. The read-only mounts (the per-student review page, the
+	 * classroom's view-as notebook) put an INSTRUCTOR in front of a student's
+	 * work, so copy addressed to the author is addressed to the wrong person --
+	 * and it is invisible, because the words are perfectly ordinary and only
+	 * the reader is different. Every string that would say "you" or "your"
+	 * about the AUTHOR comes through here.
+	 */
+	const searchLabel = $derived(readOnly ? 'Search this notebook' : 'Search your notebook');
+	function filterHint(id: string, hint: string): string {
+		if (!readOnly) return hint;
+		return READ_ONLY_FILTER_HINTS[id] ?? hint;
+	}
 	/** The open entry only ever takes a pane; below the breakpoint it expands in place. */
 	const showEntry = $derived(wide && !!selectedEntry);
 	const showEmpty = $derived(wide && !selectedEntry && !composerMounted);
@@ -2161,6 +2200,17 @@
 
 	/** The rail toggle: the nav pane's deleted-list view instead of the normal feed. */
 	let showingDeleted = $state(false);
+
+	/**
+	 * CLAMPED to whether there is still a list to show, the same shape as the
+	 * stale-selection clamps above. Gating the chip on `deletedOffered` means it
+	 * DISAPPEARS when the last deleted entry is restored -- so without this the
+	 * pane would be left in the deleted view with the only control that leaves
+	 * it no longer on screen. Reads nothing it writes, so it cannot cycle.
+	 */
+	$effect(() => {
+		if (!deletedOffered) showingDeleted = false;
+	});
 	let restoringId = $state<string | null>(null);
 	let restoreError = $state<string | null>(null);
 
@@ -2283,7 +2333,7 @@
 				{:else}
 					No entries yet. Photograph a page or write a note and it will show up here.
 				{/if}
-				{#if deletionReady && deletedEntries.length > 0}
+				{#if deletedOffered}
 					<button
 						type="button"
 						class="inline-link deleted-link tap-reach-44"
@@ -2335,7 +2385,7 @@
 			<div class="toolbar">
 				{#if !showingDeleted}
 					<label class="search">
-						<span class="sr-only">Search your notebook</span>
+						<span class="sr-only">{searchLabel}</span>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
 							<circle cx="11" cy="11" r="7" />
 							<path d="M20 20l-3.5-3.5" />
@@ -2365,7 +2415,7 @@
 								class="chip-toggle"
 								class:on={filters.includes(f.id)}
 								aria-pressed={filters.includes(f.id)}
-								title={f.hint}
+								title={filterHint(f.id, f.hint)}
 								data-testid="filter-{f.id}"
 								onclick={() => toggleFilter(f.id)}
 							>
@@ -2373,13 +2423,23 @@
 							</button>
 						{/each}
 					{/if}
-					{#if deletionReady}
+					<!--
+						GATED ON `deletedOffered`, WHICH INCLUDES THE LENGTH. `deletionReady`
+						alone asks whether 0117 is APPLIED and says nothing about whether
+						this caller was handed an answer -- and both it and `deletedEntries`
+						default to on/empty, so every read-only mount (the per-student review
+						page, /classroom/view-as's notebook), neither of which loads a
+						deleted list at all, drew a chip whose only possible outcome was the
+						empty state below it. The empty-state link above already asked both
+						questions; this asked only the first.
+					-->
+					{#if deletedOffered}
 						<button
 							type="button"
 							class="chip-toggle deleted-toggle"
 							class:on={showingDeleted}
 							aria-pressed={showingDeleted}
-							title={DELETED_FILTER.hint}
+							title={filterHint('deleted', DELETED_FILTER.hint)}
 							data-testid="filter-deleted"
 							onclick={() => (showingDeleted = !showingDeleted)}
 						>
@@ -2398,7 +2458,7 @@
 							class="chip-toggle"
 							class:on={filters.includes(DRAFT_FILTER.id)}
 							aria-pressed={filters.includes(DRAFT_FILTER.id)}
-							title={DRAFT_FILTER.hint}
+							title={filterHint(DRAFT_FILTER.id, DRAFT_FILTER.hint)}
 							data-testid="filter-drafts"
 							onclick={() => toggleFilter(DRAFT_FILTER.id)}
 						>

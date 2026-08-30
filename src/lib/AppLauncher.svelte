@@ -715,7 +715,7 @@
 	}
 	.app-card[data-app='coins'] {
 		/* THE LEDGER HAS A REAL SURFACE AND THIS CARD WAS NOT QUOTING IT. The
-		   Coin Ledger is a standalone neon-terminal page (static/coins/index.html)
+		   Coin Ledger is a standalone neon-terminal page (src/lib/legacy/coins/index.html)
 		   whose own palette is green #00FF41, gold #C8FF00 and cyan #00F0FF on a
 		   near-black base; the card fell to the shared brass/mint default, so the
 		   one app on the launcher with a fully designed room of its own was the

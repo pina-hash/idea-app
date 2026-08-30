@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import NotebookEntryCard from '../src/lib/notebook/NotebookEntryCard.svelte';
+import NotebookDeletedZone from '../src/lib/notebook/NotebookDeletedZone.svelte';
+import StudentReviewBackStrip from '../src/lib/notebook/StudentReviewBackStrip.svelte';
 import {
 	NOTEBOOK_DISCARD_WARNING,
 	NOTEBOOK_NOTE_DISCARD_WARNING,
@@ -11,7 +13,13 @@ import {
 } from '../src/lib/notebook/notebook-shell';
 import { SPLIT_MIN_PX } from '../src/lib/shell/split.svelte';
 import { REVEAL_VIEWPORT_FRACTION, shouldReveal } from '../src/lib/shell/reveal';
-import { livePhotos, orderedPhotos, photoPages } from '../src/lib/notebook';
+import {
+	deletedEntryActor,
+	deletedEntryActorName,
+	livePhotos,
+	orderedPhotos,
+	photoPages
+} from '../src/lib/notebook';
 import {
 	NOTEBOOK_ENTRY_SELECTS,
 	NOTEBOOK_FOLDER_SELECT,
@@ -22,7 +30,12 @@ import {
 	REVIEW_ENTRY_SELECTS,
 	REVIEW_ENTRY_FULL_SELECT
 } from '../src/lib/notebook-selects';
-import type { NotebookEntry, NotebookPhoto, StagedPhoto } from '../src/lib/notebook';
+import type {
+	NotebookDeletedEntry,
+	NotebookEntry,
+	NotebookPhoto,
+	StagedPhoto
+} from '../src/lib/notebook';
 
 /**
  * THE NOTEBOOK ON THE TWO-PANE SHELL, asserted where it fails SILENTLY.
@@ -522,6 +535,137 @@ describe('bringing the detail pane into view', () => {
 			expect(src).toMatch(/<ClassSplit[\s\S]{0,200}?bind:detailEl/);
 		}
 	});
+
+	/* -----------------------------------------------------------------------
+	 * THE RULE, RATHER THAN THE TWO FILES IT WAS FOUND IN.
+	 *
+	 * The assertion above names `NotebookView` and `ReviewConsole` by hand, so
+	 * it is a claim about two files and not about the guarantee. The guarantee
+	 * is `reveal.ts`'s own first paragraph: under `scroll="page"` NEITHER PANE
+	 * BOUNDS ITSELF, so both columns start at the same place in the document
+	 * and something opened from a row forty down the list renders above where
+	 * the click happened -- a click that looks like it did nothing. That is
+	 * true of every page-flow split, and SIX callers outside the notebook take
+	 * exactly that cost today with nothing anywhere reddening.
+	 *
+	 * So the sweep is over every `<ClassSplit` mount in `src/`, and the six are
+	 * an EXPLICIT, PINNED EXEMPTION LIST rather than a silent gap. A list is
+	 * something somebody can shorten; an unwritten rule is not.
+	 *
+	 * IT BITES IN BOTH DIRECTIONS, which is what stops it rotting into a
+	 * ratchet that records whatever is currently true:
+	 *   - a page-flow caller NOT on the list that does not reveal fails;
+	 *   - an entry on the list that HAS been fixed fails, so the list can only
+	 *     ever shrink and a fix cannot be quietly re-exempted;
+	 *   - an entry on the list that has stopped being page-flow fails, for the
+	 *     same reason;
+	 *   - the length is pinned, so an addition is deliberate.
+	 *
+	 * `scroll="fill"` and the default `panes` are NOT covered: those panes bound
+	 * their own height, so the detail column does not start halfway down a
+	 * document. ReviewConsole is `fill` and reveals anyway -- harmless, and the
+	 * named assertion above keeps covering it either way.
+	 * -------------------------------------------------------------------- */
+
+	/** Every `.svelte` file under src/, so a new split cannot arrive uncovered. */
+	function svelteFiles(): string[] {
+		const root = new URL('../src/', import.meta.url);
+		const out: string[] = [];
+		const walk = (rel: string) => {
+			for (const entry of readdirSync(new URL(rel, root), { withFileTypes: true })) {
+				if (entry.isDirectory()) walk(`${rel}${entry.name}/`);
+				else if (entry.name.endsWith('.svelte')) out.push(`src/${rel}${entry.name}`);
+			}
+		};
+		walk('');
+		return out.sort();
+	}
+
+	type SplitMount = { file: string; scroll: string; reveals: boolean; binds: boolean };
+
+	/**
+	 * The mounts, read off the OPENING TAG rather than the whole file: a file
+	 * can hold more than one split, and `scroll` has to come from the tag it
+	 * belongs to. Every caller today writes `scroll` as a literal (asserted
+	 * below), so nothing here has to evaluate an expression.
+	 */
+	function splitMounts(): SplitMount[] {
+		const mounts: SplitMount[] = [];
+		for (const file of svelteFiles()) {
+			const src = read(file);
+			for (const tag of src.match(/<ClassSplit[\s\S]*?>/g) ?? []) {
+				const literal = tag.match(/\bscroll="([a-z]+)"/);
+				// A bound scroll would make this sweep unable to answer, so it is a
+				// FAILURE rather than a skip -- the ALLOWED_PURE lesson: a file the
+				// checker could not read is a file it never checked.
+				expect(tag, `${file}: scroll is not a literal, this sweep cannot classify it`).not.toMatch(
+					/\bscroll=\{/
+				);
+				mounts.push({
+					file,
+					scroll: literal?.[1] ?? 'panes',
+					reveals: src.includes('revealDetailPane(detailEl)'),
+					binds: tag.includes('bind:detailEl')
+				});
+			}
+		}
+		return mounts;
+	}
+
+	/**
+	 * THE SIX, each with the reason it is exempt rather than merely listed.
+	 * Every one is another lane's file: this bundle owns `src/lib/notebook/**`,
+	 * `src/routes/notebook/**` and `src/routes/dev/**`, and reaching into a
+	 * surface somebody else is working in to add an effect and a binding is how
+	 * two lanes collide. NO LINE NUMBERS on purpose -- a list that has to be
+	 * renumbered is a list that gets renumbered without being read.
+	 */
+	const KNOWN_UNREVEALED: { file: string; why: string }[] = [
+		{ file: 'src/lib/coin-desk/LogView.svelte', why: 'coin-desk lane owns it' },
+		{ file: 'src/lib/maps/MapsEditor.svelte', why: 'maps lane owns it' },
+		{ file: 'src/lib/foundry/FoundryGallery.svelte', why: 'foundry lane owns it' },
+		{ file: 'src/lib/foundry/FoundryMine.svelte', why: 'foundry lane owns it' },
+		{ file: 'src/lib/foundry/ReviewQueue.svelte', why: 'foundry lane owns it' },
+		{
+			file: 'src/routes/dev/classroom-inspector/+page.svelte',
+			why: 'the harness for a classroom surface; it should follow whatever that surface does'
+		}
+	];
+
+	it('sweeps something -- a page-flow split exists to be checked', () => {
+		const pageFlow = splitMounts().filter((m) => m.scroll === 'page');
+		// The positive control. A walker that found no files, or a tag regex that
+		// stopped matching, would otherwise pass every assertion below vacuously.
+		expect(pageFlow.length).toBeGreaterThanOrEqual(KNOWN_UNREVEALED.length + 1);
+		expect(splitMounts().some((m) => m.scroll !== 'page')).toBe(true);
+	});
+
+	it('every page-flow split reveals its detail pane, except the pinned six', () => {
+		const exempt = new Set(KNOWN_UNREVEALED.map((e) => e.file));
+		const offenders = splitMounts()
+			.filter((m) => m.scroll === 'page' && !exempt.has(m.file))
+			.filter((m) => !m.reveals || !m.binds)
+			.map((m) => `${m.file} (reveals=${m.reveals}, binds=${m.binds})`);
+		expect(
+			offenders,
+			'a page-flow split opens its detail pane above where the click happened unless it reveals'
+		).toEqual([]);
+	});
+
+	it('the exemption list can only shrink', () => {
+		const byFile = new Map(splitMounts().map((m) => [m.file, m]));
+		for (const { file, why } of KNOWN_UNREVEALED) {
+			const mount = byFile.get(file);
+			expect(mount, `${file} is on the exemption list and no longer mounts a split`).toBeDefined();
+			expect(mount?.scroll, `${file} is no longer page-flow; drop it from the list`).toBe('page');
+			expect(
+				mount?.reveals && mount?.binds,
+				`${file} now reveals (${why}) -- remove it from KNOWN_UNREVEALED`
+			).toBe(false);
+		}
+		// Pinned, so a seventh is a deliberate act and not a quiet widening.
+		expect(KNOWN_UNREVEALED.length).toBe(6);
+	});
 });
 
 
@@ -702,5 +846,211 @@ describe('the select ladders gained a rung rather than growing one', () => {
 	it('the review console refuses to open a deleted entry', () => {
 		const console_ = read('src/routes/notebook/review/+page.svelte');
 		expect(console_).toMatch(/if \(r\.deleted_at\) return \{ ok: false/);
+	});
+});
+
+
+/* ===========================================================================
+ * WHO REMOVED A DELETED ENTRY.
+ *
+ * SILENT WHEN WRONG, which is why it is here rather than left to a browser
+ * pass. The staff Deleted section on /notebook/review/student/[email] lists
+ * student-deleted and staff-deleted entries TOGETHER -- the payload carries no
+ * `deleted_by` filter, deliberately, because a manager may restore either --
+ * and its heading used to say "Entries {studentName} removed from this
+ * notebook" over all of them. Nothing about that reads as broken: an
+ * instructor simply believes a student threw away work that the instructor's
+ * own colleague deleted, and no screenshot, type check or render assertion
+ * about presence would ever say so.
+ *
+ * The two sentences are each other's POSITIVE CONTROL: asserting only that
+ * "staff" appears somewhere would pass on a component that printed "staff" for
+ * every row, so both are checked on the same fixture and required to DIFFER.
+ * ======================================================================== */
+
+describe('deletedEntryActor names an actor only from ids the caller already holds', () => {
+	const STUDENT = 'u-student';
+	const VIEWER = 'u-viewer';
+	const OTHER = 'u-other-staff';
+
+	it('the student themselves', () => {
+		expect(deletedEntryActor(STUDENT, STUDENT, VIEWER)).toBe('student');
+	});
+
+	it('the viewer, the one other id resolved (the admin log rule)', () => {
+		expect(deletedEntryActor(VIEWER, STUDENT, VIEWER)).toBe('viewer');
+	});
+
+	it('anybody else is staff, and stays a bare uuid', () => {
+		expect(deletedEntryActor(OTHER, STUDENT, VIEWER)).toBe('staff');
+		// The uuid is never in the answer: this resolves no name and must not
+		// start, or the page gains a read of other people's rows.
+		expect(deletedEntryActorName('staff', 'Ana Reyes')).not.toContain(OTHER);
+	});
+
+	it('null is unknown, NOT staff -- 0116 nulls it when the account goes', () => {
+		expect(deletedEntryActor(null, STUDENT, VIEWER)).toBe('unknown');
+		expect(deletedEntryActor(undefined, STUDENT, VIEWER)).toBe('unknown');
+	});
+
+	it('a student with no account yet cannot be credited with a removal', () => {
+		// user_id null is an ordinary state (0094: on a roster, never signed in).
+		// Matching null against null would name them for every staff removal.
+		expect(deletedEntryActor(OTHER, null, VIEWER)).toBe('staff');
+		expect(deletedEntryActor(OTHER, null, null)).toBe('staff');
+	});
+
+	it('the student is checked before the viewer, so the answer is total', () => {
+		expect(deletedEntryActor(STUDENT, STUDENT, STUDENT)).toBe('student');
+	});
+});
+
+describe('the staff Deleted section says who removed each row', () => {
+	const deleted = (over: Partial<NotebookDeletedEntry> = {}): NotebookDeletedEntry => ({
+		id: 'd-1',
+		custom_label: 'Old sketch',
+		session: null,
+		upload_timestamp: '2026-02-05T13:00:00Z',
+		deleted_at: '2026-02-06T09:15:00Z',
+		...over
+	});
+
+	/** Both kinds on ONE fixture, exactly as the real payload delivers them. */
+	function zone(): string {
+		return render(NotebookDeletedZone, {
+			props: {
+				entries: [
+					deleted({ id: 'by-student', custom_label: 'Wrong units', deleted_by: 'u-student' }),
+					deleted({ id: 'by-staff', custom_label: 'Duplicate page', deleted_by: 'u-other' }),
+					deleted({ id: 'by-viewer', custom_label: 'Blurred shot', deleted_by: 'u-viewer' }),
+					deleted({ id: 'by-nobody', custom_label: 'Bench notes', deleted_by: null })
+				],
+				studentName: 'Ana Reyes',
+				studentUserId: 'u-student',
+				viewerId: 'u-viewer'
+			} as never
+		}).body;
+	}
+
+	/** The line for one row, so a claim about it cannot be satisfied by another. */
+	function lineFor(label: string): string {
+		const body = zone();
+		const at = body.indexOf(label);
+		expect(at, `${label} is not in the rendered zone at all`).toBeGreaterThan(-1);
+		const meta = body.indexOf('Deleted by', at);
+		expect(meta, `${label} has no attribution line after it`).toBeGreaterThan(-1);
+		return body.slice(meta, body.indexOf('</span', meta));
+	}
+
+	it('a student-deleted row names the student', () => {
+		expect(lineFor('Wrong units')).toContain('Ana Reyes');
+	});
+
+	it('a staff-deleted row does NOT name the student', () => {
+		const line = lineFor('Duplicate page');
+		expect(line).toContain('staff');
+		expect(line, 'a staff removal is being attributed to the student').not.toContain('Ana Reyes');
+	});
+
+	it('the two sentences differ -- each is the other\'s positive control', () => {
+		expect(lineFor('Wrong units')).not.toBe(lineFor('Duplicate page'));
+	});
+
+	it("the viewer's own removal reads 'you', and nothing else does", () => {
+		expect(lineFor('Blurred shot')).toContain('you');
+		expect(lineFor('Wrong units')).not.toContain('you');
+		expect(lineFor('Duplicate page')).not.toContain('you');
+	});
+
+	it('a null actor is not attributed to anyone', () => {
+		const line = lineFor('Bench notes');
+		expect(line).not.toContain('Ana Reyes');
+		expect(line).not.toContain('staff');
+	});
+
+	it('no actor uuid reaches the page', () => {
+		const body = zone();
+		for (const id of ['u-student', 'u-other', 'u-viewer']) {
+			expect(body, `${id} is being rendered; this surface resolves no uuid`).not.toContain(id);
+		}
+	});
+
+	it('the heading no longer makes one claim over a mixed list', () => {
+		// The defect exactly: a section-level sentence naming the student, above
+		// rows that are half somebody else's removals.
+		const heading = zone().split('<ul')[0];
+		expect(heading).not.toContain('Ana Reyes');
+	});
+
+	it('every row still carries its Restore control, whoever removed it', () => {
+		const body = render(NotebookDeletedZone, {
+			props: {
+				entries: [
+					deleted({ id: 'by-student', deleted_by: 'u-student' }),
+					deleted({ id: 'by-staff', custom_label: 'Other', deleted_by: 'u-other' })
+				],
+				studentName: 'Ana Reyes',
+				studentUserId: 'u-student',
+				viewerId: 'u-viewer',
+				restoreEntry: async () => ({ ok: true as const })
+			} as never
+		}).body;
+		// Attribution is a SENTENCE, never a gate: the RPC's own
+		// classroom_manages_section / notebook_manages_student check is what
+		// decides who may restore what.
+		expect(body.match(/data-testid="staff-restore-entry"/g)?.length).toBe(2);
+	});
+
+	it('an omitted restoreEntry still removes every control (absence is the mechanism)', () => {
+		const body = render(NotebookDeletedZone, {
+			props: {
+				entries: [deleted({ deleted_by: 'u-student' })],
+				studentName: 'Ana Reyes',
+				studentUserId: 'u-student',
+				viewerId: 'u-viewer'
+			} as never
+		}).body;
+		expect(body).not.toContain('staff-restore-entry');
+		// The positive control for that absence: the row itself is still there.
+		expect(body).toContain('staff-deleted-meta');
+	});
+});
+
+/* ===========================================================================
+ * THE RETURN LINK CARRIES THE SECTION.
+ *
+ * /notebook/review reads `?section=` and NOTHING ELSE off the URL (its own
+ * load validates the id against the viewer's sections and falls back to the
+ * default), so this is the whole of what a way back can preserve. Both
+ * directions are asserted: an id present must reach the href, and an absent
+ * one must not invent a query string.
+ * ======================================================================== */
+
+describe('StudentReviewBackStrip', () => {
+	function strip(sectionId: string | null): string {
+		return render(StudentReviewBackStrip, {
+			props: { displayName: 'Ana Reyes', email: 'ana@boscotech.net', sectionId } as never
+		}).body;
+	}
+
+	it('carries the section it was given', () => {
+		expect(strip('sec-abc')).toContain('href="/notebook/review?section=sec-abc"');
+	});
+
+	it('a section that needs escaping is encoded, never pasted', () => {
+		expect(strip('a b&c')).toContain('href="/notebook/review?section=a%20b%26c"');
+	});
+
+	it('no section is the bare link this always had, not an empty query', () => {
+		const body = strip(null);
+		expect(body).toContain('href="/notebook/review"');
+		expect(body).not.toContain('?section=');
+	});
+
+	it('defaults to the bare link when the prop is not passed at all', () => {
+		const body = render(StudentReviewBackStrip, {
+			props: { displayName: null, email: 'ana@boscotech.net' } as never
+		}).body;
+		expect(body).toContain('href="/notebook/review"');
 	});
 });

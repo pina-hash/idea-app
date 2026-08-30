@@ -14,8 +14,15 @@
 	 *    and a control whose only outcome is a refusal must not be offered.
 	 *
 	 * Geometry is TYPED INCHES (spec 7): text inputs parsed by the registry,
-	 * never number inputs (the bind:value coercion trap) and never a canvas --
-	 * drawing is bundle B.
+	 * never number inputs (the bind:value coercion trap). The PLAN CANVAS
+	 * beneath them is a positioning instrument for those same fields, never a
+	 * second store of the value: it renders what they hold and writes a
+	 * position back into them, so "the typed value wins" needs no
+	 * reconciliation because there is only one value. It can move a shape and
+	 * it cannot resize one. A UNIT additionally carries the front elevation of
+	 * its compartments (spec 7), which is the same rule one dimension over:
+	 * the drawn stack is a rendering of the typed heights and nothing in it is
+	 * draggable.
 	 */
 	import { onMount, untrack } from 'svelte';
 	import { SaveState } from '$lib/save-state.svelte';
@@ -49,6 +56,8 @@
 	import MapsStatusChip from './MapsStatusChip.svelte';
 	import MapsItemForm from './MapsItemForm.svelte';
 	import MapsStockForm from './MapsStockForm.svelte';
+	import PlanCanvas from './PlanCanvas.svelte';
+	import UnitElevation from './UnitElevation.svelte';
 
 	let {
 		node,
@@ -166,6 +175,40 @@
 	);
 	const allowedKinds = $derived(mapsAllowedKinds(parentKind, childKinds));
 	const isCompartment = $derived(kind === 'compartment');
+
+	/* The outline as the TYPED fields read RIGHT NOW -- what the plan canvas
+	   draws. Derived from the same three inputs `content()` builds its outline
+	   from, so the drawing and the saved row cannot disagree about the shape;
+	   a half-typed rectangle simply has no outline to draw yet. */
+	const liveOutline = $derived.by<MapsOutline | null>(() => {
+		if (isCompartment) return null;
+		if (outlineKind === 'rect') {
+			const w = parseInches(rectW);
+			const h = parseInches(rectH);
+			if (w.kind !== 'value' || h.kind !== 'value' || w.value <= 0 || h.value <= 0) return null;
+			return { kind: 'rect', w: w.value, h: h.value };
+		}
+		if (outlineKind === 'polygon') {
+			const parsed = parsePolygonText(polyText);
+			return parsed.ok ? { kind: 'polygon', points: parsed.points } : null;
+		}
+		return null;
+	});
+	const liveX = $derived(isCompartment ? null : inchesOrNull(posX));
+	const liveY = $derived(isCompartment ? null : inchesOrNull(posY));
+	const liveRotation = $derived(isCompartment ? null : inchesOrNull(rotation));
+
+	/**
+	 * A placement lands in the TYPED FIELDS and nowhere else -- the canvas has
+	 * no store of its own to write to. `formatInches` is what the fields hold
+	 * for every other value, so a dragged number and a typed one are the same
+	 * kind of string in the same box.
+	 */
+	function acceptPlacement(next: { x: number; y: number }) {
+		posX = formatInches(next.x);
+		posY = formatInches(next.y);
+		touch();
+	}
 
 	/**
 	 * Legal parents for the kind currently PICKED in the form (which may differ
@@ -569,7 +612,31 @@
 					<input id="{formKey}-rot" type="text" inputmode="decimal" bind:value={rotation} oninput={touch} autocomplete="off" />
 				</div>
 			</div>
+
+			<PlanCanvas
+				selfId={node?.id ?? null}
+				selfName={name.trim() === '' ? 'This shape' : name.trim()}
+				parent={parentNode}
+				outline={liveOutline}
+				rotationDeg={liveRotation}
+				x={liveX}
+				y={liveY}
+				{data}
+				onplace={acceptPlacement}
+			/>
 		</section>
+	{/if}
+
+	{#if node && kind === 'unit'}
+		<UnitElevation
+			unit={node}
+			{data}
+			{transports}
+			{onchanged}
+			{onselectnode}
+			onaddchild={(parentId, presetKind) => onaddchild(parentId, presetKind)}
+			{registerForm}
+		/>
 	{/if}
 
 	{#if problems.length > 0}

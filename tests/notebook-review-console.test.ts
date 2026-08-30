@@ -527,14 +527,51 @@ describe('live updates', () => {
 	});
 
 	it('re-reads rather than patching, so two instructors converge', () => {
-		// The transport takes a handler with NO payload, which is what makes
-		// "apply this row" unrepresentable rather than merely discouraged: there
-		// is no row to apply. Events can arrive out of order or not at all; the
-		// RPC cannot.
-		expect(read('src/lib/notebook-review.ts')).toMatch(
-			/subscribe\?:\s*\(sectionId: string, onChange: \(\) => void\) => \(\) => void/
-		);
+		// The transport takes a change handler with NO PAYLOAD, which is what
+		// makes "apply this row" unrepresentable rather than merely discouraged:
+		// there is no row to apply. Events can arrive out of order or not at all;
+		// the RPC cannot.
+		//
+		// ASSERTED AS THE HANDLER, NOT AS THE WHOLE SIGNATURE. This used to pin
+		// `(sectionId: string, onChange: () => void) => () => void` verbatim, so
+		// adding the `onStatus` callback the Live pill needs broke a check whose
+		// subject is the payload -- the spelled-out form could only be deleted
+		// where the rule it meant can be generalised.
+		expect(read('src/lib/notebook-review.ts')).toMatch(/onChange: \(\) => void/);
+		expect(read('src/lib/notebook-review.ts')).not.toMatch(/onChange: \([a-zA-Z]/);
 		expect(console_()).toMatch(/refresh\(id, untrack\(\(\) => unit\), \{ quiet: true \}\)/);
+	});
+
+	it('the Live pill reports the CHANNEL, never the existence of a transport', () => {
+		// The defect this replaced: `live = true` set the moment `subscribe`
+		// RETURNED, over a `.subscribe()` with no status callback -- so a
+		// publication that does not carry the notebook tables, a failed join and
+		// a dead socket all painted a green Live pill over a console that would
+		// silently never update again. Nothing else on the screen says otherwise,
+		// which is exactly why this cannot be left to an eye.
+		const src = console_();
+		expect(src).not.toMatch(/\blive = true\b/);
+		expect(src).toMatch(/let channel = \$state<NotebookLiveStatus>\('connecting'\)/);
+		/*
+		 * THE WHOLE OF IT: 'live' is never written by this component, only ever
+		 * RELAYED from the transport. Asserting the declaration alone is not
+		 * enough and was measured not to be -- putting `channel = 'live'` back in
+		 * the subscribe effect and dropping the status callback passed a version
+		 * of this check that only looked for `live = true`. So every assignment
+		 * is enumerated: 'connecting' (the reset, on subscribe and on teardown)
+		 * and `status` (the relay), and nothing else.
+		 */
+		const assignments = [...new Set(src.match(/(?<!let )\bchannel = [^;\n]+/g) ?? [])].sort();
+		expect(assignments).toEqual(["channel = 'connecting'", 'channel = status']);
+		// Only the reported 'live' may show the pill...
+		expect(src).toMatch(/\{#if channel === 'live'\}/);
+		// ...and 'connecting' shows NOTHING: a pill that flickers on every
+		// section change is noise, and a transport that reports no status must
+		// not be able to claim Live.
+		expect(src).not.toMatch(/channel === 'connecting'[\s\S]{0,120}?data-testid="live-pill"/);
+		// The route hands the status over, mapped from supabase-js's own words.
+		expect(route()).toMatch(/subscribe\(sectionId, onChange, onStatus\)/);
+		expect(route()).toMatch(/status === 'SUBSCRIBED' \? 'live' : 'stalled'/);
 	});
 
 	it('is ONE channel per section, filtered, and torn down', () => {

@@ -46,6 +46,16 @@ export interface ReviewSection {
 	label: string;
 	block: string | null;
 	teacher_email: string;
+	/**
+	 * May the VIEWER manage this section -- teacher of record, or chair? Since
+	 * 0169 a section can also be held on the REVIEWER tier, which reads the
+	 * grid and reviews entries but does not author check-ins, link items,
+	 * grade or delete; the console withholds those panels per section on this
+	 * flag. Computed server-side by the review load (the client cannot derive
+	 * chair-ness), and REQUIRED so a constructor cannot forget the decision --
+	 * the database refuses a manage write either way.
+	 */
+	manages: boolean;
 }
 
 /** "IDEA209H · Section 1 · Block 2" -- how a section reads wherever it is named. */
@@ -162,7 +172,12 @@ export interface GridCell {
 }
 
 export interface SectionGrid {
-	section: ReviewSection;
+	/**
+	 * The RPC's own projection of the section -- metadata only, no `manages`:
+	 * whether the VIEWER manages a section is the load's per-viewer computation
+	 * on the `sections` list, not a fact the grid payload carries.
+	 */
+	section: Omit<ReviewSection, 'manages'>;
 	unit_number: number | null;
 	generated_at: string;
 	sessions: GridSession[];
@@ -745,6 +760,40 @@ export interface SessionInput {
 export type ReviewResult<T = undefined> = { ok: true; value: T } | { ok: false; error: string };
 
 /**
+ * WHETHER THE LIVE CHANNEL IS ACTUALLY UP -- three states, because two would
+ * have to lie about one of them.
+ *
+ *   connecting  the ordinary sub-second state after a subscribe, and also a
+ *               transport that reports nothing at all. NOTHING IS SHOWN for
+ *               it: a pill that flickers on every section change is noise,
+ *               and a console that is about to be live is not a fault.
+ *   live        the join succeeded. This is the ONLY state that may show the
+ *               green pill, and it now means the channel and not the mere
+ *               existence of a transport.
+ *   stalled     the join failed, timed out, or the socket closed under us.
+ *               Usually transient -- supabase-js rejoins on its own and this
+ *               goes back to `live` -- so the words for it must not read as an
+ *               alarm. What the reader needs is the one fact they cannot see:
+ *               new work will not appear by itself.
+ *
+ * `CLOSED` maps to `stalled` like the other two failures, and the console
+ * ignores every status after its own teardown, so an ordinary unsubscribe
+ * never paints one.
+ */
+export type NotebookLiveStatus = 'connecting' | 'live' | 'stalled';
+
+/**
+ * What the bar says for each. Said ONCE, here, so the pill and any future
+ * reader of the same state cannot end up describing the channel differently.
+ * `connecting` has no words on purpose -- see above.
+ */
+export const NOTEBOOK_LIVE_LABEL = 'Live';
+export const NOTEBOOK_LIVE_HINT = 'Updating as students file work';
+export const NOTEBOOK_STALLED_LABEL = 'Not live. Reload to see new work.';
+export const NOTEBOOK_STALLED_HINT =
+	'Updates are not arriving on their own right now. Everything already on screen is real.';
+
+/**
  * The transports the review console needs. Injected exactly the way
  * NotebookView injects its three upload transports, so the dev harness can
  * answer them in memory and every one of them is a single named place where
@@ -814,8 +863,22 @@ export interface ReviewTransports {
 	 * instructors working the same section converge on what the database says
 	 * instead of each patching a local copy from a row that arrived out of
 	 * order.
+	 *
+	 * `onStatus` IS WHAT THE Live PILL ACTUALLY MEANS, AND IT IS REQUIRED.
+	 * The console used to set `live = true` the moment this function RETURNED,
+	 * which is a claim about the transport EXISTING and not about the channel:
+	 * a `.subscribe()` with no status callback answers a failed join, a
+	 * publication that does not carry the notebook tables, and a dead socket
+	 * exactly as it answers success, so the console showed a green Live pill
+	 * and silently never updated again. A transport that cannot report its
+	 * channel therefore cannot claim Live -- absence is the mechanism here as
+	 * everywhere else, and `'connecting'` is what it gets.
 	 */
-	subscribe?: (sectionId: string, onChange: () => void) => () => void;
+	subscribe?: (
+		sectionId: string,
+		onChange: () => void,
+		onStatus: (status: NotebookLiveStatus) => void
+	) => () => void;
 	/**
 	 * An instructor removing a student's entry (0116, notebook_staff_delete_entry).
 	 * OPTIONAL, the same presence-gates-the-control rule every notebook write

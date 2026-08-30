@@ -1,0 +1,176 @@
+/* ==========================================================================
+   THE COIN DESK'S ROOM: the page geometry, the column rule, and the chrome
+   the IDEA Coin Ledger already established.
+
+   WHY THIS FILE EXISTS AT ALL. `/coin-desk/+layout.svelte` and
+   `/dev/coin-desk/+page.svelte` each carried their own byte-identical copy of
+   `.coin-desk-page` and `.hero` in a scoped `<style>` block -- so the harness
+   could measure a page width the real layout did not have, silently, which is
+   the one failure a harness exists to prevent. A room gets a stylesheet HERE,
+   imported by both, the way `.cr-root` / `.nb-root` / `.fg-root` do; it is not
+   a second split and it declares no colour the design system does not already
+   have.
+
+   It sits BESIDE `$lib/shell/split.css` and does not replace it: that file
+   still owns `.cd-root`'s gutter, its scrollbars and the split's own grid.
+   ========================================================================== */
+
+/* --- The page measure ------------------------------------------------------
+   THE DESK IS ONE WIDTH NOW, AND IT USED TO BE TWO. `--cr-measure` is set to
+   `--measure-split` by split.css on a room that CONTAINS a split, which the
+   Log area does -- so Log measured 1440px of content at a 1440px viewport
+   while Students, Contracts, Roles and Economy measured 832px, 58% of the
+   window, with 608px of empty plate beside four of the five areas. Those four
+   are the dense ones: the price list card measured 3180px TALL inside its
+   768px column, the roles card 2173px and the contracts card 1840px. That is
+   the whole of the "wastes horizontal space, forcing scrolling the space does
+   not require" report -- the scrolling is the symptom and the narrow column is
+   the cause.
+
+   So the FALLBACK moves from `--measure-panel` (52rem) to `--measure-split`
+   (92rem), which makes the split's own value the same number rather than a
+   different one. No new token, no per-route width, and the areas stop
+   disagreeing about how wide the desk is.
+
+   `--measure-split` and not `--measure-console` (100%): a console takes the
+   whole window because its three panes are worked side by side, and the desk
+   is one column of cards. 92rem caps at 1472px, so a 1440px window is fully
+   used and a 2560px one is not stretched to a measure nobody sized these
+   cards for.
+   ------------------------------------------------------------------------ */
+.cd-root .coin-desk-page {
+	max-width: var(--cr-measure, var(--measure-split));
+	margin: 0 auto;
+	padding: 0 var(--cr-gutter, 1.2rem) 2rem;
+}
+
+/* A MASTHEAD LINE, not a landing-page hero. The shared `.hero` is
+   `padding: 4rem 1rem 2.5rem` with a centred stack under it, which measured
+   191px -- a fifth of a 900px viewport, above the split, on every load, on a
+   tool whose whole constraint is that the form fits without scrolling. The
+   eyebrow and the title say which tool this is on one row instead. */
+.cd-root .coin-desk-page .hero {
+	display: flex;
+	align-items: baseline;
+	gap: 0.7rem;
+	text-align: left;
+	padding: 0.9rem 0 0.5rem;
+}
+.cd-root .coin-desk-page .hero .eyebrow {
+	display: inline-block;
+	margin-bottom: 0;
+}
+.cd-root .coin-desk-page .hero h1 {
+	font-size: 1.15rem;
+	margin: 0;
+	letter-spacing: 0.04em;
+}
+
+/* The cards live in each area's own component, so a scoped rule in the layout
+   cannot reach them -- this is the one place that can own the rhythm between
+   them rather than every area repeating it. */
+.cd-root .coin-desk-page > .card {
+	margin-bottom: 1.1rem;
+}
+/* A split IS the area's whole surface, so it owns its own internal spacing and
+   the card rhythm would only add a gap under it. */
+.cd-root .coin-desk-page > .cr-split {
+	margin-bottom: 0;
+}
+
+/* --- The reading measure ---------------------------------------------------
+   WIDENING THE PAGE IS NOT WIDENING THE PROSE, and the two have to be said
+   separately or the first ruins the second. A sentence set across 1376px is
+   unreadable however much room the window has; what wanted the width was the
+   rows, the tables and the price list, none of which are prose.
+
+   `--measure-reading` (46rem, the design system's own "one column of prose")
+   is the cap, and it is the narrowest of the five measures on purpose.
+   Measured on this surface at 1440px: the nav blurb went from 143 characters
+   on its single line to 78, and the longest `.note` paragraph from 121 to 71
+   -- both inside the 45-75 band that measure exists to hold, against a
+   before-figure roughly double it.
+
+   It is applied to PROSE, never to a row: `.blurb` is the nav's one-line
+   description of the area and `.note` is the shared class every refusal,
+   caption and empty-state sentence in this room already wears.
+   ------------------------------------------------------------------------ */
+.cd-root .coin-desk-page .blurb,
+.cd-root .coin-desk-page .card > .note,
+.cd-root .coin-desk-page .card > p {
+	max-width: var(--measure-reading);
+}
+
+/* --- Columns ---------------------------------------------------------------
+   A LIST THAT IS A COLUMN OF CARDS BECOMES COLUMNS OF CARDS, and the minimum
+   is measured rather than picked. Driving the price list's own container from
+   240px to 760px in 20px steps: 38 of 38 rows wrapped below 320px, the knee is
+   at 320 (28 wrapped) through 380 (21), and from 380 to 580 the figure is flat
+   at 19-18 -- so 380px is where this content stops gaining and everything
+   above it to 600 buys nothing. `--cd-col` defaults to 24rem (384px), just
+   past that knee; a list whose rows are a different shape overrides it and
+   says what it measured.
+
+   `auto-fit` and not `auto-fill`, so four groups get four columns rather than
+   four and a void, and `minmax(min(<col>, 100%), 1fr)` so the SAME rule is a
+   single full-width column at 375px with no breakpoint of its own.
+   ------------------------------------------------------------------------ */
+.cd-root .cd-cols {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(var(--cd-col, 24rem), 100%), 1fr));
+	gap: var(--space-4) var(--space-5);
+	align-items: start;
+}
+
+/* A ROW IN A COLUMN IS A CARD, and it has to be told so. Every one of these
+   lists separates its rows with a single `border-bottom` -- correct for a
+   stack, meaningless the moment the stack becomes three stacks side by side,
+   where the reader needs to know which column a row belongs to. So a gridded
+   list's rows take a full hairline, a radius and a recessed ground: the same
+   move `.coin-card` makes in the IDEA Coin Ledger (a panel with its own edge
+   rather than a rule under it), in this room's tokens.
+
+   `--bg0` and not `--bg1`: these sit INSIDE a `.card`, which is already
+   `--bg1`, so a card-coloured row on a card-coloured ground is an edge and
+   nothing else. Recessed reads as contained. */
+.cd-root .cd-cols.cd-card-rows > * {
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: var(--bg0);
+	padding: 0.55rem 0.75rem;
+}
+
+/* --- The ledger's card signature ------------------------------------------
+   `.coin-card` in `src/lib/legacy/coins/index.html` is a `--bg1` panel with a plain
+   hairline on three sides and a 3px ACCENT STRIPE down its left edge. It is
+   the single most recognisable thing about that page, it costs one rule, and
+   it is the difference between the desk reading as part of the coin economy
+   and reading as a generic admin console.
+
+   `--green` and not the ledger's per-section colour: the stripe is one accent
+   here because a coin desk card is not a student, and green is this register's
+   active/primary. The portal's `--boundary` contract is unaffected -- the
+   card's own edge is still `.card`'s hairline, and this paints over the left
+   1px of it rather than replacing the boundary.
+
+   The stripe is on the ROOM's cards only, so nothing outside `/coin-desk`
+   changes. --------------------------------------------------------------- */
+.cd-root .coin-desk-page > .card {
+	border-left: 3px solid var(--green);
+}
+
+/* The ledger sets every piece of chrome in Orbitron; `--font-title` is that
+   face, named through its token. The eyebrow is the desk's masthead label and
+   is the one line of chrome above the tab bar, so it takes the same face the
+   tab bar now does. `.eyebrow`'s own colour, tracking and glow are untouched. */
+.cd-root .coin-desk-page .hero .eyebrow {
+	font-family: var(--font-title);
+	font-size: 0.66rem;
+	letter-spacing: 0.2em;
+}
+.cd-root .coin-desk-page .hero h1 {
+	font-family: var(--font-title);
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}

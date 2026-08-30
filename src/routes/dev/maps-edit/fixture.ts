@@ -62,6 +62,7 @@ export const FIX = {
 	machineShop: 'node-machine-shop',
 	millRoom: 'node-mill-room', // published + PENDING edit
 	toolChest: 'node-tool-chest',
+	workbench: 'node-workbench-b', // the sibling every snap target test needs
 	drawer1: 'node-drawer-1', // compartment: nothing may nest inside
 	drawer2: 'node-drawer-2', // draft compartment
 	protoLab: 'node-proto-lab', // draft room
@@ -91,11 +92,29 @@ export function mapsEditFixture(): MapsEditorData {
 				position_y_in: 0,
 				description: 'Three mills.'
 			}),
+			/* POSITIONED SO THE ROTATION LANDS INSIDE THE ROOM. Rotation is about
+			   the shape's own position origin, so a 30x18 chest turned 90deg
+			   occupies x = position - 18 .. position: at the original x of 12
+			   it hung 6in outside the west wall, which drew a shape half off
+			   the plan the moment there was a plan to draw it on. 30 is the
+			   smallest x that clears the wall exactly (its leading edge lands
+			   on 12). */
 			node(FIX.toolChest, 'unit', 'Tool Chest A', FIX.machineShop, {
 				outline: { kind: 'rect', w: 30, h: 18 },
-				position_x_in: 12,
+				position_x_in: 30,
 				position_y_in: 12,
 				rotation_deg: 90
+			}),
+			/* A SIBLING WITH A REAL EDGE. Snapping has nothing to snap to in a
+			   room holding one object, so the placement checks would have been
+			   measuring the walls alone -- which is the case that passes even
+			   when sibling snapping is broken. Unrotated on purpose: the
+			   rotated chest and the square-on bench together are the two
+			   footprint shapes the arithmetic has to get right. */
+			node(FIX.workbench, 'unit', 'Workbench B', FIX.machineShop, {
+				outline: { kind: 'rect', w: 72, h: 30 },
+				position_x_in: 120,
+				position_y_in: 12
 			}),
 			node(FIX.drawer1, 'compartment', 'Drawer 1', FIX.toolChest, {
 				subtype: 'drawer',
@@ -201,6 +220,10 @@ export function mapsEditFixture(): MapsEditorData {
 				updated_at: T
 			}
 		],
+		/* 0163's photo rows. Empty here: the editor harness predates photos
+		   and asserts nothing about them; the SHELF harness composes this
+		   fixture and pushes rows into it as uploads land. */
+		photos: [],
 		pending: [
 			{
 				id: 'pending-mill-room',

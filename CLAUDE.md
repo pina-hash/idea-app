@@ -38,10 +38,31 @@ economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), IDEA Maps
-(`/maps/edit`, the admin editor; the public viewer at `/maps` is a later bundle
--- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165, writes through
-the `is_admin()` RLS policies with `maps_publish` as the one RPC per 0161's own
-header), and the portal shell (`/`, `/dashboard`, `/admin`).
+(`/maps/edit`, the admin editor, and `/maps/edit/shelf`, ITEM ENTRY AT THE
+SHELF -- a phone-first flow used standing at a toolbox, so 375px is its primary
+width and not the one checked afterwards; the public viewer at `/maps` is a
+later bundle -- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165
+plus the `maps-media` bucket, writes through the `is_admin()` RLS policies with
+`maps_publish` as the one RPC per 0161's own header), and the portal shell
+(`/`, `/dashboard`, `/admin`).
+  - **THE `/maps/edit` GATE IS THE AREA'S `+layout.server.ts`**, hoisted there
+    the moment there was a second page, so a third cannot ship ungated by
+    somebody forgetting to copy a check. The editor page keeps its own identical
+    `isAdmin` call as defence in depth; the shelf page deliberately carries none,
+    which `tests/maps-shelf-route.test.ts` asserts in both directions.
+  - **A MAP PHOTO'S MEDIA TYPE COMES FROM THE EXTENSION WHEN THE BROWSER GIVES
+    NONE, AND THAT IS 0163'S OWN INSTRUCTION TO THE EDITOR.** `File.type` is
+    legitimately EMPTY for HEIC off an iPhone, an empty type uploads as
+    `application/octet-stream`, and the `maps-media` bucket refuses it -- so a
+    perfectly good camera photo fails at the far end unless the type is
+    resolved first. `mapsImageMime` in `$lib/maps/media.ts` is the one place
+    that happens, and the size ceiling beside it (20 MiB) is refused from
+    `File.size` BEFORE the transfer, because a refusal after a minute of school
+    wifi is the same refusal at the worst moment.
+  - **THE BUCKET'S `image/*` WILDCARD ADMITS SVG AND THE CLIENT REFUSES IT
+    ANYWAY.** An SVG is a document, not a picture, and `maps-media` is PUBLIC --
+    closing it properly is a migration replacing the wildcard with a concrete
+    raster list, which no bundle has written yet.
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
@@ -1010,9 +1031,9 @@ it is not required to browse.
   the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
   tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`), the Foundry source reader
-  (`POST /api/foundry/source`), the IDEA Maps editor (`/maps/edit` -- the
-  future `/maps` viewer is PUBLIC per the maps spec and must never be
-  prefix-guarded) and GAUNTLET's ranked-run review
+  (`POST /api/foundry/source`), the IDEA Maps editor (everything under
+  `/maps/edit`, gated once in its own `+layout.server.ts` -- the future `/maps`
+  viewer is PUBLIC per the maps spec and must never be prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
@@ -2454,6 +2475,82 @@ inside the function fails closed rather than falling through to a weaker path.
       not acknowledged, plus any boundary the click still owes. The button and
       the handler read the SAME derived predicate; two spellings of it is the
       thing that stops matching.
+- **A NAVIGATION IS THE ONE PENDING STATE THAT IS GLOBAL, AND IT IS MOUNTED
+  ONCE.** `NavigationProgress.svelte` reads `navigating` from `$app/state` and
+  sits in `src/routes/+layout.svelte` beside `SiteFeedback`, for the same
+  reason: there are no layout resets in `src/routes`, so every page route
+  INHERITS the indicator instead of having to remember one. This is the
+  deliberate opposite of the save state's per-instance rule -- a save state is
+  per-surface because a global one would speak for work it cannot see, and a
+  navigation is exactly one event with exactly one answer at a time. Before it,
+  `navigating` in EITHER spelling (the `$app/state` rune or the deprecated
+  `$app/navigation` store) was imported by zero files under `src/`, and every
+  navigation in the app showed nothing until the new page painted.
+  - **THE DELAY IS THE DESIGN, AND IT IS `NAV_INDICATOR_DELAY_MS` (250ms) IN
+    `$lib/pending.ts`.** Below it nothing is drawn: a bar that flashes on every
+    click turns an instantaneous navigation into a visible event and teaches a
+    reader to ignore the one signal that matters. Above it the reader is past
+    the ~100ms band in which a UI still feels like a direct response, and far
+    enough below the ~1s point at which they click again. Measured on the
+    harness: a warm client-side navigation between two `/dev` routes completes
+    in **31-44ms** and draws nothing; a 1200ms load draws at **260-266ms**.
+  - **ZERO LAYOUT SHIFT IS STRUCTURAL, NOT TUNED.** The wrapper is
+    `position: fixed` and never takes a line box, so it cannot push anything;
+    `pointer-events: none` so an overlay across the top of every page cannot eat
+    a tap meant for the masthead. Measured, with the negative control in the
+    same reading: CLS 0 and 0px reference movement for the real bar, against
+    CLS 0.0056 / 3px for the identical bar put back in flow.
+  - **THE TRACK IS THE STATE AND THE SWEEP IS THE DECORATION**, which is what
+    makes the reduced-motion path work rather than merely not crash: with the
+    animation cancelled the mark is still painted at full opacity with no
+    transform, so `reduce` conveys the same state by presence. Nothing is hidden
+    in a base state. Measured 7.52:1 against the page and 3.80:1 against its own
+    track -- the 3:1 non-text floor, because the bar is a graphical object.
+  - **THE LIVE REGION IS ALWAYS MOUNTED AND ONLY ITS TEXT MOVES.** Several
+    screen readers only announce a `role="status"` they were already observing,
+    so the region exists empty from the first frame and the `{#if}` wraps the
+    BAR. An empty region correctly holds a ZERO BOX (measured 375x0 and 1440x0)
+    -- a spec asserting it visible at rest is asserting a permanent bar.
+  - **ITS HARNESS HOOK IS `data-nav-progress`, NEVER `data-testid`, AND THAT IS
+    NOT A NAMING PREFERENCE.** `tools/browser-verify`'s `waitForApp` decides a
+    page has painted by taking the FIRST match of
+    `main, h1, [data-testid], .harness` and requiring it to have a box -- one
+    candidate, not the first one with a box. A shell-mounted element is first in
+    the body on every page, and this one is correctly zero-box at rest, so a
+    `data-testid` here made that predicate never hold **on every route in the
+    harness**. Measured on `/dev/marks`, which has nothing to do with it: "app
+    rendered in 479ms" became "app DID NOT RENDER (DOM never settled) in
+    30007ms", and a full pass would have gone from ~3 minutes to ~50. **Nothing
+    went red** -- every check still ran and still reported correct numbers, so
+    the only symptom was a slow run. Anything else mounted in the shell that can
+    be zero-box takes a hook of its own for the same reason; the harness
+    README's own section has the full write-up.
+- **EVERY OTHER PENDING STATE IS `$lib/Pending.svelte`, AND ITS WORDS ARE
+  `$lib/pending.ts`.** Same division of labour as `SaveIndicator` /
+  `save-state.svelte.ts`: the module owns the sentence, the component owns only
+  how it looks. Swept before it existed, `src/` carried roughly twenty
+  paragraph-level pending states with no shared component and the ellipsis in
+  THREE spellings -- `Loading…`, `Loading...` and `Loading&hellip;` -- which is
+  not a cosmetic problem but the tell that nothing owned the decision, and also
+  why none of them was a live region and none said what was pending.
+  - **`pendingLabel` NORMALISES RATHER THAN TRUSTING THE CALLER.** A constant
+    only makes the right spelling available; stripping whatever ellipsis was
+    typed and appending the one is what makes it the only reachable one. Every
+    existing call site was a hand-written string WITH its own ellipsis, so a
+    component that merely appended would render `Loading……`.
+  - **THE LABEL IS REQUIRED AND THERE IS NO ZERO-ARGUMENT FORM.** `Loading…`
+    alone is the same sentence on a roster, a photo and a revision list.
+  - **NO SPINNER.** Every surface it replaces was text, several with a comment
+    saying so; the route indicator carries the motion, once, where a whole page
+    is being waited on. **Do not add a pending state to something that already
+    degrades correctly** -- `LinkPreviewCard` renders a working link from the
+    first frame and upgrades it if metadata arrives, so there is no window to
+    report and a placeholder there would replace a usable control.
+  - **IT READS `var(--pending-ink, var(--text-2))`**, the room-hook mechanism
+    `Disclosure` uses for `--disc-accent`. `--text-2` and NOT `--dim`, which
+    clears only the darkest of the three portal grounds. Measured in all three
+    rooms it ships in: portal 5.88:1, classroom card 7.27:1, and the notebook's
+    default / light / IDEA plates at 7.27 / 7.75 / 9.18:1.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
@@ -3219,7 +3316,18 @@ carried-over content must follow one of these three patterns:**
 
 1. **Public static** -- copy unchanged into `static/`; served at the site root.
    **Link to the explicit `index.html`**: the Vite dev server does not resolve a
-   bare directory to it (Vercel does), so `/coins/index.html` works in both.
+   bare directory to it (Vercel does).
+   - **PATTERN 1 HAS NO SERVE-TIME HOOK, AND THAT IS WHAT DECIDES BETWEEN IT AND
+     PATTERN 2.** A static asset is served by the platform BEFORE any SvelteKit
+     code runs, so a route under the same path is shadowed and never called;
+     the only way to change what such a page carries is to edit the frozen file,
+     which the freeze below forbids. **The IDEA Coin Ledger moved from 1 to 2
+     for exactly that reason** -- it had no report-a-problem control and could
+     not be given one -- so it is now `src/lib/legacy/coins/index.html` served
+     by `src/routes/coins/[...path]/+server.ts`. The file is byte-identical to
+     the one that was in `static/`, `/coins`, `/coins/` and `/coins/index.html`
+     all still answer, and anything else under `/coins/` is a 404. **The move is
+     the pattern's own escape hatch, not a licence to unfreeze a file.**
 2. **Public raw-import endpoint** -- HTML lives OUTSIDE `static/` in
    `src/lib/legacy/`, pulled in at build time via Vite raw imports
    (`import.meta.glob(..., { query: '?raw' })`), **never runtime `fs` reads**, so it
@@ -3232,6 +3340,26 @@ carried-over content must follow one of these three patterns:**
 **Serve-time injection is the convention for anything added to legacy HTML** (link
 rewriting, the version badge, VANGUARD's cloud-save bootstrap): applied to the
 served STRING, never to the source file on disk.
+
+- **THE REPORT CONTROL FOR A LEGACY PAGE IS `$lib/server/legacy-report-panel.ts`,
+  AND A THIRD SURFACE IS A CALLER OF IT.** `SiteFeedback` is mounted once in the
+  root layout, which is what makes report coverage something a new route
+  INHERITS; a page served from a `+server.ts` renders no layout and inherits
+  nothing, so the control is injected. Every string that could drift is
+  IMPORTED -- the kind list, the caps, the refusal wording, `describeBuild` --
+  and the row lands in `app_feedback` through the same two endpoints as every
+  other surface. **`$lib/server/legacy-feedback-post.ts` is the one signed-in
+  handler**, called by `/api/vanguard-feedback` and `/api/coin-feedback`, which
+  differ by one `app` string; the ANONYMOUS endpoint is taken from the shared
+  constant and no caller can override it, so a signed-out report cannot be
+  pointed anywhere but `/api/feedback`.
+- **VANGUARD'S OWN INJECTED PANEL PREDATES THAT MODULE AND IS A MIGRATION
+  CANDIDATE, NOT A SECOND SANCTIONED PATTERN** (the standing the hand-rolled
+  disclosures have). It is woven into the GAME -- it wears `.fbovl` so the
+  game's pointer, mouse and wheel handlers stand down, it reads
+  `__ideaGameInfo` for the mode and sector, it shares VANGUARD's own button
+  factory -- so folding it in belongs in a bundle that can play the game to
+  check it.
 
 **Asset paths.** Legacy files assume the old `/IDEA/` base path. Three mechanisms
 resolve it without editing them: the `static/IDEA/` icon mirror,
@@ -3278,8 +3406,9 @@ the source of truth; **do not invent colours or swap fonts.**
 - **`--green` is for primary actions, active navigation, focus, success and
   completion** -- not static labels, quiet borders, data values, or decoration.
 - **Fonts:** `Rajdhani` (display, body, input values) and `Share Tech Mono`
-  (metadata, button/nav labels, mono chrome), via `@fontsource`. `/` and `/archive`
-  additionally use `Orbitron`. **Never Arial, Inter, Roboto, or system fonts** in
+  (metadata, button/nav labels, mono chrome), via `@fontsource`. `/`, `/archive`
+  and the COIN DESK's chrome (its masthead line and its sub-nav, which took the
+  IDEA Coin Ledger's own tab-bar treatment) additionally use `Orbitron`. **Never Arial, Inter, Roboto, or system fonts** in
   the IDEA shell -- the notebook's system-sans stack was the last exception and it
   is gone. **A face is named through its TOKEN, never as a literal:**
   `--font-display`, `--font-mono`, `--font-title` (Orbitron), `--font-hero`. Each
@@ -3532,6 +3661,30 @@ properly. That is a bundle, not a line.
     folder colours, `--nb-cell-*` and `--nb-shot-*`.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
+- **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the
+  portal's own dark plate and borrows nothing but geometry. `.cd-root` is
+  registered in `$lib/shell/split.css` (gutter, scrollbars, the split) and
+  `$lib/coin-desk/coin-desk.css` holds what belongs to the desk alone -- the
+  page measure, the masthead line, the card rhythm, the reading cap and the
+  `.cd-cols` column rule. **BOTH `/coin-desk/+layout.svelte` AND
+  `/dev/coin-desk` IMPORT IT**, which is the point of it existing: the two used
+  to carry byte-identical scoped copies of the page measure, so the harness
+  could measure a width the real page did not have with nothing to say so.
+  - **THE DESK IS ONE WIDTH, AND IT USED TO BE TWO.** The measure defaults to
+    `--measure-split` (92rem), which is what split.css already gave the Log
+    area through `:has(.cr-split)`; every other area read `--measure-panel`
+    (52rem) and measured 832px of a 1440px window. **Prose is capped
+    separately at `--measure-reading`** -- widening a page is not widening a
+    sentence, and the two have to be said in different rules or the first
+    ruins the second.
+  - **IT TAKES THE LEDGER'S PATTERNS AND NOT THE LEDGER'S PALETTE.** The tab
+    bar's shape, its Orbitron uppercase and its underline are
+    `src/lib/legacy/coins/index.html`'s; the ACTIVE COLOUR is not. That page
+    marks its current tab in gold, and in this register `--gold` is "special
+    callouts" while `--green` is "active navigation" -- matching a legacy
+    page's palette is not a licence to reassign a fixed semantic role. Same
+    call for a FINE, which the Ledger paints red and the desk paints
+    `--amber`: `--crimson` is reserved for LIVE/REC/error and never identity.
 - **`.fg-root` -- the Foundry FORGE** (`src/lib/foundry/forge.css`, mounted by
   `src/routes/foundry/+layout.svelte` with the persistent `FoundryShell`).
   Molten metal poured, worked, cooled, finished: GREEN stays the driving colour
@@ -3842,6 +3995,39 @@ reference resolves for the next reader.
   `docs/coin-economy/idea_coin_economy_draft_v3.md` and
   `idea_coin_quick_reference.md`. Read those before changing a price. Supabase is
   the sole system of record for IDEA Coins; there is no second ledger.
+- **A TRANSACTION TYPE HAS ONE VOCABULARY, ONE TONE AND ONE GLYPH, AND ALL
+  THREE ARE KEYED ON `COIN_TXN_TYPES`.** `coinTxnType()` in
+  `$lib/coin-format.ts` derives a row's type exactly the way
+  `coin_public_transactions` derives it in SQL (0103) and is the ONLY
+  derivation -- the category picker asks it too, which is why `coin_payout`
+  offers a payout glyph in the list it is chosen from and a payout chip in the
+  history it lands in rather than two answers to one question.
+  `$lib/coin-desk/transaction-types.ts` adds the presentation over that union
+  and nothing else may: a sixth type added to `coin-format.ts` with no entry
+  there renders an EMPTY `<svg>` in the tone of `--dim`, which throws nothing
+  and type-checks, so `tests/coin-transaction-types.test.ts` asserts both maps
+  exhaustive at runtime.
+  - **GLYPH PER TYPE, NEVER PER CATEGORY.** Five types against forty-odd
+    categories: five silhouettes a reader can learn beats forty they cannot,
+    and forty would mean inventing lookalikes, which is worse than no glyph.
+  - **COLOUR IS NEVER THE ONLY SIGNAL AND NEVER THE ONLY THING THAT MOVED.**
+    Every place a type is rendered carries the glyph, the tone AND the type's
+    own word; the glyph is `aria-hidden` precisely because the word is always
+    beside it.
+  - **THE ORDER IS STATIC AND SAYS SO.** "Most used" is a table in that module
+    derived from `docs/coin-economy/archive/2026-08-11-transactions.csv`, the
+    committed export of the retired Sheets ledger -- 163 of its 216 rows map
+    onto live category ids through an exported map, and the test RE-COUNTS the
+    CSV through that map rather than trusting the table. **Nothing on
+    `/coin-desk` loads a per-category tally**, so a live count is a query this
+    does not make; if one is ever added, it replaces the table and this rule
+    with it. `sortByUse` is STABLE, so everything unused keeps
+    `coin_categories.sort_order` and a picker never reshuffles between two
+    renders of one list.
+  - **THE PICKER IS SORTED BY USE AND THE PRICE LIST IS NOT.** `/coin-desk`'s
+    combobox is a control somebody touches forty times a period; the price
+    list at `/coin-desk/economy` is a reference document, and a reference
+    document ordered by how often each row is used is not one.
 - **AI levels on assignments are set by ASKING THE INSTRUCTOR**, never inferred
   from the content. `docs/policy/IDEA_AI_Use_Policy.md`'s category-defaults table is
   the starting point for that conversation, not a rule that self-applies.

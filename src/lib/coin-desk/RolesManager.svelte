@@ -527,7 +527,7 @@
 			{:else if !applications.length}
 				<p class="note">No pending applications.</p>
 			{:else}
-				<div class="rows app-rows">
+				<div class="rows app-rows cd-cols cd-card-rows">
 					{#each applications as app (app.id)}
 						{@const cap = capacityByKey[capacityKey(app.role_id, app.section_id)] ?? null}
 						{@const feedback = reviewFeedback[app.id]}
@@ -924,6 +924,17 @@
 	.section-rows,
 	.app-rows {
 		margin-top: 0.6rem;
+	}
+	/* THE COLUMN MINIMUM IS MEASURED, NOT PICKED. Driving this list's own
+	   container from 260px to 780px in 20px steps at 1440, its total height
+	   stops gaining at 28rem and is flat from there through the next step up,
+	   so that is the width above which the content gains nothing.
+	   `.cd-cols` / `.cd-card-rows` are in $lib/coin-desk/coin-desk.css.
+	   `.section-rows` above is NOT gridded -- it is a short list of one-line
+	   rows -- so the property sits on `.app-rows` alone rather than on the
+	   pair, where it would name a column width for a list that has none. */
+	.app-rows {
+		--cd-col: 28rem;
 	}
 	.row {
 		display: flex;

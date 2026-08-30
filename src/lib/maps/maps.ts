@@ -16,6 +16,8 @@
  * a drift between the two reddens rather than shipping.
  */
 
+import type { MapsPhoto } from './media';
+
 export type MapsKind = 'site' | 'building' | 'outdoor_zone' | 'room' | 'unit' | 'compartment';
 
 /** Ladder order, roots first. The order is presentation; the RULE is the pair function. */
@@ -307,6 +309,8 @@ export interface MapsEditorData {
 	items: MapsItem[];
 	stock: MapsStock[];
 	pending: MapsPending[];
+	/** 0163's photo rows. A photo has no publish state: it is content of its owner. */
+	photos: MapsPhoto[];
 }
 
 export function pendingFor(pending: MapsPending[], table: MapsTable, id: string): MapsPending | null {
@@ -532,4 +536,387 @@ export interface MapsFormHandle {
 	dirty(): boolean;
 	/** Attempt the save this form owes. Leaves `dirty()` true only on failure. */
 	flush(): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// The node's content columns, extracted once.
+//
+// Every write of a node -- the detail form, the elevation editor, a reorder --
+// sends EVERY content column, because `maps_publish` promotes a pending
+// snapshot wholesale (0161) and a snapshot missing a key is a column the
+// publish would not carry. So "what the content columns of a node are" is
+// stated HERE, once, and a caller patches the result rather than assembling a
+// second opinion of the same list.
+// ---------------------------------------------------------------------------
+
+/**
+ * The content of a node row, or of a staged pending SNAPSHOT of one -- the two
+ * shapes are the same keys, which is why one reader serves both. Numerics go
+ * through `num`, because PostgREST hands `numeric` back as a JSON number and
+ * the test shim's pg driver hands the same column back as a string.
+ */
+export function mapsNodeContent(row: Partial<MapsNode>): MapsNodeContent {
+	return {
+		parent_id: (row.parent_id ?? null) as string | null,
+		kind: (row.kind ?? 'building') as MapsKind,
+		name: row.name ?? '',
+		subtype: row.subtype ?? null,
+		description: row.description ?? null,
+		outline: (row.outline ?? null) as MapsOutline | null,
+		position_x_in: num(row.position_x_in),
+		position_y_in: num(row.position_y_in),
+		rotation_deg: num(row.rotation_deg),
+		elevation_order: row.elevation_order ?? null,
+		elevation_h_in: num(row.elevation_h_in),
+		elevation_w_in: num(row.elevation_w_in)
+	};
+}
+
+/**
+ * What a node currently READS AS to an editor: the staged pending edit when
+ * one exists, the live row otherwise. The whole draft-and-publish model turns
+ * on this distinction, and a surface that showed the live row while a pending
+ * edit sat on it would overwrite that edit the moment it saved.
+ */
+export function mapsEffectiveNodeContent(
+	node: MapsNode,
+	pending: MapsPending | null
+): MapsNodeContent {
+	return mapsNodeContent(
+		pending ? ({ ...node, ...(pending.snapshot as Partial<MapsNode>) }) : node
+	);
+}
+
+// ---------------------------------------------------------------------------
+// The front elevation -- spec 4.1 and 7. A unit's compartments, stacked.
+// ---------------------------------------------------------------------------
+
+export interface MapsElevationSlot {
+	node: MapsNode;
+	pending: MapsPending | null;
+	/** The pending-aware content: what this slot reads as right now. */
+	content: MapsNodeContent;
+	/** 1 is the top. Null means it has never been placed in the stack. */
+	order: number | null;
+	heightIn: number | null;
+	widthIn: number | null;
+	name: string;
+	subtype: string | null;
+}
+
+/**
+ * A unit's compartments as a STACK, top first.
+ *
+ * Ordering is `elevation_order` ascending, ties and NULLS broken by name, so
+ * the order is total and a slot cannot swap places with a sibling between two
+ * renders. An unplaced compartment (null order) sorts to the BOTTOM rather
+ * than being dropped: it is a real compartment somebody created, and hiding it
+ * from the one surface that could give it a slot is how it stays unplaced
+ * forever.
+ */
+export function mapsElevationStack(data: MapsEditorData, unitId: string): MapsElevationSlot[] {
+	return data.nodes
+		.filter((n) => n.parent_id === unitId && n.kind === 'compartment')
+		.map((node) => {
+			const pending = pendingFor(data.pending, 'maps_nodes', node.id);
+			const content = mapsEffectiveNodeContent(node, pending);
+			return {
+				node,
+				pending,
+				content,
+				order: content.elevation_order,
+				heightIn: content.elevation_h_in,
+				widthIn: content.elevation_w_in,
+				name: content.name,
+				subtype: content.subtype
+			};
+		})
+		.sort((a, b) => {
+			if (a.order === null && b.order === null) return a.name.localeCompare(b.name);
+			if (a.order === null) return 1;
+			if (b.order === null) return -1;
+			if (a.order !== b.order) return a.order - b.order;
+			return a.name.localeCompare(b.name);
+		});
+}
+
+/**
+ * The stack's typed total, and what is missing from it. `unsized` is reported
+ * rather than defaulted: a compartment with no typed height is not a
+ * zero-height compartment, and a stack that silently summed it as zero would
+ * claim a total the unit does not have.
+ */
+export function mapsStackTotals(slots: MapsElevationSlot[]): {
+	totalIn: number;
+	unsized: number;
+	widestIn: number | null;
+} {
+	let totalIn = 0;
+	let unsized = 0;
+	let widestIn: number | null = null;
+	for (const slot of slots) {
+		if (slot.heightIn === null) unsized += 1;
+		else totalIn += slot.heightIn;
+		if (slot.widthIn !== null) widestIn = widestIn === null ? slot.widthIn : Math.max(widestIn, slot.widthIn);
+	}
+	return { totalIn: Math.round(totalIn * 1000) / 1000, unsized, widestIn };
+}
+
+/**
+ * Move a slot within the stack, clamped at both ends. The ARRAY POSITION is
+ * the order -- `elevation_order` is derived from it at save time -- so a move
+ * is a pure list operation and there is no second idea of where a slot sits.
+ * A move off either end is a no-op returning the same order, never an
+ * off-by-one that renumbers the stack backwards.
+ */
+export function mapsMoveSlot<T>(rows: readonly T[], from: number, to: number): T[] {
+	const next = rows.slice();
+	if (from < 0 || from >= next.length) return next;
+	const target = Math.max(0, Math.min(next.length - 1, to));
+	if (target === from) return next;
+	const [moved] = next.splice(from, 1);
+	next.splice(target, 0, moved);
+	return next;
+}
+
+/** One slot as the elevation editor holds it while somebody is typing into it. */
+export interface MapsElevationDraft {
+	id: string;
+	name: string;
+	heightIn: number | null;
+	widthIn: number | null;
+}
+
+/**
+ * THE WHOLE SAVE DECISION OF THE ELEVATION EDITOR, as one pure function: given
+ * what is stored and what the stack now says, which rows have to be written
+ * and with what content.
+ *
+ * `elevation_order` comes from the draft's POSITION (1 is the top), which is
+ * what makes reordering possible WITHOUT RETYPING A HEIGHT -- the heights ride
+ * along with their rows and only the numbers move. Every other content column
+ * is carried through from the row's own effective content untouched, because
+ * `maps_publish` promotes a snapshot wholesale and a write here must not drop
+ * a description or a subtype somebody set on the compartment's own form.
+ *
+ * A row whose content is unchanged is NOT returned, so pressing Save after a
+ * single rename writes one row rather than the whole stack.
+ */
+export function mapsElevationWrites(
+	slots: MapsElevationSlot[],
+	draft: MapsElevationDraft[]
+): { id: string; name: string; row: MapsNode; content: MapsNodeContent }[] {
+	const bySlot = new Map(slots.map((s) => [s.node.id, s]));
+	const writes: { id: string; name: string; row: MapsNode; content: MapsNodeContent }[] = [];
+	draft.forEach((entry, index) => {
+		const slot = bySlot.get(entry.id);
+		if (!slot) return;
+		const content: MapsNodeContent = {
+			...slot.content,
+			name: entry.name,
+			elevation_order: index + 1,
+			elevation_h_in: entry.heightIn,
+			elevation_w_in: entry.widthIn
+		};
+		const before = slot.content;
+		const same =
+			before.name === content.name &&
+			before.elevation_order === content.elevation_order &&
+			before.elevation_h_in === content.elevation_h_in &&
+			before.elevation_w_in === content.elevation_w_in;
+		if (!same) writes.push({ id: entry.id, name: entry.name, row: slot.node, content });
+	});
+	return writes;
+}
+
+// ---------------------------------------------------------------------------
+// Plan placement -- spec 7. A DRAG POSITIONS; A TYPED DIMENSION DEFINES.
+//
+// Everything here answers ONE question: given where a pointer (or an arrow
+// key) wants the shape, what POSITION should the typed X/Y fields hold. There
+// is deliberately no width, height or outline anywhere in a return type on
+// this side of the module -- a drag cannot change a dimension because there is
+// nothing in the answer it could change it with.
+// ---------------------------------------------------------------------------
+
+export interface MapsBox {
+	minX: number;
+	minY: number;
+	maxX: number;
+	maxY: number;
+}
+
+const DEG = Math.PI / 180;
+
+/**
+ * The shape's corner points in its own frame, rotated about its position
+ * origin. ONE implementation, because the canvas DRAWS these points and the
+ * footprint below MEASURES them -- a drawing and a snap computed from two
+ * different ideas of where the corners are is a shape that snaps somewhere
+ * other than where it looks.
+ */
+export function mapsShapeCorners(
+	outline: MapsOutline,
+	rotationDeg: number | null
+): [number, number][] {
+	const corners: [number, number][] =
+		outline.kind === 'rect'
+			? [
+					[0, 0],
+					[outline.w, 0],
+					[outline.w, outline.h],
+					[0, outline.h]
+				]
+			: outline.points;
+	const theta = (rotationDeg ?? 0) * DEG;
+	const cos = Math.cos(theta);
+	const sin = Math.sin(theta);
+	return corners.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos]);
+}
+
+/**
+ * The shape's own extent RELATIVE TO ITS POSITION ORIGIN, with rotation
+ * applied about that origin: the axis-aligned box a placed shape occupies.
+ *
+ * Rotation is applied to the corner points rather than special-cased at
+ * multiples of 90, so the footprint is exact at any angle and no branch exists
+ * to be wrong at 37 degrees.
+ */
+export function mapsFootprint(outline: MapsOutline, rotationDeg: number | null): MapsBox {
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+	for (const [rx, ry] of mapsShapeCorners(outline, rotationDeg)) {
+		minX = Math.min(minX, rx);
+		minY = Math.min(minY, ry);
+		maxX = Math.max(maxX, rx);
+		maxY = Math.max(maxY, ry);
+	}
+	return { minX, minY, maxX, maxY };
+}
+
+/** The box a node occupies in its PARENT's frame, or null when it is not placed. */
+export function mapsPlacedBox(content: {
+	outline: MapsOutline | null;
+	position_x_in: number | null;
+	position_y_in: number | null;
+	rotation_deg: number | null;
+}): MapsBox | null {
+	if (!content.outline) return null;
+	if (content.position_x_in === null || content.position_y_in === null) return null;
+	const f = mapsFootprint(content.outline, content.rotation_deg);
+	return {
+		minX: content.position_x_in + f.minX,
+		minY: content.position_y_in + f.minY,
+		maxX: content.position_x_in + f.maxX,
+		maxY: content.position_y_in + f.maxY
+	};
+}
+
+/** A neighbour a shape can snap against: a sibling's box, or the parent's own walls. */
+export interface MapsSnapTarget {
+	label: string;
+	box: MapsBox;
+}
+
+export interface MapsPlacement {
+	x: number;
+	y: number;
+	/** What the X value landed on, in words, or null when nothing was near enough. */
+	snapX: string | null;
+	snapY: string | null;
+}
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * Where a drag (or an arrow key, or anything else that WANTS a position) puts
+ * the shape: the desired value, moved onto a neighbouring edge when one is
+ * within tolerance, and SAID OUT LOUD when it was.
+ *
+ * The candidates per axis are every edge of every target, against both of the
+ * moving shape's own edges -- so a shape snaps flush against a neighbour
+ * (its left onto the neighbour's right) and aligned with one (its left onto
+ * the neighbour's left) by the same arithmetic. The nearest candidate inside
+ * `toleranceIn` wins; a tie takes the first, which is the parent's own wall,
+ * because a wall is the edge somebody means when two candidates coincide.
+ *
+ * An unsnapped value is rounded to 2 decimal places. That is a DISPLAY
+ * decision about a number a pointer produced, never a grid: a typed 3.756 is
+ * left exactly as typed, because nothing here is on the typing path.
+ */
+export function mapsPlaceShape(args: {
+	desiredX: number;
+	desiredY: number;
+	footprint: MapsBox;
+	targets: MapsSnapTarget[];
+	toleranceIn: number;
+}): MapsPlacement {
+	const { desiredX, desiredY, footprint, targets, toleranceIn } = args;
+
+	const solve = (
+		desired: number,
+		lo: number,
+		hi: number,
+		edgesOf: (box: MapsBox) => [number, number]
+	): { value: number; snap: string | null } => {
+		let best: { value: number; snap: string; delta: number } | null = null;
+		for (const target of targets) {
+			const [tLo, tHi] = edgesOf(target.box);
+			for (const [edgeName, edge] of [
+				['near', tLo],
+				['far', tHi]
+			] as const) {
+				for (const [ownName, own] of [
+					['near', lo],
+					['far', hi]
+				] as const) {
+					const value = edge - own;
+					const delta = Math.abs(value - desired);
+					if (delta > toleranceIn) continue;
+					if (best !== null && delta >= best.delta) continue;
+					best = {
+						value,
+						delta,
+						snap: `${ownName === 'near' ? 'leading' : 'trailing'} edge onto the ${
+							edgeName === 'near' ? 'leading' : 'trailing'
+						} edge of ${target.label}`
+					};
+				}
+			}
+		}
+		if (best) return { value: round2(best.value), snap: best.snap };
+		return { value: round2(desired), snap: null };
+	};
+
+	const x = solve(desiredX, footprint.minX, footprint.maxX, (b) => [b.minX, b.maxX]);
+	const y = solve(desiredY, footprint.minY, footprint.maxY, (b) => [b.minY, b.maxY]);
+	return { x: x.value, y: y.value, snapX: x.snap, snapY: y.snap };
+}
+
+/**
+ * The snap targets for a node being placed inside `parent`: the parent's own
+ * walls first (so a wall wins a tie), then every SIBLING that is itself placed.
+ * A sibling with no outline or no position is not a target, because there is
+ * no edge to snap to -- it is not silently treated as sitting at the origin.
+ */
+export function mapsSnapTargets(
+	data: MapsEditorData,
+	parent: MapsNode | null,
+	selfId: string | null
+): MapsSnapTarget[] {
+	const targets: MapsSnapTarget[] = [];
+	if (parent?.outline) {
+		const f = mapsFootprint(parent.outline, null);
+		targets.push({ label: `the ${MAPS_KIND_LABELS[parent.kind].toLowerCase()} walls`, box: f });
+	}
+	if (!parent) return targets;
+	for (const sibling of data.nodes) {
+		if (sibling.parent_id !== parent.id || sibling.id === selfId) continue;
+		const pending = pendingFor(data.pending, 'maps_nodes', sibling.id);
+		const box = mapsPlacedBox(mapsEffectiveNodeContent(sibling, pending));
+		if (box) targets.push({ label: sibling.name, box });
+	}
+	return targets;
 }

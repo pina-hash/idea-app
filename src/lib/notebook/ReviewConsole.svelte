@@ -27,6 +27,10 @@
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import '$lib/notebook/notebook-theme.css';
 	import {
+		NOTEBOOK_LIVE_HINT,
+		NOTEBOOK_LIVE_LABEL,
+		NOTEBOOK_STALLED_HINT,
+		NOTEBOOK_STALLED_LABEL,
 		REVIEW_KEYS,
 		cellReviewed,
 		clampCursor,
@@ -42,6 +46,7 @@
 		type GridCell,
 		type GridCursor,
 		type GridSession,
+		type NotebookLiveStatus,
 		type ReviewAction,
 		type ReviewSection,
 		type ReviewTransports,
@@ -49,6 +54,7 @@
 		type ReviewEntry
 	} from '$lib/notebook-review';
 	import type { DocCheckTransports } from '$lib/notebook-documentation-check';
+	import Pending from '$lib/Pending.svelte';
 
 	/**
 	 * The whole instructor review screen, factored out of /notebook/review so
@@ -203,7 +209,18 @@
 	let loadError = $state<string | null>(null);
 	/** A live update landed and the grid is being re-read. Never blanks anything. */
 	let liveTick = $state(0);
-	let live = $state(false);
+	/**
+	 * WHAT THE CHANNEL IS DOING, reported by the transport, never inferred.
+	 *
+	 * This was `let live = $state(false)` set TRUE the moment `subscribe`
+	 * returned -- which asserted that a transport EXISTS, not that a channel
+	 * came up. The route called `.subscribe()` with no status callback, so a
+	 * publication that does not carry the notebook tables and a socket that
+	 * never joined both produced a green Live pill over a console that would
+	 * silently never update again. The one thing an instructor cannot see for
+	 * themselves is exactly the thing it was getting wrong.
+	 */
+	let channel = $state<NotebookLiveStatus>('connecting');
 
 	/**
 	 * The open cell is identified by its ENTRY ID and the cell itself is
@@ -259,14 +276,48 @@
 	 *
 	 * COURTESY, NOT A BOUNDARY. The RPC re-checks every caller regardless of
 	 * what this returns.
+	 *
+	 * IT CARRIES `?section=` SO THE WAY BACK CAN. /notebook/review reads that
+	 * param and preselects the section (validated against the viewer's own
+	 * list there, so a foreign or made-up id just falls back to the default) --
+	 * and StudentReviewBackStrip's link is the only thing that puts one in
+	 * front of it. Without it, returning from a student reset the console to
+	 * the first section with the cursor gone, and the instructor re-found the
+	 * row by eye.
+	 *
+	 * THE UNIT IS NOT CARRIED, because /notebook/review reads no unit from the
+	 * URL: `unitChoice` is this component's own state and there is no
+	 * `?unit=` to hand it. Inventing one is a second piece of URL state to
+	 * keep valid against a section's own unit list, which is a bigger change
+	 * than this one and not this bundle's.
 	 */
 	function studentNotebookHref(student: SectionGridData['students'][number]): string | null {
 		if (!student.email) return null;
 		if (!isChair && !student.enrolled) return null;
-		return `/notebook/review/student/${encodeURIComponent(student.email)}`;
+		const href = `/notebook/review/student/${encodeURIComponent(student.email)}`;
+		return sectionId ? `${href}?section=${encodeURIComponent(sectionId)}` : href;
 	}
 
 	const section = $derived(sections.find((s) => s.id === sectionId) ?? null);
+	/**
+	 * MANAGE-ONLY PANELS ARE PER SECTION NOW, NOT PER VIEWER (0169). A viewer
+	 * can be teacher of record of one section and a section REVIEWER of the
+	 * next, so "may they author check-ins / grade / delete here" is a property
+	 * of the SELECTED section. The flag arrives computed from the server load
+	 * (the client cannot derive chair-ness); no section selected withholds the
+	 * manage panels, which is also what they render for. The database refuses
+	 * a reviewer's manage write regardless -- this only keeps the console from
+	 * offering a control whose only possible answer is that refusal.
+	 */
+	const sectionManages = $derived(section?.manages ?? false);
+	/**
+	 * What SessionManager may TARGET: a check-in is authored only into
+	 * sections the viewer manages. For every pre-0169 viewer this is the whole
+	 * list (a non-chair's list was exactly their taught sections); it exists so
+	 * a reviewed-only section is never offered as a posting target the RPC
+	 * would refuse.
+	 */
+	const manageableSections = $derived(sections.filter((s) => s.manages));
 	const units = $derived(unitsOf(sessions));
 
 	/**
@@ -307,13 +358,17 @@
 	 * cannot answer: the mode button says why it is disabled.
 	 */
 	$effect(() => {
-		if (mode === 'grade' && (unit === null || !docCheck)) mode = 'review';
+		if (mode === 'grade' && (unit === null || !docCheck || !sectionManages)) mode = 'review';
 		// THE SAME FALLBACK FOR THE LOG, and it is not decoration: an admin who
 		// opens the log and is then demoted mid-session (or whose page is
 		// re-hydrated with no transport) must land on a mode that renders, not on
 		// an empty body. The table's own RLS policy is what actually withholds the
 		// rows; this only keeps the console coherent.
 		if (mode === 'log' && !adminLog) mode = 'review';
+		// And for the check-in manager (0169): switching from a managed section
+		// to one the viewer only REVIEWS must land back on Review, because the
+		// manager's every write would be refused for that section.
+		if (mode === 'checkins' && !sectionManages) mode = 'review';
 	});
 
 	/**
@@ -468,20 +523,30 @@
 		if (!id || !subscribe) return;
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let stopped = false;
+		channel = 'connecting';
 		const unsubscribe = untrack(() =>
-			subscribe(id, () => {
-				if (stopped) return;
-				clearTimeout(timer);
-				timer = setTimeout(() => {
-					void refresh(id, untrack(() => unit), { quiet: true });
-					void reloadOpenEntry();
-				}, 250);
-			})
+			subscribe(
+				id,
+				() => {
+					if (stopped) return;
+					clearTimeout(timer);
+					timer = setTimeout(() => {
+						void refresh(id, untrack(() => unit), { quiet: true });
+						void reloadOpenEntry();
+					}, 250);
+				},
+				// Ignored after teardown: `removeChannel` reports CLOSED on the way
+				// out, and painting "not live" as the console unmounts a channel it
+				// asked to close would be an alarm about a normal event.
+				(status) => {
+					if (stopped) return;
+					channel = status;
+				}
+			)
 		);
-		live = true;
 		return () => {
 			stopped = true;
-			live = false;
+			channel = 'connecting';
 			clearTimeout(timer);
 			unsubscribe();
 		};
@@ -884,7 +949,7 @@
 {#snippet entryPane()}
 	<div class="entry-col" aria-label="Open entry">
 		{#if entryLoading}
-			<section class="card"><p class="note">Loading entry...</p></section>
+			<section class="card"><Pending label="Loading the entry" /></section>
 		{:else if entryError}
 			<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
 		{:else if openEntry && openCell}
@@ -910,11 +975,13 @@
 					onResolve={resolveEntry}
 					onAccept={canAccept ? acceptEntry : undefined}
 					onUnaccept={canAccept && transports.unacceptEntry ? unacceptEntry : undefined}
-					onDelete={transports.deleteEntry ? deleteEntry : undefined}
-					onDeleteNote={transports.deleteNote
+					onDelete={transports.deleteEntry && sectionManages ? deleteEntry : undefined}
+					onDeleteNote={transports.deleteNote && sectionManages
 						? (noteId) => deleteNote(entryId, noteId)
 						: undefined}
-					onRestoreNote={staffNote ? (noteId) => restoreNote(entryId, noteId) : undefined}
+					onRestoreNote={staffNote && sectionManages
+						? (noteId) => restoreNote(entryId, noteId)
+						: undefined}
 					onClose={closeEntry}
 				>
 					{#snippet excusal()}
@@ -1049,15 +1116,21 @@
 					data-testid="mode-review"
 					onclick={() => (mode = 'review')}>Review</button
 				>
-				<button
-					type="button"
-					class="mode"
-					class:on={mode === 'checkins'}
-					aria-pressed={mode === 'checkins'}
-					data-testid="mode-checkins"
-					onclick={() => (mode = 'checkins')}>Check-ins</button
-				>
-				{#if docCheck}
+				<!-- MANAGE-ONLY (0169): a section REVIEWER reads and reviews but does
+				     not author the section's check-ins, so the tab is absent for a
+				     section they only review -- absence, not a disabled control,
+				     because there is nothing they could do to enable it here. -->
+				{#if sectionManages}
+					<button
+						type="button"
+						class="mode"
+						class:on={mode === 'checkins'}
+						aria-pressed={mode === 'checkins'}
+						data-testid="mode-checkins"
+						onclick={() => (mode = 'checkins')}>Check-ins</button
+					>
+				{/if}
+				{#if docCheck && sectionManages}
 					<button
 						type="button"
 						class="mode"
@@ -1091,14 +1164,34 @@
 
 			<div class="bar-status">
 				{#if loading}<span class="pill">Loading...</span>{/if}
-				{#if live}
+				<!--
+					THREE CHANNEL STATES, TWO OF WHICH SAY SOMETHING.
+
+					`connecting` renders NOTHING, which is both the ordinary
+					sub-second state after a subscribe and what a transport that
+					reports no status gets. A pill that flickers on every section
+					change is noise, and a console that is about to be live is not a
+					fault worth announcing.
+
+					`stalled` is worth announcing, quietly: a dropped socket is common
+					and usually rejoins on its own, but until it does, new work does
+					not appear and NOTHING ELSE ON THIS SCREEN SAYS SO. So the words
+					are the one fact the reader cannot see for themselves, in the same
+					muted ink as "Loading..." rather than in a warning colour -- the
+					grid is not wrong, it is only not moving.
+				-->
+				{#if channel === 'live'}
 					<!-- Word and mark, never a green dot on its own. -->
 					<span
 						class="pill live"
 						data-testid="live-pill"
 						data-live-updates={liveTick}
-						title="Updating as students file work"
-						><span class="live-dot" aria-hidden="true"></span>Live</span
+						title={NOTEBOOK_LIVE_HINT}
+						><span class="live-dot" aria-hidden="true"></span>{NOTEBOOK_LIVE_LABEL}</span
+					>
+				{:else if channel === 'stalled'}
+					<span class="pill stalled" data-testid="stalled-pill" title={NOTEBOOK_STALLED_HINT}
+						>{NOTEBOOK_STALLED_LABEL}</span
 					>
 				{/if}
 			</div>
@@ -1158,12 +1251,12 @@
 			{#if actionNote}
 				<p class="action-note" role="status" data-testid="action-note">{actionNote}</p>
 			{/if}
-		{:else if mode === 'checkins'}
+		{:else if mode === 'checkins' && sectionManages}
 			<div class="console-panel scrolls">
 				{#if sectionId}
 					<SessionManager
 						{sectionId}
-						{sections}
+						sections={manageableSections}
 						{sessions}
 						onSave={saveSession}
 						onDelete={deleteSession}
@@ -1176,7 +1269,7 @@
 					/>
 				{/if}
 			</div>
-		{:else if mode === 'grade' && docCheck && section && unit !== null}
+		{:else if mode === 'grade' && docCheck && section && sectionManages && unit !== null}
 			<div class="console-panel scrolls">
 				<DocumentationCheck {section} unitNumber={unit} {grid} transports={docCheck} />
 			</div>
@@ -1335,6 +1428,15 @@
 	}
 	.pill.live {
 		color: var(--nb-ok);
+	}
+	/*
+	   --text-2, not --nb-warn: this is a statement of fact about the socket,
+	   not a problem with the work on screen, and the room's amber is what the
+	   grid uses for a LATE check-in. Real instructional copy, so it takes the
+	   same tier .bar-keys does rather than the tertiary ink .pill defaults to.
+	*/
+	.pill.stalled {
+		color: var(--text-2);
 	}
 	.live-dot {
 		width: 0.4rem;
