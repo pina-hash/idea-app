@@ -1,5 +1,5 @@
 # IDEA Claude Design Standards
-**Version 2.0 - 2026-08-25**
+**Version 2.1 - 2026-08-27**
 
 The single hand-maintained design standard for the IDEA pathway. It owns two
 things that used to sit in separate documents: the pathway's visual identity
@@ -374,6 +374,10 @@ Every deviation from the inheritance block, named in advance with a one-line rea
 ```
 Do not add slides not in the spec.
 Do not add motion not in the spec.
+Where any sheet has more than one state, the build-state construction rules from
+  Reveals and Interaction are reproduced verbatim in the prompt: no ds-slide-* class on
+  continuation states, entrance and image-reveal classes stripped from every carried-over
+  element, and exactly one entrance class on the element the state exists to reveal.
 Do not substitute a hand-built element for a named component.
 Do not change the aspect ratio.
 Do not use crimson except for LIVE, REC, or error states.
@@ -448,6 +452,15 @@ Duplicate the section and add the newly revealed element. Then:
 3. Only the newly revealed element carries an entrance class and a stagger delay.
 
 Result: existing content does not flicker, new content rises in, and it advances with the same key as every other slide.
+
+**This mechanism must be restated in any prompt that specifies build states.** It lives
+here, and a build session reading a per-slide spec has no reason to come looking for it.
+Established 2026-08-27 on the IDEA209H Day 8 deck: the spec asked for separate sheet
+states without saying how to construct them, and the build carried a `ds-slide-*` class on
+all 34 sections plus every prior state's entrance and image-reveal classes, so advancing
+within a sheet replayed the whole slide to add one element. Two fix passes to correct
+something the standard had already specified correctly. The prompt skeleton now requires
+the three numbered rules above verbatim whenever any sheet has more than one state.
 
 **Budget.** Maximum four slides per deck carry build states, maximum three states per chain.
 
@@ -777,6 +790,26 @@ For any non-deck artifact, motion runs inside a `.ds-run` container instead of `
 ---
 
 ## Changelog
+
+- **2.1 (2026-08-27)** - Two insertions, both making the build-state mechanism reach the
+  session that needs it. `Reveals and Interaction` gains the rule that the mechanism is
+  restated in any prompt specifying build states, and `The Prompt Skeleton` gains the
+  matching prohibition requiring the three construction rules verbatim wherever a sheet has
+  more than one state. From the IDEA209H Day 8 deck, where the spec asked for separate sheet
+  states without saying how to construct them: the build carried a `ds-slide-*` class on all
+  34 sections plus every prior state's entrance and image-reveal classes, so advancing within
+  a sheet replayed the whole slide to add one element, and it took two fix passes to correct
+  something this standard had already specified correctly. Nothing else changed; both hunks
+  are pure insertions and 2.0 is a strict subset of this file.
+
+  **This entry was written 2026-08-31, four days after the version it describes.** 2.1 was
+  uploaded to project knowledge on 2026-08-27 carrying the new header and no changelog entry
+  at all, and was never mirrored to `docs/standards/`, so the mirror still served 2.0 while
+  every chat read 2.1. The gap was found by a project-knowledge sweep on 2026-08-31 and the
+  entry above is reconstructed from the diff between the two copies rather than from the
+  session that made the change. A header with no matching changelog entry is the exact
+  condition `tests/standards-version-header.test.ts` refuses, so this file could not have
+  been mirrored as it stood even if somebody had remembered to.
 
 - **2.0 (2026-08-25)** - Consolidation. Three documents were carrying IDEA design
   rules and the routing map named all three as authoritative. `IDEA_Design_System.md`
