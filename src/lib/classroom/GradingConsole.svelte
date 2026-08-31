@@ -37,6 +37,16 @@
 		type ClassroomItem,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
+	import {
+		IDENTITY_NOTE,
+		buildGradingExport,
+		gradingExportFilename,
+		gradingExportJson,
+		gradingExportSheets,
+		type ExportIdentity,
+		type ExportScope
+	} from '$lib/classroom/grading-export';
+	import { buildXlsx } from '$lib/xlsx';
 
 	/**
 	 * The grading console for one assignment in one section: the roster with
@@ -430,6 +440,17 @@
 		}
 	}
 
+	/** The ONE download path on this surface, so three exports cannot end up with
+	 *  three different ideas of how a file leaves the browser. */
+	function download(blob: Blob, filename: string) {
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function exportCsv() {
 		const rows = students.map((s) => ({
 			displayName: s.displayName,
@@ -438,14 +459,88 @@
 			outOf
 		}));
 		const csv = gradesCsv(rows);
-		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
 		const label = (item.title ?? 'assignment').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-		a.download = `grades-${label}-${sectionSlug()}.csv`;
-		a.click();
-		URL.revokeObjectURL(url);
+		download(
+			new Blob([csv], { type: 'text/csv;charset=utf-8' }),
+			`grades-${label}-${sectionSlug()}.csv`
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// THE GRADED-WORK EXPORT: the same rows this console is already showing,
+	// written out whole so a language model can read what was asked, what came
+	// back, and how it was scored.
+	//
+	// IT ADDS NO READ AND NO RPC. `buildGradingExport` is handed `students` --
+	// which is `studentWorkRows(data)`, the payload `loadGrading` already
+	// returned -- so the export is by construction exactly what this caller can
+	// already see on this page. Widening it would mean widening the console.
+	//
+	// IDENTITY IS A DELIBERATE ACT, DEFAULTED ON. The file carries names and
+	// addresses because that is what the teacher of record asked for, but it
+	// leaves the school's systems the moment it is pasted somewhere, so the
+	// state is a control here and a top-level field inside the file rather than
+	// a property of the format that nobody can see.
+	// -----------------------------------------------------------------------
+	let identity = $state<ExportIdentity>('included');
+	let exportNote = $state<string | null>(null);
+	let exporting = $state(false);
+
+	function payloadFor(scope: ExportScope) {
+		return buildGradingExport({
+			section,
+			item,
+			spec,
+			rubric,
+			roster: students,
+			selectedEmail,
+			scope,
+			identity,
+			// Threaded from the click, never read inside the pure module.
+			now: new Date()
+		});
+	}
+
+	function exportJson(scope: ExportScope) {
+		if (scope === 'student' && !selected) {
+			exportNote = 'Choose a student in the roster first, then export their work.';
+			return;
+		}
+		const payload = payloadFor(scope);
+		download(
+			new Blob([gradingExportJson(payload)], { type: 'application/json;charset=utf-8' }),
+			gradingExportFilename(payload, 'json')
+		);
+		exportNote = exportNoteFor(payload.export.counts.students);
+	}
+
+	async function exportWorkbook() {
+		if (exporting) return;
+		exporting = true;
+		try {
+			const payload = payloadFor('section');
+			const bytes = await buildXlsx(gradingExportSheets(payload));
+			download(
+				new Blob([bytes as unknown as BlobPart], {
+					type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+				}),
+				gradingExportFilename(payload, 'xlsx')
+			);
+			exportNote = `${exportNoteFor(payload.export.counts.students)} Open it in Google Sheets by dropping it into Drive.`;
+		} catch (err) {
+			exportNote = `The spreadsheet could not be built: ${err instanceof Error ? err.message : String(err)}`;
+		} finally {
+			// IN A `finally`, the console's own convention: a throw here
+			// otherwise leaves the control disabled with no way back but a reload.
+			exporting = false;
+		}
+	}
+
+	function exportNoteFor(count: number): string {
+		const who = count === 1 ? '1 student' : `${count} students`;
+		return identity === 'included'
+			? `Exported ${who}, with names and email addresses.`
+			: `Exported ${who}, with names and email addresses left out.`;
 	}
 	function sectionSlug(): string {
 		return sectionTitle(section).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -741,6 +836,61 @@
 					<button type="button" class="btn secondary tiny" onclick={exportCsv}>
 						Export CSV
 					</button>
+				</div>
+				<!--
+					THE GRADED-WORK EXPORTS, BESIDE THE CSV RATHER THAN INSTEAD OF IT.
+					The CSV is a gradebook import and is four columns wide on purpose;
+					these three carry the work itself. Every word on a control says
+					what it produces and for whom, because the difference between
+					"one student" and "the whole class" is the difference between one
+					person's writing leaving the building and thirty.
+				-->
+				<div class="work-export" data-testid="work-export">
+					<p class="work-export-label">Export graded work</p>
+					<div class="work-export-row">
+						<button
+							type="button"
+							class="btn secondary tiny"
+							aria-disabled={!selected}
+							data-testid="export-json-student"
+							onclick={() => exportJson('student')}
+						>
+							JSON: this student
+						</button>
+						<button
+							type="button"
+							class="btn secondary tiny"
+							data-testid="export-json-class"
+							onclick={() => exportJson('section')}
+						>
+							JSON: whole class
+						</button>
+						<button
+							type="button"
+							class="btn secondary tiny"
+							data-testid="export-workbook"
+							onclick={exportWorkbook}
+						>
+							{exporting ? 'Building spreadsheet' : 'Spreadsheet: whole class'}
+						</button>
+					</div>
+					<label class="identity-toggle" data-testid="export-identity">
+						<input
+							type="checkbox"
+							checked={identity === 'included'}
+							onchange={(e) => {
+								identity = e.currentTarget.checked ? 'included' : 'omitted';
+								exportNote = null;
+							}}
+						/>
+						<span>Include student names and email addresses</span>
+					</label>
+					<p class="identity-note" data-testid="export-identity-note">
+						{IDENTITY_NOTE[identity]}
+					</p>
+					{#if exportNote}
+						<p class="export-note" data-testid="export-note">{exportNote}</p>
+					{/if}
 				</div>
 				{#if returnedCount < students.length}
 					<p class="csv-hint">
@@ -1214,6 +1364,65 @@
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		color: var(--text-2);
+	}
+	/* Its own boxed group rather than three more chips on the roster heading:
+	   these three write a file carrying somebody's writing out of the building,
+	   and the identity switch has to read as belonging to them. */
+	.work-export {
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.work-export-label {
+		margin: 0 0 var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-2);
+	}
+	/* WRAPS RATHER THAN SCROLLS. The roster column is 260px at the narrow end
+	   and these are three real words each, so a nowrap row is what pushes the
+	   page wider than a 375px viewport. */
+	.work-export-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+	/* MEASURED AT THE LABEL, which is what a finger hits: the input inside it
+	   is ~13px and no amount of sizing on the box would change that. */
+	.identity-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-height: 44px;
+		margin-top: var(--space-2);
+		font-size: 0.76rem;
+		line-height: 1.4;
+		color: var(--text-1);
+		cursor: pointer;
+	}
+	.identity-toggle input {
+		flex: none;
+		width: 18px;
+		height: 18px;
+		accent-color: var(--green);
+	}
+	.identity-note {
+		margin: var(--space-1) 0 0;
+		font-size: 0.68rem;
+		line-height: 1.45;
+		color: var(--text-2);
+	}
+	.export-note {
+		margin: var(--space-2) 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		line-height: 1.45;
+		color: var(--green);
 	}
 	/* Amber, not crimson: an off-roster response set is something to look at,
 	   not an error, and crimson stays reserved for live / rec / error. */

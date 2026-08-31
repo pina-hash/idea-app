@@ -1,5 +1,11 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
+	import {
+		buildGradingExport,
+		gradingExportJson,
+		type ExportIdentity
+	} from '$lib/classroom/grading-export';
 	import {
 		filesByBlockCount,
 		responsesMap,
@@ -390,6 +396,146 @@
 			};
 		})
 	);
+
+	// -----------------------------------------------------------------------
+	// THE EXPORT CAPTURE.
+	//
+	// The three graded-work exports end in a real `<a download>` click, which in
+	// a headless pass would either write a file nothing here can read or do
+	// nothing at all. So the harness INTERCEPTS the download rather than
+	// simulating one: `URL.createObjectURL` is wrapped to keep a reference to
+	// the Blob (the console revokes the url on the next line, so fetching it
+	// back afterwards is a race the harness would lose), and the anchor's own
+	// `click` is wrapped to record the pair instead of navigating.
+	//
+	// THE POINT IS THAT IT MEASURES THE REAL CONTROL. Every capture below came
+	// out of pressing the button the teacher presses, through
+	// `buildGradingExport` and the console's own `download` helper. The oracle
+	// beside it calls the pure builder directly on the same fixture, so a
+	// browser pass compares a produced FILE against a function rather than
+	// against itself.
+	// -----------------------------------------------------------------------
+	interface Capture {
+		/** A monotonic id, because two presses of ONE control produce two files
+		 *  with the same name and the same size -- and keying the list on those
+		 *  is a duplicate-key crash the moment somebody presses twice. */
+		id: number;
+		name: string;
+		size: number;
+		type: string;
+		/** JSON only: the file's own text, for reading counts and identity out of it. */
+		text: string | null;
+		/** Does this file contain a roster name. The identity switch's own proof. */
+		hasName: boolean | null;
+		/** JSON only: read back OUT of the produced file, never from the builder. */
+		students: number | null;
+		unmet: number | null;
+	}
+	let captures = $state<Capture[]>([]);
+	let captureSeq = 0;
+	const NAMES = ROSTER.map((e) => e.display_name);
+
+	onMount(() => {
+		const realCreate = URL.createObjectURL.bind(URL);
+		const realClick = HTMLAnchorElement.prototype.click;
+		const blobs = new Map<string, Blob>();
+		URL.createObjectURL = (obj: Blob | MediaSource) => {
+			const url = realCreate(obj);
+			if (obj instanceof Blob) blobs.set(url, obj);
+			return url;
+		};
+		HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+			const blob = blobs.get(this.href);
+			if (!blob || !this.download) return realClick.call(this);
+			const isText = blob.type.includes('json') || blob.type.includes('csv');
+			const record = (text: string | null) => {
+				// PARSED BACK OUT OF THE FILE, not read off the builder: a count
+				// taken from the object that produced the bytes cannot tell you
+				// whether the bytes carry it.
+				let students: number | null = null;
+				let unmet: number | null = null;
+				if (text && blob.type.includes('json')) {
+					try {
+						const parsed = JSON.parse(text);
+						students = parsed.export?.counts?.students ?? null;
+						unmet = (parsed.assignments?.[0]?.students ?? []).reduce(
+							(n: number, s: { completeness?: { unmetCount?: number } }) =>
+								n + (s.completeness?.unmetCount ?? 0),
+							0
+						);
+					} catch {
+						// A file that does not parse is itself the finding; leave both null.
+					}
+				}
+				captures = [
+					{
+						id: ++captureSeq,
+						name: this.download,
+						size: blob.size,
+						type: blob.type,
+						text,
+						hasName: text === null ? null : NAMES.some((n) => text.includes(n)),
+						students,
+						unmet
+					},
+					...captures
+				].slice(0, 8);
+			};
+			if (isText) void blob.text().then(record);
+			else record(null);
+			// Deliberately NOT calling through: a real download in a headless
+			// pass is a file nothing here can read.
+		};
+		return () => {
+			URL.createObjectURL = realCreate;
+			HTMLAnchorElement.prototype.click = realClick;
+		};
+	});
+
+	/**
+	 * THE EXPORT ORACLE, the same shape as the unmet one above: the pure builder
+	 * called directly, both ways on the identity switch, so a pass compares the
+	 * file the console produced against a function rather than against the
+	 * console's own claim about it.
+	 */
+	function oracleFor(identity: ExportIdentity) {
+		const rows = ROSTER.map((e) => ({
+			email: e.student_email,
+			displayName: e.display_name,
+			active: e.active,
+			submission: submissions.find((s) => s.student_email === e.student_email) ?? null,
+			responses: responses.filter((r) => r.student_email === e.student_email),
+			files: files.filter(
+				(f) => f.submission_id === submissions.find((s) => s.student_email === e.student_email)?.id
+			),
+			approvals: approvals.filter((a) => a.student_email === e.student_email)
+		}));
+		const payload = buildGradingExport({
+			section: SECTION,
+			item: ITEM,
+			spec: SPEC,
+			rubric: RUBRIC,
+			roster: rows,
+			selectedEmail: rows[0]?.email ?? null,
+			scope: 'section',
+			identity,
+			now: new Date('2026-08-31T12:00:00.000Z')
+		});
+		const text = gradingExportJson(payload);
+		return {
+			identity,
+			students: payload.export.counts.students,
+			assignments: payload.export.counts.assignments,
+			unmetTotal: payload.assignments[0].students.reduce(
+				(n, s) => n + s.completeness.unmetCount,
+				0
+			),
+			emptyRecords: payload.assignments[0].students.filter((s) => !s.submission.handedIn).length,
+			hasName: NAMES.some((n) => text.includes(n)),
+			bytes: text.length
+		};
+	}
+	const exportOracle = $derived([oracleFor('included'), oracleFor('omitted')]);
 </script>
 
 <svelte:head><title>Grading console: incomplete submissions // dev harness</title></svelte:head>
@@ -403,7 +549,8 @@
 			function and not with itself. <strong>expectMark</strong> is what the roster should show:
 			zero for anyone who has not handed in, however unfinished their work is.
 		</p>
-		<table>
+		<div class="table-scroll">
+			<table>
 			<thead>
 				<tr><th>Student</th><th>State</th><th>unmet</th><th>expectMark</th><th>Labels</th></tr>
 			</thead>
@@ -424,7 +571,78 @@
 					</tr>
 				{/each}
 			</tbody>
-		</table>
+			</table>
+		</div>
+	</section>
+
+	<section class="oracle" data-testid="export-oracle">
+		<h2>Graded-work export &middot; oracle and captures</h2>
+		<p class="lede">
+			The left table is <code>buildGradingExport</code> called directly on this fixture, both ways
+			on the identity switch. The right table is what the console's own controls actually
+			produced: the harness intercepts the <code>&lt;a download&gt;</code> and keeps the Blob, so
+			these rows are real files rather than a claim about them.
+		</p>
+		<div class="table-scroll">
+			<table>
+			<thead>
+				<tr><th>identity</th><th>students</th><th>assignments</th><th>unmet</th><th>empty records</th><th>name in file</th><th>bytes</th></tr>
+			</thead>
+			<tbody>
+				{#each exportOracle as row (row.identity)}
+					<tr
+						data-testid="export-oracle-row"
+						data-identity={row.identity}
+						data-students={row.students}
+						data-unmet={row.unmetTotal}
+						data-empty={row.emptyRecords}
+						data-hasname={row.hasName}
+					>
+						<td>{row.identity}</td>
+						<td>{row.students}</td>
+						<td>{row.assignments}</td>
+						<td>{row.unmetTotal}</td>
+						<td>{row.emptyRecords}</td>
+						<td>{row.hasName}</td>
+						<td>{row.bytes}</td>
+					</tr>
+				{/each}
+			</tbody>
+			</table>
+		</div>
+		<h2 class="captures-head">Files the controls produced</h2>
+		{#if captures.length}
+			<div class="table-scroll">
+			<table>
+				<thead>
+					<tr><th>filename</th><th>bytes</th><th>type</th><th>name in file</th><th>students</th><th>unmet</th></tr>
+				</thead>
+				<tbody>
+					{#each captures as c (c.id)}
+						<tr
+							data-testid="capture-row"
+							data-name={c.name}
+							data-size={c.size}
+							data-hasname={c.hasName}
+							data-students={c.students}
+							data-unmet={c.unmet}
+						>
+							<td>{c.name}</td>
+							<td>{c.size}</td>
+							<td>{c.type}</td>
+							<td>{c.hasName === null ? 'binary, not read here' : String(c.hasName)}</td>
+							<td>{c.students ?? '-'}</td>
+							<td>{c.unmet ?? '-'}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+			</div>
+		{:else}
+			<p class="none" data-testid="capture-empty">
+				Nothing exported yet. Press one of the export controls below.
+			</p>
+		{/if}
 	</section>
 
 	<GradingConsole section={SECTION} item={ITEM} spec={SPEC} rubric={RUBRIC} {transports} basePath="/dev/grading-incomplete" />
@@ -484,6 +702,14 @@
 	}
 	.none {
 		color: var(--text-2);
+	}
+	.captures-head {
+		margin-top: var(--space-3);
+	}
+	/* Wide content scrolls inside its own box; the PAGE never scrolls sideways.
+	   Measured at 375px before this: 45px of overhang, all of it these tables. */
+	.table-scroll {
+		overflow-x: auto;
 	}
 	.log {
 		font-family: var(--font-mono);
