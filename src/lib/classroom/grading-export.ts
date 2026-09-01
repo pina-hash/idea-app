@@ -57,6 +57,7 @@ import {
 	specUnmet,
 	splitLastFirst,
 	submissionStateLabel,
+	tableRowFilled,
 	unmetLabel,
 	type AssignmentSpec,
 	type InteractiveBlock,
@@ -67,7 +68,7 @@ import {
 	type UnmetEntry
 } from './assignment-spec';
 import { itemTitle, sectionTitle, type ClassroomItem, type ClassroomSection } from './classroom';
-import type { XlsxSheet } from '$lib/xlsx';
+import { sheetName, type XlsxSheet } from '$lib/xlsx';
 
 export const GRADING_EXPORT_SCHEMA = 1;
 
@@ -480,8 +481,146 @@ function yesNo(value: boolean): string {
 	return value ? 'Yes' : 'No';
 }
 
-/** A stored answer as one cell of text. Tables and checklists are flattened. */
-function answerCell(entry: ExportedResponse): string {
+/**
+ * HOW MANY TABLE SHEETS ARE WORTH HAVING, AND WHAT HAPPENS PAST IT.
+ *
+ * A sheet per table block is the readable shape -- real rows, real columns,
+ * sortable and filterable -- and it is what a teacher wants when they are
+ * looking at one student's bill of materials. It does not scale: the tab bar
+ * stops being scannable somewhere around a dozen tabs, and five of those are
+ * already spoken for (Grades, Unmet checks, Responses, Files, About).
+ *
+ * EIGHT, because it is comfortably past every real assignment (one to four
+ * table blocks is the normal shape and the fixture's two is typical) while
+ * keeping the workbook at thirteen tabs in the worst case. Past it every table
+ * goes into ONE long-form sheet instead -- student, block, row number, column,
+ * value, one row per cell -- which is less pleasant to scan and works for any
+ * number of blocks with any columns. The About sheet says which shape this
+ * particular file took, so nobody has to infer it from the tab bar.
+ */
+export const MAX_TABLE_SHEETS = 8;
+
+/** The tallest a body row may get. Six wrapped lines at 15pt. */
+export const MAX_ROW_HEIGHT_PT = 90;
+
+/** Sheets whose names are spoken for before any table block gets one. */
+const RESERVED_SHEETS = [
+	'Grades',
+	'Unmet checks',
+	'Responses',
+	'Files',
+	'About this export',
+	'Table rows'
+];
+
+/** One table block, gathered across every student in the export. */
+interface TableBlockSheet {
+	blockId: string;
+	label: string;
+	columns: { key: string; label: string }[];
+	/** Assigned later: empty in the long-form shape. */
+	sheet: string;
+	/** `{ student, rowNumber, cells }`, blank rows already dropped. */
+	rows: { student: ExportedStudent; index: number; cells: Record<string, string> }[];
+}
+
+/**
+ * A tab name that Excel will actually accept AND that no other sheet has.
+ *
+ * `sheetName` handles the format's own rules (31 characters, no `[]:*?/\`); the
+ * suffix handles two modules with the same title, which is ordinary -- an
+ * assignment with "Bill of materials" in two units has it twice. The base is
+ * re-truncated to make room for the suffix rather than appended past the cap,
+ * because a name over 31 characters is a workbook that does not open.
+ */
+function uniqueSheetName(base: string, taken: Set<string>): string {
+	const first = sheetName(base);
+	if (!taken.has(first)) {
+		taken.add(first);
+		return first;
+	}
+	for (let n = 2; n < 100; n++) {
+		const suffix = ` ${n}`;
+		const candidate = sheetName(first.slice(0, 31 - suffix.length) + suffix);
+		if (!taken.has(candidate)) {
+			taken.add(candidate);
+			return candidate;
+		}
+	}
+	// Unreachable with fewer than a hundred collisions, and a thrown error here
+	// would lose the whole export over a tab name.
+	const fallback = sheetName(`Table ${taken.size + 1}`);
+	taken.add(fallback);
+	return fallback;
+}
+
+/**
+ * EVERY TABLE BLOCK IN THE EXPORT, WITH ITS BLANK ROWS ALREADY GONE.
+ *
+ * Gathered from the students' own `responses`, not from the spec, so the table
+ * sheets and the Responses sheet are reading the same list and cannot come to
+ * disagree about which blocks exist. A block appears once even though every
+ * student carries it, and the column list is taken from the first student who
+ * has it, which is the spec's own list.
+ *
+ * THE BLANK-ROW RULE IS `tableRowFilled` AND NOTHING ELSE. A row where every
+ * cell is blank is a row the student left, and it is dropped; a row with any
+ * cell filled is real and stays whole. That is the SAME predicate
+ * `blockProgress` counts a table's progress with, so a table reporting "3 of 4
+ * rows" cannot then export four.
+ */
+function tableBlocksOf(students: ExportedStudent[]): {
+	blocks: TableBlockSheet[];
+	dropped: number;
+} {
+	const byId = new Map<string, TableBlockSheet>();
+	let dropped = 0;
+	for (const student of students) {
+		for (const entry of student.responses) {
+			if (entry.blockType !== 'table') continue;
+			let block = byId.get(entry.blockId);
+			if (!block) {
+				block = {
+					blockId: entry.blockId,
+					label: entry.moduleTitle?.trim() || entry.blockId,
+					columns: (entry.value.columns ?? []) as { key: string; label: string }[],
+					sheet: '',
+					rows: []
+				};
+				byId.set(entry.blockId, block);
+			}
+			const rows = (entry.value.rows ?? []) as Record<string, string>[];
+			let kept = 0;
+			for (const row of rows) {
+				if (!tableRowFilled(row)) {
+					dropped += 1;
+					continue;
+				}
+				kept += 1;
+				block.rows.push({ student, index: kept, cells: row });
+			}
+		}
+	}
+	return { blocks: [...byId.values()], dropped };
+}
+
+/**
+ * A column wide enough for what is actually in it, within reason.
+ *
+ * Chosen from the content rather than pinned, because these columns are the
+ * student's own and nothing here knows in advance whether one holds "3" or a
+ * paragraph about material selection. The floor keeps a header readable and the
+ * ceiling is what stops one long cell pushing every other column off screen;
+ * past it the text wraps, which is what the wrap style and the row-height cap
+ * are for.
+ */
+function fittedWidth(header: string, values: string[]): number {
+	const longest = values.reduce((n, v) => Math.max(n, ...v.split('\n').map((l) => l.length)), header.length);
+	return Math.min(44, Math.max(12, longest + 2));
+}
+
+/** A stored answer as one cell of text. A TABLE is a pointer, never a dump. */
+function answerCell(entry: ExportedResponse, tableSheetFor: Map<string, string>): string {
 	const v = entry.value;
 	if (entry.blockType === 'textField') return String(v.text ?? '');
 	if (entry.blockType === 'declaration') return yesNo(v.checked === true);
@@ -493,12 +632,16 @@ function answerCell(entry: ExportedResponse): string {
 		const files = (v.files ?? []) as { filename: string; caption: string | null }[];
 		return files.map((f) => (f.caption ? `${f.filename} (${f.caption})` : f.filename)).join('\n');
 	}
-	// table
-	const cols = (v.columns ?? []) as { key: string; label: string }[];
-	const rows = (v.rows ?? []) as Record<string, string>[];
-	return rows
-		.map((r) => cols.map((c) => `${c.label}: ${String(r[c.key] ?? '').trim()}`).join(' | '))
-		.join('\n');
+	// A TABLE. This used to flatten the whole thing into this one cell, column
+	// labels and values joined by pipes and rows joined by newlines -- which is
+	// unreadable, unsortable, unfilterable, and made the row tall enough to fill
+	// a screen. The rows are real rows on their own sheet now, and this says
+	// where, so nothing is lost by looking in the wrong place.
+	const rows = ((v.rows ?? []) as Record<string, string>[]).filter(tableRowFilled);
+	if (!rows.length) return 'No rows filled in.';
+	const where = tableSheetFor.get(entry.blockId);
+	const count = `${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`;
+	return where ? `${count}, in the "${where}" sheet.` : count;
 }
 
 export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
@@ -515,9 +658,22 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 
 	const idHeaders = named ? ['Last', 'First', 'Email'] : [];
 	const idWidths = named ? [16, 14, 28] : [];
+	/** The identity columns every per student sheet leads with. */
+	const who = (s: ExportedStudent) => (named ? [s.label, s.name] : [s.label]);
+	const whoHeader = named ? ['Student', 'Name'] : ['Student'];
+	const whoWidths = named ? [12, 20] : [12];
+
+	const { blocks, dropped } = tableBlocksOf(students);
+	const perSheet = blocks.length > 0 && blocks.length <= MAX_TABLE_SHEETS;
+	const taken = new Set(RESERVED_SHEETS);
+	if (perSheet) for (const b of blocks) b.sheet = uniqueSheetName(b.label, taken);
+	const tableSheetFor = new Map(
+		blocks.map((b) => [b.blockId, perSheet ? b.sheet : 'Table rows'] as const)
+	);
 
 	const grades: XlsxSheet = {
 		name: 'Grades',
+		maxRowHeight: MAX_ROW_HEIGHT_PT,
 		header: [
 			'Student',
 			...idHeaders,
@@ -568,12 +724,12 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 
 	const unmet: XlsxSheet = {
 		name: 'Unmet checks',
-		header: ['Student', ...(named ? ['Name'] : []), 'Module', 'Block', 'Kind', 'Need', 'Have', 'Requirement'],
-		widths: [12, ...(named ? [20] : []), 14, 12, 12, 7, 7, 70],
+		maxRowHeight: MAX_ROW_HEIGHT_PT,
+		header: [...whoHeader, 'Module', 'Block', 'Kind', 'Need', 'Have', 'Requirement'],
+		widths: [...whoWidths, 14, 12, 12, 7, 7, 70],
 		rows: students.flatMap((s) =>
 			s.completeness.unmet.map((u) => [
-				s.label,
-				...(named ? [s.name] : []),
+				...who(s),
 				u.moduleId,
 				u.blockId,
 				u.kind,
@@ -586,47 +742,90 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 
 	const responses: XlsxSheet = {
 		name: 'Responses',
-		header: [
-			'Student',
-			...(named ? ['Name'] : []),
-			'Module',
-			'Block',
-			'Type',
-			'Prompt',
-			'Started',
-			'Answer'
-		],
-		widths: [12, ...(named ? [20] : []), 18, 10, 12, 40, 9, 70],
+		maxRowHeight: MAX_ROW_HEIGHT_PT,
+		header: [...whoHeader, 'Module', 'Block', 'Type', 'Prompt', 'Started', 'Answer'],
+		widths: [...whoWidths, 18, 10, 12, 40, 9, 70],
 		rows: students.flatMap((s) =>
 			s.responses.map((r) => [
-				s.label,
-				...(named ? [s.name] : []),
+				...who(s),
 				r.moduleTitle,
 				r.blockId,
 				r.blockType,
 				r.prompt,
 				yesNo(r.started),
-				answerCell(r)
+				answerCell(r, tableSheetFor)
 			])
 		)
 	};
 
+	// A SHEET PER TABLE BLOCK: real rows, real columns, one row per table row,
+	// led by the same identity columns every other sheet leads with so a filter
+	// on one student works the same way everywhere.
+	const tableSheets: XlsxSheet[] = perSheet
+		? blocks.map((b) => {
+				const cells = b.rows.map((r) => r.cells);
+				return {
+					name: b.sheet,
+					maxRowHeight: MAX_ROW_HEIGHT_PT,
+					header: [...whoHeader, 'Row', ...b.columns.map((c) => c.label)],
+					widths: [
+						...whoWidths,
+						6,
+						...b.columns.map((c) =>
+							fittedWidth(c.label, cells.map((r) => String(r[c.key] ?? '')))
+						)
+					],
+					rows: b.rows.map((r) => [
+						...who(r.student),
+						r.index,
+						...b.columns.map((c) => String(r.cells[c.key] ?? ''))
+					])
+				};
+			})
+		: blocks.length
+			? [
+					{
+						name: 'Table rows',
+						maxRowHeight: MAX_ROW_HEIGHT_PT,
+						header: [...whoHeader, 'Block', 'Table', 'Row', 'Column', 'Value'],
+						widths: [...whoWidths, 12, 22, 6, 24, 60],
+						rows: blocks.flatMap((b) =>
+							b.rows.flatMap((r) =>
+								b.columns.map((c) => [
+									...who(r.student),
+									b.blockId,
+									b.label,
+									r.index,
+									c.label,
+									String(r.cells[c.key] ?? '')
+								])
+							)
+						)
+					}
+				]
+			: [];
+
 	const files: XlsxSheet = {
 		name: 'Files',
-		header: ['Student', ...(named ? ['Name'] : []), 'Block', 'Filename', 'Caption'],
-		widths: [12, ...(named ? [20] : []), 12, 36, 36],
+		maxRowHeight: MAX_ROW_HEIGHT_PT,
+		header: [...whoHeader, 'Block', 'Filename', 'Caption'],
+		widths: [...whoWidths, 12, 36, 36],
 		rows: students.flatMap((s) =>
-			s.files.map((f) => [s.label, ...(named ? [s.name] : []), f.blockId, f.filename, f.caption])
+			s.files.map((f) => [...who(s), f.blockId, f.filename, f.caption])
 		)
 	};
 
 	// THE ABOUT SHEET IS NOT DECORATION. A workbook gets forwarded without the
 	// message it arrived in, so what it is, which class it came from and
-	// whether it carries names have to be readable from inside it.
+	// whether it carries names have to be readable from inside it. The two
+	// table lines are here for the same reason: a reader should not have to
+	// infer the shape from the tab bar, and a dropped row is a change to the
+	// data that has to be stated rather than done quietly.
 	const about: XlsxSheet = {
 		name: 'About this export',
+		maxRowHeight: MAX_ROW_HEIGHT_PT,
 		header: ['Field', 'Value'],
-		widths: [22, 100],
+		widths: [26, 100],
 		rows: [
 			['What this is', payload.export.what],
 			['Identity', payload.export.identity === 'included' ? 'Names included' : 'Names omitted'],
@@ -637,6 +836,19 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 			['Due', assignment?.dueAt ?? ''],
 			['Out of', assignment?.outOf ?? ''],
 			['Students in this file', payload.export.counts.students],
+			['Table blocks', blocks.length],
+			[
+				'Table layout',
+				blocks.length === 0
+					? 'This assignment has no table blocks.'
+					: perSheet
+						? 'One sheet per table block, with that table\u2019s own columns as real columns.'
+						: `More than ${MAX_TABLE_SHEETS} table blocks, so every table is on the single "Table rows" sheet, one row per cell.`
+			],
+			[
+				'Blank table rows dropped',
+				`${dropped} (a row where every cell was blank is a row the student left, not data; a row with any cell filled is kept whole)`
+			],
 			['Generated at', payload.export.generatedAt],
 			['Source', payload.export.source],
 			[
@@ -646,7 +858,7 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 		]
 	};
 
-	return [grades, unmet, responses, files, about];
+	return [grades, unmet, responses, ...tableSheets, files, about];
 }
 
 /** `graded-<assignment>-<section>-<scope>[-anon].<ext>`, filesystem-safe. */

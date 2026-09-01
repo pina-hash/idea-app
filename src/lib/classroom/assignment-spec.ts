@@ -794,6 +794,29 @@ export interface UnmetEntry {
 	have: number;
 }
 
+/**
+ * IS THIS TABLE ROW REAL WORK, OR A ROW THE STUDENT LEFT.
+ *
+ * A `table` block stores whatever rows the renderer put on screen, blanks
+ * included, so a trailing empty row is the ordinary case rather than the odd
+ * one. Every count of "how many rows did they fill in" turns on this, and there
+ * were THREE copies of the expression before this function existed --
+ * `blockProgress`, `blockStarted` and the export's own table value -- which is
+ * the shape that stops agreeing the first time somebody decides whitespace
+ * counts.
+ *
+ * A row with SOME cells filled is real and stays; only all-blank is dropped.
+ * Whitespace is blank, which is what makes a row of spaces behave the way it
+ * looks.
+ */
+export function tableRowFilled(row: Record<string, string> | null | undefined): boolean {
+	return (
+		!!row &&
+		typeof row === 'object' &&
+		Object.values(row).some((v) => String(v ?? '').trim() !== '')
+	);
+}
+
 /** How far along one block is against its own constraint. Null = no constraint. */
 export function blockProgress(
 	block: SpecBlock,
@@ -809,9 +832,7 @@ export function blockProgress(
 		const need = block.minRows ?? 0;
 		if (need <= 0) return null;
 		const rows = responses.get(block.id)?.rows ?? [];
-		const have = rows.filter(
-			(r) => r && typeof r === 'object' && Object.values(r).some((v) => String(v ?? '').trim() !== '')
-		).length;
+		const have = rows.filter(tableRowFilled).length;
 		return { need, have };
 	}
 	if (block.type === 'imageZone') {
@@ -903,12 +924,7 @@ export function blockStarted(
 	}
 	if (block.type === 'table') {
 		const rows = responses.get(block.id)?.rows ?? [];
-		return rows.some(
-			(r) =>
-				!!r &&
-				typeof r === 'object' &&
-				Object.values(r).some((v) => String(v ?? '').trim() !== '')
-		);
+		return rows.some(tableRowFilled);
 	}
 	if (block.type === 'imageZone') {
 		return (filesByBlock.get(block.id) ?? 0) > 0;

@@ -50,7 +50,24 @@ export interface XlsxSheet {
 	 * caller knows which column holds a paragraph.
 	 */
 	widths?: number[];
+	/**
+	 * The tallest a body row may get, in points. Omitted leaves every row on
+	 * the sheet default and lets the reader auto-fit.
+	 *
+	 * WHY A CAP AT ALL, AND WHY IT HAS TO BE COMPUTED RATHER THAN DECLARED.
+	 * `wrapText` on its own makes a reader auto-fit the row to the wrapped
+	 * text, so one cell holding a five-hundred-word answer produces a row tall
+	 * enough to fill the screen and the sheet becomes unscannable. The file
+	 * format has no "maximum height" -- a row is either auto-fit or an explicit
+	 * `ht` -- so the only way to bound one is to estimate the height the text
+	 * wants and write the smaller of that and this. Nothing is lost: a reader
+	 * still shows the whole cell when the row is expanded or the cell selected.
+	 */
+	maxRowHeight?: number;
 }
+
+/** The sheet default, and the height of one wrapped line at Calibri 11. */
+const ROW_HEIGHT_PT = 15;
 
 const STYLE_PLAIN = 0;
 const STYLE_HEADER = 1;
@@ -103,6 +120,25 @@ function cellXml(ref: string, value: XlsxCell, style: number): string {
 	return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${xml(String(value))}</t></is></c>`;
 }
 
+/**
+ * How many wrapped lines a cell wants, estimated from its own length against
+ * its column's width.
+ *
+ * IT IS AN ESTIMATE AND SAYS SO. A column width in this format is "how many
+ * `0` characters fit", not pixels, and the text is proportional, so this is
+ * within a line either way rather than exact. It only ever decides a row's
+ * height, and the cap above bounds the error in the direction that matters.
+ * Hard newlines are counted properly, because a student's own line breaks are
+ * the common case in a wrapped answer.
+ */
+function wrappedLines(value: XlsxCell, width: number): number {
+	if (value == null || typeof value === 'number') return 1;
+	const chars = Math.max(8, Math.floor(width));
+	return String(value)
+		.split('\n')
+		.reduce((n, line) => n + Math.max(1, Math.ceil(line.length / chars)), 0);
+}
+
 function sheetXml(sheet: XlsxSheet): string {
 	const width = Math.max(sheet.header.length, ...sheet.rows.map((r) => r.length), 1);
 	const lastCol = columnLetter(width);
@@ -117,6 +153,7 @@ function sheetXml(sheet: XlsxSheet): string {
 	const head = sheet.header
 		.map((h, i) => cellXml(`${columnLetter(i + 1)}1`, h, STYLE_HEADER))
 		.join('');
+	const cap = sheet.maxRowHeight;
 	const body = sheet.rows
 		.map((row, r) => {
 			const n = r + 2;
@@ -125,7 +162,16 @@ function sheetXml(sheet: XlsxSheet): string {
 					cellXml(`${columnLetter(i + 1)}${n}`, v, typeof v === 'number' ? STYLE_PLAIN : STYLE_WRAP)
 				)
 				.join('');
-			return `<row r="${n}">${cells}</row>`;
+			let attrs = '';
+			if (cap && cap > 0) {
+				const lines = Math.max(
+					1,
+					...row.map((v, i) => wrappedLines(v, sheet.widths?.[i] ?? 10))
+				);
+				const height = Math.min(cap, lines * ROW_HEIGHT_PT);
+				attrs = ` ht="${height}" customHeight="1"`;
+			}
+			return `<row r="${n}"${attrs}>${cells}</row>`;
 		})
 		.join('');
 	// ELEMENT ORDER IS THE SCHEMA'S, NOT A PREFERENCE: dimension, sheetViews,
@@ -138,7 +184,7 @@ function sheetXml(sheet: XlsxSheet): string {
 		'<sheetViews><sheetView workbookViewId="0">' +
 		'<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
 		'</sheetView></sheetViews>' +
-		'<sheetFormatPr defaultRowHeight="15"/>' +
+		`<sheetFormatPr defaultRowHeight="${ROW_HEIGHT_PT}"/>` +
 		cols +
 		`<sheetData><row r="1">${head}</row>${body}</sheetData>` +
 		`<autoFilter ref="A1:${lastCol}${lastRow}"/>` +

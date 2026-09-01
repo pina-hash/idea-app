@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	IDENTITY_NOTE,
+	MAX_TABLE_SHEETS,
 	buildGradingExport,
 	gradingExportFilename,
 	gradingExportJson,
@@ -14,6 +15,7 @@ import {
 	responsesMap,
 	rubricFromSpec,
 	specUnmet,
+	tableRowFilled,
 	type AssignmentSpec,
 	type ModuleApprovalRow,
 	type ResponseRow,
@@ -22,8 +24,8 @@ import {
 	type SubmissionRow
 } from '../src/lib/classroom/assignment-spec';
 import type { ClassroomItem, ClassroomSection } from '../src/lib/classroom/classroom';
-import { buildXlsx } from '../src/lib/xlsx';
-import { inflateEntry, readCentralDirectory } from '../src/lib/foundry/zip';
+import { buildXlsx, sheetName } from '../src/lib/xlsx';
+import { readXlsxParts, readXlsxWorkbook } from '../src/lib/xlsx-read';
 
 /**
  * THE GRADED-WORK EXPORT, AND WHY IT HAS A TEST AT ALL.
@@ -98,7 +100,23 @@ const SPEC: AssignmentSpec = {
 			points: 6,
 			blocks: [
 				{ type: 'imageZone', id: 'z1', minImages: 2, captions: true },
-				{ type: 'checklist', id: 'c1', items: ['Dated', 'Named'] }
+				{ type: 'checklist', id: 'c1', items: ['Dated', 'Named'] },
+				/*
+					THE SECOND TABLE, WITH DIFFERENT COLUMNS, and deliberately with
+					NO `minRows`: an unconstrained table exports exactly like a
+					constrained one, and leaving it unconstrained keeps the unmet
+					expectations elsewhere in this file measuring what they were
+					written to measure.
+				*/
+				{
+					type: 'table',
+					id: 't2',
+					columns: [
+						{ key: 'component', label: 'Component' },
+						{ key: 'selected', label: 'What you selected' },
+						{ key: 'why', label: 'Why it clears' }
+					]
+				}
 			],
 			rubric: [
 				{
@@ -189,6 +207,18 @@ const ALICE_SUB = submission({
 	graded_at: '2026-08-21T18:00:00.000Z'
 });
 
+/**
+ * A PARAGRAPH IN ONE CELL, which is the case the old flattened rendering made
+ * unreadable and the case the row-height cap exists for. It also carries the
+ * LaTeX a real student typed: the export carries what was written, verbatim,
+ * and must never rewrite it.
+ */
+const PARAGRAPH =
+	'It clears the minimum by about 34,468 PSI, which is the margin I was after. ' +
+	'I checked the published figure against the McMaster listing and against the ' +
+	'6061-T6 datasheet, and both agree. The governing case is $\\sigma = F/A$ at the ' +
+	'shoulder, so the stock thickness is what matters here rather than the length.';
+
 const RESPONSES: ResponseRow[] = [
 	{
 		item_id: ITEM_ID,
@@ -200,7 +230,24 @@ const RESPONSES: ResponseRow[] = [
 		item_id: ITEM_ID,
 		student_email: ALICE_EMAIL,
 		block_id: 't1',
-		value: { rows: [{ member: 'Lower chord', loading: 'Tension' }] }
+		// One real row and one the student left. `tableRowFilled` is what tells
+		// them apart, and it is the SAME predicate `blockProgress` counts with,
+		// so the unmet figure and the exported row count cannot disagree.
+		value: { rows: [{ member: 'Lower chord', loading: 'Tension' }, { member: '', loading: '  ' }] }
+	},
+	{
+		item_id: ITEM_ID,
+		student_email: ALICE_EMAIL,
+		block_id: 't2',
+		value: {
+			rows: [
+				{ component: 'Arm Stock', selected: '6061 aluminum 1/2 McMaster-Carr', why: PARAGRAPH },
+				// A row with SOME cells filled is real work and stays whole.
+				{ component: 'Speed Reduction', selected: 'WCP 1 Motor Gear Box', why: '' },
+				// All blank: dropped.
+				{ component: '', selected: '', why: '' }
+			]
+		}
 	},
 	{ item_id: ITEM_ID, student_email: ALICE_EMAIL, block_id: 'c1', value: { checked: [true, false] } },
 	{ item_id: ITEM_ID, student_email: ALICE_EMAIL, block_id: '@declaration', value: { checked: [true] } }
@@ -320,7 +367,7 @@ describe('scope', () => {
 		expect(dara.privateComment).toBeNull();
 		// Every block of the spec is still listed, unstarted: "was asked and
 		// left blank" has to be tellable from "was never asked".
-		expect(dara.responses.map((r) => r.blockId)).toEqual(['f1', 't1', 'z1', 'c1', '@declaration']);
+		expect(dara.responses.map((r) => r.blockId)).toEqual(['f1', 't1', 'z1', 'c1', 't2', '@declaration']);
 		expect(dara.responses.every((r) => r.started === false)).toBe(true);
 		// Not handed in, so nothing is "unmet": that is what In progress means.
 		expect(dara.completeness.unmetCount).toBe(0);
@@ -452,43 +499,237 @@ describe('the identity switch', () => {
 // to be the length one would have.
 // ---------------------------------------------------------------------------
 
-async function readXlsx(bytes: Uint8Array): Promise<Map<string, string>> {
-	const records = readCentralDirectory(bytes);
-	expect(records).not.toBeNull();
-	const out = new Map<string, string>();
-	for (const rec of records!) {
-		if (rec.directory) continue;
-		const raw = await inflateEntry(bytes, rec, rec.name);
-		out.set(rec.name, new TextDecoder().decode(raw));
-	}
-	return out;
-}
+/**
+ * THE WORKBOOK AS A READER SEES IT, parsed back out of the bytes through
+ * `$lib/xlsx-read` -- the deliberate mirror of the writer, shared with the
+ * `/dev/grading-incomplete` harness so the two verification surfaces cannot
+ * come to disagree about what the file says.
+ *
+ * NOTHING BELOW READS THE OBJECT THAT WAS PASSED IN. Rows, headers and row
+ * heights all come off the inflated XML, so an assertion cannot pass because
+ * the builder agreed with itself.
+ */
+const readXlsx = readXlsxParts;
+const readWorkbook = readXlsxWorkbook;
+
+const workbookOf = async (over: Partial<GradingExportInput> = {}) =>
+	readWorkbook(await buildXlsx(gradingExportSheets(buildGradingExport(input(over)))));
 
 describe('the spreadsheet export', () => {
 	it('is a readable workbook with the parts Sheets needs', async () => {
 		const parts = await readXlsx(await buildXlsx(gradingExportSheets(buildGradingExport(input()))));
-		expect([...parts.keys()].sort()).toEqual([
-			'[Content_Types].xml',
-			'_rels/.rels',
-			'xl/_rels/workbook.xml.rels',
-			'xl/styles.xml',
-			'xl/workbook.xml',
-			'xl/worksheets/sheet1.xml',
-			'xl/worksheets/sheet2.xml',
-			'xl/worksheets/sheet3.xml',
-			'xl/worksheets/sheet4.xml',
-			'xl/worksheets/sheet5.xml'
-		]);
-		const wb = parts.get('xl/workbook.xml')!;
-		for (const name of ['Grades', 'Unmet checks', 'Responses', 'Files', 'About this export']) {
-			expect(wb).toContain(`name="${name}"`);
-		}
+		// Seven sheets now: the five fixed ones plus one per table block.
+		expect([...parts.keys()].filter((k) => k.startsWith('xl/worksheets/'))).toHaveLength(7);
+		expect(parts.has('[Content_Types].xml')).toBe(true);
+		expect(parts.has('_rels/.rels')).toBe(true);
+		expect(parts.has('xl/styles.xml')).toBe(true);
 		// A frozen header row and an autofilter are what make it readable rather
 		// than merely openable.
 		expect(parts.get('xl/worksheets/sheet1.xml')).toContain('state="frozen"');
 		expect(parts.get('xl/worksheets/sheet1.xml')).toContain('<autoFilter');
-		// Every sheet relationship plus styles.
 		expect(parts.get('xl/_rels/workbook.xml.rels')).toContain('Target="styles.xml"');
+	});
+
+	it('names one sheet per table block, from the block’s own module', async () => {
+		const wb = await workbookOf();
+		expect([...wb.keys()]).toEqual([
+			'Grades',
+			'Unmet checks',
+			'Responses',
+			'Three Views',
+			'Photo Evidence',
+			'Files',
+			'About this export'
+		]);
+	});
+
+	/**
+	 * THE DEFECT THIS BUNDLE FIXES. A table used to be one string in one cell,
+	 * column labels and values joined by pipes and rows joined by newlines.
+	 * The header row below is read out of the produced bytes: real columns.
+	 */
+	it('gives a table block real columns, read back out of the bytes', async () => {
+		const wb = await workbookOf();
+		expect(wb.get('Three Views')!.header).toEqual(['Student', 'Name', 'Row', 'Member', 'Loading']);
+		expect(wb.get('Photo Evidence')!.header).toEqual([
+			'Student',
+			'Name',
+			'Row',
+			'Component',
+			'What you selected',
+			'Why it clears'
+		]);
+	});
+
+	it('gives a table row a real row, blank rows dropped', async () => {
+		const wb = await workbookOf();
+		// t1: two stored rows, one of them blank ('' and '  '), so one survives.
+		const views = wb.get('Three Views')!;
+		expect(views.rows).toHaveLength(1);
+		expect(views.rows[0].slice(0, 5)).toEqual([
+			'Student 1',
+			`Alice ${ALICE_NAME}`,
+			'1',
+			'Lower chord',
+			'Tension'
+		]);
+		// t2: three stored rows, one all-blank. The PARTLY filled one stays whole.
+		const photos = wb.get('Photo Evidence')!;
+		expect(photos.rows).toHaveLength(2);
+		expect(photos.rows.map((r) => r[3])).toEqual(['Arm Stock', 'Speed Reduction']);
+		expect(photos.rows[1].slice(4)).toEqual(['WCP 1 Motor Gear Box', '']);
+		// The row NUMBER is the kept-row ordinal, so it lines up with what is there.
+		expect(photos.rows.map((r) => r[2])).toEqual(['1', '2']);
+	});
+
+	/**
+	 * THE EXPECTED VALUE COMES FROM THE FIXTURE THROUGH `tableRowFilled`, the
+	 * same predicate `blockProgress` counts a table's progress with, never from
+	 * the exporter. Two blanks: one trailing row on each table.
+	 */
+	it('drops exactly the all-blank rows, and says how many inside the file', async () => {
+		const stored = RESPONSES.filter((r) => r.block_id === 't1' || r.block_id === 't2').flatMap(
+			(r) => r.value.rows ?? []
+		);
+		const blanks = stored.filter((r) => !tableRowFilled(r)).length;
+		expect(stored).toHaveLength(5);
+		expect(blanks).toBe(2);
+
+		const wb = await workbookOf();
+		const kept = wb.get('Three Views')!.rows.length + wb.get('Photo Evidence')!.rows.length;
+		expect(kept).toBe(stored.length - blanks);
+
+		const about = wb.get('About this export')!;
+		const line = about.rows.find((r) => r[0] === 'Blank table rows dropped');
+		expect(line?.[1]).toContain(`${blanks} (`);
+		expect(about.rows.find((r) => r[0] === 'Table blocks')?.[1]).toBe('2');
+		expect(about.rows.find((r) => r[0] === 'Table layout')?.[1]).toContain('One sheet per table block');
+	});
+
+	it('leaves a POINTER on the Responses sheet, never the old dump', async () => {
+		const wb = await workbookOf();
+		const responses = wb.get('Responses')!;
+		const alice = responses.rows.filter((r) => r[0] === 'Student 1');
+		const t2 = alice.find((r) => r[3] === 't2')!;
+		expect(t2[7]).toBe('2 rows, in the "Photo Evidence" sheet.');
+		expect(wb.get('Responses')!.rows.find((r) => r[0] === 'Student 1' && r[3] === 't1')?.[7]).toBe(
+			'1 row, in the "Three Views" sheet.'
+		);
+		// A student with nothing in the table says so rather than pointing at
+		// rows that are not there.
+		expect(responses.rows.find((r) => r[0] === 'Student 2' && r[3] === 't1')?.[7]).toBe(
+			'No rows filled in.'
+		);
+		// AND THE OLD RENDERING IS GONE from every cell of the sheet.
+		const everyCell = responses.rows.flat().join('\n');
+		expect(everyCell).not.toContain('Member: Lower chord | Loading: Tension');
+		expect(everyCell).not.toContain(' | ');
+		// The non-table blocks are untouched.
+		expect(responses.rows.find((r) => r[0] === 'Student 1' && r[3] === 'c1')?.[7]).toBe(
+			'[x] Dated\n[ ] Named'
+		);
+	});
+
+	/**
+	 * WHAT A STUDENT WROTE IS CARRIED VERBATIM, LaTeX INCLUDED. The export
+	 * renders; it never rewrites. Asserted on the bytes, so an escaping bug in
+	 * the writer would show up here too.
+	 */
+	it('carries a paragraph, and its LaTeX, exactly as the student typed it', async () => {
+		const wb = await workbookOf();
+		const cell = wb.get('Photo Evidence')!.rows[0][5];
+		expect(cell).toBe(PARAGRAPH);
+		expect(cell).toContain('$\\sigma = F/A$');
+	});
+
+	it('caps every row height and still wraps', async () => {
+		const wb = await workbookOf();
+		const all = [...wb.values()].flatMap((s) => s.heights.filter((h): h is number => h != null));
+		expect(all.length).toBeGreaterThan(0);
+		expect(Math.max(...all)).toBeLessThanOrEqual(90);
+		// The paragraph row is the one that would have run away, so it must
+		// actually be AT the cap rather than merely under it.
+		const photos = wb.get('Photo Evidence')!;
+		expect(photos.heights[0]).toBe(90);
+		expect(photos.heights[1]).toBe(15);
+	});
+
+	it('falls back to one long-form sheet past the table-sheet threshold', async () => {
+		const many: AssignmentSpec = {
+			...SPEC,
+			modules: Array.from({ length: MAX_TABLE_SHEETS + 1 }, (_, i) => ({
+				id: `mm${i}`,
+				title: `Unit ${i}`,
+				points: 1,
+				blocks: [
+					{
+						type: 'table' as const,
+						id: `tt${i}`,
+						columns: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }]
+					}
+				]
+			}))
+		};
+		const rows = Array.from({ length: MAX_TABLE_SHEETS + 1 }, (_, i) => ({
+			item_id: ITEM_ID,
+			student_email: ALICE_EMAIL,
+			block_id: `tt${i}`,
+			value: { rows: [{ a: `a${i}`, b: `b${i}` }] }
+		}));
+		const roster: StudentWork[] = [{ ...ROSTER[0], responses: rows }];
+		const wb = await workbookOf({ spec: many, rubric: [], roster, scope: 'section' });
+		const names = [...wb.keys()];
+		expect(names).toEqual(['Grades', 'Unmet checks', 'Responses', 'Table rows', 'Files', 'About this export']);
+		const long = wb.get('Table rows')!;
+		expect(long.header).toEqual(['Student', 'Name', 'Block', 'Table', 'Row', 'Column', 'Value']);
+		// One row per CELL: nine blocks, one row each, two columns.
+		expect(long.rows).toHaveLength((MAX_TABLE_SHEETS + 1) * 2);
+		expect(long.rows[0].slice(2)).toEqual(['tt0', 'Unit 0', '1', 'A', 'a0']);
+		expect(wb.get('About this export')!.rows.find((r) => r[0] === 'Table layout')?.[1]).toContain(
+			'Table rows'
+		);
+		expect(
+			wb.get('Responses')!.rows.find((r) => r[3] === 'tt0')?.[7]
+		).toBe('1 row, in the "Table rows" sheet.');
+	});
+
+	it('deduplicates two table blocks that would take the same tab name', async () => {
+		const twoInOne: AssignmentSpec = {
+			...SPEC,
+			modules: [
+				{
+					...SPEC.modules[0],
+					blocks: [
+						...SPEC.modules[0].blocks,
+						{
+							type: 'table' as const,
+							id: 't3',
+							columns: [{ key: 'x', label: 'X' }]
+						}
+					]
+				}
+			]
+		};
+		const roster: StudentWork[] = [
+			{
+				...ROSTER[0],
+				responses: [
+					{ item_id: ITEM_ID, student_email: ALICE_EMAIL, block_id: 't1', value: { rows: [{ member: 'A', loading: 'B' }] } },
+					{ item_id: ITEM_ID, student_email: ALICE_EMAIL, block_id: 't3', value: { rows: [{ x: 'y' }] } }
+				]
+			}
+		];
+		const wb = await workbookOf({ spec: twoInOne, rubric: [], roster, scope: 'section' });
+		expect([...wb.keys()]).toContain('Three Views');
+		expect([...wb.keys()]).toContain('Three Views 2');
+	});
+
+	it('sanitises and truncates a tab name the format would refuse', () => {
+		expect(sheetName('Unit 3: Bill of Materials / Costing')).toBe(
+			'Unit 3  Bill of Materials   Cos'
+		);
+		expect(sheetName('Unit 3: Bill of Materials / Costing').length).toBeLessThanOrEqual(31);
+		expect(sheetName('   ')).toBe('Sheet');
 	});
 
 	it('INCLUDED carries the identity columns and the names (the positive control)', async () => {
@@ -519,15 +760,22 @@ describe('the spreadsheet export', () => {
 		expect(all).toContain('Student 2');
 	});
 
+	/** The table sheets are new surface for the identity switch, so they are
+	 *  asserted on their own rather than only inside the whole-file sweep. */
+	it('OMITTED drops the Name column from a TABLE sheet too', async () => {
+		const wb = await workbookOf({ identity: 'omitted' });
+		expect(wb.get('Three Views')!.header).toEqual(['Student', 'Row', 'Member', 'Loading']);
+		expect(wb.get('Three Views')!.rows[0]).toEqual(['Student 1', '1', 'Lower chord', 'Tension']);
+	});
+
 	it('says inside itself what it is and whether it carries names', async () => {
 		for (const identity of ['included', 'omitted'] as const) {
-			const parts = await readXlsx(
-				await buildXlsx(gradingExportSheets(buildGradingExport(input({ identity }))))
-			);
-			const about = parts.get('xl/worksheets/sheet5.xml')!;
-			expect(about).toContain('Identity note');
-			expect(about).toContain(identity === 'included' ? 'Names included' : 'Names omitted');
-			expect(about).toContain('Bridge Sketch');
+			const wb = await workbookOf({ identity });
+			const about = wb.get('About this export')!;
+			const flat = about.rows.flat().join(' ');
+			expect(flat).toContain('Identity note');
+			expect(flat).toContain(identity === 'included' ? 'Names included' : 'Names omitted');
+			expect(flat).toContain('Bridge Sketch');
 		}
 	});
 

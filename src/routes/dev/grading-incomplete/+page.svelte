@@ -6,6 +6,7 @@
 		gradingExportJson,
 		type ExportIdentity
 	} from '$lib/classroom/grading-export';
+	import { readXlsxWorkbook } from '$lib/xlsx-read';
 	import {
 		filesByBlockCount,
 		responsesMap,
@@ -117,6 +118,25 @@
 						id: 'f2',
 						prompt: 'Where would this bridge fail first under load? Explain.',
 						minSentences: 2
+					},
+					/*
+						A SECOND TABLE, WITH DIFFERENT COLUMNS FROM `t1`, so the
+						workbook has to produce two table sheets with two different
+						header rows rather than one shape it could have hard-coded.
+
+						NO `minRows`, deliberately: an unconstrained table exports
+						exactly like a constrained one, and leaving it unconstrained
+						keeps this harness's unmet oracle measuring what it was
+						written to measure.
+					*/
+					{
+						type: 'table',
+						id: 't2',
+						columns: [
+							{ key: 'component', label: 'Component' },
+							{ key: 'selected', label: 'What you selected' },
+							{ key: 'why', label: 'Why it clears' }
+						]
 					}
 				],
 				rubric: [
@@ -229,13 +249,46 @@
 		return { item_id: ITEM_ID, student_email: email, block_id: blockId, value: { checked } };
 	}
 
+	/**
+	 * A PARAGRAPH IN ONE CELL, carrying the LaTeX a real student typed.
+	 *
+	 * It is here for two reasons. It is the case the OLD flattened rendering
+	 * made unreadable, and it is the case the row-height cap exists for. And the
+	 * LaTeX is the thing the export must NOT touch: what a student wrote is
+	 * carried verbatim, however it renders.
+	 */
+	const PARAGRAPH =
+		'It clears the minimum by about 34,468 PSI, which is the margin I was after. ' +
+		'I checked the published figure against the McMaster listing and against the ' +
+		'6061-T6 datasheet, and both agree. The governing case is $\\sigma = F/A$ at ' +
+		'the shoulder, so the stock thickness is what matters here rather than the length.';
+
+	/** A table whose rows are given verbatim, blanks included. */
+	function table(email: string, blockId: string, rows: Record<string, string>[]): ResponseRow {
+		return { item_id: ITEM_ID, student_email: email, block_id: blockId, value: { rows } };
+	}
+
 	const THREE = 'The top view was hardest. The chord spacing kept drifting. I redrew it twice.';
 	const TWO = 'It fails at the lower chord near midspan. That member carries the most tension.';
 
 	let responses = $state<ResponseRow[]>([
-		// Alice: everything met.
+		// Alice: everything met, and a trailing row she left blank on BOTH
+		// tables. A blank row is not data and never reaches the workbook; it
+		// also does not change what `specUnmet` counts, which is why the oracle
+		// above is unmoved by it.
 		text('alice@boscotech.net', 'f1', THREE),
-		rows('alice@boscotech.net', 't1', 3),
+		table('alice@boscotech.net', 't1', [
+			{ member: 'Member 1', loading: 'Compression' },
+			{ member: 'Member 2', loading: 'Tension' },
+			{ member: 'Member 3', loading: 'Compression' },
+			{ member: '', loading: '   ' }
+		]),
+		table('alice@boscotech.net', 't2', [
+			{ component: 'Arm Stock', selected: '6061 aluminum 1/2 McMaster-Carr', why: PARAGRAPH },
+			// SOME cells filled: real work, kept whole.
+			{ component: 'Speed Reduction', selected: 'WCP 1 Motor Gear Box', why: '' },
+			{ component: '', selected: '', why: '' }
+		]),
 		checks('alice@boscotech.net', 'c1', true, true),
 		text('alice@boscotech.net', 'f2', TWO),
 		checks('alice@boscotech.net', '@declaration', true),
@@ -247,6 +300,10 @@
 		// Carla: everything met EXCEPT the reflection, one sentence short.
 		text('carla@boscotech.net', 'f1', THREE),
 		rows('carla@boscotech.net', 't1', 3),
+		table('carla@boscotech.net', 't2', [
+			{ component: 'Gusset', selected: '1/8 steel plate', why: 'Shear area is four times the bolt.' },
+			{ component: '', selected: '', why: '' }
+		]),
 		checks('carla@boscotech.net', 'c1', true, true),
 		text('carla@boscotech.net', 'f2', 'It fails at the lower chord.'),
 		checks('carla@boscotech.net', '@declaration', true),
@@ -430,10 +487,22 @@
 		/** JSON only: read back OUT of the produced file, never from the builder. */
 		students: number | null;
 		unmet: number | null;
+		/**
+		 * XLSX only, inflated through `$lib/xlsx-read` -- the same reader the
+		 * vitest suite uses. Every figure here is read out of the produced
+		 * workbook's own XML, never off the object that was handed to the writer.
+		 */
+		sheets: string | null;
+		tableHeader: string | null;
+		tableRows: number | null;
+		maxHeight: number | null;
+		blankDropped: string | null;
 	}
 	let captures = $state<Capture[]>([]);
 	let captureSeq = 0;
 	const NAMES = ROSTER.map((e) => e.display_name);
+	/** The table sheet the browser pass reads its header row out of. */
+	const TABLE_SHEET = 'Design Reflection';
 
 	onMount(() => {
 		const realCreate = URL.createObjectURL.bind(URL);
@@ -448,6 +517,9 @@
 			const blob = blobs.get(this.href);
 			if (!blob || !this.download) return realClick.call(this);
 			const isText = blob.type.includes('json') || blob.type.includes('csv');
+			const isWorkbook = this.download.endsWith('.xlsx');
+			/** Filled in for a workbook, left null for everything else. */
+			let book: Partial<Capture> = {};
 			const record = (text: string | null) => {
 				// PARSED BACK OUT OF THE FILE, not read off the builder: a count
 				// taken from the object that produced the bytes cannot tell you
@@ -476,13 +548,50 @@
 						text,
 						hasName: text === null ? null : NAMES.some((n) => text.includes(n)),
 						students,
-						unmet
+						unmet,
+						sheets: null,
+						tableHeader: null,
+						tableRows: null,
+						maxHeight: null,
+						blankDropped: null,
+						...book
 					},
 					...captures
 				].slice(0, 8);
 			};
-			if (isText) void blob.text().then(record);
-			else record(null);
+			if (isText) {
+				void blob.text().then(record);
+			} else if (isWorkbook) {
+				// THE WORKBOOK IS INFLATED AND READ, not just weighed. Its sheet
+				// names, a table sheet's real header row, that sheet's row count
+				// and the tallest row in the file all come off the bytes the
+				// control just produced.
+				void blob
+					.arrayBuffer()
+					.then((buf) => readXlsxWorkbook(new Uint8Array(buf)))
+					.then((wb) => {
+						const table = wb.get(TABLE_SHEET);
+						const heights = [...wb.values()].flatMap((sheet) =>
+							sheet.heights.filter((h): h is number => h != null)
+						);
+						const about = wb.get('About this export');
+						book = {
+							sheets: [...wb.keys()].join(' | '),
+							tableHeader: table ? table.header.join(' | ') : 'no such sheet',
+							tableRows: table ? table.rows.length : null,
+							maxHeight: heights.length ? Math.max(...heights) : null,
+							blankDropped:
+								about?.rows.find((r) => r[0] === 'Blank table rows dropped')?.[1] ?? null
+						};
+						record(null);
+					})
+					.catch((err) => {
+						book = { sheets: `unreadable: ${err instanceof Error ? err.message : String(err)}` };
+						record(null);
+					});
+			} else {
+				record(null);
+			}
 			// Deliberately NOT calling through: a real download in a headless
 			// pass is a file nothing here can read.
 		};
@@ -615,7 +724,7 @@
 			<div class="table-scroll">
 			<table>
 				<thead>
-					<tr><th>filename</th><th>bytes</th><th>type</th><th>name in file</th><th>students</th><th>unmet</th></tr>
+					<tr><th>filename</th><th>bytes</th><th>type</th><th>name in file</th><th>students</th><th>unmet</th><th>sheets</th><th>table header</th><th>table rows</th><th>tallest row</th><th>blank rows dropped</th></tr>
 				</thead>
 				<tbody>
 					{#each captures as c (c.id)}
@@ -626,6 +735,11 @@
 							data-hasname={c.hasName}
 							data-students={c.students}
 							data-unmet={c.unmet}
+							data-sheets={c.sheets}
+							data-tableheader={c.tableHeader}
+							data-tablerows={c.tableRows}
+							data-maxheight={c.maxHeight}
+							data-blankdropped={c.blankDropped}
 						>
 							<td>{c.name}</td>
 							<td>{c.size}</td>
@@ -633,6 +747,11 @@
 							<td>{c.hasName === null ? 'binary, not read here' : String(c.hasName)}</td>
 							<td>{c.students ?? '-'}</td>
 							<td>{c.unmet ?? '-'}</td>
+							<td>{c.sheets ?? '-'}</td>
+							<td>{c.tableHeader ?? '-'}</td>
+							<td>{c.tableRows ?? '-'}</td>
+							<td>{c.maxHeight ?? '-'}</td>
+							<td>{c.blankDropped ?? '-'}</td>
 						</tr>
 					{/each}
 				</tbody>

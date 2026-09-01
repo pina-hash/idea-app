@@ -158,10 +158,9 @@ export default {
 		},
 		{
 			/* THE SPREADSHEET IS A REAL WORKBOOK, not an empty file with a
-			   convincing name: a zip's own `PK\\x03\\x04` signature is the first
-			   four bytes and a non-trivial size is the second half of that claim.
-			   Its formatting and its sheets are asserted properly in
-			   `tests/grading-export.test.ts`, which inflates it. */
+			   convincing name. The harness INFLATES the captured bytes through
+			   `$lib/xlsx-read` -- the same reader the vitest suite uses -- so
+			   every figure below is read out of the produced file. */
 			evaluate: `() => {
 				const row = [...document.querySelectorAll('[data-testid="capture-row"]')]
 					.find((r) => r.dataset.name.endsWith('.xlsx'));
@@ -169,6 +168,68 @@ export default {
 			}`,
 			expected: [true],
 			label: 'the spreadsheet is real bytes, not an empty file with a name'
+		},
+		{
+			/* ONE SHEET PER TABLE BLOCK, named from the block's own module, in
+			   among the five fixed sheets. Two table blocks in this fixture, so
+			   two sheets: `Three Views` and `Design Reflection`. */
+			evaluate: `() => {
+				const row = [...document.querySelectorAll('[data-testid="capture-row"]')]
+					.find((r) => r.dataset.name.endsWith('.xlsx'));
+				return (row?.dataset.sheets ?? '').split(' | ');
+			}`,
+			expected: [
+				'Grades',
+				'Unmet checks',
+				'Responses',
+				'Three Views',
+				'Design Reflection',
+				'Files',
+				'About this export'
+			],
+			label: 'the workbook has one sheet per table block, read out of its own bytes'
+		},
+		{
+			/* THE DEFECT THIS BUNDLE FIXES, MEASURED. A table used to be one
+			   string in one cell, labels and values joined by pipes. This is the
+			   header row of the `Design Reflection` sheet, inflated from the
+			   file: the table's own columns, as real columns, behind the
+			   identity columns every sheet leads with. */
+			evaluate: `() => {
+				const row = [...document.querySelectorAll('[data-testid="capture-row"]')]
+					.find((r) => r.dataset.name.endsWith('.xlsx'));
+				return (row?.dataset.tableheader ?? '').split(' | ');
+			}`,
+			expected: ['Student', 'Name', 'Row', 'Component', 'What you selected', 'Why it clears'],
+			label: 'a table block\'s columns are real columns'
+		},
+		{
+			/* THE ROW COUNT AND THE BLANK-ROW DROP, both out of the file.
+			   `t2` holds three stored rows for Alice and two for Carla; one of
+			   each is entirely blank, and `t1` carries a blank trailing row too,
+			   so three rows are dropped and three survive on this sheet. The
+			   partly filled row ("Speed Reduction", no justification) is real
+			   work and is one of the three. */
+			evaluate: `() => {
+				const row = [...document.querySelectorAll('[data-testid="capture-row"]')]
+					.find((r) => r.dataset.name.endsWith('.xlsx'));
+				return [Number(row?.dataset.tablerows), (row?.dataset.blankdropped ?? '').split(' ')[0]];
+			}`,
+			expected: [3, '3'],
+			label: 'a table row is a real row, and every all-blank row was dropped'
+		},
+		{
+			/* NO ROW RUNS AWAY. The paragraph cell is what would have made one
+			   five hundred pixels tall; the cap is 90 points and this is the
+			   tallest row anywhere in the workbook. */
+			evaluate: `() => {
+				const row = [...document.querySelectorAll('[data-testid="capture-row"]')]
+					.find((r) => r.dataset.name.endsWith('.xlsx'));
+				const h = Number(row?.dataset.maxheight);
+				return [h, h <= 90];
+			}`,
+			expected: [90, true],
+			label: 'the tallest row in the workbook is at the cap, not past it'
 		}
 	]
 };
