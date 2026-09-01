@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { entries as changelog } from 'virtual:site-versions';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
+	import { groupEntriesByMonth } from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
@@ -133,42 +134,16 @@
 		filterTo = '';
 	};
 
-	const MONTH_NAMES = [
-		'January',
-		'February',
-		'March',
-		'April',
-		'May',
-		'June',
-		'July',
-		'August',
-		'September',
-		'October',
-		'November',
-		'December'
-	];
-
 	/**
-	 * The filtered log cut into months for the headings. `entries` arrives
-	 * newest-first from git log, so a single pass keeps both the months and the
-	 * entries inside them in order. This groups, it never CAPS: the filters above
-	 * still run over the whole array and `filteredLog.length` still counts all of
-	 * it, so there is no slice and no pagination anywhere in this panel.
+	 * The filtered log cut into months for the headings. The grouping itself is
+	 * `groupEntriesByMonth` in $lib/site-versions -- pure list arithmetic, moved
+	 * there so a test can reach it, after a single-pass version of it opened a
+	 * second group for an already-seen month and Svelte's duplicate-key error
+	 * took this page blank. It groups, it never CAPS: the filters above still run
+	 * over the whole array and `filteredLog.length` still counts all of it, so
+	 * there is no slice and no pagination anywhere in this panel.
 	 */
-	const logMonths = $derived.by(() => {
-		const months: { key: string; label: string; entries: typeof filteredLog }[] = [];
-		for (const entry of filteredLog) {
-			const key = entry.iso.slice(0, 7);
-			let month = months[months.length - 1];
-			if (!month || month.key !== key) {
-				const name = MONTH_NAMES[Number(key.slice(5, 7)) - 1];
-				month = { key, label: name ? `${name} ${key.slice(0, 4)}` : 'Undated', entries: [] };
-				months.push(month);
-			}
-			month.entries.push(entry);
-		}
-		return months;
-	});
+	const logMonths = $derived(groupEntriesByMonth(filteredLog));
 
 	const signInWithGoogle = async (next = '/') => {
 		loading = true;
