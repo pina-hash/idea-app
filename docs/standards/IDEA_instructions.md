@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.14 - 2026-08-30**
+**Version 4.15 - 2026-08-31**
 
 ## These Instructions Evolve
 
@@ -1722,6 +1722,58 @@ appearing across chats is a script that has not been written yet.
 - **Standards file updates:** the complete updated file, delivered for download and
   re-upload. Never a patch list. See "Delivering a standards update" above.
 
+### Every delivered artifact is archived to Library C in the same turn
+
+A file delivered as a download exists in one chat and nowhere else. The next chat
+cannot see it, cannot tell whether it was built, and will rebuild it. Library C is the
+Google Drive folder that closes that gap: `1SkIKOIdMM34f_fFnKmtOw1KsTtqDAOtt`, owned
+and inventoried by `IDEA_REFERENCE_LIBRARY.md`, which carries the folder IDs, the
+write parameters, and the size ceiling. Read it before the first write in a chat.
+
+**The rule.** Any turn that delivers a file also writes that file to Library C. Not a
+later turn, not the closeout, not on request. The archive step travels with the delivery
+or it does not happen, and a file archived a turn later is a file that will be forgotten
+a turn later.
+
+**The folder listing is the index. There is no index file to append to.** The Drive
+connector can create a file and cannot replace one: two writes under the same title
+produce two file IDs, two copies, and no staleness marker on either, which is the same
+failure the web UI produces on project knowledge uploads. Measured 2026-08-31. A
+maintained index table would therefore have to be rebuilt by hand every delivery and
+would drift from the folder it describes, which is the `REGISTER.md` blind spot bought
+for nothing. `search_files` on a title prefix answers the question the table would have
+answered, and delivered filenames already lead with course and day.
+
+Four constraints on it, each of which has a reason that is not obvious:
+
+- **Binaries above roughly 100 KB are not archived, and text is a judgment.** Nothing
+  reaches Drive from the container directly, so every archived file crosses the response
+  in full and a file authored in the container is emitted twice. A 500 KB PDF as base64
+  is on the order of 170k tokens and ends the chat instead of saving the file: above the
+  ceiling, deliver the download, name the destination folder, and say in one line that it
+  is a manual drag. Do not attempt it and do not stay silent about not attempting it. For
+  text, archive what a later chat would otherwise rebuild or have to be told about, and
+  skip scratch and superseded drafts.
+- **Standards files are never written to Library C.** They live in `docs/standards/`
+  and only there. A versioned file with two homes is exactly the condition the
+  freshness protocol at the top of this document exists to survive.
+- **The write is confirmed by reading the file back, never by the create call
+  returning.** This is the same rule that governs a mirror push and it is the same
+  rule for the same reason. A returned file ID is a report.
+- **The Drive connector is not on in every chat.** When it is off, say so at delivery
+  in one line and name what was not archived. A silently skipped archive is worse than
+  no archive, because a chat that finds nothing in Library C will conclude the artifact
+  was never built.
+
+**A corrected artifact gets a new filename, and that is not the suffixing this project
+otherwise refuses.** Since the connector cannot replace a file, re-delivering a name
+already in Library C leaves two copies at two versions with nothing marking which is
+current. So a corrected redelivery carries an explicit version marker in the filename,
+as in `IDEA209H_Day08_Methods_Deck_PROMPT_v2.txt`, and the turn says in one line which
+file it supersedes. The suffixing this project refuses is the accidental kind, where
+`(2)` appears because an upload collided and nobody chose it. A deliberate `_v2` is the
+opposite: it is the version marker whose absence caused that failure.
+
 ---
 
 ## Materials Authoring Workflow
@@ -1991,6 +2043,30 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-08-31 (4.15)** - Added the artifact archive rule to Output Defaults, after
+  establishing Library C in Drive and verifying both directions of the write. A file
+  delivered as a download has existed in exactly one chat and nowhere else since this
+  project started, which is why a handoff has to describe an artifact rather than point
+  at it, and why the same thing gets rebuilt. The rule is that the archive travels with
+  the delivery in the same turn, because an archive step deferred to the closeout is one
+  more thing that has to be remembered, and this document already records that a sweep
+  which has to be remembered will not be run. Four constraints carried with it. The
+  binary ceiling is a context cost rather than a Drive limit and is stated as a measured
+  number with the date it was measured. Standards files are excluded outright, since a
+  versioned file with two homes is the fork generator the freshness protocol at the top
+  of this file was written to survive. The write is confirmed by reading the file back,
+  which is the mirror rule restated for a second surface rather than a new rule. And a
+  chat with the Drive connector off says so at delivery, because a silently skipped
+  archive leaves a later chat concluding the artifact was never built. Aligned to
+  `IDEA_REFERENCE_LIBRARY.md` 4.3, which owns the folder IDs, the write parameters, and
+  the conversion flag that must be set on every write. A rule
+  written earlier in this same pass was retired before it shipped, which is the part worth
+  keeping: the Drive connector creates and cannot replace, so an append-to-index design and
+  an overwrite-on-collision design were both unbuildable. The folder listing is the index
+  and a corrected artifact carries a version marker in its filename. The finding came from
+  writing two files with one title and reading back two file IDs, which is the difference
+  between a capability assumed from a tool description and one measured.
 
 - **2026-08-30 (4.14)** - Four rules from the IDEA Maps P1 build, three of them earned by
   the assistant getting something wrong rather than by a session. `raw.githubusercontent.com`
