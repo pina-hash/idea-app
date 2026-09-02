@@ -70,6 +70,128 @@ import {
 import { itemTitle, sectionTitle, type ClassroomItem, type ClassroomSection } from './classroom';
 import { sheetName, type XlsxSheet } from '$lib/xlsx';
 
+// ---------------------------------------------------------------------------
+// DID THE WORK CHANGE AFTER IT WAS GRADED
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT A STUDENT DID TO GRADED WORK, AND IT IS DERIVED RATHER THAN STORED.
+ *
+ * A grade is a statement about a particular state of the work, and today
+ * nothing tells the instructor when the work stopped being that state. Two
+ * different acts produce it and an instructor answers them differently:
+ *
+ *   `resubmitted` -- the student handed it in AGAIN after the grade landed.
+ *     `classroom_submit_assignment` refuses only a row already in state
+ *     `submitted`, so a RETURNED row can be submitted over, and since 0160 it
+ *     is accepted even when the preflight considers it unfinished. The whole
+ *     act is deliberate and the instructor is being asked to look again.
+ *
+ *   `edited` -- a response block was autosaved over after the grade landed.
+ *     `classroom_save_response` refuses only state `submitted`, so a returned
+ *     assignment is editable again and every keystroke burst lands silently.
+ *     Nobody asked for anything; the graded artefact simply is not the graded
+ *     artefact any more.
+ *
+ * BOTH CAN BE TRUE AT ONCE and the list carries both, because collapsing them
+ * to the weaker word ("changed") throws away the half that says whether a
+ * person meant it.
+ *
+ * IT IS A COMPARISON, NEVER A COLUMN. There is no flag for a writer to set and
+ * therefore none for a writer to forget: `classroom_save_response` and
+ * `classroom_add_submission_file` do not touch the submission row at all
+ * (measured -- an autosave leaves `classroom_submissions.updated_at` exactly
+ * where the grade left it), so a stored boolean would have to be maintained by
+ * a path that has no reason to know grading exists.
+ *
+ * AND IT CLEARS ITSELF. `classroom_grade_submission` stamps `graded_at = now()`
+ * on EVERY write including a regrade, so the moment the instructor grades again
+ * the comparison is against a later instant and every kind falls away. A signal
+ * that cannot clear is a signal that is ignored inside a week.
+ *
+ * WHAT IT DOES NOT SEE, stated rather than left to be discovered:
+ *   * A FILE ATTACHED AFTER GRADING. `classroom_submission_files.created_at`
+ *     exists and would answer it, but the column is not in
+ *     `SUBMISSION_FILE_SELECT` and `SubmissionFileRow` has no field for it, so
+ *     no payload on either surface carries it today.
+ *   * A FILE REMOVED after grading. Nothing records a deletion, so no read can
+ *     derive it and no widening of this function would.
+ *   * A RESPONSE that was edited and then edited BACK. `updated_at` is a
+ *     timestamp, not a diff; the work may be byte-identical to what was graded.
+ *     The sentence says the work was TOUCHED after grading, which is exactly
+ *     what the data supports.
+ */
+export type PostGradeChangeKind = 'resubmitted' | 'edited';
+
+export interface PostGradeChange {
+	/** Every act that happened after `gradedAt`, in the order above. Never empty. */
+	kinds: PostGradeChangeKind[];
+	/** The MOST RECENT of them, ISO. A bare flag sends the instructor hunting. */
+	at: string;
+	/** The instant it is measured against, ISO: the grade this outran. */
+	gradedAt: string;
+}
+
+/** Milliseconds, or null for absent/unparseable. */
+function instant(value: string | null | undefined): number | null {
+	if (!value) return null;
+	const ms = Date.parse(value);
+	return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * The one implementation. Null means "nothing to report", which covers three
+ * genuinely different situations that all warrant silence: no submission row,
+ * a row that has never been graded (there is no instant to be after), and a
+ * row whose work has not moved since.
+ *
+ * AN UNPARSEABLE OR MISSING TIMESTAMP DOES NOT FIRE. A response row whose
+ * `updated_at` did not arrive contributes nothing rather than counting as a
+ * change -- an integrity mark that cries wolf is one an instructor learns to
+ * click past, which costs the case it exists for. The select behind both
+ * grading reads names `updated_at` unconditionally (it is a 0086 column, not a
+ * rung), so in practice the value is always there.
+ */
+export function postGradeChange(work: {
+	submission: { graded_at?: string | null; submitted_at?: string | null } | null;
+	responses: { updated_at?: string }[];
+}): PostGradeChange | null {
+	const gradedAt = work.submission?.graded_at ?? null;
+	const graded = instant(gradedAt);
+	if (graded == null || !gradedAt) return null;
+
+	const kinds: PostGradeChangeKind[] = [];
+	let latest = 0;
+
+	const submitted = instant(work.submission?.submitted_at);
+	if (submitted != null && submitted > graded) {
+		kinds.push('resubmitted');
+		latest = Math.max(latest, submitted);
+	}
+
+	let lastEdit = 0;
+	for (const r of work.responses ?? []) {
+		const ms = instant(r.updated_at);
+		if (ms != null && ms > graded) lastEdit = Math.max(lastEdit, ms);
+	}
+	if (lastEdit > 0) {
+		kinds.push('edited');
+		latest = Math.max(latest, lastEdit);
+	}
+
+	if (!kinds.length) return null;
+	return { kinds, at: new Date(latest).toISOString(), gradedAt };
+}
+
+/**
+ * THE WORDS, in one place, so the chip, the detail line and the export cannot
+ * describe the same fact differently. Names the ACT, never just "changed".
+ */
+export function postGradeChangeLabel(change: PostGradeChange): string {
+	if (change.kinds.length === 2) return 'Resubmitted and edited after grading';
+	return change.kinds[0] === 'resubmitted' ? 'Resubmitted after grading' : 'Edited after grading';
+}
+
 export const GRADING_EXPORT_SCHEMA = 1;
 
 export type ExportIdentity = 'included' | 'omitted';
@@ -155,6 +277,23 @@ export interface ExportedStudent {
 		gradedBy: string | null;
 		score: number | null;
 		outOf: number;
+		/**
+		 * EXTRA CREDIT AWARDED BEYOND THE RUBRIC, or null where none was.
+		 *
+		 * Its own field rather than a criterion, because a rubric criterion's
+		 * maximum is its top level's points and every criterion sums into the
+		 * module total -- a criterion carrying a score outside its own range is
+		 * a rubric that no longer describes how the work was scored.
+		 * `score` ALREADY INCLUDES IT (the database adds it there), so this is
+		 * the itemisation and never a second number to add on.
+		 */
+		extraCredit: number | null;
+		/**
+		 * `postGradeChange`'s answer for this row, or null. The export carries
+		 * the derivation rather than re-deriving it: a reader of the file gets
+		 * the same sentence the console showed.
+		 */
+		changedAfterGrading: PostGradeChange | null;
 	};
 	completeness: {
 		/** False when the assignment has no spec: there is nothing to check against. */
@@ -380,7 +519,9 @@ function exportStudent(
 			// rather than no STUDENT addresses in the file.
 			gradedBy: named ? (row.submission?.graded_by ?? null) : null,
 			score: row.submission?.score ?? null,
-			outOf
+			outOf,
+			extraCredit: row.submission?.extra_credit ?? null,
+			changedAfterGrading: postGradeChange(row)
 		},
 		completeness: {
 			evaluated: !!spec,
@@ -656,6 +797,22 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 	const critHeaders = rubric.flatMap((c) => [`${c.criterion} (/${criterionMax(c)})`, `${c.criterion}: level`]);
 	const critWidths = rubric.flatMap(() => [12, 22]);
 
+	/**
+	 * THE EXTRA-CREDIT PAIR IS CONDITIONAL AND THE CHANGE PAIR IS NOT, AND THAT
+	 * IS A DISTINCTION RATHER THAN AN INCONSISTENCY.
+	 *
+	 * "Did this work change after it was graded" is asked of EVERY graded row
+	 * and a blank cell is a real answer to it, so the columns are always there.
+	 * Extra credit is an award most classes never make: a permanently blank
+	 * column is noise in a gradebook, and its absence cannot be misread, because
+	 * `Score` already carries whatever was awarded. It also keeps the feature
+	 * genuinely INERT when unused -- an export of a class with no extra credit
+	 * is byte-identical to the same export with the field ignored entirely.
+	 */
+	const anyExtraCredit = students.some((s) => (s.submission.extraCredit ?? 0) !== 0);
+	const ecHeaders = anyExtraCredit ? ['Extra credit'] : [];
+	const ecWidths = anyExtraCredit ? [12] : [];
+
 	const idHeaders = named ? ['Last', 'First', 'Email'] : [];
 	const idWidths = named ? [16, 14, 28] : [];
 	/** The identity columns every per student sheet leads with. */
@@ -682,14 +839,17 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 			'Complete',
 			'Unmet checks',
 			'Score',
+			...ecHeaders,
 			'Out of',
 			'Percent',
 			'Submitted',
 			'Returned',
+			'Changed after grading',
+			'Changed at',
 			'Private comment',
 			...critHeaders
 		],
-		widths: [12, ...idWidths, 12, 11, 10, 13, 8, 8, 9, 20, 20, 40, ...critWidths],
+		widths: [12, ...idWidths, 12, 11, 10, 13, 8, ...ecWidths, 8, 9, 20, 20, 24, 20, 40, ...critWidths],
 		rows: students.map((s) => {
 			const { last, first } = named
 				? splitLastFirst(s.name ?? '', s.email ?? '')
@@ -706,10 +866,18 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 				s.completeness.evaluated ? (s.submission.handedIn ? yesNo(s.completeness.complete) : '') : 'No spec',
 				s.completeness.unmetCount,
 				s.submission.score,
+				...(anyExtraCredit ? [s.submission.extraCredit] : []),
 				s.submission.outOf,
 				pct,
 				s.submission.submittedAt,
 				s.submission.returnedAt,
+				// The words come from `postGradeChangeLabel`, the SAME function the
+				// console's chip reads, so a spreadsheet and a screen cannot end up
+				// describing one fact differently.
+				s.submission.changedAfterGrading
+					? postGradeChangeLabel(s.submission.changedAfterGrading)
+					: '',
+				s.submission.changedAfterGrading?.at ?? '',
 				s.privateComment,
 				...rubric.flatMap((c) => {
 					const found = s.scores.find((x) => x.criterionId === c.id);

@@ -215,6 +215,18 @@ export interface SubmissionRow {
 	teacher_comment: string | null;
 	graded_by: string | null;
 	graded_at: string | null;
+	/**
+	 * POINTS AWARDED BEYOND THE RUBRIC (0171), or null where none were and
+	 * `undefined` off a payload that predates the column.
+	 *
+	 * `score` ALREADY INCLUDES IT -- the database sums the criteria and adds
+	 * this -- so nothing client-side may add it on again. It is stored apart
+	 * from `rubric_scores` because a criterion's maximum is its top level's
+	 * points and the criteria sum to the module total: a criterion carrying a
+	 * score outside its own range is a rubric that no longer describes how the
+	 * work was scored.
+	 */
+	extra_credit?: number | null;
 	updated_at?: string;
 }
 
@@ -1211,6 +1223,15 @@ export function normalizeSubmissionRow(row: Record<string, unknown>): Submission
 		teacher_comment: (row.teacher_comment as string | null) ?? null,
 		graded_by: (row.graded_by as string | null) ?? null,
 		graded_at: (row.graded_at as string | null) ?? null,
+		// THREE STATES, and flattening them loses the one that matters:
+		// undefined = the column was not selected (pre-0171 rung), null = the
+		// column is there and nothing was awarded, a number = an award.
+		extra_credit:
+			row.extra_credit === undefined
+				? undefined
+				: row.extra_credit === null
+					? null
+					: Number(row.extra_credit),
 		updated_at: (row.updated_at as string | undefined) ?? undefined
 	};
 }
@@ -1319,6 +1340,16 @@ export interface GradingData {
 	 * photographs.
 	 */
 	filesStorageReady?: boolean;
+	/**
+	 * Did this payload come back with 0171's `extra_credit` column.
+	 *
+	 * FALSE MEANS "CANNOT TELL", exactly as `filesStorageReady` does: the
+	 * migration is applied by hand, so a deployment sitting before it is a real
+	 * state, and a console that offered the control there would send every award
+	 * into an RPC that does not have the parameter. The surface turns off that
+	 * one control and says why, rather than blanking the page.
+	 */
+	extraCreditReady?: boolean;
 	approvals: ModuleApprovalRow[];
 }
 
@@ -1334,7 +1365,14 @@ export interface AssignmentTeacherTransports {
 		comment: string | null,
 		release: boolean,
 		/** Per-criterion comments. The server REQUIRES one for every override. */
-		criterionComments?: CriterionComments | null
+		criterionComments?: CriterionComments | null,
+		/**
+		 * Points beyond the rubric (0171). UNDEFINED AND NULL BOTH MEAN "LEAVE
+		 * WHATEVER IS STORED ALONE", and 0 is how an award is taken back -- so a
+		 * client that never learned about extra credit cannot erase one by
+		 * grading again, which is the failure this argument is shaped to avoid.
+		 */
+		extraCredit?: number | null
 	): Promise<TxResult<EngineOpResult>>;
 	approveModule(
 		itemId: string,
