@@ -223,13 +223,53 @@ than assumed: its `workflow_run` filter requires `event == 'push'`, and a
 called workflow runs as a job inside the caller's run rather than as a run of
 its own.
 
+## The branch was swept and deleted in the middle of the session
+
+The ledger commit is this branch's first commit by instruction, so a chat
+fetching the ledger sees the work as in flight. CI went green on that commit,
+and `integrate.yml` did exactly what it is written to do: merged it into
+`integration` as `591cd39` and **deleted the branch**, while the rest of the
+bundle was still being written. Pushing again re-creates it and the next sweep
+takes only the new commits.
+
+This is documented behaviour on both sides -- the workflows README says a
+branch is merged as soon as CI is green on its tip and to push when you are
+finished -- but the two rules interact in a way neither states. **The
+ledger-first rule puts a push at the START of every session, so this now
+happens on every bundle rather than occasionally.** The consequence worth
+carrying: a `git ls-remote` that shows no branch for a session does NOT mean
+that session pushed nothing, and a ledger entry reading `pushed` against a
+branch that no longer exists is the normal state rather than a stale record.
+
+`main` also moved underneath this bundle, from `e7ac4d5` to `a70c9ef`, which
+is prompt 0006's migration `0170` landing with the test that pins it. It was
+merged into this branch and its DB test runs in the suite below. Entry 0006 is
+updated from that commit rather than from a report: its migration is on `main`,
+its client half is on no ref this session can see, and no `claude/**` branch
+exists on the remote, so whether that work is outstanding or already swept is
+left as a question for the next reader rather than guessed at.
+
 ## What was measured, and what was not
 
     npm run check      0 errors, 37 warnings (31 state_referenced_locally,
-                       5 css_unused_selector, 1 perf_avoid_nested_class)
-    npm test           the full suite, green
-    history:verify     168 entries reassembled, sha256 matched
-    verify:browser     130 runs, 1710 measurements, 4 outside threshold
+                       5 css_unused_selector, 1 perf_avoid_nested_class),
+                       re-derived rather than quoted, breakdown intact
+    npm test           227 files / 4680 tests green before merging origin/main;
+                       228 files / 4709 tests green after, the extra file being
+                       0170's own tests/db/feedback-tried-screenshot.test.ts
+    history:verify     168 entries reassembled, 2252747 bytes, sha256 matched
+    verify:browser     130 route/width runs, 1710 measurements, 4 outside
+                       threshold, 312.8s; --selftest 64 controls, 0 failures
+
+The check baseline was briefly broken by this bundle and is worth recording
+rather than only fixing. `tests/derived-numbers.test.ts` imports
+`readme-counts.mjs`, and an import from a checked `.ts` pulls that module into
+the TypeScript program, where `checkJs` and `strict` apply -- 23 errors against
+a 0-error baseline, in a file whose neighbours in the same directory are not
+checked at all because nothing imports them. The fix is real JSDoc types the
+test also reads, not a suppression, and the warning breakdown never moved,
+which is the tell that the errors were the new file rather than a regression
+somewhere the diff never touched.
 
 **NOT verified, and none of it is verifiable from here.** No workflow was run:
 a session cannot trigger one, and neither `act` nor `actionlint` is present in
