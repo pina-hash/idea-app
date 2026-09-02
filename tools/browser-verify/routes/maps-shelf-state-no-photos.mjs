@@ -11,6 +11,45 @@ export default {
 	   Everything else about the flow is unchanged here, which is the second
 	   half of the claim: withholding photos removes the camera and NOT the
 	   ability to record what is in the drawer. */
+	/* HYDRATION, PROVEN RATHER THAN WAITED FOR, AND IT HAS TO BE PROVEN HERE.
+	   `waitForApp` returns once the DOM has stopped changing, which a
+	   SERVER-RENDERED page satisfies BEFORE any handler is attached -- CLAUDE.md
+	   states this exactly ("PAINT IS NOT INTERACTIVITY, AND NO WINDOW MARKER
+	   SEPARATES THEM"), and every `orderResult` below then presses a control on
+	   a page that may not be listening yet. It went unnoticed while this route's
+	   module graph was small; adding two imports to `ShelfEntry` was enough to
+	   push the first press before hydration, and the symptom was four assertions
+	   reporting a working surface as broken.
+
+	   So: type into the name box and RETRY until the plan line appears, which
+	   only a live effect can produce, reporting the attempt count -- the shape
+	   CLAUDE.md prescribes over any timer or marker. The box is cleared again
+	   afterwards, so everything below starts from the same blank card it always
+	   did. */
+	prepare: [
+		{
+			evaluate: `async () => {
+				const q = (s) => document.querySelector(s);
+				const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+				const type = (v) => {
+					const name = q('[data-testid="maps-shelf-name"]');
+					setter.call(name, v);
+					name.dispatchEvent(new Event('input', { bubbles: true }));
+				};
+				for (let attempt = 1; attempt <= 60; attempt += 1) {
+					type('hydration probe');
+					await new Promise((r) => setTimeout(r, 100));
+					if (q('[data-testid="maps-shelf-plan"]')) {
+						type('');
+						await new Promise((r) => setTimeout(r, 100));
+						return 'interactive after ' + attempt + ' attempt(s)';
+					}
+				}
+				return 'NEVER BECAME INTERACTIVE in 60 attempts';
+			}`,
+			label: 'the page is answering, not merely painted (retries until its own effect fires)'
+		}
+	],
 	presence: [
 		{
 			selector: '[data-testid="maps-shelf-photo"]',

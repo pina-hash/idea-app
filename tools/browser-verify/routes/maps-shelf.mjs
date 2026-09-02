@@ -12,6 +12,45 @@ export default {
 	   settle: they are claims about what a PRESS does, and two of them (the
 	   refusal before upload, the container after a save) are the bundle's
 	   whole point. */
+	/* HYDRATION, PROVEN RATHER THAN WAITED FOR, AND IT HAS TO BE PROVEN HERE.
+	   `waitForApp` returns once the DOM has stopped changing, which a
+	   SERVER-RENDERED page satisfies BEFORE any handler is attached -- CLAUDE.md
+	   states this exactly ("PAINT IS NOT INTERACTIVITY, AND NO WINDOW MARKER
+	   SEPARATES THEM"), and every `orderResult` below then presses a control on
+	   a page that may not be listening yet. It went unnoticed while this route's
+	   module graph was small; adding two imports to `ShelfEntry` was enough to
+	   push the first press before hydration, and the symptom was four assertions
+	   reporting a working surface as broken.
+
+	   So: type into the name box and RETRY until the plan line appears, which
+	   only a live effect can produce, reporting the attempt count -- the shape
+	   CLAUDE.md prescribes over any timer or marker. The box is cleared again
+	   afterwards, so everything below starts from the same blank card it always
+	   did. */
+	prepare: [
+		{
+			evaluate: `async () => {
+				const q = (s) => document.querySelector(s);
+				const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+				const type = (v) => {
+					const name = q('[data-testid="maps-shelf-name"]');
+					setter.call(name, v);
+					name.dispatchEvent(new Event('input', { bubbles: true }));
+				};
+				for (let attempt = 1; attempt <= 60; attempt += 1) {
+					type('hydration probe');
+					await new Promise((r) => setTimeout(r, 100));
+					if (q('[data-testid="maps-shelf-plan"]')) {
+						type('');
+						await new Promise((r) => setTimeout(r, 100));
+						return 'interactive after ' + attempt + ' attempt(s)';
+					}
+				}
+				return 'NEVER BECAME INTERACTIVE in 60 attempts';
+			}`,
+			label: 'the page is answering, not merely painted (retries until its own effect fires)'
+		}
+	],
 	presence: [
 		{
 			selector: '[data-testid="maps-shelf-card"]',
@@ -115,6 +154,58 @@ export default {
 				];
 			}`,
 			expected: ['refused', 'said the size', 'said the limit', 'nothing staged']
+		},
+		{
+			label: 'A HEIC THE BROWSER CAN DECODE IS CONVERTED, ON THE REAL SURFACE, AND SAYS SO',
+			/* THE WIRING, END TO END, on the component that ships rather than on
+			   `/dev/maps-media`'s direct call. A photo stored in a format only
+			   its author's phone can draw is not a photo that saved: it is a
+			   broken image every later reader gets, weeks after whoever could
+			   have retaken it walked away from the drawer.
+
+			   The bytes are a real PNG under a `.HEIC` name with an EMPTY
+			   `File.type`, which is what an iPhone picker hands over and is the
+			   state Safari is genuinely in with a real HEIC -- a browser decodes
+			   by content and never by filename. There is no HEIC encoder in this
+			   container (no ImageMagick, no libheif, no ffmpeg), so this is the
+			   only way to reach the SUCCESS branch at all, and it is stated here
+			   rather than described as equivalent. `/dev/maps-media` carries the
+			   cannot-decode half with real ISOBMFF heic bytes. */
+			evaluate: `async () => {
+				const q = (s) => document.querySelector(s);
+				const canvas = document.createElement('canvas');
+				canvas.width = 40; canvas.height = 25;
+				const ctx = canvas.getContext('2d');
+				ctx.fillStyle = '#123456'; ctx.fillRect(0, 0, 40, 25);
+				ctx.fillStyle = '#e0c060'; ctx.fillRect(0, 0, 13, 25);
+				const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+				const dt = new DataTransfer();
+				dt.items.add(new File([png], 'IMG_0042.HEIC', { type: '' }));
+				const input = q('[data-testid="maps-shelf-camera"]');
+				input.files = dt.files;
+				input.dispatchEvent(new Event('change', { bubbles: true }));
+				let converted = null;
+				for (let i = 0; i < 60; i += 1) {
+					await new Promise((r) => setTimeout(r, 100));
+					converted = q('[data-testid="maps-shelf-photo-converted"]');
+					if (converted) break;
+				}
+				const note = converted ? converted.textContent.replace(/\\s+/g, ' ').trim() : '';
+				const out = [
+					converted ? 'said it converted' : 'NO CONVERSION NOTICE',
+					note.includes('HEIC') ? 'named the format' : 'did not name it: ' + note,
+					q('[data-testid="maps-shelf-photo-problem"]') ? 'ALSO REFUSED IT' : 'not refused',
+					q('[data-testid="maps-shelf-preview"]') ? 'previewed' : 'no preview'
+				];
+				/* Leave the card exactly as the next check expects to find it:
+				   this one owns the photo, not the entry. */
+				const remove = [...document.querySelectorAll('[data-testid="maps-shelf-card"] .btn')]
+					.find((b) => b.textContent.trim() === 'Remove photo');
+				if (remove) remove.click();
+				await new Promise((r) => setTimeout(r, 120));
+				return out;
+			}`,
+			expected: ['said it converted', 'named the format', 'not refused', 'previewed']
 		},
 		{
 			label: 'AFTER A SAVE THE NEXT ENTRY IS IN THE SAME CONTAINER, WITH AN EMPTY CARD',

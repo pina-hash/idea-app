@@ -61,14 +61,8 @@
 		type MapsShelfDraft,
 		type MapsShelfReceipt
 	} from './shelf';
-	import {
-		MAPS_MEDIA_MAX_BYTES,
-		describeBytes,
-		mapsImageMime,
-		mapsPhotoKey,
-		mapsPhotoRefusal,
-		mapsPhotoUrl
-	} from './media';
+	import { MAPS_MEDIA_MAX_BYTES, describeBytes, mapsPhotoKey, mapsPhotoUrl } from './media';
+	import { planMapsPhoto, transcodeMapsPhoto, type MapsPreparedPhoto } from './photo-prepare';
 	import {
 		SHELF_MIRROR_DEBOUNCE_MS,
 		clearShelfMirror,
@@ -77,6 +71,8 @@
 		writeShelfMirror
 	} from './shelf-mirror';
 	import type { MapsPhotoTransports, MapsTransports } from './transports';
+	import { SvelteSet } from 'svelte/reactivity';
+	import Pending from '$lib/Pending.svelte';
 	import ChipListInput from './ChipListInput.svelte';
 	import MapsStatusChip from './MapsStatusChip.svelte';
 
@@ -116,6 +112,20 @@
 	let photoUrl = $state<string | null>(null);
 	let photoProblem = $state<string | null>(null);
 	let photoDecodeFailed = $state(false);
+	/* THE PREPARED UPLOAD, resolved ONCE at the picker and carried. The type and
+	   the extension are decided by the same pass that decided whether these
+	   bytes had to be re-encoded, so the key, the content type and the file
+	   cannot disagree about what was staged -- which is what asking
+	   `mapsImageMime` again at save time would risk once the file may no longer
+	   be the one the picker handed over. */
+	let photoUpload = $state<{ mimeType: string; ext: string } | null>(null);
+	/* Set when the picked file was re-encoded so everybody can see it. Says so
+	   on screen: the person is about to save something that is not the file
+	   they chose, and finding that out later is worse than being told. */
+	let photoTranscodedFrom = $state<string | null>(null);
+	/* The decode is not instant on a phone -- a 12 MP HEIC is seconds -- and a
+	   picker that looks like it did nothing is a picker somebody presses again. */
+	let photoPreparing = $state(false);
 
 	let busy = $state(false);
 	let saveProblem = $state<string | null>(null);
@@ -123,6 +133,9 @@
 	let mirrorNotice = $state<string | null>(null);
 	let restoredNotice = $state<string | null>(null);
 	let receipts = $state<MapsShelfReceipt[]>([]);
+	/* Keys whose object did not decode in this browser. A SvelteSet so adding
+	   one from the img's own onerror re-renders the row into its fallback. */
+	const brokenThumbs = new SvelteSet<string>();
 	/** A row that saved without its photo: the retry uploads only the photo. */
 	let orphanPhoto = $state<{ owner: 'item' | 'item_type'; ownerId: string; label: string } | null>(
 		null
@@ -231,47 +244,117 @@
 
 	// --- The photo --------------------------------------------------------
 
-	function stagePhoto(event: Event) {
+	/**
+	 * THE REFUSAL AND THE TRANSCODE BOTH HAPPEN HERE, BEFORE A BYTE MOVES.
+	 *
+	 * On school wifi a 25 MB photo refused by the bucket costs a minute of
+	 * somebody's time standing at a drawer; refused from `File.size` it costs
+	 * nothing. And a HEIC that uploads perfectly is worse than either, because
+	 * it fails for everybody EXCEPT the person who took it and nothing says so
+	 * -- so `prepareMapsPhoto` re-encodes it here, on the device that can still
+	 * decode it, or refuses at the picker where the drawer is still in front of
+	 * them.
+	 *
+	 * Async, and the `picking` generation counter is why: a decode takes
+	 * seconds on a phone, and somebody who picks a second photo while the first
+	 * is still decoding must not get the first one back when it lands.
+	 */
+	let picking = 0;
+	async function stagePhoto(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0] ?? null;
 		// Clear the input so picking the SAME file twice still fires a change.
 		input.value = '';
 		if (!file) return;
-		photoDecodeFailed = false;
-		// THE REFUSAL HAPPENS HERE, BEFORE A BYTE MOVES. On school wifi a 25 MB
-		// photo refused by the bucket costs a minute of somebody's time
-		// standing at a drawer; refused from `File.size` it costs nothing.
-		const refusal = mapsPhotoRefusal(file);
-		if (refusal) {
-			photoProblem = refusal;
+		/* THE CLEAR COMES FIRST AND THE TICKET IS TAKEN AFTER IT, in that order,
+		   because `clearPhoto` bumps the same counter (anything still decoding
+		   is about a file that is now gone). Taking the ticket first made every
+		   pick cancel ITSELF: `mine` was one behind `picking` the moment the
+		   clear ran, so every prepared result was discarded as stale and
+		   `photoPreparing` stayed true forever, which then blocked the save.
+		   Nothing threw and nothing was logged; the browser harness is what
+		   reported it. */
+		clearPhoto(false);
+		const mine = ++picking;
+		photoProblem = null;
+
+		/* THE SYNCHRONOUS HALF RUNS SYNCHRONOUSLY, which is the whole reason
+		   `planMapsPhoto` is separate. An oversize photo, an SVG and an
+		   ordinary JPEG are all settled from the `File` alone, so the refusal
+		   paints in the same frame as the press and a storable file is staged
+		   with no pending state flashing past. Only a format that has to be
+		   re-encoded waits, and only that one shows a wait. */
+		const plan = planMapsPhoto(file);
+		if (plan.kind === 'refused') {
+			photoProblem = plan.problem;
 			clearPhoto(false);
 			return;
 		}
+		if (plan.kind === 'pass-through') {
+			stagePrepared(file, plan.mimeType, plan.ext, null);
+			return;
+		}
+
+		photoPreparing = true;
+		let prepared: MapsPreparedPhoto;
+		try {
+			prepared = await transcodeMapsPhoto(file, plan);
+		} catch {
+			// `transcodeMapsPhoto` is best-effort by contract and swallows its
+			// own failures; this is the belt for the day it stops being, because
+			// an async event handler that rejects takes the picker down silently.
+			prepared = { ok: false, problem: 'That photo could not be prepared. Take it again.' };
+		} finally {
+			if (mine === picking) photoPreparing = false;
+		}
+		// A newer pick is already in flight, or the photo was cleared: this
+		// result is about a file nobody is looking at any more.
+		if (mine !== picking) return;
+		if (!prepared.ok) {
+			photoProblem = prepared.problem;
+			clearPhoto(false);
+			return;
+		}
+		stagePrepared(prepared.file, prepared.mimeType, prepared.ext, prepared.sourceMimeType);
+	}
+
+	/** One place the staged photo and its resolved upload are set together. */
+	function stagePrepared(
+		file: File,
+		mimeType: string,
+		ext: string,
+		transcodedFrom: string | null
+	) {
 		photoProblem = null;
 		if (photoUrl) URL.revokeObjectURL(photoUrl);
 		photoFile = file;
+		photoUpload = { mimeType, ext };
+		photoTranscodedFrom = transcodedFrom;
 		photoUrl = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : null;
 		scheduleMirror();
 	}
 
 	function clearPhoto(mirror = true) {
+		// Anything still decoding is now about a file that is gone.
+		picking += 1;
+		photoPreparing = false;
 		if (photoUrl) URL.revokeObjectURL(photoUrl);
 		photoUrl = null;
 		photoFile = null;
+		photoUpload = null;
+		photoTranscodedFrom = null;
 		photoDecodeFailed = false;
 		if (mirror) scheduleMirror();
 	}
 
 	async function uploadPhotoFor(owner: 'item' | 'item_type', ownerId: string): Promise<string | null> {
-		if (!photos || !photoFile) return null;
-		const mime = mapsImageMime(photoFile);
-		if (!mime.ok) return mime.problem;
+		if (!photos || !photoFile || !photoUpload) return null;
 		const result = await photos.attachPhoto({
 			owner,
 			ownerId,
 			file: photoFile,
-			storageKey: mapsPhotoKey(owner, newUuid(), mime.ext),
-			mimeType: mime.mimeType
+			storageKey: mapsPhotoKey(owner, newUuid(), photoUpload.ext),
+			mimeType: photoUpload.mimeType
 		});
 		return result.ok ? null : result.message;
 	}
@@ -289,7 +372,10 @@
 	}
 
 	async function save(wantPublish: boolean) {
-		if (problems.length > 0 || !container || !plan || busy) return;
+		// A save while a photo is still decoding would write the row and attach
+		// nothing, which is the orphan case this surface already has a retry for --
+		// so it is refused for the second or two it takes instead.
+		if (problems.length > 0 || !container || !plan || busy || photoPreparing) return;
 		/* Local, because a publish half that FAILS turns this false while the
 		   rows stay saved -- the receipt then says draft, which is what they
 		   are, rather than repeating what was asked for. */
@@ -466,7 +552,14 @@
 			{#if photos}
 				<div class="photo" data-testid="maps-shelf-photo">
 					<span class="label">Photo</span>
-					{#if photoUrl && !photoDecodeFailed}
+					{#if photoPreparing}
+						<!-- A DECODE IS SECONDS ON A PHONE, and a picker that shows
+						     nothing while it runs is a picker somebody presses a
+						     second time. `Pending` is the one spelling of this
+						     (CLAUDE.md), and it is a live region, so the wait is
+						     announced rather than only drawn. -->
+						<Pending label="Preparing the photo" />
+					{:else if photoUrl && !photoDecodeFailed}
 						<!-- object-fit: contain, because a filename says nothing about
 						     whether the thing is in frame and cropping to fill hides
 						     the cut-off edge the preview exists to catch. -->
@@ -521,6 +614,19 @@
 					{#if photoProblem}
 						<p class="problems-line" role="alert" data-testid="maps-shelf-photo-problem">
 							{photoProblem}
+						</p>
+					{/if}
+					{#if photoTranscodedFrom}
+						<!-- SAYING SO IS THE POINT. What is about to be saved is not
+						     the file that was picked, and a person who finds that
+						     out from a filename later is a person who was not told.
+						     It is a notice and not a warning: the conversion is the
+						     surface working, and the sentence says what it bought. -->
+						<p class="notice" role="status" data-testid="maps-shelf-photo-converted">
+							This was converted to a JPEG so it can be seen on every device. A {photoTranscodedFrom.replace(
+								'image/',
+								''
+							).toUpperCase()} photo only opens on the phone that took it.
 						</p>
 					{/if}
 					{#if photoFile}
@@ -698,7 +804,7 @@
 				<button
 					type="button"
 					class="btn primary-btn"
-					aria-disabled={problems.length > 0 || busy}
+					aria-disabled={problems.length > 0 || busy || photoPreparing}
 					onclick={() => save(false)}
 					data-testid="maps-shelf-save"
 				>
@@ -708,7 +814,7 @@
 					<button
 						type="button"
 						class="btn secondary"
-						aria-disabled={problems.length > 0 || busy}
+						aria-disabled={problems.length > 0 || busy || photoPreparing}
 						onclick={() => (publishArmed = true)}
 						data-testid="maps-shelf-publish-arm"
 					>
@@ -790,7 +896,25 @@
 										(p) => p.item_id === row.id || p.item_type_id === row.id
 									)?.storage_key}
 									{#if key}
-										<img class="thumb" src={mapsPhotoUrl(supabaseUrl, key)} alt="" />
+										<!-- A THUMBNAIL THAT CANNOT DECODE FALLS BACK RATHER
+										     THAN DRAWING A BROKEN IMAGE, the same rule the
+										     classroom's storage-backed thumbnails follow. Every
+										     photo this surface uploads is now a format every
+										     browser draws (see `photo-prepare.ts`), but rows
+										     written before that are not, and a row written by
+										     some other path need not be either. -->
+										{#if !brokenThumbs.has(key)}
+											<img
+												class="thumb"
+												src={mapsPhotoUrl(supabaseUrl, key)}
+												alt=""
+												onerror={() => brokenThumbs.add(key)}
+											/>
+										{:else}
+											<span class="thumb-missing" data-testid="maps-shelf-thumb-missing"
+												>photo</span
+											>
+										{/if}
 									{/if}
 								{/if}
 							{/if}
@@ -1144,5 +1268,22 @@
 		object-fit: cover;
 		border-radius: 3px;
 		border: 1px solid var(--line);
+	}
+	/* The same 34px box the picture would have taken, so a row whose photo will
+	   not decode keeps its shape and says "photo" rather than leaving a gap
+	   nobody can interpret. `--text-2` per the pending-ink measurement: --dim
+	   does not clear 4.5:1 on --bg1 or --bg2. */
+	.thumb-missing {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 34px;
+		height: 34px;
+		border-radius: 3px;
+		border: 1px dashed var(--boundary);
+		font-family: var(--font-mono);
+		font-size: 0.5rem;
+		letter-spacing: 0.04em;
+		color: var(--text-2);
 	}
 </style>
