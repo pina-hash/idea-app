@@ -24,5 +24,6 @@
 	ready={data.ready}
 	rows={data.rows}
 	classroomSections={data.classroomSections}
+	screenshotUrls={data.screenshotUrls}
 	{setStatus}
 />
