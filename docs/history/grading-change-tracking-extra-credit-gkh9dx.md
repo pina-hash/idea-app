@@ -146,6 +146,36 @@ the mechanism, it was knowing the mechanism had something to offer.
   the SHAPE, because a count of two passes on exactly the arrangement that
   breaks every call.
 
+### The browser pass
+
+`npm run verify:browser`, the preinstalled Chromium (141.0.7390.37) at
+`/opt/pw-browsers`, both widths.
+
+- **The three new specs: 82 measurements, 0 outside threshold**, at 375px and
+  1440px. No horizontal scroll at either width; the changed chip 5.7:1 and the
+  post-grade sentence 4.9:1 against their real rendered grounds; the
+  extra-credit input 88x44 and a roster row 262.6x44 (375) / 437.2x44 (1440);
+  0 console errors.
+- **The full pass: 138 route/width runs, 1820 measurements, 6 outside
+  threshold**, wall clock 355.6s, with `--selftest` reporting 64 controls
+  (32 negative, 32 positive) and **0 instrument failures**.
+- **The findings compared BY IDENTITY, not by count**, which is the only way to
+  tell a steady number from a regression it hid. All four that were there before
+  are still there (`/dev/pathways` tap-target at both widths,
+  `/dev/coins-signedin-1` and `/dev/coins` horizontal-scroll at 375). The two
+  new ones are exactly the two the prompt named as known-flaky and not this
+  bundle's: `/dev/notebook` @375 presence and `/dev/gauntlet-shell-countdown`
+  @1440 presence. **Nothing on any of the three new specs.**
+- The counts block was rewritten by `npm run verify:readme` (no
+  `--no-selftest`, no hand-edited digit). Diffed: every changed line falls
+  between the markers at README lines 31 and 57, and nothing outside the region
+  moved.
+
+**Two limits belong with those numbers**: the harness blocks every non-loopback
+request, so the font stylesheet never loads and all text is measured in the
+FALLBACK stack; and `prefers-reduced-motion` is `no-preference`, so that path
+was not exercised.
+
 ## The positive controls
 
 1. **The signal fires and then clears.** A response edited after `graded_at`
@@ -176,6 +206,9 @@ the mechanism, it was knowing the mechanism had something to offer.
 - **No signed-in Bosco Tech session.** The grading console is instructor-only
   and no cloud session holds one, so the real `/classroom/<section>/item/<item>/grade`
   and the real Grades tab were exercised only through the dev harness.
+- **The real `/classroom/[sectionId]/grades` tab was never rendered**, only its
+  load function's arithmetic. The chip is a prop the load computes, and the load
+  404s a non-manager, so nothing about it could be driven without a session.
 - **No real PostgREST round trip** for the arity selection. The transport omits
   `p_extra_credit` when it has nothing to say, which binds to the 6-argument
   form; that reasoning is from the resolution rules and the SQL-side assertions,

@@ -332,3 +332,78 @@ describe('the export carries the change signal in the same words the console sho
 		expect(row[grades.header.indexOf('Changed at')]).toBe('');
 	});
 });
+
+// ---------------------------------------------------------------------------
+// NOTHING A STUDENT SEES MOVED, asserted as a SOURCE SWEEP rather than as a
+// claim. Both directions, with the counts, because "no student surface renders
+// it" is exactly the kind of guarantee that fails silently: a chip added to
+// ItemDetail or AssignmentEngine would type-check, render, and be discovered by
+// a student rather than by a test.
+// ---------------------------------------------------------------------------
+
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+function walk(dir: string, out: string[] = []): string[] {
+	for (const name of readdirSync(dir)) {
+		const p = join(dir, name);
+		if (statSync(p).isDirectory()) walk(p, out);
+		else if (p.endsWith('.svelte') || p.endsWith('.ts')) out.push(p);
+	}
+	return out;
+}
+
+/**
+ * Every surface allowed to name the derivation. Each is instructor-only:
+ *   - `GradingConsole` is mounted by `/classroom/[sectionId]/item/[itemId]/grade`,
+ *     whose load redirects a non-manager and whose every write re-checks
+ *     `classroom_can_review_submission` inside the RPC;
+ *   - `grading-export.ts` is the derivation itself plus the export, and the
+ *     export takes no read of its own;
+ *   - the grades page load 404s a non-manager before it reads anything;
+ *   - `/dev/*` is dev-guarded and 404s in production.
+ */
+const ALLOWED = [
+	'src/lib/classroom/GradingConsole.svelte',
+	'src/lib/classroom/grading-export.ts',
+	'src/routes/classroom/[sectionId]/grades/+page.server.ts'
+];
+
+describe('the post-grade signal reaches no student surface', () => {
+	const files = walk('src').map((p) => p.replace(/\\/g, '/'));
+
+	test('the sweep found a real tree, not an empty one', () => {
+		// A sweep that generated nothing passes vacuously; assert the case count.
+		expect(files.length).toBeGreaterThan(300);
+		expect(files).toContain('src/lib/classroom/ItemDetail.svelte');
+		expect(files).toContain('src/lib/classroom/AssignmentEngine.svelte');
+	});
+
+	test('only the instructor surfaces name it, and the POSITIVE CONTROL is that they do', () => {
+		const naming = files.filter(
+			(p) => !p.startsWith('src/routes/dev/') && /postGradeChange/.test(readFileSync(p, 'utf8'))
+		);
+		expect([...naming].sort()).toEqual([...ALLOWED].sort());
+		// The control: the list is not empty, so "nothing else names it" is a
+		// statement about a rule that is actually in force somewhere.
+		expect(naming.length).toBe(3);
+	});
+
+	test('no student-facing classroom component names it or the chip', () => {
+		const studentFacing = [
+			'src/lib/classroom/ItemDetail.svelte',
+			'src/lib/classroom/AssignmentEngine.svelte',
+			'src/lib/classroom/SpecRenderer.svelte',
+			'src/lib/classroom/RubricView.svelte',
+			'src/lib/classroom/ClassView.svelte'
+		];
+		for (const p of studentFacing) {
+			const src = readFileSync(p, 'utf8');
+			expect(src).not.toMatch(/postGradeChange|roster-changed|changed-after-grading/);
+		}
+		// POSITIVE CONTROL for that regex: it does match where the mark lives.
+		expect(readFileSync('src/lib/classroom/GradingConsole.svelte', 'utf8')).toMatch(
+			/roster-changed[\s\S]*changed-after-grading/
+		);
+	});
+});
