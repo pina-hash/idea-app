@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the `FOUNDRY_LIMITS` constant in `src/lib/foundry/preflight.ts`, its three test files, `supabase/migrations/0173_*.sql` (conditional), `docs/prompt-ledger/entries/0014-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, 0173, only if the bucket needs an explicit limit. 0171 reserved for 0011, 0172 for 0013. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/foundry-upload-limit-mlg0eb
 - Notes: A student hit the cap and reported it as "75mb limit". Today
   `maxZipBytes` is 50 MB and `maxTotalBytes` is 75 MB unpacked.
 
