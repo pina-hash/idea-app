@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.17 - 2026-09-02**
+**Version 4.19 - 2026-09-02**
 
 ## These Instructions Evolve
 
@@ -611,13 +611,15 @@ it does not hold, and CC records the reason rather than building the nearest pla
 thing. A prompt written from names, paths, or asset inventories is exactly where this
 fails, because those are the parts of a repo that outlive the behavior they describe.
 
-**Bundle by file surface, not by tier.** Until 4.16 this paragraph said to split a
-bundle at the tier boundary so cheap items did not ride an expensive model. With Fable
-5.1 as the default that split buys nothing and costs a prompt, so it is retired: a bundle
-is partitioned by the file surface a lane owns, and everything inside that surface goes
-in one prompt whatever its difficulty. The one split that survives is the effort
-boundary: an item that needs `xhigh` or `max` serializes across lanes, so it is sequenced
-after the `high` work rather than bundled with it.
+**Bundle by file surface, not by tier, and lift the tier only for a real unknown.** A
+bundle is partitioned by the file surface a lane owns, and everything inside that
+surface goes in one prompt. The bundle takes the tier of its hardest item, so before
+accepting that an Opus bundle has become a Fable one, ask whether the hard item's unknown
+is a fact (the audit phase reads it; stay on Opus 5) or a judgment (Fable 5.1). One
+judgment item in a bundle of twenty facts does lift the whole bundle, and that is the
+price of not splitting; where the judgment item can wait a session, leave it out and
+keep the bundle on Opus 5. The split that survives is the effort boundary: an item that
+needs `xhigh` or `max` serializes across lanes and is sequenced after the `high` work.
 
 **Audit first, in the same session.** When a bundle would otherwise have to figure
 something out mid-build (an unfamiliar subsystem, an undecided mapping, an unknown
@@ -629,25 +631,28 @@ test. Read-only audits remain safe to run while another CC session is active on 
 repo, provided the prompt forbids all writes, git state changes, dev servers, and test
 runs, and tells CC to leave any uncommitted working-tree changes alone.
 
-**Fable 5.1 is the default model for every bundle that is more than a mechanical edit,
-and the bundle is sized to the model, not the model to the bundle.** This inverts the
-rule that stood here until 4.16, which reserved Fable for irreversible or one-pass work.
-Two things changed it. Mr. Pina stated the preference on 2026-09-02: as much work per
-Claude Code prompt as possible, and fewer prompts in total. And Anthropic's own guidance
-for Fable in Claude Code, read from the live model documentation on 2026-09-02, says the
-same thing from the other side: describe the outcome rather than the steps, hand it the
-ambiguous problem rather than pre-resolving it, give it the work you would normally
-break into pieces, and drop the verification reminders because it verifies on its own.
-A prompt written for a smaller model, all locators and no judgment, wastes what the
-model is for.
+**Fable 5.1 is used where the session has to resolve something the chat could not
+specify, and nowhere else.** Mr. Pina's calibrated preference, stated 2026-09-02 after
+reading 4.17: use it appropriately, do not overuse it. 4.17 had made it the default for
+every non-trivial bundle, on this assistant's reading of "take advantage of Fable 5.1
+for more work per prompt" as "default to it"; that was an inference, not his
+instruction, and it is withdrawn here. What he did ask for stands and is model
+independent: as much work per prompt as one file surface holds, fewer prompts in total,
+and the audit phase inside the build prompt rather than a session before it.
 
-**So a bundle is sized up, not split.** Where this document previously said to send an
-audit prompt first and a build prompt after, the two are now phases of one session: the
-prompt opens with the audit questions and gates the build on their answers, in the same
-session, and the report separates what was found from what was built. A separate audit
-session is still right when the chat needs the answers before it can decide anything,
-which is a decision-dependence test and not a size test. The tier table below now
-decides when to go down from Fable 5.1, never when to go up to it.
+**The test is what the session must decide on its own.** Before writing the header,
+write out what the session will have to figure out that this assistant could not put in
+the prompt. If that list is empty, or every item on it is a fact the audit phase can read
+from the tree, the bundle is Opus 5 at `high` however large it is. If the list holds a
+structural unknown, meaning the session has to choose a design, port a shape between
+repos, reconcile an undocumented subsystem, or sweep a whole repo, it is Fable 5.1. Size
+is not on the test; Opus 5 at `high` carries a large fully specified bundle.
+
+**A bundle is sized up, not split.** Where this document previously said to send an
+audit prompt first and a build prompt after, the two are phases of one session: the
+prompt opens with the audit questions and gates the build on their answers, and the
+report separates what was found from what was built. A separate audit session is still
+right when the chat needs the answers before it can decide anything.
 
 **Three facts about selecting it, verified 2026-09-02.** `/model fable` and
 `claude --model fable` resolve to Fable 5.1 from Claude Code v2.1.255; Fable 5 needs its
@@ -684,14 +689,21 @@ between two rows, round up.
 | Prompt profile | Model | Effort |
 |---|---|---|
 | Trivial mechanical edit: copy tweak, rename, single-locator swap, static-content change, one-line fix | Haiku 4.5 | low |
-| Bounded and fully specified, one file surface, nothing to investigate: a locator swap set, a copy pass, a portal update from settled text | Sonnet 5 | medium |
-| Everything else. Any bundle with an audit phase, more than one surface, a migration, a harness, a test to write, or an unknown to resolve. This is the default row | Fable 5.1 | high |
-| Irreversible operations, first-draft architecture, repo-wide sweeps, anything where the shipped change cannot be reverted by reverting a commit | Fable 5.1 | xhigh or max, or `ultracode` for repo-wide work |
+| Bounded and fully specified, one file surface, nothing to investigate: a locator swap set, a copy pass, a portal update from settled text, a standards push with its fork check | Sonnet 5 | medium |
+| The default build row. Any well-scoped bundle of any size within one owned surface: surgical edits with subtle correctness, a migration with its test, a harness spec, an audit phase whose questions have answers in the tree, a read-only audit | Opus 5 | high |
+| The session must decide something the chat could not specify: an undocumented or unfamiliar subsystem, a port of a shape between repos, a repo-wide conformance or sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high; `xhigh`, `max` or `ultracode` only for the irreversible or repo-wide case |
 
-**Opus 5 is no longer a routed tier.** It is where a Fable session lands after a
-classifier flag, and it is the `min` in the header for when Fable is unavailable (credits
-exhausted, picker not listing it). The header carries both, in the shape the chat-side
-standard already uses: `MODEL: Fable 5.1 (min: Opus 5) | EFFORT: high - row 3`.
+**The header carries the minimum too**, in the shape the chat-side standard uses:
+`MODEL: Opus 5 (min: Sonnet 5) | EFFORT: high - row 3`, or `MODEL: Fable 5.1 (min: Opus 5)`
+for row 4. The minimum is what the session runs on when the picker does not list the
+model or the credits prompt is declined. Opus 5 is also where a Fable session lands after
+a cybersecurity flag.
+
+**The four prompts issued 2026-09-02 are the calibration record.** Standards push and
+infrastructure (0005) and the feedback form (0006) were headed Fable 5.1 and would be
+Opus 5 under this rule: large, but every unknown in them was a fact in the tree. The two
+conformance prompts for `fll-app` and `frc-app` are Fable 5.1 correctly: each ports a
+shape between repos and decides a CI database strategy from what it finds.
 
 Overrides that beat the table:
 
@@ -709,8 +721,8 @@ Overrides that beat the table:
   phases) before starting. Reserve it for genuinely repo-wide work, not as a routine
   substitute for the table above.
 - **Concurrent heavy bundles:** what serializes is effort, not model. One `xhigh`, `max`
-  or `ultracode` bundle runs at a time across all lanes; `high` Fable bundles run in
-  parallel up to the lane cap. If two heavy bundles are queued, sequence them.
+  or `ultracode` bundle runs at a time across all lanes; `high` bundles of any model run
+  in parallel up to the lane cap. If two heavy bundles are queued, sequence them.
 - **Scope note:** Apps Script `Code.gs` patches are pasted into the Apps Script editor by
   hand, not run through CC, so this routing covers repo-based CC prompts only. A rare
   high-risk repo edit still follows the tier-up plus max-effort override.
@@ -1181,9 +1193,11 @@ stated as a topic ("the notebook work") is not checkable; a boundary stated as p
 **Verify on the preview, then merge. A parallel-lane prompt ends:**
 
 > Pull the latest `main` into this branch and resolve any conflicts here, not on main.
-> Push the branch. Do NOT merge to `main`. Report the Vercel preview URL and the exact
-> checks to run on it, then stop. Never force-push. Do not attempt to delete a remote
-> branch; a cloud session cannot.
+> Your final commit sets the `Status:` line of your own ledger entry under
+> `docs/prompt-ledger/entries/` from `issued` to `pushed`, and it is the last thing you
+> change. Push the branch. Do NOT merge to `main`. Report the Vercel preview URL and the
+> exact checks to run on it, then stop. Never force-push. Do not attempt to delete a
+> remote branch; a cloud session cannot.
 
 **The preview check moved out of the session on 2026-08-26, because no cloud session can
 perform it.** The ending above required a browser check that is structurally unreachable:
@@ -1207,7 +1221,7 @@ commits under `materials/`. That is expected and needs no flagging. Resolving on
 branch keeps every conflict off the deployed branch.
 
 **What still serializes.** One `xhigh`, `max` or `ultracode` bundle at a time across all
-lanes, not one per lane; Fable 5.1 at `high` is the default and runs in every lane.
+lanes, not one per lane; `high` bundles run in every lane whatever their model.
 Migrations, per above. Anything repo-wide. Read-only audits are the opposite case and may
 run in any lane at any time, provided the prompt forbids all writes, git state changes,
 dev servers, and test runs.
@@ -1339,6 +1353,23 @@ status tool therefore reads entries from `main`, `integration` and every `claude
 branch, because an entry on an unmerged branch is exactly the in-flight work the check
 exists to find. An entry is keyed on the file surface the prompt owns, never on its text.
 
+**The `Status` line is the session's own signal that it has finished, and the merge
+automation reads it.** The vocabulary is the four states
+`docs/prompt-ledger/README.md` already defines and this adds no fifth: the session
+commits the entry as `issued`, which is what the entry says for as long as the session is
+running, and the session's FINAL commit sets it to `pushed`. `integrate.yml` skips any
+branch whose newest introduced entry still reads `issued`, so a branch is swept when its
+session has finished rather than when its opening commit goes green. A branch that
+introduces no ledger entry merges exactly as it always did; the gate only ever adds a
+skip. The canned lane ending below carries the flip, so it cannot go missing on the prompt
+written in a hurry.
+
+The README's rule that a status is never advanced on the strength of a report is
+untouched by this. A session setting `pushed` on its own entry as its last act is the
+session reporting on itself at the only moment it can be certain, and it is the same
+evidence `git ls-remote` would give. Every later transition, to `in-integration` and to
+`deployed`, is still confirmed by reading the artifact.
+
 **The harness may mint a branch slug that already has a shipped history entry.** Two
 sessions hit this. Writing to that slug overwrites somebody's record and stacks commits
 on merged history. Every prompt says: if the slug already has an entry, suffix yours and
@@ -1396,10 +1427,22 @@ the twice a boundary was loose: two sessions rewriting one file.
 disappears when its CI goes green and it merges. One still standing means its CI failed or
 its merge conflicted, and after two hours it means something systemic.
 
-**Count branches before opening lanes.** Adding a lane while branches are standing makes
-the eventual merge harder rather than the queue shorter. Eight standing branches is not a
-shortage of work; it is the thing to fix first. When the branch list is long, the right
-next move is a merge, not a prompt.
+**A branch count does not measure the queue, and the ledger does.** Until 4.19 this
+paragraph said to count standing branches before opening a lane. That stopped measuring
+anything the moment the integrate workflow began deleting a branch on green CI: a session
+commits its ledger entry first, the sweep merges and deletes that branch within minutes,
+and the session keeps running with nothing standing behind it. On 2026-09-02 both prompts
+in flight read as zero standing branches, one of them mid-session, and a router chat
+nearly read the queue as empty. **Prompts in flight come from the ledger across every ref,
+never from the branch list**, and `tools/idea-status.py` is what reads them. The `Status`
+gate above is the other half of the fix: once `integrate.yml` holds a branch until its
+session sets `pushed`, a standing branch means what it used to mean again.
+
+A long branch list still means something is wrong, because under the gate a branch stands
+only while its session is live, or because its CI failed or its merge conflicted, and
+adding a lane there makes the eventual merge harder rather than the queue shorter. Eight
+standing branches is not a shortage of work; it is the thing to fix first. But a short
+list means nothing on its own, and a lane decision is never taken against it.
 
 **Decisions owed to Mr. Pina are one list, surfaced first, and a lane is not opened
 against an open one.** Nine items sat blocked for the whole of 2026-08-31 because each was
@@ -1454,8 +1497,8 @@ invert the default: **any item phrased as "add X" or "improve Y" gets an audit b
 build, always.** Twice in one night an audit collapsed a top-tier design problem into a
 discoverability fix.
 
-**With Fable 5.1 as the default model, the audit is the first phase of the build session
-rather than a separate one.** The prompt opens with the audit questions, and the build
+**The audit is the first phase of the build session rather than a separate one, on any
+model.** The prompt opens with the audit questions, and the build
 phase is gated on the answer: if the thing exists, the work is making it reachable and
 the prompt says that is an acceptable outcome; if it does not, the build proceeds as
 specified. The report separates what was found from what was built. A standalone audit
@@ -2393,6 +2436,36 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-02 (4.19)** - A branch count stopped measuring the queue and nothing noticed
+  for a day. The integrate workflow deletes a branch when its CI goes green, and a session
+  commits its ledger entry first, so a prompt still mid-session reads as zero standing
+  branches. Both prompts in flight on 2026-09-02 read that way and a router chat nearly
+  took the queue as empty. Three changes, all in place. `**Count branches before opening
+  lanes**` under `### Lane discipline` becomes `**A branch count does not measure the
+  queue, and the ledger does**`: prompts in flight come from the ledger across every ref,
+  never from the branch list. The prompt-ledger paragraph gains the `Status` lifecycle,
+  `issued` while the session runs and `pushed` set by its final commit, which is the
+  vocabulary `docs/prompt-ledger/README.md` already defines rather than a fifth state; the
+  first draft of this version invented `in-progress` and would have forked the vocabulary
+  0005 landed the same day, which is the reason the freshness fetch happens before the
+  edit and not after. And `integrate.yml` gains the matching gate, skipping any branch
+  whose newest introduced entry still reads `issued`, which restores the meaning a
+  standing branch used to carry. A branch introducing no entry merges as before. The
+  canned lane ending gains the flip as its own line, for the reason that block is canned
+  at all.
+
+- **2026-09-02 (4.18)** - Withdraws 4.17's Fable-by-default routing, same day. Mr.
+  Pina's calibrated preference, stated after reading 4.17: use Fable 5.1 appropriately,
+  not by default. 4.17 had read "take advantage of Fable 5.1 for more work per prompt"
+  as "make it the default"; that was this assistant's inference and the preference
+  governs. Rewritten in place: the opening routing paragraphs, the bundle-by-surface
+  paragraph, the routing table (Opus 5 restored as the default build row, Fable 5.1 for
+  what the session must decide on its own), the concurrency bullet and the
+  what-serializes paragraph. Kept from 4.17: bundles sized by file surface, fewer prompts,
+  the audit phase inside the build prompt, the `(min:)` header, and the verified Fable
+  facts. Records the four 2026-09-02 prompts as the calibration case: two would have been
+  Opus 5, two are Fable 5.1 correctly.
 
 - **2026-09-02 (4.17)** - A fork merge and a model change. **The number 4.16 was used
   twice.** The chat "Managing multiple FRC platform projects" built a 4.16 from 4.15 with

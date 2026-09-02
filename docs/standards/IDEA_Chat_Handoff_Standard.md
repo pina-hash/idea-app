@@ -1,5 +1,5 @@
 # Chat Handoff Standard
-**Version 1.2 - 2026-09-02**
+**Version 1.3 - 2026-09-02**
 
 Governs every prompt this assistant writes for Mr. Pina to paste into a **new claude.ai chat**. This is the chat-surface counterpart to the Claude Code routing section in `IDEA_instructions.md`. CC prompts follow that section; new-chat kickoff prompts follow this one. Do not mix the two rubrics.
 
@@ -44,14 +44,14 @@ The claude.ai effort dial exposes **High** (default), **Extra**, and **Max** onl
 | Trivial lookups, short blurbs, format fixes | Haiku 4.5 | off | High |
 | Bounded execution off a locked architecture: grading runs, spec'd builds, generating CC prompts from settled designs, iterative edits | Sonnet 5 | off | High |
 | Well-scoped work needing careful reasoning: content authoring against fixed standards, rubric application, debugging, multi-file planning within a known structure | Opus 5 | on | High |
-| Genuinely ambiguous first-draft architecture, evaluate-from-scratch questions, novel system or rubric design, vague briefs with real structural unknowns, and any router chat | Fable 5.1 | on | High or Extra |
+| Genuinely ambiguous first-draft architecture, evaluate-from-scratch questions, novel system or rubric design, vague briefs with real structural unknowns | Fable 5.1 | on | High or Extra |
 
 Overrides:
 
 - **Highest-scrutiny or hard-to-reverse work** (A-G reclassification drafting, anything submitted to UC, live-data migrations): bump one tier and set **Max**.
 - **Thinking follows the adaptive-thinking framework**, same as always: ON for first-draft architecture, novel rubric design, multi-constraint planning, vague briefs; OFF for execution against a settled spec.
-- **Ambiguity must be real.** Before routing to Fable, list what is actually undecided. If the list is minor polish rather than structural unknowns, it is an Opus chat. A router chat is the exception and is always Fable 5.1: it holds the queue, the decisions owed, and every lane's boundary at once, and the 2026-08-31 session showed that the routing itself is where coordination fails.
-- **This table routes chats. Claude Code prompts route by the table in `IDEA_instructions.md`, where Fable 5.1 is the default and the tiers below it are the exceptions.** The two tables answer different questions and are not to be reconciled with each other.
+- **Ambiguity must be real.** Before routing to Fable, list what is actually undecided. If the list is minor polish rather than structural unknowns, it is an Opus chat. A router chat is an Opus 5 chat: it holds a queue that is already written, and what degraded the 2026-08-31 router was its length, not its model. A router is Fable 5.1 only when the queue itself is undecided.
+- **This table routes chats. Claude Code prompts route by the table in `IDEA_instructions.md`.** The two tables answer different questions and are not to be reconciled with each other.
 - **Re-derive every time.** Classify each handoff on its own. Never inherit the tier of the chat that spawned it - a Fable planning chat routinely spawns Sonnet execution chats.
 
 ---
@@ -175,6 +175,12 @@ files themselves, which is possible for content and impossible for intent.
 ---
 
 ## Changelog
+
+- **1.3 (2026-09-02)** - Withdraws 1.2's "router chats are always Fable 5.1", same day, on
+  Mr. Pina's stated preference that Fable 5.1 be used appropriately rather than by
+  default. A router chat is Opus 5 unless its queue is itself undecided; the 2026-08-31
+  router degraded with length, not with model. Kickoff rule 7 and the status tool in
+  closeout step 2 are unchanged.
 
 - **1.2 (2026-09-02)** - Fable 5 becomes Fable 5.1 in the chat routing table, and a router
   chat is always Fable 5.1 regardless of the ambiguity test, because the 2026-08-31 session
