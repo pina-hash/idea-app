@@ -3,8 +3,11 @@
 - By: Cowork session "Claude computer use demo", lane 1
 - Owns: `docs/migrations-ledger/**` and `tools/migration-ledger.py`
 - Migration permitted: no. Highest on origin/main at issue: 0169
-- Status: issued
-- Branch: pending
+- Status: superseded by 0005
+- Branch: none. Neither `tools/migration-ledger.py` nor `docs/migrations-ledger/`
+  exists on any ref: swept on 2026-09-02 across `origin/main`, `origin/integration`
+  and every `claude/**` branch, zero hits. The prompt was issued and no session ever
+  received it.
 - Notes: Placement of 22 files plus one command to run. Writes no SQL and touches no
   database.
 
@@ -28,3 +31,15 @@
   function bodies and confirming each marker is present in the new and absent in the old.
   Existence is not evidence for a `create or replace`: that is precisely how 0151 reverted
   0148, with the object present and the server-stamped clock gone.
+
+  **Superseded by 0005 on 2026-09-02.** That bundle implements the probe block
+  inside `tools/idea-status.py` section [3a] rather than as a second tool, because
+  the status tool is what a session and a router chat already run first
+  (`IDEA_instructions.md` 4.17, "The state of the world is one command") and a
+  probe printed by a tool nobody runs answers nothing. The design this entry
+  describes is carried over intact: one read-only catalog probe per migration, a
+  body-probe marker wherever a `create or replace` means existence proves nothing,
+  and a human running the query because no session holds a credential. What is NOT
+  carried over is `docs/migrations-ledger/`, the file a human fills in afterwards;
+  if that is still wanted it is a new prompt, and it now has a generator to fill
+  it from.
