@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work (successor to the 2026-08-30/31 router)
 - Owns: `docs/standards/IDEA_instructions.md`, `docs/standards/IDEA_Chat_Handoff_Standard.md`, `docs/standards/IDEA_REPO_WORKFLOW_STANDARD.md`, `docs/standards/REGISTER.md`, `tests/workflows.test.ts`, `docs/prompt-ledger/entries/0007-*`, `docs/prompt-ledger/README.md`, `.github/workflows/integrate.yml`, `tools/idea-status.py` (conditionally, see notes), and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/standards-4-19-ledger-gate-vn3pva`
 - Notes: Two landing paths in one session, the same shape 0005 used. The three
   `docs/standards/` files go straight to `main` in one commit; everything else
   rides this branch.
