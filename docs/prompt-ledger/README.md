@@ -91,11 +91,23 @@ reading it afterwards. Every LATER transition is still confirmed by reading the 
 and no session ever writes one of those about itself.
 
 **`.github/workflows/integrate.yml` reads this line, which is why it is not decoration.**
-A `claude/**` branch whose newest introduced entry still reads `issued` is NOT SWEPT: the
-workflow skips it and records the reason in its job summary. A branch that introduces no
-ledger entry merges exactly as it always did, and so does one whose entry carries any other
-status; the gate only ever ADDS a skip, and it fails safe by skipping when it cannot read
-the entry at all.
+A `claude/**` branch is NOT SWEPT while an entry it ADDED still reads `issued`: the workflow
+skips it and records the reason in its job summary.
+
+**An entry the branch ADDED, and never one it merely modified**, and the difference is not
+pedantic. Advancing somebody else's entry from `pushed` to `deployed` is the bookkeeping this
+file asks for, and a branch doing it while its own session runs would otherwise be judged by
+that finished foreign entry. The first version of the gate ranked the changed entries and let
+the highest-numbered one decide; the branch that built it advanced entry 0010 in passing, 0010
+outranked its own 0007, and it read `deployed` and merged its own still-running branch. A
+session's own entry is its FIRST COMMIT on its branch, which makes it an ADD against the merge
+base, so the ADD is what identifies it. There is no ranking left: every added entry is asked
+and one `issued` among them holds the branch.
+
+A branch that introduces no ledger entry merges exactly as it always did, and so does one whose
+entry carries any other status. The gate only ever ADDS a skip, and it skips on exactly two
+things: an added entry reading `issued`, and a surprise it cannot read past (no merge base with
+`origin/main`, or an added entry that yields no blob at the branch tip).
 
 **That is what makes a standing branch mean something again.** Before the gate, the
 workflow deleted a branch the moment its CI went green, and a session commits its ledger
@@ -107,9 +119,14 @@ things a branch list is worth reading for. **The in-flight queue itself is still
 this directory across every ref, never from the branch list** -- `tools/idea-status.py`
 does that, and a short branch list proves nothing on its own.
 
-**Only the exact token `issued` holds a branch.** The gate normalises a `Status` value the
-way `tools/idea-status.py` does, taking the first whitespace-separated token, lowercased,
-with a trailing period or comma stripped. Anything else merges, and that includes free
+**Only the exact token `issued` holds a branch.** The gate reads EVERY `Status` bullet in an
+added entry, at any markdown bullet and through a value folded onto the continuation line, and
+normalises it as a strict SUPERSET of `tools/idea-status.py`: the first whitespace-separated
+token, lowercased, with surrounding punctuation stripped. Superset and not equality, on purpose
+-- the tool strips only `.` and `,`, so `issued;` and `"issued"` read as `issued` here and would
+not there. Reading one shape too many costs a finished branch standing until somebody looks at
+it; reading one too few costs a running session its branch, and only one of those is
+recoverable. Anything else merges, and that includes free
 text: entry 0006 read `partly landed. Its MIGRATION is on origin/main; its client half is
 not on any ref this session can see` for most of 2026-09-02, and a value of that shape is
 written whenever somebody has something true to say that the four states cannot carry. The
