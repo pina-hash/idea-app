@@ -1026,7 +1026,65 @@
 	}
 </script>
 
+<!--
+	ONE SET OF CONTROLS, RENDERED TWICE. This is a snippet and not a second row
+	of buttons: the save path is `submit(true)` / `submit(false)` and there is
+	exactly one spelling of each, so the top control cannot come to mean
+	something slightly different from the bottom one. The `place` is used only
+	to keep the two `data-testid`s apart.
+
+	WHY THERE IS A TOP ONE AT ALL. The actions row is the LAST thing in the
+	form, after the title, the body editor, the points and dates, the links,
+	the attachments, the deck, the spec, the rubric, the check-in and the class
+	targets -- around 420 lines of markup on an assignment. Editing a long post
+	means scrolling the whole form back down to save it, every time, and the
+	report is exactly that. The top one is the same press without the scroll.
+-->
+{#snippet actions(place: 'top' | 'bottom')}
+	<button
+		class="btn"
+		type="button"
+		disabled={busy}
+		data-testid="composer-publish-{place}"
+		onclick={() => submit(true)}
+	>
+		{#if mode === 'edit'}
+			{scheduledAhead ? 'Save & schedule' : 'Save & publish'}
+		{:else}
+			{scheduledAhead ? 'Schedule' : 'Post now'}
+		{/if}
+	</button>
+	<button
+		class="btn secondary"
+		type="button"
+		disabled={busy}
+		data-testid="composer-draft-{place}"
+		onclick={() => submit(false)}
+	>
+		Save draft
+	</button>
+	{#if oncancel}
+		<button
+			class="btn secondary"
+			type="button"
+			disabled={busy}
+			data-testid="composer-cancel-{place}"
+			onclick={() => oncancel?.()}
+		>
+			Cancel
+		</button>
+	{/if}
+{/snippet}
+
 <div class="composer" class:compact onpaste={onPaste}>
+	<div class="composer-actions top" data-testid="composer-actions-top">
+		{@render actions('top')}
+		<!-- The indicator rides the top row too, because a person who saves from
+		     here is looking here and "Saved 3:14 PM" arriving 400 lines below
+		     them is the same as no acknowledgement at all. Same instance, same
+		     five words, same machine. -->
+		<span class="save-line inline"><SaveIndicator state={save} /></span>
+	</div>
 	{#if mode === 'create'}
 		<div class="kind-toggle" role="tablist" aria-label="Content type">
 			{#each ITEM_KINDS as k (k.id)}
@@ -1448,23 +1506,7 @@
 		</p>
 	</div>
 
-	<div class="composer-actions">
-		<button class="btn" type="button" disabled={busy} onclick={() => submit(true)}>
-			{#if mode === 'edit'}
-				{scheduledAhead ? 'Save & schedule' : 'Save & publish'}
-			{:else}
-				{scheduledAhead ? 'Schedule' : 'Post now'}
-			{/if}
-		</button>
-		<button class="btn secondary" type="button" disabled={busy} onclick={() => submit(false)}>
-			Save draft
-		</button>
-		{#if oncancel}
-			<button class="btn secondary" type="button" disabled={busy} onclick={() => oncancel?.()}>
-				Cancel
-			</button>
-		{/if}
-	</div>
+	<div class="composer-actions">{@render actions('bottom')}</div>
 	<!-- The same five states, in the same words, as the other three surfaces.
 	     The full report stays below it: the indicator says WHICH state, the
 	     feedback line says what did and did not land. -->
@@ -1475,6 +1517,27 @@
 </div>
 
 <style>
+	/* The TOP copy of the actions row. It is sticky rather than merely first,
+	   because a long form scrolled halfway is exactly when it is wanted and a
+	   control that scrolled away with the rest would be the bottom row again.
+	   `--surface-1` so the form does not read through it, and a boundary
+	   underneath because it is the only thing separating it from the fields
+	   sliding past. */
+	.composer-actions.top {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		flex-wrap: wrap;
+		align-items: center;
+		margin-bottom: var(--space-3);
+		padding: var(--space-2) 0;
+		background: var(--surface-1);
+		border-bottom: 1px solid var(--boundary);
+	}
+	.save-line.inline {
+		margin-left: auto;
+	}
+
 	/* Spacing only: the look lives in classroom.css. */
 	.feedback {
 		margin: 0.6rem 0 0;

@@ -957,6 +957,14 @@
 				"Notebook",
 				"Classes"
 			]
+		},
+		{
+			"date": "2026-09-02",
+			"title": "The class list keeps your place, and an open post shows its whole name",
+			"body": "Two things on the class page. Opening a post no longer loses your place in the list beside it: the list still uses the whole width when nothing is open, but the post you picked stays where you can see it instead of sliding away. And the row for the post you have open now shows its full title rather than the first two lines, so you can tell at a glance which one you are reading. Every other row is unchanged. For teachers: there is a second Save and publish at the top of the editor so a long post no longer has to be scrolled to the bottom to save, and publishing, filing or deleting several items at once now says what it is doing while it works.",
+			"tags": [
+				"Classes"
+			]
 		}
 	]
 }
