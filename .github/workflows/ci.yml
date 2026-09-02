@@ -5,6 +5,41 @@ on:
   pull_request:
     branches: [main]
 
+  # `integration` GETS NO CI RUN OF ITS OWN FROM A PUSH, EVER, AND THAT IS
+  # GITHUB'S RULE RATHER THAN A GAP HERE. `integrate.yml` pushes `integration`
+  # with GITHUB_TOKEN, and GitHub's loop-breaker starts no workflow run from a
+  # push made with that token. So every commit on `integration` was green on
+  # its own source branch and the MERGE RESULT was never checked by anything.
+  # On 2026-08-29 `integration` went red silently and stopped eight branches.
+  #
+  # This schedule is the answer: one run a day against `integration` itself, at
+  # 04:30 UTC, which is 21:30 Pacific -- outside class hours, and outside the
+  # window in which anybody would be deploying. A red scheduled run is the
+  # signal that `integration` is broken and no branch will merge until somebody
+  # looks.
+  schedule:
+    - cron: '30 4 * * *'
+
+  # For a person: check any ref on demand, which is what the Deploy workflow's
+  # own summary tells them to do after a conflict.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ref to check out and test (branch, tag or sha). Default: integration.'
+        required: false
+        default: 'integration'
+
+  # CALLABLE, so `deploy.yml` runs THESE checks on `integration`'s exact tip
+  # rather than querying the Actions API for some earlier run's conclusion. A
+  # prior run is a claim about a sha that may no longer be the tip; this is the
+  # checks themselves, on the sha about to be merged, in the deploy's own run.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Ref to check out and test.'
+        required: true
+        type: string
+
 env:
   # PLACEHOLDER VALUES, COMMITTED HERE ON PURPOSE -- never a real credential.
   #
@@ -27,7 +62,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # WHICH REF IS TESTED, and the empty string is the important case:
+      #   workflow_call / workflow_dispatch -> `inputs.ref`, what the caller
+      #     or the person named.
+      #   schedule -> `integration`, per the comment on the trigger above;
+      #     `github.ref` on a scheduled run is the DEFAULT branch, so without
+      #     this a nightly run would test `main` and prove nothing about the
+      #     branch that never gets a run of its own.
+      #   push / pull_request -> '' , which actions/checkout treats as
+      #     unspecified and resolves to the ref that triggered the run. It is
+      #     not "check out nothing".
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || (github.event_name == 'schedule' && 'integration') || '' }}
 
       # adapter-vercel (node_modules/@sveltejs/adapter-vercel/utils.js,
       # resolved via package-lock.json) hard-rejects any Node major outside
@@ -128,6 +175,7 @@ jobs:
       - name: Fail the job if any step failed
         if: always()
         run: |
+          echo "ref tested:         $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD))"
           echo "check:              ${{ steps.check.outcome }}"
           echo "test:               ${{ steps.test.outcome }}"
           echo "vanguard-changelog: ${{ steps.vanguard-changelog.outcome }}"

@@ -23,3 +23,13 @@
 
   Deliberately excluded: any migration (none permitted), any file outside the
   Owns list, and any merge of this branch into `main`.
+
+  **The branch was swept and deleted mid-session, which is correct and is worth
+  knowing before it surprises somebody.** The ledger commit is this branch's FIRST
+  commit by instruction, CI went green on it, and `integrate.yml` merged it into
+  `integration` (`591cd39`) and deleted the branch while the rest of the bundle was
+  still being written. Pushing again re-creates the branch and the next sweep takes
+  only the new commits. So the ledger-first rule guarantees this happens on every
+  bundle, not occasionally: a branch that exists at the start of a session may be
+  gone by the middle of it, and `git ls-remote` showing nothing does not mean nothing
+  was pushed.
