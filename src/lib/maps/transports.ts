@@ -210,12 +210,11 @@ function permanentRefusal(error: DbError, table: MapsTable, verb: string): strin
 /**
  * A refusal is rendered verbatim where this module has words for it, and the
  * database's own message otherwise -- a P0001 raise from a maps trigger is
- * already worded for whoever caused it.
+ * already worded for whoever caused it. Both halves are read off ONE call to
+ * `permanentRefusal`, because a separate `refusalMessage` helper reading it a
+ * second time is how the two answers came to contradict each other in the
+ * first place.
  */
-function refusalMessage(error: DbError, table: MapsTable, verb: string): string {
-	return permanentRefusal(error, table, verb) ?? error.message;
-}
-
 function failure(error: DbError, table: MapsTable, verb: string): MapsResult<never> {
 	const refusal = permanentRefusal(error, table, verb);
 	return {

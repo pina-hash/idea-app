@@ -135,6 +135,43 @@ export const MAPS_TRANSCODE_MAX_DIM = 4096;
  */
 const QUALITY_STEPS = [0.9, 0.8, 0.7];
 
+/**
+ * THE DECISION THAT NEEDS NO DECODE, split out and SYNCHRONOUS because most
+ * picks are settled by it and a person should not wait for a decode that is
+ * not going to happen.
+ *
+ * An oversize photo, an SVG and an ordinary JPEG are all answered from the
+ * `File` alone -- name, type, size -- so the refusal renders in the same frame
+ * as the press and an already-storable file is staged with no pending state
+ * flashing past. Only `transcode` costs anything, and it costs it only for the
+ * formats that need it.
+ *
+ * It is ONE rule with two readers rather than two rules: `prepareMapsPhoto`
+ * below is this plus the transcode, and `ShelfEntry` calls the two halves in
+ * that same order for the sole reason that it needs the first one's answer
+ * synchronously.
+ */
+export type MapsPhotoPlan =
+	| { kind: 'refused'; problem: string }
+	| { kind: 'pass-through'; mimeType: string; ext: string }
+	| { kind: 'transcode'; sourceMimeType: string };
+
+export function planMapsPhoto(file: { name?: string; type?: string; size: number }): MapsPhotoPlan {
+	/* Size and type FIRST, because they are the instant ones -- refusing a
+	   25 MB photo before spending seconds decoding it is the same argument that
+	   put the size check ahead of the transfer. */
+	const refusal = mapsPhotoRefusal(file);
+	if (refusal) return { kind: 'refused', problem: refusal };
+	const resolved = mapsImageMime(file);
+	// Unreachable: `mapsPhotoRefusal` runs the same check and returns its
+	// problem. Kept because the two would otherwise have to be read together
+	// to know this is total, and a narrowing of either must not fall through.
+	if (!resolved.ok) return { kind: 'refused', problem: resolved.problem };
+	return mapsNeedsTranscode(resolved.mimeType)
+		? { kind: 'transcode', sourceMimeType: resolved.mimeType }
+		: { kind: 'pass-through', mimeType: resolved.mimeType, ext: resolved.ext };
+}
+
 export type MapsPreparedPhoto =
 	| {
 			ok: true;
@@ -190,52 +227,31 @@ function undecodableProblem(mimeType: string): string {
 }
 
 /**
- * THE ONE GATE, run at the picker, before a byte moves.
+ * THE TRANSCODE, for a file `planMapsPhoto` said needs one.
  *
- * Order is load-bearing. `mapsPhotoRefusal` FIRST, because it is the instant
- * one -- size and type off the `File` alone -- and refusing a 25 MB photo
- * before spending ten seconds decoding it is the same argument that put the
- * size check ahead of the transfer. The decode second, because it is the
- * expensive one and it is only worth doing for the formats that need it.
- *
- * A universal type is returned as THE SAME `File` OBJECT: byte-identical,
- * original metadata, nothing re-encoded. Re-encoding a JPEG somebody already
- * has would cost a generation of quality for nothing.
+ * Separate from the plan because it is the expensive half and because a caller
+ * that has to answer synchronously (the picker, which must render a refusal in
+ * the same frame as the press) needs the cheap half on its own. Takes the plan
+ * rather than re-deriving it, so there is no second opinion about which
+ * formats need this.
  */
-export async function prepareMapsPhoto(file: File): Promise<MapsPreparedPhoto> {
-	const refusal = mapsPhotoRefusal(file);
-	if (refusal) return { ok: false, problem: refusal };
-
-	const resolved = mapsImageMime(file);
-	// Unreachable: `mapsPhotoRefusal` runs the same check and returns its
-	// problem. Kept because the two would otherwise have to be read together
-	// to know this is total, and a narrowing of either must not fall through.
-	if (!resolved.ok) return { ok: false, problem: resolved.problem };
-
-	if (!mapsNeedsTranscode(resolved.mimeType)) {
-		return {
-			ok: true,
-			file,
-			mimeType: resolved.mimeType,
-			ext: resolved.ext,
-			transcoded: false,
-			sourceMimeType: resolved.mimeType
-		};
-	}
-
+export async function transcodeMapsPhoto(
+	file: File,
+	plan: { kind: 'transcode'; sourceMimeType: string }
+): Promise<MapsPreparedPhoto> {
 	let decoded: DecodedImage | null = null;
 	try {
 		decoded = await decodeImageFile(file);
-		if (!decoded) return { ok: false, problem: undecodableProblem(resolved.mimeType) };
+		if (!decoded) return { ok: false, problem: undecodableProblem(plan.sourceMimeType) };
 		const { width, height } = imageSize(decoded);
-		if (!width || !height) return { ok: false, problem: undecodableProblem(resolved.mimeType) };
+		if (!width || !height) return { ok: false, problem: undecodableProblem(plan.sourceMimeType) };
 		// `drawToCanvas` applies no orientation of its own and needs none: both
 		// decode paths have already baked EXIF orientation into the pixels
 		// (`createImageBitmap` was asked for `from-image`, and an `<img>` does
 		// it by default), so drawing them flattens the rotation into the JPEG
 		// rather than dropping it with the EXIF block.
 		const drawn = drawToCanvas(decoded, MAPS_TRANSCODE_MAX_DIM);
-		if (!drawn) return { ok: false, problem: undecodableProblem(resolved.mimeType) };
+		if (!drawn) return { ok: false, problem: undecodableProblem(plan.sourceMimeType) };
 		for (const quality of QUALITY_STEPS) {
 			const blob = await toJpegBlob(drawn.canvas, quality);
 			if (!blob || blob.size === 0) break;
@@ -249,7 +265,7 @@ export async function prepareMapsPhoto(file: File): Promise<MapsPreparedPhoto> {
 					mimeType: TRANSCODE_TYPE,
 					ext: TRANSCODE_EXT,
 					transcoded: true,
-					sourceMimeType: resolved.mimeType
+					sourceMimeType: plan.sourceMimeType
 				};
 			}
 		}
@@ -260,14 +276,39 @@ export async function prepareMapsPhoto(file: File): Promise<MapsPreparedPhoto> {
 		return {
 			ok: false,
 			problem: `That ${formatWord(
-				resolved.mimeType
+				plan.sourceMimeType
 			)} photo could not be made small enough to save -- the ${describeBytes(
 				MAPS_MEDIA_MAX_BYTES
 			)} limit is what it has to fit. Take it again at a smaller size.`
 		};
 	} catch {
-		return { ok: false, problem: undecodableProblem(resolved.mimeType) };
+		return { ok: false, problem: undecodableProblem(plan.sourceMimeType) };
 	} finally {
 		releaseImage(decoded);
 	}
+}
+
+/**
+ * THE WHOLE GATE, plan then transcode, for a caller with nothing to render in
+ * between. `ShelfEntry` does have something to render in between -- an instant
+ * refusal, and a pending state for the one branch that is not instant -- so it
+ * calls the two halves itself, in this same order.
+ */
+export async function prepareMapsPhoto(file: File): Promise<MapsPreparedPhoto> {
+	const plan = planMapsPhoto(file);
+	if (plan.kind === 'refused') return { ok: false, problem: plan.problem };
+	if (plan.kind === 'pass-through') {
+		// The SAME `File` object: byte-identical, original metadata, nothing
+		// re-encoded. Re-encoding a JPEG somebody already has would cost a
+		// generation of quality for nothing.
+		return {
+			ok: true,
+			file,
+			mimeType: plan.mimeType,
+			ext: plan.ext,
+			transcoded: false,
+			sourceMimeType: plan.mimeType
+		};
+	}
+	return transcodeMapsPhoto(file, plan);
 }

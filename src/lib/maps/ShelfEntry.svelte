@@ -62,7 +62,7 @@
 		type MapsShelfReceipt
 	} from './shelf';
 	import { MAPS_MEDIA_MAX_BYTES, describeBytes, mapsPhotoKey, mapsPhotoUrl } from './media';
-	import { prepareMapsPhoto } from './photo-prepare';
+	import { planMapsPhoto, transcodeMapsPhoto, type MapsPreparedPhoto } from './photo-prepare';
 	import {
 		SHELF_MIRROR_DEBOUNCE_MS,
 		clearShelfMirror,
@@ -277,10 +277,33 @@
 		clearPhoto(false);
 		const mine = ++picking;
 		photoProblem = null;
+
+		/* THE SYNCHRONOUS HALF RUNS SYNCHRONOUSLY, which is the whole reason
+		   `planMapsPhoto` is separate. An oversize photo, an SVG and an
+		   ordinary JPEG are all settled from the `File` alone, so the refusal
+		   paints in the same frame as the press and a storable file is staged
+		   with no pending state flashing past. Only a format that has to be
+		   re-encoded waits, and only that one shows a wait. */
+		const plan = planMapsPhoto(file);
+		if (plan.kind === 'refused') {
+			photoProblem = plan.problem;
+			clearPhoto(false);
+			return;
+		}
+		if (plan.kind === 'pass-through') {
+			stagePrepared(file, plan.mimeType, plan.ext, null);
+			return;
+		}
+
 		photoPreparing = true;
-		let prepared: Awaited<ReturnType<typeof prepareMapsPhoto>>;
+		let prepared: MapsPreparedPhoto;
 		try {
-			prepared = await prepareMapsPhoto(file);
+			prepared = await transcodeMapsPhoto(file, plan);
+		} catch {
+			// `transcodeMapsPhoto` is best-effort by contract and swallows its
+			// own failures; this is the belt for the day it stops being, because
+			// an async event handler that rejects takes the picker down silently.
+			prepared = { ok: false, problem: 'That photo could not be prepared. Take it again.' };
 		} finally {
 			if (mine === picking) photoPreparing = false;
 		}
@@ -292,13 +315,22 @@
 			clearPhoto(false);
 			return;
 		}
+		stagePrepared(prepared.file, prepared.mimeType, prepared.ext, prepared.sourceMimeType);
+	}
+
+	/** One place the staged photo and its resolved upload are set together. */
+	function stagePrepared(
+		file: File,
+		mimeType: string,
+		ext: string,
+		transcodedFrom: string | null
+	) {
 		photoProblem = null;
 		if (photoUrl) URL.revokeObjectURL(photoUrl);
-		photoFile = prepared.file;
-		photoUpload = { mimeType: prepared.mimeType, ext: prepared.ext };
-		photoTranscodedFrom = prepared.transcoded ? prepared.sourceMimeType : null;
-		photoUrl =
-			typeof URL.createObjectURL === 'function' ? URL.createObjectURL(prepared.file) : null;
+		photoFile = file;
+		photoUpload = { mimeType, ext };
+		photoTranscodedFrom = transcodedFrom;
+		photoUrl = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : null;
 		scheduleMirror();
 	}
 

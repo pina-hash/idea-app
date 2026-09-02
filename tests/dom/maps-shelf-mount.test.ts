@@ -193,7 +193,7 @@ describe('the photo, and the refusal that happens before the transfer', () => {
 
 	it('uploads an accepted photo under a CONCRETE image type and hangs it on the item', async () => {
 		const { m, photos, data } = open();
-		pick(m.one('[data-testid="maps-shelf-camera"]'), photoOf(2048, 'IMG_0042.HEIC', ''));
+		pick(m.one('[data-testid="maps-shelf-camera"]'), photoOf(2048, 'IMG_0042.jpg'));
 		m.flush();
 		// The staged photo is announced as living only in this browser.
 		expect(says(m.one('[data-testid="maps-shelf-photo-warning"]'))).toContain(
@@ -202,16 +202,63 @@ describe('the photo, and the refusal that happens before the transfer', () => {
 		await saveOne(m, 'Digital Caliper 2');
 
 		expect(photos.log).toHaveLength(1);
-		// 0163's obligation: File.type is empty for an iPhone HEIC, and an
-		// empty type uploads as application/octet-stream, which the bucket
-		// refuses. The extension is what the browser can still tell us.
-		expect(photos.log[0].mimeType).toBe('image/heic');
-		expect(photos.log[0].storageKey).toBe('item/00000000-0000-4000-8000-000000000001.heic');
+		// 0163's obligation: the type a photo is UPLOADED under is a concrete
+		// `image/*` and never `File.type` alone, because an empty type uploads
+		// as application/octet-stream and the bucket refuses it.
+		expect(photos.log[0].mimeType).toBe('image/jpeg');
+		expect(photos.log[0].storageKey).toBe('item/00000000-0000-4000-8000-000000000001.jpg');
 		expect(photos.log[0].owner).toBe('item');
 		const created = data.items.find((i) => i.name === 'Digital Caliper 2');
 		expect(photos.log[0].ownerId).toBe(created?.id);
 		// And the photo row points at the item that was just made.
 		expect(data.photos.find((p) => p.item_id === created?.id)).toBeDefined();
+		await m.stop();
+	});
+
+	it('A HEIC IS NOT UPLOADED AS A HEIC: it is held while it is prepared, and nothing is sent', async () => {
+		/* THIS REPLACES AN ASSERTION THAT PINNED THE DEFECT. It used to pick
+		   `IMG_0042.HEIC` with an empty `File.type` and REQUIRE the upload to go
+		   out as `image/heic` under a `.heic` key -- which the bucket accepts
+		   (0168 admits HEIC deliberately, so a capture can never fail at the far
+		   end) and which then renders for Safari and for nothing else. The photo
+		   was broken for every later reader with nothing anywhere reporting it.
+		   0168's header names transcoding on capture as the editor bundle's
+		   obligation; it is built now, so a HEIC either comes out a JPEG or is
+		   refused at the picker, and it is NEVER stored as a HEIC.
+
+		   WHAT THIS ENVIRONMENT CAN AND CANNOT SETTLE. happy-dom supplies a
+		   `createImageBitmap` that never settles, so the decode here burns
+		   `DECODE_TIMEOUT_MS` (10s) before answering -- which is the deadline
+		   doing its job, and is far too slow to assert on. So this asserts the
+		   half that is fast and is the half that matters in this file: while the
+		   photo is being prepared it is HELD, the surface says so, and the
+		   upload transport's log stays empty. Whether the far end is a JPEG or a
+		   refusal needs real pixels and is measured in Chromium by
+		   `tools/browser-verify/routes/maps-shelf.mjs` (the decode succeeds, a
+		   conversion notice appears) and `.../maps-media.mjs` (the decode fails,
+		   it is refused by name). */
+		const { m, photos } = open();
+		pick(m.one('[data-testid="maps-shelf-camera"]'), photoOf(2048, 'IMG_0042.HEIC', ''));
+		m.flush();
+		await Promise.resolve();
+		m.flush();
+		// Held, and said to be held.
+		expect(says(m.one('[data-testid="maps-shelf-photo"]'))).toContain('Preparing the photo');
+		// The measurement that matters: nothing was sent, nothing was staged to
+		// be sent, and no preview of the undecodable original is on screen.
+		expect(photos.log).toHaveLength(0);
+		expect(m.all('[data-testid="maps-shelf-preview"]')).toHaveLength(0);
+		await m.stop();
+	});
+
+	it('AND AN ALREADY-UNIVERSAL PHOTO IS NOT HELD AT ALL -- the control for that pending state', async () => {
+		// Without this, "Preparing the photo" above could be a state every pick
+		// enters and never leaves. A JPEG is settled from the `File` alone, in
+		// the same frame as the press.
+		const { m } = open();
+		pick(m.one('[data-testid="maps-shelf-camera"]'), photoOf(2048, 'IMG_0001.jpg'));
+		m.flush();
+		expect(says(m.one('[data-testid="maps-shelf-photo"]'))).not.toContain('Preparing the photo');
 		await m.stop();
 	});
 
