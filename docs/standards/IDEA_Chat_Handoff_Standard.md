@@ -1,5 +1,5 @@
 # Chat Handoff Standard
-**Version 1.1 - 2026-08-29**
+**Version 1.2 - 2026-09-02**
 
 Governs every prompt this assistant writes for Mr. Pina to paste into a **new claude.ai chat**. This is the chat-surface counterpart to the Claude Code routing section in `IDEA_instructions.md`. CC prompts follow that section; new-chat kickoff prompts follow this one. Do not mix the two rubrics.
 
@@ -44,13 +44,14 @@ The claude.ai effort dial exposes **High** (default), **Extra**, and **Max** onl
 | Trivial lookups, short blurbs, format fixes | Haiku 4.5 | off | High |
 | Bounded execution off a locked architecture: grading runs, spec'd builds, generating CC prompts from settled designs, iterative edits | Sonnet 5 | off | High |
 | Well-scoped work needing careful reasoning: content authoring against fixed standards, rubric application, debugging, multi-file planning within a known structure | Opus 5 | on | High |
-| Genuinely ambiguous first-draft architecture, evaluate-from-scratch questions, novel system or rubric design, vague briefs with real structural unknowns | Fable 5 | on | High or Extra |
+| Genuinely ambiguous first-draft architecture, evaluate-from-scratch questions, novel system or rubric design, vague briefs with real structural unknowns, and any router chat | Fable 5.1 | on | High or Extra |
 
 Overrides:
 
 - **Highest-scrutiny or hard-to-reverse work** (A-G reclassification drafting, anything submitted to UC, live-data migrations): bump one tier and set **Max**.
 - **Thinking follows the adaptive-thinking framework**, same as always: ON for first-draft architecture, novel rubric design, multi-constraint planning, vague briefs; OFF for execution against a settled spec.
-- **Ambiguity must be real.** Before routing to Fable, list what is actually undecided. If the list is minor polish rather than structural unknowns, it is an Opus chat.
+- **Ambiguity must be real.** Before routing to Fable, list what is actually undecided. If the list is minor polish rather than structural unknowns, it is an Opus chat. A router chat is the exception and is always Fable 5.1: it holds the queue, the decisions owed, and every lane's boundary at once, and the 2026-08-31 session showed that the routing itself is where coordination fails.
+- **This table routes chats. Claude Code prompts route by the table in `IDEA_instructions.md`, where Fable 5.1 is the default and the tiers below it are the exceptions.** The two tables answer different questions and are not to be reconciled with each other.
 - **Re-derive every time.** Classify each handoff on its own. Never inherit the tier of the chat that spawned it - a Fable planning chat routinely spawns Sonnet execution chats.
 
 ---
@@ -65,6 +66,7 @@ The new chat starts with zero memory of the originating conversation beyond proj
 4. **Past-chat pointers.** If the new chat needs history that lives only in conversation (logged data, prior grading records), instruct it by name to search past chats for the specific thread before proceeding, and state what it should find there.
 5. **Workflow carryover.** Restate only the behavioral rules the new chat needs that are not already in project instructions. Do not duplicate what `IDEA_instructions.md` already enforces.
 6. **Delivery format.** One directly-pasteable quoted block containing only what the new chat should read. Header above it, nothing extra inside it.
+7. **A router kickoff carries the decisions owed at its top and the prompts in flight beneath them.** Both are read from `tools/idea-status.py` at the moment the kickoff is written, not from the closing chat's memory, and the kickoff says when it read them. A router chat that opens without this list raises the same nine questions one at a time, which is the 2026-08-31 failure.
 
 ---
 
@@ -136,6 +138,11 @@ Run the closeout. Do not open any other chat first; they will inherit whatever i
 
    It reads only. It clones nothing into a working repo, commits nothing, and collides
    with no open session. Read `tools/standards-sweep.py` for what each verdict means.
+   Then run the repo status the same way, because the kickoffs in step 6 need it:
+
+   curl -sfL https://raw.githubusercontent.com/pina-hash/idea-app/main/tools/idea-status.py -o /tmp/status.py
+   python3 /tmp/status.py
+
 3. Act on every verdict it prints. FORK is a prompt to look, not a proof: a sentence
    rewritten in place counts as unique on both sides. Open the diff before merging
    anything, and where it is a real fork merge by content section by section and record
@@ -168,6 +175,17 @@ files themselves, which is possible for content and impossible for intent.
 ---
 
 ## Changelog
+
+- **1.2 (2026-09-02)** - Fable 5 becomes Fable 5.1 in the chat routing table, and a router
+  chat is always Fable 5.1 regardless of the ambiguity test, because the 2026-08-31 session
+  showed the routing itself is where a long session degrades. Added a line stating that
+  this table routes chats only, since `IDEA_instructions.md` 4.17 makes Fable 5.1 the
+  default for Claude Code prompts with the lower tiers as exceptions, and the two tables
+  would otherwise read as contradicting each other. Added kickoff rule 7: a router kickoff
+  carries the decisions owed and the prompts in flight at its top, read from
+  `tools/idea-status.py` when the kickoff is written. Added the status tool to closeout step
+  2 for the same reason. Prompted by the 2026-09-02 closeout of the nineteen-hour session,
+  where nine decisions had been raised one at a time across the whole night.
 
 - **1.1 (2026-08-29)** - Added "Closing a chat: the closeout prompt is written by the
   chat that is closing." Until now the closeout pass only ran when Mr. Pina wrote a fresh
