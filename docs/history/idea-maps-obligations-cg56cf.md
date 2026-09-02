@@ -184,6 +184,18 @@ as stale. `photoPreparing` then stayed true forever, which blocked the save.
 Four assertions across two specs reported a working surface as broken. The fix
 is two lines swapped, with the reason written beside them.
 
+It also forced a design change that is an improvement rather than a repair. The
+picker no longer awaits anything it does not have to: `planMapsPhoto` is the
+SYNCHRONOUS half -- refuse, pass through, or "this needs re-encoding" -- and it
+settles an oversize photo, an SVG and an ordinary JPEG from the `File` alone, so
+the refusal paints in the same frame as the press and a storable file is staged
+with no pending state flashing past. Only a format that has to be converted
+waits, and only that one says it is waiting. `prepareMapsPhoto` is still the one
+async front door for a caller with nothing to render in between (the
+`/dev/maps-media` harness is one); `ShelfEntry` calls the two halves in the same
+order for the sole reason that it needs the first answer synchronously. One
+rule, two readers, not two rules.
+
 The second finding is the instrument's, not the code's, and is worth more than
 the first. The four `orderResult` probes on `/dev/maps-shelf` press a control
 after a fixed timeout, and `waitForApp` returns once the DOM has stopped
@@ -196,6 +208,45 @@ that types into the name box and RETRIES until the plan line appears, reporting
 the attempt count -- the shape CLAUDE.md prescribes over any timer or marker.
 **Measured, it takes 2 to 7 attempts (200-700ms) after `waitForApp` returns**,
 so the gap is real and was being run through blind.
+
+## The one test outside this bundle's owned surface, and why it was edited
+
+`tests/dom/maps-shelf-mount.test.ts` is not in this bundle's owned list. It
+carried an assertion that PINNED THE DEFECT:
+
+    pick(camera, photoOf(2048, 'IMG_0042.HEIC', ''));
+    expect(photos.log[0].mimeType).toBe('image/heic');
+    expect(photos.log[0].storageKey).toBe('item/....heic');
+
+That is exactly the photo nobody but its author can open, required by a test.
+It is now false in every environment, not merely under this bundle: 0168 admits
+HEIC at the bucket ON PURPOSE so a capture can never fail at the far end, and
+names transcoding on capture as the editor bundle's obligation, which this
+bundle discharges. Leaving it red would have left the branch permanently
+unmergeable into `integration`, and CLAUDE.md's own reason applies -- a standing
+failure hides a real one.
+
+**So it was edited, minimally, and this is stated here rather than buried.** The
+whole diff to that file is five deleted lines (the two assertions above and the
+comment justifying them) and two new cases; the file's other twenty tests are
+byte-identical, verified from the diff. What replaces it asserts the CONTRACT
+rather than the behaviour: a HEIC is HELD while it is prepared, the surface says
+so, and the upload transport's log stays empty -- with an already-universal
+photo beside it as the positive control, so "Preparing the photo" cannot be a
+state every pick enters and never leaves.
+
+**Why not the full refusal.** happy-dom supplies a `createImageBitmap` that
+never settles -- measured: `decodeImageFile` returns null only after burning its
+whole deadline -- so the refusal there takes `DECODE_TIMEOUT_MS`, ten seconds.
+That is the deadline doing its job and is far too slow to assert on. The two
+outcomes downstream of the decode are measured in real Chromium instead:
+`maps-shelf.mjs` drives the success (a conversion notice on the real component)
+and `maps-media.mjs` drives the refusal (named by format, with a remedy).
+
+A `refusalMessage` helper that had become a dead second reader of the same
+decision was removed in the same commit; `failure()` now reads
+`permanentRefusal` once, which is the shape that stops the message and the
+retry flag contradicting each other again.
 
 ## What was measured
 
@@ -215,7 +266,16 @@ stays retryable.
 threshold**, including a new end-to-end case that stages a `.HEIC` at the REAL
 camera input and reads the conversion notice off the REAL component.
 
-`tests/maps-constraint-refusals.test.ts`: 12 passing. `tests/maps-photo-prepare.test.ts`: 8 passing.
+All eight maps route specs together, at both widths: **16 route/width runs, 318
+measurements, 0 outside threshold**.
+
+`tests/maps-constraint-refusals.test.ts`: 12 passing.
+`tests/maps-photo-prepare.test.ts`: 10 passing.
+`tests/dom/maps-shelf-mount.test.ts`: 22 passing (20 before, plus the two that
+replace the one described above).
+Full suite: **232 files, all passing**, after the counts block was regenerated
+(`npm run verify:readme`, which `tests/derived-numbers.test.ts` reddens on until
+it is).
 
 ## The positive controls
 
