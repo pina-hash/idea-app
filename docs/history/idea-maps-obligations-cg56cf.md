@@ -277,6 +277,51 @@ Full suite: **232 files, all passing**, after the counts block was regenerated
 (`npm run verify:readme`, which `tests/derived-numbers.test.ts` reddens on until
 it is).
 
+## The counts block, and two findings that are not this bundle's
+
+`tools/browser-verify/README.md`'s generated block was regenerated with
+`npm run verify:readme` (full harness, no `--no-selftest`), twice: once against
+a dirty tree and then again against the committed one, so the block records
+`dirty: false` and a real sha. The tool rewrote ONLY the region between its
+markers -- verified from the diff, every changed line (32, 36-38, 40-42, 44, 54)
+falls inside the `counts:begin`/`counts:end` pair at lines 31 and 55.
+
+The static counts moved exactly as adding one spec and one dev directory
+should: specs 66 -> 67, distinct routes 37 -> 38, `/dev` pages 69 -> 70, runs
+132 -> 134, measurements 1738 -> 1788.
+
+**The outside-threshold findings were compared BY IDENTITY, not by count, and
+the count moved from 4 to 6.** The four that were there before are unchanged
+(`/dev/pathways` @375 and @1440 `tap-target`, `/dev/coins-signedin-1` @375 and
+`/dev/coins` @375 `horizontal-scroll`). The two new ones are:
+
+- `/dev/notebook` @375 `presence` free-entry title + folder fields
+- `/dev/gauntlet-shell-countdown` @1440 `presence` the numeral currently on
+  screen
+
+**Neither is this bundle's, and that is provable rather than asserted:**
+`git diff --name-only origin/main...HEAD` is sixteen files, every one of them a
+maps file, a doc, or the README block. Nothing under `src/lib/notebook/`,
+`src/routes/dev/notebook/`, `src/routes/dev/gauntlet-shell/`, or either of those
+two specs is touched.
+
+Both are the SAME timing sensitivity this bundle just hit on `/dev/maps-shelf`.
+`notebook.mjs`'s prepare is a fixed `setTimeout(600)` followed by a forced click
+-- paint standing in for interactivity -- and when the click lands early only
+one of the two label fields is there to count; it reproduced on two consecutive
+targeted runs here and on neither of the two full runs before this one.
+`gauntlet-shell-countdown` is measurably FLAKY: three consecutive targeted runs
+gave 0, 3 and 3 findings, because the overlay it measures has finished counting
+by the time the harness reads it.
+
+Both specs are outside this bundle's owned surface
+(`tools/browser-verify/routes/maps-*.mjs`), so they are reported and not
+touched. The fix for each is the one applied to the maps specs: retry the step
+against its own effect and report the attempt count, rather than waiting a fixed
+number of milliseconds. The committed block records what that run actually
+measured, flake included, because the block's own sentence is "outside threshold
+on that run".
+
 ## The positive controls
 
 A check that has never failed has not been tested.
