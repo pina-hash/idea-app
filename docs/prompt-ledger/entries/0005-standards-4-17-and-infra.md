@@ -3,7 +3,7 @@
 - By: closeout chat for "Managing multiple FRC platform projects"
 - Owns: `docs/standards/IDEA_instructions.md`, `docs/standards/IDEA_Chat_Handoff_Standard.md`, `docs/standards/REGISTER.md`, `docs/prompt-ledger/entries/**`, `docs/decisions/**`, `tools/idea-status.py`, `tools/browser-verify/README.md`, `tools/browser-verify/readme-counts.mjs` (new), `.github/workflows/ci.yml`, `.github/workflows/deploy.yml` (new), `.github/workflows/README.md`, `CLAUDE.md` (one paragraph, named below), `package.json` (scripts only), `tests/derived-numbers.test.ts` (new), and your own entry under `docs/history/`.
 - Migration permitted: no. Highest on origin/main at issue: 0169
-- Status: pushed
+- Status: deployed
 - Branch: `claude/standards-workflow-setup-6awqu0`
 - Notes: Two landing paths in one session. The three standards files and the
   register went straight to `main` in one commit (`e7ac4d5`), the established

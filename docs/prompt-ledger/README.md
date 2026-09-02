@@ -75,12 +75,47 @@ result.
 
 ## Status transitions, and how each is confirmed
 
-    issued          -> pushed          the final report names a branch, confirmed by git ls-remote
+    issued          -> pushed          the session's OWN final commit, as its last act
     pushed          -> in-integration  the branch is gone and integration contains its sha
     in-integration  -> deployed        confirmed by reading the artifact on main and quoting it
 
 Never advance a status on the strength of a report, a branch page, or a green check. Each
 transition is confirmed by reading the thing itself.
+
+**The session makes the first transition itself, and only that one.** An entry reads
+`issued` for as long as its session is running, and the session's FINAL commit on its
+branch sets it to `pushed`. That is not an exception to the rule above: a session setting
+`pushed` on its own entry as its last act is the session reporting on itself at the only
+moment it can be certain, and it is the same evidence `git ls-remote` would give a chat
+reading it afterwards. Every LATER transition is still confirmed by reading the artifact,
+and no session ever writes one of those about itself.
+
+**`.github/workflows/integrate.yml` reads this line, which is why it is not decoration.**
+A `claude/**` branch whose newest introduced entry still reads `issued` is NOT SWEPT: the
+workflow skips it and records the reason in its job summary. A branch that introduces no
+ledger entry merges exactly as it always did, and so does one whose entry carries any other
+status; the gate only ever ADDS a skip, and it fails safe by skipping when it cannot read
+the entry at all.
+
+**That is what makes a standing branch mean something again.** Before the gate, the
+workflow deleted a branch the moment its CI went green, and a session commits its ledger
+entry FIRST, so a session still running was swept minutes in and left nothing standing
+behind it. On 2026-09-02 both prompts in flight read as zero standing branches and a router
+chat nearly took the queue as empty. Under the gate a branch stands while its session is
+live, or because its CI failed, or because its merge conflicted, and those are the three
+things a branch list is worth reading for. **The in-flight queue itself is still read from
+this directory across every ref, never from the branch list** -- `tools/idea-status.py`
+does that, and a short branch list proves nothing on its own.
+
+**Only the exact token `issued` holds a branch.** The gate normalises a `Status` value the
+way `tools/idea-status.py` does, taking the first whitespace-separated token, lowercased,
+with a trailing period or comma stripped. Anything else merges, and that includes free
+text: entry 0006 read `partly landed. Its MIGRATION is on origin/main; its client half is
+not on any ref this session can see` for most of 2026-09-02, and a value of that shape is
+written whenever somebody has something true to say that the four states cannot carry. The
+vocabulary is still the four states above and this adds no fifth, but a status a tool does
+not recognise must never be able to pin a branch open forever, so an unrecognised value
+fails toward merging while only `issued` holds.
 
 An entry reaching `deployed` stays here. It is not deleted and not archived, because the
 question a later chat asks is "has this been done", and a removed entry answers it wrongly.

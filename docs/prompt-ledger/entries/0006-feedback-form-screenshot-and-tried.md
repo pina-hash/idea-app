@@ -3,8 +3,7 @@
 - By: closeout chat for "Managing multiple FRC platform projects"
 - Owns: `src/lib/feedback/**`, `src/lib/classroom/FeedbackConsole.svelte`, `src/routes/classroom/feedback/**`, `supabase/migrations/0170_*.sql`, `tests/feedback-*.test.ts`, `tests/db/feedback-*.test.ts`, and its own `docs/history/` entry.
 - Migration permitted: yes, exactly one, 0170. Highest on origin/main at issue: 0169
-- Status: partly landed. Its MIGRATION is on `origin/main`; its client half is not
-  on any ref this session can see.
+- Status: deployed
 - Branch: none on the remote. `git ls-remote --heads origin` at 2026-09-02 09:15 UTC
   lists only `main` and `integration`.
 - Notes: Issued 2026-09-02 by the closeout chat for "Managing multiple FRC
