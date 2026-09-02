@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work (Lane 1, Maps)
 - Owns: `src/lib/maps/**`, `src/lib/pg-errors.ts`, `src/routes/maps/**`, `src/routes/dev/maps-media/**`, `tests/maps-*.test.ts`, `tests/db/maps-*.test.ts`, `tools/browser-verify/routes/maps-*.mjs`, the generated counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0008-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/idea-maps-obligations-cg56cf
 - Notes: The two obligations migration 0168 handed forward and neither of
   which was built. The `maps-media` bucket admits HEIC and no browser except
   Safari renders one, so a photo taken at a toolbox uploads and then shows as
