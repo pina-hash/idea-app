@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tests/foundry-author-class.test.ts`, the timestamp-reading helpers in `tests/db/harness.ts`, `docs/prompt-ledger/entries/0009-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/enrollment-recency-nondeterminism-65brns`
 - Notes: CI run #504 on `main` at `d6811eb` failed on
   `a student holding two IDEA enrollments > and the opposite order yields
   the opposite course`, at `expected 1788332569600 to be greater than

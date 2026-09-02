@@ -189,6 +189,68 @@ async function classFromGetApp(viewerId: string, slug: string): Promise<string |
 }
 
 /**
+ * WHY EVERY STAMP IN THIS FILE IS READ IN MICROSECONDS AND NEVER AS A `Date`.
+ *
+ * `created_at` is a Postgres `timestamptz` and Postgres stamps it at MICROSECOND
+ * resolution; `0132` sorts on it at that resolution and orders a pair correctly.
+ * node-postgres parses the column into a JS `Date`, which carries MILLISECONDS
+ * and TRUNCATES the rest -- measured, `...:00.1234+00` and `...:00.1239+00` both
+ * arrive as `getTime() === 1788343200123`. So two enrollments written a few
+ * hundred microseconds apart are distinct in the database, ordered correctly by
+ * the projection, and INDISTINGUISHABLE to a test comparing `getTime()`.
+ *
+ * That is what failed CI run #504 -- `expected 1788332569600 to be greater than
+ * 1788332569600` -- and what passes on a slower machine, where consecutive
+ * enrollments land 1.2ms to 4ms apart and the truncation happens not to collide.
+ * The assertion that fell over was this file's own PRECONDITION about its
+ * fixture, never its claim about the product: with the pair forced 500us apart
+ * the projection still answered "Engineering I Honors" while `getTime()` tied.
+ *
+ * THE FIX IS RESOLUTION, NOT TOLERANCE. A `toBeGreaterThanOrEqual`, a sleep or a
+ * window would each stop the failure without restoring the check: an ordering
+ * assertion that admits equality cannot detect the ordering bug it exists for.
+ * The stamps are read back as epoch MICROSECONDS instead, which is the
+ * resolution the column actually holds, and every ordering here is asserted on
+ * those. The `Date` forms are kept beside them: they are what the wire gives, and
+ * a reader should be able to see both.
+ *
+ * AND THE FIXTURE GUARANTEES THE ORDER RATHER THAN RACING FOR IT. Even at
+ * microseconds two writes can in principle tie, so every pair whose ORDER is
+ * under test is pinned to a named instant (`STAMP`) after the real RPC has
+ * written the row. The preconditions stay, because they are what makes the
+ * fixture honest -- what changed is that they can now be satisfied on purpose.
+ */
+
+/**
+ * A `timestamptz` as epoch MICROSECONDS, which is the resolution the column
+ * holds. Safe as a JS number: ~1.79e15 against a 9.007e15 integer ceiling.
+ */
+const MICROS = (col: string) => `(extract(epoch from ${col}) * 1000000)::bigint`;
+
+/**
+ * The instants the fixture pins, one per position in an ordering under test.
+ * Distinct by a whole day, so an ordering assertion here can only fail because
+ * the ORDER is wrong and never because two writes shared a tick.
+ */
+const STAMP = {
+	first: '2026-01-05 09:00:00+00',
+	second: '2026-01-06 09:00:00+00'
+} as const;
+
+interface SectionStamp {
+	id: string;
+	createdAt: Date;
+	createdAtMicros: number;
+}
+
+interface EnrollmentStamps {
+	createdAt: Date;
+	updatedAt: Date;
+	createdAtMicros: number;
+	updatedAtMicros: number;
+}
+
+/**
  * A section of one course, created through the real RPCs. Returns its id and
  * its stored `created_at`, because the section timestamp is the third sort key
  * and a fixture that assumes an order without reading it back is asserting
@@ -196,8 +258,10 @@ async function classFromGetApp(viewerId: string, slug: string): Promise<string |
  */
 async function section(
 	course: { code: string; title: string },
-	label: string
-): Promise<{ id: string; createdAt: Date }> {
+	label: string,
+	/** Pin the section's own `created_at`, for the pairs whose order is asserted. */
+	createdAt?: string
+): Promise<SectionStamp> {
 	const id = await createClassroomSection(db, {
 		as: admin,
 		courseCode: course.code,
@@ -205,11 +269,19 @@ async function section(
 		label,
 		teacherEmail: 'apina@boscotech.edu'
 	});
-	const { rows } = await db.sql<{ created_at: Date }>(
-		'select created_at from public.classroom_sections where id = $1',
+	if (createdAt !== undefined) {
+		const { rowCount } = await db.sql(
+			`update public.classroom_sections set created_at = $2::timestamptz where id = $1`,
+			[id, createdAt]
+		);
+		expect(rowCount).toBe(1);
+	}
+	const { rows } = await db.sql<{ created_at: Date; created_us: string }>(
+		`select created_at, ${MICROS('created_at')} as created_us
+		   from public.classroom_sections where id = $1`,
 		[id]
 	);
-	return { id, createdAt: rows[0].created_at };
+	return { id, createdAt: rows[0].created_at, createdAtMicros: Number(rows[0].created_us) };
 }
 
 /** Retire a course through the real admin edit path, not a raw update. */
@@ -229,17 +301,27 @@ async function deactivateCourse(course: { code: string; title: string }): Promis
 }
 
 /** An enrollment row's own timestamps, read as owner so RLS is not in the way. */
-async function enrollmentStamps(
-	sectionId: string,
-	email: string
-): Promise<{ createdAt: Date; updatedAt: Date }> {
-	const { rows } = await db.sql<{ created_at: Date; updated_at: Date }>(
-		`select created_at, updated_at from public.classroom_enrollments
-		 where section_id = $1 and student_email = $2`,
+async function enrollmentStamps(sectionId: string, email: string): Promise<EnrollmentStamps> {
+	const { rows } = await db.sql<{
+		created_at: Date;
+		updated_at: Date;
+		created_us: string;
+		updated_us: string;
+	}>(
+		`select created_at, updated_at,
+		        ${MICROS('created_at')} as created_us,
+		        ${MICROS('updated_at')} as updated_us
+		   from public.classroom_enrollments
+		  where section_id = $1 and student_email = $2`,
 		[sectionId, email]
 	);
 	expect(rows).toHaveLength(1);
-	return { createdAt: rows[0].created_at, updatedAt: rows[0].updated_at };
+	return {
+		createdAt: rows[0].created_at,
+		updatedAt: rows[0].updated_at,
+		createdAtMicros: Number(rows[0].created_us),
+		updatedAtMicros: Number(rows[0].updated_us)
+	};
 }
 
 beforeAll(async () => {
@@ -303,26 +385,30 @@ beforeAll(async () => {
 		as: admin,
 		sectionId: section209H,
 		email: dual.email,
-		displayName: 'Dee Lang'
+		displayName: 'Dee Lang',
+		createdAt: STAMP.first
 	});
 	await enrollStudent(db, {
 		as: admin,
 		sectionId: s100.id,
 		email: dual.email,
-		displayName: 'Dee Lang'
+		displayName: 'Dee Lang',
+		createdAt: STAMP.second
 	});
 	// `dualReverse` joins them the other way, so 'Engineering I Honors' must win.
 	await enrollStudent(db, {
 		as: admin,
 		sectionId: s100.id,
 		email: dualReverse.email,
-		displayName: 'Rey Otero'
+		displayName: 'Rey Otero',
+		createdAt: STAMP.first
 	});
 	await enrollStudent(db, {
 		as: admin,
 		sectionId: section209H,
 		email: dualReverse.email,
-		displayName: 'Rey Otero'
+		displayName: 'Rey Otero',
+		createdAt: STAMP.second
 	});
 
 	// --- Key 1 outranks key 2: a live course enrolled BEFORE a retired one. ---
@@ -330,13 +416,15 @@ beforeAll(async () => {
 		as: admin,
 		sectionId: section209H,
 		email: preferLive.email,
-		displayName: 'Luz Fabre'
+		displayName: 'Luz Fabre',
+		createdAt: STAMP.first
 	});
 	await enrollStudent(db, {
 		as: admin,
 		sectionId: s404.id,
 		email: preferLive.email,
-		displayName: 'Luz Fabre'
+		displayName: 'Luz Fabre',
+		createdAt: STAMP.second
 	});
 	// Retired AFTER both enrollments exist, so the course flag is what moved and
 	// not the order they were made in.
@@ -346,8 +434,8 @@ beforeAll(async () => {
 	// `classroom_import_roster` is the real producer of that shape: one call,
 	// one transaction, so `now()` stamps both rows identically and key 2 cannot
 	// decide. 306's section is created second, so it is the newer class.
-	const s305 = await section(IDEA_305, 'Block 1');
-	const s306 = await section(IDEA_306, 'Block 2');
+	const s305 = await section(IDEA_305, 'Block 1', STAMP.first);
+	const s306 = await section(IDEA_306, 'Block 2', STAMP.second);
 	await db.asUser(admin.id, (q) =>
 		q('select public.classroom_import_roster($1::jsonb)', [
 			JSON.stringify([
@@ -368,10 +456,13 @@ beforeAll(async () => {
 	);
 	// The fixture's own premise, asserted rather than assumed: the sections were
 	// created in order, and the import really did stamp both rows the same.
-	expect(s306.createdAt.getTime()).toBeGreaterThan(s305.createdAt.getTime());
+	expect(s306.createdAtMicros).toBeGreaterThan(s305.createdAtMicros);
 	const at305 = await enrollmentStamps(s305.id, sameInstant.email);
 	const at306 = await enrollmentStamps(s306.id, sameInstant.email);
-	expect(at306.createdAt.getTime()).toBe(at305.createdAt.getTime());
+	// Asserted in microseconds in BOTH directions: at millisecond resolution this
+	// equality is the one that can pass while the rows are genuinely apart, which
+	// would leave key 3 never reached and the test below green for a wrong reason.
+	expect(at306.createdAtMicros).toBe(at305.createdAtMicros);
 
 	await publishFor(author, slugs.author);
 	await publishFor(hundred, slugs.hundred);
@@ -564,7 +655,7 @@ describe('a student holding two IDEA enrollments', () => {
 		const at209 = await enrollmentStamps(section209H, dual.email);
 		const at100 = await enrollmentStamps(s100.rows[0].id, dual.email);
 		// The fixture enrolled 209H first. Assert that, rather than trusting it.
-		expect(at100.createdAt.getTime()).toBeGreaterThan(at209.createdAt.getTime());
+		expect(at100.createdAtMicros).toBeGreaterThan(at209.createdAtMicros);
 
 		const classes = await classesBySlug(viewer.id);
 		expect(classes.get(slugs.dual)).toBe(IDEA_100.title);
@@ -585,7 +676,7 @@ describe('a student holding two IDEA enrollments', () => {
 		);
 		const at209 = await enrollmentStamps(section209H, dualReverse.email);
 		const at100 = await enrollmentStamps(s100.rows[0].id, dualReverse.email);
-		expect(at209.createdAt.getTime()).toBeGreaterThan(at100.createdAt.getTime());
+		expect(at209.createdAtMicros).toBeGreaterThan(at100.createdAtMicros);
 
 		const classes = await classesBySlug(viewer.id);
 		expect(classes.get(slugs.dualReverse)).toBe(IDEA_209H.title);
@@ -617,8 +708,8 @@ describe('a student holding two IDEA enrollments', () => {
 		const at209 = await enrollmentStamps(section209H, dual.email);
 		const at100 = await enrollmentStamps(s100.rows[0].id, dual.email);
 		// The touch really did invert updated_at while leaving created_at alone.
-		expect(at209.updatedAt.getTime()).toBeGreaterThan(at100.updatedAt.getTime());
-		expect(at100.createdAt.getTime()).toBeGreaterThan(at209.createdAt.getTime());
+		expect(at209.updatedAtMicros).toBeGreaterThan(at100.updatedAtMicros);
+		expect(at100.createdAtMicros).toBeGreaterThan(at209.createdAtMicros);
 
 		expect(await classFromGetApp(viewer.id, slugs.dual)).toBe(IDEA_100.title);
 	});
@@ -630,15 +721,16 @@ describe('a student holding two IDEA enrollments', () => {
 	 * `created_at`. The more recently created SECTION is then the newer class.
 	 */
 	it('falls back to the section when both enrollments are the same instant', async () => {
-		const sections = await db.sql<{ code: string; created_at: Date }>(
-			`select c.code, s.created_at from public.classroom_sections s
-			 join public.classroom_courses c on c.id = s.course_id
-			 where c.code in ($1, $2)`,
+		const sections = await db.sql<{ code: string; created_us: string }>(
+			`select c.code, ${MICROS('s.created_at')} as created_us
+			   from public.classroom_sections s
+			   join public.classroom_courses c on c.id = s.course_id
+			  where c.code in ($1, $2)`,
 			[IDEA_305.code, IDEA_306.code]
 		);
 		const at305 = sections.rows.find((r) => r.code === IDEA_305.code)!;
 		const at306 = sections.rows.find((r) => r.code === IDEA_306.code)!;
-		expect(at306.created_at.getTime()).toBeGreaterThan(at305.created_at.getTime());
+		expect(Number(at306.created_us)).toBeGreaterThan(Number(at305.created_us));
 
 		const classes = await classesBySlug(viewer.id);
 		expect(classes.get(slugs.sameInstant)).toBe(IDEA_306.title);
@@ -660,7 +752,7 @@ describe('a student holding two IDEA enrollments', () => {
 		const at209 = await enrollmentStamps(section209H, preferLive.email);
 		const at404 = await enrollmentStamps(s404.rows[0].id, preferLive.email);
 		// Recency points at the RETIRED one. The live course must still win.
-		expect(at404.createdAt.getTime()).toBeGreaterThan(at209.createdAt.getTime());
+		expect(at404.createdAtMicros).toBeGreaterThan(at209.createdAtMicros);
 
 		const classes = await classesBySlug(viewer.id);
 		expect(classes.get(slugs.preferLive)).toBe(IDEA_209H.title);
