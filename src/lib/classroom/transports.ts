@@ -40,6 +40,7 @@ import {
 import type {
 	HallPassClosed,
 	HallPassOpened,
+	HallPassOpenedFor,
 	HallPassRefusal,
 	HallPassResult,
 	HallPassState,
@@ -1691,7 +1692,16 @@ const HALL_PASS_REFUSALS = new Set<HallPassRefusal>([
 	'not_open',
 	'not_yours',
 	// `0144`, manager path only: the named pass had already been signed back in.
-	'already_closed'
+	'already_closed',
+	// `0174`. Both carry DETAIL the sentence is built from -- an instant for
+	// the cooldown, a count and a cap for the limit -- which is why
+	// `hallPassOutcome` below reads those fields off the row rather than
+	// answering with the word alone.
+	'cooldown',
+	'limit_reached',
+	// `0174`, the instructor override only: the name picked is not on the live
+	// roster.
+	'not_enrolled'
 ]);
 
 function hallPassOutcome<T>(
@@ -1701,7 +1711,19 @@ function hallPassOutcome<T>(
 	const row = (data ?? {}) as Record<string, unknown>;
 	if (row.ok === true) return { ok: true, data: shape(row) };
 	const reason = row.reason as HallPassRefusal | undefined;
-	if (reason && HALL_PASS_REFUSALS.has(reason)) return { ok: false, refusal: reason };
+	if (reason && HALL_PASS_REFUSALS.has(reason)) {
+		// THE DETAIL RIDES WITH THE WORD (`0174`). A `cooldown` with its
+		// `retry_at` dropped here becomes "wait a few minutes" instead of a clock
+		// time, which is the refusal-with-no-time-in-it this limit exists to
+		// avoid. Absent fields stay absent rather than becoming zeroes: `0143`'s
+		// five reasons carry none of them and must not start claiming a limit of
+		// nought.
+		const detail: { retryAt?: string; used?: number; limit?: number } = {};
+		if (typeof row.retry_at === 'string') detail.retryAt = row.retry_at;
+		if (typeof row.used === 'number') detail.used = row.used;
+		if (typeof row.limit === 'number') detail.limit = row.limit;
+		return { ok: false, refusal: reason, ...detail };
+	}
 	return { ok: false, message: 'Something went wrong. Try again.' };
 }
 
@@ -1787,6 +1809,27 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 			});
 			if (error) return { ok: false, message: 'Could not sign the pass back in. Try again.' };
 			return hallPassOutcome<HallPassClosed>(data, hallPassClosedShape);
+		},
+		/**
+		 * THE OVERRIDE (`0174`), AND IT IS THE ONE CALL HERE THAT NAMES A
+		 * STUDENT. The database refuses anybody who does not manage the section
+		 * with the same sentence a nonexistent section raises, so this is
+		 * plumbing rather than a boundary -- as everything else in this module
+		 * is.
+		 */
+		async openFor(sectionId, studentEmail) {
+			const { data, error } = await supabase.rpc('classroom_hall_pass_open_for', {
+				p_section_id: sectionId,
+				p_student_email: studentEmail
+			});
+			if (error) return { ok: false, message: 'Could not send that student out. Try again.' };
+			return hallPassOutcome<HallPassOpenedFor>(data, (row) => ({
+				pass_id: String(row.pass_id ?? ''),
+				opened_at: String(row.opened_at ?? ''),
+				student_email: String(row.student_email ?? ''),
+				student_name: String(row.student_name ?? ''),
+				opened_by: String(row.opened_by ?? '')
+			}));
 		}
 	};
 }

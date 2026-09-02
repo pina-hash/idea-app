@@ -1161,7 +1161,17 @@ export function splitLastFirst(displayName: string, email: string): { last: stri
 	return { last: words[words.length - 1], first: words.slice(0, -1).join(' ') };
 }
 
-function csvCell(value: string | number | null): string {
+/**
+ * ONE CSV CELL, ONE ESCAPE RULE, AND IT IS EXPORTED BECAUSE THERE IS A SECOND
+ * CSV IN THIS MODULE NOW (`$lib/classroom/roster-export`).
+ *
+ * The formula-injection guard below is the reason a second copy is not
+ * acceptable rather than merely untidy: a roster export that quoted correctly
+ * and forgot the leading `=` would hand a teacher a spreadsheet that executes a
+ * student's display name. Two implementations of that is the one that stops
+ * matching.
+ */
+export function csvCell(value: string | number | null): string {
 	if (value == null) return '';
 	let text = String(value);
 	// Formula-injection guard: Excel executes leading = + - @ (and trims
