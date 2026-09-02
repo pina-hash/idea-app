@@ -19,7 +19,9 @@
 		rowRole,
 		rowRoute,
 		rowSection,
+		rowScreenshotPath,
 		rowStatusCode,
+		rowTried,
 		rowUserAgentSummary,
 		rowViewport,
 		resolveSectionId,
@@ -63,6 +65,7 @@
 		ready = true,
 		rows,
 		classroomSections = [],
+		screenshotUrls = {},
 		setStatus,
 		now = () => Date.now()
 	}: {
@@ -70,6 +73,24 @@
 		rows: FeedbackRow[];
 		/** Live `classroom_sections` rows for every id these rows' `meta.section` names. */
 		classroomSections?: ClassroomSectionInfo[];
+		/**
+		 * A short-lived signed URL per screenshot KEY, minted server-side by the
+		 * page load as the admin themselves.
+		 *
+		 * MINTED THERE AND NOT HERE, and that is the authorization argument
+		 * rather than a convenience: the bucket is private and the only readers
+		 * are the object's own uploader and an admin, both by storage policy. The
+		 * load runs on `locals.supabase`, the caller's own client, so the policy
+		 * is what answers -- exactly as it would for a browser. A client that
+		 * minted its own would still be the same caller, but the key would then
+		 * have to be a URL somewhere, and a URL is the thing that outlives the
+		 * screen it was on.
+		 *
+		 * A KEY WITH NO ENTRY HERE IS A NORMAL STATE, not an error: the mint fails
+		 * soft (a backend before 0170 has no bucket at all), and the row then
+		 * renders the same sentence a broken thumbnail does.
+		 */
+		screenshotUrls?: Record<string, string>;
 		setStatus: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
 		/** Injectable clock, so a harness can pin the export stamp. */
 		now?: () => number;
@@ -106,7 +127,10 @@
 		'at',
 		'build',
 		'status',
-		'errorId'
+		'errorId',
+		// Read by `rowTried` when it is in the blob rather than in 0170's column,
+		// so leaving it out here would print the same sentence twice.
+		'tried'
 	]);
 
 	/** A meta value worth a line: a non-empty primitive. */
@@ -151,6 +175,12 @@
 	let error = $state<string | null>(null);
 	/** Optimistic status, so a click lands before the parent reloads. */
 	let moved = $state<Record<string, FeedbackStatus>>({});
+	/**
+	 * Rows whose thumbnail failed to decode, by row id. A screenshot that will
+	 * not draw must not leave a broken image icon on a queue: the row falls back
+	 * to the link, which still opens the bytes.
+	 */
+	let brokenShots = $state<Record<string, boolean>>({});
 
 	function statusOf(row: FeedbackRow) {
 		return moved[row.id] ?? row.status;
@@ -544,6 +574,66 @@
 						<span class="fb-status status-{statusOf(row)}">{statusOf(row)}</span>
 					</div>
 					<p class="fb-message">{row.message}</p>
+					{#if rowTried(row)}
+						<!-- WHAT THEY TRIED, LABELLED AND SET APART FROM THE MESSAGE.
+						     Two pieces of prose run together read as one, and the whole
+						     point of this field is that it answers a different question
+						     from the one above it. Plain text interpolation, like every
+						     other field on this card: this component raw-renders
+						     nothing, so there is no second escaping decision here. -->
+						<div class="fb-tried">
+							<span class="fb-tried-label">Tried first</span>
+							<p class="fb-tried-text">{rowTried(row)}</p>
+						</div>
+					{/if}
+					{#if rowScreenshotPath(row)}
+						<div class="fb-shot">
+							{#if screenshotUrls[rowScreenshotPath(row) ?? '']}
+								<!--
+									A THUMBNAIL, AND THE LINK BESIDE IT IS THE SAME URL. An
+									`<img>` is not a navigation: the element decodes an image
+									or fails, script does not run in it, and the bucket admits
+									no SVG in the first place. The URL carries `download=`, so
+									a person who follows the link saves the file rather than
+									having the reporter's bytes rendered as a document on a
+									host of ours -- which is the property the classroom file
+									rule is actually about.
+
+									IF IT WILL NOT DECODE, THE ROW FALLS BACK TO THE LINK,
+									through the img's own `onerror`. A broken image icon on a
+									triage queue is a defect nobody can act on.
+								-->
+								<a
+									class="fb-shot-link"
+									href={screenshotUrls[rowScreenshotPath(row) ?? '']}
+									target="_blank"
+									rel="noopener"
+								>
+									{#if !brokenShots[row.id]}
+										<img
+											class="fb-shot-thumb"
+											src={screenshotUrls[rowScreenshotPath(row) ?? '']}
+											alt="Screenshot attached to this report"
+											loading="lazy"
+											onerror={() => (brokenShots = { ...brokenShots, [row.id]: true })}
+										/>
+									{/if}
+									<span class="fb-shot-word">
+										{brokenShots[row.id]
+											? 'Screenshot (this browser could not display it, open it here)'
+											: 'Open the screenshot'}
+									</span>
+								</a>
+							{:else}
+								<!-- A key with no URL. Said plainly rather than rendered as a
+								     broken picture: the object may be gone, or this backend
+								     may not have the bucket at all. -->
+								<p class="fb-shot-missing">
+									A screenshot is attached, but no link could be made for it.
+								</p>
+							{/if}
+						</div>
+					{/if}
 					<ul class="fb-context">
 						{#if rowDistinctPath(row)}<li>path {rowDistinctPath(row)}</li>{/if}
 						{#if rowRole(row)}<li>role {rowRole(row)}</li>{/if}
@@ -809,6 +899,57 @@
 		line-height: 1.55;
 		font-size: 0.95rem;
 	}
+	/* WHAT THEY TRIED. Set apart from the message with a label and a rule, so two
+	   pieces of prose answering two questions do not read as one. */
+	.fb-tried {
+		margin: 0 0 var(--space-2);
+		padding-left: var(--space-2);
+		border-left: 2px solid var(--hairline);
+	}
+	.fb-tried-label {
+		display: block;
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.fb-tried-text {
+		margin: 0.15rem 0 0;
+		white-space: pre-wrap;
+		line-height: 1.5;
+		font-size: 0.88rem;
+	}
+	.fb-shot {
+		margin: 0 0 var(--space-2);
+	}
+	.fb-shot-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		/* The 44px floor: this is a control that owns its row, not a link inside
+		   a sentence, so it takes the target rather than the prose exemption. */
+		min-height: 44px;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		color: var(--text-2);
+	}
+	.fb-shot-thumb {
+		width: 5.5rem;
+		height: 3.5rem;
+		/* CONTAIN: a cropped thumbnail hides the edge of the thing being reported. */
+		object-fit: contain;
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+	}
+	.fb-shot-missing {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		color: var(--text-2);
+	}
+
 	.fb-context {
 		display: flex;
 		flex-wrap: wrap;

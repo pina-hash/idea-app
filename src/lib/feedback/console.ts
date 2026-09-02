@@ -138,6 +138,37 @@ export function rowContact(row: FeedbackRow): string | null {
 	return raw ? raw : null;
 }
 
+/**
+ * WHAT THE REPORTER TRIED, from wherever this row happens to carry it.
+ *
+ * TWO PLACES, ONE ANSWER. 0170 gives it a column, and both write paths put it
+ * there once that migration is applied -- but a row filed before it, and a row
+ * written by a client sending through the anonymous route against a backend
+ * that has not had it applied yet, carry the same sentence in `meta.tried`.
+ * Reading the column first and falling back is what makes the queue show every
+ * row's answer rather than only the ones filed after an apply.
+ *
+ * THE FALLBACK IS NOT DEAD CODE and does not become dead code when 0170 is
+ * applied: it is what a deployment sitting between two migrations produces, and
+ * that is a real state in this repo rather than a hypothetical one.
+ */
+export function rowTried(row: FeedbackRow): string | null {
+	const column = (row.tried ?? '').trim();
+	if (column) return column;
+	return metaString(row, 'tried');
+}
+
+/**
+ * The KEY of this row's screenshot, or null. NEVER A URL: the object lives in a
+ * private bucket and a key resolves to nothing on its own. The console renders
+ * it through a short-lived signed URL minted server-side as the admin, so the
+ * storage policy stays the boundary and no key in an export is a way in.
+ */
+export function rowScreenshotPath(row: FeedbackRow): string | null {
+	const raw = (row.screenshot_path ?? '').trim();
+	return raw ? raw : null;
+}
+
 export function rowStatusCode(row: FeedbackRow): number | null {
 	const raw = (row.meta ?? {}).status;
 	return typeof raw === 'number' ? raw : null;
@@ -172,7 +203,11 @@ const KNOWN_META_KEYS = new Set([
 	'at',
 	'build',
 	'status',
-	'errorId'
+	'errorId',
+	// `tried` IS READ BY A NAMED ACCESSOR (`rowTried`) whenever it is in the
+	// blob rather than the column, so leaving it out of this set would print the
+	// same sentence twice -- once as the field and once as an anonymous extra.
+	'tried'
 ]);
 
 /** A meta value worth a line in the generic pass: a non-empty primitive. */
@@ -553,6 +588,27 @@ function oneRow(
 	lines.push(facts.map((f) => `- ${f}`).join('\n'));
 	lines.push('');
 	lines.push(quoteMessage(row.message));
+
+	// WHAT THEY TRIED, AS ITS OWN LABELLED QUOTE. It is prose somebody typed, so
+	// it goes through the SAME `quoteMessage` the message does -- a report that
+	// pastes a rule of dashes into this field would otherwise promote the line
+	// above it to a heading and reparent everything after it, which is the exact
+	// defect that function exists to stop, arriving through a second field.
+	const tried = rowTried(row);
+	if (tried) {
+		lines.push('');
+		lines.push('**Tried first:**');
+		lines.push('');
+		lines.push(quoteMessage(tried));
+	}
+	// A SCREENSHOT IS NAMED, NEVER LINKED. The key resolves to nothing outside
+	// the console -- the bucket is private and the URL the console renders is
+	// signed and short-lived -- so printing one would be an address that always
+	// 404s. Saying it exists is what lets a reader know to go and look.
+	if (rowScreenshotPath(row)) {
+		lines.push('');
+		lines.push('_A screenshot is attached. Open this report in the feedback console to see it._');
+	}
 	lines.push('');
 	return lines.join('\n');
 }
@@ -665,6 +721,12 @@ export function feedbackMarkdown(
  * one, and it is what stops a blanked row reading as a name that went missing.
  */
 function withoutSubmitter(row: FeedbackRow): FeedbackRow {
+	// `tried` AND `screenshot_path` ARE DELIBERATELY KEPT. This toggle withholds
+	// IDENTITY -- a name, an address, the one free-form string on an anonymous
+	// row that can name a person. What somebody tried is part of the report, and
+	// a screenshot key is an opaque pointer into a private bucket that resolves
+	// to nothing without a signed URL an admin has to mint. Stripping either
+	// would be the toggle quietly deleting the report rather than the name.
 	return { ...row, submitter_name: null, submitter_email: null, contact: null };
 }
 
