@@ -46,6 +46,24 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
+/**
+ * TYPES ARE REQUIRED IN THIS FILE, unlike its neighbours in this directory.
+ * `tests/derived-numbers.test.ts` imports it, `tsconfig.json` sets `checkJs`
+ * and `strict`, and an import from a checked `.ts` pulls this module into the
+ * program -- so `npx svelte-check` reports every implicit `any` here against a
+ * 0-error baseline. `run.mjs` and the rest have no `.ts` importer and are not
+ * checked at all. Keep the JSDoc accurate rather than loosening it: the test
+ * reads these shapes.
+ *
+ * @typedef {{ specs: number, routes: number, devPages: number, widths: number[], runs: number }} StaticCounts
+ * @typedef {{ path: string, width: number, check: string, label: string }} OutsideRow
+ * @typedef {{ runsMeasured: number, measurements: number, outside: number, outsideRows: OutsideRow[], totalMs: number }} MeasuredCounts
+ * @typedef {{ controls: number, negative: number, positive: number, failures: number }} SelfTest
+ * @typedef {{ sha: string, dirty: boolean }} Head
+ * @typedef {StaticCounts & MeasuredCounts & { schema: number, date: string, sha: string, dirty: boolean, selftest: SelfTest | null }} Counts
+ * @typedef {{ runs: { path: string, width: number, results: { check: string, label?: string, withinThreshold: boolean }[] }[], totalMs: number }} Report
+ */
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '../..');
 export const README_PATH = join(HERE, 'README.md');
@@ -59,10 +77,15 @@ export const SCHEMA = 1;
 /* Static counts: read from the tree, no browser.                            */
 /* ------------------------------------------------------------------------ */
 
-/** Directories under src/routes/dev that carry a +page.svelte, recursively. */
+/**
+ * Directories under src/routes/dev that carry a +page.svelte, recursively.
+ * @param {string} [root]
+ * @returns {number}
+ */
 export function countDevPages(root = REPO_ROOT) {
 	const base = join(root, 'src', 'routes', 'dev');
 	let n = 0;
+	/** @param {string} dir */
 	const walk = (dir) => {
 		let entries;
 		try {
@@ -80,11 +103,15 @@ export function countDevPages(root = REPO_ROOT) {
 	return n;
 }
 
-/** Imports the REAL route table, the way run.mjs does, and counts it. */
+/**
+ * Imports the REAL route table, the way run.mjs does, and counts it.
+ * @param {string} [root]
+ * @returns {Promise<StaticCounts>}
+ */
 export async function deriveStatic(root = REPO_ROOT) {
-	const mod = await import(new URL('./routes.mjs', import.meta.url));
+	const mod = await import(new URL('./routes.mjs', import.meta.url).href);
 	const { ROUTES, WIDTHS, urlFor } = mod;
-	const distinct = new Set(ROUTES.map((r) => urlFor(r).split('?')[0]));
+	const distinct = new Set(ROUTES.map((/** @type {{ path: string, aliasOf?: string }} */ r) => urlFor(r).split('?')[0]));
 	return {
 		specs: ROUTES.length,
 		routes: distinct.size,
@@ -98,8 +125,13 @@ export async function deriveStatic(root = REPO_ROOT) {
 /* Measured counts: from a `run.mjs --json` report and a `--selftest` run.   */
 /* ------------------------------------------------------------------------ */
 
+/**
+ * @param {Report} report
+ * @returns {MeasuredCounts}
+ */
 export function summarizeReport(report) {
 	const all = report.runs.flatMap((r) => r.results);
+	/** @type {OutsideRow[]} */
 	const outside = [];
 	for (const run of report.runs) {
 		for (const r of run.results) {
@@ -119,12 +151,17 @@ export function summarizeReport(report) {
 
 const SELFTEST_RE = /(\d+) controls run \((\d+) negative, (\d+) positive\), (\d+) instrument failure\(s\)/;
 
+/**
+ * @param {string} stdout
+ * @returns {SelfTest | null}
+ */
 export function parseSelftest(stdout) {
 	const m = SELFTEST_RE.exec(stdout);
 	if (!m) return null;
 	return { controls: +m[1], negative: +m[2], positive: +m[3], failures: +m[4] };
 }
 
+/** @returns {Report} */
 function runHarnessJson() {
 	const dir = mkdtempSync(join(tmpdir(), 'readme-counts-'));
 	const out = join(dir, 'report.json');
@@ -141,6 +178,7 @@ function runHarnessJson() {
 	}
 }
 
+/** @returns {SelfTest} */
 function runSelftest() {
 	const r = spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--selftest'], {
 		cwd: REPO_ROOT,
@@ -152,6 +190,10 @@ function runSelftest() {
 	return parsed;
 }
 
+/**
+ * @param {string} [root]
+ * @returns {Head}
+ */
 function gitHead(root = REPO_ROOT) {
 	const sha = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 	const dirty = execFileSync('git', ['-C', root, 'status', '--porcelain', '--untracked-files=no'], {
@@ -166,7 +208,11 @@ function gitHead(root = REPO_ROOT) {
 /* The block.                                                                */
 /* ------------------------------------------------------------------------ */
 
-/** Everything the block carries, in one object. Keep keys stable: it is committed. */
+/**
+ * Everything the block carries, in one object. Keep keys stable: it is committed.
+ * @param {{ stat: StaticCounts, measured: MeasuredCounts, selftest: SelfTest | null, head: Head, date: string }} parts
+ * @returns {Counts}
+ */
 export function assembleCounts({ stat, measured, selftest, head, date }) {
 	return {
 		schema: SCHEMA,
@@ -187,8 +233,13 @@ export function assembleCounts({ stat, measured, selftest, head, date }) {
 	};
 }
 
+/** @param {OutsideRow} o */
 const outsideLine = (o) => `- \`${o.path}\` @${o.width} \`${o.check}\`${o.label ? ` ${o.label}` : ''}`;
 
+/**
+ * @param {Counts} c
+ * @returns {string}
+ */
 export function renderBlock(c) {
 	const lines = [
 		COUNTS_BEGIN,
@@ -218,7 +269,11 @@ export function renderBlock(c) {
 	return lines.join('\n');
 }
 
-/** { block, data } from a README, or throws when the block is missing or doubled. */
+/**
+ * { block, data } from a README, or throws when the block is missing or doubled.
+ * @param {string} readme
+ * @returns {{ block: string, data: Counts }}
+ */
 export function parseBlock(readme) {
 	const begins = readme.split(COUNTS_BEGIN).length - 1;
 	const ends = readme.split(COUNTS_END).length - 1;
@@ -229,18 +284,26 @@ export function parseBlock(readme) {
 	const b = readme.indexOf(COUNTS_END) + COUNTS_END.length;
 	if (b < a) throw new Error('counts:end precedes counts:begin');
 	const block = readme.slice(a, b);
-	const dl = block.split('\n').find((l) => l.startsWith(DATA_PREFIX));
+	const dl = block.split('\n').find((/** @type {string} */ l) => l.startsWith(DATA_PREFIX));
 	if (!dl) throw new Error('the counts block carries no counts:data line');
 	const data = JSON.parse(dl.slice(DATA_PREFIX.length, -DATA_SUFFIX.length));
 	return { block, data };
 }
 
+/**
+ * @param {string} readme
+ * @param {string} block
+ * @returns {string}
+ */
 export function spliceBlock(readme, block) {
 	const { block: old } = parseBlock(readme);
 	return readme.replace(old, block);
 }
 
-/** The keys `--check` compares. Not the date, the sha, the dirty flag or the wall clock. */
+/**
+ * The keys `--check` compares. Not the date, the sha, the dirty flag or the wall clock.
+ * @param {Counts} c
+ */
 export function comparable(c) {
 	return {
 		specs: c.specs,
@@ -261,14 +324,20 @@ export function comparable(c) {
  * static derivation from the current tree (always available); `fresh` is a
  * full measured set (only with a browser). Shared by --check and by the test
  * so there is one definition of "the block agrees".
+ *
+ * @param {string} readme
+ * @param {{ live?: StaticCounts, fresh?: Counts }} [against]
+ * @returns {string[]}
  */
 export function verifyBlock(readme, { live, fresh } = {}) {
+	/** @type {string[]} */
 	const problems = [];
+	/** @type {{ block: string, data: Counts }} */
 	let parsed;
 	try {
 		parsed = parseBlock(readme);
-	} catch (e) {
-		return [String(e.message ?? e)];
+	} catch (/** @type {any} */ e) {
+		return [String(e?.message ?? e)];
 	}
 	const { block, data } = parsed;
 	if (data.schema !== SCHEMA) problems.push(`counts:data schema is ${data.schema}, this script writes ${SCHEMA}`);
@@ -284,7 +353,9 @@ export function verifyBlock(readme, { live, fresh } = {}) {
 		problems.push(`runs ${data.runs} is not specs ${data.specs} x widths ${data.widths.length}`);
 	}
 	if (live) {
-		for (const k of ['specs', 'routes', 'devPages', 'runs']) {
+		/** @type {(keyof StaticCounts & keyof Counts)[]} */
+		const NUMERIC = ['specs', 'routes', 'devPages', 'runs'];
+		for (const k of NUMERIC) {
 			if (live[k] !== data[k]) problems.push(`${k}: the tree derives ${live[k]}, the block says ${data[k]} (regenerate: npm run verify:readme)`);
 		}
 		if (JSON.stringify(live.widths) !== JSON.stringify(data.widths)) {
@@ -301,7 +372,12 @@ export function verifyBlock(readme, { live, fresh } = {}) {
 
 /* ------------------------------------------------------------------------ */
 
+/**
+ * @param {string[]} argv
+ * @returns {{ check: boolean, from: string | null, selftest: boolean }}
+ */
 function parseArgs(argv) {
+	/** @type {{ check: boolean, from: string | null, selftest: boolean }} */
 	const o = { check: false, from: null, selftest: true };
 	for (let i = 0; i < argv.length; i += 1) {
 		const a = argv[i];
