@@ -34,11 +34,24 @@
 	let {
 		active = null,
 		isAdmin = false,
+		managesSection = false,
 		reviewPending = null,
 		children
 	}: {
 		active?: FoundryPlace | null;
 		isAdmin?: boolean;
+		/**
+		 * 0173. Whether this viewer is the teacher of record for any section,
+		 * which is what /foundry/classes is for. FALSE FOR EVERY STUDENT and
+		 * false for staff who teach no section -- it is `manages`, never
+		 * `role === 'teacher'`, which the email domain hands to all staff.
+		 *
+		 * IT IS NOT A GATE. `classroom_manages_section` inside the RPCs is,
+		 * and the page renders its own refusal for somebody who manages
+		 * nothing; this only decides whether a door is offered to somebody who
+		 * can already open it.
+		 */
+		managesSection?: boolean;
 		/** Apps waiting for review. Null = not asked (every non-admin). */
 		reviewPending?: number | null;
 		children: import('svelte').Snippet;
@@ -66,6 +79,15 @@
 					{t.word}
 				</a>
 			{/each}
+			{#if managesSection}
+				<a
+					class="fg-tab tap-44"
+					href="/foundry/classes"
+					aria-current={active === 'classes' ? 'page' : undefined}
+				>
+					Classes
+				</a>
+			{/if}
 			{#if isAdmin}
 				<a
 					class="fg-tab tap-44"

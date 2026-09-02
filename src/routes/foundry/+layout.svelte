@@ -20,20 +20,42 @@
 	import { page } from '$app/state';
 
 	import '$lib/foundry/forge.css';
+	import FoundryClosed from '$lib/foundry/FoundryClosed.svelte';
 	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
 	import { locateFoundry } from '$lib/foundry/nav';
 
 	let { data, children } = $props();
 
 	const active = $derived(locateFoundry(page.url.pathname));
+
+	/**
+	 * THE CLASS GATE'S CLIENT HALF (0173, decision 01).
+	 *
+	 * The page loads beneath this already return nothing when a class has
+	 * closed it -- that is the enforcement, on the server -- so what is left
+	 * here is rendering the REASON rather than an empty area. Reading it off
+	 * `data` rather than re-asking is what keeps one answer in one place; a
+	 * component that asked again could disagree with the load that already
+	 * withheld the payload.
+	 *
+	 * THE SHELL STAYS. A closed student keeps the masthead and the way out,
+	 * because the alternative is a page that looks broken.
+	 */
+	const closedSections = $derived(data.foundryAccess?.closed ?? []);
+	const isClosed = $derived(data.foundryAccess ? data.foundryAccess.open === false : false);
 </script>
 
 <div class="fg-root">
 	<FoundryShell
 		{active}
 		isAdmin={page.data.isAdmin === true}
+		managesSection={data.managesSection === true}
 		reviewPending={data.reviewPending ?? null}
 	>
-		{@render children()}
+		{#if isClosed}
+			<FoundryClosed closed={closedSections} />
+		{:else}
+			{@render children()}
+		{/if}
 	</FoundryShell>
 </div>

@@ -19,7 +19,19 @@ import type { PageServerLoad } from './$types';
  * the student was. This is a `+page.server.ts` rather than a layout load for
  * exactly that reason -- a layout load must never read `url`.
  */
-export const load: PageServerLoad = async ({ locals, url }) => {
+/**
+ * THE CLASS GATE'S SERVER HALF (0173, decision 01). The layout resolved it
+ * once; this refuses to build the payload when it says closed, so a student
+ * whose class has turned the Foundry off is not sent the data and then asked
+ * politely not to look at it. Absence is the mechanism, exactly as it is for
+ * every omitted transport in this feature.
+ */
+export const load: PageServerLoad = async ({ locals, url, parent }) => {
+	const { foundryAccess } = await parent();
+	if (foundryAccess && foundryAccess.open === false) {
+		return { apps: [] as FoundryAppSummary[], selected: null, uid: '' };
+	}
+
 	const uid = locals.claims?.sub ?? null;
 	if (!uid) return { apps: [] as FoundryAppSummary[], selected: null, uid: '' };
 
