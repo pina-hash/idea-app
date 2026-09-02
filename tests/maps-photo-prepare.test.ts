@@ -34,20 +34,67 @@ const SOURCE = readFileSync('src/lib/maps/photo-prepare.ts', 'utf8');
 const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('which maps photos have to be re-encoded before they are stored', () => {
-	it('re-encodes exactly the formats no browser but the one that made them can draw', () => {
-		// HEIC and HEIF are Safari-only; TIFF is Safari-only. Every one of these
-		// stored as-is is a photo that renders for its author and for nobody
-		// else, which is the defect this module exists for.
+	it('re-encodes every format a browser other than the author"s cannot draw', () => {
+		// HEIC and HEIF are drawn by recent Safari and by nothing else; TIFF by
+		// Safari alone. Every one of these stored as-is is a photo that renders
+		// for its author and for nobody else, which is the defect this module
+		// exists for.
 		for (const type of ['image/heic', 'image/heif', 'image/tiff']) {
 			expect(mapsNeedsTranscode(type)).toBe(true);
 		}
 	});
 
-	it('leaves every universally decodable format completely alone', () => {
+	it('and every format the BUCKET will not take, which is the second half of the rule', () => {
+		// 0168 replaced 0163's `image/*` wildcard with a concrete raster list
+		// that does not carry these two. Passing one through is a refusal AFTER
+		// the transfer, which is the one refusal this whole path exists to take
+		// before a byte moves -- so they are re-encoded to something storable
+		// rather than sent to be rejected.
+		for (const type of ['image/gif', 'image/bmp']) {
+			expect(mapsNeedsTranscode(type)).toBe(true);
+		}
+	});
+
+	it('leaves alone exactly the intersection: on the bucket list AND universally drawable', () => {
 		// The negative half, and it matters as much: re-encoding a JPEG somebody
-		// already has costs a generation of quality for nothing at all.
-		for (const type of ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp']) {
+		// already has costs a generation of quality for nothing at all. All four
+		// are on 0163's wildcard AND on 0168's concrete list, so this is correct
+		// whether or not 0168 has been applied to production.
+		for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
 			expect(mapsNeedsTranscode(type)).toBe(false);
+		}
+	});
+
+	it('THE PASS-THROUGH SET IS EXACTLY 0168"s LIST MINUS WHAT SAFARI ALONE DRAWS', () => {
+		// Derived from the migration rather than restated: a bucket list that
+		// moves without this module moving reddens here instead of shipping.
+		const sql = readFileSync(
+			'supabase/migrations/0168_maps_media_types_and_plan_frame.sql',
+			'utf8'
+		);
+		// Anchored at the start of a line, so it reads the STATEMENT and not the
+		// `--   update storage.buckets set allowed_mime_types = array['image/*']`
+		// in the file's own UNDO note, which is where an unanchored match landed
+		// and came back with an empty list that no expectation would have caught
+		// except this one.
+		const block = sql.match(/^set allowed_mime_types = array\[([\s\S]*?)\]/m);
+		expect(block).not.toBeNull();
+		const bucket = [...(block?.[1] ?? '').matchAll(/'(image\/[a-z+]+)'/g)].map((m) => m[1]);
+		expect(bucket).toEqual([
+			'image/jpeg',
+			'image/png',
+			'image/webp',
+			'image/heic',
+			'image/heif',
+			'image/avif'
+		]);
+		const passedThrough = bucket.filter((t) => !mapsNeedsTranscode(t));
+		expect(passedThrough).toEqual(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+		// And nothing OUTSIDE the bucket list is ever passed through, which is
+		// the claim that keeps a bucket refusal off the far end.
+		for (const type of ['image/gif', 'image/bmp', 'image/tiff']) {
+			expect(bucket).not.toContain(type);
+			expect(mapsNeedsTranscode(type)).toBe(true);
 		}
 	});
 

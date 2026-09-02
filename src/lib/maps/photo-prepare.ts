@@ -46,45 +46,65 @@ import {
 import { MAPS_MEDIA_MAX_BYTES, describeBytes, mapsImageMime, mapsPhotoRefusal } from './media';
 
 /**
- * THE TYPES A BROWSER OTHER THAN THE ONE THAT MADE THE FILE IS GUARANTEED TO
- * DRAW, so a photo stored as one of them is a photo everybody can see.
+ * WHAT MAY BE STORED AS IT ARRIVED, AND THE SET IS AN INTERSECTION OF TWO
+ * LISTS RATHER THAN A JUDGEMENT ABOUT FORMATS.
  *
- * Read as a list of decisions rather than a list of formats:
- *   jpeg / png / gif -- universal, and have been for twenty years.
- *   webp             -- every current engine, including Safari since 14.
- *   bmp              -- universal and uncompressed; nothing produces one from
- *                       a camera, but a picked file can be one and refusing it
- *                       would teach a person only that the platform is
- *                       arbitrary.
- *   avif             -- Chrome, Firefox and Safari 16+. Left in DELIBERATELY:
- *                       an AVIF is produced by a tool, never by the camera
- *                       button this flow exists for, and transcoding one would
- *                       throw away the smaller file for an older Safari that
- *                       nobody at this school is holding at a toolbox.
+ * A picked file may be passed through only when BOTH are true:
+ *
+ *   1. THE BUCKET WILL TAKE IT. 0168 replaced 0163's `image/*` wildcard with a
+ *      concrete raster list -- `image/jpeg`, `image/png`, `image/webp`,
+ *      `image/heic`, `image/heif`, `image/avif` -- enforced at UPLOAD against
+ *      the request's declared content type. A type outside it is refused at
+ *      the far end, after the transfer, which is the refusal this whole path
+ *      exists to take before a byte moves.
+ *   2. EVERY BROWSER CAN DRAW IT. Otherwise the upload succeeds and the photo
+ *      is broken for everyone but its author, which is worse than a refusal
+ *      because nothing reports it.
+ *
+ * The intersection is four types. Read as decisions:
+ *   jpeg / png -- universal, and on the bucket list.
+ *   webp       -- every current engine, including Safari since 14.
+ *   avif       -- Chrome, Firefox and Safari 16+, and on the bucket list.
+ *                 Left in DELIBERATELY: an AVIF is produced by a tool, never
+ *                 by the camera button this flow exists for, and transcoding
+ *                 one would throw away the smaller file for an older Safari
+ *                 nobody at this school is holding at a toolbox.
+ *
+ * THIS WIDENS NOTHING AT THE BUCKET AND NARROWS NOTHING, which the migration
+ * ban makes a requirement rather than a preference: `allowed_mime_types` is
+ * untouched and unreadable from here. What changes is only which bytes the one
+ * shipped upload path produces.
  */
-const MAPS_UNIVERSAL_TYPES = new Set([
+const MAPS_PASS_THROUGH_TYPES = new Set([
 	'image/jpeg',
 	'image/png',
 	'image/webp',
-	'image/gif',
-	'image/bmp',
 	'image/avif'
 ]);
 
 /**
- * The transcode set is the complement, and every member is here for a measured
- * browser reason rather than a taste:
- *   heic / heif -- decoded by Safari on recent macOS and iOS and by NOTHING
- *                  else. This is the whole reason the module exists: it is
- *                  what an iPhone writes by default, and `File.type` for one
- *                  is legitimately EMPTY, so it arrives resolved by extension.
- *   tiff        -- decoded by Safari; refused by Chrome and Firefox. A scan or
- *                  a CAD export can be one.
- * Anything else `mapsImageMime` admits is universal, and anything it refuses
- * never reaches here.
+ * The transcode set is the complement over what `mapsImageMime` admits, and
+ * every member is there for a reason from one of the two lists above:
+ *   heic / heif -- ON the bucket list, decoded by Safari on recent macOS and
+ *                  iOS and by NOTHING else. This is the whole reason the
+ *                  module exists: it is what an iPhone writes by default, and
+ *                  `File.type` for one is legitimately EMPTY, so it arrives
+ *                  resolved by extension (0163's own stated obligation).
+ *                  0168 admitted it at the bucket ON PURPOSE, so that a
+ *                  capture can never fail at the far end, and named
+ *                  transcoding on capture as this bundle's obligation.
+ *   tiff        -- decoded by Safari, refused by Chrome and Firefox, AND off
+ *                  the bucket list. Fails both tests.
+ *   gif / bmp   -- universally drawable but OFF the bucket list, so passing
+ *                  one through is a refusal after the transfer. Re-encoding
+ *                  makes it storable. An animated GIF loses its animation,
+ *                  which is the correct trade for a path whose subject is a
+ *                  photograph of a drawer -- and the alternative today is not
+ *                  an animation, it is a failed upload.
+ * Anything `mapsImageMime` refuses never reaches here at all.
  */
 export function mapsNeedsTranscode(mimeType: string): boolean {
-	return !MAPS_UNIVERSAL_TYPES.has((mimeType ?? '').trim().toLowerCase());
+	return !MAPS_PASS_THROUGH_TYPES.has((mimeType ?? '').trim().toLowerCase());
 }
 
 /**
