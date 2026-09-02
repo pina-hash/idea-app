@@ -84,3 +84,19 @@ transition is confirmed by reading the thing itself.
 
 An entry reaching `deployed` stays here. It is not deleted and not archived, because the
 question a later chat asks is "has this been done", and a removed entry answers it wrongly.
+
+## Who writes the entry, and where the check reads
+
+**The session writes the entry, not the chat, as its first commit on its branch.** A chat
+cannot push. So the entry text travels inside the prompt, and the session that receives
+it commits and pushes the entry before touching anything else, on the branch the harness
+gave it. An entry that exists only in project knowledge is invisible to every other open
+chat; an entry pushed first is visible to any chat that fetches after it.
+
+**The check reads entries across `origin/main`, `origin/integration` and every
+`claude/**` branch**, not `main` alone. An entry on an unmerged branch is exactly the
+in-flight work the check exists to find: it was pushed minutes ago by a session that has
+not finished, and `main` will not carry it until the branch is swept and deployed.
+`tools/idea-status.py` performs that read (its PROMPTS IN FLIGHT section), deduping by
+id and preferring the copy with the most advanced status, so a single run answers the
+question without anyone fetching three refs by hand.

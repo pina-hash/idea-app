@@ -3,8 +3,8 @@
 - By: Cowork session "Claude computer use demo", lane 1
 - Owns: `docs/prompt-ledger/**` and `tools/idea-status.py`
 - Migration permitted: no. Highest on origin/main at issue: 0169
-- Status: issued
-- Branch: pending
+- Status: deployed
+- Branch: `claude/prompt-ledger-setup-dxfpfa` at `57af18c`, merged into integration as `5f32c71`, deployed to main as `0ecb9c0` via PR #68 (each sha confirmed contained in `origin/main` on 2026-09-02 by the 0005 session)
 - Notes: The first prompt issued through the automated lane, and the prompt that creates
   the directory it is recorded in. Placement only: four files, no logic to write, nothing
   outside the two owned paths.
