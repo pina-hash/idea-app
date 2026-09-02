@@ -1,5 +1,5 @@
 # IDEA Repo Workflow Standard
-**Version 1.0 - 2026-09-02**
+**Version 1.1 - 2026-09-02**
 
 One development workflow across the three repositories this project ships from:
 `pina-hash/idea-app`, `pina-hash/fll-app`, and `FRC-Team-5669-Techmen/frc-app`.
@@ -19,10 +19,11 @@ what is true inside that repo only, above all its migration apply path, and a ru
 Established 2026-09-02, from the audit that opened this file. Three repos had three
 workflows. `idea-app` had CI, an integrate branch, a per-bundle history directory, a prompt
 ledger, a status tool and two harnesses. `fll-app` had a strong `CLAUDE.md` and a real test
-suite and nothing that runs without a person. `frc-app` had an integrate workflow keyed on
-a CI workflow that did not exist, so it had never merged anything, zero committed tests,
-and a `CLAUDE.md` whose "Last reviewed" line had become the repo's entire history in one
-paragraph. Every rule earned in `idea-app` between 2026-08-19 and 2026-09-02 was earned by
+suite and nothing that runs without a person. `frc-app` had an integrate workflow that merged a
+green `claude/**` branch STRAIGHT INTO `main`, on a `push:` trigger, with no person in the
+path; it ran once on 2026-08-30 and worked exactly as written. It had zero committed
+tests, and a `CLAUDE.md` whose "Last reviewed" line had become the repo's entire history
+in one paragraph. Every rule earned in `idea-app` between 2026-08-19 and 2026-09-02 was earned by
 a failure that the other two repos are still able to have.
 
 A session that moves between repos should find the same directories, the same scripts,
@@ -148,9 +149,9 @@ date; a session verifies it against the tree before building on it.
 | Item | `idea-app` | `fll-app` | `frc-app` |
 |---|---|---|---|
 | `CLAUDE.md` in the section order of 2.1 | partial: carries a stale applied-migration paragraph (retired by prompt 0005) | strong; no branches or history sections; Windows/WSL specifics belong under Commands | 128 lines plus a "Last reviewed" line that is the whole history log; "Run via the Claude Desktop App" is retired |
-| `ci.yml` | yes | none | none, and `integrate.yml` keys on it, so nothing has ever merged |
-| `integrate.yml` | yes | none | yes, inert |
-| `deploy.yml` | prompt 0005 | none | none |
+| `ci.yml` | yes | none | yes, added by the conformance prompt 2026-09-02 |
+| `integrate.yml` | yes | none | yes, and NOT inert: until 2026-09-02 it merged a green `claude/**` branch straight into `main` on a `push:` trigger, and it did so once (2026-08-30, `claude/survey-management-surface-gaku2o`). Replaced the same day by the `integration` shape |
+| `deploy.yml` | prompt 0005 | none | yes, dispatch-only with a typed confirmation |
 | `docs/history/` per bundle | yes, 168 entries, verified in CI | `docs/HISTORY.md`, 4,697 lines, single file; two merged bundles owe entries | none; the log is inside `CLAUDE.md` |
 | `docs/prompt-ledger/` | yes | none | none |
 | `docs/decisions/` | prompt 0005 | none | none |
@@ -185,6 +186,21 @@ own audit phase because every row above is a claim.
 ---
 
 ## Changelog
+
+- **1.1 (2026-09-02)** - Corrects the `frc-app` `integrate.yml` row, which said "yes,
+  inert" and was wrong in the direction that matters. That workflow was not keyed on a
+  missing CI file and idle; it triggered on `push:` to `claude/**` and merged a green
+  branch STRAIGHT INTO `main` with no person in the path, and it ran once, on 2026-08-30,
+  merging `claude/survey-management-surface-gaku2o`. Every push to `main` there deploys
+  the PWA and that repo's SQL is hand-applied with nothing recording what has been
+  applied, so the retired shape could ship code calling an RPC the live database does not
+  have. Section 1's sentence carried the same error and is corrected with it. The
+  `ci.yml` and `deploy.yml` rows are advanced to what the conformance prompt landed the
+  same day. Read from a clone of `FRC-Team-5669-Techmen/frc-app` on 2026-09-02; the
+  retired file is quoted in the replacement's own header. **A conformance row that
+  understates a risk is worse than an absent one**, because it is read as a clearance:
+  "inert" invited nobody to look, and the thing it described had already written to a
+  deploy branch unattended.
 
 - **1.0 (2026-09-02)** - Created. Mr. Pina asked that `fll-app` and `frc-app` share the
   structure, capability and workflow of `idea-app`. The audit that opened this file
