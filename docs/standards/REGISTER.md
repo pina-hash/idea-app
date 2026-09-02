@@ -6,14 +6,14 @@ this directory shows `not yet mirrored` in both cells rather than a guess.
 
 | Filename | Version | Date | Owns |
 | --- | --- | --- | --- |
-| `IDEA_instructions.md` | 4.15 | 2026-08-31 | Standing directive: doc-maintenance triggers, the freshness protocol for this directory, materials production pointer, Claude Code prompting and routing, cloud-container environment facts, git/branch/migration rules |
+| `IDEA_instructions.md` | 4.16 | 2026-08-31 | Standing directive: doc-maintenance triggers, the freshness protocol for this directory, materials production pointer, Claude Code prompting and routing, cloud-container environment facts, git/branch/migration rules |
 | `IDEA_MATERIALS_PROCESS.md` | 3.1 | 2026-08-28 | The process for authoring and publishing IDEA materials: pipeline, placement, tool roles, phases, the instrument-vs-material routing rule, the sources-citation standard, delivered filenames, notebook attachment, printed work surfaces, no weekday in student-facing copy, verifying a rendered artifact by what the file contains, regenerating rather than patching generated geometry, where mechanical drawings route, and "One File, One Fork" |
 | `IDEA_MATERIAL_SPEC_v2.md` | 2.4 | 2026-08-27 | The canonical material authoring format: both kinds, the block types, the enforcement matrix, the instructions word ceiling, sentence floors set against the count of required items, and block ids unique across the whole spec |
 | `IDEA_RUBRIC_STANDARDS.md` | 1.3 | 2026-08-25 | Leveled criteria, `short` forms, descriptor writing, grading behavior |
 | `IDEA_PRINT_STANDARDS.md` | 1.0 | 2026-08-10 | Rendering rules for print-first materials: page rules, typography, color in print, document structure |
 | `IDEA_CLAUDE_DESIGN_STANDARDS.md` | 2.1 | 2026-08-27 | The IDEA pathway's sole hand-maintained design standard: visual identity (absorbed from the retired `IDEA_Design_System.md`) plus the scoping and prompting of every Claude Design artifact |
 | `IDEA_INTERFACE_STANDARDS.md` | 2.11 | 2026-08-26 | Layout, viewport behaviour, role parity, legibility, interaction structure for shipped app surfaces |
-| `IDEA_VERIFICATION_ADDENDA.md` | 2.2 | 2026-08-30 | The owning verification standard (no longer staging, despite the filename it deliberately keeps): how any build claim is proven, harnesses, mutation proof, positive controls, mock fidelity |
+| `IDEA_VERIFICATION_ADDENDA.md` | 2.3 | 2026-08-31 | The owning verification standard (no longer staging, despite the filename it deliberately keeps): how any build claim is proven, harnesses, mutation proof, positive controls, mock fidelity |
 | `IDEA_HUMOR_STANDARDS.md` | 2.2 | 2026-08-26 | Governs deliberate humor in IDEA and Team 5669 presentation artifacts: the three admission gates, sourcing, density and placement |
 | `IDEA_HUMOR_LEDGER.md` | 1.4 | 2026-08-25 | The anti-repetition record and cooldown mechanism for every humor insertion. 1.3 is void and was never a real state; discard any copy carrying that number |
 | `IDEA_REFERENCE_LIBRARY.md` | 4.3 | 2026-08-31 | Owning document for the three Google Drive libraries: what A and B hold, retrieval rules, consult-before-authoring, and Library C, the artifact store this assistant writes to at every delivery |

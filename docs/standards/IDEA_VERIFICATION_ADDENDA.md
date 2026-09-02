@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.2 - 2026-08-30**
+**Version 2.3 - 2026-08-31**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -233,6 +233,61 @@ Established 2026-08-30, by the assistant rather than by a session, checking whic
 
 The standards sweep already carries this rule for its own use and states it in its docstring. The rule generalises: **a shallow clone is a source for file contents and directory listings at HEAD and for nothing else.** Where a history question must be answered, clone with history or answer it another way, and prefer answering it another way, since the cheap check is usually to read the artifact and see what it says.
 
+## 33. A floor standing in for an equality is an assertion that cannot fail
+
+`expectPresent: 0` in the browser harness meant `>= 0`, so every absence assertion written
+that way reported success over an empty result. Thirty rows across the tree could not fail.
+Twenty-three of them were written the same night by the lane that independently discovered
+the defect, closed it on three of its own rows, and propagated the broken pattern to the
+rest, because the pattern is what every existing spec modelled.
+
+Two things follow. A comparison operator standing in for an equality is a defect wherever
+the count is exact, and "at least none" is never a claim anybody meant to make. And the fix
+belongs in the instrument's core rather than at the call site: a per-spec fix leaves the
+next spec to rediscover it, which is exactly what happened here inside a single commit.
+
+## 34. A negative check against a value whose alphabet excludes the needle cannot fail
+
+A test asserted that a 32-character hexadecimal opaque id contained neither `ada` nor
+`lovelace`. `l`, `o` and `v` are not hex digits, so the second assertion could never fail
+under any circumstances and had been green since it was written. The first is worse in a
+different way: `a`, `d` and `a` are all hex digits, so it fires by chance at roughly one run
+in 137, measured at one in 132 over 200,000 real derivations. One assertion tested nothing
+and its twin was a coin flip, and between them they stood in for a real privacy property.
+
+The property they meant to assert was that a signed-out visitor holding a student's address
+cannot produce that student's id. A mutant with a hardcoded salt, an id anyone reading the
+migration could reproduce, **passed all twenty-three of the old tests**. The assertion that
+catches it is that every id moves when the salt rotates, which is a claim about the
+generator's contract rather than about the spelling of the output.
+
+Check the alphabet before writing a negative substring assertion, and prefer an oracle over
+a coincidence.
+
+## 35. A test hook on a zero-box element poisons the instrument for every route
+
+A navigation indicator shipped with a `data-testid` on an element with no box. The browser
+harness's readiness probe picks the first matching candidate, found that one, and never
+settled. Every route in the application timed out at thirty seconds, a full pass went from
+about three minutes to about fifty, and **nothing went red** - the runs simply took an hour
+and reported their usual numbers.
+
+A hook is part of the instrument, not part of the component. Give it to an element that has
+geometry, and treat a large jump in a suite's wall clock as a finding rather than as weather.
+
+## 36. Pure insertion is proven by subsequence, not by a deletion count of zero
+
+A diff reporting no deletions says nothing about order: content can be reshuffled with every
+line still present. Where an edit claims to add only, assert that every line present at the
+base is still present in the new file **in the same order**. A standards edit of 2516 lines
+was verified this way rather than by rereading it, which is the only check that can tell a
+clean append from a rearrangement that happens to balance.
+
+The same pass established the anchoring rule that makes this necessary: an insertion whose
+anchor ends mid-paragraph leaves the remainder of the original sentence trailing the inserted
+block, and the result still reads plausibly. An anchor for a pure insertion ends at a blank
+line or a section boundary.
+
 ## Note on internal organization
 
 This section was written as a merge plan for a document that does not exist. It is kept because the groupings are real and a future reorganization of this file should follow them, not because anything is waiting to move.
@@ -242,6 +297,8 @@ Rules 1 through 3 form one lesson and should probably merge as one clause with t
 ---
 
 ## Changelog
+
+- **2.3 (2026-08-31)** - Four rules from a nineteen-hour session running three parallel lanes, plus two rules that were violated by the instrument that enforces them. Rule 33: `expectPresent: 0` meant `>= 0`, so thirty absence rows could not fail, twenty-three of them written the same night by the lane that found the defect and closed it on three of its own rows; the fix went in the core because a per-spec fix leaves the next spec to rediscover it. Rule 34: a `not.toContain` for `lovelace` against a hex digest cannot fail because `l`, `o` and `v` are not hex digits, while its twin for `ada` fires by chance at one run in 132 measured over 200,000 real derivations; a hardcoded-salt mutant, an id anyone could reproduce from the migration, passed all twenty-three tests, and only an assertion that every id moves on a salt rotation catches it. Rule 35: a `data-testid` on a zero-box element made the readiness probe pick it first, so every route in the application timed out at thirty seconds and a full pass went from three minutes to fifty with nothing going red. Rule 36: a deletion count of zero does not prove pure insertion, since content can be reshuffled with every line present; assert the old file as an ordered subsequence of the new. Two existing rules earned fresh instances rather than new numbers, and both were broken by the harness itself: rule 23's prepare-step trap was implemented in `clickUntil`, which skips its click when the predicate already holds, so a spec's tap-target rows reported zero matched while looking green; and rule 20's no-independent-oracle trap is exactly what rule 34 describes.
 
 - **2.2 (2026-08-30)** - Two rules from the IDEA Maps P1 build, both about a control that cannot fail. Rule 31: a negative control that DROPS a published-only RLS policy makes the anonymous caller see nothing, so the draft-invisibility assertion passes vacuously and the suite goes green against a database with no boundary; the mutation must run toward the defect (`USING (true)`), across every policy the suite claims rather than one representative, and every probe needs an admin control beside it because a foreign-key `on delete restrict` can refuse a delete probe before the policy is ever consulted. The prompt that started that bundle specified the drop form; the session caught it. Rule 32: a `--depth 1` clone runs history commands successfully and returns fiction, with `git log -1 --name-only` listing the entire tree as the single commit's file set, and the assistant nearly reported a three-file bundle as a whole-repository rewrite on exactly that output.
 - **2.1 (2026-08-29)** - Ten rules from one very long day, every one of them a green test that was proving nothing. Rule 21: a burst of concurrent calls does not test a lock, after a function with its advisory lock deleted passed an eight-way burst four runs running, and after the deterministic replacement built to fix it passed against the mutant too because it was stalling the call through a foreign-key constraint rather than the lock. Rule 22: repetition is not a nondeterminism detector, since `distinct on` without a sort is unspecified rather than random and agrees with itself on the broken function. Rule 23: a prepare step whose predicate the starting state already satisfies never acts, and the check after it measures whatever was there. Rule 24: a visibility predicate reading an element's own opacity missed inherited opacity, and seven assertions had been measuring contrast and tap geometry on invisible elements since the harness shipped. Rule 25: happy-dom answers some computed styles and not others, which is worse than answering none, and has no layout engine at all. Rule 26: a check over source text matches the comment explaining the absence of what it searches for, and a check coupled to how SQL is written breaks when the same value is refactored. Rule 27: a characterisation test is retired to a contract in both directions rather than deleted. Rule 28: a test that builds its own chain is pinned to a world that moves, with the sweep that classifies 28 candidate files into three named outcomes. Rule 29: a positive control that can go to zero rows silently is not a control, after an exclusion assertion nearly certified an empty view. Rule 30: a permissive fixture answers a different question from production for every suite that imports it, after table default privileges were found missing from the shared stub, an RPC error path was found conflating every failure into one code, and a single-column `returns table` was found handing back bare scalars.

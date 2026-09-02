@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.15 - 2026-08-31**
+**Version 4.16 - 2026-08-31**
 
 ## These Instructions Evolve
 
@@ -1929,6 +1929,42 @@ session reads a clean tree, reaches the same conclusion by the same reasoning, a
 the same discovery. Stated 2026-08-23e after a deploy-time test gate was added to
 `vercel.json` and reverted within the hour.
 
+**A missing `integration` branch is not a broken setup.** `integrate.yml` logs a notice and
+cuts it from `origin/main` when it does not exist, so "is `integration` green" has no answer
+before the first branch lands and "is `main` green" is the correct preflight. The branch
+section of this document previously read as though the second answer were the wrong one.
+
+**A branch that is green and behind does not merge.** Green CI is not the gate; a conflict
+is. The workflow merges `origin/main` into `integration` first, then each branch into
+`integration`, and aborts any branch that conflicts, leaving it standing and reddening the
+job. So a branch sitting at 3/3 for hours has conflicted, not stalled, and the fix is to
+merge `origin/integration` into it and push. Three branches sat green and behind for seven
+hours on 2026-08-31 while the branch page showed nothing wrong.
+
+**`main` lagging `integration` makes sessions report absences that are really staleness.**
+Every session cuts from `main`. With `main` ten commits behind, one session reported that
+`src/lib/server/frc-review.ts` "does not exist" and that the migration it belongs to had
+shipped database-only; the file was on `integration`. Another predicted its own merge
+conflict for the same reason. Neither was a session error. Merge `integration` into `main`
+promptly rather than at the end of a working day, because the cost is paid by every lane
+opened after the gap forms.
+
+**A branch name can be taken twice.** The automation deletes a branch after merging it, so a
+later session's harness can mint the same slug, and its history entry then collides add/add
+with the entry already merged. The merged entry keeps the canonical filename and the new one
+takes a suffix; `maps-rls-boundary-tests-tvjq7v-schema-0161-0163.md` is the precedent.
+
+**`git add` clears the unmerged flag whether or not the markers are gone.** A failed
+resolution script followed by `git add` produced a `git status` reporting no conflicts over a
+file still containing conflict markers. Grep for the markers; do not take the status as
+evidence.
+
+**`tools/browser-verify/README.md` is a structurally hot file.** It carries per-tree
+measurement counts, so any two branches that touch it collide by construction, and its
+numbers were wrong on every single tree they were checked against, including
+`integration`'s own before any merge. Resolve it by running the harness on the merged tree
+and writing what you measured, never by picking a side.
+
 ---
 
 ## App Interface Work
@@ -2043,6 +2079,32 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-08-31 (4.16)** - Seven branch-workflow rules from a nineteen-hour session that ran
+  three parallel lanes and merged fourteen branches, added to GitHub / Portal Workflow. Every
+  one was earned by a wrong belief costing real time rather than by a session failing. A
+  missing `integration` self-creates from `main`, so "main is green" is the right preflight
+  and this document read as though it were the wrong answer. A branch green and behind has
+  conflicted rather than stalled, which left three branches standing for seven hours with a
+  branch page showing 3/3 on each. `main` lagging `integration` makes sessions report
+  absences that are really staleness, twice in one day, including a file reported as
+  nonexistent while it sat on `integration`. A branch name can be taken twice once the
+  automation deletes it, which collides two history entries add/add. `git add` clears the
+  unmerged flag over a file still holding conflict markers, so `git status` is not evidence.
+  And the browser-verify README is hot by construction, since it carries per-tree counts;
+  every parent's numbers were wrong on every merged tree. Separately and not written as a
+  rule because nothing here caused it: `origin/main` was force-updated on 2026-08-31 from
+  `8d01365` to `aea5c22`, leaving 79 commits of the old lineage unreachable, with content
+  intact and migrations through 0169 present. Force-pushing `main` is forbidden here and no
+  session in that day's work did it. Also recorded: the one-prompt-one-session rule failed
+  again, with the same notebook prompt pasted into two sessions producing two rival
+  implementations, both internally consistent and both mutation-proven; one was kept and the
+  other deleted, and two findings unique to the deleted branch were carried forward by hand.
+  The claim that no cloud container has a browser tool is removed as false: `tools/browser-verify`
+  drives a real Chromium against a local dev server, confirmed independently by four sessions,
+  and it caught defects nothing else would have found, including inch inputs overflowing
+  375px by 14px and a link measuring 343x20 against a 44px floor. That claim had been
+  suppressing the only verification a cloud session has.
 
 - **2026-08-31 (4.15)** - Added the artifact archive rule to Output Defaults, after
   establishing Library C in Drive and verifying both directions of the write. A file
