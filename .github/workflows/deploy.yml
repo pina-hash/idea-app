@@ -1,0 +1,256 @@
+name: Deploy
+
+# THE ONE PATH THAT WRITES `main`, AND THEREFORE THE ONE PATH THAT DEPLOYS
+# `ideabosco.com`. It merges `integration` into `main` with `--no-ff` after CI
+# has run on `integration`'s exact tip, and only when the person pressing the
+# button has typed that every migration on `integration` is already applied to
+# production.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS IS A BUTTON AND NOT A SCHEDULE.
+#
+# `integrate.yml`'s header gives two reasons no machine may push `main`. A
+# night window answers the first and not the second:
+#
+#   * Students are on the site during class. A 04:30 UTC merge does remove
+#     that risk, which is exactly why an unattended nightly deploy keeps
+#     getting proposed.
+#   * Migrations are applied BY HAND in the Supabase SQL editor, and several
+#     must be applied BEFORE the code that calls them goes live. CI cannot see
+#     this: the suite runs against an embedded Postgres with every migration
+#     file applied, so a branch whose migration has never touched production is
+#     green. A nightly merge would ship an RPC call to a function the database
+#     does not have, at night, with nobody watching.
+#
+# So the typed confirmation below IS the judgement `integrate.yml` was written
+# to preserve. This workflow removes the six git commands around it and leaves
+# the judgement exactly where it was. It becomes safe to schedule the day a
+# workflow can read production's applied migration set, which needs a
+# read-only Postgres credential in a GitHub secret; that is Mr. Pina's call and
+# it is recorded at `docs/decisions/entries/10-unattended-nightly-deploy.md`
+# with "not yet" as the default answer. Do not schedule this workflow until
+# that decision says otherwise.
+#
+# `tools/idea-status.py` prints the landed migrations and the catalog probe
+# that answers which of them are applied. That is what the person types
+# against.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: every migration on integration is applied to production'
+        required: true
+        type: string
+
+# SERIALIZE, AND NEVER CANCEL. Two deploys merging into `main` at once produce
+# a rejected push at best. `cancel-in-progress: false` makes a second press
+# WAIT rather than killing a run that may already have pushed.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # ------------------------------------------------------------------------
+  # 1. Refuse early. A wrong phrase must not cost a five-minute CI run, and
+  #    the ancestry check is the difference between a deploy and a surprise.
+  # ------------------------------------------------------------------------
+  guard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      integration_sha: ${{ steps.resolve.outputs.sha }}
+      integration_subject: ${{ steps.resolve.outputs.subject }}
+    steps:
+      - name: Check the typed confirmation
+        env:
+          # Through env, never interpolated into the script body: `${{ }}`
+          # pastes a person's typed string into the shell before bash sees a
+          # quote, and this input is free text.
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          EXPECTED='every migration on integration is applied to production'
+          if [ "$CONFIRM" != "$EXPECTED" ]; then
+            echo "::error::refusing to deploy: the confirmation did not match."
+            {
+              echo "## Refused"
+              echo
+              echo "The confirmation field must read **exactly**:"
+              echo
+              echo '```'
+              echo "$EXPECTED"
+              echo '```'
+              echo
+              echo "Nothing was merged and nothing was pushed."
+              echo
+              echo "Before typing it, run \`tools/idea-status.py\` and paste its probe block into"
+              echo "the Supabase SQL editor. That query is the only thing that answers which"
+              echo "migrations production has actually applied; no file in the repo records it."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "confirmation matched"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve integration, and refuse if main is not an ancestor of it
+        id: resolve
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+          if ! git rev-parse --verify --quiet refs/remotes/origin/integration >/dev/null; then
+            echo "::error::there is no origin/integration branch to deploy."
+            exit 1
+          fi
+
+          SHA="$(git rev-parse origin/integration)"
+          MAIN="$(git rev-parse origin/main)"
+          SUBJECT="$(git log -1 --format=%s "$SHA")"
+
+          # MAIN MUST BE CONTAINED IN INTEGRATION. `main` moves on its own all
+          # day -- the classroom GitHub export commits under `materials/` on
+          # every item save -- so `integration` is routinely BEHIND main even
+          # while it is ahead. Merging in that state would produce a merge
+          # commit resolving files this run never tested. The Integrate
+          # workflow merges main into integration first, every time, which is
+          # exactly the repair.
+          if ! git merge-base --is-ancestor "$MAIN" "$SHA"; then
+            BEHIND="$(git rev-list --count "origin/integration..origin/main")"
+            echo "::error::origin/main is not an ancestor of origin/integration ($BEHIND commit(s) on main are missing from it). Run the Integrate workflow first, then press Deploy again."
+            {
+              echo "## Refused: integration is behind main"
+              echo
+              echo "\`origin/main\` is **not** an ancestor of \`origin/integration\`:"
+              echo "**$BEHIND** commit(s) are on \`main\` and not on \`integration\`."
+              echo
+              echo "Press **Run workflow** on **Integrate** first. It merges \`main\` into"
+              echo "\`integration\` before anything else, which is what closes this gap. Then"
+              echo "press Deploy again."
+              echo
+              echo "Nothing was merged and nothing was pushed."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          AHEAD="$(git rev-list --count origin/main..origin/integration)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "subject=$SUBJECT" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Deploy candidate"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| \`integration\` tip | \`$SHA\` |"
+            echo "| subject | $SUBJECT |"
+            echo "| commits ahead of \`main\` | $AHEAD |"
+            echo
+            echo "CI now runs on that exact sha. The merge happens only if it is green."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------------
+  # 2. The SAME checks CI runs, on that exact sha, in this run.
+  #
+  #    Deliberately NOT a query to the Actions API for a prior run's
+  #    conclusion. A prior conclusion is a claim about a sha that may no longer
+  #    be the tip, and `integration` gets no push-triggered run of its own at
+  #    all (GITHUB_TOKEN loop-breaker -- see ci.yml's schedule comment), so
+  #    there is frequently no run to find. Calling ci.yml is the checks
+  #    themselves.
+  # ------------------------------------------------------------------------
+  checks:
+    needs: guard
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.guard.outputs.integration_sha }}
+
+  # ------------------------------------------------------------------------
+  # 3. Merge and push. LEAST PRIVILEGE: contents write and nothing else.
+  # ------------------------------------------------------------------------
+  deploy:
+    needs: [guard, checks]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Merge integration into main and push
+        env:
+          SHA: ${{ needs.guard.outputs.integration_sha }}
+          SUBJECT: ${{ needs.guard.outputs.integration_subject }}
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          git checkout -B main origin/main
+
+          # THE TESTED SHA, NOT `origin/integration`. If integration moved
+          # while CI was running, what CI proved green is this sha and nothing
+          # else, so this is what lands.
+          # The message is built here rather than written inline, because a
+          # multi-line string at column 0 would end this block scalar.
+          MSG="$(printf '%s\n\n%s\n\n%s\n%s\n' \
+            "Deploy: merge integration ${SHA} into main" \
+            "${SUBJECT}" \
+            "Merged by the Deploy workflow after CI ran on that exact sha, and after a" \
+            "person confirmed every migration on integration is applied to production.")"
+
+          if ! git merge --no-ff -m "$MSG" "$SHA"; then
+            git merge --abort || true
+            echo "::error::merging $SHA into main conflicted. Nothing was pushed. Resolve it by running the Integrate workflow (which merges main into integration) and pressing Deploy again."
+            {
+              echo "## Refused: the merge conflicted"
+              echo
+              echo "\`main\` moved while this run was checking \`integration\`, and the two"
+              echo "now touch the same file. **Nothing was pushed.**"
+              echo
+              echo "Press **Run workflow** on **Integrate**, which merges \`main\` into"
+              echo "\`integration\` and surfaces the conflict where it can be resolved on a"
+              echo "branch, then press Deploy again."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # NEVER --force, and no retry. A rejected push means `main` moved
+          # under this run; the honest response is to do nothing and let a
+          # person press the button again against the new tip.
+          if ! git push origin HEAD:refs/heads/main; then
+            echo "::error::the push to main was rejected -- main moved during this run. Nothing was force-pushed. Press Deploy again."
+            exit 1
+          fi
+
+      - name: Read main back and report what is live
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          NEW="$(git rev-parse origin/main)"
+          SUBJ="$(git log -1 --format=%s "$NEW")"
+          {
+            echo "## Deployed"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| \`main\` is now | \`$NEW\` |"
+            echo "| merge subject | $SUBJ |"
+            echo
+            echo "**Every push to \`main\` deploys \`ideabosco.com\`.** This one is live, or"
+            echo "will be as soon as Vercel finishes building it."
+            echo
+            echo "\`integration\` is not deleted or reset. The next Integrate sweep merges"
+            echo "\`main\` back into it, which after this deploy is a fast-forward."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "main is now $NEW ($SUBJ)"

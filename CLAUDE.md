@@ -1153,16 +1153,11 @@ those.
   bucket, and all eleven `not v_published and not is_teacher()` draft-PLAY
   gates (an author publishes and plays like anyone else; test-driving a DRAFT
   run stays admin-only).
-- **`0155` IS QUEUED, NOT APPLIED, as of this writing.** The full unapplied set
-  measured against `origin/main` (2026-08-29) is `0151`-`0155` and `0157`, per
-  the sweep recorded in
-  `docs/history/anon-coin-public-projections-mrlg0d-queued-migration-sweep.md`
-  -- check a live catalog read or `supabase migration list --linked` rather
-  than trusting a static list here, since a hand-pasted apply is not recorded
-  in this file. Until `0155` is pasted, every GAUNTLET gate still reads
-  `is_teacher()` (i.e. `is_admin()`), the app-side `PGRST202` degrade makes
-  `canAuthorGauntlet` behave exactly like `isAdmin`, and the only GAUNTLET
-  author is whoever holds an `app_admins` row.
+- **APPLIED STATE IS A PROPERTY OF PRODUCTION, AND NO FILE IN THIS REPO RECORDS
+  IT.** Run `tools/idea-status.py` for the landed set and paste its probe block
+  into the Supabase SQL editor to learn the applied set. A paragraph stating
+  applied status anywhere in this file is a snapshot and is to be treated as
+  wrong.
 
 ### Probing must reveal nothing
 

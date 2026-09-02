@@ -32,6 +32,23 @@ name: Integrate
 # `integration` exists so that everything mechanical happens without a person,
 # and the one judgement call still needs one. Automating step 4 does not save a
 # merge; it removes the only place that judgement is exercised.
+#
+# STEP 4 IS `deploy.yml` NOW, AND NOTHING ABOVE IS WEAKENED BY IT. That
+# workflow is the ONE path that writes `main`. It is `workflow_dispatch` only:
+# a person presses Run workflow and TYPES that every migration on
+# `integration` is applied to production, and the job refuses on any other
+# string. It then runs CI on `integration`'s exact tip and merges with
+# `--no-ff`. So the git commands moved off somebody's laptop and the judgement
+# did not move at all -- the typed line IS the second bullet above, asked at
+# the moment it matters.
+#
+# It is a BUTTON AND NOT A SCHEDULE for that same bullet. An unattended
+# nightly merge was proposed on 2026-09-02 and declined: a night window
+# removes the students-in-class risk and does nothing about migrations, and CI
+# cannot see production's catalog to check. It becomes safe when a workflow can
+# read production's applied set, which needs a read-only credential in a
+# GitHub secret -- Mr. Pina's decision, recorded at
+# `docs/decisions/entries/10-unattended-nightly-deploy.md`.
 # ---------------------------------------------------------------------------
 
 on:

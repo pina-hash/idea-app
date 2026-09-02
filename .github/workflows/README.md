@@ -1,7 +1,7 @@
 # What runs here, and what it does to your branches
 
-Two workflows. `ci.yml` checks a push; `integrate.yml` collects the branches
-that passed.
+Three workflows. `ci.yml` checks a push; `integrate.yml` collects the branches
+that passed; `deploy.yml` is the one path that writes `main`.
 
 ## The short version
 
@@ -12,26 +12,60 @@ that passed.
 - **The branch to look at is `integration`.** It is long-lived, it always has
   the latest `main` merged into it, and it carries every finished bundle that
   has not been deployed yet.
-- **`main` still only moves when a person moves it.** No workflow in this repo
-  pushes to `main`, and `integrate.yml` says at length why not. Deploying is
-  merging `integration` into `main`, by hand, when you mean it.
+- **`main` still only moves when a person decides it moves.** `deploy.yml` is
+  the only workflow that pushes it, it runs on `workflow_dispatch` alone, and
+  it refuses unless the person pressing it TYPES that every migration on
+  `integration` is applied to production. `integrate.yml` still may never write
+  `main` under any condition, and says at length why.
 - **A `claude/**` branch that is still sitting there is a signal, not a
   leftover.** It means one of: its CI failed, its CI has not finished, or its
   merge into `integration` conflicted. All three want a person.
 
-## Deploying
+## Deploying: press the Deploy button
+
+Actions -> **Deploy** -> **Run workflow**, and type into the confirmation field,
+exactly:
 
 ```
-git fetch origin
-git checkout main && git pull
-git merge --no-ff origin/integration
-# apply any migration the bundles carry, BY HAND, in the Supabase SQL editor,
-# BEFORE this push -- see the header of integrate.yml
-git push origin main
+every migration on integration is applied to production
 ```
+
+Anything else is refused before any check runs, and nothing is merged. Before
+typing it, run `tools/idea-status.py` and paste its probe block into the
+Supabase SQL editor: that query is the only thing that answers which migrations
+production has actually applied, because no file in this repo records it.
+
+The run then, in order: refuses unless `main` is an ancestor of `integration`
+(if it is not, press **Integrate** first and come back); runs the same checks
+CI runs, on `integration`'s exact tip, in that run rather than trusting an
+earlier one; merges that exact sha into `main` with `--no-ff`; pushes, never
+forced; and reads `main` back to print the new sha in the job summary.
+
+**Every push to `main` deploys `ideabosco.com`,** which students use during
+class. That is what the typed line and the button are protecting, and it is why
+this is not on a schedule. An unattended nightly deploy was proposed and
+declined: see the header of `deploy.yml` and
+`docs/decisions/entries/10-unattended-nightly-deploy.md`.
 
 `integration` is not deleted or reset afterwards. It keeps going; the next
 sweep merges `main` back into it, which after a deploy is a fast-forward.
+
+## Is `integration` green?
+
+`integration` gets **no CI run from its own pushes** -- `integrate.yml` pushes
+it with `GITHUB_TOKEN` and GitHub's loop-breaker starts no run from that. On
+2026-08-29 it went red silently and stopped eight branches.
+
+So `ci.yml` carries a **schedule** (04:30 UTC daily, which is 21:30 Pacific) and
+a **workflow_dispatch** that test `integration` itself. A red scheduled CI run
+is the signal that `integration` is broken and nothing will merge until somebody
+looks. To check it on demand: Actions -> **CI** -> **Run workflow**, which
+defaults to `integration` and accepts any other ref.
+
+Neither of those triggers an Integrate sweep: `integrate.yml` requires
+`github.event.workflow_run.event == 'push'`, so a scheduled or dispatched CI run
+does not reach it. Neither does the CI that `deploy.yml` calls, which runs as a
+job inside the Deploy run rather than as a run of its own.
 
 ## When something is stuck
 
