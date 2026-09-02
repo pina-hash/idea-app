@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the generated counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0010-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness. BRANCHED FROM `origin/integration`, not `main`.
+- Status: pushed
+- Branch: `claude/browser-verify-counts-regen-x8kn9h`. BRANCHED FROM `origin/integration` (`fe07200`), not `main`.
 - Notes: CI run #510 on PR #71 (integration into main) failed
   `tests/derived-numbers.test.ts` on two assertions: the tree derives 66
   specs, 37 routes and 132 runs; the committed block says 65, 36 and 130.
