@@ -38,6 +38,8 @@
 		FOUNDRY_PREVIEW_STORAGE_NOTE,
 		deleteAppCostLine,
 		draftIsSubmittable,
+		foundryCanSubmit,
+		foundryPublishBlockers,
 		metadataIsLive,
 		rollbackTargets,
 		versionIsDeletable,
@@ -556,16 +558,48 @@
 								{/if}
 
 								{#if v.status === 'draft' && transports.submitVersion}
+									{@const canSend = foundryCanSubmit(app, v)}
+									{@const blockers = foundryPublishBlockers(app)}
+									<!--
+										THE CONTROL AND THE HANDLER READ ONE PREDICATE.
+										`foundryCanSubmit` is both clauses -- the upload
+										unpacked, and the app has the description 0173 requires
+										-- so the button and the press cannot disagree about
+										what ready means.
+
+										`aria-disabled`, NOT `disabled`, WHERE THERE IS
+										SOMETHING TO EXPLAIN. A genuinely disabled control
+										swallows pointer events, so it can never tell anybody
+										why it is off; this one has to. The handler re-asks the
+										same predicate, which is what makes the aria form safe.
+									-->
 									<button
 										type="button"
 										class="btn fdy-primary tap-44"
-										disabled={busy !== null || !draftIsSubmittable(v)}
-										onclick={() => run('Submitting', () => transports.submitVersion!(v.id))}
+										disabled={busy !== null}
+										aria-disabled={!canSend ? 'true' : undefined}
+										onclick={() => {
+											if (!canSend) return;
+											run('Submitting', () => transports.submitVersion!(v.id));
+										}}
 									>
 										Submit for review
 									</button>
 									{#if !draftIsSubmittable(v)}
 										<span class="fdy-hint">This upload did not finish unpacking.</span>
+									{:else}
+										<!--
+											SAID BEFORE IT REFUSES, which is decision 05's client
+											half in one line: a student reads what is missing and
+											where to fix it, rather than pressing and being told.
+											The sentence is `foundryPublishBlockers`'s, so it
+											cannot drift from the rule the database enforces.
+										-->
+										{#each blockers as blocker (blocker.field)}
+											<span class="fdy-hint fdy-hint-block">
+												{blocker.sentence} {blocker.fix}
+											</span>
+										{/each}
 									{/if}
 								{/if}
 
@@ -1041,6 +1075,15 @@
 		gap: var(--space-2, 0.5rem);
 		flex-wrap: wrap;
 		align-items: center;
+	}
+
+	/* A BLOCKING requirement reads differently from a note about a failed
+	   upload: it is something the student can go and fix now, so it takes the
+	   heat ink rather than the muted one and sits on its own line. */
+	.fdy-hint-block {
+		color: var(--fg-heat-ink, var(--text-1));
+		display: block;
+		flex-basis: 100%;
 	}
 
 	.fdy-hint {

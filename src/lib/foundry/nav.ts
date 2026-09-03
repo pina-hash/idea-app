@@ -12,6 +12,11 @@
  *   contract   /foundry/contract  the build contract, a TOP-LEVEL place
  *   submit     /foundry/submit    the publish flow
  *                /foundry/starter   a DOWNLOAD inside the publish flow
+ *   classes    /foundry/classes   a SECTION MANAGER's own control: close the
+ *                                 Foundry for a class and open it again
+ *                                 (0173). The tab renders only for somebody
+ *                                 who manages a section; the RPC's own
+ *                                 `classroom_manages_section` is the boundary
  *   review     /foundry/review    admin only; the tab renders only for admins
  *                                 and the route 404s everyone else regardless
  *
@@ -27,7 +32,7 @@
  * resolving); only the map changed.
  */
 
-export type FoundryPlace = 'gallery' | 'mine' | 'contract' | 'submit' | 'review';
+export type FoundryPlace = 'gallery' | 'mine' | 'contract' | 'submit' | 'classes' | 'review';
 
 export function locateFoundry(pathname: string): FoundryPlace | null {
 	const p = pathname.replace(/\/+$/, '') || '/';
@@ -35,6 +40,7 @@ export function locateFoundry(pathname: string): FoundryPlace | null {
 	if (p === '/foundry/mine') return 'mine';
 	if (p === '/foundry/contract') return 'contract';
 	if (p === '/foundry/submit' || p === '/foundry/starter') return 'submit';
+	if (p === '/foundry/classes') return 'classes';
 	if (p === '/foundry/review') return 'review';
 	return null;
 }

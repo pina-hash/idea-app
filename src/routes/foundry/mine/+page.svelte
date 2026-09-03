@@ -19,6 +19,7 @@
 	import { page } from '$app/state';
 
 	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
+	import FoundryOwnerStats from '$lib/foundry/FoundryOwnerStats.svelte';
 	import type { FoundryApp, FoundryMineTransports, FoundryOutcome } from '$lib/foundry/transports';
 	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
 
@@ -169,6 +170,14 @@
 </svelte:head>
 
 <div class="fdy-page">
+	<!--
+		THE OWNER DASHBOARD (decision 07), ABOVE THE SHELF RATHER THAN INSIDE
+		IT. It is about ALL of this student's apps, so it cannot live in the
+		detail pane, which is about the one that is open. The per-app panel
+		(FoundryPlayStats) stays exactly where it was, on the app itself.
+	-->
+	<FoundryOwnerStats apps={data.apps} playCounts={data.playCounts ?? {}} />
+
 	<FoundryMine
 		apps={data.apps}
 		selected={data.selected}

@@ -330,21 +330,64 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 	 *
 	 * The rule this file exists for is that a card QUOTES ITS OWN ROOM or
 	 * declares nothing: a pair invented for an app that has no colours of its
-	 * own is inventing an identity for the app. /foundry is built on the
-	 * portal's own console register -- --green for the launch control, --cyan
-	 * for the author line -- so those two ARE its colours, and the card takes
-	 * them BY TOKEN rather than as re-typed hex, which is what makes "quotes its
-	 * room" checkable rather than a claim in a comment.
+	 * own is inventing an identity for the app.
+	 *
+	 * THIS ASSERTION USED TO PIN --green / --cyan BY TOKEN, and said in words
+	 * that taking them by token rather than as hex was "what makes 'quotes its
+	 * room' checkable". Both halves have been rewritten, because the premise
+	 * was wrong in two ways that the token check could not see.
+	 *
+	 * GREEN IS NOT THE FORGE'S IDENTITY, IT IS ONE OF ITS STATES.
+	 * `src/lib/foundry/forge.css` states the room's identity outright -- "the
+	 * warmth is the room's identity", a near-black iron plate with a warm cast
+	 * -- and spends --green on `--fg-st-done-ink` and `--fg-st-live-ink`, the
+	 * approved and live states. A card painted in a room's state colour is
+	 * quoting the room about as well as a card painted in its error red.
+	 *
+	 * AND ON THIS PAGE GREEN CANNOT IDENTIFY ANYTHING. GAUNTLET, VANGUARD,
+	 * GREENLINE and dashboard/admin are already spending it, and --green
+	 * resolves to #78b870, which is the admin card's literal -- so the Foundry
+	 * card and the admin card were painting the same hex. That is asserted
+	 * below rather than described, because it is the property that made the
+	 * old pair a defect rather than a preference.
+	 *
+	 * SO THE CARD TAKES THE POUR, AS HEX, AND THE HEX IS FORCED. The `--fg-*`
+	 * tokens are declared on `.fg-root`; the launcher is not inside it, so
+	 * `var(--fg-heat)` here resolves to nothing. Every card that quotes a room
+	 * re-types its room's values for exactly that reason, which is why the old
+	 * "no hex" clause could never have been the general rule it was written as.
 	 */
-	it('gives Foundry the tokens of its own room, not a pair invented for the card', () => {
+	it('gives Foundry its own room\'s pour, and not a fifth green', () => {
 		const rule = ruleFor('foundry');
 		expect(rule, 'the foundry card declares no rule at all').not.toBe('');
-		expect(rule).toContain('--acc-primary: var(--green);');
-		expect(rule).toContain('--acc-secondary: var(--cyan);');
-		// A hex literal here would be the invented-identity case: the same colour
-		// re-typed is a value that stops tracking the token it came from.
-		expect(rule).not.toMatch(/--acc-primary:\s*#/);
-		expect(rule).not.toMatch(/--acc-secondary:\s*#/);
+		// forge.css's own --fg-heat and --fg-heat-ember.
+		expect(rule).toContain('--acc-primary: #f6952f;');
+		expect(rule).toContain('--acc-secondary: #c65a1d;');
+
+		// THE VALUES ARE THE ROOM'S, read out of forge.css rather than restated
+		// here, so this cannot pass against a pair that merely looks forge-ish.
+		const forge = readFileSync('src/lib/foundry/forge.css', 'utf8');
+		expect(forge).toContain('--fg-heat: #f6952f;');
+		expect(forge).toContain('--fg-heat-ember: #c65a1d;');
+	});
+
+	it('does not paint the Foundry card the same colour as another card', () => {
+		// THE DEFECT, PINNED AS A PROPERTY RATHER THAN AS THE ONE PAIR THAT HAD
+		// IT. --green is #78b870 and the admin card declares #78b870, so the old
+		// foundry rule was the admin rule in different words. Asserting "not
+		// var(--green)" would only forbid the spelling; this forbids the
+		// collision, and bites for any future card that reintroduces one.
+		const GREEN = '#78b870';
+		const foundry = ruleFor('foundry');
+		expect(foundry).not.toContain('--acc-primary: var(--green);');
+		expect(foundry).not.toContain(`--acc-primary: ${GREEN};`);
+
+		// The census this is protecting, so a reader can see what "a fifth
+		// green" meant: four cards already spend one.
+		const greens = ['gauntlet', 'vanguard', 'greenline', 'admin'].filter((id) =>
+			/--acc-primary:\s*(#00ff41|#2ae57e|#78b870)/.test(ruleFor(id))
+		);
+		expect(greens).toHaveLength(4);
 	});
 
 	it('gives the Foundry card an animated mark that hides nothing at rest', () => {
