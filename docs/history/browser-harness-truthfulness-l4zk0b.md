@@ -213,18 +213,54 @@ where the effect lands after 600ms and the old spec reddens. The condition exist
 does not fire. This change removes a timing assumption whose bracket is now written down;
 it is not a proven repair.
 
+## Ten runs each after the change
+
+| spec | width | runs | outside threshold |
+| --- | --- | --- | --- |
+| `/dev/gauntlet-shell` + `-countdown` | 1440 | 10 | 0, every run |
+| the ten `notebook`-matching specs | 375 | 10 | 0, every run |
+
+The countdown's new `prepare-wait` prints `0ms, already satisfied` here, because
+hydration (5.1-5.4s) has already absorbed the block by the time it runs -- which is the
+adaptive behaviour wanted and is exactly why ten green runs prove nothing on their own.
+The reproduction is what proves it.
+
 ## Every row accounted for, baseline to final
+
+Baseline: 160 runs, 2196 measurements, **4 outside threshold**, 383.3s.
+Final: 160 runs, 2202 measurements, **4 outside threshold**, 379.9s, on `33da279`.
+`--selftest` 64 controls (32/32), 0 instrument failures, both times.
 
 | baseline row | what happened |
 | --- | --- |
-| `/dev/pathways` @375 `tap-target` harness controls | **B3**: green -- the dev page's own controls now clear 44px |
+| `/dev/pathways` @375 `tap-target` harness controls | **B3**: green. The dev page's own controls clear 44px now; the row is KEPT and still measuring them |
 | `/dev/pathways` @1440 `tap-target` harness controls | **B3**: green, same fix |
 | `/dev/coins` @375 `horizontal-scroll` | **B3**: still red. Real product defect, reclassified and re-explained |
-| `/dev/coins-signedin-1` @375 `horizontal-scroll` | **B3**: still red, same defect via the alias |
+| `/dev/coins-signedin-1` @375 `horizontal-scroll` | **B3**: still red, same defect through the alias |
 
-Nothing disappeared because a spec stopped looking. The two rows that went green went
-green because the thing they measured was fixed at its source, and the row is still
-measuring it.
+| row that is new | why |
+| --- | --- |
+| `/dev/pathways` @375 `tap-target` ProfileMenu trigger | **B3**: the row re-pointed at a control that ships. 44x34, min 34px |
+| `/dev/pathways` @1440 `tap-target` ProfileMenu trigger | same |
+
+**Nothing disappeared because a spec stopped looking.** The two rows that went green went
+green because the thing they measured was fixed at its source, and both rows still
+measure it. The +6 measurements are the three added rows at two widths: the arrival
+guard, the coins category claim and the ProfileMenu trigger.
+
+## The harness caught one of my own broken steps, loudly
+
+The rewritten coins offender probe built its element name with escaped quotes inside a
+single-quoted source string, so the browser received `" "" +` and every run of it threw
+`SyntaxError: Unexpected string`. Nothing local caught it -- the module parses, the file
+type-checks -- and the FIRST regenerated measured region carried 6 outside threshold with
+two `prepare-eval` rows reading `THREW`. That is the prepare-step-is-a-measurement design
+working exactly as `README.md` says it should: the step went red and named the throw
+rather than the checks after it reporting honest numbers about a state never reached.
+Fixed with square brackets, and **every inline source in every spec was syntax-checked
+afterwards -- 173 of them across `prepare.evaluate`, `prepare.until`, `prepare.waitFor`
+and `orderResult`, 0 broken**. The probe now prints
+`51px overflow at 375px, widest NON-FIXED offender button.tab-btn [Contracts] right=426.3`.
 
 ## What was verified
 
@@ -237,6 +273,11 @@ measuring it.
 - Ten consecutive targeted runs of each fixed spec.
 - `npm run verify:counts -- --check` before and after: the static region agrees with the
   tree and does not move. No route spec and no `/dev` page was added.
+- `npx svelte-kit sync && npx svelte-check`: **0 errors, 37 warnings**, breakdown
+  **31 `state_referenced_locally` / 5 `css_unused_selector` / 1 `perf_avoid_nested_class`**
+  -- the pinned baseline, unmoved. (Placeholder `PUBLIC_SUPABASE_*` exported before the
+  sync, per CLAUDE.md's phantom-error note.)
+- `npm test`: **242 files, 5125 tests, all passing**, 209.3s.
 
 ## What was NOT verified
 
@@ -252,6 +293,13 @@ measuring it.
   reached from here.
 - **`.pm-trigger`'s 34px was measured on three `/dev` routes**, never on a real signed-in
   page, because the harness cannot reach one.
+- **`tools/browser-verify/README.md`'s "Known findings" PROSE is now stale and was left
+  alone**, because this bundle owns the generated regions of that file and nothing else.
+  Lines 235-239 still say `/dev/pathways`'s finding is the two harness controls at
+  194.7x26.2, and lines 240-250 still say the coins overflow is `#student-drawer`. Both
+  are superseded by the spec headers and by this entry; the generated block above them
+  already names the new rows. **A bundle that owns that file should rewrite those two
+  bullets**, and the second one is the misdiagnosis, not merely an out-of-date number.
 
 ## The sentence a future prompt should carry about standing findings
 

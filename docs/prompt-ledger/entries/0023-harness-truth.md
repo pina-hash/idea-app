@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: seven route specs under `tools/browser-verify/routes/`, `_shared.mjs` if a fix belongs there, the harness page's own controls in `src/routes/dev/pathways/+page.svelte`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0023-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0174
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/browser-harness-truthfulness-l4zk0b (from origin/integration a7cd032)
 - Notes: Every prompt written in the last two days has carried a sentence
   telling the session which browser findings are "known and not yours". Five
   of them have. A standing finding that every bundle must be warned about is
