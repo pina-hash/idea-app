@@ -25,6 +25,7 @@
 	} from './maps';
 	import { mapsSaveObject, type MapsTransports } from './transports';
 	import MapsPublishPanel from './MapsPublishPanel.svelte';
+	import { MAPS_ADMIN_CAPS, MAPS_GRANT_REFUSAL, type MapsCaps } from './grants';
 	import MapsStatusChip from './MapsStatusChip.svelte';
 	import ChipListInput from './ChipListInput.svelte';
 
@@ -36,7 +37,8 @@
 		onselectnode,
 		onselecttype,
 		ondeleted,
-		registerForm
+		registerForm,
+		caps = MAPS_ADMIN_CAPS
 	}: {
 		/** null = create a new item type. */
 		itemType: MapsItemType | null;
@@ -48,7 +50,22 @@
 		/** Handed up: the delete removes this pane, so the note lands on the list. */
 		ondeleted: (message: string) => void;
 		registerForm: (key: string, handle: MapsFormHandle | null) => void;
+		/**
+		 * What the viewer may do. The editor resolves it once and hands it down.
+		 * DEFAULTS TO A SITE ADMIN, so every mount that predates granted editors
+		 * -- the dev harnesses and the `tests/dom/` mounts among them -- is
+		 * byte-identical without passing one.
+		 */
+		caps?: MapsCaps;
 	} = $props();
+
+	/* THE ITEM-TYPE VOCABULARY HAS NO NODE TO SCOPE TO, so a granted editor's
+	   reach here is "any DRAFT type", which 0172's header argues for at
+	   length: a grantee who cannot name a new type cannot catalog a drawer
+	   holding anything the vocabulary does not already have, which stalls the
+	   flow on the one person this tier exists to unblock. */
+	const canEdit = $derived(itemType === null ? caps.canCreateItemType() : caps.canEditItemType(itemType));
+	const canPublish = $derived(transports.publish !== undefined);
 
 	/* One-time seed; the shell remounts this detail (keyed) per selection. */
 	const { formKey, pending, base } = untrack(() => {
@@ -294,14 +311,21 @@
 	{/if}
 
 	<div class="actions">
-		<button type="button" class="btn" aria-disabled={problems.length > 0} onclick={() => doSave(false)}>
-			{itemType === null ? 'Create draft' : itemType.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
-		</button>
-		<button type="button" class="btn secondary" aria-disabled={problems.length > 0} onclick={() => doSave(true)}>
-			{itemType === null ? 'Create & publish' : 'Save & publish'}
-		</button>
+		{#if canEdit}
+			<button type="button" class="btn" aria-disabled={problems.length > 0} onclick={() => doSave(false)}>
+				{itemType === null ? 'Create draft' : itemType.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
+			</button>
+			{#if canPublish}
+				<button type="button" class="btn secondary" aria-disabled={problems.length > 0} onclick={() => doSave(true)}>
+					{itemType === null ? 'Create & publish' : 'Save & publish'}
+				</button>
+			{/if}
+		{/if}
 		<SaveIndicator state={save} />
 	</div>
+	{#if !canEdit}
+		<p class="grant-note" data-testid="maps-readonly-note">{MAPS_GRANT_REFUSAL}</p>
+	{/if}
 
 	{#if itemType}
 		<MapsPublishPanel
@@ -310,7 +334,7 @@
 			publishedAt={itemType.published_at}
 			busy={actionBusy}
 			problem={actionProblem}
-			onpublish={() => doSave(true)}
+			onpublish={canPublish ? () => doSave(true) : null}
 			ondiscard={pending ? discardPending : null}
 		/>
 
@@ -349,7 +373,9 @@
 
 		<section class="danger" data-testid="maps-type-delete">
 			<h3>Delete</h3>
-			{#if !deletable}
+			{#if !canEdit}
+				<p class="hint">Deleting an item type is a site admin.</p>
+			{:else if !deletable}
 				<p class="hint">
 					This type cannot be deleted while it is in use: {typeItems.length}
 					item{typeItems.length === 1 ? '' : 's'} and {typeStock.length} stock
@@ -381,6 +407,15 @@
 </div>
 
 <style>
+	.grant-note {
+		margin: 0;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control, 6px);
+		background: var(--bg2);
+		font-size: 0.85rem;
+		color: var(--text-2, var(--white));
+	}
 	.type-detail {
 		display: flex;
 		flex-direction: column;
