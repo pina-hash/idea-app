@@ -77,6 +77,23 @@ no-JavaScript path: the form is a real GET, the route answers it server-side,
 and the results list renders with no bundle at all. This is the one page in
 this app where that is worth paying for, and the reason is the person using it.
 
+**AND THERE IS NO SHARED CACHE HEADER, WHICH THE FIRST DRAFT OF THE LOAD
+HAD.** `s-maxage=60` looked free -- the map is small, it changes only on
+publish, and a class arriving at once would pay for one read between them. It
+is not free, because the payload is NOT identical for every caller: the read
+runs on the caller's own client, so an ADMIN's response carries their
+unpublished drafts (0161's admin read policy sits right beside the published
+one), and a shared cache keyed on the URL could then hand those drafts to the
+next anonymous visitor. That is the one thing this surface must not do, and it
+would have been the kind of leak nobody notices, so the header is gone rather
+than qualified by a `Vary` nobody would maintain.
+
+**THE PAYLOAD DIFFERENCE ITSELF STAYS.** The read-path rule is that RLS is the
+boundary and a client must not restate it, so an admin opening `/maps` sees
+their own drafts, unmarked. They are an editor and the editor is where the
+status chips are. If showing an admin exactly what a student sees ever
+matters, that is a preview mode, not a `status` filter added to this load.
+
 **A FAILED SEARCH IS NOT A FAILED PAGE, AND A FAILED LOAD IS NOT A 500.** The
 map renders with the reason on it. A public map that answers 500 is a map
 nobody can reach; one that says the map could not be loaded is one somebody can
@@ -248,7 +265,18 @@ probe that keeps interrupting the thing it is waiting for measures itself.
   chain, from the staged route AND from search -- while its own published mill
   is untouched, which is the sharp half. The before-measurement in the same
   test is the positive control, and the row is put back in a `finally`.
-- **Full suite**: reported in the session's own summary.
+- **Full suite: 246 files, 5177 tests, all passing** (`main` measured 242 and
+  5117 at the last integration). The one failure before the counts block was
+  regenerated was `tests/derived-numbers.test.ts`, which is what that test is
+  for.
+- **`tools/browser-verify/README.md`'s counts block regenerated** on a clean
+  tree by `npm run verify:readme`, never by hand: **86 specs over 44 routes,
+  172 runs, 2390 measurements, 8 outside threshold, 416.5s**, selftest 64
+  controls / 0 failures. The eight outside-threshold rows are **identical by
+  identity** to the pre-bundle block (the `/dev/pathways` harness controls at
+  both widths, the `/dev/classroom-interaction?case=typing` pair at both
+  widths, and the two `/dev/coins` horizontal-scroll rows at 375) -- the six
+  new specs contribute none, and none of the existing findings moved.
 
 ## What was NOT verified, and by what
 

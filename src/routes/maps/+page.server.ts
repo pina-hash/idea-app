@@ -36,7 +36,7 @@ import type { PageServerLoad } from './$types';
  * they did not run. A search that took the whole map down with it would be a
  * map nobody could browse because one RPC was slow.
  */
-export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
 
 	let maps = EMPTY_VIEWER_DATA;
@@ -58,11 +58,24 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 		if (outcome.ok) results = outcome.data;
 	}
 
-	// The map is public and identical for every caller, so it is cacheable --
-	// but it changes the moment somebody publishes, and a student standing at
-	// a toolbox must not be shown yesterday's drawer. A short shared window is
-	// the compromise: a class arriving at once pays for one read between them.
-	setHeaders({ 'cache-control': 'public, max-age=0, s-maxage=60' });
+	// NO SHARED CACHE HEADER, AND THE REASON IS THE ONE THING THIS SURFACE MUST
+	// NOT DO. A short `s-maxage` looked free here -- the map is small, it
+	// changes only on publish, and a class arriving at once would pay for one
+	// read between them. It is not free: the payload is NOT identical for
+	// every caller. The read runs on the caller's own client, so an ADMIN's
+	// response carries their unpublished drafts (0161's admin read policy sits
+	// beside the published one), and a shared cache keyed on the URL would
+	// then be able to hand an admin's drafts to the next anonymous visitor.
+	// Getting that wrong once is worse than every page load this would have
+	// saved, so there is no cache header at all rather than one qualified by a
+	// `Vary` nobody would maintain.
+	//
+	// AND THE PAYLOAD DIFFERENCE ITSELF STAYS, deliberately: the read-path rule
+	// is that RLS is the boundary and a client must not restate it. What it
+	// means is that an admin opening `/maps` sees their own drafts, unmarked --
+	// they are an editor, and the editor is where the status chips are. If
+	// showing an admin exactly what a student sees ever matters, that is a
+	// preview mode, not a filter added here.
 
 	return { maps, mapsError, mapsSearchResults: results, mapsQuery: q };
 };
