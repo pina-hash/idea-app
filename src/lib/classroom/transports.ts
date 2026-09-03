@@ -31,6 +31,8 @@ import {
 	type StudentEngineData,
 	type SubmissionFileRow
 } from './assignment-spec';
+import { managedPostedSections, type PostedSection } from './grading-bulk';
+import type { BulkGradeReport, BulkGradingLoad, BulkGradingTransports } from './grading-bulk';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import {
 	checkInDraftIssue,
@@ -77,6 +79,7 @@ import {
 	type EnrollmentRemoval,
 	type ClassroomItem,
 	type ClassroomManageTransports,
+	type ClassroomSection,
 	type ImportSummary,
 	type ItemInput,
 	type ItemLink,
@@ -2040,6 +2043,135 @@ export function createSongQueueTransports(supabase: SupabaseClient): SongQueueTr
 			});
 			if (error) return { ok: false, message: 'Could not reject that request. Try again.' };
 			return songOutcome<SongDecided>(data, songDecidedShape);
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// GRADING AT SCALE (0175): one assignment, every class the caller teaches it
+// in, and one statement for the whole batch.
+//
+// IT IS A SEPARATE FACTORY, not three more methods on
+// `createTeacherEngineTransports`. Every grading surface holds the teacher
+// transports and only the cross-class route holds this, so keeping the two
+// apart is what makes "the per-section console cannot grade in bulk" a
+// structural fact rather than a flag somebody has to remember to leave off.
+// ---------------------------------------------------------------------------
+
+/** The postings a caller can see for an item, with the section embedded. */
+export const POSTING_SELECT = `section_id, classroom_sections!inner(${SECTION_SELECT})`;
+
+/** PostgREST's embed shape, turned into the pure module's own. One reader. */
+export function normalizePostings(rows: unknown): PostedSection[] {
+	return ((rows ?? []) as Record<string, unknown>[]).map((row) => {
+		const embed = row.classroom_sections as Record<string, unknown> | undefined;
+		return {
+			section_id: String(row.section_id ?? ''),
+			section: embed ? normalizeSectionRow(embed) : null
+		};
+	});
+}
+
+/**
+ * The item's work across EVERY section the caller MANAGES that it is posted to.
+ *
+ * THREE READS, AND EACH ANSWERS A DIFFERENT QUESTION.
+ *   * `classroom_section_roster(null)` -- every roster the caller manages,
+ *     which is 0138's own null-section rung and is gated on
+ *     `classroom_manages_section` INSIDE the definer. This is where the
+ *     manage-ness comes from; nothing here re-derives it.
+ *   * the item's postings, which say which of those sections this assignment is
+ *     actually in.
+ *   * the work itself, which was NEVER section-scoped: `classroom_submissions`
+ *     is keyed `(item_id, student_email)` and its policy is
+ *     `classroom_can_review_submission`, so `.eq('item_id', ...)` already
+ *     returns exactly the rows the caller may review and no others.
+ *
+ * THE INTERSECTION IS THE POINT, and it is taken in that order. The postings
+ * policy admits a section the caller is merely ENROLLED in (0109 widened it for
+ * students), so postings alone would list a class somebody else teaches -- with
+ * no roster behind it and every grade refused, but named on screen, which is a
+ * disclosure rather than a bug in the grading. Intersecting against the roster's
+ * own section ids means a section appears here only because the DATABASE said
+ * the caller manages it.
+ */
+async function loadGradingAcrossSections(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<TxResult<BulkGradingLoad>> {
+	const [rosterRes, postingsRes] = await Promise.all([
+		loadSectionRoster(supabase, null),
+		supabase.from('classroom_postings').select(POSTING_SELECT).eq('item_id', itemId)
+	]);
+	if (!rosterRes.ok) return rosterRes;
+	if (postingsRes.error) return fail(postingsRes.error);
+
+	// THE ONE IMPLEMENTATION of "which classes of this assignment may I grade",
+	// shared with the page load and the dev harness.
+	const sections = managedPostedSections(
+		normalizePostings(postingsRes.data),
+		rosterRes.data.rows.map((r) => r.section_id)
+	);
+	const seen = new Set(sections.map((s) => s.id));
+
+	const [submissionsRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
+		selectSubmissions(supabase, itemId, false),
+		supabase
+			.from('classroom_responses')
+			.select('item_id, student_email, block_id, value, updated_at')
+			.eq('item_id', itemId),
+		selectSubmissionFiles(supabase, itemId),
+		supabase
+			.from('classroom_module_approvals')
+			.select('item_id, student_email, module_id, approved_by, approved_at')
+			.eq('item_id', itemId)
+	]);
+
+	return {
+		ok: true,
+		data: {
+			sections,
+			data: {
+				// THE ROSTER IS NARROWED TO THIS ASSIGNMENT'S CLASSES. Without it
+				// every student the caller teaches anywhere would be listed on one
+				// assignment they were never given.
+				roster: rosterRes.data.rows.filter((r) => seen.has(r.section_id)),
+				submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
+					normalizeSubmissionRow
+				),
+				responses: (responsesRes.data ?? []) as ResponseRow[],
+				extraCreditReady: submissionsRes.extraCreditReady,
+				files: filesRes.rows,
+				filesStorageReady: filesRes.storageReady,
+				approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+			}
+		}
+	};
+}
+
+export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradingTransports {
+	return {
+		loadAcross: (itemId) => loadGradingAcrossSections(supabase, itemId),
+		async gradeMany(itemId, grades, release) {
+			const { data, error } = await supabase.rpc('classroom_grade_submissions', {
+				p_item_id: itemId,
+				p_grades: grades,
+				p_return: release
+			});
+			// A RAISE IS THE WHOLE BATCH REFUSED, and 0175 only raises on shapes
+			// it checked BEFORE writing anything (a duplicate address, an empty
+			// list, over the ceiling). So this message is safe to render as "no
+			// grade was written", which is exactly what an instructor needs to
+			// know before they press it again.
+			if (error) return fail(error);
+			const report = data as BulkGradeReport | null;
+			if (!report || typeof report.total !== 'number') {
+				return { ok: false, message: 'The grade batch gave no answer. Nothing was saved.' };
+			}
+			// The export ride-along the single-student path takes: a grade does
+			// not change the item, so there is nothing to push. (`gradeSubmission`
+			// does not ping it either.)
+			return { ok: true, data: report };
 		}
 	};
 }
