@@ -30,6 +30,12 @@
 		type MapsSelection
 	} from './maps';
 	import type { MapsTransports } from './transports';
+	import {
+		MAPS_ADMIN_SCOPE,
+		mapsCaps,
+		type MapsEditorScope
+	} from './grants';
+	import { mapsNodePath } from './maps';
 	import NodeTree from './NodeTree.svelte';
 	import NodeDetail from './NodeDetail.svelte';
 	import ItemTypeDetail from './ItemTypeDetail.svelte';
@@ -38,17 +44,53 @@
 	let {
 		initial,
 		transports,
-		initialSelection = null
+		initialSelection = null,
+		scope = MAPS_ADMIN_SCOPE
 	}: {
 		initial: MapsEditorData;
 		transports: MapsTransports;
 		/** What opens selected -- the harness and tests use it to land on a state. */
 		initialSelection?: MapsSelection | null;
+		/**
+		 * WHO IS LOOKING (0172). Defaults to a site admin, so every mount that
+		 * existed before granted editors is byte-identical without passing
+		 * one. A granted editor gets the containers they hold and nothing
+		 * else; publishing is removed by the transports rather than by this.
+		 */
+		scope?: MapsEditorScope;
 	} = $props();
 
 	// The load's payload seeds the editor once; every later change flows
 	// through transports.reload(). Deliberate capture, so: untrack.
 	let data = $state<MapsEditorData>(untrack(() => initial));
+
+	/* RESOLVED ONCE, AGAINST THE CURRENT NODES, and handed down. Every surface
+	   below reads this rather than re-deriving a rule of its own -- three
+	   spellings of "may I edit this" is three things that stop agreeing, and
+	   the SQL already holds the fourth (which is the one that decides). */
+	const caps = $derived(mapsCaps(data.nodes, scope));
+
+	/* The tree shows what the caller may see. For an admin `visibleNodeIds` is
+	   null -- NO LIMIT, which is not the same thing as an empty set, and
+	   conflating the two hands an admin an empty editor. */
+	const visibleNodes = $derived(
+		caps.visibleNodeIds === null
+			? data.nodes
+			: data.nodes.filter((n) => caps.visibleNodeIds?.has(n.id))
+	);
+
+	/* What a granted editor holds, in the words they will recognise: the
+	   containment path, never a uuid. `mapsNodePath` is the ONE implementation
+	   of that -- 0172 deliberately projects `node_id` and no path for exactly
+	   this reason. */
+	const grantedPaths = $derived(
+		scope.admin
+			? []
+			: scope.grants
+					.map((g) => mapsNodePath(data.nodes, g.node_id))
+					.filter((p) => p !== '')
+					.sort()
+	);
 	let loadProblem = $state<string | null>(null);
 	let listNotice = $state<string | null>(null);
 
@@ -159,9 +201,27 @@
 	}
 </script>
 
-<div class="mp-root" data-testid="maps-editor">
+<div class="mp-root" data-testid="maps-editor" data-scope={caps.admin ? 'admin' : 'granted'}>
 	{#if loadProblem}
 		<p class="load-problem" role="alert">{loadProblem}</p>
+	{/if}
+
+	{#if !caps.admin}
+		<!-- A GRANTED EDITOR IS TOLD WHAT THEY HOLD, BY PATH AND BEFORE THEY
+		     TOUCH ANYTHING. A surface that simply showed them less would read
+		     as a broken map; naming the containers turns an absence into a
+		     rule they can act on. -->
+		<p class="scope-note" data-testid="maps-scope-note">
+			{#if grantedPaths.length > 0}
+				You can edit drafts in {#each grantedPaths as path, i (path)}{#if i > 0}{i ===
+							grantedPaths.length - 1
+								? ' and '
+								: ', '}{/if}<strong>{path}</strong>{/each} and anything inside them.
+				Publishing, and any change to something already on the public map, is a site admin.
+			{:else}
+				You have not been given any containers to edit yet. Ask a site admin.
+			{/if}
+		</p>
 	{/if}
 
 	<ClassSplit {hasDetail} narrow="swap" scroll="page" detailWidth="roomy">
@@ -192,26 +252,28 @@
 
 				{#if section === 'places'}
 					<NodeTree
-						nodes={data.nodes}
+						nodes={visibleNodes}
 						pending={data.pending}
 						selectedId={selectedNode?.id ?? null}
 						onselect={(id) => attemptSelect({ kind: 'node', id })}
 					/>
-					<div class="add-root" data-testid="maps-add-root">
-						<p class="hint">{mapsNestingSentence(null)}</p>
-						<div class="add-row">
-							{#each mapsAllowedChildKinds(null) as k (k)}
-								<button
-									type="button"
-									class="btn secondary"
-									onclick={() =>
-										attemptSelect({ kind: 'new-node', parentId: null, presetKind: k })}
-								>
-									Add {MAPS_KIND_LABELS[k].toLowerCase()}
-								</button>
-							{/each}
+					{#if caps.canAddChild(null)}
+						<div class="add-root" data-testid="maps-add-root">
+							<p class="hint">{mapsNestingSentence(null)}</p>
+							<div class="add-row">
+								{#each mapsAllowedChildKinds(null) as k (k)}
+									<button
+										type="button"
+										class="btn secondary"
+										onclick={() =>
+											attemptSelect({ kind: 'new-node', parentId: null, presetKind: k })}
+									>
+										Add {MAPS_KIND_LABELS[k].toLowerCase()}
+									</button>
+								{/each}
+							</div>
 						</div>
-					</div>
+					{/if}
 				{:else}
 					<ul class="type-list" data-testid="maps-type-list">
 						{#each sortedTypes as t (t.id)}
@@ -234,11 +296,13 @@
 					{#if sortedTypes.length === 0}
 						<p class="hint">No item types yet. The searchable vocabulary starts here.</p>
 					{/if}
-					<div class="add-root">
-						<button type="button" class="btn secondary" onclick={() => attemptSelect({ kind: 'new-type' })}>
-							New item type
-						</button>
-					</div>
+					{#if caps.canCreateItemType()}
+						<div class="add-root">
+							<button type="button" class="btn secondary" onclick={() => attemptSelect({ kind: 'new-type' })}>
+								New item type
+							</button>
+						</div>
+					{/if}
 				{/if}
 			</nav>
 		{/snippet}
@@ -272,6 +336,7 @@
 						attemptSelect({ kind: 'new-node', parentId, presetKind })}
 					ondeleted={onDeleted}
 					{registerForm}
+					{caps}
 				/>
 			{:else if selection?.kind === 'new-node'}
 				<NodeDetail
@@ -286,6 +351,7 @@
 						attemptSelect({ kind: 'new-node', parentId, presetKind })}
 					ondeleted={onDeleted}
 					{registerForm}
+					{caps}
 				/>
 			{:else if selection?.kind === 'type' && selectedType}
 				<ItemTypeDetail
@@ -300,6 +366,7 @@
 					onselecttype={(id) => attemptSelect({ kind: 'type', id })}
 					ondeleted={onDeleted}
 					{registerForm}
+					{caps}
 				/>
 			{:else if selection?.kind === 'new-type'}
 				<ItemTypeDetail
@@ -314,6 +381,7 @@
 					onselecttype={(id) => attemptSelect({ kind: 'type', id })}
 					ondeleted={onDeleted}
 					{registerForm}
+					{caps}
 				/>
 			{/if}
 		{/key}
@@ -321,6 +389,15 @@
 </div>
 
 <style>
+	.scope-note {
+		margin: 0 0 0.7rem;
+		padding: 0.6rem 0.75rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control, 6px);
+		background: var(--bg2);
+		font-size: 0.88rem;
+		color: var(--white);
+	}
 	.mp-root {
 		/* THE MAPS ACCENT SLOT. Spec section 10 leaves the maps identity to a
 		   Claude Design pass; until that lands, every place the identity accent

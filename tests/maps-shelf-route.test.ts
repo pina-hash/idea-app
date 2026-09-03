@@ -73,7 +73,16 @@ describe('the gate that now covers the whole /maps/edit area', () => {
 
 		// The answering half, which is what stops the refusal passing against a
 		// layout that refuses everybody.
-		await expect(driveLayout(world.admin.id)).resolves.toEqual({});
+		//
+		// GENERALIZED FROM `toEqual({})` BY THE 0172 GRANTED-EDITOR BUNDLE. The
+		// layout now resolves the caller's SCOPE and returns it, so a payload
+		// that is empty by definition is no longer what "admitted" looks like.
+		// The assertion that matters is unchanged and is now stated rather than
+		// implied: the admin is ADMITTED, and admitted AS AN ADMIN.
+		await expect(driveLayout(world.admin.id)).resolves.toMatchObject({
+			mapsIsAdmin: true,
+			mapsScope: { admin: true }
+		});
 	});
 
 	it('still refuses at the editor page itself, so opening one layer leaves the other closed', async () => {

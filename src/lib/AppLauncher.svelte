@@ -773,40 +773,66 @@
 		--acc-primary: #0fbe7a;
 		--acc-secondary: #e0ac4e;
 	}
-	/* IDEA FOUNDRY. The card QUOTES ITS OWN ROOM, which is the only honest
-	   source for a pair: /foundry is built on the portal's own console register
-	   -- .cr-root surfaces, --green for the launch control, --cyan for the
-	   author line -- so those two ARE its colours rather than a pair invented
-	   for the card. Molten copper was the tempting alternative and is exactly
-	   what the rule refuses: it would be inventing an identity for an app that
-	   already has one.
+	/* THE FORGE, IN THE FORGE'S OWN COLOUR -- and this rule used to be green.
+	   /foundry IS a designed room: src/lib/foundry/forge.css opens by saying so
+	   in words -- "near-black with a faint WARM cast, worked metal under a
+	   banked fire ... THE WARMTH IS THE ROOM'S IDENTITY" -- against a portal
+	   plate that is green and a classroom register that is green-neutral. So
+	   the Foundry was the one app on this launcher with a room of its own and a
+	   card showing none of it, which is the defect the Coin Ledger card two
+	   rules up was fixed for.
 
-	   --acc-ink is NOT re-pinned: --green already carries text on --bg1
-	   everywhere else on this page, so there is nothing for the ink to
-	   correct. */
+	   WHAT THIS REPLACES, AND WHY THE OLD ARGUMENT WAS WRONG RATHER THAN
+	   MERELY OUTVOTED. The card read --green / --cyan on the grounds that
+	   /foundry is built on the portal console register, so those two "ARE its
+	   colours". Two things are wrong with that. Green in this room is not the
+	   room, it is a STATE -- forge.css spends it on `--fg-st-done-ink`
+	   (approved: struck and cooled to green) and `--fg-st-live-ink`, which is
+	   the FINISHED state and nothing else. And on this page green is not an
+	   identity at all: GAUNTLET #00ff41, VANGUARD #00ff41, GREENLINE #2ae57e
+	   and dashboard/admin #78b870 are already spending it, and --green
+	   resolves to #78b870, so the Foundry card and the admin card were
+	   painting the SAME hex. A fifth green is not a way of telling five things
+	   apart.
+
+	   AND THE "HEAT MEANS IN PROGRESS" OBJECTION DOES NOT REACH THIS SURFACE,
+	   which is what the comment this replaces got wrong. That rule is
+	   forge.css's and it governs `.fg-root` -- inside the room, where a chip
+	   wearing heat has to mean "submitted" and nothing else. A launcher card is
+	   not in the room and cannot even read `--fg-*`. This launcher ALREADY
+	   quotes two in-room state colours as out-of-room identity: #2ae57e is
+	   GREENLINE's surgical player thread and #c8ff00 is the Ledger's legendary
+	   rank treatment, and on a card each simply means "that app". A colour is a
+	   state where the state language is defined; out here it is a name.
+
+	   SO THE PAIR IS THE POUR, TAKEN FROM forge.css's OWN SCALE: `--fg-heat`
+	   #f6952f, the working molten amber, cooling to `--fg-heat-ember` #c65a1d
+	   along the strip. AS RE-TYPED HEX, NOT AS var(), and that is forced rather
+	   than sloppy -- the `--fg-*` tokens are declared on `.fg-root` and this
+	   card is not inside it, so var(--fg-heat) here resolves to nothing at all.
+	   Every other card that quotes a room does the same for the same reason.
+
+	   MEASURED, on this page's real grounds rather than described. #f6952f as
+	   text: 7.83 on --bg0, 6.66 on --bg1, 6.25 on --bg2 -- so --acc-ink is NOT
+	   re-pinned, because the identity already carries text and the FRC case is
+	   the only one that does not. The card edge (--acc-edge, the identity at
+	   75%) reads 4.89:1 against the page, comfortably past the 3:1 a boundary
+	   carries and slightly better than the green it replaces at 4.81.
+	   #c65a1d is the far stop of the gradient strip and paints no text and no
+	   boundary: --acc-secondary is read at exactly one place in this file, the
+	   strip's linear-gradient. */
 	.app-card[data-app='foundry'] {
-		--acc-primary: var(--green);
-		--acc-secondary: var(--cyan);
-		/* Horizontal hairlines at 7px, in the CYAN above rather than in any heat
-		   colour, and distinct from GAUNTLET's blueprint grid and GREENLINE's
-		   diagonals so the three do not read as one family.
-
-		   THIS COMMENT USED TO SAY THE LINES QUOTE THE ROOM'S MOLTEN SEAM. They
-		   do not and cannot: `MoltenSeam` is the `--fg-heat-*` scale, amber
-		   through ember to a white-hot core, and this value is
-		   rgba(0, 240, 255, ...). What the texture actually quotes is the pair
-		   two lines up -- the room's own --cyan, the colour /foundry uses for an
-		   author line -- so it is the card's own accent drawn faintly, which is
-		   the honest reading and needs no seam in it.
-
-		   THE COLOUR IS NOT CHANGED HERE. Heat means IN PROGRESS in this room
-		   and a launcher card is not a progress state, so quoting the seam would
-		   be the wrong claim as well as a different colour;
-		   tests/home-order-and-accent.test.ts pins the pair, and a repaint is a
-		   design decision rather than a comment correction. */
+		--acc-primary: #f6952f;
+		--acc-secondary: #c65a1d;
+		/* Horizontal hairlines at 7px -- the same rhythm as before, moved off
+		   cyan onto the card's own accent so the texture keeps quoting the pair
+		   two lines up rather than the pair it used to. Still distinct from
+		   GAUNTLET's blueprint grid and GREENLINE's diagonals, so the three do
+		   not read as one family, and still at 3.5% where it cannot touch
+		   legibility. */
 		--card-texture: repeating-linear-gradient(
 			to bottom,
-			rgba(0, 240, 255, 0.035) 0 1px,
+			rgba(246, 149, 47, 0.035) 0 1px,
 			transparent 1px 7px
 		);
 	}

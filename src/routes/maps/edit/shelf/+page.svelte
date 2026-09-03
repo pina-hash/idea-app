@@ -4,7 +4,8 @@
 	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import ShelfEntry from '$lib/maps/ShelfEntry.svelte';
-	import { mapsPhotoTransports, mapsTransports } from '$lib/maps/transports';
+	import { mapsPhotoTransports, mapsTransportsFor } from '$lib/maps/transports';
+	import { MAPS_ADMIN_SCOPE } from '$lib/maps/grants';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -13,7 +14,14 @@
 	   arrangement -- the same split the editor page makes, so the dev harness
 	   can mount the identical component with in-memory ones. The browser client
 	   is stable for the life of the page, so capturing it once is deliberate. */
-	const transports = untrack(() => mapsTransports(data.supabase));
+	const transports = untrack(() =>
+		mapsTransportsFor(data.supabase, data.mapsScope ?? MAPS_ADMIN_SCOPE)
+	);
+	/* A GRANTEE KEEPS THE CAMERA. 0172 admits a caller holding any grant to the
+	   `maps-media` bucket's INSERT policy, and the `maps_photos` ROW is the
+	   real gate -- it refuses an owner that is published or out of scope. The
+	   shelf is a phone-first surface and taking the camera away would remove
+	   the reason a student is standing at the toolbox with one. */
 	const photos = untrack(() => mapsPhotoTransports(data.supabase as never));
 </script>
 
@@ -33,6 +41,7 @@
 		{photos}
 		initialContainerId={data.containerId}
 		viewerId={data.claims?.sub ?? null}
+		scope={data.mapsScope ?? MAPS_ADMIN_SCOPE}
 		supabaseUrl={PUBLIC_SUPABASE_URL}
 		onchanged={async () => {
 			await invalidateAll();

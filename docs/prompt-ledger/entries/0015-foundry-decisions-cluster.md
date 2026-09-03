@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/foundry/**` (except `FOUNDRY_LIMITS`), `src/routes/foundry/**`, the foundry card rule in `src/lib/AppLauncher.svelte`, `supabase/migrations/0173_*.sql`, `src/routes/dev/foundry-admin/**`, `tests/foundry-*`, `tests/db/foundry-*`, the foundry rationale in `tests/home-order-and-accent.test.ts`, `tools/browser-verify/routes/foundry-*.mjs`, the generated counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0015-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, 0173. 0171 taken, 0172 reserved for 0013. Highest on origin/main at issue: 0171
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/foundry-decisions-cluster-m9d917
 - Notes: Mr. Pina answered six standing decisions on 2026-09-02 and this
   bundle builds all of them, plus three reports on the same surface.
 

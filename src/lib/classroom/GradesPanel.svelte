@@ -26,11 +26,24 @@
 	let {
 		section,
 		standings = [],
-		basePath = '/classroom'
+		basePath = '/classroom',
+		resubmittedAfterGrading = {}
 	}: {
 		section: ClassroomSection;
 		standings?: AssignmentStanding[];
 		basePath?: string;
+		/**
+		 * Item id -> how many students handed in again AFTER being graded, from
+		 * the page load's own read. DEFAULTS TO EMPTY, so a caller that does not
+		 * compute it renders exactly what this panel rendered before.
+		 *
+		 * ONLY RESUBMISSIONS, and the chip says so. A response edited after
+		 * grading is the other half of the same integrity question and lives in
+		 * `classroom_responses`, which this page does not read; a chip labelled
+		 * "changed" that could only see one of the two acts would be read as
+		 * complete. The grading console carries both.
+		 */
+		resubmittedAfterGrading?: Record<string, number>;
 	} = $props();
 
 	/**
@@ -104,6 +117,11 @@
 								{#if s.awaiting}
 									<span class="chip tone-attention" data-testid="chip-awaiting">
 										{s.awaiting} to mark
+									</span>
+								{/if}
+								{#if resubmittedAfterGrading[s.item.id]}
+									<span class="chip tone-changed" data-testid="chip-resubmitted">
+										{resubmittedAfterGrading[s.item.id]} resubmitted after grading
 									</span>
 								{/if}
 								{#if s.returned}
@@ -227,6 +245,18 @@
 	.tone-attention {
 		color: var(--amber);
 		border-color: var(--amber);
+	}
+	/* --gold, not --amber, and only because amber is ALREADY SPOKEN FOR on this
+	   panel: `tone-attention` is the routine "to mark" count, which sits on the
+	   same row. Two amber chips side by side would flatten the difference
+	   between a normal queue and a grade that may no longer describe the work.
+	   Gold is the register's special-callout token, which is exactly the claim.
+	   The console uses amber for this same fact because there amber is free and
+	   gold is taken by "incomplete" -- colour is never the only signal on either
+	   surface, and the chip carries the whole sentence. */
+	.tone-changed {
+		color: var(--gold);
+		border-color: var(--gold);
 	}
 	.tone-good {
 		color: var(--green);
