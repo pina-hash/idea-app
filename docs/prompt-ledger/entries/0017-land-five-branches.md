@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the merge of five branches into `integration`, the conflict resolutions it requires, one regeneration of the counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0017-*`, and its own `docs/history/` entry.
 - Migration permitted: no. 0171 to 0174 are on main and applied.
-- Status: issued
-- Branch: assigned by the harness. BRANCHED FROM `origin/integration`.
+- Status: pushed
+- Branch: `claude/land-five-branches-integration-aw487k`, branched from `origin/integration` at `22084e4`.
 - Notes: Five finished branches all pass CI and none has been swept, because
   every one of them conflicts on `tools/browser-verify/README.md`. Each
   regenerated the counts block against its own tree, each wrote different
