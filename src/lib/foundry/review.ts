@@ -187,6 +187,50 @@ export function queueOrder<T extends { submitted_version_id: string | null; upda
 		.sort((a, b) => a.updated_at.localeCompare(b.updated_at));
 }
 
+/**
+ * THE OTHER HALF OF THE QUEUE (0173, decision 06): apps that are ALREADY LIVE
+ * and that nobody has looked at.
+ *
+ * A trusted author's submit publishes in the same statement, so the version is
+ * `approved` from the moment it lands and `submitted_version_id` is null on
+ * that row forever. `queueOrder` therefore cannot see it, by construction --
+ * which would have made trust a door a student's work goes through and a
+ * reviewer never hears about. This is the list that closes that.
+ *
+ * OLDEST FIRST, THE SAME ARGUMENT `queueOrder` MAKES, and for a sharper
+ * reason: these are live on the gallery while they wait, so the one that has
+ * been unexamined longest is the one most worth reading.
+ *
+ * THE PROJECTION IS THE DATABASE'S. `live_unreviewed_version_id` is set by
+ * `foundry_list_apps` only for the app's OWN published version, only when it
+ * was auto-published, and only while `reviewed_at` is null -- and it is gated
+ * on owner-or-admin inside the function, so this list is empty for everybody
+ * else however it is called. Nothing here re-derives any of that.
+ */
+export function liveUnreviewedOrder<
+	T extends { live_unreviewed_version_id?: string | null; updated_at: string }
+>(rows: T[]): T[] {
+	return rows
+		.filter((r) => (r.live_unreviewed_version_id ?? null) !== null)
+		.slice()
+		.sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+}
+
+/**
+ * WHETHER THIS APP WENT LIVE WITHOUT ANYBODY LOOKING, for the chip on a row.
+ *
+ * Separate from the list above because a row can be in the QUEUE and also be
+ * live-unreviewed at the same time -- a trusted author whose next draft is
+ * waiting -- and a reviewer deciding about the submission needs to know the
+ * previous one is already on the gallery. Exactly the argument the shelved
+ * chip on a queue row already makes.
+ */
+export function wentLiveUnreviewed(app: {
+	live_unreviewed_version_id?: string | null;
+}): boolean {
+	return (app.live_unreviewed_version_id ?? null) !== null;
+}
+
 /** The submitted version of an app, which is what the queue is deciding about. */
 export function versionUnderReview(app: FoundryApp): FoundryVersion | null {
 	return app.versions.find((v) => v.status === 'submitted') ?? null;

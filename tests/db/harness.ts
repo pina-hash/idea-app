@@ -372,7 +372,32 @@ export async function createClassroomSection(
  */
 export async function enrollStudent(
 	db: TestDb,
-	opts: { as: SeededUser; sectionId: string; email: string; displayName: string; active?: boolean }
+	opts: {
+		as: SeededUser;
+		sectionId: string;
+		email: string;
+		displayName: string;
+		active?: boolean;
+		/**
+		 * PIN THE ROW'S STAMPS TO A KNOWN INSTANT, and only after the real write
+		 * path has already produced the row. Optional, so no existing caller
+		 * changes and the default is still whatever `now()` gave.
+		 *
+		 * WHY THIS EXISTS. `classroom_enrollments.created_at` is the recency key
+		 * a couple of suites assert an ORDER on, and two consecutive calls here
+		 * are stamped by two consecutive transactions -- microseconds apart, and
+		 * on a fast enough machine inside one millisecond. A fixture whose
+		 * premise is "these two are probably distinct" is a fixture that fails at
+		 * 3am, so a test asserting an order says which order it wants.
+		 *
+		 * IT SETS BOTH STAMPS, which is not a liberty: 0082 defaults `created_at`
+		 * and `updated_at` to the same `now()` on insert, so one instant in both
+		 * columns is exactly the row shape the RPC just wrote. The RPC is still
+		 * what wrote it -- every check, every default and the upsert key are the
+		 * real ones -- and only the clock is taken out of the test's hands.
+		 */
+		createdAt?: string;
+	}
 ): Promise<void> {
 	await db.asUser(opts.as.id, (q) =>
 		q('select public.classroom_set_enrollment($1, $2, $3, $4)', [
@@ -382,4 +407,18 @@ export async function enrollStudent(
 			opts.active ?? true
 		])
 	);
+	if (opts.createdAt === undefined) return;
+	// The RPC lowercases and trims the address before it stores it, so the row
+	// this re-stamps is found the same way rather than by the caller's spelling.
+	const { rowCount } = await db.sql(
+		`update public.classroom_enrollments
+		    set created_at = $3::timestamptz, updated_at = $3::timestamptz
+		  where section_id = $1 and student_email = lower(btrim($2))`,
+		[opts.sectionId, opts.email, opts.createdAt]
+	);
+	if (rowCount !== 1) {
+		throw new Error(
+			`enrollStudent: expected to stamp exactly 1 enrollment row, stamped ${rowCount}`
+		);
+	}
 }

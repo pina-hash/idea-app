@@ -19,6 +19,7 @@
 	 */
 	import { goto, invalidateAll } from '$app/navigation';
 
+	import FoundryTrustRoster from '$lib/foundry/FoundryTrustRoster.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { rejectReasonLabel } from '$lib/foundry/review';
 	import type { FoundryReviewTransports } from '$lib/foundry/transports';
@@ -265,9 +266,57 @@
 		onDeleted={() => select(null)}
 		{now}
 	/>
+
+	<!--
+		THE ROSTER SITS UNDER THE QUEUE, WHICH IS WHERE THE DECISION IS MADE.
+		An admin decides somebody is trustworthy while reading their work, so
+		the control belongs on the same page rather than behind a settings tab
+		somebody has to remember exists. It is outside the split deliberately:
+		it is about people, not about the app that happens to be open.
+	-->
+	<FoundryTrustRoster
+		rows={data.trusted ?? []}
+		transports={{
+			async grantTrust(email, note) {
+				const { error } = await data.supabase.rpc('foundry_trusted_grant', {
+					p_email: email,
+					p_note: note
+				});
+				// The database's own sentence, verbatim: it is the one that says
+				// whether the address was refused for its domain or the caller
+				// for not being an admin.
+				if (error) return { ok: false, message: error.message };
+				return { ok: true };
+			},
+			async revokeTrust(email) {
+				const { error } = await data.supabase.rpc('foundry_trusted_revoke', {
+					p_email: email
+				});
+				if (error) return { ok: false, message: error.message };
+				return { ok: true };
+			}
+		}}
+		onChanged={() => invalidateAll()}
+	/>
 </div>
 
 <style>
+	/* THE SPLIT IS WHAT GROWS, in app mode. `scroll="fill"` needs a bounded
+	   parent with `min-height: 0` on this item, and without it `height: 100%`
+	   resolves against an auto height, the panes grow to their content, and
+	   the surface degrades to exactly `page-flow` -- the state it had before,
+	   which is why getting this wrong is invisible rather than broken. */
+	@media (min-width: 1024px) {
+		:global(.cr-app) .fdy-rev-page {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+		:global(.cr-app) .fdy-rev-page > :global(.cr-split) {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+	}
+
 	.fdy-rev-page {
 		display: flex;
 		flex-direction: column;

@@ -156,6 +156,250 @@ jobs:
             exit 1
           fi
 
+          # -----------------------------------------------------------------
+          # THE LEDGER GATE. A branch is not swept while the ledger entry it
+          # introduced still says its session is RUNNING.
+          #
+          # The failure it exists for, and it is measured rather than
+          # imagined: `docs/prompt-ledger/README.md` requires a session to
+          # commit its entry as its FIRST commit, so a rival chat fetching the
+          # directory can see the work is in flight. CI goes green on that
+          # first commit. This workflow then merged the branch and DELETED it
+          # minutes into a session that was still working -- no work was lost,
+          # the session kept pushing, but the branch list stopped measuring the
+          # in-flight queue. On 2026-09-02 two prompts were in flight and
+          # `git ls-remote --heads origin` read as ZERO standing branches.
+          #
+          # So the ENTRY is the signal and the branch's existence is not.
+          # `Status: issued` means the session is still running; its own final
+          # commit sets `pushed`, which is the moment the branch is finished
+          # and this workflow may have it.
+          #
+          # THIS GATE ONLY EVER ADDS A SKIP, AND IT SKIPS ON EXACTLY TWO
+          # THINGS: an entry the branch ADDED whose status reads `issued`, and
+          # a surprise it cannot read past (no merge base with `origin/main`;
+          # an added entry that yields no blob at the tip). Both surprises are
+          # argued at their own sites below, and both fail in the same
+          # direction as the CI check beside them. Everything else -- a branch
+          # that adds no entry, an entry with no `Status:` line, a value nobody
+          # has seen before, an entry the branch merely MODIFIED -- merges
+          # exactly as it did before the gate existed. A branch that records
+          # nothing is not the branch this is about, and a status a tool does
+          # not recognise must never be able to pin a branch open forever.
+          #
+          # It is a FUNCTION and not four lines inline because it is PROVED
+          # from fixtures: `tools/integrate-gate-proof.sh` cuts the text
+          # between the two markers below out of THIS FILE and runs that exact
+          # text against throwaway git repositories, so the proof cannot drift
+          # into testing its own private copy of the rule. The markers are that
+          # harness's cut points: do not rename them, and do not move the body
+          # out from between them.
+          # ledger_gate_marker:begin
+          ledger_gate() {
+            # $1 is the branch's remote-tracking ref. Prints a skip reason and
+            # returns 0 to SKIP; returns 1, silently, to let the merge proceed.
+            local ref="$1"
+            local dir='docs/prompt-ledger/entries'
+            local -a fields=()
+            local n
+            local i
+            local path
+            local body
+            local line
+            local token
+
+            # WHICH ENTRIES ARE THIS BRANCH'S: THE ONES IT ADDED SINCE IT
+            # FORKED, AND ONLY THOSE. A branch routinely MODIFIES a
+            # higher-numbered entry belonging to somebody else -- advancing
+            # another session's Status from `pushed` to `deployed` is
+            # bookkeeping `docs/prompt-ledger/README.md` asks for -- and a
+            # modified entry is a statement about SOMEBODY ELSE'S work, so it
+            # decides nothing here.
+            #
+            # Measured on the branch that wrote this: it ADDED 0007 (`issued`,
+            # its own, still running) and MODIFIED 0010 (`deployed`, somebody
+            # else's). The rule this replaces was "the highest-numbered CHANGED
+            # entry decides", so it read 0010, never looked at 0007, and merged
+            # and deleted a session's branch while the session was working.
+            #
+            # A session's own entry is an ADD by construction: the ledger
+            # README has the session commit it as its FIRST commit on its
+            # branch, so it cannot exist at the merge base.
+            #
+            # Three dots, so the base is the MERGE BASE and not main's tip.
+            # `origin/main` and not `$TARGET` as that base, deliberately: an
+            # entry that has reached `integration` got there on some other
+            # branch, and basing on integration would hide this branch's own
+            # entry the moment it merged integration in.
+            #
+            # `-c core.quotePath=false` because git C-quotes any path holding a
+            # non-ASCII byte by default -- `0012-cafe.md` with an accent
+            # arrives as `"docs/.../0012-caf\303\251.md"`, quotes and all -- and
+            # a slug is hand-written from a prompt title, so that is an ordinary
+            # thing to see and not an exotic one. `-z` so the delimiter is a NUL
+            # that cannot occur inside a path. Under the old quoting such an
+            # entry matched nothing and an `issued` branch merged.
+            #
+            # AND THE LIST NEVER GOES THROUGH A COMMAND SUBSTITUTION, because
+            # `$(...)` DROPS NUL BYTES -- bash 5.2 says `ignored null byte in
+            # input` out loud and older bashes say nothing at all. Captured that
+            # way, `-z` output arrives as one run-on string with every delimiter
+            # gone and nothing matches: measured on the branch that wrote this,
+            # which read as a single unmatched path and MERGED, exactly the
+            # verdict this whole change exists to correct. `mapfile -d ''` off a
+            # process substitution keeps the NULs, and git's own exit status
+            # rides along as a final record so a diff that FAILED is still
+            # distinguishable from a diff that found nothing.
+            mapfile -d '' -t fields < <(
+              git -c core.quotePath=false diff --name-status --diff-filter=A -z \
+                "origin/main...$ref" -- "$dir" 2>/dev/null
+              printf 'rc=%s\0' "$?"
+            )
+
+            n="${#fields[@]}"
+            if [ "${fields[n-1]}" != rc=0 ]; then
+              echo "ledger entry unreadable (no merge base with origin/main)"
+              return 0
+            fi
+
+            # `--name-status -z` writes one NUL-terminated STATUS field then
+            # one NUL-terminated PATH field per record, so the paths are the
+            # ODD indices and the last element is the status record appended
+            # above. `--diff-filter=A` is what makes that alternation safe to
+            # rely on: only R and C records carry a SECOND path, and both are
+            # excluded here.
+            i=1
+            while [ "$i" -lt "$((n - 1))" ]; do
+              path="${fields[i]}"
+              i=$((i + 2))
+              case "$path" in *.md) ;; *) continue ;; esac
+
+              # READ IT AT THE BRANCH TIP, never at the merge base and never
+              # at main. The value the entry was ADDED with is `issued` by
+              # construction -- that is what the session commits first -- and
+              # the whole question is what the session last said about itself.
+              # A copy on main's tip is no better: an entry gets there when
+              # somebody else's branch lands, and it says whatever it said then.
+              #
+              # BY ITS FULL PATH, at whatever depth it sits. The diff already
+              # gives the path, so an entry filed one directory deeper
+              # (`entries/sub/0012-a.md`) is read exactly like a top-level one.
+              # The rule this replaces rebuilt `$dir/<basename>` out of an
+              # anchored `sed` that matched only the top level, so a nested
+              # entry was invisible and an `issued` branch merged.
+              if ! body="$(git show "$ref:$path" 2>/dev/null)"; then
+                # Git named the path as added and then could not produce a blob
+                # for it at the tip -- a gitlink, an object it cannot read. It
+                # should not happen, and it is a surprise, so it fails in the
+                # same direction as the CI check beside it: leave the branch
+                # standing and say why in the summary.
+                echo "ledger entry ${path##*/} could not be read at the branch tip"
+                return 0
+              fi
+
+              # STRIP CARRIAGE RETURNS BEFORE READING ANYTHING. `.gitattributes`
+              # records `core.autocrlf=true` on the authoring machine, so a CRLF
+              # blob is not exotic. Python's `.split()` splits on `\r` and
+              # bash's `read` uses IFS, which does not -- so `- Status: issued`
+              # with a CR normalised to `issued` in `tools/idea-status.py` and
+              # to `issued` PLUS A CARRIAGE RETURN here, the comparison below
+              # failed, and the gate merged a live session's branch.
+              body="${body//$'\r'/}"
+
+              # EVERY `Status:` BULLET IN THE ENTRY IS READ, not just the first,
+              # and ANY of them reading `issued` holds the branch.
+              #
+              # The bullet shapes: an optional indent, `-`/`*`/`+`, and optional
+              # `*`/`_` emphasis around the word, so `  - Status:`,
+              # `* Status:` and `- **Status**:` are all the field they look
+              # like. A bullet is still REQUIRED, so a `Status:` written in the
+              # middle of a sentence is prose and is not read.
+              #
+              # WHAT THIS STILL CANNOT DO, said plainly: a QUOTED `Status:`
+              # bullet on its own line -- an entry whose Notes reproduce another
+              # entry's field -- is indistinguishable from the real one by any
+              # regex, because it IS the real shape. Reading every occurrence
+              # rather than the first is what makes that safe in the direction
+              # that matters: a quoted `pushed` can no longer mask a real
+              # `issued` below it. The cost is the other direction, an entry
+              # that QUOTES the word `issued` holding a finished branch, which
+              # costs a branch standing until somebody looks at it.
+              #
+              # (This replaces a `sed -n '1p'` that carried a warning about `q`
+              # or `head -n 1` sending SIGPIPE upstream and `pipefail` turning
+              # that into a skipped branch. That warning was FALSE where it
+              # stood: the assignment ended in `|| true`, and errexit is
+              # suspended anyway for everything called from an `if` condition,
+              # which is how this function is called. The reason not to stop at
+              # the first line is the quoted-prose case above, not a signal.)
+              while IFS= read -r line; do
+                read -r token _ <<<"$line" || true
+
+                # NORMALISE AS A STRICT SUPERSET OF `tools/idea-status.py`
+                # (`.split()[0].strip(".,").lower()`), NOT AS A DISAGREEMENT
+                # WITH IT: first whitespace-separated token, surrounding
+                # punctuation stripped, lowercased. Every value the tool reads
+                # as `issued` this reads as `issued` too, because `.` and `,`
+                # are punctuation; this additionally holds a few the tool would
+                # not -- `issued;`, `"issued"`, `issued'`, `issued)`,
+                # `(issued`, `issued:`, `-issued`, `issued!`, each of which
+                # MERGED a live session's branch when only `.` and `,` were
+                # stripped.
+                #
+                # That is the safe direction for a gate whose only job is to
+                # HOLD a branch: reading one shape too many costs a finished
+                # branch standing until somebody looks, and reading one too few
+                # costs a running session its branch. A strict equality with the
+                # tool would have been worse for exactly that reason -- it
+                # would have made a typo the thing that decides whether a live
+                # branch is deleted. It is still the same four-word vocabulary
+                # the ledger README defines and adds no fifth state.
+                token="$(printf '%s' "$token" | sed 's/^[[:punct:]]*//; s/[[:punct:]]*$//' | tr '[:upper:]' '[:lower:]')"
+
+                # ONLY THE EXACT TOKEN HOLDS A BRANCH, and NO ORDERING DECIDES
+                # WHICH ENTRY IS ASKED. There is no sort and no "newest wins":
+                # every entry the branch added is asked, and one `issued`
+                # among them is enough. Sorting was a second defect on its own
+                # -- two entries sharing an id were resolved by whichever slug
+                # sorted last, which is a coin toss, and an added 0007=issued
+                # beside an added 0012=pushed merged a running session.
+                if [ "$token" = issued ]; then
+                  echo "ledger entry ${path##*/} still says its session is running (Status: issued)"
+                  return 0
+                fi
+              #
+              # A VALUE FOLDED ONTO THE NEXT LINE IS STILL THE VALUE, and this
+              # is the one shape in which the superset claim above was FALSE.
+              # `tools/idea-status.py` parses a continuation line, so an entry
+              # written
+              #
+              #     - Status:
+              #       issued
+              #
+              # reads as `issued` to the tool and read as EMPTY here, which
+              # merged a running session's branch -- the one direction the
+              # widening was chosen to avoid. `awk` and not `sed` because this
+              # needs a line of lookahead: an empty inline value arms `want`,
+              # and the next non-blank line answers it. That is also why the
+              # entry format's own continuation shape (0006 carried one) cannot
+              # be dismissed as hypothetical.
+              done < <(printf '%s\n' "$body" | awk '
+                match($0, /^[[:space:]]*[-*+][[:space:]]*[*_]*Status[*_]*[[:space:]]*:[[:space:]]*/) {
+                  value = substr($0, RSTART + RLENGTH)
+                  if (value ~ /^[[:space:]]*$/) { want = 1; next }
+                  print value; want = 0; next
+                }
+                want && $0 !~ /^[[:space:]]*$/ { print $0; want = 0 }
+              ')
+            done
+
+            # No added entry, or none of them says `issued`. The no-entry case
+            # is the ordinary one for most branches and must stay the cheapest
+            # path through here.
+            return 1
+          }
+          # ledger_gate_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
@@ -216,6 +460,17 @@ jobs:
 
             if [ "$conclusion" != success ]; then
               skipped+=("$branch -- CI on ${sha:0:7} is $conclusion")
+              continue
+            fi
+
+            # STILL RUNNING? Leave it alone. See `ledger_gate` above for the
+            # failure this exists for. It sits AFTER the CI check for reading
+            # order rather than precedence -- the two are independent, and a
+            # branch that is both red and running is more usefully reported as
+            # red -- and its reason goes into the same `skipped` array as every
+            # other one, so it lands in the job summary under "Left alone".
+            if ledger_reason="$(ledger_gate "$ref")"; then
+              skipped+=("$branch -- $ledger_reason")
               continue
             fi
 

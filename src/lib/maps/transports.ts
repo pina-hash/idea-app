@@ -26,9 +26,17 @@
  * ("A compartment cannot sit inside a room. Allowed: ...") and is passed
  * through verbatim; the bare constraint codes that can still escape the
  * form's own pre-checks get sentences in the user's terms.
+ *
+ * WITH ONE THING THE SQLSTATE ALONE CANNOT SAY, WHICH IS WHY
+ * `MAPS_PERMANENT_UNIQUE` EXISTS BELOW: `23505` is on that whitelist as a
+ * RACE, and two of this feature's unique indexes are RULES that answer the
+ * same way every time. The partition therefore finishes at THIS call site, on
+ * the constraint's name, and the shared list is not widened or narrowed for
+ * it.
  */
 
-import { isTransientSqlstate } from '$lib/pg-errors';
+import { constraintNameOf, isTransientDbError, isTransientSqlstate } from '$lib/pg-errors';
+import type { MapsEditorGrant, MapsEditorScope, MapsRosterRow } from './grants';
 import { MAPS_MEDIA_BUCKET, mapsPhotoOwnerColumn, type MapsPhotoOwner } from './media';
 import type { MapsEditorData, MapsTable } from './maps';
 import { MAPS_PENDING_COLUMN } from './maps';
@@ -60,8 +68,18 @@ export interface MapsTransports {
 	): Promise<MapsResult<null>>;
 	/** Removes a staged pending edit; the published row is untouched. */
 	discardPending(table: MapsTable, id: string): Promise<MapsResult<null>>;
-	/** The one RPC: first-publish a draft, or promote the pending revision. */
-	publish(table: MapsTable, id: string): Promise<MapsResult<MapsPublishOutcome>>;
+	/**
+	 * The one RPC: first-publish a draft, or promote the pending revision.
+	 *
+	 * OPTIONAL, AND THE ABSENCE IS THE MECHANISM (CLAUDE.md: "an omitted
+	 * optional transport REMOVES the control it drives"). 0172 keeps
+	 * `maps_publish` admin-only in its own body, so a GRANTEE is handed
+	 * transports with no `publish` at all and every publish control -- the
+	 * panel, Save & publish, the subtree plan -- has nothing to call and is
+	 * not rendered. Read-only-as-to-publishing is then structural rather than
+	 * a discipline: there is no write to execute.
+	 */
+	publish?(table: MapsTable, id: string): Promise<MapsResult<MapsPublishOutcome>>;
 	/** Re-reads everything the route load read, through the same module. */
 	reload(): Promise<MapsResult<MapsEditorData>>;
 }
@@ -108,6 +126,11 @@ export interface MapsPhotoTransports {
 interface DbError {
 	code?: string;
 	message: string;
+	/* PostgREST forwards Postgres's own DETAIL line here, and on a 23505 that
+	   is where `Key (item_type_id, node_id)=(...) already exists.` lands. It is
+	   read only so `constraintNameOf` has both places to look; nothing renders
+	   it, because it names columns rather than anything a person typed. */
+	details?: string;
 }
 
 /** The narrow client slice the real transports need. */
@@ -134,35 +157,143 @@ export interface MapsStorageClient {
 }
 
 /**
- * The constraint codes a form's own pre-checks cannot fully prevent, in the
- * user's terms rather than the storage vendor's. Anything unrecognised keeps
- * the database's message -- a P0001 raise here is already user-worded.
+ * THE UNIQUE INDEXES THAT ARE RULES RATHER THAN RACES, and the sentence each
+ * one owes the person who landed on it.
+ *
+ * `$lib/pg-errors` has `23505` on its TRANSIENT whitelist and that is right
+ * for the case it was found in -- two writers racing an upsert, where the
+ * loser's second attempt genuinely wins. It is wrong for a unique index that
+ * encodes a RULE: "one placement per item type per container" and "one
+ * published compartment per elevation slot" refuse the same way on every
+ * attempt, so a caller reading the SQLSTATE alone retries a permanent answer
+ * to exhaustion. 0168's own header says so and names this as the fix: "the fix
+ * is for the maps write path to recognise this index by name and say 'that
+ * elevation slot is taken', not to widen the transient list."
+ *
+ * SO THE PARTITION IS AT THE CALL SITE AND THE KEY IS THE CONSTRAINT NAME.
+ * This map's KEYS are the permanent set and its VALUES are the wording, which
+ * is what stops the two from drifting: a sentence added here removes the retry
+ * in the same edit, and there is no second list of "which ones are permanent"
+ * to forget. `maps_revisions_*_slot` is deliberately ABSENT -- `stagePending`
+ * handles that 23505 itself, as the genuine race it is, by updating the
+ * winner's row.
  */
-function refusalMessage(error: DbError, table: MapsTable, verb: string): string {
+export const MAPS_PERMANENT_UNIQUE: Record<string, string> = {
+	maps_stock_one_row_per_placement:
+		'This item type is already placed in that container. Edit the existing placement instead.',
+	maps_nodes_elevation_slot:
+		'Another published compartment in this unit is already in that elevation slot. Give this one a different slot number, or move the other one out of it first.',
+	maps_photos_storage_key_key:
+		'A photo is already stored under that name. Take the photo again.'
+};
+
+/**
+ * The constraint a 23505 on this table must have been, when the driver did not
+ * say which. One entry, because `maps_stock` is the one table in the write
+ * surface with exactly one unique index that a form can reach -- guessing on a
+ * table with two would be inventing an answer. A driver that names the
+ * constraint (PostgREST does) never reaches this.
+ */
+const TABLE_IMPLIED_UNIQUE: Partial<Record<MapsTable, string>> = {
+	maps_stock: 'maps_stock_one_row_per_placement'
+};
+
+/**
+ * THE ONE DECISION, and it answers both halves at once: the sentence this
+ * failure deserves, and -- by being non-null -- that no retry can change it.
+ *
+ * Written as one function on purpose. "What do we tell them" and "may we send
+ * it again" used to be two independent expressions, which is exactly how the
+ * shipped code came to hand a person "This item type is already placed in that
+ * container" while simultaneously marking the result `retryable: true`.
+ */
+function permanentRefusal(error: DbError, table: MapsTable, verb: string): string | null {
+	// 42501 IS A CONSIDERED REFUSAL, NOT A FAILURE TO DELIVER. Postgres's own
+	// sentence for it is "new row violates row-level security policy for table
+	// \"maps_nodes\"", which names our storage vendor's mechanism and not the
+	// person's problem. A refusal names its gate (CLAUDE.md), and after 0172
+	// the gate a grantee hits is always one of two things: outside what they
+	// were given, or already public.
+	if (error.code === '42501') return MAPS_PERMISSION_REFUSAL;
 	if (error.code === '23503' && verb === 'delete') {
 		return table === 'maps_item_types'
 			? 'This type is still placed or referenced somewhere. Remove its items and stock placements first.'
 			: 'Something still lives inside this. Move or delete its contents first.';
 	}
-	if (error.code === '23505' && table === 'maps_stock') {
-		return 'This item type is already placed in that container. Edit the existing placement instead.';
-	}
-	return error.message;
+	if (error.code !== '23505') return null;
+	const named = constraintNameOf(error) ?? TABLE_IMPLIED_UNIQUE[table] ?? null;
+	return named === null ? null : (MAPS_PERMANENT_UNIQUE[named] ?? null);
 }
 
+/**
+ * A refusal is rendered verbatim where this module has words for it, and the
+ * database's own message otherwise -- a P0001 raise from a maps trigger is
+ * already worded for whoever caused it. Both halves are read off ONE call to
+ * `permanentRefusal`, because a separate `refusalMessage` helper reading it a
+ * second time is how the two answers came to contradict each other in the
+ * first place.
+ */
 function failure(error: DbError, table: MapsTable, verb: string): MapsResult<never> {
+	const refusal = permanentRefusal(error, table, verb);
 	return {
 		ok: false,
-		retryable: isTransientSqlstate(error.code),
-		message: refusalMessage(error, table, verb)
+		/* A refusal this module can word is a considered one, so it is never
+		   retried; everything else falls to the shared partition, which is
+		   itself told which uniqueness here is permanent so a 23505 naming one
+		   cannot come back retryable through the other branch either. */
+		retryable: refusal === null && isTransientDbError(error, Object.keys(MAPS_PERMANENT_UNIQUE)),
+		message: refusal ?? error.message
 	};
 }
+
+/**
+ * THE ONE SPELLING OF A PERMISSION REFUSAL, shared by the two paths a refusal
+ * can arrive on. It is deliberately about what the person may do rather than
+ * about which policy said no: naming the policy would be naming the schema at
+ * somebody standing at a toolbox with a phone.
+ */
+export const MAPS_PERMISSION_REFUSAL =
+	'You cannot change this. Map editing covers drafts inside the containers you have been given; anything already on the public map is a site admin.';
 
 const GONE: MapsResult<never> = {
 	ok: false,
 	retryable: false,
 	message: 'That object is no longer there. Reload the editor and try again.'
 };
+
+const REFUSED: MapsResult<never> = {
+	ok: false,
+	retryable: false,
+	message: MAPS_PERMISSION_REFUSAL
+};
+
+/**
+ * AN UPDATE OR DELETE REFUSED BY RLS ANSWERS ZERO ROWS, NOT AN ERROR, so the
+ * two outcomes a client has to tell apart -- "it is gone" and "you may not" --
+ * arrive identically. Before 0172 they could not be told apart and did not
+ * need to be: every writer was an admin, who could reach every row, so zero
+ * rows really did mean the row had gone. A grantee makes the second case
+ * ordinary, and "That object is no longer there. Reload the editor" is then
+ * advice that cannot work -- the reload brings the row straight back.
+ *
+ * The discriminator is a SECOND READ: an UPDATE's USING clause and a SELECT
+ * policy are different predicates, so a row that is still READABLE after a
+ * write returned nothing was refused rather than removed. It costs one round
+ * trip and only ever on the failure path.
+ */
+async function absentOrRefused(
+	supabase: MapsWriteClient,
+	table: MapsTable,
+	id: string
+): Promise<MapsResult<never>> {
+	try {
+		const { data, error } = await supabase.from(table).select('id').eq('id', id);
+		if (error) return GONE;
+		return Array.isArray(data) && data.length > 0 ? REFUSED : GONE;
+	} catch {
+		return GONE;
+	}
+}
 
 /**
  * THE ONE WRITE DECISION every form shares: where an edit goes depends only on
@@ -200,6 +331,16 @@ export async function mapsSaveObject(
 		id = args.row.id;
 	}
 	if (args.publishNow) {
+		if (!transports.publish) {
+			// Unreachable through the UI -- with no publish transport no control
+			// sets publishNow -- and stated anyway, because the save HALF LANDED
+			// and a silent success would report a draft as published.
+			return {
+				ok: false,
+				retryable: false,
+				message: `Saved as a draft. ${MAPS_PERMISSION_REFUSAL}`
+			};
+		}
 		const published = await transports.publish(args.table, id);
 		// The save half LANDED: a failed publish leaves a draft or a visible
 		// pending edit, and the message says which half still needs doing.
@@ -225,15 +366,17 @@ export function mapsTransports(supabase: MapsWriteClient): MapsTransports {
 		async updateRow(table, id, patch) {
 			const { data, error } = await supabase.from(table).update(patch).eq('id', id).select('id');
 			if (error) return failure(error, table, 'update');
-			// RLS answers an update of a vanished row with zero rows, not an error.
-			if (!Array.isArray(data) || data.length === 0) return GONE;
+			// Zero rows is either "gone" or "not yours" -- see absentOrRefused.
+			if (!Array.isArray(data) || data.length === 0)
+				return absentOrRefused(supabase, table, id);
 			return { ok: true, data: null };
 		},
 
 		async deleteRow(table, id) {
 			const { data, error } = await supabase.from(table).delete().eq('id', id).select('id');
 			if (error) return failure(error, table, 'delete');
-			if (!Array.isArray(data) || data.length === 0) return GONE;
+			if (!Array.isArray(data) || data.length === 0)
+				return absentOrRefused(supabase, table, id);
 			return { ok: true, data: null };
 		},
 
@@ -343,15 +486,115 @@ export function mapsPhotoTransports(
 				.select('id, storage_key')
 				.single();
 			if (error) {
+				/* `maps_photos.storage_key` is globally unique (0163) and the key
+				   is a fresh uuid, so a 23505 here cannot be a race a resend
+				   wins -- the same key would collide again. It goes through the
+				   same permanent set as every other write. */
+				const named = constraintNameOf(error);
+				const worded = named === null ? null : (MAPS_PERMANENT_UNIQUE[named] ?? null);
 				return {
 					ok: false,
-					retryable: isTransientSqlstate(error.code),
+					retryable:
+						worded === null && isTransientDbError(error, Object.keys(MAPS_PERMANENT_UNIQUE)),
 					// The bytes ARE up. Saying so is the difference between a
 					// retry that re-uploads 8 MB and one that writes a row.
-					message: `The photo uploaded but was not attached: ${error.message}`
+					message: `The photo uploaded but was not attached: ${worded ?? error.message}`
 				};
 			}
 			return { ok: true, data: data as { id: string; storage_key: string } };
+		}
+	};
+}
+
+/**
+ * THE GRANT ADMIN'S OWN TRANSPORTS, a THIRD injected object rather than three
+ * more methods on `MapsTransports`, for the same reason photos are a second
+ * one: a surface handed none renders no grant console, so the admin-only half
+ * of the editor is absent by construction for everybody else rather than
+ * present and refusing.
+ *
+ * All three are RPCs, not table writes -- `maps_editor_grants` has no client
+ * write path at all (0172 section 1), which is what makes the definer bodies
+ * the only way in and their `is_admin()` refusals the boundary.
+ */
+export interface MapsGrantTransports {
+	/** Every grant, or one container's. Empty for a non-admin, never an error. */
+	roster(nodeId?: string | null): Promise<MapsResult<MapsRosterRow[]>>;
+	grant(email: string, nodeId: string, note: string | null): Promise<MapsResult<null>>;
+	revoke(email: string, nodeId: string): Promise<MapsResult<null>>;
+}
+
+/**
+ * The CALLER's own scope, read once by the route load. `maps_my_editor_grants`
+ * is parameterless on purpose (0172): "only their own grants" is a property of
+ * the signature rather than a check that could be got wrong.
+ *
+ * IT DEGRADES ON `PGRST202` ALONE, the repo's rule, and the rung is what makes
+ * the migration and the deploy independent events: on a deployment where 0172
+ * has not been pasted yet the function does not exist, the caller has no
+ * grants because the table does not exist either, and the honest answer is an
+ * empty grant list -- which leaves the editor exactly as admin-only as it is
+ * today. Any OTHER error fails closed to the same empty list rather than
+ * throwing the page away, because "cannot tell" must never read as "yes".
+ */
+export async function loadMapsScope(
+	supabase: MapsWriteClient,
+	admin: boolean
+): Promise<MapsEditorScope> {
+	const { data, error } = await supabase.rpc('maps_my_editor_grants');
+	if (error || !Array.isArray(data)) return { admin, grants: [] };
+	return { admin, grants: data as MapsEditorGrant[] };
+}
+
+/**
+ * THE TRANSPORTS FOR A GIVEN VIEWER, and the ONE place `publish` is withheld.
+ *
+ * 0172 keeps `maps_publish` admin-only in its own body, so a granted editor's
+ * transports simply have no `publish` -- and every publish control in the tree
+ * (the panel, Save & publish, the subtree plan, the shelf's confirm) has
+ * nothing to call and is not rendered. Two routes mount an editor and both
+ * call this rather than each stripping the method themselves: two spellings of
+ * "does this person publish" is the pair that stops agreeing, and the one that
+ * drifted would render a control whose only outcome is a refusal.
+ */
+export function mapsTransportsFor(
+	supabase: MapsWriteClient,
+	scope: MapsEditorScope
+): MapsTransports {
+	const full = mapsTransports(supabase);
+	if (scope.admin) return full;
+	const { publish: _publish, ...rest } = full;
+	void _publish;
+	return rest;
+}
+
+export function mapsGrantTransports(supabase: MapsWriteClient): MapsGrantTransports {
+	const done = (error: DbError | null): MapsResult<null> =>
+		error
+			? { ok: false, retryable: isTransientSqlstate(error.code), message: error.message }
+			: { ok: true, data: null };
+	return {
+		async roster(nodeId = null) {
+			const { data, error } = await supabase.rpc('maps_editor_roster', { p_node_id: nodeId });
+			if (error) {
+				return { ok: false, retryable: isTransientSqlstate(error.code), message: error.message };
+			}
+			return { ok: true, data: (Array.isArray(data) ? data : []) as MapsRosterRow[] };
+		},
+		async grant(email, nodeId, note) {
+			const { error } = await supabase.rpc('maps_editor_grant', {
+				p_email: email,
+				p_node_id: nodeId,
+				p_note: note
+			});
+			return done(error);
+		},
+		async revoke(email, nodeId) {
+			const { error } = await supabase.rpc('maps_editor_revoke', {
+				p_email: email,
+				p_node_id: nodeId
+			});
+			return done(error);
 		}
 	};
 }

@@ -41,7 +41,12 @@
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryInspector from './FoundryInspector.svelte';
 	import MoltenSeam from './MoltenSeam.svelte';
-	import { queueOrder, versionUnderReview } from './review.ts';
+	import {
+		liveUnreviewedOrder,
+		queueOrder,
+		versionUnderReview,
+		wentLiveUnreviewed
+	} from './review.ts';
 	import { foundryAuthorLine } from './surface.ts';
 	import type {
 		FoundryApp,
@@ -83,6 +88,24 @@
 	 * inside itself, so a student passing the same flag still sees nothing.
 	 */
 	const shelved = $derived(apps.filter((a) => a.hidden_at !== null));
+
+	/**
+	 * LIVE, AND NOBODY HAS LOOKED (0173, decision 06).
+	 *
+	 * A trusted author's build publishes the moment they submit, so it is
+	 * `approved` from the first instant and `queueOrder` -- which filters on
+	 * `submitted_version_id` -- cannot see it. Without this list, marking a
+	 * student trusted would be a way for work to reach the gallery that a
+	 * reviewer never hears about, which is not what "reviewed after the fact"
+	 * means.
+	 *
+	 * IT IS A SECOND LIST, NOT A MERGE INTO THE QUEUE. The two ask different
+	 * questions of a reviewer: the queue is "may this go live", this one is
+	 * "this IS live, is that all right". Sorting them together would hide which
+	 * of those a row is, and the answer to the second one is urgent in a way
+	 * the first is not.
+	 */
+	const liveUnreviewed = $derived(liveUnreviewedOrder(apps));
 	const underReview = $derived(selected ? versionUnderReview(selected) : null);
 	/**
 	 * The fallback the inspector is mounted on when nothing is submitted. The
@@ -100,7 +123,7 @@
 	}
 </script>
 
-<ClassSplit hasDetail={selected !== null} narrow="swap" scroll="page" detailWidth="roomy">
+<ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
 	{#snippet nav()}
 		<div class="fdy-q-pane">
 			<header class="fdy-q-head">
@@ -145,6 +168,15 @@
 									     without knowing it is shelved is the trap this closes. -->
 									<span class="fdy-q-chip"><ForgeStatus tone="shelved" word="Hidden" /></span>
 								{/if}
+								{#if wentLiveUnreviewed(app)}
+									<!-- A trusted author can have a build ALREADY LIVE and a
+									     next one waiting. Deciding about the submission
+									     without knowing the previous one is on the gallery is
+									     the same trap the shelved chip closes. -->
+									<span class="fdy-q-chip">
+										<ForgeStatus tone="live" word="Live, unreviewed" />
+									</span>
+								{/if}
 								<span class="fdy-q-wait">
 									waiting {waited(app.updated_at)}
 									{#if app.metadata_flagged_at}
@@ -155,6 +187,39 @@
 						</li>
 					{/each}
 				</ul>
+			{/if}
+
+			{#if liveUnreviewed.length > 0}
+				<section class="fdy-q-shelf" aria-label="Live and not yet reviewed">
+					<h3>Live, not yet reviewed</h3>
+					<p class="fdy-q-empty">
+						Published by a trusted author, so these went straight to the gallery.
+						Read one and either sign it off or take it down.
+					</p>
+					<ul class="fdy-q-list" data-testid="foundry-live-unreviewed">
+						{#each liveUnreviewed as app (app.id)}
+							<li>
+								<a
+									class="fdy-q-row tap-44"
+									class:selected={selected?.slug === app.slug}
+									href="/foundry/review?app={app.slug}"
+									data-app-slug={app.slug}
+									onclick={(e) => {
+										if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+										e.preventDefault();
+										onSelect(app.slug);
+									}}
+								>
+									<span class="fdy-q-title">{app.title}</span>
+									<span class="fdy-q-by">{foundryAuthorLine(app)}</span>
+									<span class="fdy-q-chip">
+										<ForgeStatus tone="live" word="Live, unreviewed" />
+									</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				</section>
 			{/if}
 
 			{#if shelved.length > 0}
