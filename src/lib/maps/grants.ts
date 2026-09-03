@@ -149,16 +149,28 @@ export interface MapsCaps {
 	canViewNode(nodeId: string): boolean;
 }
 
-export function mapsCaps(nodes: readonly MapsNode[], scope: MapsEditorScope): MapsCaps {
-	const admin = scope.admin;
-	const isEditor = admin || scope.grants.length > 0;
-	const editableNodeIds = mapsEditableNodeIds(nodes, scope);
-	const visibleNodeIds = mapsVisibleNodeIds(nodes, scope);
-	const canEditAt = (nodeId: string | null): boolean => {
-		if (admin) return true;
-		if (nodeId === null) return false; // a subtree grant never reaches the root
-		return editableNodeIds?.has(nodeId) ?? false;
-	};
+/**
+ * A SITE ADMIN'S CAPS, INDEPENDENT OF ANY NODES, and the default every
+ * component takes.
+ *
+ * An admin's answers do not depend on the tree -- `editableNodeIds` is null
+ * (NO LIMIT, which is not an empty set) and every predicate is true -- so this
+ * is a constant rather than a call. It exists so a `caps` prop can DEFAULT
+ * rather than be required: making it required broke fifteen mounts in
+ * `tests/dom/` that hand `NodeDetail` its props directly, and a required prop
+ * whose only correct value at every existing call site is "the admin one" is a
+ * prop that should have had that default from the start. Every mount that
+ * predates granted editors is then byte-identical without passing anything.
+ */
+export const MAPS_ADMIN_CAPS: MapsCaps = mapsCapsFor(true, null, null, () => true);
+
+function mapsCapsFor(
+	admin: boolean,
+	editableNodeIds: ReadonlySet<string> | null,
+	visibleNodeIds: ReadonlySet<string> | null,
+	canEditAt: (nodeId: string | null) => boolean
+): MapsCaps {
+	const isEditor = admin || (editableNodeIds?.size ?? 0) > 0;
 	return {
 		admin,
 		isEditor,
@@ -172,6 +184,30 @@ export function mapsCaps(nodes: readonly MapsNode[], scope: MapsEditorScope): Ma
 		canEditItemType: (itemType) => (admin ? true : isEditor && itemType.status === 'draft'),
 		canCreateItemType: () => isEditor,
 		canViewNode: (nodeId) => visibleNodeIds === null || visibleNodeIds.has(nodeId)
+	};
+}
+
+export function mapsCaps(nodes: readonly MapsNode[], scope: MapsEditorScope): MapsCaps {
+	const admin = scope.admin;
+	const editableNodeIds = mapsEditableNodeIds(nodes, scope);
+	const visibleNodeIds = mapsVisibleNodeIds(nodes, scope);
+	const canEditAt = (nodeId: string | null): boolean => {
+		if (admin) return true;
+		if (nodeId === null) return false; // a subtree grant never reaches the root
+		return editableNodeIds?.has(nodeId) ?? false;
+	};
+	// `isEditor` is "holds a licence of any kind", so it reads the GRANTS and
+	// not the resolved id set: a grant on a node that has since been deleted
+	// resolves to no ids, and a caller with one is still an editor as far as
+	// the item-type vocabulary is concerned -- which is what the database says
+	// too (`maps_is_editor` reads the roster, not the tree).
+	const caps = mapsCapsFor(admin, editableNodeIds, visibleNodeIds, canEditAt);
+	const isEditor = admin || scope.grants.length > 0;
+	return {
+		...caps,
+		isEditor,
+		canEditItemType: (itemType) => (admin ? true : isEditor && itemType.status === 'draft'),
+		canCreateItemType: () => isEditor
 	};
 }
 

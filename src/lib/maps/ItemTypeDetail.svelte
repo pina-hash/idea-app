@@ -25,7 +25,7 @@
 	} from './maps';
 	import { mapsSaveObject, type MapsTransports } from './transports';
 	import MapsPublishPanel from './MapsPublishPanel.svelte';
-	import { MAPS_GRANT_REFUSAL, type MapsCaps } from './grants';
+	import { MAPS_ADMIN_CAPS, MAPS_GRANT_REFUSAL, type MapsCaps } from './grants';
 	import MapsStatusChip from './MapsStatusChip.svelte';
 	import ChipListInput from './ChipListInput.svelte';
 
@@ -38,7 +38,7 @@
 		onselecttype,
 		ondeleted,
 		registerForm,
-		caps
+		caps = MAPS_ADMIN_CAPS
 	}: {
 		/** null = create a new item type. */
 		itemType: MapsItemType | null;
@@ -50,8 +50,13 @@
 		/** Handed up: the delete removes this pane, so the note lands on the list. */
 		ondeleted: (message: string) => void;
 		registerForm: (key: string, handle: MapsFormHandle | null) => void;
-		/** What the viewer may do. The editor resolves it once and hands it down. */
-		caps: MapsCaps;
+		/**
+		 * What the viewer may do. The editor resolves it once and hands it down.
+		 * DEFAULTS TO A SITE ADMIN, so every mount that predates granted editors
+		 * -- the dev harnesses and the `tests/dom/` mounts among them -- is
+		 * byte-identical without passing one.
+		 */
+		caps?: MapsCaps;
 	} = $props();
 
 	/* THE ITEM-TYPE VOCABULARY HAS NO NODE TO SCOPE TO, so a granted editor's
