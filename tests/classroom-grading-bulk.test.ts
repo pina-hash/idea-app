@@ -71,6 +71,9 @@ const RUBRIC: RubricCriterion[] = [
 	{
 		id: 'c1',
 		criterion: 'Sketch quality',
+		// `points` is the criterion's declared maximum; `criterionMax` prefers the
+		// top LEVEL, so these agree and the rubric totals 20 either way.
+		points: 10,
 		levels: [
 			{ points: 10, label: 'Complete', descriptor: 'All three views.' },
 			{ points: 5, label: 'Developing', descriptor: 'Proportion off.' },
@@ -80,6 +83,7 @@ const RUBRIC: RubricCriterion[] = [
 	{
 		id: 'c2',
 		criterion: 'Reflection',
+		points: 10,
 		levels: [
 			{ points: 10, label: 'Complete', descriptor: 'Specific.' },
 			{ points: 5, label: 'Developing', descriptor: 'General.' },

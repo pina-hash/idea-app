@@ -22,6 +22,7 @@ import {
 	type AssignmentEngineTransports,
 	type AssignmentTeacherTransports,
 	type EngineOpResult,
+	type GradingData,
 	type InstructorCopyData,
 	type InstructorCopyRow,
 	type InstructorCopyTransports,
@@ -908,6 +909,57 @@ async function deleteItem(id: string): Promise<TxResult<undefined>> {
 	}
 }
 
+/**
+ * EVERY GRADING SURFACE'S WORK ROWS, from one place.
+ *
+ * The submissions, the typed responses, the hand-in files and the module
+ * approvals for ONE assignment. It is section-agnostic and that is not an
+ * omission: `classroom_submissions` is keyed `(item_id, student_email)` with no
+ * section column, and its policy is `classroom_can_review_submission`, so
+ * `.eq('item_id', ...)` already returns exactly the rows the caller may review
+ * across every class of theirs the assignment is in. The ROSTER is what scopes a
+ * console to one class or to all of them, which is why that read is the
+ * caller's and this one is shared.
+ *
+ * IT IS SHARED RATHER THAN COPIED because the two capability flags ride on it.
+ * A second block of these four reads would be a second pair of rungs, and a
+ * surface degrading differently from its sibling is exactly the state
+ * `extraCreditReady` and `filesStorageReady` exist to make impossible.
+ */
+async function loadItemWork(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<Omit<GradingData, 'roster'>> {
+	const [submissionsRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
+		selectSubmissions(supabase, itemId, false),
+		supabase
+			.from('classroom_responses')
+			.select('item_id, student_email, block_id, value, updated_at')
+			.eq('item_id', itemId),
+		selectSubmissionFiles(supabase, itemId),
+		supabase
+			.from('classroom_module_approvals')
+			.select('item_id, student_email, module_id, approved_by, approved_at')
+			.eq('item_id', itemId)
+	]);
+	return {
+		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
+			normalizeSubmissionRow
+		),
+		responses: (responsesRes.data ?? []) as ResponseRow[],
+		// The capability, reported rather than assumed: false means this payload
+		// cannot carry an award, so the console withholds the control instead of
+		// sending one into an arity that has no parameter for it.
+		extraCreditReady: submissionsRes.extraCreditReady,
+		files: filesRes.rows,
+		// Same rung, same flag as the student's own view. Both surfaces read ONE
+		// ladder, so a teacher grading and the student who handed the file in can
+		// never be looking at different answers about which of these are pictures.
+		filesStorageReady: filesRes.storageReady,
+		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+	};
+}
+
 const SUBMISSION_SELECT_BASE =
 	'id, item_id, student_email, state, submitted_at, returned_at, rubric_scores, score, ' +
 	'teacher_comment, graded_by, graded_at, updated_at';
@@ -1421,46 +1473,15 @@ export function createTeacherEngineTransports(
 			return error ? fail(error) : { ok: true, data: undefined };
 		},
 		async loadGrading(itemId, sectionId) {
-			const [rosterRes, submissionsRes, responsesRes, filesRes, approvalsRes] =
-				await Promise.all([
-					// The manager exclusion rides in on this read (0138): the roster
-					// arrives carrying `manages`, and studentWorkRows is the one
-					// place that acts on it.
-					loadSectionRoster(supabase, sectionId),
-					selectSubmissions(supabase, itemId, false),
-					supabase
-						.from('classroom_responses')
-						.select('item_id, student_email, block_id, value, updated_at')
-						.eq('item_id', itemId),
-					selectSubmissionFiles(supabase, itemId),
-					supabase
-						.from('classroom_module_approvals')
-						.select('item_id, student_email, module_id, approved_by, approved_at')
-						.eq('item_id', itemId)
-				]);
+			const [rosterRes, work] = await Promise.all([
+				// The manager exclusion rides in on this read (0138): the roster
+				// arrives carrying `manages`, and studentWorkRows is the one
+				// place that acts on it.
+				loadSectionRoster(supabase, sectionId),
+				loadItemWork(supabase, itemId)
+			]);
 			if (!rosterRes.ok) return rosterRes;
-			return {
-				ok: true,
-				data: {
-					roster: rosterRes.data.rows,
-					submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
-						normalizeSubmissionRow
-					),
-					responses: (responsesRes.data ?? []) as ResponseRow[],
-					// The capability, reported rather than assumed: false means this
-					// payload cannot carry an award, so the console withholds the
-					// control instead of sending one into an arity that has no
-					// parameter for it.
-					extraCreditReady: submissionsRes.extraCreditReady,
-					files: filesRes.rows,
-					// Same rung, same flag as the student's own view. Both surfaces
-					// read ONE ladder, so a teacher grading and the student who
-					// handed the file in can never be looking at different answers
-					// about which of these are pictures.
-					filesStorageReady: filesRes.storageReady,
-					approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
-				}
-			};
+			return { ok: true, data: { roster: rosterRes.data.rows, ...work } };
 		}
 	};
 }
@@ -2114,18 +2135,10 @@ async function loadGradingAcrossSections(
 	);
 	const seen = new Set(sections.map((s) => s.id));
 
-	const [submissionsRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
-		selectSubmissions(supabase, itemId, false),
-		supabase
-			.from('classroom_responses')
-			.select('item_id, student_email, block_id, value, updated_at')
-			.eq('item_id', itemId),
-		selectSubmissionFiles(supabase, itemId),
-		supabase
-			.from('classroom_module_approvals')
-			.select('item_id, student_email, module_id, approved_by, approved_at')
-			.eq('item_id', itemId)
-	]);
+	// THE SAME WORK READ THE PER-SECTION CONSOLE MAKES, and deliberately the same
+	// function: the work was never section-scoped, so the only difference between
+	// the two consoles is which roster is put in front of it.
+	const work = await loadItemWork(supabase, itemId);
 
 	return {
 		ok: true,
@@ -2136,14 +2149,7 @@ async function loadGradingAcrossSections(
 				// every student the caller teaches anywhere would be listed on one
 				// assignment they were never given.
 				roster: rosterRes.data.rows.filter((r) => seen.has(r.section_id)),
-				submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
-					normalizeSubmissionRow
-				),
-				responses: (responsesRes.data ?? []) as ResponseRow[],
-				extraCreditReady: submissionsRes.extraCreditReady,
-				files: filesRes.rows,
-				filesStorageReady: filesRes.storageReady,
-				approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+				...work
 			}
 		}
 	};
