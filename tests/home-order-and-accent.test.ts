@@ -93,10 +93,55 @@ function item(sectionId: string): ClassroomItem {
  *   * `admin-not-teacher` -- an admin whose profile role is not `teacher`.
  *     classroom_manages_section is true for them on every section, so they get
  *     the launcher first.
+ *
+ * AND TWO MORE WITH NO FEED AT ALL, which is the case the four above could not
+ * express: every one of them carries exactly one section, so `hasClasses` was
+ * true for all four and the emptiness half of the decision was unreachable
+ * from this fixture. `student-no-classes` is a real student before the roster
+ * import (and the same shape a failed classroom read produces);
+ * `signed-out` is a visitor, whose payload carries no claims and no sections
+ * because that is literally what `+page.server.ts` returns with no session.
  */
-type Viewer = 'teacher-of-record' | 'student' | 'staff-no-sections' | 'admin-not-teacher';
+type Viewer =
+	| 'teacher-of-record'
+	| 'student'
+	| 'staff-no-sections'
+	| 'admin-not-teacher'
+	| 'student-no-classes'
+	| 'signed-out';
 
 function homeData(viewer: Viewer) {
+	/*
+	 * THE EMPTY-FEED VIEWERS RETURN THE PAYLOAD SHAPE THEIR REAL CASE
+	 * PRODUCES, not a doctored one. `+page.server.ts` returns
+	 * `feedSections: []` with no claims for a signed-out visitor, and the same
+	 * empty arrays with claims for a signed-in account on nobody's roster --
+	 * so `buildFeed` returns nothing and `ClassroomFeed` renders its own empty
+	 * state, which is a card, which is why "is the block there" was never the
+	 * question.
+	 */
+	if (viewer === 'signed-out' || viewer === 'student-no-classes') {
+		return {
+			classroomReady: true,
+			feedSections: [],
+			feedItems: [],
+			feedSubmissions: [],
+			claims: viewer === 'signed-out' ? null : { sub: 'u1', email: STUDENT },
+			userProfile:
+				viewer === 'signed-out'
+					? null
+					: {
+							id: 'u1',
+							role: 'student',
+							display_name: 'Viewer',
+							avatar: null,
+							pathway: 'IDEA',
+							preferences: {}
+						},
+			isAdmin: false
+		};
+	}
+
 	// Every section belongs to TEACHER; only the viewer changes.
 	const sections = [section('s1', TEACHER)];
 	const email = viewer === 'teacher-of-record' ? TEACHER : STUDENT;
@@ -143,7 +188,9 @@ const ALL_VIEWERS: Viewer[] = [
 	'teacher-of-record',
 	'student',
 	'staff-no-sections',
-	'admin-not-teacher'
+	'admin-not-teacher',
+	'student-no-classes',
+	'signed-out'
 ];
 
 describe('home page: which block comes first', () => {
@@ -163,8 +210,55 @@ describe('home page: which block comes first', () => {
 	it('leaves the student order alone: Your Classes first', () => {
 		// The one thing the feed does that nothing else does is deep-link a
 		// student into the exact item that is due. It keeps the top.
+		//
+		// THIS IS THE ASSERTION THAT REFUSES THE REPORTED REMEDY. The report
+		// behind this bundle was "apps should be above classes"; measured at
+		// 375px on /dev/home-order, a student's block grows 616px per class
+		// (first app card at 1.76 / 2.53 / 3.30 / 4.07 screens for one through
+		// four classes), so flipping it would not remove that scroll, it would
+		// move it onto the deep links. A student WITH a class keeps this order.
 		const o = order(drawHome('student'));
 		expect(o.classes).toBeLessThan(o.apps);
+	});
+
+	/*
+	 * THE EMPTINESS HALF, WHICH USED TO GO THE OTHER WAY.
+	 *
+	 * The page keyed the order on `managesAnySection` alone, so a viewer with
+	 * NO feed got the student order and a 230px "You are not in any classes
+	 * yet" card sat above the launcher with nothing in it to open. Measured at
+	 * 375px: the first app card was at 900px (1.13 screens) with an empty feed
+	 * against 629px (0.79 screens) after. The rule keeps its own stated reason
+	 * -- the feed earns the top by deep-linking a student into what is due --
+	 * and stops applying where there is nothing to link to.
+	 */
+	it('puts Apps FIRST when there is no class to put above them', () => {
+		for (const viewer of ['student-no-classes', 'signed-out'] as Viewer[]) {
+			const o = order(drawHome(viewer));
+			expect(o.apps, `${viewer}: Apps did not come first`).toBeLessThan(o.classes);
+		}
+	});
+
+	it('keys the emptiness on the FEED, not on being signed out', () => {
+		/*
+		 * The two halves are separable and only one of them is the rule. A
+		 * signed-IN student on nobody's roster is the case a "signed out?"
+		 * check would get wrong, and it is the commoner one: it is every
+		 * student between enrolment and the roster import, and every viewer
+		 * whose classroom read failed.
+		 *
+		 * POSITIVE CONTROL on the same instrument, and it is what makes this
+		 * more than a restatement of the test above: the SAME signed-in
+		 * student, differing only in whether the payload carries a section,
+		 * must come back with the opposite order. A predicate keyed on the
+		 * session rather than on the feed passes the previous test and fails
+		 * this pair.
+		 */
+		const empty = order(drawHome('student-no-classes'));
+		expect(empty.apps, 'signed-in student with no classes').toBeLessThan(empty.classes);
+
+		const enrolled = order(drawHome('student'));
+		expect(enrolled.classes, 'signed-in student WITH a class').toBeLessThan(enrolled.apps);
 	});
 
 	it('keys on what the viewer MANAGES, not on their role', () => {

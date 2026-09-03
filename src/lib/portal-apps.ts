@@ -234,7 +234,26 @@ export const PORTAL_APPS: PortalApp[] = [
 		// tagline is dropped too. A roster with a key is what this surface
 		// actually is; the gauge stays with the readings it describes.
 		icon: 'admin',
-		sub: 'Who can administer the portal. Owner manages the list.',
+		// AND THEY STAY TWO CARDS. They were reported as "two doors to one
+		// room" and they are not: /dashboard is a REVIEW console (its own
+		// sections are Profile, FRC Model Reviews, GREENLINE Decal Reviews,
+		// Feedback, Students & Pathways, Content) and /admin is a
+		// CONFIGURATION one (the admin roster, IDEA Coin links, short links,
+		// the Drive connection). Nothing on either is on the other, and /admin
+		// links ACROSS to /dashboard from its own header, which is what two
+		// rooms with a path between them look like rather than one room with
+		// two doors. Merging them would put six review sections and four
+		// settings sections behind one card and take a click away from
+		// nobody.
+		//
+		// WHAT WAS ACTUALLY WRONG WAS THIS LINE. The sub read "Who can
+		// administer the portal. Owner manages the list.", which describes the
+		// FIRST of that route's four sections and none of the rest -- so the
+		// card advertised a slice of "Admin Dashboard" and duly read as a
+		// second way into it. A card that names its whole room is what tells
+		// the two apart; a merge would have been fixing a label with an
+		// architecture change.
+		sub: 'The admin roster, IDEA Coin links, short links, and the Google Drive connection.',
 		href: '/admin',
 		cta: 'Open',
 		adminOnly: true

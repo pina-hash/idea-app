@@ -878,11 +878,24 @@
 	   one strip on this launcher whose stops are a surface's own semantics
 	   rather than two colours that go together.
 
-	   THERE IS NO `maps` ENTRY IN `PORTAL_APPS` YET AND THIS RULE PAINTS
-	   NOTHING UNTIL THERE IS. The registry and $lib/marks/MapsMark.svelte are
-	   a different lane's files; this bundle owns the card's colour and nothing
-	   else about the card. The rule is here so that the entry, when it lands,
-	   lands with the decision already made and measured. */
+	   THIS RULE PAINTS A REAL CARD NOW, AND THIS PARAGRAPH USED TO SAY IT DID
+	   NOT. It read "THERE IS NO `maps` ENTRY IN `PORTAL_APPS` YET AND THIS
+	   RULE PAINTS NOTHING UNTIL THERE IS", which was true the day 0020 wrote
+	   it and was made false by the very next bundle: `ca5d950` added the
+	   `maps` entry to the registry and `MapsMark.svelte` beside it, so the
+	   selector below has matched a mounted card ever since. 0021 was right not
+	   to revise another bundle's prose while landing that entry; the sentence
+	   is corrected here by the bundle that owns this file.
+
+	   The reason it mattered is the reason the sentence was written: a
+	   stylesheet rule keyed on an attribute no card carries is INERT AND
+	   NOTHING ON SCREEN REPORTS IT -- there is no wrong colour to notice, only
+	   a card that is not there. A comment claiming that state after it has
+	   passed is the same failure one layer up: it tells the next reader the
+	   rule is unreachable, which is exactly the thing that stops anybody
+	   measuring it. `tests/home-order-and-accent.test.ts` is what closes the
+	   loop in code, asserting the registry entry exists and that the launcher
+	   draws MapsMark for it rather than the fallback glyph. */
 	.app-card[data-app='maps'] {
 		--acc-primary: #40e3b1;
 		--acc-secondary: var(--gold);
