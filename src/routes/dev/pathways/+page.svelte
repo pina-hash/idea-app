@@ -270,6 +270,25 @@
 		border-radius: 3px;
 		padding: 0.35rem 0.7rem;
 		cursor: pointer;
+		/*
+			44px, AND THIS IS THE HARNESS'S OWN CHROME RATHER THAN A STUDENT
+			SURFACE. These two buttons measured 194.7x26.2 and were the whole of
+			`/dev/pathways`'s standing tap-target finding at BOTH widths, for
+			weeks -- a row every prompt had to warn the next session to ignore.
+			Nothing on this page but these two was ever under the floor: the real
+			first-login picker's controls measure 140.1x79.4 (options),
+			143.6x44.0 (confirm) and 128.4x44.0 ("Choose later"), all clear.
+
+			So the row was correct about the pixels and pointed at a page nobody
+			signs in to. Decision 09 (2026-09-02) puts the 44px floor on every
+			student surface and 24px only on an instructor density surface
+			declaring a named class; a dev harness's own controls are neither, so
+			the honest answer is not a threshold exemption -- it is that a
+			harness page has no reason to be under a floor the rest of the app
+			holds. `min-height`, never `height`: CLAUDE.md's floor rounds only
+			one way.
+		*/
+		min-height: 44px;
 	}
 	.readout {
 		font-family: 'Share Tech Mono', monospace;

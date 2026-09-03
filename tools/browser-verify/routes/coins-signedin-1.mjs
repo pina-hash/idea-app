@@ -14,10 +14,18 @@
  * the counts swapped: what `/dev/coins` requires, this forbids, and the other
  * way round.
  *
- * THE 51px OVERFLOW AT 375 IS THE LEDGER'S OWN OFF-CANVAS DRAWER and is not
- * this bundle's; `coins.mjs` carries the measurement, the reasoning and a probe
- * that names the element. It reports here too because this spec is an alias of
- * the same page.
+ * THE 51px OVERFLOW AT 375 IS THE LEDGER'S OWN FOURTH TAB, and this paragraph
+ * used to say it was the off-canvas drawer. It is not: the drawer is
+ * `position: fixed` and a fixed subtree creates no scrollable overflow, while
+ * `.tab-bar .tab-btn` "Contracts" runs 329.2 -> 426.3 against a 375 viewport,
+ * which is the reported `scrollWidth` to the pixel. The page cannot scroll to
+ * it (`body { overflow-x: hidden }` propagates to the viewport; `scrollLeft`
+ * reads back 0 everywhere), and with the real Orbitron injected the overflow is
+ * 89px rather than 51px, so this harness under-reports it. `coins.mjs` carries
+ * the full measurement and the probes; it reports here too because this spec is
+ * an alias of the same page. It is a REAL DEFECT in frozen legacy bytes, owned
+ * by whoever unfreezes `src/lib/legacy/coins/index.html`, and the row stays red
+ * deliberately.
  *
  * `?signedIn=1` is the harness's own switch (a cookie `/dev/coins` sets from
  * the query), which is what a real session is here -- there is no Google OAuth
