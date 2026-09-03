@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/classroom/ClassroomFeed.svelte`, `ClassView.svelte`, `ItemDetail.svelte`, `ItemBody.svelte`, `ContentComposer.svelte`, `RichTextEditor.svelte`, `src/routes/dev/classroom-interaction/**`, `tests/classroom-interaction-*`, `tests/dom/classroom-interaction-*`, `tools/browser-verify/routes/classroom-interaction-*.mjs`, the generated counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0012-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/classroom-interaction-defects-xfjzpj
 - Notes: Six instructor reports on the classroom feed and item surfaces. The
   first is a real reproducible defect and the rest are interaction quality.
 
