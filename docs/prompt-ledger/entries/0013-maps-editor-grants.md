@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work (Lane 1, Maps)
 - Owns: `supabase/migrations/0172_maps_editor_grants.sql`, `src/lib/maps/grants.ts`, `src/lib/maps/GrantAdmin.svelte`, `src/lib/maps/transports.ts`, `src/routes/maps/edit/**`, `src/routes/dev/maps-grants/**`, `tests/maps-grants*`, `tests/db/maps-grants*`, `tools/browser-verify/routes/maps-grants*.mjs`, the generated counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0013-*`, and its own `docs/history/` entry.
 - Migration permitted: exactly one, 0172. 0171 is RESERVED for prompt 0011. Highest on origin/main at issue: 0170
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/maps-editor-grants-2ktnt3`
 - Notes: `IDEA_MAPS_SPEC.md` section 7 puts granted student editors in P2.
   Mr. Pina moved them to P1 on 2026-09-02, because he is currently the only
   person who can catalog anything and a map nobody can help fill is a map
