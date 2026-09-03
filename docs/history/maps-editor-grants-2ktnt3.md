@@ -239,11 +239,46 @@ The harness file was restored from a copy taken first and is md5-identical (`e5c
 before and after), and the re-run is back to 0 outside threshold. No new CHECK TYPE was
 added, so `--selftest` needed no new controls.
 
-**`npx svelte-check`: 0 errors, 37 warnings** (31 `state_referenced_locally`, 5
+**`npm run check` / `npx svelte-check`: 0 errors, 37 warnings** (31 `state_referenced_locally`, 5
 `css_unused_selector`, 1 `perf_avoid_nested_class`), re-derived after `svelte-kit sync`
 with the two `PUBLIC_SUPABASE_*` placeholders exported, per the missing-`.env` note.
 
-**Full suite**: see the final report on the branch.
+**Full suite**: `npm test` -- **235 files, 4849 tests, all passing**, after merging
+`origin/main` (which had moved to 0174 while this bundle was open). Before the merge it
+was 233 / 4800.
+
+**`npm run verify:readme`** regenerated the counts block: **69 specs over 38 routes, 138
+route/width runs, 1832 measurements, 4 outside threshold, 325.1s**, `--selftest` 64
+controls with 0 instrument failures. The four outside-threshold measurements are
+IDENTICAL BY IDENTITY to the four the block already carried -- `/dev/pathways` @375 and
+@1440 `tap-target`, `/dev/coins-signedin-1` @375 and `/dev/coins` @375
+`horizontal-scroll`. None is this bundle's and none is new.
+
+**The first counts run was thrown away, and the reason is worth writing down.** An earlier
+invocation had been orphaned rather than killed, so two `readme-counts` runs raced for
+`--strictPort 5199`: the second died with `ERR_CONNECTION_REFUSED` across thirteen
+requests, and the FIRST one wrote a block reporting **6** outside threshold -- the four
+real ones plus two `/dev/classroom-inspector` contrast rows that the clean re-run does not
+produce. A block written during a port race is a block whose numbers describe a page that
+was half-served. Everything was killed, the port confirmed free, the block reverted with
+`git checkout --` (safe here: the file was committed and there was no uncommitted work in
+it), and the single clean run is what is committed.
+
+## One file outside the owned surface
+
+`tests/maps-shelf-route.test.ts` asserted `await expect(driveLayout(admin)).resolves.toEqual({})`.
+The layout load now resolves the caller's SCOPE and returns it, so "admitted" is no longer
+an empty payload. The assertion is GENERALIZED rather than deleted, per CLAUDE.md: it now
+says the admin is admitted AND admitted as an admin, which is what the line always meant.
+That file is not in this bundle's owned list; the change was forced by an owned one, and
+leaving the suite red would have hidden the next real failure.
+
+The other class of breakage was fixed WITHOUT leaving the owned surface. Making `caps` a
+REQUIRED prop broke fifteen mounts in `tests/dom/maps-elevation-mount.test.ts` and
+`tests/dom/maps-plan-canvas-mount.test.ts`, which hand `NodeDetail` its props directly.
+Every one of them wanted the admin answer, so `MAPS_ADMIN_CAPS` became the prop's DEFAULT
+and not one of those files changed. A required prop whose only correct value at every
+existing call site is "the admin one" should have had that default from the start.
 
 ## Not verified, and why
 
