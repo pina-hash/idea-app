@@ -11,9 +11,34 @@
  *
  * So this case answers NOTHING in the assignment and asserts the opposite
  * state: on a fresh item every panel is open and the work is reachable. Green
- * on the tree that shipped it, and it stays green through the four-line
- * `Disclosure.svelte` fix the typing case is waiting on -- measured both ways,
- * see this bundle's history entry.
+ * on the tree that shipped it, and green through the `Disclosure.svelte` fix
+ * prompt 0018 landed -- measured both ways.
+ *
+ * ============================================================================
+ * WHAT THIS FILE CANNOT DO, STATED HERE BECAUSE ITS HEADER USED TO CLAIM IT.
+ * ============================================================================
+ * The paragraph above says the cheapest wrong fix is to stop the signal
+ * reaching the panel, and that this case refuses it. IT DOES NOT AND CANNOT.
+ * Measured twice -- by prompt 0018 and again by prompt 0023 -- with
+ * `Disclosure`'s `collapsed` forced to `false` so `collapseWhen` is ignored
+ * outright: both browser cases came back 0 outside threshold, at both widths.
+ *
+ * The fixture is the reason, not the assertions. `?case=fresh` answers
+ * nothing, so every `collapseWhen` on this page is ALREADY false at arrival --
+ * and "all three panels are open" is the same reading whether a false signal
+ * was honoured or no signal was read at all. No row written against this page
+ * can separate them, and none should be added here in the belief that it can.
+ *
+ * THE GUARD LIVES ON `classroom-interaction-case-typing.mjs`, whose fixture
+ * answers one of the two constrained blocks, so two panels arrive with
+ * `collapseWhen` genuinely TRUE. Its `arrival:` row measures exactly the three
+ * values this file measures, at the one moment they differ, and reddens on the
+ * mutation this file is blind to. See that file for the three-state table.
+ *
+ * WHAT THIS FILE IS STILL FOR, and it is not nothing: the ARRIVAL rule's other
+ * direction. A fix that closed a panel on a fresh item -- nothing started,
+ * nothing to be out of the way of -- would pass the typing case and redden
+ * here. That is a real guarantee and this is the only surface that holds it.
  */
 export default {
 	path: '/dev/classroom-interaction?case=fresh',

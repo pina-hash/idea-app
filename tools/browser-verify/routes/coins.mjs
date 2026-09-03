@@ -18,16 +18,47 @@
  * boundary; it was measured by hand and the numbers agree (63x44 trigger, panel
  * opening in one click, six controls all at or above 44px, at both widths).
  *
- * THE 51px HORIZONTAL-SCROLL FINDING AT 375 IS PRE-EXISTING AND IS NOT THIS
- * BUNDLE'S. It is the Ledger's own `#student-drawer`, a slide-in panel parked
- * off the right edge at ~750px, and it reports identically with the injected
- * trigger removed from the DOM (measured both ways: 426/375 either way). The
- * page does not actually scroll -- the Ledger sets `body { overflow-x: hidden }`
- * -- so what the check is reading is `documentElement.scrollWidth`, which that
- * rule does not bound. The `orderResult` probe below names the offending
- * element so the finding explains itself in the report rather than reading as
- * something this control did. Fixing it means editing a frozen legacy file and
- * belongs to whoever unfreezes it.
+ * THE 51px HORIZONTAL-SCROLL FINDING AT 375 IS A REAL DEFECT IN THE LEDGER'S
+ * OWN TAB BAR, AND THIS PARAGRAPH USED TO BLAME THE WRONG ELEMENT.
+ *
+ * It read: "It is the Ledger's own `#student-drawer`, a slide-in panel parked
+ * off the right edge at ~750px." Every clause of that was measured and the
+ * conclusion was still wrong, which is why the misdiagnosis survived weeks of
+ * readers skipping the row as somebody else's frozen furniture.
+ *
+ * `#student-drawer` is `position: fixed` (`.drawer` in the Ledger's own
+ * stylesheet), and a fixed element contributes NOTHING to the document's
+ * scrollable overflow. Its children -- the header, the body, the close button,
+ * the name, stats and transaction-title rows -- are static or absolute INSIDE
+ * that fixed ancestor, so they carry a `getBoundingClientRect().right` of
+ * 727-750 and land at the top of any offender list sorted by that number,
+ * while contributing nothing either. `horizontal-scroll` in ../checks.mjs skips
+ * an element whose OWN position is fixed and does not walk up for a fixed
+ * ancestor, so the drawer's six children are exactly what its report showed --
+ * and the reading it produced was six true measurements of an element that is
+ * not the cause.
+ *
+ * THE CAUSE IS THE FOURTH TAB. Measured at 375: `.tab-bar .tab-btn`
+ * "Contracts" runs 329.2 -> 426.3, and 426 is the `scrollWidth` the check
+ * reports, to the pixel. It is the only non-fixed node past the viewport edge.
+ * The Ledger's own `body { overflow-x: hidden }` propagates to the viewport, so
+ * `scrollLeft` is pinned at 0 on `documentElement`, on `body` and on `window`
+ * (all three set to 999 and read back 0) and `.tab-bar` itself is
+ * `overflow-x: visible` and not scrollable -- so the clipped part of that tab
+ * cannot be reached by scrolling, by swiping, or at all.
+ *
+ * AND IT IS WORSE IN PRODUCTION THAN THIS HARNESS REPORTS, which is the one
+ * direction the fallback-stack limit in ../README.md is easy to read the wrong
+ * way round. The tabs are Orbitron, loaded from `fonts.googleapis.com`, which
+ * this harness blocks. Measured with the real face injected from
+ * `@fontsource/orbitron` instead: the overflow goes 51px -> 89px and Contracts
+ * runs 357.7 -> 464.0, so 17.3px of a 106.3px tab is on screen rather than
+ * 45.8px of 97.1px. The harness under-reports it.
+ *
+ * REPORTED, NOT FIXED: `src/lib/legacy/coins/index.html` is carried-over legacy
+ * under CLAUDE.md's freeze, whose only exception is VANGUARD. The row stays red
+ * on purpose and the `orderResult` probes below name the element, so the next
+ * reader gets the finding rather than the folklore.
  *
  * THE TRIGGER IS THE ROW THAT MATTERS AND IT IS THE ONE THAT WAS WRONG. The
  * first version reused the Ledger's own `.share-btn` class -- and that class is
@@ -58,9 +89,19 @@ export default {
 			   format carries; an `orderResult` row prints the array it compares
 			   and nothing else, and that array has to be the same at both
 			   widths (see the verdict row below, and the first draft of it,
-			   which expected "#student-drawer" and got "no overflow" at 1440). */
+			   which expected "#student-drawer" and got "no overflow" at 1440).
+
+			   IT SKIPS ANYTHING UNDER A FIXED ANCESTOR, and that one clause is
+			   the difference between naming the cause and naming the loudest
+			   rectangle. Sorted by `right` alone this step answered
+			   "#student-drawer" for weeks -- true about the geometry, false
+			   about the overflow, because a fixed subtree creates no scrollable
+			   overflow at all. Walking up for a fixed ancestor (rather than
+			   testing the element's own `position`, which is what
+			   ../checks.mjs does) drops all six of the drawer's children and
+			   leaves the one node that actually sets `scrollWidth`. */
 			evaluate:
-				'() => { const d = document.documentElement; const over = d.scrollWidth - d.clientWidth; if (over <= 0) return "no horizontal overflow at " + window.innerWidth + "px"; const worst = [...document.querySelectorAll("*")].map((e) => [e, e.getBoundingClientRect().right]).filter(([, r]) => r > d.clientWidth + 0.5).sort((a, b) => b[1] - a[1])[0]; const el = worst && worst[0]; const name = !el ? "nothing" : (el.id ? "#" + el.id : el.tagName.toLowerCase() + "." + (el.className || "").toString().split(" ")[0]); return over + "px overflow at " + window.innerWidth + "px, widest offender " + name; }'
+				'() => { const d = document.documentElement; const over = d.scrollWidth - d.clientWidth; if (over <= 0) return "no horizontal overflow at " + window.innerWidth + "px"; const underFixed = (e) => { for (let p = e; p; p = p.parentElement) { if (getComputedStyle(p).position === "fixed") return true; } return false; }; const worst = [...document.querySelectorAll("*")].filter((e) => !underFixed(e)).map((e) => [e, e.getBoundingClientRect().right]).filter(([, r]) => r > d.clientWidth + 0.5).sort((a, b) => b[1] - a[1])[0]; const el = worst && worst[0]; if (!el) return over + "px overflow at " + window.innerWidth + "px, but every node past the edge sits under a fixed ancestor"; const name = (el.id ? "#" + el.id : el.tagName.toLowerCase() + "." + (el.className || "").toString().split(" ")[0]) + " \"" + (el.textContent || "").trim().slice(0, 20) + "\""; return over + "px overflow at " + window.innerWidth + "px, widest NON-FIXED offender " + name + " right=" + worst[1].toFixed(1); }'
 		}
 	],
 	presence: [
@@ -130,6 +171,23 @@ export default {
 			evaluate:
 				'() => { const d = document.documentElement; if (d.scrollWidth <= d.clientWidth) return ["not the injected control"]; const offenders = [...document.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > d.clientWidth + 0.5); const trigger = document.getElementById("idea-ledger-report-btn"); const panel = document.getElementById("idea-ledger-report"); const ours = offenders.filter((e) => (trigger && (e === trigger || trigger.contains(e))) || (panel && (e === panel || panel.contains(e)))); return [ours.length === 0 ? "not the injected control" : "THE INJECTED CONTROL: " + ours.length + " node(s)"]; }',
 			expected: ['not the injected control']
+		},
+		{
+			/* WHAT IS PAST THE RIGHT EDGE, AS A CLAIM RATHER THAN AS FOLKLORE.
+			   The `prepare-eval` above prints the per-width number and names the
+			   widest non-fixed offender; this row is the claim that would break
+			   if a SECOND thing started overflowing, and it has to answer the
+			   same at both widths (the verdict row above the last one carries
+			   that lesson). So it asks the category, not the element: every node
+			   past the edge is either inside a fixed subtree (which creates no
+			   scrollable overflow) or inside the Ledger's own tab bar. At 1440
+			   there is nothing past the edge at all, which satisfies it the way
+			   an empty set does -- and the printed measurement above is what
+			   separates the two cases for a reader. */
+			label: 'everything past the right edge is fixed furniture or the Ledger\'s own tab bar',
+			evaluate:
+				'() => { const d = document.documentElement; const underFixed = (e) => { for (let p = e; p; p = p.parentElement) { if (getComputedStyle(p).position === "fixed") return true; } return false; }; const stray = [...document.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > d.clientWidth + 0.5).filter((e) => !underFixed(e)).filter((e) => !e.closest(".tab-bar")); return [stray.length === 0 ? "fixed furniture or the tab bar" : "SOMETHING ELSE: " + stray.length + " node(s), first " + (stray[0].id ? "#" + stray[0].id : stray[0].tagName.toLowerCase() + "." + (stray[0].className || "").toString().split(" ")[0])]; }',
+			expected: ['fixed furniture or the tab bar']
 		},
 		{
 			label: 'the trigger is inside the page header, not floating over the leaderboard',

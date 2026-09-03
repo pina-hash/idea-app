@@ -52,5 +52,40 @@ export default {
 		{ selector: '.gt-stage span.pathway-chip .pw-label', label: 'chip label inside .gt-root', min: 4.5 },
 		{ selector: '.gt-stage .lb-name', label: 'leaderboard name inside .gt-root', min: 4.5 }
 	],
-	tapTargets: [{ selector: '.harness .controls button', label: 'harness controls', min: 44 }]
+	tapTargets: [
+		/*
+		   THE HARNESS'S OWN CHROME, AND IT USED TO BE THE ONLY ROW HERE.
+		   Measured 194.7x26.2 at both widths for weeks -- a standing finding every
+		   prompt had to warn the next session about, which is exactly the noise
+		   that trains a reader to skim the findings list. It was a correct
+		   measurement of something that is not a product surface: these are this
+		   dev page's two buttons and no student ever sees them. Fixed at source
+		   (`min-height: 44px` in the page's own stylesheet, with the reasoning
+		   beside it) rather than by deleting the row, so the page's chrome cannot
+		   drift back under the floor unnoticed.
+		*/
+		{ selector: '.harness .controls button', label: 'harness controls', min: 44 },
+		/*
+		   AND THE ROW THIS SPEC SHOULD HAVE CARRIED ALL ALONG: a control that
+		   SHIPS. `ProfileMenu` is mounted in `src/routes/+layout.svelte` and in
+		   roughly twenty routes besides, so its trigger is on the header of every
+		   page a student opens -- and nothing in this harness had ever measured
+		   it. This page mounts the real component (see the ProfileMenu stage
+		   below), which makes it the one route in the list that can.
+
+		   IT IS RED, AND IT IS A REAL PRODUCT DEFECT RATHER THAN AN INSTRUMENT
+		   ARTEFACT. Measured 44.0x34.0 here and 100.6x34.0 on `/dev/profile-menu`
+		   and `/dev/home-order` -- 34px in the short dimension, at both widths, on
+		   three independent routes, never inside a `<label>` and with its parent
+		   `.pm-root` exactly as tall. The height is `Avatar size={30}` plus
+		   `.pm-trigger`'s 2px padding, so it does NOT depend on the web font this
+		   harness cannot load: the fallback-stack limit in ../README.md does not
+		   qualify this number. `.pm-trigger` carries neither `.tap-44` nor
+		   `.tap-reach-44`, so `tap-target` is the right instrument and there is no
+		   reach to measure instead.
+
+		   `src/lib/ProfileMenu.svelte` owns the fix and this bundle does not.
+		*/
+		{ selector: '.pm-trigger', label: 'ProfileMenu trigger (ships in every page header)', min: 44 }
+	]
 };
