@@ -25,3 +25,10 @@
   Deliberately excluded: the public viewer at `/maps`, which is a separate
   Lane 1 bundle; revision-history surfacing, still P2; and any change to who
   may publish.
+
+  Landed: migration 0172 committed straight to `main` at `07a8ff2` with its
+  db test in the same commit, which is the only thing this bundle put on
+  `main`. Everything else is on the branch. 0171 turned out NOT to be
+  reserved -- prompt 0011 had already taken it and merged
+  (`0171_classroom_extra_credit.sql`, commit `0fd0cec`), so the highest on
+  `origin/main` at the time of issue was 0171, not 0170.
