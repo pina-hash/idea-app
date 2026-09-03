@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/portal-apps.ts`, `src/lib/AppLauncher.svelte`, the launcher region of `src/routes/+page.svelte`, `src/routes/dev/marks/**`, `tools/browser-verify/routes/marks.mjs` and `home-order*.mjs`, `tests/home-order-and-accent.test.ts`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0024-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0174
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/launcher-portal-surfaces-prgx6d`, from `origin/integration` at `8dcef06`
 - Notes: Four items on one surface, plus a verification gap prompt 0021
   found while landing the maps card.
 
