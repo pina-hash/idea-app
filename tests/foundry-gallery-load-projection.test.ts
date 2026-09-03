@@ -94,12 +94,21 @@ const COURSE_TITLE = 'Engineering I Honors';
  */
 const SELF_DECLARED_SECTION = 'whatever-i-typed-in-my-profile';
 
-/** Drives the REAL gallery load as one caller. */
+/**
+ * Drives the REAL gallery load as one caller.
+ *
+ * `parent` ANSWERS THE CLASS GATE OPEN (0173), which is what the layout
+ * resolves for a student no class has closed it for -- the ordinary case, and
+ * the one every assertion in this file is about. The gate's own behaviour is
+ * proved in tests/foundry-section-gate-trust.test.ts against the real RPC;
+ * stubbing it closed here would only re-test that from a worse position.
+ */
 async function gallery(userId: string, params = '') {
 	const supabase = createPostgrestShim(db, fks, userId);
 	return (await load({
 		locals: { supabase },
-		url: new URL(`https://ideabosco.com/foundry${params}`)
+		url: new URL(`https://ideabosco.com/foundry${params}`),
+		parent: async () => ({ foundryAccess: { open: true, closed: [] } })
 	} as unknown as Parameters<typeof load>[0])) as {
 		apps: Record<string, unknown>[];
 		selected: unknown;

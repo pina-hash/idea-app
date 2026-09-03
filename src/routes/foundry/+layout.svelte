@@ -41,11 +41,36 @@
 	 * THE SHELL STAYS. A closed student keeps the masthead and the way out,
 	 * because the alternative is a page that looks broken.
 	 */
+	/**
+	 * THE TWO PLACES A STUDENT'S BUNDLE ACTUALLY RUNS, and the only two that
+	 * are full-height applications.
+	 *
+	 * THE REPORT THIS ANSWERS: "an open game scrolls off screen while the list
+	 * scrolls under it." Under `scroll="page"` neither pane bounds itself, so
+	 * the document owns the one scroll and moving down the card list carries
+	 * the running app off the top. That is the right trade for a long form,
+	 * which is why `page-flow` shipped and why the notebook keeps it -- its
+	 * compose pane measures ~1200px and a sticky pane would answer a report
+	 * about two scrollbars with two scrollbars. It is the WRONG trade for a
+	 * pane whose content is a fixed-size stage you are watching.
+	 *
+	 * `fill` IS THE VARIANT THAT NAMES NO CHROME HEIGHT, which is why this is
+	 * a class on the room rather than a `100vh - <constant>` anywhere: the
+	 * masthead measures itself and the body takes the rest, so a wrapped
+	 * wordmark or an added notice costs a row instead of producing a second
+	 * scrollbar. Above 1024px only; a phone keeps the document's single
+	 * scroll.
+	 *
+	 * Read off `active`, the same answer the tabs read, rather than from a
+	 * second list of routes.
+	 */
+	const isAppShell = $derived(active === 'gallery' || active === 'review');
+
 	const closedSections = $derived(data.foundryAccess?.closed ?? []);
 	const isClosed = $derived(data.foundryAccess ? data.foundryAccess.open === false : false);
 </script>
 
-<div class="fg-root">
+<div class="fg-root" class:cr-app={isAppShell && !isClosed}>
 	<FoundryShell
 		{active}
 		isAdmin={page.data.isAdmin === true}

@@ -110,9 +110,42 @@
 	<MoltenSeam variant="seam" />
 </header>
 
-{@render children()}
+<!--
+	THE SECOND HALF OF THE `scroll="fill"` CONTRACT, and it can only be claimed
+	here. `.cr-app` goes on `.fg-root` in +layout.svelte, because the header and
+	the page are SIBLINGS under it and a component can never claim the element
+	above itself; this is the body that takes whatever the header leaves. It is
+	inert unless the layout put `.cr-app` on, which it does for exactly the two
+	places a student bundle actually runs.
+-->
+<div class="fg-body cr-app-body">
+	{@render children()}
+</div>
 
 <style>
+	/* A PLAIN WRAPPER UNLESS THE ROOM IS AN APPLICATION. Below 1024px, and on
+	   every page the layout does not mark, this is a `display: block` div and
+	   changes nothing about how the document flows -- which is what the submit
+	   form and the build contract need, both being long documents somebody
+	   scrolls.
+
+	   In app mode it is a flex column that does NOT scroll itself: the split
+	   inside it owns the scrolling, one region per pane, which is the whole
+	   point of pinning the detail. A wrapper that also scrolled would be the
+	   two-scrollbars failure `page-flow` exists to avoid. */
+	.fg-body {
+		min-height: 0;
+	}
+
+	@media (min-width: 1024px) {
+		:global(.cr-app) > .fg-body {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+			overflow: hidden;
+		}
+	}
+
 	.fg-header {
 		position: relative;
 		z-index: 2; /* above `main`: the ProfileMenu drops a panel below itself */

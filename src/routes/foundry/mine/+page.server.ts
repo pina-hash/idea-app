@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { foundryPlayCountMap, type FoundryPlayCountRow } from '$lib/foundry/telemetry';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
 
@@ -29,7 +30,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	const { foundryAccess } = await parent();
 	if (foundryAccess && foundryAccess.open === false) {
-		return { apps: [] as FoundryAppSummary[], selected: null, uid: '' };
+		return { apps: [] as FoundryAppSummary[], selected: null, uid: '', playCounts: {} };
 	}
 
 	const uid = locals.claims?.sub ?? null;
@@ -56,9 +57,22 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 		selected = data as FoundryApp;
 	}
 
+	/**
+	 * THE OWNER ROLL-UP'S INPUT (decision 07). `foundry_play_counts()` answers
+	 * for the CALLER'S OWN population, which here is their own apps including
+	 * the unpublished ones -- so the dashboard is arithmetic over this and
+	 * needs no aggregate RPC of its own.
+	 *
+	 * A MISSING OR FAILED READ DEGRADES TO NO COUNTS, exactly as the gallery's
+	 * does: the panel renders zeroes and its coverage sentence rather than
+	 * taking a working page down for a figure nobody came for.
+	 */
+	const { data: countRows } = await locals.supabase.rpc('foundry_play_counts');
+
 	return {
 		apps: (apps ?? []) as FoundryAppSummary[],
 		selected,
-		uid
+		uid,
+		playCounts: foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null)
 	};
 };

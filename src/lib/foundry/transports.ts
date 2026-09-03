@@ -217,6 +217,16 @@ export interface FoundryAppSummary extends FoundryAuthor {
 	published_ordinal: number | null;
 	version_count: number;
 	submitted_version_id: string | null;
+	/**
+	 * 0173. The app's own published version when a trusted author's submit put
+	 * it live and nobody has reviewed it yet; null on everything that went
+	 * through the queue. OPTIONAL, because a deployment between 0172 and 0173
+	 * is a real state and the column is genuinely absent on it -- the surfaces
+	 * read it through `wentLiveUnreviewed`, which treats undefined as null, so
+	 * the chip and the list are simply empty there rather than the page
+	 * failing.
+	 */
+	live_unreviewed_version_id?: string | null;
 	metadata_flagged_at: string | null;
 	hidden_at: string | null;
 	updated_at: string;
@@ -313,6 +323,44 @@ export interface FoundryGalleryTransports {
  * renders no figures.
  */
 export type FoundryPlayStatsTransport = (appId: string) => Promise<FoundryPlayStats | null>;
+
+/**
+ * 0173, decision 06. The trusted publisher roster: read it, add an address,
+ * take one off.
+ *
+ * IT IS KEYED BY EMAIL AND NOT BY APP, AND THAT IS FORCED RATHER THAN
+ * CONVENIENT. The obvious control is "trust this author", on the app an admin
+ * is already reading. These surfaces deliberately never carry an author's
+ * ADDRESS -- `foundry_get_app` projects a display name and a class and nothing
+ * else -- so a per-app control would need a uuid-to-email lookup reachable
+ * from a client, and "a granted email-to-uuid view is a school directory" is
+ * a rule this repository states outright. `foundry_trusted_publishers` is an
+ * ALLOWLIST in the `app_admins` and `gauntlet_authors` shape, so it is
+ * managed the way those are: by address, deliberately, from a roster.
+ *
+ * THE COST IS STATED RATHER THAN HIDDEN: an admin has to know the student's
+ * Bosco Tech address. That is one look at a roster they already run, and it
+ * is far cheaper than a granted path from a name to an address.
+ *
+ * Omitting `grantTrust` removes every write control; omitting `readTrusted`
+ * removes the panel. Absence is the mechanism, as everywhere else here.
+ */
+export interface FoundryTrustTransports {
+	readTrusted?: () => Promise<FoundryTrustedRow[] | null>;
+	grantTrust?: (
+		email: string,
+		note: string | null
+	) => Promise<{ ok: boolean; message?: string }>;
+	revokeTrust?: (email: string) => Promise<{ ok: boolean; message?: string }>;
+}
+
+/** One row of `foundry_trusted_roster()`. */
+export interface FoundryTrustedRow {
+	email: string;
+	granted_by: string | null;
+	granted_at: string;
+	note: string | null;
+}
 
 /** One file of a stored bundle, as the review inspector lists it. */
 export interface FoundryBundleFileRow {
