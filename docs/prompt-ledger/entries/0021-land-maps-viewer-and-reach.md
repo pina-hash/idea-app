@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work (Lane 1, Maps)
 - Owns: the maps entry in `src/lib/portal-apps.ts`, `src/lib/marks/MapsMark.svelte`, the maps card's mark wiring in `src/lib/AppLauncher.svelte`, the maps rows in `tests/home-order-and-accent.test.ts`, `tests/portal-apps*`, an appended entry in `static/classroom-updates.json`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0021-*`, its own `docs/history/` entry, and the merge of `claude/idea-maps-public-viewer-hxz2cx`.
 - Migration permitted: no. Highest on origin/main at issue: 0174
-- Status: issued
-- Branch: assigned by the harness. BRANCHED FROM `origin/integration`.
+- Status: pushed
+- Branch: `claude/land-maps-viewer-sk70is`. BRANCHED FROM `origin/integration` (a7cd032).
 - Notes: Prompt 0020 built the public viewer at `/maps` and landed its
   launcher accent rule, and reported that the rule PAINTS NOTHING: there is
   no `maps` entry in `PORTAL_APPS` and no `MapsMark.svelte`, so the surface
