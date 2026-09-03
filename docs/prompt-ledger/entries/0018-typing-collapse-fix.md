@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/Disclosure.svelte`, `src/lib/disclosure.ts`, the `collapseWhen` call sites in `ItemDetail.svelte` and `SpecRenderer.svelte`, the three disclosure test files, `docs/prompt-ledger/entries/0018-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0174
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/typing-collapse-fix-4iq5qg`
 - Notes: The instructor report was "while starting to type, random modules or
   drop down menus suddenly minimize and entirely throw the viewing to the
   bottom of the page, and it deselects the text box."
