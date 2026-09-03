@@ -44,7 +44,10 @@
 		gradingExportJson,
 		gradingExportSheets,
 		type ExportIdentity,
-		type ExportScope
+		type ExportScope,
+		postGradeChange,
+		postGradeChangeLabel,
+		type PostGradeChange
 	} from '$lib/classroom/grading-export';
 	import { buildXlsx } from '$lib/xlsx';
 
@@ -130,6 +133,44 @@
 	);
 	const gateModule = $derived(spec?.approvalGate?.afterModule ?? null);
 
+	/**
+	 * DID THIS WORK CHANGE AFTER IT WAS GRADED. Derived per student through the
+	 * ONE implementation in grading-export.ts, which the export also reads, so a
+	 * chip on screen and a cell in a spreadsheet cannot disagree about the same
+	 * fact. Nothing here re-states the rule.
+	 */
+	const changedFor = $derived(
+		new Map(
+			students.map((s) => [s.email, postGradeChange(s)] as const)
+		) as Map<string, PostGradeChange | null>
+	);
+	const selectedChange = $derived(selected ? (changedFor.get(selected.email) ?? null) : null);
+	const changedCount = $derived([...changedFor.values()].filter(Boolean).length);
+
+	/**
+	 * IS EXTRA CREDIT AVAILABLE AT ALL. The payload's own answer (0171's column
+	 * came back), never a guess: on a deployment sitting before the migration the
+	 * control is withheld and says why, rather than sending an award into an
+	 * arity that has no parameter for it.
+	 */
+	const extraCreditReady = $derived(data?.extraCreditReady === true);
+	/**
+	 * The award being edited, as a string because `bind:value` on a number input
+	 * COERCES and `.trim()` then throws (the trap this repo has hit three times).
+	 */
+	let extraCredit = $state('');
+	const extraCreditNumber = $derived.by(() => {
+		const raw = String(extraCredit ?? '').trim();
+		if (!raw) return null;
+		const n = Number(raw);
+		return Number.isFinite(n) ? n : null;
+	});
+	const extraCreditInvalid = $derived(
+		String(extraCredit ?? '').trim() !== '' && (extraCreditNumber == null || extraCreditNumber < 0)
+	);
+	/** The rubric sum plus whatever is typed -- what the server will stamp. */
+	const liveAwarded = $derived(liveTotal + (extraCreditNumber ?? 0));
+
 	async function load() {
 		const res = await transports.loadGrading(item.id, section.id);
 		if (!res.ok) {
@@ -161,6 +202,8 @@
 		scores: Record<string, number | null>;
 		critComments: Record<string, string>;
 		comment: string;
+		/** As typed, so "3" and "3.0" are the same edit and "" is none. */
+		extraCredit: string;
 	}
 	let baseline = $state<GradeSnapshot | null>(null);
 	/** A selection waiting on the confirm. `null` in `next` means "close". */
@@ -170,14 +213,15 @@
 		return {
 			scores: { ...$state.snapshot(scores) },
 			critComments: { ...$state.snapshot(critComments) },
-			comment
+			comment,
+			extraCredit: String(extraCredit ?? '').trim()
 		};
 	}
 
 	/** Which criteria differ from the baseline, and whether the comment does. */
 	const changed = $derived.by(() => {
 		const base = baseline;
-		if (!base) return { criteria: [] as string[], comment: false };
+		if (!base) return { criteria: [] as string[], comment: false, extraCredit: false };
 		const ids = new Set([...Object.keys(base.scores), ...Object.keys(scores)]);
 		const criteria: string[] = [];
 		for (const id of ids) {
@@ -189,9 +233,13 @@
 				criteria.push(id);
 			}
 		}
-		return { criteria, comment: (base.comment ?? '').trim() !== comment.trim() };
+		return {
+			criteria,
+			comment: (base.comment ?? '').trim() !== comment.trim(),
+			extraCredit: (base.extraCredit ?? '') !== String(extraCredit ?? '').trim()
+		};
 	});
-	const dirty = $derived(changed.criteria.length > 0 || changed.comment);
+	const dirty = $derived(changed.criteria.length > 0 || changed.comment || changed.extraCredit);
 
 	/** What the confirm has to name, in the grader's terms and with real counts. */
 	const dirtyCost = $derived.by(() => {
@@ -199,6 +247,7 @@
 		const n = changed.criteria.length;
 		if (n) parts.push(`${n} criteri${n === 1 ? 'on' : 'a'}`);
 		if (changed.comment) parts.push('the comment to the student');
+		if (changed.extraCredit) parts.push('the extra credit');
 		return parts.join(' and ');
 	});
 
@@ -266,6 +315,11 @@
 		}
 		selectedEmail = next.email;
 		comment = next.submission?.teacher_comment ?? '';
+		// Null and undefined both open EMPTY, which reads as "none awarded" -- a
+		// pre-0171 payload and a row nobody has awarded anything on are the same
+		// thing to a grader, and the difference is what `extraCreditReady` is for.
+		extraCredit =
+			next.submission?.extra_credit == null ? '' : String(next.submission.extra_credit);
 		const saved = next.submission?.rubric_scores ?? {};
 		const notes = next.submission?.criterion_comments ?? {};
 		scores = Object.fromEntries((rubric ?? []).map((c) => [c.id, saved[c.id] ?? null]));
@@ -353,6 +407,20 @@
 
 	const selectedUnmet = $derived(selected && handedIn(selected) ? unmetFor(selected) : []);
 
+	/**
+	 * One spelling of an instant, matching the submitted stamp beside it. Two
+	 * date formats on one line is how a reader stops being able to compare them,
+	 * which is the entire job of the sentence this appears in.
+	 */
+	function stamp(iso: string): string {
+		return new Date(iso).toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
+	}
+
 	function statusChip(s: StudentWork): { label: string; cls: string } {
 		const state = s.submission?.state ?? null;
 		if (state === 'returned') {
@@ -376,6 +444,13 @@
 			const note = (critComments[c.id] ?? '').trim();
 			if (note) notes[c.id] = note;
 		}
+		// REFUSED HERE AS WELL AS THERE. The column's CHECK and the RPC both
+		// refuse a negative, and this says so where the grader is working rather
+		// than after a round trip.
+		if (extraCreditInvalid) {
+			gradeError = 'Extra credit must be a number of 0 or more. Leave it blank to award none.';
+			return { ok: false, retryable: false, message: gradeError };
+		}
 		busy = true;
 		try {
 			const res = await transports.gradeSubmission(
@@ -384,7 +459,12 @@
 				payload,
 				comment.trim() || null,
 				release,
-				notes
+				notes,
+				// UNDEFINED WHERE THE COLUMN IS NOT THERE, so the transport omits the
+				// parameter entirely and binds to the arity that has always existed.
+				// Blank is 0 rather than null, because a grader who cleared the box
+				// meant to take the award back and null means LEAVE IT ALONE.
+				extraCreditReady ? (extraCreditNumber ?? 0) : undefined
 			);
 			if (!res.ok) {
 				gradeError = res.message;
@@ -945,6 +1025,22 @@
 											Incomplete &middot; {short}
 										</span>
 									{/if}
+									<!--
+										A THIRD CHIP, for the same reason there is a second one.
+										"Did this arrive", "was it finished when it arrived" and
+										"has it moved since I graded it" are three independent
+										questions, and a row can answer them in any combination.
+										This one NAMES THE ACT rather than saying "changed":
+										resubmitting is a student asking to be looked at again and
+										an edit is the graded artefact quietly ceasing to be the
+										graded artefact, and an instructor answers those
+										differently.
+									-->
+									{#if changedFor.get(s.email)}
+										<span class="roster-chip changed" data-testid="roster-changed">
+											{postGradeChangeLabel(changedFor.get(s.email)!)}
+										</span>
+									{/if}
 								</span>
 							</button>
 						</li>
@@ -972,6 +1068,19 @@
 								{/if}
 								· {submissionStateLabel(selected.submission?.state)}
 							</p>
+							<!--
+								IT NAMES WHEN, NOT JUST THAT. A bare flag sends the instructor
+								hunting through a submission for what moved; the instant is the
+								whole difference between "look at this" and "look for this".
+								Both timestamps are shown because the comparison IS the claim.
+							-->
+							{#if selectedChange}
+								<p class="changed-line" data-testid="changed-after-grading">
+									<strong>{postGradeChangeLabel(selectedChange)}.</strong>
+									Graded {stamp(selectedChange.gradedAt)}, work last touched
+									{stamp(selectedChange.at)}. Grading again clears this.
+								</p>
+							{/if}
 						</div>
 						<button type="button" class="btn secondary tiny" onclick={() => requestSelect(null)}>
 							Close
@@ -1242,7 +1351,54 @@
 											{/if}
 										</div>
 									{/each}
-									<div class="score-total">Total: {liveTotal} / {outOf} pts</div>
+									<!--
+										EXTRA CREDIT IS ITS OWN LINE, never a criterion. A rubric
+										criterion's maximum is its top level's points and the maxima
+										sum to the module total, so a criterion holding an award
+										would be a rubric that no longer describes the grading --
+										and 0095's override machinery would read every award as an
+										unexplained off-level score forever.
+									-->
+									{#if extraCreditReady}
+										<div class="extra-credit">
+											<label class="ec-label" for="grade-extra-credit">Extra credit</label>
+											<input
+												id="grade-extra-credit"
+												class="ec-input tap-44"
+												type="number"
+												min="0"
+												step="0.5"
+												placeholder="0"
+												bind:value={extraCredit}
+											/>
+											<span class="ec-note">
+												Points beyond the rubric. Blank or 0 awards none.
+											</span>
+										</div>
+										{#if extraCreditInvalid}
+											<p class="score-flag" data-testid="extra-credit-invalid">
+												Extra credit must be a number of 0 or more. To lower a score, score
+												the rubric criteria lower.
+											</p>
+										{/if}
+									{:else}
+										<!--
+											THE CAPABILITY, SAID OUT LOUD. The payload came back
+											without 0171's column, so this deployment cannot record an
+											award; offering the control here would send one into an
+											arity that has no parameter for it. Turning off exactly
+											what is missing and saying so beats blanking the form.
+										-->
+										<p class="ec-unavailable" data-testid="extra-credit-unavailable">
+											Extra credit is not available on this deployment yet.
+										</p>
+									{/if}
+									<div class="score-total">
+										Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
+											&nbsp;<span class="ec-part"
+												>({liveTotal} rubric + {extraCreditNumber} extra credit)</span
+											>{/if}
+									</div>
 									<label class="comment-label" for="grade-comment">Comment to the student</label>
 									<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
 									{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
@@ -1556,6 +1712,16 @@
 	   Measured on both grounds this pill lands on: 7.94:1 on --surface-2 (the
 	   row's own fill) and 8.55:1 on --surface-0 (an active row). The WORD carries
 	   the meaning either way -- colour is never the only signal. */
+	/* --amber, and it is THIS FILE'S OWN WARNING EDGE (the off-roster line
+	   uses it), which is exactly what this is. The distinction from --gold one
+	   rule down is the argument: an incomplete hand-in is a thing the database
+	   accepts on purpose since 0160, so gold says "special, look at this"; work
+	   that moved after it was graded is a grade that may no longer describe what
+	   is there, which is a warning in the ordinary sense of the word. */
+	.roster-chip.changed {
+		color: var(--amber);
+		border-color: var(--amber);
+	}
 	.roster-chip.incomplete {
 		color: var(--gold);
 		border-color: var(--gold);
@@ -2077,5 +2243,58 @@
 		margin-top: var(--space-3);
 		display: flex;
 		justify-content: center;
+	}
+	/* The post-grade sentence, in the detail head under the meta line. */
+	.changed-line {
+		margin: 0.35rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		line-height: 1.5;
+		color: var(--amber);
+		max-width: 60ch;
+	}
+	.changed-line strong {
+		font-weight: 700;
+	}
+
+	.extra-credit {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin: 0.6rem 0 0.2rem;
+	}
+	.ec-label {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.ec-input {
+		/* min-width AND a width: a number input's default size is wide enough to
+		   push the note onto its own line at 375px for no reason. */
+		width: 5.5rem;
+		min-width: 0;
+		font-family: var(--font-display);
+		background: var(--surface-2);
+		color: var(--text-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		padding: 0.25rem 0.5rem;
+	}
+	.ec-note,
+	.ec-unavailable {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
+	}
+	.ec-unavailable {
+		display: block;
+		margin: 0.6rem 0 0.2rem;
+	}
+	.ec-part {
+		font-size: 0.72rem;
+		color: var(--text-2);
 	}
 </style>

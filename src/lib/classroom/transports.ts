@@ -912,19 +912,61 @@ const SUBMISSION_SELECT_BASE =
 const SUBMISSION_SELECT = `${SUBMISSION_SELECT_BASE}, criterion_comments`;
 
 /**
- * Submissions, degrading to the pre-0095 column list when that migration has
- * not been applied yet -- migrations here are pasted in by hand, so a deploy
- * sitting between two of them is a real state, and one unknown column would
- * otherwise blank an entire assignment (the notebook loader's widen-then-degrade
- * chain).
+ * + 0171's `extra_credit`. ITS OWN RUNG, and the capability it reports is
+ * `extraCreditReady`.
+ *
+ * WHY A RUNG RATHER THAN JUST WIDENING THE ONE ABOVE. A new capability never
+ * folds into an existing rung: degrading past a missing `extra_credit` would
+ * then cost `criterion_comments` too, so a deployment sitting between 0095 and
+ * 0171 would lose the per-criterion notes an override REQUIRES -- a grader
+ * would see an unexplained number where the justification is, on a schema that
+ * has the justification.
+ *
+ * AND THE FLAG LICENSES THE WRITE. 0171 adds the column and the RPC parameter
+ * in one file, so a rung that came back WITH the column proves the 7-argument
+ * arity exists. That is cheaper than a `PGRST202` retry, which spends a failed
+ * grade to learn the same thing.
  */
-async function selectSubmissions(supabase: SupabaseClient, itemId: string, one: boolean) {
+const SUBMISSION_SELECT_EXTRA_CREDIT = `${SUBMISSION_SELECT}, extra_credit`;
+
+export interface SubmissionsResult {
+	data: unknown;
+	error: unknown;
+	/**
+	 * Did the payload actually come back WITH `extra_credit`. Starts FALSE and
+	 * is turned on only by the widest rung succeeding -- never inferred from the
+	 * rows, because an item nobody has been awarded anything on returns nulls on
+	 * the rung that has the column and undefined on the one that does not, and
+	 * only the flag tells those apart.
+	 */
+	extraCreditReady: boolean;
+}
+
+/**
+ * Submissions, widest first, degrading one capability at a time -- migrations
+ * here are pasted in by hand, so a deploy sitting between two of them is a real
+ * state, and one unknown column would otherwise blank an entire assignment (the
+ * notebook loader's widen-then-degrade chain).
+ *
+ * THE ONE LADDER, called by the student's own engine load AND by the grading
+ * console, so the two surfaces cannot end up on different rungs and disagree
+ * about what a score is made of.
+ */
+async function selectSubmissions(
+	supabase: SupabaseClient,
+	itemId: string,
+	one: boolean
+): Promise<SubmissionsResult> {
 	const run = (columns: string) => {
 		const q = supabase.from('classroom_submissions').select(columns).eq('item_id', itemId);
 		return one ? q.maybeSingle() : q;
 	};
+	const widest = await run(SUBMISSION_SELECT_EXTRA_CREDIT);
+	if (!widest.error) return { data: widest.data, error: null, extraCreditReady: true };
 	const full = await run(SUBMISSION_SELECT);
-	return full.error ? await run(SUBMISSION_SELECT_BASE) : full;
+	if (!full.error) return { data: full.data, error: null, extraCreditReady: false };
+	const base = await run(SUBMISSION_SELECT_BASE);
+	return { data: base.data, error: base.error, extraCreditReady: false };
 }
 
 /**
@@ -1336,15 +1378,32 @@ export function createTeacherEngineTransports(
 			pingClassroomExport(itemId);
 			return { ok: true, data: undefined };
 		},
-		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
-			const { data: res, error } = await supabase.rpc('classroom_grade_submission', {
+		async gradeSubmission(
+			itemId,
+			studentEmail,
+			scores,
+			comment,
+			release,
+			criterionComments,
+			extraCredit
+		) {
+			// THE NEW PARAMETER IS NAMED ONLY WHEN THE FEATURE IS ACTUALLY BEING
+			// USED. Sending `p_extra_credit` to a database sitting before 0171
+			// resolves to nothing and fails the whole grade; omitting it binds to
+			// the 6-argument form, which is the arity that has always been there.
+			// So a console that has not been told the column exists writes exactly
+			// what it wrote before, and one that has only widens the call when it
+			// has something to say.
+			const payload: Record<string, unknown> = {
 				p_item_id: itemId,
 				p_student_email: studentEmail,
 				p_scores: scores,
 				p_comment: comment,
 				p_return: release,
 				p_criterion_comments: criterionComments ?? {}
-			});
+			};
+			if (extraCredit != null) payload.p_extra_credit = extraCredit;
+			const { data: res, error } = await supabase.rpc('classroom_grade_submission', payload);
 			if (error) return fail(error);
 			return opResult(res);
 		},
@@ -1384,6 +1443,11 @@ export function createTeacherEngineTransports(
 						normalizeSubmissionRow
 					),
 					responses: (responsesRes.data ?? []) as ResponseRow[],
+					// The capability, reported rather than assumed: false means this
+					// payload cannot carry an award, so the console withholds the
+					// control instead of sending one into an arity that has no
+					// parameter for it.
+					extraCreditReady: submissionsRes.extraCreditReady,
 					files: filesRes.rows,
 					// Same rung, same flag as the student's own view. Both surfaces
 					// read ONE ladder, so a teacher grading and the student who
