@@ -1178,6 +1178,12 @@
 		good. It is hidden, never removed -- the material stays one press away
 		and it still prints.
 
+		`started` IS AN ARRIVAL CONDITION AND `Disclosure` LATCHES IT. The
+		standard is about what a person is HANDED on a return visit, so this
+		panel is closed by their own press and by nothing else; the keystroke
+		that flips `started` mid-session used to fold it over them (prompt 0018,
+		and `$lib/disclosure` for the mechanism).
+
 		THE DISCLOSURE IS HERE AND NOT INSIDE ItemBody. ItemBody is also what the
 		class stream mounts for its expanded rows, where a collapse would mean
 		something else entirely; wrapping the component would have given that
