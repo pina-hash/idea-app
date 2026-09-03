@@ -2,12 +2,14 @@
 	import { page } from '$app/state';
 	import {
 		disclosureKey,
+		disclosureLatch,
 		disclosureOpen,
 		readDisclosure,
 		writeDisclosure,
+		type DisclosureLatch,
 		type DisclosureStored
 	} from '$lib/disclosure';
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 
 	/**
 	 * THE ONE DISCLOSURE. A labelled button and the region it hides.
@@ -39,6 +41,15 @@
 	 * on an assignment, that they have started the work. There is no role prop
 	 * and there must not be one: an instructor opening the item they wrote sees
 	 * the panel a student sees, in the state a student sees it in.
+	 *
+	 * AND IT IS AN ARRIVAL CONDITION, NOT A LIVE INSTRUCTION TO CLOSE. It is
+	 * LATCHED here (`disclosureLatch`), so it can fall and never rise: an open
+	 * panel is closed by this person's press and by nothing else. Read live it
+	 * folded itself away mid-keystroke, and because the region is hidden with
+	 * `display: none` that took the caret and the page's height with it. See
+	 * `$lib/disclosure` for the whole argument, and
+	 * `tools/browser-verify/routes/classroom-interaction-case-typing.mjs` for
+	 * the measurement.
 	 *
 	 * WHAT IS REMEMBERED IS THE MANUAL CHOICE ONLY. See `$lib/disclosure` for
 	 * why storing the live state instead would freeze the first render forever.
@@ -103,7 +114,41 @@
 		override && override.key === storageKey ? override.open : stored
 	);
 
-	const open = $derived(disclosureOpen(chosen, collapseWhen));
+	/**
+	 * THE COLLAPSE SIGNAL, LATCHED, AND THE LATCH IS KEYED EXACTLY AS
+	 * `override` IS.
+	 *
+	 * `collapseWhen` says how this panel should ARRIVE. Read live it also
+	 * closes a panel somebody is already inside, which is the reported defect
+	 * (see `$lib/disclosure`); latched, it can fall and never rise, so nothing
+	 * but this person's own press ever folds an open panel.
+	 *
+	 * NO SEED IN THE INITIALIZER, AND THAT IS NOT A STYLE CHOICE. Reading
+	 * `storageKey` or `collapseWhen` there is a `state_referenced_locally`
+	 * warning apiece -- two more than this tree's 37 -- and the fallback below
+	 * makes the seed unnecessary anyway: an unsampled latch and a latch from
+	 * another panel are the same answer, so the live signal IS the first
+	 * frame. That is also what makes `svelte/server` correct with no effects
+	 * run at all, and what keeps a `scope` swap from showing one frame of the
+	 * previous panel's state.
+	 *
+	 * The inputs are read TRACKED at the top of the effect and only the
+	 * latch's own read-and-write is `untrack`ed, so an effect that writes what
+	 * it reads cannot re-trigger itself.
+	 */
+	let latch = $state<DisclosureLatch | null>(null);
+	$effect(() => {
+		const key = storageKey;
+		const signal = collapseWhen;
+		untrack(() => {
+			latch = disclosureLatch(latch, key, signal);
+		});
+	});
+	const collapsed = $derived(
+		latch && latch.key === storageKey ? latch.collapsed : collapseWhen
+	);
+
+	const open = $derived(disclosureOpen(chosen, collapsed));
 
 	function toggle() {
 		const next = !open;

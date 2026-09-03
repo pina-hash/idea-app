@@ -392,8 +392,12 @@
 			     title, points, the AI badge and the done chip -- stays outside this
 			     Disclosure and always renders, so a collapsed module is legible as
 			     DONE rather than as missing. `collapseWhen` is `complete`, never
-			     `started`: a module a student is halfway through must stay open,
-			     and only one already finished has nothing left to look at. Same
+			     `started`: a module a student is halfway through must ARRIVE
+			     open, and only one already finished has nothing left to look at.
+			     Either way it decides how the module is HANDED OVER and never
+			     when it shuts: `Disclosure` latches the signal, so finishing the
+			     last field no longer folds the module over the textarea being
+			     typed into (prompt 0018). Same
 			     rule for the readonly renders (the grading console, the importer's
 			     preview) -- `complete` is read off the same `completion` tally
 			     with no role branch, exactly as the nested instructions panel
@@ -416,9 +420,12 @@
 					     module's markdown -- headings, bold, lists, tables, code --
 					     comes through as real elements rather than literal
 					     asterisks and hash marks. -->
-					<!-- EXPANDED THE FIRST TIME, COLLAPSED ONCE THE WORK HAS STARTED,
-					     and never removed either way (Disclosure hides it in CSS, so
-					     it is one press away and it still prints). The teacher gets
+					<!-- EXPANDED THE FIRST TIME, ARRIVING COLLAPSED ONCE THE WORK
+					     HAS STARTED, and never removed either way (Disclosure hides
+					     it in CSS, so it is one press away and it still prints).
+					     `started` decides the arrival and nothing else: Disclosure
+					     latches it, so a panel already on screen is closed by this
+					     person's press alone (prompt 0018). The teacher gets
 					     this panel in exactly this state: `started` is the only
 					     input, there is no role branch here, and the readonly
 					     renders (the grading console, the importer's preview) read

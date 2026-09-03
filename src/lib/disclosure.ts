@@ -21,6 +21,17 @@
  * material does not sit between a person and their work on every return
  * visit").
  *
+ * AND `collapseWhen` ONLY EVER FALLS. `disclosureLatch` is the second half of
+ * that same sentence and the reason this module has two rules rather than one:
+ * the standard is about ARRIVAL -- what a person is handed on a return visit --
+ * and a signal read live is a panel that folds itself away under somebody who
+ * is inside it. That was reported from a real classroom ("while starting to
+ * type, random modules or drop down menus suddenly minimize and entirely throw
+ * the viewing to the bottom of the page, and it deselects the text box") and
+ * it is one mechanism: the region is hidden with `display: none`, so the
+ * browser blurs whatever inside it held focus and the document loses that
+ * height in the same frame.
+ *
  * PER PERSON AND PER ITEM. The key carries the viewer's own id, so two
  * students on one shop workstation never inherit each other's answer, and an
  * account that has never toggled anything has nothing stored under it.
@@ -116,4 +127,52 @@ export function clearDisclosure(key: string | null): void {
  */
 export function disclosureOpen(stored: DisclosureStored, collapseWhen: boolean): boolean {
 	return stored ?? !collapseWhen;
+}
+
+/**
+ * The collapse signal a panel is currently entitled to act on, remembered
+ * across renders. `key` is the panel it was sampled for; `collapsed` is the
+ * value `disclosureOpen` is given. `null` (never sampled) and a latch minted
+ * under a DIFFERENT key are the same answer -- "this is not this panel's
+ * history" -- and both re-sample.
+ */
+export type DisclosureLatch = { key: string | null; collapsed: boolean };
+
+/**
+ * THE SIGNAL ONLY EVER FALLS, AND IT IS PER PANEL.
+ *
+ * `collapseWhen` names an arrival condition -- "should this start collapsed" --
+ * and the callers derive it from live state: `started` and `complete` on an
+ * assignment module, `composerStarted` on a notebook check-in. Read live, the
+ * first keystroke that trips one of those FOLDS A PANEL THE PERSON IS INSIDE.
+ * Latched here, the same keystroke changes nothing: the panel a person is
+ * looking at is closed by their own press and by nothing else.
+ *
+ * IT FALLS AND DOES NOT RISE, rather than being sampled once, and the
+ * difference is a real caller. `SpecImporter` starts its JSON panel collapsed
+ * and flips `collapseWhen` to false when a clipboard copy is REFUSED, which is
+ * the one moment the reading is what the person came for; a value sampled once
+ * would leave them looking at a panel that never opens. Falling is the safe
+ * direction and rising is the reported defect, so exactly one of them is
+ * allowed. Once fallen it stays fallen, so a signal that flickers cannot fold
+ * the panel back up on the way past.
+ *
+ * KEYED THE WAY `override` IS KEYED. A caller that swaps `scope` without
+ * remounting -- opening a different item, picking a different check-in -- is
+ * looking at a DIFFERENT panel, so it re-samples rather than carrying the last
+ * one's history. Anything else and one item's arrival state decides another's.
+ *
+ * Returns `prev` UNCHANGED when nothing moved, so a caller can assign the
+ * result unconditionally without minting a new object on every render, and a
+ * caller whose latch is still `null` gets its first sample from the same call
+ * rather than from a second seeding path that could sample differently.
+ */
+export function disclosureLatch(
+	prev: DisclosureLatch | null,
+	key: string | null,
+	collapseWhen: boolean
+): DisclosureLatch {
+	if (!prev || prev.key !== key) return { key, collapsed: collapseWhen };
+	if (prev.collapsed && !collapseWhen) return { key, collapsed: false };
+	return prev;
 }

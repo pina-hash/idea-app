@@ -14,13 +14,13 @@
 //
 // TWO THINGS THAT NEEDS A DOM FOR:
 //
-//   1. COLLAPSING ON *BECOMING* COMPLETE. The SSR file proves a complete
-//      module renders collapsed and a halfway one renders open. It cannot
-//      prove that finishing the last field is what closes it -- and the
-//      failure it is guarding against is a collapse keyed on `started`, which
-//      would shut the panel over work still in progress. Here the module is
-//      finished a field at a time, on one mounted panel, and the chip and the
-//      `aria-expanded` are read at each step.
+//   1. WHAT HAPPENS AT THE MOMENT A MODULE *BECOMES* COMPLETE. The SSR file
+//      proves a complete module renders collapsed and a halfway one renders
+//      open. It cannot show the frame between them, and that frame is where
+//      the reported defect lived: finishing the last field used to close the
+//      panel over the very textarea being typed into (prompt 0018). Here the
+//      module is finished a field at a time, on one mounted panel, and the
+//      chip and the `aria-expanded` are read at each step.
 //   2. THE MANUAL OVERRIDE FROM A REAL CLICK. The SSR file simulated a
 //      person's toggle by writing the value into a fake `localStorage` and
 //      re-rendering. That test is DELETED and replaced by the two here: a
@@ -81,8 +81,19 @@ beforeEach(() => {
 	localStorage.clear();
 });
 
-describe('a module collapses at the moment it becomes complete', () => {
-	it('stays open through the halfway state and closes on the last field', async () => {
+/**
+ * `collapseWhen` DECIDES HOW A MODULE ARRIVES, NEVER WHEN IT SHUTS.
+ *
+ * The first test in here used to be called "stays open through the halfway
+ * state and closes on the last field", and the closing half was the defect
+ * (prompt 0018): a module folding itself away as somebody finished typing into
+ * it, blurring the caret and taking the page's height with it. What survives
+ * unchanged is the ARRIVAL rule -- a module that is already complete when the
+ * page loads is handed over collapsed, which is what the third test here
+ * asserts and what keeps these two claims from being one.
+ */
+describe('a module is not folded by the work being done inside it', () => {
+	it('stays open through the halfway state and through the last field', async () => {
 		const restore = viewerIs('user-a');
 		const m = open();
 		try {
@@ -110,8 +121,14 @@ describe('a module collapses at the moment it becomes complete', () => {
 			cell.dispatchEvent(new Event('input', { bubbles: true }));
 			m.flush();
 
+			// COMPLETE, AND STILL OPEN. The chip moving 0/2 -> 1/2 -> 2/2 is this
+			// test's own positive control: `collapseWhen` genuinely went true
+			// under the panel, and the panel did not act on it.
 			expect(chip(m)).toBe('2/2 done');
-			expect(m.expanded('module-body')).toBe('false');
+			expect(m.expanded('module-body')).toBe('true');
+			// Nothing was written, either. Staying open is the rule, not a
+			// choice recorded on this person's behalf.
+			expect(Object.keys(localStorage)).toHaveLength(0);
 		} finally {
 			await m.stop();
 			restore();
@@ -121,6 +138,13 @@ describe('a module collapses at the moment it becomes complete', () => {
 	it('re-opens on its own when the work is taken back out', async () => {
 		// Completion is DERIVED, never stored, so a module that stops being
 		// complete stops being collapsed. A stamped flag would not come back.
+		//
+		// AND THIS IS THE DIRECTION THE LATCH DELIBERATELY LEAVES ALIVE. The
+		// fix for the typing collapse lets `collapseWhen` FALL and never rise:
+		// opening a closed panel takes nothing away from anybody, while closing
+		// an open one is the reported defect. `SpecImporter` depends on the same
+		// direction -- a refused clipboard copy opens its JSON panel -- so a fix
+		// that merely sampled the signal once would have killed that silently.
 		const restore = viewerIs('user-a');
 		const m = open({ tf1: { text: ANSWER }, t1: { rows: [{ sample: '1' }] } });
 		try {
@@ -162,40 +186,42 @@ describe('a module collapses at the moment it becomes complete', () => {
 	});
 });
 
+/**
+ * THE OVERRIDE IS ASSERTED ON ARRIVAL, AND IT HAS TO BE.
+ *
+ * The first test here used to open a module by hand and then finish it under
+ * the panel, on the grounds that the choice was what held it open. Since the
+ * typing collapse was fixed nothing closes an open panel but the person's own
+ * press, so that test would pass with an EMPTY STORE -- an assertion that
+ * cannot fail is not a test. Where the stored choice still does real work is
+ * the state a returning person is handed, which is what both tests below
+ * measure, each against the arrival it is overriding.
+ */
 describe("a person's own press beats the completion signal", () => {
-	it('holds a finished module open while it is being finished', async () => {
+	it('holds a complete module open across a reload', async () => {
 		const restore = viewerIs('user-a');
-		const m = open();
+		const DONE = { tf1: { text: ANSWER }, t1: { rows: [{ sample: '1' }] } };
+
+		// Arrives collapsed, because it is complete. This person opens it.
+		const first = open(DONE);
 		try {
-			// Open by hand on a module that is not complete: open -> closed ->
-			// open, because "no choice" and "chose open" are different states and
-			// the default is already open.
-			const trigger = m.trigger('module-body')!;
-			trigger.click();
-			m.flush();
-			expect(m.expanded('module-body')).toBe('false');
-			trigger.click();
-			m.flush();
+			expect(first.expanded('module-body')).toBe('false');
+			first.trigger('module-body')!.click();
+			first.flush();
 			expect(localStorage.getItem(MODULE_KEY)).toBe('open');
-
-			// Now finish the module underneath the panel. It must not close.
-			const answer = m.one<HTMLTextAreaElement>('textarea.answer');
-			answer.value = ANSWER;
-			answer.dispatchEvent(new Event('input', { bubbles: true }));
-			m.flush();
-			m.all<HTMLButtonElement>('button')
-				.find((b) => /add row/i.test(b.textContent ?? ''))!
-				.click();
-			m.flush();
-			const cell = m.one<HTMLTextAreaElement>('textarea.cell');
-			cell.value = '1';
-			cell.dispatchEvent(new Event('input', { bubbles: true }));
-			m.flush();
-
-			expect(chip(m)).toBe('2/2 done');
-			expect(m.expanded('module-body')).toBe('true');
 		} finally {
-			await m.stop();
+			await first.stop();
+		}
+
+		// They come back. The module is still complete, so the signal still
+		// says collapse; their own answer outranks it. Without the store this
+		// remount reads 'false' -- which is the line above, unchanged.
+		const second = open(DONE);
+		try {
+			expect(second.expanded('module-body')).toBe('true');
+			expect(chip(second)).toBe('2/2 done');
+		} finally {
+			await second.stop();
 			restore();
 		}
 	});
