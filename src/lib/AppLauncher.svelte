@@ -15,6 +15,7 @@
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
 	import AdminMark from '$lib/marks/AdminMark.svelte';
 	import FoundryMark from '$lib/marks/FoundryMark.svelte';
+	import MapsMark from '$lib/marks/MapsMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
@@ -295,6 +296,8 @@
 		<AdminMark />
 	{:else if id === 'foundry'}
 		<FoundryMark />
+	{:else if id === 'maps'}
+		<MapsMark />
 	{:else if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or

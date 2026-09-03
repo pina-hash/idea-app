@@ -33,7 +33,7 @@ import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 import Home from '../src/routes/+page.svelte';
 import AppLauncher from '$lib/AppLauncher.svelte';
-import { PORTAL_APPS, visibleApps } from '$lib/portal-apps';
+import { PORTAL_APPS, visibleApps, type PortalApp } from '$lib/portal-apps';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 
 const TEACHER = 'tvargas@boscotech.edu';
@@ -619,6 +619,73 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		// is the documented failure this launcher already re-pins an ink for, so
 		// a contrast function that always answered "fine" cannot pass here.
 		expect(contrast('#ed1c24', bg1)).toBeLessThan(4.5);
+	});
+
+	/**
+	 * THE CARD ITSELF, WHICH IS WHAT 0020 COULD NOT ASSERT.
+	 *
+	 * 0020 landed the accent rule and said so in its own comment: "THERE IS NO
+	 * `maps` ENTRY IN `PORTAL_APPS` YET AND THIS RULE PAINTS NOTHING UNTIL
+	 * THERE IS." A stylesheet rule keyed on an attribute no card carries is
+	 * inert and NOTHING ON SCREEN REPORTS THAT -- the card simply is not there,
+	 * so there is no wrong colour to notice. These two assertions are the pair
+	 * that closes it: the registry entry exists, and the launcher renders the
+	 * mark for it rather than falling through to the generic fallback glyph.
+	 */
+	it('puts Maps in the registry, so the accent rule has a card to paint', () => {
+		const maps = PORTAL_APPS.find((a) => a.id === 'maps');
+		expect(maps, 'no `maps` entry in PORTAL_APPS: the accent rule paints nothing').toBeDefined();
+		// The rule keys on `data-app`, which is stamped from the id, and the
+		// icon snippet keys on `icon`. Two different fields, and a mismatch
+		// costs the glyph silently while the colour still lands.
+		expect((maps as PortalApp).icon).toBe('maps');
+		expect((maps as PortalApp).href).toBe('/maps');
+
+		// AND IT IS VISIBLE TO A SIGNED-OUT VISITOR, which is the whole point of
+		// the surface: the spec locks read access as fully public, `/maps` is
+		// not in `authedPrefixes`, and 0161/0162/0163/0165 grant the reads to
+		// `anon`. A `requiresAuth` here would put a sign-in wall in front of a
+		// page that answers an anonymous GET, and `adminOnly` would remove the
+		// card outright. Asserted through `visibleApps(false)`, the same
+		// function the launcher calls, rather than by reading the flags: the
+		// flags are the mechanism, the card being there is the guarantee.
+		expect(visibleApps(false).map((a) => a.id)).toContain('maps');
+		expect((maps as PortalApp).requiresAuth).toBeUndefined();
+		expect((maps as PortalApp).adminOnly).toBeUndefined();
+
+		// POSITIVE CONTROL on the same instrument: a card that IS gated must not
+		// come back from the anonymous list, or "maps is visible" means nothing.
+		expect(visibleApps(false).map((a) => a.id)).not.toContain('dashboard');
+	});
+
+	it('gives the Maps card an animated mark that hides nothing at rest', () => {
+		// Same contract every mark in $lib/marks carries (see the Foundry case
+		// above): animates only under prefers-reduced-motion: no-preference, and
+		// is fully visible with the animation cancelled.
+		const mark = readFileSync('src/lib/marks/MapsMark.svelte', 'utf8');
+		expect(mark).toContain('prefers-reduced-motion: no-preference');
+		expect(mark).toMatch(/animation:\s*mm-/);
+
+		// Nothing at opacity 0 or under a transform OUTSIDE a keyframe: that is
+		// what "hidden at rest" looks like. The keyframes themselves may dip.
+		const styleBody = mark.slice(mark.indexOf('<style>'));
+		const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+		expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
+
+		// NO LITERAL COLOUR ANYWHERE. The card resolves currentColor to
+		// --acc-ink, which for this card defaults to the jade --acc-primary; a
+		// hex baked into the mark would survive a later accent change and
+		// silently stop matching the card around it. GreenlineMark is the one
+		// mark that does hardcode a hex, and it is not the pattern to copy.
+		expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+		expect(mark).toContain('stroke="currentColor"');
+
+		// And the launcher actually renders it rather than falling through to
+		// the generic inline fallback glyph, which is the silent failure: the
+		// card appears, correctly coloured, wearing somebody else's shape.
+		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+		expect(launcher).toContain("id === 'maps'");
+		expect(launcher).toContain('<MapsMark />');
 	});
 
 	it('never moves an identity colour for contrast, only the ink', () => {
