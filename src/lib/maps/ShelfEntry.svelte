@@ -77,6 +77,7 @@
 		writeShelfMirror
 	} from './shelf-mirror';
 	import type { MapsPhotoTransports, MapsTransports } from './transports';
+	import { MAPS_ADMIN_SCOPE, mapsCaps, type MapsEditorScope } from './grants';
 	import ChipListInput from './ChipListInput.svelte';
 	import MapsStatusChip from './MapsStatusChip.svelte';
 
@@ -88,7 +89,8 @@
 		viewerId = null,
 		supabaseUrl = '',
 		onchanged = null,
-		newUuid = () => crypto.randomUUID()
+		newUuid = () => crypto.randomUUID(),
+		scope = MAPS_ADMIN_SCOPE
 	}: {
 		data: MapsEditorData;
 		transports: MapsTransports;
@@ -102,7 +104,11 @@
 		onchanged?: (() => Promise<void>) | null;
 		/** Injected so a test can name the storage key it will assert. */
 		newUuid?: () => string;
+		/** Who is looking (0172). Defaults to a site admin, so every existing mount is unchanged. */
+		scope?: MapsEditorScope;
 	} = $props();
+
+	const caps = $derived(mapsCaps(data.nodes, scope));
 
 	/* THE CONTAINER IS THE ONE PIECE OF STATE A SAVE MUST NOT TOUCH. It is
 	   seeded once from the route (deliberate capture, so: untrack) and changed
@@ -120,6 +126,14 @@
 	let busy = $state(false);
 	let saveProblem = $state<string | null>(null);
 	let publishArmed = $state(false);
+
+	/* PUBLISHING IS PRESENT ONLY WHEN THERE IS SOMETHING TO CALL. 0172 keeps
+	   `maps_publish` admin-only, so a granted student's transports carry no
+	   `publish` at all and the two controls below are not rendered -- absence,
+	   not a disabled button that would refuse. The shelf is the surface a
+	   grantee will spend the most time on, standing at a toolbox, so a
+	   control here whose only outcome is a refusal is the worst place for one. */
+	const canPublish = $derived(transports.publish !== undefined);
 	let mirrorNotice = $state<string | null>(null);
 	let restoredNotice = $state<string | null>(null);
 	let receipts = $state<MapsShelfReceipt[]>([]);
@@ -145,12 +159,23 @@
 	const plan = $derived(container ? mapsShelfPlan(draft, container, data.itemTypes) : null);
 	const hasWork = $derived(mapsShelfHasWork(draft, photoFile !== null));
 
-	/** Containers to choose between: every node, nearest kinds first, filtered by name. */
+	/**
+	 * Containers to choose between: every node the viewer may WRITE IN, nearest
+	 * kinds first, filtered by name.
+	 *
+	 * `canEditAt` and not "every node that arrived", because a granted editor
+	 * legitimately READS every PUBLISHED node (0161's public read, which has
+	 * nothing to do with this tier) and offering one as a place to put an item
+	 * is offering a refusal. The published-ness of the CONTAINER is not the
+	 * question -- a draft item inside a published drawer is the ordinary case
+	 * -- so this asks about the subtree alone.
+	 */
 	const containerChoices = $derived.by(() => {
 		const q = containerFilter.trim().toLowerCase();
 		const rank = (n: MapsNode) =>
 			n.kind === 'compartment' ? 0 : n.kind === 'unit' ? 1 : n.kind === 'room' ? 2 : 3;
 		return data.nodes
+			.filter((n) => caps.canEditAt(n.id))
 			.filter((n) => q === '' || mapsNodePath(data.nodes, n.id).toLowerCase().includes(q))
 			.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
 			.slice(0, 40);
@@ -316,7 +341,7 @@
 				}
 				if (step.table === 'maps_item_types') newTypeId = created.data.id;
 				if (step.table !== 'maps_item_types') ownerId = created.data.id;
-				if (published) {
+				if (published && transports.publish) {
 					const promoted = await transports.publish(step.table, created.data.id);
 					if (!promoted.ok) {
 						saveProblem = `Saved ${step.label}, but it is not public: ${promoted.message}`;
@@ -704,7 +729,7 @@
 				>
 					{busy ? 'Saving…' : 'Save (draft)'}
 				</button>
-				{#if !publishArmed}
+				{#if canPublish && !publishArmed}
 					<button
 						type="button"
 						class="btn secondary"
@@ -717,7 +742,14 @@
 				{/if}
 			</div>
 
-			{#if publishArmed}
+			{#if !canPublish}
+				<p class="grant-note" data-testid="maps-shelf-grant-note">
+					What you save here is a <strong>draft</strong>: editors can see it, the public map
+					cannot. A site admin publishes it.
+				</p>
+			{/if}
+
+			{#if canPublish && publishArmed}
 				<div class="publish-confirm" data-testid="maps-shelf-publish-confirm">
 					<p>
 						Publishing puts this on the <strong>public map</strong>. Anyone can read it without
@@ -1070,6 +1102,7 @@
 	}
 	.notice,
 	.warn,
+	.grant-note,
 	.publish-confirm,
 	.retry {
 		margin: 0;

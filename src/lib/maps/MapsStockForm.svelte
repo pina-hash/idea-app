@@ -18,6 +18,7 @@
 	} from './maps';
 	import { mapsSaveObject, type MapsTransports } from './transports';
 	import MapsPublishPanel from './MapsPublishPanel.svelte';
+	import { MAPS_GRANT_REFUSAL } from './grants';
 
 	let {
 		stock,
@@ -29,7 +30,8 @@
 		onchanged,
 		onclose,
 		ondeleted,
-		registerForm
+		registerForm,
+		canEdit = true
 	}: {
 		/** null = place a type in this node. */
 		stock: MapsStock | null;
@@ -44,7 +46,12 @@
 		/** Handed up: this form unmounts with the row, so the note lands on the node detail. */
 		ondeleted: (message: string) => void;
 		registerForm: (key: string, handle: MapsFormHandle | null) => void;
+		/** False for a granted editor outside their subtree, or on a public row. */
+		canEdit?: boolean;
 	} = $props();
+
+	/** Only an admin publishes (0172). Absence removes the control. */
+	const canPublish = $derived(transports.publish !== undefined);
 
 	/* One-time seed; the shell remounts this form (keyed) per selection. */
 	const { formKey, base } = untrack(() => ({
@@ -207,25 +214,32 @@
 	{/if}
 
 	<div class="actions">
-		<button
-			type="button"
-			class="btn"
-			aria-disabled={problems.length > 0}
-			onclick={() => doSave(false)}
-		>
-			{stock === null ? 'Create draft' : stock.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
-		</button>
-		<button
-			type="button"
-			class="btn secondary"
-			aria-disabled={problems.length > 0}
-			onclick={() => doSave(true)}
-		>
-			{stock === null ? 'Create & publish' : 'Save & publish'}
-		</button>
+		{#if canEdit}
+			<button
+				type="button"
+				class="btn"
+				aria-disabled={problems.length > 0}
+				onclick={() => doSave(false)}
+			>
+				{stock === null ? 'Create draft' : stock.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
+			</button>
+			{#if canPublish}
+				<button
+					type="button"
+					class="btn secondary"
+					aria-disabled={problems.length > 0}
+					onclick={() => doSave(true)}
+				>
+					{stock === null ? 'Create & publish' : 'Save & publish'}
+				</button>
+			{/if}
+		{/if}
 		<button type="button" class="btn secondary" onclick={onclose}>Close</button>
 		<SaveIndicator state={save} />
 	</div>
+	{#if !canEdit}
+		<p class="grant-note" data-testid="maps-readonly-note">{MAPS_GRANT_REFUSAL}</p>
+	{/if}
 
 	{#if stock}
 		<MapsPublishPanel
@@ -234,11 +248,13 @@
 			publishedAt={stock.published_at}
 			busy={actionBusy}
 			problem={actionProblem}
-			onpublish={() => doSave(true)}
+			onpublish={canPublish ? () => doSave(true) : null}
 			ondiscard={pending ? discardPending : null}
 		/>
 		<div class="danger">
-			{#if !deleteArmed}
+			{#if !canEdit}
+				<p class="grant-note">Deleting this is a site admin.</p>
+			{:else if !deleteArmed}
 				<button type="button" class="btn secondary" onclick={() => (deleteArmed = true)}>
 					Delete placement&hellip;
 				</button>
@@ -262,6 +278,15 @@
 </div>
 
 <style>
+	.grant-note {
+		margin: 0;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control, 6px);
+		background: var(--bg2);
+		font-size: 0.85rem;
+		color: var(--text-2, var(--white));
+	}
 	.stock-form {
 		display: flex;
 		flex-direction: column;

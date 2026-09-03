@@ -53,6 +53,7 @@
 	} from './maps';
 	import { mapsSaveObject, type MapsTransports } from './transports';
 	import MapsPublishPanel from './MapsPublishPanel.svelte';
+	import { MAPS_GRANT_REFUSAL, type MapsCaps } from './grants';
 	import MapsStatusChip from './MapsStatusChip.svelte';
 	import MapsItemForm from './MapsItemForm.svelte';
 	import MapsStockForm from './MapsStockForm.svelte';
@@ -69,7 +70,8 @@
 		onselectnode,
 		onaddchild,
 		ondeleted,
-		registerForm
+		registerForm,
+		caps
 	}: {
 		/** null = create a new node under `parentId`. */
 		node: MapsNode | null;
@@ -87,7 +89,19 @@
 		 */
 		ondeleted: (message: string) => void;
 		registerForm: (key: string, handle: MapsFormHandle | null) => void;
+		/** What the viewer may do. The editor resolves it once and hands it down. */
+		caps: MapsCaps;
 	} = $props();
+
+	/* THE THREE THINGS A GRANTED EDITOR MAY NOT DO, each read from the one
+	   resolved caps object rather than re-derived here: change something
+	   outside what they hold, change something already public, and publish.
+	   0172 is the boundary -- these decide only whether a control that would
+	   be refused is offered at all. */
+	const canEditThis = $derived(
+		node === null ? caps.canAddChild(parentId) : caps.canEditNode(node)
+	);
+	const canPublish = $derived(transports.publish !== undefined);
 
 	/* The one-time seed: this form edits a SNAPSHOT of what it opened on (the
 	   staged pending edit when one exists, else the row), and the shell
@@ -423,7 +437,8 @@
 	});
 
 	async function publishSubtree() {
-		if (!node || subtreePlan.length === 0) return;
+		const publishOne = transports.publish;
+		if (!node || subtreePlan.length === 0 || !publishOne) return;
 		subtreeBusy = true;
 		subtreeReport = null;
 		try {
@@ -434,7 +449,7 @@
 			let succeeded = 0;
 			const plan = subtreePlan;
 			for (const step of plan) {
-				const result = await transports.publish(step.table, step.id);
+				const result = await publishOne(step.table, step.id);
 				if (result.ok) succeeded += 1;
 				else failures.push({ label: step.label, message: result.message });
 			}
@@ -646,14 +661,21 @@
 	{/if}
 
 	<div class="actions">
-		<button type="button" class="btn" aria-disabled={problems.length > 0} onclick={() => doSave(false)}>
-			{node === null ? 'Create draft' : node.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
-		</button>
-		<button type="button" class="btn secondary" aria-disabled={problems.length > 0} onclick={() => doSave(true)}>
-			{node === null ? 'Create & publish' : 'Save & publish'}
-		</button>
+		{#if canEditThis}
+			<button type="button" class="btn" aria-disabled={problems.length > 0} onclick={() => doSave(false)}>
+				{node === null ? 'Create draft' : node.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
+			</button>
+			{#if canPublish}
+				<button type="button" class="btn secondary" aria-disabled={problems.length > 0} onclick={() => doSave(true)}>
+					{node === null ? 'Create & publish' : 'Save & publish'}
+				</button>
+			{/if}
+		{/if}
 		<SaveIndicator state={save} />
 	</div>
+	{#if !canEditThis}
+		<p class="grant-note" data-testid="maps-readonly-note">{MAPS_GRANT_REFUSAL}</p>
+	{/if}
 
 	{#if node}
 		<MapsPublishPanel
@@ -662,11 +684,11 @@
 			publishedAt={node.published_at}
 			busy={actionBusy}
 			problem={actionProblem}
-			onpublish={() => doSave(true)}
+			onpublish={canPublish ? () => doSave(true) : null}
 			ondiscard={pending ? discardPending : null}
 		/>
 
-		{#if subtreePlan.length > 0}
+		{#if canPublish && subtreePlan.length > 0}
 			<section class="subtree" data-testid="maps-subtree-publish">
 				<h3>Publish this subtree</h3>
 				{#if !subtreeArmed}
@@ -713,17 +735,19 @@
 			</div>
 		{/if}
 
-		<section class="add-child" data-testid="maps-add-child">
-			<h3>Add inside this {MAPS_KIND_LABELS[node.kind].toLowerCase()}</h3>
-			<p class="hint">{mapsNestingSentence(node.kind)}</p>
-			<div class="confirm-row">
-				{#each mapsAllowedChildKinds(node.kind) as k (k)}
-					<button type="button" class="btn secondary" onclick={() => onaddchild(node.id, k)}>
-						Add {MAPS_KIND_LABELS[k].toLowerCase()}
-					</button>
-				{/each}
-			</div>
-		</section>
+		{#if caps.canEditAt(node.id)}
+			<section class="add-child" data-testid="maps-add-child">
+				<h3>Add inside this {MAPS_KIND_LABELS[node.kind].toLowerCase()}</h3>
+				<p class="hint">{mapsNestingSentence(node.kind)}</p>
+				<div class="confirm-row">
+					{#each mapsAllowedChildKinds(node.kind) as k (k)}
+						<button type="button" class="btn secondary" onclick={() => onaddchild(node.id, k)}>
+							Add {MAPS_KIND_LABELS[k].toLowerCase()}
+						</button>
+					{/each}
+				</div>
+			</section>
+		{/if}
 
 		<section class="contents" data-testid="maps-node-contents">
 			{#if contentsNotice}
@@ -748,6 +772,7 @@
 									onclose={() => (openContent = null)}
 									ondeleted={(m) => (contentsNotice = m)}
 									{registerForm}
+									canEdit={caps.canEditContent(node.id, item.status)}
 								/>
 							{/key}
 						{:else}
@@ -779,11 +804,12 @@
 							onclose={() => (openContent = null)}
 							ondeleted={(m) => (contentsNotice = m)}
 							{registerForm}
+							canEdit={caps.canEditAt(node.id)}
 						/>
 					</li>
 				{/if}
 			</ul>
-			{#if openContent !== 'new-item'}
+			{#if caps.canEditAt(node.id) && openContent !== 'new-item'}
 				<button type="button" class="btn secondary" onclick={() => (openContent = 'new-item')}>
 					Add unique item
 				</button>
@@ -803,6 +829,7 @@
 									nodeId={node.id}
 									itemTypes={data.itemTypes}
 									{nodeStock}
+									canEdit={caps.canEditContent(node.id, s.status)}
 									pending={pendingFor(data.pending, 'maps_stock', s.id)}
 									{transports}
 									{onchanged}
@@ -844,11 +871,12 @@
 							onclose={() => (openContent = null)}
 							ondeleted={(m) => (contentsNotice = m)}
 							{registerForm}
+							canEdit={caps.canEditAt(node.id)}
 						/>
 					</li>
 				{/if}
 			</ul>
-			{#if openContent !== 'new-stock'}
+			{#if caps.canEditAt(node.id) && openContent !== 'new-stock'}
 				<button type="button" class="btn secondary" onclick={() => (openContent = 'new-stock')}>
 					Add stock placement
 				</button>
@@ -857,7 +885,13 @@
 
 		<section class="danger" data-testid="maps-node-delete">
 			<h3>Delete</h3>
-			{#if !deletable}
+			{#if !canEditThis}
+				<p class="hint">
+					{node.status === 'published'
+						? 'This is on the public map. Deleting it is a site admin.'
+						: 'This container is outside what you have been given. Deleting it is a site admin.'}
+				</p>
+			{:else if !deletable}
 				<p class="hint">
 					This container cannot be deleted while things live in it:
 					{childCount} child container{childCount === 1 ? '' : 's'}, {nodeItems.length}
@@ -890,6 +924,15 @@
 </div>
 
 <style>
+	.grant-note {
+		margin: 0;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control, 6px);
+		background: var(--bg2);
+		font-size: 0.85rem;
+		color: var(--text-2, var(--white));
+	}
 	.node-detail {
 		display: flex;
 		flex-direction: column;
