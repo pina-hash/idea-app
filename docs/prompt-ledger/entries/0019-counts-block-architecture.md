@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tools/browser-verify/readme-counts.mjs`, `tools/browser-verify/README.md`, `tests/derived-numbers.test.ts`, the scripts block in `package.json`, `.github/workflows/ci.yml` and `integrate.yml` if the chosen design needs them, `docs/prompt-ledger/entries/0019-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0174
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/counts-block-serialization-dys0yu`, branched from `origin/main` at `5d79b6f`.
 - Notes: On 2026-09-03 five finished, CI-green branches all failed to merge,
   every one of them on `tools/browser-verify/README.md`. Each had regenerated
   the counts block against its own tree, each wrote different numbers into
