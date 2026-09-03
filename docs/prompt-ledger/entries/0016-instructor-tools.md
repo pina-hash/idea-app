@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/classroom/PeoplePanel.svelte`, `HallPass.svelte`, `InstructorCopy.svelte`, `roster-export.ts` (new), `picker.ts` (new), `src/routes/classroom/people/**`, `supabase/migrations/0174_*.sql` (conditional), `src/routes/dev/instructor-tools/**`, `tests/classroom-roster-*`, `tests/classroom-picker*`, `tests/classroom-hall-pass*`, `tests/db/classroom-hall-pass*`, `tools/browser-verify/routes/instructor-tools*.mjs`, the generated counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0016-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, 0174, only for the hall pass. 0171 taken, 0172 reserved for 0013, 0173 for 0015. Highest on origin/main at issue: 0171
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/classroom-instructor-tools-040i06`
 - Notes: Four instructor reports on the roster and hall-pass surfaces.
 
   "Students can spam bathroom pass" is the one with a real cost.
