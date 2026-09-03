@@ -280,6 +280,18 @@
 	}
 	.field input,
 	.field select {
+		/* A SELECT'S INTRINSIC WIDTH IS ITS LONGEST OPTION, and the longest
+		   option here is a full containment path ("IDEA Building / Machine
+		   Shop / Tool Chest A / Drawer 1"). Measured at 375px that pushed the
+		   page 50.4px wider than the viewport -- `min-width: 0` on the flex
+		   PARENT does nothing, because the automatic minimum being overridden
+		   has to be the SELECT's own. The path is what makes a grant readable
+		   (see the header), so the fix is to let the control clip rather than
+		   to shorten the label. */
+		min-width: 0;
+		max-width: 100%;
+		width: 100%;
+		box-sizing: border-box;
 		min-height: 44px;
 		padding: 0.4rem 0.6rem;
 		border: 1px solid var(--boundary);

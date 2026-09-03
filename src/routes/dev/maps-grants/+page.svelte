@@ -36,7 +36,10 @@
 	const granteeScope: MapsEditorScope = mapsGranteeScope();
 
 	const SELECTIONS: Record<string, MapsSelection> = {
-		granted: { kind: 'node', id: FIX.toolChest },
+		/* Drawer 2: a DRAFT container INSIDE the grant -- the state a granted
+		   editor actually works in, and the one where the publish panel keeps
+		   its sentence and loses its control. */
+		granted: { kind: 'node', id: FIX.drawer2 },
 		outside: { kind: 'node', id: FIX.millRoom },
 		published: { kind: 'node', id: FIX.drawer1 },
 		type: { kind: 'type', id: FIX.bladeType }
