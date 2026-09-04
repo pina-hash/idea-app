@@ -48,6 +48,37 @@ export interface PasteLikeEvent {
 	preventDefault(): void;
 }
 
+/**
+ * WHICH HANDLER OWNS A PASTE, when more than one is listening on the way up.
+ *
+ * A `paste` event BUBBLES, and `preventDefault()` does not stop it, so every
+ * ancestor handler sees the same event after the one closest to the caret has
+ * already dealt with it. That is not hypothetical: the classroom composer
+ * carries its own `onpaste` on the whole form -- so a screenshot pasted into
+ * the title field or the body editor still reaches a file list -- and it mounts
+ * FileUploadPanel twice INSIDE that form, each panel carrying `dropTarget`.
+ * One screenshot pasted into the instructor-only panel was therefore staged
+ * TWICE: once where it was aimed, and once on the student-facing list, which
+ * the whole class may read.
+ *
+ * `claimPaste` is the one statement of "has something closer already taken
+ * this". The first handler to ask gets `true` and owns the event; every
+ * handler above it gets `false` and must do nothing at all -- not stage, and
+ * not `preventDefault` either, since the owner has already made that call.
+ *
+ * A WeakSet rather than a flag written onto the event: nothing is added to a
+ * real `ClipboardEvent`'s shape, the entry cannot outlive the event, and a
+ * caller cannot mark an event as claimed without also finding out whether it
+ * already was -- which a separate mark/check pair would let it do.
+ */
+const claimed = new WeakSet<object>();
+
+export function claimPaste(e: object): boolean {
+	if (claimed.has(e)) return false;
+	claimed.add(e);
+	return true;
+}
+
 export interface FileDropCallbacks {
 	/** Files a drop or an image paste produced. Never called with an empty list. */
 	onfiles: (files: File[]) => void;
@@ -137,7 +168,13 @@ export function createDropController(opts: FileDropCallbacks) {
 		paste(e: PasteLikeEvent) {
 			if (opts.disabled) return;
 			const files = filesFromClipboard(e);
+			// Nothing to intercept: a plain-text paste falls straight through
+			// with no `preventDefault`, so ordinary typing is untouched. This
+			// stays AHEAD of the claim, or a text paste would be claimed by the
+			// first surface it crossed and every surface above it would then
+			// stand down over an event none of them was going to act on.
 			if (!files.length) return;
+			if (!claimPaste(e)) return;
 			e.preventDefault();
 			opts.onfiles(files);
 		}
