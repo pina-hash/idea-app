@@ -39,6 +39,14 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+	buildSql,
+	exitFor,
+	EXIT,
+	redact,
+	toCatalogOnly,
+	verdicts
+} from '../tools/deploy-probe.mjs';
 
 const DIR = fileURLToPath(new URL('../.github/workflows/', import.meta.url));
 const FILES = readdirSync(DIR)
@@ -383,7 +391,8 @@ const DELETE_REFSPEC = /(?:^|\s)['"]?:refs\/heads\/\S/;
 const CUTTABLE_GATES = [
 	{ fn: 'ledger_gate', marker: 'ledger_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: null },
-	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null }
+	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null },
+	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' }
 ] as const;
 
 /**
@@ -816,27 +825,343 @@ describe('the invariants these particular workflows have to hold', () => {
 		expect(listed).toContain(nameOf(file!));
 	});
 
-	it('deploy.yml is workflow_dispatch ONLY and requires its typed confirmation', () => {
-		// Dispatch-only is the judgement `integrate.yml`'s header exists to
-		// preserve: migrations here are applied BY HAND, CI cannot see
-		// production's catalog, and a scheduled merge would ship an RPC call to
-		// a function the database does not have yet.
-		expect(triggersOf('deploy.yml')).toEqual(['workflow_dispatch']);
+	it('deploy.yml is scheduled AND dispatchable, and the typed phrase still agrees with itself', () => {
+		// IT WAS DISPATCH-ONLY, AND WHAT MADE IT SO IS GONE. The judgement
+		// `integrate.yml`'s header exists to preserve is that migrations here
+		// are applied BY HAND and CI could not see production's catalog. A
+		// workflow can see it now (`tools/deploy-probe.mjs`), so the schedule
+		// is what decision 0010 said would unblock it. Both triggers, sorted,
+		// and nothing else -- a `push:` here would deploy on every commit.
+		expect([...triggersOf('deploy.yml')].sort()).toEqual(['schedule', 'workflow_dispatch']);
 
 		const s = src('deploy.yml');
-		expect(s, 'deploy.yml has no required confirm input').toMatch(
-			/confirm:[\s\S]{0,300}?required:[ ]+true/
+
+		// THE CONFIRMATION IS NO LONGER REQUIRED, and that is the point rather
+		// than a relaxation: an empty field means "let the probe answer", which
+		// is the ordinary path, and a scheduled run has nobody to type it. It
+		// is still what carries a run the probe cannot speak for.
+		expect(s, 'the confirm input is required again, which a schedule cannot satisfy').toMatch(
+			/confirm:[\s\S]{0,400}?required:[ ]+false/
 		);
 
 		// AND THE TWO SPELLINGS OF THE PHRASE AGREE. The input's `description:`
 		// is what the person reads and types; `EXPECTED` in the guard script is
 		// what the job compares against. Drift between them is a deploy button
 		// that refuses everyone who does exactly what the form asked.
-		const asked = /description:[ ]*'Type exactly:[ ]*(.+?)'/.exec(s)?.[1];
+		const asked = /description:[ ]*'[^']*?Type exactly:[ ]*(.+?)'/.exec(s)?.[1];
 		const expected = /EXPECTED='([^']+)'/.exec(s)?.[1];
 		expect(asked, 'deploy.yml does not tell the person what to type').toBeTruthy();
 		expect(expected, 'deploy.yml compares against no expected phrase').toBeTruthy();
 		expect(asked).toBe(expected);
+	});
+
+	it('the deploy runs on THREE gates, and each is a separate needs', () => {
+		// ALL THREE OR IT DOES NOT RUN: `main` contained in `integration` and
+		// something to deploy (guard), production's applied set (migrations),
+		// and CI green on that exact sha (checks). Each is a JOB, so a failure
+		// or a skip in any of them takes the deploy with it -- which is the
+		// mechanism, not the `if` below.
+		// SCOPED TO THE `jobs:` BLOCK. Read off the whole file, `schedule:` and
+		// `workflow_dispatch:` under `on:` sit at the same indent and arrive as
+		// two extra "jobs".
+		const s = topLevelBlock('deploy.yml', 'jobs');
+		// SPLIT ON THE JOB KEYS RATHER THAN WITH A LOOKAHEAD. `\\Z` is not a
+		// JavaScript escape -- it is the letter Z -- so a "to the next job or
+		// the end" regex silently cannot match the LAST job in the file, which
+		// here is the one that deploys.
+		const jobLines = s.split('\n');
+		const jobs = new Map<string, string>();
+		let current: string | null = null;
+		for (const l of jobLines) {
+			const m = /^  ([a-z][a-z_-]*):$/.exec(l);
+			if (m) {
+				current = m[1];
+				jobs.set(current, '');
+				continue;
+			}
+			if (current) jobs.set(current, `${jobs.get(current)}${l}\n`);
+		}
+		const job = (name: string) => {
+			expect(jobs.has(name), `deploy.yml has no ${name} job`).toBe(true);
+			return jobs.get(name) as string;
+		};
+		const jobNames = [...jobs.keys()];
+		expect(jobNames.sort()).toEqual(['checks', 'deploy', 'guard', 'migrations']);
+
+		expect(job('deploy')).toMatch(/needs:[ ]*\[guard, migrations, checks\]/);
+		expect(job('checks')).toMatch(/needs:[ ]*\[guard, migrations\]/);
+
+		// AND THE ONE OUTCOME THAT IS A STOP RATHER THAN A FAILURE HAS TO BE
+		// READ. A scheduled run the probe cannot speak for exits 0, because a
+		// red mark every night is a red mark nobody reads -- so `migrations`
+		// succeeding is NOT on its own permission to deploy, and both
+		// downstream jobs ask its flag.
+		expect(job('checks')).toContain("needs.migrations.outputs.go == 'yes'");
+		expect(job('deploy')).toContain("needs.migrations.outputs.go == 'yes'");
+		expect(job('migrations')).toMatch(/go:[ ]*\$\{\{[ ]*steps\.probe\.outputs\.go[ ]*\}\}/);
+	});
+
+	it('a NOT-APPLIED migration is refused whatever was typed and whatever the trigger', () => {
+		// THE ONE THING NO PERSON MAY OVERRIDE. Probe status 2 is a
+		// machine-read fact about production: the code about to go live calls
+		// something the database does not have. The typed confirmation carries
+		// statuses 1 and 3, where the machine is SILENT; it must never appear
+		// in the branch that handles 2.
+		// BY THE THING ONLY THE PROBE STEP HAS. `deploy-probe.mjs` also appears
+		// in the guard's own prose, and matching on the name picked that block
+		// instead -- which then had no case arm and read as a missing one.
+		const step = runBlocks('deploy.yml').find((b) => b.body.includes('case "$PROBE"'));
+		expect(step, 'no deploy.yml step runs the probe').toBeTruthy();
+		const body = step!.body;
+
+		// The `2)` arm, from its label to the `;;` that closes it.
+		const arm = /\n\s+2\)\n([\s\S]*?)\n\s+;;/.exec(body)?.[1];
+		expect(arm, 'deploy.yml has no case arm for probe status 2').toBeTruthy();
+		expect(arm, 'the NOT-APPLIED arm reads the typed confirmation').not.toMatch(/CONFIRMED/);
+		expect(arm, 'the NOT-APPLIED arm lets the deploy proceed').not.toMatch(/go=yes/);
+		expect(arm, 'the NOT-APPLIED arm does not fail the job').toMatch(/exit 1/);
+
+		// AND IT HANDS BACK THE SQL. Applying a migration needs a write
+		// credential no workflow may hold, so the whole of what is left for a
+		// person is paste and run -- which means the summary has to carry the
+		// file, not just its number.
+		expect(arm).toMatch(/```sql/);
+		expect(arm).toMatch(/git show "\$SHA:\$p"/);
+	});
+
+	it('the probe is never read as "applied" when it could not run', () => {
+		// FAIL CLOSED. `go=yes` is written by exactly two arms: the one where
+		// every migration in range came back applied, and the one where a
+		// person typed the confirmation. Any third is a run that deployed on an
+		// unknown, and the flag defaults to `no` before the branches so a path
+		// that writes nothing cannot read as permission.
+		const step = runBlocks('deploy.yml').find((b) => b.body.includes('case "$PROBE"'));
+		expect(step, 'no deploy.yml step runs the probe').toBeTruthy();
+		const gos = (step!.body.match(/go=yes/g) ?? []).length;
+		expect(gos, 'deploy.yml writes go=yes somewhere new').toBe(2);
+		expect(step!.body, 'the default flag is not written before the branches').toMatch(
+			/echo "go=no" >> "\$GITHUB_OUTPUT"[\s\S]*case "\$PROBE"/
+		);
+
+		// THE SECRET IS PASSED AS AN ENV VAR AND IS NEVER INTERPOLATED INTO THE
+		// SCRIPT BODY. `${{ }}` pastes a value into the shell before bash sees
+		// a quote, and this one is a connection string with a password in it.
+		expect(step!.body, 'the connection string is interpolated into the script').not.toMatch(
+			/\$\{\{[^}]*DEPLOY_PROBE_URL/
+		);
+		expect(src('deploy.yml')).toMatch(
+			/DEPLOY_PROBE_URL:[ ]*\$\{\{[ ]*secrets\.DEPLOY_PROBE_URL[ ]*\}\}/
+		);
+	});
+
+	it('every probe shape the derivation can emit reads pg_catalog, never information_schema', () => {
+		// THE TRAP THAT DECIDES THE PROBE. `information_schema` is
+		// PRIVILEGE-FILTERED: a view there shows a row only when the querying
+		// role holds some privilege on the table, and the role this ships with
+		// holds nothing but CONNECT. Measured on a throwaway Postgres 16 with
+		// exactly that role: `select count(*) from information_schema.columns
+		// where table_schema = 'public'` returns **0**, the three column probes
+		// answer **false** for columns that exist, and the `pg_attribute` form
+		// answers **true** for the same three. So a deploy built on
+		// `information_schema` refuses forever, and nothing on screen says why.
+		//
+		// This is asserted against `tools/idea-status.py`'s OWN TEMPLATE rather
+		// than against a fixture somebody typed, and it is read from the source
+		// rather than run, because CI checks out shallow and that tool reads
+		// `origin/main`.
+		const status = readFileSync(
+			fileURLToPath(new URL('../tools/idea-status.py', import.meta.url)),
+			'utf8'
+		);
+
+		// EVERY EMITTED SQL FRAGMENT NAMING IT. A fragment is an f-string; the
+		// two prose mentions in that file's comments are not.
+		const emitted = status
+			.split('\n')
+			.filter((l) => /f"[^"]*information_schema/.test(l))
+			.map((l) => l.trim());
+		expect(emitted.length, 'tools/idea-status.py emits a NEW information_schema probe').toBe(1);
+
+		// Materialise the template with the literals its own `sql_lit` would
+		// produce, so what goes through the translator is the string the tool
+		// actually sends.
+		const template =
+			'exists (select 1 from information_schema.columns where table_schema = ' +
+			"'public' and table_name = 'app_feedback' and column_name = 'tried')";
+		expect(
+			emitted[0].replace(/\{sql_lit\((ts|tn|col)\)\}/g, '@'),
+			'the emitted template no longer has the shape toCatalogOnly knows'
+		).toContain('information_schema.columns where table_schema = @');
+
+		const t = toCatalogOnly(template);
+		expect(t.ok).toBe(true);
+		expect(t.ok && t.changed, 'the column probe was not translated').toBe(true);
+		expect(t.ok && t.sql).toContain('pg_catalog.pg_attribute');
+		expect(t.ok && t.sql).not.toMatch(/information_schema/);
+
+		// AND AN UNRECOGNISED SHAPE IS REFUSED, NOT REWRITTEN. A probe whose
+		// answer depends on a grant nobody made is worse than no probe, and a
+		// regex that rewrote it anyway would be guessing.
+		expect(
+			toCatalogOnly("exists (select 1 from information_schema.tables where table_name = 'x')").ok,
+			'an information_schema shape nobody taught it was rewritten anyway'
+		).toBe(false);
+
+		// A pg_catalog probe passes through untouched, which is what makes
+		// `changed` meaningful above.
+		const same = toCatalogOnly("exists (select 1 from pg_proc where proname = 'x')");
+		expect(same.ok && same.changed).toBe(false);
+	});
+
+	it('the probe writes nothing, and the query it sends is what says so', () => {
+		// EVERY STATEMENT IS A SELECT, and the transaction is read only on top
+		// of a role that holds nothing but CONNECT. Built through the module's
+		// own `buildSql`, so this is the query that reaches the database.
+		const sql = buildSql([
+			{
+				num: '0170',
+				file: '0170_a.sql',
+				kind: 'object',
+				object: 'column public.app_feedback.tried',
+				sql: "exists (select 1 from pg_catalog.pg_class where relname = 'app_feedback')",
+				translated: true,
+				refused: null
+			},
+			{
+				num: '0177',
+				file: '0177_b.sql',
+				kind: 'none',
+				object: 'no probe',
+				sql: null,
+				translated: false,
+				refused: null
+			}
+		]);
+		expect(sql.split('\n')[0]).toBe('set transaction read only;');
+		expect(sql).not.toMatch(/\b(insert|update|delete|drop|alter|grant|revoke|truncate|create)\b/i);
+		// A migration with NO probe contributes no row, so it can never come
+		// back `true` by accident -- `verdicts` reports it as unknown instead.
+		expect((sql.match(/select \d+ as i/g) ?? []).length).toBe(1);
+	});
+
+	it('the probe never reports an unknown as applied', () => {
+		// THE FOUR EXITS ARE THE CONTRACT deploy.yml reads, and this is the
+		// only place they are asserted end to end without a database. A probe
+		// with no SQL, and a probe whose row never came back, are both
+		// `unknown` -- never `applied` -- and either one blocks.
+		const base = { file: 'x.sql', kind: 'object', translated: false, refused: null } as const;
+		const probes = [
+			{ ...base, num: '0001', object: 'function a', sql: 'exists (select 1)' },
+			{ ...base, num: '0002', object: 'function b', sql: 'exists (select 1)' },
+			{ ...base, num: '0003', object: 'no probe', sql: null }
+		];
+		// Row 1 answered, row 0 did NOT come back at all.
+		const findings = verdicts(probes, new Map([[1, true]]));
+		expect(findings.map((f) => f.state)).toEqual(['unknown', 'applied', 'unknown']);
+		expect(exitFor(findings)).toBe(EXIT.cannotConfirm);
+
+		expect(exitFor(verdicts(probes.slice(0, 2), new Map([[0, true], [1, false]])))).toBe(
+			EXIT.notApplied
+		);
+		expect(exitFor(verdicts(probes.slice(0, 2), new Map([[0, true], [1, true]])))).toBe(
+			EXIT.allApplied
+		);
+		// NOT-APPLIED OUTRANKS UNKNOWN, so a run carrying both is reported as
+		// the thing a person has to act on rather than as the thing they have
+		// to assert.
+		expect(exitFor(verdicts(probes, new Map([[0, false], [1, true]])))).toBe(EXIT.notApplied);
+	});
+
+	it('nothing the probe prints can carry the connection string', () => {
+		// libpq puts the connection string into its own error text, and this
+		// tool prints that text into a job summary a screenshot can reach.
+		const url = 'postgresql://deploy_probe:s3cr3t-pw@db.example.supabase.co:5432/postgres';
+		const out = redact(`connection to ${url} failed; password was s3cr3t-pw`, url);
+		expect(out).not.toContain(url);
+		expect(out).not.toContain('s3cr3t-pw');
+		expect(out).toContain('<connection string>');
+		expect(out).toContain('<redacted>');
+	});
+
+	it('the mechanical resolver can only ever touch two files, both named in the workflow', () => {
+		// THE ALLOWLIST IS THE WHOLE BOUNDARY. `auto_resolve` commits a merge
+		// git itself refused, so what stops it resolving somebody's writing is
+		// that it asks about EVERY unmerged path against two literals before it
+		// touches one of them. A third literal here is a decision, not an edit.
+		const gate = /# auto_resolve_marker:begin\n([\s\S]*?)# auto_resolve_marker:end/.exec(
+			src('integrate.yml')
+		)?.[1];
+		expect(gate, 'integrate.yml no longer carries the resolver between its markers').toBeTruthy();
+
+		const allowed = [...gate!.matchAll(/^\s*local (readme|updates)='([^']+)'$/gm)].map((m) => m[2]);
+		expect(allowed.sort()).toEqual(['classroom-updates.json', 'tools/browser-verify/README.md']);
+
+		// AND THE ALLOWLIST IS ASKED BEFORE ANYTHING IS TOUCHED. Asked per file
+		// as each is resolved, one path outside it would be found only after
+		// another had already been written.
+		const check = gate!.indexOf('*) return 1 ;;');
+		const firstResolve = gate!.indexOf('_counts_resolve "$path"');
+		expect(check, 'the resolver has no reject-everything-else arm').toBeGreaterThan(-1);
+		expect(check, 'a file is resolved before the allowlist is asked about all of them').toBeLessThan(
+			firstResolve
+		);
+
+		// THE COUNTS FIX IS CONFINED TO THE GENERATED REGION BY A COMPARISON,
+		// not by a marker parser. Both halves have to be there: a prose
+		// conflict above the block and a prose conflict below it are two
+		// different edits and only one of them is caught by either `cmp`.
+		expect(gate).toContain('cmp -s "$d/pre-a" "$d/pre-b" || return 1');
+		expect(gate).toContain('cmp -s "$d/post-a" "$d/post-b" || return 1');
+
+		// AND IT REGENERATES RATHER THAN PICKING A NUMBER. The merged tree's
+		// answer is neither side's, and it costs a tree read.
+		expect(gate).toContain('node tools/browser-verify/readme-counts.mjs --static');
+
+		// NOTHING LEAVES CARRYING A MARKER. `=======` is deliberately not one
+		// of the three: it is also a markdown setext underline and this runs
+		// over a markdown file.
+		expect(gate).toMatch(/grep -qE '\^\(<<<<<<< \|/);
+		expect(gate, 'the resolver checks for a bare ======= and would refuse a heading').not.toMatch(
+			/\^=======/
+		);
+	});
+
+	it('the resolver never takes a whole side of a file', () => {
+		// THE ONE THING IT MAY NOT DO. `git checkout --ours`/`--theirs`, and
+		// `git merge -X ours`/`-X theirs`, resolve by DISCARDING one side; the
+		// resolver takes the target's side only within a conflicting hunk, and
+		// only inside the generated markers, with everything git merged cleanly
+		// left merged. Swept over the whole file, because a second copy
+		// elsewhere in the step would be just as fatal.
+		const s = src('integrate.yml');
+		expect(s, 'integrate.yml resolves by taking a whole side').not.toMatch(
+			/git checkout\s+--(ours|theirs)\b/
+		);
+		expect(s, 'integrate.yml merges with a side-picking strategy option').not.toMatch(
+			/-X\s*(ours|theirs)\b/
+		);
+		expect(s).not.toMatch(/--strategy-option[= ](ours|theirs)\b/);
+		expect(s, 'integrate.yml resolves a conflict with a union merge').not.toMatch(
+			/merge-file[^\n]*--union/
+		);
+
+		// POSITIVE CONTROL: each of those spellings is caught when planted, so
+		// "no hits" is a result rather than a regex that matches nothing.
+		for (const planted of [
+			'git checkout --ours -- path',
+			'git checkout  --theirs -- path',
+			'git merge -X ours branch',
+			'git merge --strategy-option=theirs branch',
+			'git merge-file -p --union a b c'
+		]) {
+			const withIt = `${s}\n          ${planted}\n`;
+			const caught =
+				/git checkout\s+--(ours|theirs)\b/.test(withIt) ||
+				/-X\s*(ours|theirs)\b/.test(withIt) ||
+				/--strategy-option[= ](ours|theirs)\b/.test(withIt) ||
+				/merge-file[^\n]*--union/.test(withIt);
+			expect(caught, `the sweep does not catch: ${planted}`).toBe(true);
+		}
 	});
 
 	it('no workflow force-pushes, in any of the three spellings', () => {
@@ -929,7 +1254,7 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
 		// leave a shorter table that still matches itself.
-		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(3);
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(4);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
