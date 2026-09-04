@@ -269,6 +269,21 @@ probe that keeps interrupting the thing it is waiting for measures itself.
   5117 at the last integration). The one failure before the counts block was
   regenerated was `tests/derived-numbers.test.ts`, which is what that test is
   for.
+- **Re-run after merging `origin/main` (4a5dcc6, migrations 0175-0178): 250
+  files, 5241 tests, 6 failing in one file** --
+  `tests/db/classroom-hall-pass-limits.test.ts`. **It is not this branch's and
+  it is not the merge's**, and that was established rather than assumed: the
+  same six fail on `origin/main` alone in a clean worktree, AND on this
+  bundle's own base commit `5d79b6f` -- the tree that passed that file three
+  hours earlier. **What changed is the clock, not the code.** The suite ran at
+  19:00 UTC (12:00 Pacific) green and at 07:19 UTC (00:19 Pacific) red, and the
+  file under it is `0174`'s daily hall-pass cap, whose window is the
+  America/Los_Angeles calendar day. So it is a latent day-boundary defect in
+  0174 or in its test that bites in a window shortly after LA midnight, on
+  anybody's branch, and it will redden CI for whoever runs the suite then. It
+  is outside this lane's files and is left alone; it is written down here
+  because a session that quoted "6 failing" without this paragraph would look
+  like it had broken the classroom.
 - **`tools/browser-verify/README.md`'s counts block regenerated** on a clean
   tree by `npm run verify:readme`, never by hand: **86 specs over 44 routes,
   172 runs, 2390 measurements, 8 outside threshold, 416.5s**, selftest 64
