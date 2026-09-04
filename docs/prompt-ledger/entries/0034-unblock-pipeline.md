@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `.github/workflows/integrate.yml`, `.github/workflows/README.md`, `supabase/migrations/0177_*.sql` (a tombstone), `tests/workflows.test.ts`, the generated regions of `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0034-*`, its own `docs/history/` entry, and the merge of three branches.
 - Migration permitted: exactly one, 0177, a tombstone changing no schema. Highest on origin/main at issue: 0178
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness. BRANCHED FROM `origin/integration`.
 - Notes: THE DEADLOCK. `integrate.yml` merges `origin/main` into the target
   at line 416, then pushes only `if [ ${#merged[@]} -gt 0 ]` at line 494. So
