@@ -225,6 +225,183 @@
 	 * offer every control and must say "cannot tell" rather than "nothing".
 	 */
 	let withGrid = $state(true);
+
+	// -----------------------------------------------------------------------
+	// The browser-verify driver.
+	//
+	// PAINT IS NOT INTERACTIVITY, and this page is the reason the rule is
+	// written down: `waitForApp` settles on DOM stability, which the
+	// server-rendered markup satisfies before hydration has attached a single
+	// handler. So nothing here waits on a timer or on a global -- every click
+	// RETRIES AGAINST ITS OWN EFFECT (did the form open? did the confirm
+	// appear?) and reports how many attempts it took and how long it waited.
+	// A step that "failed" through twelve attempts whose clicks were all
+	// working is the other shape, and the counts are what tell them apart.
+	// -----------------------------------------------------------------------
+
+	const attempts: Record<string, { tries: number; ms: number }> = {};
+
+	function sleep(ms: number) {
+		return new Promise((r) => setTimeout(r, ms));
+	}
+
+	/** Click `selector` until `effect()` is true, or give up and say so. */
+	async function clickUntil(name: string, selector: string, effect: () => boolean, max = 40) {
+		const started = performance.now();
+		for (let i = 1; i <= max; i += 1) {
+			const el = document.querySelector<HTMLElement>(selector);
+			el?.click();
+			// A timeout, never rAF: the pane this may run in does not tick
+			// animation frames, and a driver that never resolves reads exactly
+			// like a broken page.
+			await sleep(25);
+			if (effect()) {
+				attempts[name] = { tries: i, ms: Math.round(performance.now() - started) };
+				return true;
+			}
+		}
+		attempts[name] = { tries: max, ms: Math.round(performance.now() - started) };
+		return false;
+	}
+
+	const q = (sel: string) => document.querySelector<HTMLElement>(sel);
+	const row = (id: string) => `[data-session-id="${id}"]`;
+	const text = (sel: string) => q(sel)?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+	/** Type into a bound input the way a person does, so Svelte sees it. */
+	function type(sel: string, value: string) {
+		const el = q(sel) as HTMLInputElement | null;
+		if (!el) return;
+		el.value = value;
+		el.dispatchEvent(new Event('input', { bubbles: true }));
+	}
+
+	async function openEditor(sessionId: string) {
+		return clickUntil(
+			`open-${sessionId}`,
+			`${row(sessionId)} [data-testid="session-edit"]`,
+			() => !!q('[data-testid="session-label"]')
+		);
+	}
+
+	function closeEditor() {
+		const buttons = Array.from(document.querySelectorAll<HTMLElement>('.session-form .btn'));
+		buttons.find((b) => b.textContent?.trim() === 'Cancel')?.click();
+	}
+
+	const verdicts: string[] = [];
+	function verdict(ok: boolean, label: string) {
+		verdicts.push(`${label} ${ok ? 'ok' : 'FAILED'}`);
+	}
+
+	async function drive() {
+		verdicts.length = 0;
+
+		// 1. The standing count, before anything is opened.
+		verdict(
+			text(`${row('chk-heavy')} [data-testid="session-load"]`) === '3 filed',
+			'row names what is filed'
+		);
+
+		// 2. RENAME a check-in with answers on it -> the warning, naming 3.
+		await openEditor('chk-heavy');
+		type('[data-testid="session-label"]', 'Bearing teardown (rev 2)');
+		await sleep(60);
+		const warn = text('[data-testid="edit-answers-warning"]');
+		verdict(
+			warn.includes('3 students have already filed') && warn.includes('1 excusal'),
+			'renaming with answers warns and names them'
+		);
+		verdict(
+			(q('[data-testid="session-save"]')?.textContent ?? '').trim() === 'Rename and save',
+			'the button names the rename'
+		);
+
+		// 3. RESCHEDULE the SAME check-in -> no answers warning at all.
+		type('[data-testid="session-label"]', 'Bearing teardown');
+		type('[data-testid="session-date"]', '2026-09-08');
+		await sleep(60);
+		verdict(
+			!q('[data-testid="edit-answers-warning"]') && !!q('[data-testid="edit-reschedule-note"]'),
+			'rescheduling the same check-in warns about no answers'
+		);
+		verdict(
+			(q('[data-testid="session-save"]')?.textContent ?? '').trim() === 'Reschedule',
+			'the button names the reschedule'
+		);
+		closeEditor();
+		await sleep(60);
+
+		// 4. NEGATIVE CONTROL: renaming a check-in with NOTHING filed must warn
+		//    about nothing. Without this, "the warning appeared" proves only that
+		//    it always appears.
+		await openEditor('chk-empty');
+		type('[data-testid="session-label"]', 'Gearbox assembly (rev 2)');
+		await sleep(60);
+		verdict(
+			!q('[data-testid="edit-answers-warning"]'),
+			'renaming an unanswered check-in warns about nothing'
+		);
+		closeEditor();
+		await sleep(60);
+
+		// 5. The check-in the grid does not cover: CANNOT TELL, never a zero.
+		await openEditor('chk-unseen');
+		type('[data-testid="session-label"]', 'Motor characterisation (rev 2)');
+		await sleep(60);
+		const unknown = text('[data-testid="edit-answers-warning"]');
+		verdict(
+			unknown.includes('not counted on screen right now') && !unknown.includes('0 students'),
+			'an uncovered check-in says cannot tell rather than zero'
+		);
+		closeEditor();
+		await sleep(60);
+
+		// 6. THE DELETE CONFIRM NAMES THE COUNT BEFORE IT DESTROYS ANYTHING.
+		await clickUntil(
+			'delete-heavy',
+			`${row('chk-heavy')} [data-testid="session-delete"]`,
+			() => !!q('[data-testid="delete-confirm-hint"]')
+		);
+		const confirm = text('[data-testid="delete-confirm-hint"]');
+		verdict(
+			confirm.includes('3 students have already filed'),
+			'the delete confirm names the students before the button'
+		);
+		verdict(confirm.includes('kept'), 'the delete confirm says entries are kept');
+		verdict(
+			confirm.includes('excusal') && confirm.includes('cannot be restored'),
+			'the delete confirm names the excusal it destroys'
+		);
+		q(`${row('chk-heavy')} .btn.secondary`)?.click();
+	}
+
+	if (typeof window !== 'undefined') {
+		(window as unknown as Record<string, unknown>).__ciDrive = async () => {
+			await drive();
+			return verdicts;
+		};
+		(window as unknown as Record<string, unknown>).__ciVerdicts = () => verdicts;
+		// A STRING, because the harness prints a returned string and reports an
+		// object as "nothing printable" -- and an attempt count nobody can read is
+		// not a report. This is printed rather than asserted: one try and twelve
+		// tries both pass, and the difference is what says whether the retry loop
+		// is doing work or papering over a page that never hydrated.
+		(window as unknown as Record<string, unknown>).__ciAttempts = () =>
+			Object.entries(attempts)
+				.map(([name, a]) => `${name}: ${a.tries} try/tries in ${a.ms}ms`)
+				.join(' | ');
+	}
+
+	/**
+	 * THE HYDRATION MARKER, and it is an attribute rather than a global because
+	 * the harness's `waitFor` reads the DOM. It is set from an effect, so it
+	 * cannot appear in the server-rendered markup -- which is exactly the
+	 * distinction `waitForApp` cannot make on its own.
+	 */
+	$effect(() => {
+		document.documentElement.setAttribute('data-check-in-manage-ready', '1');
+	});
 </script>
 
 <svelte:head><title>Check-in management harness</title></svelte:head>

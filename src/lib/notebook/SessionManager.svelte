@@ -526,7 +526,11 @@
 	{:else}
 		<ul class="session-list">
 			{#each ordered as session (session.id)}
-				<li class="session-row">
+				<!-- The row carries its own id so a harness can drive ONE check-in
+				     rather than the first one it finds. Every state this component has
+				     is per-check-in, so a selector that cannot name one can only ever
+				     verify the row that happens to sort first. -->
+				<li class="session-row" data-session-id={session.id}>
 					{#if editing === session.id}
 						{@render form('Edit check-in')}
 					{:else}
@@ -632,12 +636,18 @@
 										Item{linkedItem(session.id) ? ' \u2713' : ''}
 									</button>
 								{/if}
-								<button type="button" class="btn secondary" onclick={() => openEdit(session)}>
+								<button
+								type="button"
+								class="btn secondary"
+								data-testid="session-edit"
+								onclick={() => openEdit(session)}
+							>
 									Edit
 								</button>
 								<button
 									type="button"
 									class="btn secondary"
+									data-testid="session-delete"
 									onclick={() => (confirmDelete = session.id)}>Delete</button
 								>
 							{/if}
@@ -844,11 +854,17 @@
 		<div class="form-grid">
 			<label class="field">
 				<span>Unit</span>
-				<input type="number" min="0" max="1000" bind:value={unitNumber} />
+				<input
+					type="number"
+					min="0"
+					max="1000"
+					data-testid="session-unit"
+					bind:value={unitNumber}
+				/>
 			</label>
 			<label class="field">
 				<span>Date</span>
-				<input type="date" bind:value={sessionDate} />
+				<input type="date" data-testid="session-date" bind:value={sessionDate} />
 			</label>
 			<label class="field wide">
 				<span>Label</span>
@@ -856,6 +872,7 @@
 					type="text"
 					maxlength="200"
 					placeholder="Bearing teardown"
+					data-testid="session-label"
 					bind:value={sessionLabel}
 				/>
 			</label>
