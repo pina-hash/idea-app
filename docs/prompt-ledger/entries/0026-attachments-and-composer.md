@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/file-drop.ts`, `ContentComposer.svelte`, `RichTextEditor.svelte`, `ItemBody.svelte`, the item card thumbnail in `ClassroomFeed.svelte`, `src/lib/classroom/attachments.ts` (conditional), `src/routes/dev/composer-attach/**`, `tests/classroom-file-drop.test.ts`, `tests/classroom-attachment-*`, `tests/dom/composer-attach*`, `tools/browser-verify/routes/composer-attach*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0026-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0175
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/attachments-composer-rnjvk9
 - Notes: Three instructor reports on one surface.
 
   Paste to upload should work everywhere a file can be attached. It works in
