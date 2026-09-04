@@ -152,16 +152,32 @@ a drop's default is cancelled during dispatch or not at all.
   `css_unused_selector`, 1 `perf_avoid_nested_class`), re-derived after
   `svelte-kit sync` with the two `PUBLIC_SUPABASE_*` placeholders exported.
   Baseline held.
-- **Full suite on `integration` + `main` before the change: 254 files, 5327
-  tests.** The prompt quoted 253/5309 and 255/5361 from other trees; neither
-  matches this one.
+- **Full suite. On this branch: 254 files / 5327 tests before, 255 / 5353
+  after.** The prompt quoted 253/5309 and 255/5361 from other trees; neither
+  matches this one. On the `main`-bound tree carrying 0178 alone: **245 files /
+  5177 tests**, against 244 / 5166 for `main` unchanged.
+- **The `main` commit is the projection only.** `dabfc17` carries
+  `0178_classroom_doc_text_image_alt.sql`, its db test, `rich-text-doc.ts` and
+  the scoped assertion in 0176's test -- and nothing else. The branch's own
+  `ad071b1` had swept the in-progress `file-drop.ts` widening in with a
+  `git add -A`, which is harmless on the branch (the next commit adds its
+  callers and its tests) and would have put an uncalled parameter on `main`, so
+  the `main` commit was assembled from the four files rather than cherry-picked.
 - **Browser, real Chromium 141, `/dev/attach-reach` at 375px and 1440px: 26
   measurements, 0 outside threshold**, 17 verdicts true at both widths, 0px
   horizontal overflow, 0 console errors. `foundry-submit`, `composer-attach`,
   `classroom` and `classroom-images` re-run after the change: 408 measurements,
   0 outside threshold.
 - **The counts block's outside-threshold rows on `integration`: ZERO**
-  (`"outside":0,"outsideRows":[]` at sha `b1c97fa`). This bundle adds none.
+  (`"outside":0,"outsideRows":[]` at sha `b1c97fa`). Regenerated on this branch:
+  **190 runs, 2648 measurements, 0 outside threshold**, 70 `--selftest` controls
+  with 0 instrument failures -- two runs and 26 measurements more than the last
+  reading, all of them the new spec, and the list is still empty.
+- **No `classroom-updates.json` entry.** The two classroom surfaces this bundle
+  touches are instructor tools (a roster import and a spec import), and the
+  projection change has no student-visible effect yet because nothing in `src/`
+  can produce an image block. A change to what a class SEES always earns an
+  entry; this is not one.
 
 ## The three positive controls
 

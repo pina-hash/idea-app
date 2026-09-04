@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `ContentComposer.svelte`, `RichTextEditor.svelte`, the text projection in `classroom-doc.ts`, `src/lib/rich-text-doc.ts`, `src/lib/file-drop.ts`, paste wiring in `PeoplePanel.svelte` and `SpecImporter.svelte`, drop wiring in `FoundrySubmit.svelte`, `supabase/migrations/0178_*.sql` (conditional), `src/routes/dev/attach-reach/**`, four test files, `tools/browser-verify/routes/attach-reach*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0032-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, 0178, only if proven. 0177 reserved for 0031. Highest on origin/main at issue: 0176
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/attachment-picker-paste-image-gptgo3` (0178 landed straight to `main` as `dabfc17`)
 - Notes: Three loose ends, all from bundles that reported them rather than
   widening their own scope.
 
