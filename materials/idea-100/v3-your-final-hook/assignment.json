@@ -1,0 +1,236 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "V3 - Your Final Hook",
+    "course": "IDEA100",
+    "dueDate": "2026-09-04",
+    "totalPoints": 20,
+    "assignmentId": "idea100-hook-v3",
+    "buildVersion": "v6",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "printing",
+      "intro": "This is the only part of today that cannot be done later.",
+      "title": "Get It Printing",
+      "aiNote": "Ask the assistant anything about SolidWorks or Bambu Studio today.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Your hook has to be on a printer by **4:30 today**. After that there is no more printing, and a hook that never gets printed is not in the tournament.\n\n**If you cannot be here after school, hand Mr. Pina your file before you leave.** He will start it for you. It still has to reach him by 4:30.\n\n### Check these five things before you slice\n\nMeasure them in SolidWorks. Do not guess by looking.\n\n- The anchor hole is **1.000 in** across.\n- The hook opening is **1.000 in** clear, all the way out to the edge.\n- The two centers are between **2.000 in** and **2.500 in** apart.\n- The thickest part is **0.75 in** or less.\n- Bambu says it weighs **60.0 g** or less at full size.\n\nFix any that are wrong now. A hook that breaks a rule does not compete.\n\n### Then\n\nSave V3 as a new file so V2 still exists. Slice at full size, one part per plate. Take a box on the print board and slice for the nozzle on that machine's label. Start it."
+        },
+        {
+          "id": "ready-checks",
+          "type": "checklist",
+          "items": [
+            "V3 is saved as its own file and V2 still exists",
+            "Anchor hole 1.000 in, opening 1.000 in clear to the edge",
+            "Centers between 2.000 in and 2.500 in",
+            "Thickest part 0.75 in or less",
+            "Bambu mass at full size is 60.0 g or less",
+            "My name is on the print board and my hook is printing"
+          ],
+          "points": 8
+        },
+        {
+          "type": "instructions",
+          "content": "### Once your hook is printing\n\nYou are not done.\n\n1. Finish every assignment in this class.\n2. Get your notebook up to date.\n3. Then help somebody else get their hook printed.\n\nA printer sitting idle while someone is stuck costs us a hook.\n\n### The mistake that costs people their hook\n\nPeople send a STEP file thinking it is a project file. Windows hides the ending, so you cannot tell by looking.\n\n**Check it in ten seconds. Open the file in Bambu Studio.**\n\n- Plate set up, part where you left it, settings there: right file.\n- A bare model with nothing set up: that is a STEP. Wrong one.\n\nCheck a friend's file before they send it."
+        }
+      ],
+      "points": 8,
+      "rubric": [
+        {
+          "id": "printing-ready",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All six true",
+              "points": 8,
+              "descriptor": "V2 kept, all five measurements pass, and the hook is on a printer with a name on the board."
+            },
+            {
+              "label": "Proficient",
+              "short": "Legal but not printing",
+              "points": 5,
+              "descriptor": "All five measurements pass but the hook did not get onto a printer."
+            },
+            {
+              "label": "Developing",
+              "short": "One rule broken",
+              "points": 2,
+              "descriptor": "V3 exists but one of the five measurements is outside the limit, or V2 was overwritten."
+            },
+            {
+              "label": "Absent",
+              "short": "No V3",
+              "points": 0,
+              "descriptor": "No V3 file."
+            }
+          ],
+          "criterion": "V3 is a separate file, passes all five rules, and is printing"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "changes",
+      "intro": "Two sentences per answer is plenty. Short and specific beats long.",
+      "title": "What You Changed, And What You Expect",
+      "aiNote": "Ask the assistant how to build a shape. Do not ask it what to change or what will happen. You defend this at the rig.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload one picture of V3 with your change marked on it.\n\nPress **Windows + Shift + S** and drag a box around your hook. Then click in any answer box below and press **Ctrl + V**. It lands in the photo box by itself.\n\n### About the last two questions\n\nYour test hook was **half the size** of this one in every direction. You know the load it broke at. Your real hook will not break at that same load.\n\nSay what number you think it will hold and how you worked it out. **Being wrong here costs you nothing. Having no reason costs you everything.** You are being scored on your thinking, not on your accuracy."
+        },
+        {
+          "id": "v3-photo",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "what-changed",
+          "type": "textField",
+          "points": 3,
+          "prompt": "What did you change from V2, and where on the hook is it? Say what your test result made you change it.",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "id": "load-guess",
+          "type": "textField",
+          "points": 3,
+          "prompt": "How much load will your full size hook hold? Give a number, then say how you got it from your half size test.",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "id": "break-guess",
+          "type": "textField",
+          "points": 3,
+          "prompt": "Where will it break this time? Name the spot on the hook, and say why it is or is not the same spot as last time.",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, for the five rules above.\n- Your own scale test result and your own simulation.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. How much load a part carries depends on the area holding it.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 12,
+      "rubric": [
+        {
+          "id": "photo",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "V3 shown, change marked",
+              "points": 3,
+              "descriptor": "The picture is of V3 and the changed area is marked on it."
+            },
+            {
+              "label": "Developing",
+              "short": "Shown but not marked",
+              "points": 2,
+              "descriptor": "A picture is uploaded with nothing marked, or it is a picture of V2."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No picture."
+            }
+          ],
+          "criterion": "A picture of V3 with the change marked"
+        },
+        {
+          "id": "change-reason",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Change, place, cause",
+              "points": 3,
+              "descriptor": "Names the change, names where on the hook it is, and connects it to something the scale test showed."
+            },
+            {
+              "label": "Developing",
+              "short": "Change without cause",
+              "points": 2,
+              "descriptor": "Says what changed but does not connect it to the test, or does not say where on the hook."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Says what changed, where it is, and what in the test caused it"
+        },
+        {
+          "id": "load-reasoning",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Number with a method",
+              "points": 3,
+              "descriptor": "Gives a number and explains the step from half size to full size in terms of how much material is holding the load."
+            },
+            {
+              "label": "Developing",
+              "short": "Number, thin method",
+              "points": 2,
+              "descriptor": "Gives a number and some reasoning, but the reasoning is only about the hook being bigger."
+            },
+            {
+              "label": "Absent",
+              "short": "Number with no reason",
+              "points": 0,
+              "descriptor": "A number with no reasoning, or nothing written."
+            }
+          ],
+          "criterion": "Gives a load number and explains how it came from the half size test"
+        },
+        {
+          "id": "break-reasoning",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Spot named and explained",
+              "points": 3,
+              "descriptor": "Names a spot on the hook and says why it moved from last time, or why it did not despite the change."
+            },
+            {
+              "label": "Developing",
+              "short": "Spot named only",
+              "points": 2,
+              "descriptor": "Names a spot with no explanation of why it moved or stayed."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written, or no spot named."
+            }
+          ],
+          "criterion": "Names where it will break and why that did or did not move"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
