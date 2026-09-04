@@ -991,6 +991,15 @@
 				"Home",
 				"portal"
 			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "Shorter class cards on the home page, and assignments that show how close they are",
+			"body": "Your classes still sit at the top of the home page, but each card is about a third shorter, so you reach the rest of the page with a lot less scrolling. Nothing was taken away: every class still shows its code, its title, its period, who teaches it and how much it is asking of you, and the rows underneath still open the exact assignment. What went is the word Open beside every single row, which was true of all of them and told you nothing. Assignments also read differently now depending on how close the due date is. Anything overdue or due today is the heaviest, with a marker down the left edge of the row; due in the next two days is marked a little more lightly; further out in the week is left plain. The row always spells the date out in words as well, so you never have to work out what a mark means. To be clear, this only changes how loudly a date is shown. It does not change the date, and a deadline is still a deadline.",
+			"tags": [
+				"Home",
+				"Assignments"
+			]
 		}
 	]
 }
