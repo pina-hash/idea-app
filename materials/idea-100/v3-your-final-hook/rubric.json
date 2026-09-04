@@ -1,0 +1,138 @@
+[
+  {
+    "id": "printing-printing-ready",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All six true",
+        "points": 8,
+        "descriptor": "V2 kept, all five measurements pass, and the hook is on a printer with a name on the board."
+      },
+      {
+        "label": "Proficient",
+        "short": "Legal but not printing",
+        "points": 5,
+        "descriptor": "All five measurements pass but the hook did not get onto a printer."
+      },
+      {
+        "label": "Developing",
+        "short": "One rule broken",
+        "points": 2,
+        "descriptor": "V3 exists but one of the five measurements is outside the limit, or V2 was overwritten."
+      },
+      {
+        "label": "Absent",
+        "short": "No V3",
+        "points": 0,
+        "descriptor": "No V3 file."
+      }
+    ],
+    "points": 8,
+    "criterion": "Get It Printing: V3 is a separate file, passes all five rules, and is printing",
+    "incomplete": false
+  },
+  {
+    "id": "changes-photo",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "V3 shown, change marked",
+        "points": 3,
+        "descriptor": "The picture is of V3 and the changed area is marked on it."
+      },
+      {
+        "label": "Developing",
+        "short": "Shown but not marked",
+        "points": 2,
+        "descriptor": "A picture is uploaded with nothing marked, or it is a picture of V2."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No picture."
+      }
+    ],
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: A picture of V3 with the change marked",
+    "incomplete": false
+  },
+  {
+    "id": "changes-change-reason",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Change, place, cause",
+        "points": 3,
+        "descriptor": "Names the change, names where on the hook it is, and connects it to something the scale test showed."
+      },
+      {
+        "label": "Developing",
+        "short": "Change without cause",
+        "points": 2,
+        "descriptor": "Says what changed but does not connect it to the test, or does not say where on the hook."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: Says what changed, where it is, and what in the test caused it",
+    "incomplete": false
+  },
+  {
+    "id": "changes-load-reasoning",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Number with a method",
+        "points": 3,
+        "descriptor": "Gives a number and explains the step from half size to full size in terms of how much material is holding the load."
+      },
+      {
+        "label": "Developing",
+        "short": "Number, thin method",
+        "points": 2,
+        "descriptor": "Gives a number and some reasoning, but the reasoning is only about the hook being bigger."
+      },
+      {
+        "label": "Absent",
+        "short": "Number with no reason",
+        "points": 0,
+        "descriptor": "A number with no reasoning, or nothing written."
+      }
+    ],
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: Gives a load number and explains how it came from the half size test",
+    "incomplete": false
+  },
+  {
+    "id": "changes-break-reasoning",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Spot named and explained",
+        "points": 3,
+        "descriptor": "Names a spot on the hook and says why it moved from last time, or why it did not despite the change."
+      },
+      {
+        "label": "Developing",
+        "short": "Spot named only",
+        "points": 2,
+        "descriptor": "Names a spot with no explanation of why it moved or stayed."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written, or no spot named."
+      }
+    ],
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: Names where it will break and why that did or did not move",
+    "incomplete": false
+  }
+]
