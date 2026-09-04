@@ -17,7 +17,7 @@
         {
           "type": "callout",
           "title": "Three things first",
-          "content": "1. You need **all 15 right** to pass. Miss one, you retake it.\n2. **No machine** until you pass and Mr. Pina clears you.\n3. Bring your **respirator** next class. Without it you are not in the shop.",
+          "content": "1. You need **all 15 right** to pass. Miss one, you retake it.\n2. **No machine** until you pass and your instructor clears you.\n3. Bring your **respirator** next class. Without it you are not in the shop.",
           "variant": "required"
         },
         {
@@ -30,11 +30,11 @@
         },
         {
           "type": "instructions",
-          "content": "### At the machine\n\n**8. Find the emergency stop before you turn it on.**\nIf you cannot stop it fast, you are not ready to start it.\n\n**9. Nothing goes into a running machine.**\nStop the machine first. Every time. That includes your hands.\n\n**10. New sound, new smell, new vibration? Stop.**\nTell Mr. Pina. Do not finish the cut first."
+          "content": "### At the machine\n\n**8. Find the emergency stop before you turn it on.**\nIf you cannot stop it fast, you are not ready to start it.\n\n**9. Never reach into a machine while it is running.**\nStop the machine first. Every time. That includes your hands, a tool, or a rag.\n\n**10. New sound, new smell, new vibration? Stop.**\nTell your instructor. Do not finish the cut first."
         },
         {
           "type": "instructions",
-          "content": "### Other people\n\n**11. Do not talk to someone mid-cut.**\nWait until they are finished.\n\n**12. See something unsafe? Say something before they start.**\nAny group, any machine. After they finish is too late to matter.\n\n**13. Horseplay near a machine: tell them to stop.**\nTell them to stop. If they do not stop, tell Mr. Pina."
+          "content": "### Other people\n\n**11. Do not talk to someone mid-cut.**\nWait until they are finished.\n\n**12. See something unsafe? Say something before they start.**\nAny group, any machine. After they finish is too late to matter.\n\n**13. Horseplay near a machine: tell them to stop.**\nTell them to stop. If they do not stop, tell your instructor."
         },
         {
           "type": "instructions",
