@@ -346,7 +346,16 @@ named `0010-*.md`, and this directory numbers its entries with two digits.
 - `tests/workflows.test.ts`: **36 of 36**. Every new assertion was mutation-checked and bites
   (widened allowlist, removed schedule, a typed confirmation allowed to override a NOT-APPLIED
   migration, the below-the-block prose confinement dropped).
-- Full suite: reported in the session's closing message.
+- `npm run check` (`svelte-kit sync && svelte-check --tsconfig ./tsconfig.json`): **2924 files,
+  0 errors, 37 warnings, 20 files with problems** -- the same numbers as the bare
+  `svelte-check` above, which is the point of running both.
+- **Full suite: 260 files, 259 passed, 1 failed; 5419 tests, 5413 passed, 6 failed**, 269.6s.
+  All six failures are in `tests/db/classroom-hall-pass-limits.test.ts` and are the
+  time-of-day failures prompt 0034 measured and proved pre-existing: the cases backdate 60 to
+  90 minutes and land on the previous America/Los_Angeles day. **The run started at 00:58
+  Pacific (07:58 UTC on 2026-09-04)**, inside the 23:00-01:00 window the prompt named. They
+  are not this bundle's -- it touches no `src/`, no migration and no database code -- and
+  nothing was done to them.
 
 ## What was NOT verified, and will not be from here
 
