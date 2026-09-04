@@ -1266,6 +1266,7 @@
 						{itemLink}
 						itemLinks={sessionItemLinks}
 						itemCandidates={sessionItemCandidates}
+						{grid}
 					/>
 				{/if}
 			</div>
