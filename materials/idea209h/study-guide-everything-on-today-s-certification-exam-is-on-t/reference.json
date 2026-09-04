@@ -34,7 +34,7 @@
         },
         {
           "type": "instructions",
-          "content": "### Other people\n\n**11. Do not talk to someone mid-cut.**\nWait until they are finished.\n\n**12. See something unsafe? Say something before they start.**\nAny group, any machine. After they finish is too late to matter.\n\n**13. Horseplay near a machine: tell them to stop.**\nTell them to stop. If they do not stop, tell your instructor."
+          "content": "### Other people\n\n**11. Do not interrupt someone who is running a machine.**\nWait until they are finished. One exception: their own partner reading them the station video. That partner is part of running the machine. Anyone else is an interruption.\n\n**12. See something unsafe? Say something before they start.**\nAny group, any machine. After they finish is too late to matter.\n\n**13. Horseplay near a machine: tell them to stop.**\nTell them to stop. If they do not stop, tell your instructor."
         },
         {
           "type": "instructions",
@@ -61,6 +61,12 @@
         {
           "type": "instructions",
           "content": "Five machines. One part on each. The five parts assemble into a shop trophy that you keep.\n\nNotes go in your engineering notebook. You will not have this page during the exam."
+        },
+        {
+          "type": "callout",
+          "title": "Phones at the machines, starting with the first rotation",
+          "content": "Each station has a training video. You watch it all the way through first, then you follow it step by step while you work. You will need a phone at the station for that, and these rules come with it.\n\n- **One person holds the phone. One person runs the machine. Never the same person.**\n- The person running the machine does not touch the phone at any point.\n- The phone stays off the machine and out of the hazard area. Never on the table, the ways, or inside the enclosure.\n- You should be able to turn your head and see it. If you have to lean, reach, or step to see it, move it.\n- Phones come out for the station video and nothing else, at any point in the block.",
+          "variant": "info"
         }
       ]
     }
