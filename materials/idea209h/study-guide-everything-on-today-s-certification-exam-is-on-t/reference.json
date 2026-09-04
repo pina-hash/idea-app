@@ -17,7 +17,7 @@
         {
           "type": "callout",
           "title": "Three things first",
-          "content": "1. You need **all 15 right** to pass. Miss one, you retake it.\n2. **No machine** until you pass and your instructor clears you.\n3. Bring your **respirator** next class. Without it you are not in the shop.",
+          "content": "1. You need **all 15 right** to pass. Miss one, you retake it.\n2. **No machine** until you pass this exam. Passing is what clears you for the shop.\n3. Bring your **respirator** next class. Without it you are not in the shop.",
           "variant": "required"
         },
         {
@@ -26,7 +26,7 @@
         },
         {
           "type": "instructions",
-          "content": "### Permission\n\n**5. No machine until you pass and get cleared.**\nWatching the station video is only half of it. Feeling ready is not the same as being cleared.\n\n**6. Never run a machine alone.**\nNo running machines in an empty shop, including open shop. Someone has to be there.\n\n**7. Not sure if it is safe? Ask first.**\nIf you are not sure whether something is safe, stop and ask. Trying it slowly is still trying it."
+          "content": "### Permission\n\n**5. No machine until you pass the safety exam.**\nPassing is what clears you for the shop. Watching a station video does not. Feeling ready is not the same as having passed.\n\n**6. Never run a machine alone.**\nNo running machines in an empty shop, including open shop. Someone has to be there.\n\n**7. Not sure if it is safe? Ask first.**\nIf you are not sure whether something is safe, stop and ask. Trying it slowly is still trying it."
         },
         {
           "type": "instructions",
