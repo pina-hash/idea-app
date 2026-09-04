@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Avatar from '$lib/Avatar.svelte';
+	import { rosterSubject } from '$lib/avatars';
 	import { tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
@@ -227,6 +229,25 @@
 	 * somebody is in.
 	 */
 	const sectionOf = $derived(sectionOfStudent(data?.roster ?? []));
+
+	/**
+	 * THE FACE FOR THE STUDENT ON SCREEN, looked up on the ROSTER rather than
+	 * carried on `StudentWork`.
+	 *
+	 * `studentWorkRows` builds each row field by field in
+	 * `$lib/classroom/assignment-spec.ts` and does not copy the avatar
+	 * columns across. Threading them through would mean widening that shape
+	 * for every caller of it -- the CSV export, the bulk plan, the outcome
+	 * tables -- to serve one heading. The roster rows are right here and are
+	 * the SAME rows those work rows were built from, so the lookup is by the
+	 * key they already share.
+	 *
+	 * Absent columns (0179 unapplied) and "chose no picture" are the same
+	 * answer: an initials tile.
+	 */
+	const avatarByEmail = $derived(
+		new Map((data?.roster ?? []).map((e) => [e.student_email, rosterSubject(e)]))
+	);
 	/** More than one class on screen: the state every section label exists for. */
 	const crossClass = $derived(!!bulk && activeSections.length > 1);
 
@@ -1432,7 +1453,22 @@
 			{#if selected}
 				<section class="work">
 					<div class="card work-head">
-						<div>
+						<div class="work-who">
+							<!-- THE STUDENT IDENTITY ROW, and the audience for the face is
+							     the audience for the name that is already here. Both
+							     grading routes refuse a student before this renders (the
+							     per-section load redirects on `classroom_manages_section`,
+							     the cross-section one 404s on an empty managed set), and
+							     underneath them `classroom_can_review_submission` gates
+							     every row RLS returns. The heading beside this avatar
+							     prints the student's display name and the line under it
+							     prints their address. -->
+							<Avatar
+								subject={avatarByEmail.get(selected.email) ?? null}
+								tintKey={selected.email}
+								size={40}
+							/>
+							<div class="work-ident">
 							<h2 class="work-name">{selected.displayName}</h2>
 							<p class="work-meta">
 								{selected.email}
@@ -1459,6 +1495,7 @@
 									{stamp(selectedChange.at)}. Grading again clears this.
 								</p>
 							{/if}
+							</div>
 						</div>
 						<button type="button" class="btn secondary tiny" onclick={() => requestSelect(null)}>
 							Close
@@ -2581,6 +2618,21 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		gap: 0.6rem;
+	}
+	/* THE AVATAR AND THE NAME ARE ONE ROW, and the name is the half that
+	   gives. `align-items: start` rather than centre because the block beside
+	   the picture is three lines deep on a graded submission and centring it
+	   would float the face against the middle of a paragraph. `min-width: 0`
+	   on the text column is what lets a long name wrap instead of forcing the
+	   card wider (CLAUDE.md's min-width rule); the avatar's own
+	   `flex-shrink: 0` is what stops it being the thing that gives. */
+	.work-who {
+		display: flex;
+		align-items: start;
+		gap: 0.65rem;
+	}
+	.work-ident {
+		min-width: 0;
 	}
 	.work-name {
 		margin: 0;

@@ -1017,6 +1017,15 @@
 				"fix",
 				"portal"
 			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "Your teacher sees your profile picture beside your name on the class roster",
+			"body": "If you have set a profile picture, or your school Google account has one, it now shows next to your name on the class list and on the page your teacher uses to grade your work. Only the teacher of your class, and site admins, can see those pages, which is the same set of people who could already see your name and school email there. Nobody else sees anything new, and nothing about this is visible to other students. If you have not set a picture you get a circle with your initials in it, which is normal and is what most people will see. You can change or remove your picture any time from the profile menu in the top corner of any page.",
+			"tags": [
+				"classroom",
+				"profile"
+			]
 		}
 	]
 }
