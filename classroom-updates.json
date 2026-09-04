@@ -1000,6 +1000,14 @@
 				"Home",
 				"Assignments"
 			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "A screenshot your teacher pastes goes to one place now, not two",
+			"body": "When a teacher writes a post or an assignment they can paste a screenshot straight in, and it becomes a file on the item. That paste was going to two lists at once: the file you can see, and the teacher's own private list. So a picture meant only for your teacher could turn up on the item for the whole class, and a picture meant for you could be attached twice. Both are fixed. A pasted picture now lands in exactly the list it was aimed at. Nothing you do changes, and no file you already have has moved or gone away.",
+			"tags": [
+				"classroom"
+			]
 		}
 	]
 }

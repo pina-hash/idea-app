@@ -94,7 +94,7 @@ appearing in those diffs at all.
 | Route/width runs the report carried | 176 |
 | Measurements | 2436 |
 | Measurements outside threshold | 4 |
-| Full-run wall clock | 395.3s |
+| Full-run wall clock | 396.6s |
 | `--selftest` controls | 64 (32 negative, 32 positive), 0 instrument failure(s) |
 
 Measurements outside threshold on that run:
