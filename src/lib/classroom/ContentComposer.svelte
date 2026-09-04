@@ -47,7 +47,7 @@
 		type ClassroomItemKind,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
-	import { dropTarget, filesFromClipboard } from '$lib/file-drop';
+	import { claimPaste, dropTarget, filesFromClipboard } from '$lib/file-drop';
 
 	/**
 	 * THE content editor for every classroom item -- announcement, assignment
@@ -548,6 +548,27 @@
 		if (!attachmentsEnabled) return;
 		const images = filesFromClipboard(event);
 		if (!images.length) return;
+		// A PANEL INSIDE THIS FORM GETS THE PASTE FIRST, and this handler stands
+		// down when one did. Both FileUploadPanels are mounted INSIDE the element
+		// carrying this `onpaste`, a paste bubbles, and `preventDefault` does not
+		// stop it -- so without this, a screenshot pasted into the instructor-only
+		// panel was staged there AND here, i.e. onto the student-facing list the
+		// whole class may read, and one pasted into the student panel was staged
+		// twice over. `claimPaste` is the shared statement of that (see
+		// $lib/file-drop).
+		//
+		// ASKING IT RATHER THAN READING `event.defaultPrevented` IS DELIBERATE,
+		// and not because the flag would fail today: measured in a real browser
+		// on /dev/composer-attach, ProseMirror does NOT call `preventDefault` on
+		// an image paste -- it finds no text and no html to insert and declines
+		// the event -- so the two spellings currently agree. That is exactly what
+		// makes the flag the wrong one to key on: it would rest on a third-party
+		// library's internal choice about an event it did not want, which nothing
+		// here controls and nothing would report if it changed.
+		// `defaultPrevented` says somebody stopped the browser's default; it does
+		// not say somebody has already attached this file, and only the second
+		// question has a right answer here.
+		if (!claimPaste(event)) return;
 		event.preventDefault();
 		filePanel?.add(images);
 		pasteHint = `${images.length} pasted image${images.length === 1 ? '' : 's'} attached.`;

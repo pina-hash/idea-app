@@ -14,10 +14,20 @@
  * the counts swapped: what `/dev/coins` requires, this forbids, and the other
  * way round.
  *
- * THE 51px OVERFLOW AT 375 IS THE LEDGER'S OWN OFF-CANVAS DRAWER and is not
- * this bundle's; `coins.mjs` carries the measurement, the reasoning and a probe
- * that names the element. It reports here too because this spec is an alias of
- * the same page.
+ * THE 51px OVERFLOW AT 375 IS GONE, AND IT WAS THE LEDGER'S OWN FOURTH TAB.
+ * This paragraph has said two wrong things about it in turn: first that the
+ * cause was the off-canvas drawer (it is `position: fixed`, and a fixed subtree
+ * creates no scrollable overflow), and then that the real cause -- `.tab-bar`
+ * flexing four tabs into a 343px container with no wrap and no scroll, running
+ * "Contracts" 329.2 -> 426.3 with `body { overflow-x: hidden }` making it
+ * unreachable -- had to stay red because the file is frozen legacy. Prompt 0025
+ * was issued with the explicit, narrowly scoped rule that unfreezes exactly
+ * those two CSS rules, and fixed it: `flex-wrap: wrap` and `min-height: 44px`,
+ * measured 0px overflow at 320, 375, 414 and 1440 with all four tabs on screen
+ * and 44px tall. `coins.mjs` carries the full before-and-after measurement and
+ * the probes; this spec is an alias of the same page, so it reported the
+ * finding and now reports the fix. The rows below are unchanged: this spec's
+ * subject is the report control's signed-in branch, not the tab bar.
  *
  * `?signedIn=1` is the harness's own switch (a cookie `/dev/coins` sets from
  * the query), which is what a real session is here -- there is no Google OAuth

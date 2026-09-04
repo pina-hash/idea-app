@@ -170,16 +170,47 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
 .global-search::placeholder { color: var(--dim); }
 .global-search:focus { border-color: rgba(0,255,65,0.5); }
 
+/* THE FOURTH TAB USED TO BE OFF THE RIGHT EDGE OF A PHONE, AND NOTHING COULD
+   SCROLL TO IT. This bar was `display: flex` with no `flex-wrap` and no
+   `overflow-x`, and this page sets `body { overflow-x: hidden }` -- so the
+   overflow existed and was unreachable. Measured at 375: the row wanted 410.3px
+   in a 343px container, Contracts ran 329.2 -> 426.3, and `scrollLeft` set to
+   999 read back 0 on documentElement, on body, on window AND on `.tab-bar`
+   itself. At 320 it was two tabs, not one. In production it is worse than any
+   of those numbers: the tabs are Orbitron, which the verification harness
+   blocks, and with the real face the overflow measured 89px rather than 51px.
+
+   `flex-wrap: wrap` IS THE FIX AND A BREAKPOINT WOULD NOT HAVE BEEN. The width
+   at which four Orbitron tabs stop fitting is not a round number and is not the
+   same number in the harness as on a phone that loaded the webfont, so a
+   `max-width` rule guessing at it is a rule that is wrong on one of them.
+   Wrapping has no threshold to get wrong: the row breaks exactly when it must
+   and at 1440, where the four tabs want 410px of a 1036px bar, it never fires
+   at all. A scrollable strip was the rejected alternative -- a phone paints an
+   overlay scrollbar only while a finger is moving, so at rest the strip would
+   look complete and still be hiding a tab, which is this same defect wearing
+   different clothes. */
 .tab-bar {
-  display: flex; gap: 0; margin-top: 0; margin-bottom: 2rem;
+  display: flex; flex-wrap: wrap; gap: 0; margin-top: 0; margin-bottom: 2rem;
   border-bottom: 1px solid rgba(0,255,65,0.12);
 }
+/* 44px, AND IT IS RESTATED HERE RATHER THAN SHARED. `.tap-44` in src/app.css is
+   the portal's mechanism for this floor, and this document cannot reach it: the
+   Ledger is carried-over legacy served byte-for-byte from its own <style>, and
+   loads none of the app's stylesheets. So this is the same VALUE in a document
+   that shares no sheet, not a second implementation of a shared rule.
+   Measured before: 33.8px tall at 1440 and 39.6px at 375, both under the floor
+   on a page any student reaches without signing in. `min-height`, never
+   `height`, for the reason src/app.css gives: a floor may only ever grow the
+   box. */
 .tab-btn {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.62rem; font-weight: 600; letter-spacing: 0.15em;
   text-transform: uppercase; color: var(--dim);
   background: none; border: none; border-bottom: 2px solid transparent;
   padding: 0.65rem 1.4rem; cursor: pointer; margin-bottom: -1px;
+  min-height: 44px; display: inline-flex; align-items: center;
+  justify-content: center;
   transition: color 0.2s, border-color 0.2s;
 }
 .tab-btn:hover { color: var(--white); }

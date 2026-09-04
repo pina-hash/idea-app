@@ -1000,6 +1000,23 @@
 				"Home",
 				"Assignments"
 			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "A screenshot your teacher pastes goes to one place now, not two",
+			"body": "When a teacher writes a post or an assignment they can paste a screenshot straight in, and it becomes a file on the item. That paste was going to two lists at once: the file you can see, and the teacher's own private list. So a picture meant only for your teacher could turn up on the item for the whole class, and a picture meant for you could be attached twice. Both are fixed. A pasted picture now lands in exactly the list it was aimed at. Nothing you do changes, and no file you already have has moved or gone away.",
+			"tags": [
+				"classroom"
+			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "The Contracts tab on the coin ledger, and the profile button, are reachable on a phone",
+			"body": "Two things you could not press on a phone now work. On the IDEA Coin Ledger, the fourth tab along the top was Contracts, and on a phone it sat off the right edge of the screen with no way to scroll to it: the tabs now wrap onto a second line so all four are there, and every tab is big enough to hit with a thumb. And the profile button in the top corner of every page was a smaller target than it looked, so a tap just above or below the picture did nothing. It now takes taps from the whole area around it. Nothing moved on the page and nothing looks different.",
+			"tags": [
+				"fix",
+				"portal"
+			]
 		}
 	]
 }
