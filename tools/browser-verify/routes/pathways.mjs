@@ -52,5 +52,50 @@ export default {
 		{ selector: '.gt-stage span.pathway-chip .pw-label', label: 'chip label inside .gt-root', min: 4.5 },
 		{ selector: '.gt-stage .lb-name', label: 'leaderboard name inside .gt-root', min: 4.5 }
 	],
-	tapTargets: [{ selector: '.harness .controls button', label: 'harness controls', min: 44 }]
+	tapTargets: [
+		/*
+		   THE HARNESS'S OWN CHROME, AND IT USED TO BE THE ONLY ROW HERE.
+		   Measured 194.7x26.2 at both widths for weeks -- a standing finding every
+		   prompt had to warn the next session about, which is exactly the noise
+		   that trains a reader to skim the findings list. It was a correct
+		   measurement of something that is not a product surface: these are this
+		   dev page's two buttons and no student ever sees them. Fixed at source
+		   (`min-height: 44px` in the page's own stylesheet, with the reasoning
+		   beside it) rather than by deleting the row, so the page's chrome cannot
+		   drift back under the floor unnoticed.
+		*/
+		{ selector: '.harness .controls button', label: 'harness controls', min: 44 }
+	],
+	/*
+	   AND THE ROW THIS SPEC SHOULD HAVE CARRIED ALL ALONG: a control that SHIPS.
+	   `ProfileMenu` is mounted in `src/routes/+layout.svelte` and in roughly
+	   twenty components and routes besides, which resolves to 69 product pages --
+	   every classroom, notebook, GAUNTLET, Foundry, FRC, tournaments, maps,
+	   coin-desk and admin page, plus the portal home. Nothing in this harness had
+	   ever measured it. This page mounts the real component (see the ProfileMenu
+	   stage below), which is what made it the route that could.
+
+	   IT WAS RED AND IT WAS A REAL PRODUCT DEFECT: 44.0x34.0 here and 100.6x34.0
+	   on `/dev/profile-menu` and `/dev/home-order`, at both widths, on three
+	   independent routes. Prompt 0023 found it and did not own the fix; prompt
+	   0025 fixed it with `.tap-reach-44`, the mechanism src/app.css carries for a
+	   control whose painted box must not grow.
+
+	   SO IT MOVED FROM `tapTargets` TO `tapReach`, AND LEAVING IT ON THE BOX
+	   CHECK WOULD HAVE BEEN A PERMANENT FALSE RED. `.tap-reach-44` grows the HIT
+	   AREA and deliberately leaves the box at 34px, because this button is a flex
+	   item of a masthead row that 69 pages size around. ../checks.mjs says the
+	   same thing in its own comment above `tapReach`: pointing `tapTargets` at a
+	   reach control reports a finding on every one of them, on a surface that is
+	   actually fine.
+
+	   ITS FIVE SAMPLE POINTS ARE ALL OFFSCREEN HERE, WHICH IS WHY THE HIT TEST
+	   LIVES ON `profile-menu.mjs` INSTEAD. The ProfileMenu stage sits ~2261px
+	   down this page at 375 and ~1660px down at 1440, `elementFromPoint` answers
+	   null outside the viewport and this harness never scrolls, so `tapReach`
+	   marks them offscreen and excludes them from the stolen-tap gate -- the
+	   documented artefact, not a finding. The GEOMETRY is still measured and this
+	   row still reddens if the reach is removed, which is what it is here for.
+	*/
+	tapReach: [{ selector: '.pm-trigger', label: 'ProfileMenu trigger (ships in every page header)', min: 44 }]
 };

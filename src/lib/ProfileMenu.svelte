@@ -143,7 +143,7 @@
 {#if claims}
 	<div class="pm-root" bind:this={root}>
 		<button
-			class="pm-trigger"
+			class="pm-trigger tap-reach-44"
 			type="button"
 			aria-haspopup="menu"
 			aria-expanded={open}
@@ -255,6 +255,31 @@
 		padding: 2px;
 		cursor: pointer;
 		border-radius: 999px;
+		/* THE 44px FLOOR IS A REACH, NOT A TALLER BOX, AND THE HEADER IS WHY.
+		   Measured 44.0x34.0 on /dev/pathways and 100.6x34.0 on
+		   /dev/profile-menu and /dev/home-order, at 375 and 1440 alike: the
+		   height is `Avatar size={30}` plus this rule's 2px of padding, so it
+		   does not depend on a web font and 34px was the number on every one of
+		   the 69 product pages that render this component.
+
+		   `min-height: 44px` here would have been the smaller diff and the
+		   worse fix. This button is a flex item of a masthead row that every
+		   surface on the site sizes around -- measured 59.6px on the pathways
+		   harness, 60.6px on the profile-menu harness and 64.0px on the home
+		   header -- and a 10px taller trigger grows the row it sits in, so a
+		   tap-target finding on one control would have moved the chrome of 69
+		   pages. `.tap-reach-44` in src/app.css expands the HIT AREA with a
+		   pseudo-element instead and leaves the painted box exactly where it
+		   was; read that rule's comment before changing either half.
+
+		   `--tap-reach-w: 0px` is the documented width knob and is required
+		   here rather than optional. The reach is centred, so the default
+		   `max(100%, 44px)` would grow a 44.0px-wide trigger horizontally too
+		   and push the pseudo-element out over whatever the masthead puts
+		   beside it -- and the width was never the failing dimension in any of
+		   the six measurements. Height only, which is free: nothing is stacked
+		   within 5px above or below a control on a header row. */
+		--tap-reach-w: 0px;
 	}
 	.pm-caret {
 		font-size: 0.65rem;

@@ -28,16 +28,20 @@
  * nobody chose". A green suite is exactly what this defect has always had.
  *
  * ============================================================================
- * THIS CHECK IS RED ON THE TREE THAT SHIPPED IT, AND THAT IS THE FINDING.
+ * IT WAS RED ON THE TREE THAT SHIPPED IT. IT IS GREEN NOW, AND THAT IS THE
+ * FIX LANDING RATHER THAN THE CHECK STOPPING.
  * ============================================================================
- * The fix is four lines in `src/lib/Disclosure.svelte` (sample `collapseWhen`
- * per `storageKey` instead of tracking it), which prompt 0012 does not own --
- * and applying it also reddens 3 assertions in the two `tests/dom/` files
- * above, which it does not own either. Both the patch and the measurement
- * either side of it are in this bundle's `docs/history/` entry. When the
- * bundle that owns `Disclosure.svelte` lands that change, this check goes
- * green with nothing here to edit. `npm run verify:browser` exits 0 with
- * findings by design, so a standing finding blocks no deploy.
+ * Prompt 0012 shipped these four measurements red on purpose: it owned the
+ * spec and not `src/lib/Disclosure.svelte`. Prompt 0018 landed the fix there
+ * -- `collapseWhen` LATCHED per panel, falling and never rising -- and all
+ * four went green with nothing here edited, which is the shape a finding
+ * should have. Re-verified by this bundle rather than taken on trust: with
+ * that one line reverted to reading the signal live, the same four
+ * measurements redden again at both widths ("module=false",
+ * "focus=lost-to-body", "region=removed-332px-from-the-document",
+ * "field=hidden"), and the arrival row added below stays green.
+ * `npm run verify:browser` exits 0 with findings by design, so neither state
+ * ever blocked a deploy.
  *
  * THE ORACLE IS HERE, NOT IN THE PAGE. `/dev/classroom-interaction` renders the
  * real `ItemDetail` and reports raw DOM facts only; every judgement below is
@@ -93,7 +97,20 @@ export default {
 				const region = document.querySelector('#' + document
 					.querySelector('[data-testid="module-body"]')
 					.getAttribute('aria-controls'));
+				/* THE ARRIVAL STATE, STASHED BEFORE A CHARACTER IS TYPED. This is
+				   the oracle for the guard the fresh case cannot supply -- see
+				   the arrival row under orderResult below for the whole
+				   argument. It has to be read HERE, in the last step before the
+				   keystrokes, because every check runs after them.
+				   NO BACKTICKS IN THIS COMMENT: it lives inside a template
+				   literal, so one would close the string and the module would
+				   stop parsing (measured -- it did). */
+				const at = (id) => {
+					const el = document.querySelector('[data-testid="' + id + '"]');
+					return id + '=' + (el ? el.getAttribute('aria-expanded') : 'absent');
+				};
 				window.__ci0 = {
+					arrival: [at('module-body'), at('module-instructions'), at('item-body-disclosure')],
 					scrollY: Math.round(window.scrollY),
 					docH: Math.round(document.documentElement.scrollHeight),
 					regionH: Math.round(region.getBoundingClientRect().height),
@@ -132,6 +149,50 @@ export default {
 		}
 	],
 	orderResult: [
+		{
+			/* ============================================================
+			   THE GUARD `?case=fresh` CANNOT SUPPLY, ON THE SPEC THAT CAN.
+			   ============================================================
+			   `classroom-interaction-case-fresh.mjs` exists to refuse the
+			   cheapest wrong fix for the typing collapse -- ignoring
+			   `collapseWhen` outright -- and it CANNOT. Measured, not reasoned:
+			   with `Disclosure`'s `collapsed` forced to `false`, both browser
+			   cases came back 0 outside threshold, at both widths. The fixture
+			   is why. `?case=fresh` answers nothing, so every `collapseWhen` on
+			   that page is already false at arrival and "all three panels are
+			   open" reads the same whether a false signal was honoured or the
+			   signal was ignored. No assertion written against that page can
+			   separate them, and the file's own header claimed a guard it could
+			   not hold.
+
+			   `?case=typing` CAN, because its fixture answers one of the two
+			   constrained blocks, so the module is `started` and two panels
+			   arrive with `collapseWhen` genuinely TRUE. Measured at both
+			   widths across three states of `src/lib/Disclosure.svelte`:
+
+			     arrival on ?case=typing   module-body  instructions  item-body
+			     the fix as shipped        true         false         false
+			     collapseWhen ignored      true         TRUE          TRUE
+			     the fix reverted (live)   true         false         false
+
+			   So this row reddens on exactly the mutation the fresh case was
+			   built to refuse, and stays green on the one the typing rows below
+			   already catch -- which reddened 4 measurements and left this row
+			   untouched. Two mutations, two rows, no overlap: the pair
+			   discriminates rather than measuring one thing twice.
+
+			   IT READS THE STASH, NOT THE LIVE DOM. Every check runs after the
+			   keystrokes, and after them the fix and the mutation agree again
+			   (nothing closes an open panel under either). Arrival is the only
+			   moment they differ, so arrival is what the prepare step above
+			   records. `module-body` is carried even though it never moves: it
+			   is the positive control that says the three testids resolved at
+			   all, so an `absent` from a renamed hook reddens instead of
+			   reading as a passing absence. */
+			evaluate: `() => (window.__ci0 && window.__ci0.arrival) || ['NO ARRIVAL STASHED']`,
+			expected: ['module-body=true', 'module-instructions=false', 'item-body-disclosure=false'],
+			label: 'arrival on started work: the module open, its instructions and the item body collapsed'
+		},
 		{
 			evaluate: `() => {
 				const before = window.__ci0 || {};
