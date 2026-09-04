@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/Avatar.svelte`, `src/lib/avatars.ts` (conditional), the avatar wiring in `ProfileMenu.svelte`, `PeoplePanel.svelte`, the student identity row in `GradingConsole.svelte` and the notebook's student rows, `supabase/migrations/0179_*.sql` (conditional), `src/routes/dev/avatars/**`, `tests/avatar*`, `tests/db/avatar*`, `tools/browser-verify/routes/avatars*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0033-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, 0179, only if proven. 0177 and 0178 reserved. Highest on origin/main at issue: 0176
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: An instructor asked for profile pictures wherever a name appears. An
   `avatars` bucket already exists and `ProfileMenu` already renders one, so
