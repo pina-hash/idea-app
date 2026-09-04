@@ -132,6 +132,45 @@ export interface FileDropCallbacks {
 }
 
 /**
+ * THE `accept` ATTRIBUTE'S OWN RULE, so a surface states its format ONCE.
+ *
+ * `spec` is exactly the string the `<input accept="...">` carries -- a
+ * comma-separated list of extensions (`.csv`) and media types (`text/csv`,
+ * `image/*`). The component writes that one constant into the attribute AND
+ * hands it to `dropTarget`, so the picker and the drop are not two spellings
+ * of one rule that can come apart; they are one value read twice. That is the
+ * whole reason this lives here rather than as a predicate typed out beside
+ * each picker.
+ *
+ * THE EXTENSION IS CHECKED AS WELL AS THE TYPE, AND EITHER ALONE IS ENOUGH.
+ * `File.type` is legitimately EMPTY when the platform cannot determine a media
+ * type, and it is a GUESS the source chose when it is not -- a `.csv` exported
+ * by Excel routinely arrives as `application/vnd.ms-excel`, and a `.json`
+ * dragged off a desktop often arrives with no type at all. Keying on the type
+ * alone would refuse ordinary files; keying on the name alone would refuse a
+ * pasted blob, which has an invented name. So either match admits the file,
+ * which is also what the browser's own file picker does with the same string.
+ *
+ * AN EMPTY OR ABSENT SPEC ADMITS EVERYTHING, matching "no `accept` on a plain
+ * picker, on either side": a surface that names no format takes any file, on
+ * the picker and on the drop alike.
+ */
+export function matchesAccept(file: File, spec: string | undefined): boolean {
+	const clauses = (spec ?? '')
+		.split(',')
+		.map((c) => c.trim().toLowerCase())
+		.filter(Boolean);
+	if (clauses.length === 0) return true;
+	const name = (file.name ?? '').toLowerCase();
+	const type = (file.type ?? '').toLowerCase();
+	return clauses.some((clause) => {
+		if (clause.startsWith('.')) return name.endsWith(clause);
+		if (clause.endsWith('/*')) return type.startsWith(clause.slice(0, -1));
+		return type === clause;
+	});
+}
+
+/**
  * The `accept` split, in ONE place so a drop and a paste cannot come to
  * disagree about it. No filter means everything is taken, which is byte-identical
  * to the behaviour of every caller written before the parameter existed.
