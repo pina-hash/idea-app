@@ -7,7 +7,7 @@
     "dueDate": "2026-09-04",
     "totalPoints": 20,
     "assignmentId": "idea100-hook-v3",
-    "buildVersion": "v7",
+    "buildVersion": "v6",
     "headerFields": [
       "studentName",
       "date"
@@ -24,7 +24,7 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Your hook has to be on a printer by **4:30 today**. After that there is no more printing, and a hook that never gets printed is not in the tournament.\n\n**Upload your Bambu project file below.** Everyone does this, printed or not. It is how Mr. Pina restarts your hook if a plate fails, and how he prints it for you if you cannot be here after school.\n\n### Check these five things before you slice\n\nMeasure them in SolidWorks. Do not guess by looking.\n\n- The anchor hole is **1.000 in** across.\n- The hook opening is **1.000 in** clear, all the way out to the edge.\n- The two centers are between **2.000 in** and **2.500 in** apart.\n- The thickest part is **0.75 in** or less.\n- Bambu says it weighs **60.0 g** or less at full size.\n\nFix any that are wrong now. A hook that breaks a rule does not compete.\n\n### Then\n\nSave V3 as a new file so V2 still exists. Slice at full size, one part per plate. Take a box on the print board and slice for the nozzle on that machine's label. Start it."
+          "content": "Your hook has to be on a printer by **4:30 today**. After that there is no more printing, and a hook that never gets printed is not in the tournament.\n\n**If you cannot be here after school, hand Mr. Pina your file before you leave.** He will start it for you. It still has to reach him by 4:30.\n\n### Check these five things before you slice\n\nMeasure them in SolidWorks. Do not guess by looking.\n\n- The anchor hole is **1.000 in** across.\n- The hook opening is **1.000 in** clear, all the way out to the edge.\n- The two centers are between **2.000 in** and **2.500 in** apart.\n- The thickest part is **0.75 in** or less.\n- Bambu says it weighs **60.0 g** or less at full size.\n\nFix any that are wrong now. A hook that breaks a rule does not compete.\n\n### Then\n\nSave V3 as a new file so V2 still exists. Slice at full size, one part per plate. Take a box on the print board and slice for the nozzle on that machine's label. Start it."
         },
         {
           "id": "ready-checks",
@@ -41,19 +41,7 @@
         },
         {
           "type": "instructions",
-          "content": "### Upload your project file\n\nThe **.3mf** project file, not a STEP file. Open it in Bambu Studio first: if your plate is set up the way you left it, it is the right one."
-        },
-        {
-          "id": "project-file",
-          "type": "imageZone",
-          "points": 0,
-          "printAs": "attachZone",
-          "captions": false,
-          "minImages": 1
-        },
-        {
-          "type": "instructions",
-          "content": "### Once your hook is printing\n\nYou are not done.\n\n1. Finish every assignment in this class.\n2. Get your notebook up to date.\n3. Then help somebody else get their hook printed.\n\nA printer sitting idle while someone is stuck costs us a hook. Check a friend's upload before they hand it in."
+          "content": "### Once your hook is printing\n\nYou are not done.\n\n1. Finish every assignment in this class.\n2. Get your notebook up to date.\n3. Then help somebody else get their hook printed.\n\nA printer sitting idle while someone is stuck costs us a hook.\n\n### The mistake that costs people their hook\n\nPeople send a STEP file thinking it is a project file. Windows hides the ending, so you cannot tell by looking.\n\n**Check it in ten seconds. Open the file in Bambu Studio.**\n\n- Plate set up, part where you left it, settings there: right file.\n- A bare model with nothing set up: that is a STEP. Wrong one.\n\nCheck a friend's file before they send it."
         }
       ],
       "points": 8,
