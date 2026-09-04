@@ -1,76 +1,76 @@
 [
   {
-    "id": "test-test-done",
+    "id": "printing-printing-ready",
     "levels": [
       {
         "label": "Complete",
-        "short": "Tested and recorded",
+        "short": "All six true",
+        "points": 8,
+        "descriptor": "V2 kept, all five measurements pass, and the hook is on a printer with a name on the board."
+      },
+      {
+        "label": "Proficient",
+        "short": "Legal but not printing",
         "points": 5,
-        "descriptor": "Article pulled, load read from the score sheet, both pieces kept and the fracture photographed."
+        "descriptor": "All five measurements pass but the hook did not get onto a printer."
       },
       {
         "label": "Developing",
-        "short": "Tested, record incomplete",
-        "points": 3,
-        "descriptor": "Article was pulled but the load, the pieces or the photograph is missing."
+        "short": "One rule broken",
+        "points": 2,
+        "descriptor": "V3 exists but one of the five measurements is outside the limit, or V2 was overwritten."
       },
       {
         "label": "Absent",
-        "short": "Not tested",
+        "short": "No V3",
         "points": 0,
-        "descriptor": "No test."
+        "descriptor": "No V3 file."
       }
     ],
-    "points": 5,
-    "criterion": "The Pull: The article was tested and the result recorded from the rig",
+    "points": 8,
+    "criterion": "Get It Printing: V3 is a separate file, passes all five rules, and is printing",
     "incomplete": false
   },
   {
-    "id": "result-fracture-shown",
+    "id": "changes-photo",
     "levels": [
       {
         "label": "Complete",
-        "short": "Fracture in focus",
+        "short": "V3 shown, change marked",
         "points": 3,
-        "descriptor": "The broken face is visible and in focus and is this student's own article."
+        "descriptor": "The picture is of V3 and the changed area is marked on it."
       },
       {
         "label": "Developing",
-        "short": "Part shown, break unclear",
+        "short": "Shown but not marked",
         "points": 2,
-        "descriptor": "A photograph of the article where the fracture cannot be made out."
+        "descriptor": "A picture is uploaded with nothing marked, or it is a picture of V2."
       },
       {
         "label": "Absent",
         "short": "Nothing uploaded",
         "points": 0,
-        "descriptor": "No photograph."
+        "descriptor": "No picture."
       }
     ],
     "points": 3,
-    "criterion": "Where It Broke: Photograph of the actual fracture on this student's article",
+    "criterion": "What You Changed, And What You Expect: A picture of V3 with the change marked",
     "incomplete": false
   },
   {
-    "id": "result-break-described",
+    "id": "changes-change-reason",
     "levels": [
       {
         "label": "Complete",
-        "short": "Located and named",
-        "points": 4,
-        "descriptor": "Names the feature of the hook where it failed and says whether it fractured or deformed open."
-      },
-      {
-        "label": "Proficient",
-        "short": "Located, mode missing",
-        "points": 2,
-        "descriptor": "Says where it broke without saying how, or the reverse."
+        "short": "Change, place, cause",
+        "points": 3,
+        "descriptor": "Names the change, names where on the hook it is, and connects it to something the scale test showed."
       },
       {
         "label": "Developing",
-        "short": "Vague description",
-        "points": 1,
-        "descriptor": "Says it broke without saying where on the part."
+        "short": "Change without cause",
+        "points": 2,
+        "descriptor": "Says what changed but does not connect it to the test, or does not say where on the hook."
       },
       {
         "label": "Absent",
@@ -79,34 +79,60 @@
         "descriptor": "Nothing written."
       }
     ],
-    "points": 4,
-    "criterion": "Where It Broke: Locates the break on the part and names the failure mode",
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: Says what changed, where it is, and what in the test caused it",
     "incomplete": false
   },
   {
-    "id": "result-prediction-checked",
+    "id": "changes-load-reasoning",
     "levels": [
       {
         "label": "Complete",
-        "short": "Compared, either way",
+        "short": "Number with a method",
         "points": 3,
-        "descriptor": "States plainly whether the break matched the red spot, and where it went instead if it did not. A miss stated clearly is full marks."
+        "descriptor": "Gives a number and explains the step from half size to full size in terms of how much material is holding the load."
       },
       {
         "label": "Developing",
-        "short": "Compared, vaguely",
+        "short": "Number, thin method",
         "points": 2,
-        "descriptor": "Refers to the simulation without saying clearly whether it called the location."
+        "descriptor": "Gives a number and some reasoning, but the reasoning is only about the hook being bigger."
+      },
+      {
+        "label": "Absent",
+        "short": "Number with no reason",
+        "points": 0,
+        "descriptor": "A number with no reasoning, or nothing written."
+      }
+    ],
+    "points": 3,
+    "criterion": "What You Changed, And What You Expect: Gives a load number and explains how it came from the half size test",
+    "incomplete": false
+  },
+  {
+    "id": "changes-break-reasoning",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Spot named and explained",
+        "points": 3,
+        "descriptor": "Names a spot on the hook and says why it moved from last time, or why it did not despite the change."
+      },
+      {
+        "label": "Developing",
+        "short": "Spot named only",
+        "points": 2,
+        "descriptor": "Names a spot with no explanation of why it moved or stayed."
       },
       {
         "label": "Absent",
         "short": "No answer",
         "points": 0,
-        "descriptor": "Nothing written, or claims a match with no location given."
+        "descriptor": "Nothing written, or no spot named."
       }
     ],
     "points": 3,
-    "criterion": "Where It Broke: Compares the actual break against the simulation prediction, honestly",
+    "criterion": "What You Changed, And What You Expect: Names where it will break and why that did or did not move",
     "incomplete": false
   }
 ]
