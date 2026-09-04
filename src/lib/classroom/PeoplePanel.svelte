@@ -1,6 +1,9 @@
 <script lang="ts">
+	import Avatar from '$lib/Avatar.svelte';
+	import { rosterSubject } from '$lib/avatars';
 	import { untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import { dropTarget, matchesAccept } from '$lib/file-drop';
 	import {
 		enrollmentWorkSummary,
 		importReasonLabel,
@@ -496,13 +499,67 @@
 			: null
 	);
 
+	/**
+	 * WHAT THIS IMPORT ACCEPTS, WRITTEN ONCE.
+	 *
+	 * The same string is the `<input accept>` and the drop rule, so the picker
+	 * and the drop cannot come to disagree about what a roster file is -- which
+	 * is the whole reason `matchesAccept` takes the attribute's own spelling
+	 * rather than a predicate typed out twice.
+	 */
+	const ROSTER_ACCEPT = '.csv,text/csv';
+	/** Said out loud when a drop was refused, so nothing appears to do nothing. */
+	let dropNote = $state<string | null>(null);
+	let dropActive = $state(false);
+
+	/**
+	 * ONE FILE, READ AS TEXT INTO THE BOX BESIDE IT, whichever way it arrived.
+	 * The picker and the drop both land here, so the checked count, the error
+	 * list and the Import button behave identically for a dragged file and a
+	 * chosen one -- and the text stays editable, which is the point of the
+	 * textarea being the thing that gets filled rather than a hidden buffer.
+	 */
+	async function takeCsv(file: File) {
+		csvText = await file.text();
+		importResult = null;
+		dropNote = null;
+	}
+
 	async function readCsvFile(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
-		csvText = await file.text();
-		importResult = null;
+		await takeCsv(file);
 		input.value = '';
+	}
+
+	/**
+	 * A DROP OF A ROSTER FILE. First file only: this panel has one box and a
+	 * second file would silently replace the first.
+	 *
+	 * THERE IS NO PASTE PATH HERE AND THAT IS THE POINT, not an omission.
+	 * `filesFromClipboard` extracts `image/*` clipboard items only, and an
+	 * image is not a roster -- so `accept` refuses every file a paste on this
+	 * surface could ever produce, and `createDropController` therefore never
+	 * calls `claimPaste` for one. That matters because this panel renders
+	 * inside surfaces that DO want a pasted screenshot: claiming an event and
+	 * then refusing it is how a screenshot on its way to an upload panel gets
+	 * silently eaten. Pasting roster TEXT into the textarea below is untouched
+	 * and is the ordinary way to use this box.
+	 */
+	function droppedCsv(files: File[]) {
+		if (files.length > 0) void takeCsv(files[0]);
+		if (files.length > 1) {
+			dropNote = `Read ${files[0].name}. Drop one file at a time; the others were ignored.`;
+		}
+	}
+
+	function refusedCsv(files: File[]) {
+		const names = files.map((f) => f.name).filter(Boolean);
+		dropNote =
+			names.length === 1
+				? `${names[0]} is not a CSV. Drop a .csv file, or paste the list into the box below.`
+				: `Those ${files.length} files are not CSVs. Drop a .csv file, or paste the list into the box below.`;
 	}
 
 	async function runImport() {
@@ -528,6 +585,16 @@
 {#snippet rosterRow(e: ClassroomEnrollment)}
 	{@const status = rosterStatus(e)}
 	<div class="roster-row" class:inactive={!e.active} data-testid="roster-row">
+		<!-- THE FACE SITS BESIDE THE NAME AND IS DISCLOSED TO EXACTLY THE SAME
+		     AUDIENCE. This panel is reachable only by the teacher of record or
+		     an admin: the route 404s a student (people/+page.server.ts) and
+		     `classroom_section_roster` gates every row on
+		     `classroom_manages_section` inside its own definer, so the reader
+		     is already looking at this student's name AND address. 0179 adds
+		     `avatar`/`avatar_url` to that same read and widens nothing else.
+		     Before 0179 is applied the columns are absent and every row is an
+		     initials tile, which is also what most rows are afterwards. -->
+		<Avatar subject={rosterSubject(e)} tintKey={e.student_email} size={28} />
 		<span class="roster-name">{e.display_name || e.student_email.split('@')[0]}</span>
 		<span class="roster-email">{e.student_email}</span>
 		<span class="roster-status" data-tone={status.tone} data-testid="roster-status">
@@ -679,14 +746,26 @@
 			<button class="btn tiny" type="submit" disabled={busy} data-testid="roster-add">Add</button>
 		</form>
 
-		<details class="csv-import">
+		<details
+			class="csv-import"
+			class:csv-dragging={dropActive}
+			use:dropTarget={{
+				onfiles: droppedCsv,
+				onrejected: refusedCsv,
+				onactive: (active) => (dropActive = active),
+				accept: (f) => matchesAccept(f, ROSTER_ACCEPT)
+			}}
+		>
 			<summary>Import a list</summary>
 			<p class="note">
 				One student per line: <code>email, name</code>. A header row is fine, and extra columns are
 				ignored. Everyone lands in <strong>this class</strong> &mdash; re-running the same file
 				never duplicates anyone.
 			</p>
-			<input type="file" accept=".csv,text/csv" onchange={readCsvFile} />
+			<input type="file" accept={ROSTER_ACCEPT} onchange={readCsvFile} />
+			{#if dropNote}
+				<p class="feedback error" data-testid="roster-drop-note">{dropNote}</p>
+			{/if}
 			<textarea
 				rows="4"
 				placeholder={'alice@boscotech.net,Alice Alvarez'}
@@ -1275,6 +1354,14 @@
 	.roster-name {
 		font-weight: 700;
 		font-size: 0.9rem;
+		/* A NAME TOO LONG FOR ITS ROW WRAPS RATHER THAN PUSHING THE PICTURE.
+		   The row is `flex-wrap: wrap`, so without a min-width of 0 a long
+		   unbroken name sets the flex item's automatic minimum to its
+		   min-content and forces the row wider (CLAUDE.md's min-width rule).
+		   The avatar carries `flex-shrink: 0` and an inline min-width, so it
+		   is the NAME that gives, which is the right way round. */
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 	.roster-email {
 		font-family: var(--font-mono);
@@ -1351,6 +1438,17 @@
 		gap: 0.4rem;
 		align-items: center;
 		margin-top: var(--space-2);
+	}
+	/*
+	 * The dragover feedback is an OUTLINE, never a border: a border takes
+	 * layout space and would move every row in this panel by a pixel the moment
+	 * a file crossed it. The element already carries a dashed border of its
+	 * own, so the outline sits outside it and reads as the whole box lighting
+	 * up rather than as a second frame.
+	 */
+	.csv-import.csv-dragging {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	.csv-import {
 		margin-top: 0.7rem;

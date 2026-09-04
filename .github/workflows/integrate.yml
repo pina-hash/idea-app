@@ -400,29 +400,462 @@ jobs:
           }
           # ledger_gate_marker:end
 
+          # A BRANCH THE TARGET ALREADY CONTAINS IS DELETED NOW, AND THAT
+          # REVERSES WHAT THIS FILE USED TO SAY.
+          #
+          # The skip below used to read "it is deliberately not deleted. A
+          # branch can be contained in $TARGET because THIS system merged it, or
+          # because it was merged to `main` by hand long ago, and from here those
+          # two are indistinguishable." Both halves are true and the conclusion
+          # did not follow: the question a delete has to answer is not WHO
+          # merged it, it is whether anything would be lost, and a ref whose
+          # every commit is already reachable from a branch on the remote holds
+          # nothing that deleting the ref can take away.
+          #
+          # The cost of the old reading is measured rather than argued: every
+          # branch landed by a merge bundle became a permanent ref, ten
+          # accumulated across two rounds, and five were deleted by hand.
+          #
+          # CONTAINMENT IS TESTED AGAINST A REF THAT IS ALREADY ON THE REMOTE,
+          # never against the local HEAD, and that distinction is the whole
+          # safety argument. By the time the loop runs, HEAD is $TARGET plus
+          # origin/main plus whatever this run has merged so far, and NONE of
+          # that is pushed yet -- so a branch contained only in HEAD is a branch
+          # whose only copy could still be this runner's disk if the push is
+          # rejected. `origin/$TARGET` and `origin/main` are durable, so a
+          # branch contained in either is safe to delete whatever happens next
+          # in this job, which is also why the delete does not wait on the push
+          # the way the post-merge delete must.
+          #
+          # THREE REFS ARE NEVER DELETED WHATEVER THE CONTAINMENT ANSWER, and
+          # the loop's own `claude/*` filter is not treated as sufficient: this
+          # is the one place in the file that removes a ref nothing merged, so
+          # it names `main` (every push to which deploys ideabosco.com),
+          # `integration` and $TARGET itself explicitly, and refuses anything
+          # that is not a `claude/` branch, before it looks at containment at
+          # all.
+          #
+          # It is a FUNCTION and between markers for `ledger_gate`'s reason: it
+          # is PROVED by cutting this exact text out of this file and running it
+          # against throwaway git repositories, so no proof can drift into
+          # testing a private copy of the rule. Do not rename the markers and do
+          # not move the body out from between them.
+          #
+          # THE HARNESS THAT CUTS THESE MARKERS IS NOT IN THE REPO YET, AND THAT
+          # IS A GAP RATHER THAN A DESIGN. Fourteen assertions were executed
+          # against throwaway `mktemp -d` repositories when this landed -- a
+          # contained tip deleted, a tip only `origin/main` contains deleted, an
+          # outstanding tip left, a red branch left (by the ORDERING above, which
+          # is asserted by line number: the gate alone would say delete, and the
+          # loop never asks it), and `main`, `integration`, the target by name
+          # and a non-`claude/` branch all refused whatever the containment
+          # answer -- plus the single-delete-loop shape below, and a negative
+          # control confirming the cut refuses to run, loudly, when the markers
+          # are renamed. That harness belongs beside
+          # `tools/integrate-gate-proof.sh`, which does exactly this for
+          # `ledger_gate`; the bundle that wrote this owned this file and not
+          # `tools/`, so it is named here rather than smuggled in.
+          # contained_delete_marker:begin
+          contained_delete_gate() {
+            # $1 branch name, $2 the tip sha this run measured, $3 the target
+            # branch. Prints a reason and returns 0 to DELETE; returns 1,
+            # silently, to leave the branch standing.
+            local branch="$1"
+            local sha="$2"
+            local target="$3"
+            local ref
+
+            # PROTECTED FIRST, so no containment answer can reach a delete.
+            case "$branch" in
+              main | integration | "$target") return 1 ;;
+            esac
+            case "$branch" in
+              claude/*) ;;
+              *) return 1 ;;
+            esac
+
+            for ref in "refs/remotes/origin/$target" refs/remotes/origin/main; do
+              git rev-parse --verify --quiet "$ref" >/dev/null || continue
+              if git merge-base --is-ancestor "$sha" "$ref"; then
+                echo "already in ${ref#refs/remotes/origin/}"
+                return 0
+              fi
+            done
+            return 1
+          }
+          # contained_delete_marker:end
+
+          # THE PUSH DECISION, AND IT IS A FUNCTION FOR THE REASON THE TWO
+          # GATES ABOVE ARE: it is PROVED by cutting this exact text out of
+          # THIS FILE and running it against throwaway git repositories, so no
+          # proof can drift into testing a private copy of the rule. Do not
+          # rename the markers and do not move the body out from between them.
+          #
+          # WHAT IT DECIDES, and what it deliberately does not. It answers one
+          # question -- did $TARGET move -- and it answers it from two shas
+          # rather than from any array this job built. The condition it
+          # replaces was `[ ${#merged[@]} -gt 0 ]`, which asked whether a
+          # BRANCH merged and therefore threw away a main-merge on every run
+          # where every outstanding branch conflicted. That is the deadlock
+          # argued at the main-merge below.
+          #
+          # It cannot push a broken tree, and the reason is upstream of here
+          # rather than inside it: a main-merge conflict aborts and exits the
+          # step before this is ever called, and a BRANCH conflict aborts that
+          # one merge and leaves HEAD exactly where it was, so a conflicted
+          # branch contributes nothing to the comparison. Every sha it can be
+          # handed is a tree git itself resolved.
+          # target_push_marker:begin
+          target_push_gate() {
+            # $1 the sha the remote already has for the target, EMPTY when the
+            # target branch does not exist on the remote yet. $2 the sha HEAD
+            # is at now. Returns 0 to PUSH, 1 to leave the remote alone.
+            #
+            # THE EMPTY CASE IS A PUSH, on purpose: a first run must create the
+            # branch even if it merged nothing into it, and an empty string
+            # cannot equal a sha.
+            [ "$2" != "${1:-}" ]
+          }
+          # target_push_marker:end
+
+          # MECHANICAL RESOLUTION, FOR EXACTLY TWO FILES AND NOTHING ELSE.
+          #
+          # The merge above says FAIL LOUD, NEVER FORCE, and it stays true:
+          # what a machine may not do is PICK A SIDE of somebody's writing.
+          # Two files in this repository conflict constantly and neither has a
+          # side to pick, because neither is written by hand at the point of
+          # conflict.
+          #
+          # MEASURED, not assumed. Replaying every merge in this repository
+          # since 2026-08-30 with `git merge-tree` gives 24 conflicted merges
+          # and 30 conflicting paths: 19 `tools/browser-verify/README.md`,
+          # 6 `classroom-updates.json`, and 4 genuine source conflicts in 3
+          # merges (`docs/history/...`, one notebook page, and two maps files).
+          # Twenty-five of thirty had a deterministic answer and cost five hand
+          # deletions and three landing bundles anyway.
+          #
+          #   * `tools/browser-verify/README.md` -- the conflict is always
+          #     inside `<!-- counts:begin -->`/`<!-- counts:end -->`, which is
+          #     GENERATED. Its own header says so: "a conflict here is resolved
+          #     by running one sub-second command, never by choosing a side and
+          #     never by finding a browser". `--static` is a tree read, measured
+          #     at 0.386s in a checkout with no `node_modules`, no browser and
+          #     no dev server. So the resolution is: take the target's side
+          #     INSIDE the markers, then regenerate the static half against the
+          #     MERGED tree, which is the only tree whose answer is right.
+          #   * `classroom-updates.json` -- an append-only array of entries.
+          #     Two sessions each append; the answer is both appends.
+          #
+          # THE RULES THIS OBEYS, and each is a refusal it can reach:
+          #   * A conflict in ANY OTHER PATH leaves the branch conflicted,
+          #     exactly as before. The allowlist is checked over every unmerged
+          #     path before a single one is touched.
+          #   * A conflict in that README's PROSE -- outside the markers -- is a
+          #     person's conflict and is left conflicted. That is not a
+          #     heuristic: see `_counts_merge`.
+          #   * A `classroom-updates.json` change that is not an append -- an
+          #     entry edited or removed on either side -- is left conflicted.
+          #   * IT NEVER TAKES A WHOLE SIDE OF A FILE. Everything git merged
+          #     cleanly stays merged; only the conflicting hunks inside the
+          #     generated region take the target's side.
+          #   * Every resolution is NAMED in the job summary, per branch and per
+          #     file, with what it did.
+          #
+          # THE ONE THING IT TRUSTS FROM THE TREE is the generator it runs,
+          # `tools/browser-verify/readme-counts.mjs`, which comes off the merged
+          # tree and is therefore mutable by a session branch -- unlike this
+          # file, which GitHub always takes from the default branch. That is
+          # inherent: regenerating a generated region needs the generator. Its
+          # output is checked back into the same refusals as everything else
+          # here (a marker left behind, an unmerged stage) and `--static` writes
+          # nothing outside the two static markers.
+          #
+          # It is a FUNCTION and between markers for `ledger_gate`'s reason: it
+          # is PROVED by cutting this exact text out of THIS FILE and running it
+          # against throwaway git repositories, so no proof can drift into
+          # testing a private copy of the rule. Do not rename the markers and do
+          # not move the bodies out from between them.
+          # auto_resolve_marker:begin
+          auto_resolve() {
+            # $1 the branch being merged, used only in what this prints.
+            #
+            # Called ONLY with a conflicted merge in progress. It resolves EVERY
+            # unmerged path or it resolves none of them: one line per file on
+            # stdout and 0 when the index is ready to commit, silence and 1
+            # otherwise. The caller aborts the merge on 1, so a half-resolved
+            # tree is never what gets committed.
+            local branch="$1"
+            local readme='tools/browser-verify/README.md'
+            local updates='classroom-updates.json'
+            local -a unmerged=()
+            local -a did=()
+            local n path
+
+            # THE UNMERGED SET, READ THE WAY `ledger_gate` READS ITS DIFF:
+            # NUL-delimited, never through `$(...)` (which DROPS NUL bytes and
+            # would leave one run-on string that matches no path), with git's
+            # own exit status riding back as a final record so a diff that
+            # FAILED is distinguishable from one that found nothing.
+            mapfile -d '' -t unmerged < <(
+              git diff --name-only --diff-filter=U -z
+              printf 'rc=%s\0' "$?"
+            )
+            n="${#unmerged[@]}"
+            [ "${unmerged[n-1]}" = rc=0 ] || return 1
+            unset "unmerged[$((n - 1))]"
+            [ "${#unmerged[@]}" -gt 0 ] || return 1
+
+            # THE ALLOWLIST IS ASKED ABOUT EVERY PATH BEFORE ANY PATH IS
+            # TOUCHED. One file outside it and this is a person's conflict,
+            # whatever the other files are.
+            for path in "${unmerged[@]}"; do
+              case "$path" in
+                "$readme" | "$updates") ;;
+                *) return 1 ;;
+              esac
+            done
+
+            for path in "${unmerged[@]}"; do
+              case "$path" in
+                "$readme")
+                  _counts_resolve "$path" || return 1
+                  did+=("\`$path\` -- the conflict was inside the generated counts markers, so the target's side was taken there and the static region was regenerated on the merged tree")
+                  ;;
+                "$updates")
+                  _updates_resolve "$path" || return 1
+                  did+=("\`$path\` -- an append from each side; every entry from both is in the result")
+                  ;;
+              esac
+            done
+
+            # NOTHING LEAVES HERE CARRYING A MARKER, and the index is ASKED
+            # again rather than assumed. `=======` is deliberately not one of
+            # the three: it is also a markdown setext underline, and this runs
+            # over a markdown file.
+            for path in "${unmerged[@]}"; do
+              if grep -qE '^(<<<<<<< |\|\|\|\|\|\|\| |>>>>>>> )' "$path"; then return 1; fi
+              git add -- "$path" || return 1
+            done
+            [ -z "$(git diff --name-only --diff-filter=U)" ] || return 1
+
+            printf '%s\n' "${did[@]}"
+            return 0
+          }
+
+          # The two resolvers are wrappers so that every refusal inside them
+          # still removes the scratch directory; the bodies below return early
+          # from a dozen places and a `trap` cannot be scoped to a function.
+          _counts_resolve() {
+            local d rc=0
+            d="$(mktemp -d)" || return 1
+            _counts_merge "$1" "$d" || rc=$?
+            rm -rf "$d"
+            return "$rc"
+          }
+
+          _updates_resolve() {
+            local d rc=0
+            d="$(mktemp -d)" || return 1
+            _updates_merge "$1" "$d" || rc=$?
+            rm -rf "$d"
+            return "$rc"
+          }
+
+          _counts_merge() {
+            # GIT RESOLVES THE HUNKS AND NO MARKER PARSER EXISTS HERE, which is
+            # what makes "only inside the generated region" a fact rather than a
+            # regex. `git merge-file --ours` and `--theirs` run the SAME
+            # three-way merge over the same three stages and differ ONLY where
+            # that merge conflicted -- a hunk both sides merged cleanly comes
+            # out identical in both. So requiring the two outputs to be
+            # BYTE-IDENTICAL from the top of the file down to the begin marker,
+            # and from the end marker down to the last byte, proves every
+            # conflict lay strictly between them. A prose conflict above the
+            # block makes the prefixes differ and this returns 1.
+            local path="$1" d="$2" rc=0 f bm em by ey
+            local beginm='<!-- counts:begin -->'
+            local endm='<!-- counts:end -->'
+
+            # No stage 1 is an add/add: two whole files with no base, so there
+            # is no three-way merge to take a side within. Refused.
+            git show ":1:$path" > "$d/base" 2>/dev/null || return 1
+            git show ":2:$path" > "$d/ours" 2>/dev/null || return 1
+            git show ":3:$path" > "$d/theirs" 2>/dev/null || return 1
+
+            # merge-file exits with the CONFLICT COUNT, so a non-zero status is
+            # the ordinary case; 127 and above is its error range and is refused.
+            rc=0; git merge-file -p --ours   "$d/ours" "$d/base" "$d/theirs" > "$d/mine"  || rc=$?
+            [ "$rc" -lt 127 ] || return 1
+            rc=0; git merge-file -p --theirs "$d/ours" "$d/base" "$d/theirs" > "$d/yours" || rc=$?
+            [ "$rc" -lt 127 ] || return 1
+
+            # EXACTLY ONE OF EACH MARKER IN EACH OUTPUT. A conflict that
+            # duplicated a marker line would otherwise make "inside" ambiguous,
+            # and the ambiguous answer is the one that must not be acted on.
+            for f in "$d/mine" "$d/yours"; do
+              [ "$(grep -cF "$beginm" "$f" || true)" = 1 ] || return 1
+              [ "$(grep -cF "$endm"   "$f" || true)" = 1 ] || return 1
+            done
+
+            bm="$(grep -nF "$beginm" "$d/mine"  | cut -d: -f1)"
+            em="$(grep -nF "$endm"   "$d/mine"  | cut -d: -f1)"
+            by="$(grep -nF "$beginm" "$d/yours" | cut -d: -f1)"
+            ey="$(grep -nF "$endm"   "$d/yours" | cut -d: -f1)"
+            [ "$bm" -lt "$em" ] || return 1
+            [ "$by" -lt "$ey" ] || return 1
+
+            head -n "$bm" "$d/mine"  > "$d/pre-a"
+            head -n "$by" "$d/yours" > "$d/pre-b"
+            cmp -s "$d/pre-a" "$d/pre-b" || return 1
+            tail -n +"$em" "$d/mine"  > "$d/post-a"
+            tail -n +"$ey" "$d/yours" > "$d/post-b"
+            cmp -s "$d/post-a" "$d/post-b" || return 1
+
+            cp "$d/mine" "$path" || return 1
+
+            # THEN THE MERGED TREE'S OWN ANSWER, which is neither side's. The
+            # static region is a pure function of the tree, so this is the only
+            # step that can be right, and on a tree whose counts did not move it
+            # writes nothing at all.
+            node tools/browser-verify/readme-counts.mjs --static >/dev/null 2>&1 || return 1
+            return 0
+          }
+
+          _updates_merge() {
+            # APPEND-ONLY IS CHECKED, NOT ASSUMED, and the check is what makes
+            # "keep both appends" the whole of the question: the `_readme` block
+            # must be identical on both sides, and EVERY entry in the merge base
+            # must still be present in both. An entry edited or removed on
+            # either side is a decision about somebody's words and is left
+            # conflicted. Entries are compared by VALUE with their keys sorted,
+            # so key order in the file cannot make one entry read as two.
+            #
+            # ORDER DOES NOT MATTER TO THE READER and is still deterministic
+            # here: `src/lib/classroom/updates.ts` sorts by date, newest first,
+            # and the file's own `_readme` says entries may go anywhere. The
+            # result is the target's list in the target's order, with the
+            # branch's new entries appended in the branch's order.
+            local path="$1" d="$2"
+
+            git show ":1:$path" > "$d/base" 2>/dev/null || return 1
+            git show ":2:$path" > "$d/ours" 2>/dev/null || return 1
+            git show ":3:$path" > "$d/theirs" 2>/dev/null || return 1
+
+            jq --tab -n \
+              --slurpfile base "$d/base" \
+              --slurpfile ours "$d/ours" \
+              --slurpfile theirs "$d/theirs" '
+                def canon: to_entries | sort_by(.key) | from_entries | tojson;
+                ($base[0]) as $b | ($ours[0]) as $o | ($theirs[0]) as $t
+                | ($b.entries // []) as $be
+                | ($o.entries // []) as $oe
+                | ($t.entries // []) as $te
+                | ($oe | map(canon)) as $ok
+                | ($te | map(canon)) as $tk
+                | if ($o._readme != $t._readme)
+                  then error("the _readme block differs between the two sides")
+                  else . end
+                | if ($be | map(canon) | map(. as $x | ($ok | index($x)) != null and ($tk | index($x)) != null) | all)
+                  then . else error("an entry in the merge base is gone from one side: this is an edit or a removal, not an append")
+                  end
+                | { _readme: $o._readme,
+                    entries: ($oe + [ $te[] | select((. | canon) as $x | ($ok | index($x)) == null) ]) }
+              ' > "$d/out" || return 1
+
+            # IT MUST STILL BE THE SHAPE THE READER IMPORTS.
+            jq -e 'has("_readme") and has("entries") and (.entries | type == "array")' \
+              "$d/out" >/dev/null || return 1
+
+            # AND NOTHING LOST, NOTHING INVENTED -- asserted as a SET
+            # comparison, which is a different expression from the construction
+            # above rather than a second copy of it. A program checked against
+            # its own rule cannot fail.
+            [ "$(jq -n --slurpfile o "$d/ours" --slurpfile t "$d/theirs" --slurpfile r "$d/out" '
+                   def canon: to_entries | sort_by(.key) | from_entries | tojson;
+                   ($r[0].entries | map(canon) | unique) as $got
+                   | ((($o[0].entries // []) + ($t[0].entries // [])) | map(canon) | unique) as $want
+                   | ($got == $want)
+                 ' || true)" = true ] || return 1
+
+            cp "$d/out" "$path" || return 1
+            return 0
+          }
+          # auto_resolve_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
             git checkout -B "$TARGET" "origin/$TARGET"
+            # THE TIP THE REMOTE ALREADY HAS, captured before anything moves.
+            # The push below asks "did $TARGET move at all", which is this
+            # value against HEAD at the end -- so it is read once, here, from
+            # the remote-tracking ref rather than recomputed later from a HEAD
+            # that has by then absorbed the whole sweep.
+            remote_tip="$(git rev-parse "origin/$TARGET")"
           else
             echo "::notice::$TARGET does not exist; creating it from origin/main"
             git checkout -B "$TARGET" origin/main
+            # EMPTY, AND DELIBERATELY NOT origin/main's SHA. A branch that does
+            # not exist on the remote must be created even when this run merges
+            # nothing into it, and an empty string cannot compare equal to a
+            # sha, so the comparison below reaches the push on its own.
+            remote_tip=
           fi
 
           # MAIN FIRST, EVERY TIME. `main` moves on its own all day (the
           # classroom GitHub export commits under `materials/` on every item
           # save), so integrating onto a stale base is how a branch that merges
           # cleanly today conflicts next week.
+          #
+          # AND WHAT IT PRODUCES IS PUSHED WHETHER OR NOT ANY BRANCH MERGES.
+          # That is a DEADLOCK FIX and not a refinement. This step used to push
+          # only `if [ ${#merged[@]} -gt 0 ]`, so on a run where every
+          # outstanding branch conflicted the main-merge was computed on this
+          # runner's disk and thrown away -- every run, forever. Meanwhile
+          # `deploy.yml` refuses to deploy while $TARGET is behind `main` and
+          # tells the operator to press Integrate first. Migrations commit
+          # straight to `main` by design and the classroom export commits there
+          # unattended, so the gap re-opens constantly; branches conflict
+          # routinely while several lanes run. Integrate-then-Deploy in that
+          # state could not terminate. It was pressed three times on 2026-09-03
+          # and a person broke out by merging `main` into `integration` through
+          # a pull request by hand.
+          #
+          # The two things this has to do at once are NOT in tension, and the
+          # old code made them look like they were: catching $TARGET up to
+          # `main` is mechanical and always safe to land, while a conflicted
+          # branch is a person's problem and must stay loud. So the push
+          # condition becomes "did the target move", and the exit code below is
+          # left exactly as it was.
+          target_start="$(git rev-parse HEAD)"
+          behind="$(git rev-list --count HEAD..origin/main)"
           if ! git merge --no-edit origin/main; then
+            # A MAIN-MERGE CONFLICT STILL PUSHES NOTHING, and that is the state
+            # the "push whenever the target moved" rule must not swallow: the
+            # abort restores HEAD to `target_start`, and this exit is taken
+            # before the comparison is ever reached, so a half-resolved tree
+            # cannot become $TARGET on the remote.
             git merge --abort || true
             echo "::error::$TARGET conflicts with main. Resolve it on $TARGET by hand; nothing was merged, pushed or deleted."
             exit 1
           fi
 
+          # MEASURED, NOT INFERRED FROM `behind`. The merge either moved HEAD or
+          # it did not, and reading that back is one command; deriving it from a
+          # count taken beforehand is a second idea of the same fact.
+          caught_up=no
+          if [ "$(git rev-parse HEAD)" != "$target_start" ]; then
+            caught_up=yes
+          fi
+
           merged=()
           merged_shas=()
           conflicted=()
+          resolved=()
           skipped=()
+          contained=()
+          contained_shas=()
+          contained_why=()
 
           for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
             branch="${ref#origin/}"
@@ -433,20 +866,24 @@ jobs:
 
             sha="$(git rev-parse "$ref")"
 
-            # IDEMPOTENT. A branch whose commits are already in $TARGET is a
-            # no-op and not an error -- a re-run, a CI re-run, or a
-            # workflow_dispatch sweep all land here.
+            # THE TWO "LEAVE IT ALONE" QUESTIONS ARE ASKED FIRST NOW, AHEAD OF
+            # THE CONTAINMENT QUESTION, AND THE REORDER IS THE PRICE OF THE
+            # DELETE BELOW.
             #
-            # It is deliberately not deleted. A branch can be contained in
-            # $TARGET because THIS system merged it, or because it was merged to
-            # `main` by hand long ago (and `main` is merged in above), and from
-            # here those two are indistinguishable. Only a branch this run
-            # merged itself is deleted, below.
-            if git merge-base --is-ancestor "$ref" HEAD; then
-              skipped+=("$branch -- already in $TARGET")
-              continue
-            fi
-
+            # Containment used to be asked first, which was free while its only
+            # outcome was a skip. It is not free now that its outcome can be a
+            # DELETE: asked first, a branch whose CI is red and whose tip
+            # happens to be contained would have been deleted without its CI
+            # conclusion ever being read, and a red branch is a signal that this
+            # system must not destroy. Same for a session still running. So the
+            # order is: is anything holding this branch, and only then, what
+            # should be done with it.
+            #
+            # The cost is one Actions API call per contained branch per run,
+            # which was previously skipped. That is a handful of calls on a
+            # sweep, against the alternative of a delete path that can act on a
+            # branch nobody has checked.
+            #
             # ONLY ON GREEN, per branch and per COMMIT: the newest completed CI
             # run for this branch must be for the exact tip we are about to
             # merge. A branch that was green two commits ago is not green.
@@ -474,24 +911,73 @@ jobs:
               continue
             fi
 
+            # IDEMPOTENT. A branch whose commits are already in $TARGET is a
+            # no-op and not an error -- a re-run, a CI re-run, or a
+            # workflow_dispatch sweep all land here.
+            #
+            # IT IS ALSO THE ONE SKIP THAT NOW DELETES, and by the time control
+            # reaches this line the branch is green and its session has
+            # finished. `contained_delete_gate` above carries the argument and
+            # the three refs it refuses; when it declines -- the branch is
+            # protected, or its containment holds only in this runner's unpushed
+            # HEAD -- the skip reads exactly as it always did.
+            if git merge-base --is-ancestor "$ref" HEAD; then
+              if contained_why_one="$(contained_delete_gate "$branch" "$sha" "$TARGET")"; then
+                contained+=("$branch")
+                contained_shas+=("$sha")
+                contained_why+=("$contained_why_one")
+              else
+                skipped+=("$branch -- already in $TARGET")
+              fi
+              continue
+            fi
+
             # --no-ff so a bundle reverts as one commit, which is the repo's
             # own merge convention.
             if git merge --no-ff --no-edit -m "Merge $branch into $TARGET" "$ref"; then
               merged+=("$branch")
               merged_shas+=("$sha")
+            elif resolved_lines="$(auto_resolve "$branch")" &&
+                 git commit -m "Merge $branch into $TARGET"; then
+              # MECHANICAL, AND ONLY EVER THE TWO FILES ARGUED AT
+              # `auto_resolve`. It either resolved every unmerged path or it
+              # changed nothing, so reaching here means git's own merge plus a
+              # generated region regenerated on the merged tree -- never a side
+              # of a file picked by a machine.
+              merged+=("$branch")
+              merged_shas+=("$sha")
+              while IFS= read -r resolved_one; do
+                [ -n "$resolved_one" ] || continue
+                resolved+=("$branch -- $resolved_one")
+              done <<<"$resolved_lines"
             else
-              # FAIL LOUD, NEVER FORCE. A conflict here is two bundles genuinely
-              # touching one file, which is exactly the thing a machine must not
-              # resolve by picking a side. Abandon this one branch, leave it
-              # undeleted and unmerged, keep going with the others (they are
-              # independent), and fail the job at the end so a person sees it.
+              # FAIL LOUD, NEVER FORCE. A conflict that reaches here is two
+              # bundles genuinely touching one file, which is exactly the thing
+              # a machine must not resolve by picking a side. Abandon this one
+              # branch, leave it undeleted and unmerged, keep going with the
+              # others (they are independent), and fail the job at the end so a
+              # person sees it.
+              #
+              # THE ABORT IS WHAT MAKES A PARTIAL RESOLUTION SAFE: `auto_resolve`
+              # can have written one file before refusing on the next, and this
+              # puts the whole tree back where the merge found it.
               git merge --abort || true
               conflicted+=("$branch")
             fi
           done
 
+          # THE TARGET MOVED AT ALL -- the main-merge above, a branch merge in
+          # the loop, or both. NOT "a branch merged", which is the condition
+          # this replaces and the whole of the deadlock argued at the
+          # main-merge above.
+          #
+          # It subsumes the old condition rather than widening past it: a
+          # non-empty `merged` means at least one `--no-ff` merge commit, so
+          # HEAD is necessarily different and every run that used to push still
+          # pushes. What is new is the run that merged nothing and caught the
+          # target up, which used to discard its own work.
           pushed=no
-          if [ ${#merged[@]} -gt 0 ]; then
+          if target_push_gate "${remote_tip:-}" "$(git rev-parse HEAD)"; then
             # NEVER --force, and no retry on rejection. A rejected push means
             # $TARGET moved under us; the honest response is to do nothing and
             # let the next run redo the whole sweep from the new tip. Nothing
@@ -504,28 +990,100 @@ jobs:
             fi
           fi
 
-          # DELETE ONLY AFTER THE PUSH SUCCEEDS. A branch deleted before its
-          # merge is confirmed is work that existed and does not.
+          # ONE DELETE LIST, ONE LEASE, TWO REASONS FOR BEING ON IT. There is
+          # exactly one `git push --delete` in this file and there must stay
+          # exactly one: two loops would be two spellings of the lease, the
+          # warning and the "what is safe to remove" rule, and
+          # `tests/workflows.test.ts` pins the file's push shape precisely so a
+          # second one cannot arrive unnoticed.
           #
-          # The lease pins the tip we actually merged: if the session pushed
-          # another commit while this job was running, the delete is refused and
-          # the branch survives with that commit on it.
+          # WHAT DIFFERS IS WHEN A BRANCH JOINS THE LIST, and that is the whole
+          # of the difference between the two reasons:
+          #
+          #   * MERGED THIS RUN -- only if the push above SUCCEEDED. Until
+          #     $TARGET is pushed the merge exists on this runner's disk and
+          #     nowhere else, so a branch deleted before then is work that
+          #     existed and does not.
+          #   * ALREADY CONTAINED -- unconditionally, because
+          #     `contained_delete_gate` established containment against a ref
+          #     that was ALREADY on the remote before this job started. Gating
+          #     these on `pushed` would mean a sweep that merged nothing -- the
+          #     ordinary re-run, and exactly the run on which a stale ref is
+          #     noticed -- deleted nothing either.
+          #
+          # The lease pins the tip this run measured: if the session pushed
+          # another commit while the job was running, the delete is refused and
+          # the branch survives with that commit on it. A refusal is a warning
+          # and never a job failure.
+          delete_names=()
+          delete_shas=()
+          delete_why=()
           if [ "$pushed" = yes ]; then
             i=0
             while [ "$i" -lt ${#merged[@]} ]; do
-              b="${merged[$i]}"
-              s="${merged_shas[$i]}"
-              if ! git push origin --force-with-lease="refs/heads/$b:$s" ":refs/heads/$b"; then
-                echo "::warning::merged $b but could not delete it (it moved, or was already gone). Its work is in $TARGET; the branch is harmless."
-              fi
+              delete_names+=("${merged[$i]}")
+              delete_shas+=("${merged_shas[$i]}")
+              delete_why+=("merged")
               i=$((i + 1))
             done
           fi
+          i=0
+          while [ "$i" -lt ${#contained[@]} ]; do
+            delete_names+=("${contained[$i]}")
+            delete_shas+=("${contained_shas[$i]}")
+            delete_why+=("${contained_why[$i]}")
+            i=$((i + 1))
+          done
+
+          deleted_contained=()
+          i=0
+          while [ "$i" -lt ${#delete_names[@]} ]; do
+            b="${delete_names[$i]}"
+            s="${delete_shas[$i]}"
+            w="${delete_why[$i]}"
+            if git push origin --force-with-lease="refs/heads/$b:$s" ":refs/heads/$b"; then
+              if [ "$w" != merged ]; then deleted_contained+=("$b -- $w"); fi
+            elif [ "$w" = merged ]; then
+              echo "::warning::merged $b but could not delete it (it moved, or was already gone). Its work is in $TARGET; the branch is harmless."
+            else
+              echo "::warning::$b is $w but could not be deleted (it moved, or was already gone). Nothing is lost; the next run will try again."
+              skipped+=("$b -- $w, but the delete was refused (it moved, or was already gone)")
+            fi
+            i=$((i + 1))
+          done
 
           {
             echo "## Integration sweep"
             echo
             echo "Triggered by: \`${TRIGGER_BRANCH:-workflow_dispatch}\`"
+            echo
+
+            # WHAT HAPPENED TO THE TARGET ITSELF, SAID FIRST AND IN WORDS.
+            # This section is new with the deadlock fix and it exists because
+            # the summary is what a person reads at 7am: a run can now be RED
+            # for a conflicted branch while having successfully caught
+            # `integration` up to `main`, and those two facts used to be
+            # indistinguishable from outside. Every combination the job can
+            # reach says which one it is, on its own line.
+            echo "### \`$TARGET\` itself"
+            echo
+            if [ "$caught_up" = yes ]; then
+              echo "- **Caught up to \`main\`** -- $behind commit(s) were on \`main\` and not on \`$TARGET\`, and are now on it."
+            else
+              echo "- Already current with \`main\` -- nothing to bring across."
+            fi
+            if [ "$pushed" = yes ]; then
+              echo "- **Pushed.** \`$TARGET\` on the remote is now \`$(git rev-parse --short HEAD)\`."
+            else
+              echo "- Nothing pushed -- \`$TARGET\` did not move this run."
+            fi
+            if [ ${#conflicted[@]} -gt 0 ]; then
+              if [ "$pushed" = yes ]; then
+                echo "- ${#conflicted[@]} branch(es) conflicted, so **this run is red for that reason and no other**. Everything above still landed, and \`deploy.yml\` is no longer blocked by \`$TARGET\` being behind \`main\`."
+              else
+                echo "- ${#conflicted[@]} branch(es) conflicted, and there was nothing else to do, so **nothing changed this run**."
+              fi
+            fi
             echo
             if [ ${#merged[@]} -gt 0 ]; then
               echo "### Merged into \`$TARGET\` and deleted"
@@ -535,6 +1093,24 @@ jobs:
               echo "- nothing (no branch was both green and outstanding)"
             fi
             echo
+            if [ ${#resolved[@]} -gt 0 ]; then
+              echo "### Resolved mechanically"
+              echo
+              echo "These branches conflicted and were merged anyway, because every conflicting"
+              echo "path was one of the two files with a deterministic answer. Nothing here"
+              echo "picked a side of anybody's writing; a conflict in any other path, or in this"
+              echo "README's prose, is still left for a person."
+              echo
+              for b in "${resolved[@]}"; do echo "- \`${b%% --*}\`: ${b#* -- }"; done
+              echo
+            fi
+            if [ ${#deleted_contained[@]} -gt 0 ]; then
+              echo "### Already contained, deleted"
+              echo
+              echo "Nothing was merged for these: every commit was already reachable from a branch on the remote, so the ref held nothing a delete could take away."
+              for b in "${deleted_contained[@]}"; do echo "- \`${b%% --*}\` -- ${b#* -- }"; done
+              echo
+            fi
             if [ ${#conflicted[@]} -gt 0 ]; then
               echo "### CONFLICTED -- a person is needed"
               for b in "${conflicted[@]}"; do echo "- \`$b\` still exists and was not merged"; done
@@ -548,7 +1124,22 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+          # THE EXIT CODE DOES NOT MOVE, and that is a decision rather than an
+          # omission. A conflicted branch is a normal steady state when several
+          # lanes run at once -- it is two bundles genuinely touching one file,
+          # which no machine may resolve -- but it is also the one outcome here
+          # that NEEDS a person, and a green run is a run nobody opens. Nothing
+          # downstream reads this conclusion: the only `workflow_run` trigger in
+          # this repo watches `CI`, and `deploy.yml` is `workflow_dispatch` and
+          # decides from git state (is `main` an ancestor of `integration`),
+          # never from whether this job passed. So the exit code costs a red
+          # mark and buys the notification, and the summary above is what says
+          # the target itself is fine.
           if [ ${#conflicted[@]} -gt 0 ]; then
-            echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. See the job summary."
+            if [ "$pushed" = yes ]; then
+              echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET ITSELF WAS PUSHED and is not blocked -- this run is red only for the conflicts. See the job summary."
+            else
+              echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET did not move this run. See the job summary."
+            fi
             exit 1
           fi

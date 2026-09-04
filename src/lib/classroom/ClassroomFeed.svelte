@@ -2,6 +2,7 @@
 	import { itemTitle, sectionTitle, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import {
 		actionSummary,
+		dueUrgency,
 		emptyMessage,
 		feedIndicator,
 		reasonTone,
@@ -100,15 +101,14 @@
 {/snippet}
 
 {#snippet row(feed: SectionFeed, entry: FeedEntry)}
-	<a class="assignment-item linked" href={itemHref(feed.section, entry)}>
-		<div class="assignment-left">
-			{@render icon(entry.item.kind)}
-			<div class="assignment-name">{itemTitle(entry.item)}</div>
-		</div>
-		<div class="assignment-right">
-			<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
-			<span class="assignment-status status-live">Open</span>
-		</div>
+	<a
+		class="assignment-item linked feed-row"
+		href={itemHref(feed.section, entry)}
+		data-urgency={dueUrgency(entry, now) ?? undefined}
+	>
+		{@render icon(entry.item.kind)}
+		<div class="assignment-name">{itemTitle(entry.item)}</div>
+		<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
 	</a>
 {/snippet}
 
@@ -145,18 +145,25 @@
 				onclick={() => onToggle?.(feed.section.id)}
 			>
 				<div class="course-header-left">
-					<div class="course-id">{feed.section.course?.code ?? 'CLASS'}</div>
-					<div class="course-updated">{feed.section.course?.title ?? sectionTitle(feed.section)}</div>
-				</div>
-				<div class="course-meta">
-					<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
-					<span class="section-meta">
-						{#if sectionBlockText(feed.section.block)}{sectionBlockText(feed.section.block)} &middot; {/if}
-						{feed.manages ? 'You teach this' : emailLocal(feed.section.teacher_email)}
-					</span>
-					{#if summary}
-						<span class="feed-flag tone-attention">{summary}</span>
-					{/if}
+					<div class="feed-ident">
+						<span class="course-id">{feed.section.course?.code ?? 'CLASS'}</span>
+						<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
+						{#if summary}
+							<span class="feed-flag tone-attention">{summary}</span>
+						{/if}
+					</div>
+					<div class="feed-subline">
+						<span class="course-updated"
+							>{feed.section.course?.title ?? sectionTitle(feed.section)}</span
+						>
+						<span class="section-meta">
+							{#if sectionBlockText(feed.section.block)}{sectionBlockText(
+									feed.section.block
+								)}&nbsp;&middot;&nbsp;{/if}{feed.manages
+								? 'You teach this'
+								: emailLocal(feed.section.teacher_email)}
+						</span>
+					</div>
 				</div>
 				<span class="course-collapse-arrow" aria-hidden="true">&#9662;</span>
 			</button>
@@ -191,3 +198,149 @@
 		</div>
 	{/each}
 {/if}
+
+<style>
+	/*
+	 * THIS COMPONENT OWNS ITS OWN GEOMETRY NOW, and the shared `.legacy-index`
+	 * chrome in app.css still owns everything else (the card, the plate, the
+	 * hover, the flag tones, the badge). The split is deliberate: those rules are
+	 * shared with the archive page and every other `.course-card` surface, so a
+	 * height fix made there would move markup this component does not render.
+	 *
+	 * WHAT IT COST, AT 375px, PER CLASS: the card was 596px, which put the first
+	 * app card 2.44 screens down for a student with two classes. Almost all of it
+	 * was one flex rule -- `.assignment-left` wrapped, `.assignment-name` took the
+	 * full measure, and the 34px kind icon was pushed onto a line of its own above
+	 * a two-line title. The row cost 142px to say one thing. As a grid with the
+	 * icon in its own column the same row says the same thing in 89px, with the
+	 * title still on two lines and the icon still there.
+	 */
+	.feed-row {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		grid-template-areas:
+			'icon name'
+			'icon flag';
+		align-items: center;
+		column-gap: 0.7rem;
+		row-gap: 0.25rem;
+		padding-top: 0.65rem;
+		padding-bottom: 0.65rem;
+	}
+	.feed-row :global(.assignment-icon-thumb) {
+		grid-area: icon;
+		align-self: center;
+	}
+	.feed-row .assignment-name {
+		grid-area: name;
+	}
+	.feed-row .feed-flag {
+		grid-area: flag;
+		justify-self: start;
+	}
+
+	/*
+	 * Above the phone the row has room for one line: icon, title, flag, with the
+	 * flag pinned right the way it has always been. The 89px measurement above is
+	 * the narrow case, which is the one that was costing screens.
+	 */
+	@media (min-width: 700px) {
+		.feed-row {
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			grid-template-areas: 'icon name flag';
+		}
+		.feed-row .feed-flag {
+			justify-self: end;
+		}
+	}
+
+	/*
+	 * DUE-DATE URGENCY. Four steps from `dueUrgency()`, which reads the reason the
+	 * ranking already assigned and the SAME `now` this component was handed, so
+	 * the emphasis and the words can never name different days.
+	 *
+	 * COLOUR IS NEVER THE SIGNAL HERE, and it could not be even if it were
+	 * wanted: the flag's hue is already spoken for by `reasonTone` (the tone says
+	 * WHAT the row is, not how near it is), a reader who cannot separate two hues
+	 * would get nothing from a fifth one, and `--crimson` -- the one token that
+	 * reads as alarm in this palette -- is reserved for LIVE/REC/error and is not
+	 * available. So the steps are carried by three things that are not colour:
+	 *
+	 *   POSITION -- `compare()` already puts the soonest deadline first inside a
+	 *     rank, and overdue outranks due-soon, so the pressing row is the row a
+	 *     student reads first. Nothing here had to be added for that.
+	 *   WORDS -- `feedIndicator` already writes the date out: "Overdue 2 days
+	 *     ago", "Due today", "Due tomorrow", "Due in 5 days". A student never has
+	 *     to decode a treatment to learn when a thing is due.
+	 *   WEIGHT AND A RULE -- below. Type gets heavier and the row takes a marker
+	 *     down its leading edge as the date closes.
+	 *
+	 * `soon` IS DELIBERATELY UNTREATED. It is the ordinary state of the whole
+	 * seven-day window, and a scale whose bottom step is already emphasised has
+	 * no room left to say "now". The marker earns its meaning by being absent
+	 * most of the time.
+	 *
+	 * NOTHING HERE SAYS A DEADLINE IS SOFT. The steps only change how loudly the
+	 * same date is stated; there is no wording, no fading and no de-emphasis that
+	 * would read as "this one can wait", including on `soon`.
+	 */
+	.feed-row[data-urgency='imminent'] .feed-flag,
+	.feed-row[data-urgency='today'] .feed-flag,
+	.feed-row[data-urgency='overdue'] .feed-flag {
+		font-weight: 700;
+	}
+	.feed-row[data-urgency='today'] .assignment-name,
+	.feed-row[data-urgency='overdue'] .assignment-name {
+		font-weight: 600;
+	}
+
+	/*
+	 * The leading-edge marker. `box-shadow` inset and not a `border-left`,
+	 * because a border changes the row's box and would shift every title by 3px
+	 * as a deadline crosses midnight -- and not a `::before`, because Svelte
+	 * prunes a scoped pseudo-element whose base class it cannot see used (the
+	 * app.css `.tap-reach-44` note). It rides the flag's own tone token so it
+	 * cannot introduce a hue the row is not already wearing.
+	 */
+	.feed-row[data-urgency='imminent'] {
+		box-shadow: inset 3px 0 0 -1px color-mix(in srgb, var(--cyan) 45%, transparent);
+	}
+	.feed-row[data-urgency='today'] {
+		box-shadow: inset 3px 0 0 0 var(--cyan);
+	}
+	.feed-row[data-urgency='overdue'] {
+		box-shadow: inset 3px 0 0 0 var(--amber);
+	}
+
+	/*
+	 * THE HEADER LOSES A LINE AT PHONE WIDTH, WHICH IS WHERE IT HAD TWO STACKED
+	 * BLOCKS. `.course-meta` used to be a third flex child that dropped below the
+	 * code and title at 375px; the badge and the count chip sit up on the code's
+	 * own line now and the block/teacher line joins the title, so the header is
+	 * two lines instead of three (111px -> 78px measured). Nothing was removed:
+	 * every field the header carried, it still carries.
+	 */
+	.feed-ident {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+	.feed-subline {
+		display: flex;
+		align-items: baseline;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+	/*
+	 * `overflow-wrap: anywhere` is carried over from app.css's own `.section-meta`
+	 * rule and for its reason: an address local part has no space to break at, so
+	 * its min-content is the whole token and a flex row cannot get under a 375px
+	 * viewport without it.
+	 */
+	.feed-subline .section-meta {
+		overflow-wrap: anywhere;
+	}
+</style>

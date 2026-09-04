@@ -11,6 +11,7 @@
 		"test:watch": "vitest",
 		"verify:browser": "node tools/browser-verify/run.mjs",
 		"verify:readme": "node tools/browser-verify/readme-counts.mjs",
+		"verify:counts": "node tools/browser-verify/readme-counts.mjs --static",
 		"history:index": "node docs/history/_tools/index.mjs",
 		"history:verify": "node docs/history/_tools/verify-split.mjs",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

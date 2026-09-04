@@ -40,7 +40,16 @@ import type { MapsEditorGrant, MapsEditorScope, MapsRosterRow } from './grants';
 import { MAPS_MEDIA_BUCKET, mapsPhotoOwnerColumn, type MapsPhotoOwner } from './media';
 import type { MapsEditorData, MapsTable } from './maps';
 import { MAPS_PENDING_COLUMN } from './maps';
-import { loadMapsEditorData, type MapsReadClient } from './selects';
+import {
+	MAPS_ITEM_COLUMNS,
+	MAPS_ITEM_TYPE_COLUMNS,
+	MAPS_NODE_COLUMNS,
+	MAPS_PHOTO_COLUMNS,
+	MAPS_STOCK_COLUMNS,
+	loadMapsEditorData,
+	type MapsReadClient
+} from './selects';
+import type { MapsViewerData } from './viewer/viewer';
 
 export type MapsResult<T> =
 	| { ok: true; data: T }
@@ -595,6 +604,165 @@ export function mapsGrantTransports(supabase: MapsWriteClient): MapsGrantTranspo
 				p_node_id: nodeId
 			});
 			return done(error);
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// THE PUBLIC VIEWER'S READ PATHS (spec 6). Everything below this line runs for
+// a caller with NO SESSION.
+// ---------------------------------------------------------------------------
+
+/**
+ * NOTHING HERE ASSUMES A SESSION, AND THAT IS THE WHOLE DIFFERENCE FROM
+ * EVERYTHING ABOVE. `loadMapsEditorData` reads `maps_revisions`, which carries
+ * no `anon` grant at all (0161 asserts that at apply time), so an anonymous
+ * caller running it gets a thrown error rather than a smaller payload --
+ * `loadMapsPublicData` exists because the editor's read is not merely wider,
+ * it is unavailable. `mapsTransports` likewise assumes a writer and
+ * `loadMapsScope` assumes an account; the viewer calls neither.
+ *
+ * PUBLISHED-ONLY IS RLS'S ANSWER AND IS NOT RESTATED AS A FILTER. 0161 gives
+ * every `maps_*` table a `status = 'published'` select policy for `anon` and
+ * `authenticated`, and 0163 does the same for photos through their owner's
+ * status. A `.eq('status', 'published')` here would be a second copy of that
+ * rule that an admin's own client would then also apply -- so a signed-in
+ * admin opening the public map would see the public map, which is correct, for
+ * a reason that is an accident. The one thing the filter WOULD change is the
+ * only thing worth having: it would hide a leak instead of failing on it.
+ *
+ * NO LADDER, for the reason `selects.ts` gives about the editor's read: 0161
+ * to 0165 landed as one wave and there is no deployment where `maps_nodes`
+ * answers and `maps_photos` does not. The first migration that widens these
+ * tables adds the rung with it.
+ */
+export async function loadMapsPublicData(supabase: MapsReadClient): Promise<MapsViewerData> {
+	const [nodes, itemTypes, items, stock, photos] = await Promise.all([
+		supabase.from('maps_nodes').select(MAPS_NODE_COLUMNS),
+		supabase.from('maps_item_types').select(MAPS_ITEM_TYPE_COLUMNS),
+		supabase.from('maps_items').select(MAPS_ITEM_COLUMNS),
+		supabase.from('maps_stock').select(MAPS_STOCK_COLUMNS),
+		supabase.from('maps_photos').select(MAPS_PHOTO_COLUMNS)
+	]);
+	for (const result of [nodes, itemTypes, items, stock, photos]) {
+		if (result.error) throw new Error(result.error.message);
+	}
+	const byName = (a: { name?: string | null }, b: { name?: string | null }) =>
+		(a.name ?? '').localeCompare(b.name ?? '');
+	return {
+		nodes: ((nodes.data ?? []) as MapsViewerData['nodes']).slice().sort(byName),
+		itemTypes: ((itemTypes.data ?? []) as MapsViewerData['itemTypes']).slice().sort(byName),
+		items: ((items.data ?? []) as MapsViewerData['items']).slice(),
+		stock: ((stock.data ?? []) as MapsViewerData['stock']).slice(),
+		photos: ((photos.data ?? []) as MapsViewerData['photos']).slice()
+	};
+}
+
+/** One row of `maps_search`, exactly as 0165 declares its return table. */
+export interface MapsSearchRow {
+	result_kind: 'node' | 'item' | 'stock';
+	result_id: string;
+	item_type_id: string | null;
+	label: string;
+	detail: Record<string, unknown> | null;
+	node_id: string | null;
+	chain: MapsChainLink[] | null;
+	depth: number;
+	score: number;
+}
+
+/**
+ * A `_maps_chain_link` object: the containment link plus its own geometry.
+ *
+ * THE NUMERICS ARE `string | number`, WHICH IS NOT SLOPPINESS. Postgres
+ * `numeric` has no lossless JSON number, so PostgREST sends it as a STRING;
+ * `MapsNode` declares the same union for the same columns and `num()` in
+ * `maps.ts` is the one place either is coerced. Declaring these `number` here
+ * would be a type that lies about the wire and would put a second coercion
+ * wherever somebody believed it.
+ */
+export interface MapsChainLink {
+	id: string;
+	kind: string;
+	name: string;
+	subtype: string | null;
+	outline: unknown;
+	position_x_in: string | number | null;
+	position_y_in: string | number | null;
+	rotation_deg: string | number | null;
+	elevation_order: number | null;
+	elevation_h_in: string | number | null;
+	elevation_w_in: string | number | null;
+}
+
+/**
+ * THE VIEWER'S SEARCH, INJECTED, so the dev harness answers it in memory and
+ * the real route points it at the RPC (CLAUDE.md: server calls are injected as
+ * a transports object).
+ *
+ * `log` IS ITS OWN METHOD AND ITS OWN CALL. Spec 5.4 wants every query logged
+ * with its result count, and the search function does NOT do it: 0162's
+ * `maps_search` is `stable`, so it cannot write, and the log's insert grant is
+ * on the TABLE for `anon` rather than inside a definer. Folding the log into
+ * `search` would make a failed insert able to take a search result down with
+ * it, which trades the feature for the telemetry about it.
+ */
+export interface MapsViewerTransports {
+	search(query: string, limit?: number): Promise<MapsResult<MapsSearchRow[]>>;
+	/**
+	 * Best-effort, and its failure is unreportable ON PURPOSE (CLAUDE.md:
+	 * "best-effort instrumentation must never be able to affect the thing it
+	 * measures"). It returns void rather than a result, so there is no value a
+	 * caller could be tempted to branch on.
+	 */
+	log?(query: string, resultCount: number): Promise<void>;
+}
+
+/** The narrow client slice a signed-out viewer needs: one select, one rpc, one insert. */
+export interface MapsPublicClient extends MapsReadClient {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	from(table: string): any;
+	rpc(
+		name: string,
+		args?: Record<string, unknown>
+	): PromiseLike<{ data: unknown; error: DbError | null }>;
+}
+
+export function mapsViewerTransports(supabase: MapsPublicClient): MapsViewerTransports {
+	return {
+		async search(query, limit = 20) {
+			const { data, error } = await supabase.rpc('maps_search', {
+				p_query: query,
+				p_limit: limit
+			});
+			if (error) {
+				return {
+					ok: false,
+					retryable: isTransientSqlstate(error.code),
+					// A search that failed is a search, not a map that is gone: the
+					// sentence says which so nobody reloads the page over it.
+					message: 'The search did not run. Try again in a moment.'
+				};
+			}
+			return { ok: true, data: (Array.isArray(data) ? data : []) as MapsSearchRow[] };
+		},
+
+		async log(query, resultCount) {
+			try {
+				// 0162 caps the column at 400 characters and refuses a blank; a
+				// refusal here would be a thrown insert on a surface that must not
+				// notice, so the value is clamped rather than sent and apologised
+				// for. `.select()` is deliberately absent: `anon` holds INSERT and
+				// no SELECT, so asking for the row back would turn every log into
+				// a permission error.
+				const trimmed = query.trim().slice(0, 400);
+				if (!trimmed) return;
+				await supabase
+					.from('maps_search_log')
+					.insert({ query: trimmed, result_count: Math.max(0, Math.trunc(resultCount)) });
+			} catch {
+				/* Deliberately silent. See MapsViewerTransports.log. */
+			}
 		}
 	};
 }

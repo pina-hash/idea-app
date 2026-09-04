@@ -973,6 +973,59 @@
 			"tags": [
 				"Classes"
 			]
+		},
+		{
+			"date": "2026-09-03",
+			"title": "Instructions and modules stay put while you type",
+			"body": "Panels no longer close themselves while you are working in them. Before, a module or an instructions panel could fold away in the middle of a sentence, jump the page and take your cursor with it. They still open expanded the first time and arrive tidied away once you have started, and Show and Hide still work exactly as before.",
+			"tags": [
+				"classroom",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-03",
+			"title": "IDEA Maps: find any tool in the building, down to the drawer",
+			"body": "There is a new card on your home page called IDEA Maps, and it opens a map of the building. Start at the directory, pick a room, and you get a plan of it. Pick a storage unit and you get a picture of its front with every drawer and shelf on it. Open one and you see what is inside, with photos and details for each thing. There is a search box at every level, so you can also just type what you are after and the map will walk you to it, marking the building, the room, the unit and the drawer on the way. You do not need to sign in to use it, and a link to any room, unit or item is a link you can send to someone else.",
+			"tags": [
+				"Home",
+				"portal"
+			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "Shorter class cards on the home page, and assignments that show how close they are",
+			"body": "Your classes still sit at the top of the home page, but each card is about a third shorter, so you reach the rest of the page with a lot less scrolling. Nothing was taken away: every class still shows its code, its title, its period, who teaches it and how much it is asking of you, and the rows underneath still open the exact assignment. What went is the word Open beside every single row, which was true of all of them and told you nothing. Assignments also read differently now depending on how close the due date is. Anything overdue or due today is the heaviest, with a marker down the left edge of the row; due in the next two days is marked a little more lightly; further out in the week is left plain. The row always spells the date out in words as well, so you never have to work out what a mark means. To be clear, this only changes how loudly a date is shown. It does not change the date, and a deadline is still a deadline.",
+			"tags": [
+				"Home",
+				"Assignments"
+			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "A screenshot your teacher pastes goes to one place now, not two",
+			"body": "When a teacher writes a post or an assignment they can paste a screenshot straight in, and it becomes a file on the item. That paste was going to two lists at once: the file you can see, and the teacher's own private list. So a picture meant only for your teacher could turn up on the item for the whole class, and a picture meant for you could be attached twice. Both are fixed. A pasted picture now lands in exactly the list it was aimed at. Nothing you do changes, and no file you already have has moved or gone away.",
+			"tags": [
+				"classroom"
+			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "The Contracts tab on the coin ledger, and the profile button, are reachable on a phone",
+			"body": "Two things you could not press on a phone now work. On the IDEA Coin Ledger, the fourth tab along the top was Contracts, and on a phone it sat off the right edge of the screen with no way to scroll to it: the tabs now wrap onto a second line so all four are there, and every tab is big enough to hit with a thumb. And the profile button in the top corner of every page was a smaller target than it looked, so a tap just above or below the picture did nothing. It now takes taps from the whole area around it. Nothing moved on the page and nothing looks different.",
+			"tags": [
+				"fix",
+				"portal"
+			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "Your teacher sees your profile picture beside your name on the class roster",
+			"body": "If you have set a profile picture, or your school Google account has one, it now shows next to your name on the class list and on the page your teacher uses to grade your work. Only the teacher of your class, and site admins, can see those pages, which is the same set of people who could already see your name and school email there. Nobody else sees anything new, and nothing about this is visible to other students. If you have not set a picture you get a circle with your initials in it, which is normal and is what most people will see. You can change or remove your picture any time from the profile menu in the top corner of any page.",
+			"tags": [
+				"classroom",
+				"profile"
+			]
 		}
 	]
 }

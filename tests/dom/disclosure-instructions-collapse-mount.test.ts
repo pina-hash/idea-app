@@ -21,11 +21,11 @@
 //
 //   1. THE PRESS ITSELF. `aria-expanded` moving because a person clicked,
 //      rather than because two fixtures were rendered with different inputs.
-//   2. THE OVERRIDE AS A TRANSITION. The SSR file proves `disclosureOpen(true,
-//      true)` is `true`. That is the arithmetic. What it cannot show is ONE
-//      panel, opened by hand, STAYING open as `collapseWhen` flips underneath
-//      it -- which is the moment the rule exists for and the moment a
-//      refactor to "store the current state" would break.
+//   2. `collapseWhen` FLIPPING UNDER ONE MOUNTED PANEL. The SSR file renders
+//      one frame, so it can show a started item arriving collapsed and a fresh
+//      one arriving open; it cannot show the MOMENT between them, which is
+//      where the reported defect lived -- a panel folding itself away while
+//      somebody was typing inside it (prompt 0018).
 //   3. THE PER-VIEWER KEY, WHICH NOTHING ANYWHERE ASSERTED BEFORE THIS FILE.
 //
 // (3) IS NOT A TEST-QUALITY POINT AND IS THE REASON THIS FILE EXISTS. The
@@ -145,53 +145,89 @@ describe('pressing the real trigger', () => {
 	});
 });
 
-describe('a manual choice beats the collapse signal AS A TRANSITION', () => {
-	it('keeps one panel open while the student starts work underneath it', async () => {
+/**
+ * THE TYPING COLLAPSE (prompt 0018), asserted at the level a browser cannot be
+ * asked about in CI.
+ *
+ * THIS BLOCK USED TO ASSERT THE DEFECT, AND SAID SO IN A TEST NAME: "POSITIVE
+ * CONTROL: the identical typing collapses a panel nobody chose". It was a
+ * correct reading of the code and a wrong reading of the standard.
+ * IDEA_INTERFACE_STANDARDS 1 is about what a person is HANDED -- "reading
+ * material does not sit between a person and their work on every return
+ * visit" -- so `collapseWhen` decides how a panel ARRIVES. Read live it also
+ * closed a panel somebody was inside, and because the region is hidden with
+ * `display: none` that blurred the caret and took the page's height with it,
+ * which is exactly what an instructor reported from a real classroom.
+ *
+ * WHICH IS WHY THE OVERRIDE IS NOW ASSERTED ON ARRIVAL AND NOT AS A LIVE
+ * TRANSITION. Under the latch NOTHING closes an open panel but the person's
+ * own press, so a live-transition test of the stored choice would pass with an
+ * empty store -- it would be agreeing with a signal that can no longer do
+ * anything. The store's work is visible where it is real: the state the panel
+ * is handed to somebody who has chosen before.
+ */
+describe('a panel open on screen is closed by its own control and nothing else', () => {
+	it('keeps an open panel open while the student types underneath it', async () => {
 		const restore = viewerIs('user-a');
 		const m = open();
 		try {
-			// This person opened the panel deliberately on an item they had not
-			// started. (Open -> closed -> open, so a choice is genuinely stored:
-			// the default is already open, and "no choice" is a different state
-			// from "chose open".)
-			const trigger = m.trigger('module-instructions')!;
-			trigger.click();
-			m.flush();
-			trigger.click();
-			m.flush();
-			expect(localStorage.getItem(keyFor('user-a'))).toBe('open');
+			// NOTHING STORED. That is the point: this is not the override, it is
+			// the panel's own guarantee.
+			expect(Object.keys(localStorage)).toHaveLength(0);
 			expect(m.expanded('module-instructions')).toBe('true');
 
-			// Now they start typing. `collapseWhen` (SpecRenderer's `started`)
-			// flips under the SAME mounted panel -- no remount, no second
-			// fixture. Without a stored choice this would collapse.
 			const answer = m.one<HTMLTextAreaElement>('textarea.answer');
 			answer.value = 'The density came out higher than expected.';
 			answer.dispatchEvent(new Event('input', { bubbles: true }));
 			m.flush();
 
 			expect(m.expanded('module-instructions')).toBe('true');
+			// And still nothing stored: staying open is the rule, not a choice
+			// the component wrote down on this person's behalf.
+			expect(Object.keys(localStorage)).toHaveLength(0);
 		} finally {
 			await m.stop();
 			restore();
 		}
 	});
 
-	it('POSITIVE CONTROL: the identical typing collapses a panel nobody chose', async () => {
-		// Same mount, same keystroke, no stored choice. If this did not
-		// collapse, the assertion above would be agreeing with a signal that
-		// never moved.
+	it('POSITIVE CONTROL: the identical value ARRIVES collapsed', async () => {
+		// The same text, present from the first frame instead of typed into an
+		// open panel. `collapseWhen` is genuinely true for this value -- so the
+		// assertion above is not agreeing with a signal that never moved, and a
+		// fix that simply stopped honouring `collapseWhen` reddens here.
 		const restore = viewerIs('user-a');
-		const m = open();
+		const m = open({ tf1: { text: 'The density came out higher than expected.' } });
 		try {
-			expect(m.expanded('module-instructions')).toBe('true');
-			const answer = m.one<HTMLTextAreaElement>('textarea.answer');
-			answer.value = 'The density came out higher than expected.';
-			answer.dispatchEvent(new Event('input', { bubbles: true }));
-			m.flush();
 			expect(m.expanded('module-instructions')).toBe('false');
 		} finally {
 			await m.stop();
+			restore();
+		}
+	});
+
+	it('a manual choice still beats the signal on arrival', async () => {
+		const restore = viewerIs('user-a');
+		const started = { tf1: { text: 'The density came out higher than expected.' } };
+
+		// Arrives collapsed (the control above), and this person opens it.
+		const first = open(started);
+		try {
+			expect(first.expanded('module-instructions')).toBe('false');
+			first.trigger('module-instructions')!.click();
+			first.flush();
+			expect(localStorage.getItem(keyFor('user-a'))).toBe('open');
+		} finally {
+			await first.stop();
+		}
+
+		// They come back to the same started item. The signal still says
+		// collapse; their own answer outranks it.
+		const second = open(started);
+		try {
+			expect(second.expanded('module-instructions')).toBe('true');
+		} finally {
+			await second.stop();
 			restore();
 		}
 	});

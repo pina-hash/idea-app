@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Avatar from '$lib/Avatar.svelte';
+	import { rosterSubject } from '$lib/avatars';
 	import { tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
@@ -38,6 +40,19 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import {
+		BULK_PRESET_LABEL,
+		applyPreset,
+		bulkCanSend,
+		bulkOutcome,
+		bulkPlan,
+		groupBySection,
+		sectionOfStudent,
+		selectionSummary,
+		type BulkGradingTransports,
+		type BulkOutcome,
+		type BulkPreset
+	} from '$lib/classroom/grading-bulk';
+	import {
 		IDENTITY_NOTE,
 		buildGradingExport,
 		gradingExportFilename,
@@ -74,7 +89,8 @@
 		spec = null,
 		rubric = null,
 		transports,
-		basePath = '/classroom'
+		basePath = '/classroom',
+		bulk = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -82,6 +98,19 @@
 		rubric: RubricCriterion[] | null;
 		transports: AssignmentTeacherTransports;
 		basePath?: string;
+		/**
+		 * GRADING AT SCALE, AND ABSENCE IS THE MECHANISM.
+		 *
+		 * Handed in, this console reads the assignment across EVERY class the
+		 * caller teaches it in, groups the roster by section, offers a tick box
+		 * per student and a batch bar, and commits through one statement (0175).
+		 * Omitted -- which is the per-section route at
+		 * `/classroom/<section>/item/<item>/grade` -- none of that markup exists:
+		 * there are no checkboxes to leave unchecked, no batch bar to disable and
+		 * no cross-section read to scope down. Single-section is structural here,
+		 * not a mode.
+		 */
+		bulk?: BulkGradingTransports | null;
 	} = $props();
 
 	let data = $state<GradingData | null>(null);
@@ -171,7 +200,71 @@
 	/** The rubric sum plus whatever is typed -- what the server will stamp. */
 	const liveAwarded = $derived(liveTotal + (extraCreditNumber ?? 0));
 
+	// -----------------------------------------------------------------------
+	// ACROSS CLASSES (0175's read half).
+	//
+	// AN ASSIGNMENT IS ONE ROW. `classroom_items` is canonical and
+	// `classroom_postings` is the join, so "the same assignment in three
+	// classes" is one item posted three times -- and `classroom_submissions` is
+	// keyed `(item_id, student_email)` with NO section column at all. So the
+	// work was never section-scoped: the ROSTER is what says which class a
+	// student is in, and grading across classes means widening that one read.
+	// The transport does it (`classroom_section_roster(null)`, intersected with
+	// the item's postings); everything below only has to keep the answer
+	// visible.
+	// -----------------------------------------------------------------------
+	let sections = $state<ClassroomSection[]>([]);
+	/**
+	 * The sections in play. The single-section console has exactly one and it is
+	 * the one the route named, so the grouping code below has no second branch.
+	 */
+	const activeSections = $derived(sections.length ? sections : [section]);
+	const sectionTitles = $derived(
+		new Map(activeSections.map((s) => [s.id, sectionTitle(s)] as const))
+	);
+	/**
+	 * FROM THE ROSTER, NEVER FROM THE WORK. `sectionOfStudent` is the one
+	 * implementation and it is in the pure module, because the export reads it
+	 * too and a card and a spreadsheet must not disagree about whose class
+	 * somebody is in.
+	 */
+	const sectionOf = $derived(sectionOfStudent(data?.roster ?? []));
+
+	/**
+	 * THE FACE FOR THE STUDENT ON SCREEN, looked up on the ROSTER rather than
+	 * carried on `StudentWork`.
+	 *
+	 * `studentWorkRows` builds each row field by field in
+	 * `$lib/classroom/assignment-spec.ts` and does not copy the avatar
+	 * columns across. Threading them through would mean widening that shape
+	 * for every caller of it -- the CSV export, the bulk plan, the outcome
+	 * tables -- to serve one heading. The roster rows are right here and are
+	 * the SAME rows those work rows were built from, so the lookup is by the
+	 * key they already share.
+	 *
+	 * Absent columns (0179 unapplied) and "chose no picture" are the same
+	 * answer: an initials tile.
+	 */
+	const avatarByEmail = $derived(
+		new Map((data?.roster ?? []).map((e) => [e.student_email, rosterSubject(e)]))
+	);
+	/** More than one class on screen: the state every section label exists for. */
+	const crossClass = $derived(!!bulk && activeSections.length > 1);
+
 	async function load() {
+		// ONE BRANCH, at the read. Everything downstream reads `data` and
+		// `sections` without asking which one filled them.
+		if (bulk) {
+			const res = await bulk.loadAcross(item.id);
+			if (!res.ok) {
+				loadError = res.message;
+				return;
+			}
+			loadError = null;
+			sections = res.data.sections;
+			data = res.data.data;
+			return;
+		}
 		const res = await transports.loadGrading(item.id, section.id);
 		if (!res.ok) {
 			loadError = res.message;
@@ -505,6 +598,125 @@
 		}
 	}
 
+	// -----------------------------------------------------------------------
+	// THE BATCH.
+	//
+	// THE RUBRIC FORM IS THE BATCH. There is no second scoring surface and there
+	// must not be: the scores, the per-criterion notes, the shared comment and
+	// the award being applied to a group are the ones already on screen for the
+	// student who is open, which is what keeps "the instructor sees the work
+	// while they grade it" true of the bulk path as well as the single one. A
+	// separate batch form would be a spreadsheet with the work hidden behind it,
+	// which is the failure this whole surface is shaped to avoid.
+	//
+	// SELECTION IS SEPARATE FROM WHO IS OPEN. Ticking a name changes nothing
+	// about the detail pane, so an instructor reads one student's work, scores
+	// it, then ticks everyone who earned the same and commits -- and can open any
+	// of them on the way past without losing the selection.
+	// -----------------------------------------------------------------------
+	/** The presets offered, in the order they are shown. */
+	const BULK_PRESETS: BulkPreset[] = ['all', 'submitted', 'ungraded', 'none'];
+	let picked = $state<string[]>([]);
+	let batchBusy = $state(false);
+	let outcome = $state<BulkOutcome | null>(null);
+	/** Two-step: the plan is on screen, then it is committed. */
+	let armedRelease = $state<boolean | null>(null);
+
+	const pickedSet = $derived(new Set(picked));
+	/**
+	 * RE-DERIVED FROM THE CURRENT LIST EVERY READ, never captured at tick time:
+	 * the roster reloads after every commit, so a snapshot would describe the
+	 * class as it was before the thing just saved to it. A name that has left
+	 * the roster simply stops being selected.
+	 */
+	const pickedStudents = $derived(students.filter((s) => pickedSet.has(s.email)));
+	const pickedSummary = $derived(selectionSummary(pickedStudents, sectionOf, sectionTitles));
+
+	/**
+	 * WHAT IS ABOUT TO BE WRITTEN. The preview AND the payload, from one call:
+	 * `plan.rows` is the table on screen and `plan.grades` is the request body,
+	 * so a surface cannot show a total it is not about to send.
+	 */
+	const plan = $derived(
+		bulkPlan({
+			selected: pickedStudents,
+			rubric,
+			scores,
+			criterionComments: critComments,
+			comment,
+			extraCredit: String(extraCredit ?? ''),
+			extraCreditReady,
+			sectionOf,
+			sectionTitles,
+			release: armedRelease === true
+		})
+	);
+	/** ONE PREDICATE, read by the control and by the handler. */
+	const canSend = $derived(bulkCanSend(plan));
+
+	function setPreset(preset: BulkPreset) {
+		picked = applyPreset(preset, students);
+		armedRelease = null;
+		outcome = null;
+	}
+
+	function togglePick(email: string) {
+		picked = pickedSet.has(email) ? picked.filter((e) => e !== email) : [...picked, email];
+		// Arming describes a plan; changing who is in it un-arms, so the two-step
+		// confirm can never commit a batch nobody looked at.
+		armedRelease = null;
+		outcome = null;
+	}
+
+	/**
+	 * Every criterion scored, so the release-time check has something to say
+	 * about a group rather than about the one student who is open.
+	 */
+	function armBatch(release: boolean) {
+		outcome = null;
+		armedRelease = release;
+	}
+
+	async function commitBatch() {
+		if (!bulk || armedRelease == null) return;
+		const release = armedRelease;
+		// THE HANDLER ASKS THE SAME PREDICATE THE CONTROL DOES. Two spellings of
+		// "is this ready" is what produces a press that does nothing.
+		if (!canSend) return;
+		const sent = plan.grades;
+		const roster = pickedStudents;
+		batchBusy = true;
+		try {
+			const res = await bulk.gradeMany(item.id, sent, release);
+			if (!res.ok) {
+				// 0175 only RAISES on shapes it checked before writing anything, so
+				// this genuinely means nothing landed.
+				outcome = {
+					total: sent.length,
+					succeeded: 0,
+					refused: sent.length,
+					released: release,
+					headline: `Nothing was graded. ${res.message}`,
+					rows: []
+				};
+				return;
+			}
+			outcome = bulkOutcome(res.data, roster, sectionOf, sectionTitles, release);
+			armedRelease = null;
+			// WHAT LANDED IS CLEARED AND WHAT DID NOT STAYS SELECTED, so pressing
+			// again retries exactly the rest. A batch that cleared everything
+			// would make an instructor rebuild the selection from the report.
+			const failed = new Set(res.data.results.filter((r) => !r.ok).map((r) => r.email));
+			picked = picked.filter((e) => failed.has(e));
+			// The form on screen is now what is stored for everyone who landed,
+			// so switching students must not ask about work that saved.
+			baseline = currentSnapshot();
+			await load();
+		} finally {
+			batchBusy = false;
+		}
+	}
+
 	async function setGate(approvedNow: boolean) {
 		if (!selected || !gateModule) return;
 		busy = true;
@@ -531,8 +743,32 @@
 		URL.revokeObjectURL(url);
 	}
 
+	// -----------------------------------------------------------------------
+	// AN EXPORT IS ALWAYS ONE CLASS.
+	//
+	// `gradesCsv` writes Last, First, Score, Out of -- a FACTS gradebook import,
+	// which is a per-class document by definition -- and every filename here
+	// ends in a section slug. On a console holding three classes an export of
+	// "the whole class" would be three classes in a file that names one, which
+	// is a wrong gradebook import that looks exactly like a right one. So the
+	// panel picks a section, defaulting to the one the route named, and every
+	// export below reads THAT section and only its students.
+	// -----------------------------------------------------------------------
+	// THE INITIAL VALUE IS THE POINT: the route's own section is where the panel
+	// starts, and the instructor moves it from there. Re-deriving it from the prop
+	// would put the picker back on Period 1 every time the roster reloaded.
+	// svelte-ignore state_referenced_locally
+	let exportSectionId = $state(section.id);
+	const exportSection = $derived(
+		activeSections.find((s) => s.id === exportSectionId) ?? activeSections[0] ?? section
+	);
+	/** The roster of the section being exported, which in single-class mode is all of it. */
+	const exportRoster = $derived(
+		crossClass ? students.filter((s) => sectionOf.get(s.email) === exportSection.id) : students
+	);
+
 	function exportCsv() {
-		const rows = students.map((s) => ({
+		const rows = exportRoster.map((s) => ({
 			displayName: s.displayName,
 			email: s.email,
 			score: s.submission?.state === 'returned' ? (s.submission.score ?? null) : null,
@@ -568,11 +804,11 @@
 
 	function payloadFor(scope: ExportScope) {
 		return buildGradingExport({
-			section,
+			section: exportSection,
 			item,
 			spec,
 			rubric,
-			roster: students,
+			roster: exportRoster,
 			selectedEmail,
 			scope,
 			identity,
@@ -584,6 +820,13 @@
 	function exportJson(scope: ExportScope) {
 		if (scope === 'student' && !selected) {
 			exportNote = 'Choose a student in the roster first, then export their work.';
+			return;
+		}
+		// AND THE OPEN STUDENT HAS TO BE IN THE CLASS BEING EXPORTED. Otherwise
+		// the file names one section and carries a student from another, which is
+		// the cross-class version of the wrong-gradebook mistake.
+		if (scope === 'student' && !exportRoster.some((s) => s.email === selected?.email)) {
+			exportNote = `${selected?.displayName} is not in ${sectionTitle(exportSection)}. Switch the class above, or open a student in it.`;
 			return;
 		}
 		const payload = payloadFor(scope);
@@ -623,7 +866,10 @@
 			: `Exported ${who}, with names and email addresses left out.`;
 	}
 	function sectionSlug(): string {
-		return sectionTitle(section).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+		return sectionTitle(exportSection)
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '');
 	}
 
 	const returnedCount = $derived(
@@ -927,6 +1173,27 @@
 				-->
 				<div class="work-export" data-testid="work-export">
 					<p class="work-export-label">Export graded work</p>
+					{#if crossClass}
+						<!--
+							ONE CLASS PER FILE. A gradebook import that named Period 1 and
+							carried Period 2's students as well would be accepted by FACTS
+							without complaint, so the section is chosen here rather than
+							inferred, and the choice reaches the filename, the CSV rows, the
+							JSON and the workbook through one derived roster.
+						-->
+						<label class="export-section" data-testid="export-section">
+							<span class="export-section-label">Class to export</span>
+							<select
+								class="tap-44"
+								bind:value={exportSectionId}
+								onchange={() => (exportNote = null)}
+							>
+								{#each activeSections as s (s.id)}
+									<option value={s.id}>{sectionTitles.get(s.id) ?? sectionTitle(s)}</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
 					<div class="work-export-row">
 						<button
 							type="button"
@@ -974,7 +1241,9 @@
 				</div>
 				{#if returnedCount < students.length}
 					<p class="csv-hint">
-						CSV scores fill in as work is returned ({returnedCount}/{students.length} returned).
+						CSV scores fill in as work is returned ({returnedCount}/{students.length} returned{crossClass
+							? ', across every class shown'
+							: ''}).
 					</p>
 				{/if}
 				{#if offRosterCount > 0}
@@ -994,67 +1263,212 @@
 						tab to take {managerCount === 1 ? 'it' : 'them'} off the roster entirely.
 					</p>
 				{/if}
-				<!-- No tabindex here: every row is a real button, so the roster is
-				     already reachable and scrollable from the keyboard. -->
-				<ul class="roster-list">
-					{#each students as s (s.email)}
-						{@const chip = statusChip(s)}
-						{@const short = incompleteCount(s)}
-						<li>
+				<!--
+					ONE ROW, ONE SNIPPET, whichever list it lands in. The flat roster and
+					the per-section groups render the identical markup, because a second
+					copy of a roster row is where a chip, a status or a tap target stops
+					matching between the two surfaces that both call themselves "the
+					grading console".
+
+					No tabindex on the lists: every row is a real button, so the roster is
+					already reachable and scrollable from the keyboard.
+				-->
+				{#snippet rosterRow(s: StudentWork)}
+					{@const chip = statusChip(s)}
+					{@const short = incompleteCount(s)}
+					<li class="roster-item" class:pickable={!!bulk}>
+						{#if bulk}
+							<!--
+								OUTSIDE THE BUTTON, and not only because a checkbox inside a
+								button is invalid: ticking a name and opening their work are
+								two different acts, and one control doing both would mean an
+								instructor could not read a student's work without adding them
+								to the batch.
+							-->
+							<label class="roster-pick tap-44" data-testid="roster-pick">
+								<input
+									type="checkbox"
+									checked={pickedSet.has(s.email)}
+									disabled={batchBusy}
+									onchange={() => togglePick(s.email)}
+								/>
+								<span class="visually-hidden">Grade {s.displayName} in this batch</span>
+							</label>
+						{/if}
+						<button
+							type="button"
+							class="roster-row"
+							class:active={selectedEmail === s.email}
+							class:inactive={!s.active}
+							onclick={() => requestSelect(s)}
+						>
+							<span class="roster-name">{s.displayName}</span>
+							<span class="roster-chips">
+								<!--
+									THE SECTION, ON THE ROW, whenever more than one is on screen.
+									The group heading above is not enough on its own: it scrolls
+									away, and grading the wrong class's student is a silent
+									failure -- nothing refuses it, because the instructor teaches
+									both. It is FIRST in the chip list for the same reason.
+								-->
+								{#if crossClass}
+									<span class="roster-chip section" data-testid="roster-section">
+										{sectionTitles.get(sectionOf.get(s.email) ?? '') ?? 'No class'}
+									</span>
+								{/if}
+								<span class="roster-chip {chip.cls}">{chip.label}</span>
+								<!--
+									A SECOND CHIP, NOT A SECOND WORD IN THE FIRST ONE.
+									"Did this arrive" and "was it finished when it arrived"
+									are two questions, and a row can answer them
+									independently: a returned 9/20 may have come in
+									incomplete and a submitted one may not have. Folding the
+									count into the state chip would make one mark stand for
+									both and there would be no way to read either.
+								-->
+								{#if short > 0}
+									<span class="roster-chip incomplete" data-testid="roster-incomplete">
+										Incomplete &middot; {short}
+									</span>
+								{/if}
+								<!--
+									A THIRD CHIP, for the same reason there is a second one.
+									"Did this arrive", "was it finished when it arrived" and
+									"has it moved since I graded it" are three independent
+									questions, and a row can answer them in any combination.
+									This one NAMES THE ACT rather than saying "changed":
+									resubmitting is a student asking to be looked at again and
+									an edit is the graded artefact quietly ceasing to be the
+									graded artefact, and an instructor answers those
+									differently.
+								-->
+								{#if changedFor.get(s.email)}
+									<span class="roster-chip changed" data-testid="roster-changed">
+										{postGradeChangeLabel(changedFor.get(s.email)!)}
+									</span>
+								{/if}
+							</span>
+						</button>
+					</li>
+				{/snippet}
+
+				{#if bulk}
+					<!--
+						THE PRESETS ARE THE POINT OF THE BULK PATH. Ticking thirty boxes
+						is not faster than grading thirty students; "everyone who handed
+						in" and "everyone not graded yet" are the two selections an
+						instructor actually makes, and the second is the one they reach
+						for after a partial pass.
+					-->
+					<div class="pick-presets" data-testid="pick-presets">
+						<span class="pick-presets-label">Select</span>
+						{#each BULK_PRESETS as preset (preset)}
 							<button
 								type="button"
-								class="roster-row"
-								class:active={selectedEmail === s.email}
-								class:inactive={!s.active}
-								onclick={() => requestSelect(s)}
+								class="btn secondary tiny"
+								data-preset={preset}
+								disabled={batchBusy}
+								onclick={() => setPreset(preset)}
 							>
-								<span class="roster-name">{s.displayName}</span>
-								<span class="roster-chips">
-									<span class="roster-chip {chip.cls}">{chip.label}</span>
-									<!--
-										A SECOND CHIP, NOT A SECOND WORD IN THE FIRST ONE.
-										"Did this arrive" and "was it finished when it arrived"
-										are two questions, and a row can answer them
-										independently: a returned 9/20 may have come in
-										incomplete and a submitted one may not have. Folding the
-										count into the state chip would make one mark stand for
-										both and there would be no way to read either.
-									-->
-									{#if short > 0}
-										<span class="roster-chip incomplete" data-testid="roster-incomplete">
-											Incomplete &middot; {short}
-										</span>
-									{/if}
-									<!--
-										A THIRD CHIP, for the same reason there is a second one.
-										"Did this arrive", "was it finished when it arrived" and
-										"has it moved since I graded it" are three independent
-										questions, and a row can answer them in any combination.
-										This one NAMES THE ACT rather than saying "changed":
-										resubmitting is a student asking to be looked at again and
-										an edit is the graded artefact quietly ceasing to be the
-										graded artefact, and an instructor answers those
-										differently.
-									-->
-									{#if changedFor.get(s.email)}
-										<span class="roster-chip changed" data-testid="roster-changed">
-											{postGradeChangeLabel(changedFor.get(s.email)!)}
-										</span>
-									{/if}
-								</span>
+								{BULK_PRESET_LABEL[preset]}
 							</button>
-						</li>
+						{/each}
+					</div>
+					{@const grouped = groupBySection(students, activeSections, sectionOf)}
+					{#each grouped.groups as group (group.section.id)}
+						<div class="roster-group" data-testid="roster-group">
+							<h3 class="roster-group-head">
+								<span class="roster-group-name">{group.title}</span>
+								<span class="roster-group-count">
+									{group.students.length}
+									{group.students.length === 1 ? 'student' : 'students'}
+								</span>
+							</h3>
+							<ul class="roster-list">
+								{#each group.students as s (s.email)}
+									{@render rosterRow(s)}
+								{/each}
+								{#if group.students.length === 0}
+									<li class="note">Nobody is enrolled in this class yet.</li>
+								{/if}
+							</ul>
+						</div>
 					{/each}
-					{#if students.length === 0}
-						<li class="note">No students enrolled in this section.</li>
+					{#if grouped.unplaced.length}
+						<!--
+							NOT FILED UNDER THE FIRST CLASS. A row the roster read could not
+							place is shown as exactly that: putting it in a class it may not
+							be in is the mistake the grouping exists to prevent, and it would
+							be invisible.
+						-->
+						<div class="roster-group" data-testid="roster-unplaced">
+							<h3 class="roster-group-head">
+								<span class="roster-group-name">No class on the roster</span>
+								<span class="roster-group-count">{grouped.unplaced.length}</span>
+							</h3>
+							<ul class="roster-list">
+								{#each grouped.unplaced as s (s.email)}
+									{@render rosterRow(s)}
+								{/each}
+							</ul>
+						</div>
 					{/if}
-				</ul>
+					{#if students.length === 0}
+						<p class="note">Nobody is enrolled in any class this assignment is posted to.</p>
+					{/if}
+				{:else}
+					<ul class="roster-list">
+						{#each students as s (s.email)}
+							{@render rosterRow(s)}
+						{/each}
+						{#if students.length === 0}
+							<li class="note">No students enrolled in this section.</li>
+						{/if}
+					</ul>
+					<!--
+						THE WAY ACROSS. This console is one class; the same assignment is
+						routinely posted to two or three, and grading it from three
+						different URLs is the second of the two complaints this bundle
+						exists for. The link is unconditional because the only thing that
+						could make it conditional is a count this page does not have, and a
+						path nobody can find is a path that was not built.
+					-->
+					<p class="cross-class-link">
+						<!-- `.tap-44` and not a bare inline link: the prose exemption is for a
+						     link INSIDE a sentence, where a 44px reach would overlap the lines
+						     above and below. This is a standalone navigation control in a
+						     panel, and it is the only route to the cross-class console --
+						     measured at 18px tall before this. -->
+						<a
+							class="tap-44"
+							href="{basePath}/grading/{item.id}"
+							data-testid="cross-class-link"
+						>
+							Grade this assignment across every class you teach it in
+						</a>
+					</p>
+				{/if}
 			</section>
 
 			{#if selected}
 				<section class="work">
 					<div class="card work-head">
-						<div>
+						<div class="work-who">
+							<!-- THE STUDENT IDENTITY ROW, and the audience for the face is
+							     the audience for the name that is already here. Both
+							     grading routes refuse a student before this renders (the
+							     per-section load redirects on `classroom_manages_section`,
+							     the cross-section one 404s on an empty managed set), and
+							     underneath them `classroom_can_review_submission` gates
+							     every row RLS returns. The heading beside this avatar
+							     prints the student's display name and the line under it
+							     prints their address. -->
+							<Avatar
+								subject={avatarByEmail.get(selected.email) ?? null}
+								tintKey={selected.email}
+								size={40}
+							/>
+							<div class="work-ident">
 							<h2 class="work-name">{selected.displayName}</h2>
 							<p class="work-meta">
 								{selected.email}
@@ -1081,6 +1495,7 @@
 									{stamp(selectedChange.at)}. Grading again clears this.
 								</p>
 							{/if}
+							</div>
 						</div>
 						<button type="button" class="btn secondary tiny" onclick={() => requestSelect(null)}>
 							Close
@@ -1426,6 +1841,175 @@
 										     means the draft is stored, never that a request went out. -->
 										<SaveIndicator state={save} />
 									</span>
+
+									{#if bulk}
+										<!--
+											THE BATCH, UNDER THE RUBRIC THAT FEEDS IT.
+											It is here and not in a panel of its own because the scores
+											above ARE what it sends: an instructor reads this student's
+											work, scores it, and then says "and everyone else I ticked
+											earned that too". A separate batch form would be a
+											spreadsheet with the work hidden behind it, which produces
+											worse grades faster.
+										-->
+										<div class="batch" data-testid="batch-bar">
+											<p class="batch-count" data-testid="batch-count">{pickedSummary}</p>
+											{#if picked.length === 0}
+												<p class="batch-hint">
+													Tick names in the roster to score them all with the rubric
+													above. Nothing is written until you press a button here.
+												</p>
+											{:else}
+												{#if plan.problems.length}
+													<!-- A REFUSAL RENDERS WHERE THE GRADER IS WORKING, in the
+													     same list as every other problem, and before a round
+													     trip rather than after thirty identical ones. -->
+													<ul class="batch-problems" data-testid="batch-problems">
+														{#each plan.problems as p, i (i)}
+															<li><strong>{p.label}.</strong> {p.message}</li>
+														{/each}
+													</ul>
+												{/if}
+												{#if plan.skipped.length}
+													<p class="batch-skipped" data-testid="batch-skipped">
+														{plan.skipped.length}
+														{plan.skipped.length === 1 ? 'student is' : 'students are'} in the
+														selection but will not be written: {plan.skipped
+															.map((x) => x.displayName)
+															.join(', ')}. Score at least one criterion above first.
+													</p>
+												{/if}
+												{#if armedRelease == null}
+													<div class="batch-actions">
+														<button
+															type="button"
+															class="btn secondary tiny"
+															data-testid="batch-arm-draft"
+															aria-disabled={plan.grades.length === 0}
+															disabled={batchBusy}
+															onclick={() => armBatch(false)}
+														>
+															Save drafts for {picked.length}
+														</button>
+														<button
+															type="button"
+															class="btn tiny"
+															data-testid="batch-arm-return"
+															aria-disabled={plan.grades.length === 0}
+															disabled={batchBusy}
+															onclick={() => armBatch(true)}
+														>
+															Return to {picked.length}
+														</button>
+													</div>
+												{:else}
+													<!--
+														NOTHING IS WRITTEN UNTIL IT IS COMMITTED, AND WHAT WILL
+														BE WRITTEN IS ON SCREEN FIRST. `plan.rows` and
+														`plan.grades` come out of ONE call, so this table cannot
+														describe a batch other than the one about to be sent.
+													-->
+													<div class="batch-plan" data-testid="batch-plan">
+														<p class="batch-plan-head">
+															About to {armedRelease ? 'return' : 'save as drafts'}
+															{plan.rows.length}
+															{plan.rows.length === 1 ? 'grade' : 'grades'}, out of {plan.outOf} pts.
+														</p>
+														{#if plan.rows.length}
+															<table class="plan-table">
+																<thead>
+																	<tr>
+																		<th scope="col">Student</th>
+																		{#if crossClass}<th scope="col">Class</th>{/if}
+																		<th scope="col">Was</th>
+																		<th scope="col">Becomes</th>
+																	</tr>
+																</thead>
+																<tbody>
+																	{#each plan.rows as row (row.email)}
+																		<tr data-plan-row={row.email}>
+																			<td>{row.displayName}</td>
+																			{#if crossClass}<td class="plan-section">{row.sectionTitle}</td>{/if}
+																			<td class="plan-was">
+																				{row.previous == null ? 'Not graded' : `${row.previous}`}
+																			</td>
+																			<td class="plan-becomes">
+																				{row.awarded}{#if row.extraCredit}
+																					<span class="plan-ec"
+																						>({row.rubricPoints} + {row.extraCredit})</span
+																					>{/if}
+																			</td>
+																		</tr>
+																	{/each}
+																</tbody>
+															</table>
+														{/if}
+														{#if plan.rows.some((r) => r.regrade)}
+															<p class="batch-regrade" data-testid="batch-regrade">
+																{plan.rows.filter((r) => r.regrade).length} of these already have
+																a grade. Committing replaces it, and stamps the work as graded
+																again, which clears any "changed after grading" mark.
+															</p>
+														{/if}
+														<div class="batch-actions">
+															<button
+																type="button"
+																class="btn tiny"
+																data-testid="batch-commit"
+																aria-disabled={!canSend}
+																disabled={batchBusy}
+																onclick={() => void commitBatch()}
+															>
+																{batchBusy
+																	? 'Writing'
+																	: armedRelease
+																		? `Yes, return ${plan.rows.length}`
+																		: `Yes, save ${plan.rows.length} drafts`}
+															</button>
+															<button
+																type="button"
+																class="btn secondary tiny"
+																data-testid="batch-cancel"
+																disabled={batchBusy}
+																onclick={() => (armedRelease = null)}
+															>
+																Cancel
+															</button>
+														</div>
+													</div>
+												{/if}
+											{/if}
+											{#if outcome}
+												<!--
+													PER STUDENT, BY NAME, ALWAYS. "27 of 30 saved" sends an
+													instructor hunting; the three names say what to do. The
+													refused rows sort FIRST and keep their class, because on a
+													cross-class surface the likeliest reason a row is refused is
+													that it belongs to a class somebody else teaches.
+												-->
+												<div class="batch-outcome" data-testid="batch-outcome">
+													<p
+														class="batch-headline"
+														class:bad={outcome.refused > 0}
+														data-testid="batch-headline"
+													>
+														{outcome.headline}
+													</p>
+													<ul class="outcome-list">
+														{#each outcome.rows as row (row.email)}
+															<li class:refused={!row.ok} data-outcome-row={row.email}>
+																<span class="outcome-name">{row.displayName}</span>
+																{#if crossClass && row.sectionTitle}
+																	<span class="outcome-section">{row.sectionTitle}</span>
+																{/if}
+																<span class="outcome-sentence">{row.sentence}</span>
+															</li>
+														{/each}
+													</ul>
+												</div>
+											{/if}
+										</div>
+									{/if}
 								</div>
 							</div>
 						{/if}
@@ -1676,6 +2260,264 @@
 		min-width: 0;
 		overflow-wrap: anywhere;
 	}
+	/* -------------------------------------------------------------------
+	   GRADING AT SCALE. Everything below renders only when the bulk transport
+	   is handed in, so the per-section console's box model is byte-identical
+	   to what it was.
+	   ------------------------------------------------------------------- */
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	/* The tick box and the row are two controls on one line, and the row keeps
+	   the rest of the measure: a name that shrank to make room for a checkbox
+	   would ellipsise the one thing the row is for. */
+	.roster-item {
+		display: block;
+	}
+	.roster-item.pickable {
+		display: flex;
+		align-items: stretch;
+		gap: var(--space-1);
+	}
+	.roster-item.pickable .roster-row {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	/* `.tap-44` in the markup carries the height; this carries the width, so the
+	   target is square rather than a 44px-tall sliver. It is a control of its
+	   own beside another control, so it takes the load-bearing boundary. */
+	.roster-pick {
+		flex: 0 0 auto;
+		justify-content: center;
+		min-width: 44px;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+		cursor: pointer;
+	}
+	.roster-pick input {
+		width: 1.05rem;
+		height: 1.05rem;
+		accent-color: var(--green);
+		cursor: pointer;
+	}
+	/* THE CLASS, ON EVERY ROW, and NEUTRAL on purpose. The other chips carry a
+	   verdict about the work (gold: special, amber: warning, cyan/green: state);
+	   a class name is an identity and inventing a hue for it would put a
+	   sixth semantic colour on a row that already has five. The WORD is the
+	   whole signal here, so it takes the body ink and the load-bearing edge and
+	   is simply the most legible chip in the row -- which is what it should be,
+	   since grading the wrong class's student is the silent failure. */
+	.roster-chip.section {
+		color: var(--text-1);
+		border-color: var(--boundary);
+		background: var(--surface-0);
+	}
+	.roster-group + .roster-group {
+		margin-top: var(--space-3);
+	}
+	.roster-group-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-1);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-1);
+		border-bottom: 1px solid var(--boundary);
+		padding-bottom: 0.25rem;
+	}
+	.roster-group-count {
+		font-weight: 400;
+		text-transform: none;
+		letter-spacing: 0;
+		color: var(--text-2);
+	}
+	.pick-presets {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1);
+		margin-bottom: var(--space-2);
+	}
+	.pick-presets-label {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.cross-class-link {
+		margin: var(--space-2) 0 0;
+		font-size: 0.85rem;
+	}
+	.cross-class-link a {
+		/* `.tap-44` gives the height; this gives the box something to be tall
+		   with, so the target is a control rather than a line of text with air
+		   claimed around it. */
+		padding: 0 0.2rem;
+	}
+	.export-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		margin-bottom: var(--space-2);
+	}
+	.export-section-label {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.export-section select {
+		background: var(--surface-2);
+		color: var(--text-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		font-family: var(--font-display);
+		font-size: 0.85rem;
+		padding: 0 0.5rem;
+	}
+	.batch {
+		margin-top: var(--space-3);
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--boundary);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.batch-count {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-1);
+	}
+	.batch-hint,
+	.batch-skipped,
+	.batch-regrade {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--text-2);
+	}
+	.batch-regrade {
+		color: var(--amber);
+	}
+	.batch-problems {
+		margin: 0;
+		padding-left: 1.1rem;
+		font-size: 0.82rem;
+		color: var(--amber);
+		display: grid;
+		gap: 0.3rem;
+	}
+	.batch-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+	}
+	.batch-plan {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		background: var(--surface-0);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		padding: var(--space-2);
+	}
+	.batch-plan-head {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-1);
+	}
+	/* Its own scroller: a plan with a class column is wider than a narrow pane,
+	   and the page body must never scroll sideways to show it. */
+	.plan-table {
+		display: block;
+		max-width: 100%;
+		overflow-x: auto;
+		border-collapse: collapse;
+		font-size: 0.8rem;
+	}
+	.plan-table th,
+	.plan-table td {
+		text-align: left;
+		padding: 0.25rem 0.5rem 0.25rem 0;
+		border-bottom: 1px solid var(--hairline);
+		white-space: nowrap;
+	}
+	.plan-table th {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-2);
+	}
+	.plan-was {
+		color: var(--text-2);
+	}
+	.plan-becomes {
+		font-family: var(--font-mono);
+		color: var(--text-1);
+	}
+	.plan-section {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-1);
+	}
+	.plan-ec {
+		color: var(--text-2);
+		margin-left: 0.3rem;
+	}
+	.batch-outcome {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.batch-headline {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		color: var(--green);
+	}
+	.batch-headline.bad {
+		color: var(--amber);
+	}
+	.outcome-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.25rem;
+		font-size: 0.8rem;
+	}
+	.outcome-list li {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: baseline;
+		color: var(--text-2);
+	}
+	.outcome-name {
+		color: var(--text-1);
+	}
+	.outcome-section {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	/* THE REFUSALS ARE THE ONES TO READ, and they sort first as well as
+	   colouring differently -- the sentence beside the name is what says what to
+	   do, so colour is never doing the work on its own. */
+	.outcome-list li.refused .outcome-sentence {
+		color: var(--amber);
+	}
 	.roster-chip {
 		font-family: var(--font-mono);
 		font-size: 0.6rem;
@@ -1776,6 +2618,21 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		gap: 0.6rem;
+	}
+	/* THE AVATAR AND THE NAME ARE ONE ROW, and the name is the half that
+	   gives. `align-items: start` rather than centre because the block beside
+	   the picture is three lines deep on a graded submission and centring it
+	   would float the face against the middle of a paragraph. `min-width: 0`
+	   on the text column is what lets a long name wrap instead of forcing the
+	   card wider (CLAUDE.md's min-width rule); the avatar's own
+	   `flex-shrink: 0` is what stops it being the thing that gives. */
+	.work-who {
+		display: flex;
+		align-items: start;
+		gap: 0.65rem;
+	}
+	.work-ident {
+		min-width: 0;
 	}
 	.work-name {
 		margin: 0;

@@ -15,6 +15,7 @@
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
 	import AdminMark from '$lib/marks/AdminMark.svelte';
 	import FoundryMark from '$lib/marks/FoundryMark.svelte';
+	import MapsMark from '$lib/marks/MapsMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
@@ -295,6 +296,8 @@
 		<AdminMark />
 	{:else if id === 'foundry'}
 		<FoundryMark />
+	{:else if id === 'maps'}
+		<MapsMark />
 	{:else if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
@@ -835,6 +838,67 @@
 			rgba(246, 149, 47, 0.035) 0 1px,
 			transparent 1px 7px
 		);
+	}
+	/* IDEA MAPS -- JADE, AND THE ONE HUE ON THIS PAGE NOBODY ELSE IS SPENDING.
+	   Mr. Pina closed spec section 10's undecided accent on 2026-09-02: Maps
+	   takes a GREEN, because green is the pathway's brand identity and an IDEA
+	   product should read as one. This rule is the implementation of that
+	   decision, not a re-litigation of it; what was open was WHICH green.
+
+	   THE PROBLEM WAS THAT FOUR CARDS ALREADY SPEND ONE, and a fifth chosen by
+	   eye would have been a fifth thing nobody can tell apart at a glance.
+	   Measured in oklch, every incumbent green sits between hue 141.7 and
+	   158.6 -- admin/dashboard #78b870 at 141.7, GAUNTLET and VANGUARD #00ff41
+	   at 144.5, GREENLINE #2ae57e at 152.5, Tournaments #0fbe7a at 158.6 --
+	   with the Coin Ledger's chartreuse #c8ff00 below them at 124.0 and the
+	   --cyan token above at 177.6. The gap between the emerald and the cyan is
+	   the only green nothing on this page is using. This is oklch(0.820 0.150
+	   168), the middle of it: a jade, unambiguously green (its green channel
+	   leads its blue by 50 of 255) and unambiguously not one of the four.
+
+	   MEASURED, BECAUSE A FIFTH GREEN IS EXACTLY THE CLAIM THAT HAS TO BE.
+	   CIEDE2000 against every colour already on the launcher: GREENLINE 9.8,
+	   Tournaments 10.8, admin/dashboard 15.1, GAUNTLET and VANGUARD 18.6, the
+	   Coin Ledger 27.5, the shared brass default 34.7, the Foundry 50.1, FRC
+	   75.9 -- and 11.4 against --cyan, which is the token it is nearest in hue
+	   and which is nowhere near it in chroma. The worst of those, 9.8, is
+	   WIDER than the closest pair this page already ships (Tournaments against
+	   admin/dashboard, 9.0), so the board is not made tighter by adding to it.
+
+	   THE INK DOES NOT MOVE, unlike FRC's. As text it measures 10.86 / 9.24 /
+	   8.66 on --bg0 / --bg1 / --bg2, so the identity carries the glyph itself
+	   and there is nothing to re-pin; the 75% edge reads 6.89:1 against the
+	   page, past the 3:1 a load-bearing boundary owes.
+
+	   THE SECOND STOP IS THE PORTAL'S BRASS, AND IT IS THE ROOM QUOTED RATHER
+	   THAN A COLOUR PICKED. /maps paints its chrome in this jade and marks the
+	   thing you were looking for in --gold -- gold is a STATE on that surface,
+	   the way crimson is reserved for live and error -- so the card's 2px strip
+	   running jade to brass is the two roles the room actually has. It is the
+	   one strip on this launcher whose stops are a surface's own semantics
+	   rather than two colours that go together.
+
+	   THIS RULE PAINTS A REAL CARD NOW, AND THIS PARAGRAPH USED TO SAY IT DID
+	   NOT. It read "THERE IS NO `maps` ENTRY IN `PORTAL_APPS` YET AND THIS
+	   RULE PAINTS NOTHING UNTIL THERE IS", which was true the day 0020 wrote
+	   it and was made false by the very next bundle: `ca5d950` added the
+	   `maps` entry to the registry and `MapsMark.svelte` beside it, so the
+	   selector below has matched a mounted card ever since. 0021 was right not
+	   to revise another bundle's prose while landing that entry; the sentence
+	   is corrected here by the bundle that owns this file.
+
+	   The reason it mattered is the reason the sentence was written: a
+	   stylesheet rule keyed on an attribute no card carries is INERT AND
+	   NOTHING ON SCREEN REPORTS IT -- there is no wrong colour to notice, only
+	   a card that is not there. A comment claiming that state after it has
+	   passed is the same failure one layer up: it tells the next reader the
+	   rule is unreachable, which is exactly the thing that stops anybody
+	   measuring it. `tests/home-order-and-accent.test.ts` is what closes the
+	   loop in code, asserting the registry entry exists and that the launcher
+	   draws MapsMark for it rather than the fallback glyph. */
+	.app-card[data-app='maps'] {
+		--acc-primary: #40e3b1;
+		--acc-secondary: var(--gold);
 	}
 	.app-card[data-app='dashboard'],
 	.app-card[data-app='admin'] {

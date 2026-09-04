@@ -22,6 +22,14 @@
 //    is a silent one: the eleven wrong colours painted for months in front of
 //    everyone. A constant only makes the right thing available.
 //
+// 3. THE ACTIVE COURSES TILE. The hero's first stat is a NUMBER, which is the
+//    most silent thing a page can be wrong about: it renders, it is plausible,
+//    and nobody re-derives it. It read 4 against a pathway running 2 for as
+//    long as `Section.course` carried rotation numbers. What is pinned below is
+//    that the tile shows `activeCourseCount()` and that the count collapses
+//    every section of a course into one -- never the literal 2, which is an
+//    ordinary edit to hand-maintained metadata away.
+//
 // SSR-ONLY, the classroom-body-render.test.ts pattern: `svelte/server`'s
 // render() mounts the REAL components and hands back markup. There is no DOM
 // harness here, so "which comes first" is asserted as DOCUMENT ORDER in that
@@ -33,7 +41,8 @@ import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 import Home from '../src/routes/+page.svelte';
 import AppLauncher from '$lib/AppLauncher.svelte';
-import { PORTAL_APPS, visibleApps } from '$lib/portal-apps';
+import { PORTAL_APPS, visibleApps, type PortalApp } from '$lib/portal-apps';
+import { SECTIONS, activeCourseCount } from '$lib/curriculum';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 
 const TEACHER = 'tvargas@boscotech.edu';
@@ -93,10 +102,55 @@ function item(sectionId: string): ClassroomItem {
  *   * `admin-not-teacher` -- an admin whose profile role is not `teacher`.
  *     classroom_manages_section is true for them on every section, so they get
  *     the launcher first.
+ *
+ * AND TWO MORE WITH NO FEED AT ALL, which is the case the four above could not
+ * express: every one of them carries exactly one section, so `hasClasses` was
+ * true for all four and the emptiness half of the decision was unreachable
+ * from this fixture. `student-no-classes` is a real student before the roster
+ * import (and the same shape a failed classroom read produces);
+ * `signed-out` is a visitor, whose payload carries no claims and no sections
+ * because that is literally what `+page.server.ts` returns with no session.
  */
-type Viewer = 'teacher-of-record' | 'student' | 'staff-no-sections' | 'admin-not-teacher';
+type Viewer =
+	| 'teacher-of-record'
+	| 'student'
+	| 'staff-no-sections'
+	| 'admin-not-teacher'
+	| 'student-no-classes'
+	| 'signed-out';
 
 function homeData(viewer: Viewer) {
+	/*
+	 * THE EMPTY-FEED VIEWERS RETURN THE PAYLOAD SHAPE THEIR REAL CASE
+	 * PRODUCES, not a doctored one. `+page.server.ts` returns
+	 * `feedSections: []` with no claims for a signed-out visitor, and the same
+	 * empty arrays with claims for a signed-in account on nobody's roster --
+	 * so `buildFeed` returns nothing and `ClassroomFeed` renders its own empty
+	 * state, which is a card, which is why "is the block there" was never the
+	 * question.
+	 */
+	if (viewer === 'signed-out' || viewer === 'student-no-classes') {
+		return {
+			classroomReady: true,
+			feedSections: [],
+			feedItems: [],
+			feedSubmissions: [],
+			claims: viewer === 'signed-out' ? null : { sub: 'u1', email: STUDENT },
+			userProfile:
+				viewer === 'signed-out'
+					? null
+					: {
+							id: 'u1',
+							role: 'student',
+							display_name: 'Viewer',
+							avatar: null,
+							pathway: 'IDEA',
+							preferences: {}
+						},
+			isAdmin: false
+		};
+	}
+
 	// Every section belongs to TEACHER; only the viewer changes.
 	const sections = [section('s1', TEACHER)];
 	const email = viewer === 'teacher-of-record' ? TEACHER : STUDENT;
@@ -143,7 +197,9 @@ const ALL_VIEWERS: Viewer[] = [
 	'teacher-of-record',
 	'student',
 	'staff-no-sections',
-	'admin-not-teacher'
+	'admin-not-teacher',
+	'student-no-classes',
+	'signed-out'
 ];
 
 describe('home page: which block comes first', () => {
@@ -163,8 +219,55 @@ describe('home page: which block comes first', () => {
 	it('leaves the student order alone: Your Classes first', () => {
 		// The one thing the feed does that nothing else does is deep-link a
 		// student into the exact item that is due. It keeps the top.
+		//
+		// THIS IS THE ASSERTION THAT REFUSES THE REPORTED REMEDY. The report
+		// behind this bundle was "apps should be above classes"; measured at
+		// 375px on /dev/home-order, a student's block grows 616px per class
+		// (first app card at 1.76 / 2.53 / 3.30 / 4.07 screens for one through
+		// four classes), so flipping it would not remove that scroll, it would
+		// move it onto the deep links. A student WITH a class keeps this order.
 		const o = order(drawHome('student'));
 		expect(o.classes).toBeLessThan(o.apps);
+	});
+
+	/*
+	 * THE EMPTINESS HALF, WHICH USED TO GO THE OTHER WAY.
+	 *
+	 * The page keyed the order on `managesAnySection` alone, so a viewer with
+	 * NO feed got the student order and a 230px "You are not in any classes
+	 * yet" card sat above the launcher with nothing in it to open. Measured at
+	 * 375px: the first app card was at 900px (1.13 screens) with an empty feed
+	 * against 629px (0.79 screens) after. The rule keeps its own stated reason
+	 * -- the feed earns the top by deep-linking a student into what is due --
+	 * and stops applying where there is nothing to link to.
+	 */
+	it('puts Apps FIRST when there is no class to put above them', () => {
+		for (const viewer of ['student-no-classes', 'signed-out'] as Viewer[]) {
+			const o = order(drawHome(viewer));
+			expect(o.apps, `${viewer}: Apps did not come first`).toBeLessThan(o.classes);
+		}
+	});
+
+	it('keys the emptiness on the FEED, not on being signed out', () => {
+		/*
+		 * The two halves are separable and only one of them is the rule. A
+		 * signed-IN student on nobody's roster is the case a "signed out?"
+		 * check would get wrong, and it is the commoner one: it is every
+		 * student between enrolment and the roster import, and every viewer
+		 * whose classroom read failed.
+		 *
+		 * POSITIVE CONTROL on the same instrument, and it is what makes this
+		 * more than a restatement of the test above: the SAME signed-in
+		 * student, differing only in whether the payload carries a section,
+		 * must come back with the opposite order. A predicate keyed on the
+		 * session rather than on the feed passes the previous test and fails
+		 * this pair.
+		 */
+		const empty = order(drawHome('student-no-classes'));
+		expect(empty.apps, 'signed-in student with no classes').toBeLessThan(empty.classes);
+
+		const enrolled = order(drawHome('student'));
+		expect(enrolled.classes, 'signed-in student WITH a class').toBeLessThan(enrolled.apps);
 	});
 
 	it('keys on what the viewer MANAGES, not on their role', () => {
@@ -252,6 +355,63 @@ function launcherHtml(): string {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return render(AppLauncher as any, { props: { onRequireSignIn: () => {} } }).body;
 }
+
+/*
+ * THE COURSE-COUNT ROWS. Read off the rendered hero rather than by calling the
+ * function twice: the question is what a visitor sees, and a tile wired to a
+ * different value, a stale literal or nothing at all is exactly the failure
+ * that stood. `drawHome` mounts the real page, so this is the shipping
+ * expression.
+ */
+function heroCourseCount(html: string): string | null {
+	// The stat whose label is Active Courses, whatever order the stats are in.
+	const stats = html.split('<div class="hero-stat">').slice(1);
+	for (const stat of stats) {
+		if (!/Active Courses/.test(stat)) continue;
+		const m = stat.match(/<span class="value">([^<]*)<\/span>/);
+		return m ? m[1].trim() : null;
+	}
+	return null;
+}
+
+describe('home page: the Active Courses tile', () => {
+	it('renders the tile at all, for every viewer (positive control)', () => {
+		for (const viewer of ALL_VIEWERS) {
+			expect(heroCourseCount(drawHome(viewer)), `${viewer}: no Active Courses tile`).not.toBeNull();
+		}
+	});
+
+	it('shows activeCourseCount(), not a literal and not a section tally', () => {
+		expect(heroCourseCount(drawHome('student'))).toBe(String(activeCourseCount()));
+	});
+
+	it('shows the same number to every viewer: it is the programme, not the person', () => {
+		const counts = ALL_VIEWERS.map((v) => heroCourseCount(drawHome(v)));
+		expect(new Set(counts).size, `the tile varies by viewer: ${counts.join(', ')}`).toBe(1);
+	});
+
+	it('counts fewer courses than there are sections, because rotations collapse', () => {
+		/*
+		 * THE DEFECT, AS A PROPERTY. `IDEA 100-1/-2/-3` were three values of one
+		 * field, so the Set saw three courses where the pathway runs one. Stated
+		 * as an inequality rather than as "2", because adding a course, a
+		 * rotation or a section is an ordinary edit and must not redden this.
+		 * A catalog where every section were its own course would pass it
+		 * vacuously, which the sibling assertion below refuses.
+		 */
+		expect(activeCourseCount()).toBeLessThan(SECTIONS.length);
+	});
+
+	it('has a course carrying more than one section, so the collapse is real', () => {
+		// The positive control for the row above: without a multi-section course
+		// in the catalog, "fewer courses than sections" could be true for
+		// unrelated reasons (a concluded programme excluded, say).
+		const perCourse = new Map<string, number>();
+		for (const s of SECTIONS) perCourse.set(s.course, (perCourse.get(s.course) ?? 0) + 1);
+		const shared = [...perCourse.values()].filter((n) => n > 1);
+		expect(shared.length, 'no course in the catalog has two sections to collapse').toBeGreaterThan(0);
+	});
+});
 
 describe('launcher accents are stylesheet data, never an inline style', () => {
 	it('stamps NO accent custom property on any card, so the cascade still decides', () => {
@@ -423,6 +583,269 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		expect(mark).toContain('visibilitychange');
 		expect(mark).toContain('data-paused');
 		expect(mark).toContain('animation-play-state: paused');
+	});
+
+	/**
+	 * IDEA MAPS, WHICH IS THE FIFTH GREEN AND THEREFORE THE ONE THAT HAS TO
+	 * PROVE IT IS TELLABLE APART.
+	 *
+	 * Mr. Pina closed the maps accent on 2026-09-02: it is green, because green
+	 * is the pathway's identity. That decision is not what this asserts. What
+	 * it asserts is the thing a decision like that cannot settle on its own --
+	 * that four cards were already spending a green, and that the one chosen is
+	 * further from all of them than the closest pair the page ALREADY ships.
+	 *
+	 * THE THRESHOLD COMES FROM THE OTHER CARDS, NEVER FROM THE MAPS RULE. A
+	 * number written down here would be a ratchet: whatever green somebody
+	 * picked next would become the standard. The bar is the launcher's own
+	 * tightest existing pair, computed from the stylesheet on every run, so a
+	 * future card that crowds the board fails this whether or not it is Maps --
+	 * and improving the board raises the bar automatically.
+	 *
+	 * THE COLOUR MATHS IS LOCAL AND IS NOT A SECOND COPY OF THE BROWSER
+	 * HARNESS'S. `tools/browser-verify` measures a PAINTED PIXEL by compositing
+	 * to a canvas, which is the only honest way to read a `color-mix()` over a
+	 * real ground; this reads the AUTHORED hex out of the stylesheet, with no
+	 * browser in the room. Two different questions, two instruments, and the
+	 * browser pass is still what reports the rendered numbers.
+	 */
+	const hexChannels = (h: string): [number, number, number] => {
+		const v = h.replace('#', '');
+		return [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) / 255) as [number, number, number];
+	};
+	const linear = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+	const luminance = (h: string) => {
+		const [r, g, b] = hexChannels(h).map(linear);
+		return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	};
+	const contrast = (a: string, b: string) => {
+		const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+		return (hi + 0.05) / (lo + 0.05);
+	};
+	/** sRGB -> CIE Lab (D65), the input CIEDE2000 is defined over. */
+	const toLab = (h: string): [number, number, number] => {
+		const [r, g, b] = hexChannels(h).map(linear);
+		let X = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b;
+		const Y = 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
+		let Z = 0.0193339 * r + 0.119192 * g + 0.9503041 * b;
+		X /= 0.95047;
+		Z /= 1.08883;
+		const f = (t: number) => (t > (6 / 29) ** 3 ? Math.cbrt(t) : t / (3 * (6 / 29) ** 2) + 4 / 29);
+		const [fx, fy, fz] = [f(X), f(Y), f(Z)];
+		return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+	};
+	const deltaE00 = (h1: string, h2: string): number => {
+		const [L1, a1, b1] = toLab(h1);
+		const [L2, a2, b2] = toLab(h2);
+		const C1 = Math.hypot(a1, b1);
+		const C2 = Math.hypot(a2, b2);
+		const Cb = (C1 + C2) / 2;
+		const G = 0.5 * (1 - Math.sqrt(Cb ** 7 / (Cb ** 7 + 25 ** 7)));
+		const a1p = (1 + G) * a1;
+		const a2p = (1 + G) * a2;
+		const C1p = Math.hypot(a1p, b1);
+		const C2p = Math.hypot(a2p, b2);
+		const ang = (y: number, x: number) => {
+			if (y === 0 && x === 0) return 0;
+			const d = (Math.atan2(y, x) * 180) / Math.PI;
+			return d < 0 ? d + 360 : d;
+		};
+		const h1p = ang(b1, a1p);
+		const h2p = ang(b2, a2p);
+		const dLp = L2 - L1;
+		const dCp = C2p - C1p;
+		let dhp = 0;
+		if (C1p * C2p !== 0) {
+			dhp = h2p - h1p;
+			if (dhp > 180) dhp -= 360;
+			else if (dhp < -180) dhp += 360;
+		}
+		const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp * Math.PI) / 360);
+		const Lbp = (L1 + L2) / 2;
+		const Cbp = (C1p + C2p) / 2;
+		let hbp: number;
+		if (C1p * C2p === 0) hbp = h1p + h2p;
+		else {
+			hbp = (h1p + h2p) / 2;
+			if (Math.abs(h1p - h2p) > 180) hbp += h1p + h2p < 360 ? 180 : -180;
+		}
+		const T =
+			1 -
+			0.17 * Math.cos(((hbp - 30) * Math.PI) / 180) +
+			0.24 * Math.cos((2 * hbp * Math.PI) / 180) +
+			0.32 * Math.cos(((3 * hbp + 6) * Math.PI) / 180) -
+			0.2 * Math.cos(((4 * hbp - 63) * Math.PI) / 180);
+		const dTh = 30 * Math.exp(-(((hbp - 275) / 25) ** 2));
+		const Rc = 2 * Math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25 ** 7));
+		const Sl = 1 + (0.015 * (Lbp - 50) ** 2) / Math.sqrt(20 + (Lbp - 50) ** 2);
+		const Sc = 1 + 0.045 * Cbp;
+		const Sh = 1 + 0.015 * Cbp * T;
+		const Rt = -Math.sin((2 * dTh * Math.PI) / 180) * Rc;
+		return Math.sqrt(
+			(dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2 + Rt * (dCp / Sc) * (dHp / Sh)
+		);
+	};
+	/** Composite a colour at `alpha` over an opaque ground. */
+	const over = (fg: string, alpha: number, bg: string) => {
+		const f = hexChannels(fg);
+		const b = hexChannels(bg);
+		return (
+			'#' +
+			f
+				.map((c, i) =>
+					Math.round((c * alpha + b[i] * (1 - alpha)) * 255)
+						.toString(16)
+						.padStart(2, '0')
+				)
+				.join('')
+		);
+	};
+
+	/** Every literal hex an accent rule declares as its --acc-primary. */
+	const declaredAccents = (): Record<string, string> => {
+		const out: Record<string, string> = {};
+		for (const id of declaringIds()) {
+			const m = /--acc-primary:\s*(#[0-9a-f]{6})\s*;/i.exec(ruleFor(id));
+			if (m) out[id] = m[1].toLowerCase();
+		}
+		return out;
+	};
+
+	it('gives Maps a green nothing else on the launcher is already spending', () => {
+		const rule = ruleFor('maps');
+		expect(rule, 'the maps card declares no rule at all').not.toBe('');
+		expect(rule).toContain('--acc-primary: #40e3b1;');
+		// The second stop is --gold BY TOKEN, because it is the portal's own
+		// token rather than a colour picked for this card, and /maps spends it
+		// as a STATE (the found thing) exactly as the shell does.
+		expect(rule).toContain('--acc-secondary: var(--gold);');
+
+		const accents = declaredAccents();
+		expect(accents.maps, 'no literal accent parsed off the maps rule').toBe('#40e3b1');
+		// POSITIVE CONTROL: the parser must be able to SEE the other cards, or
+		// "further than every rival" passes because it found no rivals.
+		expect(Object.keys(accents).length, 'accent parser found nothing').toBeGreaterThan(5);
+
+		// THE BAR IS THE BOARD'S OWN TIGHTEST PAIR, computed without Maps in it.
+		const others = Object.entries(accents).filter(([id]) => id !== 'maps');
+		let tightestExisting = Infinity;
+		for (let i = 0; i < others.length; i += 1) {
+			for (let j = i + 1; j < others.length; j += 1) {
+				if (others[i][1] === others[j][1]) continue; // gauntlet and vanguard are one colour on purpose
+				tightestExisting = Math.min(tightestExisting, deltaE00(others[i][1], others[j][1]));
+			}
+		}
+		expect(tightestExisting).toBeLessThan(Infinity);
+
+		const worstForMaps = Math.min(
+			...others.filter(([, hex]) => hex !== accents.maps).map(([, hex]) => deltaE00(accents.maps, hex))
+		);
+		expect(
+			worstForMaps,
+			`the maps green sits ${worstForMaps.toFixed(1)} from its nearest neighbour, tighter than the launcher's own closest pair at ${tightestExisting.toFixed(1)}`
+		).toBeGreaterThanOrEqual(tightestExisting);
+	});
+
+	it('gives the Maps accent the contrast a card ink and a card edge owe', () => {
+		// THE GROUNDS ARE READ OUT OF THE DESIGN SYSTEM, not retyped here: a
+		// plate that moves must move this measurement with it, and a hex copied
+		// into a test is the copy that stops matching.
+		const colors = readFileSync('src/lib/design-system/colors.css', 'utf8');
+		const token = (name: string) => {
+			const m = new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(colors);
+			expect(m, `--${name} is not a literal hex in colors.css any more`).not.toBeNull();
+			return (m as RegExpExecArray)[1];
+		};
+		const [bg0, bg1, bg2] = [token('bg0'), token('bg1'), token('bg2')];
+		const maps = /--acc-primary:\s*(#[0-9a-f]{6})\s*;/i.exec(ruleFor('maps'))?.[1] as string;
+
+		// --acc-ink defaults to the identity, so the identity is what carries
+		// every word, glyph and title on the card. 4.5:1 on all three grounds.
+		for (const [name, ground] of [
+			['--bg0', bg0],
+			['--bg1', bg1],
+			['--bg2', bg2]
+		] as const) {
+			const ratio = contrast(maps, ground);
+			expect(ratio, `maps ink on ${name} measured ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+		}
+
+		// --acc-edge is 75% of the ink and is the only thing separating the card
+		// from the page, so it takes the load-bearing boundary's 3:1.
+		const edge = contrast(over(maps, 0.75, bg1), bg0);
+		expect(edge, `maps card edge measured ${edge.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+
+		// POSITIVE CONTROL for both, on the same instrument: FRC's raw brand red
+		// is the documented failure this launcher already re-pins an ink for, so
+		// a contrast function that always answered "fine" cannot pass here.
+		expect(contrast('#ed1c24', bg1)).toBeLessThan(4.5);
+	});
+
+	/**
+	 * THE CARD ITSELF, WHICH IS WHAT 0020 COULD NOT ASSERT.
+	 *
+	 * 0020 landed the accent rule and said so in its own comment: "THERE IS NO
+	 * `maps` ENTRY IN `PORTAL_APPS` YET AND THIS RULE PAINTS NOTHING UNTIL
+	 * THERE IS." A stylesheet rule keyed on an attribute no card carries is
+	 * inert and NOTHING ON SCREEN REPORTS THAT -- the card simply is not there,
+	 * so there is no wrong colour to notice. These two assertions are the pair
+	 * that closes it: the registry entry exists, and the launcher renders the
+	 * mark for it rather than falling through to the generic fallback glyph.
+	 */
+	it('puts Maps in the registry, so the accent rule has a card to paint', () => {
+		const maps = PORTAL_APPS.find((a) => a.id === 'maps');
+		expect(maps, 'no `maps` entry in PORTAL_APPS: the accent rule paints nothing').toBeDefined();
+		// The rule keys on `data-app`, which is stamped from the id, and the
+		// icon snippet keys on `icon`. Two different fields, and a mismatch
+		// costs the glyph silently while the colour still lands.
+		expect((maps as PortalApp).icon).toBe('maps');
+		expect((maps as PortalApp).href).toBe('/maps');
+
+		// AND IT IS VISIBLE TO A SIGNED-OUT VISITOR, which is the whole point of
+		// the surface: the spec locks read access as fully public, `/maps` is
+		// not in `authedPrefixes`, and 0161/0162/0163/0165 grant the reads to
+		// `anon`. A `requiresAuth` here would put a sign-in wall in front of a
+		// page that answers an anonymous GET, and `adminOnly` would remove the
+		// card outright. Asserted through `visibleApps(false)`, the same
+		// function the launcher calls, rather than by reading the flags: the
+		// flags are the mechanism, the card being there is the guarantee.
+		expect(visibleApps(false).map((a) => a.id)).toContain('maps');
+		expect((maps as PortalApp).requiresAuth).toBeUndefined();
+		expect((maps as PortalApp).adminOnly).toBeUndefined();
+
+		// POSITIVE CONTROL on the same instrument: a card that IS gated must not
+		// come back from the anonymous list, or "maps is visible" means nothing.
+		expect(visibleApps(false).map((a) => a.id)).not.toContain('dashboard');
+	});
+
+	it('gives the Maps card an animated mark that hides nothing at rest', () => {
+		// Same contract every mark in $lib/marks carries (see the Foundry case
+		// above): animates only under prefers-reduced-motion: no-preference, and
+		// is fully visible with the animation cancelled.
+		const mark = readFileSync('src/lib/marks/MapsMark.svelte', 'utf8');
+		expect(mark).toContain('prefers-reduced-motion: no-preference');
+		expect(mark).toMatch(/animation:\s*mm-/);
+
+		// Nothing at opacity 0 or under a transform OUTSIDE a keyframe: that is
+		// what "hidden at rest" looks like. The keyframes themselves may dip.
+		const styleBody = mark.slice(mark.indexOf('<style>'));
+		const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+		expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
+
+		// NO LITERAL COLOUR ANYWHERE. The card resolves currentColor to
+		// --acc-ink, which for this card defaults to the jade --acc-primary; a
+		// hex baked into the mark would survive a later accent change and
+		// silently stop matching the card around it. GreenlineMark is the one
+		// mark that does hardcode a hex, and it is not the pattern to copy.
+		expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+		expect(mark).toContain('stroke="currentColor"');
+
+		// And the launcher actually renders it rather than falling through to
+		// the generic inline fallback glyph, which is the silent failure: the
+		// card appears, correctly coloured, wearing somebody else's shape.
+		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+		expect(launcher).toContain("id === 'maps'");
+		expect(launcher).toContain('<MapsMark />');
 	});
 
 	it('never moves an identity colour for contrast, only the ink', () => {

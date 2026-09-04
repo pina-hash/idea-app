@@ -67,16 +67,25 @@ if [ "$call_ok" = yes ]; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
 echo
 
 # ---------------------------------------------------------------------------
-# Extract the gate. The indentation to strip is read off the BEGIN marker line
-# itself rather than hardcoded at ten spaces: re-indenting the YAML block is a
-# legitimate edit, and a hardcoded width would answer it by silently cutting
-# characters off the front of every line.
+# Extract a marked region. The indentation to strip is read off the BEGIN
+# marker line itself rather than hardcoded at ten spaces: re-indenting the YAML
+# block is a legitimate edit, and a hardcoded width would answer it by silently
+# cutting characters off the front of every line.
+#
+# It is a FUNCTION because this file cuts TWO regions now -- `ledger_gate` and
+# `auto_resolve` -- and two copies of the cut is exactly the duplication the
+# cut itself exists to prevent one level down. It takes the workflow path so
+# the negative control at the end can point it at a mutated copy.
 # ---------------------------------------------------------------------------
-GATE_SRC="$(awk '
-	/ledger_gate_marker:begin/ { match($0, /^ */); indent = RLENGTH; grab = 1; next }
-	/ledger_gate_marker:end/   { grab = 0; next }
-	grab                       { print substr($0, indent + 1) }
-' "$WORKFLOW")"
+cut_marker() {
+	awk -v name="$2" '
+		$0 ~ (name ":begin") { match($0, /^ */); indent = RLENGTH; grab = 1; next }
+		$0 ~ (name ":end")   { grab = 0; next }
+		grab                 { print substr($0, indent + 1) }
+	' "$1"
+}
+
+GATE_SRC="$(cut_marker "$WORKFLOW" ledger_gate_marker)"
 
 if [ -z "${GATE_SRC//[[:space:]]/}" ]; then
 	echo "FATAL: extracted nothing between the ledger_gate markers in $WORKFLOW" >&2
@@ -560,13 +569,295 @@ git_q -C "$r" fetch origin
 git_q -C "$r" checkout -f main
 check "22. a branch with no merge base against origin/main (fails safe)" SKIP "$r" origin/claude/orphan-branch
 
+# ===========================================================================
+# PART TWO: THE MECHANICAL RESOLVER.
+#
+# `auto_resolve` decides whether a CONFLICTED merge is committed anyway, so
+# the thing worth proving is its verdict on real conflicted trees -- not that
+# the YAML is green. Everything above applies unchanged: this file holds NO
+# copy of the resolver, it CUTS the text between
+# `# auto_resolve_marker:begin` and `# auto_resolve_marker:end` out of the
+# workflow with the same `cut_marker`, and runs those exact characters.
+#
+# THE FIXTURES ARE REAL, and they have to be: the counts resolution ENDS by
+# running `tools/browser-verify/readme-counts.mjs --static`, which reads
+# `src/routes/dev` and imports `tools/browser-verify/routes.mjs`, which in turn
+# imports out of `src/lib`. So each fixture repository gets a copy of those
+# three paths FROM THE WORKING TREE -- not from `HEAD`, so a session's own
+# uncommitted edit to the generator is what gets proved -- and the branches
+# below move the counts by adding `/dev` pages, which is a pure directory
+# count with no module to load. Measured: the copy is about 13MB and takes
+# under a second.
+#
+# WHAT THIS STILL DOES NOT COVER, said plainly: the Actions API, the push, the
+# delete, and the ledger gate's interaction with any of it. It drives the
+# resolver through the same `merge -> auto_resolve -> commit` shape the loop
+# uses (asserted structurally in case 0b), against real merges git itself
+# refused.
+# ===========================================================================
+
+echo "== case 0b: the workflow actually calls the resolver (structural, by grep) =="
+resolve_call_ok=yes
+for needle in \
+	'elif resolved_lines="$(auto_resolve "$branch")" &&' \
+	'git commit -m "Merge $branch into $TARGET"; then' \
+	'resolved+=("$branch -- $resolved_one")' \
+	'echo "### Resolved mechanically"'
+do
+	if grep -qF -- "$needle" "$WORKFLOW"; then
+		echo "  found: $needle"
+	else
+		echo "  MISSING: $needle"
+		resolve_call_ok=no
+	fi
+done
+if [ "$resolve_call_ok" = yes ]; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
+echo
+
+RESOLVE_SRC="$(cut_marker "$WORKFLOW" auto_resolve_marker)"
+if [ -z "${RESOLVE_SRC//[[:space:]]/}" ]; then
+	echo "FATAL: extracted nothing between the auto_resolve markers in $WORKFLOW" >&2
+	exit 2
+fi
+RESOLVE_FILE="$(mktemp)"
+printf '%s\n' "$RESOLVE_SRC" > "$RESOLVE_FILE"
+if ! bash -n "$RESOLVE_FILE"; then
+	echo "FATAL: the extracted resolver text is not valid shell" >&2
+	exit 2
+fi
+# shellcheck source=/dev/null
+. "$RESOLVE_FILE"
+rm -f "$RESOLVE_FILE"
+for fn in auto_resolve _counts_resolve _updates_resolve _counts_merge _updates_merge; do
+	if ! declare -F "$fn" >/dev/null; then
+		echo "FATAL: the extracted text did not define $fn()" >&2
+		exit 2
+	fi
+done
+
+if [ "${1:-}" = --show ]; then
+	echo "---- extracted resolver ----"
+	printf '%s\n' "$RESOLVE_SRC"
+	echo "---- end ----"
+	echo
+fi
+
+echo "extracted $(printf '%s\n' "$RESOLVE_SRC" | wc -l | tr -d ' ') lines of resolver from $WORKFLOW"
+
+for t in jq node; do
+	if ! command -v "$t" >/dev/null 2>&1; then
+		echo "FATAL: the resolver cases need $t, which is not on PATH" >&2
+		exit 2
+	fi
+done
+echo
+
+# ---------------------------------------------------------------------------
+# Fixtures for the resolver.
+# ---------------------------------------------------------------------------
+
+# The two files the resolver is allowed to touch, plus the tree the counts
+# generator reads. `new_repo` has already made the repo, the bare origin and
+# the baseline commit; this adds what a merge conflict needs and leaves it
+# committed on `main`.
+seed_merge_fixture() {
+	local repo="$1"
+	mkdir -p "$repo/tools" "$repo/src"
+	cp -a "$ROOT/tools/browser-verify" "$repo/tools/browser-verify"
+	cp -a "$ROOT/src/routes" "$repo/src/routes"
+	cp -a "$ROOT/src/lib" "$repo/src/lib"
+	printf '{\n\t"_readme": [\n\t\t"a fixture update log"\n\t],\n\t"entries": [\n\t\t{\n\t\t\t"date": "2026-09-01",\n\t\t\t"title": "the entry the merge base carries",\n\t\t\t"body": "written before either branch existed",\n\t\t\t"tags": []\n\t\t}\n\t]\n}\n' \
+		> "$repo/classroom-updates.json"
+	# The static region must MATCH the fixture tree at the base, or every
+	# branch below starts from a region that is already stale and the case
+	# proves something else.
+	( cd "$repo" && node tools/browser-verify/readme-counts.mjs --static ) >/dev/null
+	git -C "$repo" add -A
+	git_q -C "$repo" commit -m 'the two files that conflict, and the tree the generator reads'
+}
+
+# The branch-side edits. Each is passed to `branch_with`, which runs it inside
+# the repository.
+fx_append_update() {
+	jq --tab --arg t "$1" \
+		'.entries = ([{date:"2026-09-04",title:$t,body:"appended by a session",tags:["classroom"]}] + .entries)' \
+		classroom-updates.json > .fx.json && mv .fx.json classroom-updates.json
+}
+fx_add_dev_pages() {
+	local n
+	for n in "$@"; do
+		mkdir -p "src/routes/dev/$n"
+		printf '<p>fixture</p>\n' > "src/routes/dev/$n/+page.svelte"
+	done
+	node tools/browser-verify/readme-counts.mjs --static >/dev/null
+}
+fx_edit_readme_prose() {
+	# Line 1 of that README is its title, which is PROSE and is nowhere near
+	# the generated markers.
+	sed -i "1s|.*|# $1|" tools/browser-verify/README.md
+}
+fx_edit_source() { printf '%s\n' "$1" > src/app.txt; }
+fx_break_updates_json() {
+	fx_append_update "$1"
+	# A trailing comma after the closing brace: the shape a half-finished hand
+	# edit leaves behind, and not JSON.
+	printf ',\n' >> classroom-updates.json
+}
+fx_edit_base_entry() {
+	jq --tab '.entries[0].body = "somebody rewrote the base entry"' \
+		classroom-updates.json > .fx.json && mv .fx.json classroom-updates.json
+	fx_append_update "$1"
+}
+
+# ---------------------------------------------------------------------------
+# The assertion. It drives the SAME three-branch shape the workflow's loop
+# uses, and reports the verdict for the SECOND merge -- the first is there only
+# to put something on `integration` for the second to conflict with.
+# `RESOLVED` means auto_resolve took it and the merge was committed;
+# `CONFLICTED` means the merge was aborted and the branch left standing.
+# ---------------------------------------------------------------------------
+fx_merge() {
+	local branch="$1"
+	if git merge --no-ff --no-edit -m "Merge $branch into integration" "origin/$branch" >/dev/null 2>&1; then
+		echo CLEAN
+	elif resolved_lines="$(auto_resolve "$branch")" &&
+	     git commit -q -m "Merge $branch into integration" >/dev/null 2>&1; then
+		printf 'RESOLVED %s\n' "$resolved_lines"
+	else
+		git merge --abort >/dev/null 2>&1 || true
+		echo CONFLICTED
+	fi
+}
+
+# $1 label, $2 expected verdict for the second merge, $3 repo, $4 first branch,
+# $5 second branch. Leaves the repository on the resulting `integration` so a
+# caller can inspect the tree.
+check_merge() {
+	local label="$1" expect="$2" repo="$3" first="$4" second="$5"
+	local one two verdict
+	one="$( cd "$repo" && git checkout -q -B integration main && fx_merge "$first" )"
+	two="$( cd "$repo" && fx_merge "$second" )"
+	verdict="${two%% *}"
+	if [ "$verdict" = "$expect" ] && [ "${one%% *}" = CLEAN ]; then
+		pass=$((pass + 1))
+		printf 'ok    %-72s observed %s' "$label" "$verdict"
+	else
+		fail=$((fail + 1))
+		printf 'FAIL  %-72s observed %s (expected first CLEAN, second %s; first was %s)' \
+			"$label" "$verdict" "$expect" "${one%% *}"
+	fi
+	if [ "$verdict" = RESOLVED ]; then printf '  said: %s' "${two#RESOLVED }"; fi
+	printf '\n'
+}
+
+# A plain observation, for the assertions that are about the RESULTING TREE
+# rather than about the verdict.
+check_says() {
+	local label="$1" expect="$2" got="$3"
+	if [ "$got" = "$expect" ]; then
+		pass=$((pass + 1))
+		printf 'ok    %-72s observed %s\n' "$label" "$got"
+	else
+		fail=$((fail + 1))
+		printf 'FAIL  %-72s observed %s (expected %s)\n' "$label" "$got" "$expect"
+	fi
+}
+
+r="$(new_repo resolve)"
+seed_merge_fixture "$r"
+publish_main "$r"
+
+branch_with "$r" claude/appends-a fx_append_update 'the entry branch A appended'
+branch_with "$r" claude/appends-b fx_append_update 'the entry branch B appended'
+# TWO pages against ONE, deliberately: two branches that each add exactly one
+# page regenerate to the SAME number, git merges the identical text cleanly,
+# and the case proves nothing. The numbers have to differ for the region to
+# conflict at all.
+branch_with "$r" claude/counts-a  fx_add_dev_pages fixture-alpha fixture-beta
+branch_with "$r" claude/counts-b  fx_add_dev_pages fixture-gamma
+branch_with "$r" claude/prose-a   fx_edit_readme_prose 'The browser pass, retitled by A'
+branch_with "$r" claude/prose-b   fx_edit_readme_prose 'The browser pass, retitled by B'
+branch_with "$r" claude/source-a  fx_edit_source 'the line A wrote'
+branch_with "$r" claude/source-b  fx_edit_source 'the line B wrote'
+branch_with "$r" claude/json-ok   fx_append_update 'a well-formed append'
+branch_with "$r" claude/json-bad  fx_break_updates_json 'an append on a file that is not JSON'
+branch_with "$r" claude/keeps-a   fx_append_update 'an append that leaves the base entry alone'
+branch_with "$r" claude/edits-b   fx_edit_base_entry 'an append that also rewrites the base entry'
+
+# --- case 26: two appends to the update log ------------------------------
+check_merge "26. two branches each append to classroom-updates.json" RESOLVED \
+	"$r" claude/appends-a claude/appends-b
+survived="$(
+	cd "$r"
+	jq -e . classroom-updates.json >/dev/null 2>&1 || { echo 'not-json'; exit 0; }
+	# The three titles that must all be there, and the byte shape the reader
+	# imports: `jq --tab` round-trips this file identically, so a result that
+	# does not is a result somebody reformatted.
+	n="$(jq '[.entries[].title] | map(select(. == "the entry the merge base carries" or . == "the entry branch A appended" or . == "the entry branch B appended")) | length' classroom-updates.json)"
+	if [ "$n" != 3 ]; then echo "only-$n-of-3"; exit 0; fi
+	if ! diff -q <(jq --tab . classroom-updates.json) classroom-updates.json >/dev/null; then echo 'reformatted'; exit 0; fi
+	echo 'all-3-and-byte-shape-kept'
+)"
+check_says "27. every entry from both sides survived, in the file's own shape" \
+	all-3-and-byte-shape-kept "$survived"
+
+# --- case 28: two regenerations of the counts block -----------------------
+check_merge "28. two branches each regenerate the counts block" RESOLVED \
+	"$r" claude/counts-a claude/counts-b
+counts_ok="$(
+	cd "$r"
+	# THE MERGED TREE'S OWN ANSWER, asked by the generator's own `--check`,
+	# which compares the committed region against a fresh derivation. Neither
+	# branch wrote this number: A said one thing, B said another, and the
+	# merged tree has all three pages.
+	if node tools/browser-verify/readme-counts.mjs --static --check >/dev/null 2>&1; then
+		echo "static-region-matches-merged-tree"
+	else
+		echo "static-region-stale"
+	fi
+)"
+check_says "29. the static region is the MERGED tree's answer, not either side's" \
+	static-region-matches-merged-tree "$counts_ok"
+
+# --- case 30: a conflict in that README's PROSE ---------------------------
+# Outside the generated markers is somebody's writing, and the resolver has to
+# refuse it even though the FILE is on its allowlist.
+check_merge "30. a conflict in the counts README's PROSE is left conflicted" CONFLICTED \
+	"$r" claude/prose-a claude/prose-b
+
+# --- case 31: a conflict in src/ ------------------------------------------
+check_merge "31. a conflict in src/ is left conflicted" CONFLICTED \
+	"$r" claude/source-a claude/source-b
+
+# --- case 32: a side whose JSON does not parse ----------------------------
+check_merge "32. an update log that is not valid JSON is left conflicted" CONFLICTED \
+	"$r" claude/json-ok claude/json-bad
+
+# --- case 33: not an append ------------------------------------------------
+check_merge "33. an entry the merge base carried, edited on one side, is left conflicted" CONFLICTED \
+	"$r" claude/keeps-a claude/edits-b
+
+# --- negative control: the cut refuses when the markers are renamed --------
+# The same control the ledger half carries. Without it, a rename would make
+# `cut_marker` return nothing, every case above would run against whatever was
+# last sourced, and this file would still be green.
+nc="$(mktemp)"
+sed 's/auto_resolve_marker/auto_resolve_renamed/g' "$WORKFLOW" > "$nc"
+nc_out="$(cut_marker "$nc" auto_resolve_marker)"
+rm -f "$nc"
+if [ -z "${nc_out//[[:space:]]/}" ]; then
+	check_says "34. renamed markers cut nothing (the FATAL guard above then fires)" empty empty
+else
+	check_says "34. renamed markers cut nothing (the FATAL guard above then fires)" empty non-empty
+fi
+
 # ---------------------------------------------------------------------------
 # THE CASE COUNT. Without it, deleting every SKIP-direction case leaves
 # `fail=0` and a green exit -- a sweep that generated nothing cannot be allowed
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=27
+EXPECTED_CASES=37
 ran=$((pass + fail))
 
 echo

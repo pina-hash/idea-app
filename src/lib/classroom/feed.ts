@@ -29,6 +29,19 @@ import {
 /** How far ahead "due soon" reaches. */
 export const DUE_SOON_DAYS = 7;
 
+/**
+ * How near a deadline has to be to read as more than "due soon": inside this
+ * many CALENDAR days it is imminent, and 0 days is today.
+ *
+ * A SECOND NUMBER, NOT A SECOND DEFINITION. `DUE_SOON_DAYS` still decides
+ * whether a row appears at all (`dueWindow`); this only grades the rows that
+ * already did, and it is measured with the same calendar-day arithmetic that
+ * writes the words beside it -- so a row reading "Due tomorrow" and a row
+ * treated as imminent are the same row by construction, and a surface cannot
+ * emphasise one deadline while its own text names another.
+ */
+export const DUE_IMMINENT_DAYS = 2;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Default caps. A card is a summary; the class page is the full list. */
@@ -461,12 +474,62 @@ export function toggleCollapsed(prefs: ClassroomFeedPrefs, sectionId: string): C
 // Display
 // ---------------------------------------------------------------------------
 
+/**
+ * Whole CALENDAR days from `now` to `iso`, negative for the past, null for a
+ * date that does not parse.
+ *
+ * ONE COPY, because two things read it: the words on the row (`relativeDays`)
+ * and the urgency the row is treated with (`dueUrgency`). Written twice, "due
+ * tomorrow" and "treated as imminent" would be two answers to one question and
+ * would eventually give a row that says tomorrow and is drawn as though it were
+ * a fortnight out. CALENDAR days and not elapsed hours: a deadline at 8am
+ * tomorrow is "tomorrow" to the person reading it even though it is 14 hours
+ * away, and 23 hours away at 11pm tonight is still "today".
+ */
+function calendarDaysUntil(iso: string, now: Date): number | null {
+	const then = new Date(iso);
+	if (Number.isNaN(then.getTime())) return null;
+	const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+	return Math.round((startOf(then) - startOf(now)) / DAY_MS);
+}
+
+/**
+ * How hard a row's deadline is pressing, or null when the row is not about a
+ * deadline at all.
+ *
+ * IT READS THE REASON THE RANKING ALREADY ASSIGNED rather than re-deciding from
+ * the date, which is what keeps it from disagreeing with the list it decorates:
+ * `buildFeed` has already said whether this item's deadline is the reason the
+ * row is here, using the same `now` the caller threads through to the
+ * component. A returned grade on a long-past assignment is not overdue work,
+ * and an item ranked for being updated is not a deadline -- neither gets a
+ * treatment, because neither is asking the student to beat a clock.
+ *
+ * FOUR STEPS AND NO FIFTH. Overdue and today are the two a student must not
+ * miss; imminent is the next `DUE_IMMINENT_DAYS`; soon is the rest of the
+ * `DUE_SOON_DAYS` window, which is the ordinary state and is deliberately the
+ * one that gets no emphasis at all. Nothing here says a deadline may slip: the
+ * steps only differ in how loudly they state the same date.
+ */
+export type DueUrgency = 'overdue' | 'today' | 'imminent' | 'soon';
+
+const DEADLINE_REASONS = new Set<FeedReasonId>(['overdue', 'due-soon', 'unsubmitted']);
+
+export function dueUrgency(entry: FeedEntry, now: Date = new Date()): DueUrgency | null {
+	if (!DEADLINE_REASONS.has(entry.reason)) return null;
+	if (entry.reason === 'overdue') return 'overdue';
+	if (!entry.item.due_at) return null;
+	const days = calendarDaysUntil(entry.item.due_at, now);
+	if (days === null) return null;
+	if (days < 0) return 'overdue';
+	if (days === 0) return 'today';
+	return days <= DUE_IMMINENT_DAYS ? 'imminent' : 'soon';
+}
+
 /** "in 3 days" / "tomorrow" / "2 days ago", from calendar days apart. */
 function relativeDays(iso: string, now: Date): string {
-	const then = new Date(iso);
-	if (Number.isNaN(then.getTime())) return '';
-	const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-	const days = Math.round((startOf(then) - startOf(now)) / DAY_MS);
+	const days = calendarDaysUntil(iso, now);
+	if (days === null) return '';
 	if (days === 0) return 'today';
 	if (days === 1) return 'tomorrow';
 	if (days === -1) return 'yesterday';

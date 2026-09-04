@@ -1,10 +1,14 @@
 <script lang="ts">
 	import CheckInGuidance from '$lib/CheckInGuidance.svelte';
 	import { hasGuidance } from '$lib/check-in-guidance';
-	import type {
-		LinkTargetItem,
-		SessionItemLink,
-		SessionItemTransports
+	import {
+		checkInEditKind,
+		checkInLoad,
+		checkInLoadIndex,
+		type CheckInLoad,
+		type LinkTargetItem,
+		type SessionItemLink,
+		type SessionItemTransports
 	} from '$lib/notebook/admin-actions';
 	import type { TiptapNode } from '$lib/rich-text';
 	import {
@@ -16,6 +20,7 @@
 		type ReviewSection,
 		type SessionInput
 	} from '$lib/notebook-review';
+	import type { CheckInLoadCell as GridLoadCell } from '$lib/notebook/admin-actions';
 
 	/**
 	 * The section's scheduled check-ins: list, add, edit, delete, and (since
@@ -49,7 +54,8 @@
 		onSetGuidance = null,
 		itemLink = null,
 		itemLinks = [],
-		itemCandidates = []
+		itemCandidates = [],
+		grid = null
 	}: {
 		sectionId: string;
 		/** Every section the caller manages -- what a check-in may be posted to. */
@@ -101,9 +107,65 @@
 		itemLinks?: SessionItemLink[];
 		/** Items posted to this section: what a check-in may be attached to. */
 		itemCandidates?: LinkTargetItem[];
+		/**
+		 * THE GRID THIS MANAGER SITS BESIDE, read ONLY to count what is already
+		 * filed against each check-in before an edit or a delete moves it.
+		 *
+		 * The console has this payload in hand to draw the grid, so passing it
+		 * costs nothing and asks the database nothing. It is not a second source
+		 * of truth about the check-ins themselves -- `sessions` stays that -- and
+		 * nothing here reads a cell for any purpose but the two counts.
+		 *
+		 * NULL IS SUPPORTED AND MEANS `CANNOT TELL`, never `nothing is filed`. A
+		 * caller with no grid to hand still gets every control; what it loses is
+		 * the number in the warning, which then says so in words. That is the
+		 * honest degradation and it is why this is optional rather than required.
+		 */
+		grid?: { sessions: { id: string }[]; cells: GridLoadCell[] } | null;
 	} = $props();
 
 	const ordered = $derived(sessionsInOrder(sessions));
+
+	/**
+	 * WHAT IS ALREADY FILED AGAINST EACH CHECK-IN, derived from the grid rather
+	 * than fetched. Rebuilt when the grid is, so a warning can never quote a
+	 * count from before the last refresh.
+	 */
+	const loadIndex = $derived(checkInLoadIndex(grid));
+	/** `null` = the grid does not cover this check-in, so the count is unknown. */
+	function loadOf(sessionId: string): CheckInLoad | null {
+		return checkInLoad(loadIndex, sessionId);
+	}
+
+	/**
+	 * The sentence naming what is filed against a check-in, or null when there is
+	 * nothing to say (a covered check-in with no answers and no excusals).
+	 *
+	 * ONE SPELLING FOR ALL THREE PLACES it is needed -- the edit form, the delete
+	 * confirm and the row itself -- because three hand-written versions of
+	 * "12 students have answered" is how the delete confirm and the warning above
+	 * it come to quote different numbers off the same index.
+	 */
+	function loadSentence(sessionId: string): string | null {
+		const load = loadOf(sessionId);
+		if (!load) {
+			// CANNOT TELL, said out loud. Silence here would read as "nothing is
+			// filed", which is the one wrong answer this whole path exists to
+			// avoid.
+			return 'Work already filed against this check-in is not counted on screen right now (the grid is filtered to another unit). Assume there is some.';
+		}
+		const parts: string[] = [];
+		if (load.answered > 0) {
+			parts.push(
+				`${load.answered} ${load.answered === 1 ? 'student has' : 'students have'} already filed against it`
+			);
+		}
+		if (load.excused > 0) {
+			parts.push(`${load.excused} ${load.excused === 1 ? 'excusal' : 'excusals'} granted on it`);
+		}
+		if (parts.length === 0) return null;
+		return `${parts.join(', and ')}.`;
+	}
 
 	/** The sections a check-in runs in, falling back to the one being viewed. */
 	function postedTo(session: GridSession): string[] {
@@ -117,6 +179,15 @@
 
 	/** null = closed, 'new' = the add form, otherwise the session being edited. */
 	let editing = $state<string | null>(null);
+	/**
+	 * The check-in the open edit form was SEEDED FROM, kept so the pending change
+	 * can be classified against it.
+	 *
+	 * The row in `sessions` is not a substitute: the parent refetches after every
+	 * write, so reading the live list would compare the form against whatever the
+	 * last save produced rather than against what this form opened on.
+	 */
+	let editingBefore = $state<GridSession | null>(null);
 	/**
 	 * `string | number` on purpose: `bind:value` on `<input type="number">`
 	 * COERCES, so this holds a number once the field is edited (and null when
@@ -164,6 +235,7 @@
 
 	function openNew() {
 		editing = 'new';
+		editingBefore = null;
 		errorMsg = null;
 		// Carry the most recent session's unit forward: a run of check-ins
 		// almost always belongs to the same unit, and retyping it every time
@@ -178,6 +250,7 @@
 
 	function openEdit(session: GridSession) {
 		editing = session.id;
+		editingBefore = session;
 		errorMsg = null;
 		unitNumber = String(session.unit_number);
 		sessionDate = session.session_date;
@@ -187,8 +260,50 @@
 
 	function close() {
 		editing = null;
+		editingBefore = null;
 		errorMsg = null;
 	}
+
+	/**
+	 * WHAT THE OPEN EDIT WOULD CHANGE, recomputed as the fields are typed.
+	 *
+	 * This is the bundle's design decision in one derived value. An edit that
+	 * moves only the DAY or the UNIT is a reschedule: it touches no answer and
+	 * changes nothing about what was asked, so no warning about filed work is
+	 * shown for it. An edit that moves the NAME is an identity change -- every
+	 * student who has already filed sees the new name over their own page -- so
+	 * that is the one the count is named at.
+	 *
+	 * ON THE ADD FORM IT IS ALWAYS `none`: a check-in that does not exist yet has
+	 * nothing filed against it and nothing to warn about.
+	 */
+	const pendingEdit = $derived.by(() => {
+		if (!editingBefore || !unitValid) return 'none' as const;
+		return checkInEditKind(
+			{
+				unit_number: editingBefore.unit_number,
+				session_date: editingBefore.session_date,
+				session_label: editingBefore.session_label
+			},
+			{
+				unit_number: Number(unitText),
+				session_date: sessionDate,
+				session_label: sessionLabel
+			}
+		);
+	});
+
+	/**
+	 * The warning the open edit earns, or null.
+	 *
+	 * ONLY an identity change earns one, which is B2's requirement expressed as
+	 * a condition rather than as a second form: a teacher moving a date never
+	 * sees a sentence about answers, because moving a date does not put their
+	 * answers under a different name.
+	 */
+	const editWarning = $derived(
+		pendingEdit === 'identity' && editingBefore ? loadSentence(editingBefore.id) : null
+	);
 
 	const unitText = $derived(String(unitNumber ?? '').trim());
 	const unitValid = $derived(
@@ -411,7 +526,11 @@
 	{:else}
 		<ul class="session-list">
 			{#each ordered as session (session.id)}
-				<li class="session-row">
+				<!-- The row carries its own id so a harness can drive ONE check-in
+				     rather than the first one it finds. Every state this component has
+				     is per-check-in, so a selector that cannot name one can only ever
+				     verify the row that happens to sort first. -->
+				<li class="session-row" data-session-id={session.id}>
 					{#if editing === session.id}
 						{@render form('Edit check-in')}
 					{:else}
@@ -422,6 +541,19 @@
 							{#if postedTo(session).length > 1}
 								<span class="shared">in {postedTo(session).length} classes</span>
 							{/if}
+							<!--
+								WHAT IS ON IT, ON THE ROW, before any control is pressed. The
+								warnings below fire at the moment of the act; this is what lets a
+								teacher see which check-ins are safe to touch at all without
+								opening each one in turn. `loadOf` null renders nothing here on
+								purpose -- the row is not the place to explain a filtered grid,
+								and the two confirms that DO act on it both say so in full.
+							-->
+							{#if (loadOf(session.id)?.answered ?? 0) > 0}
+								<span class="session-load" data-testid="session-load">
+									{loadOf(session.id)!.answered} filed
+								</span>
+							{/if}
 						</div>
 						<div class="session-actions">
 							{#if confirmDelete === session.id}
@@ -430,10 +562,36 @@
 							     the check-in off EVERY class it runs in, said only
 							     "Delete this check-in?" -- so the more destructive of
 							     the two read as the safer. -->
-							<span class="confirm-hint">
+							<span class="confirm-hint" data-testid="delete-confirm-hint">
 								Delete it from {postedTo(session).length > 1
 									? `all ${postedTo(session).length} classes`
-									: 'this class'}? Entries already filed against it are kept and relabelled.
+									: 'this class'}?
+								<!--
+									THE COUNT COMES BEFORE THE DESTRUCTION, not after it. This
+									confirm used to state the RULE ("entries are kept and
+									relabelled") with no NUMBER in it, and the number only ever
+									appeared in the note afterwards -- so the one moment a teacher
+									could still change their mind was the one moment they could not
+									see how much was on it.
+								-->
+								{#if loadSentence(session.id)}
+									<strong data-testid="delete-load">{loadSentence(session.id)}</strong>
+								{:else}
+									Nothing has been filed against it yet.
+								{/if}
+								{#if (loadOf(session.id)?.answered ?? 0) > 0 || !loadOf(session.id)}
+									Every entry is <strong>kept</strong> and relabelled with this check-in's name,
+									so nobody loses written work.
+								{/if}
+								{#if (loadOf(session.id)?.excused ?? 0) > 0}
+									<!-- THE ONE THING A DELETE REALLY DESTROYS, and nothing has ever
+									     said so: notebook_session_excusals is `on delete cascade`, so
+									     an excusal goes with the check-in and no restore path exists
+									     for it. -->
+									The
+									{loadOf(session.id)!.excused === 1 ? 'excusal is' : 'excusals are'}
+									<strong>deleted</strong> with it and cannot be restored.
+								{/if}
 							</span>
 								<button
 									type="button"
@@ -478,12 +636,18 @@
 										Item{linkedItem(session.id) ? ' \u2713' : ''}
 									</button>
 								{/if}
-								<button type="button" class="btn secondary" onclick={() => openEdit(session)}>
+								<button
+								type="button"
+								class="btn secondary"
+								data-testid="session-edit"
+								onclick={() => openEdit(session)}
+							>
 									Edit
 								</button>
 								<button
 									type="button"
 									class="btn secondary"
+									data-testid="session-delete"
 									onclick={() => (confirmDelete = session.id)}>Delete</button
 								>
 							{/if}
@@ -690,11 +854,17 @@
 		<div class="form-grid">
 			<label class="field">
 				<span>Unit</span>
-				<input type="number" min="0" max="1000" bind:value={unitNumber} />
+				<input
+					type="number"
+					min="0"
+					max="1000"
+					data-testid="session-unit"
+					bind:value={unitNumber}
+				/>
 			</label>
 			<label class="field">
 				<span>Date</span>
-				<input type="date" bind:value={sessionDate} />
+				<input type="date" data-testid="session-date" bind:value={sessionDate} />
 			</label>
 			<label class="field wide">
 				<span>Label</span>
@@ -702,6 +872,7 @@
 					type="text"
 					maxlength="200"
 					placeholder="Bearing teardown"
+					data-testid="session-label"
 					bind:value={sessionLabel}
 				/>
 			</label>
@@ -730,10 +901,51 @@
 				This edit applies in every class this check-in runs in. Use <strong>Classes</strong> on
 				the row to add or remove one.
 			</p>
+			<!--
+				THE WARNING IS CONDITIONAL ON WHAT ACTUALLY MOVED, which is the whole
+				design. Moving the day or the unit shows nothing: a reschedule touches
+				no answer and asks nothing new, and walking a teacher through a
+				sentence about filed work every time they fix a date is how a warning
+				stops being read by the time it matters.
+
+				Changing the NAME shows the count, because every student who has
+				already filed sees the new name over the page they filed.
+			-->
+			{#if editWarning}
+				<p class="msg warn" role="status" data-testid="edit-answers-warning">
+					<strong>You are renaming a check-in that has work on it.</strong>
+					{editWarning} Their entries stay exactly where they are and nothing is deleted, but the
+					name over them changes to the new one. Rename it only if the new name still describes
+					the page they filed.
+				</p>
+			{:else if pendingEdit === 'schedule'}
+				<!-- FIRM, NOT FLEXIBLE. A moved date moves what the grid counts as on
+				     time, and saying so is the honest version of "the date changed" --
+				     it is a statement about the record, never an offer of leniency. -->
+				<p class="note" data-testid="edit-reschedule-note">
+					Moving the day changes which entries the grid counts as on time, in every class this
+					check-in runs in. Nothing already filed is deleted or detached.
+				</p>
+			{/if}
 		{/if}
 		<div class="form-actions">
-			<button type="button" class="btn" onclick={save} disabled={busy || !canSave}>
-				{busy ? 'Saving...' : 'Save'}
+			<button
+				type="button"
+				class="btn"
+				data-testid="session-save"
+				onclick={save}
+				disabled={busy || !canSave}
+			>
+				<!-- The button NAMES THE ACT it is about to perform, so a reschedule and
+				     a rename are not one word. `Save` stays the word on the add form and
+				     on an edit that has not moved anything yet. -->
+				{busy
+					? 'Saving...'
+					: pendingEdit === 'schedule'
+						? 'Reschedule'
+						: pendingEdit === 'identity'
+							? 'Rename and save'
+							: 'Save'}
 			</button>
 			<button type="button" class="btn secondary" onclick={close} disabled={busy}>Cancel</button>
 			{#if !unitValid && unitText !== ''}
@@ -744,8 +956,8 @@
 			{/if}
 		</div>
 		<p class="note">
-			Deleting a check-in never deletes work: entries filed against it are kept and relabelled with
-			its name.
+			Deleting a check-in never deletes written work: entries filed against it are kept and
+			relabelled with its name. Excusals granted on it are deleted with it.
 		</p>
 	</div>
 {/snippet}
@@ -994,6 +1206,26 @@
 	}
 	.msg.ok {
 		color: var(--nb-ok);
+	}
+	/* THE ROOM'S OWN CORRECTED INK, never the portal's `--amber`. `--nb-warn` is
+	   declared per plate precisely because the raw semantic token is measured
+	   against the portal's dark ground and fails on this room's paper. */
+	.msg.warn {
+		color: var(--nb-warn);
+		/* A block a reader has to cross rather than a line they can skim past:
+		   this is the one sentence in the form that is about somebody else's
+		   work. The rule is on the reading edge, so it does not draw a box the
+		   `--boundary` contract would have to answer for. */
+		border-left: 3px solid var(--nb-warn);
+		padding-left: var(--space-3);
+	}
+	/* The standing load line on a row: metadata about the row, in the room's
+	   meta register, and never coloured as a warning -- it is a fact about the
+	   check-in, not a refusal. */
+	.session-load {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
 	}
 	.btn.danger {
 		background: var(--surface-1);

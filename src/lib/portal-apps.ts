@@ -90,6 +90,38 @@ export const PORTAL_APPS: PortalApp[] = [
 		// personal record, not a student-only surface.
 		requiresAuth: true
 	},
+	{
+		id: 'maps',
+		title: 'IDEA Maps',
+		sub: 'Find any room, any storage unit, and any tool, down to the drawer it lives in.',
+		icon: 'maps',
+		href: '/maps',
+		cta: 'Find',
+		// NO `requiresAuth`, AND THAT IS THE ENTRY'S ONE REAL DECISION.
+		// The spec's section 2 locks read access as "fully public, no sign-in",
+		// and the surface is built that way down to the database: 0161 gives
+		// every `maps_*` table a `status = 'published'` select policy for
+		// `anon`, 0163 does the same for photos and the `maps-media` bucket,
+		// and 0162/0165 grant `maps_search` to `anon` deliberately. A flag that
+		// swapped this card's CTA to "Sign in" and refused the click would be
+		// the launcher contradicting the route: `/maps` answers an anonymous
+		// GET today, and it is not in `authedPrefixes`.
+		//
+		// WHAT THE FLAG DOES AND DOES NOT DO, since this is where somebody will
+		// come looking: `visibleApps` filters on `adminOnly` and on nothing
+		// else, so `requiresAuth` has never hidden a card from anyone. It is a
+		// CTA switch plus a click interception (`appClick` -> `onRequireSignIn`).
+		// Omitting it is therefore not "making the card public", it is
+		// declining to put a sign-in wall in front of a public surface. Three
+		// cards already omit it for the same reason -- the Coin Ledger,
+		// VANGUARD and Tournaments are each reachable signed out.
+		//
+		// IT IS PUBLISHED ROWS ONLY, WHICH IS THE DATABASE'S ANSWER AND NOT
+		// THIS CARD'S. A draft room is invisible to an anonymous reader because
+		// the select policy says so; an admin opening the same URL sees their
+		// own drafts through the same read, which is why `/maps` sends no
+		// shared cache header.
+	},
 	// TWO coin cards, deliberately, and there is no third. The Ledger is the
 	// single student hub — balance, leaderboard, transactions, analytics,
 	// contracts and roles all live on it — so the separate My Coin Balance and
@@ -202,7 +234,26 @@ export const PORTAL_APPS: PortalApp[] = [
 		// tagline is dropped too. A roster with a key is what this surface
 		// actually is; the gauge stays with the readings it describes.
 		icon: 'admin',
-		sub: 'Who can administer the portal. Owner manages the list.',
+		// AND THEY STAY TWO CARDS. They were reported as "two doors to one
+		// room" and they are not: /dashboard is a REVIEW console (its own
+		// sections are Profile, FRC Model Reviews, GREENLINE Decal Reviews,
+		// Feedback, Students & Pathways, Content) and /admin is a
+		// CONFIGURATION one (the admin roster, IDEA Coin links, short links,
+		// the Drive connection). Nothing on either is on the other, and /admin
+		// links ACROSS to /dashboard from its own header, which is what two
+		// rooms with a path between them look like rather than one room with
+		// two doors. Merging them would put six review sections and four
+		// settings sections behind one card and take a click away from
+		// nobody.
+		//
+		// WHAT WAS ACTUALLY WRONG WAS THIS LINE. The sub read "Who can
+		// administer the portal. Owner manages the list.", which describes the
+		// FIRST of that route's four sections and none of the rest -- so the
+		// card advertised a slice of "Admin Dashboard" and duly read as a
+		// second way into it. A card that names its whole room is what tells
+		// the two apart; a merge would have been fixing a label with an
+		// architecture change.
+		sub: 'The admin roster, IDEA Coin links, short links, and the Google Drive connection.',
 		href: '/admin',
 		cta: 'Open',
 		adminOnly: true

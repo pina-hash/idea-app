@@ -40,8 +40,37 @@ export interface Assignment {
 export interface Section {
 	/** Stable slug used as `profiles.section_id` and in URLs. */
 	id: string;
-	/** Course code, e.g. "IDEA 209H". */
+	/**
+	 * The COURSE, and only the course: "IDEA 209H", "IDEA 100". This is the
+	 * identifier Mr. Pina's standing rule means when it says course IDs are the
+	 * only identifiers, and it is what `activeCourseCount()` counts distinct
+	 * values of.
+	 *
+	 * IT MUST NOT CARRY ANYTHING THAT DISTINGUISHES ONE SECTION FROM ANOTHER.
+	 * The three freshman sections were stored as `IDEA 100-1`, `IDEA 100-2` and
+	 * `IDEA 100-3`, which is one course with a rotation number written into its
+	 * code -- so a Set over the field saw three courses where there is one, and
+	 * the home page's Active Courses tile read 4 against a pathway running 2.
+	 * The arithmetic was never wrong; the data was. Whatever distinguishes a
+	 * section within its course goes in its own field (`rotation` below, `term`,
+	 * `year`), and a surface wanting the combined string composes it with
+	 * `sectionCode()`.
+	 */
 	course: string;
+	/**
+	 * Which rotation of `course` this section is, where a course runs the same
+	 * content more than once. `IDEA 100` rotation 1 is what used to be spelled
+	 * `IDEA 100-1`, and `sectionCode()` is what puts that spelling back.
+	 *
+	 * SEPARATE FROM `term` ON PURPOSE, even though the three rotations happen to
+	 * run one per trimester today: a term says WHEN a section meets and a
+	 * rotation says WHICH pass through the course it is, and deriving one from
+	 * the other would make a second rotation inside one trimester
+	 * unrepresentable for no reason. Absent for a course that runs once
+	 * (`IDEA 209H`'s three sections are three YEAR BANDS of one offering, not
+	 * three rotations, which is why they always collapsed correctly).
+	 */
+	rotation?: number;
 	/** Human title, e.g. "Engineering I Honors". */
 	title: string;
 	/** Year band 1-4 (Freshman..Senior). */
@@ -94,7 +123,8 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		id: 'intro-100-1',
-		course: 'IDEA 100-1',
+		course: 'IDEA 100',
+		rotation: 1,
 		title: 'Intro to IDEA',
 		year: 1,
 		yearLabel: 'Freshman',
@@ -105,7 +135,8 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		id: 'intro-100-2',
-		course: 'IDEA 100-2',
+		course: 'IDEA 100',
+		rotation: 2,
 		title: 'Intro to IDEA',
 		year: 1,
 		yearLabel: 'Freshman',
@@ -116,7 +147,8 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		id: 'intro-100-3',
-		course: 'IDEA 100-3',
+		course: 'IDEA 100',
+		rotation: 3,
 		title: 'Intro to IDEA',
 		year: 1,
 		yearLabel: 'Freshman',
@@ -170,6 +202,23 @@ const YEAR_LABELS: Record<Year, string> = {
 	4: 'Senior'
 };
 
+/**
+ * The printed code for ONE SECTION: its course, plus its rotation when it has
+ * one. `IDEA 100` rotation 1 composes back to `IDEA 100-1`, which is the string
+ * that used to be stored in `course` and is still the string on a handout.
+ *
+ * THIS IS THE ONLY PLACE THE TWO ARE JOINED. Written inline at a call site, the
+ * expression is what quietly stops matching -- and the split exists precisely
+ * because one field was answering two questions. A surface asking "which
+ * course" reads `section.course`; a surface asking "which section, in print"
+ * calls this. A surface that already prints the term or the year band beside
+ * the code (the coin desk picker, the feedback console's section label) needs
+ * neither, because it is already saying which one it means.
+ */
+export function sectionCode(section: Pick<Section, 'course' | 'rotation'>): string {
+	return section.rotation === undefined ? section.course : `${section.course}-${section.rotation}`;
+}
+
 /** Look up a section by its id (a student's saved `section_id`). */
 export function sectionById(id: string | null | undefined): Section | undefined {
 	if (!id) return undefined;
@@ -208,8 +257,16 @@ export function selfSelectOptions(): SelectOptionGroup[] {
  * means the programme has not concluded: the Freshman Summer Program ran and
  * finished (its materials live at /fsp/archive), so its code is excluded even
  * though the section entry stays in SECTIONS for every stored section_id that
- * still points at it. Counting codes, not sections, is deliberate -- the three
- * IDEA 209H sections are one course.
+ * still points at it. Counting COURSES, not sections, is deliberate -- the
+ * three IDEA 209H sections are one course, and so are the three IDEA 100
+ * rotations.
+ *
+ * THE ARITHMETIC HERE HAS NEVER BEEN THE BUG AND MUST NOT BE "FIXED". It read
+ * 4 against a pathway running 2 because `course` was carrying rotation numbers
+ * (`IDEA 100-1`), so the Set saw three courses where there is one; splitting
+ * the rotation into its own field makes the same Set answer 2. If a future
+ * miscount tempts anyone to special-case something in here, the data is wrong
+ * again -- see the `course` field's own comment.
  *
  * Excludes by the FSP_CONCLUDED flag, not by `term === 'Summer'`: a term label
  * says when a course runs, not whether it has finished, so keying on it here
