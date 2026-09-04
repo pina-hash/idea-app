@@ -485,23 +485,103 @@ jobs:
           }
           # contained_delete_marker:end
 
+          # THE PUSH DECISION, AND IT IS A FUNCTION FOR THE REASON THE TWO
+          # GATES ABOVE ARE: it is PROVED by cutting this exact text out of
+          # THIS FILE and running it against throwaway git repositories, so no
+          # proof can drift into testing a private copy of the rule. Do not
+          # rename the markers and do not move the body out from between them.
+          #
+          # WHAT IT DECIDES, and what it deliberately does not. It answers one
+          # question -- did $TARGET move -- and it answers it from two shas
+          # rather than from any array this job built. The condition it
+          # replaces was `[ ${#merged[@]} -gt 0 ]`, which asked whether a
+          # BRANCH merged and therefore threw away a main-merge on every run
+          # where every outstanding branch conflicted. That is the deadlock
+          # argued at the main-merge below.
+          #
+          # It cannot push a broken tree, and the reason is upstream of here
+          # rather than inside it: a main-merge conflict aborts and exits the
+          # step before this is ever called, and a BRANCH conflict aborts that
+          # one merge and leaves HEAD exactly where it was, so a conflicted
+          # branch contributes nothing to the comparison. Every sha it can be
+          # handed is a tree git itself resolved.
+          # target_push_marker:begin
+          target_push_gate() {
+            # $1 the sha the remote already has for the target, EMPTY when the
+            # target branch does not exist on the remote yet. $2 the sha HEAD
+            # is at now. Returns 0 to PUSH, 1 to leave the remote alone.
+            #
+            # THE EMPTY CASE IS A PUSH, on purpose: a first run must create the
+            # branch even if it merged nothing into it, and an empty string
+            # cannot equal a sha.
+            [ "$2" != "${1:-}" ]
+          }
+          # target_push_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
             git checkout -B "$TARGET" "origin/$TARGET"
+            # THE TIP THE REMOTE ALREADY HAS, captured before anything moves.
+            # The push below asks "did $TARGET move at all", which is this
+            # value against HEAD at the end -- so it is read once, here, from
+            # the remote-tracking ref rather than recomputed later from a HEAD
+            # that has by then absorbed the whole sweep.
+            remote_tip="$(git rev-parse "origin/$TARGET")"
           else
             echo "::notice::$TARGET does not exist; creating it from origin/main"
             git checkout -B "$TARGET" origin/main
+            # EMPTY, AND DELIBERATELY NOT origin/main's SHA. A branch that does
+            # not exist on the remote must be created even when this run merges
+            # nothing into it, and an empty string cannot compare equal to a
+            # sha, so the comparison below reaches the push on its own.
+            remote_tip=
           fi
 
           # MAIN FIRST, EVERY TIME. `main` moves on its own all day (the
           # classroom GitHub export commits under `materials/` on every item
           # save), so integrating onto a stale base is how a branch that merges
           # cleanly today conflicts next week.
+          #
+          # AND WHAT IT PRODUCES IS PUSHED WHETHER OR NOT ANY BRANCH MERGES.
+          # That is a DEADLOCK FIX and not a refinement. This step used to push
+          # only `if [ ${#merged[@]} -gt 0 ]`, so on a run where every
+          # outstanding branch conflicted the main-merge was computed on this
+          # runner's disk and thrown away -- every run, forever. Meanwhile
+          # `deploy.yml` refuses to deploy while $TARGET is behind `main` and
+          # tells the operator to press Integrate first. Migrations commit
+          # straight to `main` by design and the classroom export commits there
+          # unattended, so the gap re-opens constantly; branches conflict
+          # routinely while several lanes run. Integrate-then-Deploy in that
+          # state could not terminate. It was pressed three times on 2026-09-03
+          # and a person broke out by merging `main` into `integration` through
+          # a pull request by hand.
+          #
+          # The two things this has to do at once are NOT in tension, and the
+          # old code made them look like they were: catching $TARGET up to
+          # `main` is mechanical and always safe to land, while a conflicted
+          # branch is a person's problem and must stay loud. So the push
+          # condition becomes "did the target move", and the exit code below is
+          # left exactly as it was.
+          target_start="$(git rev-parse HEAD)"
+          behind="$(git rev-list --count HEAD..origin/main)"
           if ! git merge --no-edit origin/main; then
+            # A MAIN-MERGE CONFLICT STILL PUSHES NOTHING, and that is the state
+            # the "push whenever the target moved" rule must not swallow: the
+            # abort restores HEAD to `target_start`, and this exit is taken
+            # before the comparison is ever reached, so a half-resolved tree
+            # cannot become $TARGET on the remote.
             git merge --abort || true
             echo "::error::$TARGET conflicts with main. Resolve it on $TARGET by hand; nothing was merged, pushed or deleted."
             exit 1
+          fi
+
+          # MEASURED, NOT INFERRED FROM `behind`. The merge either moved HEAD or
+          # it did not, and reading that back is one command; deriving it from a
+          # count taken beforehand is a second idea of the same fact.
+          caught_up=no
+          if [ "$(git rev-parse HEAD)" != "$target_start" ]; then
+            caught_up=yes
           fi
 
           merged=()
@@ -603,8 +683,18 @@ jobs:
             fi
           done
 
+          # THE TARGET MOVED AT ALL -- the main-merge above, a branch merge in
+          # the loop, or both. NOT "a branch merged", which is the condition
+          # this replaces and the whole of the deadlock argued at the
+          # main-merge above.
+          #
+          # It subsumes the old condition rather than widening past it: a
+          # non-empty `merged` means at least one `--no-ff` merge commit, so
+          # HEAD is necessarily different and every run that used to push still
+          # pushes. What is new is the run that merged nothing and caught the
+          # target up, which used to discard its own work.
           pushed=no
-          if [ ${#merged[@]} -gt 0 ]; then
+          if target_push_gate "${remote_tip:-}" "$(git rev-parse HEAD)"; then
             # NEVER --force, and no retry on rejection. A rejected push means
             # $TARGET moved under us; the honest response is to do nothing and
             # let the next run redo the whole sweep from the new tip. Nothing
@@ -684,6 +774,34 @@ jobs:
             echo
             echo "Triggered by: \`${TRIGGER_BRANCH:-workflow_dispatch}\`"
             echo
+
+            # WHAT HAPPENED TO THE TARGET ITSELF, SAID FIRST AND IN WORDS.
+            # This section is new with the deadlock fix and it exists because
+            # the summary is what a person reads at 7am: a run can now be RED
+            # for a conflicted branch while having successfully caught
+            # `integration` up to `main`, and those two facts used to be
+            # indistinguishable from outside. Every combination the job can
+            # reach says which one it is, on its own line.
+            echo "### \`$TARGET\` itself"
+            echo
+            if [ "$caught_up" = yes ]; then
+              echo "- **Caught up to \`main\`** -- $behind commit(s) were on \`main\` and not on \`$TARGET\`, and are now on it."
+            else
+              echo "- Already current with \`main\` -- nothing to bring across."
+            fi
+            if [ "$pushed" = yes ]; then
+              echo "- **Pushed.** \`$TARGET\` on the remote is now \`$(git rev-parse --short HEAD)\`."
+            else
+              echo "- Nothing pushed -- \`$TARGET\` did not move this run."
+            fi
+            if [ ${#conflicted[@]} -gt 0 ]; then
+              if [ "$pushed" = yes ]; then
+                echo "- ${#conflicted[@]} branch(es) conflicted, so **this run is red for that reason and no other**. Everything above still landed, and \`deploy.yml\` is no longer blocked by \`$TARGET\` being behind \`main\`."
+              else
+                echo "- ${#conflicted[@]} branch(es) conflicted, and there was nothing else to do, so **nothing changed this run**."
+              fi
+            fi
+            echo
             if [ ${#merged[@]} -gt 0 ]; then
               echo "### Merged into \`$TARGET\` and deleted"
               for b in "${merged[@]}"; do echo "- \`$b\`"; done
@@ -712,7 +830,22 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+          # THE EXIT CODE DOES NOT MOVE, and that is a decision rather than an
+          # omission. A conflicted branch is a normal steady state when several
+          # lanes run at once -- it is two bundles genuinely touching one file,
+          # which no machine may resolve -- but it is also the one outcome here
+          # that NEEDS a person, and a green run is a run nobody opens. Nothing
+          # downstream reads this conclusion: the only `workflow_run` trigger in
+          # this repo watches `CI`, and `deploy.yml` is `workflow_dispatch` and
+          # decides from git state (is `main` an ancestor of `integration`),
+          # never from whether this job passed. So the exit code costs a red
+          # mark and buys the notification, and the summary above is what says
+          # the target itself is fine.
           if [ ${#conflicted[@]} -gt 0 ]; then
-            echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. See the job summary."
+            if [ "$pushed" = yes ]; then
+              echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET ITSELF WAS PUSHED and is not blocked -- this run is red only for the conflicts. See the job summary."
+            else
+              echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET did not move this run. See the job summary."
+            fi
             exit 1
           fi

@@ -69,9 +69,37 @@ job inside the Deploy run rather than as a run of its own.
 
 ## When something is stuck
 
-Open the **Actions** tab and find the red **Integrate** run. Its job summary
-names every branch and what happened to it: merged, conflicted, or left alone
-with the reason (`CI on abc1234 is failure`, `already in integration`).
+Open the **Actions** tab and find the red **Integrate** run. Its job summary has
+up to FIVE sections -- the first is always there and is about `integration`
+itself rather than about any branch; the last three appear only when they have
+something to report:
+
+- **`integration` itself** -- whether it was caught up to `main` (and by how
+  many commits), whether it was pushed, and, when something conflicted, that the
+  red X is for the conflict and for nothing else.
+- **Merged into `integration` and deleted** -- the branches that landed.
+- **Already contained, deleted** -- branches whose every commit was already
+  reachable from `integration` or `main`. Nothing was merged for these; the ref
+  held nothing a delete could take away.
+- **CONFLICTED -- a person is needed** -- see below.
+- **Left alone**, with the reason: `CI on abc1234 is failure`, a ledger entry
+  that `still says its session is running (Status: issued)`, or
+  `already in integration` in the narrow case where the delete was refused or
+  declined.
+
+`already in integration` is normally a DELETE reason now and appears under
+"Already contained, deleted"; it reaches "Left alone" only when the branch was
+protected, when containment held solely in the runner's unpushed work, or when
+the delete itself was refused.
+
+**A RED RUN DOES NOT MEAN NOTHING LANDED.** Since the deadlock fix, `integration`
+is caught up to `main` and pushed whenever it moved at all, including on a run
+where every outstanding branch conflicted. The run is still red -- a conflict
+needs a person and a green run is one nobody opens -- but the first summary
+section says in words whether the target itself was pushed, and `deploy.yml` is
+not blocked by it. Before the fix that main-merge was computed and thrown away
+on such a run, which deadlocked Integrate against Deploy's own
+"`integration` is behind `main`" refusal.
 
 A conflict is two bundles genuinely touching the same file. Resolve it on the
 branch, never on `integration`:

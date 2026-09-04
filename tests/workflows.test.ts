@@ -362,34 +362,98 @@ const LEASE_PINNED = /--force-with-lease=(['"]?)refs\/heads\/[^\s'"]+:[^\s'"]+\1
 const DELETE_REFSPEC = /(?:^|\s)['"]?:refs\/heads\/\S/;
 
 /**
- * The cut points `tools/integrate-gate-proof.sh` reads out of `integrate.yml`.
- * Spelled here as the constants the harness greps for, so a rename reddens on
- * both sides of the contract rather than only in a script nobody runs.
+ * EVERY CUTTABLE GATE IN THE FILE, AND THIS USED TO BE ONE HARDCODED PAIR.
+ * `integrate.yml` now carries three functions written to be cut out of it and
+ * run against throwaway repositories -- `ledger_gate`, `contained_delete_gate`
+ * and, since the deadlock fix, `target_push_gate`. The pin below was spelled
+ * for `ledger_gate` alone, so the two later ones could have their markers
+ * renamed with the whole suite green.
+ *
+ * Generalised rather than duplicated, per this repo's no-second-copy rule: one
+ * predicate over a table, so a FOURTH gate is a row here and not a fourth
+ * near-identical block. The count is pinned below so a gate that quietly LOSES
+ * its markers cannot shrink the table instead of failing.
+ *
+ * `harness` names the in-repo script that actually performs the cut, or null
+ * where there is not one yet. Two of the three have no harness committed:
+ * `integrate.yml`'s own comments say so at each site, and the pin records the
+ * gap rather than papering over it -- a null here is a claim that nothing in
+ * the repo cuts these markers, which is itself worth reddening if it changes.
  */
-const MARKER_BEGIN = '# ledger_gate_marker:begin';
-const MARKER_END = '# ledger_gate_marker:end';
+const CUTTABLE_GATES = [
+	{ fn: 'ledger_gate', marker: 'ledger_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: null },
+	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null }
+] as const;
 
-/** Everything wrong with the marker pair, so a failure says which half moved. */
-function markerFindings(text: string): string[] {
+/**
+ * Everything wrong with one gate's marker pair, so a failure says which half
+ * moved AND which gate it was.
+ */
+function markerFindings(text: string, gate: { fn: string; marker: string }): string[] {
+	const begin = `# ${gate.marker}:begin`;
+	const end = `# ${gate.marker}:end`;
 	const found: string[] = [];
 	const count = (needle: string) => text.split(needle).length - 1;
 
-	const begins = count(MARKER_BEGIN);
-	const ends = count(MARKER_END);
-	if (begins !== 1) found.push(`${MARKER_BEGIN} appears ${begins} times, expected exactly 1`);
-	if (ends !== 1) found.push(`${MARKER_END} appears ${ends} times, expected exactly 1`);
+	const begins = count(begin);
+	const ends = count(end);
+	if (begins !== 1) found.push(`${begin} appears ${begins} times, expected exactly 1`);
+	if (ends !== 1) found.push(`${end} appears ${ends} times, expected exactly 1`);
 	if (found.length > 0) return found;
 
-	const from = text.indexOf(MARKER_BEGIN) + MARKER_BEGIN.length;
-	const to = text.indexOf(MARKER_END);
-	if (to < from) return [`${MARKER_END} comes before ${MARKER_BEGIN}, so the cut is empty`];
+	const from = text.indexOf(begin) + begin.length;
+	const to = text.indexOf(end);
+	if (to < from) return [`${end} comes before ${begin}, so the cut is empty`];
 
 	const body = text.slice(from, to);
-	if (body.trim() === '') found.push('the text between the markers is empty');
-	// The harness sources the cut text and calls `ledger_gate`, so a cut that
+	if (body.trim() === '') found.push(`the text between the ${gate.marker} markers is empty`);
+	// The harness sources the cut text and calls the function, so a cut that
 	// does not DEFINE it fails there however well-formed the markers are.
-	if (!/(?:^|\s)ledger_gate[ ]*\([ ]*\)[ ]*\{/m.test(body)) {
-		found.push('the text between the markers does not define ledger_gate()');
+	if (!new RegExp(`(?:^|\\s)${gate.fn}[ ]*\\([ ]*\\)[ ]*\\{`, 'm').test(body)) {
+		found.push(`the text between the ${gate.marker} markers does not define ${gate.fn}()`);
+	}
+	return found;
+}
+
+/**
+ * THE PUSH CONDITION, PINNED BY WHAT IT ASKS RATHER THAN BY ITS CHARACTERS.
+ *
+ * The deadlock this replaced: the step merged `origin/main` into the target and
+ * then pushed only `if [ ${#merged[@]} -gt 0 ]`, so a run where every
+ * outstanding branch conflicted computed the main-merge and threw it away.
+ * `deploy.yml` refuses while `main` is not an ancestor of `integration` and
+ * tells the operator to press Integrate first, which is why the pair could not
+ * terminate. Executed against throwaway repositories on 2026-09-04: under the
+ * old condition that case ends with `caught_up=yes`, nothing pushed and `main`
+ * still not an ancestor.
+ *
+ * The regression is one edit away and looks like a tidy-up -- a `merged` array
+ * is right there beside the push -- so it is asserted rather than trusted. Two
+ * findings, and they fail in different places on purpose: the push must be
+ * decided by the cuttable gate, and the gate must be handed the tip the REMOTE
+ * already has rather than anything this run computed.
+ */
+function pushConditionFindings(text: string): string[] {
+	const found: string[] = [];
+	const lines = text.split('\n');
+	const at = lines.findIndex((l) => /^\s*if target_push_gate\b/.test(l));
+	if (at === -1) {
+		return ['the push to the target is no longer decided by target_push_gate'];
+	}
+	// The two arguments, in order: the remote's tip and HEAD as it stands now.
+	if (!/target_push_gate\s+"\$\{remote_tip:-\}"\s+"\$\(git rev-parse HEAD\)"/.test(lines[at])) {
+		found.push('target_push_gate is no longer asked about remote_tip against HEAD');
+	}
+	// And the push itself is inside that branch, not beside it.
+	if (!/git push origin "HEAD:refs\/heads\/\$TARGET"/.test(lines.slice(at, at + 12).join('\n'))) {
+		found.push('the target push is no longer inside the target_push_gate branch');
+	}
+	// The condition this replaced must not come back on the target push. It is
+	// still legitimate in the SUMMARY, where "did any branch merge" is exactly
+	// the question, so this looks only at the push branch.
+	if (/if \[ \$\{#merged\[@\]\} -gt 0 \]; then\n\s*(#[^\n]*\n\s*)*if git push origin "HEAD/.test(text)) {
+		found.push('the target push is gated on `merged` again -- this is the deadlock');
 	}
 	return found;
 }
@@ -854,44 +918,79 @@ describe('the invariants these particular workflows have to hold', () => {
 		// it. This asserts the cut points, not the gate's wording, which is
 		// somebody else's to edit.
 		const s = src('integrate.yml');
-		expect(markerFindings(s), 'integrate.yml no longer cuts at the ledger gate markers').toEqual(
-			[]
-		);
+
+		// ALL THREE CUTTABLE GATES, reported by name so a failure says which
+		// one moved. This was `ledger_gate` alone until the deadlock fix; the
+		// other two could have been renamed with the suite green.
+		expect(
+			Object.fromEntries(CUTTABLE_GATES.map((g) => [g.fn, markerFindings(s, g)])),
+			'integrate.yml no longer cuts at one of its gate markers'
+		).toEqual(Object.fromEntries(CUTTABLE_GATES.map((g) => [g.fn, []])));
+
+		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
+		// leave a shorter table that still matches itself.
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(3);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
 		// never reaches the summary, is green there.
 		expect(callSiteFindings(s), 'the ledger gate call site moved').toEqual([]);
 
+		// Same argument for the push gate, whose call site is the whole of the
+		// deadlock fix: a `target_push_gate` nothing asks, or asks about the
+		// wrong two shas, is green in any harness that drives it directly.
+		expect(pushConditionFindings(s), 'the target push condition moved').toEqual([]);
+
 		// And the harness is where the workflow says it is, still reading both
 		// marker names. A proof script that stopped naming them cut nothing.
-		const proof = readFileSync(
-			fileURLToPath(new URL('../tools/integrate-gate-proof.sh', import.meta.url)),
-			'utf8'
-		);
-		expect(proof).toContain(MARKER_BEGIN.replace('# ', ''));
-		expect(proof).toContain(MARKER_END.replace('# ', ''));
+		// ONLY `ledger_gate` HAS ONE IN THE REPO; the other two rows carry
+		// `harness: null`, which integrate.yml's own comments say out loud at
+		// each site. Asserting that emptiness is what makes a harness ARRIVING
+		// for one of them visible here rather than silent.
+		for (const g of CUTTABLE_GATES) {
+			if (g.harness === null) continue;
+			const proof = readFileSync(
+				fileURLToPath(new URL(`../${g.harness}`, import.meta.url)),
+				'utf8'
+			);
+			expect(proof, `${g.harness} no longer names the ${g.marker} cut points`).toContain(
+				`${g.marker}:begin`
+			);
+			expect(proof).toContain(`${g.marker}:end`);
+		}
+		expect(
+			CUTTABLE_GATES.filter((g) => g.harness === null).map((g) => g.fn),
+			'a gate gained or lost its in-repo proof harness'
+		).toEqual(['contained_delete_gate', 'target_push_gate']);
 	});
 
 	it('POSITIVE CONTROL: a renamed, reordered or emptied marker pair is caught', () => {
 		const s = src('integrate.yml');
-		// Renamed: exactly the silent break this assertion exists for.
-		expect(markerFindings(s.replace(MARKER_BEGIN, '# ledger_gate_start'))).not.toEqual([]);
-		expect(markerFindings(s.replace(MARKER_END, '# ledger_gate_finish'))).not.toEqual([]);
-		// Duplicated, which makes the cut ambiguous rather than empty.
-		expect(markerFindings(`${s}\n${MARKER_BEGIN}\n`)).not.toEqual([]);
-		// Reversed, which cuts nothing at all.
-		expect(
-			markerFindings(
-				s.replace(MARKER_BEGIN, '# TMP').replace(MARKER_END, MARKER_BEGIN).replace('# TMP', MARKER_END)
-			)
-		).not.toEqual([]);
-		// Present, in order, but with the function moved out from between them.
-		expect(
-			markerFindings(
-				`${MARKER_BEGIN}\n          echo nothing to see here\n${MARKER_END}\n`
-			)
-		).not.toEqual([]);
+		// EVERY GATE, NOT JUST THE FIRST. Each mutation is applied to each
+		// gate's own markers, so a predicate that quietly only ever looked at
+		// `ledger_gate` cannot pass this.
+		for (const g of CUTTABLE_GATES) {
+			const begin = `# ${g.marker}:begin`;
+			const end = `# ${g.marker}:end`;
+			// Renamed: exactly the silent break this assertion exists for.
+			expect(markerFindings(s.replace(begin, '# renamed_start'), g), `${g.fn}: renamed begin`).not.toEqual([]);
+			expect(markerFindings(s.replace(end, '# renamed_finish'), g), `${g.fn}: renamed end`).not.toEqual([]);
+			// Duplicated, which makes the cut ambiguous rather than empty.
+			expect(markerFindings(`${s}\n${begin}\n`, g), `${g.fn}: duplicated begin`).not.toEqual([]);
+			// Reversed, which cuts nothing at all.
+			expect(
+				markerFindings(
+					s.replace(begin, '# TMP').replace(end, begin).replace('# TMP', end),
+					g
+				),
+				`${g.fn}: reversed pair`
+			).not.toEqual([]);
+			// Present, in order, but with the function moved out from between them.
+			expect(
+				markerFindings(`${begin}\n          echo nothing to see here\n${end}\n`, g),
+				`${g.fn}: emptied body`
+			).not.toEqual([]);
+		}
 
 		// And the call site, whose two halves fail in different places: a gate
 		// nothing calls, and a gate whose reason never reaches the summary.
@@ -899,6 +998,28 @@ describe('the invariants these particular workflows have to hold', () => {
 			[]
 		);
 		expect(callSiteFindings(s.replace(/skipped\+=\(/g, 'ignored+=('))).not.toEqual([]);
+
+		// THE DEADLOCK, PUT BACK. Each of the three is the shape a plausible
+		// edit would produce, and each must redden on its own.
+		expect(
+			pushConditionFindings(
+				s.replace(
+					'if target_push_gate "${remote_tip:-}" "$(git rev-parse HEAD)"; then',
+					'if [ ${#merged[@]} -gt 0 ]; then'
+				)
+			),
+			'the pre-fix condition put back is not caught'
+		).not.toEqual([]);
+		expect(
+			pushConditionFindings(
+				s.replace('target_push_gate "${remote_tip:-}"', 'target_push_gate "$target_start"')
+			),
+			'asking the gate about the wrong base is not caught'
+		).not.toEqual([]);
+		expect(
+			pushConditionFindings(s.replace('git push origin "HEAD:refs/heads/$TARGET"', 'true')),
+			'a push moved out of the gate branch is not caught'
+		).not.toEqual([]);
 	});
 
 	it('ci.yml fails the job when any continue-on-error gate failed', () => {
