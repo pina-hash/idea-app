@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/curriculum.ts`, the hero course tile in `src/routes/+page.svelte`, `src/lib/classroom/ClassroomFeed.svelte`, `feed.ts`, `src/routes/dev/home-order/**`, `tests/curriculum*`, `tests/classroom-feed*`, the course-count rows in `tests/home-order-and-accent.test.ts`, `tools/browser-verify/routes/home-order*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0027-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0175
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/classes-block-course-identity-twrmsn`, from `origin/integration` at `98f00a8`
 - Notes: Prompt 0024 handed both of these forward with measurements.
 
   THE COURSE TILE COUNTS WRONG, and the cause is an identifier doing two
