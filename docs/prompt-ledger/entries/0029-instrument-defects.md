@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `tools/browser-verify/checks.mjs`, `selftest.mjs`, the prose and generated regions of its `README.md`, the two coins route specs, `.github/workflows/integrate.yml`, two paragraphs of `CLAUDE.md`, `docs/prompt-ledger/entries/0029-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0175
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: Four defects in the measuring instrument and one gap in the repo's
   own record. Every one was found by a bundle that could not fix it because
