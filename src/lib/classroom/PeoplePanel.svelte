@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Avatar from '$lib/Avatar.svelte';
+	import { rosterSubject } from '$lib/avatars';
 	import { untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
@@ -528,6 +530,16 @@
 {#snippet rosterRow(e: ClassroomEnrollment)}
 	{@const status = rosterStatus(e)}
 	<div class="roster-row" class:inactive={!e.active} data-testid="roster-row">
+		<!-- THE FACE SITS BESIDE THE NAME AND IS DISCLOSED TO EXACTLY THE SAME
+		     AUDIENCE. This panel is reachable only by the teacher of record or
+		     an admin: the route 404s a student (people/+page.server.ts) and
+		     `classroom_section_roster` gates every row on
+		     `classroom_manages_section` inside its own definer, so the reader
+		     is already looking at this student's name AND address. 0179 adds
+		     `avatar`/`avatar_url` to that same read and widens nothing else.
+		     Before 0179 is applied the columns are absent and every row is an
+		     initials tile, which is also what most rows are afterwards. -->
+		<Avatar subject={rosterSubject(e)} tintKey={e.student_email} size={28} />
 		<span class="roster-name">{e.display_name || e.student_email.split('@')[0]}</span>
 		<span class="roster-email">{e.student_email}</span>
 		<span class="roster-status" data-tone={status.tone} data-testid="roster-status">
@@ -1275,6 +1287,14 @@
 	.roster-name {
 		font-weight: 700;
 		font-size: 0.9rem;
+		/* A NAME TOO LONG FOR ITS ROW WRAPS RATHER THAN PUSHING THE PICTURE.
+		   The row is `flex-wrap: wrap`, so without a min-width of 0 a long
+		   unbroken name sets the flex item's automatic minimum to its
+		   min-content and forces the row wider (CLAUDE.md's min-width rule).
+		   The avatar carries `flex-shrink: 0` and an inline min-width, so it
+		   is the NAME that gives, which is the right way round. */
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 	.roster-email {
 		font-family: var(--font-mono);
