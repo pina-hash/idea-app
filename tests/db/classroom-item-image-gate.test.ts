@@ -25,12 +25,14 @@
 //     about, and nothing type-checks a mirror. The corpus below is put to BOTH
 //     and the answers must agree case for case.
 //
-// AND ONE PARITY CLAIM THAT IS NOT ABOUT SAFETY AT ALL. `classroom_items.body`
-// is DERIVED from `body_doc` by `_classroom_doc_text` inside the write RPCs, and
-// `richDocText` in $lib/rich-text-doc is the client's mirror of it. Neither is
-// this bundle's to change -- $lib/rich-text-doc is not an owned file and the
-// projection is not widened here -- so what an image contributes to the plain
-// text has to be measured rather than assumed, on both sides, and pinned.
+// AND ONE PROJECTION CLAIM THAT IS NOT ABOUT SAFETY AT ALL.
+// `classroom_items.body` is DERIVED from `body_doc` by `_classroom_doc_text`
+// inside the write RPCs, and 0176 did not touch that function -- so an image
+// contributed a blank line, which this file measures rather than assumes.
+// 0178 is what widened it, on both sides at once; the parity claim between the
+// column and `richDocText` lives with that migration, in
+// tests/db/classroom-doc-text-images.test.ts, because the shipped mirror is one
+// module and it mirrors the database as it is expected to be running.
 //
 // THE POSITIVE CONTROLS ARE HERE RATHER THAN IMPLIED. A refusal suite that
 // refuses everything, including the thing it is meant to accept, passes every
@@ -42,7 +44,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 import { FIGURE_STATIC_PREFIXES, resolveFigureSrc } from '../../src/lib/classroom/classroom';
-import { docText, type ItemDoc } from '../../src/lib/classroom/classroom-doc';
 
 /** The classroom chain through 0122, plus the migrations 0176 re-signs over. */
 const ITEM_CHAIN = [
@@ -481,43 +482,62 @@ describe('0176: the item-body image gate', () => {
 		// -------------------------------------------------------------------
 		// Part 5. THE PLAIN-TEXT PARITY CLAIM, measured on both sides.
 		// -------------------------------------------------------------------
-		it('an image contributes an EMPTY LINE to the plain text, in SQL and in TypeScript alike', async () => {
-			// NOT ALT TEXT, and that is a bounded decision rather than an
-			// oversight. `richDocText` in $lib/rich-text-doc is the client mirror
-			// of `_classroom_doc_text` and is NOT an owned file in this bundle;
-			// its `else` arm reads `block.runs`, finds none, and emits ''. The SQL
-			// `else` arm aggregates over `jsonb_array_elements(b.value->'runs')`,
-			// which is zero rows for an absent key, and `coalesce(...,'')` makes
-			// that '' too. So the two already agree, by construction, and
-			// widening either one alone would be what broke them.
-			const cases: GateDoc[] = [
-				[{ type: 'img', src: 'attachment:x.jpg', alt: 'A bearing' }],
-				[
+		it('an image contributes an EMPTY LINE to the COLUMN as 0176 left it', async () => {
+			// 0176 SHIPPED WITH THIS AND 0178 IS WHAT CHANGES IT. The finding
+			// this assertion recorded was that `richDocText` and
+			// `_classroom_doc_text` agreed BY CONSTRUCTION on an image
+			// contributing nothing -- the TS `else` arm reads `block.runs`,
+			// finds none and emits ''; the SQL `else` arm aggregates over
+			// `jsonb_array_elements(b.value->'runs')`, zero rows for an absent
+			// key, `coalesce(...,'')` -- and that "widening either one alone
+			// would be what broke them". 0178 widened them together.
+			//
+			// SO THE PARITY HALF OF THIS ASSERTION CANNOT LIVE HERE ANY MORE,
+			// and that is a fact about the mirror rather than a gap. `docText`
+			// is ONE module in the shipped tree: it mirrors whatever the
+			// database is expected to be running, which after 0178 is the wide
+			// projection. A test that boots the chain short of 0178 and then
+			// demanded the client agree with it would be asserting that the
+			// shipped client mirrors a database nobody runs -- which is exactly
+			// backwards, and would make every future widening of this pair
+			// impossible to land without deleting an assertion.
+			//
+			// What stays here is the SQL half, which is a true and checkable
+			// statement about the world 0176 left: the projection it did not
+			// touch. The parity claim moved to
+			// tests/db/classroom-doc-text-images.test.ts, which measures both
+			// sides over one corpus against the migration the client actually
+			// mirrors, and which asserts case for case that every body with NO
+			// image in it projects exactly what it projected here.
+			expect(await sqlDocText([{ type: 'img', src: 'attachment:x.jpg', alt: 'A bearing' }])).toBe(
+				''
+			);
+			expect(
+				await sqlDocText([
 					{ type: 'p', runs: [{ text: 'Above' }] },
 					{ type: 'img', src: 'attachment:x.jpg', alt: 'A bearing' },
 					{ type: 'p', runs: [{ text: 'Below' }] }
-				]
-			];
-			for (const doc of cases) {
-				const fromSql = await sqlDocText(doc);
-				// The cast is the point of `GateDoc`: `docText` takes the closed
-				// union, and this file deliberately builds untyped documents.
-				expect(docText(doc as unknown as ItemDoc), 'the TS mirror must equal the column').toBe(
-					fromSql
-				);
-			}
-			// And the measured values, stated rather than only compared, so a
-			// reader of this file knows what an image-only body's `body` column
-			// actually holds.
-			expect(docText(cases[0] as unknown as ItemDoc)).toBe('');
-			expect(docText(cases[1] as unknown as ItemDoc)).toBe('Above\n\nBelow');
+				])
+			).toBe('Above\n\nBelow');
 		});
 
-		it('an item whose body is ONLY a picture stores an empty body column, and an announcement still needs words', async () => {
-			// The consequence of the line above, said out loud. A `post` with no
-			// text at all is refused by 0085's field check, exactly as it was
-			// before images existed -- which is the right answer, because an
-			// announcement nobody can read as text is not an announcement.
+		it('an item whose body is ONLY a picture stores an empty body column, and an announcement still needs words -- UNTIL 0178', async () => {
+			// The consequence of the line above, said out loud, and the reason
+			// 0178 exists. `constraint classroom_items_post_body` (0085) is
+			// `kind <> 'post' or btrim(body) <> ''`, a TABLE check under the
+			// RPC's field check -- so with the projection contributing nothing
+			// for a picture, the gate 0176 opened was closed again one layer
+			// down and an announcement whose content was a photograph could not
+			// be inserted at all.
+			//
+			// 0176 read that as the right answer ("an announcement nobody can
+			// read as text is not an announcement"), which is true of the
+			// PROJECTION and not of the picture: the description was there all
+			// along and the column simply threw it away. After 0178 the same
+			// announcement saves and its body IS the description, which
+			// tests/db/classroom-doc-text-images.test.ts asserts end to end
+			// through this same RPC. An announcement with a picture and NO
+			// description is still refused, there, for the reason given here.
 			await expect(
 				createItem(img('attachment:teardown-03.jpg'), '')
 			).rejects.toThrow();
