@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/ProfileMenu.svelte`, the tab bar rules in `src/lib/legacy/coins/index.html`, the "Known findings" prose and generated regions in `tools/browser-verify/README.md`, five route specs, `tests/profile-menu*`, `docs/prompt-ledger/entries/0025-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0175
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/two-live-reachability-defects-2tajpx (from origin/integration 8dcef06, with claude/browser-harness-truthfulness-l4zk0b merged in -- 0023 was Status: pushed but not yet on integration, and owns four of the five harness files this bundle owns)
 - Notes: Prompt 0023 reclassified the harness's standing findings and, in
   doing so, found two real defects that a student meets today. It reported
   both and fixed neither, correctly, because neither file was in its scope.
