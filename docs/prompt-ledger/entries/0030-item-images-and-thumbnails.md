@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/classroom/classroom-doc.ts`, the image branch of `spec-markdown.ts` and `RichTextEditor.svelte`, `src/lib/server/rich-text-normalize.ts`, `ItemBody.svelte`, the item card thumbnail in `ClassroomFeed.svelte`, `feed.ts`, `supabase/migrations/0176_*.sql`, `src/routes/dev/item-images/**`, `tests/classroom-item-image*`, `tests/db/classroom-item-image*`, `tests/classroom-figures.test.ts`, `tools/browser-verify/routes/item-images*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0030-*`, and its own `docs/history/` entry.
 - Migration permitted: exactly one, 0176. Highest on origin/main at issue: 0175
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/item-images-thumbnails-l3bhxp
 - Notes: An instructor asked for assignment thumbnails so a feed of items is
   scannable rather than a wall of identical cards. Prompt 0026 audited it and
   found the thumbnail is NOT DERIVABLE: the feed's widest rung carries no

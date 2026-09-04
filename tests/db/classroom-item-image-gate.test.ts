@@ -42,8 +42,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 import { FIGURE_STATIC_PREFIXES, resolveFigureSrc } from '../../src/lib/classroom/classroom';
-import { docText } from '../../src/lib/classroom/classroom-doc';
-import type { ItemDoc } from '../../src/lib/classroom/classroom-doc';
+import { docText, type ItemDoc } from '../../src/lib/classroom/classroom-doc';
 
 /** The classroom chain through 0122, plus the migrations 0176 re-signs over. */
 const ITEM_CHAIN = [
@@ -78,7 +77,23 @@ const MIGRATION_0176 = readFileSync(
 	'utf8'
 );
 
-function img(src: string, alt = 'The bearing, exploded'): ItemDoc {
+/**
+ * A document as this gate actually receives one: arbitrary untrusted JSON.
+ *
+ * NOT `ItemDoc`, DELIBERATELY, and it is the "where does the expected value
+ * come from" rule rather than a typing convenience. The whole reason this gate
+ * exists is that `classroom_create_item` is granted to `authenticated` and
+ * reachable straight through PostgREST, so its input is whatever a caller
+ * sends -- most of the shapes below are ones the closed union cannot even
+ * express. Building the fixtures from that union would mean testing the gate
+ * with exactly the documents that need no gate.
+ *
+ * It also keeps this file valid against a checkout WITHOUT the client half of
+ * the bundle, which is the state `main` is in when the migration lands there.
+ */
+type GateDoc = Record<string, unknown>[];
+
+function img(src: string, alt = 'The bearing, exploded'): GateDoc {
 	return [{ type: 'img', src, alt }];
 }
 
@@ -475,7 +490,7 @@ describe('0176: the item-body image gate', () => {
 			// which is zero rows for an absent key, and `coalesce(...,'')` makes
 			// that '' too. So the two already agree, by construction, and
 			// widening either one alone would be what broke them.
-			const cases: ItemDoc[] = [
+			const cases: GateDoc[] = [
 				[{ type: 'img', src: 'attachment:x.jpg', alt: 'A bearing' }],
 				[
 					{ type: 'p', runs: [{ text: 'Above' }] },
@@ -485,13 +500,17 @@ describe('0176: the item-body image gate', () => {
 			];
 			for (const doc of cases) {
 				const fromSql = await sqlDocText(doc);
-				expect(docText(doc), 'the TS mirror must equal the column').toBe(fromSql);
+				// The cast is the point of `GateDoc`: `docText` takes the closed
+				// union, and this file deliberately builds untyped documents.
+				expect(docText(doc as unknown as ItemDoc), 'the TS mirror must equal the column').toBe(
+					fromSql
+				);
 			}
 			// And the measured values, stated rather than only compared, so a
 			// reader of this file knows what an image-only body's `body` column
 			// actually holds.
-			expect(docText(cases[0])).toBe('');
-			expect(docText(cases[1])).toBe('Above\n\nBelow');
+			expect(docText(cases[0] as unknown as ItemDoc)).toBe('');
+			expect(docText(cases[1] as unknown as ItemDoc)).toBe('Above\n\nBelow');
 		});
 
 		it('an item whose body is ONLY a picture stores an empty body column, and an announcement still needs words', async () => {
