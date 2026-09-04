@@ -400,6 +400,91 @@ jobs:
           }
           # ledger_gate_marker:end
 
+          # A BRANCH THE TARGET ALREADY CONTAINS IS DELETED NOW, AND THAT
+          # REVERSES WHAT THIS FILE USED TO SAY.
+          #
+          # The skip below used to read "it is deliberately not deleted. A
+          # branch can be contained in $TARGET because THIS system merged it, or
+          # because it was merged to `main` by hand long ago, and from here those
+          # two are indistinguishable." Both halves are true and the conclusion
+          # did not follow: the question a delete has to answer is not WHO
+          # merged it, it is whether anything would be lost, and a ref whose
+          # every commit is already reachable from a branch on the remote holds
+          # nothing that deleting the ref can take away.
+          #
+          # The cost of the old reading is measured rather than argued: every
+          # branch landed by a merge bundle became a permanent ref, ten
+          # accumulated across two rounds, and five were deleted by hand.
+          #
+          # CONTAINMENT IS TESTED AGAINST A REF THAT IS ALREADY ON THE REMOTE,
+          # never against the local HEAD, and that distinction is the whole
+          # safety argument. By the time the loop runs, HEAD is $TARGET plus
+          # origin/main plus whatever this run has merged so far, and NONE of
+          # that is pushed yet -- so a branch contained only in HEAD is a branch
+          # whose only copy could still be this runner's disk if the push is
+          # rejected. `origin/$TARGET` and `origin/main` are durable, so a
+          # branch contained in either is safe to delete whatever happens next
+          # in this job, which is also why the delete does not wait on the push
+          # the way the post-merge delete must.
+          #
+          # THREE REFS ARE NEVER DELETED WHATEVER THE CONTAINMENT ANSWER, and
+          # the loop's own `claude/*` filter is not treated as sufficient: this
+          # is the one place in the file that removes a ref nothing merged, so
+          # it names `main` (every push to which deploys ideabosco.com),
+          # `integration` and $TARGET itself explicitly, and refuses anything
+          # that is not a `claude/` branch, before it looks at containment at
+          # all.
+          #
+          # It is a FUNCTION and between markers for `ledger_gate`'s reason: it
+          # is PROVED by cutting this exact text out of this file and running it
+          # against throwaway git repositories, so no proof can drift into
+          # testing a private copy of the rule. Do not rename the markers and do
+          # not move the body out from between them.
+          #
+          # THE HARNESS THAT CUTS THESE MARKERS IS NOT IN THE REPO YET, AND THAT
+          # IS A GAP RATHER THAN A DESIGN. Fourteen assertions were executed
+          # against throwaway `mktemp -d` repositories when this landed -- a
+          # contained tip deleted, a tip only `origin/main` contains deleted, an
+          # outstanding tip left, a red branch left (by the ORDERING above, which
+          # is asserted by line number: the gate alone would say delete, and the
+          # loop never asks it), and `main`, `integration`, the target by name
+          # and a non-`claude/` branch all refused whatever the containment
+          # answer -- plus the single-delete-loop shape below, and a negative
+          # control confirming the cut refuses to run, loudly, when the markers
+          # are renamed. That harness belongs beside
+          # `tools/integrate-gate-proof.sh`, which does exactly this for
+          # `ledger_gate`; the bundle that wrote this owned this file and not
+          # `tools/`, so it is named here rather than smuggled in.
+          # contained_delete_marker:begin
+          contained_delete_gate() {
+            # $1 branch name, $2 the tip sha this run measured, $3 the target
+            # branch. Prints a reason and returns 0 to DELETE; returns 1,
+            # silently, to leave the branch standing.
+            local branch="$1"
+            local sha="$2"
+            local target="$3"
+            local ref
+
+            # PROTECTED FIRST, so no containment answer can reach a delete.
+            case "$branch" in
+              main | integration | "$target") return 1 ;;
+            esac
+            case "$branch" in
+              claude/*) ;;
+              *) return 1 ;;
+            esac
+
+            for ref in "refs/remotes/origin/$target" refs/remotes/origin/main; do
+              git rev-parse --verify --quiet "$ref" >/dev/null || continue
+              if git merge-base --is-ancestor "$sha" "$ref"; then
+                echo "already in ${ref#refs/remotes/origin/}"
+                return 0
+              fi
+            done
+            return 1
+          }
+          # contained_delete_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
@@ -423,6 +508,9 @@ jobs:
           merged_shas=()
           conflicted=()
           skipped=()
+          contained=()
+          contained_shas=()
+          contained_why=()
 
           for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
             branch="${ref#origin/}"
@@ -433,20 +521,24 @@ jobs:
 
             sha="$(git rev-parse "$ref")"
 
-            # IDEMPOTENT. A branch whose commits are already in $TARGET is a
-            # no-op and not an error -- a re-run, a CI re-run, or a
-            # workflow_dispatch sweep all land here.
+            # THE TWO "LEAVE IT ALONE" QUESTIONS ARE ASKED FIRST NOW, AHEAD OF
+            # THE CONTAINMENT QUESTION, AND THE REORDER IS THE PRICE OF THE
+            # DELETE BELOW.
             #
-            # It is deliberately not deleted. A branch can be contained in
-            # $TARGET because THIS system merged it, or because it was merged to
-            # `main` by hand long ago (and `main` is merged in above), and from
-            # here those two are indistinguishable. Only a branch this run
-            # merged itself is deleted, below.
-            if git merge-base --is-ancestor "$ref" HEAD; then
-              skipped+=("$branch -- already in $TARGET")
-              continue
-            fi
-
+            # Containment used to be asked first, which was free while its only
+            # outcome was a skip. It is not free now that its outcome can be a
+            # DELETE: asked first, a branch whose CI is red and whose tip
+            # happens to be contained would have been deleted without its CI
+            # conclusion ever being read, and a red branch is a signal that this
+            # system must not destroy. Same for a session still running. So the
+            # order is: is anything holding this branch, and only then, what
+            # should be done with it.
+            #
+            # The cost is one Actions API call per contained branch per run,
+            # which was previously skipped. That is a handful of calls on a
+            # sweep, against the alternative of a delete path that can act on a
+            # branch nobody has checked.
+            #
             # ONLY ON GREEN, per branch and per COMMIT: the newest completed CI
             # run for this branch must be for the exact tip we are about to
             # merge. A branch that was green two commits ago is not green.
@@ -471,6 +563,27 @@ jobs:
             # other one, so it lands in the job summary under "Left alone".
             if ledger_reason="$(ledger_gate "$ref")"; then
               skipped+=("$branch -- $ledger_reason")
+              continue
+            fi
+
+            # IDEMPOTENT. A branch whose commits are already in $TARGET is a
+            # no-op and not an error -- a re-run, a CI re-run, or a
+            # workflow_dispatch sweep all land here.
+            #
+            # IT IS ALSO THE ONE SKIP THAT NOW DELETES, and by the time control
+            # reaches this line the branch is green and its session has
+            # finished. `contained_delete_gate` above carries the argument and
+            # the three refs it refuses; when it declines -- the branch is
+            # protected, or its containment holds only in this runner's unpushed
+            # HEAD -- the skip reads exactly as it always did.
+            if git merge-base --is-ancestor "$ref" HEAD; then
+              if contained_why_one="$(contained_delete_gate "$branch" "$sha" "$TARGET")"; then
+                contained+=("$branch")
+                contained_shas+=("$sha")
+                contained_why+=("$contained_why_one")
+              else
+                skipped+=("$branch -- already in $TARGET")
+              fi
               continue
             fi
 
@@ -504,23 +617,67 @@ jobs:
             fi
           fi
 
-          # DELETE ONLY AFTER THE PUSH SUCCEEDS. A branch deleted before its
-          # merge is confirmed is work that existed and does not.
+          # ONE DELETE LIST, ONE LEASE, TWO REASONS FOR BEING ON IT. There is
+          # exactly one `git push --delete` in this file and there must stay
+          # exactly one: two loops would be two spellings of the lease, the
+          # warning and the "what is safe to remove" rule, and
+          # `tests/workflows.test.ts` pins the file's push shape precisely so a
+          # second one cannot arrive unnoticed.
           #
-          # The lease pins the tip we actually merged: if the session pushed
-          # another commit while this job was running, the delete is refused and
-          # the branch survives with that commit on it.
+          # WHAT DIFFERS IS WHEN A BRANCH JOINS THE LIST, and that is the whole
+          # of the difference between the two reasons:
+          #
+          #   * MERGED THIS RUN -- only if the push above SUCCEEDED. Until
+          #     $TARGET is pushed the merge exists on this runner's disk and
+          #     nowhere else, so a branch deleted before then is work that
+          #     existed and does not.
+          #   * ALREADY CONTAINED -- unconditionally, because
+          #     `contained_delete_gate` established containment against a ref
+          #     that was ALREADY on the remote before this job started. Gating
+          #     these on `pushed` would mean a sweep that merged nothing -- the
+          #     ordinary re-run, and exactly the run on which a stale ref is
+          #     noticed -- deleted nothing either.
+          #
+          # The lease pins the tip this run measured: if the session pushed
+          # another commit while the job was running, the delete is refused and
+          # the branch survives with that commit on it. A refusal is a warning
+          # and never a job failure.
+          delete_names=()
+          delete_shas=()
+          delete_why=()
           if [ "$pushed" = yes ]; then
             i=0
             while [ "$i" -lt ${#merged[@]} ]; do
-              b="${merged[$i]}"
-              s="${merged_shas[$i]}"
-              if ! git push origin --force-with-lease="refs/heads/$b:$s" ":refs/heads/$b"; then
-                echo "::warning::merged $b but could not delete it (it moved, or was already gone). Its work is in $TARGET; the branch is harmless."
-              fi
+              delete_names+=("${merged[$i]}")
+              delete_shas+=("${merged_shas[$i]}")
+              delete_why+=("merged")
               i=$((i + 1))
             done
           fi
+          i=0
+          while [ "$i" -lt ${#contained[@]} ]; do
+            delete_names+=("${contained[$i]}")
+            delete_shas+=("${contained_shas[$i]}")
+            delete_why+=("${contained_why[$i]}")
+            i=$((i + 1))
+          done
+
+          deleted_contained=()
+          i=0
+          while [ "$i" -lt ${#delete_names[@]} ]; do
+            b="${delete_names[$i]}"
+            s="${delete_shas[$i]}"
+            w="${delete_why[$i]}"
+            if git push origin --force-with-lease="refs/heads/$b:$s" ":refs/heads/$b"; then
+              if [ "$w" != merged ]; then deleted_contained+=("$b -- $w"); fi
+            elif [ "$w" = merged ]; then
+              echo "::warning::merged $b but could not delete it (it moved, or was already gone). Its work is in $TARGET; the branch is harmless."
+            else
+              echo "::warning::$b is $w but could not be deleted (it moved, or was already gone). Nothing is lost; the next run will try again."
+              skipped+=("$b -- $w, but the delete was refused (it moved, or was already gone)")
+            fi
+            i=$((i + 1))
+          done
 
           {
             echo "## Integration sweep"
@@ -535,6 +692,13 @@ jobs:
               echo "- nothing (no branch was both green and outstanding)"
             fi
             echo
+            if [ ${#deleted_contained[@]} -gt 0 ]; then
+              echo "### Already contained, deleted"
+              echo
+              echo "Nothing was merged for these: every commit was already reachable from a branch on the remote, so the ref held nothing a delete could take away."
+              for b in "${deleted_contained[@]}"; do echo "- \`${b%% --*}\` -- ${b#* -- }"; done
+              echo
+            fi
             if [ ${#conflicted[@]} -gt 0 ]; then
               echo "### CONFLICTED -- a person is needed"
               for b in "${conflicted[@]}"; do echo "- \`$b\` still exists and was not merged"; done

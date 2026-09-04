@@ -13,6 +13,17 @@
  * mutation proves the check once, in a tree that then has to be restored
  * byte-identically; this proves it on every run, for any future session, and
  * touches nothing.
+ *
+ * A SLOT MAY CARRY AN `assert`, AND SOME CLAIMS NEED ONE BECAUSE within/outside
+ * CANNOT REACH THEM. `horizontal-scroll`'s verdict comes from `scrollWidth`
+ * alone, so no pairing of fixtures can prove anything about WHICH elements its
+ * offender list names -- and the offender list is the whole diagnostic value of
+ * that check, and was wrong for weeks. `assert` is `(result) => string | null`:
+ * null means the extra claim held, a string is the reason it did not. A slot is
+ * PROVED only when the verdict AND its assert both hold, so an assert failure
+ * is an instrument failure and is counted as one. The controls total is still
+ * one per slot -- an assert is a second condition on a control, not a control
+ * of its own.
  */
 import { launch, openPage, settle, waitUntil, clickUntil } from './browser.mjs';
 import {
@@ -275,6 +286,154 @@ const CASES = [
 			html: shell('<script>window.__order = ["a", "b", "c"];</' + 'script>'),
 			run: (p) => orderResult(p, { evaluate: '() => window.__order', expected: ['a', 'b', 'c'] }),
 			expect: 'within'
+		}
+	},
+	{
+		/*
+			A ROW THAT CANNOT PASS IS NOT A GREEN ROW, AND IT USED NOT TO SAY SO.
+			`orderResult` compares arrays element for element, so a probe (or a
+			spec) handing it a joined STRING can never come out within threshold
+			however right the content is. Both columns of the report are
+			`JSON.stringify`, so the pair below printed `"a,b,c"` against
+			`"a,b,c"` -- identical values over a red verdict, with nothing
+			anywhere saying why. Prompt 0027 wrote four such rows.
+
+			The `bad` slot is that exact shape and its assert is the point of
+			the group: the verdict alone was ALREADY correct before the fix, so
+			within/outside proves nothing here. What is proved is that the two
+			columns can no longer read the same.
+		*/
+		group: 'order-result (a non-array is refused in words, not in silence)',
+		bad: {
+			name: 'a probe and an expectation that are both the joined string "a,b,c"',
+			html: shell('<script>window.__joined = "a,b,c";</' + 'script>'),
+			run: (p) => orderResult(p, { evaluate: '() => window.__joined', expected: 'a,b,c' }),
+			expect: 'outside',
+			assert: (r) =>
+				r.measured === r.threshold
+					? `measured and threshold still print identically (${r.measured}) -- the refusal is silent again`
+					: /array/i.test(r.measured)
+						? null
+						: `measured does not say the contract is about arrays: ${r.measured}`
+		},
+		good: {
+			name: 'the same content returned and expected as arrays',
+			html: shell('<script>window.__arr = ["a", "b", "c"];</' + 'script>'),
+			run: (p) => orderResult(p, { evaluate: '() => window.__arr', expected: ['a', 'b', 'c'] }),
+			expect: 'within',
+			assert: (r) => (r.data.shapeProblem === null ? null : `a legitimate array pair was refused: ${r.data.shapeProblem}`)
+		}
+	},
+	{
+		/*
+			THE OFFENDER LIST, WHICH THE VERDICT CANNOT SEE. `withinThreshold`
+			here is `scrollWidth - clientWidth`, so it is identical whatever the
+			list says -- which is exactly how `checks.mjs` came to blame six
+			descendants of a `position: fixed` drawer for the Coin Ledger's
+			overflow for weeks. The skip tested the ELEMENT'S OWN position and
+			never walked up, so the overlay was skipped and its static children,
+			carrying the overlay's viewport coordinates, sorted to the top of
+			every list.
+
+			BOTH FIXTURES CARRY A REAL OVERFLOW AND A FIXED DECOY, so the asserts
+			are about identity and not about the number. The `good` slot is the
+			one that stops a false positive being traded for a false negative:
+			a fixed box CAPTURED by a transformed ancestor is not viewport-fixed,
+			it scrolls with the document, it genuinely extends it (measured,
+			scrollWidth 1200 against a 375 viewport), and it must still be
+			named.
+		*/
+		group: 'horizontal-scroll (a fixed subtree is skipped; a captured one is not)',
+		bad: {
+			name: 'a fixed drawer with three children past the edge, beside a real 900px static overflow',
+			html: shell(
+				'<div id="drawer" style="position:fixed;top:0;left:100%;width:400px;height:300px">' +
+					'<div id="drawer-head" style="width:380px;height:30px">head</div>' +
+					'<div id="drawer-body" style="width:380px;height:30px">body</div>' +
+					'<button id="drawer-close" style="position:absolute;right:8px;top:8px;width:30px;height:30px">x</button>' +
+					'</div>' +
+					'<div id="real" style="width:900px;height:20px">the genuine overflow</div>'
+			),
+			run: (p) => horizontalScroll(p),
+			expect: 'outside',
+			assert: (r) => {
+				const paths = r.data.offenders.map((o) => o.path).join(' | ');
+				if (!/#real/.test(paths)) return `the real 900px overflow is not in the offender list: ${paths}`;
+				if (/drawer/.test(paths)) return `a node under the fixed drawer is still reported: ${paths}`;
+				if (r.data.offenderCount !== 1) return `expected exactly one offender, got ${r.data.offenderCount}: ${paths}`;
+				if (r.data.fixedSkipped !== 4) return `expected 4 viewport-fixed skips (drawer + 3 children), got ${r.data.fixedSkipped}`;
+				return null;
+			}
+		},
+		good: {
+			/* `expect: 'within'` would be the wrong claim here: this document
+			   really does overflow. The slot proves the check does NOT skip it,
+			   which is the direction that hides a defect, so it is a positive
+			   control for the WALK rather than for the verdict. */
+			name: 'a fixed box captured by a transformed ancestor -- it does extend the document and must still be named',
+			html: shell(
+				'<div id="capturer" style="transform:translateZ(0);width:10px;height:10px">' +
+					'<div id="captured" style="position:fixed;top:0;left:0;width:1200px;height:20px"></div>' +
+					'</div>'
+			),
+			run: (p) => horizontalScroll(p),
+			expect: 'outside',
+			assert: (r) => {
+				const paths = r.data.offenders.map((o) => o.path).join(' | ');
+				if (!/#captured/.test(paths)) return `a captured fixed box was skipped and the overflow has no named cause: ${paths}`;
+				if (r.data.capturedFixed !== 1) return `expected 1 captured-fixed offender, got ${r.data.capturedFixed}`;
+				if (r.data.fixedSkipped !== 0) return `nothing here is viewport-fixed, yet ${r.data.fixedSkipped} node(s) were skipped`;
+				return null;
+			}
+		}
+	},
+	{
+		/*
+			`--tap-reach-w: 0px` IS THE ORDINARY CASE, NOT AN EXOTIC ONE, and
+			`parseFloat(...) || 44` turned it into 44. Ten components in `src/`
+			declare it -- CLAUDE.md says most reaches must, because two controls
+			less than 44px apart on one line would overlap and the wrong one
+			would take the tap -- and route specs point this check at two of
+			them.
+
+			The fixture uses the REAL rule from `src/app.css`, `var()` fallback
+			and all, rather than a simplification: the whole defect lives in the
+			difference between an UNSET property (which defaults to 44px) and one
+			set to zero (which does not), and a fixture that hardcoded 44 could
+			not tell them apart. A 20x20 control with the reach and a zero width
+			has a 20x44 reach, so it fails the 44px floor -- and read the old way
+			it measured 44x44 and passed.
+		*/
+		group: 'tap-reach (a declared --tap-reach-w: 0 is honoured, not read as 44)',
+		bad: {
+			name: 'a 20x20 control with the real reach pair and --tap-reach-w: 0px',
+			html: shell(
+				'<a id="a" class="reach" href="#" style="display:inline-block;width:20px;height:20px">x</a>',
+				'.reach{position:relative;--tap-reach-w:0px}.reach::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:max(100%,var(--tap-reach-w,44px));height:max(100%,44px)}'
+			),
+			run: (p) => tapReach(p, { selector: '#a', min: 44 }),
+			expect: 'outside',
+			assert: (r) => {
+				const row = r.data.results[0];
+				if (!row) return 'the fixture matched nothing';
+				if (row.reachW !== 20) return `reach width read as ${row.reachW}, not the 20px the CSS computes from max(100%, 0px)`;
+				if (row.reachWDeclared !== '0px') return `the declared value was not reported verbatim: ${row.reachWDeclared}`;
+				return null;
+			}
+		},
+		good: {
+			name: 'the same pair on a 44px-wide control, where zero costs nothing',
+			html: shell(
+				'<a id="a" class="reach" href="#" style="display:inline-block;width:44px;height:20px">x</a>',
+				'.reach{position:relative;--tap-reach-w:0px}.reach::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:max(100%,var(--tap-reach-w,44px));height:max(100%,44px)}'
+			),
+			run: (p) => tapReach(p, { selector: '#a', min: 44 }),
+			expect: 'within',
+			assert: (r) => {
+				const row = r.data.results[0];
+				if (!row) return 'the fixture matched nothing';
+				return row.reachW === 44 ? null : `reach width ${row.reachW}, expected the control's own 44px`;
+			}
 		}
 	},
 	{
@@ -920,7 +1079,12 @@ export async function runSelfTest({ width = 375 } = {}) {
 				const r = await measure(browser, f, width);
 				const wanted = f.expect === 'within';
 				const got = r.withinThreshold;
-				const correct = got === wanted;
+				/* A slot is PROVED only when the verdict AND its `assert` both
+				   hold. See the file header: `horizontal-scroll`'s verdict is
+				   `scrollWidth` alone and can say nothing about the offender
+				   list, which is the half of that check that was wrong. */
+				const assertProblem = f.assert ? f.assert(r) : null;
+				const correct = got === wanted && !assertProblem;
 				if (!correct) failures++;
 				/* THE LABEL FOLLOWS `expect`, NOT THE SLOT NAME. Most groups pair
 				   a slot that must come out OUTSIDE with one that must come out
@@ -936,8 +1100,13 @@ export async function runSelfTest({ width = 375 } = {}) {
 				);
 				console.log(`            measured ${r.measured}   (threshold ${r.threshold})`);
 				console.log(
-					`            check said ${got ? 'WITHIN' : 'OUTSIDE'} threshold; expected ${wanted ? 'WITHIN' : 'OUTSIDE'}${correct ? '' : '   <-- THE INSTRUMENT IS WRONG'}`
+					`            check said ${got ? 'WITHIN' : 'OUTSIDE'} threshold; expected ${wanted ? 'WITHIN' : 'OUTSIDE'}${got === wanted ? '' : '   <-- THE INSTRUMENT IS WRONG'}`
 				);
+				if (f.assert) {
+					console.log(
+						`            extra claim: ${assertProblem ? `FAILED -- ${assertProblem}   <-- THE INSTRUMENT IS WRONG` : 'held'}`
+					);
+				}
 			}
 			console.log('');
 		}

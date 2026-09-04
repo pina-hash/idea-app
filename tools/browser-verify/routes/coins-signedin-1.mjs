@@ -29,6 +29,15 @@
  * finding and now reports the fix. The rows below are unchanged: this spec's
  * subject is the report control's signed-in branch, not the tab bar.
  *
+ * THE `horizontal-scroll` ROW READS DIFFERENTLY SINCE PROMPT 0029 AND NOTHING
+ * ON THE PAGE MOVED. That check used to skip an element whose OWN `position`
+ * was fixed and not walk up, so the drawer's descendants -- static and absolute
+ * boxes carrying a fixed overlay's viewport coordinates -- topped its offender
+ * list while contributing nothing. It walks up now and counts what it skipped,
+ * so this row prints `0px overflow ...; 9 node(s) past the edge skipped as
+ * viewport-fixed` at both widths. Nine is the drawer and its descendants; the
+ * measurement is the same 0px it was.
+ *
  * `?signedIn=1` is the harness's own switch (a cookie `/dev/coins` sets from
  * the query), which is what a real session is here -- there is no Google OAuth
  * against a local fixture.
