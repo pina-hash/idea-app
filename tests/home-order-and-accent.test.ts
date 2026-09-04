@@ -22,6 +22,14 @@
 //    is a silent one: the eleven wrong colours painted for months in front of
 //    everyone. A constant only makes the right thing available.
 //
+// 3. THE ACTIVE COURSES TILE. The hero's first stat is a NUMBER, which is the
+//    most silent thing a page can be wrong about: it renders, it is plausible,
+//    and nobody re-derives it. It read 4 against a pathway running 2 for as
+//    long as `Section.course` carried rotation numbers. What is pinned below is
+//    that the tile shows `activeCourseCount()` and that the count collapses
+//    every section of a course into one -- never the literal 2, which is an
+//    ordinary edit to hand-maintained metadata away.
+//
 // SSR-ONLY, the classroom-body-render.test.ts pattern: `svelte/server`'s
 // render() mounts the REAL components and hands back markup. There is no DOM
 // harness here, so "which comes first" is asserted as DOCUMENT ORDER in that
@@ -34,6 +42,7 @@ import { render } from 'svelte/server';
 import Home from '../src/routes/+page.svelte';
 import AppLauncher from '$lib/AppLauncher.svelte';
 import { PORTAL_APPS, visibleApps, type PortalApp } from '$lib/portal-apps';
+import { SECTIONS, activeCourseCount } from '$lib/curriculum';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 
 const TEACHER = 'tvargas@boscotech.edu';
@@ -346,6 +355,63 @@ function launcherHtml(): string {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return render(AppLauncher as any, { props: { onRequireSignIn: () => {} } }).body;
 }
+
+/*
+ * THE COURSE-COUNT ROWS. Read off the rendered hero rather than by calling the
+ * function twice: the question is what a visitor sees, and a tile wired to a
+ * different value, a stale literal or nothing at all is exactly the failure
+ * that stood. `drawHome` mounts the real page, so this is the shipping
+ * expression.
+ */
+function heroCourseCount(html: string): string | null {
+	// The stat whose label is Active Courses, whatever order the stats are in.
+	const stats = html.split('<div class="hero-stat">').slice(1);
+	for (const stat of stats) {
+		if (!/Active Courses/.test(stat)) continue;
+		const m = stat.match(/<span class="value">([^<]*)<\/span>/);
+		return m ? m[1].trim() : null;
+	}
+	return null;
+}
+
+describe('home page: the Active Courses tile', () => {
+	it('renders the tile at all, for every viewer (positive control)', () => {
+		for (const viewer of ALL_VIEWERS) {
+			expect(heroCourseCount(drawHome(viewer)), `${viewer}: no Active Courses tile`).not.toBeNull();
+		}
+	});
+
+	it('shows activeCourseCount(), not a literal and not a section tally', () => {
+		expect(heroCourseCount(drawHome('student'))).toBe(String(activeCourseCount()));
+	});
+
+	it('shows the same number to every viewer: it is the programme, not the person', () => {
+		const counts = ALL_VIEWERS.map((v) => heroCourseCount(drawHome(v)));
+		expect(new Set(counts).size, `the tile varies by viewer: ${counts.join(', ')}`).toBe(1);
+	});
+
+	it('counts fewer courses than there are sections, because rotations collapse', () => {
+		/*
+		 * THE DEFECT, AS A PROPERTY. `IDEA 100-1/-2/-3` were three values of one
+		 * field, so the Set saw three courses where the pathway runs one. Stated
+		 * as an inequality rather than as "2", because adding a course, a
+		 * rotation or a section is an ordinary edit and must not redden this.
+		 * A catalog where every section were its own course would pass it
+		 * vacuously, which the sibling assertion below refuses.
+		 */
+		expect(activeCourseCount()).toBeLessThan(SECTIONS.length);
+	});
+
+	it('has a course carrying more than one section, so the collapse is real', () => {
+		// The positive control for the row above: without a multi-section course
+		// in the catalog, "fewer courses than sections" could be true for
+		// unrelated reasons (a concluded programme excluded, say).
+		const perCourse = new Map<string, number>();
+		for (const s of SECTIONS) perCourse.set(s.course, (perCourse.get(s.course) ?? 0) + 1);
+		const shared = [...perCourse.values()].filter((n) => n > 1);
+		expect(shared.length, 'no course in the catalog has two sections to collapse').toBeGreaterThan(0);
+	});
+});
 
 describe('launcher accents are stylesheet data, never an inline style', () => {
 	it('stamps NO accent custom property on any card, so the cascade still decides', () => {
