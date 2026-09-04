@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: the merge of four branches into `integration`, the conflict resolutions it requires, one regeneration of the counts block, `docs/prompt-ledger/entries/0028-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0175
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness. BRANCHED FROM `origin/integration`.
 - Notes: Four finished branches stand. All four conflict on
   `tools/browser-verify/README.md` and two also conflict on
