@@ -14,18 +14,20 @@
  * the counts swapped: what `/dev/coins` requires, this forbids, and the other
  * way round.
  *
- * THE 51px OVERFLOW AT 375 IS THE LEDGER'S OWN FOURTH TAB, and this paragraph
- * used to say it was the off-canvas drawer. It is not: the drawer is
- * `position: fixed` and a fixed subtree creates no scrollable overflow, while
- * `.tab-bar .tab-btn` "Contracts" runs 329.2 -> 426.3 against a 375 viewport,
- * which is the reported `scrollWidth` to the pixel. The page cannot scroll to
- * it (`body { overflow-x: hidden }` propagates to the viewport; `scrollLeft`
- * reads back 0 everywhere), and with the real Orbitron injected the overflow is
- * 89px rather than 51px, so this harness under-reports it. `coins.mjs` carries
- * the full measurement and the probes; it reports here too because this spec is
- * an alias of the same page. It is a REAL DEFECT in frozen legacy bytes, owned
- * by whoever unfreezes `src/lib/legacy/coins/index.html`, and the row stays red
- * deliberately.
+ * THE 51px OVERFLOW AT 375 IS GONE, AND IT WAS THE LEDGER'S OWN FOURTH TAB.
+ * This paragraph has said two wrong things about it in turn: first that the
+ * cause was the off-canvas drawer (it is `position: fixed`, and a fixed subtree
+ * creates no scrollable overflow), and then that the real cause -- `.tab-bar`
+ * flexing four tabs into a 343px container with no wrap and no scroll, running
+ * "Contracts" 329.2 -> 426.3 with `body { overflow-x: hidden }` making it
+ * unreachable -- had to stay red because the file is frozen legacy. Prompt 0025
+ * was issued with the explicit, narrowly scoped rule that unfreezes exactly
+ * those two CSS rules, and fixed it: `flex-wrap: wrap` and `min-height: 44px`,
+ * measured 0px overflow at 320, 375, 414 and 1440 with all four tabs on screen
+ * and 44px tall. `coins.mjs` carries the full before-and-after measurement and
+ * the probes; this spec is an alias of the same page, so it reported the
+ * finding and now reports the fix. The rows below are unchanged: this spec's
+ * subject is the report control's signed-in branch, not the tab bar.
  *
  * `?signedIn=1` is the harness's own switch (a cookie `/dev/coins` sets from
  * the query), which is what a real session is here -- there is no Google OAuth

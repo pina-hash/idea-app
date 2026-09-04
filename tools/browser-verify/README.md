@@ -75,13 +75,13 @@ appearing in those diffs at all.
 
 | Count | Value |
 | --- | --- |
-| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 86 |
-| Distinct routes those specs drive (alias-resolved, query string stripped) | 44 |
+| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 87 |
+| Distinct routes those specs drive (alias-resolved, query string stripped) | 45 |
 | Directories under `src/routes/dev` with a page (the candidate set) | 76 |
 | Widths | 2 (375, 1440) |
-| Route/width runs a full pass makes (specs x widths) | 172 |
+| Route/width runs a full pass makes (specs x widths) | 174 |
 
-<!-- counts:static:data {"schema":1,"specs":86,"routes":44,"devPages":76,"widths":[375,1440],"runs":172} -->
+<!-- counts:static:data {"schema":1,"specs":87,"routes":45,"devPages":76,"widths":[375,1440],"runs":174} -->
 <!-- counts:static:end -->
 
 ### Measured -- from a full harness run
@@ -228,23 +228,71 @@ without a word reads like a check that stopped running.
   `integration` with `claude/navigation-loading-indicator-laqsgc`, and the spec
   now passes at both widths. It is named rather than deleted, because a finding
   that vanishes without a word reads like a check that stopped running.
-- **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
-  dimension 26.2px), under the 44px floor at both widths. This number is a
-  **tap-target measurement**, so the fallback-stack limit above applies to it
-  directly -- the true box under Rajdhani may differ slightly, though not
-  enough to cross the 44px line from 26.2px.
-- **`/dev/coins` and `/dev/coins-signedin-1`: 51px of horizontal overflow at
-  375px** (scrollWidth 426 vs clientWidth 375; the overhanging nodes are
-  `#student-drawer`'s header and body, its close button, and the drawer's name,
-  stats and transaction-title rows, each reaching right=750 or 727.6 against a
-  375 viewport). **At 375px only -- 1440px is clean on both routes**, which is
-  why this one finding accounts for two measurements rather than the four a
-  both-widths finding on two routes would give. It arrived with the coin-ledger specs rather
-  than with this bundle, and `integration`'s own copy of this paragraph never
-  recorded it because that copy had gone stale (it stated 44 specs against a
-  tree carrying 55). The drawer is in the LEGACY coin ledger's shipping bytes,
-  which are frozen, so it is recorded here and not fixed: `/dev/coins` is
-  labelled "shipping bytes" for exactly that reason.
+- **`/dev/pathways`'s two harness controls are fixed and the row is green.**
+  They measured 194.7x26.2px (min dimension 26.2px) under the 44px floor at both
+  widths, for weeks, and the fix was `min-height: 44px` in that page's own
+  stylesheet rather than deleting the row -- a dev page's chrome is not a
+  product surface, but a standing finding every prompt has to warn the next
+  session about is noise that trains a reader to skim this list. Measured
+  194.7x44 now.
+- **`/dev/coins` and `/dev/coins-signedin-1`: the 51px of horizontal overflow at
+  375px is fixed, and the two things this bullet used to say about it were both
+  wrong.**
+
+  It said the overhang was `#student-drawer`'s header, body, close button, name,
+  stats and transaction-title rows. Those measurements were real and the
+  conclusion was not: `#student-drawer` is `position: fixed`, and a fixed
+  subtree contributes NOTHING to a document's scrollable overflow. Its children
+  are static or absolute inside that fixed ancestor, so they reach right=727-750
+  against a 375 viewport and sort to the top of any offender list ordered by
+  that number while contributing nothing either. **`horizontal-scroll` in
+  `checks.mjs` skips an element whose OWN `position` is fixed and does not walk
+  up for a fixed ancestor**, which is why the drawer's six descendants were what
+  its report showed. That instrument gap is still open and is worth knowing when
+  reading any offender list this harness prints.
+
+  The cause was the Ledger's own tab bar: four tabs flexed into a 343px
+  container with no `flex-wrap` and no `overflow-x`, with `Contracts` running
+  329.2 -> 426.3 -- 426 being the reported `scrollWidth`, to the pixel. The
+  page's own `body { overflow-x: hidden }` propagates to the viewport, so
+  `scrollLeft` set to 999 read back 0 on `documentElement`, on `body`, on
+  `window` and on `.tab-bar` itself: **the fourth tab of the public coin ledger
+  could not be reached on a phone, by scrolling, by swiping, or at all.** It was
+  worse in production than this harness could report, which is the one direction
+  the fallback-stack limit above is easy to read the wrong way round -- the tabs
+  are Orbitron, blocked here, and with the real face the overflow measured 89px
+  rather than 51px.
+
+  It then said the row had to stay red because the file is frozen legacy. The
+  freeze is real; the conclusion was not. Its own escape hatch is an explicit
+  rule, and prompt 0025 was issued with one scoped to those two CSS rules and
+  nothing else in the file. `flex-wrap: wrap` and `min-height: 44px` fixed both
+  the overflow and a tap-target finding nothing had ever measured (the tabs were
+  33.8px tall at 1440 and 39.6px at 375). Measured at 320, 375, 414 and 1440:
+  0px overflow at every one, all four tabs inside the viewport and hit-testable,
+  every tab 44.0px.
+
+  **The lesson worth keeping is that a finding recorded as permanently
+  unfixable is a finding nobody reads again.** Both of these stood for weeks
+  with a paragraph here explaining why nobody should look at them.
+- **`ProfileMenu`'s trigger measured 34px against the 44px floor, on 69 product
+  pages, and is fixed.** It never appeared in this list because nothing had ever
+  measured it: the only tap-target row in the harness pointed at a dev page's
+  own buttons. Prompt 0023 added a `.pm-trigger` row to `pathways.mjs` and found
+  44.0x34.0 there and 100.6x34.0 on `/dev/profile-menu` and `/dev/home-order`,
+  at both widths -- `Avatar size={30}` plus 2px of padding, so font-independent
+  and not qualified by the fallback-stack limit above. Fixed with
+  `.tap-reach-44`, which grows the HIT AREA and deliberately leaves the painted
+  box at 34px: this button is a flex item of a masthead row that 69 pages size
+  around, and a taller box would have moved all of their chrome. **So the rows
+  measuring it are `tap-reach`, not `tap-target`** -- pointing the box check at
+  a reach control reports a finding on every one of them, on a surface that is
+  fine, which `checks.mjs` says in its own comment above `tapReach`. The
+  hit-testing row lives on `/dev/profile-menu`, where the control is in the
+  viewport; on `/dev/pathways` the stage sits ~2261px down at 375 and
+  `elementFromPoint` answers null outside the viewport, so all five sample
+  points there are `offscreen` and excluded from the stolen-tap gate. Geometry
+  is still measured on both.
 - **Two findings this list used to carry no longer reproduce**, measured on the
   same run rather than assumed: `/dev/coin-preview`'s student picker is
   **352x44** (it was 247.3x19 at 375px and 352x19 at 1440px, under the 24px

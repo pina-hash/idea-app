@@ -991,6 +991,15 @@
 				"Home",
 				"portal"
 			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "The Contracts tab on the coin ledger, and the profile button, are reachable on a phone",
+			"body": "Two things you could not press on a phone now work. On the IDEA Coin Ledger, the fourth tab along the top was Contracts, and on a phone it sat off the right edge of the screen with no way to scroll to it: the tabs now wrap onto a second line so all four are there, and every tab is big enough to hit with a thumb. And the profile button in the top corner of every page was a smaller target than it looked, so a tap just above or below the picture did nothing. It now takes taps from the whole area around it. Nothing moved on the page and nothing looks different.",
+			"tags": [
+				"fix",
+				"portal"
+			]
 		}
 	]
 }

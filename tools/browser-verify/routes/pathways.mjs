@@ -64,28 +64,38 @@ export default {
 		   beside it) rather than by deleting the row, so the page's chrome cannot
 		   drift back under the floor unnoticed.
 		*/
-		{ selector: '.harness .controls button', label: 'harness controls', min: 44 },
-		/*
-		   AND THE ROW THIS SPEC SHOULD HAVE CARRIED ALL ALONG: a control that
-		   SHIPS. `ProfileMenu` is mounted in `src/routes/+layout.svelte` and in
-		   roughly twenty routes besides, so its trigger is on the header of every
-		   page a student opens -- and nothing in this harness had ever measured
-		   it. This page mounts the real component (see the ProfileMenu stage
-		   below), which makes it the one route in the list that can.
+		{ selector: '.harness .controls button', label: 'harness controls', min: 44 }
+	],
+	/*
+	   AND THE ROW THIS SPEC SHOULD HAVE CARRIED ALL ALONG: a control that SHIPS.
+	   `ProfileMenu` is mounted in `src/routes/+layout.svelte` and in roughly
+	   twenty components and routes besides, which resolves to 69 product pages --
+	   every classroom, notebook, GAUNTLET, Foundry, FRC, tournaments, maps,
+	   coin-desk and admin page, plus the portal home. Nothing in this harness had
+	   ever measured it. This page mounts the real component (see the ProfileMenu
+	   stage below), which is what made it the route that could.
 
-		   IT IS RED, AND IT IS A REAL PRODUCT DEFECT RATHER THAN AN INSTRUMENT
-		   ARTEFACT. Measured 44.0x34.0 here and 100.6x34.0 on `/dev/profile-menu`
-		   and `/dev/home-order` -- 34px in the short dimension, at both widths, on
-		   three independent routes, never inside a `<label>` and with its parent
-		   `.pm-root` exactly as tall. The height is `Avatar size={30}` plus
-		   `.pm-trigger`'s 2px padding, so it does NOT depend on the web font this
-		   harness cannot load: the fallback-stack limit in ../README.md does not
-		   qualify this number. `.pm-trigger` carries neither `.tap-44` nor
-		   `.tap-reach-44`, so `tap-target` is the right instrument and there is no
-		   reach to measure instead.
+	   IT WAS RED AND IT WAS A REAL PRODUCT DEFECT: 44.0x34.0 here and 100.6x34.0
+	   on `/dev/profile-menu` and `/dev/home-order`, at both widths, on three
+	   independent routes. Prompt 0023 found it and did not own the fix; prompt
+	   0025 fixed it with `.tap-reach-44`, the mechanism src/app.css carries for a
+	   control whose painted box must not grow.
 
-		   `src/lib/ProfileMenu.svelte` owns the fix and this bundle does not.
-		*/
-		{ selector: '.pm-trigger', label: 'ProfileMenu trigger (ships in every page header)', min: 44 }
-	]
+	   SO IT MOVED FROM `tapTargets` TO `tapReach`, AND LEAVING IT ON THE BOX
+	   CHECK WOULD HAVE BEEN A PERMANENT FALSE RED. `.tap-reach-44` grows the HIT
+	   AREA and deliberately leaves the box at 34px, because this button is a flex
+	   item of a masthead row that 69 pages size around. ../checks.mjs says the
+	   same thing in its own comment above `tapReach`: pointing `tapTargets` at a
+	   reach control reports a finding on every one of them, on a surface that is
+	   actually fine.
+
+	   ITS FIVE SAMPLE POINTS ARE ALL OFFSCREEN HERE, WHICH IS WHY THE HIT TEST
+	   LIVES ON `profile-menu.mjs` INSTEAD. The ProfileMenu stage sits ~2261px
+	   down this page at 375 and ~1660px down at 1440, `elementFromPoint` answers
+	   null outside the viewport and this harness never scrolls, so `tapReach`
+	   marks them offscreen and excludes them from the stolen-tap gate -- the
+	   documented artefact, not a finding. The GEOMETRY is still measured and this
+	   row still reddens if the reach is removed, which is what it is here for.
+	*/
+	tapReach: [{ selector: '.pm-trigger', label: 'ProfileMenu trigger (ships in every page header)', min: 44 }]
 };
