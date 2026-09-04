@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `.github/workflows/integrate.yml`, `deploy.yml`, `.github/workflows/README.md`, the gate-proof harness under `tools/`, `tools/deploy-probe.mjs` (new), `tests/workflows.test.ts`, the Status line of decision 0010, `docs/prompt-ledger/entries/0035-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0178
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness. BRANCHED FROM `claude/unblock-pipeline-deadlock-j239zg`.
 - Notes: Mr. Pina's standing instruction on 2026-09-03: his manual inputs
   must be minimal, and the only step he accepts keeping is applying a
