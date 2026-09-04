@@ -2,19 +2,19 @@ name: Deploy
 
 # THE ONE PATH THAT WRITES `main`, AND THEREFORE THE ONE PATH THAT DEPLOYS
 # `ideabosco.com`. It merges `integration` into `main` with `--no-ff` after CI
-# has run on `integration`'s exact tip, and only when the person pressing the
-# button has typed that every migration on `integration` is already applied to
-# production.
+# has run on `integration`'s exact tip, and only when every migration in range
+# is already applied to production -- read from production's own catalog, or,
+# where the machine cannot read it, asserted by a person who typed so.
 #
 # ---------------------------------------------------------------------------
-# WHY THIS IS A BUTTON AND NOT A SCHEDULE.
+# IT WAS A BUTTON, AND WHAT MADE IT ONE IS GONE.
 #
 # `integrate.yml`'s header gives two reasons no machine may push `main`. A
-# night window answers the first and not the second:
+# night window answered the first and not the second:
 #
-#   * Students are on the site during class. A 04:30 UTC merge does remove
-#     that risk, which is exactly why an unattended nightly deploy keeps
-#     getting proposed.
+#   * Students are on the site during class. A deploy at 03:00 Pacific removes
+#     that risk, which is exactly why an unattended nightly deploy kept getting
+#     proposed.
 #   * Migrations are applied BY HAND in the Supabase SQL editor, and several
 #     must be applied BEFORE the code that calls them goes live. CI cannot see
 #     this: the suite runs against an embedded Postgres with every migration
@@ -22,26 +22,53 @@ name: Deploy
 #     green. A nightly merge would ship an RPC call to a function the database
 #     does not have, at night, with nobody watching.
 #
-# So the typed confirmation below IS the judgement `integrate.yml` was written
-# to preserve. This workflow removes the six git commands around it and leaves
-# the judgement exactly where it was. It becomes safe to schedule the day a
-# workflow can read production's applied migration set, which needs a
-# read-only Postgres credential in a GitHub secret; that is Mr. Pina's call and
-# it is recorded at `docs/decisions/entries/10-unattended-nightly-deploy.md`
-# with "not yet" as the default answer. Do not schedule this workflow until
-# that decision says otherwise.
+# The typed confirmation was the second bullet, asked of a person because
+# nothing could ask the database. `docs/decisions/entries/10-unattended-nightly-deploy.md`
+# recorded that as the blocker and "not yet" as the answer, and named exactly
+# what would unblock it: a read-only Postgres credential in a GitHub secret.
+# Mr. Pina approved that on 2026-09-03. `tools/deploy-probe.mjs` now reads
+# production's `pg_catalog` with it and answers per migration, so the second
+# bullet is answered by the thing it is about.
 #
-# `tools/idea-status.py` prints the landed migrations and the catalog probe
-# that answers which of them are applied. That is what the person types
-# against.
+# WHAT IS STILL A PERSON'S. Applying a migration. That needs a credential that
+# can WRITE to production, which nothing in CI and no cloud session may hold.
+# When this refuses, the job summary prints the SQL of every unapplied
+# migration in a copyable block, so the remaining step is paste and run.
+#
+# ---------------------------------------------------------------------------
+# THE PROBE NEVER TREATS AN UNKNOWN AS APPLIED, and its four exit statuses are
+# the whole of the contract (`tools/deploy-probe.mjs` header):
+#
+#   0  every migration in range is applied            -> deploy
+#   2  at least one is NOT applied                    -> REFUSE, on any trigger
+#   3  every probe that ran said applied, but at least one migration has no
+#      probe to run                                   -> the machine is silent
+#   1  the probe could not run at all (no secret, unreachable, query error)
+#                                                     -> the machine is silent
+#
+# WHERE THE MACHINE IS SILENT, A PERSON MAY STILL SPEAK, AND ONLY ON THE
+# BUTTON. 1 and 3 are not "applied" and are never read as one: on a scheduled
+# run they stop the deploy, quietly, because nothing is wrong and a red mark
+# every night is a red mark nobody reads. On `workflow_dispatch` the typed
+# confirmation below is what carries them, exactly as it carried everything
+# before this bundle -- so the fallback is today's safety level, kept for a
+# checkout with no secret, and the summary says which path was taken and which
+# migrations a person asserted. Status 2 is a machine-read FACT about
+# production and no typed string overrides it.
 # ---------------------------------------------------------------------------
 
 on:
+  # 03:00 Pacific (10:00 UTC), which is the night window decision 0010 was
+  # about. GitHub only runs a schedule from the DEFAULT BRANCH, so this does
+  # nothing until it reaches `main`.
+  schedule:
+    - cron: '0 10 * * *'
+
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type exactly: every migration on integration is applied to production'
-        required: true
+        description: 'Only needed if the probe cannot read production. Type exactly: every migration on integration is applied to production'
+        required: false
         type: string
 
 # SERIALIZE, AND NEVER CANCEL. Two deploys merging into `main` at once produce
@@ -63,8 +90,12 @@ jobs:
     outputs:
       integration_sha: ${{ steps.resolve.outputs.sha }}
       integration_subject: ${{ steps.resolve.outputs.subject }}
+      ahead: ${{ steps.resolve.outputs.ahead }}
+      proceed: ${{ steps.resolve.outputs.proceed }}
+      confirmed: ${{ steps.confirm.outputs.confirmed }}
     steps:
-      - name: Check the typed confirmation
+      - name: Check the typed confirmation, if one was typed
+        id: confirm
         env:
           # Through env, never interpolated into the script body: `${{ }}`
           # pastes a person's typed string into the shell before bash sees a
@@ -73,25 +104,40 @@ jobs:
         run: |
           set -euo pipefail
           EXPECTED='every migration on integration is applied to production'
+
+          # EMPTY IS NOT WRONG ANY MORE, and that is the whole change here. The
+          # field is what carries a run the probe cannot speak for; on a run
+          # the probe CAN speak for, nobody should have to type anything, and
+          # on a scheduled run there is nobody to type it.
+          if [ -z "${CONFIRM:-}" ]; then
+            echo "confirmed=no" >> "$GITHUB_OUTPUT"
+            echo "nothing typed; the probe has to carry this run on its own"
+            exit 0
+          fi
+
+          # SOMETHING WAS TYPED AND IT IS WRONG. Refuse now rather than after
+          # CI: a typo is much likelier than a deliberate empty field, and this
+          # is the cheapest place to say so.
           if [ "$CONFIRM" != "$EXPECTED" ]; then
-            echo "::error::refusing to deploy: the confirmation did not match."
+            echo "::error::refusing to deploy: something was typed in the confirmation field and it did not match."
             {
               echo "## Refused"
               echo
-              echo "The confirmation field must read **exactly**:"
+              echo "The confirmation field was not empty and did not read **exactly**:"
               echo
               echo '```'
               echo "$EXPECTED"
               echo '```'
               echo
-              echo "Nothing was merged and nothing was pushed."
+              echo "Leave it EMPTY to let \`tools/deploy-probe.mjs\` answer from production's own"
+              echo "catalog. Type it only when the probe cannot -- no secret, or a migration it"
+              echo "has no probe for."
               echo
-              echo "Before typing it, run \`tools/idea-status.py\` and paste its probe block into"
-              echo "the Supabase SQL editor. That query is the only thing that answers which"
-              echo "migrations production has actually applied; no file in the repo records it."
+              echo "Nothing was merged and nothing was pushed."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+          echo "confirmed=yes" >> "$GITHUB_OUTPUT"
           echo "confirmation matched"
 
       - uses: actions/checkout@v4
@@ -141,6 +187,25 @@ jobs:
           AHEAD="$(git rev-list --count origin/main..origin/integration)"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "subject=$SUBJECT" >> "$GITHUB_OUTPUT"
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
+
+          # NOTHING TO DEPLOY IS NOT A FAILURE, and on a nightly schedule it is
+          # the ORDINARY outcome. A red mark on most nights is a red mark
+          # nobody reads, and the one night it means something would look
+          # exactly like the others.
+          if [ "$AHEAD" = 0 ]; then
+            echo "proceed=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::integration is level with main; there is nothing to deploy."
+            {
+              echo "## Nothing to deploy"
+              echo
+              echo "\`integration\` is level with \`main\`. No job ran, nothing was merged, and"
+              echo "this run is green because that is the ordinary state on most nights."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "proceed=yes" >> "$GITHUB_OUTPUT"
           {
             echo "## Deploy candidate"
             echo
@@ -149,12 +214,202 @@ jobs:
             echo "| \`integration\` tip | \`$SHA\` |"
             echo "| subject | $SUBJECT |"
             echo "| commits ahead of \`main\` | $AHEAD |"
+            echo "| triggered by | \`${{ github.event_name }}\` |"
             echo
-            echo "CI now runs on that exact sha. The merge happens only if it is green."
+            echo "Production's applied migration set is read next. CI then runs on that exact"
+            echo "sha, and the merge happens only if both are satisfied."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ------------------------------------------------------------------------
-  # 2. The SAME checks CI runs, on that exact sha, in this run.
+  # 2. ASK PRODUCTION WHICH MIGRATIONS IT HAS. This is the job decision 0010
+  #    was waiting for, and it is the only thing in this repository that can
+  #    answer the question: no file records applied state, and the remote has
+  #    no `supabase_migrations.schema_migrations` table at all.
+  # ------------------------------------------------------------------------
+  migrations:
+    needs: guard
+    if: needs.guard.outputs.proceed == 'yes'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      # `yes` only when this job decided the deploy may proceed. A job that
+      # FAILS takes the deploy with it through `needs`; this flag is for the
+      # one outcome that is a STOP and not a failure -- a scheduled run the
+      # probe cannot speak for, which is green because nothing is wrong.
+      go: ${{ steps.probe.outputs.go }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read production's applied migration set
+        id: probe
+        env:
+          # THE SECRET IS PASSED AS AN ENV VAR AND IS NEVER INTERPOLATED INTO A
+          # SCRIPT, NEVER PRINTED, AND NEVER PASSED ON A COMMAND LINE THIS FILE
+          # BUILDS. `tools/deploy-probe.mjs` hands it to `psql` as an argument
+          # in an `execFile` argument list, with no shell anywhere on the path,
+          # and redacts it out of anything it prints.
+          #
+          # UNSET IS A SUPPORTED STATE, not a broken one: the probe answers
+          # "cannot run", and the run falls back to the typed confirmation
+          # exactly as it worked before this bundle. That is what keeps this
+          # repository usable by somebody who does not have the secret.
+          DEPLOY_PROBE_URL: ${{ secrets.DEPLOY_PROBE_URL }}
+          # OPTIONAL, AND A VARIABLE RATHER THAN A LITERAL IN THIS FILE. It is
+          # the lowest migration number the probe asks about; unset takes
+          # `tools/idea-status.py`'s own default. It is here so the watermark
+          # can be moved past a migration that has no probeable object -- a
+          # tombstone, a data-only fix -- without editing a workflow, and every
+          # run prints the window it used and every row it read.
+          DEPLOY_PROBE_SINCE: ${{ vars.DEPLOY_PROBE_SINCE }}
+          SHA: ${{ needs.guard.outputs.integration_sha }}
+          CONFIRMED: ${{ needs.guard.outputs.confirmed }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -uo pipefail
+
+          ARGS=(--ref "$SHA")
+          if [ -n "${DEPLOY_PROBE_SINCE:-}" ]; then ARGS+=(--since "$DEPLOY_PROBE_SINCE"); fi
+
+          # BOTH FORMS, ONE RUN EACH. The text goes in the log for a person and
+          # the JSON is what the summary is built from, so the two cannot
+          # disagree about a row: the JSON run is the one whose status decides.
+          node tools/deploy-probe.mjs "${ARGS[@]}" || true
+          node tools/deploy-probe.mjs "${ARGS[@]}" --json > probe.json 2> probe.err
+          PROBE=$?
+
+          echo "probe exit: $PROBE"
+
+          # THE FLAG IS WRITTEN ONCE, HERE, AND FLIPPED ONLY BY A BRANCH THAT
+          # DECIDES TO GO. Written last it would be missing on every `exit`
+          # path above it, and a missing output reads as an empty string, which
+          # is not `yes` -- so the default is already the safe one and this is
+          # belt to that.
+          echo "go=no" >> "$GITHUB_OUTPUT"
+
+          # ---------------------------------------------------------------
+          # THE DECISION. Exactly one of these runs.
+          # ---------------------------------------------------------------
+          case "$PROBE" in
+            0)
+              {
+                echo "## Migrations: every one in range is applied"
+                echo
+                jq -r '"Window: migrations from \(.since) up, read on `\(.ref[0:12])`.\n"' probe.json
+                echo "| migration | state | object |"
+                echo "| --- | --- | --- |"
+                jq -r '.findings[] | "| `\(.num)` | APPLIED | \(.object) |"' probe.json
+                echo
+                echo "Read from production's own \`pg_catalog\` by \`tools/deploy-probe.mjs\`."
+                echo "Nobody typed anything and nobody had to."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "go=yes" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+            2)
+              # A MACHINE-READ FACT ABOUT PRODUCTION. No typed string carries
+              # this and no trigger is exempt from it: the code about to go
+              # live calls something the database does not have.
+              {
+                echo "## REFUSED: a migration on this candidate is not applied to production"
+                echo
+                echo "| migration | state | object |"
+                echo "| --- | --- | --- |"
+                jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object) |"' probe.json
+                echo
+                echo "**Nothing was merged and nothing was pushed.**"
+                echo
+                echo "Apply each of these in the Supabase SQL editor, then run Deploy again."
+                echo "Applying a migration needs a credential that can WRITE to production, which"
+                echo "no workflow and no cloud session may hold, so this is the step that stays"
+                echo "yours."
+                echo
+                for f in $(jq -r '.findings[] | select(.state == "not-applied") | .file' probe.json | sort -u); do
+                  p="supabase/migrations/$f"
+                  echo "<details><summary><code>$p</code></summary>"
+                  echo
+                  echo '```sql'
+                  git show "$SHA:$p" 2>/dev/null || git show "origin/main:$p" 2>/dev/null || echo "-- could not read $p at $SHA or on origin/main"
+                  echo '```'
+                  echo
+                  echo "</details>"
+                  echo
+                done
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::at least one migration on this candidate is not applied to production. The job summary names each one and carries its SQL."
+              exit 1
+              ;;
+            *)
+              # 1 or 3: THE MACHINE IS SILENT, WHICH IS NOT "APPLIED".
+              WHY="the probe could not run at all"
+              [ "$PROBE" = 3 ] && WHY="every probe that ran said applied, but at least one migration has no probe to run"
+              {
+                echo "## The probe could not carry this run on its own"
+                echo
+                echo "$WHY."
+                echo
+                if [ -s probe.json ]; then
+                  echo "| migration | state | object |"
+                  echo "| --- | --- | --- |"
+                  jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object)\(if .why == "" then "" else " -- " + .why end) |"' probe.json
+                  echo
+                fi
+                if [ -s probe.err ]; then
+                  echo '```'
+                  cat probe.err
+                  echo '```'
+                  echo
+                fi
+              } >> "$GITHUB_STEP_SUMMARY"
+
+              if [ "$EVENT" != workflow_dispatch ]; then
+                # A SCHEDULED RUN STOPS HERE AND STAYS GREEN. Nothing is wrong;
+                # the machine simply may not speak, and a red mark every night
+                # is one nobody reads.
+                {
+                  echo "**Stopped, and this run is green.** A scheduled deploy runs only when the"
+                  echo "probe can answer for every migration in range. Press **Run workflow** and"
+                  echo "type the confirmation to deploy anyway."
+                } >> "$GITHUB_STEP_SUMMARY"
+                echo "::notice::the probe cannot confirm every migration in range; a scheduled deploy will not run. Use the button with the typed confirmation."
+                exit 0
+              fi
+
+              if [ "$CONFIRMED" != yes ]; then
+                {
+                  echo "**Nothing was merged and nothing was pushed.**"
+                  echo
+                  echo "Run this workflow again and type, exactly:"
+                  echo
+                  echo '```'
+                  echo "every migration on integration is applied to production"
+                  echo '```'
+                  echo
+                  echo "That line is the fallback this repository has always had, and it is what a"
+                  echo "person asserts when the machine cannot. Read"
+                  echo "\`tools/idea-status.py\`'s probe block against the Supabase SQL editor before"
+                  echo "typing it."
+                } >> "$GITHUB_STEP_SUMMARY"
+                echo "::error::the probe cannot confirm every migration in range and nothing was typed. Nothing was merged."
+                exit 1
+              fi
+
+              {
+                echo "### A person carried it"
+                echo
+                echo "The confirmation was typed, so this run proceeds on that assertion rather"
+                echo "than on a reading of production. The rows above are what the machine could"
+                echo "and could not say."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "go=yes" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+  # ------------------------------------------------------------------------
+  # 3. The SAME checks CI runs, on that exact sha, in this run.
   #
   #    Deliberately NOT a query to the Actions API for a prior run's
   #    conclusion. A prior conclusion is a claim about a sha that may no longer
@@ -164,7 +419,8 @@ jobs:
   #    themselves.
   # ------------------------------------------------------------------------
   checks:
-    needs: guard
+    needs: [guard, migrations]
+    if: needs.migrations.outputs.go == 'yes'
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
@@ -172,10 +428,16 @@ jobs:
       ref: ${{ needs.guard.outputs.integration_sha }}
 
   # ------------------------------------------------------------------------
-  # 3. Merge and push. LEAST PRIVILEGE: contents write and nothing else.
+  # 4. Merge and push. LEAST PRIVILEGE: contents write and nothing else.
+  #
+  #    ALL THREE GATES OR IT DOES NOT RUN, and each is a separate `needs`: the
+  #    ancestry check and a non-empty candidate (`guard`), production's applied
+  #    set (`migrations`), and CI green on the exact sha (`checks`). A job that
+  #    fails or is skipped takes this with it.
   # ------------------------------------------------------------------------
   deploy:
-    needs: [guard, checks]
+    needs: [guard, migrations, checks]
+    if: needs.migrations.outputs.go == 'yes'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -193,10 +455,21 @@ jobs:
         env:
           SHA: ${{ needs.guard.outputs.integration_sha }}
           SUBJECT: ${{ needs.guard.outputs.integration_subject }}
+          CONFIRMED: ${{ needs.guard.outputs.confirmed }}
         run: |
           set -euo pipefail
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
           git checkout -B main origin/main
+
+          # WHO ANSWERED THE MIGRATION QUESTION, IN THE COMMIT MESSAGE. The
+          # merge commit is the only durable record of a deploy, and "a person
+          # asserted it" and "production's catalog was read" are different
+          # claims that should not both read as the second one.
+          if [ "$CONFIRMED" = yes ]; then
+            WHO="after a person confirmed every migration on integration is applied to production."
+          else
+            WHO="after tools/deploy-probe.mjs read production's catalog and found every migration in range applied."
+          fi
 
           # THE TESTED SHA, NOT `origin/integration`. If integration moved
           # while CI was running, what CI proved green is this sha and nothing
@@ -206,8 +479,8 @@ jobs:
           MSG="$(printf '%s\n\n%s\n\n%s\n%s\n' \
             "Deploy: merge integration ${SHA} into main" \
             "${SUBJECT}" \
-            "Merged by the Deploy workflow after CI ran on that exact sha, and after a" \
-            "person confirmed every migration on integration is applied to production.")"
+            "Merged by the Deploy workflow after CI ran on that exact sha, and" \
+            "${WHO}")"
 
           if ! git merge --no-ff -m "$MSG" "$SHA"; then
             git merge --abort || true
@@ -234,11 +507,18 @@ jobs:
           fi
 
       - name: Read main back and report what is live
+        env:
+          CONFIRMED: ${{ needs.guard.outputs.confirmed }}
         run: |
           set -euo pipefail
           git fetch origin main
           NEW="$(git rev-parse origin/main)"
           SUBJ="$(git log -1 --format=%s "$NEW")"
+          if [ "$CONFIRMED" = yes ]; then
+            HOW="a person typed the confirmation"
+          else
+            HOW="the probe read production's catalog"
+          fi
           {
             echo "## Deployed"
             echo
@@ -246,6 +526,7 @@ jobs:
             echo "| --- | --- |"
             echo "| \`main\` is now | \`$NEW\` |"
             echo "| merge subject | $SUBJ |"
+            echo "| migrations answered by | $HOW |"
             echo
             echo "**Every push to \`main\` deploys \`ideabosco.com\`.** This one is live, or"
             echo "will be as soon as Vercel finishes building it."

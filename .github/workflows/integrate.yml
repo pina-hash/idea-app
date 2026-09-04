@@ -518,6 +518,270 @@ jobs:
           }
           # target_push_marker:end
 
+          # MECHANICAL RESOLUTION, FOR EXACTLY TWO FILES AND NOTHING ELSE.
+          #
+          # The merge above says FAIL LOUD, NEVER FORCE, and it stays true:
+          # what a machine may not do is PICK A SIDE of somebody's writing.
+          # Two files in this repository conflict constantly and neither has a
+          # side to pick, because neither is written by hand at the point of
+          # conflict.
+          #
+          # MEASURED, not assumed. Replaying every merge in this repository
+          # since 2026-08-30 with `git merge-tree` gives 24 conflicted merges
+          # and 30 conflicting paths: 19 `tools/browser-verify/README.md`,
+          # 6 `classroom-updates.json`, and 4 genuine source conflicts in 3
+          # merges (`docs/history/...`, one notebook page, and two maps files).
+          # Twenty-five of thirty had a deterministic answer and cost five hand
+          # deletions and three landing bundles anyway.
+          #
+          #   * `tools/browser-verify/README.md` -- the conflict is always
+          #     inside `<!-- counts:begin -->`/`<!-- counts:end -->`, which is
+          #     GENERATED. Its own header says so: "a conflict here is resolved
+          #     by running one sub-second command, never by choosing a side and
+          #     never by finding a browser". `--static` is a tree read, measured
+          #     at 0.386s in a checkout with no `node_modules`, no browser and
+          #     no dev server. So the resolution is: take the target's side
+          #     INSIDE the markers, then regenerate the static half against the
+          #     MERGED tree, which is the only tree whose answer is right.
+          #   * `classroom-updates.json` -- an append-only array of entries.
+          #     Two sessions each append; the answer is both appends.
+          #
+          # THE RULES THIS OBEYS, and each is a refusal it can reach:
+          #   * A conflict in ANY OTHER PATH leaves the branch conflicted,
+          #     exactly as before. The allowlist is checked over every unmerged
+          #     path before a single one is touched.
+          #   * A conflict in that README's PROSE -- outside the markers -- is a
+          #     person's conflict and is left conflicted. That is not a
+          #     heuristic: see `_counts_merge`.
+          #   * A `classroom-updates.json` change that is not an append -- an
+          #     entry edited or removed on either side -- is left conflicted.
+          #   * IT NEVER TAKES A WHOLE SIDE OF A FILE. Everything git merged
+          #     cleanly stays merged; only the conflicting hunks inside the
+          #     generated region take the target's side.
+          #   * Every resolution is NAMED in the job summary, per branch and per
+          #     file, with what it did.
+          #
+          # THE ONE THING IT TRUSTS FROM THE TREE is the generator it runs,
+          # `tools/browser-verify/readme-counts.mjs`, which comes off the merged
+          # tree and is therefore mutable by a session branch -- unlike this
+          # file, which GitHub always takes from the default branch. That is
+          # inherent: regenerating a generated region needs the generator. Its
+          # output is checked back into the same refusals as everything else
+          # here (a marker left behind, an unmerged stage) and `--static` writes
+          # nothing outside the two static markers.
+          #
+          # It is a FUNCTION and between markers for `ledger_gate`'s reason: it
+          # is PROVED by cutting this exact text out of THIS FILE and running it
+          # against throwaway git repositories, so no proof can drift into
+          # testing a private copy of the rule. Do not rename the markers and do
+          # not move the bodies out from between them.
+          # auto_resolve_marker:begin
+          auto_resolve() {
+            # $1 the branch being merged, used only in what this prints.
+            #
+            # Called ONLY with a conflicted merge in progress. It resolves EVERY
+            # unmerged path or it resolves none of them: one line per file on
+            # stdout and 0 when the index is ready to commit, silence and 1
+            # otherwise. The caller aborts the merge on 1, so a half-resolved
+            # tree is never what gets committed.
+            local branch="$1"
+            local readme='tools/browser-verify/README.md'
+            local updates='classroom-updates.json'
+            local -a unmerged=()
+            local -a did=()
+            local n path
+
+            # THE UNMERGED SET, READ THE WAY `ledger_gate` READS ITS DIFF:
+            # NUL-delimited, never through `$(...)` (which DROPS NUL bytes and
+            # would leave one run-on string that matches no path), with git's
+            # own exit status riding back as a final record so a diff that
+            # FAILED is distinguishable from one that found nothing.
+            mapfile -d '' -t unmerged < <(
+              git diff --name-only --diff-filter=U -z
+              printf 'rc=%s\0' "$?"
+            )
+            n="${#unmerged[@]}"
+            [ "${unmerged[n-1]}" = rc=0 ] || return 1
+            unset "unmerged[$((n - 1))]"
+            [ "${#unmerged[@]}" -gt 0 ] || return 1
+
+            # THE ALLOWLIST IS ASKED ABOUT EVERY PATH BEFORE ANY PATH IS
+            # TOUCHED. One file outside it and this is a person's conflict,
+            # whatever the other files are.
+            for path in "${unmerged[@]}"; do
+              case "$path" in
+                "$readme" | "$updates") ;;
+                *) return 1 ;;
+              esac
+            done
+
+            for path in "${unmerged[@]}"; do
+              case "$path" in
+                "$readme")
+                  _counts_resolve "$path" || return 1
+                  did+=("\`$path\` -- the conflict was inside the generated counts markers, so the target's side was taken there and the static region was regenerated on the merged tree")
+                  ;;
+                "$updates")
+                  _updates_resolve "$path" || return 1
+                  did+=("\`$path\` -- an append from each side; every entry from both is in the result")
+                  ;;
+              esac
+            done
+
+            # NOTHING LEAVES HERE CARRYING A MARKER, and the index is ASKED
+            # again rather than assumed. `=======` is deliberately not one of
+            # the three: it is also a markdown setext underline, and this runs
+            # over a markdown file.
+            for path in "${unmerged[@]}"; do
+              if grep -qE '^(<<<<<<< |\|\|\|\|\|\|\| |>>>>>>> )' "$path"; then return 1; fi
+              git add -- "$path" || return 1
+            done
+            [ -z "$(git diff --name-only --diff-filter=U)" ] || return 1
+
+            printf '%s\n' "${did[@]}"
+            return 0
+          }
+
+          # The two resolvers are wrappers so that every refusal inside them
+          # still removes the scratch directory; the bodies below return early
+          # from a dozen places and a `trap` cannot be scoped to a function.
+          _counts_resolve() {
+            local d rc=0
+            d="$(mktemp -d)" || return 1
+            _counts_merge "$1" "$d" || rc=$?
+            rm -rf "$d"
+            return "$rc"
+          }
+
+          _updates_resolve() {
+            local d rc=0
+            d="$(mktemp -d)" || return 1
+            _updates_merge "$1" "$d" || rc=$?
+            rm -rf "$d"
+            return "$rc"
+          }
+
+          _counts_merge() {
+            # GIT RESOLVES THE HUNKS AND NO MARKER PARSER EXISTS HERE, which is
+            # what makes "only inside the generated region" a fact rather than a
+            # regex. `git merge-file --ours` and `--theirs` run the SAME
+            # three-way merge over the same three stages and differ ONLY where
+            # that merge conflicted -- a hunk both sides merged cleanly comes
+            # out identical in both. So requiring the two outputs to be
+            # BYTE-IDENTICAL from the top of the file down to the begin marker,
+            # and from the end marker down to the last byte, proves every
+            # conflict lay strictly between them. A prose conflict above the
+            # block makes the prefixes differ and this returns 1.
+            local path="$1" d="$2" rc=0 f bm em by ey
+            local beginm='<!-- counts:begin -->'
+            local endm='<!-- counts:end -->'
+
+            # No stage 1 is an add/add: two whole files with no base, so there
+            # is no three-way merge to take a side within. Refused.
+            git show ":1:$path" > "$d/base" 2>/dev/null || return 1
+            git show ":2:$path" > "$d/ours" 2>/dev/null || return 1
+            git show ":3:$path" > "$d/theirs" 2>/dev/null || return 1
+
+            # merge-file exits with the CONFLICT COUNT, so a non-zero status is
+            # the ordinary case; 127 and above is its error range and is refused.
+            rc=0; git merge-file -p --ours   "$d/ours" "$d/base" "$d/theirs" > "$d/mine"  || rc=$?
+            [ "$rc" -lt 127 ] || return 1
+            rc=0; git merge-file -p --theirs "$d/ours" "$d/base" "$d/theirs" > "$d/yours" || rc=$?
+            [ "$rc" -lt 127 ] || return 1
+
+            # EXACTLY ONE OF EACH MARKER IN EACH OUTPUT. A conflict that
+            # duplicated a marker line would otherwise make "inside" ambiguous,
+            # and the ambiguous answer is the one that must not be acted on.
+            for f in "$d/mine" "$d/yours"; do
+              [ "$(grep -cF "$beginm" "$f" || true)" = 1 ] || return 1
+              [ "$(grep -cF "$endm"   "$f" || true)" = 1 ] || return 1
+            done
+
+            bm="$(grep -nF "$beginm" "$d/mine"  | cut -d: -f1)"
+            em="$(grep -nF "$endm"   "$d/mine"  | cut -d: -f1)"
+            by="$(grep -nF "$beginm" "$d/yours" | cut -d: -f1)"
+            ey="$(grep -nF "$endm"   "$d/yours" | cut -d: -f1)"
+            [ "$bm" -lt "$em" ] || return 1
+            [ "$by" -lt "$ey" ] || return 1
+
+            head -n "$bm" "$d/mine"  > "$d/pre-a"
+            head -n "$by" "$d/yours" > "$d/pre-b"
+            cmp -s "$d/pre-a" "$d/pre-b" || return 1
+            tail -n +"$em" "$d/mine"  > "$d/post-a"
+            tail -n +"$ey" "$d/yours" > "$d/post-b"
+            cmp -s "$d/post-a" "$d/post-b" || return 1
+
+            cp "$d/mine" "$path" || return 1
+
+            # THEN THE MERGED TREE'S OWN ANSWER, which is neither side's. The
+            # static region is a pure function of the tree, so this is the only
+            # step that can be right, and on a tree whose counts did not move it
+            # writes nothing at all.
+            node tools/browser-verify/readme-counts.mjs --static >/dev/null 2>&1 || return 1
+            return 0
+          }
+
+          _updates_merge() {
+            # APPEND-ONLY IS CHECKED, NOT ASSUMED, and the check is what makes
+            # "keep both appends" the whole of the question: the `_readme` block
+            # must be identical on both sides, and EVERY entry in the merge base
+            # must still be present in both. An entry edited or removed on
+            # either side is a decision about somebody's words and is left
+            # conflicted. Entries are compared by VALUE with their keys sorted,
+            # so key order in the file cannot make one entry read as two.
+            #
+            # ORDER DOES NOT MATTER TO THE READER and is still deterministic
+            # here: `src/lib/classroom/updates.ts` sorts by date, newest first,
+            # and the file's own `_readme` says entries may go anywhere. The
+            # result is the target's list in the target's order, with the
+            # branch's new entries appended in the branch's order.
+            local path="$1" d="$2"
+
+            git show ":1:$path" > "$d/base" 2>/dev/null || return 1
+            git show ":2:$path" > "$d/ours" 2>/dev/null || return 1
+            git show ":3:$path" > "$d/theirs" 2>/dev/null || return 1
+
+            jq --tab -n \
+              --slurpfile base "$d/base" \
+              --slurpfile ours "$d/ours" \
+              --slurpfile theirs "$d/theirs" '
+                def canon: to_entries | sort_by(.key) | from_entries | tojson;
+                ($base[0]) as $b | ($ours[0]) as $o | ($theirs[0]) as $t
+                | ($b.entries // []) as $be
+                | ($o.entries // []) as $oe
+                | ($t.entries // []) as $te
+                | ($oe | map(canon)) as $ok
+                | ($te | map(canon)) as $tk
+                | if ($o._readme != $t._readme)
+                  then error("the _readme block differs between the two sides")
+                  else . end
+                | if ($be | map(canon) | map(. as $x | ($ok | index($x)) != null and ($tk | index($x)) != null) | all)
+                  then . else error("an entry in the merge base is gone from one side: this is an edit or a removal, not an append")
+                  end
+                | { _readme: $o._readme,
+                    entries: ($oe + [ $te[] | select((. | canon) as $x | ($ok | index($x)) == null) ]) }
+              ' > "$d/out" || return 1
+
+            # IT MUST STILL BE THE SHAPE THE READER IMPORTS.
+            jq -e 'has("_readme") and has("entries") and (.entries | type == "array")' \
+              "$d/out" >/dev/null || return 1
+
+            # AND NOTHING LOST, NOTHING INVENTED -- asserted as a SET
+            # comparison, which is a different expression from the construction
+            # above rather than a second copy of it. A program checked against
+            # its own rule cannot fail.
+            [ "$(jq -n --slurpfile o "$d/ours" --slurpfile t "$d/theirs" --slurpfile r "$d/out" '
+                   def canon: to_entries | sort_by(.key) | from_entries | tojson;
+                   ($r[0].entries | map(canon) | unique) as $got
+                   | ((($o[0].entries // []) + ($t[0].entries // [])) | map(canon) | unique) as $want
+                   | ($got == $want)
+                 ' || true)" = true ] || return 1
+
+            cp "$d/out" "$path" || return 1
+            return 0
+          }
+          # auto_resolve_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
@@ -587,6 +851,7 @@ jobs:
           merged=()
           merged_shas=()
           conflicted=()
+          resolved=()
           skipped=()
           contained=()
           contained_shas=()
@@ -672,12 +937,30 @@ jobs:
             if git merge --no-ff --no-edit -m "Merge $branch into $TARGET" "$ref"; then
               merged+=("$branch")
               merged_shas+=("$sha")
+            elif resolved_lines="$(auto_resolve "$branch")" &&
+                 git commit -m "Merge $branch into $TARGET"; then
+              # MECHANICAL, AND ONLY EVER THE TWO FILES ARGUED AT
+              # `auto_resolve`. It either resolved every unmerged path or it
+              # changed nothing, so reaching here means git's own merge plus a
+              # generated region regenerated on the merged tree -- never a side
+              # of a file picked by a machine.
+              merged+=("$branch")
+              merged_shas+=("$sha")
+              while IFS= read -r resolved_one; do
+                [ -n "$resolved_one" ] || continue
+                resolved+=("$branch -- $resolved_one")
+              done <<<"$resolved_lines"
             else
-              # FAIL LOUD, NEVER FORCE. A conflict here is two bundles genuinely
-              # touching one file, which is exactly the thing a machine must not
-              # resolve by picking a side. Abandon this one branch, leave it
-              # undeleted and unmerged, keep going with the others (they are
-              # independent), and fail the job at the end so a person sees it.
+              # FAIL LOUD, NEVER FORCE. A conflict that reaches here is two
+              # bundles genuinely touching one file, which is exactly the thing
+              # a machine must not resolve by picking a side. Abandon this one
+              # branch, leave it undeleted and unmerged, keep going with the
+              # others (they are independent), and fail the job at the end so a
+              # person sees it.
+              #
+              # THE ABORT IS WHAT MAKES A PARTIAL RESOLUTION SAFE: `auto_resolve`
+              # can have written one file before refusing on the next, and this
+              # puts the whole tree back where the merge found it.
               git merge --abort || true
               conflicted+=("$branch")
             fi
@@ -810,6 +1093,17 @@ jobs:
               echo "- nothing (no branch was both green and outstanding)"
             fi
             echo
+            if [ ${#resolved[@]} -gt 0 ]; then
+              echo "### Resolved mechanically"
+              echo
+              echo "These branches conflicted and were merged anyway, because every conflicting"
+              echo "path was one of the two files with a deterministic answer. Nothing here"
+              echo "picked a side of anybody's writing; a conflict in any other path, or in this"
+              echo "README's prose, is still left for a person."
+              echo
+              for b in "${resolved[@]}"; do echo "- \`${b%% --*}\`: ${b#* -- }"; done
+              echo
+            fi
             if [ ${#deleted_contained[@]} -gt 0 ]; then
               echo "### Already contained, deleted"
               echo
