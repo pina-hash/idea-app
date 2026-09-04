@@ -164,6 +164,71 @@ const rgbStr = (c) =>
 /* ------------------------------------------------------------------ *
  * 1. Horizontal scroll
  * ------------------------------------------------------------------ */
+/**
+ * THE OFFENDER LIST SKIPS A WHOLE FIXED SUBTREE, NOT ONLY THE FIXED ELEMENT
+ * ITSELF, AND THAT ONE WORD COST WEEKS.
+ *
+ * This loop used to read `if (cs.position === 'fixed') continue`, which tests
+ * the ELEMENT'S OWN position and never walks up. A fixed overlay was skipped
+ * and its static and absolute children were not -- and those children carry
+ * the overlay's viewport coordinates, so on `/dev/coins` the Ledger's
+ * `#student-drawer` (parked at `right` = 727-750 against a 375 viewport) put
+ * six descendants at the top of every list sorted by overhang while
+ * contributing nothing to the overflow at all. The Coin Ledger's real cause,
+ * an unwrapped tab bar, sat below them and was not read for weeks. Six true
+ * measurements of a non-cause is the worst thing a diagnostic can print.
+ *
+ * IS A FIXED ELEMENT'S STATIC DESCENDANT CAPABLE OF EXTENDING THE DOCUMENT?
+ * MEASURED IN THIS CONTAINER'S CHROMIUM (141.0.7390.37) AT 375px, NOT REASONED
+ * FROM THE SPEC, because getting it wrong in this direction HIDES REAL
+ * OVERFLOW -- a false positive gets investigated and a false negative does not:
+ *
+ *   a 1200px static box                        scrollWidth 1200  GREW  (control)
+ *   a fixed box 1200px wide                    scrollWidth  375  did not grow
+ *   a 300px fixed box, 1200px STATIC child     scrollWidth  375  did not grow
+ *   a fixed drawer at left:100%, static child  scrollWidth  375  did not grow
+ *   a 300px fixed box, 1200px ABSOLUTE child   scrollWidth  375  did not grow
+ *
+ * The reason is the containing block chain rather than the `position` value: a
+ * fixed box's containing block is the viewport, every descendant's containing
+ * block chain runs up through it, and the viewport's scrollable overflow region
+ * does not take contributions from a subtree it is not the scroll container
+ * for. So the whole subtree is invisible to `scrollWidth`, and skipping only
+ * its root reports its children as causes of an overflow they cannot cause.
+ *
+ * THE EXCEPTION IS REAL AND IS THE WHOLE REASON THIS IS NOT A ONE-LINE
+ * `closest()`. A `position: fixed` box whose ancestor establishes a containing
+ * block for fixed descendants is NOT viewport-fixed: it scrolls with the
+ * document and it DOES extend it. Measured, same fixture, a 1200px fixed child
+ * of a 10px ancestor:
+ *
+ *   ancestor `transform: translateZ(0)`   scrollWidth 1200  CAPTURES
+ *   ancestor `translate` / `rotate` / `scale`               CAPTURES
+ *   ancestor `perspective: 100px`                           CAPTURES
+ *   ancestor `filter: blur(0px)`, `backdrop-filter`         CAPTURES
+ *   ancestor `will-change:` transform/filter/perspective/
+ *            backdrop-filter/translate/rotate/scale/contain CAPTURES
+ *   ancestor `contain:` paint/layout/strict/content         did not grow
+ *   ancestor `container-type`, `opacity`, `overflow`,
+ *            `content-visibility`, `will-change: opacity`   did not grow
+ *
+ * `CAPTURES_FIXED` therefore FAILS OPEN: it names every property measured to
+ * capture plus the few measured not to (`contain`, `container-type`) and any
+ * non-`auto` `will-change` at all, because the cost of calling a capturing
+ * ancestor viewport-fixed is a hidden overflow and the cost of the reverse is
+ * one extra line in a diagnostic list. `will-change: opacity` does not capture
+ * and is treated as if it did, deliberately: a value-by-value allowlist is the
+ * thing that goes stale when a browser adds one.
+ *
+ * THE WALK IS PAID ONLY FOR A NODE ALREADY PAST THE EDGE. Every element's own
+ * `getComputedStyle` was already being read; the ancestor walk runs after the
+ * overhang test, so it costs nothing on the overwhelming majority of a page.
+ *
+ * AND THE SKIPS ARE COUNTED AND REPORTED (`IDEA_VERIFICATION_ADDENDA` 13: a
+ * sweep reports the population it traversed, or its zero is not a finding). An
+ * empty offender list beside `12px overflow` is otherwise indistinguishable
+ * from a sweep that skipped the cause.
+ */
 export async function horizontalScroll(page, { tolerancePx = 0.5 } = {}) {
 	await ensureHelpers(page);
 	const data = await page.evaluate((tol) => {
@@ -171,15 +236,61 @@ export async function horizontalScroll(page, { tolerancePx = 0.5 } = {}) {
 		const de = document.documentElement;
 		const clientWidth = de.clientWidth;
 		const scrollWidth = Math.max(de.scrollWidth, document.body ? document.body.scrollWidth : 0);
+
+		/* Does this element establish a containing block for a `position: fixed`
+		   descendant? See the measured table above; this errs toward "yes". */
+		const capturesFixed = (cs) =>
+			cs.transform !== 'none' ||
+			cs.translate !== 'none' ||
+			cs.rotate !== 'none' ||
+			cs.scale !== 'none' ||
+			cs.perspective !== 'none' ||
+			cs.filter !== 'none' ||
+			cs.backdropFilter !== 'none' ||
+			(cs.willChange && cs.willChange !== 'auto') ||
+			(cs.contain && cs.contain !== 'none') ||
+			(cs.containerType && cs.containerType !== 'normal');
+
+		/* 'viewport-fixed'  -- in a fixed subtree the viewport holds; skip it.
+		   'captured-fixed'  -- in a fixed subtree an ancestor holds; it scrolls
+		                        with the document and counts.
+		   null              -- not in a fixed subtree at all. */
+		const fixedContext = (el) => {
+			let n = el;
+			for (let hops = 0; n && n.nodeType === 1 && hops < 60; hops++, n = n.parentElement) {
+				if (getComputedStyle(n).position !== 'fixed') continue;
+				let a = n.parentElement;
+				for (let up = 0; a && up < 60; up++, a = a.parentElement) {
+					if (capturesFixed(getComputedStyle(a))) return 'captured-fixed';
+				}
+				return 'viewport-fixed';
+			}
+			return null;
+		};
+
 		const offenders = [];
+		let fixedSkipped = 0;
+		let capturedFixed = 0;
 		for (const el of document.querySelectorAll('*')) {
 			const cs = getComputedStyle(el);
 			if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-			if (cs.position === 'fixed') continue; /* a fixed overlay does not extend the document */
 			const r = el.getBoundingClientRect();
 			if (r.width === 0 && r.height === 0) continue;
 			const overhang = r.right - clientWidth;
-			if (overhang > tol) offenders.push({ path: h.cssPath(el), right: +r.right.toFixed(1), overhangPx: +overhang.toFixed(1), width: +r.width.toFixed(1) });
+			if (overhang <= tol) continue;
+			const ctx = fixedContext(el);
+			if (ctx === 'viewport-fixed') {
+				fixedSkipped++;
+				continue;
+			}
+			if (ctx === 'captured-fixed') capturedFixed++;
+			offenders.push({
+				path: h.cssPath(el),
+				right: +r.right.toFixed(1),
+				overhangPx: +overhang.toFixed(1),
+				width: +r.width.toFixed(1),
+				fixedContext: ctx
+			});
 		}
 		offenders.sort((a, b) => b.overhangPx - a.overhangPx);
 		return {
@@ -187,13 +298,21 @@ export async function horizontalScroll(page, { tolerancePx = 0.5 } = {}) {
 			scrollWidth,
 			overflowPx: +(scrollWidth - clientWidth).toFixed(1),
 			offenderCount: offenders.length,
+			fixedSkipped,
+			capturedFixed,
 			offenders: offenders.slice(0, 6)
 		};
 	}, tolerancePx);
 
+	/* The skip count rides in `measured` only when it is non-zero: a "0 skipped"
+	   on all 188 rows is noise, and a non-zero one is exactly the sentence a
+	   reader needs beside an empty offender list. `data` carries it always. */
+	const skipNote = data.fixedSkipped
+		? `; ${data.fixedSkipped} node(s) past the edge skipped as viewport-fixed (they cannot extend the document)`
+		: '';
 	return {
 		check: 'horizontal-scroll',
-		measured: `${data.overflowPx}px overflow (scrollWidth ${data.scrollWidth} vs clientWidth ${data.clientWidth})`,
+		measured: `${data.overflowPx}px overflow (scrollWidth ${data.scrollWidth} vs clientWidth ${data.clientWidth})${skipNote}`,
 		threshold: '0px',
 		withinThreshold: data.overflowPx <= tolerancePx,
 		data
@@ -361,7 +480,30 @@ export async function tapReach(page, { selector, label = selector, min = 44 } = 
 				   mechanism at all). */
 				const after = getComputedStyle(el, '::after');
 				const hasReach = after.content !== 'none' && after.content !== '';
-				const reachW = hasReach ? parseFloat(cs.getPropertyValue('--tap-reach-w')) || 44 : 0;
+				/* `|| 44` SWALLOWED A DELIBERATE ZERO, AND ZERO IS THE COMMON
+				   CASE RATHER THAN AN EXOTIC ONE. `--tap-reach-w: 0px` is the
+				   documented width knob and CLAUDE.md says most reaches must
+				   set it -- ten components in `src/` do, ProfileMenu's
+				   `.pm-trigger` and AttachmentList's `.attach-name` among them,
+				   both of which route specs point this check at. `parseFloat`
+				   returns 0 for `0px`, `0 || 44` is 44, so the check modelled a
+				   44px-wide reach where the CSS computes `max(100%, 0px)` --
+				   the element's own width. On a 22.5px filename link that is a
+				   reach reported at nearly twice its real width, and the five
+				   hit-test points are then sampled at +-22px from centre rather
+				   than +-11.25px, which can pick up a neighbour that never
+				   steals a real tap.
+
+				   The UNSET case still defaults to 44, because that is what
+				   `var(--tap-reach-w, 44px)` in `src/app.css` does; the
+				   distinction is between "absent" and "zero", which `||`
+				   cannot make. Only a px value is honoured -- `parseFloat`
+				   reads the number and drops the unit -- so the raw declared
+				   string rides in `reachWDeclared` for a reader to audit
+				   rather than being silently converted. */
+				const reachDeclared = cs.getPropertyValue('--tap-reach-w').trim();
+				const reachParsed = parseFloat(reachDeclared);
+				const reachW = hasReach ? (Number.isFinite(reachParsed) ? reachParsed : 44) : 0;
 				const w = hasReach ? Math.max(own.width, reachW) : own.width;
 				const ht = hasReach ? Math.max(own.height, 44) : own.height;
 				const cx = own.x + own.width / 2;
@@ -386,6 +528,7 @@ export async function tapReach(page, { selector, label = selector, min = 44 } = 
 				return {
 					path: h.cssPath(el),
 					hasReach,
+					reachWDeclared: reachDeclared || '(unset -- app.css defaults it to 44px)',
 					ownW: +own.width.toFixed(1),
 					ownH: +own.height.toFixed(1),
 					reachW: +w.toFixed(1),
@@ -708,18 +851,48 @@ export async function orderResult(page, { evaluate, expected, label } = {}) {
 	   domOrder: that check proves an ordering claim by reading what painted;
 	   this one proves a WRITE claim by reading what the write path recorded,
 	   which is the only place "the drop persisted" is observable at all. */
+	/* ARRAYS, AND ONLY ARRAYS -- AND A NON-ARRAY NOW SAYS SO INSTEAD OF
+	   PRINTING TWO IDENTICAL VALUES OVER A RED VERDICT.
+
+	   The comparison below is element-for-element and always was, so a probe
+	   returning a JOINED STRING can never pass however right its content is.
+	   That is the correct contract -- an array cannot be confused by an id
+	   holding the separator, and `docs/history/classes-block-course-identity-
+	   twrmsn.md` records the repo choosing it deliberately -- but it was
+	   enforced SILENTLY: `measured` and `threshold` are both `JSON.stringify`,
+	   so a row written `expected: 'a,b,c'` against a probe returning `'a,b,c'`
+	   printed `"a,b,c"` twice and was still counted outside threshold. Prompt
+	   0027 wrote four such rows, read four identical pairs beside four red
+	   verdicts, and had to work out why from the source.
+
+	   THE FIX IS TO REFUSE LOUDLY, NOT TO ACCEPT STRINGS. Accepting them would
+	   make the check pass on a shape the rest of this directory has agreed not
+	   to write, and would hand back the separator ambiguity the array contract
+	   exists to remove. So the contract is unchanged and the REPORT changes:
+	   `measured` names the violation and the type it got, which makes it
+	   impossible for the two columns to read the same. An `evaluate` that threw
+	   is reported the same way, for the same reason -- it used to print a bare
+	   `{"__evalError":"..."}` object against an array. */
 	const actual = await page
 		.evaluate(`(${evaluate})()`)
 		.catch((e) => ({ __evalError: e.message }));
+	const evalError = actual && typeof actual === 'object' && !Array.isArray(actual) && actual.__evalError;
+	const shapeProblem = evalError
+		? `the page-side probe threw: ${evalError}`
+		: !Array.isArray(expected)
+			? `this spec's \`expected\` is a ${typeof expected}, not an array -- this check compares arrays element for element and a non-array can never pass. Write the expectation as an array.`
+			: !Array.isArray(actual)
+				? `the probe returned a ${actual === null ? 'null' : typeof actual} (${JSON.stringify(actual)}), not an array -- this check compares arrays element for element and a non-array can never pass. Return an array from \`evaluate\`.`
+				: null;
 	const withinThreshold =
-		Array.isArray(actual) && Array.isArray(expected) && actual.length === expected.length && actual.every((v, i) => v === expected[i]);
+		!shapeProblem && actual.length === expected.length && actual.every((v, i) => v === expected[i]);
 	return {
 		check: 'order-result',
 		label,
-		measured: JSON.stringify(actual),
-		threshold: JSON.stringify(expected),
+		measured: shapeProblem ? `CANNOT COMPARE: ${shapeProblem}` : JSON.stringify(actual),
+		threshold: Array.isArray(expected) ? JSON.stringify(expected) : `an array; got ${JSON.stringify(expected)}`,
 		withinThreshold,
-		data: { actual, expected }
+		data: { actual, expected, shapeProblem: shapeProblem || null }
 	};
 }
 

@@ -30,11 +30,19 @@
  * transaction-title rows -- are static or absolute INSIDE that fixed ancestor,
  * so they carry a `getBoundingClientRect().right` of 727-750 and sort to the
  * top of any offender list ordered by that number, while contributing nothing
- * either. `horizontal-scroll` in ../checks.mjs skips an element whose OWN
- * position is fixed and does not walk up for a fixed ancestor, so the drawer's
+ * either. `horizontal-scroll` in ../checks.mjs skipped an element whose OWN
+ * position was fixed and did not walk up for a fixed ancestor, so the drawer's
  * six children were exactly what its report showed: six true measurements of an
- * element that was not the cause. That instrument gap is still there and is not
- * this spec's to close.
+ * element that was not the cause.
+ *
+ * THAT INSTRUMENT GAP IS CLOSED (prompt 0029). `horizontal-scroll` now walks up
+ * for a fixed ancestor and skips the whole subtree, and it COUNTS what it
+ * skipped rather than dropping it silently -- this page reports `9 node(s) past
+ * the edge skipped as viewport-fixed` at both widths, which is the drawer and
+ * its descendants. The probes below kept their own `underFixed` walk while the
+ * core lacked one; they still carry it because they answer a different question
+ * (which node, by name, at both widths) and because a probe that agrees with
+ * the check it sits beside is what makes the pair worth reading.
  *
  * THEN, HAVING FOUND THE REAL CAUSE, IT SAID THE CAUSE COULD NOT BE FIXED --
  * "carried-over legacy under CLAUDE.md's freeze, whose only exception is
@@ -103,10 +111,12 @@ export default {
 			   rectangle. Sorted by `right` alone this step answered
 			   "#student-drawer" for weeks -- true about the geometry, false
 			   about the overflow, because a fixed subtree creates no scrollable
-			   overflow at all. Walking up for a fixed ancestor (rather than
-			   testing the element's own `position`, which is what
-			   ../checks.mjs does) drops all six of the drawer's children and
-			   leaves the one node that actually sets `scrollWidth`. */
+			   overflow at all. Walking up for a fixed ancestor drops all six of
+			   the drawer's children and leaves the one node that actually sets
+			   `scrollWidth`. ../checks.mjs tested the element's OWN `position`
+			   when this was written and walks up now (prompt 0029), so the two
+			   agree; this one stays because it names the node and the width in
+			   one printed line, which the check's own row does not. */
 			evaluate:
 				'() => { const d = document.documentElement; const over = d.scrollWidth - d.clientWidth; if (over <= 0) return "no horizontal overflow at " + window.innerWidth + "px"; const underFixed = (e) => { for (let p = e; p; p = p.parentElement) { if (getComputedStyle(p).position === "fixed") return true; } return false; }; const worst = [...document.querySelectorAll("*")].filter((e) => !underFixed(e)).map((e) => [e, e.getBoundingClientRect().right]).filter(([, r]) => r > d.clientWidth + 0.5).sort((a, b) => b[1] - a[1])[0]; const el = worst && worst[0]; if (!el) return over + "px overflow at " + window.innerWidth + "px, but every node past the edge sits under a fixed ancestor"; const name = (el.id ? "#" + el.id : el.tagName.toLowerCase() + "." + (el.className || "").toString().split(" ")[0]) + " [" + (el.textContent || "").trim().slice(0, 20) + "]"; return over + "px overflow at " + window.innerWidth + "px, widest NON-FIXED offender " + name + " right=" + worst[1].toFixed(1); }'
 		}
@@ -202,10 +212,11 @@ export default {
 			   `orderResult` compares has to be the same at both widths (the
 			   verdict row further down carries that lesson, and the first draft
 			   of the probe above expected "#student-drawer" and got "no
-			   overflow" at 1440). A fixed subtree creates no scrollable overflow
-			   and ../checks.mjs skips only the fixed element itself, never its
-			   children, so naming that category is what keeps the drawer's six
-			   descendants from reading as a finding. */
+			   overflow" at 1440). A fixed subtree creates no scrollable overflow,
+			   so naming that category is what keeps the drawer's six descendants
+			   from reading as a finding -- and since prompt 0029 ../checks.mjs
+			   makes the same distinction in its own offender list rather than
+			   skipping only the fixed element itself. */
 			label: 'nothing but fixed furniture is past the right edge',
 			evaluate:
 				'() => { const d = document.documentElement; const underFixed = (e) => { for (let p = e; p; p = p.parentElement) { if (getComputedStyle(p).position === "fixed") return true; } return false; }; const stray = [...document.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > d.clientWidth + 0.5).filter((e) => !underFixed(e)); return [stray.length === 0 ? "fixed furniture only" : "PAST THE EDGE: " + stray.length + " node(s), first " + (stray[0].id ? "#" + stray[0].id : stray[0].tagName.toLowerCase() + "." + (stray[0].className || "").toString().split(" ")[0]) + " [" + (stray[0].textContent || "").trim().slice(0, 16) + "]"]; }',

@@ -3374,6 +3374,26 @@ churn. The `vanguard_*` localStorage key pattern is the state convention (a
 non-synced key uses a different prefix, e.g. `vgcoop_`). Any other legacy file is
 unfrozen only by an explicit rule added here first.
 
+**THE ONE OTHER UNFREEZING GRANTED TO DATE, RECORDED HERE BECAUSE THAT IS WHAT
+THE SENTENCE ABOVE REQUIRES: two CSS rules in
+`src/lib/legacy/coins/index.html`, on 2026-09-04, under an explicit scoped
+authorisation from Mr. Pina carried in prompt 0025 (`the tab bar rules ONLY`).**
+What was edited is `.tab-bar` (gaining `flex-wrap: wrap`) and `.tab-btn`
+(gaining `min-height: 44px` and the flex centring that floor needs), inside the
+document's own `<style>` block. **The markup and the scripts were not touched**,
+which is what kept the edit safe: both serving routes import the file with
+`?raw` and serve it byte-for-byte with every injection applied to the served
+STRING, and no JS in the file reads tab geometry. The reason was a live
+reachability defect -- the Ledger's fourth tab sat off the right edge of a phone
+with `body { overflow-x: hidden }` making it unreachable by scrolling, by
+swiping, or at all, on a page any student opens without signing in -- and the
+tabs had never been measured against the 44px floor (33.8px at 1440, 39.6px at
+375). `docs/history/two-live-reachability-defects-2tajpx.md` carries the
+measurements. **This is a record of one exception, not a standing licence:** the
+next edit to that file needs its own authorisation and its own line here, and
+this rule was itself written a bundle late (prompt 0029), which is how a reader
+came to find an edited legacy file with nothing saying why.
+
 **The retired Sheets coin ledger is ARCHIVED under
 `docs/coin-economy/archive/legacy-system/`, not deleted.** `docs/` is not served and
 is on no import path. **It is historical reference and must never be reintroduced.**
@@ -3770,8 +3790,20 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   this file changes: push the branch, do not merge to `main`, exactly as every
   prompt already says. **A `claude/**` branch still standing after a session
   ends is a SIGNAL, not a leftover** -- its CI failed, its CI has not finished,
-  or its merge into `integration` conflicted -- and is worth naming in the same
-  report a still-open branch already gets.
+  its session's ledger entry still reads `Status: issued`, or its merge into
+  `integration` conflicted -- and is worth naming in the same report a still-open
+  branch already gets.
+  - **A BRANCH THE TARGET ALREADY CONTAINS IS DELETED TOO, WHICH IT USED NOT TO
+    BE.** The workflow used to merge-and-delete only what IT merged, so a branch
+    landed by hand -- every source branch of a merge bundle, for one -- became a
+    permanent ref that read as an outstanding session. Ten accumulated across
+    two rounds and five were deleted by hand. It now deletes a green, finished
+    `claude/**` branch whose every commit is already reachable from
+    `origin/integration` or `origin/main`, and says so in the job summary under
+    "Already contained, deleted". **Nothing else changed about what stands:** a
+    red branch, a running session's branch, a branch contained only in the
+    runner's unpushed working state, and `main`/`integration` under any
+    containment answer are all left exactly where they were.
 - **Never force-push `main`.** Not `--force`, not `-f`, not
   `--force-with-lease`. The repo holds the only archive of exported material
   revisions.

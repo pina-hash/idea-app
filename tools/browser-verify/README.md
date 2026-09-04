@@ -241,10 +241,19 @@ without a word reads like a check that stopped running.
   are static or absolute inside that fixed ancestor, so they reach right=727-750
   against a 375 viewport and sort to the top of any offender list ordered by
   that number while contributing nothing either. **`horizontal-scroll` in
-  `checks.mjs` skips an element whose OWN `position` is fixed and does not walk
-  up for a fixed ancestor**, which is why the drawer's six descendants were what
-  its report showed. That instrument gap is still open and is worth knowing when
-  reading any offender list this harness prints.
+  `checks.mjs` skipped an element whose OWN `position` was fixed and did not
+  walk up for a fixed ancestor**, which is why the drawer's six descendants were
+  what its report showed.
+
+  **That instrument gap is CLOSED as of 2026-09-04** (see "The checks" above for
+  the measured tables behind it, including the transformed-ancestor exception
+  that keeps it from becoming a false negative). `/dev/coins` and
+  `/dev/coins-signedin-1` now read `0px overflow ...; 9 node(s) past the edge
+  skipped as viewport-fixed` at both widths, and both specs stay green. It
+  stood open for two bundles after being correctly diagnosed, because the two
+  that found it did not own `checks.mjs` -- which is the argument for reporting
+  a defect outside your scope rather than working around it, and also the
+  argument for closing one when you do own the file.
 
   The cause was the Ledger's own tab bar: four tabs flexed into a 343px
   container with no `flex-wrap` and no `overflow-x`, with `Contracts` running
@@ -312,13 +321,13 @@ threshold exists it is printed beside the measurement, never instead of it.
 
 | Check | Measures |
 | --- | --- |
-| `horizontal-scroll` | `scrollWidth - clientWidth`, plus the widest offending elements and their overhang in px |
+| `horizontal-scroll` | `scrollWidth - clientWidth`, plus the widest offending elements and their overhang in px -- SKIPPING a whole viewport-fixed subtree, and counting what it skipped |
 | `contrast` | WCAG ratio of the text against the **real rendered ground**, naming which ancestor supplied it |
 | `tap-target` | Each control's box, the smallest min-dimension, counts under 44px and under the 24px floor, and a centre hit-test |
 | `tap-reach` | A `.tap-reach-44` control's expanded HIT AREA (its `::after` pseudo-element's own geometry, recomputed the way the CSS computes it), not its box -- plus a 5-point hit test across that area for a tap a neighbour might be stealing |
 | `presence` | **present**, **visible** and **aria-hidden** counts -- three different questions -- with a reason for every invisible node |
 | `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
-| `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen |
+| `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen. A non-array on either side is refused IN WORDS, never as a silent red |
 | `motion` | Per ELEMENT, in BOTH media states: how many elements animate under `no-preference`, and how many are still moving, still transformed or unpainted under `reduce`, plus the lowest resting opacity in the set |
 | `console-errors` | Console errors and uncaught exceptions during the run |
 
@@ -345,6 +354,50 @@ Three details are deliberate:
   vacuously about rows inside entrance-faded cards; those specs settle the
   entrance in `prepare` now (see `SETTLE_ENTRANCE`) rather than writing the
   vacuum down as an exemption.
+- **The offender list skips a whole FIXED SUBTREE, not only the fixed element.**
+  A fixed box's containing block is the viewport, so nothing under it
+  contributes to the document's scrollable overflow -- but its static and
+  absolute children carry the overlay's viewport coordinates, and sorted by
+  overhang they top the list. Measured in this container at 375: a 1200px static
+  box grows `scrollWidth` to 1200; a 1200px fixed box, a 300px fixed box with a
+  1200px static child, a fixed drawer at `left: 100%`, and a 1200px absolute
+  child of a fixed box all leave it at 375. The check tested the ELEMENT'S OWN
+  `position` until 2026-09-04, which is why `/dev/coins` reported six
+  descendants of `#student-drawer` as the cause of an overflow the Ledger's tab
+  bar was causing, for weeks. **The exception is measured too and is why this is
+  not a one-line `closest()`:** a `position: fixed` box under an ancestor with
+  `transform`, `translate`, `rotate`, `scale`, `perspective`, `filter`,
+  `backdrop-filter` or a non-`auto` `will-change` is NOT viewport-fixed, scrolls
+  with the document, and does extend it (measured, `scrollWidth` 1200 against a
+  375 viewport) -- so it is still reported, tagged `captured-fixed`. The walk
+  errs toward reporting: `contain` and `container-type` were measured NOT to
+  capture and are treated as if they might, because a false offender gets
+  investigated and a hidden overflow does not. **The skip count rides in the
+  measured string** whenever it is non-zero (`/dev/coins` reads `9 node(s) past
+  the edge skipped as viewport-fixed`), so an empty offender list beside a real
+  overflow can be told from a sweep that skipped the cause.
+- **`--tap-reach-w: 0` means zero, and used to be read as 44.** The reach width
+  was `parseFloat(...) || 44`, and `0 || 44` is 44 -- so a control declaring the
+  documented zero-width knob was modelled with a 44px-wide reach it does not
+  have. Ten components in `src/` declare it (CLAUDE.md requires it wherever two
+  controls sit closer than 44px on one line) and route specs point this check at
+  three of them, so this was a live mis-measurement rather than a latent one:
+  `.attach-name` is 22.5px wide, was reported at 44, and its two horizontal
+  sample points were taken 22px from centre instead of 11.25px. Unset still
+  defaults to 44, because that is what `var(--tap-reach-w, 44px)` in
+  `src/app.css` does; the declared string is reported verbatim as
+  `reachWDeclared` so a non-px value cannot be silently truncated to its number.
+- **`order-result` compares arrays and only arrays, and now SAYS so.** A probe
+  or a spec handing it a joined string could never come out within threshold,
+  and both report columns are `JSON.stringify`, so a row written
+  `expected: 'a,b,c'` against a probe returning `'a,b,c'` printed `"a,b,c"`
+  twice over a red verdict with nothing saying why. Prompt 0027 wrote four such
+  rows. The contract is unchanged -- accepting strings would hand back the
+  separator ambiguity an element-for-element comparison exists to remove -- and
+  the report is not: `measured` now reads `CANNOT COMPARE: ...` and names the
+  type it got, so the two columns can never read the same again. A probe that
+  THREW is reported the same way, instead of printing a bare
+  `{"__evalError":"..."}` against an array.
 - **The centre hit-test is recorded but is only meaningful IN THE VIEWPORT.**
   `document.elementFromPoint` answers null outside it and the harness never
   scrolls, so a control far down a long page reads `centreHitsSelf: false` --
@@ -477,6 +530,21 @@ which is the whole argument for generating it.
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
 once in a tree that then has to be restored byte-identically, this proves it on
 every run and touches nothing.
+
+**A SLOT MAY CARRY AN `assert`, AND SOME CLAIMS NEED ONE BECAUSE within/outside
+CANNOT REACH THEM.** `horizontal-scroll`'s verdict is `scrollWidth -
+clientWidth` and nothing else, so no pairing of fixtures can say anything about
+WHICH elements its offender list names -- and the offender list is the whole
+diagnostic value of that check, and was wrong for weeks. `assert` is
+`(result) => string | null` on a slot: null means the extra claim held, a string
+is the reason it did not, and a slot is PROVED only when the verdict AND its
+assert both hold. An assert failure is an instrument failure and is counted as
+one; the controls total stays one per slot, because an assert is a second
+condition on a control rather than a control of its own. Three groups use it
+today (the fixed-subtree walk both ways, the honoured `--tap-reach-w: 0`, and
+`order-result`'s refusal being legible), and all four of those asserts were
+proved to bite by restoring the three defects in `checks.mjs` and watching the
+run report `4 instrument failure(s)` and exit 1.
 
 **`tap-reach` is a SEPARATE check from `tap-target`, not a variant of it, for a
 control whose class is `.tap-reach-44` rather than `.tap-44`.** `.tap-reach-44`
