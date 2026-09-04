@@ -2,182 +2,69 @@
   "kind": "reference",
   "meta": {
     "theme": "idea-steel",
-    "title": "Unit 2, Day 1: Shop Safety",
+    "title": "Shop Safety",
     "course": "IDEA209H",
-    "subtitle": "Study guide. Everything on today's certification exam is on this page.",
+    "subtitle": "15 rules. All 15 are on today's exam.",
     "referenceId": "idea209h-u2-day01-shop-safety",
-    "buildVersion": "v1"
+    "buildVersion": "v2"
   },
   "sections": [
     {
-      "slug": "start",
-      "blurb": "What today is and how to use this page",
-      "title": "Start here",
-      "blocks": [
-        {
-          "type": "instructions",
-          "content": "Follow along with this while we go through it in class. **Everything on today's certification exam is on this page.**\n\nYou do not have to take notes. This is yours to read and keep. If you want to add anything, write it in your engineering notebook next to the section it goes with.\n\nYou will not have this during the exam."
-        },
-        {
-          "type": "instructions",
-          "content": "### What Unit 2 is\n\nYou will run five machines and make one part on each. The five parts assemble into a shop trophy that you keep.\n\nBefore you touch any machine, you have to be cleared. That is what today is for."
-        }
-      ]
-    },
-    {
-      "slug": "foundations",
-      "blurb": "PPE, and what to do when you get hurt",
-      "title": "1. Foundations",
-      "blocks": [
-        {
-          "type": "instructions",
-          "content": "### Eye protection\n\nSafety glasses go on any time you are in the shop area. Not just when you are running something.\n\nYou do not have to be the one cutting to catch something in the eye."
-        },
-        {
-          "type": "instructions",
-          "content": "### Hair, clothing, jewelry\n\nLong hair tied back. Loose clothing tucked in. Jewelry off.\n\nAnything that hangs can get pulled into a machine. Being careful does not help once something is caught."
-        },
-        {
-          "type": "instructions",
-          "content": "### Respirator\n\nSome jobs in this unit require one. Everyone owns their own and brings it to the next class.\n\nA respirator only works if it seals against your face. If it feels loose, it is not protecting you. Fix it before you start the job, not in the middle of it."
-        },
-        {
-          "type": "instructions",
-          "content": "### Reporting injuries\n\nEvery injury gets reported when it happens. Tell Mr. Pina.\n\nThat includes the small ones. The ones that barely bleed still get reported."
-        },
-        {
-          "type": "instructions",
-          "content": "Take your notes for this section in your engineering notebook."
-        }
-      ]
-    },
-    {
-      "slug": "clearance",
-      "blurb": "Who is allowed to run a machine, and when",
-      "title": "2. Clearance",
+      "slug": "rules",
+      "blurb": "Follow along. Nothing on the exam is outside this list.",
+      "title": "The 15 rules",
       "blocks": [
         {
           "type": "callout",
-          "title": "Nobody runs a machine until they are cleared",
-          "content": "There are two parts to getting cleared:\n\n1. Pass this exam.\n2. Get cleared by Mr. Pina at the machine, after you watch that station's video.\n\nWatching the video is one half. The clearance is the other half. Feeling ready is not the same as being cleared.",
+          "title": "Three things first",
+          "content": "1. You need **all 15 right** to pass. Miss one, you retake it.\n2. **No machine** until you pass and Mr. Pina clears you.\n3. Bring your **respirator** next class. Without it you are not in the shop.",
           "variant": "required"
         },
         {
           "type": "instructions",
-          "content": "Until you are cleared, you stay with your group in a role that does not involve running the machine: deburring, measuring, or writing the station record."
+          "content": "### Gear\n\n**1. Safety glasses on any time you are in the shop area.**\nNot just when you are running something.\n\n**2. Long hair tied back. Loose clothing tucked in. Jewelry off.**\nAnything that hangs can get pulled in.\n\n**3. Your respirator has to seal.**\nIf it feels loose, it is not protecting you. Fix it before you start.\n\n**4. Every injury gets reported when it happens.**\nIncluding the small ones."
         },
         {
           "type": "instructions",
-          "content": "### Never work alone\n\nNo running machines in an empty shop. That includes open shop outside class.\n\nIf something goes wrong, there has to be someone there."
+          "content": "### Permission\n\n**5. No machine until you pass and get cleared.**\nWatching the station video is only half of it. Feeling ready is not the same as being cleared.\n\n**6. Never run a machine alone.**\nNo running machines in an empty shop, including open shop. Someone has to be there.\n\n**7. Not sure if it is safe? Ask first.**\nIf you are not sure whether something is safe, stop and ask. Trying it slowly is still trying it."
         },
         {
           "type": "instructions",
-          "content": "### When you are not sure\n\nIf you are not sure whether something is safe, stop and ask.\n\nTrying it slowly to see what happens is still trying it."
+          "content": "### At the machine\n\n**8. Find the emergency stop before you turn it on.**\nIf you cannot stop it fast, you are not ready to start it.\n\n**9. Nothing goes into a running machine.**\nStop the machine first. Every time. That includes your hands.\n\n**10. New sound, new smell, new vibration? Stop.**\nTell Mr. Pina. Do not finish the cut first."
         },
         {
           "type": "instructions",
-          "content": "Take your notes for this section in your engineering notebook."
-        }
-      ]
-    },
-    {
-      "slug": "at-the-machine",
-      "blurb": "The three rules that matter most",
-      "title": "3. At the machine",
-      "blocks": [
-        {
-          "type": "instructions",
-          "content": "### Know the emergency stop before you start\n\nOn every machine, find the emergency stop before you turn it on.\n\nIf you cannot stop a machine fast, you are not ready to start it.\n\nYou will see the emergency stop again in each station's video, at the machine, before you use it."
+          "content": "### Other people\n\n**11. Do not talk to someone mid-cut.**\nWait until they are finished.\n\n**12. See something unsafe? Say something before they start.**\nAny group, any machine. After they finish is too late to matter.\n\n**13. Horseplay near a machine: tell them to stop.**\nTell them to stop. If they do not stop, tell Mr. Pina."
         },
         {
           "type": "instructions",
-          "content": "### Nothing goes into a running machine\n\nStop the machine first. Every time. That includes your hands.\n\nIf something is in the way, do not wait to see whether it clears itself."
-        },
-        {
-          "type": "callout",
-          "title": "If something changes, stop",
-          "content": "A new sound, a new smell, or a new vibration means something changed.\n\nStop the machine and tell Mr. Pina. Do not finish the cut first.\n\nStopping costs you a minute. Finishing the cut can cost you the part, the tool, or your hand.",
-          "variant": "warn"
-        },
-        {
-          "type": "instructions",
-          "content": "Take your notes for this section in your engineering notebook."
-        }
-      ]
-    },
-    {
-      "slug": "other-people",
-      "blurb": "Safety is not only about your own machine",
-      "title": "4. Other people",
-      "blocks": [
-        {
-          "type": "instructions",
-          "content": "### Do not distract someone who is operating\n\nNo tapping them on the shoulder. No asking them something mid-cut.\n\nWait until they are finished."
-        },
-        {
-          "type": "instructions",
-          "content": "### Speak up, any group, any machine\n\nIf you see someone about to do something unsafe, say something before they start.\n\nIt does not matter whose station it is or whose group they are in. Waiting until after they finish is waiting until it is too late to matter."
-        },
-        {
-          "type": "instructions",
-          "content": "### Horseplay near a running machine\n\nTell them to stop. If they do not stop, tell Mr. Pina.\n\nIt puts everyone nearby at risk, not just the person doing it."
-        },
-        {
-          "type": "instructions",
-          "content": "Take your notes for this section in your engineering notebook."
-        }
-      ]
-    },
-    {
-      "slug": "conduct",
-      "blurb": "How you leave it, and whose machine is whose",
-      "title": "5. The room",
-      "blocks": [
-        {
-          "type": "instructions",
-          "content": "### Leave the area usable\n\nClean your station every day, even if it makes you late.\n\nThe next person has to be able to work there. Leaving your mess makes your problem into someone else's problem.\n\nA cart comes around at the end of every class to collect work that is not finished."
-        },
-        {
-          "type": "instructions",
-          "content": "### Machines are assigned during class\n\nEvery machine belongs to a group during the block.\n\nIf you finish early, stay at your station and start your notebook entry. Not another group's machine, and not a computer."
-        },
-        {
-          "type": "instructions",
-          "content": "Take your notes for this section in your engineering notebook."
+          "content": "### The room\n\n**14. Clean your station every day, even if it makes you late.**\nThe next person has to be able to work there.\n\n**15. Finish early? Notebook, at your station.**\nStay at your station and start your notebook entry. Not another group's machine, and not a computer."
         }
       ]
     },
     {
       "slug": "exam",
-      "blurb": "How it works and what happens if you miss one",
+      "blurb": "How it works",
       "title": "The exam",
       "blocks": [
         {
-          "type": "callout",
-          "title": "You must get every question right to pass",
-          "content": "If you miss one, you retake it.\n\nYou cannot run any machine in this class until you pass and Mr. Pina clears you.",
-          "variant": "required"
-        },
-        {
           "type": "instructions",
-          "content": "- No devices, no notes, no talking.\n- If you have to retake it, that happens at lunch today or at the start of the next class.\n- Read every question all the way through. Some of them are testing whether you are paying attention, not whether you memorized something.\n\nEverything on the exam is on this page."
+          "content": "- All 15 right to pass. Miss one and you retake it.\n- A retake happens at lunch today or at the start of the next class.\n- No devices, no notes, no talking.\n- Read each question all the way through. Some check whether you are paying attention.\n- Everything on the exam is on this page."
         }
       ]
     },
     {
-      "slug": "bring",
-      "blurb": "One thing, and you cannot be in the shop without it",
-      "title": "Bring next class",
+      "slug": "unit-2",
+      "blurb": "Where this is going",
+      "title": "What Unit 2 is",
       "blocks": [
         {
-          "type": "callout",
-          "title": "Your respirator",
-          "content": "The 3M 7500 with the 60926 cartridges. Everyone needs their own.\n\nWithout it you are not in the shop.",
-          "variant": "required"
+          "type": "instructions",
+          "content": "Five machines. One part on each. The five parts assemble into a shop trophy that you keep.\n\nNotes go in your engineering notebook. You will not have this page during the exam."
         }
       ]
     }
   ],
-  "navigation": "tabs",
+  "navigation": "stacked",
   "schemaVersion": 2
 }
