@@ -1,5 +1,5 @@
 # IDEA Interface Standards
-**Version 2.11 - 2026-08-26**
+**Version 2.12 - 2026-09-05**
 
 Governs layout, viewport behavior, role parity, and interaction structure for every IDEA app surface: IDEA Classroom, the digital notebook, the reference reader, the grading console, the portal, and any surface built after this document.
 
@@ -197,6 +197,13 @@ The IDEA program is run from a desktop computer with a wide screen. Students use
 - **A state that means "acted upon" is distinguishable from one that means "not yet looked at."** A surface that offers no way to record approval forces the reviewer to hold that state in their head, which is the actual cost of a review console that feels slow.
 - **A boundary that carries meaning is measured; a boundary that decorates is not.** A rule dividing two paragraphs inside one card is decoration and needs no ratio. A rule that is the only thing separating two adjacent interactive rows, the outer edge of a control, or the edge of a card sitting directly on the page plate is doing work, and at 1.2:1 it is not doing it for anyone with reduced acuity. Load-bearing boundaries clear 3:1 against what they sit on. Carry the two as separate tokens so the distinction is made at the point of use rather than argued later: raising one global hairline to satisfy the load-bearing cases draws every decorative line at full strength and turns a tuned surface into a wireframe.
 - **Interactive targets clear 44px wherever they can be touched, and never fall below 24px anywhere.** 44px applies at any viewport where the surface is reachable on a phone, and on every student-facing surface at every width. The 24px floor is absolute and applies even to mouse-only instructor consoles, where 44px buys reflow rather than reach. Rounding to reach either floor rounds up; a mechanical sweep that snaps to the nearest token can take a 43px control to 41px and report success.
+- **The 24px floor is a property a surface declares, not one a bundle asserts about it.** A surface sits on 24px only when it is instructor-only and says so in a named CSS class on its own root, so the claim is written where a later sweep can read it off the element. A surface with no such class is student-facing for the purpose of this rule and clears 44px at every width, whatever the density argument, because "this is an instructor console" is a claim about who can reach the surface and nobody measuring a control six months later can see that from the control. Answered 2026-09-02 as a standing decision, after four sessions each correctly declined to reassign the rule from inside a bundle that did not own it.
+- **When the floor and the available space genuinely conflict, the control count is what gives, and the order is fixed.** The conflict is never really between a target and a container: the container is a property of the surface and the number of controls in it is a choice somebody made without measuring. Work it in this order, and report the numbers at each step that was tried.
+  1. **Re-lay the controls in the space that is already there.** Measure the container's inner width, divide by the floor plus the gap, and wrap to as many lines as that allows. N controls in one line may be a grid of controls at full size. This step is arithmetic rather than judgement, it belongs to whoever is measuring, and its cost is almost always row height, which is stated as a number rather than described.
+  2. **If no arrangement fits, the row carries fewer controls.** Move the surplus behind a deliberate affordance, or drop a function. Four controls in a cell with room for two is a design decision taken without measuring, and correcting it is the fix rather than an exception to the floor. This step changes what the surface can do, so it is raised to the surface's owner rather than taken inside the bundle that found it.
+  3. **Widening the container is available only where it costs nothing else that is measured, and never at the narrow width.** A target bought with a horizontal scroll a person did not have before trades a control they can hit for content they cannot find.
+  4. **Only when all three have been measured and all three fail is there an exception, and an exception is a decision entry with an owner and a date.** Never a code comment, never a standing row in a report. It names the surface, the measured numbers, the arrangements tried, and who owns the answer.
+- **A measured violation is never left as a standing finding.** A bundle that measures a control under a floor has exactly three ways to end: the control is fixed, or an exception is recorded per the order above with an owner on it, or the finding is handed on as an outstanding item with a phase attached under section 12. "Measured it, had a defensible reason not to fix it, wrote the number in the report" is not a fourth way out. A number that reappears on every run with nobody's name against it is a fact the project has quietly agreed to stop reading, and it is indistinguishable in the report from a fact nobody has looked at yet. The spec table's four row-action glyphs are the case: correctly measured at 23.2x23.2, correctly reasoned about, and left for two days with no owner and no next step until the rule above was written down.
 - **An inline target inside prose is exempt, and expanding it is a defect.** Prose lines sit roughly 24px apart, so a 44px hit area on a link inside a paragraph steals taps from the links above and below it. The floors are about controls that own their space, not about words inside a sentence.
 
 **Rationale.** A token sweep across the notebook found twelve of eighteen grid cell states below 4.5:1, five of them below 3:1 on the default plate, plus a focus ring invisible on two palettes. None of it was visible without measuring, and the surface had shipped and been used.
@@ -254,6 +261,23 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 ## Changelog
 
+- **2.12 (2026-09-05)** - Section 10 gains the answer to a decision that had been
+  answered on 2026-09-02 and never written down, plus the sentence that answer turned
+  out to need. The 24px floor is now a property a surface declares in a named CSS class
+  rather than a claim a bundle makes about it, so a student-facing surface has no
+  exception available to it at any width; five prompts had been quoting that decision
+  from a routing chat's memory, which is not evidence a rule exists. The clause it forced
+  is the one this document had never carried: what a surface does when the floor and the
+  space genuinely conflict. The conflict is never between the target and the container,
+  because the container is a property of the surface and the control count is a choice
+  made without measuring, so the order is re-lay, then carry fewer controls, then widen
+  only where nothing measured pays for it, then an exception that is a decision entry
+  with an owner. And a measured violation is never left as a standing finding: a number
+  that reappears every run with nobody's name on it reads in the report exactly like a
+  number nobody has looked at yet. The spec table's four row-action glyphs are the worked
+  case, measured at 23.2x23.2 on 2026-09-04, recorded as permanent, and fixed under step
+  1 in the bundle that wrote this entry: laid 2x2 at 44px inside the column that was
+  already there, at a stated cost of row height.
 - **2.11 (2026-08-26)** - Two rules added to section 6, both from the read-only audit of
   the notebook save path after a student lost a long entry on an iPhone. Recovery copy is
   checked against what the code persists: the camera-return reader claimed everything

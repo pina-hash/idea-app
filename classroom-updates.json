@@ -13,6 +13,16 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-05",
+			"title": "The little row buttons on a table are big enough to press now",
+			"body": "On an assignment with a table you fill in, each row has four small buttons at the end of it: move the row up, move it down, copy it, and delete it. They were tiny squares, about half the size a finger needs, and on a phone at the bench you would miss and hit the one next to it. They are full size now, laid out two across and two down so they fit in the same space the table already had. The table did not get any wider, and nothing else on the row moved. Rows are a little taller than they were.",
+			"tags": [
+				"Assignments",
+				"accessibility",
+				"fix"
+			]
+		},
+		{
 			"date": "2026-09-02",
 			"title": "The hall pass now has a limit, and your teacher can wave it",
 			"body": "The bathroom pass used to have no rules at all: you could sign back in and straight out again, as many times as you liked. Now the card tells you how many passes you have used in that class today before you tap, and if you have just come back it tells you the time you can go again. If you genuinely need to go and the pass will not let you, ask your teacher. They can send you out anyway, from the same card. Nothing about how long you can be out has changed, and nobody else in the class can see who is out or for how long.",
