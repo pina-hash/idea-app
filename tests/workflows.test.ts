@@ -352,7 +352,7 @@ const FORCE_SPELLINGS: readonly { readonly why: string; readonly re: RegExp }[] 
 	{ why: '+refspec', re: /(?:^|\s)['"]?\+[A-Za-z0-9_][\w./*-]*(?=[:\s'"]|$)/ }
 ];
 
-/** Only a `git push` counts. `gh api ... -f event=push` is not one. */
+/** Only a `git push` counts. `gh api ... -f status=completed` is not one. */
 const GIT_PUSH = /\bgit\b[^\n]*?\bpush\b/;
 
 /**
@@ -392,7 +392,8 @@ const CUTTABLE_GATES = [
 	{ fn: 'ledger_gate', marker: 'ledger_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: null },
 	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null },
-	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' }
+	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' }
 ] as const;
 
 /**
@@ -1223,11 +1224,20 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// The shapes a false positive would come from, and a false positive is
 		// how a check gets switched off: an ordinary push, a fetch refspec that
-		// really does lead with `+`, a `gh api` call carrying `-f event=push`,
+		// really does lead with `+`, a `gh api` call carrying `-f` parameters,
 		// and a shell test using `-f`.
+		//
+		// THE `gh api` FIXTURE IS THE LINE THAT IS ACTUALLY IN THE FILE, and it
+		// is worth keeping true: it used to read `-f event=push`, which the CI
+		// trigger fix removed, so the fixture was covering a shape nothing
+		// produces any more while the real line went uncovered.
 		expect(forcePushes('          if ! git push origin HEAD:refs/heads/main; then')).toEqual([]);
 		expect(forcePushes("          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'")).toEqual([]);
-		expect(forcePushes('            -f branch="$branch" -f event=push -f status=completed \\')).toEqual([]);
+		const ghApiLine = '                      -f branch="$branch" -f status=completed -f per_page=50 \\';
+		expect(forcePushes(ghApiLine)).toEqual([]);
+		expect(src('integrate.yml'), 'the gh api fixture is no longer a line in the file').toContain(
+			ghApiLine.trim().replace(/ \\$/, '')
+		);
 		expect(forcePushes('          if [ -f package-lock.json ]; then npm ci; fi')).toEqual([]);
 	});
 
@@ -1254,7 +1264,7 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
 		// leave a shorter table that still matches itself.
-		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(4);
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(5);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
@@ -1287,6 +1297,85 @@ describe('the invariants these particular workflows have to hold', () => {
 			CUTTABLE_GATES.filter((g) => g.harness === null).map((g) => g.fn),
 			'a gate gained or lost its in-repo proof harness'
 		).toEqual(['contained_delete_gate', 'target_push_gate']);
+	});
+
+	it('the per-branch CI query asks for a run on the SHA, not for a run from a TRIGGER', () => {
+		// THE 2026-09-04 DEADLOCK, AS A STANDING ASSERTION. The query passed
+		// `-f event=push`, so it asked GitHub only for CI runs a PUSH had
+		// started. Three finished branches had been re-run green by
+		// `workflow_dispatch`; the query returned nothing for their shas; all
+		// three read as `unknown`; the sweep skipped every one; nothing merged,
+		// so the push was discarded, so the deploy stayed blocked. A person
+		// merged all three by pull request instead.
+		//
+		// `tools/integrate-gate-proof.sh` proves the DECISION -- it cuts
+		// `ci_conclusion` out of the workflow and drives it on fixture payloads,
+		// green-per-trigger, red, older sha, no run, and both re-run
+		// directions. What it cannot see is the `gh api` call, because that
+		// needs a token and a network. So the parameters the query sends are
+		// asserted here, off the file, and the two halves together cover the
+		// whole path.
+		const s = src('integrate.yml');
+		// The query's own lines: the `gh api` call and its backslash
+		// continuations. COMMENTS ARE EXCLUDED, and that exclusion is the whole
+		// reason this is a line filter rather than a grep over the file -- the
+		// comments above `ci_conclusion` spell `event=push` twice while
+		// explaining why it is gone, and a check that could not tell an
+		// explanation from a parameter would have to forbid the explanation.
+		const isQueryLine = (l: string) =>
+			!/^\s*#/.test(l) && (/gh api/.test(l) || /-f (branch|status|per_page|event)=/.test(l));
+		const ghApi = s
+			.split('\n')
+			.map((l, i) => [i + 1, l] as const)
+			.filter(([, l]) => isQueryLine(l));
+		expect(ghApi.length, 'integrate.yml no longer makes the per-branch CI query').toBeGreaterThan(0);
+
+		// NO TRIGGER FILTER, on any line of the query. Asserted against the
+		// PARAMETER LINES rather than the whole file, because the comments
+		// above `ci_conclusion` legitimately spell `event=push` while
+		// explaining why it is gone -- a file-wide grep would either forbid the
+		// explanation or pass on the bug.
+		expect(
+			ghApi.filter(([, l]) => /-f\s*event=/.test(l)).map(([n, l]) => `${n}: ${l.trim()}`),
+			'the per-branch CI query filters on a TRIGGER again, which is the deadlock'
+		).toEqual([]);
+
+		// POSITIVE CONTROL: the predicate finds one when there is one. Without
+		// this the assertion above passes just as happily on a file that has no
+		// query in it at all.
+		const withFilter = s.replace('-f branch="$branch"', '-f branch="$branch" -f event=push');
+		expect(
+			withFilter.split('\n').filter(isQueryLine).filter((l) => /-f\s*event=/.test(l)).length,
+			'the trigger-filter check cannot see a trigger filter that is really there'
+		).toBeGreaterThan(0);
+		// SECOND CONTROL, the other direction: the comments as they stand must
+		// NOT be what makes the check green or red. On the real file the filter
+		// keeps the query lines and drops the prose, so the prose can say
+		// `event=push` as often as it needs to.
+		expect(
+			s.split('\n').filter((l) => /-f\s*event=/.test(l)).length,
+			'the file no longer explains why the trigger filter was removed'
+		).toBeGreaterThan(0);
+
+		// AND THE SHA MATCH IS THE HALF THAT MUST NOT WEAKEN. Widening which
+		// TRIGGERS count must never widen which COMMIT counts: a green run
+		// against a different commit says nothing about this one. The verdict
+		// is proved in the harness (case 39); that the selection is written at
+		// all is asserted here.
+		expect(s, 'ci_conclusion no longer pins the run to the branch tip').toContain(
+			'select(.head_sha == $sha)'
+		);
+		// The fork guard that replaced what `event=push` was quietly providing:
+		// a fork's run reaches our Actions as a `pull_request` run, which the
+		// trigger filter excluded as a side effect.
+		expect(s, 'ci_conclusion no longer refuses a run from a fork').toContain(
+			'select(.head_repository.full_name == $repo)'
+		);
+		// Newest wins, which matters more with every trigger admitted: one sha
+		// can now carry a red push run and the green re-run that fixed it.
+		expect(s, 'ci_conclusion no longer takes the NEWEST run for the sha').toContain(
+			'sort_by(.run_number) | last'
+		);
 	});
 
 	it('POSITIVE CONTROL: a renamed, reordered or emptied marker pair is caught', () => {
