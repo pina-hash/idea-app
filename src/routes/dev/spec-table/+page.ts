@@ -15,6 +15,13 @@ import type { PageLoad } from './$types';
  * the CONTROL -- the identical values carrying leading whitespace -- so a
  * measurement that finds no offset in the clean case cannot be read as the
  * sweep having found nothing at all.
+ *
+ * `?empty=1` is the SECOND control and reaches a state the seeded fixture
+ * cannot: a table block with no stored value at all, which is what an
+ * untouched table on a class page actually is. The Add-row arithmetic runs
+ * only on FIRST touch, so a table that arrives with rows in it never exercises
+ * it -- which is why the defect an instructor reported was invisible on this
+ * harness until this flag existed.
  */
 export const prerender = false;
 

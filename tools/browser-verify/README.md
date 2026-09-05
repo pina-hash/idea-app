@@ -75,13 +75,13 @@ appearing in those diffs at all.
 
 | Count | Value |
 | --- | --- |
-| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 98 |
+| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 99 |
 | Distinct routes those specs drive (alias-resolved, query string stripped) | 51 |
 | Directories under `src/routes/dev` with a page (the candidate set) | 82 |
 | Widths | 2 (375, 1440) |
-| Route/width runs a full pass makes (specs x widths) | 196 |
+| Route/width runs a full pass makes (specs x widths) | 198 |
 
-<!-- counts:static:data {"schema":1,"specs":98,"routes":51,"devPages":82,"widths":[375,1440],"runs":196} -->
+<!-- counts:static:data {"schema":1,"specs":99,"routes":51,"devPages":82,"widths":[375,1440],"runs":198} -->
 <!-- counts:static:end -->
 
 ### Measured -- from a full harness run
@@ -97,7 +97,7 @@ appearing in those diffs at all.
 | Full-run wall clock | 453.1s |
 | `--selftest` controls | 70 (36 negative, 34 positive), 0 instrument failure(s) |
 
-No measurement was outside its threshold on that run.
+Measurements outside threshold on that run:
 
 <!-- counts:measured:data {"schema":1,"date":"2026-09-05T01:02:31.797Z","sha":"4dc9df8ad2674a4658ee3c8cdd75328e00a2b70c","dirty":false,"runsMeasured":196,"measurements":2762,"outside":0,"outsideRows":[],"totalMs":453134,"selftest":{"controls":70,"negative":36,"positive":34,"failures":0}} -->
 <!-- counts:measured:end -->
