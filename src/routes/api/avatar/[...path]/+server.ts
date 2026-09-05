@@ -98,6 +98,14 @@ const AVATARS_BUCKET = 'avatars';
  * Long enough to survive the redirect and a slow image fetch, short enough
  * that a URL lifted out of a network log is stale before it is useful. The
  * classroom attachment route's own figure, for the same reason.
+ *
+ * IT MUST STAY LARGER THAN `CACHE_CONTROL`'s max-age, AND THAT RELATIONSHIP IS
+ * LOAD-BEARING RATHER THAN COINCIDENTAL. A browser may reuse this 302 for the
+ * length of that max-age, so a cached redirect handed out at the last permitted
+ * moment still points at a signed URL with 120 - 60 = 60 seconds left on it.
+ * Raise the cache window past this TTL and the tail of every cache lifetime
+ * becomes a redirect to an expired URL -- which renders as a broken image that
+ * fixes itself a minute later, the hardest possible thing to report.
  */
 const SIGNED_URL_TTL_SECONDS = 120;
 
