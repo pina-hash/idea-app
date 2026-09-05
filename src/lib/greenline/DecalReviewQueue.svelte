@@ -51,7 +51,17 @@
 </script>
 
 {#if items.length === 0}
-	<p class="gdq-empty">No decals awaiting review.</p>
+	<!-- A queue with nothing in it says so deliberately rather than rendering
+	     an absence: "nothing waiting" and "this panel did not load" must not
+	     look the same, which is the failure the whole moderation lane exists
+	     because nobody could tell apart. -->
+	<p class="gdq-empty" data-testid="decal-queue-empty">
+		<b>No decals are awaiting review.</b>
+		<span
+			>A student's decal is usable in their own garage the moment they upload it, and readable
+			by anyone else only after you approve it.</span
+		>
+	</p>
 {:else}
 	<ul class="gdq">
 		{#each items as i (i.userId)}
@@ -106,10 +116,22 @@
 
 <style>
 	.gdq-empty {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		max-width: 44rem;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 0.72rem;
-		color: var(--dim, #4a7a52);
+		line-height: 1.5;
+		/* `--dim` is the token that clears only the DARKEST portal ground, and
+		   this text is real copy rather than a placeholder, so it reads through
+		   `--text-2` -- the register's own token for secondary copy -- with the
+		   room's hook in front of it for the GREENLINE plate. */
+		color: var(--gdq-note-ink, var(--text-2, #b8c6d0));
 		padding: 0.4rem 0 0.2rem;
+	}
+	.gdq-empty b {
+		color: var(--white, #e8ffe8);
 	}
 	.gdq {
 		list-style: none;
@@ -190,7 +212,17 @@
 		background: none;
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
 		border-radius: 3px;
-		padding: 0.35rem 0.6rem;
+		/* 44px as a MIN-HEIGHT, never a height, so the floor can only round up
+		   (IDEA_INTERFACE_STANDARDS 10). Neither surface that mounts this queue
+		   -- the dashboard or /greenline/moderation -- declares an
+		   instructor-only density class, so there is no 24px exception to take
+		   and the cost is row height. The pair already wraps, so a narrow
+		   column gets two lines rather than two shrunken controls. */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0.35rem 0.8rem;
 		cursor: pointer;
 	}
 	.gdq-btn:hover:not(:disabled) {

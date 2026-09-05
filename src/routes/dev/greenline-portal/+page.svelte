@@ -48,6 +48,7 @@
 		registerCommunityTracks
 	} from '$lib/greenline/tracks';
 	import { communityMetaMap, type CommunityTrackSummary } from '$lib/greenline/community';
+	import { pendingLabel } from '$lib/greenline/moderation';
 	import { validatePublishTrack } from '$lib/greenline/builder/validate';
 	import TrackModerationPanel from '$lib/greenline/TrackModerationPanel.svelte';
 	import type { TrackData } from '$lib/greenline/track-schema';
@@ -377,6 +378,15 @@
 	}
 	let devCommunity = $state<DevCommunityTrack[]>([]);
 	let devTrackSeq = 0;
+	/**
+	 * "Am I staff" for the TITLE screen's moderation entry. The real route
+	 * decides this with `isAdmin` in its server load and passes `onModeration`
+	 * only for an admin, so ABSENCE is the mechanism there and here alike --
+	 * this toggle is what makes both halves of that absence drivable without
+	 * auth. It gates NOTHING: the real gate is the moderation route's 404 and
+	 * `is_teacher()` inside the four review RPCs.
+	 */
+	let devStaff = $state(true);
 	const avgOf = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 	/**
 	 * THE 0059 VISIBILITY PREDICATE, mirrored from the RLS select policy and the
@@ -454,6 +464,19 @@
 		registryRev++;
 	}
 	const devCommunityMeta = $derived(communityMetaMap(devSummaries));
+	/**
+	 * The title screen's badge, through the REAL `pendingLabel` the route calls
+	 * -- so the harness cannot show a sentence production never produces. The
+	 * counts are the harness's own store standing in for the two count reads.
+	 */
+	const devPending = $derived({
+		ready: true,
+		tracks: devCommunity.filter((t) => t.status === 'pending' && !t.removed).length,
+		decals: decalQueueItems.length,
+		total:
+			devCommunity.filter((t) => t.status === 'pending' && !t.removed).length +
+			decalQueueItems.length
+	});
 	/** Publish through the REAL authoritative validator (the exact function the
 	 * server endpoint runs); the parked builder track when one exists, else a
 	 * clone of Proving Ground 07. */
@@ -992,6 +1015,13 @@
 			syncRegistry();
 		}}>user B (BEN)</button
 	>
+	<button
+		class:on={devStaff}
+		data-testid="dev-staff"
+		onclick={() => (devStaff = !devStaff)}
+		title="Whether the title screen offers the staff moderation entry (the real route passes the callback only for an admin)"
+		>staff {devStaff ? 'on' : 'off'}</button
+	>
 	<button data-testid="dev-submit" onclick={() => devPublish()}>
 		submit {customTrack.data ? 'parked builder track' : 'sample track'}
 	</button>
@@ -1028,6 +1058,8 @@
 				(lastAction = 'PIECE EDITOR (would goto /greenline/piece-builder)')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
+			onModeration={devStaff ? () => (view = 'moderation') : undefined}
+			moderationLabel={devStaff ? pendingLabel(devPending) : ''}
 			enableShortcut={!settingsOpen && !feedbackOpen}
 		/>
 	{:else if view === 'garage'}
@@ -1142,11 +1174,27 @@
 			<!-- The TEACHER's list (every row at every status), deliberately not
 			     the player-visible `devSummaries` — mirroring the list RPC's
 			     is_teacher() branch. -->
+			<div class="dh-mod-h" data-testid="dev-mod-tracks-h">
+				Community tracks · {devPending.tracks} awaiting review
+			</div>
 			<TrackModerationPanel
 				tracks={devModerationSummaries}
 				onFeature={devFeature}
 				onRemove={devTeacherRemove}
 				onReview={devReview}
+			/>
+			<!-- BOTH QUEUES, the way /greenline/moderation now arranges them.
+			     GREENLINE takes two kinds of student submission that wait on a
+			     teacher, and a moderation surface showing one of them is how the
+			     other one sat somewhere nobody was prompted to look. The harness
+			     mirrors the whole surface or it proves nothing about it. -->
+			<div class="dh-mod-h" data-testid="dev-mod-decals-h">
+				Custom decals · {devPending.decals} awaiting review
+			</div>
+			<DecalReviewQueue
+				items={decalQueueItems}
+				onApprove={devApproveDecal}
+				onRequestRevision={devReviseDecal}
 			/>
 		</div>
 	{:else}
@@ -1305,6 +1353,19 @@
 	}
 	.dh-moderation {
 		padding: 1rem;
+	}
+	/* The harness's stand-in for the real route's section headings, so the two
+	   queues are separated the same way there and here. */
+	.dh-mod-h {
+		margin: 1.2rem 0 0.4rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.76rem;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: #eaf4ff;
+	}
+	.dh-moderation > .dh-mod-h:first-child {
+		margin-top: 0;
 	}
 	.dh-center {
 		min-height: 100%;
