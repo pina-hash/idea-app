@@ -187,24 +187,38 @@
 }
 
 /* ==========================================================================
-   MEASURED. Every text role this theme repaints, against every ground this
-   theme repaints, computed from the sRGB relative-luminance formula and
-   confirmed in Chromium by painting each colour over its composited ground
-   and reading the pixel back (see tools/browser-verify/routes/theme-*.mjs).
-   BASE -> MATRIX, worst ground first:
+   MEASURED, in Chromium 141 at 375px and 1440px, by compositing each colour
+   over its real painted ground and reading the pixel back off a canvas --
+   these tokens resolve to color(srgb ...) and color-mix(), which a regex over
+   computed styles skips silently and then reports the plate instead of the
+   real ground. `/dev/themes` renders the board; the numbers are identical at
+   both widths.
 
-     role        worst base ground   base   matrix
-     --white     --plate             9.39   13.18
-     --text-1    --plate             9.68   13.70
-     --text-2    --plate             4.57    7.11
-     --dim       --plate             3.51    4.91
-     --ice       --plate             5.85    8.23
-     --gear      --plate             2.95    4.14
-     --boundary  --plate             2.66    4.15   (3:1 floor, non-text)
-     --text-3    --plate             1.97    2.87   (decorative; no floor)
+   THE BOARD IS THE PAIRINGS THE APP MAKES, NOT THE CARTESIAN PRODUCT: 54
+   cells, six page grounds at eight roles plus --plate carrying a hero panel's
+   copy and --green-tint carrying a selected classroom row's. --plate takes no
+   boundary because colors.css says in its own words that nothing in the app
+   renders on it.
 
-   Every cell of the full 15x8 role-by-ground table improves. Nothing this
-   theme repaints gets closer to a floor than the base theme already was,
-   which is the claim that matters: a green-on-black theme is exactly where
-   contrast quietly fails, so the number is here rather than an assurance.
+   WORST GROUND PER ROLE, base -> matrix:
+
+     role        floor  worst ground     base    matrix
+     --white      4.5   --plate           9.39   13.18
+     --text-1     4.5   --green-tint     10.42   10.73
+     --text-2     4.5   --green-tint      4.91    5.57
+     --ice        4.5   --bg2             7.06    8.98
+     --dim        4.5   --bg2             4.24    5.35
+     --gear       4.5   --bg2             3.57    4.52
+     --boundary   3     --green-tint      2.86    3.25
+     --text-3     0     --bg2             2.38    3.14   (decorative)
+
+   ALL 54 CELLS CLEAR THEIR FLOOR UNDER THE THEME AND NOT ONE IS WORSE THAN
+   THE BASE PALETTE. Three of them clear a floor the base palette MISSES
+   (--gear on --bg2, --boundary on --green-tint, --dim on --bg2) -- those are
+   pre-existing gaps CLAUDE.md already names in words, improved here as a side
+   effect and not fixed: fixing them is a palette bundle with its own answer
+   for every surface that reads those tokens.
+
+   A green-on-black theme is exactly where contrast quietly fails, so the
+   number is here rather than an assurance.
    ========================================================================== */
