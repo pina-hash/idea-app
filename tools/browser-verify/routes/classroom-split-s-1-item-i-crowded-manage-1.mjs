@@ -35,6 +35,21 @@ export default {
 		{ selector: '[data-testid="check-in-open"]', label: 'second attach door control', min: 24 },
 		{ selector: '[data-testid="detach-check-in"]', label: 'detach control', min: 24 }
 	],
+	/* THE ONE MOUNT WHERE THE ATTACHMENT ROWS ARE PACKED, and the only one
+	   where the defect showed. `.attach-name` carries `.tap-reach-44` with a
+	   height-only reach, and on this fixture the two rows sat 41.3px apart
+	   centre to centre -- so the second row's reach, which paints later, took
+	   the bottom of the first row's and the first filename walked 88 x 41.5 at
+	   both widths. `/dev/classroom-images` mounts the same component with the
+	   rows further apart and measured a clean 45 throughout, which is why a row
+	   there could never have caught this: the spacing is the variable and this
+	   is the fixture that has it. Fixed 2026-09-05 by giving `.attach-meta` a
+	   44px floor, so every row owns its own band and two reaches cannot overlap
+	   whatever the content; measured after, 88 x 45 on both rows at both
+	   widths, list height 74.5 -> 96. */
+	tapReach: [
+		{ selector: 'a.attach-name', label: 'attachment filename links (packed rows)', min: 44 }
+	],
 	/* THE CROWDED FIXTURE'S OWN IMAGE ATTACHMENT (span-photo.jpg), not this
 	   bundle's doing: `AttachmentList` always renders through
 	   `attachmentSrc()` -> `/api/classroom/attachment/<id>`, a real server

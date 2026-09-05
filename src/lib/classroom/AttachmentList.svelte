@@ -202,12 +202,34 @@
 		height: auto;
 		object-fit: contain;
 	}
+	/* THE ROW OWNS A 44px BAND, AND THAT IS WHAT STOPS TWO REACHES STEALING
+	   FROM EACH OTHER. `.attach-name` carries `.tap-reach-44` with the width
+	   knob at zero, so each filename link has a 44px-TALL hit area centred on
+	   itself. Hit-tested 2026-09-05 on the packed item page at 375 and 1440:
+	   the first of two rows walked **88 x 41.5**. Nothing clipped it -- the
+	   rows simply sat 41.3px apart centre to centre (22.5/2 + 8px gap + 44/2),
+	   so the NEXT link's reach, which paints later, took the bottom 2.7px of
+	   this one's. Two reaches stacked closer than 44px apart steal from each
+	   other exactly as two side by side do, and only the vertical case had no
+	   rule against it.
+
+	   `min-height` ON THE LINE, NOT A BIGGER GAP. Raising `.attach-list`'s gap
+	   from 8px to 11px also clears 44 for THIS pair of row heights (41.3 ->
+	   44.3) and costs only 3px, and it is refused: the centre-to-centre
+	   distance is `h1/2 + gap + h2/2`, so two 22.5px rows at an 11px gap are
+	   33.5px apart and overlap again. A 44px floor on the line HOLDING the link
+	   makes the distance at least `22 + gap + 22`, which is a property rather
+	   than an arithmetic coincidence that happens to hold for the fixture in
+	   front of us. `IDEA_INTERFACE_STANDARDS` 10 (2.12) step 1: the list is a
+	   column in a card with the full measure to itself, so nothing competes for
+	   the height. The cost is 21.5px per row that was shorter than 44. */
 	.attach-meta {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
 		flex-wrap: wrap;
 		min-width: 0;
+		min-height: 44px;
 	}
 	.attach-name {
 		display: inline-flex;
