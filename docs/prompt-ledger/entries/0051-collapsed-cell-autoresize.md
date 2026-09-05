@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: the cell autoresize in `SpecRenderer.svelte`, `src/routes/dev/spec-table/**`, `tools/browser-verify/routes/spec-table*.mjs`, the generated regions of its README, `tests/classroom-spec-table*`, `tests/dom/spec-table*`, `docs/prompt-ledger/entries/0051-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: Prompt 0048 measured a spec table at twelve rows and found, beside
   the thing it was sent for, that **19 of 60 cells were clipped** on a table

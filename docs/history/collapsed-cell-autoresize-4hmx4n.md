@@ -194,13 +194,22 @@ clipped refusal 1, restoring the refit workaround 1, dropping the click-open ste
   exported as placeholders: **0 errors, 37 warnings**, breakdown **31 `state_referenced_locally`
   / 5 `css_unused_selector` / 1 `perf_avoid_nested_class`** over 20 files. The baseline,
   unmoved.
-* `npm test`: **5595 tests, 271 files**. Two failures, both in `tests/derived-numbers.test.ts`
-  and both **inherited from `ce89809`**, not caused here -- see below. Everything else green.
-  Run at **10:54:54 to 10:57:44 PDT (America/Los_Angeles), 2026-09-05**, 169.8s.
+* `npm run check` (`svelte-kit sync && svelte-check`): **0 errors, 37 warnings, 20 files
+  with problems**, over 2944 files. Run at **11:12:09 PDT**.
+* `npm test`, run TWICE. The first, at **10:54:54 to 10:57:44 PDT (America/Los_Angeles),
+  2026-09-05**, 169.8s: 5593 passed and **two failures, both in
+  `tests/derived-numbers.test.ts` and both inherited from `ce89809`** -- see below. The
+  second, after regenerating the measured README region, at **11:09:04 to 11:11:55 PDT**,
+  169.5s: **271 files, 5595 tests, all passing.**
 * `npm run verify:counts -- --check`: the static region agrees with this tree, before and
-  after (no route spec was added or removed).
+  after (no route spec was added or removed, so the count stays 103).
 * `npm run verify:browser -- --route 'rows=12'`: green at both widths, **30 measurements,
   0 outside threshold, 0 console errors**.
+* `npm run verify:readme`, once, on a clean tree at `c7f57b9` with the dev-server port
+  already held: **206 route/width runs, 3010 measurements, 2 outside threshold, 467.5s**,
+  and `Route specs the run covered` moved **102 to 103**, which is the static count. The 2
+  outside rows are the `/dev/notebook` `tap-reach` pair (decision 12, with the owner) and
+  are the same two the previous measurement carried.
 
 ### The inherited failure, which is prompt 0051's own Phase A finding
 
@@ -214,8 +223,14 @@ both numbers**, and the one uncovered spec is the route that found this very def
 one generated place a reader consults was reporting a clean score for a route the run never
 visited, which is exactly the failure `tools/browser-verify/README.md` names at its own
 line 49. The two outside-threshold rows are the known `/dev/notebook` `tap-reach` pair
-(decision 12, with the owner). Regenerating the measured region with `npm run verify:readme`
-on a clean tree is what closes it.
+(decision 12, with the owner) and are not this bundle's.
+
+Regenerating the measured region on a clean tree closed it: covered is now **103**, equal
+to the static count, `spec-table-rows-12.mjs` is in the list, and both `derived-numbers`
+failures went green in the second suite run. **This bundle is the reason that route's
+measurement finally exists in the one generated place a reader consults**, which is worth
+more than the fix itself the next time somebody asks whether the spec table has been
+looked at.
 
 ## Not verified
 
