@@ -237,3 +237,136 @@ export function gridStudentSubject(row: {
 		email: row.email ?? null
 	};
 }
+
+/**
+ * ===========================================================================
+ * THE PROXY: WHERE AN UPLOADED AVATAR'S BYTES ARE ASKED FOR.
+ * ===========================================================================
+ *
+ * `avatars` was a PUBLIC bucket from 0020 until 0181. `avatarUploadUrl` in
+ * `$lib/profile.ts` built `<supabase>/storage/v1/object/public/avatars/<key>`
+ * and `Avatar.svelte` put that straight in an `src`, so every page that
+ * rendered a face also published a permanent, unexpiring, world-readable URL
+ * for it into its own HTML.
+ *
+ * MEASURED, NOT READ OFF THE POLICY: with 0020's `to public` select policy in
+ * force an anonymous caller does not have to guess a key. It can LIST them --
+ * the policy places no restriction on which rows `public` may select, so
+ * `select name from storage.objects where bucket_id = 'avatars'` answers with
+ * every object in the bucket. That is why the fix is a boundary and not a
+ * longer key: a random filename defends against guessing and not at all
+ * against a listing.
+ *
+ * 0181 makes the bucket private and replaces that policy with one `to
+ * authenticated`. These two functions are the client half: an uploaded avatar
+ * is asked for at `/api/avatar/<key>` on OUR origin, and
+ * `src/routes/api/avatar/[...path]/+server.ts` mints a short-lived signed URL on
+ * the CALLER'S OWN client and 302s to it. The policy is the boundary; the
+ * route is not.
+ *
+ * WHY THE REWRITE LIVES HERE AND NOT IN `avatarUploadUrl`. Every surface that
+ * shows a face -- the profile menu, the classroom roster, the grading console,
+ * the three notebook surfaces, the admin dashboard and the GAUNTLET
+ * leaderboard -- mounts `Avatar.svelte`, and `Avatar.svelte` is the ONE place
+ * that turns a resolved source into an `src`. Rewriting there reaches all of
+ * them with no edit to any of them, which is what let the GAUNTLET leaderboard
+ * keep working while being read-only to the bundle that did this.
+ * `tests/avatar-proxy.test.ts` sweeps `src/` so it stays the one place.
+ */
+
+/**
+ * Where an uploaded avatar's bytes are asked for: OUR origin, never Storage's.
+ *
+ * UNDER `/api/` RATHER THAN AT THE TOP LEVEL, AND THAT IS FORCED RATHER THAN
+ * STYLISTIC. A top-level SvelteKit route resolves ahead of the `[shortlink]`
+ * catch-all, so `src/routes/avatar/` would make the slug `avatar`
+ * permanently unreachable as a short link -- which this repo treats as a
+ * schema change: `RESERVED_SLUGS` and `_app_short_link_reserved` have to name
+ * the identical set (`tests/short-link-reserved-names.test.ts`), so it costs a
+ * migration on the short-link predicate as well as an edit to
+ * `$lib/short-links.ts`. 0166 spent a whole migration adding `maps` for
+ * exactly this. `api` is already reserved, this is a server route that needs
+ * the server (a credential-free mint on the caller's own client), and every
+ * other byte-serving route in the tree lives there -- so the same URL costs
+ * nothing anybody has to remember.
+ */
+export const AVATAR_PROXY_PREFIX = '/api/avatar/';
+
+/**
+ * A STORAGE KEY IS NOT A TRUSTED STRING, AND THAT IS THE REASON THIS FUNCTION
+ * EXISTS RATHER THAN A TEMPLATE LITERAL AT THE CALL SITE.
+ *
+ * `profiles.avatar` is free text on a row its owner updates DIRECTLY, through
+ * 0001's "update own profile" policy, with no CHECK constraint and no
+ * validating RPC anywhere in the chain. So `upload:../../anything` is a value
+ * a signed-in person can write to their own row today. While the URL was a
+ * dead public link that produced a broken image and nothing else; pointed at a
+ * route that mints a signed URL from it, the same string becomes an input to a
+ * storage key.
+ *
+ * The shape is therefore ASSERTED rather than escaped: `<uuid>/<filename>`,
+ * where the filename carries no separator and no traversal. Anything else
+ * answers null and the caller renders the initials tile -- the same tile a
+ * person who chose no picture gets, which is what makes a malformed value
+ * indistinguishable from an absent one.
+ *
+ * It is deliberately the SAME predicate the server route applies. Two
+ * spellings of "is this a real key" is the pair that stops agreeing, and the
+ * half that would go quiet is the server's.
+ */
+const AVATAR_KEY_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/[A-Za-z0-9._-]{1,120}$/;
+
+/**
+ * The storage key inside an `upload:<key>` value, or null for anything else --
+ * a preset, a Google photo, an absent avatar, or a key that is not one.
+ */
+export function avatarObjectKey(chosen: string | null | undefined): string | null {
+	const v = (chosen ?? '').trim();
+	if (!v.startsWith('upload:')) return null;
+	const key = v.slice('upload:'.length);
+	if (!AVATAR_KEY_RE.test(key)) return null;
+	// A leading or trailing dot on the filename half cannot make `.` or `..`
+	// past the regex above (both are shorter than the uuid segment it demands
+	// first), but a filename that IS `.` or `..` still resolves oddly in a URL,
+	// so it is refused by name rather than by argument.
+	const file = key.slice(key.indexOf('/') + 1);
+	if (file === '.' || file === '..') return null;
+	return key;
+}
+
+/**
+ * The URL an uploaded avatar is asked for. Each segment is encoded: the key
+ * has already been through `avatarObjectKey`, so nothing here can be a
+ * traversal, but a route that depended on its input being clean would be one
+ * regex edit away from not being.
+ */
+export function avatarProxyUrl(key: string): string {
+	return AVATAR_PROXY_PREFIX + key.split('/').map(encodeURIComponent).join('/');
+}
+
+/**
+ * The ONE rewrite, applied to a source `avatarSource` has already resolved.
+ *
+ * It moves ONLY the `upload:` case, and the two it leaves alone are the reason
+ * it takes the raw `avatar` value rather than sniffing the resolved URL:
+ *
+ *   * A GOOGLE PHOTO is a `googleusercontent.com` URL. It is not in our store,
+ *     it is not ours to gate, and routing it through a proxy of ours would
+ *     make our server fetch a third party on every roster render for no
+ *     boundary at all.
+ *   * A PRESET is inline SVG and makes no request.
+ *
+ * A malformed `upload:` value falls through to `initials`, which is the tile
+ * -- so it renders as an absence rather than as a hole, and it is the same
+ * tile a refused image ends on.
+ */
+export function proxiedAvatarSource(
+	chosen: string | null | undefined,
+	resolved: AvatarSource,
+	fallbackText: string
+): AvatarSource {
+	if (!(chosen ?? '').trim().startsWith('upload:')) return resolved;
+	const key = avatarObjectKey(chosen);
+	if (!key) return { kind: 'initials', text: fallbackText };
+	return { kind: 'image', url: avatarProxyUrl(key) };
+}
