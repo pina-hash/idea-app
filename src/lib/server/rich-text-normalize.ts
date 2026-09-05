@@ -55,7 +55,8 @@ export type { RichItem, RichList };
 /** A block, loose enough for both closed shapes. Cast to one at the door. */
 export type RichBlock =
 	| { type: string; runs: RichInline[] }
-	| { type: string; items: RichItem[] };
+	| { type: string; items: RichItem[] }
+	| { type: string; src: string; alt: string };
 
 export interface RichWalkOptions {
 	/**
@@ -71,6 +72,27 @@ export interface RichWalkOptions {
 	 * note has no headings.
 	 */
 	blockType?: (node: TiptapNode) => string | null;
+	/**
+	 * Claim a node as a block that carries no runs at all -- the classroom's
+	 * image (0176) -- or return null to let it fall through to the text walk.
+	 *
+	 * OPT-IN, EXACTLY AS `blockType` IS, AND FOR THE SAME REASON. This walk is
+	 * shared with the notebook's written notes, whose stored contract has no
+	 * image in it and whose SQL gate refuses one. A branch written here
+	 * unconditionally would widen what a NOTE can be asked to hold because the
+	 * classroom's body grew, which is precisely the coupling the two contracts
+	 * are kept apart to avoid. The notebook passes nothing and cannot emit one.
+	 *
+	 * IT IS CONSULTED BEFORE THE TEXT WALK, and that ordering is the whole of
+	 * why an image survives at all: an atom node has no text, so `trimRuns`
+	 * comes back empty and the block is DROPPED by the guard below. A claim
+	 * made afterwards would never be reached.
+	 *
+	 * A claimant that wants to REFUSE rather than emit returns null and records
+	 * the problem itself; this walk has no refusal channel and must not grow
+	 * one, because its other caller's signature is not this bundle's to change.
+	 */
+	imageBlock?: (node: TiptapNode) => RichBlock | null;
 }
 
 /** Marks we understand. Anything else on a run is simply not carried over. */
@@ -303,9 +325,10 @@ export function listItems(node: TiptapNode, depth: number, opts: RichWalkOptions
  * Editor nodes -> blocks of one of the two closed shapes.
  *
  * The cast is the one place the loose `RichBlock` meets a closed union, and it
- * is safe by construction: the only types this emits are `ul`, `ol`, `p` and
- * whatever `blockType` returns, and each caller's `blockType` returns only
- * members of its own union.
+ * is safe by construction: the only types this emits are `ul`, `ol`, `p`,
+ * whatever `blockType` returns and whatever `imageBlock` returns, and each
+ * caller supplies only members of its own union (the notebook supplies
+ * neither hook a block type it does not have).
  */
 export function richBlocksFrom<Block extends RichBlock>(
 	nodes: TiptapNode[],
@@ -319,6 +342,15 @@ export function richBlocksFrom<Block extends RichBlock>(
 		if (isList(node)) {
 			const list = listFrom(node, depth + 1, opts);
 			if (list) blocks.push(list);
+			continue;
+		}
+
+		// BEFORE the text walk. See `imageBlock` above: an atom has no text, so
+		// asking afterwards is asking about a node the empty-runs guard has
+		// already thrown away.
+		const claimed = opts.imageBlock?.(node);
+		if (claimed) {
+			blocks.push(claimed);
 			continue;
 		}
 

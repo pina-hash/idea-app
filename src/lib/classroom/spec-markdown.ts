@@ -32,7 +32,15 @@
  * code. Those counts overlap -- one field can carry two of them.
  */
 
-import { docToTiptap, type ItemBlock, type ItemDoc, type ItemInline, type ItemItem, type ItemList } from '$lib/classroom/classroom-doc';
+import {
+	ITEM_IMAGE_NODE,
+	docToTiptap,
+	type ItemBlock,
+	type ItemDoc,
+	type ItemInline,
+	type ItemItem,
+	type ItemList
+} from '$lib/classroom/classroom-doc';
 import {
 	parseMarkdown,
 	type InlineRun,
@@ -105,7 +113,27 @@ export function markdownToItemDoc(markdown: string): ItemDoc | null {
 				doc.push(list);
 				break;
 			}
-			// quote, code, table and figure have no `ItemBlock`.
+			case 'figure': {
+				// A FIGURE IS AN `ItemBlock` NOW (0176), so this field no longer
+				// falls back to the source textarea for carrying a picture. The
+				// caption a figure line writes is BOTH the `alt` and the
+				// `figcaption` in every renderer, which is exactly what the image
+				// block stores, so the two vocabularies map one to one with
+				// nothing invented on the way across.
+				//
+				// A BLANK CAPTION CANNOT REACH HERE: `FIGURE_RE` refuses one, so a
+				// `![](x.png)` line parses as a paragraph and never becomes a
+				// figure node at all. The guard is kept anyway, because this
+				// function's input is a stored markdown string rather than
+				// something a parser just built, and an image with no description
+				// must not be constructible by any path.
+				const alt = (node.alt ?? '').trim();
+				const src = (node.src ?? '').trim();
+				if (!alt || !src) return null;
+				doc.push({ type: 'img', src, alt });
+				break;
+			}
+			// quote, code and table still have no `ItemBlock`.
 			default:
 				return null;
 		}
@@ -182,6 +210,23 @@ export function editorToMarkdown(doc: TiptapNode | null | undefined): string {
 				blocks.push(listToMarkdown(node, 0).join('\n'));
 				break;
 			default:
+				// THE IMAGE NODE, WRITTEN BACK AS THE FIGURE LINE IT CAME FROM.
+				// Not a `case` label because the name is `ITEM_IMAGE_NODE.name`,
+				// the one declaration the editor builds its node from -- a literal
+				// here would be a second spelling, and a second spelling is a
+				// picture the editor holds and this serializer silently drops.
+				//
+				// SILENTLY IS THE WORD THAT MATTERS. Everything else this default
+				// arm ignores is a node the schema cannot produce; an image is one
+				// it now can, and dropping it would take a teacher's photograph
+				// out of a spec field on the first save after they inserted it,
+				// with `markdownFromEditor`'s round-trip check being the only
+				// thing anywhere that noticed.
+				if (node.type === ITEM_IMAGE_NODE.name) {
+					const alt = String(node.attrs?.alt ?? '').trim();
+					const src = String(node.attrs?.src ?? '').trim();
+					if (alt && src) blocks.push(`![${alt}](${src})`);
+				}
 				break;
 		}
 	}
@@ -305,8 +350,21 @@ export function markdownUneditableReasons(markdown: string): string[] {
 		if (node.type === 'table') found.add('a table');
 		else if (node.type === 'code') found.add('a code block');
 		else if (node.type === 'quote') found.add('a quotation');
-		else if (node.type === 'figure') found.add('an image');
-		else if (node.type === 'list') {
+		// A FIGURE IS NO LONGER A REASON BY ITSELF (0176) -- the document holds
+		// one now. What is still a reason is a figure the round trip cannot
+		// reproduce, and `markdownEditable` below is what asks that: a caption
+		// carrying a `]`, or a filename with a space in it, writes a line
+		// `FIGURE_RE` reads back as a paragraph. That case falls through to the
+		// generic sentence at the bottom rather than being named here, because
+		// naming "an image" for a field whose image is fine would send an
+		// author looking for a problem that is somewhere else.
+		else if (node.type === 'figure') {
+			// Nothing to add and nothing to walk: a figure carries no runs, so it
+			// is handled here rather than falling through to the inline-code test
+			// below, which would be asking a question about a property this node
+			// does not have.
+			if (!(node.alt ?? '').trim()) found.add('an image');
+		} else if (node.type === 'list') {
 			for (const item of node.items) if (hasCode(item.runs)) found.add('inline code');
 		} else if (hasCode(node.runs)) found.add('inline code');
 	}
