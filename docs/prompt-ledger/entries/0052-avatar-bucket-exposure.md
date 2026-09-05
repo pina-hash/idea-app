@@ -3,8 +3,9 @@
 - By: router chat for IDEA portal work
 - Owns: one migration (number taken at commit time), `src/lib/avatars.ts`, `src/lib/Avatar.svelte`, a proxy route only if the design needs one, `src/routes/dev/avatars/**`, `tests/avatar*`, `tests/db/avatar*`, `tools/browser-verify/routes/avatars*.mjs`, the generated regions of its README, a decision entry, `docs/prompt-ledger/entries/0052-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/avatar-bucket-exposure-wa1f7b`
+- Migration taken: 0181 (`supabase/migrations/0181_avatars_private.sql`). 0180 was the highest on origin/main, origin/integration and all three live `claude/**` branches at commit time.
 - Notes: `0020_profiles_identity.sql` created `avatars` as a PUBLIC bucket
   with an explicit `avatars public read` policy on `storage.objects`. Writes
   are own-folder only and always have been. Reads are open to anyone.
