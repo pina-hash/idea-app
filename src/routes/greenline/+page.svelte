@@ -25,6 +25,7 @@
 		startTrackAttempt,
 		type CommunityTrackSummary
 	} from '$lib/greenline/community';
+	import { pendingLabel } from '$lib/greenline/moderation';
 	import { customTrack } from '$lib/greenline/custom-track.svelte';
 	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
 	import { gridSelection, setAiCount } from '$lib/greenline/grid-selection.svelte';
@@ -712,6 +713,8 @@
 			onPieceBuilder={() => goto('/greenline/piece-builder')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
+			onModeration={data.canModerate ? () => goto('/greenline/moderation') : undefined}
+			moderationLabel={data.canModerate ? pendingLabel(data.pending) : ''}
 			enableShortcut={!settingsOpen && !feedbackOpen}
 		/>
 	</div>

@@ -26,6 +26,7 @@
  * all. This refuses, in words, with the reason.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { uploadFailureMessage } from '$lib/upload-limits';
 
 /** The private bucket 0170 creates. Never public, never navigated to. */
 export const FEEDBACK_MEDIA_BUCKET = 'feedback-media';
@@ -256,12 +257,47 @@ export async function uploadFeedbackScreenshot(
 		upsert: false
 	});
 	if (error) {
+		/*
+		 * WHATEVER STORAGE SAID, TURNED INTO A SENTENCE. This used to be
+		 * `That screenshot did not upload. ${error.message}` -- our four words
+		 * in front of storage's own, verbatim, whatever they were. That is the
+		 * shape that produced "file size limit at 25 mb" as a bug report: a
+		 * number a student read off an upstream message that this application
+		 * neither set nor understood, with nothing beside it saying which limit
+		 * it was or who could change it.
+		 *
+		 * A SIZE REFUSAL FROM HERE IS ALMOST CERTAINLY NOT THE BUCKET'S. The
+		 * 8 MiB ceiling is already checked from `File.size` above, before a
+		 * byte moves, so anything arriving as a 413 got past a check that
+		 * agrees with `feedback-media`'s own `file_size_limit` -- which leaves
+		 * the project-wide limit, and `uploadFailureMessage` is what says so
+		 * rather than restating 8 MB at somebody whose file was under it.
+		 *
+		 * RETRYABILITY IS STILL DECIDED HERE and is not the message's job: a
+		 * refusal for SIZE cannot be retried with the same bytes, and every
+		 * other storage failure is worth exactly one more press.
+		 *
+		 * AND THE FOUR WORDS SURVIVE FOR EVERYTHING THAT IS NOT A SIZE
+		 * REFUSAL. `uploadFailureMessage` deliberately keeps an unanticipated
+		 * sentence verbatim, and a bare "new row violates row-level security
+		 * policy" appearing beside a picture control says nothing about WHICH
+		 * control it came from. A size refusal already names the file and the
+		 * limit, so prefixing that one would only stutter.
+		 */
+		const status = Number((error as { statusCode?: string | number }).statusCode ?? 0);
+		const refusedForSize =
+			status === 413 ||
+			/maximum allowed size|payload too large|entity too large/i.test(error.message ?? '');
+		const message = uploadFailureMessage({
+			id: 'feedback-screenshot',
+			status,
+			detail: error.message,
+			sizeBytes: file.size
+		});
 		return {
 			path: null,
-			error: `That screenshot did not upload. ${error.message}`,
-			// A storage failure with no considered refusal behind it is worth one
-			// more attempt; the person presses the control again.
-			retryable: true,
+			error: refusedForSize ? message : `That screenshot did not upload. ${message}`,
+			retryable: !refusedForSize,
 			type: null
 		};
 	}

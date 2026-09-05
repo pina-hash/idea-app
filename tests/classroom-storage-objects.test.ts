@@ -34,6 +34,8 @@ import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
+import { DELETE as DELETE_SUBMISSION_FILE } from '../src/routes/api/classroom/submission-file/[file_id]/+server';
 
 const MIGRATIONS = [
 	'0001_profiles.sql',
@@ -1082,6 +1084,147 @@ describe('0182 the delete asymmetry, closed', () => {
 		expect(read?.expr).not.toContain('_is_locked');
 		// And still no UPDATE policy on either classroom bucket.
 		expect(rows.filter((r) => r.cmd === 'UPDATE' && r.expr.includes('submission-files'))).toHaveLength(0);
+	});
+
+	// -------------------------------------------------------------------
+	// WHAT THE STUDENT IS TOLD. A refusal nobody can see is a broken
+	// button, and this one had no words of its own: the route answered
+	// `{ok:false, reason:'locked'}` with status 200, the transport read
+	// that as a SUCCESS, and the only sentence anywhere was a literal
+	// inside the component that could not know which reason came back.
+	// -------------------------------------------------------------------
+
+	test('the DELETE route answers a locked hand-in with a 200, the reason, AND the words', async () => {
+		// Driven against the REAL RPC on the migrated database, through the REAL
+		// route handler, so the sentence is produced by the same branch a student
+		// reaches and not by a re-description of it.
+		const item = (
+			await rpcOn<{ item_id: string }>(
+				fix,
+				w.teacherA.id,
+				`public.classroom_create_item(
+					p_kind => 'assignment', p_section_ids => $1::uuid[], p_title => 'What the student is told',
+					p_body => 'Turn it in.', p_points => 10, p_published => true, p_body_doc => null::jsonb)`,
+				[[w.p1]]
+			)
+		).item_id;
+		const submission =
+			(await rpcOn<{ submission_id: string }>(fix, w.alice.id, 'public.classroom_open_submission($1::uuid)', [item]))
+				.submission_id ?? '';
+		const key = `${submission}/${randomUUID()}.sldprt`;
+		await putOn(fix, w.alice.id, key);
+		const added = await attachOn(fix, w.alice.id, item, key);
+		expect(added.ok).toBe(true);
+		const fileId = added.file_id as string;
+
+		const fks = await loadForeignKeys(fix);
+		const removed: string[][] = [];
+		const client = {
+			...createPostgrestShim(fix, fks, w.alice.id),
+			// The storage half the shim deliberately does not carry. It records
+			// rather than acts, which is what lets the two assertions below say
+			// whether the sweep ran at all.
+			storage: {
+				from: () => ({
+					async remove(keys: string[]) {
+						removed.push(keys);
+						return { data: null, error: null };
+					}
+				})
+			}
+		};
+		const call = () =>
+			(DELETE_SUBMISSION_FILE as unknown as (event: unknown) => Promise<Response>)({
+				params: { file_id: fileId },
+				locals: { supabase: client, claims: { sub: w.alice.id, role: 'authenticated' } }
+			});
+
+		// DRAFT: the control. It succeeds and the sweep is handed the key.
+		const okRes = await call();
+		expect(okRes.status).toBe(200);
+		expect(await okRes.json()).toEqual({ ok: true });
+		expect(removed, 'the sweep ran on the draft').toEqual([[key]]);
+
+		// Put it back and turn the work in.
+		const key2 = `${submission}/${randomUUID()}.sldprt`;
+		await putOn(fix, w.alice.id, key2);
+		const added2 = await attachOn(fix, w.alice.id, item, key2);
+		expect(added2.ok).toBe(true);
+		expect((await rpcOn<{ ok: boolean }>(fix, w.alice.id, 'public.classroom_submit_assignment($1::uuid)', [item])).ok).toBe(true);
+
+		removed.length = 0;
+		const refused = await (DELETE_SUBMISSION_FILE as unknown as (event: unknown) => Promise<Response>)({
+			params: { file_id: added2.file_id },
+			locals: { supabase: client, claims: { sub: w.alice.id, role: 'authenticated' } }
+		});
+		// 200, NOT 4xx: the student did nothing wrong and there is nothing to
+		// retry. `$lib/pg-errors`' rule is that 4xx means a refusal of the
+		// PAYLOAD; this is a refusal of the moment.
+		expect(refused.status).toBe(200);
+		const body = (await refused.json()) as { ok: boolean; reason: string; message: string };
+		expect(body.ok).toBe(false);
+		expect(body.reason).toBe('locked');
+		// The three things the sentence has to do: name the state, say WHY
+		// (which is the half that was missing), and say what to do about it.
+		expect(body.message).toContain('turned in');
+		expect(body.message).toContain('Your teacher has it now');
+		expect(body.message).toContain('Unsubmit');
+		// No em dash: CLAUDE.md's copy rule, and this string is user-facing.
+		expect(body.message).not.toMatch(/[\u2014\u2013]/);
+		// AND NOTHING WAS SWEPT. The bytes are still the teacher's to read.
+		expect(removed, 'no sweep on a refusal').toEqual([]);
+		expect(await seesOn(fix, w.teacherA.id, key2)).toBe(1);
+	});
+
+	test('and the REAL transport turns that body into a failure the surface renders', async () => {
+		// The other half of the seam. `AssignmentEngine.removeFile` writes
+		// `res.message` into `uploadError` when a transport reports `ok:false`,
+		// and does nothing with a message that arrives inside a SUCCESS -- which
+		// is what the old shape sent. Driven through the real module rather than
+		// a description of it.
+		const { createEngineTransports } = await import('../src/lib/classroom/transports');
+
+		const calls: Array<{ url: string; method: string }> = [];
+		const realFetch = globalThis.fetch;
+		globalThis.fetch = (async (input: unknown, init?: { method?: string }) => {
+			calls.push({ url: String(input), method: init?.method ?? 'GET' });
+			return new Response(
+				JSON.stringify({
+					ok: false,
+					reason: 'locked',
+					message:
+						'This is turned in, so files are locked. Your teacher has it now. Unsubmit it to keep working.'
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			);
+		}) as typeof globalThis.fetch;
+		try {
+			const t = createEngineTransports(null as never);
+			const res = await t.deleteSubmissionFile('11111111-2222-3333-4444-555555555555');
+			expect(calls).toEqual([
+				{ url: '/api/classroom/submission-file/11111111-2222-3333-4444-555555555555', method: 'DELETE' }
+			]);
+			// THE WHOLE POINT: ok FALSE. Under the old shape this was
+			// `{ok:true, data:{ok:false}}`, which every caller had to unwrap and
+			// re-word for itself.
+			expect(res.ok).toBe(false);
+			if (res.ok) throw new Error('unreachable');
+			expect(res.message).toContain('Your teacher has it now');
+			expect(res.gate).toBe('denied');
+			expect(res.retryable).toBe(false);
+
+			// POSITIVE CONTROL: a real success is still a success, so the branch
+			// above is reading `ok:false` and not just always failing.
+			globalThis.fetch = (async () =>
+				new Response(JSON.stringify({ ok: true }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' }
+				})) as typeof globalThis.fetch;
+			const good = await t.deleteSubmissionFile('11111111-2222-3333-4444-555555555555');
+			expect(good.ok).toBe(true);
+		} finally {
+			globalThis.fetch = realFetch;
+		}
 	});
 
 	test('0182 re-applies: pasting it a second time is a no-op, not a 2BP01', async () => {

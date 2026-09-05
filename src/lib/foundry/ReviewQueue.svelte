@@ -67,7 +67,7 @@
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
 		transports?: FoundryReviewTransports;
-		coverUrl?: (path: string) => string;
+		coverUrl?: (path: string) => string | null;
 		onSelect: (slug: string | null) => void;
 		onDecided?: () => void;
 		/** The app no longer exists, so nothing is selected. See FoundryInspector. */

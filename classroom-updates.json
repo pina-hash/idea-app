@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-05",
+			"title": "Save draft now saves the same draft, instead of starting a new one",
+			"body": "Two of you reported this from opposite ends and it was one fault. When a teacher pressed Save draft while writing a post, the draft was saved but the box emptied itself, which made it look as though the writing had been lost. Pressing Save draft again then started a whole new draft rather than adding to the one already made, so the same post could pile up as several copies in a class. On a phone or a Chromebook it could get worse without anybody pressing anything: if the save looked like it had failed, switching tabs or locking the screen quietly tried the whole thing again, and each attempt that had actually gone through left another copy. Save draft is a checkpoint now. Your writing stays on the screen, the draft you already made is the one that gets updated, and a hidden tab no longer sends anything on its own. Post now still clears the box for the next post, because that is the end of the piece of writing. If your class has duplicate drafts from before today, they are safe to delete, and it is worth checking that the one you keep is the newest.",
+			"tags": [
+				"Classwork",
+				"Stream",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
 			"title": "The little row buttons on a table are big enough to press now",
 			"body": "On an assignment with a table you fill in, each row has four small buttons at the end of it: move the row up, move it down, copy it, and delete it. They were tiny squares, about half the size a finger needs, and on a phone at the bench you would miss and hit the one next to it. They are full size now, laid out two across and two down so they fit in the same space the table already had. The table did not get any wider, and nothing else on the row moved. Rows are a little taller than they were.",
 			"tags": [
@@ -1123,6 +1133,35 @@
 			"tags": [
 				"classroom",
 				"assignments",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Turning work in now really does lock its files",
+			"body": "Once you turn an assignment in, its files belong to the hand-in your teacher is looking at. The Remove button already went away at that point, but the files themselves were not actually protected: anything that reached past the page could still wipe the stored file while the hand-in kept listing it, and your teacher would open it and find nothing there. The files are locked now, properly, and so is adding new ones. If a removal is ever refused you will see why in words instead of nothing happening: \"This is turned in, so files are locked. Your teacher has it now. Unsubmit it to keep working.\" Nothing changes while an assignment is still open, and unsubmitting, or your teacher returning the work after grading it, hands the files back exactly as before.",
+						"tags": [
+				"Assignments",
+				"files",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "GREENLINE now tells you when your track is waiting on a teacher",
+			"body": "When you submit a track from the GREENLINE track editor, you can still race it yourself straight away, but nobody else can see it until a teacher approves it. That was only ever written in a tooltip, which does not show up on a phone at all, so on the tile it looked like the track was just live. Your own track now says in plain words, under the tile, that it is waiting and that nobody else can see it yet. If a teacher sends it back, their note to you is printed there too instead of hiding behind a hover. Nothing about how the review works has changed, and nothing you submitted before is affected. Your custom decal already said this and still does. Teachers also have one page now that shows both the tracks and the decals waiting on them, so things should not sit unlooked-at as long.",
+			"tags": [
+				"GREENLINE",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "When a file will not upload, the message now tells you why",
+			"body": "Two of you reported an upload that failed and could not say what stopped it, because the message did not say. That is fixed where we could reach it. A file that is too big is now told how big it is, what the limit for that kind of upload is, and what to do about it, instead of just \"upload failed\". A notebook photo that is over the limit says so before it starts sending, so you are not waiting on the school wifi for a refusal. And if an upload is stopped by a limit that is set for the whole site rather than by this page, it now says that, and says to tell a teacher, instead of showing you a number nobody here can explain. A few places still show the old bare message; if you hit one, tell us through Report a problem and say which page.",
+			"tags": [
+				"notebook",
+				"files",
 				"fix"
 			]
 		}

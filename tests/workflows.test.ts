@@ -1960,3 +1960,134 @@ describe('the invariants these particular workflows have to hold', () => {
 		expect(listItems(far)[0].keys.one).toBeUndefined();
 	});
 });
+
+/* ------------------------------------------------------------------------- */
+/* The deploy path OUTSIDE the workflows.                                     */
+/*                                                                            */
+/* `.github/workflows/**` is one way to reach production and, since 4.20 of    */
+/* `IDEA_instructions.md`, a session is another. The workflows are read-only   */
+/* to that bundle, so what is asserted here is the SEAM: that the tool a       */
+/* session runs still fits the probe the workflow runs, and that the standards */
+/* document a session reads still says what the tools do. Both of those can    */
+/* drift with nothing anywhere reporting it -- a rename in `deploy-probe.mjs`  */
+/* breaks `apply-migration.mjs` at runtime and passes every other check.       */
+/* ------------------------------------------------------------------------- */
+
+describe('apply-migration and deploy-probe are one path, not two', () => {
+	const TOOLS = fileURLToPath(new URL('../tools/', import.meta.url));
+	const applySrc = readFileSync(join(TOOLS, 'apply-migration.mjs'), 'utf8');
+	const probeSrc = readFileSync(join(TOOLS, 'deploy-probe.mjs'), 'utf8');
+
+	it('imports its applied-set derivation rather than writing a second one', () => {
+		const imported = /import \{([^}]+)\} from '\.\/deploy-probe\.mjs'/.exec(applySrc);
+		expect(imported, 'apply-migration no longer imports from deploy-probe').not.toBeNull();
+		const names = imported![1]
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
+		expect(names).toEqual(['readProbes', 'prepare', 'buildSql', 'verdicts', 'redact']);
+		// The positive control: each of those is genuinely exported from the
+		// other file, so a rename there reddens here rather than at 2am.
+		for (const name of names) {
+			expect(probeSrc, `deploy-probe no longer exports ${name}`).toMatch(
+				new RegExp(`export (async )?function ${name}\\b`)
+			);
+		}
+	});
+
+	it('reads its own environment variable and never the probe’s or the service key', () => {
+		expect(applySrc).toContain("export const URL_VAR = 'IDEA_MIGRATION_URL'");
+		expect(applySrc).not.toContain('DEPLOY_PROBE_URL');
+		expect(applySrc).not.toContain('SUPABASE_SERVICE_ROLE_KEY');
+		expect(applySrc).not.toContain('SUPABASE_ACCESS_TOKEN');
+		// And the probe stays read-only and keeps its own variable.
+		expect(probeSrc).toContain("export const URL_VAR = 'DEPLOY_PROBE_URL'");
+		expect(probeSrc).not.toContain('IDEA_MIGRATION_URL');
+	});
+
+	it('never shells out to the CLI whose one forbidden command it replaces', () => {
+		// The header names the command in prose, deliberately, to say it stays
+		// forbidden -- so what is asserted is that nothing INVOKES the CLI.
+		expect(applySrc).not.toMatch(/(spawnSync|execFileSync|exec)\(\s*'supabase'/);
+		expect(applySrc).toContain('NEVER `supabase db push`');
+	});
+});
+
+describe('supabase/roles/ is not the migration chain and must not become it', () => {
+	const ROLES = fileURLToPath(new URL('../supabase/roles/', import.meta.url));
+	const roleFiles = readdirSync(ROLES).filter((f) => f.endsWith('.sql'));
+
+	it('holds at least one file and numbers none of them', () => {
+		expect(roleFiles.length).toBeGreaterThan(0);
+		for (const f of roleFiles) expect(f).not.toMatch(/^\d{4}_/);
+	});
+
+	it('keeps every password a placeholder, because this repository is public', () => {
+		for (const f of roleFiles) {
+			const text = readFileSync(join(ROLES, f), 'utf8');
+			const passwords = [...text.matchAll(/password\s+'([^']*)'/gi)].map((m) => m[1]);
+			expect(passwords.length, `${f} sets no password at all`).toBeGreaterThan(0);
+			for (const p of passwords) {
+				expect(p, `${f} carries a literal password`).toMatch(/^REPLACE_ME/);
+			}
+		}
+	});
+
+	it('carries a reversal, commented out so a whole-file paste cannot run it', () => {
+		for (const f of roleFiles) {
+			const text = readFileSync(join(ROLES, f), 'utf8');
+			expect(text, `${f} has no reversal`).toMatch(/THE REVERSAL/);
+			// From the START of the line the marker sits on, not from the marker:
+			// the marker is inside a comment and slicing mid-line leaves a
+			// fragment that begins with no `--` and reads as a live statement.
+			const reversal = text.slice(text.lastIndexOf('\n', text.indexOf('THE REVERSAL')) + 1);
+			for (const line of reversal.split('\n')) {
+				if (line.trim() === '') continue;
+				expect(line.trimStart().startsWith('--'), `${f}: a live statement after THE REVERSAL`).toBe(
+					true
+				);
+			}
+		}
+	});
+});
+
+describe('the canned lane ending and the tools agree', () => {
+	const ENDING = readFileSync(
+		fileURLToPath(new URL('../docs/standards/IDEA_instructions.md', import.meta.url)),
+		'utf8'
+	);
+
+	it('names the one tool a session may apply a migration with, and no other route', () => {
+		expect(ENDING).toContain('node tools/apply-migration.mjs <number>');
+		expect(ENDING).toContain('IDEA_MIGRATION_URL');
+	});
+
+	it('still forbids `supabase db push`, which nothing in 4.20 relaxes', () => {
+		expect(ENDING).toMatch(/Never[\s>]+`supabase db push`/);
+	});
+
+	it('no longer carries the unconditional refusal it replaced', () => {
+		expect(ENDING).not.toContain('Do NOT merge to `main`');
+	});
+
+	it('keeps every guarantee the ending carried before it granted anything', () => {
+		expect(ENDING).toContain('Never force-push');
+		expect(ENDING).toContain('Do not attempt to delete a remote branch');
+		expect(ENDING).toContain("from `issued` to `pushed`");
+		expect(ENDING).toContain('Report the Vercel preview URL');
+	});
+
+	it('gates the merge on the same probe the Deploy workflow gates on', () => {
+		expect(ENDING).toContain('node tools/deploy-probe.mjs --ref origin/integration');
+		expect(src('deploy.yml')).toContain('tools/deploy-probe.mjs');
+		// `CANNOT SAY` is never a pass, in both places.
+		expect(ENDING).toMatch(/CANNOT SAY` is never a pass/);
+	});
+
+	it('names what a session cannot establish, so the checklist is not read as complete', () => {
+		const three = ENDING.slice(ENDING.indexOf('Three things you cannot establish'));
+		expect(three).toMatch(/students are in class/);
+		expect(three).toMatch(/preview renders correctly/);
+		expect(three).toMatch(/backfill did the right thing/);
+	});
+});

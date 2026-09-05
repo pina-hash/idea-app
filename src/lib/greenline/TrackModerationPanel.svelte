@@ -91,10 +91,15 @@
 
 <div class="glb tm-root">
 	<div class="tm-toolbar">
-		<span class="tm-count">
+		<span class="tm-count" data-testid="mod-pending-count">
 			{tracks.length} track{tracks.length === 1 ? '' : 's'}
+			<!-- ZERO IS SAID OUT LOUD. A clause that appears only above zero is
+			     indistinguishable from a clause that broke, and "is anything
+			     waiting on me" is the one question this panel exists to answer. -->
 			{#if pendingCount > 0}
 				· <b class="tm-pendcount">{pendingCount} awaiting review</b>
+			{:else if tracks.length > 0}
+				· <span class="tm-pendnone">nothing awaiting review</span>
 			{/if}
 		</span>
 		<span class="tm-sort-label">SORT</span>
@@ -110,7 +115,13 @@
 	{#if error}<div class="tm-error">{error}</div>{/if}
 
 	{#if tracks.length === 0}
-		<div class="tm-empty">No published community tracks yet.</div>
+		<div class="tm-empty" data-testid="mod-tracks-empty">
+			<b>No community tracks have been submitted yet.</b>
+			<span
+				>When a student publishes one from the track editor it lands here awaiting review, and
+				only they and staff can see it until you approve it.</span
+			>
+		</div>
 	{:else}
 		<div class="tm-table" role="table" aria-label="Published community tracks">
 			<div class="tm-row tm-head" role="row">
@@ -305,7 +316,14 @@
 		color: var(--glb-steel-dim, #93a3b0);
 		font: 600 0.6rem var(--glb-font-ui, sans-serif);
 		letter-spacing: 0.14em;
-		padding: 0.22rem 0.55rem;
+		/* 44px MIN-HEIGHT, never a height: a floor that can only round UP.
+		   This panel's root declares no instructor-only density class, so
+		   IDEA_INTERFACE_STANDARDS 10 gives it no 24px exception at any width;
+		   the cost is row height and it is paid rather than argued. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0.22rem 0.75rem;
 		cursor: pointer;
 	}
 	.tm-sort.on {
@@ -319,9 +337,24 @@
 		margin-bottom: 0.5rem;
 	}
 	.tm-empty {
-		color: var(--glb-ink-faint, #6b7b88);
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		max-width: 44rem;
+		/* An empty queue is a STATE, not a missing thing, so it is drawn at
+		   ordinary copy contrast rather than in the faint tone that reads as
+		   "this panel did not load". #b8c6d0 on the panel's #070a0e band
+		   measures 10.9:1; the lead line is #eaf4ff at 17.3:1. */
+		color: #b8c6d0;
 		font-size: 0.8rem;
+		line-height: 1.45;
 		padding: 1rem 0;
+	}
+	.tm-empty b {
+		color: #eaf4ff;
+	}
+	.tm-pendnone {
+		color: var(--glb-steel-dim, #93a3b0);
 	}
 	.tm-table {
 		display: flex;
@@ -441,7 +474,13 @@
 		color: var(--glb-steel-dim, #93a3b0);
 		font: 600 0.58rem var(--glb-font-ui, sans-serif);
 		letter-spacing: 0.12em;
-		padding: 0.24rem 0.5rem;
+		/* See .tm-sort: 44px min-height, and the actions wrap onto as many
+		   lines as the cell has room for rather than shrinking to fit. */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0.24rem 0.7rem;
 		cursor: pointer;
 	}
 	.tm-btn:hover:not(:disabled) {

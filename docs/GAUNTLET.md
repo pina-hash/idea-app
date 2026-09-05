@@ -1,35 +1,49 @@
 # IDEA // GAUNTLET, design doc
 
-> **READ THIS FIRST: A CLAIM IN THIS DOCUMENT IS A LEAD, NOT A FACT.**
+> **HOW MUCH OF THIS IS CHECKED, AND BY WHAT.** Since 2026-09-05 a check --
+> `tools/gauntlet-doc-check.mjs`, run by `tests/gauntlet-doc.test.ts` in the
+> ordinary suite -- reddens when this document and the tree disagree about
+> anything it can compare mechanically:
 >
-> This file was written against a snapshot of the code and **nothing keeps it
-> honest** -- no test reads it, no build step checks it, and no rule anywhere
-> requires a session that changes GAUNTLET to touch it. That is a structural
-> property, not an accusation about any past session, and it is the same
-> failure the VANGUARD backlog had: a document that is authoritative in tone,
-> stale in fact, and impossible to tell apart from a current one by reading it.
+> - every GAUNTLET migration after `0027` has a row in the migration table
+>   below, and every row names a migration that exists;
+> - every GAUNTLET migration at or below `0027` is named somewhere in the body;
+> - every repository path either GAUNTLET document names in backticks exists;
+> - every `/gauntlet/...` route in the tree is listed in the **Shell** section,
+>   and every route this file lists exists;
+> - every `gauntlet_*` object named here is a real one, checked outside SQL
+>   comments so a name that only ever appeared in a comment cannot certify
+>   itself.
 >
-> It stopped being maintained after migration `0027` and stood unchanged
-> through **ten later GAUNTLET migrations** (`0028`-`0031`, `0033`-`0036`,
-> `0060`, `0061`), two redefinitions that changed its meaning from outside
-> (`0038`, `0067`), and the entire C# SolidWorks add-in. The 2026-08-29 audit
-> that produced this header corrected everything it could verify and is
-> recorded in `docs/history/gauntlet-component-harnesses-gnddjg.md`; anything
-> not touched by that audit has been unverified since `0027`.
+> **WHAT THAT LEAVES UNGUARDED, which is the half worth reading carefully.** No
+> script can hold an opinion about prose, so every DESIGN ARGUMENT here -- why
+> volume is the correctness signal, what the residual trust assumptions are,
+> why a telemetry gate keeps being wrong -- is unchecked, and so is every
+> BEHAVIOURAL claim about what a named function does, as opposed to whether it
+> exists. A migration row's sentence is unchecked; only its number is. Which
+> migrations are APPLIED on the live project is unchecked and unknowable from
+> this repository (see "Applied vs. queued" below). If you are about to act on
+> a sentence rather than on a name, read the migration.
 >
-> **Before acting on a statement here, check it against the code.** The
-> migrations in `supabase/migrations/` are the applied record and win; a
-> function is resolved BY NAME at call time, so its LAST `create or replace` is
-> the live definition. `CLAUDE.md` wins on how work in this repo is done.
+> The header this replaces told every reader that every claim here was a lead
+> rather than a fact. It was honest -- the 2026-08-29 audit corrected this file
+> by hand and by 2026-09-05 it was stale in fifteen places again -- but a
+> blanket warning on a corrected document only teaches people to skip warnings.
+> The 2026-09-05 correction and the check are recorded in
+> `docs/history/gauntlet-doc-audit-4o4r7n.md`; the 2026-08-29 one is in
+> `docs/history/gauntlet-component-harnesses-gnddjg.md`.
+>
+> `CLAUDE.md` still wins on how work in this repo is done, and the migrations
+> in `supabase/migrations/` are still the applied record: a function resolves
+> BY NAME at call time, so its LAST `create or replace` is the live definition.
 > `docs/GAUNTLET-DESIGN.md` is the VIEWPORT design system and is separate.
 
-> **AND THE SECOND MOST MISLEADING THING BELOW: "TEACHER" IN THIS DOCUMENT
-> USUALLY MEANS ADMIN, BUT NOT UNIVERSALLY SINCE `0155` (QUEUED, NOT
-> APPLIED).** Most authoring, hosting and moderation gates in GAUNTLET are
-> written `is_teacher()` in SQL, and **`0067` redefined `is_teacher()` to
-> return `is_admin()`** -- one function body, re-gating roughly ninety
-> already-applied references at once. `teacher` is auto-granted by email
-> domain and on its own grants **nothing** in GAUNTLET, then or now.
+> **"TEACHER" IN THIS DOCUMENT MEANS ADMIN, EXCEPT AT THE ELEVEN SITES `0155`
+> MOVED.** Most authoring, hosting and moderation gates in GAUNTLET are written
+> `is_teacher()` in SQL, and **`0067` redefined `is_teacher()` to return
+> `is_admin()`** -- one function body, re-gating roughly ninety already-applied
+> references at once. `teacher` is auto-granted by email domain and on its own
+> grants **nothing** in GAUNTLET, then or now.
 >
 > **`0155` adds a THIRD, narrower tier on top of that**, `gauntlet_authors` /
 > `gauntlet_can_author()`, which grants authoring, publishing and room hosting
@@ -38,18 +52,21 @@
 > GAUNTLET gates moved onto it (challenge read/write, series, the three
 > challenge-asset buckets, room create/delete) versus which stayed on
 > `is_admin()` (every student-work read, `gauntlet_run_review`,
-> `gauntlet_practice_meter`, the global Speedrun ruleset). **`0155` is QUEUED,
-> not applied** (see "Applied vs. queued" below the migration table), so as of
-> this writing the two-tier world is still the live one: a Bosco Tech teacher
-> who is not a row in `public.app_admins` cannot author a challenge or host a
-> live room. **This is a capability question about a colleague, not a naming
-> quibble:** if a teacher reports that authoring is missing, the live answer
-> is an `admin_grant`; once `0155` is applied, the narrower `gauntlet_author_grant`
-> is the right one instead.
+> `gauntlet_practice_pressure`, the global Speedrun ruleset).
+>
+> **THE APP SIDE OF `0155` IS LIVE WHETHER OR NOT THE MIGRATION IS.**
+> `/gauntlet`, `/gauntlet/author` and `/gauntlet/rooms` all read
+> `canAuthorGauntlet` (`src/lib/server/gauntlet-authoring.ts`), which calls
+> `gauntlet_can_author()` and degrades on `PGRST202` ALONE to `isAdmin` -- so on
+> a project where the migration has not been pasted the answer is the pre-`0155`
+> one and nothing breaks. **This is a capability question about a colleague, not
+> a naming quibble:** where the migration is not applied, a teacher who cannot
+> author needs an `admin_grant`; where it is, the narrower
+> `gauntlet_author_grant` is the right one.
 >
 > **The redirect this paragraph used to describe is fixed.** `/gauntlet/author`
-> and `/gauntlet/rooms` now render a spoken refusal panel in the app's own
-> chrome rather than a silent redirect, per
+> and `/gauntlet/rooms` render a spoken refusal panel in the app's own chrome
+> rather than a silent redirect, per
 > `docs/history/gauntlet-authoring-allowlist-xui3ps.md` and
 > `docs/history/gauntlet-authoring-quiz-harness-it0oat.md` (the latter also
 > wired the `/gauntlet` landing page's Authoring card onto the new check).
@@ -280,8 +297,11 @@ remains as unranked supervised practice.** The original manual MVP is
   a fresh clock. See **Residual trust** below for the supervised-trust caveat on
   re-reveal.
 - **Machine submit (ranked). CORRECTED 2026-08-29: the signature is EIGHT
-  arguments and a solo run is timed from `started_at`, not from `reveal_at`.**
-  The live definition is in `0061`:
+  arguments and a solo run is timed from `started_at`, not from `reveal_at`.
+  CORRECTED 2026-09-05: the live definition is `0147`, not `0061`.** Eleven
+  migrations define this function and the last one wins; `0147` rewrote it
+  again to close what `0061` claimed to have closed and had not (below). The
+  signature is unchanged between the two:
 
   ```
   gauntlet_macro_submit(
@@ -310,11 +330,23 @@ remains as unranked supervised practice.** The original manual MVP is
     `reveal_at` clock, so `p_run_id` is ignored for it -- the two clocks
     coexist and which one applies is decided by whether the token carries a
     room.
-  - **IT NO LONGER RETURNS THE COMPARISON VALUE (`0061`).** `target_volume_mm3`,
-    `your_volume_mm3` and `tolerance_pct` are gone from the response, replaced
-    by a coarse UNSIGNED deviation band (`pass` | `close` | `near` | `far`)
-    whose finest step is 10x the default pass band, so it cannot be bisected
-    into the tolerance. `gauntlet_run_targets` dropped the same two fields.
+  - **IT NO LONGER RETURNS THE COMPARISON VALUE -- BUT `0061` IS NOT WHAT
+    ACHIEVED THAT, AND THIS BULLET USED TO SAY IT WAS.** `0061` dropped
+    `target_volume_mm3`, `your_volume_mm3` and `tolerance_pct` and returned a
+    coarse UNSIGNED band (`pass` | `close` | `near` | `far`) whose finest step
+    is 10x the default pass band, and wrote a comment forbidding any "how far
+    off you were" number. **`0147`'s header measures that the same payload
+    still carried `your_mass_level` AND `target_mass_level`**, whose ratio IS
+    the exact signed deviation, and `target_mass_level` over the public
+    `prompt.density` IS the target volume -- so the band sat above a payload
+    that made it redundant. `gauntlet_run_targets` had the same hole
+    (`target_mass_level` + `expected_density_g_cm3`), and the repo shipped the
+    divider: `targetVolumeFromMass` in `src/lib/gauntlet.ts`. **`0147` is what
+    closed the RPC surface and `0153` is what closed the SELECT surface** by
+    stripping `target_mass`, `density` and `tolerance_pct` off every stored
+    `prompt`, which `0004`'s column grant had been handing to any signed-in
+    student with no reveal and no run token. Read `0061` as the attempt and
+    `0147` + `0153` as the fix.
   - **AND A FAILING SOLO SUBMIT NOW COSTS AN ATTEMPT (`0061`).**
     `gauntlet_run_tokens.failed_attempts` budgets 3 failures per reveal;
     exhausting it retires the code, so more guesses need a fresh reveal, which
@@ -419,22 +451,22 @@ remains as unranked supervised practice.** The original manual MVP is
   `target_volume_mm3 = target_volume_cm3 x 1000`) and a clearly-labeled
   placeholder drawing, marked `demo`. They served their purpose (exercising the
   flow end to end) and were removed once real content authoring existed; see
-  the "IDEA // GAUNTLET" entry in docs/HISTORY.md. Real challenges are
+  `docs/history/record-idea-gauntlet-cad-skills-dojo.md`. Real challenges are
   authored from actual SolidWorks parts with the macro's Author capture mode,
   via the authoring tool.
 
 ### Drawing UX, series, and tutorials (`0022`, `0023`)
 
 Four additive Speedrun improvements that layer on the reveal-on-start model
-without touching scoring, timing, or the token flow (full detail in the
-"IDEA // GAUNTLET" entry of docs/HISTORY.md):
+without touching scoring, timing, or the token flow (full detail in
+`docs/history/record-idea-gauntlet-cad-skills-dojo.md`):
 
 - **Interactive drawing viewer** (`DrawingViewer.svelte`): pan / zoom / fit with a
   minimap and an optional focus-region jump strip, replacing the click-to-zoom
   image inline and in the expanded lightbox. Reading fine detail on a complex
   drawing no longer means fighting the UI. Rebuilt around a **full-sheet PDF
   contract** (see the drawing-viewer bullets in
-  docs/HISTORY.md): pdf.js renders one sheet
+  `docs/history/record-idea-gauntlet-cad-skills-dojo.md`): pdf.js renders one sheet
   per page (multi-page supported), the drawing and the region hotspots share ONE
   pan/zoom transform so alignment holds at every zoom, and a sub-second CRT
   plotter scan-in plays on reveal (presentation only; reduced motion gets an
@@ -520,6 +552,18 @@ geometry capture. They complete all six modes. Both use the shared
 - **Boards** rank by correctness with elapsed time as a tiebreak, identical to
   Drawing Reading (the leaderboard view already covers knowledge modes, so no
   view change was needed).
+- **ADDED 2026-09-05: THE ELAPSED TIME IS SERVER-STAMPED NOW, and a wrong
+  answer no longer ranks.** Two migrations moved this after the section above
+  was written, and neither is optional to know about. `0148` adds
+  `gauntlet_knowledge_starts` and `gauntlet_knowledge_start(p_challenge_id)`,
+  so the number a knowledge board ranks is `now() - started_at` rather than a
+  `p_elapsed_ms` the browser sent. `0154` then makes `is_correct = true` a
+  GATE rather than a sort key for a knowledge row, closing an asymmetry the
+  modeling branch never had. **`0151` reverts `0148` if pasted over it and
+  `0158` is the reconciliation** -- see "Applied vs. queued" below, because
+  applying these three in the wrong order silently reopens the exploit `0148`
+  closed. "No submit token" above is still true: a start row is a clock, not a
+  credential.
 
 ### GD&T and Tolerance
 
@@ -548,8 +592,11 @@ uses the app-shell side of the IDEA Green design system (not the legacy-index
 landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 
 - `/gauntlet`: the dojo landing (identity + progression) and a mode-select grid
-  of all six modes. Role-aware: **admins** see the authoring entry point (the
-  route reads `isAdmin()` from `$lib/server/admin`, not the role column).
+  of all six modes. Role-aware: the Authoring card renders for anyone
+  `canAuthorGauntlet` admits. **CORRECTED 2026-09-05: the route reads
+  `canAuthorGauntlet` from `$lib/server/gauntlet-authoring`, not `isAdmin()`
+  from `$lib/server/admin`** -- this bullet described the pre-`0155` gate.
+  Neither is the role column.
 - `/gauntlet/drawing-reading`: the challenge list for the first mode.
 - `/gauntlet/drawing-reading/[id]`: a single challenge, end to end (drawing +
   question, answer, submit, score, per-challenge leaderboard).
@@ -576,9 +623,22 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
     EVERY attempt -- completed, failed, and started-but-abandoned -- not only
     the ones that produced a submission.
   - `/gauntlet/speedrun/quickstart`: the short path into a run.
+- **ADDED 2026-09-05, one more route that existed and was unlisted:**
+  - `/gauntlet/run-review`: the ranked-run forensics console over
+    `gauntlet_run_review` (`0152`), **admin only and 404 to everyone else** --
+    not `canAuthorGauntlet`, because reading what a student did is not a
+    consequence of being allowed to write a question. It answers 404 rather
+    than a refusal panel, deliberately: the existence of a review lane is not
+    public, which is the opposite call from `/gauntlet/author` two bullets
+    down and for a stated reason.
 - `/gauntlet/author`, `/gauntlet/author/new`, `/gauntlet/author/[id]`: the
-  **admin-only** authoring tool (see "Authoring" below). A non-admin, teacher
-  included, gets a redirect rather than a permission message.
+  authoring tool (see "Authoring" below), gated on `canAuthorGauntlet`.
+  **CORRECTED 2026-09-05: a refused caller is TOLD, not bounced.** This bullet
+  said a non-admin "gets a redirect rather than a permission message"; the
+  route renders `GAUNTLET_AUTHORING_REFUSAL` in the app's own chrome instead,
+  and has since the authoring-tier work. The header above already recorded the
+  fix and this line never followed it. `/gauntlet/rooms` is the same: it never
+  redirected, it omitted the host section, and it now names the refusal.
 - `/gauntlet/rooms` and `/gauntlet/rooms/[id]`: live synchronized rooms (host +
   racers/spectators; see "Live Rooms" below).
 
@@ -725,13 +785,34 @@ All six modes ship eventually. The sequence:
 7. **Live rooms** (built): host-controlled synchronized Speedrun sessions. See
    "Live Rooms" above.
 
+## The pre-`0028` migrations this document used to leave unnamed
+
+**ADDED 2026-09-05.** Seven GAUNTLET migrations at or below `0027` were named
+nowhere in this file, so nothing above told a reader they existed. They are
+listed together rather than woven into the prose above, because what each one
+is worth is one line and the sections they belong to already read correctly
+without them.
+
+| Migration | What it changed |
+| --- | --- |
+| `0011` | 20 authored GD&T and Tolerance challenges, seeded as DRAFTS on the same knowledge payload contract as Drawing Reading |
+| `0012` | 15 authored Spot the Error challenges, seeded as DRAFTS; mirrors `0011`'s mechanism |
+| `0013` | Corrects one stale explanation in the `0012` seed (`spot-undefined-datum` named callout 1 while its answer is callout 4). Grading was never affected; the prose was |
+| `0017` | `gauntlet_run_status`: projects the ONE non-sensitive fact the play screen needs, `started_at`, into a client-readable own-row table so the browser timer anchors to the server clock. The token table stays unreadable and out of Realtime, which is the point of the projection |
+| `0021` | `gauntlet_progression`: one read-only RPC returning the caller's own XP / streak / badge aggregates, derived entirely from graded submissions so nothing is forgeable. The model itself lives in `src/lib/gauntlet/progression.ts` |
+| `0024` | `gauntlet_leaderboards`: the cross-mode standings RPC behind `/gauntlet/leaderboard`, derived from graded submissions in the spirit of `0021`. Later redefined by `0029` (tiers dropped) and `0038` |
+| `0025` | `gauntlet_room_delete`: host-enforced deletion of a live room, nulling `submissions.room_id` explicitly rather than relying on FK cascade config, so board history survives the room |
+
 ## What happened after `0027` (added 2026-08-29)
 
 The document above stopped at `0027`. These are the GAUNTLET migrations that
 landed afterwards, in apply order, so a reader can tell at a glance whether a
-subsystem they care about moved. The two at the end are not GAUNTLET migrations
-and changed GAUNTLET's meaning anyway, which is exactly why they are easy to
-miss.
+subsystem they care about moved. **FOUR of the rows are not GAUNTLET migrations
+at all** (`0038`, `0067`, `0137`, `0149`) and changed GAUNTLET's meaning anyway,
+which is exactly why they are easy to miss; this sentence said "the two at the
+end" until 2026-09-05, when the fourth was found unrecorded and the ones it
+described had stopped being at the end. The migrations at or below `0027` are
+in their own table directly above this one.
 
 | Migration | What it changed |
 | --- | --- |
@@ -747,7 +828,8 @@ miss.
 | `0061` | `gauntlet_macro_submit` and `gauntlet_run_targets` stop returning the ranked comparison value; coarse unsigned band instead; a failing solo submit costs one of 3 budgeted attempts per reveal |
 | `0038` | Not a GAUNTLET migration: recreates `gauntlet_leaderboards()` (last defined in `0029`) for the pathway work |
 | `0067` | Not a GAUNTLET migration: redefines `is_teacher()` as `is_admin()`, re-gating **every** GAUNTLET authoring, hosting and moderation check at once. See the header |
-| `0146` | Admits Reverse Engineer and Feature Golf to `gauntlet_speedrun_reveal` and `gauntlet_leaderboard`. Its own comment on why Speedrun's board is safe to admit is wrong -- see the correction directly below the table |
+| `0137` | **ADDED 2026-09-05. Not a GAUNTLET migration:** the `public`-wide `anon` EXECUTE sweep. Its GAUNTLET slice is a DECISION, not a side effect -- it deliberately KEEPS `anon` on the five unauthenticated run-path functions (`gauntlet_macro_start`, `gauntlet_macro_submit`, `gauntlet_run_targets`, `gauntlet_run_events_insert`, `gauntlet_run_analysis_upsert`), because a SolidWorks macro calls them with the anon key and the run code is the credential, and revokes `authenticated` from four private helpers (`gauntlet_gen_code`, `gauntlet_gen_room_code`, `gauntlet_jnum`, `gauntlet_publish_blocker`). Its own header records that it did NOT re-confirm the macro still calls those five |
+| `0146` | Admits Reverse Engineer and Feature Golf to `gauntlet_speedrun_reveal` and `gauntlet_leaderboard`. Its own comment on why Speedrun's board is safe to admit is wrong -- see the CORRECTED note at the end of this section |
 | `0147` | `gauntlet_run_targets` and `gauntlet_macro_submit` stop returning the ranked comparison value on the RPC surface; a coarse unsigned band instead. Left the `challenges` SELECT surface (the `prompt` column, `0004`) untouched -- see `0153` |
 | `0148` | Server-stamps a clock for the knowledge modes, so their board stops ranking a number the browser sent |
 | `0149` | Not a GAUNTLET-only migration: a `public`-wide grant-surface reconciliation. Its GAUNTLET slice revokes `anon` from `gauntlet_speedrun_attempt_history`, `gauntlet_leaderboard`, `gauntlet_room_board` and `gauntlet_room_roster`, all four of which had been reachable by `anon` since the view creating them, on the hosted-project default-privileges defect `0060` first found and never generalized |
@@ -756,16 +838,20 @@ miss.
 | `0152` | `gauntlet_run_review`: a ranked-run forensics report (telemetry event/snapshot counts, feature-add cadence, observations like a fast finish with no telemetry) for `/gauntlet/run-review`, admin only. A REPORT, not a gate -- it ranks nobody and refuses nothing; four measured facts in its own header rule out making it a play-time gate instead |
 | `0153` | Strips `target_mass`, `density` and `tolerance_pct` off the stored `prompt` on every existing row. This is what actually closes the `0004` SELECT-grant disclosure `0061` and `0147` each left open in their own headers |
 | `0154` | **Changes what a student sees on the board.** A knowledge row (Drawing Reading, GD&T and Tolerance, Spot the Error) ranks only if `is_correct = true`, closing an asymmetry the modeling branch never had. A modeling run ranks only if its server-stamped clock is at least 30 seconds. No row is deleted -- both are narrowings of `gauntlet_leaderboard`'s WHERE clause, so applying this removes rows that currently hold a seat, including possibly rank 1 |
-| `0155` | `gauntlet_authors` / `gauntlet_can_author()`: a third tier, narrower than admin, granting GAUNTLET challenge authoring, publishing and room hosting without granting `is_admin()`. Re-gates the eleven sites listed in CLAUDE.md's "GAUNTLET AUTHOR TIER" section; the four student-work reads, `gauntlet_run_review` (`0152`) and `gauntlet_practice_meter` (`0151`) are deliberately left on `is_admin()`. See CLAUDE.md for the tier's full shape -- this file does not restate it |
+| `0155` | `gauntlet_authors` / `gauntlet_can_author()`: a third tier, narrower than admin, granting GAUNTLET challenge authoring, publishing and room hosting without granting `is_admin()`. Re-gates the eleven sites listed in CLAUDE.md's "GAUNTLET AUTHOR TIER" section; the four student-work reads, `gauntlet_run_review` (`0152`) and `gauntlet_practice_pressure` (`0151`) are deliberately left on `is_admin()`. See CLAUDE.md for the tier's full shape -- this file does not restate it |
+| `0158` | **ADDED 2026-09-05.** One `gauntlet_submit` carrying BOTH `0148`'s server-stamped knowledge clock and `0151`'s Speedrun practice meter, derived by a named, rerunnable three-way merge over `0147`, their common ancestor. This is the repair for the `0151`-reverts-`0148` regression the bullets below used to leave as an open warning. It REFUSES rather than half-applying: it requires `gauntlet_knowledge_starts` (`0148`) and `_gauntlet_practice_min_interval()` (`0151`) to exist, and applies AFTER `0157` and AFTER `0151` |
 
 ### Applied vs. queued, and why that distinction matters here
 
 **Everything from `0151` through `0155`, plus `0157` (a Coin-economy migration,
-not GAUNTLET), is QUEUED -- written, pushed, and NOT yet pasted into the live
+not GAUNTLET), was QUEUED -- written, pushed, and NOT yet pasted into the live
 project** as of the 2026-08-29 sweep recorded in
 `docs/history/anon-coin-public-projections-mrlg0d-queued-migration-sweep.md`.
-`0149` and everything before it in the table above is applied. **This is a
-measurement, not a standing fact** -- migrations here are applied by hand and
+`0149` and everything before it in the table above was applied. **`0150` fell
+in the gap between those two sentences and this file never said which side it
+was on; `0158` did not exist yet** -- neither is answerable from this
+repository, which is the point of the paragraph that follows. **This is a
+measurement taken on one day, not a standing fact** -- migrations here are applied by hand and
 separately from a deploy, so check a live catalog read (`supabase migration
 list --linked`, or `select version from supabase_migrations.schema_migrations`
 if that table exists on this project) rather than trusting a snapshot in a doc
@@ -783,12 +869,16 @@ today's board or today's authoring surface:
   author a GAUNTLET challenge or host a room is an `app_admins` row, exactly as
   before this migration was written -- see CLAUDE.md's "GAUNTLET AUTHOR TIER"
   for the app-side mechanics.
-- **`0151` is not safe to paste over `0148` as it stands.** The same sweep
-  found `0151` was diffed against `0147` and silently drops `0148`'s
-  server-stamped-clock fix for the knowledge modes, reopening the exploit
-  `0148` closed. `tests/gauntlet-knowledge-clock.test.ts` documents this on a
-  chain that stops at `0148` on purpose. Whoever applies `0151` needs to fix
-  that regression first or bring `0148`'s clock block over by hand.
+- **`0151` is not safe to paste over `0148` on its own, AND THE FIX NOW
+  EXISTS: it is `0158`.** The same sweep found `0151` was diffed against
+  `0147` and silently drops `0148`'s server-stamped-clock fix for the
+  knowledge modes, reopening the exploit `0148` closed;
+  `tests/gauntlet-knowledge-clock.test.ts` documents that on a chain stopping
+  at `0148` on purpose. **This bullet used to end by telling the operator to
+  bring `0148`'s clock block over by hand.** Do not: `0158` is that merge,
+  derived by a rerunnable `git merge-file` over `0147` rather than by a hand
+  splice, and it refuses rather than half-applying if either dependency is
+  absent. Apply `0151`, then `0158`.
 
 **CORRECTED 2026-08-29: `0146`'s own comment overstates why admitting Speedrun
 to `gauntlet_leaderboard` was safe, and the migration is applied and immutable
@@ -805,36 +895,50 @@ the volume half did not, until `0153` closed it. Whether the board should have
 admitted Speedrun before that closure is a question for whoever reviews the
 runs already ranked; this note only corrects the reasoning `0146` recorded.
 
-## Written and not read (audited 2026-08-29, unchanged)
+## Written and not read -- CLOSED 2026-09-05, and the section is kept for what it says about the gap
 
-Three things exist, are correct, and reach nobody. They are recorded here
-because "it is already built" and "a student can see it" are different claims,
-and the gap between them is invisible from the code.
+This section listed three things that existed, were correct, and reached
+nobody. **All three are closed**, and the section survives rather than being
+deleted because "it is already built" and "a student can see it" are still
+different claims, the gap between them is still invisible from the code, and a
+deleted section teaches nobody to look for the next one. What follows is what
+each was and what closed it -- verified against the tree on 2026-09-05, not
+carried over from the 2026-08-29 audit that found them.
 
-- **`gauntlet_log_speedrun_attempt` is DEAD.** `0033` defines it and grants it
-  to `authenticated`; **nothing calls it** -- not the app, not the macros, not
-  the add-in, not another function. The attempt history it was meant to feed is
-  populated by `gauntlet_attempt_from_submission` and
-  `gauntlet_attempt_from_token` instead, which is why nobody noticed. It is
-  removable.
-- **`gauntlet_run_analysis` is HALF-BUILT: written, never read.** The add-in
-  posts to `gauntlet_run_analysis_upsert` (`GauntletClient.cs`), the table has
-  RLS with an own-row read policy and a `select` grant to `authenticated` -- and
-  **no query anywhere in `src/` selects from it.** The post-run screen derives
-  everything it shows from the raw `gauntlet_run_events` stream instead, so the
-  materialized summary that exists to make history and leaderboard reads fast is
-  accumulating one row per run and serving none of them. The read side is the
-  missing half, not the write side.
-- **`PostRunAnalysis`'s learning curve and class-median comparison are
-  HALF-BUILT.** The component takes `selfHistory` (the student's prior attempts
-  on this level) and `classStats` (class medians) and renders real comparisons
-  from them. **The only caller that passes either is `/dev/run-analysis`**, the
-  dev harness. The production mount at `src/routes/gauntlet/speedrun/[id]/+page.svelte`
-  passes `events` and `targets` only, so both props take their empty defaults and
-  the two comparisons degrade to nothing. A student has never seen either.
-  Everything needed to finish it is already in the schema -- `0033`'s attempt
-  history is the self-history, and the medians are an aggregate over it -- so
-  what is missing is a load, not a feature.
+- **`gauntlet_log_speedrun_attempt` was DEAD and is now GONE (`0150`).** `0033`
+  defined it and granted it to `authenticated`; nothing ever called it -- not
+  the app, not the macros, not the add-in, not another function -- because the
+  attempt history it was meant to feed is populated by
+  `gauntlet_attempt_from_submission` and `gauntlet_attempt_from_token` instead,
+  which is why nobody noticed. This section said "it is removable". `0150`
+  removed it, and asserts in its own self-check that zero overloads survive.
+- **`gauntlet_run_analysis` IS READ NOW.** The add-in posts to
+  `gauntlet_run_analysis_upsert` (`GauntletClient.cs`); the read side was the
+  missing half, and `src/routes/gauntlet/speedrun/[id]/+page.svelte` now selects
+  `computed_mass, mass_unit, active_ms, idle_ms` from it by `run_id`. The
+  post-run screen still derives the process view from the raw
+  `gauntlet_run_events` stream; the summary is what it puts beside that.
+- **`PostRunAnalysis`'s learning curve and class-median comparison ARE WIRED.**
+  The component takes `selfHistory` (the student's prior attempts on this level)
+  and `classStats` (class medians) and renders real comparisons from them. This
+  section said the only caller passing either was `/dev/run-analysis`, the dev
+  harness, so both props took their empty defaults and a student had never seen
+  either. The production mount passes both now:
+  `src/routes/gauntlet/speedrun/[id]/+page.server.ts` reads the student's own
+  last five rows out of `gauntlet_speedrun_attempt_history` -- with an EXPLICIT
+  `user_id` filter, because that list is a claim about attribution and the
+  policy legitimately returns other people's rows to an admin -- and calls
+  `gauntlet_class_run_stats` (`0150`) for the medians, which is a definer RPC
+  because every table behind them is RLS-scoped to the caller and a browser
+  cannot aggregate a class even in principle. It degrades on `PGRST202` ALONE
+  to a null `classStats` and the panel says so.
+
+**WHAT THIS SECTION IS FOR, NOW THAT ITS THREE ENTRIES ARE CLOSED.** A
+half-built feature does not fail, does not warn, and does not look wrong: the
+write side works, the read side is simply absent, and the only symptom is a
+student never seeing something. Two of the three above sat that way for weeks.
+If you find another, write it here rather than fixing it silently, because the
+list is what makes the shape recognisable.
 
 ## Out of scope (later prompts)
 

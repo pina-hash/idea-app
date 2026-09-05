@@ -24,15 +24,13 @@
 	import { rejectReasonLabel } from '$lib/foundry/review';
 	import type { FoundryReviewTransports } from '$lib/foundry/transports';
 	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
+	import { foundryCoverUrl } from '$lib/foundry/covers';
 
 	let { data } = $props();
 
 	/** The clock, threaded down rather than read inside the component. */
 	const now = new Date();
 
-	function coverUrl(path: string): string {
-		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
-	}
 
 	async function post(url: string, body: unknown): Promise<Record<string, unknown> | null> {
 		const res = await fetch(url, {
@@ -260,7 +258,7 @@
 		apps={data.apps}
 		selected={data.selected}
 		{transports}
-		{coverUrl}
+		coverUrl={foundryCoverUrl}
 		onSelect={select}
 		onDecided={() => invalidateAll()}
 		onDeleted={() => select(null)}

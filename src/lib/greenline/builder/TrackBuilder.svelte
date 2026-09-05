@@ -1086,7 +1086,7 @@
 						disabled={!report?.ok || publishState === 'busy'}
 						onclick={publishNow}
 						title={report?.ok
-							? `Publish "${trackName.trim() || 'Custom Circuit'}" for everyone to race`
+							? `Submit "${trackName.trim() || 'Custom Circuit'}" to your teachers for review`
 							: 'Fix the failing validation checks first'}
 					>
 						{publishState === 'busy' ? 'SUBMITTING…' : 'SUBMIT FOR REVIEW ▸'}

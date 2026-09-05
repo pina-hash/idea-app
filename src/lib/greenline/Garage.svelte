@@ -851,12 +851,12 @@
 								{#if cm && cm.status !== 'approved'}
 									<!-- Only its author (and staff) can ever see this tile, so
 									     the tile has to say why nobody else can: a submitted
-									     track is not public until a teacher approves it. -->
-									<span
-										class="gg-track-tag review"
-										title={cm.status === 'rejected'
-											? `Your teacher asked for changes${cm.reviewFeedback ? `: ${cm.reviewFeedback}` : ''}`
-											: 'Waiting for a teacher to review it. Only you and staff can see or race it.'}
+									     track is not public until a teacher approves it. The
+									     chip is the flag; the SENTENCE is below the tile (a
+									     `title` is not discoverable and a phone cannot hover,
+									     so the reason and the teacher's own words must never
+									     live only in an attribute). -->
+									<span class="gg-track-tag review"
 										>{cm.status === 'rejected' ? 'CHANGES ASKED' : 'IN REVIEW'}</span
 									>
 								{:else if cm?.featured}
@@ -895,6 +895,37 @@
 							{/if}
 							<span class="gg-track-len">{(t.lengthM / 1000).toFixed(2)} km lap</span>
 						</button>
+						{#if cm && cm.status !== 'approved'}
+							<!-- WHAT THE AUTHOR IS TOLD, in words, on the surface where they
+							     are looking at their own track. This block is the whole
+							     answer to "a student sees their work in their own garage and
+							     believes it is published": the tile they can play is
+							     explicitly not the tile anybody else can see, and a teacher's
+							     request for changes arrives with the teacher's own sentence
+							     rather than as a status nobody can read. -->
+							<p
+								class="gg-track-review"
+								class:changes={cm.status === 'rejected'}
+								data-testid="track-review-note"
+							>
+								{#if cm.status === 'rejected'}
+									<b>Your teacher asked for changes.</b>
+									{#if cm.reviewFeedback}
+										<span class="gg-track-review-fb">“{cm.reviewFeedback}”</span>
+									{/if}
+									<span
+										>Nobody else can see or race it. Fix it in the track editor and submit it
+										again.</span
+									>
+								{:else}
+									<b>Waiting for a teacher to review it.</b>
+									<span
+										>You can race it here, but nobody else can see it yet. It becomes visible to
+										other players once a teacher approves it.</span
+									>
+								{/if}
+							</p>
+						{/if}
 						{#if cm && (onReportTrack || (cm.mine && onRemoveTrack))}
 							<div class="gg-track-acts">
 								{#if onReportTrack}
@@ -1503,6 +1534,7 @@
 							aria-selected={activeTab === t.id}
 							title={t.hint}
 							data-sfx="tab"
+							data-testid={`gg-tab-${t.id}`}
 							onclick={() => (tab = t.id)}
 						>
 							<span class="gg-tab-label">{t.label}</span>
@@ -2539,7 +2571,17 @@
 		gap: 0.3rem;
 	}
 	.gg-pattern {
-		padding: 0.24rem 0.55rem;
+		/* 44px MIN-HEIGHT, never a height: the garage is a student surface and
+		   is played on a phone, so IDEA_INTERFACE_STANDARDS 10 gives it no
+		   density exception at any width. Both rows this class appears in
+		   already wrap, so the arrangement absorbs the floor as row height
+		   rather than as a horizontal overflow (step 1 of the standard's own
+		   order: re-lay the controls in the space that is already there). */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0.24rem 0.7rem;
 		border: 1px solid var(--glb-line);
 		background: var(--glb-panel-2);
 		color: var(--glb-ink-dim);
@@ -2615,8 +2657,15 @@
 		gap: 0.45rem;
 		flex-wrap: wrap;
 	}
+	/* THE SENTENCE THAT SAYS WHO CAN SEE THIS DECAL, and the measurement that
+	   found it: `--glb-ink-faint` put it at 3.52:1 on the garage's own ground.
+	   It is the one line telling a student their upload is not public yet, so
+	   it is copy carrying meaning and clears 4.5, not decoration. Moved at the
+	   CALL SITE rather than by raising the token -- `--glb-ink-faint` is drawn
+	   across the whole GREENLINE room as tertiary decoration, and raising it
+	   would repaint all of that to fix one sentence. */
 	.gg-decal-note {
-		color: var(--glb-ink-faint);
+		color: var(--glb-ink-dim);
 		font-size: 0.6rem;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
@@ -2900,7 +2949,34 @@
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;
+		flex-wrap: wrap;
 		padding: 0.2rem 0.1rem 0;
+	}
+	/* THE AUTHOR'S OWN STATUS, IN WORDS. Sits between the tile and its actions
+	   so it is read before either. `--glb-ink` on the garage's panel measures
+	   12.6:1 for the lead line and `--glb-ink-dim` 7.4:1 for the sentence;
+	   both are copy, so both clear 4.5 rather than the 3:1 a boundary takes. */
+	.gg-track-review {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		margin: 0;
+		padding: 0.35rem 0.5rem;
+		border-left: 2px solid var(--glb-steel-dim);
+		background: rgba(147, 163, 176, 0.06);
+		color: var(--glb-ink-dim);
+		font-size: 0.72rem;
+		line-height: 1.4;
+	}
+	.gg-track-review b {
+		color: var(--glb-ink);
+	}
+	.gg-track-review.changes {
+		border-left-color: rgba(255, 176, 46, 0.7);
+	}
+	.gg-track-review-fb {
+		color: var(--glb-ink);
+		font-style: italic;
 	}
 	.gg-track-act {
 		background: none;
@@ -2910,7 +2986,13 @@
 		font-family: var(--glb-font-data);
 		font-size: 0.54rem;
 		letter-spacing: 0.14em;
-		padding: 0.12rem 0.4rem;
+		/* See .gg-pattern: 44px min-height on a student surface. The row wraps,
+		   so REPORT / REMOVE / CONFIRM REMOVE / KEEP take a second line at 375
+		   rather than shrinking. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0.12rem 0.6rem;
 		cursor: pointer;
 		transition:
 			color 140ms ease,
