@@ -273,7 +273,38 @@ a:hover {
    sitting less than 44px apart on one line -- Edit beside Delete, seven
    colour swatches in a row, two breadcrumbs -- would overlap, and the wrong
    one takes the tap. Those set `--tap-reach-w: 0px` and grow in height only,
-   which is free: nothing is stacked that close vertically. */
+   which is free: nothing is stacked that close vertically.
+
+   IT KEEPS ITS NAME AND IT HAS ONE PRECONDITION: NOTHING BETWEEN THE CONTROL
+   AND THE VIEWPORT MAY CLIP WITHIN 22px OF ITS CENTRE. The pseudo-element is
+   an ordinary absolutely-positioned box whose containing block is the control
+   itself, so every ancestor with `overflow` other than `visible` clips
+   whatever part of the reach leaves it -- silently, with nothing on screen and
+   nothing in a type check to say the target just shrank. Measured on
+   `/dev/spec-table` at 1440: `button.info-tip-trigger` sits in a `<thead>` on
+   the top edge of a `.table-scroll` whose `overflow-x: auto` forces
+   `overflow-y` to `auto`, the top half of its reach was clipped away, and the
+   walked reach was 34.5px on a control whose `::after` genuinely computes
+   44px. Setting that one ancestor to `overflow: visible` returned it to 44.0
+   at both widths with nothing else changed, which is the whole proof: the
+   mechanism was right and the call site was not.
+
+   SO A CALL SITE INSIDE A SCROLLER, A CARD THAT HIDES ITS OVERFLOW, OR ANY
+   CLIPPED REGION OWES THE REACH ITS CLEAR SPACE -- padding on the clipper, or
+   room in the control's own row. The classroom's `.table-scroll` carries
+   exactly that, with the arithmetic beside it. This is the same clip that
+   forced `InfoTip`'s PANEL onto `position: fixed`; the reach cannot take that
+   escape, because a pseudo-element has no JavaScript to write two coordinates
+   for it.
+
+   AND IT IS ENFORCED RATHER THAN WRITTEN DOWN. `tapReach` in
+   `tools/browser-verify/checks.mjs` WALKS the hit area outward from the
+   control's centre instead of recomputing it from these declarations, which is
+   what a class carrying a number in its name needs beside it: until 2026-09-05
+   it reconstructed `max(ownHeight, 44)` and reported 44 for the control that
+   was delivering 34.5, so every surface that used this class was believed
+   measured rather than measured. Point a route spec's `tapReach` at a new call
+   site; do not read the reach off the class name. */
 .tap-reach-44 {
 	position: relative;
 }

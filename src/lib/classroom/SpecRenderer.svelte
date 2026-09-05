@@ -913,8 +913,33 @@
 		border-color: var(--green);
 		background: color-mix(in srgb, var(--green) 12%, var(--surface-0));
 	}
+	/* THE HEADER'S `.tap-reach-44` REACH IS CLIPPED BY THIS SCROLLER WITHOUT
+	   THE PADDING, AND NOTHING ON SCREEN SAYS SO. `overflow-x: auto` forces
+	   `overflow-y` to `auto`, which makes this element clip; the column-tip
+	   trigger is a `.tap-reach-44` control sitting in the `<thead>` on this
+	   box's own top edge, and its centred 44px pseudo-element extends above
+	   that edge and is cut off there. Measured on `/dev/spec-table?empty=1`
+	   before this rule: walked reach 34.5px at 1440 and 42.5px at 375 on a
+	   control whose `::after` computes 44px in both. It is the same clip that
+	   put `InfoTip`'s PANEL on `position: fixed`; a pseudo-element cannot take
+	   that escape, so the clipper gives it the room instead.
+
+	   THE ARITHMETIC: the reach needs 22px above the trigger's centre, and the
+	   centre sits at (this padding + the `<th>`'s 0.25rem = 4px + half the
+	   trigger's own height). The trigger is 16.4px tall on one line, so
+	   4 + 8.2 = 12.2px was available and 22 was needed. 0.7rem = 11.2px takes
+	   it to 23.4px, which clears the single-line case with 1.4px to spare and
+	   the two-line case (32.8px tall) with 9.6px. The cost is 11.2px of height
+	   on the table wrapper and nothing else: no column moves, and the table's
+	   own horizontal scroll is untouched.
+
+	   PADDING-TOP ONLY. The bottom edge needs nothing -- the last row's
+	   controls are 44px BOXES rather than reaches, so nothing extends past
+	   them -- and padding-bottom here would only push the horizontal scrollbar
+	   away from the table it scrolls. */
 	.table-scroll {
 		overflow-x: auto;
+		padding-top: 0.7rem;
 	}
 	.entry-table {
 		width: 100%;
@@ -954,6 +979,20 @@
 		line-height: 1.5;
 		padding: 0.3rem 0.4rem;
 		min-width: 6rem;
+		/* 33px MEASURED AT BOTH WIDTHS, ON A STUDENT ASSIGNMENT SURFACE THAT
+		   DECLARES NO DENSITY CLASS, so `IDEA_INTERFACE_STANDARDS` 10 (2.12)
+		   gives it no exception: over the 24px absolute floor and under the
+		   44px one. Step 1 of that clause's order is to re-lay the control in
+		   the space that is already there, and here the space is already
+		   there -- the row is 98.3px tall because of the 2x2 row-action grid
+		   beside it, so a 44px cell costs the row NOTHING. Measured after:
+		   44px cells, row height unchanged at 98.3. Steps 2 to 4 were not
+		   reached.
+
+		   `min-height` and not `height`, so `autoresize` can still grow the
+		   box past it for a long answer: that action writes `style.height`
+		   inline and a stylesheet `min-height` only ever clamps it upward. */
+		min-height: 44px;
 		resize: none;
 		overflow: hidden;
 	}
@@ -1165,12 +1204,39 @@
 		flex-direction: column;
 		gap: 0.35rem;
 	}
+	/* THE FLOOR IS MEASURED AT THE LABEL, WHICH IS WHAT A FINGER HITS, and the
+	   input inside it is deliberately left at 13x13. CLAUDE.md: a small input
+	   inside a 44px label is fine, because clicking the label activates the
+	   control -- so the label's own box IS the target and growing the box is
+	   the fix rather than growing the checkbox.
+
+	   MEASURED BEFORE: label 293x23 at 375 and 1358x23 at 1440, hit-tested
+	   reach 24px tall. Under the 44px floor, and within half a pixel of the
+	   24px absolute floor, on a student assignment surface that declares no
+	   density class. `IDEA_INTERFACE_STANDARDS` 10 (2.12) step 1 is re-laying
+	   the control in the space that is there, and here there is no conflict at
+	   all to resolve: the items are a vertical stack in a card with the full
+	   measure to themselves, so nothing competes for the height. Steps 2 to 4
+	   were not reached.
+
+	   PADDING RATHER THAN `min-height`, so the text stays vertically centred
+	   in the row it now owns. `min-height` with `align-items: flex-start`
+	   would leave a one-line item's words pinned to the top of a 44px box with
+	   21px of blank label under them, which reads as a spacing bug. The
+	   padding grows the label symmetrically instead: 23 + 2*10.4 = 43.8, and
+	   the 1px border-box floor below rounds it the one direction a floor may
+	   round. `align-items: flex-start` is KEPT, so a wrapped item still lines
+	   its checkbox up with its first line rather than with the middle of the
+	   block. The cost is 21.1px per item, stated rather than described. */
 	.check-item {
 		display: flex;
 		align-items: flex-start;
 		gap: var(--space-2);
 		font-size: 0.9rem;
 		cursor: pointer;
+		padding-block: 0.65rem;
+		min-height: 44px;
+		box-sizing: border-box;
 	}
 	.check-item input {
 		margin-top: 0.2rem;
