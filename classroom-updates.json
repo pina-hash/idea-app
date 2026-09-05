@@ -1065,6 +1065,16 @@
 				"classroom",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Closing the Foundry for a class now stops previews too",
+			"body": "When a teacher closes the Foundry for a class, students in that class lose the app gallery, as before, and can no longer run one of their own builds from the preview link either. That was the gap: the gallery closed but preview kept working, so the control did not do what it looked like it did. Everything else is untouched. You can still open your own apps page, publish work, download a copy of your own build and read the build contract while a class has it closed. Teachers: the control at Foundry, Classes now also spells out the two things closing cannot stop, so you know before you press it.",
+			"tags": [
+				"foundry",
+				"classroom",
+				"fix"
+			]
 		}
 	]
 }

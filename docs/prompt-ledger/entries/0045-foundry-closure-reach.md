@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/foundry/access.ts`, `/foundry/preview`, `/foundry/download`, `/foundry/starter`, the gate on `/a/` and `/b/`, `src/lib/foundry/serve*.ts`, one migration (conditional, number taken at commit time), `src/routes/dev/foundry-admin/**`, `tests/foundry-section-gate*`, `tests/db/foundry-section-gate*`, `tools/browser-verify/routes/foundry-*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0045-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/foundry-closure-reach-bcmoom
 - Notes: Decision 01 exists so an instructor can stop students playing games
   during their lesson. Prompt 0015 built the per-section toggle and prompt
   0042 narrowed its reach so one closed class no longer locks a student out
