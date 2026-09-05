@@ -340,6 +340,32 @@ named.
   3122 measurements, 2 outside threshold**, 541.9s wall clock. The two are the
   standing `/dev/notebook` tap-reach rows (decision 12, with the owner), not
   anything this bundle touched.
+* `npm run verify:counts`: static region 106 -> **107** specs, 53 -> **54**
+  routes, 83 -> **84** `/dev` pages, 212 -> **214** runs. Exactly one route and
+  one page, which is what this bundle added.
+* `npm run verify:readme`: the measured region now reads **107 covered, 214
+  runs, 3122 measurements, 2 outside threshold, 519.7s**, on commit `734914a`
+  with a clean tree, and its selftest reports 70 controls (36 negative, 34
+  positive) with 0 instrument failures. `covered` and `specs` are both 107, so
+  the measured half is measured against THIS tree rather than a different set
+  of routes.
+  * **THE FIRST ATTEMPT AT IT CRASHED, AND IT WAS A FLAKE.** It died on the
+    route after `gauntlet-shell` with `page.evaluate: Execution context was
+    destroyed, most likely because of a navigation`, thrown from
+    `horizontalScroll` -- the first check a route runs, i.e. immediately after
+    navigating. Re-run ONCE on the same tree, per the flake rule, it completed
+    with 0 failures; and a full pass over the same 107 specs had already
+    completed cleanly earlier in the session. Two clean full passes against one
+    crash, in a route this bundle does not touch and whose own check was not
+    the one that failed. Recorded rather than chased.
+* **`tests/derived-numbers.test.ts` WAS ALREADY RED ON `origin/integration`,
+  and this bundle is what makes it green.** At `fdf8c68` the measured region
+  covered 103 of 106 specs -- `themes.mjs`, `themes-signedout-1.mjs` and
+  `themes-state-matrix.mjs` had never been measured -- so `unmeasuredSpecs`
+  named three and the file failed before any edit here. Adding this bundle's
+  route made it four, and regenerating the measured region cleared all four. A
+  session that finds that file red on a fresh branch should not assume it broke
+  it.
 * Mutation proof: above, with restores by `cp` and md5.
 
 ## NOT verified
