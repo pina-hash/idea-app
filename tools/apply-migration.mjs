@@ -22,14 +22,25 @@
  * below refuses anything that is not the LOWEST unapplied file.
  *
  * ---------------------------------------------------------------------------
- * WHAT IT REFUSES BEFORE IT CONNECTS. `scanFile` splits the file into top-level
- * statements (dollar-quoting, comments and quoted strings respected) and refuses
- * the destructive ones. That is a CLIENT-SIDE control and is bypassable by
- * anyone holding the credential and a `psql` prompt; it is here because it is
- * the only layer that can catch the two things the database's own event-trigger
- * guard measurably CANNOT: `truncate` (an event trigger never fires for it) and
- * top-level DML (event triggers do not fire on DML at all). See
- * `supabase/roles/idea_migrator.sql`, section "WHAT THE GUARD CANNOT CATCH".
+ * WHAT IT REFUSES BEFORE IT CONNECTS, AND WHY THAT IS NOW THE WHOLE OF THE
+ * PROTECTION. `scanFile` splits the file into top-level statements
+ * (dollar-quoting, quoted strings and comments respected, interior comments
+ * included) and refuses the destructive ones.
+ *
+ * THIS IS THE ONLY CONTROL THAT EXISTS. It used to be the outer half of a pair:
+ * the database carried an event-trigger guard that refused `drop table` and
+ * friends from `idea_migrator`, and this scan covered the two things that guard
+ * measurably could not (`truncate`, which never fires an event trigger, and
+ * top-level DML, which never fires one either). THE DATABASE HALF WAS NEVER
+ * INSTALLED AND CANNOT BE: `create event trigger` requires superuser and
+ * Supabase's `postgres` is not one. See `supabase/roles/idea_migrator.sql`,
+ * section "WHAT DOES NOT PROTECT YOU".
+ *
+ * So this is a CLIENT-SIDE control, it is bypassable in one line by anyone
+ * holding the credential and a `psql` prompt, and there is nothing behind it.
+ * That is why the scanner strips comments from the MIDDLE of a statement and
+ * not only from the front: a keyword hidden behind `drop /* x *\/ table` used to
+ * be sent, and used to be caught by the database. Now nothing would catch it.
  *
  * ---------------------------------------------------------------------------
  * IT DOES NOT DERIVE "IS THIS APPLIED" ITSELF. `tools/idea-status.py` turns a
@@ -77,7 +88,13 @@ export const MIGRATIONS_DIR = join(REPO_ROOT, 'supabase', 'migrations');
 /** The environment variable holding the scoped role's connection string. */
 export const URL_VAR = 'IDEA_MIGRATION_URL';
 
-/** The guard this tool expects to be standing, and fingerprints either side. */
+/**
+ * The event-trigger guard this tool USED to expect. It is not installed on this
+ * project and cannot be -- `create event trigger` needs superuser. The
+ * fingerprint check is kept because it costs one query and it is the only thing
+ * that would notice if one ever appeared, or moved; its ABSENCE is the normal
+ * state and is reported as such rather than as a missing step.
+ */
 export const GUARD_FUNCTION = 'idea_guard.applier_guard()';
 
 /**
@@ -182,29 +199,121 @@ export function splitStatements(sql) {
 }
 
 /**
- * A statement with its leading comments and whitespace removed, lowercased and
- * with runs of whitespace collapsed. Comparing against the raw text is how a
- * scanner comes back clean over a file whose every statement is preceded by the
- * paragraph of prose these migrations all carry.
+ * Every comment in `sql` replaced by a single space, with quoted strings,
+ * quoted identifiers and dollar-quoted bodies left exactly as they are.
+ *
+ * THIS IS WHAT CLOSES THE HOLE THE `head()` BELOW USED TO HAVE. `head()` only
+ * ever stripped comments from the FRONT of a statement, so a comment in the
+ * MIDDLE of one hid the keyword pair the refusal list matches on. Measured
+ * against the shipping scanner before this existed: `drop table public.x;` was
+ * refused, and BOTH `drop /* hi *\/ table public.x;` and `drop -- hi\ntable
+ * public.x;` were sent, because the collapsed head read `drop /* hi *\/ table`
+ * and `drop -- hi table`, neither of which matches `^drop table\b`. There is
+ * no guard in the database any more (see `supabase/roles/idea_migrator.sql`),
+ * so a statement this scanner sends is a statement nothing else will refuse.
+ *
+ * A comment becomes a SPACE rather than nothing, because `drop/*x*\/table` is
+ * one token to a naive join and two to Postgres.
+ *
+ * The scan respects quoting for the same reason `splitStatements` does: a `--`
+ * inside a string literal is not a comment, and removing it would change a
+ * statement's meaning rather than reveal it.
+ *
+ * @param {string} sql
+ * @returns {string}
+ */
+export function stripComments(sql) {
+	let out = '';
+	let i = 0;
+	const n = sql.length;
+	while (i < n) {
+		const c = sql[i];
+		if (c === '-' && sql[i + 1] === '-') {
+			const nl = sql.indexOf('\n', i);
+			i = nl === -1 ? n : nl;
+			out += ' ';
+			continue;
+		}
+		if (c === '/' && sql[i + 1] === '*') {
+			// Postgres block comments NEST, so a naive indexOf('*\/') stops at the
+			// first inner close and leaves the rest of the outer comment as code.
+			let depth = 1;
+			let j = i + 2;
+			while (j < n && depth > 0) {
+				if (sql[j] === '/' && sql[j + 1] === '*') {
+					depth += 1;
+					j += 2;
+					continue;
+				}
+				if (sql[j] === '*' && sql[j + 1] === '/') {
+					depth -= 1;
+					j += 2;
+					continue;
+				}
+				j += 1;
+			}
+			i = j;
+			out += ' ';
+			continue;
+		}
+		if (c === "'") {
+			let j = i + 1;
+			while (j < n) {
+				if (sql[j] === "'" && sql[j + 1] === "'") {
+					j += 2;
+					continue;
+				}
+				if (sql[j] === "'") {
+					j += 1;
+					break;
+				}
+				j += 1;
+			}
+			out += sql.slice(i, j);
+			i = j;
+			continue;
+		}
+		if (c === '"') {
+			let j = i + 1;
+			while (j < n && sql[j] !== '"') j += 1;
+			j = Math.min(j + 1, n);
+			out += sql.slice(i, j);
+			i = j;
+			continue;
+		}
+		if (c === '$') {
+			const m = /^\$[A-Za-z_\u0080-\uffff][A-Za-z0-9_\u0080-\uffff]*\$|^\$\$/.exec(sql.slice(i));
+			if (m) {
+				const tag = m[0];
+				const end = sql.indexOf(tag, i + tag.length);
+				const j = end === -1 ? n : end + tag.length;
+				out += sql.slice(i, j);
+				i = j;
+				continue;
+			}
+		}
+		out += c;
+		i += 1;
+	}
+	return out;
+}
+
+/**
+ * A statement with EVERY comment removed, lowercased and with runs of
+ * whitespace collapsed. Comparing against the raw text is how a scanner comes
+ * back clean over a file whose every statement is preceded by the paragraph of
+ * prose these migrations all carry -- and removing the INTERIOR comments too is
+ * how it comes back correct over one whose author put a comment inside the
+ * statement instead of in front of it. See `stripComments`.
+ *
+ * A dollar-quoted body is left intact, so a `drop table` inside a function body
+ * or a `do` block still does not look like a top-level one: the head then
+ * begins `create function` or `do $$`, which no refusal matches.
+ *
  * @param {string} stmt
  */
 export function head(stmt) {
-	let s = stmt;
-	for (;;) {
-		s = s.replace(/^\s+/, '');
-		if (s.startsWith('--')) {
-			const nl = s.indexOf('\n');
-			s = nl === -1 ? '' : s.slice(nl + 1);
-			continue;
-		}
-		if (s.startsWith('/*')) {
-			const e = s.indexOf('*/');
-			s = e === -1 ? '' : s.slice(e + 2);
-			continue;
-		}
-		break;
-	}
-	return s.replace(/\s+/g, ' ').toLowerCase().trim();
+	return stripComments(stmt).replace(/\s+/g, ' ').toLowerCase().trim();
 }
 
 /**
@@ -252,17 +361,19 @@ export function headLine(text, startLine) {
  * Statements this tool will not send, and why. Order matters only for which
  * sentence a reader gets first.
  *
- * `insert into` and `update` at the top level are REPORTED rather than refused,
- * because the census says what they are in practice: 2 inserts and 1 update
- * across the last twenty migrations, every one of them against
- * `storage.buckets`. `--allow-dml` is the deliberate press for that case.
- * `delete` and `truncate` have ZERO occurrences and are refused outright.
+ * `insert into` and `update` at the top level are STILL REFUSED BY DEFAULT --
+ * `main()` returns EXIT.refused for them and sends nothing -- but they carry
+ * kind 'warn' because `--allow-dml` can release them, which `delete` and
+ * `truncate` cannot. The census is why the release exists at all: 2 inserts and
+ * 1 update across the last twenty migrations, every one of them against
+ * `storage.buckets`. `delete` and `truncate` have ZERO occurrences, so there is
+ * no legitimate case to release and no flag that releases them.
  */
 const REFUSALS = [
 	[
 		/^drop table\b/,
 		'drop table',
-		'a migration in this repository has never dropped a table, and the database guard refuses it too'
+		'a migration in this repository has never dropped a table (0161..0180: zero occurrences), and NOTHING IN THE DATABASE REFUSES IT -- this line is the only refusal there is'
 	],
 	[/^drop schema\b/, 'drop schema', 'it takes everything in the schema with it'],
 	[/^drop database\b/, 'drop database', 'nothing in a migration file has any business doing this'],
@@ -274,7 +385,7 @@ const REFUSALS = [
 	[
 		/^truncate\b/,
 		'truncate',
-		'AN EVENT TRIGGER NEVER FIRES FOR IT -- measured -- so this refusal is the ONLY thing standing between the file and an emptied table'
+		'an event trigger never fires for it -- measured -- and there is no event trigger anyway, so this refusal is the only thing standing between the file and an emptied table'
 	],
 	[
 		/^delete\b/,
@@ -284,12 +395,12 @@ const REFUSALS = [
 	[
 		/^create extension\b/,
 		'create extension',
-		'it needs a privilege the scoped role does not have, and the guard refuses it; paste this file by hand in the SQL editor instead'
+		'it needs a privilege the scoped role does not have; paste this file by hand in the SQL editor instead'
 	],
 	[
 		/^alter (event trigger|system)\b/,
 		'alter event trigger / alter system',
-		'no event trigger fires for either, so neither is guarded'
+		'no event trigger fires for either, and there is no event trigger to fire'
 	],
 	[/^drop event trigger\b/, 'drop event trigger', 'this is how the guard is removed'],
 	[
@@ -342,7 +453,7 @@ export function scanFile(sql) {
 			findings.push({
 				kind: 'refuse',
 				what: 'alter table ... drop column',
-				why: 'the column and its data go with it; the guard refuses it too, through sql_drop',
+				why: 'the column and its data go with it, and nothing in the database refuses it',
 				line: at,
 				sql: brief
 			});
@@ -351,7 +462,7 @@ export function scanFile(sql) {
 			findings.push({
 				kind: 'warn',
 				what: 'top-level DML',
-				why: 'it runs as the applying role and no event trigger sees it; pass --allow-dml to send it anyway',
+				why: 'it runs as the applying role and nothing in the database sees it; the census says these are the two storage.buckets writes, so pass --allow-dml if that is what this is',
 				line: at,
 				sql: brief
 			});
@@ -828,10 +939,12 @@ async function main() {
 		report.guardBefore = fpBefore;
 		if (fpBefore === null) {
 			say(
-				`  WARNING: ${GUARD_FUNCTION} is NOT present. Nothing in the database will refuse a destructive statement; only this tool's own scan will. Paste supabase/roles/idea_migrator.sql first.`
+				`  no database guard (${GUARD_FUNCTION} is absent, which is the NORMAL and permanent state: CREATE EVENT TRIGGER needs superuser and Supabase does not grant it). Nothing in the database will refuse a destructive statement from this role -- this tool's own scan, already run above, is the only control there is.`
 			);
 		} else {
-			say(`  guard ${GUARD_FUNCTION} present (fingerprint ${fpBefore.slice(0, 12)})`);
+			say(
+				`  UNEXPECTED: ${GUARD_FUNCTION} IS present (fingerprint ${fpBefore.slice(0, 12)}). This project was measured as unable to create an event trigger, so either something changed or this function is dead code that refuses nothing. Read supabase/roles/idea_migrator.sql before treating it as a control.`
+			);
 		}
 		if (who.rows[0].su !== 'idea_migrator') {
 			say(
