@@ -277,12 +277,19 @@ having count(*) > 1
 ```sql
 -- READ ONLY. Does a candidate carry anything a delete would take with it?
 select i.id,
-       (select count(*) from public.classroom_postings   p where p.item_id = i.id) as postings,
-       (select count(*) from public.classroom_attachments a where a.item_id = i.id) as files,
-       (select count(*) from public.classroom_responses   r where r.item_id = i.id) as student_work
+       (select count(*) from public.classroom_postings        p where p.item_id = i.id) as postings,
+       (select count(*) from public.classroom_attachments     a where a.item_id = i.id) as files,
+       (select count(*) from public.classroom_responses       r where r.item_id = i.id) as student_work,
+       (select count(*) from public.classroom_assignment_specs s where s.item_id = i.id) as specs,
+       (select count(*) from public.classroom_rubrics         b where b.item_id = i.id) as rubrics,
+       (select count(*) from public.classroom_decks           d where d.item_id = i.id) as decks
   from public.classroom_items i
  where i.id = any ($1::uuid[]);   -- the `surplus` array from the query above
 ```
+
+Every table named there exists in the applied chain (checked against
+`supabase/migrations/`); the column each joins on is `item_id`. Neither query
+was run against production.
 
 Anything with `student_work > 0` is **not** a surplus copy in any sense that
 matters and must be left alone. For the rest, the safe removal is the app's own
