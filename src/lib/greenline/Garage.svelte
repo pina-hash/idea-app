@@ -1534,6 +1534,7 @@
 							aria-selected={activeTab === t.id}
 							title={t.hint}
 							data-sfx="tab"
+							data-testid={`gg-tab-${t.id}`}
 							onclick={() => (tab = t.id)}
 						>
 							<span class="gg-tab-label">{t.label}</span>
@@ -2656,8 +2657,15 @@
 		gap: 0.45rem;
 		flex-wrap: wrap;
 	}
+	/* THE SENTENCE THAT SAYS WHO CAN SEE THIS DECAL, and the measurement that
+	   found it: `--glb-ink-faint` put it at 3.52:1 on the garage's own ground.
+	   It is the one line telling a student their upload is not public yet, so
+	   it is copy carrying meaning and clears 4.5, not decoration. Moved at the
+	   CALL SITE rather than by raising the token -- `--glb-ink-faint` is drawn
+	   across the whole GREENLINE room as tertiary decoration, and raising it
+	   would repaint all of that to fix one sentence. */
 	.gg-decal-note {
-		color: var(--glb-ink-faint);
+		color: var(--glb-ink-dim);
 		font-size: 0.6rem;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;

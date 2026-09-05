@@ -62,7 +62,24 @@
 	 * /dev/greenline-movement; the full data-backed loop is on /greenline.
 	 */
 	// ?view=garage|results preselects a view (headless screenshot support).
-	const initView = browser ? new URLSearchParams(location.search).get('view') : null;
+	const initParams = browser ? new URLSearchParams(location.search) : null;
+	const initView = initParams?.get('view') ?? null;
+	/**
+	 * `?seed=pending|rejected|approved` puts the harness into ONE of the three
+	 * states a student's own submission can be in, and it does it by calling the
+	 * harness's own real store functions (`devPublish`, `devReview`, the real
+	 * `handleDecalUpload` with a real File through the real `validateDecalFile`)
+	 * rather than by writing rows. A seed that assembled state directly would be
+	 * a fourth definition of what "pending" means, and the whole point of a
+	 * harness is that it drives the same path.
+	 *
+	 * It exists because these three states are what `npm run verify:browser`
+	 * has to MEASURE, and a spec that reached them by chaining clicks measures
+	 * the click chain as well as the state: one broken step and every number
+	 * after it describes a screen the run never got to. A URL is deterministic
+	 * and is reported in the row itself.
+	 */
+	const initSeed = initParams?.get('seed') ?? null;
 	let view = $state<'title' | 'garage' | 'race' | 'results' | 'moderation'>(
 		initView === 'garage' || initView === 'race' || initView === 'results' || initView === 'moderation'
 			? initView
@@ -882,8 +899,48 @@
 		requestAnimationFrame(step);
 	}
 
+	/**
+	 * Apply `?seed=`. Runs ONCE on mount, THROUGH the harness's own store
+	 * functions, so the state it produces is by construction a state the flow
+	 * can actually produce: `devPublish` is the real client-side validator the
+	 * publish endpoint gates on, `devReview` is the same function the panel's
+	 * own buttons call, and the decal goes through the REAL `validateDecalFile`
+	 * on a REAL File built from a canvas.
+	 *
+	 * A track lands PENDING and then gets whatever decision the seed names. The
+	 * decal is seeded pending in every case and is left pending for the
+	 * `approved` seed too, so the moderation queue always has one of each kind
+	 * to measure. `syncRegistry` is called by `devPublish`/`devReview`
+	 * themselves, exactly as when a button presses them.
+	 */
+	async function applySeed(seed: string) {
+		const pub = devPublish(undefined, 'Sunset Loop');
+		if (pub.ok && pub.uuid) {
+			if (seed === 'rejected') {
+				devReview(pub.uuid, 'reject', 'Add a runoff at turn 3 before the wall gets anybody.');
+			} else if (seed === 'approved') {
+				devReview(pub.uuid, 'approve');
+			}
+			setSelectedTrack(`community:${pub.uuid}`);
+		}
+		// A real 8x8 PNG through the real upload path. `toBlob` is async and
+		// `validateDecalFile` decodes it, so the seed is too.
+		const c = document.createElement('canvas');
+		c.width = 8;
+		c.height = 8;
+		const ctx = c.getContext('2d');
+		if (ctx) {
+			ctx.fillStyle = '#2ae57e';
+			ctx.fillRect(0, 0, 8, 8);
+		}
+		const blob = await new Promise<Blob | null>((res) => c.toBlob((b) => res(b), 'image/png'));
+		if (blob) await handleDecalUpload(new File([blob], 'seed.png', { type: 'image/png' }));
+		lastAction = `seeded: ${seed}`;
+	}
+
 	onMount(() => {
 		if (!browser) return;
+		if (initSeed) void applySeed(initSeed);
 		(window as unknown as Record<string, unknown>).__greenlineAudio = {
 			engine: audioEngine,
 			tone: toneOn,

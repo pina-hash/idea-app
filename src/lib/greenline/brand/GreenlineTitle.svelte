@@ -263,6 +263,14 @@
 		.tt-builder {
 			animation: tt-fade 0.6s 1.14s ease-out both;
 		}
+		/* The staff entry joins the same one-time cascade, last, so it does not
+		   arrive ahead of the controls above it. NOTHING IS HIDDEN IN A BASE
+		   STATE: with the animation cancelled (reduced motion) the button is at
+		   full opacity and no transform from the first frame, exactly like every
+		   other element in this block. */
+		.tt-moderation {
+			animation: tt-fade 0.6s 1.26s ease-out both;
+		}
 	}
 	@keyframes tt-sheen-sweep {
 		0%,
