@@ -1,4 +1,5 @@
 import { FOUNDRY_ENTRY_FILE } from '$lib/foundry/preflight';
+import { foundryServeRefusal } from '$lib/foundry/serve-gate';
 import { isAdmin } from '$lib/server/admin';
 import {
 	foundryNotFound,
@@ -112,6 +113,37 @@ const handle: RequestHandler = async ({ params, url, request, locals }) => {
 	// be redirected anyway.
 	if (bare && !url.pathname.endsWith('/'))
 		return foundryRootRedirect(versionId, url.search);
+
+	/**
+	 * THE CLASS GATE (0173 decision 01, scoped by 0042, REACHED BY 0045), AND
+	 * THIS ROUTE IS THE WHOLE REASON 0045 EXISTS.
+	 *
+	 * THIS SURFACE RUNS A BUNDLE, WHICH IS THE ONE THING A CLOSURE IS FOR.
+	 * `/foundry` is a group-wide gate hoisted to `+layout.server.ts` -- and a
+	 * route group's layout load DOES NOT RUN FOR AN ENDPOINT, so this handler
+	 * never saw it. A student in a closed class pressed Preview on their own
+	 * shelf, which is deliberately open, and their build ran on our own host
+	 * during somebody's lesson. The argument for preview being IN the blocked
+	 * set, and for download and starter being out of it, is on
+	 * `FOUNDRY_CLOSURE_BLOCKS`; this line reads that answer and does not
+	 * restate it.
+	 *
+	 * IT RUNS BEFORE THE VIEWER IS RESOLVED, AND AFTER THE REDIRECT, FOR TWO
+	 * DIFFERENT REASONS. Before the viewer, because a closed student must be
+	 * refused identically for an app that exists, an app that is somebody
+	 * else's and an app id that is nonsense -- otherwise the one refusal on
+	 * this route that carries a body becomes the oracle its 404 is so careful
+	 * not to be. After the redirect, because the redirect is a fact about the
+	 * URL's shape that says nothing about anybody, and issuing it first keeps
+	 * the two forms of this URL answering the same way whether the class is
+	 * open or shut.
+	 *
+	 * ONE READ PER REQUEST, INCLUDING PER SUBRESOURCE, AND THAT IS THE HONEST
+	 * COST. Gating only the entry document would leave a bookmarked
+	 * `.../index.html` ungated, which is the same defect one level down.
+	 */
+	const closedRefusal = await foundryServeRefusal(locals.supabase, 'preview');
+	if (closedRefusal) return closedRefusal;
 
 	// WHO IS ASKING, FROM THE SESSION AND NOTHING ELSE. `locals.claims` is what
 	// `hooks.server.ts` validated with `getClaims()`, and `isAdmin` runs

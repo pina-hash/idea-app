@@ -51,6 +51,7 @@ import {
 	type FoundryAccess
 } from '../src/lib/foundry/access';
 import type { FoundryPlace } from '../src/lib/foundry/nav';
+import type { FoundryGuarded } from '../src/lib/foundry/access';
 import { load as galleryLoad } from '../src/routes/foundry/+page.server';
 import { load as mineLoad } from '../src/routes/foundry/mine/+page.server';
 import { load as submitLoad } from '../src/routes/foundry/submit/+page.server';
@@ -221,10 +222,18 @@ afterAll(async () => {
 
 describe('what a closure reaches', () => {
 	/**
-	 * TOTAL OVER THE PLACE UNION, ASSERTED AS A SET RATHER THAN AS A LIST OF
-	 * `expect` LINES. A place added to `FoundryPlace` with no decision made
-	 * about it is the thing that ships ungated, so the union is enumerated
-	 * here and every member has to appear on one side or the other.
+	 * TOTAL OVER THE GUARDED UNION, ASSERTED AS A SET RATHER THAN AS A LIST OF
+	 * `expect` LINES. A place with no decision made about it is the thing that
+	 * ships ungated, so the union is enumerated here and every member has to
+	 * appear on one side or the other.
+	 *
+	 * IT ENUMERATES `FoundryGuarded`, NOT `FoundryPlace`, AND 0045 IS WHY. The
+	 * predicate's domain is wider than the tab strip: `/foundry/preview`,
+	 * `/foundry/download` and `/foundry/starter` are `+server.ts` endpoints
+	 * that hand over bytes, `locateFoundry` correctly places none of them, and
+	 * before 0045 the closure did not reach any of them. Enumerating only the
+	 * six tabs would have left the three routes this whole bundle is about
+	 * outside the totality check that exists to catch exactly that.
 	 */
 	const EVERY_PLACE: readonly FoundryPlace[] = [
 		'gallery',
@@ -234,16 +243,38 @@ describe('what a closure reaches', () => {
 		'classes',
 		'review'
 	];
+	const EVERY_GUARDED: readonly FoundryGuarded[] = [
+		...EVERY_PLACE,
+		'preview',
+		'download',
+		'starter'
+	];
 
-	it('blocks the gallery and nothing else', () => {
-		const blocked = EVERY_PLACE.filter((p) => foundryClosureBlocks(p));
-		const open = EVERY_PLACE.filter((p) => !foundryClosureBlocks(p));
-		expect(blocked).toEqual(['gallery']);
-		// The positive control on the same reading: the other five are named,
+	it('blocks the two places a bundle runs and nothing else', () => {
+		const blocked = EVERY_GUARDED.filter((p) => foundryClosureBlocks(p));
+		const open = EVERY_GUARDED.filter((p) => !foundryClosureBlocks(p));
+		// The gallery mounts `AppStage` and `/foundry/preview` executes a
+		// student's own build on the portal origin. Those are the two, and the
+		// argument is on `FOUNDRY_CLOSURE_BLOCKS`.
+		expect(blocked).toEqual(['gallery', 'preview']);
+		// The positive control on the same reading: the other seven are named,
 		// so a predicate that started answering true for everything cannot
 		// pass the line above by returning an empty second list.
-		expect(open).toEqual(['mine', 'contract', 'submit', 'classes', 'review']);
-		expect(FOUNDRY_CLOSURE_BLOCKS).toEqual(['gallery']);
+		expect(open).toEqual([
+			'mine',
+			'contract',
+			'submit',
+			'classes',
+			'review',
+			'download',
+			'starter'
+		]);
+		expect([...FOUNDRY_CLOSURE_BLOCKS]).toEqual(['gallery', 'preview']);
+		// AND THE UNION IS COVERED. A member added to `FoundryGuarded` and not
+		// to the list above would slip past both filters silently; the count is
+		// what makes the totality claim a measurement.
+		expect(blocked.length + open.length).toBe(EVERY_GUARDED.length);
+		expect(EVERY_GUARDED.length).toBe(9);
 	});
 
 	it('fails closed for a place nobody has classified', () => {
@@ -260,6 +291,10 @@ describe('what a closure reaches', () => {
 	 */
 	it('states the reach in words, from one source', () => {
 		expect(FOUNDRY_CLOSURE_EFFECT).toMatch(/gallery/i);
+		// 0045: the effect sentence gained the second surface a closure now
+		// takes, because an instructor reading only "the gallery" would not
+		// expect Preview to stop working.
+		expect(FOUNDRY_CLOSURE_EFFECT).toMatch(/their own builds/i);
 		expect(FOUNDRY_CLOSURE_LIMIT).toMatch(/their own apps/i);
 		expect(FOUNDRY_CLOSURE_LIMIT).toMatch(/publishing/i);
 		expect(FOUNDRY_CLOSURE_REACH).toMatch(/every class and at home/i);

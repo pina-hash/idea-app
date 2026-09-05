@@ -1,3 +1,4 @@
+import { foundryServeRefusal } from '$lib/foundry/serve-gate';
 import { isAdmin } from '$lib/server/admin';
 import { downloadBundleZip } from '$lib/server/foundry-bundle';
 import { foundryNotFound, foundryOnAppsOrigin } from '$lib/server/foundry-bundle-response';
@@ -60,6 +61,30 @@ import type { RequestHandler } from './$types';
  */
 const handle: RequestHandler = async ({ params, url, request, locals }) => {
 	if (foundryOnAppsOrigin(url.origin)) return foundryNotFound();
+
+	/**
+	 * THE CLASS GATE (0173 decision 01, scoped by 0042, WIRED BY 0045), AND ON
+	 * THIS ROUTE IT IS WIRED TO AN ANSWER OF "CARRY ON".
+	 *
+	 * A route group's LAYOUT load does not run for an endpoint, so the
+	 * group-wide gate never reached this handler and 0045 is what connects it.
+	 * `download` is DELIBERATELY NOT IN `FOUNDRY_CLOSURE_BLOCKS` -- the full
+	 * argument is beside the set, and the short form is that this route serves
+	 * the AUTHOR or an admin and nobody else, so every byte it hands over is a
+	 * byte that student uploaded and already has. Refusing it closes no path
+	 * and costs "does my work still exist", which is the `mine` question 0042
+	 * settled as open.
+	 *
+	 * SO WHY CALL IT AT ALL. Because the DECISION then lives in one array
+	 * rather than in this file's silence: adding `'download'` to the set is
+	 * the whole of what it would take to gate this route, and
+	 * `tests/foundry-section-gate-serve.test.ts` proves that by doing it. And
+	 * it costs nothing today: `foundryServeRefusal` runs the pure `includes`
+	 * FIRST and returns without opening a connection for a place the set does
+	 * not name.
+	 */
+	const closedRefusal = await foundryServeRefusal(locals.supabase, 'download');
+	if (closedRefusal) return closedRefusal;
 
 	const appId = params.appId ?? '';
 	const versionId = params.versionId ?? '';
