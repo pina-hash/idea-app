@@ -182,6 +182,22 @@ Each mutation reddened only its own rows: `onHide` reddened 2 of 9 DOM
 assertions and the checkpoint reddened 3 of 9, with no overlap. The two halves
 are independently pinned rather than one thing measured twice.
 
+**The browser check bites too**, which is the half a DOM mutation cannot show.
+With both halves reverted, `npm run verify:browser -- --route composer-draft`
+went from 0 outside threshold to 2, identically at both widths:
+
+```
+fixed    ["rows 1","creates 1","updates 4","title=\"Bridge lab writeup\"","said=updated-draft"]
+reverted ["rows 5","creates 5","updates 0","title=\"\"","said=Assignment saved as a draft to 1 class."]
+```
+
+Five real clicks, five rows, the field emptied, and the acknowledgement claiming
+a fresh post on every one of them. (The six tab switches add nothing in THIS
+fixture because its transport succeeds, so the machine reaches `saved` rather
+than `failed` -- the tab-switch half is the one the DOM file measures with a
+lost response, where it went 1 to 7.) Restored from a `cp` copy, md5
+`7452902781e24dd8716a4778a43f1f86` before and after.
+
 ## What was added
 
 * `tests/dom/composer-draft-drive.ts` -- the instrument, kept apart from the
@@ -287,8 +303,22 @@ named.
   `perf_avoid_nested_class`, re-derived after `npx svelte-kit sync` with the two
   `PUBLIC_SUPABASE_*` placeholders exported (the fresh-checkout phantom-errors
   rule). Identical to the baseline measured on `fdf8c68` before any edit.
-* The full suite and the browser pass: see the report at the end of this entry's
-  own session; totals and the run time are recorded there.
+* `npm run verify:browser -- --route composer-draft`: **24 measurements at 375
+  and 1440, 0 outside threshold**, total wall clock 19.9s. The row that matters,
+  after five real clicks and six real tab switches, identical at both widths:
+  `["rows 1","creates 1","updates 4","title="Bridge lab writeup"","said=updated-draft"]`.
+  Contrast on the counters 12.47:1; Save draft 130.1x44 and Hide the tab
+  147.4x44, both clearing the 44px floor; 0 horizontal overflow at either
+  width; 0 console errors.
+* **Paint is not interactivity, and the numbers say so.** The first press is
+  retried against its own effect rather than after a timer: it took **6
+  attempts at 375px** and **2 at 1440px** for the click to land on a hydrated
+  page, against an "app rendered" figure of 501ms and 618ms. A fixed wait
+  tuned to either width would have been wrong at the other.
+* A full pass over the whole harness on the same tree: **214 route/width runs,
+  3122 measurements, 2 outside threshold**, 541.9s wall clock. The two are the
+  standing `/dev/notebook` tap-reach rows (decision 12, with the owner), not
+  anything this bundle touched.
 * Mutation proof: above, with restores by `cp` and md5.
 
 ## NOT verified

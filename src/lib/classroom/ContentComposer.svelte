@@ -1084,25 +1084,36 @@
 		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
 		const goLive = scheduledAhead ? new Date(localInputToIso(publishAt) ?? '').toLocaleString() : '';
 		/**
-		 * WHAT THIS SAVE ACTUALLY DID, not which mode the form is in. A create
-		 * composer holding `createdItemId` UPDATES the row its last checkpoint
-		 * made, so reporting "saved as a draft to 1 class" a second time would
-		 * describe a post that was not made -- which is precisely the sentence
-		 * somebody read while wondering where the copies were coming from.
+		 * THE TWO HALVES OF THIS SENTENCE ANSWER DIFFERENT QUESTIONS, and they
+		 * are keyed differently on purpose.
+		 *
+		 * A PUBLISH is about the AUDIENCE, so it keys on `mode`: a create-mode
+		 * composer is putting this in front of a class for the first time,
+		 * whatever `saveTarget` had to do to get there. A retry after a
+		 * half-landed create is still that class's first sight of it, and
+		 * "updated -- every class sees the change" would be a strange thing to
+		 * read about something nobody had seen yet.
+		 *
+		 * A DRAFT is about the RECORD, so it keys on what the save actually
+		 * did. A create composer holding `createdItemId` UPDATES the row its
+		 * last checkpoint made, and saying "saved as a draft to 1 class" a
+		 * second time would describe a post that was not made -- which is
+		 * exactly the sentence somebody read while wondering where the copies
+		 * were coming from.
 		 */
-		const wasUpdate = target.action === 'update';
-		const where =
-			wasUpdate
-				? publish
-					? scheduledAhead
-						? `updated -- students see it from ${goLive}`
-						: 'updated -- every class it is posted to sees the change'
-					: 'updated (draft)'
-				: publish
-					? scheduledAhead
-						? `scheduled for ${goLive} in ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`
-						: `posted to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`
-					: `saved as a draft to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`;
+		const draftUpdated = target.action === 'update';
+		const inClasses = `${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`;
+		const where = publish
+			? mode === 'edit'
+				? scheduledAhead
+					? `updated -- students see it from ${goLive}`
+					: 'updated -- every class it is posted to sees the change'
+				: scheduledAhead
+					? `scheduled for ${goLive} in ${inClasses}`
+					: `posted to ${inClasses}`
+			: draftUpdated
+				? 'updated (draft)'
+				: `saved as a draft to ${inClasses}`;
 		const text = `${what} ${where}.${attachNote}`;
 
 		/**
