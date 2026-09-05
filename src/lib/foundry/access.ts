@@ -89,9 +89,69 @@ export interface FoundryAccess {
  * surfaces those are, so the panel, the loads and the instructor's own copy
  * cannot come to disagree about what a close does.
  */
-export const FOUNDRY_CLOSURE_BLOCKS: readonly FoundryPlace[] = ['gallery'];
+/**
+ * THE DOMAIN THE PREDICATE ANSWERS OVER, WHICH IS WIDER THAN THE TAB STRIP.
+ *
+ * `FoundryPlace` is `nav.ts`'s answer to "which tab is lit", and the three
+ * routes below are not tabs: `/foundry/preview`, `/foundry/download` and
+ * `/foundry/starter` are `+server.ts` endpoints that hand over BYTES. They
+ * have no layout, so the group-wide gate that carries the closure never runs
+ * for them, and `locateFoundry` correctly places none of them.
+ *
+ * 0042 REPORTED THAT AND THIS IS THE FIX. A closure that reached only the
+ * places a tab can be lit for was, in 0042's own words, a shutter on five
+ * documents: a student in a closed class pressed Preview on their own shelf
+ * and their build ran. So the predicate's domain gains the three serve
+ * routes, and each route asks it for ITSELF rather than inheriting an answer
+ * from a layout it does not have.
+ *
+ * IT IS A WIDENING OF THE SAME PREDICATE, NOT A SECOND ONE. One array, one
+ * `includes`, one null-fails-closed rule, and every existing caller passing a
+ * `FoundryPlace` still type-checks unchanged. Two predicates for "does a
+ * closure reach here" is precisely how a page goes dark on the server and
+ * stays lit in the markup.
+ */
+export type FoundryGuarded = FoundryPlace | 'preview' | 'download' | 'starter';
 
-export function foundryClosureBlocks(place: FoundryPlace | null): boolean {
+/**
+ * WHAT A CLOSURE ACTUALLY TAKES AWAY: THE TWO PLACES A BUNDLE RUNS.
+ *
+ * 0042's argument for the tab set is above and is unchanged. What 0045 adds
+ * is the half that was missing, and the rule that decides it is the same one
+ * that put `gallery` here in the first place: A CLOSURE BLOCKS WHAT RUNS A
+ * STUDENT'S BUNDLE IN THE PORTAL, and nothing else.
+ *
+ *   preview   BLOCKED, and it is the one this bundle exists for.
+ *             `/foundry/preview` executes a student's own build, at ANY
+ *             status, on the portal origin. It is one press from
+ *             `/foundry/mine` and one press from a successful upload on
+ *             `/foundry/submit`, and both of those surfaces are deliberately
+ *             OPEN -- so before this, the shortest path to playing a game in
+ *             a closed class was to be the person who wrote it. That is a
+ *             running game on our own host during somebody's lesson, which is
+ *             the whole of what decision 01 was asked for.
+ *   download  OPEN, and this is a decision rather than an omission. The route
+ *             serves the AUTHOR or an admin and nobody else, so every byte it
+ *             hands over is a byte that student supplied: they uploaded the
+ *             zip, so they already have it, and refusing the download closes
+ *             no path they do not already have open. What it would cost is
+ *             real -- "does my work still exist" is the `mine` question 0042
+ *             settled as open, and an admin is exempt from closures anyway.
+ *   starter   OPEN. A generated template with no student app in it and
+ *             nothing to run. `locateFoundry` already places `/foundry/starter`
+ *             at `submit`, which 0042 settled as open because publishing is
+ *             handing work IN; the file you START from cannot be the
+ *             distraction.
+ *
+ * WHAT IS NOT HERE AND CANNOT BE, stated where the set is so nobody reads the
+ * list as complete: `/a/` and `/b/`. Those answer on the APPS ORIGIN, which
+ * holds no session by design, so there is no viewer there for a per-viewer
+ * rule to be about. See `FOUNDRY_CLOSURE_REACH` for what the instructor is
+ * told about it and the history entry for what was priced and rejected.
+ */
+export const FOUNDRY_CLOSURE_BLOCKS: readonly FoundryGuarded[] = ['gallery', 'preview'];
+
+export function foundryClosureBlocks(place: FoundryGuarded | null): boolean {
 	if (place === null) return true;
 	return FOUNDRY_CLOSURE_BLOCKS.includes(place);
 }
@@ -107,16 +167,35 @@ export function foundryClosureBlocks(place: FoundryPlace | null): boolean {
  * component so the panel a student reads and the copy an instructor presses
  * cannot describe two different closures.
  *
+ * THE TWO THINGS A CLOSURE CANNOT STOP ARE IN `REACH` AND DELIBERATELY NOT IN
+ * `LIMIT`, AND WHICH CONSTANT THEY LAND IN IS A DISCLOSURE DECISION RATHER
+ * THAN A TIDINESS ONE. `LIMIT` is rendered on `FoundryClosed`, which is THE
+ * STUDENT'S OWN REFUSAL PANEL; `REACH` is rendered only on
+ * `FoundryClassAccess`, which lives behind `classroom_manages_section`. So a
+ * sentence naming the share link is read by the person deciding whether to
+ * press the switch and never by the person it is being pressed on. Writing
+ * "a published app opened by its own share link keeps running" onto a closed
+ * student's panel would be handing them the way around it, in our own words,
+ * on the surface refusing them.
+ *
+ * AND THE SENTENCE STILL HAS TO BE THERE. An instructor who believes the
+ * button stops a student playing, and finds out in front of a class that it
+ * does not, is worse off than one who was told the limit up front. That is
+ * the whole argument for naming it rather than leaving the control quiet:
+ * `/a/` and `/b/` answer on an origin that holds no session by design, so
+ * there is no viewer there to gate, and there is no version of this feature
+ * in which that sentence stops being true.
+ *
  * NO EM DASHES, per the copy conventions.
  */
 export const FOUNDRY_CLOSURE_EFFECT =
-	'Closing it takes the app gallery away from students in that class. They cannot browse or open other students apps until you open it again.';
+	'Closing it takes the app gallery away from students in that class, and stops them running one of their own builds in the Foundry. They cannot browse or open apps until you open it again.';
 
 export const FOUNDRY_CLOSURE_LIMIT =
-	'It leaves everything else alone: their own apps, publishing, the build contract and anything already published all stay reachable.';
+	'It leaves everything else alone: their own apps, publishing, taking a copy of their own work and the build contract all stay reachable.';
 
 export const FOUNDRY_CLOSURE_REACH =
-	'It applies to those students in every class and at home, not only during your period. The site has no way to tell which class somebody is sitting in, so there is no schedule behind this and it stays closed until you open it.';
+	'It applies to those students in every class and at home, not only during your period. The site has no way to tell which class somebody is sitting in, so there is no schedule behind this and it stays closed until you open it. Two things it cannot stop, so you know before you press it: a published app opened by its own share link keeps running, because those links work without signing in and nothing there can tell who is opening one, and a page already on a student screen keeps running until they reload it.';
 
 /**
  * THE ANSWER WHEN NOBODY ASKED, AND IT IS OPEN.
@@ -133,6 +212,39 @@ export const FOUNDRY_CLOSURE_REACH =
  * and the reason it is spelled as a code check rather than a `catch`.
  */
 export const FOUNDRY_ACCESS_OPEN: FoundryAccess = { open: true, closed: [] };
+
+/**
+ * THE DEGRADATION LADDER, WRITTEN DOWN ONCE.
+ *
+ * `foundry_section_access()` is called from FOUR places now, not one: the
+ * group-wide layout gate, and each of the three serve routes, which are
+ * `+server.ts` endpoints and therefore get no layout data to inherit an
+ * answer from. Four inline copies of "what does an error from this RPC mean"
+ * is four things that can stop agreeing about whether a failure is open or
+ * closed, on the one predicate in this feature where being wrong in either
+ * direction is a real outage: wrong one way locks every student out of a
+ * feature nobody turned off, wrong the other way leaves the control inert.
+ *
+ * `PGRST202` ALONE DEGRADES TO OPEN. A deployment sitting between 0172 and
+ * 0173 is a real state and the function is genuinely absent on it; the gate
+ * did not exist in that world, so open is "as it was". ANY OTHER ERROR IS A
+ * RUNTIME FAILURE INSIDE A GATE AND CLOSES, per the standing rule that an
+ * access helper fails closed rather than falling through to a weaker check.
+ * Spelled as a code check rather than a `catch` for exactly that reason.
+ *
+ * PURE, so it is assertable with no database: it takes the two halves
+ * PostgREST already hands its caller and returns the answer.
+ */
+export function foundryAccessFromRpc(
+	row: unknown,
+	err: { code?: string | null } | null
+): FoundryAccess {
+	if (err) {
+		return err.code === 'PGRST202' ? FOUNDRY_ACCESS_OPEN : { open: false, closed: [] };
+	}
+	if (!row) return FOUNDRY_ACCESS_OPEN;
+	return row as FoundryAccess;
+}
 
 /**
  * WHAT A CLOSED-OUT STUDENT READS. One implementation, because the layout

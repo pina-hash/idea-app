@@ -1,4 +1,5 @@
 import { foundryStarterFile } from '$lib/foundry/preflight';
+import { foundryServeRefusal } from '$lib/foundry/serve-gate';
 import type { RequestHandler } from './$types';
 
 /**
@@ -28,7 +29,31 @@ import type { RequestHandler } from './$types';
  * `no-store` because the file is generated per request from constants that move
  * with a deploy, and it costs a few kilobytes to always be right.
  */
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ locals }) => {
+	/**
+	 * THE CLASS GATE (0173 decision 01, scoped by 0042, WIRED BY 0045), AND ON
+	 * THIS ROUTE IT IS WIRED TO AN ANSWER OF "CARRY ON".
+	 *
+	 * The prefix guard above is about being SIGNED IN; the closure is a
+	 * different question and `hooks.server.ts` does not ask it. A route
+	 * group's layout load does not run for an endpoint, so nothing here had
+	 * ever consulted it, and 0045 is what connects the wire.
+	 *
+	 * `starter` is DELIBERATELY NOT IN `FOUNDRY_CLOSURE_BLOCKS`. There is no
+	 * student app in this response to run: it is a generated template built
+	 * from the same constants the contract prints, and `locateFoundry`
+	 * already places `/foundry/starter` at `submit`, which 0042 settled as
+	 * open because publishing is handing work IN. The file you START from
+	 * cannot be the distraction the control exists to stop.
+	 *
+	 * IT COSTS NOTHING TO ASK. `foundryServeRefusal` runs the pure `includes`
+	 * first and returns for a place the set does not name, so no connection is
+	 * opened; what the call buys is that the decision lives in one array
+	 * rather than in this file's silence.
+	 */
+	const closedRefusal = await foundryServeRefusal(locals.supabase, 'starter');
+	if (closedRefusal) return closedRefusal;
+
 	const body = foundryStarterFile();
 	return new Response(body, {
 		headers: {
