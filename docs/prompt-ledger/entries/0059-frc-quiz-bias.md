@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the quiz bank and its lint under `src/lib/frc/`, `src/routes/dev/frc/**`, `tests/frc-quiz*`, `tools/frc-quiz-bias.mjs` (new, conditional), `docs/frc/**`, `docs/prompt-ledger/entries/0059-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0181
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/frc-quiz-bias-10avj9`
 - Notes: The project's standing record states it plainly: across 140 items
   the longest option is correct 68% of the time against 25% at chance, and a
   student who knows nothing and always picks the longest passes one unit 57%

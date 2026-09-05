@@ -355,3 +355,138 @@ export function giveaway(item: BankItem): number {
 	const best = Math.max(...distractors);
 	return best === 0 ? 0 : item.options[item.answer].length / best;
 }
+
+// ---------------------------------------------------------------------------
+// THE OTHER CHEAP STRATEGIES. Added 2026-09-05, because "the longest option is
+// the answer 68% of the time" is only half a finding: if a SECOND strategy a
+// student can execute without knowing anything also clears the gate, the
+// rewrite is a different and larger job. Both of these are RECORDED rather
+// than budgeted -- see the lint for why a measurement that comes back at
+// chance gets an assertion and not a ceiling.
+// ---------------------------------------------------------------------------
+
+/** The uniquely SHORTEST option by character count, or null on a tie. */
+export function shortestOption(item: BankItem): number | null {
+	const lens = item.options.map((o) => o.length);
+	const min = Math.min(...lens);
+	return lens.filter((l) => l === min).length === 1 ? lens.indexOf(min) : null;
+}
+
+/**
+ * A token that LOOKS technical without anybody deciding what is technical in
+ * this subject: an acronym (two or more capitals), anything carrying a digit,
+ * a hyphenated compound, or a word of nine characters or more. Deliberately
+ * mechanical -- a hand-written jargon list would be a judgement about the
+ * content, which is exactly what this module may not make, and a list somebody
+ * curated would measure the list rather than the banks.
+ */
+const TECHNICAL_TOKEN = /^(?:[A-Z]{2,}|[^\s]*\d[^\s]*|[A-Za-z]+-[A-Za-z]+|[A-Za-z]{9,})$/;
+
+function technicalTokens(s: string): number {
+	return s.split(/[\s,;:().]+/).filter((w) => w.length > 0 && TECHNICAL_TOKEN.test(w)).length;
+}
+
+/**
+ * The option carrying uniquely the most technical-looking tokens, or null on a
+ * tie or where no option carries any. "Pick the one that sounds like it came
+ * out of a manual" is a strategy a student reaches for without reading the
+ * question, so it belongs beside the length tell rather than in a footnote.
+ */
+export function techiestOption(item: BankItem): number | null {
+	const counts = item.options.map(technicalTokens);
+	const max = Math.max(...counts);
+	if (max === 0) return null;
+	return counts.filter((c) => c === max).length === 1 ? counts.indexOf(max) : null;
+}
+
+// ---------------------------------------------------------------------------
+// WHAT THE GATE ACTUALLY COSTS THE ATTACKER. A per-attempt pass probability is
+// not what a student experiences: there is no attempt limit anywhere in the
+// quiz path, only an escalating cooldown, so the real question is how many
+// retries and how much waiting a strategy needs before it lands. A bank whose
+// single-attempt number looks reassuring at 13% is a bank that falls on the
+// eighth try.
+// ---------------------------------------------------------------------------
+
+/**
+ * Expected attempts before one passes, at a per-attempt probability `p`.
+ * Geometric, which is right here because each attempt is a FRESH draw from the
+ * whole bank (`pickAttempt` reshuffles every item index) and a failed attempt
+ * reveals no per-question feedback -- the grader returns a score and the missed
+ * OBJECTIVE tags, never which questions were wrong. So attempts are
+ * independent and nothing accumulates between them. Infinity where p is 0.
+ */
+export function expectedAttempts(p: number): number {
+	return p <= 0 ? Infinity : 1 / p;
+}
+
+/**
+ * Expected seconds spent WAITING on cooldowns before a pass, at per-attempt
+ * probability `p` and a cooldown schedule `cooldownFn(failStreak)`. The
+ * schedule is injected for the same reason the engine injects it: the tunable
+ * numbers live in `track.ts` and there must not be a second copy of them here.
+ * Summed over where the first pass lands; the tail past 500 attempts is
+ * negligible at any p this is asked about and finite p always converges.
+ */
+export function expectedCooldownSeconds(p: number, cooldownFn: (streak: number) => number): number {
+	if (p <= 0) return Infinity;
+	let total = 0;
+	let waitedBefore = 0;
+	for (let k = 1; k <= 500; k++) {
+		total += Math.pow(1 - p, k - 1) * p * waitedBefore;
+		waitedBefore += cooldownFn(k);
+	}
+	return total;
+}
+
+// ---------------------------------------------------------------------------
+// THE SIZE OF THE REWRITE. The whole point of the report is deciding whether to
+// do this now, and that decision needs a count of ITEMS, not a percentage.
+// ---------------------------------------------------------------------------
+
+/**
+ * A bank's items whose answer is the uniquely longest option, worst give-away
+ * first. This is the fix order: the item whose answer most dwarfs its best
+ * distractor is both the most visible to a student and the cheapest to
+ * neutralise, because the distractor only has to catch up to it.
+ */
+export function worstFirst(bank: Bank): { index: number; item: BankItem; giveaway: number }[] {
+	return bank.items
+		.map((item, index) => ({ index, item, giveaway: giveaway(item) }))
+		.filter((x) => x.giveaway > 0)
+		.sort((a, b) => b.giveaway - a.giveaway);
+}
+
+/**
+ * HOW MANY ITEMS HAVE TO BE REWRITTEN, two different answers to two different
+ * questions, both of which a person deciding needs.
+ *
+ * `toChance` is the full job: enough items neutralised that the longest option
+ * is the answer no more often than one in four, which is what a bank with no
+ * length tell measures. `toGateHeld` is the URGENT job: enough items
+ * neutralised that a student running the strategy passes fewer than
+ * `passCeiling` of first attempts, which is the point at which the retake
+ * arithmetic stops handing them the unit. They differ by a lot, and reporting
+ * only the larger one is how a fixable thing gets deferred as too big.
+ *
+ * Neutralising is modelled as the tell MISSING that item -- which is what
+ * lengthening a distractor past the answer does -- and never as deleting it,
+ * because a bank that shrinks is a bank that got easier to pass.
+ */
+export function fixesNeeded(
+	bank: Bank,
+	{ targetRate = 0.25, passCeiling = 0.01 } = {}
+): { toChance: number; toGateHeld: number; passAfterGateHeld: number } {
+	const longest = bank.items.filter((it) => longestOption(it) === it.answer).length;
+	const toChance = Math.max(0, longest - Math.floor(targetRate * bank.items.length));
+
+	const fixed = new Set<number>();
+	const tell = (it: BankItem) => (fixed.has(bank.items.indexOf(it)) ? null : longestOption(it));
+	let toGateHeld = 0;
+	for (const candidate of worstFirst(bank)) {
+		if (passProbability(bank, tell) < passCeiling) break;
+		fixed.add(candidate.index);
+		toGateHeld++;
+	}
+	return { toChance, toGateHeld, passAfterGateHeld: passProbability(bank, tell) };
+}
