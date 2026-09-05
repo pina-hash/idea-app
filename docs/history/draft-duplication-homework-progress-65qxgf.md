@@ -133,10 +133,24 @@ form intact, which is why the report says "copies of *that* draft".
 The composer's own header already claimed this machine "adds no autosave, no
 debounce, no backoff and no navigation guard". `attach()` quietly contradicted
 it. The fix is `onHide: () => {}` -- the option that exists for exactly this
-decision. The listeners stay attached; only the write is withheld. Nothing is
-lost by declining, because this machine never writes without a press: the work
-is still in the form and the layout's own navigation guard is what asks about
-it.
+decision. The listeners stay attached; only the write is withheld.
+
+**What declining costs, stated rather than waved away.** Two cases, and only one
+of them changes:
+
+* A composer nobody has pressed anything on was **already** not flushing.
+  `#flush()` returns early unless the machine is `dirty`, and `dirty` is set by
+  `markDirty()`, which only `submit()` calls. So an unsaved draft on a closing
+  tab was never being written before this change either.
+* A composer whose save FAILED loses its one unrequested attempt to land on
+  unload. That attempt was a fetch begun at `pagehide`, which is not guaranteed
+  to complete in the first place; against it stands a duplicate row on every
+  tab switch. And the teacher is not left in the dark: `ondirtychange` is
+  driven by the `EditBaseline`, and the checkpoint advances that baseline only
+  on SUCCESS -- so after a failure the composer still reports itself dirty, and
+  the layout's own `beforeNavigate` raises the unload warning that gives them
+  the chance to press Save draft again. A warned person with a retry beats an
+  unwarned one with silent copies.
 
 ## Why the shell hides half of this, and why it is still a defect
 
