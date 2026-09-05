@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the board overlay in `src/lib/legacy/vanguard/index.html`, `src/routes/vanguard/+server.ts`, `src/lib/vanguard-save.ts`, `src/lib/vanguard-history.ts`, `docs/VANGUARD_BACKLOG.md`, `tests/vanguard*`, `docs/prompt-ledger/entries/0062-*`, and its own `docs/history/` entry.
 - Migration permitted: no. The backend is an Apps Script deployment outside this repo.
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/vanguard-board-paging-sjx6uv`
 - Notes: `docs/VANGUARD_BACKLOG.md` records the board's pagination as
   BLOCKED on a question this repository could not answer: whether the Apps
   Script backend honours `offset` at all. `fetchOnline(then, fail, offset)`

@@ -151,6 +151,14 @@ body.touchdev #btnPause{top:16px;left:50%;transform:translateX(-50%);width:48px;
 .board .row:hover{background:rgba(0,255,65,.06)}
 .board .row.sep{cursor:default;pointer-events:none}
 .board .row.sep:hover{background:none}
+.board .row.bmore{cursor:default;justify-content:center;padding:4px 3px}
+.board .row.bmore:hover{background:none}
+/* 44px tall on purpose: the board's own rows sit in a locked density contract,
+   but this is a standalone control at the foot of a scrolling list and inflating
+   it costs one row of scroll rather than breaking the contract. */
+.bmorebtn{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.14em;background:none;border:1px solid var(--dim);color:var(--dim);padding:6px 14px;min-height:44px;border-radius:4px;cursor:pointer;pointer-events:auto;width:100%}
+.bmorebtn:hover:not(:disabled){border-color:var(--green);color:var(--green);text-shadow:0 0 8px rgba(0,255,65,.5)}
+.bmorebtn:disabled{opacity:.6;cursor:default}
 .board .row.me{color:var(--gold);text-shadow:0 0 8px rgba(200,255,0,.6)}
 .board .rk{color:var(--dim);width:30px;text-align:left}
 .board .nm{flex:1;text-align:left;padding-left:8px}
@@ -816,7 +824,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='213';
+const VERSION='214';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -5452,6 +5460,20 @@ const API_URL='https://script.google.com/macros/s/AKfycbxFMp3q3BcQ4Lpwl_c4hqwzrD
 let onlineBoard=null, boardRetries=0;
 let boardMode='normal';
 const BOARD_N=250;   // merged batch size per mode (single-session + continued folded together)
+/* PAGING STATE. `boardLoaded` is how many rows the BACKEND has returned for the
+   board currently on screen, which is the next offset to ask for - deliberately
+   not onlineBoard.length, because mergeScore() pushes the player's own row in
+   locally and that row was never on a page. `boardMore` is set from whether the
+   last page came back FULL: a short page is the end of the board, so the LOAD
+   MORE control is not drawn and a student never presses something that does
+   nothing. Both are reset by fetchOnline itself on any non-append fetch, which
+   is every path that replaces the board (mode tabs, submit, co-op landing). */
+let boardLoaded=0, boardMore=false, boardMoreBusy=false;
+let _boardHL={};   // target -> {n,s} last highlight, so a LOAD MORE re-render keeps the player's own row marked
+/* Identity of a board row for append-time dedupe. A second page is a second
+   request against a sheet that may have gained a row in between, so the same run
+   can legitimately arrive on both pages; without this it would be drawn twice. */
+function boardKey(r){ return [r&&r.name,(r&&r.name2)||'',Number(r&&r.score)||0,(r&&r.t)==null?'':r.t].join('|'); }
 function jsonp(url,cb,fail){ const id='vcb_'+Math.random().toString(36).slice(2); let done=false;
   const s=document.createElement('script');
   function cleanup(){ try{delete window[id];}catch(e){window[id]=undefined;} if(s.parentNode)s.parentNode.removeChild(s); }
@@ -5461,13 +5483,49 @@ function jsonp(url,cb,fail){ const id='vcb_'+Math.random().toString(36).slice(2)
 /* Single-call board: ONE request per mode with the cont param OMITTED, so the
    backend returns every run for that mode (continued folded in, each row carrying
    its own numeric cont count / kills / bosses) already sorted and capped to n.
-   The old two-call cont=0/cont=1 merge is gone. `offset` is threaded through for
-   future pagination (0 today; no load-more UI yet). Non-array/error => fail, which
-   the caller (refreshBoard) turns into a retry then a localBoard fallback. */
-function fetchOnline(then,fail,offset){ if(!API_URL){ then&&then(); return; }
+   The old two-call cont=0/cont=1 merge is gone. Non-array/error => fail, which
+   the caller (refreshBoard) turns into a retry then a localBoard fallback.
+
+   `offset` IS HONOURED BY THE BACKEND - confirmed against the Apps Script source
+   on 2026-09-05: top(p) reads `Math.max(0, Math.floor(+p.offset || 0))`, sorts
+   descending, and returns rows.slice(offset, offset + n). So paging is real and
+   `append` is what makes it usable.
+
+   `append` IS THE WHOLE RISK AND IT DEFAULTS OFF. Four callers predate paging
+   (the run start, refreshBoard, the post-submit refetches and the co-op landing)
+   and every one of them wants the board REPLACED; getting that wrong empties the
+   board on an ordinary refresh. So the replace branch below is byte-for-byte the
+   old behaviour and appending is opt-in at one new call site (loadMoreBoard).
+   The append branch also refuses a page that arrives after the mode tab moved,
+   which would otherwise staple hardcore rows onto the normal board. */
+function fetchOnline(then,fail,offset,append){ if(!API_URL){ then&&then(); return; }
   const off=offset||0;
+  if(!append){ boardLoaded=0; boardMore=false; }
+  const want=boardMode;
   const q=API_URL+'?action=top&mode='+boardMode+'&n='+BOARD_N+(off?'&offset='+off:'')+'&callback=?&cb='+Date.now();
-  jsonp(q, rows=>{ if(Array.isArray(rows)){ onlineBoard=rows.slice(0,BOARD_N); then&&then(); } else { fail&&fail(); } }, fail); }
+  jsonp(q, rows=>{ if(Array.isArray(rows)){
+      const page=rows.slice(0,BOARD_N);
+      if(append){
+        if(want!==boardMode||!onlineBoard){ then&&then(); return; }
+        const seen={}; onlineBoard.forEach(r=>{ seen[boardKey(r)]=1; });
+        page.forEach(r=>{ const k=boardKey(r); if(!seen[k]){ seen[k]=1; onlineBoard.push(r); } });
+        onlineBoard.sort((a,c)=>c.score-a.score);
+        boardLoaded=off+page.length;
+      } else { onlineBoard=page; boardLoaded=page.length; }
+      boardMore=(page.length>=BOARD_N);
+      then&&then(); }
+    else { fail&&fail(); } }, fail); }
+/* LOAD MORE: the one appending caller. Guarded on boardMore so it cannot ask for
+   a page past the end, and on boardMoreBusy so a double tap is one request. A
+   FAILED page leaves the board exactly as it was and re-offers the control with
+   RETRY on it, rather than re-rendering and silently losing the press. */
+function loadMoreBoard(target,btn){ if(boardMoreBusy||!boardMore||!onlineBoard) return; boardMoreBusy=true;
+  if(btn){ btn.disabled=true; btn.textContent='LOADING...'; }
+  const hl=_boardHL[target]||{};
+  fetchOnline(
+    ()=>{ boardMoreBusy=false; renderBoard(target,hl.n,hl.s); },
+    ()=>{ boardMoreBusy=false; if(btn&&btn.parentNode){ btn.disabled=false; btn.textContent='LOAD MORE · RETRY'; } },
+    boardLoaded, true); }
 function refreshBoard(target){
   fetchOnline(
     ()=>{ if(onlineBoard){ boardRetries=0; renderBoard(target); }
@@ -5504,7 +5562,10 @@ function _boardRowHTML(r,rank,me,idx){
 }
 /* inline run detail from the fields the row already carries (styled like run-history .hs-det) */
 function _boardDetail(r,rank){ const p=[]; const add=(l,v)=>p.push('<span>'+l+' <b>'+v+'</b></span>');
-  add('RANK','#'+rank);
+  /* A rank is a NUMBER when the loaded board is the whole board, and the string
+     '>N' when pages remain and the true rank is unknown (see renderBoard). The
+     detail spells that out in words rather than printing '#>250'. */
+  add('RANK',(typeof rank==='number')?('#'+rank):('BELOW TOP '+String(rank).replace(/^(&gt;|>)/,'')));
   if(r.name2){ add('P1',escHTML(r.name)); add('P2',escHTML(r.name2)); } else add('NAME',escHTML(r.name));
   add('SCORE',(Number(r.score)||0).toLocaleString());
   { const _md=String(r.mode||boardMode);   // co-op mode values render as readable labels, never the raw param string
@@ -5523,19 +5584,40 @@ function _boardDetail(r,rank){ const p=[]; const add=(l,v)=>p.push('<span>'+l+' 
   return p.join(''); }
 function renderBoard(target,highlightName,highlightScore){
   const box=el(target); if(!box)return;
+  const hl=(highlightName!=null&&highlightScore!=null);
+  if(hl) _boardHL[target]={n:highlightName,s:highlightScore}; else delete _boardHL[target];   // remembered so a LOAD MORE re-render keeps the player's own row marked
   if(API_URL && !onlineBoard){ box.innerHTML='<div class="row sep"><span class="nm" style="color:var(--dim)">LOADING LEADERBOARD...</span></div>'; return; }
   const b=boardRows();
   if(!b||!b.length){ box.innerHTML='<div class="row sep"><span class="nm" style="color:var(--dim)">NO SCORES YET - BE THE FIRST</span></div>'; return; }
-  const hl=(highlightName!=null&&highlightScore!=null);
-  const rows=b.slice(0,BOARD_N), shown=[]; let html='';
+  /* EVERY LOADED ROW IS DRAWN. This used to be b.slice(0,BOARD_N), which was the
+     same thing while one page was all there was; against a paged board it would
+     draw page one and silently throw away everything LOAD MORE had just fetched. */
+  const rows=b, shown=[]; let html='';
   rows.forEach((r,i)=>{ const me=(hl&&r.name===highlightName&&r.score===highlightScore);
     html+=_boardRowHTML(r,i+1,me,shown.length); shown.push({run:r,rank:i+1}); });
   if(hl && !rows.some(r=>r.name===highlightName&&r.score===highlightScore)){
+    /* THE PLAYER IS BELOW THE CUT, AND THE RANK IS ONLY CLAIMED WHEN IT IS KNOWN.
+       The count below is over the rows FETCHED, so while pages remain it is not
+       the player's rank - it is the size of what has been loaded, and a genuinely
+       400th-place player would read as 251st. So a complete board (the last page
+       came back short) prints the real number, and an incomplete one prints '>N'
+       and says BELOW TOP N on the separator: honest now, exact once LOAD MORE has
+       reached the end. */
+    const complete=!(API_URL && onlineBoard && boardMore);
     let rank=1; for(const r of b){ if(r.score>highlightScore) rank++; }
-    html+='<div class="row sep" style="color:var(--dim);justify-content:center;letter-spacing:.3em;padding:1px 0">···</div>';
+    const rankLabel=complete?rank:('&gt;'+rows.length);   // the entity, not a bare '>': _boardRowHTML drops the rank into markup unescaped
+    html+='<div class="row sep" style="color:var(--dim);justify-content:center;letter-spacing:.3em;padding:1px 0">'+(complete?'···':'··· BELOW TOP '+rows.length+' ···')+'</div>';
     const mr=b.find(r=>r.name===highlightName&&r.score===highlightScore)||{};
     const meRun=Object.assign({name:highlightName,score:highlightScore},mr);
-    html+=_boardRowHTML(meRun,rank,true,shown.length); shown.push({run:meRun,rank:rank});
+    html+=_boardRowHTML(meRun,rankLabel,true,shown.length); shown.push({run:meRun,rank:rankLabel});
+  }
+  /* LOAD MORE IS DRAWN ONLY WHEN THERE IS A PAGE TO FETCH. `boardMore` is false
+     until a FULL page has come back, so a mode with 40 scores never shows it and
+     nobody presses a control that does nothing. It lives inside the board box as
+     its own row, which is what keeps it per-target with no second copy of the
+     markup and no second click binding. */
+  if(API_URL && onlineBoard && boardMore){
+    html+='<div class="row bmore"><button type="button" class="bmorebtn" data-more="1">LOAD MORE</button></div>';
   }
   _boardShown[target]=shown; box.innerHTML=html;
 }
@@ -5766,7 +5848,10 @@ el('submitBtn').addEventListener('click',submitScore);
 el('againBtn').addEventListener('click',()=>{ startGame(); });
 function mergeScore(name,score){ const b=(onlineBoard?onlineBoard.slice():[]);
   if(!b.some(r=>r.name===name&&r.score===score)) b.push({name,score});
-  b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,BOARD_N); }
+  /* The cap is BOARD_N until pages have been loaded, and then it is what has
+     been loaded - slicing back to BOARD_N here would throw a paged board away
+     the moment the player's own row was merged into it. */
+  b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,Math.max(BOARD_N,boardLoaded)); }
 function submitScore(){ if(coopMatch){ COOP.submitEnd(); return; } if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
   boardMode=(gameMode==='hardcore')?'hardcore':'normal'; onlineBoard=null; boardRetries=0;   // post-run board reflects the run's mode (continued folded in)
   document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode));
@@ -6091,6 +6176,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'214',date:'2026',items:['Leaderboards go past the top 250: a LOAD MORE button at the foot of the board pulls in the next batch, and it only appears when there is more to load','If your score is below what is on screen, the board no longer guesses your rank - it says how far down you are, and shows your real number once you have loaded to the end']},
  {ver:'213',date:'2026',items:['Gate VANGUARD\'s DEV mode behind the admin check TUNE already uses, and correct two stale HISTORY claims']},
  {ver:'212',date:'2026',items:['REPORT: tell us about a bug or an idea from inside the game - the button sits with the IDEA link at the top right, and it fills in your build, your mode and your sector for you']},
  {ver:'211',date:'2026',items:['Every faction now gets a fair turn at opening a run, and MSET\'s TORCH spreads its three shots wider so you can slip between them']},
@@ -6468,7 +6554,13 @@ function setBoardMode(m,target){ boardMode=m; onlineBoard=null; boardRetries=0;
   renderBoard(target); refreshBoard(target); }
 /* click any row to toggle an inline run detail; one delegated listener per board */
 function bindBoardDetail(target){ const box=document.getElementById(target); if(!box||box._detailBound)return; box._detailBound=true;
-  box.addEventListener('click',ev=>{ const row=ev.target.closest('.row'); if(!row||row.classList.contains('sep')||row.dataset.i==null)return;
+  box.addEventListener('click',ev=>{
+    /* LOAD MORE rides the board's OWN delegated listener rather than getting a
+       binding of its own: the button is re-created by every renderBoard, so a
+       listener attached to the element would have to be re-attached each time. */
+    const more=ev.target.closest&&ev.target.closest('.bmorebtn');
+    if(more){ ev.stopPropagation(); loadMoreBoard(target,more); Audio_.hit&&Audio_.hit(); return; }
+    const row=ev.target.closest('.row'); if(!row||row.classList.contains('sep')||row.classList.contains('bmore')||row.dataset.i==null)return;
     const nxt=row.nextElementSibling;
     if(nxt&&nxt.classList.contains('hs-det')){ nxt.remove(); Audio_.hit&&Audio_.hit(); return; }   // collapse
     const ent=(_boardShown[target]||[])[+row.dataset.i]; if(!ent)return;
