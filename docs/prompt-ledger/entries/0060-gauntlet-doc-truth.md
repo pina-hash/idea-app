@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `docs/GAUNTLET.md`, `docs/GAUNTLET-DESIGN.md` if the audit finds it wrong, `tools/gauntlet-doc-check.mjs` (new), `tests/gauntlet-doc*` (new), `docs/prompt-ledger/entries/0060-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0181
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: `docs/GAUNTLET.md` carries a freshness header saying a claim in it
   is a lead rather than a fact, because it was found stale in eight places on
