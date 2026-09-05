@@ -62,7 +62,77 @@ export type ItemBlock =
 	| { type: 'p'; runs: ItemInline[] }
 	| { type: 'h3'; runs: ItemInline[] }
 	| { type: 'h4'; runs: ItemInline[] }
+	| ItemImage
 	| ItemList;
+
+/**
+ * A PICTURE IN A BODY (0176), and the one member of this union that carries no
+ * runs.
+ *
+ * WHY IT EARNED A PLACE, against the argument every other candidate loses to.
+ * The union is small because each member is a thing the SHAPE has to hold
+ * rather than a thing an author might like: a nested list earned its place
+ * because flattening one destroyed what a teacher wrote, and a paragraph
+ * inside a list item did NOT, because the item's own runs already spell it.
+ * An image is the first case since where there is no other spelling at all --
+ * the body of an assignment on a surface whose whole subject is making and
+ * measuring physical things could not hold a photograph of the part, and no
+ * arrangement of `p`, `h3`, `h4`, `ul` and `ol` can.
+ *
+ * `src` IS AN AUTHORED REFERENCE, NEVER A URL AND NEVER AN ID, and it is
+ * exactly the string `resolveFigureSrc` already reads in a spec's prose:
+ * `attachment:<filename>` against the item's OWN attachments, or an absolute
+ * path under `FIGURE_STATIC_PREFIXES`. A signed URL expires and a stored body
+ * must not; a file ID does not survive a re-upload and means nothing in the
+ * exported copy under `materials/`. There is deliberately NO second image
+ * vocabulary here: the same one predicate decides what an `img` may load in a
+ * spec, in a reference document and now in a body, so widening one widens all
+ * of them consistently and none of them can drift into being the loose one.
+ *
+ * `alt` IS REQUIRED AND HAS NO EMPTY FORM. This is a school; a student using a
+ * screen reader is not a hypothetical, and an image with no text alternative
+ * is a picture that simply is not there for them. So the requirement is in the
+ * TYPE (`string`, not `string | undefined`), in the normalizer (which REFUSES
+ * the save rather than dropping the image, so the person who left it blank
+ * finds out), and in 0176's gate (so a direct PostgREST call cannot store one
+ * either). A body cannot reach the table with a blank description by any door.
+ *
+ * WHAT IT DELIBERATELY DOES NOT CARRY: intrinsic dimensions. They are not
+ * knowable at authoring time from the reference alone -- the alias is resolved
+ * against a row that may be re-uploaded under the same name -- so a stored
+ * width and height would be a claim that goes quietly wrong, and the layout
+ * that would use them is a CSS aspect box the renderer can set without them.
+ * A caption is likewise absent: `alt` is the one authored sentence, exactly as
+ * it is for a markdown figure, where the same string is both the `alt` and the
+ * `figcaption`.
+ */
+export interface ItemImage {
+	type: 'img';
+	/** `attachment:<filename>` or a path under FIGURE_STATIC_PREFIXES. */
+	src: string;
+	/** Required, non-empty. The text alternative AND the caption. */
+	alt: string;
+}
+
+/**
+ * The editor's own node name and attribute list for an image, as PLAIN DATA.
+ *
+ * ONE DECLARATION, three readers: `RichTextEditor` builds the real Tiptap node
+ * from it, the server normalizer matches an incoming node against the name,
+ * and the tests build a fixture the editor could genuinely have produced
+ * rather than typing one out. A second spelling of the node name is a document
+ * the editor emits and the normalizer silently drops -- the exact failure this
+ * bundle exists to prevent one layer down.
+ *
+ * IT IS NOT IN `$lib/rich-text-schema` because that module is the STARTER KIT
+ * options both features share, and this node belongs to the classroom's
+ * contract alone: a note has no images and giving the shared module one would
+ * be the notebook's stored shape widening because the classroom's did.
+ */
+export const ITEM_IMAGE_NODE = {
+	name: 'itemImage',
+	attrs: ['src', 'alt'] as const
+} as const;
 
 /**
  * A bulleted or numbered list, at the top of a body or inside a list item.
@@ -180,6 +250,29 @@ export function itemBodyDoc(item: { body: string; body_doc?: ItemDoc | null }): 
 	return docFromPlainText(item.body ?? '');
 }
 
+/**
+ * The FIRST image in a body, or null -- which is the whole of what a cover is.
+ *
+ * A COVER IS NEVER A SEPARATELY UPLOADED FILE, and that is a lifecycle
+ * decision rather than a shortcut. A second asset would need its own upload,
+ * its own row, its own deletion story and its own answer to "the instructor
+ * changed the picture in the body but the card still shows the old one". The
+ * first image an author put in the body is the picture they chose to lead
+ * with, it is already attached, and it cannot fall out of step with itself.
+ *
+ * Document order, first match, no scoring: an author who wants a different
+ * cover moves the image up, which is a thing they can already see how to do.
+ * A body with no image answers null and the surface keeps exactly what it
+ * renders today.
+ */
+export function itemCoverImage(doc: ItemDoc | null | undefined): ItemImage | null {
+	if (!Array.isArray(doc)) return null;
+	for (const block of doc) {
+		if (block && typeof block === 'object' && block.type === 'img') return block;
+	}
+	return null;
+}
+
 // ---------------------------------------------------------------------------
 // Tiptap interop
 //
@@ -241,6 +334,15 @@ export function docToTiptap(doc: ItemDoc): TiptapNode {
 		if (block.type === 'p') return paragraphNode(block.runs);
 		if (block.type === 'h3') return paragraphNode(block.runs, 'heading', { level: 3 });
 		if (block.type === 'h4') return paragraphNode(block.runs, 'heading', { level: 4 });
+		// An ATOM: no content, everything it holds is in its attributes, which is
+		// what the editor's own node declares. It round-trips through here on
+		// every publish toggle (`normalizeItemDoc` routes an already-stored
+		// document back through the editor walk), so a missing branch here would
+		// not merely fail to seed an editor -- it would DELETE the picture from
+		// a body nobody was editing.
+		if (block.type === 'img') {
+			return { type: ITEM_IMAGE_NODE.name, attrs: { src: block.src, alt: block.alt } };
+		}
 		return listToTiptap(block, 1);
 	});
 	return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };

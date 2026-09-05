@@ -518,6 +518,82 @@ jobs:
           }
           # target_push_marker:end
 
+          # THE CI CONCLUSION FOR ONE BRANCH TIP, AND IT IS A FUNCTION FOR THE
+          # REASON THE THREE GATES ABOVE ARE: it is PROVED by cutting this exact
+          # text out of THIS FILE and running it against fixture JSON, so no
+          # proof can drift into testing a private copy of the rule. Do not
+          # rename the markers and do not move the body out from between them.
+          #
+          # THE TRIGGER FILTER IS GONE, AND ITS ABSENCE IS THE POINT. This query
+          # used to pass `-f event=push`, so it asked GitHub only for CI runs a
+          # PUSH had started. On 2026-09-04 three finished branches were re-run
+          # green by `workflow_dispatch` -- which is the obvious thing to do to
+          # a branch whose CI went red for a reason since fixed -- the query
+          # returned nothing for their shas, all three read as `unknown`, the
+          # sweep skipped every one of them, nothing merged, so the push was
+          # discarded, so the deploy stayed blocked, and a person merged all
+          # three by pull request instead. `ci.yml` declares FOUR triggers that
+          # can start a run of it (`push`, `pull_request`, `schedule`,
+          # `workflow_dispatch`) plus `workflow_call`; a green run is a green
+          # run whichever of them started it, because what CI checked is the
+          # SHA and not the button.
+          #
+          # WHAT MUST NOT WEAKEN, and what replaced what:
+          #   head_sha == $sha   THE SECURITY PROPERTY, untouched. A green run
+          #                      against a DIFFERENT commit says nothing about
+          #                      this one, so a branch that was green two
+          #                      commits ago is still not green. Widening the
+          #                      trigger set must never widen this.
+          #   head_repository    NEW HERE, and it is not gold-plating: it
+          #                      replaces a protection `event=push` was quietly
+          #                      providing at this level. A fork's CI run lands
+          #                      in OUR Actions as a `pull_request` run, which
+          #                      the trigger filter excluded as a side effect;
+          #                      dropping that filter without this would newly
+          #                      admit one. The job-level `if` above only ever
+          #                      covered the TRIGGERING branch.
+          #   newest wins        `sort_by(.run_number) | last`, and it matters
+          #                      more now than it did. With one trigger a sha
+          #                      had one run; with every trigger a sha can
+          #                      carry a red `push` run AND the green
+          #                      `workflow_dispatch` re-run that fixed it. The
+          #                      answer is the LATER one, and BOTH directions
+          #                      are proved -- a green run followed by a red
+          #                      re-run on the same tip must skip.
+          #
+          # IT FAILS CLOSED ON ABSENCE, exactly as `CI_WORKFLOW_FILE` does: no
+          # run for the tip, a payload with no `workflow_runs`, a run whose
+          # repository cannot be read, or jq refusing the input at all, each
+          # reduce to `unknown`, which is not `success`, which skips. The one
+          # thing this must never do is answer `success` on no evidence.
+          # ci_gate_marker:begin
+          ci_conclusion() {
+            # $1 the runs payload, $2 the branch tip sha, $3 owner/repo.
+            # Prints the conclusion of the NEWEST completed run for that exact
+            # sha in that repository, or `unknown` when there is none.
+            #
+            # SPLIT FROM THE FETCH ON PURPOSE. The `gh api` call needs a token,
+            # a network and a repository full of real runs; the DECISION needs
+            # none of the three, and the decision is the half that got this
+            # wrong. So the fetch stays at the call site and this takes its
+            # answer as a string, which is what makes every case below drivable
+            # against fixture JSON by the proof harness.
+            #
+            # `.workflow_runs // []` rather than `.workflow_runs[]`: jq cannot
+            # iterate null, and a payload without the key -- which is what a
+            # 404 body or a rate-limit body looks like -- would otherwise abort
+            # the whole step under `pipefail` instead of skipping one branch.
+            printf '%s' "$1" \
+              | jq -r --arg sha "$2" --arg repo "$3" \
+                  '[(.workflow_runs // [])[]
+                      | select(.head_sha == $sha)
+                      | select(.head_repository.full_name == $repo)]
+                     | sort_by(.run_number) | last | .conclusion // "unknown"' \
+                  2>/dev/null \
+              || printf 'unknown\n'
+          }
+          # ci_gate_marker:end
+
           # MECHANICAL RESOLUTION, FOR EXACTLY TWO FILES AND NOTHING ELSE.
           #
           # The merge above says FAIL LOUD, NEVER FORCE, and it stays true:
@@ -887,13 +963,17 @@ jobs:
             # ONLY ON GREEN, per branch and per COMMIT: the newest completed CI
             # run for this branch must be for the exact tip we are about to
             # merge. A branch that was green two commits ago is not green.
+            #
+            # NO `-f event=` FILTER. See `ci_conclusion` above for the whole
+            # argument; the short version is that a green run counts however it
+            # was triggered, and asking only for `push` runs made three green
+            # branches invisible on 2026-09-04. `per_page` is 50 rather than 30
+            # because the window now has to hold a branch's runs from every
+            # trigger, not just its pushes.
             runs="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/$CI_WORKFLOW_FILE/runs" \
-                      -f branch="$branch" -f event=push -f status=completed -f per_page=30 \
+                      -f branch="$branch" -f status=completed -f per_page=50 \
                       2>/dev/null || echo '{"workflow_runs":[]}')"
-            conclusion="$(printf '%s' "$runs" \
-              | jq -r --arg sha "$sha" \
-                  '[.workflow_runs[] | select(.head_sha == $sha)]
-                     | sort_by(.run_number) | last | .conclusion // "unknown"')"
+            conclusion="$(ci_conclusion "$runs" "$sha" "$GITHUB_REPOSITORY")"
 
             if [ "$conclusion" != success ]; then
               skipped+=("$branch -- CI on ${sha:0:7} is $conclusion")

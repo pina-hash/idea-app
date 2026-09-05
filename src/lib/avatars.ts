@@ -194,3 +194,46 @@ export function rosterSubject(row: {
 		email: row.student_email ?? null
 	};
 }
+/**
+ * An avatar subject out of a NOTEBOOK GRID ROW (`GridStudent`), read
+ * structurally for the same reason `rosterSubject` above is.
+ *
+ * THE TWO SHAPES ARE NOT THE SAME ROW AND MUST NOT BE MERGED. A classroom
+ * roster row is email-keyed and spells the name `display_name`; a grid row is
+ * keyed on `student_key` (the email where there is one and the uuid
+ * otherwise, because a student who has never signed in has no uuid at all),
+ * spells the name `name`, and has already been through
+ * `_notebook_section_roster`'s coalesce ladder -- which falls back to
+ * `display_name`, then `full_name`, then the address, then the literal
+ * 'Student'. So `name` here is ALWAYS a non-empty string and never null,
+ * which is why this adapter puts it in `display_name` and leaves `full_name`
+ * null: the ladder already ran, in SQL, and re-running a second one in the
+ * client is how the grid's row header and its avatar tile would come to
+ * disagree about who this is.
+ *
+ * The two columns arrive from `notebook_get_section_grid` once 0180 is
+ * applied and are simply ABSENT before it -- the RPC returns jsonb, so a
+ * pre-0180 database omits the keys and they read `undefined`. There is no
+ * capability flag for the same reason `rosterSubject` has none: absent
+ * columns and "chose no picture" render the identical initials tile, so a
+ * flag would turn off a control that does not exist.
+ *
+ * THE TINT KEY IS `student_key` AND IS THE CALLER'S TO PASS. It is the one
+ * field on this row guaranteed present and stable (0094's own argument for
+ * it), where `email` is null for an account with no address. This function
+ * answers "which picture", never "which colour".
+ */
+export function gridStudentSubject(row: {
+	name?: string | null;
+	email?: string | null;
+	avatar?: string | null;
+	avatar_url?: string | null;
+}): AvatarSubject {
+	return {
+		avatar: row.avatar ?? null,
+		avatar_url: row.avatar_url ?? null,
+		display_name: row.name ?? null,
+		full_name: null,
+		email: row.email ?? null
+	};
+}

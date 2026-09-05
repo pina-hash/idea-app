@@ -4,6 +4,7 @@
 		actionSummary,
 		dueUrgency,
 		emptyMessage,
+		feedCover,
 		feedIndicator,
 		reasonTone,
 		type FeedEntry,
@@ -63,6 +64,15 @@
 
 	const collapsedSet = $derived(new Set(collapsed));
 
+	/**
+	 * Items whose cover would not decode, so the card shows its glyph instead.
+	 *
+	 * PER MOUNT AND IN MEMORY, keyed on the item id: a new Set on every failure
+	 * because Svelte 5 tracks the reference, and mutating one in place would
+	 * change nothing on screen.
+	 */
+	let failedCovers = $state(new Set<string>());
+
 	// Kind glyphs, the legacy ICON_KINDS approach: one distinct mark per item
 	// kind so a row's nature reads before its title does. Deliberately NO live
 	// pulse and no opened-progress dot -- this surface has no live state, and
@@ -78,8 +88,7 @@
 </script>
 
 {#snippet icon(kind: ClassroomItemKind)}
-	<div class="assignment-icon-thumb">
-		{#if ICON_KINDS[kind] === 'announcement'}
+	{#if ICON_KINDS[kind] === 'announcement'}
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M4 10v4h3l6 4V6l-6 4H4z" />
 				<path d="M17 9.5a3.5 3.5 0 010 5" />
@@ -94,8 +103,42 @@
 		{:else}
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M4 5.5C4 4.67 4.67 4 5.5 4H12v16H5.5A1.5 1.5 0 014 18.5v-13z" />
-				<path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 001.5-1.5v-13z" />
-			</svg>
+			<path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 001.5-1.5v-13z" />
+		</svg>
+	{/if}
+{/snippet}
+
+{#snippet thumb(entry: FeedEntry)}
+	{@const cover = feedCover(entry.item)}
+	<div class="assignment-icon-thumb" class:has-cover={cover && !failedCovers.has(entry.item.id)}>
+		{#if cover && !failedCovers.has(entry.item.id)}
+			<!--
+				THE THUMBNAIL, AND THE GLYPH IS STILL UNDERNEATH IT (0176).
+
+				`alt=""` is deliberate and is not a missing description. The row is a
+				LINK whose accessible name is already the item's title, and the
+				picture is decoration on that link -- announcing the body's own
+				description here would read the same item out twice, once by name and
+				once by photograph. The description is not lost: `ItemBody` renders it
+				as the figure's `alt` AND its caption on the item page, which is where
+				a reader is actually looking at the picture. This is the same call the
+				per-kind glyph already makes with `aria-hidden`.
+
+				A COVER THAT FAILS TO DECODE FALLS BACK TO THE GLYPH, through the
+				img's own `onerror` -- the classroom rule for a storage-backed
+				thumbnail, applied here for the same reason: an attachment can be
+				deleted after the body that names it was written, and a broken image
+				icon in a 44px box is worse than the mark that was there before.
+			-->
+			<img
+				src={cover.src}
+				alt=""
+				loading="lazy"
+				decoding="async"
+				onerror={() => (failedCovers = new Set(failedCovers).add(entry.item.id))}
+			/>
+		{:else}
+			{@render icon(entry.item.kind)}
 		{/if}
 	</div>
 {/snippet}
@@ -106,7 +149,7 @@
 		href={itemHref(feed.section, entry)}
 		data-urgency={dueUrgency(entry, now) ?? undefined}
 	>
-		{@render icon(entry.item.kind)}
+		{@render thumb(entry)}
 		<div class="assignment-name">{itemTitle(entry.item)}</div>
 		<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
 	</a>
@@ -230,6 +273,26 @@
 	.feed-row :global(.assignment-icon-thumb) {
 		grid-area: icon;
 		align-self: center;
+	}
+	/* A COVER FILLS THE MARK'S OWN BOX, so the row's geometry is byte-identical
+	   whether a card has a picture or a glyph -- a feed whose rows changed
+	   height depending on whether somebody attached a photo would be a worse
+	   list than one with no pictures in it at all.
+
+	   `cover` HERE AND `contain` IN THE BODY, on purpose. At 34px this is a
+	   recognition cue and a letterboxed one is mostly empty box; on the item
+	   page it is the picture itself, where cropping would hide the cut-off edge
+	   somebody needs to read. Two sizes, two honest answers. */
+	.assignment-icon-thumb.has-cover {
+		padding: 0;
+		overflow: hidden;
+		background: var(--surface-2, var(--bg2));
+	}
+	.assignment-icon-thumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
 	}
 	.feed-row .assignment-name {
 		grid-area: name;

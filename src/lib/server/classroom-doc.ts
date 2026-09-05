@@ -42,6 +42,7 @@
 
 import {
 	ITEM_BODY_MAX_CHARS,
+	ITEM_IMAGE_NODE,
 	docLength,
 	docText,
 	docToTiptap,
@@ -49,7 +50,41 @@ import {
 	type ItemDoc,
 	type TiptapNode
 } from '$lib/classroom/classroom-doc';
+import { resolveFigureSrc } from '$lib/classroom/classroom';
 import { richBlocksFrom, type RichWalkOptions } from './rich-text-normalize';
+
+/** The one sentence an author reads when they leave a description off. */
+export const IMAGE_ALT_REQUIRED =
+	'Every image needs a short description of what it shows, for anyone using a screen reader.';
+
+/** The one sentence for a reference no `img` may ever be asked to load. */
+export const IMAGE_SRC_REFUSED =
+	'An image must be one of this item\u2019s own attachments, or a picture already on this site, and cannot be an SVG.';
+
+/**
+ * Is this authored reference one the renderer could ever load, ignoring
+ * whether the file happens to be attached right now?
+ *
+ * IT ASKS `resolveFigureSrc` RATHER THAN RESTATING IT, with NO attachments, and
+ * the whole trick is what that makes the answers mean. Every structural refusal
+ * -- empty, a scheme, protocol-relative, not absolute, off-prefix, traversal,
+ * SVG by name -- is about the STRING and comes back identically whatever the
+ * attachment list holds. `unresolved` is the single refusal that is about the
+ * LIST, and at storage time the list is the wrong question: an author writes a
+ * reference before the upload finishes, a file is re-uploaded under the same
+ * name, and an attachment removed later must not retroactively make a stored
+ * body unsavable. So `unresolved` is storable and everything else is not.
+ *
+ * A SECOND COPY OF THIS RULE IS WHAT WOULD ROT. `resolveFigureSrc` is already
+ * the one predicate deciding what an `img` may load in a spec, in a reference
+ * document and now in a body; writing the structural half out again here would
+ * give the body its own quietly diverging idea of an allowed source, which is
+ * exactly the shape of defect this repo's own no-duplicate rule names.
+ */
+function figureSrcStorable(src: string): boolean {
+	const res = resolveFigureSrc(src, []);
+	return res.ok || res.reason === 'unresolved';
+}
 
 export type NormalizeItemDocResult = { ok: true; doc: ItemDoc } | { ok: false; error: string };
 
@@ -77,15 +112,53 @@ function headingType(node: TiptapNode): 'h3' | 'h4' {
 }
 
 /**
+ * The walk, plus the one place an image is REFUSED rather than dropped.
+ *
  * Real instructions are two or three levels (list -> item -> emphasis), or one
  * more once a sublist is in play; the ceiling is a guard against hostile
- * nesting, not a feature limit. `blockType` is the one place a body differs
- * from a note structurally: it has headings.
+ * nesting, not a feature limit. `blockType` and `imageBlock` are the two places
+ * a body differs from a note structurally: it has headings, and it has
+ * pictures.
+ *
+ * WHY THE PROBLEM IS RECORDED IN A CLOSURE INSTEAD OF RETURNED. `richBlocksFrom`
+ * has a second caller -- the notebook's note normalizer -- and giving it a
+ * refusal channel means changing a signature this bundle does not own. So the
+ * hook returns null for a bad image, which would ordinarily mean "not claimed,
+ * fall through to the text walk", and an atom node has no text, so it would be
+ * DROPPED. Recording the reason here is what turns that silent drop into the
+ * refusal `normalizeItemDoc` raises below.
+ *
+ * DROPPING WAS THE ALTERNATIVE AND IT IS THE WRONG ONE. An author who typed no
+ * description would press Save, see "Saved", and find the picture gone with
+ * nothing anywhere saying why -- and the one case it happens in is exactly the
+ * case a student using a screen reader depends on. A refusal is read; a
+ * disappearance is not.
  */
-const WALK: RichWalkOptions = {
-	maxDepth: 16,
-	blockType: (node) => (node.type === 'heading' ? headingType(node) : null)
-};
+function walkFor(problems: string[]): RichWalkOptions {
+	return {
+		maxDepth: 16,
+		blockType: (node) => (node.type === 'heading' ? headingType(node) : null),
+		imageBlock: (node) => {
+			if (node.type !== ITEM_IMAGE_NODE.name) return null;
+			const attrs = (node.attrs ?? {}) as Record<string, unknown>;
+			const src = typeof attrs.src === 'string' ? attrs.src.trim() : '';
+			const alt = typeof attrs.alt === 'string' ? attrs.alt.trim() : '';
+			// THE SRC RULE IS NOT RESTATED HERE. `figureSrcStorable` is the same
+			// predicate `resolveFigureSrc` is built on, asked without the
+			// attachment list -- a second copy of "what may an img load" is the
+			// one that stops matching the renderer.
+			if (!figureSrcStorable(src)) {
+				problems.push(IMAGE_SRC_REFUSED);
+				return null;
+			}
+			if (!alt) {
+				problems.push(IMAGE_ALT_REQUIRED);
+				return null;
+			}
+			return { type: 'img', src, alt };
+		}
+	};
+}
 
 /**
  * Is this an ALREADY-STORED document rather than editor output?
@@ -103,17 +176,24 @@ const WALK: RichWalkOptions = {
  * its own output back in returns the same document.
  */
 function looksStored(nodes: unknown[]): boolean {
-	const stored = new Set(['p', 'h3', 'h4', 'ul', 'ol']);
+	const stored = new Set(['p', 'h3', 'h4', 'ul', 'ol', 'img']);
 	return (
 		nodes.length > 0 &&
 		nodes.every((n) => {
 			if (!n || typeof n !== 'object') return false;
 			const node = n as Record<string, unknown>;
-			return (
-				typeof node.type === 'string' &&
-				stored.has(node.type) &&
-				(Array.isArray(node.runs) || Array.isArray(node.items))
-			);
+			if (typeof node.type !== 'string' || !stored.has(node.type)) return false;
+			// AN IMAGE CARRIES NEITHER `runs` NOR `items`, which is why it needs
+			// its own arm rather than joining the test below. Without it a stored
+			// body containing a picture fails this predicate, is treated as EDITOR
+			// OUTPUT, is walked for `content` it does not have, and is stored back
+			// EMPTY -- on a publish toggle, for an item nobody was editing. That is
+			// the exact failure this function's own header describes, reappearing
+			// through the one block type that broke its assumption.
+			if (node.type === 'img') {
+				return typeof node.src === 'string' && typeof node.alt === 'string';
+			}
+			return Array.isArray(node.runs) || Array.isArray(node.items);
 		})
 	);
 }
@@ -154,7 +234,13 @@ export function normalizeItemDoc(input: unknown): NormalizeItemDocResult {
 		return { ok: false, error: 'That body is too long to save.' };
 	}
 
-	const doc = richBlocksFrom<ItemBlock>(nodes, 0, WALK);
+	const problems: string[] = [];
+	const doc = richBlocksFrom<ItemBlock>(nodes, 0, walkFor(problems));
+	// BEFORE the length check, and before anything is returned: an image the
+	// walk could not accept was not stored, and saying so is the whole point.
+	// First problem only -- the sentence names the rule, and repeating it once
+	// per image tells the author nothing more.
+	if (problems.length) return { ok: false, error: problems[0] };
 	if (docLength(doc) > ITEM_BODY_MAX_CHARS) {
 		return {
 			ok: false,

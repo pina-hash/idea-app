@@ -23,6 +23,29 @@
 // explicit UPDATE as the connection owner produces exactly the state a real
 // wait produces, deterministically and in milliseconds. Nothing here sleeps.
 //
+// AND A MOVED ROW IS ANCHORED TO AN AGE OR TO A DAY, NEVER TO WHICHEVER IS
+// NEARER TO HAND. That distinction is the one this file learned the hard way.
+// Two of 0174's three limits are day-scoped and one is age-scoped, so a fixture
+// has to say which it is:
+//
+//   `tripAgo`     -- AGE-SCOPED. The cooldown reads `now() - closed_at`, which
+//                    is the same interval on every calendar, so the row may sit
+//                    anywhere. This is the original helper, unchanged.
+//   `tripsToday`  -- DAY-SCOPED. The daily cap counts rows whose `opened_at`
+//                    falls on TODAY in America/Los_Angeles, so the row has to
+//                    land on today at every hour, and the helper checks that it
+//                    did rather than assuming it.
+//
+// WHAT WENT WRONG WITHOUT THAT SPLIT: the cap fixtures were `now() - 60 to 120
+// minutes`, which is YESTERDAY in Los Angeles for the first two hours of every
+// LA day. `used_today` then read 0, and six tests here failed between 00:00 and
+// 02:00 Pacific and passed the other twenty-two hours -- measured by moving the
+// container's clock through the day, not inferred. The rule above was never
+// the problem; anchoring a day to an age was. Do not answer a recurrence by
+// skipping near midnight, by widening a window, by pinning a timezone, or by
+// stubbing `now()`: the first three test nothing and the last one is exactly
+// what this file exists not to do.
+//
 // THE DAY BOUNDARY IS TESTED AT AN INSTANT WHERE LA AND UTC DISAGREE, which is
 // the 0140 instrument: at 8pm Pacific the UTC date is already tomorrow, so a
 // test written at any other hour cannot tell the two calendars apart and a UTC
@@ -114,8 +137,13 @@ async function state(user: SeededUser, sectionId: string): Promise<Record<string
 
 /**
  * Take one complete trip and then move it into the past, as the connection
- * owner. This is what "a while ago" means to every rule under test: the
- * cooldown reads `closed_at`, the cap reads `opened_at`.
+ * owner. This is what "a while ago" means to the AGE-SCOPED rule: the cooldown
+ * reads `now() - closed_at`, an interval, so where the row lands on a calendar
+ * does not enter into it.
+ *
+ * IT IS NOT THE HELPER FOR THE CAP. The cap reads `opened_at`'s LA calendar
+ * DAY, and an age cannot promise a day -- see `tripsToday` below and the
+ * anchoring note in this file's header.
  */
 async function tripAgo(user: SeededUser, sectionId: string, minutesAgo: number): Promise<void> {
 	const opened = await open(user, sectionId);
@@ -129,6 +157,98 @@ async function tripAgo(user: SeededUser, sectionId: string, minutesAgo: number):
 		 where id = $1::uuid`,
 		[opened.pass_id, minutesAgo]
 	);
+}
+
+/**
+ * Take `count` complete trips and leave every one of them on TODAY'S
+ * America/Los_Angeles calendar day -- the calendar the daily cap is counted in.
+ *
+ * WHY THIS IS NOT `tripAgo`, AND WHY THE HEADER'S RULE IS UNTOUCHED. The rows
+ * still move and `now()` still does not. What changes is the ANCHOR: an age is
+ * the wrong way to say "today", because a fixture positioned relative to now
+ * cannot also say which day it lands on. `now() - 90 minutes` is YESTERDAY for
+ * the first ninety minutes of every LA day, so `used_today` read 0 and the six
+ * day-scoped tests in this file failed between 00:00 and 02:00 Pacific and
+ * passed the other twenty-two hours -- measured, not inferred, by moving the
+ * container's clock. A DAY-SCOPED fixture therefore anchors to the day's own
+ * start; an AGE-SCOPED one (the cooldown) keeps `tripAgo` and may sit anywhere.
+ *
+ * THE TRIPS ARE BUILT FIRST AND PLACED AFTERWARDS, in one statement, and that
+ * order is forced. Each `open` has to clear the cooldown left by the previous
+ * `close`, so the build reuses `tripAgo`'s wide backdate to get the rows made;
+ * only then is every row re-anchored into today. Placing them one at a time
+ * would leave the last close minutes old and refuse the next open in exactly
+ * the hours this exists for.
+ *
+ * The slots are `k / (count + 1)` of the part of today that has already
+ * happened, so they are strictly after LA midnight, strictly before now,
+ * distinct and ordered oldest-first at every hour, including 00:00:01.
+ *
+ * WITHIN THE FIRST MINUTES OF THE LA DAY A TRIP CANNOT ALSO BE OLDER THAN THE
+ * COOLDOWN -- there is not that much day yet -- so a caller that then opens
+ * reads `limit_reached` on the strength of 0174 asking the CAP BEFORE the
+ * cooldown, which is that function's own stated order and its own comment's
+ * reason ("at the cap the cooldown is irrelevant"). Nothing here depends on the
+ * ages themselves; they were never what the day-scoped assertions read.
+ *
+ * `count` must not exceed the cap: the build takes real passes through the real
+ * RPC, and past the cap the RPC is right to refuse one.
+ */
+async function tripsToday(user: SeededUser, sectionId: string, count: number): Promise<void> {
+	for (let k = 0; k < count; k++) await tripAgo(user, sectionId, 60 + k * 10);
+
+	const { rows: placed } = await db.sql<{ id: string }>(
+		`with la as (
+			select date_trunc('day', now() at time zone 'America/Los_Angeles')
+			         at time zone 'America/Los_Angeles' as midnight
+		), ranked as (
+			select h.id,
+			       row_number() over (order by h.opened_at) as k,
+			       count(*) over () as n
+			from public.classroom_hall_passes h
+			where h.section_id = $1::uuid and h.student_email = $2 and h.closed_at is not null
+		)
+		update public.classroom_hall_passes h
+		set opened_at = la.midnight
+		                + (now() - la.midnight) * (ranked.k::float8 / (ranked.n + 1)),
+		    closed_at = la.midnight
+		                + (now() - la.midnight) * ((ranked.k + 0.5)::float8 / (ranked.n + 1))
+		from ranked, la
+		where h.id = ranked.id
+		returning h.id`,
+		[sectionId, user.email]
+	);
+	expect(placed).toHaveLength(count);
+
+	// THE FIXTURE CHECKS ITSELF, AT WHATEVER HOUR IT IS. A fixture that quietly
+	// misses the day it was aiming for is the whole defect this replaces, and it
+	// showed up as an assertion about the PRODUCT failing rather than as an
+	// assertion about the fixture. Now the fixture says so first.
+	const { rows: audit } = await db.sql<{
+		n: string;
+		today: string;
+		distinct_opened: string;
+		in_past: string;
+	}>(
+		`select count(*) as n,
+		        count(*) filter (
+		          where (opened_at at time zone 'America/Los_Angeles')::date
+		              = (now() at time zone 'America/Los_Angeles')::date
+		            and (closed_at at time zone 'America/Los_Angeles')::date
+		              = (now() at time zone 'America/Los_Angeles')::date
+		        ) as today,
+		        count(distinct opened_at) as distinct_opened,
+		        count(*) filter (where opened_at < now() and closed_at < now()) as in_past
+		 from public.classroom_hall_passes
+		 where section_id = $1::uuid and student_email = $2`,
+		[sectionId, user.email]
+	);
+	expect({
+		n: Number(audit[0].n),
+		today: Number(audit[0].today),
+		distinct: Number(audit[0].distinct_opened),
+		inPast: Number(audit[0].in_past)
+	}).toEqual({ n: count, today: count, distinct: count, inPast: count });
 }
 
 /** Every row in a section, oldest first, straight off the table. */
@@ -246,9 +366,8 @@ describe('the limits are written down once', () => {
 		expect(seen.limits).toEqual(rows[0].limits);
 
 		// And the refusal echoes the same cap rather than a literal of its own.
-		for (let i = 0; i < seen.limits.daily_limit; i++) {
-			await tripAgo(ana, sectionA, 90 + i);
-		}
+		// DAY-SCOPED: these have to be TODAY's passes or there is nothing to cap.
+		await tripsToday(ana, sectionA, seen.limits.daily_limit);
 		const refused = await open(ana, sectionA);
 		expect(refused).toMatchObject({
 			ok: false,
@@ -379,7 +498,7 @@ describe('defect 3 -- the number of passes in a day is bounded', () => {
 		);
 		const cap = rows[0].limits.daily_limit;
 
-		for (let i = 0; i < cap; i++) await tripAgo(ana, sectionA, 60 + i * 10);
+		await tripsToday(ana, sectionA, cap);
 		const refused = await open(ana, sectionA);
 		expect(refused).toMatchObject({ ok: false, reason: 'limit_reached', used: cap, limit: cap });
 
@@ -392,7 +511,7 @@ describe('defect 3 -- the number of passes in a day is bounded', () => {
 		const { rows } = await db.sql<{ limits: { daily_limit: number } }>(
 			'select public._classroom_hall_pass_limits() as limits'
 		);
-		for (let i = 0; i < rows[0].limits.daily_limit; i++) await tripAgo(ana, sectionA, 60 + i * 10);
+		await tripsToday(ana, sectionA, rows[0].limits.daily_limit);
 		expect(await open(ana, sectionA)).toMatchObject({ ok: false, reason: 'limit_reached' });
 		expect((await open(ana, sectionB)).ok).toBe(true);
 	});
@@ -403,7 +522,13 @@ describe('defect 3 -- the number of passes in a day is bounded', () => {
 			'select public._classroom_hall_pass_limits() as limits'
 		);
 		const cap = rows[0].limits.daily_limit;
-		for (let i = 0; i < cap; i++) await tripAgo(ana, sectionA, 60 + i * 10);
+		// THE PRECONDITION IS ITSELF DAY-SCOPED, AND THAT IS WHAT USED TO BREAK
+		// THIS TEST. `tripsToday` guarantees the rows are today at every hour and
+		// says so itself; without it these were `now() - 60..80 minutes`, which is
+		// YESTERDAY for the first eighty minutes of the LA day -- so the cap this
+		// line asserts was never reached and the test about the day boundary
+		// failed at the day boundary, before its own instrument ever ran.
+		await tripsToday(ana, sectionA, cap);
 		expect(await open(ana, sectionA)).toMatchObject({ ok: false, reason: 'limit_reached' });
 
 		// THE INSTRUMENT (0140's). Move every row back to 8pm Pacific YESTERDAY,
@@ -440,8 +565,7 @@ describe('defect 3 -- the number of passes in a day is bounded', () => {
 
 	test('the state reports the count today without being asked to refuse anything', async () => {
 		await reset();
-		await tripAgo(ana, sectionA, 120);
-		await tripAgo(ana, sectionA, 90);
+		await tripsToday(ana, sectionA, 2);
 		const seen = (await state(ana, sectionA)) as { used_today: number };
 		expect(seen.used_today).toBe(2);
 	});
@@ -457,7 +581,7 @@ describe('the instructor override', () => {
 		const { rows } = await db.sql<{ limits: { daily_limit: number } }>(
 			'select public._classroom_hall_pass_limits() as limits'
 		);
-		for (let i = 0; i < rows[0].limits.daily_limit; i++) await tripAgo(ana, sectionA, 60 + i * 10);
+		await tripsToday(ana, sectionA, rows[0].limits.daily_limit);
 		expect(await open(ana, sectionA)).toMatchObject({ ok: false, reason: 'limit_reached' });
 
 		const forced = await openFor(teacher, sectionA, ana.email);

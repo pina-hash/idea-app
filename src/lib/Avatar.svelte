@@ -65,12 +65,39 @@
 	const failed = $derived(source.kind === 'image' && failedUrl === source.url);
 	const tint = $derived(avatarTint(tintKey));
 	const px = $derived(`${size}px`);
-	/* What the tile paints when the picture is absent OR broken. Read through
-	   `subjectInitials` rather than off `source.text`, because a FAILED image
-	   source has no text on it at all. */
-	const fallbackText = $derived(
-		source.kind === 'initials' ? source.text : subjectInitials(profile ?? subject)
-	);
+	/*
+	 * WHAT THE TILE PAINTS, ALWAYS THROUGH `subjectInitials` AND NEVER OFF
+	 * `source.text`, and the second half of that sentence is a bug fix rather
+	 * than a tidy-up.
+	 *
+	 * It used to read `source.kind === 'initials' ? source.text : ...`, which
+	 * takes the text `avatarSource` put there -- and `avatarSource` builds it
+	 * with `initials()`, which bottoms out in `displayName()`, whose last rung
+	 * is the literal sentence 'Signed in'. So the `subject` path was corrected
+	 * by `subjectAvatar` in 0033 and the `profile` path was NOT: a profile row
+	 * with no display name, no full name and no address still rendered the
+	 * initials **SI**, which reads as a person called S. I. rather than as an
+	 * absence. Measured on the real functions, not inferred: `initials(null)`
+	 * and `initials(<nameless row>)` both answer 'SI' today.
+	 *
+	 * Reading through `subjectInitials` unconditionally closes that and costs
+	 * nothing anywhere else: for a subject it is the same call `subjectAvatar`
+	 * already made, and for an IDENTIFIED profile it delegates straight back to
+	 * `initials()` with the same three fields, so every existing tile paints
+	 * byte-identical letters. The one behaviour that moves is the one that was
+	 * wrong.
+	 *
+	 * It also still answers the case it was written for: a FAILED image source
+	 * carries no text at all, so there is nothing to read off `source`.
+	 *
+	 * `initials()` ITSELF IS UNCHANGED AND STILL ANSWERS 'SI'. It is exported
+	 * from `$lib/profile.ts`, which this bundle does not own, and its one
+	 * remaining caller is `avatarSource` -- whose text no longer reaches a
+	 * screen through this component. `tests/avatar-initials.test.ts` sweeps
+	 * `src/` for a second caller so that stays true by measurement rather than
+	 * by hope.
+	 */
+	const fallbackText = $derived(subjectInitials(profile ?? subject));
 </script>
 
 <span

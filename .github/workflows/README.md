@@ -12,6 +12,10 @@ that passed; `deploy.yml` is the one path that writes `main`.
 - **The branch to look at is `integration`.** It is long-lived, it always has
   the latest `main` merged into it, and it carries every finished bundle that
   has not been deployed yet.
+- **The CI nightly on `integration` runs at 01:00 Pacific in summer and 00:00
+  in winter, and that hour is load-bearing.** It is inside the only window in
+  which a day-boundary defect is visible; see "The nightly hour is chosen"
+  below before moving it.
 - **`main` is written by `deploy.yml` and by nothing else, and it now has a
   nightly schedule as well as the button.** It runs only when `main` is an
   ancestor of `integration`, CI is green on `integration`'s exact tip, and
@@ -24,7 +28,9 @@ that passed; `deploy.yml` is the one path that writes `main`.
   override a migration the probe read as NOT applied.
 - **A `claude/**` branch that is still sitting there is a signal, not a
   leftover.** It means one of: its CI failed, its CI has not finished, or its
-  merge into `integration` conflicted. All three want a person.
+  merge into `integration` conflicted. All three want a person. (A fourth cause
+  is now closed: until 2026-09-05 a branch whose CI you re-ran green BY HAND
+  also sat there, invisible to the sweep. See "Re-running a red branch's CI".)
 
 ## Deploying: usually nothing, sometimes a button
 
@@ -126,16 +132,58 @@ and answered `false` for three columns that were present, while the
 it with `GITHUB_TOKEN` and GitHub's loop-breaker starts no run from that. On
 2026-08-29 it went red silently and stopped eight branches.
 
-So `ci.yml` carries a **schedule** (04:30 UTC daily, which is 21:30 Pacific) and
-a **workflow_dispatch** that test `integration` itself. A red scheduled CI run
-is the signal that `integration` is broken and nothing will merge until somebody
-looks. To check it on demand: Actions -> **CI** -> **Run workflow**, which
-defaults to `integration` and accepts any other ref.
+So `ci.yml` carries a **schedule** and a **workflow_dispatch** that test
+`integration` itself. A red scheduled CI run is the signal that `integration` is
+broken and nothing will merge until somebody looks. To check it on demand:
+Actions -> **CI** -> **Run workflow**, which defaults to `integration` and
+accepts any other ref.
 
-Neither of those triggers an Integrate sweep: `integrate.yml` requires
-`github.event.workflow_run.event == 'push'`, so a scheduled or dispatched CI run
-does not reach it. Neither does the CI that `deploy.yml` calls, which runs as a
-job inside the Deploy run rather than as a run of its own.
+### The nightly hour is chosen, and moving it costs detection
+
+**`0 8 * * *` -- 08:00 UTC, which is 01:00 Pacific in summer and 00:00 Pacific
+in winter.** It was `30 4` (21:30 and 20:30 Pacific) until 2026-09-05.
+
+GitHub cron is UTC and does not shift with daylight saving, so ONE entry lands
+on TWO different local hours across the year, and any hour you pick has that
+property. **Both** of these are inside 00:00 to 02:00 Pacific, which is the only
+window in which a whole class of defect is visible at all.
+
+`tests/db/classroom-hall-pass-limits.test.ts` is why. Six of its 24 tests failed
+only between 00:00 and 02:00 Pacific -- the fixtures backdate up to 120 minutes
+and land on the previous Los Angeles calendar day -- and it passed every CI run
+for weeks from prompt 0016 onward. It surfaced because a person happened to
+re-run a branch at 00:58, not because anything tested for it. A suite that only
+ever runs during the working day samples one part of the clock and calls it
+coverage.
+
+Two things about the choice, both of which a future tidy-up would undo without
+noticing:
+
+- **UTC [08:00, 09:00) is the whole intersection.** Any other hour is inside the
+  window for at most half the year. The old `30 4` was inside it for none of it.
+- **Detection degrades across the window.** Measured at fixed Pacific instants:
+  6 failures at 00:05, 00:30 and 01:00; only **2** at 01:30; **0** at 02:05,
+  because only the tests backdating 90 minutes or more still fail late. `0 8` is
+  the latest minute at which both local hours sit at or before the last
+  full-strength reading. `30 8` would put the summer run at 01:30 and catch two
+  of the six -- in the window, and still mostly reporting a pass.
+
+`tests/workflows.test.ts` pins both properties and derives the local hours from
+the cron rather than restating them, so this section cannot quietly drift from
+the file.
+
+Neither of those STARTS an Integrate sweep: `integrate.yml`'s job-level `if`
+requires `github.event.workflow_run.event == 'push'`, so a scheduled or
+dispatched CI run does not itself kick off a sweep. Neither does the CI that
+`deploy.yml` calls, which runs as a job inside the Deploy run rather than as a
+run of its own. Press **Run workflow** on Integrate to sweep on demand.
+
+**Starting a sweep and counting in one are different questions, and they used
+to have the same wrong answer.** Once a sweep is running, the per-branch check
+counts a branch's newest completed CI run for its exact tip *whatever trigger
+started that run*. That check used to filter on `event=push` too, which meant a
+branch you had re-run green by hand was invisible to it -- see "Re-running a
+red branch's CI" below.
 
 ## When something is stuck
 
@@ -209,6 +257,24 @@ git push origin claude/<the branch>
 
 CI runs again, and the next green run picks it up. You can also press **Run
 workflow** on Integrate to retry the sweep immediately.
+
+### Re-running a red branch's CI
+
+If a branch went red for a reason that has since been fixed elsewhere, you can
+re-run its CI by hand -- Actions -> **CI** -> **Run workflow**, pointed at the
+branch -- and the next Integrate sweep will see the green run and merge it.
+
+**This did not work before 2026-09-05 and failed silently.** The per-branch
+check asked the Actions API only for runs a PUSH had started, so a run you
+started by hand did not come back at all: the branch read as `CI on abc1234 is
+unknown` -- not `failure` -- and was skipped. On 2026-09-04 three finished
+branches sat in exactly that state, nothing merged, the sweep discarded its
+push, the deploy stayed blocked, and a person merged all three by pull request
+instead. The filter is gone. What still holds is the part that matters: the
+green run has to be for **that exact commit**, so a branch that was green two
+commits ago is still not green, and if a hand re-run comes back RED after an
+earlier green one, the branch is red -- the sweep takes the newest run for the
+sha, not the most flattering one.
 
 Note that while one branch conflicts, **every** Integrate run stays red, because
 it re-reports the outstanding conflict each time. Other branches still merge

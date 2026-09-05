@@ -851,13 +851,205 @@ else
 	check_says "34. renamed markers cut nothing (the FATAL guard above then fires)" empty non-empty
 fi
 
+
+# ===========================================================================
+# PART THREE: THE CI CONCLUSION.
+#
+# `ci_conclusion` decides whether a branch is green, and a branch that is not
+# green is not merged -- so a bug here does not corrupt anything, it DEADLOCKS
+# everything, which is exactly what happened on 2026-09-04. The query passed
+# `-f event=push`; three finished branches had been re-run green by
+# `workflow_dispatch`; the query returned nothing for their shas; all three
+# read as `unknown`; the sweep skipped every one; nothing merged; the push was
+# discarded; the deploy stayed blocked. A person merged all three by pull
+# request instead.
+#
+# Everything the two parts above say applies unchanged: this file holds NO copy
+# of the rule, it CUTS the text between `# ci_gate_marker:begin` and
+# `# ci_gate_marker:end` out of the workflow with the same `cut_marker`, and
+# runs those exact characters.
+#
+# THE FIXTURES ARE JSON RATHER THAN GIT, and that is why the function is split
+# in two in the workflow. The `gh api` half needs a token, a network and a
+# repository full of real runs; the DECISION half needs none of the three, and
+# the decision is the half that got this wrong. So the workflow hands
+# `ci_conclusion` the payload as a string and this drives it on payloads a real
+# Actions API answer can actually contain.
+#
+# WHAT THIS STILL DOES NOT COVER, said plainly: the `gh api` call itself -- the
+# path it builds, the parameters it sends, and whether GitHub answers the way
+# these fixtures claim. That the loop still calls the function, and still skips
+# on anything but `success`, is asserted structurally in case 0c.
+# ===========================================================================
+
+echo "== case 0c: the workflow actually calls the CI gate (structural, by grep) =="
+ci_call_ok=yes
+for needle in \
+	'conclusion="$(ci_conclusion "$runs" "$sha" "$GITHUB_REPOSITORY")"' \
+	'if [ "$conclusion" != success ]; then' \
+	'skipped+=("$branch -- CI on ${sha:0:7} is $conclusion")'
+do
+	if grep -qF -- "$needle" "$WORKFLOW"; then
+		echo "  found: $needle"
+	else
+		echo "  MISSING: $needle"
+		ci_call_ok=no
+	fi
+done
+# AND THE FILTER THAT CAUSED IT IS GONE FROM THE QUERY, not merely unused. A
+# `-f event=` on the `gh api` line is the bug itself, and it can come back as a
+# plausible-looking tidy-up, so it is asserted as an ABSENCE on that one line
+# rather than over the file -- the comments above the function explain the
+# history and legitimately spell `event=push` twice.
+if grep -n 'gh api' "$WORKFLOW" | grep -q 'event='; then
+	echo "  PRESENT (must not be): a -f event= filter on the gh api line"
+	ci_call_ok=no
+else
+	echo "  absent, as required: any -f event= filter on the gh api line"
+fi
+if [ "$ci_call_ok" = yes ]; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
+echo
+
+CI_SRC="$(cut_marker "$WORKFLOW" ci_gate_marker)"
+if [ -z "${CI_SRC//[[:space:]]/}" ]; then
+	echo "FATAL: extracted nothing between the ci_gate markers in $WORKFLOW" >&2
+	exit 2
+fi
+CI_FILE="$(mktemp)"
+printf '%s\n' "$CI_SRC" > "$CI_FILE"
+if ! bash -n "$CI_FILE"; then
+	echo "FATAL: the extracted CI gate text is not valid shell" >&2
+	exit 2
+fi
+# shellcheck source=/dev/null
+. "$CI_FILE"
+rm -f "$CI_FILE"
+if ! declare -F ci_conclusion >/dev/null; then
+	echo "FATAL: the extracted text did not define ci_conclusion()" >&2
+	exit 2
+fi
+
+if [ "${1:-}" = --show ]; then
+	echo "---- extracted CI gate ----"
+	printf '%s\n' "$CI_SRC"
+	echo "---- end ----"
+	echo
+fi
+
+echo "extracted $(printf '%s\n' "$CI_SRC" | wc -l | tr -d ' ') lines of CI gate from $WORKFLOW"
+echo
+
+# ---------------------------------------------------------------------------
+# Fixtures. `REPO` is what `$GITHUB_REPOSITORY` is in CI; `TIP` is the sha the
+# sweep is about to merge and `OLD` is any other commit.
+# ---------------------------------------------------------------------------
+REPO='pina-hash/idea-app'
+TIP='e9f2ebd0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+OLD='0368dfcfbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+
+# One run object, in the shape the Actions API returns. `head_repository` is
+# ours unless a fifth argument names somebody else's.
+ci_run() {
+	printf '{"run_number":%s,"head_sha":"%s","event":"%s","conclusion":"%s","head_repository":{"full_name":"%s"}}' \
+		"$1" "$2" "$3" "$4" "${5:-$REPO}"
+}
+ci_payload() { printf '{"workflow_runs":[%s]}' "$1"; }
+
+# The assertion, in the sweep's own terms rather than in jq's: the loop merges
+# on `success` and skips on everything else, so each case reports the VERDICT
+# the branch would get as well as the conclusion the function returned.
+check_ci() {
+	local label="$1" expect="$2" payload="$3" sha="$4"
+	local got verdict
+	got="$(ci_conclusion "$payload" "$sha" "$REPO")"
+	if [ "$got" = success ]; then verdict=MERGE; else verdict=SKIP; fi
+	if [ "$verdict" = "$expect" ]; then
+		pass=$((pass + 1))
+		printf 'ok    %-72s observed %-5s  conclusion: %s\n' "$label" "$verdict" "$got"
+	else
+		fail=$((fail + 1))
+		printf 'FAIL  %-72s observed %-5s (expected %s)  conclusion: %s\n' "$label" "$verdict" "$expect" "$got"
+	fi
+}
+
+# --- cases 35-37: green on the tip, one per trigger ------------------------
+# The three that the `event=push` filter answered differently. Under it, only
+# the first of these merged; the other two read `unknown` and were skipped.
+check_ci "35. newest run on the tip is a green push" MERGE \
+	"$(ci_payload "$(ci_run 12 "$TIP" push success)")" "$TIP"
+check_ci "36. newest run on the tip is a green workflow_dispatch" MERGE \
+	"$(ci_payload "$(ci_run 12 "$TIP" workflow_dispatch success)")" "$TIP"
+check_ci "37. newest run on the tip is a green schedule" MERGE \
+	"$(ci_payload "$(ci_run 12 "$TIP" schedule success)")" "$TIP"
+
+# --- case 38: red, and the trigger does not rescue it ----------------------
+check_ci "38. newest run on the tip is red, from any trigger" SKIP \
+	"$(ci_payload "$(ci_run 12 "$TIP" workflow_dispatch failure)")" "$TIP"
+
+# --- case 39: THE ONE THAT MATTERS ----------------------------------------
+# A green run against a DIFFERENT commit authorises nothing. If widening the
+# trigger set made this merge, the fix would be worse than the bug it fixes:
+# the sweep would merge a tip nothing has ever tested.
+check_ci "39. a green run exists, but on an OLDER sha" SKIP \
+	"$(ci_payload "$(ci_run 12 "$OLD" push success)")" "$TIP"
+
+# --- case 40: no evidence at all ------------------------------------------
+check_ci "40. no run at all on the tip" SKIP \
+	'{"workflow_runs":[]}' "$TIP"
+
+# --- cases 41-42: newest wins, in both directions -------------------------
+# 41 IS THE 2026-09-04 SHAPE VERBATIM: a branch went red, somebody re-ran it by
+# hand, and the same sha carries both runs. Under the old filter the green one
+# was invisible and the branch read `unknown` -- not even `failure`.
+check_ci "41. a red push then a green workflow_dispatch re-run, same tip" MERGE \
+	"$(ci_payload "$(ci_run 8 "$TIP" push failure),$(ci_run 21 "$TIP" workflow_dispatch success)")" "$TIP"
+# 42 is the inverse, and it is the case that proves 41 is not just "any green
+# run anywhere wins". A green run followed by a red re-run of the same commit
+# is a red commit.
+check_ci "42. a green push then a red workflow_dispatch re-run, same tip" SKIP \
+	"$(ci_payload "$(ci_run 8 "$TIP" push success),$(ci_run 21 "$TIP" workflow_dispatch failure)")" "$TIP"
+# And ORDER IN THE ARRAY MUST NOT DECIDE IT. The API returns newest first, so a
+# reader that took the FIRST element rather than the highest `run_number` would
+# pass 41 and 42 both while being wrong -- this is 41 with the array reversed.
+check_ci "43. array order does not decide it: 41 with the runs listed the other way" MERGE \
+	"$(ci_payload "$(ci_run 21 "$TIP" workflow_dispatch success),$(ci_run 8 "$TIP" push failure)")" "$TIP"
+
+# --- case 44: the protection `event=push` was quietly providing ------------
+# A fork's CI run lands in OUR Actions as a `pull_request` run, so the dropped
+# trigger filter was excluding it as a side effect. Same branch name, same sha,
+# somebody else's repository.
+check_ci "44. a green run on our tip from a FORK's repository" SKIP \
+	"$(ci_payload "$(ci_run 12 "$TIP" pull_request success someone/fork)")" "$TIP"
+
+# --- cases 45-46: fails closed on a payload that is not an answer ----------
+# What a 404 body, a rate-limit body or a truncated transfer look like. Neither
+# may answer `success`, and neither may abort the step under `pipefail`.
+check_ci "45. a payload carrying no workflow_runs key at all" SKIP \
+	'{"message":"Not Found","status":"404"}' "$TIP"
+check_ci "46. a payload that is not JSON" SKIP \
+	'<html>502 Bad Gateway</html>' "$TIP"
+
+# --- negative control: the cut refuses when the markers are renamed --------
+# The same control both halves above carry. Without it a rename would make
+# `cut_marker` return nothing, every case above would run against whatever was
+# last sourced, and this file would still be green.
+nc="$(mktemp)"
+sed 's/ci_gate_marker/ci_gate_renamed/g' "$WORKFLOW" > "$nc"
+nc_out="$(cut_marker "$nc" ci_gate_marker)"
+rm -f "$nc"
+if [ -z "${nc_out//[[:space:]]/}" ]; then
+	check_says "47. renamed CI markers cut nothing (the FATAL guard above then fires)" empty empty
+else
+	check_says "47. renamed CI markers cut nothing (the FATAL guard above then fires)" empty non-empty
+fi
+
 # ---------------------------------------------------------------------------
 # THE CASE COUNT. Without it, deleting every SKIP-direction case leaves
 # `fail=0` and a green exit -- a sweep that generated nothing cannot be allowed
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=37
+EXPECTED_CASES=51
 ran=$((pass + fail))
 
 echo

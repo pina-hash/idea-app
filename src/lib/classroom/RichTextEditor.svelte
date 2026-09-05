@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { docToTiptap, type ItemDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
+	import {
+		ITEM_IMAGE_NODE,
+		docToTiptap,
+		type ItemDoc,
+		type TiptapNode
+	} from '$lib/classroom/classroom-doc';
 	import { ITEM_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	import type { Editor } from '@tiptap/core';
 
@@ -135,18 +140,59 @@
 
 		void (async () => {
 			try {
-				const [{ Editor }, { StarterKit }] = await Promise.all([
+				const [{ Editor, Node }, { StarterKit }] = await Promise.all([
 					import('@tiptap/core'),
 					import('@tiptap/starter-kit')
 				]);
 				if (cancelled) return;
+
+				/**
+				 * THE IMAGE NODE (0176), declared here and nowhere else.
+				 *
+				 * NOT IN `$lib/rich-text-schema`, deliberately. That module holds the
+				 * StarterKit options BOTH rich-text features share, and a note has no
+				 * pictures: putting the node there would widen what a NOTE can be
+				 * asked to hold because an item body grew, which is the exact coupling
+				 * the two contracts are kept apart to prevent. Its NAME and ATTRIBUTE
+				 * LIST come from `ITEM_IMAGE_NODE`, which the server normalizer matches
+				 * against and the tests build their fixtures from -- a second spelling
+				 * of the name is a document this editor emits and the normalizer
+				 * silently drops.
+				 *
+				 * NO `@tiptap/extension-image` DEPENDENCY, and that is not thrift. That
+				 * extension's whole job is an arbitrary `src` URL, which is the one
+				 * thing this feature must not have: an authored image here is an
+				 * `attachment:` alias or a path under FIGURE_STATIC_PREFIXES, resolved
+				 * at RENDER time against the item's own files. Adding the package would
+				 * also rewrite a 4,649-line lockfile for a node that is twelve lines.
+				 *
+				 * AN ATOM: it has no editable content, so the caret cannot land inside
+				 * it and there is no way to type a picture into a broken state.
+				 * `renderHTML` emits a plain `<figure>` with the description visible --
+				 * the editor is showing the author what they wrote, not resolving the
+				 * reference, which is a render-time question it cannot answer.
+				 */
+				const ItemImageNode = Node.create({
+					name: ITEM_IMAGE_NODE.name,
+					group: 'block',
+					atom: true,
+					draggable: true,
+					addAttributes: () => ({ src: { default: '' }, alt: { default: '' } }),
+					parseHTML: () => [{ tag: `figure[data-${ITEM_IMAGE_NODE.name}]` }],
+					renderHTML: ({ HTMLAttributes }) => [
+						'figure',
+						{ [`data-${ITEM_IMAGE_NODE.name}`]: '', class: 'rt-figure' },
+						['span', { class: 'rt-figure-ref' }, String(HTMLAttributes.src ?? '')],
+						['figcaption', {}, String(HTMLAttributes.alt ?? '')]
+					]
+				});
 
 				const instance = new Editor({
 					element,
 					// The schema lives in $lib/rich-text-schema so the tests that fix the
 					// normalizer's behaviour build their fixtures from the SAME declaration
 					// this editor is configured with.
-					extensions: [StarterKit.configure(ITEM_SCHEMA_OPTIONS)],
+					extensions: [StarterKit.configure(ITEM_SCHEMA_OPTIONS), ItemImageNode],
 					content: value && value.length ? docToTiptap(value) : undefined,
 					editable: !disabled,
 					editorProps: {
@@ -218,6 +264,11 @@
 	 * does not silently produce a dead link.
 	 */
 	let linkOpen = $state(false);
+	let imageOpen = $state(false);
+	let imageRef = $state('');
+	let imageAlt = $state('');
+	let imageWrap: HTMLElement | null = $state(null);
+	let imageInput: HTMLInputElement | null = $state(null);
 	let linkValue = $state('');
 	let linkInput = $state<HTMLInputElement | null>(null);
 	let linkWrap = $state<HTMLElement | null>(null);
@@ -268,6 +319,75 @@
 		}
 		linkOpen = false;
 	}
+
+	// ---------------------------------------------------------------------
+	// The image control (0176). Deliberately the SAME SHAPE as the link
+	// control above -- a toolbar button that opens a small inline form -- so
+	// that inserting a picture needs no new prop from any of the three
+	// surfaces that mount this editor and reaches production the day it ships.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * ALT TEXT IS REQUIRED HERE TOO, AND THE CONTROL SAYS SO RATHER THAN
+	 * SILENTLY DOING NOTHING. `aria-disabled`, never `disabled`: a genuinely
+	 * disabled control swallows pointer events, so it can never explain why it
+	 * is refusing -- which is the whole reason somebody would press it.
+	 */
+	const imageReady = $derived(imageRef.trim() !== '' && imageAlt.trim() !== '');
+
+	function openImage() {
+		if (!editor) return;
+		// `attachment:` prefilled because that is the form nearly every image
+		// takes: the author copies the reference off the file they just
+		// attached, and typing the prefix again is the step they would skip.
+		imageRef = 'attachment:';
+		imageAlt = '';
+		imageOpen = true;
+	}
+
+	function closeImage(refocus = true) {
+		imageOpen = false;
+		if (refocus) editor?.chain().focus().run();
+	}
+
+	function applyImage() {
+		const e = editor;
+		if (!e || !imageReady) return;
+		e.chain()
+			.focus()
+			.insertContent({
+				type: ITEM_IMAGE_NODE.name,
+				attrs: { src: imageRef.trim(), alt: imageAlt.trim() }
+			})
+			.run();
+		imageOpen = false;
+	}
+
+	function onImageKey(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			applyImage();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			closeImage();
+		}
+	}
+
+	$effect(() => {
+		if (!imageOpen) return;
+		const onDown = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (!target || !target.isConnected) return;
+			if (imageWrap?.contains(target)) return;
+			closeImage(false);
+		};
+		document.addEventListener('pointerdown', onDown, true);
+		return () => document.removeEventListener('pointerdown', onDown, true);
+	});
+
+	$effect(() => {
+		if (imageOpen) imageInput?.focus();
+	});
 
 	function onLinkKey(event: KeyboardEvent) {
 		if (event.key === 'Enter') {
@@ -375,6 +495,51 @@
 					/>
 					<button type="button" class="link-go" onclick={applyLink}>Add</button>
 					<button type="button" class="link-cancel" onclick={() => closeLink()}>Cancel</button>
+				</span>
+			{/if}
+		</span>
+		<span class="link-wrap" bind:this={imageWrap}>
+			<button
+				type="button"
+				aria-expanded={imageOpen}
+				title="Add a picture from this item's files"
+				disabled={disabled || !editor}
+				onclick={openImage}>Image</button
+			>
+			{#if imageOpen}
+				<span class="link-pop image-pop" role="group" aria-label="Picture">
+					<input
+						bind:this={imageInput}
+						bind:value={imageRef}
+						type="text"
+						class="link-input"
+						placeholder="attachment:photo.jpg"
+						aria-label="Picture file"
+						onkeydown={onImageKey}
+					/>
+					<input
+						bind:value={imageAlt}
+						type="text"
+						class="link-input"
+						placeholder="What the picture shows"
+						aria-label="Description of the picture (required)"
+						onkeydown={onImageKey}
+					/>
+					<button
+						type="button"
+						class="link-go"
+						aria-disabled={!imageReady}
+						onclick={applyImage}>Add</button
+					>
+					<button type="button" class="link-cancel" onclick={() => closeImage()}>Cancel</button>
+					<!-- The refusal says WHY, in the place the person is working, and
+					     it is present rather than appearing only after a failed press:
+					     a control that explains itself before the click saves the
+					     click. -->
+					<span class="image-hint" class:needed={!imageReady}>
+						A description is required, so anyone using a screen reader knows what
+						the picture shows.
+					</span>
 				</span>
 			{/if}
 		</span>
@@ -491,6 +656,54 @@
 	.link-pop .link-go {
 		color: var(--green);
 		border-color: var(--line-strong);
+	}
+	/* Two fields and a sentence, so the popover wraps where the link one does
+	   not. Same anchor rules apply -- the narrow-screen block below moves both,
+	   because they share `.link-pop`. */
+	.image-pop {
+		flex-wrap: wrap;
+		max-width: min(30rem, 92vw);
+	}
+	.image-hint {
+		flex: 1 0 100%;
+		font-size: 0.78rem;
+		line-height: 1.35;
+		color: var(--text-2);
+	}
+	/* The one thing that CHANGES when the description is missing is the tone of
+	   a sentence that was already on screen. It is never the only signal: the
+	   sentence says the rule in words either way, and the Add control carries
+	   `aria-disabled`. */
+	.image-hint.needed {
+		color: var(--amber);
+	}
+	/* THE EDITOR SHOWS THE REFERENCE, NOT THE PICTURE, and that is honest rather
+	   than unfinished: resolving an `attachment:` alias is a render-time question
+	   against the item's own files, which this component is not given and must
+	   not start fetching. What the author needs to see here is which file they
+	   named and what they said about it. */
+	.rt-surface :global(.rt-figure) {
+		margin: 0.5rem 0;
+		padding: 0.5rem 0.6rem;
+		border: 1px dashed var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.rt-surface :global(.rt-figure .rt-figure-ref) {
+		display: block;
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		letter-spacing: 0.03em;
+		color: var(--text-2);
+	}
+	.rt-surface :global(.rt-figure figcaption) {
+		font-size: 0.86rem;
+		color: var(--text-1);
+		margin-top: 0.2rem;
+	}
+	.rt-surface :global(.rt-figure.ProseMirror-selectednode) {
+		border-style: solid;
+		border-color: var(--green);
 	}
 	/**
 	 * NARROW SCREENS ANCHOR TO THE TOOLBAR, NOT TO THE BUTTON.

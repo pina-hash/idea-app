@@ -352,7 +352,7 @@ const FORCE_SPELLINGS: readonly { readonly why: string; readonly re: RegExp }[] 
 	{ why: '+refspec', re: /(?:^|\s)['"]?\+[A-Za-z0-9_][\w./*-]*(?=[:\s'"]|$)/ }
 ];
 
-/** Only a `git push` counts. `gh api ... -f event=push` is not one. */
+/** Only a `git push` counts. `gh api ... -f status=completed` is not one. */
 const GIT_PUSH = /\bgit\b[^\n]*?\bpush\b/;
 
 /**
@@ -392,8 +392,55 @@ const CUTTABLE_GATES = [
 	{ fn: 'ledger_gate', marker: 'ledger_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: null },
 	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null },
-	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' }
+	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' }
 ] as const;
+
+/**
+ * THE CI GATE'S OWN TEXT, CUT THE WAY THE PROOF HARNESS CUTS IT.
+ *
+ * `tools/integrate-gate-proof.sh` takes the characters between
+ * `# ci_gate_marker:begin` and `# ci_gate_marker:end` out of `integrate.yml`,
+ * sources them and calls the function. Asserting a property against THAT text
+ * rather than against the whole file is what stops a guard being satisfied by
+ * a comment -- see the test that drives the mutation.
+ *
+ * The marker name comes from `CUTTABLE_GATES` rather than being retyped, so a
+ * rename moves both the harness assertion and this one together.
+ */
+function cutRegion(text: string, marker: string): string {
+	const begin = `# ${marker}:begin`;
+	const end = `# ${marker}:end`;
+	const from = text.indexOf(begin);
+	const to = text.indexOf(end);
+	if (from < 0 || to < from) return '';
+	return text.slice(from + begin.length, to);
+}
+
+const CI_GATE_MARKER = CUTTABLE_GATES.find((g) => g.fn === 'ci_conclusion')!.marker;
+
+/** The cut region as it stands, comments and all. */
+const ciGateRaw = (): string => cutRegion(src('integrate.yml'), CI_GATE_MARKER);
+
+/**
+ * Shell comments removed, so a property can only be satisfied by code.
+ *
+ * WHOLE-LINE COMMENTS ONLY, deliberately. A `#` inside the jq program is a
+ * character in a string as far as bash is concerned, and stripping from the
+ * first `#` on any line would eat the program. Every comment in this region is
+ * its own line, which is the shape the strip is written for; a trailing
+ * comment appearing later would survive it, and that is the safe direction --
+ * it can only make an assertion harder to satisfy, never easier.
+ */
+function stripShellComments(text: string): string {
+	return text
+		.split('\n')
+		.filter((l) => !/^\s*#/.test(l))
+		.join('\n');
+}
+
+/** The function's actual code, which is what every property is asserted against. */
+const ciGateBody = (): string => stripShellComments(ciGateRaw());
 
 /**
  * Everything wrong with one gate's marker pair, so a failure says which half
@@ -1223,11 +1270,20 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// The shapes a false positive would come from, and a false positive is
 		// how a check gets switched off: an ordinary push, a fetch refspec that
-		// really does lead with `+`, a `gh api` call carrying `-f event=push`,
+		// really does lead with `+`, a `gh api` call carrying `-f` parameters,
 		// and a shell test using `-f`.
+		//
+		// THE `gh api` FIXTURE IS THE LINE THAT IS ACTUALLY IN THE FILE, and it
+		// is worth keeping true: it used to read `-f event=push`, which the CI
+		// trigger fix removed, so the fixture was covering a shape nothing
+		// produces any more while the real line went uncovered.
 		expect(forcePushes('          if ! git push origin HEAD:refs/heads/main; then')).toEqual([]);
 		expect(forcePushes("          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'")).toEqual([]);
-		expect(forcePushes('            -f branch="$branch" -f event=push -f status=completed \\')).toEqual([]);
+		const ghApiLine = '                      -f branch="$branch" -f status=completed -f per_page=50 \\';
+		expect(forcePushes(ghApiLine)).toEqual([]);
+		expect(src('integrate.yml'), 'the gh api fixture is no longer a line in the file').toContain(
+			ghApiLine.trim().replace(/ \\$/, '')
+		);
 		expect(forcePushes('          if [ -f package-lock.json ]; then npm ci; fi')).toEqual([]);
 	});
 
@@ -1254,7 +1310,7 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
 		// leave a shorter table that still matches itself.
-		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(4);
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(5);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
@@ -1287,6 +1343,326 @@ describe('the invariants these particular workflows have to hold', () => {
 			CUTTABLE_GATES.filter((g) => g.harness === null).map((g) => g.fn),
 			'a gate gained or lost its in-repo proof harness'
 		).toEqual(['contained_delete_gate', 'target_push_gate']);
+	});
+
+	it('the per-branch CI query asks for a run on the SHA, not for a run from a TRIGGER', () => {
+		// THE 2026-09-04 DEADLOCK, AS A STANDING ASSERTION. The query passed
+		// `-f event=push`, so it asked GitHub only for CI runs a PUSH had
+		// started. Three finished branches had been re-run green by
+		// `workflow_dispatch`; the query returned nothing for their shas; all
+		// three read as `unknown`; the sweep skipped every one; nothing merged,
+		// so the push was discarded, so the deploy stayed blocked. A person
+		// merged all three by pull request instead.
+		//
+		// `tools/integrate-gate-proof.sh` proves the DECISION -- it cuts
+		// `ci_conclusion` out of the workflow and drives it on fixture payloads,
+		// green-per-trigger, red, older sha, no run, and both re-run
+		// directions. What it cannot see is the `gh api` call, because that
+		// needs a token and a network. So the parameters the query sends are
+		// asserted here, off the file, and the two halves together cover the
+		// whole path.
+		const s = src('integrate.yml');
+		// The query's own lines: the `gh api` call and its backslash
+		// continuations. COMMENTS ARE EXCLUDED, and that exclusion is the whole
+		// reason this is a line filter rather than a grep over the file -- the
+		// comments above `ci_conclusion` spell `event=push` twice while
+		// explaining why it is gone, and a check that could not tell an
+		// explanation from a parameter would have to forbid the explanation.
+		const isQueryLine = (l: string) =>
+			!/^\s*#/.test(l) && (/gh api/.test(l) || /-f (branch|status|per_page|event)=/.test(l));
+		const ghApi = s
+			.split('\n')
+			.map((l, i) => [i + 1, l] as const)
+			.filter(([, l]) => isQueryLine(l));
+		expect(ghApi.length, 'integrate.yml no longer makes the per-branch CI query').toBeGreaterThan(0);
+
+		// NO TRIGGER FILTER, on any line of the query. Asserted against the
+		// PARAMETER LINES rather than the whole file, because the comments
+		// above `ci_conclusion` legitimately spell `event=push` while
+		// explaining why it is gone -- a file-wide grep would either forbid the
+		// explanation or pass on the bug.
+		expect(
+			ghApi.filter(([, l]) => /-f\s*event=/.test(l)).map(([n, l]) => `${n}: ${l.trim()}`),
+			'the per-branch CI query filters on a TRIGGER again, which is the deadlock'
+		).toEqual([]);
+
+		// POSITIVE CONTROL: the predicate finds one when there is one. Without
+		// this the assertion above passes just as happily on a file that has no
+		// query in it at all.
+		const withFilter = s.replace('-f branch="$branch"', '-f branch="$branch" -f event=push');
+		expect(
+			withFilter.split('\n').filter(isQueryLine).filter((l) => /-f\s*event=/.test(l)).length,
+			'the trigger-filter check cannot see a trigger filter that is really there'
+		).toBeGreaterThan(0);
+		// SECOND CONTROL, the other direction: the comments as they stand must
+		// NOT be what makes the check green or red. On the real file the filter
+		// keeps the query lines and drops the prose, so the prose can say
+		// `event=push` as often as it needs to.
+		expect(
+			s.split('\n').filter((l) => /-f\s*event=/.test(l)).length,
+			'the file no longer explains why the trigger filter was removed'
+		).toBeGreaterThan(0);
+
+		// AND THE SHA MATCH IS THE HALF THAT MUST NOT WEAKEN. Widening which
+		// TRIGGERS count must never widen which COMMIT counts: a green run
+		// against a different commit says nothing about this one. The verdict
+		// is proved in the harness (case 39); that the selection is written at
+		// all is asserted here.
+		expect(s, 'ci_conclusion no longer pins the run to the branch tip').toContain(
+			'select(.head_sha == $sha)'
+		);
+		// The fork guard that replaced what `event=push` was quietly providing:
+		// a fork's run reaches our Actions as a `pull_request` run, which the
+		// trigger filter excluded as a side effect.
+		expect(s, 'ci_conclusion no longer refuses a run from a fork').toContain(
+			'select(.head_repository.full_name == $repo)'
+		);
+		// Newest wins, which matters more with every trigger admitted: one sha
+		// can now carry a red push run and the green re-run that fixed it.
+		expect(s, 'ci_conclusion no longer takes the NEWEST run for the sha').toContain(
+			'sort_by(.run_number) | last'
+		);
+	});
+
+	it('the CI query is guarded where it LIVES, not merely where the string appears', () => {
+		// THE HOLE THIS CLOSES, MEASURED RATHER THAN IMAGINED. Prompt 0037 left
+		// this test asymmetric: its NEGATIVE assertion (no `-f event=`) excludes
+		// comment lines, because the prose above `ci_conclusion` legitimately
+		// spells `event=push` while explaining why it went. Its three POSITIVE
+		// assertions did not get the same narrowing -- they were plain
+		// `toContain` over the whole file. So the sha match could be DELETED
+		// FROM THE FUNCTION and the suite stayed green as long as the string
+		// survived anywhere, including in a comment saying it used to be there.
+		// Driven, before this was written: the jq line removed and
+		// `# historical note: this used to say select(.head_sha == $sha)` added
+		// in its place, and `npm test` reported 37 passed.
+		//
+		// A guard that a tidy-up can satisfy by writing prose is not a guard.
+		// Every property below is asserted against the CUT REGION with its
+		// comments stripped -- the same characters `tools/integrate-gate-proof.sh`
+		// sources and runs -- so the only way to satisfy it is to mean it.
+		const body = ciGateBody();
+
+		// Each property, with what it is FOR, because a bare string in a list
+		// is the thing that gets deleted by somebody who cannot see the cost.
+		const REQUIRED: readonly { readonly needle: string; readonly why: string }[] = [
+			{
+				needle: 'select(.head_sha == $sha)',
+				why: 'THE SECURITY PROPERTY: a green run against a different commit authorises nothing, so a branch that was green two commits ago is not green'
+			},
+			{
+				needle: 'select(.head_repository.full_name == $repo)',
+				why: "THE FORK GUARD: a fork's run reaches our Actions as a `pull_request` run, which the retired `event=push` filter was excluding as a side effect"
+			},
+			{
+				needle: 'sort_by(.run_number) | last',
+				why: 'NEWEST WINS: one sha can carry a red push run and the green hand re-run that fixed it, and it can carry them the other way round too'
+			},
+			{
+				needle: '.workflow_runs // []',
+				why: 'FAILS CLOSED on a payload with no runs key -- a 404 or rate-limit body -- instead of aborting the whole step under pipefail'
+			},
+			{
+				needle: "|| printf 'unknown\\n'",
+				why: 'FAILS CLOSED when jq refuses the input at all, rather than answering success on no evidence'
+			}
+		];
+
+		expect(
+			REQUIRED.filter((r) => !body.includes(r.needle)).map((r) => `${r.needle} -- ${r.why}`),
+			'a load-bearing property left ci_conclusion'
+		).toEqual([]);
+
+		// NOT VACUOUS IN EITHER DIRECTION.
+		//
+		// One: the cut has to have found the function. An empty or missing
+		// region makes every `includes` above false, which would fail loudly --
+		// but a region that cut the WRONG text could satisfy them by accident,
+		// so the shape is checked too.
+		expect(body, 'the ci_gate cut did not find the function').toContain('ci_conclusion()');
+		expect(body.length, 'the ci_gate cut came back suspiciously short').toBeGreaterThan(200);
+
+		// Two: THE COMMENT STRIP IS THE WHOLE POINT, so prove it strips -- and
+		// prove it SYNTHETICALLY rather than by naming a phrase that happens to
+		// be in the region's prose today. The first draft of this asserted that
+		// `event=push` was in the raw region and gone from the body, and it was
+		// WRONG: that phrase lives in the long comment ABOVE the marker, not
+		// inside the cut. A strip proof anchored to somebody's wording is a
+		// proof that breaks when they reword it, for a reason that has nothing
+		// to do with the property.
+		const marked = `${ciGateRaw()}\n            # a comment carrying not-real-code\n`;
+		expect(marked.includes('not-real-code'), 'the fixture did not take').toBe(true);
+		expect(
+			stripShellComments(marked).includes('not-real-code'),
+			'stripShellComments is not removing whole-line comments'
+		).toBe(false);
+		// And it must NOT eat code while doing it: everything the region really
+		// declares has to survive the strip.
+		expect(stripShellComments(marked), 'the strip ate the function').toContain('ci_conclusion()');
+
+		// Three, and this is the control that matters: each property, deleted
+		// from the FUNCTION and pasted into a COMMENT, must still be reported.
+		// That is precisely the mutation the old assertion passed.
+		//
+		// THE FIXTURE IS BUILT FROM THE CODE SIDE, and the first draft was not:
+		// it removed the needle from the RAW region, which for two of these
+		// deletes the copy sitting in the region's own prose and leaves the
+		// code untouched. The control caught that, which is what a control is
+		// for -- but a control that only ever fails on its own fixture proves
+		// nothing about the guard. So: start from the code, delete the
+		// property there, then hand it back as a comment.
+		for (const { needle } of REQUIRED) {
+			const code = ciGateBody();
+			expect(code.includes(needle), `${needle} is not in the code to begin with`).toBe(true);
+			const smuggled = `${code.replace(needle, '')}\n            # historical note: this used to say ${needle}\n`;
+			expect(
+				smuggled.includes(needle),
+				`${needle}: the fixture did not smuggle it into a comment`
+			).toBe(true);
+			expect(
+				stripShellComments(smuggled).includes(needle),
+				`${needle} can still be satisfied by a comment`
+			).toBe(false);
+		}
+	});
+
+	it('the properties the CI query relies on are still PROVED, and the harness is not run by CI', () => {
+		// `tools/integrate-gate-proof.sh` is referenced by no workflow, no npm
+		// script and not by `tools/run-tests.mjs` -- swept, not assumed, below.
+		// It runs only when a person types it. So its 51 cases prove nothing on
+		// any automated run, and a case deleted from it is invisible until
+		// somebody happens to look. This file DOES run in CI, so the existence
+		// of the cases is asserted from here.
+		//
+		// It asserts the cases EXIST, never their verdicts -- those are the
+		// harness's to make against real fixtures, and restating one here would
+		// be a second copy of the rule.
+		const proof = readFileSync(
+			fileURLToPath(new URL('../tools/integrate-gate-proof.sh', import.meta.url)),
+			'utf8'
+		);
+
+		// One case per property, named by the sentence the harness prints.
+		const CASES: readonly string[] = [
+			'newest run on the tip is a green push',
+			'newest run on the tip is a green workflow_dispatch',
+			'newest run on the tip is a green schedule',
+			'newest run on the tip is red, from any trigger',
+			'a green run exists, but on an OLDER sha',
+			'no run at all on the tip',
+			'a red push then a green workflow_dispatch re-run, same tip',
+			'a green push then a red workflow_dispatch re-run, same tip',
+			"a green run on our tip from a FORK's repository",
+			'a payload carrying no workflow_runs key at all',
+			'a payload that is not JSON'
+		];
+		expect(
+			CASES.filter((c) => !proof.includes(c)),
+			'a case proving the CI query is gone from the proof harness'
+		).toEqual([]);
+
+		// THE COUNT IS PINNED because a deleted case that nobody replaces
+		// leaves a shorter list matching itself. The harness asserts its own
+		// total too; this asserts the CI half of it specifically.
+		expect(
+			(proof.match(/^check_ci /gm) ?? []).length,
+			'a CI case was added to or removed from the proof harness without moving this number'
+		).toBe(12);
+
+		// AND THE CLAIM THAT IT IS HAND-RUN ONLY IS SWEPT, not asserted from
+		// memory: the day somebody wires it into CI, this reddens and the
+		// paragraph above is what needs rewriting.
+		const callers = [...FILES.map((f) => src(f)), readFileSync(
+			fileURLToPath(new URL('../package.json', import.meta.url)),
+			'utf8'
+		), readFileSync(fileURLToPath(new URL('../tools/run-tests.mjs', import.meta.url)), 'utf8')];
+		const invoked = callers.filter((t) =>
+			/(?:bash|sh|\.\/)?\s*tools\/integrate-gate-proof\.sh/.test(
+				t.split('\n').filter((l) => !/^\s*(#|\/\/|\*)/.test(l)).join('\n')
+			)
+		);
+		expect(
+			invoked.length,
+			'integrate-gate-proof.sh is now invoked somewhere -- good, but this test says it is not'
+		).toBe(0);
+	});
+
+	it('the nightly runs inside the hours a day-boundary defect shows, in BOTH halves of the year', () => {
+		// WHY THIS IS PINNED AT ALL: before this, NOTHING in the suite asserted
+		// any cron, any trigger or any schedule in any workflow. The hour was a
+		// bare string one tidy-up away from being rounded to something neat,
+		// and the cost of moving it is invisible from the file.
+		//
+		// `tests/db/classroom-hall-pass-limits.test.ts` failed only between
+		// 00:00 and 02:00 America/Los_Angeles and passed every CI run for weeks.
+		// GitHub cron is UTC and does not shift with daylight saving, so one
+		// entry lands on two different local hours across the year and BOTH
+		// have to be inside the window or the nightly only covers half of it.
+		const cron = /-\s*cron:\s*'([^']+)'/.exec(src('ci.yml'))?.[1];
+		expect(cron, 'ci.yml declares no cron').toBeTruthy();
+		const [minute, hour] = cron!.split(/\s+/);
+		expect(`${minute} ${hour}`, 'the nightly cron is no longer a fixed daily hour').toMatch(
+			/^\d{1,2} \d{1,2}$/
+		);
+
+		// The local hours are DERIVED, never written down: a hardcoded pair is
+		// a second statement of the same fact and is what stops agreeing.
+		const localHour = (month: number) => {
+			const utc = new Date(Date.UTC(2026, month - 1, 15, Number(hour), Number(minute)));
+			const parts = new Intl.DateTimeFormat('en-US', {
+				timeZone: 'America/Los_Angeles',
+				hour: '2-digit',
+				minute: '2-digit',
+				hour12: false
+			}).formatToParts(utc);
+			const h = Number(parts.find((p) => p.type === 'hour')!.value);
+			const m = Number(parts.find((p) => p.type === 'minute')!.value);
+			return h + m / 60;
+		};
+		const daylight = localHour(7); // July, PDT (UTC-7)
+		const standard = localHour(1); // January, PST (UTC-8)
+
+		// The window's edges are the FIXTURES' doing, not a preference: the
+		// deepest backdate in that file is 120 minutes, so the last failure
+		// clears at 02:00, and nothing before midnight crosses the day boundary
+		// at all (measured 24/24 passing at 23:00 and 23:30).
+		for (const [label, at] of [
+			['daylight (July)', daylight],
+			['standard (January)', standard]
+		] as const) {
+			expect(
+				at,
+				`the nightly runs at ${at} Pacific in ${label}, outside the 00:00-02:00 window a day-boundary defect shows in`
+			).toBeGreaterThanOrEqual(0);
+			expect(at, `the nightly runs at ${at} Pacific in ${label}, past the 02:00 edge`).toBeLessThan(2);
+		}
+
+		// AND AT OR BEFORE 01:00, which is a strictly stronger claim than being
+		// in the window. Detection DEGRADES across it: measured 6 failures at
+		// 00:05, 00:30 and 01:00, but only 2 at 01:30 and 0 at 02:05. An hour
+		// inside the window but past 01:00 catches a third of the defect and
+		// reports it as a pass for the rest.
+		expect(
+			Math.max(daylight, standard),
+			'the nightly is inside the window but past the last full-strength reading (01:00)'
+		).toBeLessThanOrEqual(1);
+
+		// POSITIVE CONTROL, both directions, so "in the window" cannot pass on
+		// arithmetic that always answers yes. The retired hour is the real
+		// negative case and the chosen one is the real positive case.
+		const at = (c: string) => {
+			const [mm, hh] = c.split(/\s+/);
+			const d = new Date(Date.UTC(2026, 6, 15, Number(hh), Number(mm)));
+			return Number(
+				new Intl.DateTimeFormat('en-US', {
+					timeZone: 'America/Los_Angeles',
+					hour: '2-digit',
+					hour12: false
+				}).format(d)
+			);
+		};
+		expect(at('30 4 * * *'), 'the retired 30 4 cron must read as 21:00-ish Pacific').toBe(21);
+		expect(at(cron!), 'the chosen cron must read as inside the window').toBeLessThan(2);
 	});
 
 	it('POSITIVE CONTROL: a renamed, reordered or emptied marker pair is caught', () => {

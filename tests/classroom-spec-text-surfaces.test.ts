@@ -333,12 +333,19 @@ describe('the markdown / rich-text bridge', () => {
 		expect(itemDocToMarkdown(doc)).toBe(md);
 	});
 
-	it('refuses the editor for a table, a code block, a quotation, an image and inline code', () => {
+	it('refuses the editor for a table, a code block, a quotation and inline code', () => {
+		// AN IMAGE USED TO BE THE FIFTH CASE HERE AND IS NOT ANY MORE (0176).
+		// `ItemBlock` gained an image member, so a figure line now round-trips
+		// through `markdownToItemDoc` / `itemDocToMarkdown` unchanged and the
+		// field opens in the editor -- which is asserted, in the other
+		// direction, in the case immediately below. The assertion is MOVED
+		// rather than deleted: a construct that stopped making a field
+		// uneditable is exactly the kind of change that should have to be
+		// written down somewhere.
 		const cases: [string, string][] = [
 			['| a | b |\n|---|---|\n| 1 | 2 |', 'a table'],
 			['```\nx = 1\n```', 'a code block'],
 			['> Careful here.', 'a quotation'],
-			['![The bench](attachment:bench.png)', 'an image'],
 			['Type `npm test` first.', 'inline code']
 		];
 		for (const [md, reason] of cases) {
@@ -349,6 +356,15 @@ describe('the markdown / rich-text bridge', () => {
 		// "false" above is a judgement rather than a function that always refuses.
 		expect(markdownEditable('Just a sentence.')).toBe(true);
 		expect(markdownUneditableReasons('Just a sentence.')).toEqual([]);
+	});
+
+	it('OPENS a field carrying an image, which it did not before 0176', () => {
+		const md = '![The bench](attachment:bench.png)';
+		expect(markdownEditable(md)).toBe(true);
+		expect(markdownUneditableReasons(md)).toEqual([]);
+		const doc = markdownToItemDoc(md)!;
+		expect(doc).toEqual([{ type: 'img', src: 'attachment:bench.png', alt: 'The bench' }]);
+		expect(itemDocToMarkdown(doc)).toBe(md);
 	});
 
 	it('re-serializes a hard-wrapped paragraph as one line, and calls that editable', () => {

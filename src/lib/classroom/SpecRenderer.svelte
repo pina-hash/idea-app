@@ -200,13 +200,35 @@
 	function blankRow(block: TableBlock): Record<string, string> {
 		return Object.fromEntries(block.columns.map((c) => [c.key, '']));
 	}
+	/**
+	 * THE CRASH GUARD, AND ONLY THAT: after this runs `values[block.id].rows` is
+	 * an ARRAY, possibly an empty one. It never decides how many rows a person
+	 * has.
+	 *
+	 * It used to also materialise `Math.max(block.minRows ?? 0, 1)` blank rows,
+	 * and because `addRow` calls it BEFORE appending, the first press of Add row
+	 * on an untouched table produced the minimum AND one more -- two rows on a
+	 * table with no `minRows`, four on a table with `minRows: 3`. A student who
+	 * pressed a button reading "Add row" got two, then filled in a blank row that
+	 * should not have been there and wondered whether it counted.
+	 *
+	 * `minRows` IS A COMPLETION REQUIREMENT COUNTED OVER FILLED ROWS, NEVER A
+	 * MATERIALISATION INSTRUCTION, and all three gates that read it already agree
+	 * on that: the counter under this block filters rows with a non-empty cell,
+	 * `blockProgress` filters on `tableRowFilled`, and `_classroom_spec_unmet`
+	 * (0086) counts rows with a `jsonb_each_text` value that is not blank. So a
+	 * materialised blank row advances NOTHING any gate reads -- it is noise on
+	 * the student's screen, and on a `minRows: 3` table it is three obligations
+	 * presented at once to somebody who asked for one place to write.
+	 *
+	 * BOTH CALL SITES KEEP IT and neither may be the thing that sets a count:
+	 * `setCell` writes at an index and `addRow` spreads the array, so both need
+	 * it to exist. Removing the call to fix the count is how the crash it guards
+	 * against comes back.
+	 */
 	function ensureRows(block: TableBlock) {
-		if (!values[block.id]?.rows?.length) {
-			const count = Math.max(block.minRows ?? 0, 1);
-			values[block.id] = {
-				...(values[block.id] ?? {}),
-				rows: Array.from({ length: count }, () => blankRow(block))
-			};
+		if (!Array.isArray(values[block.id]?.rows)) {
+			values[block.id] = { ...(values[block.id] ?? {}), rows: [] };
 		}
 	}
 	function setCell(block: TableBlock, rowIndex: number, key: string, cellValue: string) {
@@ -217,6 +239,8 @@
 		};
 		report(block.id);
 	}
+	/** ONE row, at every state, including the first press on an untouched table.
+	 *  The button says "Add row" and the empty cell says "Add one below". */
 	function addRow(block: TableBlock) {
 		ensureRows(block);
 		values[block.id].rows = [...values[block.id].rows!, blankRow(block)];
@@ -231,6 +255,13 @@
 		];
 		report(block.id);
 	}
+	/**
+	 * ONE row, down to none, and the floor is ZERO on purpose -- which is the
+	 * same rule `addRow` follows read backwards. A floor at `minRows` would
+	 * strand blank rows a student cannot remove while satisfying no gate, since
+	 * every gate counts FILLED rows; and an empty table is not a broken state,
+	 * it is the state the empty cell already has words for.
+	 */
 	function deleteRow(block: TableBlock, index: number) {
 		const rows = values[block.id]?.rows ?? [];
 		values[block.id].rows = rows.filter((_, i) => i !== index);
@@ -528,6 +559,11 @@
 						</div>
 						<div class="table-foot">
 							{#if canEdit}
+								<!-- The 44px floor is carried by `.table-foot .btn.tiny` in this
+								     component's own style block, NOT by `.tap-44`: that class is
+								     one selector and `.cr-root .btn.secondary.tiny` (classroom.css)
+								     is three, so it was outranked and painted nothing. A class that
+								     does not apply is worse than no class. -->
 								<button type="button" class="btn secondary tiny" onclick={() => addRow(block)}>
 									Add row
 								</button>
@@ -956,6 +992,31 @@
 		align-items: center;
 		gap: 0.6rem;
 		margin-top: 0.4rem;
+	}
+	/* ADD ROW IS A 44px TARGET AND WAS A 24px ONE. Measured 69.2x24 at both
+	   widths on `/dev/spec-table?empty=1`, under the floor every student-facing
+	   surface carries -- on the one control this block asks a student to press,
+	   which they press standing at a bench holding a phone.
+
+	   IT IS A SCOPED RULE HERE RATHER THAN `.tap-44` IN THE MARKUP, and that is
+	   specificity rather than preference: `.cr-root .btn.secondary.tiny`
+	   (classroom.css) is three selectors and `.tap-44` is one, so the class
+	   applied and changed nothing -- measured 69.2x24 with it on. Scoped to
+	   `.table-foot` it beats that rule and reaches nothing else, which is the
+	   point: the 24px chip is a DELIBERATE opt-down with ten other call sites
+	   behind it, and the grading console already raises its own the same way.
+
+	   The control owns its row, so growing its box reflows nothing beside it --
+	   `align-items: center` keeps the counter where it was.
+
+	   THE FOUR GLYPH CONTROLS IN `.row-ops` ARE THE SAME FINDING AND ARE NOT
+	   FIXED HERE. They measure 23.2x23.2, under the 24px absolute floor as well;
+	   four 44px targets is ~11rem of a 6.4rem column inside a table that already
+	   scrolls horizontally at 375px, so it is a layout decision with its own
+	   measurements rather than a rule to add beside this one. The browser spec
+	   reports the number every run so it cannot be forgotten. */
+	.table-foot .btn.tiny {
+		min-height: 44px;
 	}
 	.zone-head {
 		display: flex;
