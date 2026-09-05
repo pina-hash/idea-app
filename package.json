@@ -8,6 +8,7 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"test": "node tools/run-tests.mjs",
+		"frc:bias": "node --experimental-strip-types tests/frc-quiz-bank-bias-report.mjs",
 		"test:watch": "vitest",
 		"verify:browser": "node tools/browser-verify/run.mjs",
 		"verify:readme": "node tools/browser-verify/readme-counts.mjs",
