@@ -1085,6 +1085,16 @@
 				"assignments",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Easier to tap: folder colours and attachment links",
+			"body": "Two more things that were hard to hit on a phone. The colour circles when you name a notebook folder are much bigger now, and they sit on two rows instead of one so none of them overlaps its neighbour. On a class page, the file links under an assignment or a handout each get their own row, so tapping one no longer lands on the file below it. Nothing moved and nothing was renamed, only the size of what you press.",
+			"tags": [
+				"notebook",
+				"classroom",
+				"fix"
+			]
 		}
 	]
 }

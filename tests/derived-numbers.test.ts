@@ -231,11 +231,30 @@ describe('tools/browser-verify/README.md counts regions', () => {
 	// test and never the hand-edit rule firing first.
 
 	it('verifyMeasured reddens an unmeasured spec when the block claims nothing was outside threshold', () => {
-		const { data } = parseMeasured(readme);
-		expect(data.outside).toBe(0); // the committed block is the zero case
+		/* THE ZERO CASE IS BUILT, NOT ASSUMED, AND IT USED TO BE ASSUMED. This
+		   read `expect(data.outside).toBe(0)` on the COMMITTED block, with the
+		   comment "the committed block is the zero case" -- which is a claim
+		   about the state of the repository rather than about the predicate
+		   under test, and it is only true for as long as no surface is
+		   deliberately left failing. Prompt 0047 landed exactly that: a
+		   `tap-reach` row on `/dev/notebook`'s toolbar controls, red on purpose,
+		   with decision 12 and an owner against it, because a number that
+		   regenerates every run is the opposite of the standing finding
+		   `IDEA_INTERFACE_STANDARDS` 10 (2.12) forbids. The committed block then
+		   reported `outside: 2` and this control failed on the fixture rather
+		   than on the rule -- the ratchet shape CLAUDE.md names, where the test
+		   records what last happened instead of checking anything.
+
+		   The rule is a CONJUNCTION (unmeasured spec AND the block claims
+		   nothing was outside), so this control needs a zero-findings block. It
+		   patches one, exactly as the `WHAT IT LETS THROUGH` control below
+		   already patches a non-zero one with the same helper. Both halves now
+		   drive the predicate over a region this file controls. */
+		const zeroCase = withMeasured({ outside: 0, outsideRows: [] });
+		expect(parseMeasured(zeroCase).data.outside).toBe(0);
 		const pretend = [...deriveSpecFiles(), 'zzz-never-measured.mjs'].sort();
 
-		const problems = verifyMeasured(readme, { specFiles: pretend });
+		const problems = verifyMeasured(zeroCase, { specFiles: pretend });
 		expect(problems.length).toBeGreaterThan(0);
 		const joined = problems.join('\n');
 		// IT NAMES THE ROUTE, which is the whole point: 0043's finding lived
@@ -249,7 +268,7 @@ describe('tools/browser-verify/README.md counts regions', () => {
 		// NEGATIVE HALF: the real spec list against the same block is clean, so
 		// the redness above is the missing spec and not the predicate refusing
 		// everything handed to it.
-		expect(verifyMeasured(readme, { specFiles: deriveSpecFiles() })).toEqual([]);
+		expect(verifyMeasured(zeroCase, { specFiles: deriveSpecFiles() })).toEqual([]);
 	});
 
 	it('WHAT IT LETS THROUGH: an unmeasured spec beside a non-empty findings list', () => {

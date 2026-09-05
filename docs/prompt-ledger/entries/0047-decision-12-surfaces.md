@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `AttachmentList.svelte`, the `.inline-link` rule in `NotebookView.svelte`, the `.swatch` rule in `FolderManager.svelte`, `src/routes/dev/classroom-images/**`, the harness rows for those three surfaces, the generated regions of `tools/browser-verify/README.md`, `tests/classroom-attachment*`, decision 12's Status line, `docs/prompt-ledger/entries/0047-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/decision-12-surfaces-a9e60c`
 - Notes: Prompt 0044 hit-tested every user of `.tap-reach-44` and found the
   class itself sound: a clipping ancestor was cutting its pseudo-element off,
   and the rule now states the precondition it always had. It fixed the one
