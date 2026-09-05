@@ -2,9 +2,9 @@
 - Issued: 2026-09-04
 - By: router chat for IDEA portal work
 - Owns: `src/lib/Avatar.svelte`, `src/lib/avatars.ts`, the roster list in `GradingConsole.svelte`, `SectionGrid.svelte`, `ReviewConsole.svelte`, `EntryReview.svelte`, the roster reads in `src/lib/notebook/transports.ts`, one migration (conditional), `src/routes/dev/avatars/**`, `tests/avatar*`, `tests/db/avatar*`, `tools/browser-verify/routes/avatars*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0038-*`, and its own `docs/history/` entry.
-- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0179
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0179. TAKEN: `0180_notebook_grid_avatar.sql`, verified free across all nine remote refs at commit time
+- Status: pushed
+- Branch: `claude/avatars-phase-two-surfaces-42h0pb`
 - Notes: Prompt 0033 built the avatar component and wired two surfaces, then
   wrote a privacy map and a list of what it deliberately left. This bundle
   takes the items on that list whose audience the map already proved is the
