@@ -205,6 +205,24 @@ The counts-resolution section gains the clean-merge half beside the conflict
 half, with the two kept visibly distinct: one is a resolution, the other is a
 regeneration, and confusing them is how somebody deletes the wrong one.
 
+## Two claims in the prompt that the tree does not support
+
+Both are recorded because a prompt is a claim like any other and the tree wins.
+
+1. **"Prompt 0047 found five of eighteen failing in `derived-numbers` on its
+   base, because prompt 0045 had added `foundry-admin-refusal.mjs`."** The count
+   is exactly right -- 5 of 18, reproduced on `17be15b` -- but it is the
+   MEASURED half's covered-set rule, which is prompt 0046's, not the static
+   region this bundle owns. The static half was green there and at all nineteen
+   bases before it.
+2. **"Two rows, both the notebook toolbar, named with decision 12 against
+   them."** No commit in this file's history carries a notebook-toolbar row.
+   The only two-row state it has ever held is
+   `/dev/spec-table?empty=1` `tap-target` "row action glyphs (known finding)" at
+   both widths, last seen at `3f611c6`; and decision 12 is prompt 0019's
+   splitting of the counts block into two regions, not a finding about a
+   toolbar. The block on `17be15b` reports zero rows.
+
 ## Not verified
 
 - **Nothing was run on GitHub Actions.** Every case is a local reproduction
