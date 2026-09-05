@@ -37,10 +37,42 @@
 - Context: `docs/decisions/entries/10-unattended-nightly-deploy.md` (the blocker this
   removes), `.github/workflows/deploy.yml` (the guard job the checklist mirrors),
   `.github/workflows/integrate.yml` (its header states both original reasons),
-  `docs/standards/IDEA_instructions.md` 4.20, `docs/decisions/entries/15-scoped-migration-role.md`.
+  `docs/standards/IDEA_instructions.md` 4.20, `docs/decisions/entries/15-scoped-migration-role.md`
+  (decision 15, scoped-migration-role -- cited by path because a second entry briefly held
+  the number 15; see `docs/decisions/README.md`, "How a number is claimed").
 - Tree check (2026-09-05): `deploy.yml` does check main-is-ancestor-of-integration, does
   run `deploy-probe.mjs` and does refuse a conflicted merge, so the checklist mirrors an
   existing implementation rather than inventing one. `CLAUDE.md` still carries an
   unconditional "push the branch, do not merge to `main`" in its `claude/**` branch
   paragraph, which this decision contradicts and which prompt 0055 did not own; correcting
   it is a line for a later bundle and is reported rather than edited.
+
+## What actually happened to the OTHER half, 2026-09-05, recorded by prompt 0065
+
+This decision and decision 15 (scoped-migration-role) were the two halves of the same
+request: automate applying a migration, and automate merging to `main`. **The merge half
+is unaffected and stands exactly as decided.** The six gates are all things a session can
+still establish, none of them depends on the scoped role existing, and a lane that cannot
+apply its own migration simply reports the migration as one Mr. Pina still pastes, which
+is the state everything was in before either decision.
+
+**The apply half did not survive contact with the platform.** The event-trigger guard
+decision 15 describes cannot be installed on Supabase -- `create event trigger` needs
+superuser -- so it is removed, the compensating control is now the only control, and it
+is client-side and bypassable. Decision 15's own "What actually happened" section carries
+the measurements. Two things follow for this decision that are worth saying here rather
+than leaving to be inferred:
+
+1. **The sixth gate is not weakened, but the thing it gates is now weaker.** "Every
+   migration the bundle added is reported APPLIED by that probe, by number" is still a
+   real check, still reads production's own `pg_catalog`, and still fails closed. What
+   changed is who applied it: possibly a session holding a credential that nothing in the
+   database restrains, rather than a person in the SQL editor. The gate answers "did this
+   land", which it always did; it never answered "was this safe to send", and the layer
+   that does now has no database half behind it.
+2. **The worst case in this entry is unchanged and the worst case NEXT DOOR is not.**
+   A bad merge here is an ordinary revert commit and a redeploy, because `main` is never
+   force-pushed. A bad APPLY has no revert: `supabase/roles/idea_migrator.sql`'s header
+   lists seven things the credential can do that nothing will stop, and a dropped table
+   is not recovered by a git revert. Those are different exposures and this entry should
+   not be read as having decided the second one.
