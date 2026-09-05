@@ -2,9 +2,9 @@
 - Issued: 2026-09-05
 - By: router chat for IDEA portal work
 - Owns: `src/lib/greenline/**`, `src/routes/greenline/**`, its dev harnesses, at most one migration (number taken at commit time), `tests/greenline*`, `tests/db/greenline*`, `tools/browser-verify/routes/greenline*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0058-*`, and its own `docs/history/` entry.
-- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0181
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0181. NONE TAKEN: Phase A established the schema needs no change.
+- Status: pushed
+- Branch: `claude/greenline-moderation-visibility-gagg5v`
 - Notes: GREENLINE has two moderation queues and neither has been put to a
   teacher. `0051` created decals with a `pending -> approved` or
   `pending -> needs_revision -> pending` flow, explicitly never a blunt
