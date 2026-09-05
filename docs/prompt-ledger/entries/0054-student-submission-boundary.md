@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tests/db/classroom-submission-file*` (new), the PostgREST shim only if the audit proves it must change, at most one migration under a stated condition, `docs/prompt-ledger/entries/0054-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, conditional. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/student-submission-boundary-4nke2j`
 - Notes: `classroom_add_submission_file` was created in `0086` and the
   `submission-files` bucket in `0133`, private, 200 MiB, no mime list, with
   three storage policies. The instructor upload path is proven on production
