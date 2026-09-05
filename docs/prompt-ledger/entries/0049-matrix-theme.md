@@ -2,9 +2,9 @@
 - Issued: 2026-09-05
 - By: router chat for IDEA portal work
 - Owns: `src/lib/design-system/themes/**` (new), the theme mechanism wherever the audit finds or places it, the theme control in `ProfileMenu.svelte`, `src/routes/dev/themes/**`, `tests/theme*`, `tools/browser-verify/routes/theme*.mjs`, the generated regions of its README, one migration only if persistence proves to need one, `docs/prompt-ledger/entries/0049-*`, and its own `docs/history/` entry.
-- Migration permitted: only if A3 proves it. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: only if A3 proved it. Highest on origin/main at issue: 0180. NONE WRITTEN: A3 found the repository already has this kind of setting and it is per BROWSER (`notebook-theme.svelte.ts`, localStorage, whose own header gives the argument), so the preference follows it and needs no schema.
+- Status: pushed
+- Branch: `claude/matrix-theme-n7un4r`
 - Notes: A student asked for a Matrix theme. It is the last item on the
   September feedback list with nothing built against it, and every other item
   on that list is now shipped, declined with a reason, or raised to Mr. Pina.
