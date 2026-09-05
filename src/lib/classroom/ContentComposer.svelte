@@ -909,6 +909,18 @@
 			createdItemId,
 			targetIds
 		});
+		/**
+		 * WHAT IS ABOUT TO GO OUT, captured BEFORE it goes.
+		 *
+		 * The checkpoint below advances the edit baseline so the form reads
+		 * clean afterwards, and it has to advance to what was SENT rather than
+		 * to what is on screen when the answer arrives. Those differ by
+		 * anything typed while the request was in flight -- and reading the
+		 * live draft at that point would mark those words as already saved,
+		 * which is the same class of defect as the one this bundle is fixing,
+		 * one write later.
+		 */
+		const sentSignature = composerDraftSignature(draft);
 		let res;
 		if (target.action === 'refuse') {
 			res = { ok: false as const, message: target.message };
@@ -1144,7 +1156,7 @@
 			// The row this session owns from here on. Everything after this is an
 			// update of it -- see `saveTarget`.
 			createdItemId = itemId;
-			baseline.advance(composerDraftSignature(draft));
+			baseline.advance(sentSignature);
 		} else if (mode === 'create') {
 			// Everything landed and it is published, so the next post is a
 			// genuinely new item.
