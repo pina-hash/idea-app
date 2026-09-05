@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Avatar from '$lib/Avatar.svelte';
+	import { gridStudentSubject } from '$lib/avatars';
 	import { tick, untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SessionManager from '$lib/notebook/SessionManager.svelte';
@@ -1023,8 +1025,23 @@
 			<!-- THE CURSOR IS ON A CELL WITH NOTHING IN IT, which is a real answer
 			     and a common one: it is who the instructor is often looking for. -->
 			<section class="card empty-panel" data-testid="empty-cell-panel">
-				<div class="eyebrow">{cursorStudent?.name ?? 'Student'}</div>
-				<h2>{cursorSession?.session_label ?? 'Check-in'}</h2>
+				<!-- THE FACE ON THE EMPTY-CELL PANEL, in the same block shape
+				     `EntryReview`'s header uses, because it is the same claim:
+				     this panel names the student, so it may show the student.
+				     `notebook_get_section_grid` already refused anybody who is
+				     not the section instructor, a section reviewer or an admin
+				     before this console had a roster to point a cursor at. -->
+				<div class="head-who">
+					<Avatar
+						subject={cursorStudent ? gridStudentSubject(cursorStudent) : null}
+						tintKey={cursorStudent?.student_key ?? null}
+						size={28}
+					/>
+					<div class="head-text">
+						<div class="eyebrow">{cursorStudent?.name ?? 'Student'}</div>
+						<h2>{cursorSession?.session_label ?? 'Check-in'}</h2>
+					</div>
+				</div>
 				<p class="note">
 					{#if cursorAt?.excused}
 						Excused from this check-in. Nothing is expected.
@@ -1483,6 +1500,21 @@
 		padding-bottom: var(--space-5);
 	}
 	.entry-col {
+		min-width: 0;
+	}
+	/* Same block shape as `EntryReview`'s header, and stated here rather than
+	   shared because the two panels are two components: this one has no Close
+	   button to keep out of the way, so the block simply sits at the top of
+	   the card. Centred against the pair for the same reason -- the eyebrow is
+	   0.7rem and a 28px circle hung off its top edge would sit above the
+	   writing it belongs to. */
+	.head-who {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+	.head-text {
 		min-width: 0;
 	}
 	.empty-panel h2 {

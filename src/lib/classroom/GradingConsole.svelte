@@ -1302,6 +1302,39 @@
 							class:inactive={!s.active}
 							onclick={() => requestSelect(s)}
 						>
+							<!-- THE FACE ON THE ROSTER ROW, and the audience for it is the
+							     audience for the name it sits beside -- which is this same
+							     row, already printing `s.displayName`, plus the chips. Both
+							     grading routes refuse a caller who does not manage the
+							     section before any of this renders (the per-section load
+							     redirects on `classroom_manages_section`, the cross-section
+							     one 404s on an empty managed set), and underneath them
+							     `classroom_can_review_submission` gates every row RLS
+							     returns. Looked up on the ROSTER by the key the work row
+							     already shares with it; see `avatarByEmail`.
+
+							     SMALLER THAN THE IDENTITY ROW'S 40px, deliberately: this is
+							     a scanning list of thirty, and the picture is a way of
+							     finding the name faster rather than a portrait. It sits
+							     INSIDE the button, so the whole row stays one target and
+							     nothing new is tabbable.
+
+							     24 AND NOT 28, AND THAT IS A MEASUREMENT. This row's
+							     height is decided by `min-height: 44px` -- the tap floor,
+							     which the padding was tuned to carry after the row
+							     measured 35px. With 18px of padding and border, a 28px
+							     face makes the AVATAR the tallest thing in the box and the
+							     row grew to 46px at both widths, measured on
+							     `/dev/grading-bulk` against the pre-change file. 24 leaves
+							     `min-height` deciding, exactly as it did, so the console's
+							     row rhythm is byte-identical to what it was. Same argument
+							     as `SectionGrid`'s 24 against its 1.9rem cell: a face goes
+							     UNDER whatever already sets the row, never over it. -->
+							<Avatar
+								subject={avatarByEmail.get(s.email) ?? null}
+								tintKey={s.email}
+								size={24}
+							/>
 							<span class="roster-name">{s.displayName}</span>
 							<span class="roster-chips">
 								<!--
@@ -2259,6 +2292,16 @@
 	.roster-name {
 		min-width: 0;
 		overflow-wrap: anywhere;
+		/* THE NAME TAKES THE SLACK, which is what keeps the face beside it.
+		   `.roster-row` is `space-between`, so with three children the middle
+		   one would otherwise float free and leave a gap between the picture
+		   and the name it belongs to. Growing the name instead puts the pair
+		   hard left and leaves the chips hard right, which is byte-identical
+		   to the two-child arrangement this row had before there was a
+		   picture in it. `text-align` is stated rather than inherited because
+		   a grown box is the first place a centred ancestor would show. */
+		flex: 1 1 auto;
+		text-align: left;
 	}
 	/* -------------------------------------------------------------------
 	   GRADING AT SCALE. Everything below renders only when the bulk transport
