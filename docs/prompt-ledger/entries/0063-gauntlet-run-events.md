@@ -2,9 +2,9 @@
 - Issued: 2026-09-05
 - By: router chat for IDEA portal work
 - Owns: at most one migration (number taken at commit time), the tolerance constant in `src/lib/gauntlet/authoring.ts`, the run-event post path under `src/lib/gauntlet/`, `tests/gauntlet-run-events*`, `tests/db/gauntlet-run-events*`, `tests/gauntlet-volume-tolerance*`, `docs/prompt-ledger/entries/0063-*`, and its own `docs/history/` entry.
-- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0182
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0182; TOOK 0184 (0183 landed on main mid-flight; verified free across every ref and against git log --all --diff-filter=A at commit time)
+- Status: pushed
+- Branch: claude/gauntlet-run-events-zspf1y
 - Notes: Prompt 0060 swept `docs/GAUNTLET.md` against the code and reported
   four defects it did not own. Two of them are this bundle.
 
