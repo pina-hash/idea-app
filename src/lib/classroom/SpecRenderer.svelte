@@ -961,11 +961,38 @@
 		outline: none;
 		border-color: var(--line-strong);
 	}
+	/* 6.4rem is 102.4px, which is exactly what the 2x2 grid below needs
+	   (2*44 + one 2.4px gap + 9.6px of cell padding). It was already this value
+	   when the glyphs were 23.2px squares, so the column does not move. */
 	.row-ops-head {
 		width: 6.4rem;
 	}
+	/* FOUR 44px TARGETS, LAID 2x2 IN THE COLUMN THAT WAS ALREADY THERE.
+	   These were 23.2x23.2 at both widths, under the 44px floor and under the
+	   24px absolute floor as well, and prompt 0039 recorded that as a standing
+	   finding rather than fixing it. Its arithmetic was right and its conclusion
+	   was not: four 44px boxes in ONE LINE need 4*44 + 4*2.4 margin + 9.6 cell
+	   padding = 195.2px against a column measuring 125.4px, and buying that at
+	   375px means widening a table whose wrapper already scrolls 653px inside
+	   293px. That is the widening `IDEA_INTERFACE_STANDARDS` 10 refuses.
+
+	   TWO LINES OF TWO IS THE SAME FOUR CONTROLS IN THE SPACE THAT EXISTS:
+	   2*44 + 2*2.4 + 9.6 = 102.4px, which is the 6.4rem this column was already
+	   declared at, so nothing beside it moves and no new horizontal scroll
+	   appears at either width. The cost is row height and it is the whole cost,
+	   reported as a number rather than described. That is step 1 of the
+	   conflict order in `IDEA_INTERFACE_STANDARDS` 10 (2.12): re-lay the
+	   controls in the space that is already there before touching the container
+	   and before asking for an exception.
+
+	   `white-space: nowrap` is GONE and could not stay -- it is what forced the
+	   four onto one line. The grid replaces it rather than relying on wrapping,
+	   so the arrangement is stated instead of emergent. */
 	.row-ops {
-		white-space: nowrap;
+		display: grid;
+		grid-template-columns: repeat(2, 44px);
+		gap: 0.15rem;
+		justify-content: start;
 	}
 	.row-ops button {
 		appearance: none;
@@ -974,10 +1001,9 @@
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		font-size: 0.7rem;
-		width: 1.45rem;
-		height: 1.45rem;
+		width: 44px;
+		min-height: 44px;
 		cursor: pointer;
-		margin-left: 0.15rem;
 	}
 	.row-ops button:hover:not(:disabled) {
 		color: var(--text-1);
@@ -1009,12 +1035,11 @@
 	   The control owns its row, so growing its box reflows nothing beside it --
 	   `align-items: center` keeps the counter where it was.
 
-	   THE FOUR GLYPH CONTROLS IN `.row-ops` ARE THE SAME FINDING AND ARE NOT
-	   FIXED HERE. They measure 23.2x23.2, under the 24px absolute floor as well;
-	   four 44px targets is ~11rem of a 6.4rem column inside a table that already
-	   scrolls horizontally at 375px, so it is a layout decision with its own
-	   measurements rather than a rule to add beside this one. The browser spec
-	   reports the number every run so it cannot be forgotten. */
+	   THE FOUR GLYPH CONTROLS IN `.row-ops` WERE THE SAME FINDING AND ARE FIXED
+	   NOW, 2x2 at 44px -- see the comment above `.row-ops`. This paragraph used
+	   to say they were a layout decision rather than a rule to add, and left
+	   them at 23.2x23.2 with nobody's name on the decision; the standard gained
+	   the clause that answers it on 2026-09-05. */
 	.table-foot .btn.tiny {
 		min-height: 44px;
 	}

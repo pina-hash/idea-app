@@ -72,13 +72,20 @@ export default {
 	],
 	tapTargets: [
 		{ selector: '[data-testid=ed] .table-foot button', label: 'Add row', min: 44 },
-		/* A STANDING FINDING, MEASURED RATHER THAN OMITTED. The four glyph
-		   controls on a row (move up, move down, duplicate, delete) are 1.45rem
-		   squares in a 6.4rem column, inside a table that already scrolls
-		   horizontally at 375px; four 44px targets would need ~11rem of that
-		   column. That is a layout decision with its own measurements, not a
-		   class to add, so this row reports the number instead of hiding it --
-		   a control nobody measures is a control nobody fixes. */
-		{ selector: '[data-testid=ed] td.row-ops button', label: 'row action glyphs (known finding)', min: 44 }
+		/* NO LONGER A STANDING FINDING. This row read `known finding` and
+		   reported 23.2x23.2 every run from 2026-09-04, on the grounds that
+		   four 44px targets need ~11rem of a 6.4rem column inside a table that
+		   already scrolls at 375px. The arithmetic was right about ONE LINE of
+		   four and wrong that a line was the only arrangement: 2x2 needs
+		   2*44 + gap + cell padding = 102.4px, which is the 6.4rem the column
+		   was already declared at. Measured after: 44x44 on all four at both
+		   widths, the column NARROWED (125.4 -> 100.0 at 375, 125.4 -> 102.4 at
+		   1440), the table's own scrollWidth fell 653 -> 628 at 375, and the
+		   document overflowed 0px at both. The cost is row height, 40.4 -> 98.3.
+
+		   THE ROW STAYS, and its label no longer excuses it. A row kept only
+		   while it is failing is a row that disappears at exactly the moment it
+		   starts being the thing that would catch a regression. */
+		{ selector: '[data-testid=ed] td.row-ops button', label: 'row action controls', min: 44 }
 	]
 };
