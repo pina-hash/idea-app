@@ -31,7 +31,45 @@ import type { RequestHandler } from './$types';
  * DELETE is the student's own action only (`classroom_delete_submission_file`
  * refuses everyone else and a locked submission); the orphaned bytes are swept
  * here, since the database cannot talk to storage or to Drive.
+ *
+ * THE SWEEP RUNS AFTER THE ROW IS ALREADY GONE, which is what makes 0181's
+ * row-keyed delete policy the only narrowing that works. `classroom_delete_
+ * submission_file` deletes the row and THEN hands the key back, so by the time
+ * `remove()` is called nothing names the object and the policy lets it go. A
+ * submission-keyed narrowing would have refused this on every turned-in
+ * hand-in, which is why 0181 does not use one. No change was needed here.
+ *
+ * A REFUSAL SAYS WHY, IN WORDS. `{ok:false, reason:'locked'}` is a structured
+ * refusal and not an error -- the student did nothing wrong -- so it answers
+ * 200 and carries the sentence the surface renders. It is written HERE rather
+ * than in the component, because the component that renders it cannot see
+ * which reason came back from the database and a second sentence beside this
+ * one is how the two come to disagree.
  */
+
+/**
+ * The words for each refusal `classroom_delete_submission_file` can give.
+ * `locked` is the only one it gives today; the fallback exists so a reason
+ * added to that RPC later reads as a refusal rather than as silence.
+ *
+ * "Your teacher has it now" is the WHY, and it is the half that was missing:
+ * a student who presses Remove on a turned-in hand-in and sees nothing happen
+ * reads a broken button. The rest is the wording the attach path already uses
+ * (`$lib/classroom/file-upload.ts`, and the sign route), so a hand-in that
+ * refuses a file and a hand-in that refuses to let one go say the same thing.
+ */
+const REFUSAL_WORDS: Record<string, string> = {
+	locked:
+		'This is turned in, so files are locked. Your teacher has it now. ' +
+		'Unsubmit it to keep working.'
+};
+
+function refusalMessage(reason: string): string {
+	return (
+		REFUSAL_WORDS[reason] ??
+		'That file cannot be removed right now, and the assignment page will say why once it reloads.'
+	);
+}
 
 const CACHE_CONTROL = 'private, max-age=60';
 
@@ -140,7 +178,8 @@ export const DELETE: RequestHandler = async ({ params, locals: { supabase, claim
 		| { ok?: boolean; reason?: string; drive_file_id?: string | null; storage_key?: string | null; orphaned?: boolean }
 		| null;
 	if (result?.ok === false) {
-		return json({ ok: false, reason: result.reason ?? 'refused' });
+		const reason = result.reason ?? 'refused';
+		return json({ ok: false, reason, message: refusalMessage(reason) });
 	}
 	if (result?.orphaned) {
 		if (result.storage_key) {

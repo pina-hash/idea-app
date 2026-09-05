@@ -1154,14 +1154,42 @@ export function createEngineTransports(supabase: SupabaseClient): AssignmentEngi
 			}
 			return { ok: true, data: { file: res.row as SubmissionFileRow | undefined } };
 		},
+		/**
+		 * A CONSIDERED REFUSAL COMES BACK AS A FAILURE WITH THE SERVER'S OWN
+		 * SENTENCE, not as a success carrying `{ok:false}`.
+		 *
+		 * The route answers a structured refusal with status 200 -- correctly:
+		 * the student did nothing wrong and there is nothing to retry -- so
+		 * `res.ok` is true and the old shape handed the caller
+		 * `{ok:true, data:{ok:false, reason:'locked'}}`. Every caller then had
+		 * to know to look inside `data` and write its own words for what it
+		 * found there, which is a second sentence about a state only the
+		 * database can see. `gate: 'denied'` and `retryable: false` say the same
+		 * thing the upload path says about the identical refusal.
+		 *
+		 * A TRANSPORT-LEVEL failure keeps its own message, so a 500 and a
+		 * `locked` are still distinguishable by `gate`.
+		 */
 		async deleteSubmissionFile(fileId) {
 			try {
 				const res = await fetch(`/api/classroom/submission-file/${fileId}`, { method: 'DELETE' });
 				const body = (await res.json().catch(() => null)) as
-					| { error?: string; reason?: string }
+					| { ok?: boolean; error?: string; reason?: string; message?: string }
 					| null;
 				if (!res.ok) {
 					return { ok: false, message: body?.error ?? `Remove failed (${res.status}).` };
+				}
+				if (body?.ok === false) {
+					return {
+						ok: false,
+						gate: 'denied',
+						retryable: false,
+						// The route owns the words, because it is what knows the
+						// reason. A missing message means a deployment older than
+						// the one that added them, so say something true rather
+						// than nothing.
+						message: body.message ?? 'That file cannot be removed right now.'
+					};
 				}
 				return { ok: true, data: (body ?? { ok: true }) as EngineOpResult };
 			} catch (e) {
