@@ -46,6 +46,7 @@
 		versionLabel
 	} from './surface.ts';
 	import type { FoundryApp, FoundryAppSummary, FoundryMineTransports } from './transports.ts';
+	import { foundryCoverFailed } from './covers.ts';
 
 	let {
 		apps,
@@ -68,7 +69,7 @@
 		selected?: FoundryApp | null;
 		transports?: FoundryMineTransports;
 		/** Turns a stored cover path into a URL. Injected, never built here. */
-		coverUrl?: (path: string) => string;
+		coverUrl?: (path: string) => string | null;
 		onSelect: (slug: string | null) => void;
 		/** Threaded from the caller. A component that reads its own clock
 		    silently disagrees with the ranking it is rendering. */
@@ -261,7 +262,12 @@
 								}}
 							>
 								{#if row.cover_path}
-									<img class="fdy-card-cover" src={coverUrl(row.cover_path)} alt="" />
+									{@const src = coverUrl(row.cover_path)}
+									{#if src}
+										<img class="fdy-card-cover" {src} alt="" onerror={foundryCoverFailed} />
+									{:else}
+										<span class="fdy-card-cover fg-cover-bad" aria-hidden="true"></span>
+									{/if}
 								{:else}
 									<span class="fdy-card-cover fdy-card-nocover" aria-hidden="true"></span>
 								{/if}
@@ -432,7 +438,12 @@
 					<div class="fdy-row">
 						<span class="fdy-label">Cover</span>
 						{#if app.cover_path}
-							<img class="fdy-cover" src={coverUrl(app.cover_path)} alt="Current cover" />
+							{@const src = coverUrl(app.cover_path)}
+							{#if src}
+								<img class="fdy-cover" {src} alt="Current cover" onerror={foundryCoverFailed} />
+							{:else}
+								<span class="fdy-cover fg-cover-bad" aria-hidden="true"></span>
+							{/if}
 						{:else}
 							<p class="fdy-value fdy-value-empty">Not set</p>
 						{/if}

@@ -45,6 +45,7 @@
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import { formatBytes } from './preflight.ts';
+	import { foundryCoverFailed } from './covers.ts';
 	import {
 		FOUNDRY_REJECT_REASONS,
 		buildFileTree,
@@ -76,7 +77,7 @@
 	}: {
 		app: FoundryApp;
 		/** Turns a stored cover path into a URL. Injected, never built here. */
-		coverUrl?: (path: string) => string;
+		coverUrl?: (path: string) => string | null;
 		/** The version being decided about. */
 		version: FoundryVersion;
 		transports?: FoundryReviewTransports;
@@ -696,7 +697,17 @@
 						{#if app.cover_path}
 							<!-- `scale-down`, never `cover`: a cropped preview hides the
 							     cut-off edge, which is the whole thing a cover is for. -->
-							<img class="fdy-meta-cover" src={coverUrl(app.cover_path)} alt="Current cover" />
+							{@const src = coverUrl(app.cover_path)}
+							{#if src}
+								<img
+									class="fdy-meta-cover"
+									{src}
+									alt="Current cover"
+									onerror={foundryCoverFailed}
+								/>
+							{:else}
+								<span class="fdy-meta-cover fg-cover-bad" aria-hidden="true"></span>
+							{/if}
 						{:else}
 							<p class="fdy-meta-value fdy-meta-empty">Not set</p>
 						{/if}

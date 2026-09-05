@@ -216,3 +216,59 @@ body:has(.fg-root) {
 	color: var(--green);
 	text-decoration: none;
 }
+
+/* ---------------------------------------------------------------------------
+   COVER FALLBACKS -- the two states that are not "the picture" and not
+   "no picture at all", declared ONCE for the room rather than five times in
+   five components' scoped blocks.
+
+   THEY ARE HERE AND NOT IN A COMPONENT BECAUSE THEY ARE READ BY FIVE.
+   `FoundryDetail`, `FoundryGallery`, `FoundryInspector` and `FoundryMine`
+   (twice) each draw a cover into a box of their own with a class of their own,
+   and Svelte scopes a component's styles to that component -- so a rule
+   written in one of them cannot reach the other four, and five copies of one
+   appearance is what stops matching.
+
+   NEITHER MOVES THE BOX. Each is a border, a fill and a mark drawn INSIDE
+   whatever geometry the call site already set; nothing here sets a width, a
+   height, a margin or a display, so a row is the same height in all four
+   states. That is the property the browser pass measures.
+
+   THE TWO ARE VISUALLY DISTINCT AND THAT IS A CLAIM ABOUT WHAT IS KNOWN, not
+   a decoration:
+
+     .fg-cover-bad   the stored `cover_path` is NOT A KEY. Judged in the
+                     browser by `foundryCoverObjectKey`, with no request made
+                     and nothing asked of the server, so naming it costs
+                     nothing. Quenched grey, the room's "cooled wrong" tone,
+                     with a solid edge -- a settled, local fact.
+
+     [data-cover-failed]  the request was made and did not produce a picture.
+                     The server refused it OR the bytes did not decode, and
+                     `/api/foundry-cover` answers one bodyless 404 to both on
+                     purpose, so this ONE rendering covers both and must keep
+                     covering both. Dashed edge: unsettled, might be a session
+                     that expired, might be a cover that is gone.
+--------------------------------------------------------------------------- */
+
+.fg-root [data-cover-failed] {
+	/* The alt text would otherwise paint over the mark below. */
+	color: transparent;
+	background-color: var(--fg-st-draft-fill);
+	background-image: repeating-linear-gradient(
+		135deg,
+		transparent 0 6px,
+		var(--fg-st-draft-edge) 6px 7px
+	);
+	border: 1px dashed var(--fg-boundary);
+}
+
+.fg-root .fg-cover-bad {
+	background-color: var(--fg-st-quench-fill);
+	background-image: repeating-linear-gradient(
+		45deg,
+		transparent 0 6px,
+		var(--fg-st-quench-edge) 6px 7px
+	);
+	border: 1px solid var(--fg-st-quench-ink);
+}
