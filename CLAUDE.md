@@ -1342,7 +1342,37 @@ against production. Every claim about live data must say so.
 ### Migrations
 
 - SQL lives in `supabase/migrations/`, sequentially numbered `0001_*.sql`.
-- **Applied MANUALLY in the Supabase SQL editor.** There is no migration runner.
+- **APPLIED ONE FILE AT A TIME, EITHER BY HAND IN THE SUPABASE SQL EDITOR OR BY A
+  SESSION THROUGH `tools/apply-migration.mjs`. There is still no migration runner, and
+  the distinction between one named file and a runner is the whole of what changed.**
+  `node tools/apply-migration.mjs <number>` takes ONE migration, refuses it unless the
+  probe says it is the LOWEST unapplied one, prints every notice in order, treats a
+  `raise` from the file's own self-check as a REFUSAL rather than a crash, rolls back so
+  nothing is half-applied, and afterwards asks `pg_catalog` about every object the file
+  names. There is no flag that takes a range or a directory.
+  - **IT CONNECTS AS A SCOPED ROLE AND THE ROLE IS THE POINT.** `idea_migrator`
+    (`supabase/roles/idea_migrator.sql`, pasted once BY HAND because it carries a
+    password and this repository is public) is a member of `postgres` for ownership,
+    with an event trigger that refuses `drop table`, `drop schema`, `drop owned`,
+    extension DDL and any dropped table, column, schema, sequence, matview or foreign
+    table -- keyed on `session_user`, so `set role postgres` does not escape it.
+    **What that guard measurably CANNOT catch is written down in the file's own header
+    and must not be softened: `truncate` (an event trigger never fires for it), top-level
+    DML, and a deliberate one-statement replacement of the guard function.** It stops an
+    accident, not an intent. The connection string is `IDEA_MIGRATION_URL`, read by that
+    one tool and nothing else, and never printed.
+  - **A MIGRATION THE TOOL REFUSES IS ONE A PERSON PASTES.** Seven committed migrations
+    carry destructive DDL and every one of them is historical; a new file that joins them
+    is a file whose apply is Mr. Pina's, not a session's.
+  - **THE PROBE IS DERIVED FROM `origin/main`, AND ANYTHING IT CANNOT SPEAK FOR IS
+    REFUSED** -- correctly, since "cannot say" is never a pass. Two shapes hit this and
+    both were measured on 2026-09-05. A migration sitting only on `integration` gets no
+    probe at all: for part of that afternoon `origin/main`'s highest was 0169 while
+    `origin/integration` carried through 0180, so eleven files were in exactly that state,
+    and by the evening main had caught up and none were. And a migration whose first
+    object `tools/idea-status.py` cannot derive a probe from gets none either -- 0153,
+    0177 and 0181 on that date. Either way the answer is the same: land it on `main`
+    first, or paste it by hand. Do not widen the probe to guess.
   - **NEVER RUN `supabase db push` AGAINST THIS PROJECT.** It is not a way to
     record one file. The remote has **no `supabase_migrations.schema_migrations`
     table at all** (measured 2026-08-23: the relation does not exist), because

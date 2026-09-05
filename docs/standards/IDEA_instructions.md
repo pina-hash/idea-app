@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.19 - 2026-09-02**
+**Version 4.20 - 2026-09-05**
 
 ## These Instructions Evolve
 
@@ -1190,14 +1190,45 @@ opening had no equivalent until 2026-08-25.
 The `<list>` is filled per lane and is never left as a topic description. A boundary
 stated as a topic ("the notebook work") is not checkable; a boundary stated as paths is.
 
-**Verify on the preview, then merge. A parallel-lane prompt ends:**
+**A lane may now apply its own migration and merge its own work, against a checklist it
+reports. A parallel-lane prompt ends:**
 
 > Pull the latest `main` into this branch and resolve any conflicts here, not on main.
 > Your final commit sets the `Status:` line of your own ledger entry under
 > `docs/prompt-ledger/entries/` from `issued` to `pushed`, and it is the last thing you
-> change. Push the branch. Do NOT merge to `main`. Report the Vercel preview URL and the
-> exact checks to run on it, then stop. Never force-push. Do not attempt to delete a
-> remote branch; a cloud session cannot.
+> change. Push the branch. Never force-push. Do not attempt to delete a remote branch; a
+> cloud session cannot. Report the Vercel preview URL and the exact checks to run on it.
+>
+> **If this bundle carries a migration, apply it with
+> `node tools/apply-migration.mjs <number>` and by no other route.** Never
+> `supabase db push`, never a second file, never SQL pasted through anything else. Report
+> the per-object verification and every notice it printed, in order. If
+> `IDEA_MIGRATION_URL` is unset, or the tool refuses, name the refusal and stop.
+>
+> **You may then merge `integration` into `main`, and only after reporting all six of
+> these with the command you ran and the answer it gave.** Any one unmet and you stop and
+> say which:
+>
+> 1. `origin/main` is an ancestor of `origin/integration`
+>    (`git merge-base --is-ancestor origin/main origin/integration`).
+> 2. Your branch is contained in `origin/integration`, and CI is green on
+>    `integration`'s CURRENT tip -- the conclusion of the run for that exact sha, not the
+>    one for your branch.
+> 3. The merge into `main` is clean. A conflict is resolved on `integration`, never on
+>    `main`.
+> 4. `node tools/deploy-probe.mjs --ref origin/integration` exits 0. Exit 2 or 3 is a
+>    stop, and `CANNOT SAY` is never a pass.
+> 5. Every migration this bundle added is reported APPLIED by that same probe, by number.
+> 6. Every ledger entry newly on `integration` reads `Status: pushed`.
+>
+> Then merge with `--no-ff` and push `main`. Never force-push `main`, with any flag.
+>
+> **Three things you cannot establish, and must not claim.** Whether students are in class
+> right now: a push to `main` deploys `ideabosco.com`, and a session has a clock but not a
+> timetable, so where that matters for this change, say so and leave the merge to
+> Mr. Pina. Whether the preview renders correctly, which no cloud session can check.
+> And whether a migration's EFFECT on real data is what was intended -- the probe answers
+> that an object exists, never that a backfill did the right thing.
 
 **The preview check moved out of the session on 2026-08-26, because no cloud session can
 perform it.** The ending above required a browser check that is structurally unreachable:
@@ -1206,9 +1237,13 @@ build so the preview cannot be signed into, and the real routes need a Bosco Tec
 no session holds. Three lanes ran that day and not one reached a preview; one merged
 without it, one held, one stopped to ask. **A control nobody can execute is not a control,
 it is a step that gets negotiated away under time pressure**, which is the same finding as
-the test-nothing-runs rule. Merging is now Mr. Pina's, after he opens the preview himself.
-The session's job is to push, name the URL, and name the checks in terms specific enough
-to run without rereading the prompt.
+the test-nothing-runs rule. The session's job on the preview is unchanged: push, name the
+URL, and name the checks in terms specific enough to run without rereading the prompt.
+**What changed on 2026-09-05 is the MERGE, not the preview.** A lane may merge
+`integration` into `main` once it has reported the six-item checklist above, every item of
+which a session can establish for itself from a command; the preview is deliberately NOT
+one of them, because it is still unreachable, and a change whose correctness rests on it
+is a change whose ending says so and leaves the merge to Mr. Pina.
 
 The preview line was missing from this ending until 2026-08-23e, while the branch rules
 above required it, so lanes built on branches for the isolation and then merged on the
@@ -2436,6 +2471,24 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-05 (4.20)** - Mr. Pina asked for every remaining manual step to be automated.
+  Two were left that a session could take, and this version hands both to the canned lane
+  ending: applying its own migration, and merging `integration` into `main`. The migration
+  half goes through `tools/apply-migration.mjs` and NOTHING else -- one named file, refused
+  unless it is the lowest unapplied one, verified object by object afterwards -- against a
+  scoped `idea_migrator` role whose event-trigger guard refuses destructive DDL
+  (`supabase/roles/idea_migrator.sql`, pasted once by hand because it carries a password).
+  `supabase db push` remains forbidden for exactly the reason it always was and that rule
+  is untouched. The merge half is a SIX-ITEM CHECKLIST the session reports with the command
+  and the answer for each, mirroring what `deploy.yml`'s guard job already checks, and it
+  stops on any one unmet. The ending also now names the three things a session CANNOT
+  establish -- whether students are in class, whether the preview renders, and whether a
+  migration's effect on real data was what was intended -- because an ending that grants a
+  merge without naming its own blind spots is how the preview check got negotiated away in
+  the first place. The preview paragraph beneath the ending is corrected in the same pass:
+  it said merging was Mr. Pina's, which the new ending contradicts, and a document that
+  contradicts itself in two adjacent paragraphs is worse than either version of the rule.
 
 - **2026-09-02 (4.19)** - A branch count stopped measuring the queue and nothing noticed
   for a day. The integrate workflow deletes a branch when its CI goes green, and a session
