@@ -162,3 +162,60 @@ describe('the picture that DOES load -- the positive control for all of the abov
 		expect(m.target.querySelector('img')).toBeNull();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// ADDED BY PROMPT 0038. The `profile` path -- the half of the 'SI' defect 0033
+// did not close.
+//
+// `subjectAvatar` corrected the tile's text for a SUBJECT, so every roster row
+// was safe. `avatarSource(profile)` builds its own text with `initials()`, and
+// this component used to render that verbatim, so the VIEWER's own row still
+// painted 'SI' when it carried no display name, no full name and no address.
+// The pure half is pinned in `tests/avatar-initials.test.ts`; this is the half
+// that needs a real mount, because what changed is what the component renders.
+// ---------------------------------------------------------------------------
+describe('the profile path: a nameless row is an absence, never a person', () => {
+	const NAMELESS = {
+		id: 'u1',
+		email: null,
+		full_name: null,
+		display_name: null,
+		avatar_url: null,
+		avatar: null,
+		role: '',
+		section_id: null,
+		pathway: null,
+		preferences: {}
+	};
+
+	it("RENDERS '?' AND NOT 'SI' for a profile with no identifying field", () => {
+		m = mountInto(Avatar as never, { profile: NAMELESS });
+		const tile = m.target.querySelector('.initials');
+		expect(tile).not.toBeNull();
+		expect(tile?.textContent?.trim()).toBe('?');
+		// The exact defect, named: two capitals taken off the sentence
+		// 'Signed in', which reads as a person called S. I.
+		expect(tile?.textContent?.trim()).not.toBe('SI');
+	});
+
+	it('and no profile at all is the same answer, not a hole', () => {
+		m = mountInto(Avatar as never, { profile: null });
+		expect(m.target.querySelector('.initials')?.textContent?.trim()).toBe('?');
+	});
+
+	it('AN IDENTIFIED PROFILE IS BYTE-IDENTICAL -- the positive control', () => {
+		// The fix must move exactly one case. Every real viewer has at least an
+		// address, so this is the path essentially every mount takes.
+		m = mountInto(Avatar as never, {
+			profile: { ...NAMELESS, display_name: 'Alba Record' }
+		});
+		expect(m.target.querySelector('.initials')?.textContent?.trim()).toBe('AR');
+	});
+
+	it('and the email rung still works, which is what most rows fall to', () => {
+		m = mountInto(Avatar as never, {
+			profile: { ...NAMELESS, email: 'tee.cher@boscotech.edu' }
+		});
+		expect(m.target.querySelector('.initials')?.textContent?.trim()).toBe('TC');
+	});
+});

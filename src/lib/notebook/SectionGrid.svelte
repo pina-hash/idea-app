@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import Avatar from '$lib/Avatar.svelte';
+	import { gridStudentSubject } from '$lib/avatars';
 	import {
 		CELL_STATES,
 		cellDisplay,
@@ -302,6 +304,28 @@
 						{@const href = studentHref?.(summary.student) ?? null}
 						<tr>
 							<th scope="row" class="name-col">
+								<!-- THE FACE IN THE ROW HEADER, beside the name this cell
+								     already prints. `notebook_get_section_grid` raises for
+								     anybody who is not the section instructor, a section
+								     reviewer (0169, @boscotech.edu only) or an admin, so the
+								     audience for the picture is exactly the audience for the
+								     name -- there is no second gate to get right here.
+
+								     24px AND NOT 28: the grid's 1.9rem (30.4px) cell box and
+								     its 0.35/0.4rem padding are a LOCKED DENSITY CONTRACT,
+								     and a row header taller than the cell row would break it
+								     for every column at once. 24 leaves the cell the tallest
+								     thing in the row, so the row height is still the cell's,
+								     which is the measurement this bundle's history entry
+								     reports at both widths. It is not a tap target and never
+								     was -- it is inside the header, and the only control in
+								     this row is the name LINK beside it. -->
+								<span class="name-line">
+								<Avatar
+									subject={gridStudentSubject(summary.student)}
+									tintKey={summary.student.student_key}
+									size={24}
+								/>
 								{#if href}
 									<a
 										class="student-name student-link"
@@ -312,6 +336,7 @@
 								{:else}
 									<span class="student-name">{summary.student.name}</span>
 								{/if}
+								</span>
 								{#if !summary.student.enrolled}
 									<span
 										class="left-class"
@@ -478,8 +503,19 @@
 	thead .name-col {
 		z-index: 3;
 	}
+	/* The picture and the name are ONE line, so the `left` chip and the free
+	   count below keep landing exactly where they did. `align-items: center`
+	   rather than `baseline`: a circle has no baseline to share, and baseline
+	   alignment would push the row taller than the cell box. */
+	.name-line {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-width: 0;
+	}
 	.student-name {
 		color: var(--text-1);
+		min-width: 0;
 	}
 	/*
 	 * The underline is ALWAYS on. It used to appear on hover, which means the
