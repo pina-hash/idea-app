@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `docs/standards/IDEA_INTERFACE_STANDARDS.md`, its `REGISTER.md` row, decision 09's Status line, the row-action controls in `SpecRenderer.svelte`, `tools/browser-verify/routes/spec-table*.mjs`, the generated regions in `tools/browser-verify/README.md`, `tests/classroom-spec-table*`, `docs/prompt-ledger/entries/0043-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/decision-09-violation-docs-ch9n3i`
 - Notes: Mr. Pina answered decision 09 on 2026-09-02: 44px on every student
   surface, 24px only on an instructor density surface DECLARING A NAMED
   CLASS. Two days and forty bundles later the clause is still not in
