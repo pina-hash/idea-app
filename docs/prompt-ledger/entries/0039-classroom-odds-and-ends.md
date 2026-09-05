@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the table block in `SpecRenderer.svelte`, `src/routes/classroom/[sectionId]/+layout.svelte`, the placement of `HallPass.svelte` and `SongQueue.svelte`, `src/routes/dev/spec-table/**`, `tests/classroom-spec-table*`, `tests/dom/spec-table*`, `tools/browser-verify/routes/spec-table*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0039-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0179
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/classroom-defects-0039-by2gfv`
 - Notes: Two reports left over from the September feedback sweep.
 
   ONE, and it is located. "When there are no rows, pressing add a row adds
