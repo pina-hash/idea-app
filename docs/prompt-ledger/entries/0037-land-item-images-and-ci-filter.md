@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `.github/workflows/integrate.yml`, `.github/workflows/README.md`, `tools/integrate-gate-proof.sh`, `tests/workflows.test.ts`, the generated regions of `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0037-*`, its own `docs/history/` entry, and the merge of `claude/item-images-thumbnails-l3bhxp`.
 - Migration permitted: no. Highest on origin/main at issue: 0179
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness. BRANCHED FROM `origin/integration`.
 - Notes: TWO THINGS, and the second cost most of 2026-09-04.
 
