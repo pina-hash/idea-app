@@ -22,6 +22,7 @@
 	import '$lib/foundry/forge.css';
 	import FoundryClosed from '$lib/foundry/FoundryClosed.svelte';
 	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
+	import { foundryClosureBlocks } from '$lib/foundry/access';
 	import { locateFoundry } from '$lib/foundry/nav';
 
 	let { data, children } = $props();
@@ -29,14 +30,31 @@
 	const active = $derived(locateFoundry(page.url.pathname));
 
 	/**
-	 * THE CLASS GATE'S CLIENT HALF (0173, decision 01).
+	 * THE CLASS GATE'S CLIENT HALF (0173, decision 01), NARROWED.
 	 *
 	 * The page loads beneath this already return nothing when a class has
-	 * closed it -- that is the enforcement, on the server -- so what is left
-	 * here is rendering the REASON rather than an empty area. Reading it off
-	 * `data` rather than re-asking is what keeps one answer in one place; a
-	 * component that asked again could disagree with the load that already
-	 * withheld the payload.
+	 * closed it AND this place is one a closure reaches -- that is the
+	 * enforcement, on the server -- so what is left here is rendering the
+	 * REASON rather than an empty area. Reading it off `data` rather than
+	 * re-asking is what keeps one answer in one place; a component that asked
+	 * again could disagree with the load that already withheld the payload.
+	 *
+	 * WHICH PLACES A CLOSURE REACHES IS `foundryClosureBlocks`, ONCE. The
+	 * gallery stands down; the student's own shelf, the publish flow, the
+	 * build contract and the manager's own control do not. The argument for
+	 * that set is on `FOUNDRY_CLOSURE_BLOCKS` in `$lib/foundry/access`, and
+	 * this reads it rather than restating it: a second list of blocked routes
+	 * is how a page comes to be dark on the server and lit here.
+	 *
+	 * A COMPONENT MAY READ `page.url`; the layout LOAD may not, which is why
+	 * the place is resolved here and not there. `active` is the same answer
+	 * the tabs already read, so there is one resolution of it per render.
+	 *
+	 * ON A SURFACE A CLOSURE DOES NOT REACH, THE STUDENT IS STILL TOLD. A
+	 * shelf that renders normally while the gallery tab answers a refusal is
+	 * a room whose behaviour a student cannot predict, so the same component
+	 * carries the same sentence as a notice above the page. One component,
+	 * one sentence, two weights.
 	 *
 	 * THE SHELL STAYS. A closed student keeps the masthead and the way out,
 	 * because the alternative is a page that looks broken.
@@ -68,18 +86,25 @@
 
 	const closedSections = $derived(data.foundryAccess?.closed ?? []);
 	const isClosed = $derived(data.foundryAccess ? data.foundryAccess.open === false : false);
+	/** Closed AND this is a place a closure reaches. */
+	const isBlocked = $derived(isClosed && foundryClosureBlocks(active));
+	/** Closed, but this place carries on. The notice, not the refusal. */
+	const isNoticed = $derived(isClosed && !isBlocked);
 </script>
 
-<div class="fg-root" class:cr-app={isAppShell && !isClosed}>
+<div class="fg-root" class:cr-app={isAppShell && !isBlocked}>
 	<FoundryShell
 		{active}
 		isAdmin={page.data.isAdmin === true}
 		managesSection={data.managesSection === true}
 		reviewPending={data.reviewPending ?? null}
 	>
-		{#if isClosed}
+		{#if isBlocked}
 			<FoundryClosed closed={closedSections} />
 		{:else}
+			{#if isNoticed}
+				<FoundryClosed closed={closedSections} variant="notice" />
+			{/if}
 			{@render children()}
 		{/if}
 	</FoundryShell>

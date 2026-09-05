@@ -18,6 +18,18 @@ import type { PageServerLoad } from './$types';
  *
  * A MISSING RPC IS AN EMPTY LIST, NOT A BROKEN ROOM. A deployment between 0172
  * and 0173 is a real state; on it the page renders its own empty sentence.
+ *
+ * AND A CLOSURE MUST NEVER REACH THIS PAGE, WHICH IS A FIX RATHER THAN A
+ * PREFERENCE. The layout used to render the refusal in place of every route
+ * under /foundry, this one included. Instructors enroll themselves in their
+ * own sections to see the class the way a student does (0138 says so in the
+ * roster rules), and `foundry_section_access` reads ENROLLMENTS and exempts
+ * only ADMINS -- so a section manager who is not also an admin, closing their
+ * own class, locked themselves out of the only control that reopens it. A
+ * one-way door with a Restore nothing could ever press. `classes` is
+ * therefore deliberately absent from `FOUNDRY_CLOSURE_BLOCKS`, and the
+ * absence is the mechanism: there is no exemption here to forget, because
+ * there is no gate here to exempt from.
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const { data, error: err } = await locals.supabase.rpc('foundry_manageable_sections');

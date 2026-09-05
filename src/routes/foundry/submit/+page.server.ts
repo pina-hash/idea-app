@@ -12,18 +12,23 @@ import type { PageServerLoad } from './$types';
  * them while a student is working -- is still a valid target for a new version.
  */
 /**
- * THE CLASS GATE'S SERVER HALF (0173, decision 01). The layout resolved it
- * once; this refuses to build the payload when it says closed, so a student
- * whose class has turned the Foundry off is not sent the data and then asked
- * politely not to look at it. Absence is the mechanism, exactly as it is for
- * every omitted transport in this feature.
+ * A CLOSURE DOES NOT REACH THIS SURFACE, AND IT USED TO.
+ *
+ * Publishing is handing work IN. In an IDEA class the Foundry app can BE the
+ * assignment, and the site cannot tell which class a student is sitting in, so
+ * a close in period 3 that reached here would stop a hand-in for period 6 and
+ * at home, indefinitely, until somebody else opened it. That is the case this
+ * scope exists to end.
+ *
+ * WHAT A STUDENT PUBLISHES DURING A CLOSED PERIOD LANDS IN A GALLERY THAT
+ * PERIOD CANNOT OPEN, which is what makes leaving it open defensible in front
+ * of the instructor who closed it: the surface a closure takes away is the one
+ * where apps are browsed and run, and it is still gone.
+ *
+ * `FOUNDRY_CLOSURE_BLOCKS` in `$lib/foundry/access` is the one statement of
+ * which surfaces stand down.
  */
-export const load: PageServerLoad = async ({ locals, url, parent }) => {
-	const { foundryAccess } = await parent();
-	if (foundryAccess && foundryAccess.open === false) {
-		return { uid: '', apps: [] as FoundryAppSummary[], initialAppId: null };
-	}
-
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const uid = locals.claims?.sub ?? null;
 	if (!uid) return { uid: '', apps: [] as FoundryAppSummary[], initialAppId: null };
 

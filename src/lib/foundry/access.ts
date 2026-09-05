@@ -3,16 +3,21 @@
  *
  * 0173 gives `classroom_sections` a `foundry_closed_at` stamp and
  * `foundry_section_access()` answers, for the caller, whether any class they
- * are actively enrolled in has closed the Foundry. THE DATABASE IS THE GATE
- * AND THIS IS NOT: everything here shapes a sentence and decides what to
- * render, and none of it is what stops a student publishing. That is the
- * layout's server load refusing to hand the page any data, and 0173's own
- * predicates underneath it.
+ * are actively enrolled in has closed the Foundry. THE DATABASE ANSWERS WHO
+ * CLOSED IT; THIS MODULE ANSWERS WHAT THAT REACHES. Everything here shapes a
+ * sentence and decides which surfaces stand down, and none of it is what
+ * enforces the standing down: that is each page load short-circuiting for
+ * itself, on the server, with 0173's own predicates underneath.
+ *
+ * WHAT IT REACHES IS ONE SURFACE, and the argument for that is on
+ * `FOUNDRY_CLOSURE_BLOCKS` below. It is the whole subject of this module now.
  *
  * PURE, CLIENT-SAFE, NO SVELTE. The registry shape every subsystem here has:
  * plain data and pure helpers, so the arithmetic is assertable with no browser
  * and no database.
  */
+
+import type { FoundryPlace } from './nav.ts';
 
 /** One class that has closed it. The shape `foundry_section_access` returns. */
 export interface FoundryClosedSection {
@@ -27,6 +32,91 @@ export interface FoundryAccess {
 	open: boolean;
 	closed: FoundryClosedSection[];
 }
+
+/**
+ * WHAT A CLOSURE ACTUALLY TAKES AWAY, AND IT IS ONE SURFACE.
+ *
+ * 0173 built the toggle as decision 01 was answered -- per section, checked on
+ * the server -- and then flagged what it costs: THE SITE CANNOT TELL WHICH
+ * CLASS A STUDENT IS SITTING IN. There is no bell schedule anywhere in this
+ * schema, `classroom_sections.block` is free-form display text with no time in
+ * it, a hall pass records that somebody is OUT of a room rather than in one,
+ * and `classroom_item_views` is keyed `(student_email, item_id)` on a
+ * CANONICAL item that is posted to many sections, so it names no section and
+ * no session. Nothing else records a presence of any kind. So "during my
+ * class" is not a question this application can ask, and any closure that
+ * binds a student at all binds them in every class and at home until somebody
+ * opens it again.
+ *
+ * WHICH LEAVES SCOPE AS THE ONLY LEVER, and it is a lever on SURFACES rather
+ * than on time. A closure blocks the GALLERY and nothing else:
+ *
+ *   gallery   BLOCKED. Everybody's published apps, and the one surface in the
+ *             portal where a student's bundle actually RUNS -- `FoundryDetail`
+ *             is what mounts `AppStage`. This is the "somebody is playing a
+ *             game in my class" surface and it is the one the control exists
+ *             for.
+ *   mine      OPEN. The student's own shelf: their apps, their versions, their
+ *             play figures, their share links, their delete. Nothing here runs
+ *             an app. Taking a student's own record away from them in five
+ *             other classes and at home, because one teacher closed one
+ *             period, is the defect this scope exists to end.
+ *   submit    OPEN. Publishing is handing work IN. In an IDEA class the
+ *             Foundry app can BE the assignment, so a close in period 3 must
+ *             not stop a hand-in for period 6 or at home. What a student
+ *             publishes during a closed period lands in a gallery that period
+ *             cannot open.
+ *   contract  OPEN. A generated reference document with no student data and no
+ *             app in it, and the thing a student pastes into an AI tool to
+ *             build correctly. Blocking it blocks the work rather than the
+ *             distraction.
+ *   classes   OPEN, AND THIS ONE IS A FIX RATHER THAN A PREFERENCE.
+ *             Instructors enroll themselves in their own sections to see the
+ *             class the way a student does, and `foundry_section_access` reads
+ *             ENROLLMENTS -- so a section manager who is not also an admin was
+ *             locked out by their own close, out of the only control that
+ *             reopens it. A one-way door.
+ *   review    OPEN. Admin only, and `foundry_section_access` already answers
+ *             open for an admin; named here so the set is total.
+ *
+ * AND `null` FAILS CLOSED. A route added under /foundry that `locateFoundry`
+ * does not yet place is blocked until somebody decides where it belongs, which
+ * is the same argument the group-wide gate itself is hoisted for: a new page
+ * must not ship past a decision by nobody having made it.
+ *
+ * NONE OF THIS IS THE ENFORCEMENT. Each page load short-circuits for itself
+ * and the layout renders the reason; this is the one statement of which
+ * surfaces those are, so the panel, the loads and the instructor's own copy
+ * cannot come to disagree about what a close does.
+ */
+export const FOUNDRY_CLOSURE_BLOCKS: readonly FoundryPlace[] = ['gallery'];
+
+export function foundryClosureBlocks(place: FoundryPlace | null): boolean {
+	if (place === null) return true;
+	return FOUNDRY_CLOSURE_BLOCKS.includes(place);
+}
+
+/**
+ * THE THREE SENTENCES THE INSTRUCTOR READS BEFORE PRESSING, AND THE STUDENT
+ * READS AFTER.
+ *
+ * A CONTROL WHOSE BLAST RADIUS NOBODY CAN PREDICT IS THE DEFECT BEING FIXED,
+ * so the reach sentence is not a footnote: it says out loud that a close binds
+ * the student everywhere, because that is the one thing about this toggle that
+ * a reasonable person would guess wrong. They live here rather than in the
+ * component so the panel a student reads and the copy an instructor presses
+ * cannot describe two different closures.
+ *
+ * NO EM DASHES, per the copy conventions.
+ */
+export const FOUNDRY_CLOSURE_EFFECT =
+	'Closing it takes the app gallery away from students in that class. They cannot browse or open other students apps until you open it again.';
+
+export const FOUNDRY_CLOSURE_LIMIT =
+	'It leaves everything else alone: their own apps, publishing, the build contract and anything already published all stay reachable.';
+
+export const FOUNDRY_CLOSURE_REACH =
+	'It applies to those students in every class and at home, not only during your period. The site has no way to tell which class somebody is sitting in, so there is no schedule behind this and it stays closed until you open it.';
 
 /**
  * THE ANSWER WHEN NOBODY ASKED, AND IT IS OPEN.

@@ -1045,6 +1045,16 @@
 				"assignments",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "One class closing the Foundry no longer closes it in your other classes",
+			"body": "When a teacher closes the Foundry for their class, that used to shut the whole Foundry for every student on that roster: in all their other classes, at lunch and at home, until that one teacher opened it again. It now closes one thing, the app gallery, which is where you browse and open other students' apps. Everything else stays yours and stays open: your own apps and their versions, your play counts and share links, uploading and publishing a new version, and the build contract you paste into an AI tool. If one of your classes has the gallery closed you will see a short note at the top of those pages saying which class it is and why, so you are not left guessing. Teachers: the control at Foundry, Classes now spells out exactly what closing does, what it leaves alone, and that it applies to those students everywhere and not only during your period. Closing your own class also no longer locks you out of the page you reopen it from.",
+			"tags": [
+				"foundry",
+				"classroom",
+				"fix"
+			]
 		}
 	]
 }
