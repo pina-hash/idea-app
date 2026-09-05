@@ -267,7 +267,12 @@ throughout, `drop policy if exists` before each create, no DML.
 * `tests/classroom-storage-objects.test.ts` alone: **42 tests**, and **40** on the
   `main` commit's own tree, which is what says the migration commit is
   self-contained.
-* The full suite: see the run recorded in the session report.
+* `npm test`: **12:34:09 to 12:38:45 PDT (America/Los_Angeles), 2026-09-05**,
+  273.8s. **276 files, 5674 tests: 5672 passed, 2 failed.** Both failures are
+  `tests/derived-numbers.test.ts` and both are inherited -- see the last item
+  under "Not verified". Nothing this bundle touched is in that file's blast
+  radius: it reads `tools/browser-verify/README.md` and the `routes/*.mjs`
+  listing, neither of which this bundle changed.
 * **Browser, real Chromium 1194 at `/opt/pw-browsers`, both widths.** The
   refusal sentence produced by the REAL `transports.ts` module (imported through
   Vite's module graph in the page, with `fetch` stubbed to the patched route's
