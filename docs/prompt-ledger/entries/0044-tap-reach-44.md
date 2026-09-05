@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the `.tap-reach-44` definition, `SpecRenderer.svelte`, the `tapReach` probe in `tools/browser-verify/checks.mjs`, `tools/browser-verify/routes/spec-table*.mjs`, the generated regions of its README, `tests/classroom-spec-table*`, a decision entry if 2.12 requires one, `docs/prompt-ledger/entries/0044-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/tap-reach-44-class-bug-fschcn`
 - Notes: Prompt 0043 measured `button.info-tip-trigger.tap-reach-44` and found
   its hit-tested reach runs 16.4 to 42.4 and NEVER 44. The class is named for
   a promise it does not keep.

@@ -1065,6 +1065,16 @@
 				"classroom",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Bigger targets on assignment tables and checklists",
+			"body": "Three controls on assignment pages were too small to press reliably on a phone. The boxes you type into inside a table are taller now, checklist items are a full row rather than a thin line, and the little i beside a column heading takes a tap anywhere in its row instead of only on the letter itself. Nothing about the work changed, only how easy it is to hit. Table rows are the same height as before; checklists take a little more room on the page.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
 		}
 	]
 }
