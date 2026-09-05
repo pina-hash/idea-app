@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { avatarSource, type UserProfile } from '$lib/profile';
-	import { avatarTint, subjectAvatar, subjectInitials, type AvatarSubject } from '$lib/avatars';
+	import {
+		avatarTint,
+		proxiedAvatarSource,
+		subjectAvatar,
+		subjectInitials,
+		type AvatarSubject
+	} from '$lib/avatars';
 
 	/**
 	 * A person's picture at any size: chosen preset mark, uploaded image,
@@ -22,11 +28,17 @@
 	 * live case rather than a hypothetical:
 	 *   1. NO PICTURE. Most people here have chosen none, so the tile is the
 	 *      common path and is styled as a deliberate mark.
-	 *   2. AN IMAGE THAT FAILS TO LOAD. An uploaded avatar is a public-bucket
-	 *      URL built from a stored path (`avatarUploadUrl`), so a deleted
-	 *      object, a stale path or a blocked network hands the browser a
-	 *      broken-image glyph inside a circle. `onerror` swaps to the tile,
-	 *      which is the same box -- so the row does not move either.
+	 *   2. AN IMAGE THAT FAILS TO LOAD, WHICH SINCE 0181 INCLUDES ONE THE
+	 *      SERVER REFUSED. An uploaded avatar is asked for at `/api/avatar/<key>`,
+	 *      and that route answers the same bodyless 404 for a deleted object, a
+	 *      stale key and a caller with no session -- so a deleted picture, a
+	 *      broken one and a refused one are ONE case here rather than three,
+	 *      which is the point rather than an accident: a 404 meaning "no
+	 *      picture" and a refusal meaning "not yours to see" must not be
+	 *      distinguishable from the outside. `onerror` swaps to the tile, which
+	 *      is the same box -- so the row does not move either, and the tile a
+	 *      refusal lands on is byte-identical to the tile a person who chose no
+	 *      picture gets.
 	 *   3. A NAME TOO LONG FOR ITS ROW. Not this component's to wrap: the box
 	 *      is fixed at `size` in BOTH dimensions with `flex-shrink: 0`, so a
 	 *      name beside it can ellipsise without the picture giving up width.
@@ -61,10 +73,6 @@
 	 */
 	let failedUrl = $state<string | null>(null);
 
-	const source = $derived(profile != null ? avatarSource(profile) : subjectAvatar(subject));
-	const failed = $derived(source.kind === 'image' && failedUrl === source.url);
-	const tint = $derived(avatarTint(tintKey));
-	const px = $derived(`${size}px`);
 	/*
 	 * WHAT THE TILE PAINTS, ALWAYS THROUGH `subjectInitials` AND NEVER OFF
 	 * `source.text`, and the second half of that sentence is a bug fix rather
@@ -98,6 +106,39 @@
 	 * by hope.
 	 */
 	const fallbackText = $derived(subjectInitials(profile ?? subject));
+
+	/**
+	 * WHERE AN UPLOADED PICTURE IS ASKED FOR, AND WHY THAT DECISION IS HERE.
+	 *
+	 * `avatarSource` resolves an `upload:<key>` to a Supabase Storage PUBLIC
+	 * object URL, which is what 0020's public `avatars` bucket served and what
+	 * every surface in this app put in its own HTML. 0181 closes that bucket,
+	 * so the bytes are asked for at `/api/avatar/<key>` on our origin instead and
+	 * `src/routes/api/avatar/[...path]/+server.ts` mints a signed URL on the
+	 * CALLER'S OWN client and 302s to it.
+	 *
+	 * THIS IS THE ONE PLACE THAT REWRITE HAPPENS, and that is the whole reason
+	 * it works. Nine surfaces render a face -- the profile menu, the classroom
+	 * roster, the grading console, the three notebook surfaces, the admin
+	 * dashboard, two harnesses and the GAUNTLET leaderboard -- and every one of
+	 * them mounts this component rather than building a URL. So the store could
+	 * be closed underneath all nine with an edit to none of them, which was not
+	 * a convenience: the leaderboard was READ-ONLY to the bundle that did it,
+	 * and a design needing to touch it could not have shipped.
+	 * `tests/avatar-proxy.test.ts` sweeps `src/` so it stays the one place.
+	 *
+	 * IT MOVES THE `upload:` CASE AND NOTHING ELSE. A Google photo is a
+	 * googleusercontent URL that is not in our store and not ours to gate; a
+	 * preset is inline SVG and makes no request. `proxiedAvatarSource` reads
+	 * the RAW `avatar` value rather than sniffing the resolved URL, so those
+	 * two are left alone by construction rather than by a string test.
+	 */
+	const chosen = $derived((profile ?? subject)?.avatar ?? null);
+	const resolved = $derived(profile != null ? avatarSource(profile) : subjectAvatar(subject));
+	const source = $derived(proxiedAvatarSource(chosen, resolved, fallbackText));
+	const failed = $derived(source.kind === 'image' && failedUrl === source.url);
+	const tint = $derived(avatarTint(tintKey));
+	const px = $derived(`${size}px`);
 </script>
 
 <span
