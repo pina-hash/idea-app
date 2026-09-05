@@ -1043,13 +1043,207 @@ else
 	check_says "47. renamed CI markers cut nothing (the FATAL guard above then fires)" empty non-empty
 fi
 
+# ===========================================================================
+# THE STATIC COUNTS REFRESH (`counts_refresh`), the CLEAN-MERGE half.
+#
+# `auto_resolve` above covers the merge that CONFLICTS on the counts README.
+# This covers the one that does not, which is a different gap and the one that
+# has been quietly costing bundles: two branches that each add ONE route spec
+# each regenerate the region to the SAME number, git takes the identical edit
+# on both sides with no conflict, and the pushed tree holds one more spec than
+# the region claims. Case 50 IS that reproduction -- it is the shape prompt
+# 0035's own fixture comment names ("two branches that each add exactly one
+# page regenerate to the SAME number, git merges the identical text cleanly")
+# and deliberately steered around, because it was proving the resolver.
+#
+# Cut from the workflow exactly as the three gates above are: the text between
+# `# counts_refresh_marker:begin` and `# counts_refresh_marker:end` is taken out
+# of the workflow with the same `cut_marker` and sourced, so no case here can
+# drift into testing a private copy.
+# ===========================================================================
+echo "== case 0d: the workflow actually calls the counts refresh (structural, by grep) =="
+refresh_call_ok=yes
+for needle in \
+	'if counts_note="$(counts_refresh)"; then' \
+	'if [ ${#merged[@]} -gt 0 ] || [ "$caught_up" = yes ]; then'
+do
+	if grep -qF -- "$needle" "$WORKFLOW"; then
+		echo "  found: $needle"
+	else
+		echo "  MISSING: $needle"
+		refresh_call_ok=no
+	fi
+done
+if [ "$refresh_call_ok" = yes ]; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
+echo
+
+REFRESH_SRC="$(cut_marker "$WORKFLOW" counts_refresh_marker)"
+if [ -z "${REFRESH_SRC//[[:space:]]/}" ]; then
+	echo "FATAL: cut nothing between counts_refresh_marker:begin/end in $WORKFLOW"
+	exit 1
+fi
+if ! bash -n <(printf '%s\n' "$REFRESH_SRC"); then
+	echo "FATAL: the text between the counts_refresh markers is not valid shell"
+	exit 1
+fi
+# shellcheck disable=SC1090
+source <(printf '%s\n' "$REFRESH_SRC")
+if ! declare -F counts_refresh >/dev/null || ! declare -F _counts_data >/dev/null; then
+	echo "FATAL: the counts_refresh region did not define counts_refresh and _counts_data"
+	exit 1
+fi
+if [ "${1:-}" = --show ]; then
+	echo '--- counts_refresh as cut from the workflow -------------------------'
+	printf '%s\n' "$REFRESH_SRC"
+	echo '---------------------------------------------------------------------'
+	echo
+fi
+
+# --- fixtures ---------------------------------------------------------------
+# A route spec is a file plus a regeneration, which is what a green branch
+# looks like: `tests/derived-numbers.test.ts` checks the static region against
+# the tree on every run, so a branch that added a spec without regenerating
+# would be RED and the sweep would never reach it. The filename has to be
+# `slugify(path).mjs` or `routes.mjs` refuses to load the tree at all.
+fx_add_route_spec() {
+	local n
+	for n in "$@"; do
+		printf 'export default { path: %s/dev/%s%s, checks: [] };\n' "'" "$n" "'" \
+			> "tools/browser-verify/routes/$n.mjs"
+	done
+	node tools/browser-verify/readme-counts.mjs --static >/dev/null
+}
+# A spec added AND a generator that throws: the branch is otherwise ordinary
+# and the refresh cannot run on the merged tree.
+fx_add_spec_and_break_generator() {
+	fx_add_route_spec "$1"
+	printf '\nthrow new Error("fixture: the generator is broken on this tree");\n' \
+		>> tools/browser-verify/readme-counts.mjs
+}
+
+# The workflow's own shape in miniature: merge every branch named, THEN run
+# `counts_refresh` once, in that order and at that place. Prints the merge
+# verdicts and what the refresh did.
+sweep() {
+	local repo="$1"; shift
+	local b out rc=0 verdicts=''
+	git_q -C "$repo" checkout -B integration main
+	for b in "$@"; do
+		verdicts="$verdicts $( cd "$repo" && fx_merge "$b" | cut -d' ' -f1 )"
+	done
+	out="$( cd "$repo" && counts_refresh )" || rc=$?
+	if   [ "$rc" -ne 0 ]; then printf 'merges:%s refresh:FAILED\n' "$verdicts"
+	elif [ -n "$out" ];   then printf 'merges:%s refresh:%s\n' "$verdicts" "$out"
+	else                       printf 'merges:%s refresh:none\n' "$verdicts"
+	fi
+}
+
+# How many regeneration commits the sweep made, and whether the region agrees
+# with the tree that would be pushed.
+refresh_commits() { git -C "$1" log --oneline main..integration --grep='Regenerate the static browser-verify counts' | grep -c . || true; }
+region_verdict() {
+	if ( cd "$1" && node tools/browser-verify/readme-counts.mjs --static --check >/dev/null 2>&1 ); then
+		echo matches-tree
+	else
+		echo STALE
+	fi
+}
+
+rr="$(new_repo refresh)"
+seed_merge_fixture "$rr"
+publish_main "$rr"
+branch_with "$rr" claude/spec-one   fx_add_route_spec fixture-one
+branch_with "$rr" claude/spec-two   fx_add_route_spec fixture-two
+branch_with "$rr" claude/no-spec    fx_edit_source 'a branch that adds no route spec'
+branch_with "$rr" claude/spec-broke fx_add_spec_and_break_generator fixture-three
+# Two pages against one: the numbers DIFFER, so the region genuinely conflicts
+# and `auto_resolve` is the path under test rather than this one.
+branch_with "$rr" claude/pages-a    fx_add_dev_pages refresh-alpha refresh-beta
+branch_with "$rr" claude/pages-b    fx_add_dev_pages refresh-gamma
+
+# --- case 48/49: one branch adds a spec and merges clean --------------------
+# The single-branch case is the one that ALREADY worked, and it is here as the
+# positive control for the pair below: without it, "matches-tree" in case 51
+# could be a refresh that ran or a merge that happened to be right.
+out48="$(sweep "$rr" claude/spec-one)"
+check_says "48. one branch adds a spec, merges clean, and nothing needed regenerating" \
+	'merges: CLEAN refresh:none' "$out48"
+check_says "49. ...and the region is the merged tree's own answer" \
+	matches-tree "$(region_verdict "$rr")"
+
+# --- case 50/51/52: THE HOLE -- two branches, one spec each -----------------
+# Each branch wrote the SAME number for its own tree, so the second merge is
+# CLEAN and `auto_resolve` never runs. Before `counts_refresh` this pushed a
+# region one behind the tree; case 51 is the difference.
+out50="$(sweep "$rr" claude/spec-one claude/spec-two)"
+check_says "50. two branches each add one spec: both merges CLEAN, one regeneration" \
+	'CLEAN CLEAN 1' \
+	"$(printf '%s %s' "$(printf '%s' "$out50" | sed 's/^merges: //; s/ refresh:.*//')" "$(refresh_commits "$rr")")"
+check_says "51. ...and the region is the MERGED tree's answer, not either branch's" \
+	matches-tree "$(region_verdict "$rr")"
+check_says "52. ...and the regeneration commit touches ONE path" \
+	tools/browser-verify/README.md \
+	"$(git -C "$rr" show --name-only --format= HEAD | grep -c . >/dev/null; git -C "$rr" show --name-only --format= HEAD | tr -d '\n')"
+
+# --- case 53: a branch that adds no spec -----------------------------------
+out53="$(sweep "$rr" claude/no-spec)"
+check_says "53. a branch that adds no spec regenerates nothing and commits nothing" \
+	'merges: CLEAN refresh:none 0' \
+	"$(printf '%s %s' "$out53" "$(refresh_commits "$rr")")"
+
+# --- case 54/55: 0035's conflict path, unchanged ---------------------------
+# The resolver still resolves, and the refresh that now runs afterwards finds
+# nothing left to do -- which is the assertion that the two are not two
+# spellings of one job racing each other.
+out54="$(sweep "$rr" claude/pages-a claude/pages-b)"
+check_says "54. a README conflict is still RESOLVED by 0035's path, and the refresh then finds nothing" \
+	'RESOLVED refresh:none' \
+	"$(printf '%s %s' "$(printf '%s' "$out54" | sed 's/.*CLEAN //; s/ refresh:.*//')" "$(printf '%s' "$out54" | sed 's/.*\(refresh:.*\)/\1/')")"
+check_says "55. ...and the region still matches the merged tree" \
+	matches-tree "$(region_verdict "$rr")"
+
+# --- case 56/57: the refresh itself fails ----------------------------------
+# The merges must survive it. This is the rule that a generated region is worth
+# less than somebody's work: leave the region stale, push what merged, say so.
+out56="$(sweep "$rr" claude/spec-broke)"
+check_says "56. a refresh that fails reports FAILED and does not abort the merge" \
+	'merges: CLEAN refresh:FAILED' "$out56"
+check_says "57. ...and the merge is still on integration, with no regeneration commit" \
+	'reachable 0' \
+	"$(printf '%s %s' \
+		"$(git -C "$rr" merge-base --is-ancestor "$(git -C "$rr" rev-parse origin/claude/spec-broke)" integration && echo reachable || echo LOST)" \
+		"$(refresh_commits "$rr")")"
+
+# --- case 58: THE POSITIVE CONTROL FOR THE HOLE ----------------------------
+# Case 51 says the region matches the merged tree. On its own that is not
+# evidence: it would read identically if the merges had happened to be right
+# and `counts_refresh` had done nothing at all. So the SAME two merges are run
+# again with the refresh withheld, and the region must come out STALE. This is
+# the defect as it stood before this bundle, reproduced here rather than
+# described -- and it is what makes 51 a measurement.
+git_q -C "$rr" checkout -B integration main
+( cd "$rr" && fx_merge claude/spec-one >/dev/null && fx_merge claude/spec-two >/dev/null )
+check_says "58. WITHOUT the refresh, those same two clean merges leave it stale" \
+	STALE "$(region_verdict "$rr")"
+
+# --- negative control: the cut refuses when the markers are renamed --------
+nc="$(mktemp)"
+sed 's/counts_refresh_marker/counts_refresh_renamed/g' "$WORKFLOW" > "$nc"
+nc_out="$(cut_marker "$nc" counts_refresh_marker)"
+rm -f "$nc"
+if [ -z "${nc_out//[[:space:]]/}" ]; then
+	check_says "59. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty empty
+else
+	check_says "59. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty non-empty
+fi
+
 # ---------------------------------------------------------------------------
 # THE CASE COUNT. Without it, deleting every SKIP-direction case leaves
 # `fail=0` and a green exit -- a sweep that generated nothing cannot be allowed
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=51
+EXPECTED_CASES=64
 ran=$((pass + fail))
 
 echo

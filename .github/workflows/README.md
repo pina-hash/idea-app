@@ -27,10 +27,13 @@ that passed; `deploy.yml` is the one path that writes `main`.
   `DEPLOY_PROBE_URL` secret, or a migration it has no probe for. It can never
   override a migration the probe read as NOT applied.
 - **A `claude/**` branch that is still sitting there is a signal, not a
-  leftover.** It means one of: its CI failed, its CI has not finished, or its
-  merge into `integration` conflicted. All three want a person. (A fourth cause
-  is now closed: until 2026-09-05 a branch whose CI you re-ran green BY HAND
-  also sat there, invisible to the sweep. See "Re-running a red branch's CI".)
+  leftover.** It means one of: its CI failed, its CI has not finished, its
+  merge into `integration` conflicted, or its ledger entry still reads
+  `Status: issued`, which is the sweep being told the session is still running.
+  All four want a person, and the last one usually just wants the session's own
+  final commit. (A fifth cause is now closed: until 2026-09-05 a branch whose CI
+  you re-ran green BY HAND also sat there, invisible to the sweep. See
+  "Re-running a red branch's CI".)
 
 ## Deploying: usually nothing, sometimes a button
 
@@ -193,8 +196,9 @@ up to SIX sections. The first two are always there -- the first is about
 only when they have something to report:
 
 - **`integration` itself** -- whether it was caught up to `main` (and by how
-  many commits), whether it was pushed, and, when something conflicted, that the
-  red X is for the conflict and for nothing else.
+  many commits), whether it was pushed, whether the static counts region was
+  regenerated (with the numbers before and after), and, when something
+  conflicted, that the red X is for the conflict and for nothing else.
 - **Merged into `integration` and deleted** -- the branches that landed.
 - **Resolved mechanically** -- branches that CONFLICTED and were merged anyway,
   with what was done to each file. See below; nothing here picked a side of
@@ -231,11 +235,47 @@ paths, and 25 of them are one of two files that have a deterministic answer:
   generated `<!-- counts:begin -->`/`<!-- counts:end -->` block. Git's own
   three-way merge resolves the conflicting hunks with `integration`'s side, and
   then `npm run verify:counts` regenerates the static half against the MERGED
-  tree, which is the only tree whose answer is right. That is a tree read, about
-  0.4 seconds, no browser and no dev server.
+  tree, which is the only tree whose answer is right. That is a tree read: no
+  browser, no dev server, no network and no `node_modules`. Measured on a
+  checkout with none of them, 2026-09-05: 313ms cold, 96-101ms warm.
 - **`classroom-updates.json`** -- an append-only list. Two sessions each
   append; the answer is both appends, and every entry from both sides is in the
   result.
+
+### And the counts are regenerated after a merge that did NOT conflict
+
+The resolution above only runs when a merge CONFLICTS on that README. **The
+merge that does not conflict is a separate gap and it is the one that has been
+costing bundles.** Two branches that each add ONE route spec each regenerate the
+static counts region to the same number for their own tree, so git sees an
+IDENTICAL edit on both sides, takes it with no conflict at all, and `integration`
+ends up claiming 103 route specs over a tree holding 104. The next bundle to
+open on `integration` finds `tests/derived-numbers.test.ts` red through no fault
+of its own.
+
+So the sweep now runs `npm run verify:counts` ONCE at the end, on the final
+merged tree, before the push:
+
+- **Only when the tree moved** -- a branch merge or the `main` catch-up. A run
+  that merged nothing regenerates nothing.
+- **Only if it changes something.** The static region carries no clock and no
+  commit, so regenerating an unchanged tree writes the bytes that were already
+  there and nothing is committed. The summary says which of the two happened.
+- **Only the static half.** The measured half needs a browser and about six
+  minutes, and a sweep that rewrote it would be publishing a measurement it never
+  took. The commit names one path, so nothing else can ride along.
+- **A failure here never loses a merge.** Everything that merged is pushed
+  anyway, the run warns, and the region is left as stale as it would have been
+  before -- run `npm run verify:counts` on `integration` and commit the result.
+
+The extra commit starts nothing: GitHub begins no workflow run from a push made
+with `GITHUB_TOKEN`, which is the same rule `ci.yml`'s own header records as the
+reason `integration` gets no CI run of its own from a push.
+
+`tools/integrate-gate-proof.sh` cases 48-59 prove this against throwaway
+repositories, and case 58 is the defect itself reproduced -- the same two clean
+merges with the refresh withheld, which must come out stale, so case 51 is a
+measurement rather than a hope.
 
 Everything else is still yours, including a conflict in that README's PROSE,
 which is somebody's writing and is left conflicted even though the file is on
@@ -288,8 +328,10 @@ normally underneath that red X; the summary is what tells you which is which.
   finished. (Pushing again afterwards simply re-creates the branch, and only the
   new commits get merged next time.)
 - **A push made by this workflow does not start another workflow run.** That is
-  GitHub's own loop-breaker for `GITHUB_TOKEN`: `integration` therefore gets no
-  CI run of its own. Every commit on it was green on its source branch, and CI
-  runs again when a person merges to `main`, but `integration` itself is not
-  independently checked. Vercel is unaffected -- it deploys through a GitHub App
-  webhook, not through Actions, so `integration` still gets a preview build.
+  GitHub's own loop-breaker for `GITHUB_TOKEN`, and it holds for every commit
+  the sweep makes, the counts regeneration included: `integration` gets no CI
+  run from its own pushes. Every commit on it was green on its source branch,
+  and the MERGE RESULT is checked by the nightly schedule in `ci.yml` rather
+  than by the push -- see "Is `integration` green?". Vercel is unaffected: it
+  deploys through a GitHub App webhook, not through Actions, so `integration`
+  still gets a preview build.
