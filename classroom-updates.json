@@ -1115,6 +1115,16 @@
 				"theme",
 				"new"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Table cells now show everything you typed after you reopen a module",
+			"body": "A module on an assignment folds itself shut once you have finished it, and you can open it again by pressing the title. If a module was shut when the page loaded, the boxes in its table did not know how tall to be, so opening it back up showed only the first line or two of longer answers. The rest of the writing was still saved and still went to your teacher, but you could not see it on screen, and there was no scrollbar to tell you anything was missing. Table boxes now measure themselves the moment they appear, so a reopened module shows your full answer straight away. On a phone this was the worst case: about a third of the cells in a busy table were cut off. Nothing you wrote was ever lost. If you still see a cut off cell anywhere, tell us through Report a problem on the page.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
 		}
 	]
 }
