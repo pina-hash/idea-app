@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `tools/apply-migration.mjs` (new), `tools/deploy-probe.mjs`, the canned lane ending in `IDEA_instructions.md` with its REGISTER row, new decision entries, `supabase/roles/` (new), the migration paragraph in `CLAUDE.md`, `tests/apply-migration*`, `tests/workflows.test.ts`, `docs/prompt-ledger/entries/0055-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: Mr. Pina asked on 2026-09-05 for every remaining manual step to be
   automated. Two are left that a session could take: applying a migration,
