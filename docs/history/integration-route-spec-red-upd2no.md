@@ -205,6 +205,42 @@ The counts-resolution section gains the clean-merge half beside the conflict
 half, with the two kept visibly distinct: one is a resolution, the other is a
 regeneration, and confusing them is how somebody deletes the wrong one.
 
+## The measured half, and a contention artefact worth writing down
+
+`npm run verify:readme` was run twice, and the two runs disagreed. **The
+difference was the machine, not the app, and the second run is the record.**
+
+| | run 1 | run 2 |
+| --- | --- | --- |
+| tree | `7150fda`, **dirty** | `056324d`, clean |
+| covered / specs | 102 / 102 | 102 / 102 |
+| runs, measurements | 204, 2970 | 204, 2970 |
+| **outside threshold** | **6** | **0** |
+| wall clock | 484.7s | 478.3s |
+| `--selftest` | 70 controls, 0 instrument failures | 70 controls, 0 instrument failures |
+
+Run 1's six rows were five on `/dev/foundry-submit` @1440 and one on
+`/dev/gauntlet-shell-countdown` @1440 -- and the five cluster on one root cause:
+the first to fail is `presence` on "the drive note (the input was found and
+handed the files)", so the file handoff never completed and every downstream
+check on a panel that was never rendered failed behind it. The countdown row is
+"the numeral currently on screen", which is a clock read.
+
+**What was different about run 1 is that I started the full test suite beside
+it and then killed it during its first minutes.** That is CLAUDE.md's own
+cold/contended-measurement rule arriving in a costume it does not describe: the
+warning is about the first page load after a cold `vite dev` boot, and this was
+a whole harness pass sharing a container with a database suite. Run 2 was
+started on an idle machine (load average 0.56, no chrome, clean tree) and the
+six rows are gone. Nothing in `src/` differs between the two commits.
+
+The measured region on this branch is therefore run 2's, and it also closes the
+covered-set gap that was red on `origin/integration`: `foundry-admin-refusal.mjs`
+is measured, `covered` is 102 against a tree of 102, and
+`tests/derived-numbers.test.ts` is **18 of 18 green** where it was 5-of-18 red
+at the base. **That repair is prompt 0046's rule being satisfied, not this
+bundle's mechanism working** -- the sweep does not and must not write this half.
+
 ## Two claims in the prompt that the tree does not support
 
 Both are recorded because a prompt is a claim like any other and the tree wins.
