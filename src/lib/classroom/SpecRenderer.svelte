@@ -267,14 +267,6 @@
 		values[block.id].rows = rows.filter((_, i) => i !== index);
 		report(block.id);
 	}
-	function moveRow(block: TableBlock, index: number, direction: -1 | 1) {
-		const rows = [...(values[block.id]?.rows ?? [])];
-		const target = index + direction;
-		if (target < 0 || target >= rows.length) return;
-		[rows[index], rows[target]] = [rows[target], rows[index]];
-		values[block.id].rows = rows;
-		report(block.id);
-	}
 
 	function checklistChecked(id: string, count: number): boolean[] {
 		const stored = values[id]?.checked ?? [];
@@ -545,9 +537,11 @@
 												</td>
 											{/each}
 											{#if canEdit}
+												<!-- TWO CONTROLS, NOT FOUR, AND THE PAIR IS THE ROW'S
+												     HEIGHT. See the comment above `.row-ops` for the
+												     measurements and `docs/decisions/entries/` for who
+												     owns what a student loses. -->
 												<td class="row-ops">
-													<button type="button" title="Move up" onclick={() => moveRow(block, ri, -1)} disabled={ri === 0}>↑</button>
-													<button type="button" title="Move down" onclick={() => moveRow(block, ri, 1)} disabled={ri === rows.length - 1}>↓</button>
 													<button type="button" title="Duplicate row" onclick={() => duplicateRow(block, ri)}>⧉</button>
 													<button type="button" title="Delete row" onclick={() => deleteRow(block, ri)}>✕</button>
 												</td>
@@ -983,11 +977,23 @@
 		   DECLARES NO DENSITY CLASS, so `IDEA_INTERFACE_STANDARDS` 10 (2.12)
 		   gives it no exception: over the 24px absolute floor and under the
 		   44px one. Step 1 of that clause's order is to re-lay the control in
-		   the space that is already there, and here the space is already
-		   there -- the row is 98.3px tall because of the 2x2 row-action grid
-		   beside it, so a 44px cell costs the row NOTHING. Measured after:
-		   44px cells, row height unchanged at 98.3. Steps 2 to 4 were not
-		   reached.
+		   the space that is already there, and here it needed no re-laying at
+		   all -- the cell owns its own box and simply grows.
+
+		   THE 44px STILL COSTS THE ROW NOTHING, BUT NOT FOR THE REASON THIS
+		   COMMENT USED TO GIVE, AND THE DIFFERENCE WAS MEASURED RATHER THAN
+		   REASONED. It used to say the row was 98.3px tall because of the 2x2
+		   row-action grid beside it, so a 44px cell fitted inside height that
+		   was already spent. That grid is gone -- two controls on one line now
+		   -- so the sentence had to be re-checked, and the obvious conclusion
+		   was that the cell floor had become the binding constraint. IT HAS
+		   NOT. Measured at 375 on `/dev/spec-table?rows=12` by deleting THIS
+		   RULE ALONE and changing nothing else: rows 127.4/51.4/62.4 and table
+		   822.3px, identical to the tree with it. The 44px BUTTON beside the
+		   cell is what holds a short row at 51.4, so the cell grows into height
+		   the row already has. The arithmetic that says otherwise compares two
+		   trees that differ in more than this rule; the isolation is the only
+		   reading that answers the question.
 
 		   `min-height` and not `height`, so `autoresize` can still grow the
 		   box past it for a long answer: that action writes `style.height`
@@ -1000,33 +1006,77 @@
 		outline: none;
 		border-color: var(--line-strong);
 	}
-	/* 6.4rem is 102.4px, which is exactly what the 2x2 grid below needs
+	/* 6.4rem is 102.4px, which is exactly what the two 44px controls below need
 	   (2*44 + one 2.4px gap + 9.6px of cell padding). It was already this value
-	   when the glyphs were 23.2px squares, so the column does not move. */
+	   when the glyphs were 23.2px squares and it was still this value when they
+	   were laid 2x2, so the column has not moved through either change. */
 	.row-ops-head {
 		width: 6.4rem;
 	}
-	/* FOUR 44px TARGETS, LAID 2x2 IN THE COLUMN THAT WAS ALREADY THERE.
-	   These were 23.2x23.2 at both widths, under the 44px floor and under the
-	   24px absolute floor as well, and prompt 0039 recorded that as a standing
-	   finding rather than fixing it. Its arithmetic was right and its conclusion
-	   was not: four 44px boxes in ONE LINE need 4*44 + 4*2.4 margin + 9.6 cell
-	   padding = 195.2px against a column measuring 125.4px, and buying that at
-	   375px means widening a table whose wrapper already scrolls 653px inside
-	   293px. That is the widening `IDEA_INTERFACE_STANDARDS` 10 refuses.
+	/* TWO 44px TARGETS ON ONE LINE, WHICH IS WHAT GIVES THE ROW ITS HEIGHT BACK.
+	   The controls were 23.2x23.2 until 2026-09-05, under the 44px floor and
+	   under the 24px absolute floor as well. Step 1 of the conflict order in
+	   `IDEA_INTERFACE_STANDARDS` 10 (2.12) re-laid all four 2x2 at 44px inside
+	   this same 6.4rem column -- correct arithmetic, no width cost, and a row
+	   that went from 40.4px to 98.3px. That figure was reported PER ROW, which
+	   is the half a student does not experience. A row is a number; a table is
+	   a page.
 
-	   TWO LINES OF TWO IS THE SAME FOUR CONTROLS IN THE SPACE THAT EXISTS:
-	   2*44 + 2*2.4 + 9.6 = 102.4px, which is the 6.4rem this column was already
-	   declared at, so nothing beside it moves and no new horizontal scroll
-	   appears at either width. The cost is row height and it is the whole cost,
-	   reported as a number rather than described. That is step 1 of the
-	   conflict order in `IDEA_INTERFACE_STANDARDS` 10 (2.12): re-lay the
-	   controls in the space that is already there before touching the container
-	   and before asking for an exception.
+	   MEASURED PER PAGE at 375px on `/dev/spec-table?rows=N`, filled rows, the
+	   module open and `autoresize` settled -- table height, and the scroll from
+	   the top of the table to the Add-row control below it, against a 667px
+	   phone viewport:
 
-	   `white-space: nowrap` is GONE and could not stay -- it is what forced the
-	   four onto one line. The grid replaces it rather than relying on wrapping,
-	   so the arrangement is stated instead of emergent. */
+	     rows   2x2 (step 1)          one line of two        given back
+	        3   364.7px / 0.62 scr    282.9px / 0.50 scr      81.8px
+	        6   658.0px / 1.06 scr    459.0px / 0.76 scr     199.0px
+	       12   1244.5px / 1.94 scr   822.3px / 1.31 scr     422.2px
+
+	   At 1440 the same three come out 1199.1 -> 652.9 at 12 rows, and the table
+	   does not scroll horizontally at all there (wrapper 1358 = table 1358), so
+	   width is free at desktop and the whole argument below is about 375.
+
+	   Read off `materials/`, `minRows` is 4 in 15 of the 26 real table blocks
+	   and the per-page total is 8 in the median case and 16 at the worst, so the
+	   12-row column is a page that exists rather than a stress case.
+
+	   EVERY ONE-LINE ARRANGEMENT GIVES THE SAME ROW BACK, MEASURED: one trigger,
+	   two controls, three controls, four controls and no column at all all
+	   report a 62.4px typical row at 375 and 51.4px at 1440, against 97.8/97.8
+	   for the 2x2. The row-action cell stops being what sets the row height the
+	   moment it is one line tall; past that the cell content sets it. So the
+	   choice among the one-line options is not about height at all -- it is
+	   about width and taps.
+
+	   WIDTH AND TAPS ARE WHY THIS ONE. At 375 the column and the table's own
+	   horizontal scroll come out: no column 0/528, one trigger 53.6/582, TWO
+	   CONTROLS 100/628, three 146.4/674, four on one line 192.8/721. Two
+	   controls is the only arrangement that moves NOTHING beside it -- 100 and
+	   628 are exactly what the 2x2 already measured. Four on one line widens a
+	   table whose wrapper is 293px, which is the widening step 3 refuses at the
+	   narrow width. An overflow menu and a select-then-act column both cost the
+	   most common action a SECOND TAP, and this is a control pressed at a bench
+	   on a phone.
+
+	   WHAT WAS DROPPED IS `moveRow` AND ITS TWO GLYPHS, WHICH IS STEP 2 -- "four
+	   controls in a cell with room for two", in the clause's own words. The pair
+	   carried the measured dead weight: exactly two of any table's move controls
+	   are permanently disabled (the first row's up, the last row's down), which
+	   is 2 of 4 on a one-row table -- and 4 of the 26 real blocks declare
+	   `minRows: 1`. Reordering also degrades exactly where it would matter,
+	   costing one tap per position: 11 to bring the last row of a 12-row table
+	   to the front. No gate reads row order -- `tableRowFilled`, `blockProgress`
+	   and `_classroom_spec_unmet` all count FILLED rows -- so what a student
+	   loses is rearranging after the fact, never credit.
+
+	   Step 2 changes what the surface can do, so it is not the measuring
+	   bundle's to take: `docs/decisions/entries/2026-09-05-spec-table-row-actions.md`
+	   names Mr. Pina as the owner of that loss.
+
+	   THE GRID STAYS TWO COLUMNS AND IS NOT A ROW OF FLEX. Two 44px tracks with
+	   two children is one line; stating it as a grid keeps the arrangement
+	   declared rather than emergent, and is what stops a third control being
+	   added later and silently wrapping the row back to 98.3px. */
 	.row-ops {
 		display: grid;
 		grid-template-columns: repeat(2, 44px);
@@ -1074,11 +1124,14 @@
 	   The control owns its row, so growing its box reflows nothing beside it --
 	   `align-items: center` keeps the counter where it was.
 
-	   THE FOUR GLYPH CONTROLS IN `.row-ops` WERE THE SAME FINDING AND ARE FIXED
-	   NOW, 2x2 at 44px -- see the comment above `.row-ops`. This paragraph used
-	   to say they were a layout decision rather than a rule to add, and left
-	   them at 23.2x23.2 with nobody's name on the decision; the standard gained
-	   the clause that answers it on 2026-09-05. */
+	   THE GLYPH CONTROLS IN `.row-ops` WERE THE SAME FINDING AND ARE FIXED NOW.
+	   They went 23.2x23.2 -> four at 44px laid 2x2 (step 1) -> two at 44px on
+	   one line (step 2), which is where the row height came back; see the
+	   comment above `.row-ops` for the per-page measurements and the decision
+	   entry that owns what a student loses. This paragraph used to say they were
+	   a layout decision rather than a rule to add, and left them at 23.2x23.2
+	   with nobody's name on the decision; the standard gained the clause that
+	   answers it on 2026-09-05. */
 	.table-foot .btn.tiny {
 		min-height: 44px;
 	}

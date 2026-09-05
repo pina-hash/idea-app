@@ -1095,6 +1095,16 @@
 				"classroom",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Assignment tables are shorter, and the arrows for reordering rows are gone",
+			"body": "Each row of a table on an assignment used to carry four small buttons stacked two by two, which made every row about twice as tall as it needed to be. On a phone, a twelve row table put nearly two full screens between the top of the table and the Add row button underneath it. The buttons are now side by side on one line, so a busy table takes roughly a third of a screen less. The trade is that the up and down arrows for reordering a row have been removed. Duplicate and delete are still there, still one tap, and still easy to hit. Nothing you have already typed changed, and the order your rows are in is still exactly what your teacher sees. If you need rows in a different order now, retype them, or use duplicate and delete. Tell us if you miss the arrows, through Report a problem on the page.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
 		}
 	]
 }
