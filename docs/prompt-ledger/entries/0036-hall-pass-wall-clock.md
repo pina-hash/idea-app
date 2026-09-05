@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tests/db/classroom-hall-pass-limits.test.ts`, a clock helper under `tests/db/helpers/` if the fix wants one, `tests/classroom-hall-pass*.test.ts`, `docs/prompt-ledger/entries/0036-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0178
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/hall-pass-wall-clock-test-xmetyb`
 - Notes: Six tests in `tests/db/classroom-hall-pass-limits.test.ts` fail
   between roughly 23:00 and 01:00 America/Los_Angeles and pass the rest of
   the day. Prompt 0034 proved it three ways, including reproducing the same
