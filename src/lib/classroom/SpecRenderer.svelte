@@ -559,6 +559,11 @@
 						</div>
 						<div class="table-foot">
 							{#if canEdit}
+								<!-- The 44px floor is carried by `.table-foot .btn.tiny` in this
+								     component's own style block, NOT by `.tap-44`: that class is
+								     one selector and `.cr-root .btn.secondary.tiny` (classroom.css)
+								     is three, so it was outranked and painted nothing. A class that
+								     does not apply is worse than no class. -->
 								<button type="button" class="btn secondary tiny" onclick={() => addRow(block)}>
 									Add row
 								</button>
@@ -987,6 +992,31 @@
 		align-items: center;
 		gap: 0.6rem;
 		margin-top: 0.4rem;
+	}
+	/* ADD ROW IS A 44px TARGET AND WAS A 24px ONE. Measured 69.2x24 at both
+	   widths on `/dev/spec-table?empty=1`, under the floor every student-facing
+	   surface carries -- on the one control this block asks a student to press,
+	   which they press standing at a bench holding a phone.
+
+	   IT IS A SCOPED RULE HERE RATHER THAN `.tap-44` IN THE MARKUP, and that is
+	   specificity rather than preference: `.cr-root .btn.secondary.tiny`
+	   (classroom.css) is three selectors and `.tap-44` is one, so the class
+	   applied and changed nothing -- measured 69.2x24 with it on. Scoped to
+	   `.table-foot` it beats that rule and reaches nothing else, which is the
+	   point: the 24px chip is a DELIBERATE opt-down with ten other call sites
+	   behind it, and the grading console already raises its own the same way.
+
+	   The control owns its row, so growing its box reflows nothing beside it --
+	   `align-items: center` keeps the counter where it was.
+
+	   THE FOUR GLYPH CONTROLS IN `.row-ops` ARE THE SAME FINDING AND ARE NOT
+	   FIXED HERE. They measure 23.2x23.2, under the 24px absolute floor as well;
+	   four 44px targets is ~11rem of a 6.4rem column inside a table that already
+	   scrolls horizontally at 375px, so it is a layout decision with its own
+	   measurements rather than a rule to add beside this one. The browser spec
+	   reports the number every run so it cannot be forgotten. */
+	.table-foot .btn.tiny {
+		min-height: 44px;
 	}
 	.zone-head {
 		display: flex;

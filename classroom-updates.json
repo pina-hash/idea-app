@@ -1026,6 +1026,16 @@
 				"classroom",
 				"profile"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Add row on a blank table now adds one row, not two",
+			"body": "On an assignment with a table, pressing Add row when the table was still empty gave you more rows than you asked for: two on most tables, and four on a table that asks for at least three filled rows. It now adds exactly one, every time, and each further press adds one more. Nothing you have already typed is affected, and the note under the table has not changed meaning: it counts rows you have actually filled in, so an empty row never counted toward it and still does not. If you had been deleting the extra blank rows before turning work in, you no longer need to. The Add row button is also bigger now, which matters if you are working from a phone at the bench.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
 		}
 	]
 }
