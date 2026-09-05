@@ -1,8 +1,8 @@
 ---
-title: "The same hole one subsystem over: 0182 closes `foundry-covers`, every cover goes through `/api/foundry-cover/<key>`, and `tournament-thumbs` is left open deliberately because the bracket is a public spectator surface (`claude/public-upload-buckets-4dqkbe`, migration 0182)"
+title: "The same hole one subsystem over: 0183 closes `foundry-covers`, every cover goes through `/api/foundry-cover/<key>`, and `tournament-thumbs` is left open deliberately because the bracket is a public spectator surface (`claude/public-upload-buckets-4dqkbe`, migration 0183)"
 date: 2026-09-05
 branches: [claude/public-upload-buckets-4dqkbe]
-migrations: ["0182"]
+migrations: ["0183"]
 subsystems: ["Foundry", "Tournaments", "Storage", "Security"]
 ---
 
@@ -13,7 +13,7 @@ from `0062`. Both are student uploads, both are own-folder write, and both read
 measured both, closed one, and left the other open on purpose with the reasoning
 written down where somebody can disagree with it.
 
-Files owned and touched: `supabase/migrations/0182_foundry_covers_private.sql`
+Files owned and touched: `supabase/migrations/0183_foundry_covers_private.sql`
 (new), `src/lib/foundry/covers.ts` (new),
 `src/routes/api/foundry-cover/[...path]/+server.ts` (new),
 `src/lib/foundry/forge.css`, `src/lib/foundry/FoundryDetail.svelte`,
@@ -53,7 +53,7 @@ build `<uid>/<uuid>.<ext>` -- and it bought nothing.
 
 ## What closed
 
-0182 is 0181 with one bucket changed. Both halves, because each governs a
+0183 is 0181 with one bucket changed. Both halves, because each governs a
 different path and neither is sufficient: `public = false` stops
 `/storage/v1/object/public/foundry-covers/<key>` answering, and replacing
 `foundry covers public read` with `foundry covers authenticated read` stops `anon`
@@ -159,7 +159,7 @@ settles it, rather than shipped on a reasoned guess.
    throughout: a signed URL is mintable against a PUBLIC bucket too, so
    `/api/foundry-cover/<key>` works before the bucket closes. The bucket stays
    open until step 2, which is the state of the world today.
-2. **Then paste `supabase/migrations/0182_foundry_covers_private.sql` into the
+2. **Then paste `supabase/migrations/0183_foundry_covers_private.sql` into the
    Supabase SQL editor.** The bucket goes private and the covers keep rendering,
    because step 1 already moved every surface onto the proxy.
 
@@ -198,7 +198,7 @@ left it in, because a reversal nobody has run is a paragraph.
   restatement that the policy admits `authenticated`. Every mutation is applied to
   a throwaway database at the SQL level, so there is no file to restore.
 * **The migration over seeded pre-migration data**: the chain booted short of
-  0182, an object written through the real pre-migration upload path, the exposure
+  0183, an object written through the real pre-migration upload path, the exposure
   measured (reads 1, lists it, `profiles` refused), the file applied over the top,
   and the object still present under the same key. Nothing was backfilled and
   nothing needed to be. It re-applies twice cleanly.
@@ -256,7 +256,7 @@ real one.
   session and a bucket a dev harness has neither of. So the four RENDERINGS are
   measured in a real browser and the MINT is not, and a green
   `/dev/foundry-covers` must not be read as coverage of it.
-* **The `/object/public/` half of 0182 section 2 is asserted, not measured**, for
+* **The `/object/public/` half of 0183 section 2 is asserted, not measured**, for
   the reason given above: no storage-api in this container. What was measured is
   the policy half -- the listing and the authenticated read -- which is the half
   Postgres can answer.

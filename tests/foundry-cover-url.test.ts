@@ -2,7 +2,7 @@
 //
 // 0057: THE COVER URL, THE KEY PREDICATE, AND THE PROXY ROUTE.
 //
-// `0182_foundry_covers_private.sql` makes `/storage/v1/object/public/
+// `0183_foundry_covers_private.sql` makes `/storage/v1/object/public/
 // foundry-covers/<key>` stop answering. Three properties of the app half fail
 // SILENTLY once it lands, which is why this file exists rather than a browser
 // pass alone:
@@ -11,7 +11,7 @@
 //      like a bad upload. The URL used to be built in three route files; the
 //      sweep at the bottom is what stops a fourth appearing.
 //   2. THE MINT IS ON THE CALLER'S OWN CLIENT. The route is deliberately NOT
-//      the authorization boundary -- 0182's storage policy is, evaluated as
+//      the authorization boundary -- 0183's storage policy is, evaluated as
 //      the caller's own role. A service-role client here would work perfectly,
 //      render identically, and quietly move the boundary into a file nobody
 //      would look in. Asserted by handing the route a client that RECORDS
@@ -203,7 +203,7 @@ describe('the permitted case', () => {
 	it("MINTS ON THE CALLER'S OWN CLIENT: the object handed in, never another one", async () => {
 		// The whole authorization argument. If this route ever reaches for a
 		// service-role client the mint succeeds for everybody, the pages look
-		// perfect, and 0182's policy stops being the boundary.
+		// perfect, and 0183's policy stops being the boundary.
 		const { client } = await call(KEY);
 		expect(client.calls.length).toBe(1);
 		const src = readFileSync('src/routes/api/foundry-cover/[...path]/+server.ts', 'utf8');
@@ -231,7 +231,7 @@ describe('every refusal is the same response', () => {
 	it('A SIGNED-OUT CALLER NEVER REACHES STORAGE AT ALL', async () => {
 		// Defence in depth rather than the gate -- the policy would refuse it
 		// anyway -- but it is what answers a crawler working through keys it
-		// scraped before 0182 landed, without a round trip each.
+		// scraped before 0183 landed, without a round trip each.
 		const { client } = await call(KEY, { claims: null });
 		expect(client.calls).toEqual([]);
 	});
@@ -249,7 +249,7 @@ describe('every refusal is the same response', () => {
 /**
  * Comments stripped before matching, because this file's OWN subject is
  * discussed in prose all over the tree -- `covers.ts` explains what
- * `getPublicUrl` used to do and 0182's client half is described in three
+ * `getPublicUrl` used to do and 0183's client half is described in three
  * headers. A sweep that matched prose would report the documentation as the
  * defect and, worse, could be silenced by rewording a comment.
  */
@@ -279,7 +279,7 @@ describe('no surface builds a public cover URL any more', () => {
 
 	it('NOTHING CALLS getPublicUrl ON THE COVERS BUCKET', () => {
 		// The URL was built in three route files, byte-identically. A fourth
-		// surface written against `getPublicUrl` after 0182 lands renders
+		// surface written against `getPublicUrl` after 0183 lands renders
 		// nothing and looks like a broken upload, and nothing on screen would
 		// say which of the two it was.
 		const offenders = files.filter((f) => {

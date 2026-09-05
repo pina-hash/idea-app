@@ -2,7 +2,7 @@
  * /dev/foundry-covers -- THE FOUR WAYS A COVER CAN RENDER, and the claim that
  * NONE OF THEM MOVES THE ROW.
  *
- * `0182_foundry_covers_private.sql` stops
+ * `0183_foundry_covers_private.sql` stops
  * `/storage/v1/object/public/foundry-covers/<key>` answering, so every Foundry
  * surface asks `/api/foundry-cover/<key>` instead. The failure that produces
  * is not a broken picture, which somebody would notice -- it is a gallery

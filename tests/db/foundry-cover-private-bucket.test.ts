@@ -1,14 +1,14 @@
 // tests/db/foundry-cover-private-bucket.test.ts
 //
-// 0057 PHASE B1: THE FOUR CONTROLS FOR 0182, EACH WITH ITS MUTATION.
+// 0057 PHASE B1: THE FOUR CONTROLS FOR 0183, EACH WITH ITS MUTATION.
 //
 // The BEFORE picture is measured here too rather than in a second file: the
-// last describe boots the chain SHORT of 0182, seeds an object through the
+// last describe boots the chain SHORT of 0183, seeds an object through the
 // real pre-migration upload path, proves the exposure, then applies the file
 // over the top and proves the closure on the same database. That is the only
 // arrangement that says anything about the objects production already holds.
 //
-// WHY THE MEASUREMENT AND NOT THE POLICY TEXT. Every fact 0182's header
+// WHY THE MEASUREMENT AND NOT THE POLICY TEXT. Every fact 0183's header
 // asserts is one a comment asserts, and a comment is not a boundary. The four
 // cases prompt 0057 asks for:
 //
@@ -37,11 +37,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 
-const MIGRATION_0182 = readFileSync(
-	join(process.cwd(), 'supabase', 'migrations', '0182_foundry_covers_private.sql'),
+const MIGRATION_0183 = readFileSync(
+	join(process.cwd(), 'supabase', 'migrations', '0183_foundry_covers_private.sql'),
 	'utf8'
 );
-const apply0182 = (d: TestDb) => d.sql(MIGRATION_0182);
+const apply0183 = (d: TestDb) => d.sql(MIGRATION_0183);
 
 /**
  * 0130's own dependency chain, taken from `tests/foundry-policies.test.ts` so
@@ -65,7 +65,7 @@ const BEFORE = [
 	'0130_foundry.sql',
 	'0131_foundry_service_role_writes.sql'
 ] as const;
-const AFTER = [...BEFORE, '0182_foundry_covers_private.sql'] as const;
+const AFTER = [...BEFORE, '0183_foundry_covers_private.sql'] as const;
 
 const BUCKET = 'foundry-covers';
 
@@ -114,7 +114,7 @@ beforeAll(async () => {
 	bruno = await createUser(db, 'bruno@boscotech.net', 'Bruno Barros');
 	// The shape all three upload sites produce: `<uid>/<uuid>.<ext>`.
 	aliceKey = `${alice.id}/6f1d2b4e-6a5c-4f0e-9d1a-2b3c4d5e6f70.png`;
-	// Written through the bucket's OWN write policy, which 0182 does not touch
+	// Written through the bucket's OWN write policy, which 0183 does not touch
 	// and which this line is the first proof of.
 	await db.asUser(alice.id, (q) =>
 		q(`insert into storage.objects (bucket_id, name) values ($1, $2)`, [BUCKET, aliceKey])
@@ -125,7 +125,7 @@ afterAll(async () => {
 	await db?.stop();
 });
 
-describe('0182 closes the foundry-covers bucket', () => {
+describe('0183 closes the foundry-covers bucket', () => {
 	test('THE BUCKET IS PRIVATE, in the column and not only in the prose', async () => {
 		const res = await db.sql<{ public: boolean }>(
 			`select public from storage.buckets where id = $1`,
@@ -221,7 +221,7 @@ describe('CONTROL 3 -- the owner', () => {
 		expect(await db.asUser(alice.id, (q) => canRead(q, aliceKey))).toBe(1);
 	});
 
-	test('AND STILL WRITES THEIR OWN: 0182 did not cost the upload path', async () => {
+	test('AND STILL WRITES THEIR OWN: 0183 did not cost the upload path', async () => {
 		const second = `${alice.id}/aa11bb22-cc33-dd44-ee55-ff6677889900.png`;
 		await db.asUser(alice.id, (q) =>
 			q(`insert into storage.objects (bucket_id, name) values ($1, $2)`, [BUCKET, second])
@@ -314,7 +314,7 @@ describe('CONTROL 4 -- a signed-in peer with no relationship to the owner', () =
 	}, 240_000);
 });
 
-describe('0182 over a database that already holds covers', () => {
+describe('0183 over a database that already holds covers', () => {
 	// CLAUDE.md's migration rule: boot the chain SHORT of the file, seed
 	// through the real pre-migration path, then apply the file over the top. A
 	// reset chain says the end state is reachable; it says nothing about
@@ -340,7 +340,7 @@ describe('0182 over a database that already holds covers', () => {
 				/permission denied/i
 			);
 
-			await apply0182(d);
+			await apply0183(d);
 
 			// The object is still there, under the same key -- so every
 			// `student_apps.cover_path` still names it and nothing needed
@@ -368,8 +368,8 @@ describe('0182 over a database that already holds covers', () => {
 		const d = await startTestDb([...AFTER]);
 		try {
 			await grantLikeProduction(d);
-			await apply0182(d);
-			await apply0182(d);
+			await apply0183(d);
+			await apply0183(d);
 			const res = await d.sql<{ public: boolean }>(
 				`select public from storage.buckets where id = $1`,
 				[BUCKET]
@@ -387,7 +387,7 @@ describe('0182 over a database that already holds covers', () => {
 	}, 240_000);
 
 	test('THE STATED UNDO REALLY REOPENS IT -- the 8am move, run rather than written down', async () => {
-		// 0182's header offers three statements as the reversal. A reversal
+		// 0183's header offers three statements as the reversal. A reversal
 		// nobody has executed is a paragraph, so it is executed here, and the
 		// bucket has to come back to exactly the state 0130 left it in.
 		const d = await startTestDb([...AFTER]);

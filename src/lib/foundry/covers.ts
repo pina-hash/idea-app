@@ -35,7 +35,7 @@
  *
  * and handed the result down as the `coverUrl` prop. Three copies of one rule
  * is the thing that quietly stops matching, and here the rule is a security
- * boundary: a fourth surface written against `getPublicUrl` after 0182 lands
+ * boundary: a fourth surface written against `getPublicUrl` after 0183 lands
  * would render nothing and look like a broken upload. They call this instead.
  *
  * The components' own prop stays `(path: string) => string | null`, so the

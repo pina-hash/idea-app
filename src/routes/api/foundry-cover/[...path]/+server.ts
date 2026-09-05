@@ -20,7 +20,7 @@ import type { RequestHandler } from './$types';
  * `select count(*) from public.profiles` was refused on the same connection,
  * which is what says the listing was the policy rather than RLS being off.
  *
- * 0182 flips the bucket private and replaces that policy with one
+ * 0183 flips the bucket private and replaces that policy with one
  * `to authenticated`. This route is what keeps every cover on every Foundry
  * surface rendering afterwards. It is 0052's `src/routes/api/avatar/[...path]`
  * with one bucket changed and one predicate swapped; the reasoning below is
@@ -32,7 +32,7 @@ import type { RequestHandler } from './$types';
  * ===========================================================================
  *
  * The signed URL is minted on `locals.supabase` -- the CALLER'S OWN client,
- * carrying the caller's own cookie session -- so 0182's storage policy is what
+ * carrying the caller's own cookie session -- so 0183's storage policy is what
  * decides, evaluated as the caller's own role. With no session that role is
  * `anon`, the policy does not name it, and the mint fails. There is no
  * service-role client on this path and there must not be one: the moment one
@@ -45,7 +45,7 @@ import type { RequestHandler } from './$types';
  * The `claims` check below is therefore DEFENCE IN DEPTH rather than the gate.
  * It answers a signed-out probe without a Supabase round trip, which matters
  * on a route an unauthenticated crawler can hit once per key it scraped out of
- * a gallery's HTML before 0182 landed.
+ * a gallery's HTML before 0183 landed.
  *
  * ===========================================================================
  * EVERY REFUSAL IS THE SAME BODYLESS 404
@@ -82,7 +82,7 @@ import type { RequestHandler } from './$types';
  * an owner. Said out loud rather than left for the next reader to find.
  */
 
-/** 0130's bucket. Private since 0182. */
+/** 0130's bucket. Private since 0183. */
 const COVERS_BUCKET = FOUNDRY_COVER_BUCKET;
 
 /**

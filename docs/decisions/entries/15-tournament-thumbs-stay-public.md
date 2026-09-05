@@ -2,7 +2,7 @@
 - Raised: 2026-09-05  By: prompt 0057, `claude/public-upload-buckets-4dqkbe`
 - Status: open
 - Decision:
-- Default this assistant would pick: keep 0182 as shipped -- `foundry-covers` private,
+- Default this assistant would pick: keep 0183 as shipped -- `foundry-covers` private,
   one read policy `to authenticated`, every cover asked for through
   `/api/foundry-cover/<key>` -- and leave `tournament-thumbs` exactly as it is until
   somebody can measure the one thing this container could not, then close only its
@@ -12,11 +12,11 @@
   bracket is a public spectator surface ON PURPOSE, a parent opens it with no session,
   and narrowing the wrong half of it turns a working page into a page of broken images
   in front of exactly the audience it was built for.
-- What it unblocks: nothing is waiting. 0182 stands on its own and Tournaments is
+- What it unblocks: nothing is waiting. 0183 stands on its own and Tournaments is
   untouched. Answering "close the listing too" is a small migration plus one
   measurement; answering "leave it" costs one line in `CLAUDE.md` recording that the
   bucket is deliberately open.
-- Context: `supabase/migrations/0182_foundry_covers_private.sql` and its header;
+- Context: `supabase/migrations/0183_foundry_covers_private.sql` and its header;
   `src/lib/foundry/covers.ts`; `src/routes/api/foundry-cover/[...path]/+server.ts`;
   `tests/db/foundry-cover-private-bucket.test.ts` (the before and after pictures with
   four mutated controls) and `tests/db/tournament-thumb-stays-public.test.ts` (this
@@ -49,7 +49,7 @@ first.
 
 ## What closed
 
-`foundry-covers`. 0182 flips the bucket private and replaces the `to public` policy with
+`foundry-covers`. 0183 flips the bucket private and replaces the `to public` policy with
 one `to authenticated`; the app half routes every cover through
 `/api/foundry-cover/<key>`, which mints a short-lived signed URL **on the caller's own
 client** and redirects, so the storage policy is the authorization boundary and the

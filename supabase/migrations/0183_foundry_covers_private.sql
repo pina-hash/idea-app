@@ -1,4 +1,4 @@
--- 0182_foundry_covers_private.sql
+-- 0183_foundry_covers_private.sql
 --
 -- CLOSE THE `foundry-covers` BUCKET. Cover art a student drew for a game they
 -- published stops being world readable and becomes readable by a signed-in

@@ -5,7 +5,7 @@ import type { PageServerLoad } from './$types';
 /**
  * THE COVER-STATE HARNESS. Dev only: 404 in production, no auth, no Supabase.
  *
- * WHY IT EXISTS. `0182_foundry_covers_private.sql` stops
+ * WHY IT EXISTS. `0183_foundry_covers_private.sql` stops
  * `/storage/v1/object/public/foundry-covers/<key>` answering, so every Foundry
  * surface now asks `/api/foundry-cover/<key>` instead. That route answers one
  * bodyless 404 to a refusal and to a missing object alike, which means a cover

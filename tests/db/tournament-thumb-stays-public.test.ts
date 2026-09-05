@@ -3,14 +3,14 @@
 // 0057 PHASE A3/B1: THE BUCKET THIS BUNDLE DELIBERATELY DID NOT CLOSE.
 //
 // Prompt 0052's sweep named three buckets with one shape -- `avatars` (closed
-// by 0181), `foundry-covers` (closed by 0182) and `tournament-thumbs`. This
+// by 0181), `foundry-covers` (closed by 0183) and `tournament-thumbs`. This
 // file is why the third is still open, written as assertions rather than as a
 // paragraph, because "left alone on purpose" and "forgotten" look identical in
 // a schema and only one of them is defensible.
 //
 // THE EXPOSURE IS REAL AND IS MEASURED HERE, not softened: an anonymous caller
 // reads a known key AND lists every key in the bucket, exactly as it could in
-// `foundry-covers` before 0182.
+// `foundry-covers` before 0183.
 //
 // WHAT MAKES IT A DIFFERENT DECISION IS THE AUDIENCE, and that is measured
 // here too. `0062_tournaments.sql` grants `select` on every tournament table
@@ -196,7 +196,7 @@ describe('why it is not closed by the same migration that closed foundry-covers'
 	});
 });
 
-describe('0182 left this bucket exactly as it found it', () => {
+describe('0183 left this bucket exactly as it found it', () => {
 	test('no policy on tournament-thumbs mentions foundry, and none was renamed', async () => {
 		// The one migration this bundle ships names one bucket. If it ever
 		// starts naming this one, it does so in a file of its own with its own
