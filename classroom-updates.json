@@ -1138,6 +1138,16 @@
 		},
 		{
 			"date": "2026-09-05",
+			"title": "Turning work in now really does lock its files",
+			"body": "Once you turn an assignment in, its files belong to the hand-in your teacher is looking at. The Remove button already went away at that point, but the files themselves were not actually protected: anything that reached past the page could still wipe the stored file while the hand-in kept listing it, and your teacher would open it and find nothing there. The files are locked now, properly, and so is adding new ones. If a removal is ever refused you will see why in words instead of nothing happening: \"This is turned in, so files are locked. Your teacher has it now. Unsubmit it to keep working.\" Nothing changes while an assignment is still open, and unsubmitting, or your teacher returning the work after grading it, hands the files back exactly as before.",
+						"tags": [
+				"Assignments",
+				"files",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
 			"title": "GREENLINE now tells you when your track is waiting on a teacher",
 			"body": "When you submit a track from the GREENLINE track editor, you can still race it yourself straight away, but nobody else can see it until a teacher approves it. That was only ever written in a tooltip, which does not show up on a phone at all, so on the tile it looked like the track was just live. Your own track now says in plain words, under the tile, that it is waiting and that nobody else can see it yet. If a teacher sends it back, their note to you is printed there too instead of hiding behind a hover. Nothing about how the review works has changed, and nothing you submitted before is affected. Your custom decal already said this and still does. Teachers also have one page now that shows both the tracks and the decals waiting on them, so things should not sit unlooked-at as long.",
 			"tags": [
