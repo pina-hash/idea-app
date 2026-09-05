@@ -1,0 +1,224 @@
+/* ==========================================================================
+   THE MATRIX THEME. A student asked for it, and the honest reason it is worth
+   building is that the product already half looks like it: the IDEA plate is
+   green metal on near-black and the IDEA pathway's own identity colour is
+   #00FF41. What this does is finish the sentence -- black grounds, phosphor
+   green type -- WITHOUT taking any of the colours that tell one thing from
+   another.
+
+   ------------------------------------------------------------------------
+   THE RULE THIS FILE OBEYS. Every colour in the token layer is exactly one of
+   three kinds, and a theme may repaint exactly one of them.
+
+     1. IDENTITY -- a colour that names a THING. The launcher's per-app pairs
+        (--acc-primary / --acc-secondary on [data-app=...]), the pathway
+        palette, a brand (FIRST red, GREENLINE chrome). Test: strip the label
+        and the mark away; if the colour still tells you WHICH one this is, it
+        is identity. A THEME NEVER TOUCHES IT. GAUNTLET green beside Foundry
+        orange beside FRC red is the only thing letting a person pick one card
+        out of twelve at a glance, and a theme that painted them all green
+        would delete that rather than restyle it.
+
+     2. SEMANTIC -- a colour that names a STATE inside one vocabulary:
+        --green success/active, --gold special, --cyan metadata, --amber
+        warning, --teal in progress, --violet special, --crimson live/error,
+        and the -ink corrections beside them. A THEME NEVER TOUCHES IT EITHER,
+        for the same reason: six hues are how a reader tells six states apart
+        on one screen. Collapsing them into the theme's own hue is the
+        launcher failure one level down, where it is harder to see.
+
+     3. CHROME -- everything else. The grounds (--bg0/1/2, --plate, --edge,
+        --surface-0/1/2, --green-tint), the neutral text tiers (--white, --dim,
+        --ice, --gear, --text-1/2/3) and the rules between things (--boundary).
+        A THEME OWNS ALL OF IT, and this file repaints nothing else.
+
+   A THIRTEENTH APP ANSWERS THE RULE WITHOUT READING THIS FILE. Its accent
+   arrives as --acc-primary / --acc-secondary in a [data-app='<id>'] rule in
+   AppLauncher.svelte. That is kind 1. It is not themeable, and nothing has to
+   be added here for it -- which is the property a list of exceptions would
+   not have had.
+
+   ------------------------------------------------------------------------
+   AND THE ONE CONSTRAINT ON *HOW*: A CHROME TOKEN WHOSE GROUND THIS THEME
+   DOES NOT OWN MOVES IN HUE AND SATURATION ONLY, AT HELD RELATIVE LUMINANCE.
+
+   --white, --dim, --ice and --gear are read OUTSIDE the portal shell, on
+   grounds this file has no say over: FRC paints five components' meta in
+   --dim on .frc-root's WHITE paper, and FSP reads --white 72 times and --dim
+   34 times on a light navy/paper room that is deliberately not IDEA. A theme
+   that lightened or darkened those would move contrast in a room it never
+   measured -- and --dim on FRC paper is ALREADY 3.34:1, a known failure
+   CLAUDE.md names, so moving it is not a small thing.
+
+   Contrast is a function of RELATIVE LUMINANCE, so holding the luminance
+   holds every ratio anywhere in the application, measured rather than
+   reasoned. Each of the four below was solved for its base token's own
+   luminance at the new hue and saturation:
+
+     --white  #eae6d8 L=0.7904  ->  #caf0cb L=0.7919  (+0.18%)
+     --dim    #849080 L=0.2641  ->  #5e9a60 L=0.2634  (-0.28%)
+     --ice    #a9bcab L=0.4734  ->  #91c492 L=0.4757  (+0.49%)
+     --gear   #75846f L=0.2143  ->  #568c58 L=0.2144  (+0.03%)
+
+     --dim on FRC paper  #ffffff : 3.34 base -> 3.35 themed
+     --dim on FRC card   #f2f5f8 : 3.06 base -> 3.06 themed
+     --white on FSP navy #0a2540 : 12.44 base -> 12.46 themed
+
+   THE GROUNDS AND THE REGISTER TIERS ARE THIS THEME'S OWN and move freely --
+   they are read only where this file also decides what is behind them. Every
+   one is re-measured in the table at the foot of this file, and every text
+   role comes out ABOVE its base value rather than merely clearing 4.5:1.
+
+   NOT TOUCHED, DELIBERATELY:
+     - --line / --line-strong / --hairline. Already sage and mint; --hairline
+       is a white alpha rule CLAUDE.md forbids raising, and re-hueing the
+       other two would be a claim about FSP's hairlines for no gain.
+     - Every --nb-* token. The notebook has its OWN plate picker, and a site
+       theme reaching into a room that already asks the question is two
+       controls fighting over one surface.
+     - Every scoped room's own declarations (.frc-root, .gt-root, .glb,
+       .tnm-root, .fsp-root, .fg-root, .cd-root, .nb-root). Those sit BELOW
+       :root and win for their own subtree by the ordinary cascade -- there is
+       no exclusion list here because there does not need to be one.
+   ========================================================================== */
+
+:root[data-theme='matrix'] {
+	/* --- Grounds. Near-black with the green cast still in it: the plate did
+	   not stop being machined metal, the lights went out. ----------------- */
+	--bg0: #040804;
+	--bg1: #081108;
+	--bg2: #0d1a0d;
+	--plate: #132313;
+	--edge: #010301;
+
+	/* --- The classroom / console register's own grounds and tiers. -------- */
+	--surface-0: #020502;
+	--surface-1: #060e07;
+	--surface-2: #0a150b;
+	--text-1: #ccf5cc;
+	--text-2: #7fb883;
+	--text-3: #4a6f4d;
+	--boundary: #5f8a63;
+	--green-tint: #073a1c;
+
+	/* --- The four luminance-held tiers. See the block above for why each of
+	   these is a solved value and not a chosen one. ------------------------ */
+	--white: #caf0cb;
+	--dim: #5e9a60;
+	--ice: #91c492;
+	--gear: #568c58;
+}
+
+/* --------------------------------------------------------------------------
+   THE RAIN, AND THE ONE NON-TOKEN RULE IN THIS FILE.
+
+   .bg-fx is the app shell's own decorative background layer -- it already
+   exists on every page, it is `position: fixed`, `pointer-events: none`,
+   `z-index: 0` and `aria-hidden`, so restyling it can change no geometry, eat
+   no tap and reach no reader. That is the whole of the exception: everything
+   else this theme does is a token value.
+
+   THE MOTION IS BACKGROUND-POSITION AND NOTHING ELSE. No transform, no
+   opacity, no filter -- so the still state is the running state with the
+   columns parked, which is what "a still version that is not a broken
+   version" has to mean. Nothing is hidden at rest and nothing has to be
+   restored under `reduce`.
+
+   THE GATE IS `no-preference`, THE REPOSITORY'S OWN SHAPE (every mark in
+   $lib/marks, AnimatedLogo, MoltenSeam). Declared inside the query rather
+   than declared and then cancelled, so a reader with the preference set never
+   has an animation to cancel: `animation-name` computes to `none` and
+   `getAnimations()` is empty, which is what tools/browser-verify's
+   `motionSweep` measures rather than trusting.
+   -------------------------------------------------------------------------- */
+:root[data-theme='matrix'] .bg-fx {
+	background-color: transparent;
+	background-image:
+		/* the column streaks: a head that is bright and a tail that fades */
+		repeating-linear-gradient(
+			to bottom,
+			rgba(0, 255, 65, 0.13) 0,
+			rgba(0, 255, 65, 0) 90px,
+			rgba(0, 255, 65, 0) 220px
+		),
+		repeating-linear-gradient(
+			to right,
+			rgba(0, 255, 65, 0.055) 0,
+			rgba(0, 255, 65, 0.055) 1px,
+			transparent 1px,
+			transparent 17px
+		),
+		radial-gradient(ellipse at 50% -10%, rgba(0, 255, 65, 0.07), transparent 62%),
+		radial-gradient(ellipse at 50% 120%, rgba(0, 255, 65, 0.04), transparent 55%);
+	background-size:
+		17px 220px,
+		17px 100%,
+		100% 100%,
+		100% 100%;
+	background-repeat: repeat, repeat-x, no-repeat, no-repeat;
+	background-position:
+		0 0,
+		0 0,
+		0 0,
+		0 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	:root[data-theme='matrix'] .bg-fx {
+		animation: matrix-rain 7s linear infinite;
+	}
+}
+
+@keyframes matrix-rain {
+	from {
+		background-position:
+			0 0,
+			0 0,
+			0 0,
+			0 0;
+	}
+	to {
+		background-position:
+			0 220px,
+			0 0,
+			0 0,
+			0 0;
+	}
+}
+
+/* ==========================================================================
+   MEASURED, in Chromium 141 at 375px and 1440px, by compositing each colour
+   over its real painted ground and reading the pixel back off a canvas --
+   these tokens resolve to color(srgb ...) and color-mix(), which a regex over
+   computed styles skips silently and then reports the plate instead of the
+   real ground. `/dev/themes` renders the board; the numbers are identical at
+   both widths.
+
+   THE BOARD IS THE PAIRINGS THE APP MAKES, NOT THE CARTESIAN PRODUCT: 54
+   cells, six page grounds at eight roles plus --plate carrying a hero panel's
+   copy and --green-tint carrying a selected classroom row's. --plate takes no
+   boundary because colors.css says in its own words that nothing in the app
+   renders on it.
+
+   WORST GROUND PER ROLE, base -> matrix:
+
+     role        floor  worst ground     base    matrix
+     --white      4.5   --plate           9.39   13.18
+     --text-1     4.5   --green-tint     10.42   10.73
+     --text-2     4.5   --green-tint      4.91    5.57
+     --ice        4.5   --bg2             7.06    8.98
+     --dim        4.5   --bg2             4.24    5.35
+     --gear       4.5   --bg2             3.57    4.52
+     --boundary   3     --green-tint      2.86    3.25
+     --text-3     0     --bg2             2.38    3.14   (decorative)
+
+   ALL 54 CELLS CLEAR THEIR FLOOR UNDER THE THEME AND NOT ONE IS WORSE THAN
+   THE BASE PALETTE. Three of them clear a floor the base palette MISSES
+   (--gear on --bg2, --boundary on --green-tint, --dim on --bg2) -- those are
+   pre-existing gaps CLAUDE.md already names in words, improved here as a side
+   effect and not fixed: fixing them is a palette bundle with its own answer
+   for every surface that reads those tokens.
+
+   A green-on-black theme is exactly where contrast quietly fails, so the
+   number is here rather than an assurance.
+   ========================================================================== */

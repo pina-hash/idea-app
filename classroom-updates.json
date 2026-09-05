@@ -1105,6 +1105,16 @@
 				"assignments",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "A Matrix theme, and how to turn it on",
+			"body": "Somebody asked for a Matrix theme, so there is one. Open the menu behind your picture at the top of any page and pick it under Theme: the backgrounds go black, the writing goes phosphor green, and green code drifts down behind the page. Pick IDEA in the same place to go back, and nothing is left behind when you do. What deliberately does NOT change colour is anything that tells you what something is: every app keeps its own colour on the home screen, so GAUNTLET is still green, the Foundry is still orange and FRC is still red, and the colours that mean warning, error, done and in progress all stay what they were. The choice is remembered on this computer, not on your account, so a laptop at night and a shop machine in daylight can be set differently. If you have turned motion off in your device settings the falling code stays still instead, and everything is still there to read. You need to be signed in for it: the switch lives in your profile menu, and the theme is on only where that switch is.",
+			"tags": [
+				"portal",
+				"theme",
+				"new"
+			]
 		}
 	]
 }
