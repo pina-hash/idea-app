@@ -3,8 +3,9 @@
 - By: router chat for IDEA portal work
 - Owns: `ContentComposer.svelte`, the composer draft signature module, the draft write paths in `src/lib/classroom/transports.ts`, `src/lib/notebook/draft-mirror.ts`, `src/routes/dev/composer-draft/**`, at most one migration (conditional), `tests/classroom-composer*`, `tests/dom/composer-draft*`, `tests/db/classroom-draft*`, `tools/browser-verify/routes/composer-draft*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0061-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, conditional, number taken at commit time. Highest on origin/main at issue: 0181
-- Status: issued
-- Branch: assigned by the harness
+- Migration taken: NONE. The defect was in the client, not in SQL.
+- Status: pushed
+- Branch: `claude/draft-duplication-homework-progress-65qxgf` (from `origin/integration` at `fdf8c68`)
 - Notes: Two reports from the 2026-09-05 feedback pull, and they are the two
   most serious things in it because both are about work disappearing or
   multiplying rather than about a control being awkward.

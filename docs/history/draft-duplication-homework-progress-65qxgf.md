@@ -366,6 +366,16 @@ named.
   route made it four, and regenerating the measured region cleared all four. A
   session that finds that file red on a fresh branch should not assume it broke
   it.
+* `npm run check` (`svelte-kit sync && svelte-check --tsconfig ./tsconfig.json`):
+  2965 files, **0 errors, 37 warnings, 20 files with problems**.
+* `npm test` (the full suite, `--no-file-parallelism`): **278 files passed,
+  5674 tests passed, 0 failed**, 278.1s. Run at **13:23 America/Los_Angeles on
+  2026-09-05** (20:23:46 UTC), on the final tree at `923b963`.
+  * An EARLIER run of the same suite, taken mid-bundle, had **2 failures, both
+    in `tests/derived-numbers.test.ts`** -- the measured counts region naming
+    fewer specs than the tree holds. Three of those four specs were already
+    unmeasured at the branch point (see above); regenerating the region cleared
+    all four, which is why the final run is clean.
 * Mutation proof: above, with restores by `cp` and md5.
 
 ## NOT verified
