@@ -7,7 +7,7 @@ subsystems: ["CI and automation", "Browser harness", "Testing", "Documentation"]
 ---
 
 Prompt 0050. No migration, no database, no app code. About twenty lines of shell
-inside `integrate.yml`, twelve proof cases, two workflow tests, and three
+inside `integrate.yml`, fourteen proof cases, two workflow tests, and three
 corrected sentences.
 
 Started from `origin/integration` at `17be15b`, not `main`. Git identity was
@@ -126,7 +126,7 @@ single push as the merges, so there is no second push and no new trigger.
 
 ## Proof
 
-`tools/integrate-gate-proof.sh` grew from 51 cases to 64, all executed:
+`tools/integrate-gate-proof.sh` grew from 51 cases to 65, all executed:
 
 | case | what it drives | observed |
 | --- | --- | --- |
@@ -138,10 +138,11 @@ single push as the merges, so there is no second push and no new trigger.
 | 53 | a branch that adds no spec | `refresh:none`, 0 commits |
 | 54/55 | 0035's conflict path, unchanged | `RESOLVED`, then `refresh:none`, region matches |
 | 56/57 | the regeneration itself fails | `refresh:FAILED`, the merge still reachable, 0 commits |
-| 58 | **the same two merges with the refresh withheld** | **STALE** |
-| 59 | negative control: markers renamed | cut is empty |
+| 58 | a generator that writes a SECOND file | `refresh:FAILED`, 0 commits, the stowaway left uncommitted |
+| 59 | **the same two merges with the refresh withheld** | **STALE** |
+| 60 | negative control: markers renamed | cut is empty |
 
-Case 58 is the point. Case 51 on its own would read identically if the merges
+Case 59 is the point. Case 51 on its own would read identically if the merges
 had happened to be right and the refresh had done nothing, so the defect is
 reproduced inside the harness as the positive control for it.
 

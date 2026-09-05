@@ -272,8 +272,8 @@ The extra commit starts nothing: GitHub begins no workflow run from a push made
 with `GITHUB_TOKEN`, which is the same rule `ci.yml`'s own header records as the
 reason `integration` gets no CI run of its own from a push.
 
-`tools/integrate-gate-proof.sh` cases 48-59 prove this against throwaway
-repositories, and case 58 is the defect itself reproduced -- the same two clean
+`tools/integrate-gate-proof.sh` cases 48-60 prove this against throwaway
+repositories, and case 59 is the defect itself reproduced -- the same two clean
 merges with the refresh withheld, which must come out stale, so case 51 is a
 measurement rather than a hope.
 

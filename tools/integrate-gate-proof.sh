@@ -1120,6 +1120,14 @@ fx_add_spec_and_break_generator() {
 	printf '\nthrow new Error("fixture: the generator is broken on this tree");\n' \
 		>> tools/browser-verify/readme-counts.mjs
 }
+# A spec added AND a generator that ALSO writes an unrelated file. The
+# generator succeeds; what must not happen is the second file riding into
+# `integration` inside a commit whose message says "counts".
+fx_add_spec_and_stowaway() {
+	fx_add_route_spec "$1"
+	printf '\nimport { writeFileSync as _fxw } from "node:fs";\n_fxw("STOWAWAY.txt", "written by a generator that reached too far\\n");\n' \
+		>> tools/browser-verify/readme-counts.mjs
+}
 
 # The workflow's own shape in miniature: merge every branch named, THEN run
 # `counts_refresh` once, in that order and at that place. Prints the merge
@@ -1214,7 +1222,20 @@ check_says "57. ...and the merge is still on integration, with no regeneration c
 		"$(git -C "$rr" merge-base --is-ancestor "$(git -C "$rr" rev-parse origin/claude/spec-broke)" integration && echo reachable || echo LOST)" \
 		"$(refresh_commits "$rr")")"
 
-# --- case 58: THE POSITIVE CONTROL FOR THE HOLE ----------------------------
+# --- case 58: a generator that writes somewhere else is refused ------------
+# "Only the static half" is a claim about the GENERATOR, and this is where it
+# stops being one. The refusal is what makes it a property of the commit: a
+# generator that also wrote a second file -- a stray artefact, a widened
+# `--static`, a future edit nobody thought about -- would otherwise carry
+# something nobody looked at into `integration` under a message saying "counts".
+branch_with "$rr" claude/spec-stow fx_add_spec_and_stowaway fixture-four
+out58="$(sweep "$rr" claude/spec-stow)"
+check_says "58. a generator that writes a SECOND file is refused, and commits nothing" \
+	'merges: CLEAN refresh:FAILED 0 uncommitted' \
+	"$(printf '%s %s %s' "$out58" "$(refresh_commits "$rr")" \
+		"$( cd "$rr" && git status --porcelain STOWAWAY.txt >/dev/null 2>&1 && [ -n "$(git status --porcelain STOWAWAY.txt)" ] && echo uncommitted || echo MISSING )")"
+
+# --- case 59: THE POSITIVE CONTROL FOR THE HOLE ----------------------------
 # Case 51 says the region matches the merged tree. On its own that is not
 # evidence: it would read identically if the merges had happened to be right
 # and `counts_refresh` had done nothing at all. So the SAME two merges are run
@@ -1223,7 +1244,7 @@ check_says "57. ...and the merge is still on integration, with no regeneration c
 # described -- and it is what makes 51 a measurement.
 git_q -C "$rr" checkout -B integration main
 ( cd "$rr" && fx_merge claude/spec-one >/dev/null && fx_merge claude/spec-two >/dev/null )
-check_says "58. WITHOUT the refresh, those same two clean merges leave it stale" \
+check_says "59. WITHOUT the refresh, those same two clean merges leave it stale" \
 	STALE "$(region_verdict "$rr")"
 
 # --- negative control: the cut refuses when the markers are renamed --------
@@ -1232,9 +1253,9 @@ sed 's/counts_refresh_marker/counts_refresh_renamed/g' "$WORKFLOW" > "$nc"
 nc_out="$(cut_marker "$nc" counts_refresh_marker)"
 rm -f "$nc"
 if [ -z "${nc_out//[[:space:]]/}" ]; then
-	check_says "59. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty empty
+	check_says "60. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty empty
 else
-	check_says "59. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty non-empty
+	check_says "60. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty non-empty
 fi
 
 # ---------------------------------------------------------------------------
@@ -1243,7 +1264,7 @@ fi
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=64
+EXPECTED_CASES=65
 ran=$((pass + fail))
 
 echo
