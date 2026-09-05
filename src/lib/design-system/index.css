@@ -11,3 +11,6 @@
 @import './effects.css';
 @import './surfaces.css';
 @import './motion.css';
+/* Site themes last: a layer that overrides token VALUES, never a token file.
+   See themes/index.css for what a theme may and may not repaint. */
+@import './themes/index.css';

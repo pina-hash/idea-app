@@ -33,6 +33,7 @@
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
 	import { filesFromDataTransfer, normalizeFoundryInput, type NormalizeResult } from './normalize.ts';
+	import { dropTarget, type DragLikeEvent } from '$lib/file-drop';
 	import { preflightZipInBrowser, type BrowserPreflightResult } from './preflight-browser.ts';
 	import {
 		FOUNDRY_LIMITS,
@@ -164,11 +165,37 @@
 		phase = verdict.ok ? 'ready' : 'blocked';
 	}
 
-	async function onDrop(event: DragEvent) {
-		event.preventDefault();
-		dragging = false;
-		if (!event.dataTransfer) return;
-		await accept(await filesFromDataTransfer(event.dataTransfer));
+	/**
+	 * THE DROP IS THE SHARED ONE NOW, and what this replaced is worth naming
+	 * because the differences were all invisible.
+	 *
+	 * This zone hand-rolled `ondragover`/`ondragleave`/`ondrop` -- a second
+	 * implementation of drop, which prompt 0026 flagged and left for whoever
+	 * owned this file. It cost three things at once. There was no
+	 * `dragenter`/`dragleave` DEPTH COUNTING, so dragging across the two
+	 * buttons inside the zone fired `dragleave` on the container and the
+	 * highlight flickered off and on over its own children. There was no
+	 * `isFileDrag` check, so dragging selected TEXT lit the whole zone up and
+	 * `preventDefault`ed a drop it could do nothing with. And there was no
+	 * paste path at all, so it never asked `claimPaste` and sat outside the one
+	 * statement of "has a handler closer to the caret already taken this".
+	 *
+	 * `resolve` IS WHY THE SWAP IS NOT A LOSS. `dropTarget` reads
+	 * `dataTransfer.files`, which does NOT enumerate a dropped FOLDER --
+	 * and a folder is one of the three shapes this surface exists to accept.
+	 * `filesFromDataTransfer` walks `webkitGetAsEntry()` for that, so it is
+	 * handed in as the transfer READER while the drag state machine stays
+	 * shared. One drop, one reading per surface.
+	 *
+	 * THE CAST IS THE MINIMAL SHAPE MEETING THE REAL ONE. `DragLikeEvent`'s
+	 * `dataTransfer` is deliberately narrower than `DataTransfer` -- it names
+	 * only `types` and `files`, which is all the state machine reads -- so the
+	 * one caller that needs the whole object asks for it here, where a reader
+	 * can see it happen.
+	 */
+	async function resolveDropped(dt: DragLikeEvent['dataTransfer']): Promise<File[]> {
+		if (!dt) return [];
+		return filesFromDataTransfer(dt as unknown as DataTransfer);
 	}
 
 	function onPick(event: Event) {
@@ -669,12 +696,11 @@
 				class:fdy-dragging={dragging}
 				role="button"
 				tabindex="0"
-				ondragover={(e) => {
-					e.preventDefault();
-					dragging = true;
+				use:dropTarget={{
+					onfiles: (files) => void accept(files),
+					onactive: (active) => (dragging = active),
+					resolve: resolveDropped
 				}}
-				ondragleave={() => (dragging = false)}
-				ondrop={onDrop}
 				onclick={() => fileInput?.click()}
 				onkeydown={(e) => {
 					if (e.key === 'Enter' || e.key === ' ') {

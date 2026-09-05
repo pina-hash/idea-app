@@ -20,6 +20,42 @@
 	 */
 	const dirty = $derived(page.url.searchParams.get('dirty') === '1');
 
+	/**
+	 * `?empty=1` seeds NO rows for the table, which is the state the reported
+	 * Add-row defect lives in and the one the seeded fixture above can never
+	 * reach: `ensureRows` fires on first touch, so a table that arrives with
+	 * rows already in it never runs the arithmetic that was wrong.
+	 *
+	 * It is a SEPARATE query flag from `?dirty=1` rather than a third value of
+	 * one, because the two answer different questions of the same block and a
+	 * reader picking one should not be silently choosing the other.
+	 */
+	const empty = $derived(page.url.searchParams.get('empty') === '1');
+
+	/**
+	 * `?rows=N` seeds N rows into the table instead of the fixture's four, and
+	 * exists because A ROW IS A NUMBER AND A PAGE IS THE COST. The row-action
+	 * column was laid 2x2 at 44px on 2026-09-05 and took the row from 40.4px to
+	 * 98.3px; that figure was reported per row, and nobody had measured what it
+	 * does to the document a student actually scrolls.
+	 *
+	 * THE COUNTS ARE READ OFF THE REAL SPECS, not chosen. Across the 26 table
+	 * blocks in `materials/`, `minRows` is 4 in 15 of them and the per-page
+	 * total is 8 in the median case and 16 at the worst. So 3 is a small table,
+	 * 6 is one page's median-ish load in a single block, and 12 is the busy
+	 * page that actually exists.
+	 *
+	 * Clamped to 0..40: a query param a person types is not a licence to mount
+	 * four hundred textareas and time out the harness.
+	 */
+	const rows = $derived.by(() => {
+		const raw = page.url.searchParams.get('rows');
+		if (raw === null) return null;
+		const n = Number.parseInt(raw, 10);
+		if (!Number.isFinite(n)) return null;
+		return Math.min(Math.max(n, 0), 40);
+	});
+
 	const MATERIALS = [
 		'ASTM 1018 steel',
 		'304 stainless',
@@ -94,15 +130,27 @@
 
 	function seed(): Record<string, ResponseValue> {
 		const materials = dirty ? DIRTY_MATERIALS : MATERIALS;
+		// NO `rows` KEY AT ALL, not an empty array: an untouched block is one the
+		// student has never written to, which is a block with no stored value,
+		// and that is the state the class page actually hands the renderer.
+		if (empty) return { f1: { text: LONG }, c1: { checked: [true, false] } };
+		// `?rows=N` widens the fixture past its four. The material cycles so a
+		// tenth row is a real value rather than an empty cell, which matters:
+		// an empty cell is one line tall and a filled one may not be, so a page
+		// height measured over blanks understates the page a student has.
+		const count = rows ?? materials.length;
 		return {
 			t1: {
-				rows: materials.map((m, i) => ({
-					sample: `B-${i + 1}`,
-					material: m,
-					confirm: m,
-					mass: `${(18.24 + i * 3.1).toFixed(2)}`,
-					notes: i === 0 ? 'Displacement reading repeated twice for this one.' : 'Dimensional.'
-				}))
+				rows: Array.from({ length: count }, (_, i) => {
+					const m = materials[i % materials.length];
+					return {
+						sample: `B-${i + 1}`,
+						material: m,
+						confirm: m,
+						mass: `${(18.24 + i * 3.1).toFixed(2)}`,
+						notes: i === 0 ? 'Displacement reading repeated twice for this one.' : 'Dimensional.'
+					};
+				})
 			},
 			f1: { text: LONG },
 			c1: { checked: [true, false] }
@@ -119,17 +167,29 @@
 	<p class="hint">
 		dirty={String(dirty)} — add <code>?dirty=1</code> for the leading-whitespace control.
 	</p>
+	<p class="hint">
+		rows={rows === null ? 'default (4)' : String(rows)} — add <code>?rows=12</code> to seed a
+		busy table. Read off the real specs: <code>minRows</code> is 4 in 15 of the 26 table
+		blocks under <code>materials/</code>, and the per-page total is 8 in the median case
+		and 16 at the worst.
+	</p>
+	<p class="hint">
+		empty={String(empty)} — add <code>?empty=1</code> for the untouched table, where the
+		table block has never been written to and Add row is the first thing that touches it.
+		The table declares <code>minRows: 4</code>, so the first press produces one row and
+		the counter beneath it still reads unmet: a blank row is not a filled one.
+	</p>
 
 	<h2>Read-only (submitted: locked, no transports)</h2>
 	<div data-testid="ro">
-		{#key dirty}
+		{#key `${dirty}:${empty}:${rows}`}
 			<SpecRenderer spec={SPEC} initialValues={values} locked approved fileNotice="No files here." />
 		{/key}
 	</div>
 
 	<h2>Editable</h2>
 	<div data-testid="ed">
-		{#key dirty}
+		{#key `${dirty}:${empty}:${rows}`}
 			<SpecRenderer spec={SPEC} initialValues={values} approved fileNotice="No files here." />
 		{/key}
 	</div>

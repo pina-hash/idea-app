@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/admin';
+import { loadMapsScope, type MapsWriteClient } from '$lib/maps/transports';
 import type { LayoutServerLoad } from './$types';
 
 /**
@@ -22,12 +23,25 @@ import type { LayoutServerLoad } from './$types';
  * database. What the guard buys is that a non-admin never lands on a page
  * whose every action would fail.
  *
+ * SINCE 0172 THE GATE IS "ADMIN OR HOLDS A GRANT", NOT "ADMIN". A granted
+ * editor is a real editor: they land on the same pages, mount the same
+ * MapsEditor, and are narrowed by their SCOPE rather than by a different
+ * surface -- which is why there is no second editor to keep in step. Somebody
+ * with neither still gets 404, not 403 and not a redirect, for the reason
+ * above: the lane's existence is not public.
+ *
+ * THE SCOPE IS RESOLVED HERE, ONCE, and rides `page.data` down to both pages.
+ * A page load resolving its own would be a second read that can disagree with
+ * the one the gate was decided on.
+ *
  * `params` and nothing else: a layout load must never read `url`, or it re-runs
  * on every navigation between the pages it covers.
  */
 export const load: LayoutServerLoad = async ({ locals }) => {
 	const uid = locals.claims?.sub ?? null;
 	if (!uid) error(404, 'Not found');
-	if (!(await isAdmin(locals.supabase, uid))) error(404, 'Not found');
-	return {};
+	const admin = await isAdmin(locals.supabase, uid);
+	const scope = await loadMapsScope(locals.supabase as unknown as MapsWriteClient, admin);
+	if (!scope.admin && scope.grants.length === 0) error(404, 'Not found');
+	return { mapsScope: scope, mapsIsAdmin: admin };
 };

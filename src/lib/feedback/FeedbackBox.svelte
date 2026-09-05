@@ -6,12 +6,21 @@
 		FEEDBACK_CONTACT_MAX,
 		FEEDBACK_KINDS,
 		FEEDBACK_MAX_LEN,
+		FEEDBACK_TRIED_MAX,
 		feedbackContactIssue,
 		feedbackIssue,
+		feedbackTriedIssue,
 		type FeedbackEntry,
 		type FeedbackResult,
 		type FeedbackKind
 	} from './feedback';
+	import { dropTarget } from '$lib/file-drop';
+	import {
+		FEEDBACK_SCREENSHOT_MAX_BYTES,
+		FEEDBACK_SCREENSHOT_TYPE_WORDS,
+		formatScreenshotBytes,
+		type ScreenshotUpload
+	} from './screenshot';
 
 	/**
 	 * Shared in-app feedback / suggestion box. App-AGNOSTIC by design: GREENLINE
@@ -51,6 +60,8 @@
 		submit,
 		onClose,
 		askContact = false,
+		uploadScreenshot = null,
+		screenshotNote = null,
 		title = 'Send feedback',
 		note = 'Tell us what you noticed. It goes straight to the team.'
 	}: {
@@ -73,6 +84,28 @@
 		 * the same reason it is for the whole control.
 		 */
 		askContact?: boolean;
+		/**
+		 * STAGE ONE SCREENSHOT. Handed in, so the box neither holds a Supabase
+		 * client nor knows where a bucket is; the dev harness answers in memory.
+		 *
+		 * NULL REMOVES THE CONTROL ENTIRELY, which is the mechanism everywhere
+		 * else in this component and in this repo: read-only is structural rather
+		 * than a discipline, because there is no write to execute. A surface
+		 * whose deployment cannot take a screenshot (no session, or a backend
+		 * before 0170) passes null and a `screenshotNote` saying which.
+		 *
+		 * IT UPLOADS WHEN THE FILE IS PICKED, not when the report is sent -- see
+		 * `uploadFeedbackScreenshot`. So a refusal lands beside this control while
+		 * the person is still looking at it, and a picture that will not go never
+		 * takes the report with it.
+		 */
+		uploadScreenshot?: ((file: File) => Promise<ScreenshotUpload>) | null;
+		/**
+		 * WHY THERE IS NO ATTACH CONTROL, in one sentence, when there is none. A
+		 * control that is absent for a reason says the reason: a box that simply
+		 * lacks one reads as a bug on a form every other surface offers it on.
+		 */
+		screenshotNote?: string | null;
 		title?: string;
 		note?: string;
 	} = $props();
@@ -80,6 +113,79 @@
 	let kind = $state<FeedbackKind>('bug');
 	let message = $state('');
 	let contact = $state('');
+	let tried = $state('');
+
+	/**
+	 * The staged screenshot: the stored KEY, plus a local object URL for the
+	 * preview. THE PREVIEW IS THE LOCAL FILE, never a round trip back out of the
+	 * bucket -- the bytes are already in this browser, and a private object would
+	 * need a signed URL to come back.
+	 */
+	let shotPath = $state<string | null>(null);
+	let shotPreview = $state<string | null>(null);
+	let shotName = $state<string | null>(null);
+	let shotError = $state<string | null>(null);
+	let shotBusy = $state(false);
+	/** Set when the browser could not decode what was uploaded. */
+	let shotBroken = $state(false);
+
+	/** Release the object URL we minted, whenever it stops being the one shown. */
+	function clearPreview() {
+		if (shotPreview && typeof URL !== 'undefined') URL.revokeObjectURL(shotPreview);
+		shotPreview = null;
+	}
+
+	/**
+	 * ONE FILE, FROM ANY OF THE THREE WAYS OF OFFERING IT -- a paste, a drop, or
+	 * the picker. `file-drop` is the shared primitive the classroom upload
+	 * surfaces already use, so the drag/leave counting and the image-only paste
+	 * filter are not written a second time here.
+	 *
+	 * A SECOND FILE REPLACES THE FIRST rather than being refused: a report
+	 * carries one screenshot (the row has one column), and somebody who pastes
+	 * again has almost always taken a better picture.
+	 */
+	async function stageScreenshot(files: File[]) {
+		const file = files[0];
+		if (!file || !uploadScreenshot || shotBusy) return;
+		shotBusy = true;
+		shotError = null;
+		shotBroken = false;
+		try {
+			const result = await uploadScreenshot(file);
+			if (result.error || !result.path) {
+				shotError = result.error ?? 'That screenshot did not attach.';
+				return;
+			}
+			clearPreview();
+			shotPath = result.path;
+			shotName = file.name || 'screenshot';
+			shotPreview = typeof URL === 'undefined' ? null : URL.createObjectURL(file);
+		} finally {
+			// In `finally`, so a throw cannot strand the control disabled for the
+			// rest of the session on a form somebody is part-way through.
+			shotBusy = false;
+		}
+	}
+
+	/**
+	 * Detach. IT DOES NOT DELETE THE OBJECT, and that is deliberate rather than
+	 * an omission: the row is what makes an object reachable, so an object no row
+	 * names is already unreachable to everyone but its uploader and an admin.
+	 * Issuing a delete here would be a second write that can fail, on a path
+	 * whose whole point is that a picture never gets in the way of a report.
+	 */
+	function removeScreenshot() {
+		clearPreview();
+		shotPath = null;
+		shotName = null;
+		shotError = null;
+		shotBroken = false;
+		if (fileEl) fileEl.value = '';
+	}
+
+	let fileEl = $state<HTMLInputElement | null>(null);
+	let dragging = $state(false);
 
 	/**
 	 * `autosave: false` because a write MINTS A RECORD: a debounce here would
@@ -94,7 +200,10 @@
 		autosave: false,
 		fallbackMessage: 'That did not send.',
 		save: async () => {
-			const issue = feedbackIssue(message) ?? (askContact ? feedbackContactIssue(contact) : null);
+			const issue =
+				feedbackIssue(message) ??
+				feedbackTriedIssue(tried) ??
+				(askContact ? feedbackContactIssue(contact) : null);
 			if (issue) return { ok: false as const, retryable: false as const, message: issue };
 			// `contact` is on the entry ONLY when the field was offered, so a
 			// surface that never asked cannot send one by accident.
@@ -104,6 +213,11 @@
 				kind,
 				message,
 				meta,
+				tried,
+				// The KEY of an object that already landed, or nothing at all. A
+				// staged screenshot that failed to upload left `shotPath` null, so a
+				// refused picture cannot reach the row.
+				...(shotPath ? { screenshotPath: shotPath } : {}),
 				...(askContact ? { contact } : {})
 			});
 			if (!res.error) return { ok: true as const };
@@ -116,14 +230,22 @@
 		// survives a hidden tab; a half-written report is not work the server
 		// should receive because somebody switched tabs, and nothing is lost by
 		// not sending it -- the text is still in the box when they come back.
-		return () => save.destroy();
+		return () => {
+			save.destroy();
+			// The object URL outlives this component unless it is revoked, and a
+			// box opened and closed a dozen times is a dozen leaked blobs.
+			clearPreview();
+		};
 	});
 
 	const sent = $derived(save.phase === 'saved');
 	const remaining = $derived(FEEDBACK_MAX_LEN - message.trim().length);
 	const canSend = $derived(
 		save.phase !== 'writing' &&
+			// A screenshot still going up is work this report would leave behind.
+			!shotBusy &&
 			feedbackIssue(message) === null &&
+			feedbackTriedIssue(tried) === null &&
 			(!askContact || feedbackContactIssue(contact) === null)
 	);
 
@@ -148,6 +270,8 @@
 		save.reset();
 		message = '';
 		contact = '';
+		tried = '';
+		removeScreenshot();
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -184,7 +308,28 @@
 		if (e.target === e.currentTarget) onClose();
 	}}
 >
-	<div class="fb-box" role="dialog" aria-label={title} aria-modal="true" tabindex="-1" bind:this={boxEl}>
+	<!--
+		THE WHOLE BOX IS THE DROP TARGET, and the paste target with it: somebody
+		reporting a problem presses Ctrl+V, they do not aim. `dropTarget` is the
+		shared primitive the classroom upload surfaces use, so the drag-depth
+		counting and the image-only paste filter are not written a second time --
+		and a paste carrying TEXT is left completely alone, so typing into the
+		message field keeps working exactly as it did.
+	-->
+	<div
+		class="fb-box"
+		class:fb-dragging={dragging}
+		role="dialog"
+		aria-label={title}
+		aria-modal="true"
+		tabindex="-1"
+		bind:this={boxEl}
+		use:dropTarget={{
+			onfiles: (files) => void stageScreenshot(files),
+			onactive: (active) => (dragging = active),
+			disabled: !uploadScreenshot
+		}}
+	>
 		<div class="fb-head">
 			<span class="fb-title">{title}</span>
 			<button class="fb-x" onclick={onClose} aria-label="Close">✕</button>
@@ -230,6 +375,93 @@
 				maxlength={FEEDBACK_MAX_LEN}
 				placeholder="What happened, and what were you doing at the time?"
 			></textarea>
+
+			<!--
+				WHAT DID YOU TRY. Optional, and the label says so: the 2026-08-31
+				triage produced several reports nobody could act on because the row
+				said where somebody was and nothing about what they had already
+				done about it.
+			-->
+			<label class="fb-label" for="fb-tried">What did you try? (optional)</label>
+			<textarea
+				id="fb-tried"
+				class="fb-area fb-area-tried"
+				bind:value={tried}
+				oninput={typed}
+				rows="2"
+				maxlength={FEEDBACK_TRIED_MAX}
+				placeholder="Reloaded it, tried another browser, asked someone else to try..."
+			></textarea>
+
+			{#if uploadScreenshot}
+				<div class="fb-shot">
+					<span class="fb-label">A screenshot (optional)</span>
+					{#if shotPath}
+						<div class="fb-shot-staged">
+							{#if shotPreview && !shotBroken}
+								<!--
+									THE LOCAL FILE, at `object-fit: contain`: a filename says
+									nothing about whether the thing that went wrong is in the
+									frame, and cropping to fill hides the cut-off edge the
+									preview exists to catch. No animation, so there is nothing
+									here for reduced motion to gate.
+								-->
+								<img
+									class="fb-shot-thumb"
+									src={shotPreview}
+									alt="The screenshot you attached"
+									onerror={() => (shotBroken = true)}
+								/>
+							{:else}
+								<span class="fb-shot-fallback">Attached</span>
+							{/if}
+							<span class="fb-shot-name">{shotName}</span>
+							<button type="button" class="fb-btn fb-shot-remove" onclick={removeScreenshot}>
+								REMOVE
+							</button>
+						</div>
+					{:else}
+						<div class="fb-shot-pick">
+							<!--
+								NO `accept` ATTRIBUTE. An accept list HIDES files in the
+								dialog rather than refusing them, so a person whose
+								screenshot is filtered out is given no sentence at all;
+								the refusal below states the reason and the limit.
+							-->
+							<input
+								type="file"
+								class="fb-shot-input"
+								id="fb-shot-input"
+								bind:this={fileEl}
+								onchange={(e) => {
+									const picked = Array.from(e.currentTarget.files ?? []);
+									if (picked.length) void stageScreenshot(picked);
+								}}
+							/>
+							<label class="fb-btn fb-shot-choose" for="fb-shot-input">
+								{shotBusy ? 'ATTACHING' : 'CHOOSE AN IMAGE'}
+							</label>
+							<span class="fb-shot-hint">
+								or drop one here, or press Ctrl+V to paste one
+							</span>
+						</div>
+					{/if}
+					{#if shotError}
+						<!-- The refusal renders where the person was working, in the
+						     words of the refusal, with the limit where there was one. -->
+						<p class="fb-shot-error" aria-live="polite">{shotError}</p>
+					{/if}
+					<!-- THE CAP IS READ, NEVER RETYPED. A number written down twice is
+					     the one that stops agreeing with the bucket enforcing it. -->
+					<p class="fb-shot-note">
+						{FEEDBACK_SCREENSHOT_TYPE_WORDS}, up to
+						{formatScreenshotBytes(FEEDBACK_SCREENSHOT_MAX_BYTES)}. Only you and a site
+						admin can open it.
+					</p>
+				</div>
+			{:else if screenshotNote}
+				<p class="fb-shot-note fb-shot-absent">{screenshotNote}</p>
+			{/if}
 
 			{#if askContact}
 				<!--
@@ -445,6 +677,99 @@
 		color: var(--fb-ink-faint);
 		font-size: 0.68rem;
 		line-height: 1.45;
+	}
+
+	.fb-area-tried {
+		margin-bottom: 0.6rem;
+	}
+
+	/* The screenshot block. Nothing here animates, so there is nothing for
+	   `prefers-reduced-motion` to gate; the one transition is on the drag
+	   outline below and it is gated. */
+	.fb-shot {
+		margin-bottom: 0.5rem;
+	}
+	.fb-shot-pick,
+	.fb-shot-staged {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	/* Visually hidden, never `display: none`: a hidden input is not focusable
+	   and its label would then reach nothing by keyboard. */
+	.fb-shot-input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	/* A <label> is what a finger hits, so the 44px floor is stated on it. */
+	.fb-shot-choose {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		cursor: pointer;
+	}
+	.fb-shot-input:focus-visible + .fb-shot-choose {
+		color: var(--fb-ink);
+		border-color: var(--fb-line-strong);
+		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		outline-offset: 1px;
+	}
+	.fb-shot-remove {
+		min-height: 44px;
+	}
+	.fb-shot-thumb {
+		width: 4.5rem;
+		height: 3rem;
+		/* CONTAIN, never cover: a cropped preview hides the cut-off edge this
+		   exists to let somebody catch before they send it. */
+		object-fit: contain;
+		background: var(--fb-bg-deep);
+		border: 1px solid var(--fb-line);
+		border-radius: 2px;
+	}
+	.fb-shot-fallback,
+	.fb-shot-name {
+		font-size: 0.72rem;
+		color: var(--fb-ink-dim);
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.fb-shot-hint,
+	.fb-shot-note {
+		margin: 0.3rem 0 0;
+		color: var(--fb-ink-faint);
+		font-size: 0.68rem;
+		line-height: 1.45;
+	}
+	.fb-shot-hint {
+		margin: 0;
+	}
+	.fb-shot-error {
+		margin: 0.35rem 0 0;
+		color: var(--fb-danger);
+		font-size: 0.7rem;
+		line-height: 1.45;
+	}
+	.fb-shot-absent {
+		margin-bottom: 0.5rem;
+	}
+	/* An OUTLINE, never a border: a border would reflow the whole box every
+	   time a drag crossed it. */
+	.fb-box.fb-dragging {
+		outline: 2px dashed color-mix(in srgb, var(--fb-accent) 60%, transparent);
+		outline-offset: -4px;
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.fb-box {
+			transition: outline-color 120ms ease;
+		}
 	}
 
 	.fb-state {

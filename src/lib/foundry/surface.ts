@@ -107,6 +107,54 @@ export function draftIsSubmittable(version: FoundryVersion): boolean {
 }
 
 /**
+ * WHAT AN APP STILL NEEDS BEFORE IT CAN BE PUBLISHED (0173, decision 05).
+ *
+ * A DESCRIPTION IS THE ONE REQUIREMENT AND IT IS THE DATABASE'S. 0173 refuses
+ * a publication of an app with a blank description at the trigger, and
+ * `foundry_submit_version` refuses the submit ahead of it so the person who
+ * can fix it hears it while they are looking at it. This is neither of those:
+ * it is what lets a surface SAY the requirement before it refuses, which is
+ * the whole of what decision 05's client half asks for.
+ *
+ * IT MIRRORS THE RULE, IT DOES NOT RESTATE IT. The predicate is the same
+ * `_foundry_norm(description) = ''` the database asks -- an emptiness gate
+ * that must agree with a person's idea of empty, so `trim()` and not a length
+ * check, because a description of newlines is empty to whoever typed it and
+ * empty to the column.
+ *
+ * IT RETURNS THE MISSING THINGS RATHER THAN A BOOLEAN, so a surface can name
+ * them. A boolean would put the sentence back at the call site, which is
+ * where two spellings of one requirement come from.
+ */
+export function foundryPublishBlockers(app: {
+	description?: string | null;
+}): { field: 'description'; sentence: string; fix: string }[] {
+	const blockers: { field: 'description'; sentence: string; fix: string }[] = [];
+	if ((app.description ?? '').trim() === '') {
+		blockers.push({
+			field: 'description',
+			sentence:
+				'This app needs a description before it can be published. It is what somebody reading the gallery sees before they open it.',
+			fix: 'Add one under Name and description.'
+		});
+	}
+	return blockers;
+}
+
+/**
+ * ONE PREDICATE FOR "IS THIS READY TO SEND", read by the control AND by the
+ * handler. Two spellings of that question is what produces a press that does
+ * nothing, which is the same argument `reviewCanSend` makes on the review
+ * console.
+ */
+export function foundryCanSubmit(
+	app: { description?: string | null },
+	version: FoundryVersion
+): boolean {
+	return draftIsSubmittable(version) && foundryPublishBlockers(app).length === 0;
+}
+
+/**
  * WHETHER A VERSION CAN BE DELETED ON ITS OWN, as one predicate the control's
  * presence and the sentence beside it both read.
  *

@@ -60,3 +60,69 @@ export function isTransientSqlstate(code?: string | null): boolean {
 export function rpcErrorStatus(code?: string | null): 400 | 503 {
   return isTransientSqlstate(code) ? 503 : 400;
 }
+
+/**
+ * THE CONSTRAINT A POSTGRES ERROR NAMES, or null when it named none.
+ *
+ * THIS IS THE PIECE THAT MAKES THE PARTITION ABOVE FINISHABLE AT A CALL SITE,
+ * and it is here rather than in one subsystem because it is knowledge about
+ * Postgres and PostgREST, not about any feature: a `23505` is transient or
+ * permanent depending on WHICH uniqueness said no, and the only thing that
+ * distinguishes them is the constraint's name.
+ *
+ * `23505` sits on the transient whitelist because the case it was found in was
+ * a genuine race -- nine concurrent `classroom_open_submission` calls, two of
+ * them stranded on a lost upsert -- and for that case retrying is right. But
+ * the SAME code arrives from a unique index that encodes a RULE ("one
+ * placement per item type per container", "one published compartment per
+ * elevation slot"), where every retry loses in exactly the way the first
+ * attempt did. Widening or narrowing the whitelist cannot tell those apart,
+ * because the difference is not in the code. **So the whitelist stays exactly
+ * as it is, and a caller that has permanent uniqueness of its own names those
+ * constraints and asks this.**
+ *
+ * The name is read from `message` first and `details` second, because
+ * PostgREST forwards Postgres's own `duplicate key value violates unique
+ * constraint "<name>"` as the message and its `Key (a, b)=(...) already
+ * exists.` as the details, and a driver that swaps them is not worth a second
+ * failure mode. Quotes are the only delimiter Postgres uses here.
+ */
+export function constraintNameOf(
+  error?: { message?: string | null; details?: string | null } | null,
+): string | null {
+  for (const field of [error?.message, error?.details]) {
+    const found = (field ?? "").match(
+      /(?:unique|check|exclusion|foreign key) constraint "([^"]+)"/i,
+    );
+    if (found) return found[1];
+  }
+  return null;
+}
+
+/**
+ * Is this failure worth sending again, given that the caller knows some of its
+ * own constraints are RULES rather than races?
+ *
+ * `isTransientSqlstate` with an escape hatch, and the escape hatch is
+ * deliberately a list the CALLER supplies: this module cannot know which of a
+ * feature's unique indexes encode a rule, and guessing would be a second,
+ * softer copy of the whitelist. An error naming no constraint answers exactly
+ * as `isTransientSqlstate` does, so a caller passing an empty list is
+ * unchanged.
+ *
+ * Every existing caller of `isTransientSqlstate` and `rpcErrorStatus` is
+ * untouched by this: neither function's behaviour moved, and neither gained a
+ * parameter.
+ */
+export function isTransientDbError(
+  error?: { code?: string | null; message?: string | null; details?: string | null } | null,
+  permanentConstraints: Iterable<string> = [],
+): boolean {
+  if (!isTransientSqlstate(error?.code)) return false;
+  const name = constraintNameOf(error);
+  if (name === null) return true;
+  for (const permanent of permanentConstraints) {
+    if (permanent === name) return false;
+  }
+  return true;
+}

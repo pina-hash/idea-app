@@ -159,3 +159,60 @@ export function formatPlayers(players: number): string {
 	const n = Math.max(0, Math.round(Number(players) || 0));
 	return n === 1 ? '1 person' : `${n} people`;
 }
+
+/**
+ * THE AUTHOR'S ROLL-UP ACROSS EVERY APP THEY HAVE (0173's bundle, decision
+ * 07): "owner-only telemetry does not become public; build the owner
+ * dashboard instead."
+ *
+ * IT NEEDS NO NEW SQL AND MUST NOT GET ANY. `foundry_play_counts()` already
+ * answers plays and 7-day plays for every app in the CALLER'S OWN population,
+ * which on /foundry/mine is their own apps including the unpublished ones --
+ * so the roll-up is arithmetic over a read the page already makes. Adding a
+ * per-author aggregate RPC would be a second statement of the same numbers,
+ * and the second one is what stops matching.
+ *
+ * IT IS COUNTS OVER APPS AND CANNOT BE ANYTHING ELSE. There is no per-person
+ * figure in the input, so there is none in the output and none that could be
+ * widened into one -- the same property the gallery's cards have. `players`,
+ * `seconds_played` and `last_played_at` stay where they are, on
+ * `foundry_app_play_stats`, which returns NULL to anybody but the author and
+ * an admin.
+ *
+ * THE COVERAGE NOTE TRAVELS WITH THE FIGURE, zero included, because a zero is
+ * exactly when somebody reads a count as "nobody opened it".
+ */
+export interface FoundryOwnerRollup {
+	/** Apps with at least one play. Never the number of apps they have. */
+	appsPlayed: number;
+	plays: number;
+	plays7d: number;
+	/** The most-played app, or null when nothing has been played at all. */
+	top: { appId: string; title: string; plays: number } | null;
+}
+
+export function foundryOwnerRollup(
+	apps: readonly { id: string; title: string }[],
+	counts: FoundryPlayCounts
+): FoundryOwnerRollup {
+	let plays = 0;
+	let plays7d = 0;
+	let appsPlayed = 0;
+	let top: { appId: string; title: string; plays: number } | null = null;
+
+	for (const app of apps) {
+		const row = counts[app.id];
+		const n = row?.plays ?? 0;
+		plays += n;
+		plays7d += row?.plays7d ?? 0;
+		if (n > 0) appsPlayed += 1;
+		// STRICTLY GREATER, so a tie keeps the FIRST app in the list the route
+		// already ordered. A tie broken by whichever happened to come last is a
+		// figure that changes between two loads of the same page.
+		if (n > 0 && (top === null || n > top.plays)) {
+			top = { appId: app.id, title: app.title, plays: n };
+		}
+	}
+
+	return { appsPlayed, plays, plays7d, top };
+}

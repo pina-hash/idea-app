@@ -2,7 +2,9 @@
 	import { itemTitle, sectionTitle, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import {
 		actionSummary,
+		dueUrgency,
 		emptyMessage,
+		feedCover,
 		feedIndicator,
 		reasonTone,
 		type FeedEntry,
@@ -62,6 +64,15 @@
 
 	const collapsedSet = $derived(new Set(collapsed));
 
+	/**
+	 * Items whose cover would not decode, so the card shows its glyph instead.
+	 *
+	 * PER MOUNT AND IN MEMORY, keyed on the item id: a new Set on every failure
+	 * because Svelte 5 tracks the reference, and mutating one in place would
+	 * change nothing on screen.
+	 */
+	let failedCovers = $state(new Set<string>());
+
 	// Kind glyphs, the legacy ICON_KINDS approach: one distinct mark per item
 	// kind so a row's nature reads before its title does. Deliberately NO live
 	// pulse and no opened-progress dot -- this surface has no live state, and
@@ -77,8 +88,7 @@
 </script>
 
 {#snippet icon(kind: ClassroomItemKind)}
-	<div class="assignment-icon-thumb">
-		{#if ICON_KINDS[kind] === 'announcement'}
+	{#if ICON_KINDS[kind] === 'announcement'}
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M4 10v4h3l6 4V6l-6 4H4z" />
 				<path d="M17 9.5a3.5 3.5 0 010 5" />
@@ -93,22 +103,55 @@
 		{:else}
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M4 5.5C4 4.67 4.67 4 5.5 4H12v16H5.5A1.5 1.5 0 014 18.5v-13z" />
-				<path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 001.5-1.5v-13z" />
-			</svg>
+			<path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 001.5-1.5v-13z" />
+		</svg>
+	{/if}
+{/snippet}
+
+{#snippet thumb(entry: FeedEntry)}
+	{@const cover = feedCover(entry.item)}
+	<div class="assignment-icon-thumb" class:has-cover={cover && !failedCovers.has(entry.item.id)}>
+		{#if cover && !failedCovers.has(entry.item.id)}
+			<!--
+				THE THUMBNAIL, AND THE GLYPH IS STILL UNDERNEATH IT (0176).
+
+				`alt=""` is deliberate and is not a missing description. The row is a
+				LINK whose accessible name is already the item's title, and the
+				picture is decoration on that link -- announcing the body's own
+				description here would read the same item out twice, once by name and
+				once by photograph. The description is not lost: `ItemBody` renders it
+				as the figure's `alt` AND its caption on the item page, which is where
+				a reader is actually looking at the picture. This is the same call the
+				per-kind glyph already makes with `aria-hidden`.
+
+				A COVER THAT FAILS TO DECODE FALLS BACK TO THE GLYPH, through the
+				img's own `onerror` -- the classroom rule for a storage-backed
+				thumbnail, applied here for the same reason: an attachment can be
+				deleted after the body that names it was written, and a broken image
+				icon in a 44px box is worse than the mark that was there before.
+			-->
+			<img
+				src={cover.src}
+				alt=""
+				loading="lazy"
+				decoding="async"
+				onerror={() => (failedCovers = new Set(failedCovers).add(entry.item.id))}
+			/>
+		{:else}
+			{@render icon(entry.item.kind)}
 		{/if}
 	</div>
 {/snippet}
 
 {#snippet row(feed: SectionFeed, entry: FeedEntry)}
-	<a class="assignment-item linked" href={itemHref(feed.section, entry)}>
-		<div class="assignment-left">
-			{@render icon(entry.item.kind)}
-			<div class="assignment-name">{itemTitle(entry.item)}</div>
-		</div>
-		<div class="assignment-right">
-			<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
-			<span class="assignment-status status-live">Open</span>
-		</div>
+	<a
+		class="assignment-item linked feed-row"
+		href={itemHref(feed.section, entry)}
+		data-urgency={dueUrgency(entry, now) ?? undefined}
+	>
+		{@render thumb(entry)}
+		<div class="assignment-name">{itemTitle(entry.item)}</div>
+		<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
 	</a>
 {/snippet}
 
@@ -145,18 +188,25 @@
 				onclick={() => onToggle?.(feed.section.id)}
 			>
 				<div class="course-header-left">
-					<div class="course-id">{feed.section.course?.code ?? 'CLASS'}</div>
-					<div class="course-updated">{feed.section.course?.title ?? sectionTitle(feed.section)}</div>
-				</div>
-				<div class="course-meta">
-					<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
-					<span class="section-meta">
-						{#if sectionBlockText(feed.section.block)}{sectionBlockText(feed.section.block)} &middot; {/if}
-						{feed.manages ? 'You teach this' : emailLocal(feed.section.teacher_email)}
-					</span>
-					{#if summary}
-						<span class="feed-flag tone-attention">{summary}</span>
-					{/if}
+					<div class="feed-ident">
+						<span class="course-id">{feed.section.course?.code ?? 'CLASS'}</span>
+						<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
+						{#if summary}
+							<span class="feed-flag tone-attention">{summary}</span>
+						{/if}
+					</div>
+					<div class="feed-subline">
+						<span class="course-updated"
+							>{feed.section.course?.title ?? sectionTitle(feed.section)}</span
+						>
+						<span class="section-meta">
+							{#if sectionBlockText(feed.section.block)}{sectionBlockText(
+									feed.section.block
+								)}&nbsp;&middot;&nbsp;{/if}{feed.manages
+								? 'You teach this'
+								: emailLocal(feed.section.teacher_email)}
+						</span>
+					</div>
 				</div>
 				<span class="course-collapse-arrow" aria-hidden="true">&#9662;</span>
 			</button>
@@ -191,3 +241,169 @@
 		</div>
 	{/each}
 {/if}
+
+<style>
+	/*
+	 * THIS COMPONENT OWNS ITS OWN GEOMETRY NOW, and the shared `.legacy-index`
+	 * chrome in app.css still owns everything else (the card, the plate, the
+	 * hover, the flag tones, the badge). The split is deliberate: those rules are
+	 * shared with the archive page and every other `.course-card` surface, so a
+	 * height fix made there would move markup this component does not render.
+	 *
+	 * WHAT IT COST, AT 375px, PER CLASS: the card was 596px, which put the first
+	 * app card 2.44 screens down for a student with two classes. Almost all of it
+	 * was one flex rule -- `.assignment-left` wrapped, `.assignment-name` took the
+	 * full measure, and the 34px kind icon was pushed onto a line of its own above
+	 * a two-line title. The row cost 142px to say one thing. As a grid with the
+	 * icon in its own column the same row says the same thing in 89px, with the
+	 * title still on two lines and the icon still there.
+	 */
+	.feed-row {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		grid-template-areas:
+			'icon name'
+			'icon flag';
+		align-items: center;
+		column-gap: 0.7rem;
+		row-gap: 0.25rem;
+		padding-top: 0.65rem;
+		padding-bottom: 0.65rem;
+	}
+	.feed-row :global(.assignment-icon-thumb) {
+		grid-area: icon;
+		align-self: center;
+	}
+	/* A COVER FILLS THE MARK'S OWN BOX, so the row's geometry is byte-identical
+	   whether a card has a picture or a glyph -- a feed whose rows changed
+	   height depending on whether somebody attached a photo would be a worse
+	   list than one with no pictures in it at all.
+
+	   `cover` HERE AND `contain` IN THE BODY, on purpose. At 34px this is a
+	   recognition cue and a letterboxed one is mostly empty box; on the item
+	   page it is the picture itself, where cropping would hide the cut-off edge
+	   somebody needs to read. Two sizes, two honest answers. */
+	.assignment-icon-thumb.has-cover {
+		padding: 0;
+		overflow: hidden;
+		background: var(--surface-2, var(--bg2));
+	}
+	.assignment-icon-thumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+	.feed-row .assignment-name {
+		grid-area: name;
+	}
+	.feed-row .feed-flag {
+		grid-area: flag;
+		justify-self: start;
+	}
+
+	/*
+	 * Above the phone the row has room for one line: icon, title, flag, with the
+	 * flag pinned right the way it has always been. The 89px measurement above is
+	 * the narrow case, which is the one that was costing screens.
+	 */
+	@media (min-width: 700px) {
+		.feed-row {
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			grid-template-areas: 'icon name flag';
+		}
+		.feed-row .feed-flag {
+			justify-self: end;
+		}
+	}
+
+	/*
+	 * DUE-DATE URGENCY. Four steps from `dueUrgency()`, which reads the reason the
+	 * ranking already assigned and the SAME `now` this component was handed, so
+	 * the emphasis and the words can never name different days.
+	 *
+	 * COLOUR IS NEVER THE SIGNAL HERE, and it could not be even if it were
+	 * wanted: the flag's hue is already spoken for by `reasonTone` (the tone says
+	 * WHAT the row is, not how near it is), a reader who cannot separate two hues
+	 * would get nothing from a fifth one, and `--crimson` -- the one token that
+	 * reads as alarm in this palette -- is reserved for LIVE/REC/error and is not
+	 * available. So the steps are carried by three things that are not colour:
+	 *
+	 *   POSITION -- `compare()` already puts the soonest deadline first inside a
+	 *     rank, and overdue outranks due-soon, so the pressing row is the row a
+	 *     student reads first. Nothing here had to be added for that.
+	 *   WORDS -- `feedIndicator` already writes the date out: "Overdue 2 days
+	 *     ago", "Due today", "Due tomorrow", "Due in 5 days". A student never has
+	 *     to decode a treatment to learn when a thing is due.
+	 *   WEIGHT AND A RULE -- below. Type gets heavier and the row takes a marker
+	 *     down its leading edge as the date closes.
+	 *
+	 * `soon` IS DELIBERATELY UNTREATED. It is the ordinary state of the whole
+	 * seven-day window, and a scale whose bottom step is already emphasised has
+	 * no room left to say "now". The marker earns its meaning by being absent
+	 * most of the time.
+	 *
+	 * NOTHING HERE SAYS A DEADLINE IS SOFT. The steps only change how loudly the
+	 * same date is stated; there is no wording, no fading and no de-emphasis that
+	 * would read as "this one can wait", including on `soon`.
+	 */
+	.feed-row[data-urgency='imminent'] .feed-flag,
+	.feed-row[data-urgency='today'] .feed-flag,
+	.feed-row[data-urgency='overdue'] .feed-flag {
+		font-weight: 700;
+	}
+	.feed-row[data-urgency='today'] .assignment-name,
+	.feed-row[data-urgency='overdue'] .assignment-name {
+		font-weight: 600;
+	}
+
+	/*
+	 * The leading-edge marker. `box-shadow` inset and not a `border-left`,
+	 * because a border changes the row's box and would shift every title by 3px
+	 * as a deadline crosses midnight -- and not a `::before`, because Svelte
+	 * prunes a scoped pseudo-element whose base class it cannot see used (the
+	 * app.css `.tap-reach-44` note). It rides the flag's own tone token so it
+	 * cannot introduce a hue the row is not already wearing.
+	 */
+	.feed-row[data-urgency='imminent'] {
+		box-shadow: inset 3px 0 0 -1px color-mix(in srgb, var(--cyan) 45%, transparent);
+	}
+	.feed-row[data-urgency='today'] {
+		box-shadow: inset 3px 0 0 0 var(--cyan);
+	}
+	.feed-row[data-urgency='overdue'] {
+		box-shadow: inset 3px 0 0 0 var(--amber);
+	}
+
+	/*
+	 * THE HEADER LOSES A LINE AT PHONE WIDTH, WHICH IS WHERE IT HAD TWO STACKED
+	 * BLOCKS. `.course-meta` used to be a third flex child that dropped below the
+	 * code and title at 375px; the badge and the count chip sit up on the code's
+	 * own line now and the block/teacher line joins the title, so the header is
+	 * two lines instead of three (111px -> 78px measured). Nothing was removed:
+	 * every field the header carried, it still carries.
+	 */
+	.feed-ident {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+	.feed-subline {
+		display: flex;
+		align-items: baseline;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+	/*
+	 * `overflow-wrap: anywhere` is carried over from app.css's own `.section-meta`
+	 * rule and for its reason: an address local part has no space to break at, so
+	 * its min-content is the whole token and a flex row cannot get under a 375px
+	 * viewport without it.
+	 */
+	.feed-subline .section-meta {
+		overflow-wrap: anywhere;
+	}
+</style>

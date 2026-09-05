@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/admin';
+import { loadMapsScope, type MapsWriteClient } from '$lib/maps/transports';
 import { loadMapsEditorData, type MapsReadClient } from '$lib/maps/selects';
 import type { PageServerLoad } from './$types';
 
@@ -10,9 +11,16 @@ import type { PageServerLoad } from './$types';
  * THE GATE ITSELF NOW LIVES IN `+layout.server.ts`, hoisted there when this
  * area gained its second page, so a new one cannot ship ungated. The identical
  * check below is DEFENCE IN DEPTH and not a second rule: both call the one
- * `isAdmin` helper, and a mutation test that opens either layer alone must
- * still find the other closed (CLAUDE.md). A non-admin gets 404 from whichever
- * runs first.
+ * `isAdmin` helper and the one `loadMapsScope`, and a mutation test that opens
+ * either layer alone must still find the other closed (CLAUDE.md). Somebody
+ * with neither admin nor a grant gets 404 from whichever runs first.
+ *
+ * SINCE 0172 THE GATE IS "ADMIN OR HOLDS A GRANT". The READ below is unchanged
+ * and needs no scope filter: it runs on the CALLER'S OWN client, so 0172's
+ * read policies decide what comes back -- a grantee receives their subtree,
+ * the ancestor spine above it and every published row, and an explicit filter
+ * here would be a second copy of that rule (the read-path rule: RLS is the
+ * boundary, do not restate it).
  *
  * A NON-ADMIN GETS 404, NOT A REDIRECT AND NOT 403, the same answer `/admin`,
  * `/coin-desk` and `/foundry/review` give: an editor lane's existence is not
@@ -35,12 +43,17 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	const uid = locals.claims?.sub ?? null;
 	if (!uid) error(404, 'Not found');
-	if (!(await isAdmin(locals.supabase, uid))) error(404, 'Not found');
+	const admin = await isAdmin(locals.supabase, uid);
+	const scope = await loadMapsScope(locals.supabase as unknown as MapsWriteClient, admin);
+	if (!scope.admin && scope.grants.length === 0) error(404, 'Not found');
 
 	try {
 		// The structural cast stops TS instantiating supabase-js's deep query
 		// generics against the narrow read-client slice; the calls are the same.
-		return { maps: await loadMapsEditorData(locals.supabase as unknown as MapsReadClient) };
+		return {
+			maps: await loadMapsEditorData(locals.supabase as unknown as MapsReadClient),
+			mapsScope: scope
+		};
 	} catch (cause) {
 		error(500, cause instanceof Error ? cause.message : 'The map could not be loaded.');
 	}

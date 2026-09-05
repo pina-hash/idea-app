@@ -200,13 +200,35 @@
 	function blankRow(block: TableBlock): Record<string, string> {
 		return Object.fromEntries(block.columns.map((c) => [c.key, '']));
 	}
+	/**
+	 * THE CRASH GUARD, AND ONLY THAT: after this runs `values[block.id].rows` is
+	 * an ARRAY, possibly an empty one. It never decides how many rows a person
+	 * has.
+	 *
+	 * It used to also materialise `Math.max(block.minRows ?? 0, 1)` blank rows,
+	 * and because `addRow` calls it BEFORE appending, the first press of Add row
+	 * on an untouched table produced the minimum AND one more -- two rows on a
+	 * table with no `minRows`, four on a table with `minRows: 3`. A student who
+	 * pressed a button reading "Add row" got two, then filled in a blank row that
+	 * should not have been there and wondered whether it counted.
+	 *
+	 * `minRows` IS A COMPLETION REQUIREMENT COUNTED OVER FILLED ROWS, NEVER A
+	 * MATERIALISATION INSTRUCTION, and all three gates that read it already agree
+	 * on that: the counter under this block filters rows with a non-empty cell,
+	 * `blockProgress` filters on `tableRowFilled`, and `_classroom_spec_unmet`
+	 * (0086) counts rows with a `jsonb_each_text` value that is not blank. So a
+	 * materialised blank row advances NOTHING any gate reads -- it is noise on
+	 * the student's screen, and on a `minRows: 3` table it is three obligations
+	 * presented at once to somebody who asked for one place to write.
+	 *
+	 * BOTH CALL SITES KEEP IT and neither may be the thing that sets a count:
+	 * `setCell` writes at an index and `addRow` spreads the array, so both need
+	 * it to exist. Removing the call to fix the count is how the crash it guards
+	 * against comes back.
+	 */
 	function ensureRows(block: TableBlock) {
-		if (!values[block.id]?.rows?.length) {
-			const count = Math.max(block.minRows ?? 0, 1);
-			values[block.id] = {
-				...(values[block.id] ?? {}),
-				rows: Array.from({ length: count }, () => blankRow(block))
-			};
+		if (!Array.isArray(values[block.id]?.rows)) {
+			values[block.id] = { ...(values[block.id] ?? {}), rows: [] };
 		}
 	}
 	function setCell(block: TableBlock, rowIndex: number, key: string, cellValue: string) {
@@ -217,6 +239,8 @@
 		};
 		report(block.id);
 	}
+	/** ONE row, at every state, including the first press on an untouched table.
+	 *  The button says "Add row" and the empty cell says "Add one below". */
 	function addRow(block: TableBlock) {
 		ensureRows(block);
 		values[block.id].rows = [...values[block.id].rows!, blankRow(block)];
@@ -231,17 +255,16 @@
 		];
 		report(block.id);
 	}
+	/**
+	 * ONE row, down to none, and the floor is ZERO on purpose -- which is the
+	 * same rule `addRow` follows read backwards. A floor at `minRows` would
+	 * strand blank rows a student cannot remove while satisfying no gate, since
+	 * every gate counts FILLED rows; and an empty table is not a broken state,
+	 * it is the state the empty cell already has words for.
+	 */
 	function deleteRow(block: TableBlock, index: number) {
 		const rows = values[block.id]?.rows ?? [];
 		values[block.id].rows = rows.filter((_, i) => i !== index);
-		report(block.id);
-	}
-	function moveRow(block: TableBlock, index: number, direction: -1 | 1) {
-		const rows = [...(values[block.id]?.rows ?? [])];
-		const target = index + direction;
-		if (target < 0 || target >= rows.length) return;
-		[rows[index], rows[target]] = [rows[target], rows[index]];
-		values[block.id].rows = rows;
 		report(block.id);
 	}
 
@@ -257,7 +280,9 @@
 	}
 
 	/**
-	 * Auto-resizing textarea: grow to fit on every input, BOUNDED.
+	 * Auto-resizing textarea: grow to fit on every input AND whenever the box
+	 * itself appears or changes width, BOUNDED. See the two notes inside for why
+	 * the second half is not optional and what it costs.
 	 *
 	 * The cap is `.answer`'s own `max-height` and is read back from the computed
 	 * style rather than written down again here -- one statement of it, so the
@@ -273,8 +298,39 @@
 	 * as `none`, which is not a number, so it keeps growing to fit exactly as
 	 * it always did. See the cap's own note on `.answer` for the figures.
 	 */
+	/**
+	 * ONE OBSERVER PER RENDERER, NOT ONE PER BOX. A table is sixty textareas at
+	 * twelve rows and five columns; sixty `ResizeObserver` instances to answer
+	 * one question about all of them is the wrong shape. A single observer takes
+	 * sixty observations and the `WeakMap` says which box asked, so the cost per
+	 * cell is one observation record and one weak entry rather than an object
+	 * with its own callback queue.
+	 */
+	let fitObserver: ResizeObserver | null = null;
+	const fitters = new WeakMap<Element, () => void>();
+
 	function autoresize(el: HTMLTextAreaElement) {
 		const fit = () => {
+			/* A BOX THAT IS NOT BEING LAID OUT CANNOT BE MEASURED, AND MEASURING
+			   IT ANYWAY IS THE WHOLE DEFECT. `Disclosure` hides a collapsed
+			   region with `display: none`, so a cell mounted inside a module
+			   that arrives closed -- which is every module a student has
+			   FINISHED, `collapseWhen={complete}` -- has `scrollHeight` 0.
+			   Measured at 375 on `/dev/spec-table?rows=12`: all 60 cells wrote
+			   `height: 2px` at mount (0 + the 2px border allowance), nothing
+			   re-ran, and re-opening the module left 19 of them clipped, worst
+			   118px of content in a 42px box. `.cell` is `overflow: hidden`
+			   with no scrollbar, and a wheel over it moves nothing (measured,
+			   `scrollTop` 0 after a 200px wheel), so what a student loses is the
+			   sight of their own writing on a graded assignment, with no cue
+			   that anything is missing.
+
+			   `clientWidth` and not `offsetParent`: a zero WIDTH is what makes
+			   the wrap -- and therefore `scrollHeight` -- a fiction, and it is
+			   the one reading that is 0 for a hidden box and never 0 for a shown
+			   one (`.cell` carries `min-width: 6rem`). `offsetParent` is also
+			   null for a `position: fixed` box that is perfectly visible. */
+			if (el.clientWidth === 0) return;
 			el.style.height = 'auto';
 			const cap = Number.parseFloat(getComputedStyle(el).maxHeight);
 			const wanted = el.scrollHeight + 2;
@@ -282,7 +338,43 @@
 		};
 		fit();
 		el.addEventListener('input', fit);
-		return { destroy: () => el.removeEventListener('input', fit) };
+		/* THE BOX APPEARING IS AN EVENT, AND `ResizeObserver` IS THE ONLY ONE OF
+		   THE THREE CANDIDATES THAT CAN SEE IT. An effect keyed to the
+		   disclosure's open state is not available: `Disclosure` LATCHES that
+		   state inside itself (prompt 0018), so `collapseWhen` says only how the
+		   module arrives and this component genuinely cannot know whether the
+		   region is open. Refitting on focus fixes the cell only once a student
+		   taps it, which is the one case the `input` handler already covers, and
+		   does nothing at all for READING BACK work already typed -- which is
+		   the defect. And a `setTimeout` after the press is a race that loses on
+		   a slow phone; this repository has rejected that shape twice (0012,
+		   0018).
+
+		   IT CANNOT LOOP, AND THAT IS A PROPERTY OF `fit()` RATHER THAN A GUARD
+		   BOLTED ON. `fit()` writes HEIGHT; the second delivery recomputes the
+		   same string, the box therefore ends that frame at the height it
+		   started, and an observer reports nothing when nothing moved. The
+		   intermediate `height: auto` is never seen on its own -- deliveries are
+		   batched at the end of the frame and the callback is synchronous.
+		   Measured: 0 console errors on the run, so no undelivered-notification
+		   loop.
+
+		   IT ALSO CLOSES A SECOND, QUIETER CASE THAT WAS ALWAYS OPEN: a cell
+		   whose WIDTH changes -- a phone rotating, a pane resizing -- rewraps
+		   its text and used to keep the height it was fitted to. Same defect,
+		   same mechanism, no extra code. */
+		fitters.set(el, fit);
+		fitObserver ??= new ResizeObserver((entries) => {
+			for (const entry of entries) fitters.get(entry.target)?.();
+		});
+		fitObserver.observe(el);
+		return {
+			destroy: () => {
+				el.removeEventListener('input', fit);
+				fitters.delete(el);
+				fitObserver?.unobserve(el);
+			}
+		};
 	}
 
 	function counterFor(block: TextFieldBlock): { count: number; state: string; label: string } {
@@ -392,8 +484,12 @@
 			     title, points, the AI badge and the done chip -- stays outside this
 			     Disclosure and always renders, so a collapsed module is legible as
 			     DONE rather than as missing. `collapseWhen` is `complete`, never
-			     `started`: a module a student is halfway through must stay open,
-			     and only one already finished has nothing left to look at. Same
+			     `started`: a module a student is halfway through must ARRIVE
+			     open, and only one already finished has nothing left to look at.
+			     Either way it decides how the module is HANDED OVER and never
+			     when it shuts: `Disclosure` latches the signal, so finishing the
+			     last field no longer folds the module over the textarea being
+			     typed into (prompt 0018). Same
 			     rule for the readonly renders (the grading console, the importer's
 			     preview) -- `complete` is read off the same `completion` tally
 			     with no role branch, exactly as the nested instructions panel
@@ -416,9 +512,12 @@
 					     module's markdown -- headings, bold, lists, tables, code --
 					     comes through as real elements rather than literal
 					     asterisks and hash marks. -->
-					<!-- EXPANDED THE FIRST TIME, COLLAPSED ONCE THE WORK HAS STARTED,
-					     and never removed either way (Disclosure hides it in CSS, so
-					     it is one press away and it still prints). The teacher gets
+					<!-- EXPANDED THE FIRST TIME, ARRIVING COLLAPSED ONCE THE WORK
+					     HAS STARTED, and never removed either way (Disclosure hides
+					     it in CSS, so it is one press away and it still prints).
+					     `started` decides the arrival and nothing else: Disclosure
+					     latches it, so a panel already on screen is closed by this
+					     person's press alone (prompt 0018). The teacher gets
 					     this panel in exactly this state: `started` is the only
 					     input, there is no role branch here, and the readonly
 					     renders (the grading console, the importer's preview) read
@@ -507,9 +606,11 @@
 												</td>
 											{/each}
 											{#if canEdit}
+												<!-- TWO CONTROLS, NOT FOUR, AND THE PAIR IS THE ROW'S
+												     HEIGHT. See the comment above `.row-ops` for the
+												     measurements and `docs/decisions/entries/` for who
+												     owns what a student loses. -->
 												<td class="row-ops">
-													<button type="button" title="Move up" onclick={() => moveRow(block, ri, -1)} disabled={ri === 0}>↑</button>
-													<button type="button" title="Move down" onclick={() => moveRow(block, ri, 1)} disabled={ri === rows.length - 1}>↓</button>
 													<button type="button" title="Duplicate row" onclick={() => duplicateRow(block, ri)}>⧉</button>
 													<button type="button" title="Delete row" onclick={() => deleteRow(block, ri)}>✕</button>
 												</td>
@@ -521,6 +622,11 @@
 						</div>
 						<div class="table-foot">
 							{#if canEdit}
+								<!-- The 44px floor is carried by `.table-foot .btn.tiny` in this
+								     component's own style block, NOT by `.tap-44`: that class is
+								     one selector and `.cr-root .btn.secondary.tiny` (classroom.css)
+								     is three, so it was outranked and painted nothing. A class that
+								     does not apply is worse than no class. -->
 								<button type="button" class="btn secondary tiny" onclick={() => addRow(block)}>
 									Add row
 								</button>
@@ -870,8 +976,33 @@
 		border-color: var(--green);
 		background: color-mix(in srgb, var(--green) 12%, var(--surface-0));
 	}
+	/* THE HEADER'S `.tap-reach-44` REACH IS CLIPPED BY THIS SCROLLER WITHOUT
+	   THE PADDING, AND NOTHING ON SCREEN SAYS SO. `overflow-x: auto` forces
+	   `overflow-y` to `auto`, which makes this element clip; the column-tip
+	   trigger is a `.tap-reach-44` control sitting in the `<thead>` on this
+	   box's own top edge, and its centred 44px pseudo-element extends above
+	   that edge and is cut off there. Measured on `/dev/spec-table?empty=1`
+	   before this rule: walked reach 34.5px at 1440 and 42.5px at 375 on a
+	   control whose `::after` computes 44px in both. It is the same clip that
+	   put `InfoTip`'s PANEL on `position: fixed`; a pseudo-element cannot take
+	   that escape, so the clipper gives it the room instead.
+
+	   THE ARITHMETIC: the reach needs 22px above the trigger's centre, and the
+	   centre sits at (this padding + the `<th>`'s 0.25rem = 4px + half the
+	   trigger's own height). The trigger is 16.4px tall on one line, so
+	   4 + 8.2 = 12.2px was available and 22 was needed. 0.7rem = 11.2px takes
+	   it to 23.4px, which clears the single-line case with 1.4px to spare and
+	   the two-line case (32.8px tall) with 9.6px. The cost is 11.2px of height
+	   on the table wrapper and nothing else: no column moves, and the table's
+	   own horizontal scroll is untouched.
+
+	   PADDING-TOP ONLY. The bottom edge needs nothing -- the last row's
+	   controls are 44px BOXES rather than reaches, so nothing extends past
+	   them -- and padding-bottom here would only push the horizontal scrollbar
+	   away from the table it scrolls. */
 	.table-scroll {
 		overflow-x: auto;
+		padding-top: 0.7rem;
 	}
 	.entry-table {
 		width: 100%;
@@ -911,6 +1042,32 @@
 		line-height: 1.5;
 		padding: 0.3rem 0.4rem;
 		min-width: 6rem;
+		/* 33px MEASURED AT BOTH WIDTHS, ON A STUDENT ASSIGNMENT SURFACE THAT
+		   DECLARES NO DENSITY CLASS, so `IDEA_INTERFACE_STANDARDS` 10 (2.12)
+		   gives it no exception: over the 24px absolute floor and under the
+		   44px one. Step 1 of that clause's order is to re-lay the control in
+		   the space that is already there, and here it needed no re-laying at
+		   all -- the cell owns its own box and simply grows.
+
+		   THE 44px STILL COSTS THE ROW NOTHING, BUT NOT FOR THE REASON THIS
+		   COMMENT USED TO GIVE, AND THE DIFFERENCE WAS MEASURED RATHER THAN
+		   REASONED. It used to say the row was 98.3px tall because of the 2x2
+		   row-action grid beside it, so a 44px cell fitted inside height that
+		   was already spent. That grid is gone -- two controls on one line now
+		   -- so the sentence had to be re-checked, and the obvious conclusion
+		   was that the cell floor had become the binding constraint. IT HAS
+		   NOT. Measured at 375 on `/dev/spec-table?rows=12` by deleting THIS
+		   RULE ALONE and changing nothing else: rows 127.4/51.4/62.4 and table
+		   822.3px, identical to the tree with it. The 44px BUTTON beside the
+		   cell is what holds a short row at 51.4, so the cell grows into height
+		   the row already has. The arithmetic that says otherwise compares two
+		   trees that differ in more than this rule; the isolation is the only
+		   reading that answers the question.
+
+		   `min-height` and not `height`, so `autoresize` can still grow the
+		   box past it for a long answer: that action writes `style.height`
+		   inline and a stylesheet `min-height` only ever clamps it upward. */
+		min-height: 44px;
 		resize: none;
 		overflow: hidden;
 	}
@@ -918,11 +1075,82 @@
 		outline: none;
 		border-color: var(--line-strong);
 	}
+	/* 6.4rem is 102.4px, which is exactly what the two 44px controls below need
+	   (2*44 + one 2.4px gap + 9.6px of cell padding). It was already this value
+	   when the glyphs were 23.2px squares and it was still this value when they
+	   were laid 2x2, so the column has not moved through either change. */
 	.row-ops-head {
 		width: 6.4rem;
 	}
+	/* TWO 44px TARGETS ON ONE LINE, WHICH IS WHAT GIVES THE ROW ITS HEIGHT BACK.
+	   The controls were 23.2x23.2 until 2026-09-05, under the 44px floor and
+	   under the 24px absolute floor as well. Step 1 of the conflict order in
+	   `IDEA_INTERFACE_STANDARDS` 10 (2.12) re-laid all four 2x2 at 44px inside
+	   this same 6.4rem column -- correct arithmetic, no width cost, and a row
+	   that went from 40.4px to 98.3px. That figure was reported PER ROW, which
+	   is the half a student does not experience. A row is a number; a table is
+	   a page.
+
+	   MEASURED PER PAGE at 375px on `/dev/spec-table?rows=N`, filled rows, the
+	   module open and `autoresize` settled -- table height, and the scroll from
+	   the top of the table to the Add-row control below it, against a 667px
+	   phone viewport:
+
+	     rows   2x2 (step 1)          one line of two        given back
+	        3   364.7px / 0.62 scr    282.9px / 0.50 scr      81.8px
+	        6   658.0px / 1.06 scr    459.0px / 0.76 scr     199.0px
+	       12   1244.5px / 1.94 scr   822.3px / 1.31 scr     422.2px
+
+	   At 1440 the same three come out 1199.1 -> 652.9 at 12 rows, and the table
+	   does not scroll horizontally at all there (wrapper 1358 = table 1358), so
+	   width is free at desktop and the whole argument below is about 375.
+
+	   Read off `materials/`, `minRows` is 4 in 15 of the 26 real table blocks
+	   and the per-page total is 8 in the median case and 16 at the worst, so the
+	   12-row column is a page that exists rather than a stress case.
+
+	   EVERY ONE-LINE ARRANGEMENT GIVES THE SAME ROW BACK, MEASURED: one trigger,
+	   two controls, three controls, four controls and no column at all all
+	   report a 62.4px typical row at 375 and 51.4px at 1440, against 97.8/97.8
+	   for the 2x2. The row-action cell stops being what sets the row height the
+	   moment it is one line tall; past that the cell content sets it. So the
+	   choice among the one-line options is not about height at all -- it is
+	   about width and taps.
+
+	   WIDTH AND TAPS ARE WHY THIS ONE. At 375 the column and the table's own
+	   horizontal scroll come out: no column 0/528, one trigger 53.6/582, TWO
+	   CONTROLS 100/628, three 146.4/674, four on one line 192.8/721. Two
+	   controls is the only arrangement that moves NOTHING beside it -- 100 and
+	   628 are exactly what the 2x2 already measured. Four on one line widens a
+	   table whose wrapper is 293px, which is the widening step 3 refuses at the
+	   narrow width. An overflow menu and a select-then-act column both cost the
+	   most common action a SECOND TAP, and this is a control pressed at a bench
+	   on a phone.
+
+	   WHAT WAS DROPPED IS `moveRow` AND ITS TWO GLYPHS, WHICH IS STEP 2 -- "four
+	   controls in a cell with room for two", in the clause's own words. The pair
+	   carried the measured dead weight: exactly two of any table's move controls
+	   are permanently disabled (the first row's up, the last row's down), which
+	   is 2 of 4 on a one-row table -- and 4 of the 26 real blocks declare
+	   `minRows: 1`. Reordering also degrades exactly where it would matter,
+	   costing one tap per position: 11 to bring the last row of a 12-row table
+	   to the front. No gate reads row order -- `tableRowFilled`, `blockProgress`
+	   and `_classroom_spec_unmet` all count FILLED rows -- so what a student
+	   loses is rearranging after the fact, never credit.
+
+	   Step 2 changes what the surface can do, so it is not the measuring
+	   bundle's to take: `docs/decisions/entries/2026-09-05-spec-table-row-actions.md`
+	   names Mr. Pina as the owner of that loss.
+
+	   THE GRID STAYS TWO COLUMNS AND IS NOT A ROW OF FLEX. Two 44px tracks with
+	   two children is one line; stating it as a grid keeps the arrangement
+	   declared rather than emergent, and is what stops a third control being
+	   added later and silently wrapping the row back to 98.3px. */
 	.row-ops {
-		white-space: nowrap;
+		display: grid;
+		grid-template-columns: repeat(2, 44px);
+		gap: 0.15rem;
+		justify-content: start;
 	}
 	.row-ops button {
 		appearance: none;
@@ -931,10 +1159,9 @@
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		font-size: 0.7rem;
-		width: 1.45rem;
-		height: 1.45rem;
+		width: 44px;
+		min-height: 44px;
 		cursor: pointer;
-		margin-left: 0.15rem;
 	}
 	.row-ops button:hover:not(:disabled) {
 		color: var(--text-1);
@@ -949,6 +1176,33 @@
 		align-items: center;
 		gap: 0.6rem;
 		margin-top: 0.4rem;
+	}
+	/* ADD ROW IS A 44px TARGET AND WAS A 24px ONE. Measured 69.2x24 at both
+	   widths on `/dev/spec-table?empty=1`, under the floor every student-facing
+	   surface carries -- on the one control this block asks a student to press,
+	   which they press standing at a bench holding a phone.
+
+	   IT IS A SCOPED RULE HERE RATHER THAN `.tap-44` IN THE MARKUP, and that is
+	   specificity rather than preference: `.cr-root .btn.secondary.tiny`
+	   (classroom.css) is three selectors and `.tap-44` is one, so the class
+	   applied and changed nothing -- measured 69.2x24 with it on. Scoped to
+	   `.table-foot` it beats that rule and reaches nothing else, which is the
+	   point: the 24px chip is a DELIBERATE opt-down with ten other call sites
+	   behind it, and the grading console already raises its own the same way.
+
+	   The control owns its row, so growing its box reflows nothing beside it --
+	   `align-items: center` keeps the counter where it was.
+
+	   THE GLYPH CONTROLS IN `.row-ops` WERE THE SAME FINDING AND ARE FIXED NOW.
+	   They went 23.2x23.2 -> four at 44px laid 2x2 (step 1) -> two at 44px on
+	   one line (step 2), which is where the row height came back; see the
+	   comment above `.row-ops` for the per-page measurements and the decision
+	   entry that owns what a student loses. This paragraph used to say they were
+	   a layout decision rather than a rule to add, and left them at 23.2x23.2
+	   with nobody's name on the decision; the standard gained the clause that
+	   answers it on 2026-09-05. */
+	.table-foot .btn.tiny {
+		min-height: 44px;
 	}
 	.zone-head {
 		display: flex;
@@ -1072,12 +1326,39 @@
 		flex-direction: column;
 		gap: 0.35rem;
 	}
+	/* THE FLOOR IS MEASURED AT THE LABEL, WHICH IS WHAT A FINGER HITS, and the
+	   input inside it is deliberately left at 13x13. CLAUDE.md: a small input
+	   inside a 44px label is fine, because clicking the label activates the
+	   control -- so the label's own box IS the target and growing the box is
+	   the fix rather than growing the checkbox.
+
+	   MEASURED BEFORE: label 293x23 at 375 and 1358x23 at 1440, hit-tested
+	   reach 24px tall. Under the 44px floor, and within half a pixel of the
+	   24px absolute floor, on a student assignment surface that declares no
+	   density class. `IDEA_INTERFACE_STANDARDS` 10 (2.12) step 1 is re-laying
+	   the control in the space that is there, and here there is no conflict at
+	   all to resolve: the items are a vertical stack in a card with the full
+	   measure to themselves, so nothing competes for the height. Steps 2 to 4
+	   were not reached.
+
+	   PADDING RATHER THAN `min-height`, so the text stays vertically centred
+	   in the row it now owns. `min-height` with `align-items: flex-start`
+	   would leave a one-line item's words pinned to the top of a 44px box with
+	   21px of blank label under them, which reads as a spacing bug. The
+	   padding grows the label symmetrically instead: 23 + 2*10.4 = 43.8, and
+	   the 1px border-box floor below rounds it the one direction a floor may
+	   round. `align-items: flex-start` is KEPT, so a wrapped item still lines
+	   its checkbox up with its first line rather than with the middle of the
+	   block. The cost is 21.1px per item, stated rather than described. */
 	.check-item {
 		display: flex;
 		align-items: flex-start;
 		gap: var(--space-2);
 		font-size: 0.9rem;
 		cursor: pointer;
+		padding-block: 0.65rem;
+		min-height: 44px;
+		box-sizing: border-box;
 	}
 	.check-item input {
 		margin-top: 0.2rem;

@@ -15,6 +15,7 @@
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
 	import AdminMark from '$lib/marks/AdminMark.svelte';
 	import FoundryMark from '$lib/marks/FoundryMark.svelte';
+	import MapsMark from '$lib/marks/MapsMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
@@ -295,6 +296,8 @@
 		<AdminMark />
 	{:else if id === 'foundry'}
 		<FoundryMark />
+	{:else if id === 'maps'}
+		<MapsMark />
 	{:else if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
@@ -773,42 +776,129 @@
 		--acc-primary: #0fbe7a;
 		--acc-secondary: #e0ac4e;
 	}
-	/* IDEA FOUNDRY. The card QUOTES ITS OWN ROOM, which is the only honest
-	   source for a pair: /foundry is built on the portal's own console register
-	   -- .cr-root surfaces, --green for the launch control, --cyan for the
-	   author line -- so those two ARE its colours rather than a pair invented
-	   for the card. Molten copper was the tempting alternative and is exactly
-	   what the rule refuses: it would be inventing an identity for an app that
-	   already has one.
+	/* THE FORGE, IN THE FORGE'S OWN COLOUR -- and this rule used to be green.
+	   /foundry IS a designed room: src/lib/foundry/forge.css opens by saying so
+	   in words -- "near-black with a faint WARM cast, worked metal under a
+	   banked fire ... THE WARMTH IS THE ROOM'S IDENTITY" -- against a portal
+	   plate that is green and a classroom register that is green-neutral. So
+	   the Foundry was the one app on this launcher with a room of its own and a
+	   card showing none of it, which is the defect the Coin Ledger card two
+	   rules up was fixed for.
 
-	   --acc-ink is NOT re-pinned: --green already carries text on --bg1
-	   everywhere else on this page, so there is nothing for the ink to
-	   correct. */
+	   WHAT THIS REPLACES, AND WHY THE OLD ARGUMENT WAS WRONG RATHER THAN
+	   MERELY OUTVOTED. The card read --green / --cyan on the grounds that
+	   /foundry is built on the portal console register, so those two "ARE its
+	   colours". Two things are wrong with that. Green in this room is not the
+	   room, it is a STATE -- forge.css spends it on `--fg-st-done-ink`
+	   (approved: struck and cooled to green) and `--fg-st-live-ink`, which is
+	   the FINISHED state and nothing else. And on this page green is not an
+	   identity at all: GAUNTLET #00ff41, VANGUARD #00ff41, GREENLINE #2ae57e
+	   and dashboard/admin #78b870 are already spending it, and --green
+	   resolves to #78b870, so the Foundry card and the admin card were
+	   painting the SAME hex. A fifth green is not a way of telling five things
+	   apart.
+
+	   AND THE "HEAT MEANS IN PROGRESS" OBJECTION DOES NOT REACH THIS SURFACE,
+	   which is what the comment this replaces got wrong. That rule is
+	   forge.css's and it governs `.fg-root` -- inside the room, where a chip
+	   wearing heat has to mean "submitted" and nothing else. A launcher card is
+	   not in the room and cannot even read `--fg-*`. This launcher ALREADY
+	   quotes two in-room state colours as out-of-room identity: #2ae57e is
+	   GREENLINE's surgical player thread and #c8ff00 is the Ledger's legendary
+	   rank treatment, and on a card each simply means "that app". A colour is a
+	   state where the state language is defined; out here it is a name.
+
+	   SO THE PAIR IS THE POUR, TAKEN FROM forge.css's OWN SCALE: `--fg-heat`
+	   #f6952f, the working molten amber, cooling to `--fg-heat-ember` #c65a1d
+	   along the strip. AS RE-TYPED HEX, NOT AS var(), and that is forced rather
+	   than sloppy -- the `--fg-*` tokens are declared on `.fg-root` and this
+	   card is not inside it, so var(--fg-heat) here resolves to nothing at all.
+	   Every other card that quotes a room does the same for the same reason.
+
+	   MEASURED, on this page's real grounds rather than described. #f6952f as
+	   text: 7.83 on --bg0, 6.66 on --bg1, 6.25 on --bg2 -- so --acc-ink is NOT
+	   re-pinned, because the identity already carries text and the FRC case is
+	   the only one that does not. The card edge (--acc-edge, the identity at
+	   75%) reads 4.89:1 against the page, comfortably past the 3:1 a boundary
+	   carries and slightly better than the green it replaces at 4.81.
+	   #c65a1d is the far stop of the gradient strip and paints no text and no
+	   boundary: --acc-secondary is read at exactly one place in this file, the
+	   strip's linear-gradient. */
 	.app-card[data-app='foundry'] {
-		--acc-primary: var(--green);
-		--acc-secondary: var(--cyan);
-		/* Horizontal hairlines at 7px, in the CYAN above rather than in any heat
-		   colour, and distinct from GAUNTLET's blueprint grid and GREENLINE's
-		   diagonals so the three do not read as one family.
-
-		   THIS COMMENT USED TO SAY THE LINES QUOTE THE ROOM'S MOLTEN SEAM. They
-		   do not and cannot: `MoltenSeam` is the `--fg-heat-*` scale, amber
-		   through ember to a white-hot core, and this value is
-		   rgba(0, 240, 255, ...). What the texture actually quotes is the pair
-		   two lines up -- the room's own --cyan, the colour /foundry uses for an
-		   author line -- so it is the card's own accent drawn faintly, which is
-		   the honest reading and needs no seam in it.
-
-		   THE COLOUR IS NOT CHANGED HERE. Heat means IN PROGRESS in this room
-		   and a launcher card is not a progress state, so quoting the seam would
-		   be the wrong claim as well as a different colour;
-		   tests/home-order-and-accent.test.ts pins the pair, and a repaint is a
-		   design decision rather than a comment correction. */
+		--acc-primary: #f6952f;
+		--acc-secondary: #c65a1d;
+		/* Horizontal hairlines at 7px -- the same rhythm as before, moved off
+		   cyan onto the card's own accent so the texture keeps quoting the pair
+		   two lines up rather than the pair it used to. Still distinct from
+		   GAUNTLET's blueprint grid and GREENLINE's diagonals, so the three do
+		   not read as one family, and still at 3.5% where it cannot touch
+		   legibility. */
 		--card-texture: repeating-linear-gradient(
 			to bottom,
-			rgba(0, 240, 255, 0.035) 0 1px,
+			rgba(246, 149, 47, 0.035) 0 1px,
 			transparent 1px 7px
 		);
+	}
+	/* IDEA MAPS -- JADE, AND THE ONE HUE ON THIS PAGE NOBODY ELSE IS SPENDING.
+	   Mr. Pina closed spec section 10's undecided accent on 2026-09-02: Maps
+	   takes a GREEN, because green is the pathway's brand identity and an IDEA
+	   product should read as one. This rule is the implementation of that
+	   decision, not a re-litigation of it; what was open was WHICH green.
+
+	   THE PROBLEM WAS THAT FOUR CARDS ALREADY SPEND ONE, and a fifth chosen by
+	   eye would have been a fifth thing nobody can tell apart at a glance.
+	   Measured in oklch, every incumbent green sits between hue 141.7 and
+	   158.6 -- admin/dashboard #78b870 at 141.7, GAUNTLET and VANGUARD #00ff41
+	   at 144.5, GREENLINE #2ae57e at 152.5, Tournaments #0fbe7a at 158.6 --
+	   with the Coin Ledger's chartreuse #c8ff00 below them at 124.0 and the
+	   --cyan token above at 177.6. The gap between the emerald and the cyan is
+	   the only green nothing on this page is using. This is oklch(0.820 0.150
+	   168), the middle of it: a jade, unambiguously green (its green channel
+	   leads its blue by 50 of 255) and unambiguously not one of the four.
+
+	   MEASURED, BECAUSE A FIFTH GREEN IS EXACTLY THE CLAIM THAT HAS TO BE.
+	   CIEDE2000 against every colour already on the launcher: GREENLINE 9.8,
+	   Tournaments 10.8, admin/dashboard 15.1, GAUNTLET and VANGUARD 18.6, the
+	   Coin Ledger 27.5, the shared brass default 34.7, the Foundry 50.1, FRC
+	   75.9 -- and 11.4 against --cyan, which is the token it is nearest in hue
+	   and which is nowhere near it in chroma. The worst of those, 9.8, is
+	   WIDER than the closest pair this page already ships (Tournaments against
+	   admin/dashboard, 9.0), so the board is not made tighter by adding to it.
+
+	   THE INK DOES NOT MOVE, unlike FRC's. As text it measures 10.86 / 9.24 /
+	   8.66 on --bg0 / --bg1 / --bg2, so the identity carries the glyph itself
+	   and there is nothing to re-pin; the 75% edge reads 6.89:1 against the
+	   page, past the 3:1 a load-bearing boundary owes.
+
+	   THE SECOND STOP IS THE PORTAL'S BRASS, AND IT IS THE ROOM QUOTED RATHER
+	   THAN A COLOUR PICKED. /maps paints its chrome in this jade and marks the
+	   thing you were looking for in --gold -- gold is a STATE on that surface,
+	   the way crimson is reserved for live and error -- so the card's 2px strip
+	   running jade to brass is the two roles the room actually has. It is the
+	   one strip on this launcher whose stops are a surface's own semantics
+	   rather than two colours that go together.
+
+	   THIS RULE PAINTS A REAL CARD NOW, AND THIS PARAGRAPH USED TO SAY IT DID
+	   NOT. It read "THERE IS NO `maps` ENTRY IN `PORTAL_APPS` YET AND THIS
+	   RULE PAINTS NOTHING UNTIL THERE IS", which was true the day 0020 wrote
+	   it and was made false by the very next bundle: `ca5d950` added the
+	   `maps` entry to the registry and `MapsMark.svelte` beside it, so the
+	   selector below has matched a mounted card ever since. 0021 was right not
+	   to revise another bundle's prose while landing that entry; the sentence
+	   is corrected here by the bundle that owns this file.
+
+	   The reason it mattered is the reason the sentence was written: a
+	   stylesheet rule keyed on an attribute no card carries is INERT AND
+	   NOTHING ON SCREEN REPORTS IT -- there is no wrong colour to notice, only
+	   a card that is not there. A comment claiming that state after it has
+	   passed is the same failure one layer up: it tells the next reader the
+	   rule is unreachable, which is exactly the thing that stops anybody
+	   measuring it. `tests/home-order-and-accent.test.ts` is what closes the
+	   loop in code, asserting the registry entry exists and that the launcher
+	   draws MapsMark for it rather than the fallback glyph. */
+	.app-card[data-app='maps'] {
+		--acc-primary: #40e3b1;
+		--acc-secondary: var(--gold);
 	}
 	.app-card[data-app='dashboard'],
 	.app-card[data-app='admin'] {

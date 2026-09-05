@@ -1,0 +1,23 @@
+/* ==========================================================================
+   SITE THEMES -- the layer that overrides token VALUES, and the reason
+   colors.css and effects.css never have to be edited to add one.
+
+   A theme is a file in this directory holding exactly one selector,
+   `:root[data-theme='<id>']`, whose declarations are token names that already
+   exist. It introduces no token, edits no token file, and adds no rule to any
+   component. That is what makes a second theme A FILE plus one @import line
+   here, rather than a change to anything that already ships.
+
+   ORDER DOES NOT DECIDE ANYTHING, AND THAT IS DELIBERATE. `:root[data-theme]`
+   is (0,2,0) against the token layer's `:root` (0,1,0), so a theme wins on
+   specificity and would still win if this import moved. Nothing here depends
+   on being last.
+
+   TWO THINGS A THEME MAY NOT DO, both stated in matrix.css's own header at
+   length: it may not repaint an IDENTITY colour (an app's launcher accent, a
+   pathway, a brand) and it may not repaint a SEMANTIC one (the six state
+   hues). What is left -- grounds, neutral text tiers, boundaries -- is what a
+   theme is for.
+   ========================================================================== */
+
+@import './matrix.css';

@@ -1,6 +1,13 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import FeedbackBox from './FeedbackBox.svelte';
-	import type { FeedbackEntry, FeedbackResult } from './feedback';
+	import {
+		probeFeedbackCapabilities,
+		type FeedbackCapabilities,
+		type FeedbackEntry,
+		type FeedbackResult
+	} from './feedback';
+	import { uploadFeedbackScreenshot, type ScreenshotUpload } from './screenshot';
 	import {
 		appForRouteId,
 		captureMeta,
@@ -8,6 +15,7 @@
 		feedbackExclusion,
 		type BuildStamp
 	} from './context';
+	import type { SupabaseClient } from '@supabase/supabase-js';
 
 	/**
 	 * THE ONE REPORT AFFORDANCE, mounted once in the root layout.
@@ -54,6 +62,9 @@
 		submit = null,
 		anonymous = false,
 		place = 'shell',
+		supabase = null,
+		userId = null,
+		uploadScreenshot = null,
 		status = null,
 		errorMessage = null,
 		errorId = null,
@@ -82,6 +93,37 @@
 		 */
 		anonymous?: boolean;
 		place?: 'shell' | 'relocated';
+		/**
+		 * WHAT A SCREENSHOT NEEDS, AND WHY IT IS READ OFF `page.data` RATHER THAN
+		 * PASSED IN.
+		 *
+		 * This component is mounted in five places, four of which are outside the
+		 * feedback subsystem (the root layout, the error boundary, the GAUNTLET
+		 * layout and the deck route). Requiring each of them to thread a client
+		 * would mean the attach control appearing on whichever of them somebody
+		 * remembered -- the exact per-page-coverage failure the shell mount exists
+		 * to end. So the default is the client the root layout already puts in
+		 * `page.data`, read the way `ProfileMenu` reads `userProfile` from
+		 * `$app/state`, and every existing mount inherits the control unchanged.
+		 *
+		 * BOTH ARE OVERRIDABLE, so a dev harness can hand in its own pair (or
+		 * none) without a session, and so a surface that must not offer an attach
+		 * can say so by handing in a null `uploadScreenshot` below.
+		 *
+		 * `submit` IS DELIBERATELY NOT DERIVED FROM THESE. Which transport writes
+		 * the report is still the mounting layout's decision, unchanged; this pair
+		 * answers a narrower question -- can these bytes reach the bucket -- and
+		 * conflating the two is how a box would start writing through a path its
+		 * host did not choose.
+		 */
+		supabase?: SupabaseClient | null;
+		userId?: string | null;
+		/**
+		 * The screenshot transport, overriding the one built from the pair above.
+		 * Null with a client present still gets the built one; pass a function to
+		 * replace it, which is what a harness does.
+		 */
+		uploadScreenshot?: ((file: File) => Promise<ScreenshotUpload>) | null;
 		/** The error boundary fills these in; nothing else does. */
 		status?: number | null;
 		errorMessage?: string | null;
@@ -97,7 +139,30 @@
 
 	const shown = $derived(!!submit && !excluded);
 
+	/**
+	 * THE CLIENT AND THE VIEWER, resolved once: the prop when a caller passed
+	 * one, otherwise what the root layout put in `page.data`. `page.data.claims`
+	 * is what every other surface reads the signed-in subject from.
+	 */
+	const client = $derived(
+		supabase ?? ((page.data as { supabase?: SupabaseClient | null })?.supabase ?? null)
+	);
+	const viewer = $derived(
+		userId ?? ((page.data as { claims?: { sub?: string } })?.claims?.sub ?? null)
+	);
+
 	let open = $state(false);
+	/**
+	 * WHAT THE BACKEND IN FRONT OF US CAN TAKE (0170), probed ONCE PER OPEN.
+	 *
+	 * Migrations here are applied by hand, so a deployment before 0170 is a real
+	 * state, and an attach control offered against it would upload bytes and
+	 * then fail the row insert on a column PostgREST does not know -- which is
+	 * the report lost, on the one surface that exists to catch lost things. The
+	 * honest starting value is BOTH FALSE: "cannot tell" never reads as "yes".
+	 */
+	let capabilities = $state<FeedbackCapabilities>({ tried: false, screenshot: false });
+	let probed = $state(false);
 	/** Captured at OPEN, not at render: the viewport and the user agent are what
 	 * they were looking at when they decided something was wrong. */
 	let captured = $state<Record<string, unknown>>({});
@@ -108,6 +173,20 @@
 				? null
 				: { w: window.innerWidth, h: window.innerHeight };
 		const userAgent = typeof navigator === 'undefined' ? null : navigator.userAgent;
+		// PROBED FROM THE HANDLER, NEVER FROM AN `$effect`. An effect that calls a
+		// caller-supplied client takes a dependency on whatever that client
+		// touches reactively, which is `effect_update_depth_exceeded` on mount in
+		// the general case; a click handler has no tracking context at all.
+		probed = false;
+		// ONLY WHERE THE ANSWER COULD BE YES. With no client or no viewer the
+		// attach control is refused locally and for a local reason, so asking the
+		// backend would be a round trip whose answer changes nothing.
+		if (client && viewer) {
+			void probeFeedbackCapabilities(client).then((caps) => {
+				capabilities = caps;
+				probed = true;
+			});
+		}
 		captured = captureMeta({
 			routeId,
 			pathname,
@@ -123,6 +202,47 @@
 		});
 		open = true;
 	}
+
+	/**
+	 * THE SCREENSHOT TRANSPORT, or nothing. Three conditions, and each one has a
+	 * sentence of its own below rather than a shared shrug:
+	 *   * a caller-supplied transport always wins (the harness);
+	 *   * otherwise a client AND a viewer, because the object key is the
+	 *     viewer's own folder and the storage policy compares it to auth.uid();
+	 *   * and the probe having actually said yes.
+	 */
+	const attach = $derived.by(() => {
+		if (uploadScreenshot) return uploadScreenshot;
+		if (!client || !viewer || !capabilities.screenshot) return null;
+		const c = client;
+		const uid = viewer;
+		return (file: File) => uploadFeedbackScreenshot(c, uid, file);
+	});
+
+	/**
+	 * WHY THERE IS NO ATTACH CONTROL, when there is none. A control that is
+	 * absent for a reason says the reason: on a form where a screenshot is
+	 * offered to everybody else, its silent absence reads as a bug.
+	 *
+	 * NOTHING IS SAID WHILE THE PROBE IS STILL OUT. "Cannot tell" is not a
+	 * sentence worth putting on screen for the few hundred milliseconds it lasts,
+	 * and a note that appears and then vanishes is worse than one that never did.
+	 */
+	const attachNote = $derived.by(() => {
+		if (attach) return null;
+		// BEING SIGNED OUT IS NOT A QUESTION FOR THE BACKEND, so this answer does
+		// not wait on the probe. It used to, and the browser pass caught it: the
+		// sentence rendered NOWHERE on a surface with no session, because the
+		// probe against an unreachable origin never resolved -- so the one case
+		// this note exists for was the one case it was missing from.
+		if (!client || !viewer)
+			return 'Signing in lets you attach a screenshot. Reports without one are read just the same.';
+		// The other case genuinely is a question for the backend, and nothing is
+		// said while the answer is still out: a note that appears and then
+		// vanishes is worse than one that never did.
+		if (!probed) return null;
+		return 'Attaching a screenshot is not switched on for this deployment yet.';
+	});
 
 	const noteFor = $derived(
 		status === null
@@ -170,6 +290,8 @@
 			meta={captured}
 			{submit}
 			askContact={anonymous}
+			uploadScreenshot={attach}
+			screenshotNote={attachNote}
 			onClose={() => (open = false)}
 			title={status === null ? 'Report a problem' : `Report this ${status}`}
 			note={noteFor}

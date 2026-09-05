@@ -22,6 +22,41 @@ import type { PageServerLoad } from './$types';
  * of once per assignment. It is a tally of policy-scoped rows, not a privileged
  * view.
  */
+interface PostGradeRow {
+	item_id: string;
+	graded_at: string | null;
+	submitted_at: string | null;
+}
+
+/**
+ * PER ASSIGNMENT, HOW MANY STUDENTS HANDED IN AGAIN AFTER BEING GRADED.
+ *
+ * WHAT IT COUNTS IS WHAT ITS NAME SAYS, AND THAT IS THE WHOLE DESIGN. The
+ * grading console reports TWO post-grade acts -- a resubmission and a silent
+ * edit of a response block -- and only the first is answerable from this page's
+ * one read: an edit lives in `classroom_responses`, which would mean a row per
+ * block per student per assignment for the whole class, on a tab that is a
+ * summary. So this counts resubmissions and the chip SAYS "resubmitted",
+ * because a number labelled "changed" that could only ever see half the changes
+ * reads as complete and is worse than no number at all. The console beside it
+ * carries both.
+ *
+ * IT IS THE SAME COMPARISON `postGradeChange` MAKES -- `submitted_at` strictly
+ * after `graded_at` -- rather than a second idea of what "after grading" means.
+ * An unparseable or absent timestamp does not count: an integrity mark that
+ * fires on missing data is one an instructor learns to ignore.
+ */
+function countResubmittedAfterGrading(rows: PostGradeRow[]): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const row of rows) {
+		const graded = row.graded_at ? Date.parse(row.graded_at) : NaN;
+		const submitted = row.submitted_at ? Date.parse(row.submitted_at) : NaN;
+		if (Number.isNaN(graded) || Number.isNaN(submitted) || submitted <= graded) continue;
+		counts[row.item_id] = (counts[row.item_id] ?? 0) + 1;
+	}
+	return counts;
+}
+
 export const load: PageServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
@@ -47,17 +82,23 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	const assignmentIds = content.items.filter((i) => i.kind === 'assignment').map((i) => i.id);
 	let submissions: SubmissionSummary[] = [];
+	let rows: PostGradeRow[] = [];
 	if (assignmentIds.length) {
+		// TWO COLUMNS WIDER THAN IT WAS, AND NO NEW READ. `graded_at` and
+		// `submitted_at` are 0086 columns -- the oldest schema this app supports --
+		// so this needs no rung and cannot degrade anything.
 		const { data } = await supabase
 			.from('classroom_submissions')
-			.select('item_id, state, score')
+			.select('item_id, state, score, graded_at, submitted_at')
 			.in('item_id', assignmentIds);
 		submissions = (data ?? []) as SubmissionSummary[];
+		rows = (data ?? []) as PostGradeRow[];
 	}
 
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
-		standings: assignmentStandings(content.items, submissions, students.length)
+		standings: assignmentStandings(content.items, submissions, students.length),
+		resubmittedAfterGrading: countResubmittedAfterGrading(rows)
 	};
 };

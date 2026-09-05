@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { FeedbackRow } from '$lib/feedback/feedback';
-import { rowSection, type ClassroomSectionInfo } from '$lib/feedback/console';
+import { rowScreenshotPath, rowSection, type ClassroomSectionInfo } from '$lib/feedback/console';
+import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
 import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
@@ -53,10 +54,45 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		});
 	}
 
+	// A SHORT-LIVED SIGNED URL PER SCREENSHOT, MINTED ON THE CALLER'S OWN CLIENT.
+	//
+	// `feedback-media` is PRIVATE: no object in it has a public URL, and the only
+	// readers are the object's own uploader and an admin, by storage policy
+	// (0170). This runs on `locals.supabase`, which carries the admin's own
+	// session, so the POLICY is what decides -- this route is not the
+	// authorization boundary and must never become one by reaching for the
+	// service key.
+	//
+	// `download` PUTS `Content-Disposition: attachment` ON THE RESPONSE, on the
+	// Supabase origin rather than ours, so following the link SAVES the
+	// reporter's bytes rather than rendering them as a document. The console
+	// still draws a thumbnail from the same URL: an `<img>` decodes a response
+	// carrying that header (measured in Chromium, recorded in CLAUDE.md), and an
+	// image element is not a navigation -- script does not run in one, and the
+	// bucket admits no SVG in the first place.
+	//
+	// FIVE MINUTES, because the bytes are immutable but WHO may read them is
+	// not, and a queue is worked through in one sitting.
+	//
+	// IT FAILS SOFT, AND A MISSING URL IS A NORMAL STATE. On a deployment before
+	// 0170 there is no bucket and no `screenshot_path` on any row, so this is an
+	// empty map and the console renders exactly what it rendered before.
+	const screenshotUrls: Record<string, string> = {};
+	const keys = [...new Set(rows.map(rowScreenshotPath).filter((k): k is string => !!k))];
+	if (keys.length) {
+		const { data: signed } = await supabase.storage
+			.from(FEEDBACK_MEDIA_BUCKET)
+			.createSignedUrls(keys, 300, { download: true });
+		for (const entry of signed ?? []) {
+			if (entry.signedUrl && entry.path) screenshotUrls[entry.path] = entry.signedUrl;
+		}
+	}
+
 	return {
 		// Fails soft: 0085 unapplied reads as a clearly-flagged card, not a crash.
 		ready: !rpcError,
 		rows,
-		classroomSections
+		classroomSections,
+		screenshotUrls
 	};
 };

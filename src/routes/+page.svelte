@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { entries as changelog } from 'virtual:site-versions';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
+	import { groupEntriesByMonth } from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
@@ -80,12 +81,46 @@
 	 * classroom_manages_section), so this asks the SAME question through the same
 	 * implementation rather than re-deriving it from roles or emails here. No
 	 * extra load, no second rule to keep in step.
-	 *
-	 * A viewer with no feed at all -- nobody's teacher, or a backend where the
-	 * classroom read failed -- gets the student order, which is the order this
-	 * page has always had.
 	 */
 	const managesAnySection = $derived(classroomFeeds.some((f) => f.manages));
+
+	/**
+	 * ARE THERE ANY CLASSES TO PUT FIRST -- the other half of the same decision.
+	 *
+	 * THIS PARAGRAPH USED TO SAY THE OPPOSITE, AND THE MEASUREMENT IS WHY IT
+	 * CHANGED. It read: "A viewer with no feed at all -- nobody's teacher, or a
+	 * backend where the classroom read failed -- gets the student order, which
+	 * is the order this page has always had." That is true of the code and was
+	 * the wrong answer, because the student order is earned by CONTENT rather
+	 * than granted by role. `buildFeed` returns nothing for a signed-out
+	 * visitor, for a student before the roster import, for anyone whose
+	 * classroom read failed, and for a teacher between terms -- and in every one
+	 * of those cases `ClassroomFeed` still renders a card, so a 230px empty
+	 * state ("You are not in any classes yet") sat above the launcher with
+	 * nothing in it to open.
+	 *
+	 * MEASURED at 375px on `/dev/home-order`, first app card from the top of the
+	 * document: 900px (1.13 screens) with an empty feed, against 1409px (1.76
+	 * screens) with one real class. So an empty block was costing a full screen
+	 * of scroll to say that there is nothing here.
+	 *
+	 * THE ORDER IS NOT FLIPPED FOR A STUDENT WHO HAS CLASSES, AND THAT IS THE
+	 * POINT. The report behind this was "apps should be above classes", and the
+	 * same measurement is what refuses the general form of it: a student's block
+	 * grows 616px per class at 375px (1.76 / 2.53 / 3.30 / 4.07 screens at one
+	 * through four classes), so flipping the order does not remove that scroll,
+	 * it moves it onto the one thing on this page that deep-links a student into
+	 * the exact item that is due. Bounding the height of a class card is the fix
+	 * for that, and it belongs to `ClassroomFeed`, not here.
+	 *
+	 * So the rule keeps its own stated reason and stops applying where the
+	 * reason does not: Your Classes holds the top exactly while it has a class
+	 * in it.
+	 */
+	const hasClasses = $derived(classroomFeeds.length > 0);
+
+	/** Apps first for a manager, or when there is no class to put above them. */
+	const appsFirst = $derived(managesAnySection || !hasClasses);
 
 	// Collapse state, persisted per USER in profiles.preferences.classroomFeed
 	// (the AppLauncher pattern), so a folded class stays folded on their phone
@@ -133,42 +168,16 @@
 		filterTo = '';
 	};
 
-	const MONTH_NAMES = [
-		'January',
-		'February',
-		'March',
-		'April',
-		'May',
-		'June',
-		'July',
-		'August',
-		'September',
-		'October',
-		'November',
-		'December'
-	];
-
 	/**
-	 * The filtered log cut into months for the headings. `entries` arrives
-	 * newest-first from git log, so a single pass keeps both the months and the
-	 * entries inside them in order. This groups, it never CAPS: the filters above
-	 * still run over the whole array and `filteredLog.length` still counts all of
-	 * it, so there is no slice and no pagination anywhere in this panel.
+	 * The filtered log cut into months for the headings. The grouping itself is
+	 * `groupEntriesByMonth` in $lib/site-versions -- pure list arithmetic, moved
+	 * there so a test can reach it, after a single-pass version of it opened a
+	 * second group for an already-seen month and Svelte's duplicate-key error
+	 * took this page blank. It groups, it never CAPS: the filters above still run
+	 * over the whole array and `filteredLog.length` still counts all of it, so
+	 * there is no slice and no pagination anywhere in this panel.
 	 */
-	const logMonths = $derived.by(() => {
-		const months: { key: string; label: string; entries: typeof filteredLog }[] = [];
-		for (const entry of filteredLog) {
-			const key = entry.iso.slice(0, 7);
-			let month = months[months.length - 1];
-			if (!month || month.key !== key) {
-				const name = MONTH_NAMES[Number(key.slice(5, 7)) - 1];
-				month = { key, label: name ? `${name} ${key.slice(0, 4)}` : 'Undated', entries: [] };
-				months.push(month);
-			}
-			month.entries.push(entry);
-		}
-		return months;
-	});
+	const logMonths = $derived(groupEntriesByMonth(filteredLog));
 
 	const signInWithGoogle = async (next = '/') => {
 		loading = true;
@@ -456,7 +465,7 @@
 		<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
 	{/snippet}
 
-	{#if managesAnySection}
+	{#if appsFirst}
 		{@render portalApps()}
 		{@render yourClasses()}
 	{:else}

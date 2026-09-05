@@ -6,4 +6,8 @@
 
 </script>
 
-<GradesPanel section={data.section} standings={data.standings} />
+<GradesPanel
+	section={data.section}
+	standings={data.standings}
+	resubmittedAfterGrading={data.resubmittedAfterGrading}
+/>

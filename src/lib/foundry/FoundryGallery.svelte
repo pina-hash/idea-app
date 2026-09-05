@@ -129,7 +129,7 @@
 	const ordered = $derived(sortGallery(apps, playCounts, sort));
 </script>
 
-<ClassSplit hasDetail={selected !== null} narrow="swap" scroll="page" detailWidth="roomy">
+<ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
 	{#snippet nav()}
 		<div class="fdy-gal-pane">
 			<!-- The shell's tabs are the way to My apps now; the header button

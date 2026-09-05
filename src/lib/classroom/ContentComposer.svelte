@@ -7,6 +7,7 @@
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
+	import { imageChoices } from '$lib/classroom/attachments';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
@@ -47,7 +48,7 @@
 		type ClassroomItemKind,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
-	import { dropTarget, filesFromClipboard } from '$lib/file-drop';
+	import { claimPaste, dropTarget, filesFromClipboard } from '$lib/file-drop';
 
 	/**
 	 * THE content editor for every classroom item -- announcement, assignment
@@ -401,9 +402,62 @@
 	 * staged file is work somebody would mind losing.
 	 */
 	let stagedFileCount = $state(0);
+	/**
+	 * THE STAGED FILES' NAMES, and nothing else about them.
+	 *
+	 * The body's picture picker has to offer a file that is not uploaded yet --
+	 * on a CREATE that is the only kind there is, because the item id the upload
+	 * needs does not exist until the create call returns. A name is enough,
+	 * because the alias is keyed on the recorded FILENAME and that name is a
+	 * pure function of `file.name` (see `recordedAttachmentFilename`).
+	 *
+	 * READ THROUGH THE PANEL'S OWN CHANGE SIGNAL rather than by giving
+	 * FileUploadPanel a second callback: `oncountchange` already fires on every
+	 * mutation it makes -- staging, removing, clearing, and the end of `runAll`
+	 * -- so the count changing IS the moment to re-read `files()`. One
+	 * mechanism, and the panel's interface is untouched.
+	 */
+	let stagedFileNames = $state<string[]>([]);
 	let filePanel = $state<FileUploadPanel | null>(null);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
+
+	/**
+	 * THE PICTURES THE BODY EDITOR MAY OFFER (0041).
+	 *
+	 * THE TWO LISTS ARE NOT THE SAME LIST, AND THEY CANNOT BE MADE SO. `existing`
+	 * is what the item already carries: on an EDIT it is a strict subset of what
+	 * the item saves with, and on a CREATE it is empty, because a staged file
+	 * needs an item id to upload against and the id does not exist until the
+	 * create call returns. That ordering is 0133's shape, not a bug to fix here.
+	 *
+	 * WHAT CLOSES THE GAP IS THE ALIAS. `attachment:<filename>` is keyed on the
+	 * recorded filename, which `/api/classroom/attachment` derives from
+	 * `file.name` by a pure function -- so a staged file's eventual reference is
+	 * COMPUTED, not guessed, and the picker can offer it before a byte moves.
+	 * The one residual case is an upload that fails: the composer already keeps
+	 * that file staged and names it in the failure list, and a reference with no
+	 * row behind it renders as its caption plus a marker, which is 0030's
+	 * designed degradation rather than a broken page. The row says so in words
+	 * before it is chosen.
+	 *
+	 * `imageChoices` decides what is offerable, through `resolveFigureSrc`
+	 * itself. Instructor-only files are not passed and could not be: they are a
+	 * different bucket and a different table, an item body's alias resolves
+	 * against the STUDENT-FACING attachments only, and a body is read by the
+	 * whole class.
+	 */
+	const bodyImages = $derived(
+		imageChoices({
+			attached: existing,
+			staged: stagedFileNames.map((name) => ({ name }))
+		})
+	);
+	const bodyImagesEmptyHint = $derived(
+		attachmentsEnabled
+			? 'No pictures on this item yet. Add one under Files below, then press Image again.'
+			: 'This item cannot take files, so there is no picture to place in it.'
+	);
 	// --- Instructor-only materials (0090, 0135) ----------------------------
 	//
 	// KEPT AS ITS OWN STATE rather than a flag on the student-facing arrays:
@@ -548,6 +602,27 @@
 		if (!attachmentsEnabled) return;
 		const images = filesFromClipboard(event);
 		if (!images.length) return;
+		// A PANEL INSIDE THIS FORM GETS THE PASTE FIRST, and this handler stands
+		// down when one did. Both FileUploadPanels are mounted INSIDE the element
+		// carrying this `onpaste`, a paste bubbles, and `preventDefault` does not
+		// stop it -- so without this, a screenshot pasted into the instructor-only
+		// panel was staged there AND here, i.e. onto the student-facing list the
+		// whole class may read, and one pasted into the student panel was staged
+		// twice over. `claimPaste` is the shared statement of that (see
+		// $lib/file-drop).
+		//
+		// ASKING IT RATHER THAN READING `event.defaultPrevented` IS DELIBERATE,
+		// and not because the flag would fail today: measured in a real browser
+		// on /dev/composer-attach, ProseMirror does NOT call `preventDefault` on
+		// an image paste -- it finds no text and no html to insert and declines
+		// the event -- so the two spellings currently agree. That is exactly what
+		// makes the flag the wrong one to key on: it would rest on a third-party
+		// library's internal choice about an event it did not want, which nothing
+		// here controls and nothing would report if it changed.
+		// `defaultPrevented` says somebody stopped the browser's default; it does
+		// not say somebody has already attached this file, and only the second
+		// question has a right answer here.
+		if (!claimPaste(event)) return;
 		event.preventDefault();
 		filePanel?.add(images);
 		pasteHint = `${images.length} pasted image${images.length === 1 ? '' : 's'} attached.`;
@@ -1026,7 +1101,65 @@
 	}
 </script>
 
+<!--
+	ONE SET OF CONTROLS, RENDERED TWICE. This is a snippet and not a second row
+	of buttons: the save path is `submit(true)` / `submit(false)` and there is
+	exactly one spelling of each, so the top control cannot come to mean
+	something slightly different from the bottom one. The `place` is used only
+	to keep the two `data-testid`s apart.
+
+	WHY THERE IS A TOP ONE AT ALL. The actions row is the LAST thing in the
+	form, after the title, the body editor, the points and dates, the links,
+	the attachments, the deck, the spec, the rubric, the check-in and the class
+	targets -- around 420 lines of markup on an assignment. Editing a long post
+	means scrolling the whole form back down to save it, every time, and the
+	report is exactly that. The top one is the same press without the scroll.
+-->
+{#snippet actions(place: 'top' | 'bottom')}
+	<button
+		class="btn"
+		type="button"
+		disabled={busy}
+		data-testid="composer-publish-{place}"
+		onclick={() => submit(true)}
+	>
+		{#if mode === 'edit'}
+			{scheduledAhead ? 'Save & schedule' : 'Save & publish'}
+		{:else}
+			{scheduledAhead ? 'Schedule' : 'Post now'}
+		{/if}
+	</button>
+	<button
+		class="btn secondary"
+		type="button"
+		disabled={busy}
+		data-testid="composer-draft-{place}"
+		onclick={() => submit(false)}
+	>
+		Save draft
+	</button>
+	{#if oncancel}
+		<button
+			class="btn secondary"
+			type="button"
+			disabled={busy}
+			data-testid="composer-cancel-{place}"
+			onclick={() => oncancel?.()}
+		>
+			Cancel
+		</button>
+	{/if}
+{/snippet}
+
 <div class="composer" class:compact onpaste={onPaste}>
+	<div class="composer-actions top" data-testid="composer-actions-top">
+		{@render actions('top')}
+		<!-- The indicator rides the top row too, because a person who saves from
+		     here is looking here and "Saved 3:14 PM" arriving 400 lines below
+		     them is the same as no acknowledgement at all. Same instance, same
+		     five words, same machine. -->
+		<span class="save-line inline"><SaveIndicator state={save} /></span>
+	</div>
 	{#if mode === 'create'}
 		<div class="kind-toggle" role="tablist" aria-label="Content type">
 			{#each ITEM_KINDS as k (k.id)}
@@ -1059,6 +1192,8 @@
 				label={bodyLabel}
 				{compact}
 				disabled={busy}
+				images={bodyImages}
+				imagesEmptyHint={bodyImagesEmptyHint}
 				onchange={(doc) => (bodyDoc = doc)}
 				onready={(doc) => {
 					// THE BASELINE, NOT AN EDIT. Seeding Tiptap emits a transaction
@@ -1150,7 +1285,12 @@
 				label="Files"
 				hint="Any file type, up to 200 MB each. Uploads when you save."
 				showPreviews
-				oncountchange={(n) => (stagedFileCount = n)}
+				oncountchange={(n) => {
+					stagedFileCount = n;
+					// The count is the SIGNAL; the names are the read. See
+					// `stagedFileNames` for why this is not a second panel callback.
+					stagedFileNames = (filePanel?.files() ?? []).map((f) => f.name);
+				}}
 			/>
 			{#if pasteHint}
 				<p class="feedback ok">{pasteHint}</p>
@@ -1448,23 +1588,7 @@
 		</p>
 	</div>
 
-	<div class="composer-actions">
-		<button class="btn" type="button" disabled={busy} onclick={() => submit(true)}>
-			{#if mode === 'edit'}
-				{scheduledAhead ? 'Save & schedule' : 'Save & publish'}
-			{:else}
-				{scheduledAhead ? 'Schedule' : 'Post now'}
-			{/if}
-		</button>
-		<button class="btn secondary" type="button" disabled={busy} onclick={() => submit(false)}>
-			Save draft
-		</button>
-		{#if oncancel}
-			<button class="btn secondary" type="button" disabled={busy} onclick={() => oncancel?.()}>
-				Cancel
-			</button>
-		{/if}
-	</div>
+	<div class="composer-actions">{@render actions('bottom')}</div>
 	<!-- The same five states, in the same words, as the other three surfaces.
 	     The full report stays below it: the indicator says WHICH state, the
 	     feedback line says what did and did not land. -->
@@ -1475,6 +1599,27 @@
 </div>
 
 <style>
+	/* The TOP copy of the actions row. It is sticky rather than merely first,
+	   because a long form scrolled halfway is exactly when it is wanted and a
+	   control that scrolled away with the rest would be the bottom row again.
+	   `--surface-1` so the form does not read through it, and a boundary
+	   underneath because it is the only thing separating it from the fields
+	   sliding past. */
+	.composer-actions.top {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		flex-wrap: wrap;
+		align-items: center;
+		margin-bottom: var(--space-3);
+		padding: var(--space-2) 0;
+		background: var(--surface-1);
+		border-bottom: 1px solid var(--boundary);
+	}
+	.save-line.inline {
+		margin-left: auto;
+	}
+
 	/* Spacing only: the look lives in classroom.css. */
 	.feedback {
 		margin: 0.6rem 0 0;

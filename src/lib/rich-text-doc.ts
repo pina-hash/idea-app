@@ -66,6 +66,39 @@ export interface RichDocBlock {
 	type: string;
 	runs?: RichRun[];
 	items?: RichItem[];
+	/**
+	 * An image block's DESCRIPTION -- `{ type: 'img', src, alt }`, the shape
+	 * 0176 widened the classroom item-body gate to accept. Typed `unknown`
+	 * rather than `string` because this walk is a mirror of SQL over a `jsonb`
+	 * column, and what `->>` does with a value that is not a string is a
+	 * question the mirror has to answer the same way rather than assume away.
+	 *
+	 * IT IS ON THE SHARED BLOCK AND THAT COSTS THE NOTEBOOK NOTHING. A note's
+	 * guidance document cannot hold an image -- 0176 left that gate exactly
+	 * where it was, deliberately, because `CheckInGuidance` cannot render one --
+	 * so this arm is unreachable from the note contract and the notebook's
+	 * projection is byte-identical. What the shared walk buys is that there is
+	 * still exactly ONE reading of a stored document, which is the whole reason
+	 * this module exists.
+	 */
+	alt?: unknown;
+}
+
+/**
+ * SQL's `->>` ON ONE KEY, mirrored rather than approximated.
+ *
+ * `b.value->>'alt'` is NULL for an absent key and for a JSON null, the raw
+ * characters for a JSON string, and the value's JSON TEXT for anything else --
+ * so a number comes out `'5'` and an object comes out `'{"a": 1}'`. The gate
+ * makes every stored `alt` a non-blank string, so only the first case is
+ * reachable in practice; it is written out in full anyway, because the point of
+ * a mirror is that the corpus test can put both sides the same odd value and
+ * get the same answer rather than a plausible one.
+ */
+function jsonText(value: unknown): string | null {
+	if (value === undefined || value === null) return null;
+	if (typeof value === 'string') return value;
+	return JSON.stringify(value) ?? null;
 }
 
 /** Is this element a nested list rather than a run? The gates' own question. */
@@ -151,6 +184,26 @@ export function richDocText(doc: readonly RichDocBlock[], maxDepth: number): str
 			const line = listText(block.items, 1, maxDepth);
 			// A NULL line is SKIPPED by `string_agg`, never joined as blank.
 			if (line !== null) lines.push(line);
+		} else if (block.type === 'img') {
+			// AN IMAGE'S LINE IS ITS DESCRIPTION, and before 0178 it was the
+			// empty string -- an image block has no `runs`, so it fell into the
+			// arm below and contributed a blank line. That was not a cosmetic
+			// gap: `classroom_items.body` is derived from this projection, and
+			// the surfaces reading that column decide real things with it. An
+			// image-only body left it blank, so `ClassView` and `ItemDetail`
+			// each render the body only `{#if item.body.trim()}` and drew
+			// nothing at all; `itemTitle` takes an announcement's headline from
+			// the first non-blank line and answered `Untitled` in the feed, the
+			// stream, the page title, the breadcrumb, the grading console and
+			// the graded-export filename; and `_classroom_check_item_fields`
+			// REFUSES a `post` whose derived body is blank, so an announcement
+			// whose content was a picture could not be saved at all.
+			//
+			// `coalesce(..., '')` on the SQL side, so an absent or null `alt`
+			// is a blank line exactly as a runless block already was, never a
+			// skipped one -- the skip belongs to `string_agg` over a list with
+			// no items and to nothing else.
+			lines.push(jsonText(block.alt) ?? '');
 		} else {
 			const runs: RichRun[] = Array.isArray(block.runs) ? block.runs : [];
 			lines.push(runs.map((r) => r.text).join(''));

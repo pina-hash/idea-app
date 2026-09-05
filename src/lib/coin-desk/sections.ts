@@ -7,7 +7,7 @@
  * / SectionManager.svelte directly.
  */
 
-import { SECTIONS, sectionById, type Section } from '$lib/curriculum';
+import { SECTIONS, sectionById, sectionCode, type Section } from '$lib/curriculum';
 import { FSP_CONCLUDED } from '$lib/fsp/archive';
 import type { CoinCategory, CoinPricingModel } from '$lib/coin-desk';
 
@@ -109,10 +109,21 @@ export function isBulkEligible(cat: CoinCategory): boolean {
  * matches a real Section.id (the common case -- the DB stores no title/course
  * of its own, see 0073's header). Falls back to the stored label override,
  * then the bare id, for a section curriculum.ts has no entry for.
+ *
+ * IT COMPOSES `sectionCode()` RATHER THAN READING `.course`, AND THAT IS LOAD
+ * BEARING HERE IN A WAY IT IS NOT ON EVERY SURFACE. `course` is the COURSE now
+ * (`IDEA 100`), with the rotation split into its own field, and this string
+ * carries no term and no rotation of its own -- so reading the bare course
+ * would render the three IDEA 100 rotations as three identical rows in the
+ * bulk-log and payout target pickers this feeds. An ambiguous section label in
+ * front of an operator about to charge a class is how the wrong class gets
+ * charged. Surfaces that already print the term beside the code (the picker in
+ * SectionManager, the feedback console's section label) are unambiguous
+ * without it and deliberately do not call this.
  */
 export function sectionDisplayName(section: { id: string; label: string | null }): string {
 	const curriculum = sectionById(section.id);
-	if (curriculum) return `${curriculum.course} — ${curriculum.title} (${curriculum.yearLabel})`;
+	if (curriculum) return `${sectionCode(curriculum)} — ${curriculum.title} (${curriculum.yearLabel})`;
 	return section.label || section.id;
 }
 

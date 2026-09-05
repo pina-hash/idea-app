@@ -22,6 +22,7 @@ import {
 	type AssignmentEngineTransports,
 	type AssignmentTeacherTransports,
 	type EngineOpResult,
+	type GradingData,
 	type InstructorCopyData,
 	type InstructorCopyRow,
 	type InstructorCopyTransports,
@@ -31,6 +32,8 @@ import {
 	type StudentEngineData,
 	type SubmissionFileRow
 } from './assignment-spec';
+import { managedPostedSections, type PostedSection } from './grading-bulk';
+import type { BulkGradeReport, BulkGradingLoad, BulkGradingTransports } from './grading-bulk';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import {
 	checkInDraftIssue,
@@ -40,6 +43,7 @@ import {
 import type {
 	HallPassClosed,
 	HallPassOpened,
+	HallPassOpenedFor,
 	HallPassRefusal,
 	HallPassResult,
 	HallPassState,
@@ -76,6 +80,7 @@ import {
 	type EnrollmentRemoval,
 	type ClassroomItem,
 	type ClassroomManageTransports,
+	type ClassroomSection,
 	type ImportSummary,
 	type ItemInput,
 	type ItemLink,
@@ -904,6 +909,57 @@ async function deleteItem(id: string): Promise<TxResult<undefined>> {
 	}
 }
 
+/**
+ * EVERY GRADING SURFACE'S WORK ROWS, from one place.
+ *
+ * The submissions, the typed responses, the hand-in files and the module
+ * approvals for ONE assignment. It is section-agnostic and that is not an
+ * omission: `classroom_submissions` is keyed `(item_id, student_email)` with no
+ * section column, and its policy is `classroom_can_review_submission`, so
+ * `.eq('item_id', ...)` already returns exactly the rows the caller may review
+ * across every class of theirs the assignment is in. The ROSTER is what scopes a
+ * console to one class or to all of them, which is why that read is the
+ * caller's and this one is shared.
+ *
+ * IT IS SHARED RATHER THAN COPIED because the two capability flags ride on it.
+ * A second block of these four reads would be a second pair of rungs, and a
+ * surface degrading differently from its sibling is exactly the state
+ * `extraCreditReady` and `filesStorageReady` exist to make impossible.
+ */
+async function loadItemWork(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<Omit<GradingData, 'roster'>> {
+	const [submissionsRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
+		selectSubmissions(supabase, itemId, false),
+		supabase
+			.from('classroom_responses')
+			.select('item_id, student_email, block_id, value, updated_at')
+			.eq('item_id', itemId),
+		selectSubmissionFiles(supabase, itemId),
+		supabase
+			.from('classroom_module_approvals')
+			.select('item_id, student_email, module_id, approved_by, approved_at')
+			.eq('item_id', itemId)
+	]);
+	return {
+		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
+			normalizeSubmissionRow
+		),
+		responses: (responsesRes.data ?? []) as ResponseRow[],
+		// The capability, reported rather than assumed: false means this payload
+		// cannot carry an award, so the console withholds the control instead of
+		// sending one into an arity that has no parameter for it.
+		extraCreditReady: submissionsRes.extraCreditReady,
+		files: filesRes.rows,
+		// Same rung, same flag as the student's own view. Both surfaces read ONE
+		// ladder, so a teacher grading and the student who handed the file in can
+		// never be looking at different answers about which of these are pictures.
+		filesStorageReady: filesRes.storageReady,
+		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+	};
+}
+
 const SUBMISSION_SELECT_BASE =
 	'id, item_id, student_email, state, submitted_at, returned_at, rubric_scores, score, ' +
 	'teacher_comment, graded_by, graded_at, updated_at';
@@ -912,19 +968,61 @@ const SUBMISSION_SELECT_BASE =
 const SUBMISSION_SELECT = `${SUBMISSION_SELECT_BASE}, criterion_comments`;
 
 /**
- * Submissions, degrading to the pre-0095 column list when that migration has
- * not been applied yet -- migrations here are pasted in by hand, so a deploy
- * sitting between two of them is a real state, and one unknown column would
- * otherwise blank an entire assignment (the notebook loader's widen-then-degrade
- * chain).
+ * + 0171's `extra_credit`. ITS OWN RUNG, and the capability it reports is
+ * `extraCreditReady`.
+ *
+ * WHY A RUNG RATHER THAN JUST WIDENING THE ONE ABOVE. A new capability never
+ * folds into an existing rung: degrading past a missing `extra_credit` would
+ * then cost `criterion_comments` too, so a deployment sitting between 0095 and
+ * 0171 would lose the per-criterion notes an override REQUIRES -- a grader
+ * would see an unexplained number where the justification is, on a schema that
+ * has the justification.
+ *
+ * AND THE FLAG LICENSES THE WRITE. 0171 adds the column and the RPC parameter
+ * in one file, so a rung that came back WITH the column proves the 7-argument
+ * arity exists. That is cheaper than a `PGRST202` retry, which spends a failed
+ * grade to learn the same thing.
  */
-async function selectSubmissions(supabase: SupabaseClient, itemId: string, one: boolean) {
+const SUBMISSION_SELECT_EXTRA_CREDIT = `${SUBMISSION_SELECT}, extra_credit`;
+
+export interface SubmissionsResult {
+	data: unknown;
+	error: unknown;
+	/**
+	 * Did the payload actually come back WITH `extra_credit`. Starts FALSE and
+	 * is turned on only by the widest rung succeeding -- never inferred from the
+	 * rows, because an item nobody has been awarded anything on returns nulls on
+	 * the rung that has the column and undefined on the one that does not, and
+	 * only the flag tells those apart.
+	 */
+	extraCreditReady: boolean;
+}
+
+/**
+ * Submissions, widest first, degrading one capability at a time -- migrations
+ * here are pasted in by hand, so a deploy sitting between two of them is a real
+ * state, and one unknown column would otherwise blank an entire assignment (the
+ * notebook loader's widen-then-degrade chain).
+ *
+ * THE ONE LADDER, called by the student's own engine load AND by the grading
+ * console, so the two surfaces cannot end up on different rungs and disagree
+ * about what a score is made of.
+ */
+async function selectSubmissions(
+	supabase: SupabaseClient,
+	itemId: string,
+	one: boolean
+): Promise<SubmissionsResult> {
 	const run = (columns: string) => {
 		const q = supabase.from('classroom_submissions').select(columns).eq('item_id', itemId);
 		return one ? q.maybeSingle() : q;
 	};
+	const widest = await run(SUBMISSION_SELECT_EXTRA_CREDIT);
+	if (!widest.error) return { data: widest.data, error: null, extraCreditReady: true };
 	const full = await run(SUBMISSION_SELECT);
-	return full.error ? await run(SUBMISSION_SELECT_BASE) : full;
+	if (!full.error) return { data: full.data, error: null, extraCreditReady: false };
+	const base = await run(SUBMISSION_SELECT_BASE);
+	return { data: base.data, error: base.error, extraCreditReady: false };
 }
 
 /**
@@ -1336,15 +1434,32 @@ export function createTeacherEngineTransports(
 			pingClassroomExport(itemId);
 			return { ok: true, data: undefined };
 		},
-		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
-			const { data: res, error } = await supabase.rpc('classroom_grade_submission', {
+		async gradeSubmission(
+			itemId,
+			studentEmail,
+			scores,
+			comment,
+			release,
+			criterionComments,
+			extraCredit
+		) {
+			// THE NEW PARAMETER IS NAMED ONLY WHEN THE FEATURE IS ACTUALLY BEING
+			// USED. Sending `p_extra_credit` to a database sitting before 0171
+			// resolves to nothing and fails the whole grade; omitting it binds to
+			// the 6-argument form, which is the arity that has always been there.
+			// So a console that has not been told the column exists writes exactly
+			// what it wrote before, and one that has only widens the call when it
+			// has something to say.
+			const payload: Record<string, unknown> = {
 				p_item_id: itemId,
 				p_student_email: studentEmail,
 				p_scores: scores,
 				p_comment: comment,
 				p_return: release,
 				p_criterion_comments: criterionComments ?? {}
-			});
+			};
+			if (extraCredit != null) payload.p_extra_credit = extraCredit;
+			const { data: res, error } = await supabase.rpc('classroom_grade_submission', payload);
 			if (error) return fail(error);
 			return opResult(res);
 		},
@@ -1358,41 +1473,15 @@ export function createTeacherEngineTransports(
 			return error ? fail(error) : { ok: true, data: undefined };
 		},
 		async loadGrading(itemId, sectionId) {
-			const [rosterRes, submissionsRes, responsesRes, filesRes, approvalsRes] =
-				await Promise.all([
-					// The manager exclusion rides in on this read (0138): the roster
-					// arrives carrying `manages`, and studentWorkRows is the one
-					// place that acts on it.
-					loadSectionRoster(supabase, sectionId),
-					selectSubmissions(supabase, itemId, false),
-					supabase
-						.from('classroom_responses')
-						.select('item_id, student_email, block_id, value, updated_at')
-						.eq('item_id', itemId),
-					selectSubmissionFiles(supabase, itemId),
-					supabase
-						.from('classroom_module_approvals')
-						.select('item_id, student_email, module_id, approved_by, approved_at')
-						.eq('item_id', itemId)
-				]);
+			const [rosterRes, work] = await Promise.all([
+				// The manager exclusion rides in on this read (0138): the roster
+				// arrives carrying `manages`, and studentWorkRows is the one
+				// place that acts on it.
+				loadSectionRoster(supabase, sectionId),
+				loadItemWork(supabase, itemId)
+			]);
 			if (!rosterRes.ok) return rosterRes;
-			return {
-				ok: true,
-				data: {
-					roster: rosterRes.data.rows,
-					submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
-						normalizeSubmissionRow
-					),
-					responses: (responsesRes.data ?? []) as ResponseRow[],
-					files: filesRes.rows,
-					// Same rung, same flag as the student's own view. Both surfaces
-					// read ONE ladder, so a teacher grading and the student who
-					// handed the file in can never be looking at different answers
-					// about which of these are pictures.
-					filesStorageReady: filesRes.storageReady,
-					approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
-				}
-			};
+			return { ok: true, data: { roster: rosterRes.data.rows, ...work } };
 		}
 	};
 }
@@ -1691,7 +1780,16 @@ const HALL_PASS_REFUSALS = new Set<HallPassRefusal>([
 	'not_open',
 	'not_yours',
 	// `0144`, manager path only: the named pass had already been signed back in.
-	'already_closed'
+	'already_closed',
+	// `0174`. Both carry DETAIL the sentence is built from -- an instant for
+	// the cooldown, a count and a cap for the limit -- which is why
+	// `hallPassOutcome` below reads those fields off the row rather than
+	// answering with the word alone.
+	'cooldown',
+	'limit_reached',
+	// `0174`, the instructor override only: the name picked is not on the live
+	// roster.
+	'not_enrolled'
 ]);
 
 function hallPassOutcome<T>(
@@ -1701,7 +1799,19 @@ function hallPassOutcome<T>(
 	const row = (data ?? {}) as Record<string, unknown>;
 	if (row.ok === true) return { ok: true, data: shape(row) };
 	const reason = row.reason as HallPassRefusal | undefined;
-	if (reason && HALL_PASS_REFUSALS.has(reason)) return { ok: false, refusal: reason };
+	if (reason && HALL_PASS_REFUSALS.has(reason)) {
+		// THE DETAIL RIDES WITH THE WORD (`0174`). A `cooldown` with its
+		// `retry_at` dropped here becomes "wait a few minutes" instead of a clock
+		// time, which is the refusal-with-no-time-in-it this limit exists to
+		// avoid. Absent fields stay absent rather than becoming zeroes: `0143`'s
+		// five reasons carry none of them and must not start claiming a limit of
+		// nought.
+		const detail: { retryAt?: string; used?: number; limit?: number } = {};
+		if (typeof row.retry_at === 'string') detail.retryAt = row.retry_at;
+		if (typeof row.used === 'number') detail.used = row.used;
+		if (typeof row.limit === 'number') detail.limit = row.limit;
+		return { ok: false, refusal: reason, ...detail };
+	}
 	return { ok: false, message: 'Something went wrong. Try again.' };
 }
 
@@ -1787,6 +1897,27 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 			});
 			if (error) return { ok: false, message: 'Could not sign the pass back in. Try again.' };
 			return hallPassOutcome<HallPassClosed>(data, hallPassClosedShape);
+		},
+		/**
+		 * THE OVERRIDE (`0174`), AND IT IS THE ONE CALL HERE THAT NAMES A
+		 * STUDENT. The database refuses anybody who does not manage the section
+		 * with the same sentence a nonexistent section raises, so this is
+		 * plumbing rather than a boundary -- as everything else in this module
+		 * is.
+		 */
+		async openFor(sectionId, studentEmail) {
+			const { data, error } = await supabase.rpc('classroom_hall_pass_open_for', {
+				p_section_id: sectionId,
+				p_student_email: studentEmail
+			});
+			if (error) return { ok: false, message: 'Could not send that student out. Try again.' };
+			return hallPassOutcome<HallPassOpenedFor>(data, (row) => ({
+				pass_id: String(row.pass_id ?? ''),
+				opened_at: String(row.opened_at ?? ''),
+				student_email: String(row.student_email ?? ''),
+				student_name: String(row.student_name ?? ''),
+				opened_by: String(row.opened_by ?? '')
+			}));
 		}
 	};
 }
@@ -1933,6 +2064,120 @@ export function createSongQueueTransports(supabase: SupabaseClient): SongQueueTr
 			});
 			if (error) return { ok: false, message: 'Could not reject that request. Try again.' };
 			return songOutcome<SongDecided>(data, songDecidedShape);
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// GRADING AT SCALE (0175): one assignment, every class the caller teaches it
+// in, and one statement for the whole batch.
+//
+// IT IS A SEPARATE FACTORY, not three more methods on
+// `createTeacherEngineTransports`. Every grading surface holds the teacher
+// transports and only the cross-class route holds this, so keeping the two
+// apart is what makes "the per-section console cannot grade in bulk" a
+// structural fact rather than a flag somebody has to remember to leave off.
+// ---------------------------------------------------------------------------
+
+/** The postings a caller can see for an item, with the section embedded. */
+export const POSTING_SELECT = `section_id, classroom_sections!inner(${SECTION_SELECT})`;
+
+/** PostgREST's embed shape, turned into the pure module's own. One reader. */
+export function normalizePostings(rows: unknown): PostedSection[] {
+	return ((rows ?? []) as Record<string, unknown>[]).map((row) => {
+		const embed = row.classroom_sections as Record<string, unknown> | undefined;
+		return {
+			section_id: String(row.section_id ?? ''),
+			section: embed ? normalizeSectionRow(embed) : null
+		};
+	});
+}
+
+/**
+ * The item's work across EVERY section the caller MANAGES that it is posted to.
+ *
+ * THREE READS, AND EACH ANSWERS A DIFFERENT QUESTION.
+ *   * `classroom_section_roster(null)` -- every roster the caller manages,
+ *     which is 0138's own null-section rung and is gated on
+ *     `classroom_manages_section` INSIDE the definer. This is where the
+ *     manage-ness comes from; nothing here re-derives it.
+ *   * the item's postings, which say which of those sections this assignment is
+ *     actually in.
+ *   * the work itself, which was NEVER section-scoped: `classroom_submissions`
+ *     is keyed `(item_id, student_email)` and its policy is
+ *     `classroom_can_review_submission`, so `.eq('item_id', ...)` already
+ *     returns exactly the rows the caller may review and no others.
+ *
+ * THE INTERSECTION IS THE POINT, and it is taken in that order. The postings
+ * policy admits a section the caller is merely ENROLLED in (0109 widened it for
+ * students), so postings alone would list a class somebody else teaches -- with
+ * no roster behind it and every grade refused, but named on screen, which is a
+ * disclosure rather than a bug in the grading. Intersecting against the roster's
+ * own section ids means a section appears here only because the DATABASE said
+ * the caller manages it.
+ */
+async function loadGradingAcrossSections(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<TxResult<BulkGradingLoad>> {
+	const [rosterRes, postingsRes] = await Promise.all([
+		loadSectionRoster(supabase, null),
+		supabase.from('classroom_postings').select(POSTING_SELECT).eq('item_id', itemId)
+	]);
+	if (!rosterRes.ok) return rosterRes;
+	if (postingsRes.error) return fail(postingsRes.error);
+
+	// THE ONE IMPLEMENTATION of "which classes of this assignment may I grade",
+	// shared with the page load and the dev harness.
+	const sections = managedPostedSections(
+		normalizePostings(postingsRes.data),
+		rosterRes.data.rows.map((r) => r.section_id)
+	);
+	const seen = new Set(sections.map((s) => s.id));
+
+	// THE SAME WORK READ THE PER-SECTION CONSOLE MAKES, and deliberately the same
+	// function: the work was never section-scoped, so the only difference between
+	// the two consoles is which roster is put in front of it.
+	const work = await loadItemWork(supabase, itemId);
+
+	return {
+		ok: true,
+		data: {
+			sections,
+			data: {
+				// THE ROSTER IS NARROWED TO THIS ASSIGNMENT'S CLASSES. Without it
+				// every student the caller teaches anywhere would be listed on one
+				// assignment they were never given.
+				roster: rosterRes.data.rows.filter((r) => seen.has(r.section_id)),
+				...work
+			}
+		}
+	};
+}
+
+export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradingTransports {
+	return {
+		loadAcross: (itemId) => loadGradingAcrossSections(supabase, itemId),
+		async gradeMany(itemId, grades, release) {
+			const { data, error } = await supabase.rpc('classroom_grade_submissions', {
+				p_item_id: itemId,
+				p_grades: grades,
+				p_return: release
+			});
+			// A RAISE IS THE WHOLE BATCH REFUSED, and 0175 only raises on shapes
+			// it checked BEFORE writing anything (a duplicate address, an empty
+			// list, over the ceiling). So this message is safe to render as "no
+			// grade was written", which is exactly what an instructor needs to
+			// know before they press it again.
+			if (error) return fail(error);
+			const report = data as BulkGradeReport | null;
+			if (!report || typeof report.total !== 'number') {
+				return { ok: false, message: 'The grade batch gave no answer. Nothing was saved.' };
+			}
+			// The export ride-along the single-student path takes: a grade does
+			// not change the item, so there is nothing to push. (`gradeSubmission`
+			// does not ping it either.)
+			return { ok: true, data: report };
 		}
 	};
 }

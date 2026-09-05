@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { docToTiptap, type ItemDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
+	import {
+		ITEM_IMAGE_NODE,
+		docToTiptap,
+		type ItemDoc,
+		type TiptapNode
+	} from '$lib/classroom/classroom-doc';
+	import { isOfferedRef, type ImageChoice } from '$lib/classroom/attachments';
 	import { ITEM_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	import type { Editor } from '@tiptap/core';
 
@@ -47,7 +53,9 @@
 		disabled = false,
 		placeholder = 'Write the instructions...',
 		label = 'Instructions',
-		compact = false
+		compact = false,
+		images = null,
+		imagesEmptyHint = 'Attach a picture to this item first, then press Image again.'
 	}: {
 		/** Seeds the editor once, on mount: an existing body being edited. */
 		value?: ItemDoc | null;
@@ -66,6 +74,26 @@
 		label?: string;
 		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
+		/**
+		 * THE PICTURES THIS BODY MAY BE OFFERED, or null.
+		 *
+		 * ABSENCE IS THE MECHANISM, exactly as it is for an omitted transport.
+		 * A caller that can say which pictures exist hands the list and the Image
+		 * control becomes a PICKER over it; a caller that cannot say -- a spec's
+		 * prose field, a check-in's guidance -- passes nothing and the control
+		 * stays the free-text field it has always been for them, unchanged.
+		 *
+		 * AN EMPTY ARRAY IS NOT THE SAME AS NULL and the difference is the whole
+		 * point: `[]` means "this surface knows, and the answer is none", which
+		 * the popover says in words. Falling back to free text there would put
+		 * the exact defect this control exists to remove back on the one surface
+		 * that had the information to prevent it.
+		 */
+		images?: ImageChoice[] | null;
+		/** What the popover says when `images` is empty. The caller owns it
+		 *  because only the caller knows where the files for THIS surface are
+		 *  added; the default is the true sentence with no directions in it. */
+		imagesEmptyHint?: string;
 	} = $props();
 
 	/**
@@ -135,18 +163,59 @@
 
 		void (async () => {
 			try {
-				const [{ Editor }, { StarterKit }] = await Promise.all([
+				const [{ Editor, Node }, { StarterKit }] = await Promise.all([
 					import('@tiptap/core'),
 					import('@tiptap/starter-kit')
 				]);
 				if (cancelled) return;
+
+				/**
+				 * THE IMAGE NODE (0176), declared here and nowhere else.
+				 *
+				 * NOT IN `$lib/rich-text-schema`, deliberately. That module holds the
+				 * StarterKit options BOTH rich-text features share, and a note has no
+				 * pictures: putting the node there would widen what a NOTE can be
+				 * asked to hold because an item body grew, which is the exact coupling
+				 * the two contracts are kept apart to prevent. Its NAME and ATTRIBUTE
+				 * LIST come from `ITEM_IMAGE_NODE`, which the server normalizer matches
+				 * against and the tests build their fixtures from -- a second spelling
+				 * of the name is a document this editor emits and the normalizer
+				 * silently drops.
+				 *
+				 * NO `@tiptap/extension-image` DEPENDENCY, and that is not thrift. That
+				 * extension's whole job is an arbitrary `src` URL, which is the one
+				 * thing this feature must not have: an authored image here is an
+				 * `attachment:` alias or a path under FIGURE_STATIC_PREFIXES, resolved
+				 * at RENDER time against the item's own files. Adding the package would
+				 * also rewrite a 4,649-line lockfile for a node that is twelve lines.
+				 *
+				 * AN ATOM: it has no editable content, so the caret cannot land inside
+				 * it and there is no way to type a picture into a broken state.
+				 * `renderHTML` emits a plain `<figure>` with the description visible --
+				 * the editor is showing the author what they wrote, not resolving the
+				 * reference, which is a render-time question it cannot answer.
+				 */
+				const ItemImageNode = Node.create({
+					name: ITEM_IMAGE_NODE.name,
+					group: 'block',
+					atom: true,
+					draggable: true,
+					addAttributes: () => ({ src: { default: '' }, alt: { default: '' } }),
+					parseHTML: () => [{ tag: `figure[data-${ITEM_IMAGE_NODE.name}]` }],
+					renderHTML: ({ HTMLAttributes }) => [
+						'figure',
+						{ [`data-${ITEM_IMAGE_NODE.name}`]: '', class: 'rt-figure' },
+						['span', { class: 'rt-figure-ref' }, String(HTMLAttributes.src ?? '')],
+						['figcaption', {}, String(HTMLAttributes.alt ?? '')]
+					]
+				});
 
 				const instance = new Editor({
 					element,
 					// The schema lives in $lib/rich-text-schema so the tests that fix the
 					// normalizer's behaviour build their fixtures from the SAME declaration
 					// this editor is configured with.
-					extensions: [StarterKit.configure(ITEM_SCHEMA_OPTIONS)],
+					extensions: [StarterKit.configure(ITEM_SCHEMA_OPTIONS), ItemImageNode],
 					content: value && value.length ? docToTiptap(value) : undefined,
 					editable: !disabled,
 					editorProps: {
@@ -218,6 +287,11 @@
 	 * does not silently produce a dead link.
 	 */
 	let linkOpen = $state(false);
+	let imageOpen = $state(false);
+	let imageRef = $state('');
+	let imageAlt = $state('');
+	let imageWrap: HTMLElement | null = $state(null);
+	let imageInput: HTMLInputElement | null = $state(null);
 	let linkValue = $state('');
 	let linkInput = $state<HTMLInputElement | null>(null);
 	let linkWrap = $state<HTMLElement | null>(null);
@@ -268,6 +342,116 @@
 		}
 		linkOpen = false;
 	}
+
+	// ---------------------------------------------------------------------
+	// The image control (0176). Deliberately the SAME SHAPE as the link
+	// control above -- a toolbar button that opens a small inline form -- so
+	// that inserting a picture needs no new prop from any of the three
+	// surfaces that mount this editor and reaches production the day it ships.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * ALT TEXT IS REQUIRED HERE TOO, AND THE CONTROL SAYS SO RATHER THAN
+	 * SILENTLY DOING NOTHING. `aria-disabled`, never `disabled`: a genuinely
+	 * disabled control swallows pointer events, so it can never explain why it
+	 * is refusing -- which is the whole reason somebody would press it.
+	 */
+	const imageReady = $derived(imageRef.trim() !== '' && imageAlt.trim() !== '');
+
+	/**
+	 * PICKING vs TYPING, decided once. `images` is null for a caller that cannot
+	 * say what pictures exist, and an array (empty or not) for one that can --
+	 * see the prop's own note for why the empty array is not a fallback to text.
+	 */
+	const picking = $derived(images != null);
+	const choices = $derived(images ?? []);
+
+	function openImage() {
+		if (!editor) return;
+		// TYPING: `attachment:` prefilled, because that is the form nearly every
+		// image takes and typing the prefix again is the step an author skips.
+		//
+		// PICKING: EMPTY, and that is load-bearing rather than tidy. `imageReady`
+		// reads the ref as non-empty, so a prefill with nothing selected would
+		// arm Add the moment a description was typed and insert `src:
+		// "attachment:"` -- a reference `resolveFigureSrc` refuses as `empty`,
+		// which is precisely the dangling picture this control now exists to
+		// prevent.
+		imageRef = picking ? '' : 'attachment:';
+		imageAlt = '';
+		imageOpen = true;
+	}
+
+	/** Choosing a picture writes the SAME block the text field wrote: one
+	 *  `attachment:<name>` string into `src`. Nothing about the document, the
+	 *  node, the normalizer or the renderer changes because the control did. */
+	function chooseImage(choice: ImageChoice) {
+		imageRef = choice.ref;
+	}
+
+	function closeImage(refocus = true) {
+		imageOpen = false;
+		if (refocus) editor?.chain().focus().run();
+	}
+
+	function applyImage() {
+		const e = editor;
+		if (!e || !imageReady) return;
+		// THE OFFER IS THE ALLOWLIST. Asked of the same list the popover drew,
+		// so "this document can only ever name a picture that was on screen" is
+		// a property of the handler rather than of the markup -- a stale
+		// selection left behind by a file being removed mid-edit is refused here
+		// even though the row it came from is gone.
+		if (picking && !isOfferedRef(choices, imageRef)) return;
+		e.chain()
+			.focus()
+			.insertContent({
+				type: ITEM_IMAGE_NODE.name,
+				attrs: { src: imageRef.trim(), alt: imageAlt.trim() }
+			})
+			.run();
+		imageOpen = false;
+	}
+
+	function onImageKey(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			applyImage();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			closeImage();
+		}
+	}
+
+	$effect(() => {
+		if (!imageOpen) return;
+		const onDown = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (!target || !target.isConnected) return;
+			if (imageWrap?.contains(target)) return;
+			closeImage(false);
+		};
+		document.addEventListener('pointerdown', onDown, true);
+		return () => document.removeEventListener('pointerdown', onDown, true);
+	});
+
+	/** Thumbnails that did not decode, by reference. A name that reads as a
+	 *  picture and is not one loses its thumbnail and keeps its row -- the same
+	 *  fallback every other storage-backed thumbnail in the classroom takes. */
+	let thumbFailed = $state(new Set<string>());
+
+	$effect(() => {
+		if (!imageOpen) return;
+		// PICKING: the first choice, found in the popover rather than bound per
+		// item -- one query beats an each-block that has to know which index it
+		// is. TYPING: the field, exactly as before.
+		if (picking) {
+			const first = imageWrap?.querySelector<HTMLElement>('.image-choice, .image-alt');
+			first?.focus();
+			return;
+		}
+		imageInput?.focus();
+	});
 
 	function onLinkKey(event: KeyboardEvent) {
 		if (event.key === 'Enter') {
@@ -375,6 +559,104 @@
 					/>
 					<button type="button" class="link-go" onclick={applyLink}>Add</button>
 					<button type="button" class="link-cancel" onclick={() => closeLink()}>Cancel</button>
+				</span>
+			{/if}
+		</span>
+		<span class="link-wrap" bind:this={imageWrap}>
+			<button
+				type="button"
+				aria-expanded={imageOpen}
+				title="Add a picture from this item's files"
+				disabled={disabled || !editor}
+				onclick={openImage}>Image</button
+			>
+			{#if imageOpen}
+				<span class="link-pop image-pop" role="group" aria-label="Picture">
+					{#if picking}
+						{#if choices.length}
+							<!-- A radio GROUP, not a listbox and not a select: exactly one
+							     picture is being chosen out of a short list that is all on
+							     screen at once, which is what a radio group is for, and it
+							     needs no roving-tabindex contract to be operable. -->
+							<span class="image-pick" role="radiogroup" aria-label="Pictures on this item">
+								{#each choices as choice (choice.ref)}
+									<button
+										type="button"
+										class="image-choice tap-44"
+										role="radio"
+										aria-checked={imageRef === choice.ref}
+										onclick={() => chooseImage(choice)}
+										onkeydown={onImageKey}
+									>
+										{#if choice.previewSrc && !thumbFailed.has(choice.ref)}
+											<!-- The SAME proxy URL the page's own img uses. A
+											     storage-backed object is served
+											     `application/octet-stream` + attachment, which an
+											     img decodes anyway (0133's measured note); a name
+											     that turns out not to decode drops back to the
+											     glyph through the element's own onerror. -->
+											<img
+												class="image-choice-thumb"
+												src={choice.previewSrc}
+												alt=""
+												onerror={() => (thumbFailed = new Set(thumbFailed).add(choice.ref))}
+											/>
+										{:else}
+											<span class="image-choice-thumb is-none" aria-hidden="true"></span>
+										{/if}
+										<span class="image-choice-name">{choice.label}</span>
+										{#if choice.state === 'staged'}
+											<!-- A WORD, never a tint: this row's reference does not
+											     resolve until the save lands its upload, and a
+											     person choosing it should know that before they
+											     choose it rather than after a student cannot see
+											     the picture. -->
+											<span class="image-choice-state">Added when you save</span>
+										{/if}
+									</button>
+								{/each}
+							</span>
+						{:else}
+							<!-- THE EMPTY CASE SAYS HOW TO LEAVE IT. An empty picker with no
+							     sentence is a control that appears broken; the caller owns
+							     the sentence because only the caller knows where the files
+							     for this surface are added. -->
+							<span class="image-empty">{imagesEmptyHint}</span>
+						{/if}
+					{:else}
+						<input
+							bind:this={imageInput}
+							bind:value={imageRef}
+							type="text"
+							class="link-input"
+							placeholder="attachment:photo.jpg"
+							aria-label="Picture file"
+							onkeydown={onImageKey}
+						/>
+					{/if}
+					<input
+						bind:value={imageAlt}
+						type="text"
+						class="link-input image-alt"
+						placeholder="What the picture shows"
+						aria-label="Description of the picture (required)"
+						onkeydown={onImageKey}
+					/>
+					<button
+						type="button"
+						class="link-go"
+						aria-disabled={!imageReady}
+						onclick={applyImage}>Add</button
+					>
+					<button type="button" class="link-cancel" onclick={() => closeImage()}>Cancel</button>
+					<!-- The refusal says WHY, in the place the person is working, and
+					     it is present rather than appearing only after a failed press:
+					     a control that explains itself before the click saves the
+					     click. -->
+					<span class="image-hint" class:needed={!imageReady}>
+						A description is required, so anyone using a screen reader knows what
+						the picture shows.
+					</span>
 				</span>
 			{/if}
 		</span>
@@ -491,6 +773,128 @@
 	.link-pop .link-go {
 		color: var(--green);
 		border-color: var(--line-strong);
+	}
+	/* Two fields and a sentence, so the popover wraps where the link one does
+	   not. Same anchor rules apply -- the narrow-screen block below moves both,
+	   because they share `.link-pop`. */
+	.image-pop {
+		flex-wrap: wrap;
+		max-width: min(30rem, 92vw);
+	}
+	/* THE PICKER. A full-width row inside the popover so the names have room to
+	   be read: a file called `IMG_4821.jpg` beside `IMG_4822.jpg` is exactly the
+	   case where a truncated label is no help at all. */
+	.image-pick {
+		flex: 1 0 100%;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		max-height: 14rem;
+		overflow-y: auto;
+	}
+	.image-choice {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		width: 100%;
+		text-align: left;
+		padding: 0.3rem 0.45rem;
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
+		font-family: var(--font-display);
+		font-size: 0.9rem;
+		cursor: pointer;
+	}
+	.image-choice:hover {
+		border-color: var(--line-strong);
+	}
+	.image-choice:focus-visible {
+		outline: 1px solid var(--focus-ring);
+	}
+	/* The chosen row is marked by an EDGE and a fill, and it carries
+	   `aria-checked` besides -- colour is never the only signal. */
+	.image-choice[aria-checked='true'] {
+		border-color: var(--green);
+		background: var(--surface-1);
+	}
+	.image-choice-thumb {
+		flex: 0 0 auto;
+		width: 2rem;
+		height: 2rem;
+		object-fit: cover;
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
+	}
+	.image-choice-thumb.is-none {
+		display: block;
+	}
+	.image-choice-name {
+		/* min-width 0 or a long filename forces the popover wider than the
+		   viewport: an item's automatic minimum is its min-content, and an
+		   ellipsis does not reduce that. */
+		min-width: 0;
+		flex: 1 1 auto;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.image-choice-state {
+		flex: 0 0 auto;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.image-empty {
+		flex: 1 0 100%;
+		font-size: 0.82rem;
+		line-height: 1.35;
+		color: var(--text-2);
+	}
+	.image-hint {
+		flex: 1 0 100%;
+		font-size: 0.78rem;
+		line-height: 1.35;
+		color: var(--text-2);
+	}
+	/* The one thing that CHANGES when the description is missing is the tone of
+	   a sentence that was already on screen. It is never the only signal: the
+	   sentence says the rule in words either way, and the Add control carries
+	   `aria-disabled`. */
+	.image-hint.needed {
+		color: var(--amber);
+	}
+	/* THE EDITOR SHOWS THE REFERENCE, NOT THE PICTURE, and that is honest rather
+	   than unfinished: resolving an `attachment:` alias is a render-time question
+	   against the item's own files, which this component is not given and must
+	   not start fetching. What the author needs to see here is which file they
+	   named and what they said about it. */
+	.rt-surface :global(.rt-figure) {
+		margin: 0.5rem 0;
+		padding: 0.5rem 0.6rem;
+		border: 1px dashed var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.rt-surface :global(.rt-figure .rt-figure-ref) {
+		display: block;
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		letter-spacing: 0.03em;
+		color: var(--text-2);
+	}
+	.rt-surface :global(.rt-figure figcaption) {
+		font-size: 0.86rem;
+		color: var(--text-1);
+		margin-top: 0.2rem;
+	}
+	.rt-surface :global(.rt-figure.ProseMirror-selectednode) {
+		border-style: solid;
+		border-color: var(--green);
 	}
 	/**
 	 * NARROW SCREENS ANCHOR TO THE TOOLBAR, NOT TO THE BUTTON.

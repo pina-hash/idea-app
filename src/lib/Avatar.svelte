@@ -1,26 +1,166 @@
 <script lang="ts">
 	import { avatarSource, type UserProfile } from '$lib/profile';
+	import {
+		avatarTint,
+		proxiedAvatarSource,
+		subjectAvatar,
+		subjectInitials,
+		type AvatarSubject
+	} from '$lib/avatars';
 
 	/**
-	 * A user's picture at any size: chosen preset mark, uploaded image, Google
-	 * photo, or an initials tile (in that order; see avatarSource).
+	 * A person's picture at any size: chosen preset mark, uploaded image,
+	 * Google photo, or an initials tile (in that order; see avatarSource).
+	 *
+	 * TWO CALLERS, ONE COMPONENT. `profile` is the viewer's own row, which is
+	 * what `ProfileMenu` has held since 0020. `subject` is ANYBODY ELSE --
+	 * a roster row, a grading row -- which is a narrower shape than
+	 * `UserProfile` and is adapted in `$lib/avatars.ts` rather than cast.
+	 * Passing both is a caller bug and `profile` wins; passing neither is the
+	 * ordinary empty state and renders a tile, never a hole.
+	 *
+	 * `tintKey` is what makes the tile STABLE per person (the email or the
+	 * uuid, never a list index). Without one every tile takes the first tint,
+	 * which is exactly the old behaviour and is not a defect -- it is simply
+	 * the un-keyed case.
+	 *
+	 * THE THREE THINGS THAT MUST NOT PRODUCE A HOLE, because each of them is a
+	 * live case rather than a hypothetical:
+	 *   1. NO PICTURE. Most people here have chosen none, so the tile is the
+	 *      common path and is styled as a deliberate mark.
+	 *   2. AN IMAGE THAT FAILS TO LOAD, WHICH SINCE 0181 INCLUDES ONE THE
+	 *      SERVER REFUSED. An uploaded avatar is asked for at `/api/avatar/<key>`,
+	 *      and that route answers the same bodyless 404 for a deleted object, a
+	 *      stale key and a caller with no session -- so a deleted picture, a
+	 *      broken one and a refused one are ONE case here rather than three,
+	 *      which is the point rather than an accident: a 404 meaning "no
+	 *      picture" and a refusal meaning "not yours to see" must not be
+	 *      distinguishable from the outside. `onerror` swaps to the tile, which
+	 *      is the same box -- so the row does not move either, and the tile a
+	 *      refusal lands on is byte-identical to the tile a person who chose no
+	 *      picture gets.
+	 *   3. A NAME TOO LONG FOR ITS ROW. Not this component's to wrap: the box
+	 *      is fixed at `size` in BOTH dimensions with `flex-shrink: 0`, so a
+	 *      name beside it can ellipsise without the picture giving up width.
+	 *      That is why the width is inline rather than a class -- a caller
+	 *      cannot accidentally let it collapse.
+	 *
+	 * IT IS `aria-hidden` AND ITS `alt` IS EMPTY, deliberately and in every
+	 * case. This platform's rule is that a control carries a visible word, and
+	 * an avatar is only ever rendered BESIDE the person's name -- so a screen
+	 * reader that announced it too would read every roster row twice. A
+	 * surface that wants to render one WITHOUT a name has a different
+	 * question to answer first, and should answer it rather than flipping this
+	 * attribute.
 	 */
-	let { profile, size = 32 }: { profile: UserProfile | null | undefined; size?: number } =
-		$props();
+	let {
+		profile = undefined,
+		subject = undefined,
+		tintKey = undefined,
+		size = 32
+	}: {
+		profile?: UserProfile | null;
+		subject?: AvatarSubject | null;
+		tintKey?: string | null;
+		size?: number;
+	} = $props();
 
-	const source = $derived(avatarSource(profile));
+	/**
+	 * Reset on a NEW source rather than on mount. A `{#each}` over a roster
+	 * reuses this component's instance when the list re-sorts or refetches, so
+	 * a failure latched for one person would follow the box onto the next one
+	 * and paint a tile over a picture that loads perfectly well.
+	 */
+	let failedUrl = $state<string | null>(null);
+
+	/*
+	 * WHAT THE TILE PAINTS, ALWAYS THROUGH `subjectInitials` AND NEVER OFF
+	 * `source.text`, and the second half of that sentence is a bug fix rather
+	 * than a tidy-up.
+	 *
+	 * It used to read `source.kind === 'initials' ? source.text : ...`, which
+	 * takes the text `avatarSource` put there -- and `avatarSource` builds it
+	 * with `initials()`, which bottoms out in `displayName()`, whose last rung
+	 * is the literal sentence 'Signed in'. So the `subject` path was corrected
+	 * by `subjectAvatar` in 0033 and the `profile` path was NOT: a profile row
+	 * with no display name, no full name and no address still rendered the
+	 * initials **SI**, which reads as a person called S. I. rather than as an
+	 * absence. Measured on the real functions, not inferred: `initials(null)`
+	 * and `initials(<nameless row>)` both answer 'SI' today.
+	 *
+	 * Reading through `subjectInitials` unconditionally closes that and costs
+	 * nothing anywhere else: for a subject it is the same call `subjectAvatar`
+	 * already made, and for an IDENTIFIED profile it delegates straight back to
+	 * `initials()` with the same three fields, so every existing tile paints
+	 * byte-identical letters. The one behaviour that moves is the one that was
+	 * wrong.
+	 *
+	 * It also still answers the case it was written for: a FAILED image source
+	 * carries no text at all, so there is nothing to read off `source`.
+	 *
+	 * `initials()` ITSELF IS UNCHANGED AND STILL ANSWERS 'SI'. It is exported
+	 * from `$lib/profile.ts`, which this bundle does not own, and its one
+	 * remaining caller is `avatarSource` -- whose text no longer reaches a
+	 * screen through this component. `tests/avatar-initials.test.ts` sweeps
+	 * `src/` for a second caller so that stays true by measurement rather than
+	 * by hope.
+	 */
+	const fallbackText = $derived(subjectInitials(profile ?? subject));
+
+	/**
+	 * WHERE AN UPLOADED PICTURE IS ASKED FOR, AND WHY THAT DECISION IS HERE.
+	 *
+	 * `avatarSource` resolves an `upload:<key>` to a Supabase Storage PUBLIC
+	 * object URL, which is what 0020's public `avatars` bucket served and what
+	 * every surface in this app put in its own HTML. 0181 closes that bucket,
+	 * so the bytes are asked for at `/api/avatar/<key>` on our origin instead and
+	 * `src/routes/api/avatar/[...path]/+server.ts` mints a signed URL on the
+	 * CALLER'S OWN client and 302s to it.
+	 *
+	 * THIS IS THE ONE PLACE THAT REWRITE HAPPENS, and that is the whole reason
+	 * it works. Nine surfaces render a face -- the profile menu, the classroom
+	 * roster, the grading console, the three notebook surfaces, the admin
+	 * dashboard, two harnesses and the GAUNTLET leaderboard -- and every one of
+	 * them mounts this component rather than building a URL. So the store could
+	 * be closed underneath all nine with an edit to none of them, which was not
+	 * a convenience: the leaderboard was READ-ONLY to the bundle that did it,
+	 * and a design needing to touch it could not have shipped.
+	 * `tests/avatar-proxy.test.ts` sweeps `src/` so it stays the one place.
+	 *
+	 * IT MOVES THE `upload:` CASE AND NOTHING ELSE. A Google photo is a
+	 * googleusercontent URL that is not in our store and not ours to gate; a
+	 * preset is inline SVG and makes no request. `proxiedAvatarSource` reads
+	 * the RAW `avatar` value rather than sniffing the resolved URL, so those
+	 * two are left alone by construction rather than by a string test.
+	 */
+	const chosen = $derived((profile ?? subject)?.avatar ?? null);
+	const resolved = $derived(profile != null ? avatarSource(profile) : subjectAvatar(subject));
+	const source = $derived(proxiedAvatarSource(chosen, resolved, fallbackText));
+	const failed = $derived(source.kind === 'image' && failedUrl === source.url);
+	const tint = $derived(avatarTint(tintKey));
 	const px = $derived(`${size}px`);
 </script>
 
-<span class="avatar" style="width:{px};height:{px}" aria-hidden="true">
-	{#if source.kind === 'image'}
-		<img src={source.url} alt="" width={size} height={size} referrerpolicy="no-referrer" />
+<span
+	class="avatar"
+	style="width:{px};height:{px};min-width:{px};--avatar-tint:{tint}"
+	aria-hidden="true"
+>
+	{#if source.kind === 'image' && !failed}
+		<img
+			src={source.url}
+			alt=""
+			width={size}
+			height={size}
+			referrerpolicy="no-referrer"
+			onerror={() => (failedUrl = source.kind === 'image' ? source.url : null)}
+		/>
 	{:else if source.kind === 'preset'}
 		<svg viewBox="0 0 24 24" fill="none" stroke={source.preset.fg} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 			<path d={source.preset.d} />
 		</svg>
 	{:else}
-		<span class="initials" style="font-size:{Math.round(size * 0.4)}px">{source.text}</span>
+		<span class="initials" style="font-size:{Math.round(size * 0.4)}px">{fallbackText}</span>
 	{/if}
 </span>
 
@@ -29,6 +169,11 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
+		/* THE THREE PROPERTIES THAT KEEP A ROW FROM MOVING. `flex-shrink: 0`
+		   and the inline `min-width` stop a long name squeezing the picture;
+		   the fixed height stops a row with no picture sitting shorter than
+		   one with a picture. Measured across avatar / no-avatar / failed-load
+		   rows at both widths -- see this bundle's history entry. */
 		flex-shrink: 0;
 		border-radius: 50%;
 		overflow: hidden;
@@ -47,7 +192,11 @@
 	}
 	.initials {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		color: var(--green, #00ff41);
+		/* Per-person, from the measured set in $lib/avatars.ts. The fallback is
+		   the portal's own primary, which is what every tile painted before
+		   there was a set. */
+		color: var(--avatar-tint, var(--green, #00ff41));
 		letter-spacing: 0.05em;
+		line-height: 1;
 	}
 </style>

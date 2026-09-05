@@ -18,6 +18,16 @@ import type { PageLoad } from './$types';
  * ranked rows each card carries. Those three are exactly the variables in the
  * offset this bundle exists to measure.
  *
+ * `?due=` IS THE FOURTH, AND IT EXISTS BECAUSE THE DEFAULT CANNOT REACH TWO OF
+ * THE FOUR URGENCY STEPS. Rows are dated n days out for n = 1..rows, which
+ * produces `imminent` and `soon` and never `today` or `overdue` -- so a harness
+ * without it would drive half the mechanism and a browser pass over it would
+ * report the treatment working while the two steps that matter most had never
+ * rendered. It takes a comma-separated list of DAY OFFSETS, one per row,
+ * negative for a deadline already past: `?due=-1,0,1,5` is one row of each
+ * step. Offsets are applied in order and reused cyclically when there are more
+ * rows than offsets.
+ *
  * THE KEYS ARE RETURNED AT PAGE LEVEL ON PURPOSE. Page data merges over layout
  * data, so `claims`, `userProfile` and `isAdmin` reach not just the page's own
  * `data` prop but `page.data`, which is where AppLauncher and ProfileMenu read
@@ -45,7 +55,7 @@ function section(i: number, teacherEmail: string): ClassroomSection {
 	};
 }
 
-function item(sectionId: string, n: number): ClassroomItem {
+function item(sectionId: string, n: number, dueAt?: string): ClassroomItem {
 	const id = `${sectionId}-i${n}`;
 	return {
 		id,
@@ -82,7 +92,7 @@ function item(sectionId: string, n: number): ClassroomItem {
 		 * still counts these. Distinct per item, so the deadline tiebreak is
 		 * decided.
 		 */
-		due_at: new Date(Date.now() + n * 86_400_000).toISOString(),
+		due_at: dueAt ?? new Date(Date.now() + n * 86_400_000).toISOString(),
 		category: null,
 		author_email: TEACHER,
 		author_name: 'T. Vargas',
@@ -116,6 +126,36 @@ export const load: PageLoad = async ({ url }) => {
 	const admin = url.searchParams.get('admin') === '1';
 
 	/**
+	 * Day offsets for the ranked rows. Empty (the default) keeps the historical
+	 * behaviour exactly: row n is due n days out.
+	 */
+	const dueOffsets = (url.searchParams.get('due') ?? '')
+		.split(',')
+		.map((v) => Number(v.trim()))
+		.filter((v) => Number.isFinite(v));
+
+	/**
+	 * An offset lands at the END of its calendar day, and 0 is why.
+	 *
+	 * `Date.now() + 0 days` is already in the past by the time the page paints,
+	 * so it ranks `overdue` and the `today` step -- a deadline later TODAY, the
+	 * one a student most needs to see -- would be unreachable from this harness.
+	 * End of day makes every non-negative offset a future instant on the calendar
+	 * day it names, and -1 an instant safely in the past, so each offset produces
+	 * exactly the step it reads as.
+	 *
+	 * The DEFAULT path is untouched and still dates row n at `Date.now() + n
+	 * days` (see `item`), because that is what the section-offset measurements
+	 * this route exists for were taken against.
+	 */
+	const dueAtFor = (days: number) => {
+		const d = new Date();
+		d.setDate(d.getDate() + days);
+		d.setHours(23, 59, 0, 0);
+		return d.toISOString();
+	};
+
+	/**
 	 * `?pending=N` puts N in the launcher's Foundry review badge. Admin-gated
 	 * exactly as the real payload is (the home load answers null for anyone
 	 * else), so `?pending=3` without `?admin=1` is the negative case: no badge.
@@ -130,7 +170,15 @@ export const load: PageLoad = async ({ url }) => {
 	const sections = Array.from({ length: classes }, (_, i) =>
 		section(i + 1, isTeacher ? TEACHER : TEACHER)
 	);
-	const items = sections.flatMap((s) => Array.from({ length: rows }, (_, n) => item(s.id, n + 1)));
+	const items = sections.flatMap((s) =>
+		Array.from({ length: rows }, (_, n) =>
+			item(
+				s.id,
+				n + 1,
+				dueOffsets.length ? dueAtFor(dueOffsets[n % dueOffsets.length]) : undefined
+			)
+		)
+	);
 
 	/**
 	 * ONE ROW PER ITEM, FOR EITHER ROLE, through the real ranking rules rather
@@ -168,6 +216,6 @@ export const load: PageLoad = async ({ url }) => {
 		},
 		isAdmin: admin,
 		foundryReviewPending: pending,
-		harness: { role, classes, rows, admin }
+		harness: { role, classes, rows, admin, due: dueOffsets }
 	};
 };

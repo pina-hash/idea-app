@@ -148,50 +148,82 @@ export const FOUNDRY_KNOWN_SHIMS: readonly string[] = [
  * ARCHIVE, NOT BY ANYTHING STREAMING.
  *
  * `readCentralDirectory`/`inflateEntry` in `./zip.ts` hold the entire zip in
- * one `Uint8Array` (its own header says so: "both hold the whole archive
- * already -- it is capped at 25 MB, so there is nothing to stream around"),
- * and the ingest function inflates EVERY file into one `built` array BEFORE
- * writing a single byte to Storage -- deliberately, so a hard failure leaves
- * the bucket untouched. So the peak resident set for one invocation is
- * roughly `zipBytes` (the downloaded archive) plus `totalBytes` (every
- * inflated file held at once), plus one transient UTF-8 string for whichever
- * text file is mid-scan, plus the Deno isolate's own baseline.
+ * one `Uint8Array`, and the ingest function inflates EVERY file into one
+ * `built` array BEFORE writing a single byte to Storage -- deliberately, so a
+ * hard failure leaves the bucket untouched. So the peak resident set for one
+ * invocation is roughly `zipBytes` (the downloaded archive) plus `totalBytes`
+ * (every inflated file held at once), plus one transient UTF-8 string for
+ * whichever text file is mid-scan, plus the Deno isolate's own baseline.
  *
- * At the old caps that peak was at most ~50 MB of bytes. Raised here to 50 MB
- * zip / 75 MB unpacked (~125 MB of bytes at the worst case), which is a
- * deliberately CONSERVATIVE roughly-2.5x rather than a measured ceiling: nothing
- * in this session could load-test the real Supabase Edge Function memory limit
- * against it, so this is bounded by reasoning about the buffering shape, not by
- * a number read off a production run. **THE ONE DIRECTLY COMPARABLE PRECEDENT
- * IN THIS REPO IS THE OPPOSITE LESSON**: the classroom deck upload (a
- * different runtime -- Node on Vercel, not Deno on Supabase) needed 150 MB
- * zip / 300 MB unpacked and `docs/HISTORY.md` records that "buffering could
- * not have survived" those numbers -- it had to move to a `ZipSource` that
- * reads one entry at a time. That is evidence buffering has a ceiling well
- * below 150+300 MB somewhere, not evidence about where; it is offered here as
- * a reason to stay well clear of that region rather than as a measurement of
- * this runtime. If the real ceiling on Supabase's Edge Function needs to be
- * confirmed, or these caps need to go higher, `foundry-ingest` has to stop
- * buffering first: read the zip's central directory (its own last few
- * kilobytes) without inflating anything, then inflate and upload ONE entry at
- * a time -- mirroring the deck reader's `ZipSource` shape -- so the resident
- * set is bounded by the largest single file rather than by the archive.
+ * RAISED 2026-09-02 (0014) FROM 50 MB / 75 MB TO 75 MB ZIP / 110 MB UNPACKED
+ * (~185 MB of bytes at the worst case), again by REASONING rather than by a
+ * measurement, because a real Vercel-function memory reading is still not
+ * available to this session: nothing here can invoke the live Supabase Edge
+ * Function and load-test it. What is different from the previous raise is
+ * that the platform's own OWN ceiling could not be pinned down either --
+ * public sources disagree with each other, some naming 150 MB per invocation
+ * on the smallest tier, others 256 MB on a paid tier, and a maintainer
+ * elsewhere naming 512 MB as the underlying Deno Deploy engine limit outright.
+ * None of that is confirmed against THIS project's plan.
+ *
+ * So the arithmetic leans on the one thing that IS evidence: this function has
+ * been running the previous caps (~125 MB combined worst case) in production
+ * with no recorded out-of-memory failure anywhere in `docs/history/`. That
+ * rules out the 150 MB figure as the binding ceiling here -- 125 of 150 would
+ * leave almost nothing for the isolate's own baseline, the transient decode
+ * string, and `DecompressionStream`'s internal buffers, and something that
+ * tight would have shown up by now. Treating 256 MB as the credible floor
+ * instead, the new combined worst case of ~185 MB is 72% of it, which still
+ * leaves roughly 70 MB of headroom -- comparable in absolute terms to the
+ * margin the previous, unincident-having caps were already running on. This
+ * is therefore a smaller step than the previous raise's roughly-2.5x (this one
+ * is ~1.5x on the zip and ~1.47x on the unpacked total) precisely because the
+ * ceiling is no better known now than it was then, and the previous jump
+ * already spent a good share of whatever margin exists.
+ *
+ * The FULL 150 MB zip / 250 MB unpacked figure some earlier drafts of this
+ * change discussed is NOT shipped: at 256 MB assumed, 400 MB combined is 156%
+ * of the ceiling, and even against the most generous figure found (512 MB) it
+ * is 78% with no margin left for overhead. A clean refusal below a
+ * conservative cap is a better failure than an out-of-memory crash on a real
+ * student upload, so the number that could not be defended was not shipped.
+ * See `docs/history/` for this branch for the full arithmetic and the
+ * consumer this raise cannot see: `src/lib/server/foundry-bundle.ts` rebuilds
+ * a whole bundle in memory too, on Vercel Node rather than Deno, and was
+ * measured against the OLD caps -- see its own header comment, which a future
+ * session should re-check against these new numbers.
+ *
+ * **THE ONE DIRECTLY COMPARABLE PRECEDENT IN THIS REPO IS THE OPPOSITE
+ * LESSON**: the classroom deck upload (a different runtime -- Node on Vercel,
+ * not Deno on Supabase) needed 150 MB zip / 300 MB unpacked and
+ * `docs/HISTORY.md` records that "buffering could not have survived" those
+ * numbers -- it had to move to a `ZipSource` that reads one entry at a time.
+ * That is evidence buffering has a ceiling well below 150+300 MB somewhere,
+ * not evidence about where; it is offered here as a reason to stay well clear
+ * of that region rather than as a measurement of this runtime. If the real
+ * ceiling on Supabase's Edge Function needs to be confirmed, or these caps
+ * need to go higher still, `foundry-ingest` has to stop buffering first: read
+ * the zip's central directory (its own last few kilobytes) without inflating
+ * anything, then inflate and upload ONE entry at a time -- mirroring the deck
+ * reader's `ZipSource` shape -- so the resident set is bounded by the largest
+ * single file rather than by the archive.
  *
  * `maxFiles` is a different axis and is not gated on the same argument: each
  * additional file costs one small array entry and, at write time, one Storage
  * `upload()` round trip -- it is bounded by FUNCTION DURATION, the same
  * distinction `docs/HISTORY.md` draws for the deck reader's own 500-entry cap
- * ("THE REMAINING CEILING IS FUNCTION DURATION, not memory"). Raised further
- * than the byte caps for that reason: real engine exports (Unity WebGL,
- * Godot's web export, a Phaser/Construct project with a sprite atlas) commonly
- * ship many small files well past 500 before touching either byte cap.
+ * ("THE REMAINING CEILING IS FUNCTION DURATION, not memory"). Left unchanged
+ * here: nothing about this raise touches duration, and 1500 already exceeds
+ * what real engine exports (Unity WebGL, Godot's web export, a
+ * Phaser/Construct project with a sprite atlas) commonly ship before touching
+ * either byte cap.
  */
 export const FOUNDRY_LIMITS = {
 	/** The zip as uploaded. */
-	maxZipBytes: 50 * 1024 * 1024,
+	maxZipBytes: 75 * 1024 * 1024,
 	maxFiles: 1500,
 	/** Everything the zip unpacks to, counted while unpacking. */
-	maxTotalBytes: 75 * 1024 * 1024,
+	maxTotalBytes: 110 * 1024 * 1024,
 	/** Not a refusal -- a single asset above this earns a warning. */
 	warnAssetBytes: 5 * 1024 * 1024
 } as const;

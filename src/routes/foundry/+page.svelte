@@ -138,6 +138,22 @@
 </div>
 
 <style>
+	/* THE SPLIT IS WHAT GROWS, in app mode. `scroll="fill"` needs a bounded
+	   parent with `min-height: 0` on this item, and without it `height: 100%`
+	   resolves against an auto height, the panes grow to their content, and
+	   the surface degrades to exactly `page-flow` -- the state it had before,
+	   which is why getting this wrong is invisible rather than broken. */
+	@media (min-width: 1024px) {
+		:global(.cr-app) .fdy-page {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+		:global(.cr-app) .fdy-page > :global(.cr-split) {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+	}
+
 	.fdy-page {
 		display: flex;
 		flex-direction: column;

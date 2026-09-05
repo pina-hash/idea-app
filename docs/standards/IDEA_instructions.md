@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.14 - 2026-08-30**
+**Version 4.19 - 2026-09-02**
 
 ## These Instructions Evolve
 
@@ -27,6 +27,44 @@ These standards are working documents, not fixed rules. They improve by being co
 - **Verify the copy is current before editing it.** Check the file's version and changelog against what other documents claim about it. If the visible copy is behind what other docs reference, stop and say so. Rewriting from a stale base silently deletes everything the newer version added, and the deletion is invisible in the delivered file.
 - **A copy on disk from earlier in the same session is a stale base like any other.** Established 2026-08-23d, when a copy written at chat start was still sitting in the working directory and would have reverted the entire 2026-08-23 Supabase, branches, hooks, and lanes rewrite had it been used. Same-session provenance is not freshness. Check the changelog on any copy before editing it, including one Claude wrote itself.
 - **No known stale copy at present.** The `IDEA_Design_System.md` block that stood here is retired for a different reason than it was cleared for. On 2026-08-25 that file was found to be absent from project knowledge and from both Drive libraries, while this bullet vouched for it at version 2.0. A cleared warning about a file nobody can open is worse than a standing one, because it converts a visible gap into confident substitution from memory. The name is retired and its content lives in `IDEA_CLAUDE_DESIGN_STANDARDS.md` 2.0. Keep this bullet as the place a live stale-copy warning goes, and when clearing one, confirm the file is readable rather than confirming only that its version number agrees.
+### A raw.githubusercontent.com fetch is not a freshness check
+
+**`raw.githubusercontent.com` is CDN-cached and will hand back a file that is days
+stale.** 4.14 established this for confirming a merge. It applies with more force to the
+freshness protocol below, because there the stale read does not report a false negative,
+it silently supplies a fork base.
+
+Established 2026-09-01. A chat opened, fetched this file from raw, received 4.9 dated
+2026-08-27, confirmed it byte-identical to the project knowledge copy, and treated that
+agreement as proof of currency. `main` was at 4.15. Six versions had shipped in the
+window and the fetch saw none of them. The chat then built two new sections on the 4.9
+base and stamped the result 4.11, which by then named entirely different content. Had it
+been delivered it would have destroyed 4.10 through 4.15 in a file that was internally
+consistent, correctly changelogged, and carrying a version number that looked like a
+descent.
+
+Two signals were present and both were ignored. The routing map in the project
+instructions described a 4.13 by name. And the file itself, in the entry immediately
+above, said raw is cached.
+
+So: **the freshness fetch is a `git clone`, not a `curl` of a raw URL.** A shallow clone
+is fine; nothing git-derived is read from it. `curl -sfL` on raw remains correct for
+reading a file whose currency does not matter, and for nothing else.
+
+**Agreement between the project knowledge copy and a fetched copy is not evidence of
+currency when both could be stale from the same cause.** Two reads of the same cache are
+one read. The check that would have caught this is the version number against the
+register in the clone, or against the routing map, which is free and was in context the
+whole time.
+
+**A standards file that never reaches the mirror never reaches the test that would refuse
+it.** `tests/standards-version-header.test.ts` refuses a file whose header disagrees with
+its own newest changelog entry, and it runs in CI on mirrored files only. A copy sitting
+in project knowledge ahead of the mirror has never been tested at all, which is how
+`IDEA_CLAUDE_DESIGN_STANDARDS.md` 2.1 sat for four days with no 2.1 changelog entry.
+`tools/standards-sweep.py` runs the same check on local and delivered copies, so a
+delivery is swept before it is uploaded and not only at closeout.
+
 ### Freshness: the repo is the authority, project knowledge is the working copy
 
 **The version-and-changelog check cannot catch a concurrent edit, and it cannot catch a
@@ -322,7 +360,56 @@ do with a migration, not whether Mr. Pina reviews it before production sees it.
   migrations are main-only and a third clone would contend for the same single stack
   anyway.
 
-### How migrations actually reach this database
+### Reading one file is not reading a system
+
+**A file's own contents do not tell you whether anything reaches it.** Established
+2026-09-01, three times in one session, each time by the assistant rather than by a
+session, and each time in the same shape: one file was read, a claim about the system's
+behaviour was built on it, and the file beside it that governed that behaviour was never
+opened.
+
+- A repo was described as having no `static/` directory, on the strength of a tree
+  listing that had been truncated to its last fourteen entries before being read. The
+  directory existed and held a 23 MB PDF the same session was about to discuss.
+- A route's `+page.svelte` was read, found to be a 25-line placeholder, and described as
+  the first screen every user sees after signing in. The `+page.server.ts` beside it
+  redirects all three principals away. A whole card was built there and nobody can reach
+  it.
+- A migration was routed for hand application through the Supabase SQL editor, correct on
+  `idea-app` and explicitly forbidden by the target repo's own `CLAUDE.md`.
+
+**Before asserting what a surface does, list its directory and read every sibling that
+can intercept it.** For a SvelteKit route that is `+page.server.ts`, `+layout.server.ts`
+and the group's guards, not only the component. For a repo-level claim it is that repo's
+own `CLAUDE.md` before any of this file's rules are applied to it. For anything derived
+from a listing it is the listing printed whole, because a slice reasoned about as if
+complete is the bare-count failure from `IDEA_VERIFICATION_ADDENDA.md` in different
+clothes: what came back was a count of matches, not the identity of what matched.
+
+**This bites hardest when writing a prompt, because a wrong premise there costs twice.**
+A session given a false premise either halts on it, which costs the run, or works
+correctly against it, which costs the work. Both happened on 2026-09-01. The premise is
+cheaper to check than either outcome, and checking it is one `curl` or one directory
+listing.
+
+### A migration's apply path belongs to its repo, not to this file
+
+**`idea-app` and `fll-app` are different databases with opposite delivery rules, and the
+section below describes the first one only.** Established 2026-09-01. On `idea-app` the
+remote has no `supabase_migrations.schema_migrations` table, so hand application through
+the SQL editor diverges from nothing. On `fll-app` the CLI owns the ledger, `supabase db
+push` is the delivery mechanism, and that repo's `CLAUDE.md` states that a session
+blocked from `db push` hands back the command rather than reaching for the dashboard, the
+Management API, or any other path that writes SQL without writing the ledger row beside
+it. It records 0019, 0020 and 0021 applied outside the chain on three consecutive
+sessions, each leaving the ledger behind a schema that was in fact correct.
+
+**Read the target repo's `CLAUDE.md` before writing any instruction about how a migration
+gets applied there.** Never carry an apply path across repos. The two facts that make
+`idea-app` safe to hand-apply, an absent ledger and a `db push` that would replay every
+file, are properties of that project and of no other.
+
+### How migrations actually reach this database (idea-app)
 
 **Every migration this project has ever had was applied by hand, and the CLI has never
 managed it.** Established 2026-08-23, by inspection rather than by assumption: the remote
@@ -524,27 +611,55 @@ it does not hold, and CC records the reason rather than building the nearest pla
 thing. A prompt written from names, paths, or asset inventories is exactly where this
 fails, because those are the parts of a repo that outlive the behavior they describe.
 
-**Bundle by tier, not by topic.** Bundling multiple changes into one prompt is still the
-default, but a bundle inherits the model tier of its single most ambiguous item, so
-every other item in it runs on an expensive model for no benefit. Before writing a
-bundle, classify each item against the routing table separately. If they land on
-different rows, split the prompt at the tier boundary and run the pieces in sequence
-rather than paying the top tier across the whole set. Do not split further than that:
-several same-tier items still belong in one prompt.
+**Bundle by file surface, not by tier, and lift the tier only for a real unknown.** A
+bundle is partitioned by the file surface a lane owns, and everything inside that
+surface goes in one prompt. The bundle takes the tier of its hardest item, so before
+accepting that an Opus bundle has become a Fable one, ask whether the hard item's unknown
+is a fact (the audit phase reads it; stay on Opus 5) or a judgment (Fable 5.1). One
+judgment item in a bundle of twenty facts does lift the whole bundle, and that is the
+price of not splitting; where the judgment item can wait a session, leave it out and
+keep the bundle on Opus 5. The split that survives is the effort boundary: an item that
+needs `xhigh` or `max` serializes across lanes and is sequenced after the `high` work.
 
-**Audit first to collapse the tier.** When a bundle reaches row 4 only because CC would
-have to figure something out mid-build (an unfamiliar subsystem, an undecided mapping,
-an unknown current state), send a read-only audit prompt first. An audit does not need
-to resolve the ambiguity, only surface the facts; resolution happens in chat, where
-thinking is already available. Once the report is in, the build prompts are fully
-specified and drop a tier permanently. Read-only audits are also safe to run while
-another CC session is active on the same repo, provided the prompt forbids all writes,
-git state changes, dev servers, and test runs, and tells CC to leave any uncommitted
-working-tree changes alone.
+**Audit first, in the same session.** When a bundle would otherwise have to figure
+something out mid-build (an unfamiliar subsystem, an undecided mapping, an unknown
+current state), the prompt opens with the audit questions and the build phase is gated on
+their answers, in one session. Until 4.16 the audit was a separate read-only prompt whose
+report came back to the chat so the build could drop a tier; that round trip is now paid
+only when the chat needs the answers to decide something, which is a decision-dependence
+test. Read-only audits remain safe to run while another CC session is active on the same
+repo, provided the prompt forbids all writes, git state changes, dev servers, and test
+runs, and tells CC to leave any uncommitted working-tree changes alone.
 
-**Reserve Fable 5 for work that is genuinely irreversible or must be designed and
-executed in one pass.** Ambiguity that can be resolved by an audit and a chat decision
-is not a reason to reach for it.
+**Fable 5.1 is used where the session has to resolve something the chat could not
+specify, and nowhere else.** Mr. Pina's calibrated preference, stated 2026-09-02 after
+reading 4.17: use it appropriately, do not overuse it. 4.17 had made it the default for
+every non-trivial bundle, on this assistant's reading of "take advantage of Fable 5.1
+for more work per prompt" as "default to it"; that was an inference, not his
+instruction, and it is withdrawn here. What he did ask for stands and is model
+independent: as much work per prompt as one file surface holds, fewer prompts in total,
+and the audit phase inside the build prompt rather than a session before it.
+
+**The test is what the session must decide on its own.** Before writing the header,
+write out what the session will have to figure out that this assistant could not put in
+the prompt. If that list is empty, or every item on it is a fact the audit phase can read
+from the tree, the bundle is Opus 5 at `high` however large it is. If the list holds a
+structural unknown, meaning the session has to choose a design, port a shape between
+repos, reconcile an undocumented subsystem, or sweep a whole repo, it is Fable 5.1. Size
+is not on the test; Opus 5 at `high` carries a large fully specified bundle.
+
+**A bundle is sized up, not split.** Where this document previously said to send an
+audit prompt first and a build prompt after, the two are phases of one session: the
+prompt opens with the audit questions and gates the build on their answers, and the
+report separates what was found from what was built. A separate audit session is still
+right when the chat needs the answers before it can decide anything.
+
+**Three facts about selecting it, verified 2026-09-02.** `/model fable` and
+`claude --model fable` resolve to Fable 5.1 from Claude Code v2.1.255; Fable 5 needs its
+full ID. Fable is not the default on any plan, so the routing header is what selects it
+and a session opened without reading the header runs on Opus 5 or Sonnet 5. Depending on
+plan and seat, Fable may bill to usage credits behind a consent prompt; a session that
+stalls at start with a credits prompt is waiting on that click, not failing.
 
 **Model and effort routing (mandatory on every CC prompt).** Every Claude Code prompt
 this assistant delivers, in any topic area (VANGUARD, IDEA portal, FRC app, robot code,
@@ -574,9 +689,21 @@ between two rows, round up.
 | Prompt profile | Model | Effort |
 |---|---|---|
 | Trivial mechanical edit: copy tweak, rename, single-locator swap, static-content change, one-line fix | Haiku 4.5 | low |
-| Bounded and fully specified; may be multi-step or tool-heavy but no novel design: routine portal/repo updates, a clear feature with an unambiguous spec | Sonnet 5 | medium |
-| Well-scoped build that needs careful reasoning across a large file or an unfamiliar subsystem, surgical edits with subtle correctness (state threading, dedup, many call sites), read-only audits of code CC has not seen, or any balance change that affects rankings | Opus 5 | high |
-| Ambiguous, multi-file, long-horizon architecture that must be designed and executed in one pass; first-draft systems; irreversible operations | Fable 5 | xhigh (one heavy bundle per session) |
+| Bounded and fully specified, one file surface, nothing to investigate: a locator swap set, a copy pass, a portal update from settled text, a standards push with its fork check | Sonnet 5 | medium |
+| The default build row. Any well-scoped bundle of any size within one owned surface: surgical edits with subtle correctness, a migration with its test, a harness spec, an audit phase whose questions have answers in the tree, a read-only audit | Opus 5 | high |
+| The session must decide something the chat could not specify: an undocumented or unfamiliar subsystem, a port of a shape between repos, a repo-wide conformance or sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high; `xhigh`, `max` or `ultracode` only for the irreversible or repo-wide case |
+
+**The header carries the minimum too**, in the shape the chat-side standard uses:
+`MODEL: Opus 5 (min: Sonnet 5) | EFFORT: high - row 3`, or `MODEL: Fable 5.1 (min: Opus 5)`
+for row 4. The minimum is what the session runs on when the picker does not list the
+model or the credits prompt is declined. Opus 5 is also where a Fable session lands after
+a cybersecurity flag.
+
+**The four prompts issued 2026-09-02 are the calibration record.** Standards push and
+infrastructure (0005) and the feedback form (0006) were headed Fable 5.1 and would be
+Opus 5 under this rule: large, but every unknown in them was a fact in the tree. The two
+conformance prompts for `fll-app` and `frc-app` are Fable 5.1 correctly: each ports a
+shape between repos and decides a CI database strategy from what it finds.
 
 Overrides that beat the table:
 
@@ -593,8 +720,9 @@ Overrides that beat the table:
   script instead of working turn by turn, and it asks for approval (shows the planned
   phases) before starting. Reserve it for genuinely repo-wide work, not as a routine
   substitute for the table above.
-- **Concurrent heavy bundles:** only one Fable-5 xhigh (or `ultracode`) bundle runs per
-  session. If two heavy bundles are queued, sequence them, do not parallelize.
+- **Concurrent heavy bundles:** what serializes is effort, not model. One `xhigh`, `max`
+  or `ultracode` bundle runs at a time across all lanes; `high` bundles of any model run
+  in parallel up to the lane cap. If two heavy bundles are queued, sequence them.
 - **Scope note:** Apps Script `Code.gs` patches are pasted into the Apps Script editor by
   hand, not run through CC, so this routing covers repo-based CC prompts only. A rare
   high-risk repo edit still follows the tier-up plus max-effort override.
@@ -608,26 +736,28 @@ name next to a generic justification, so the stated row and the chosen model can
 checked against each other at a glance. Effort labels are exactly low, medium, high,
 xhigh, or max; there is no "standard" or intermediate label.
 
-**Visual, creative, or UX work is not automatically row 4.** Row 4 requires that
-genuine, substantial ambiguity remains for Claude Code to resolve after this
-assistant's own specification is complete, not merely that the task touches design,
-aesthetics, or interaction. Before writing Fable 5, write out what is actually still
-undecided. If that list is short and generic (exact spacing, minor wording, small
-polish) rather than substantial (which library, what interaction model, a real
-structural unknown), the task is row 3, not row 4, regardless of domain. And if the
-undecided list could be closed by an audit and a chat decision, close it that way
-instead of paying for the top tier.
+**Visual, creative, or UX work is not automatically row 4.** Row 4 is about
+reversibility and scope, not about domain. Before writing `xhigh`, write out what is
+actually still undecided and what cannot be undone by a revert. If the undecided list is
+polish (exact spacing, minor wording) and everything reverts, it is row 3 at `high`
+regardless of how much design it touches. What was formerly the argument for dropping a
+tier, that an audit and a chat decision could close the ambiguity, is now the argument
+for an audit phase at the top of the same prompt.
 
 Effort labels (low / medium / high / xhigh / max, plus the `ultracode` setting) map
 directly to Claude Code's own `/effort` picker, not this chat's separate adaptive-thinking
 setting. `max` and `ultracode` apply to the current CC session only; they are not saved
 as a default the way low/medium/high/xhigh are.
 
-**Safety-classifier awareness.** Fable 5 and Opus 5 run their own safety classifiers for
-cybersecurity and biology content. When one flags a request, Claude Code reruns it on a
-fallback model automatically and shows a notice: Fable 5's cybersecurity flags fall back
-to Opus 4.8, and so do Opus 5's; a biology flag on Opus 5 has no fallback and ends in a
-refusal instead. GAUNTLET, VANGUARD, and IDEA Coin ledger work (RLS policies, auth
+**Safety-classifier awareness.** Fable 5.1, Fable 5 and Opus 5 run their own safety
+classifiers for cybersecurity and biology content. When one flags a request, Claude Code
+reruns it on a fallback model automatically and shows a notice. Verified 2026-09-02
+against the live model documentation: a Fable cybersecurity flag falls back to Opus 4.8
+and a Fable biology flag to Opus 5; an Opus 5 cybersecurity flag falls back to Opus 4.8
+and an Opus 5 biology flag has no fallback and ends in a refusal. After a fallback the
+session stays on the fallback model until `/model` puts it back, so a long Fable bundle
+flagged on its first message runs the whole way on Opus 4.8 unless somebody notices; the
+report is asked to name the model it finished on. GAUNTLET, VANGUARD, and IDEA Coin ledger work (RLS policies, auth
 hardening, exploit fixes) is exactly the kind of content that can trip the cybersecurity
 classifier, sometimes on the first message of a session, since that message already
 carries the repo's CLAUDE.md and git status as context. A mid-session model-switch notice
@@ -985,6 +1115,18 @@ split across directories and routes and write the boundary into each prompt. If 
 cannot be described without naming a file another lane owns, it is the next item in that
 lane, not a new one.
 
+**A file every bundle is required to write is contested by construction and must be
+assigned by name.** Both repos oblige each shipped bundle to append to a per-repo history
+document, so a partition silent about it has put every lane on a collision course by
+omission. Established 2026-09-01, when three parallel lanes were told about
+`docs/HISTORY.md` only after all three had launched: one wrote its entry, two did not,
+and the two that did not then owed a reconstruction from a merged diff rather than from
+what they had just measured, which is strictly worse history. The fix is one sentence per
+prompt naming the file as the single exception to the ownership list, and stating that a
+conflict there is resolved by keeping every entry in bundle order and changing none of
+their text. An append conflict is trivial. An unassigned append is a coin flip on whether
+anyone writes it at all.
+
 **The migration lane is `main`, and it owns the local Supabase stack.** Migrations do not
 go on branches at all, per the rule above: one production database means a migration is
 global no matter where its file lives. The local stack is a second reason to keep it to
@@ -992,6 +1134,22 @@ one lane: every worktree and clone carries the same tracked `config.toml`, so a 
 `supabase start` collides on the same ports and container names, and editing ports per
 directory leaves a tracked diff waiting to be committed by accident. Every other lane is
 UI, content, or read-only.
+
+**Where a session cannot apply a migration, the file may ride the branch that needs it,
+and the load-bearing half of the rule is that only one lane produces migrations.**
+Established 2026-09-01 on `fll-app`. A cloud session has no local stack and no token, so
+a migration file it writes is inert until Mr. Pina delivers it: number collision is the
+only hazard the file itself carries, and fetching the highest number on `origin/main`
+before choosing one already closes that. Forcing the inert file onto `main` drags the UI
+that depends on it onto `main` too, and on a repo that deploys from `main` that ships
+unverified UI to production to satisfy a rule about a file nobody has executed. So the
+file rides the branch, the SQL is delivered by its repo's own documented path first, and
+the branch merges second. Where a session **can** apply a migration, the original rule
+stands unchanged: one database, one lane, `main`.
+
+**Sequencing is stated in the same turn as the delivery, in the direction that fails
+safe.** A merge that precedes its migration deploys a UI offering writes the live policy
+still refuses, and that failure lands on a student rather than on a console.
 
 **Merging is what deploys, so the merge is where the deployability test applies.** A
 branch may be as broken as it needs to be while it is being built; that is the point of
@@ -1024,7 +1182,10 @@ opening had no equivalent until 2026-08-25.
 > ports 54321 and 54322 and run `wsl docker ps`, name any `supabase_*` containers you find
 > and which project they belong to, and halt if a stack you did not start is running.
 > These are the directories and routes you own for this bundle: <list>. Anything outside
-> them is out of scope even if it looks wrong; report it and change nothing.
+> them is out of scope even if it looks wrong; report it and change nothing. Every
+> statement in this prompt about the current state of the repo is a claim, not a fact:
+> confirm each one against the tree before building on it, and where the tree disagrees,
+> the tree wins and your report says which claims were wrong.
 
 The `<list>` is filled per lane and is never left as a topic description. A boundary
 stated as a topic ("the notebook work") is not checkable; a boundary stated as paths is.
@@ -1032,9 +1193,11 @@ stated as a topic ("the notebook work") is not checkable; a boundary stated as p
 **Verify on the preview, then merge. A parallel-lane prompt ends:**
 
 > Pull the latest `main` into this branch and resolve any conflicts here, not on main.
-> Push the branch. Do NOT merge to `main`. Report the Vercel preview URL and the exact
-> checks to run on it, then stop. Never force-push. Do not attempt to delete a remote
-> branch; a cloud session cannot.
+> Your final commit sets the `Status:` line of your own ledger entry under
+> `docs/prompt-ledger/entries/` from `issued` to `pushed`, and it is the last thing you
+> change. Push the branch. Do NOT merge to `main`. Report the Vercel preview URL and the
+> exact checks to run on it, then stop. Never force-push. Do not attempt to delete a
+> remote branch; a cloud session cannot.
 
 **The preview check moved out of the session on 2026-08-26, because no cloud session can
 perform it.** The ending above required a browser check that is structurally unreachable:
@@ -1057,10 +1220,11 @@ The remote will be ahead routinely, from both the other lanes and the app's own 
 commits under `materials/`. That is expected and needs no flagging. Resolving on the
 branch keeps every conflict off the deployed branch.
 
-**What still serializes.** One Fable 5 xhigh or `ultracode` bundle at a time across all
-lanes, not one per lane. Migrations, per above. Anything repo-wide. Read-only audits are
-the opposite case and may run in any lane at any time, provided the prompt forbids all
-writes, git state changes, dev servers, and test runs.
+**What still serializes.** One `xhigh`, `max` or `ultracode` bundle at a time across all
+lanes, not one per lane; `high` bundles run in every lane whatever their model.
+Migrations, per above. Anything repo-wide. Read-only audits are the opposite case and may
+run in any lane at any time, provided the prompt forbids all writes, git state changes,
+dev servers, and test runs.
 
 **Cap at three lanes.** Past three the partition stops being describable in a sentence,
 which is the point at which two lanes start writing the same file without either prompt
@@ -1073,11 +1237,41 @@ wrong, with instruction to report rather than fix. A lane that silently fixes so
 another lane's surface produces a merge conflict that looks like a git problem and is
 actually two sessions disagreeing.
 
-Last verified against Anthropic's live Claude Code documentation on August 3, 2026.
-Re-check this section every 4-6 weeks - Opus 5 turned out to be current against a working
-assumption of Opus 4.8, which is exactly the kind of drift worth catching early.
+Last verified against Anthropic's live Claude Code documentation on September 2, 2026,
+the previous check being August 3. What moved in the month: the `fable` alias resolves to
+Fable 5.1 from v2.1.255; the effort ladder is unchanged and Fable 5.1 has no held default
+effort the way Fable 5 did; `/goal <condition>` keeps a session working until a separate
+model judges the condition met, which suits a bundle with a verifiable end state, so a
+prompt for one states its completion condition in a single line the session can be
+handed as a goal. Re-check this section every 4-6 weeks.
 
 ---
+
+### The state of the world is one command, and it runs before anything else
+
+**Not knowing what was true was the single largest time sink of the 2026-08-31 session:
+which migrations were applied, what was on `main` against `integration`, whether a file
+existed at all.** Three branches sat green and behind for seven hours because nobody had
+a view that showed both facts at once. `tools/standards-sweep.py` solved exactly this for
+one directory as one command; `tools/idea-status.py` does it for the repo. Read-only,
+clones rather than calling the Actions API, collides with nothing.
+
+    curl -sfL https://raw.githubusercontent.com/pina-hash/idea-app/main/tools/idea-status.py -o /tmp/status.py
+    python3 /tmp/status.py
+
+**It runs at the top of every router session and again before every prompt is written.**
+It prints the decisions still owed, the prompt-ledger entries in flight across every ref,
+the standing `claude/**` branches with why each is standing, `main` against
+`integration` in both directions, the migrations landed at or above a floor with the
+date each landed, a two-authors sweep across that range, and the catalog query that
+answers which of them are applied, which nothing in the repo can answer. A prompt written
+without that view inherits whatever is wrong, and that was every wrong figure of
+2026-08-29 and every stale-branch error of 2026-08-31.
+
+**What it cannot say is which migrations are applied.** Applied is a property of the
+production database and only a catalog read against it answers. The tool prints the query
+and says so; a document that states applied status is stating a snapshot and the
+`CLAUDE.md` paragraph that did was wrong for a whole night.
 
 ### Session control: the things that waste a session outright
 
@@ -1149,6 +1343,33 @@ The same session inverted a `HALT IF FALSE` because the thing it was told to che
 the thing that made the work necessary. Write the halt against the state that means the
 work is unnecessary, and quote the exact line or symbol a session should look for.
 
+**The prompt ledger is `docs/prompt-ledger/entries/` in the repo, fetched live across
+every ref, and the session writes its own entry as its first commit.** The project
+knowledge copy at `claude/PROMPT_LEDGER.md` described this as a partial control until it
+was mirrored; it was mirrored on 2026-09-01 and `tools/idea-status.py` lists the entries
+in flight. The chat cannot push, so the entry text travels inside the prompt and the
+session commits and pushes it before touching anything else, on its own branch. The
+status tool therefore reads entries from `main`, `integration` and every `claude/**`
+branch, because an entry on an unmerged branch is exactly the in-flight work the check
+exists to find. An entry is keyed on the file surface the prompt owns, never on its text.
+
+**The `Status` line is the session's own signal that it has finished, and the merge
+automation reads it.** The vocabulary is the four states
+`docs/prompt-ledger/README.md` already defines and this adds no fifth: the session
+commits the entry as `issued`, which is what the entry says for as long as the session is
+running, and the session's FINAL commit sets it to `pushed`. `integrate.yml` skips any
+branch whose newest introduced entry still reads `issued`, so a branch is swept when its
+session has finished rather than when its opening commit goes green. A branch that
+introduces no ledger entry merges exactly as it always did; the gate only ever adds a
+skip. The canned lane ending below carries the flip, so it cannot go missing on the prompt
+written in a hurry.
+
+The README's rule that a status is never advanced on the strength of a report is
+untouched by this. A session setting `pushed` on its own entry as its last act is the
+session reporting on itself at the only moment it can be certain, and it is the same
+evidence `git ls-remote` would give. Every later transition, to `in-integration` and to
+`deployed`, is still confirmed by reading the artifact.
+
 **The harness may mint a branch slug that already has a shipped history entry.** Two
 sessions hit this. Writing to that slug overwrites somebody's record and stacks commits
 on merged history. Every prompt says: if the slug already has an entry, suffix yours and
@@ -1159,6 +1380,22 @@ sessions were pointed at history entries that did not exist on their ref, usuall
 the entry was still on an unpushed branch. Each one proceeded from primary sources and
 said so, which is the right behaviour, but the prompt should have said "read it if it is
 there, otherwise verify from the code" rather than presenting it as the specification.
+
+### Every factual claim in a prompt is marked as a claim
+
+**Prompts that told the session to verify each claim got corrections back; prompts that
+stated things flatly got the error inherited.** The pattern is clean across the
+2026-08-31 session. The `0168` prompt asserted two things about the shelf surface that
+were false, and the session checked, found the truth, and built to it. The notebook
+prompt asserted a chip failed the tap floor; measured, it passed comfortably, and that
+prompt had said to verify. Where a prompt stated a stale branch name as fact, the session
+worked against it.
+
+**Nothing in a prompt reads as established unless the session is told to confirm it.** The
+canned opening block now carries the sentence, so it cannot go missing on the prompt
+written in a hurry. A prompt may still say "as of <date>, <fact>"; that is a dated claim
+with a source, which is the form the next section requires for numbers and which this
+section extends to everything.
 
 ### A measured number in a prompt carries a date and a source, or it is not written
 
@@ -1190,10 +1427,44 @@ the twice a boundary was loose: two sessions rewriting one file.
 disappears when its CI goes green and it merges. One still standing means its CI failed or
 its merge conflicted, and after two hours it means something systemic.
 
-**Count branches before opening lanes.** Adding a lane while branches are standing makes
-the eventual merge harder rather than the queue shorter. Eight standing branches is not a
-shortage of work; it is the thing to fix first. When the branch list is long, the right
-next move is a merge, not a prompt.
+**A branch count does not measure the queue, and the ledger does.** Until 4.19 this
+paragraph said to count standing branches before opening a lane. That stopped measuring
+anything the moment the integrate workflow began deleting a branch on green CI: a session
+commits its ledger entry first, the sweep merges and deletes that branch within minutes,
+and the session keeps running with nothing standing behind it. On 2026-09-02 both prompts
+in flight read as zero standing branches, one of them mid-session, and a router chat
+nearly read the queue as empty. **Prompts in flight come from the ledger across every ref,
+never from the branch list**, and `tools/idea-status.py` is what reads them. The `Status`
+gate above is the other half of the fix: once `integrate.yml` holds a branch until its
+session sets `pushed`, a standing branch means what it used to mean again.
+
+A long branch list still means something is wrong, because under the gate a branch stands
+only while its session is live, or because its CI failed or its merge conflicted, and
+adding a lane there makes the eventual merge harder rather than the queue shorter. Eight
+standing branches is not a shortage of work; it is the thing to fix first. But a short
+list means nothing on its own, and a lane decision is never taken against it.
+
+**Decisions owed to Mr. Pina are one list, surfaced first, and a lane is not opened
+against an open one.** Nine items sat blocked for the whole of 2026-08-31 because each was
+raised as it surfaced, one at a time, across nineteen hours. Together they were ten
+minutes of his attention. The list lives in `docs/decisions/`, one file per decision with
+a `Status` line, for the same reason the prompt ledger is one file per entry: a shared
+list is a fork. `tools/idea-status.py` prints the open ones first, above everything else,
+and the router kickoff carries them at its top. A decision is recorded with the default
+this assistant would pick and why, so that answering it is a yes or a correction rather
+than a design session. A router chat that finds an item's decision open does not open a
+lane on it; it puts the decision at the top of its next message and moves to the next
+item. Deciding is his; batching the asks is this assistant's.
+
+**A router chat has a shift length.** The 2026-08-31 session ran nineteen hours and every
+instruction-following error in it clustered at the end: a stale prompt reused against
+branch names that had moved, one prompt pasted into two sessions, two false premises in
+a single migration prompt. None of it happened in the first eight hours. The work was
+good throughout; the coordination degraded, which is the failure that is hardest to see
+from inside it. So a router chat closes and hands off at roughly eight hours or at its
+first coordination error, whichever comes first, and the closeout pass is the break. A
+fresh router chat that runs `tools/idea-status.py` and reads the decisions list starts
+with a better picture than the tired one had.
 
 **Say when the queue is empty.** The app queue reached genuine empty on 2026-08-29 and I
 kept generating lanes anyway because they were asked for. The honest answer is the count:
@@ -1217,6 +1488,23 @@ queue is thin or the picture is unclear, audit rather than invent work.
 does this document claim that the code contradicts; what exists and cannot be reached; what
 is client-supplied that the server never re-derives; and what has never been looked at at
 all.
+
+**Audit first is the default, not a judgment call.** Every cluster audited on 2026-08-31
+came back the same way: the feature already existed and nobody could find it. Units,
+folders, bulk actions, the preview, the admin controls, persistence in Foundry, the whole
+keyboard review loop in the notebook. Four audits, four times. That is strong enough to
+invert the default: **any item phrased as "add X" or "improve Y" gets an audit before a
+build, always.** Twice in one night an audit collapsed a top-tier design problem into a
+discoverability fix.
+
+**The audit is the first phase of the build session rather than a separate one, on any
+model.** The prompt opens with the audit questions, and the build
+phase is gated on the answer: if the thing exists, the work is making it reachable and
+the prompt says that is an acceptable outcome; if it does not, the build proceeds as
+specified. The report separates what was found from what was built. A standalone audit
+session is still the right shape when the chat needs the findings to make a decision
+before any build can be specified, and for the read-only sweeps that run beside a full
+set of lanes.
 
 ---
 
@@ -1692,6 +1980,19 @@ no workflow reported why nothing was sweeping, and no test asserted the history-
 format until it was wired in the same day. Each hand-executed procedure is a defect
 report about the automation, and the fix goes in the automation. A list that keeps
 appearing across chats is a script that has not been written yet.
+
+**One blocked step does not make a sequence manual, and a numbered checklist is the tell
+that nobody asked which steps were blocked.** Established 2026-09-01, when a six-step
+merge and migration procedure was handed over because exactly one of its steps, `supabase
+db push` on a repo whose token no cloud session may hold, cannot be automated. The other
+five could. The correct shape was a Claude Code session for the part that runs in the
+repo, plus one committed script for the part that runs on his machine, invoked as a
+single command. Ask which STEPS are blocked rather than whether the SEQUENCE is, then
+automate around the blocked one, which also buys a guard rail no hand-executed step ever
+has: the script that replaced this checklist refuses to run `db push` at all when the
+ledger has a hole below the target, and that is the failure that repo had already
+suffered three times. Anything longer than about two hand-executed steps is a script that
+has not been written yet.
 ---
 
 ## Output Defaults
@@ -1721,6 +2022,58 @@ appearing across chats is a script that has not been written yet.
   step applies to full-path decks only.
 - **Standards file updates:** the complete updated file, delivered for download and
   re-upload. Never a patch list. See "Delivering a standards update" above.
+
+### Every delivered artifact is archived to Library C in the same turn
+
+A file delivered as a download exists in one chat and nowhere else. The next chat
+cannot see it, cannot tell whether it was built, and will rebuild it. Library C is the
+Google Drive folder that closes that gap: `1SkIKOIdMM34f_fFnKmtOw1KsTtqDAOtt`, owned
+and inventoried by `IDEA_REFERENCE_LIBRARY.md`, which carries the folder IDs, the
+write parameters, and the size ceiling. Read it before the first write in a chat.
+
+**The rule.** Any turn that delivers a file also writes that file to Library C. Not a
+later turn, not the closeout, not on request. The archive step travels with the delivery
+or it does not happen, and a file archived a turn later is a file that will be forgotten
+a turn later.
+
+**The folder listing is the index. There is no index file to append to.** The Drive
+connector can create a file and cannot replace one: two writes under the same title
+produce two file IDs, two copies, and no staleness marker on either, which is the same
+failure the web UI produces on project knowledge uploads. Measured 2026-08-31. A
+maintained index table would therefore have to be rebuilt by hand every delivery and
+would drift from the folder it describes, which is the `REGISTER.md` blind spot bought
+for nothing. `search_files` on a title prefix answers the question the table would have
+answered, and delivered filenames already lead with course and day.
+
+Four constraints on it, each of which has a reason that is not obvious:
+
+- **Binaries above roughly 100 KB are not archived, and text is a judgment.** Nothing
+  reaches Drive from the container directly, so every archived file crosses the response
+  in full and a file authored in the container is emitted twice. A 500 KB PDF as base64
+  is on the order of 170k tokens and ends the chat instead of saving the file: above the
+  ceiling, deliver the download, name the destination folder, and say in one line that it
+  is a manual drag. Do not attempt it and do not stay silent about not attempting it. For
+  text, archive what a later chat would otherwise rebuild or have to be told about, and
+  skip scratch and superseded drafts.
+- **Standards files are never written to Library C.** They live in `docs/standards/`
+  and only there. A versioned file with two homes is exactly the condition the
+  freshness protocol at the top of this document exists to survive.
+- **The write is confirmed by reading the file back, never by the create call
+  returning.** This is the same rule that governs a mirror push and it is the same
+  rule for the same reason. A returned file ID is a report.
+- **The Drive connector is not on in every chat.** When it is off, say so at delivery
+  in one line and name what was not archived. A silently skipped archive is worse than
+  no archive, because a chat that finds nothing in Library C will conclude the artifact
+  was never built.
+
+**A corrected artifact gets a new filename, and that is not the suffixing this project
+otherwise refuses.** Since the connector cannot replace a file, re-delivering a name
+already in Library C leaves two copies at two versions with nothing marking which is
+current. So a corrected redelivery carries an explicit version marker in the filename,
+as in `IDEA209H_Day08_Methods_Deck_PROMPT_v2.txt`, and the turn says in one line which
+file it supersedes. The suffixing this project refuses is the accidental kind, where
+`(2)` appears because an upload collided and nobody chose it. A deliberate `_v2` is the
+opposite: it is the version marker whose absence caused that failure.
 
 ---
 
@@ -1877,9 +2230,101 @@ session reads a clean tree, reaches the same conclusion by the same reasoning, a
 the same discovery. Stated 2026-08-23e after a deploy-time test gate was added to
 `vercel.json` and reverted within the hour.
 
+**A missing `integration` branch is not a broken setup.** `integrate.yml` logs a notice and
+cuts it from `origin/main` when it does not exist, so "is `integration` green" has no answer
+before the first branch lands and "is `main` green" is the correct preflight. The branch
+section of this document previously read as though the second answer were the wrong one.
+
+**A branch that is green and behind does not merge.** Green CI is not the gate; a conflict
+is. The workflow merges `origin/main` into `integration` first, then each branch into
+`integration`, and aborts any branch that conflicts, leaving it standing and reddening the
+job. So a branch sitting at 3/3 for hours has conflicted, not stalled, and the fix is to
+merge `origin/integration` into it and push. Three branches sat green and behind for seven
+hours on 2026-08-31 while the branch page showed nothing wrong.
+
+**`main` lagging `integration` makes sessions report absences that are really staleness.**
+Every session cuts from `main`. With `main` ten commits behind, one session reported that
+`src/lib/server/frc-review.ts` "does not exist" and that the migration it belongs to had
+shipped database-only; the file was on `integration`. Another predicted its own merge
+conflict for the same reason. Neither was a session error. Merge `integration` into `main`
+promptly rather than at the end of a working day, because the cost is paid by every lane
+opened after the gap forms.
+
+**A branch name can be taken twice.** The automation deletes a branch after merging it, so a
+later session's harness can mint the same slug, and its history entry then collides add/add
+with the entry already merged. The merged entry keeps the canonical filename and the new one
+takes a suffix; `maps-rls-boundary-tests-tvjq7v-schema-0161-0163.md` is the precedent.
+
+**`git add` clears the unmerged flag whether or not the markers are gone.** A failed
+resolution script followed by `git add` produced a `git status` reporting no conflicts over a
+file still containing conflict markers. Grep for the markers; do not take the status as
+evidence.
+
+**`tools/browser-verify/README.md` is a structurally hot file.** It carries per-tree
+measurement counts, so any two branches that touch it collide by construction, and its
+numbers were wrong on every single tree they were checked against, including
+`integration`'s own before any merge. Resolve it by running the harness on the merged tree
+and writing what you measured, never by picking a side.
+
+**A hand-written file never holds a computed value.** That README was wrong on every tree
+because it was asked to be right by hand about a number the harness computes on every
+run. A file that carries a count, a runtime, a spec total, or an applied-migration list
+is a merge conflict by construction and a stale figure by default, and the right fix is
+not a better merge rule but a generator: the harness writes the counts block between
+markers, a script regenerates it, and CI fails when the committed block disagrees with a
+fresh run. The same rule retires `CLAUDE.md`'s migration status paragraph, which said
+`0155` was queued while `0151` through `0157` were all applied, and replaces it with a
+pointer to `tools/idea-status.py` and the catalog query. Where a document must carry a
+number, it carries the date and the instrument beside it, which is the measured-number
+rule already in this file applied to files as well as prompts.
+
+**Merge cadence: `integration` merges into `main` when a lane lands, not at the end of
+the day.** `main` lagged `integration` by ten to nineteen commits for most of
+2026-08-31, and that lag made sessions report absences that were staleness, twice, and
+left green branches behind. The rule already existed; what was missing was rhythm. The
+merge is one press of **Run workflow** on the `Deploy` workflow, which merges
+`integration` into `main` only after CI has run on `integration`'s exact tip and only
+when the person pressing it has typed that every migration on `integration` is applied to
+production. That typed line is the judgment `integrate.yml` was written to preserve, and
+the button removes the git steps around it rather than the judgment.
+
+**An unattended overnight deploy was proposed on 2026-09-02 and declined, and the reason
+is recorded so it is not re-proposed.** The night window does remove the students-in-class
+risk. It does not remove the second reason in `integrate.yml`'s own header: migrations
+are applied by hand and several must be applied before the code that calls them goes
+live, and CI cannot see production's catalog. A nightly merge would ship an RPC call to a
+function the database does not have. It becomes safe the day a workflow can read
+production's applied set, which needs a read-only credential in a GitHub secret; that is
+his decision and it is in `docs/decisions/`, with this as the default answer: not yet.
+
+**The three repos share one workflow, and `IDEA_REPO_WORKFLOW_STANDARD.md` owns its
+shape.** Established 2026-09-02, when Mr. Pina asked that `fll-app` and `frc-app` share
+the structure, capability and workflow of `idea-app`, and the audit found three repos
+with three workflows: `frc-app`'s integrate workflow had never merged anything because
+it keyed on a CI file that did not exist. `idea-app` is the reference implementation;
+that standard lists what every repo carries, states what differs on purpose (above all
+the migration apply path), and carries the dated conformance table. Everything in this
+section applies to all three repos unchanged. A prompt for any repo copies its apply-path
+sentence from that repo's `CLAUDE.md`, never from this file.
+
+**`integration` now gets a CI run of its own on a schedule.** The integrate workflow's
+pushes cannot trigger CI, so `integration` went red silently on 2026-08-29 and stopped
+eight branches. A scheduled run and a `workflow_dispatch` on `ci.yml` against
+`integration` make "is integration green" answerable from the Actions tab, and the
+`Deploy` button reads that run.
+
 ---
 
 ## App Interface Work
+
+**The feedback form captures what the reporter saw and what they tried, not only what
+they want.** The 2026-08-31 triage produced items that could not be specified: "more
+refined", "go crazy, think big", a request for a control that already existed in three
+places. The form already records the route and the build. It now also takes a screenshot
+and a "what did you try" field, because most of that night's ambiguity was a reporter
+describing a destination without describing where they were standing, and one item
+became an audit question that a screenshot would have answered.
+
 
 Any work touching an IDEA app surface (IDEA Classroom, the digital notebook, the
 reference reader, the grading console, the portal) follows `IDEA_INTERFACE_STANDARDS.md`.
@@ -1991,6 +2436,142 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-02 (4.19)** - A branch count stopped measuring the queue and nothing noticed
+  for a day. The integrate workflow deletes a branch when its CI goes green, and a session
+  commits its ledger entry first, so a prompt still mid-session reads as zero standing
+  branches. Both prompts in flight on 2026-09-02 read that way and a router chat nearly
+  took the queue as empty. Three changes, all in place. `**Count branches before opening
+  lanes**` under `### Lane discipline` becomes `**A branch count does not measure the
+  queue, and the ledger does**`: prompts in flight come from the ledger across every ref,
+  never from the branch list. The prompt-ledger paragraph gains the `Status` lifecycle,
+  `issued` while the session runs and `pushed` set by its final commit, which is the
+  vocabulary `docs/prompt-ledger/README.md` already defines rather than a fifth state; the
+  first draft of this version invented `in-progress` and would have forked the vocabulary
+  0005 landed the same day, which is the reason the freshness fetch happens before the
+  edit and not after. And `integrate.yml` gains the matching gate, skipping any branch
+  whose newest introduced entry still reads `issued`, which restores the meaning a
+  standing branch used to carry. A branch introducing no entry merges as before. The
+  canned lane ending gains the flip as its own line, for the reason that block is canned
+  at all.
+
+- **2026-09-02 (4.18)** - Withdraws 4.17's Fable-by-default routing, same day. Mr.
+  Pina's calibrated preference, stated after reading 4.17: use Fable 5.1 appropriately,
+  not by default. 4.17 had read "take advantage of Fable 5.1 for more work per prompt"
+  as "make it the default"; that was this assistant's inference and the preference
+  governs. Rewritten in place: the opening routing paragraphs, the bundle-by-surface
+  paragraph, the routing table (Opus 5 restored as the default build row, Fable 5.1 for
+  what the session must decide on its own), the concurrency bullet and the
+  what-serializes paragraph. Kept from 4.17: bundles sized by file surface, fewer prompts,
+  the audit phase inside the build prompt, the `(min:)` header, and the verified Fable
+  facts. Records the four 2026-09-02 prompts as the calibration case: two would have been
+  Opus 5, two are Fable 5.1 correctly.
+
+- **2026-09-02 (4.17)** - A fork merge and a model change. **The number 4.16 was used
+  twice.** The chat "Managing multiple FRC platform projects" built a 4.16 from 4.15 with
+  the seven branch-workflow rules, and the chat "FLL app feature requests and
+  improvements" built a different 4.16 from the same 4.15 with five other rules, each
+  correctly changelogged and neither knowing about the other, which is the 2026-08-28
+  failure repeated to the letter. Neither reached the mirror or project knowledge; the
+  sweep found the first as a clean supersede and the second was recovered from that chat's
+  own patch script. This version carries both, merged by content: the FLL five are the
+  new `### A raw.githubusercontent.com fetch is not a freshness check`, `### Reading one
+  file is not reading a system`, `### A migration's apply path belongs to its repo, not
+  to this file` (with the migrations section retitled `(idea-app)`), the contested-file
+  and inert-migration additions under `### Parallel lanes on one repo`, and the
+  one-blocked-step addition under `### Writing a manual instruction`. Then **Fable 5.1
+  becomes the default Claude Code model and bundles are sized up rather than split**, on
+  Mr. Pina's stated preference and Anthropic's own Fable guidance verified against the
+  live docs the same day; the reserve-Fable paragraph, the bundle-by-tier and
+  audit-to-collapse paragraphs, the routing table, the concurrency rule, the visual-work
+  rule, the classifier paragraph and the last-verified line are rewritten in place, which
+  is the one part of this version that is not a pure insertion. Then seven findings from the
+  nineteen-hour session, each landing where its subject lives: audit first is the
+  default and the audit is the first phase of the build prompt; the state of the world
+  is `tools/idea-status.py`, run before anything is written; every claim in a prompt is
+  marked as a claim, with the sentence added to the canned opening block; merge cadence
+  is per lane with a `Deploy` button that keeps the typed migration judgment, a
+  scheduled CI run on `integration`, and an unattended nightly deploy declined for a
+  reason recorded so it stays declined; a hand-written file never holds a computed
+  value, which generates the browser-verify counts and retires `CLAUDE.md`'s migration
+  paragraph; decisions owed are one list in `docs/decisions/`, printed first and carried
+  at the top of the router kickoff, and no lane opens against an open one; the feedback
+  form captures a screenshot and what the reporter tried; and a router chat has a shift
+  length of about eight hours. Also: the prompt ledger is now the repo directory, fetched
+  live across every ref, and the session writes its own entry as its first commit; and
+  the freshness paragraph owed by ledger entry 0001, that an unmirrored standards file is
+  an untested one. Same day, second pass: `IDEA_REPO_WORKFLOW_STANDARD.md` 1.0 created
+  and referenced from GitHub / Portal Workflow, after Mr. Pina asked that `fll-app` and
+  `frc-app` share `idea-app`'s structure and workflow; two conformance prompts issued
+  with it.
+
+- **2026-09-01 (4.16, second use of the number, from the FLL chat)** - Five rules from an
+  `fll-app` session, and the version number is the finding. The chat fetched this file
+  from `raw.githubusercontent.com`, got 4.9, confirmed it byte-identical to project
+  knowledge, and treated that agreement as proof of currency. `main` was at 4.15. It
+  built two sections on the 4.9 base and stamped the result 4.11, a number by then naming
+  entirely different content; delivering it would have destroyed 4.10 through 4.15 in a
+  file that was internally consistent and correctly changelogged. That 4.11 was discarded
+  and its content merged against the real base, read from a `git clone`. So: the
+  freshness fetch is a clone, never a raw URL, per 4.14's own CDN finding one entry above
+  the one that ignored it; and agreement between two copies is not evidence of currency
+  when both can be stale from the same cause. Then: reading one file is not reading a
+  system, from three wrong premises in one session; a migration's apply path belongs to
+  its repo, since hand application is safe on `idea-app` only because the remote has no
+  ledger; a file every bundle must write is contested by construction and is assigned by
+  name with a keep-both resolution; where a session cannot apply a migration the inert
+  file rides its own branch; and one blocked step does not make a sequence manual. This
+  entry is kept as the record of the second 4.16; the content is in 4.17.
+
+- **2026-08-31 (4.16)** - Seven branch-workflow rules from a nineteen-hour session that ran
+  three parallel lanes and merged fourteen branches, added to GitHub / Portal Workflow. Every
+  one was earned by a wrong belief costing real time rather than by a session failing. A
+  missing `integration` self-creates from `main`, so "main is green" is the right preflight
+  and this document read as though it were the wrong answer. A branch green and behind has
+  conflicted rather than stalled, which left three branches standing for seven hours with a
+  branch page showing 3/3 on each. `main` lagging `integration` makes sessions report
+  absences that are really staleness, twice in one day, including a file reported as
+  nonexistent while it sat on `integration`. A branch name can be taken twice once the
+  automation deletes it, which collides two history entries add/add. `git add` clears the
+  unmerged flag over a file still holding conflict markers, so `git status` is not evidence.
+  And the browser-verify README is hot by construction, since it carries per-tree counts;
+  every parent's numbers were wrong on every merged tree. Separately and not written as a
+  rule because nothing here caused it: `origin/main` was force-updated on 2026-08-31 from
+  `8d01365` to `aea5c22`, leaving 79 commits of the old lineage unreachable, with content
+  intact and migrations through 0169 present. Force-pushing `main` is forbidden here and no
+  session in that day's work did it. Also recorded: the one-prompt-one-session rule failed
+  again, with the same notebook prompt pasted into two sessions producing two rival
+  implementations, both internally consistent and both mutation-proven; one was kept and the
+  other deleted, and two findings unique to the deleted branch were carried forward by hand.
+  The claim that no cloud container has a browser tool is removed as false: `tools/browser-verify`
+  drives a real Chromium against a local dev server, confirmed independently by four sessions,
+  and it caught defects nothing else would have found, including inch inputs overflowing
+  375px by 14px and a link measuring 343x20 against a 44px floor. That claim had been
+  suppressing the only verification a cloud session has.
+
+- **2026-08-31 (4.15)** - Added the artifact archive rule to Output Defaults, after
+  establishing Library C in Drive and verifying both directions of the write. A file
+  delivered as a download has existed in exactly one chat and nowhere else since this
+  project started, which is why a handoff has to describe an artifact rather than point
+  at it, and why the same thing gets rebuilt. The rule is that the archive travels with
+  the delivery in the same turn, because an archive step deferred to the closeout is one
+  more thing that has to be remembered, and this document already records that a sweep
+  which has to be remembered will not be run. Four constraints carried with it. The
+  binary ceiling is a context cost rather than a Drive limit and is stated as a measured
+  number with the date it was measured. Standards files are excluded outright, since a
+  versioned file with two homes is the fork generator the freshness protocol at the top
+  of this file was written to survive. The write is confirmed by reading the file back,
+  which is the mirror rule restated for a second surface rather than a new rule. And a
+  chat with the Drive connector off says so at delivery, because a silently skipped
+  archive leaves a later chat concluding the artifact was never built. Aligned to
+  `IDEA_REFERENCE_LIBRARY.md` 4.3, which owns the folder IDs, the write parameters, and
+  the conversion flag that must be set on every write. A rule
+  written earlier in this same pass was retired before it shipped, which is the part worth
+  keeping: the Drive connector creates and cannot replace, so an append-to-index design and
+  an overwrite-on-collision design were both unbuildable. The folder listing is the index
+  and a corrected artifact carries a version marker in its filename. The finding came from
+  writing two files with one title and reading back two file IDs, which is the difference
+  between a capability assumed from a tool description and one measured.
 
 - **2026-08-30 (4.14)** - Four rules from the IDEA Maps P1 build, three of them earned by
   the assistant getting something wrong rather than by a session. `raw.githubusercontent.com`

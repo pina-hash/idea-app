@@ -3,6 +3,7 @@
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import { EditBaseline } from '$lib/edit-baseline.svelte';
+	import { dropTarget, matchesAccept } from '$lib/file-drop';
 	import {
 		validateSpec,
 		type AssignmentSpec,
@@ -278,15 +279,65 @@
 		};
 	});
 
+	/**
+	 * WHAT THIS IMPORT ACCEPTS, WRITTEN ONCE -- the same string is the
+	 * `<input accept>` and the drop rule, so the picker and the drop cannot
+	 * come to disagree about what a spec file is.
+	 */
+	const SPEC_ACCEPT = '.json,application/json';
+	/** Said out loud when a drop was refused, so nothing appears to do nothing. */
+	let dropNote = $state<string | null>(null);
+	let dropActive = $state(false);
+
+	/**
+	 * ONE FILE, READ AS TEXT INTO THE BOX, whichever way it arrived, so a
+	 * dragged spec is checked, previewed and published through exactly the path
+	 * an uploaded one already was.
+	 */
+	async function takeSpecFile(file: File) {
+		raw = await file.text();
+		dropNote = null;
+		// An upload is a single deliberate action, so it answers immediately
+		// rather than making the reader wait out a debounce they did not cause.
+		flushValidation();
+	}
+
 	async function pickFile(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		input.value = '';
 		if (!file) return;
-		raw = await file.text();
-		// An upload is a single deliberate action, so it answers immediately
-		// rather than making the reader wait out a debounce they did not cause.
-		flushValidation();
+		await takeSpecFile(file);
+	}
+
+	/**
+	 * A DROP OF A SPEC FILE. First file only: there is one box, and a second
+	 * file would silently replace the first.
+	 *
+	 * NO PASTE PATH, DELIBERATELY, AND IT MATTERS MOST HERE. This component is
+	 * mounted INSIDE `ContentComposer`, whose own `onpaste` stages a pasted
+	 * screenshot onto the item's attachments. A paste bubbles, and `claimPaste`
+	 * makes the first handler to ask the OWNER of the event -- so a drop target
+	 * here that claimed an image and then refused it for not being JSON would
+	 * silently swallow screenshots pasted anywhere inside this panel. It cannot:
+	 * `filesFromClipboard` yields `image/*` items only, `accept` refuses every
+	 * one of them, and the controller does not claim an event with nothing left
+	 * in it. Pasting spec TEXT into the textarea is untouched -- it is the
+	 * primary way to use this surface and the placeholder says so.
+	 */
+	function droppedSpec(files: File[]) {
+		if (files.length > 0) void takeSpecFile(files[0]);
+		if (files.length > 1) {
+			dropNote = `Read ${files[0].name}. Drop one file at a time; the others were ignored.`;
+		}
+	}
+
+	function refusedSpec(files: File[]) {
+		const names = files.map((f) => f.name).filter(Boolean);
+		dropNote =
+			names.length === 1
+				? `${names[0]} is not a .json file. Drop the spec JSON, or paste it into the box.`
+				: `Those ${files.length} files are not .json. Drop the spec JSON, or paste it into the box.`;
 	}
 
 	function commitSpec(value: unknown): Promise<{ ok: boolean; message?: string }> {
@@ -659,7 +710,16 @@
 	{/if}
 
 	{#if open}
-		<div class="import-body">
+		<div
+			class="import-body"
+			class:import-dragging={dropActive}
+			use:dropTarget={{
+				onfiles: droppedSpec,
+				onrejected: refusedSpec,
+				onactive: (active) => (dropActive = active),
+				accept: (f) => matchesAccept(f, SPEC_ACCEPT)
+			}}
+		>
 			<p class="note import-hint">
 				{#if shown}The attached {words.noun} is already in the box. Edit it, or paste and upload over
 					it. It is checked as you go, and the preview below is what students will actually see.
@@ -669,8 +729,11 @@
 			</p>
 			<label class="btn secondary tiny file-pick">
 				Upload .json
-				<input type="file" accept=".json,application/json" hidden onchange={pickFile} />
+				<input type="file" accept={SPEC_ACCEPT} hidden onchange={pickFile} />
 			</label>
+			{#if dropNote}
+				<p class="feedback error" data-testid="spec-drop-note">{dropNote}</p>
+			{/if}
 			<textarea
 				class="paste"
 				rows="8"
@@ -838,6 +901,14 @@
 		/* Selecting the whole document by dragging is the fallback the refusal
 		   sentence points at, so it must actually be selectable. */
 		user-select: text;
+	}
+	/*
+	 * The dragover feedback is an OUTLINE, never a border: neither occupies
+	 * layout space, so nothing in the panel moves when a file crosses it.
+	 */
+	.import-body.import-dragging {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	.import-hint {
 		margin: 0;

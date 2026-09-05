@@ -5,6 +5,78 @@ on:
   pull_request:
     branches: [main]
 
+  # `integration` GETS NO CI RUN OF ITS OWN FROM A PUSH, EVER, AND THAT IS
+  # GITHUB'S RULE RATHER THAN A GAP HERE. `integrate.yml` pushes `integration`
+  # with GITHUB_TOKEN, and GitHub's loop-breaker starts no workflow run from a
+  # push made with that token. So every commit on `integration` was green on
+  # its own source branch and the MERGE RESULT was never checked by anything.
+  # On 2026-08-29 `integration` went red silently and stopped eight branches.
+  #
+  # This schedule is the answer: one run a day against `integration` itself.
+  #
+  # THE HOUR IS CHOSEN, NOT ARBITRARY, AND MOVING IT COSTS DETECTION. A suite
+  # that only ever runs during the working day samples one part of the clock
+  # and calls it coverage. `tests/db/classroom-hall-pass-limits.test.ts` sat in
+  # the tree from prompt 0016 and passed every CI run for weeks; six of its 24
+  # tests fail ONLY between 00:00 and 02:00 America/Los_Angeles, because the
+  # fixtures backdate up to 120 minutes and land on the previous LA calendar
+  # day. It surfaced when a person happened to re-run a branch at 00:58, not
+  # because anything tested for it. The defect CLASS is general: a fixture
+  # positioned relative to `now()` feeding an assertion scoped to a calendar
+  # day. Nothing but the clock finds one.
+  #
+  # WHY `0 8` SPECIFICALLY, and it is the only quarter-hour that works:
+  #   * GitHub cron is UTC and does NOT shift with daylight saving, so one cron
+  #     lands on two different local hours across the year. 08:00 UTC is
+  #     01:00 PDT in summer and 00:00 PST in winter. Both are inside the
+  #     window, so ONE entry covers both halves of the year -- the whole
+  #     intersection is UTC [08:00, 09:00), and anything outside it is inside
+  #     the window for only half the year. The retired `30 4` was 21:30 PDT
+  #     and 20:30 PST: never once inside it.
+  #   * Detection DEGRADES across the window rather than being flat. Measured
+  #     at fixed Pacific instants: 6 failures at 00:05, 00:30 and 01:00, but
+  #     only 2 at 01:30 (the tests backdating 90 minutes or more), and 0 at
+  #     02:05. So `0 8` is the latest minute at which BOTH local hours still
+  #     sit at or before the last full-strength reading. `30 8` would put the
+  #     summer run at 01:30, catching 2 of the 6.
+  #   * The top of the hour is the worst slot for GitHub's own scheduler
+  #     delay, and that is accepted deliberately: a delay moves the run LATER,
+  #     which in winter goes deeper into the window and in summer degrades to
+  #     the still-detecting 01:30 reading. Moving the cron later to dodge the
+  #     queue would cost summer detection immediately and unconditionally,
+  #     which is the worse trade.
+  #
+  # It still satisfies everything the schedule was added for: one run a day,
+  # against `integration`, well outside class hours, and it now lands roughly
+  # two hours BEFORE `deploy.yml`'s own 10:00 UTC nightly rather than five and
+  # a half, so the signal that `integration` is broken arrives before the
+  # deploy that would trip over it.
+  #
+  # A red scheduled run is the signal that `integration` is broken and no
+  # branch will merge until somebody looks.
+  schedule:
+    - cron: '0 8 * * *'
+
+  # For a person: check any ref on demand, which is what the Deploy workflow's
+  # own summary tells them to do after a conflict.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ref to check out and test (branch, tag or sha). Default: integration.'
+        required: false
+        default: 'integration'
+
+  # CALLABLE, so `deploy.yml` runs THESE checks on `integration`'s exact tip
+  # rather than querying the Actions API for some earlier run's conclusion. A
+  # prior run is a claim about a sha that may no longer be the tip; this is the
+  # checks themselves, on the sha about to be merged, in the deploy's own run.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Ref to check out and test.'
+        required: true
+        type: string
+
 env:
   # PLACEHOLDER VALUES, COMMITTED HERE ON PURPOSE -- never a real credential.
   #
@@ -27,7 +99,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # WHICH REF IS TESTED, and the empty string is the important case:
+      #   workflow_call / workflow_dispatch -> `inputs.ref`, what the caller
+      #     or the person named.
+      #   schedule -> `integration`, per the comment on the trigger above;
+      #     `github.ref` on a scheduled run is the DEFAULT branch, so without
+      #     this a nightly run would test `main` and prove nothing about the
+      #     branch that never gets a run of its own.
+      #   push / pull_request -> '' , which actions/checkout treats as
+      #     unspecified and resolves to the ref that triggered the run. It is
+      #     not "check out nothing".
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || (github.event_name == 'schedule' && 'integration') || '' }}
 
       # adapter-vercel (node_modules/@sveltejs/adapter-vercel/utils.js,
       # resolved via package-lock.json) hard-rejects any Node major outside
@@ -128,6 +212,7 @@ jobs:
       - name: Fail the job if any step failed
         if: always()
         run: |
+          echo "ref tested:         $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD))"
           echo "check:              ${{ steps.check.outcome }}"
           echo "test:               ${{ steps.test.outcome }}"
           echo "vanguard-changelog: ${{ steps.vanguard-changelog.outcome }}"

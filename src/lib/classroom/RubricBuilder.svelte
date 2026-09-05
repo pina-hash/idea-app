@@ -160,6 +160,28 @@
 		syncMax(index);
 	}
 
+	/**
+	 * HOW MANY CRITERIA THE ATTACHED SPEC WOULD PRODUCE, or 0.
+	 *
+	 * WHY THIS EXISTS. On CREATION the composer already carries a spec's rubric
+	 * across by itself (0139: `stagedRubricAfterSpec` runs `rubricFromSpec` the
+	 * moment a spec is staged), so an assignment made from a spec arrives with a
+	 * rubric to grade against. What has no such bridge is the EDIT path: pasting
+	 * a spec onto an assignment that already exists writes
+	 * `classroom_assignment_specs` and nothing else, and the two panels sit side
+	 * by side saying nothing to each other. The idle line then reads "No rubric
+	 * yet -- grading needs one" a few pixels below a spec that contains one,
+	 * which is true and useless.
+	 *
+	 * IT IS A SENTENCE, NOT A SECOND IMPORT PATH. `rubricFromSpec` is THE ONE
+	 * translator and "Generate from spec" is the one control that runs it; a
+	 * second, automatic carry here would be a second answer to "what does a
+	 * spec's rubric become" and could stop agreeing with the composer's. What
+	 * was missing was never the mechanism, it was knowing the mechanism had
+	 * something to offer.
+	 */
+	const fromSpecCount = $derived(spec ? rubricFromSpec(spec).length : 0);
+
 	function generate() {
 		if (!spec) return;
 		startEdit(rubricFromSpec(spec, shown));
@@ -266,6 +288,14 @@
 				No rubric yet -- grading needs one.
 			{/if}
 		</p>
+		{#if !shown?.length && fromSpecCount > 0}
+			<p class="from-spec-line" data-testid="rubric-from-spec-available">
+				The spec attached to this assignment already carries
+				{fromSpecCount}
+				{fromSpecCount === 1 ? 'criterion' : 'criteria'} with levels. Generate from spec brings
+				{fromSpecCount === 1 ? 'it' : 'them'} in, then save.
+			</p>
+		{/if}
 		{#if savedUnfinished}
 			<p class="warn-line">
 				{savedUnfinished} criteri{savedUnfinished === 1 ? 'on' : 'a'} still needs its levels written.
@@ -379,6 +409,18 @@
 </div>
 
 <style>
+	/* --gold: the register's special-callout token, matching the console's
+	   "incomplete" chip. NOT --amber, which is a warning: a spec carrying a
+	   rubric nobody has generated yet is an offer, not a fault. */
+	.from-spec-line {
+		margin: 0.3rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		line-height: 1.5;
+		color: var(--gold);
+		max-width: 62ch;
+	}
+
 	.rubric-builder {
 		display: flex;
 		flex-direction: column;

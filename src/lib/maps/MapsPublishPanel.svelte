@@ -11,6 +11,15 @@
 	 * would read as "already live". The published state offers NO publish
 	 * control at all -- `maps_publish` answers `nothing_pending` for it, and a
 	 * control whose only possible outcome is a refusal must not be offered.
+	 *
+	 * A NULL `onpublish` IS A GRANTED EDITOR, AND THE PANEL STAYS. 0172 keeps
+	 * publishing admin-only, so a grantee gets no control -- but the SENTENCE
+	 * is the half that matters and they need it more than an admin does: it is
+	 * what tells somebody standing at a toolbox that what they just typed is
+	 * not on the public map yet. So the controls go and a line saying who
+	 * publishes takes their place, which is CLAUDE.md's "a control that is
+	 * absent for a reason says the reason" -- the `aria-disabled` argument for
+	 * the case where there is nothing to disable.
 	 */
 	import type { MapsPublishState } from './maps';
 	import MapsStatusChip from './MapsStatusChip.svelte';
@@ -30,7 +39,8 @@
 		publishedAt: string | null;
 		busy: boolean;
 		problem: string | null;
-		onpublish: () => void;
+		/** Null where the viewer may not publish: the controls go, the state stays. */
+		onpublish: (() => void) | null;
 		/** Only meaningful while pending; the control renders only then. */
 		ondiscard: (() => void) | null;
 	} = $props();
@@ -54,7 +64,7 @@
 			</p>
 		{/if}
 	</div>
-	{#if state !== 'published'}
+	{#if state !== 'published' && onpublish}
 		<div class="publish-actions">
 			<button type="button" class="btn" onclick={onpublish} disabled={busy}>
 				{state === 'pending' ? 'Publish pending edit' : 'Publish'}
@@ -65,6 +75,10 @@
 				</button>
 			{/if}
 		</div>
+	{:else if state !== 'published'}
+		<p class="who-publishes" data-testid="maps-who-publishes">
+			A site admin publishes this {objectWord}. Until then it stays off the public map.
+		</p>
 	{/if}
 	{#if problem}
 		<p class="problem" role="alert">{problem}</p>
@@ -103,6 +117,11 @@
 		display: flex;
 		gap: 0.6rem;
 		flex-wrap: wrap;
+	}
+	.who-publishes {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-2, var(--white));
 	}
 	.problem {
 		margin: 0;

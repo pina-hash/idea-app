@@ -19,56 +19,61 @@ export default {
 		`position: fixed; inset: 0` box at z-index 800.
 	*/
 	/*
-		docs/history/flaky-findings-countdown-notebook-h4qv9t.md MEASURED this:
-		under this container's forced-software-WebGL Chromium, `ViewportBackground`'s
-		one-time three.js/PMREM setup (dynamic import + synchronous PMREM pre-render)
-		monopolizes the main thread for ~0.5-1.5s after load -- nothing else on that
-		thread, including a queued `setTimeout`, runs until it finishes. Arming the
-		countdown inside that window means `CountdownOverlay`'s own `setTimeout` chain
-		([0, 800, 1600, 2400, 3700]) starts late and its callbacks bunch up, so by the
-		time the harness's own click-then-settle window measures the DOM, the whole
-		3.7s sequence may already have torn itself down.
+		THE COUNTDOWN IS ARMED WHEN `ViewportBackground` HAS FINISHED ITS
+		ONE-TIME WEBGL SETUP, AND THAT IS A DOM SIGNAL RATHER THAN A CLOCK.
 
-		A REAL "WAIT FOR MAIN-THREAD IDLE" WAS TRIED FIRST, AND MEASURED TO BE THE
-		WRONG SIGNAL FOR THIS SCENE. An independent rAF chain armed after
-		`waitForApp` returns, requiring three consecutive callback gaps under 40ms,
-		never once went idle at 1440px across repeated runs -- captured gap trace:
-		33,83,50,83,33,50,83,33,50,117,50,33,50,33,83,50,50,... on and on for the
-		whole 8s budget. That is not the one-time setup block still running; it is
-		`ViewportBackground`'s ORDINARY per-frame cost at a 1440-wide software-
-		rendered canvas (particulate, PBR metal, PMREM-lit reflections, all
-		redrawn every frame for as long as the tab is visible -- see its own
-		header, "single rAF loop... paused when the tab is hidden", never "paused
-		once settled"). A scene that redraws every frame for its whole life has no
-		"idle" to wait for; requiring one just spends the full 8000ms budget on
-		every 1440px run and then clicks anyway, which is a disguised fixed delay
-		with worse latency than an honest one.
+		The hazard, diagnosed in docs/history/flaky-findings-countdown-notebook-h4qv9t.md
+		and re-measured here: under this container's forced-software-WebGL
+		Chromium, `ViewportBackground`'s dynamic `three` import plus
+		`RoomEnvironment` PMREM pre-render monopolizes the main thread as ONE
+		synchronous block, and `CountdownOverlay`'s `setTimeout` chain
+		([0, 800, 1600, 2400, 3700]) cannot run inside it. Arm the countdown
+		before that block and the whole 3.7s sequence bunches up and can tear
+		itself down before the presence rows below are read -- which is the
+		"0, 3 and 3 findings across three consecutive runs" this route was known
+		for.
 
-		WHAT waitForApp ALREADY MEASURED IS THE REAL SIGNAL, ONCE READ CORRECTLY.
-		The one-time setup block is FRONT-LOADED at mount, before the DOM's own
-		text/height/count has any reason to still be changing -- so `waitForApp`'s
-		own stability read can return before that async chain resolves on a fast
-		machine (this is exactly what the diagnosis measured: "app rendered in
-		~450-900ms" there, well inside the 0.5-1.5s danger window), while on a
-		loaded machine (measured here: 3800-4400ms to hydrate) it returns well
-		AFTER the block has already finished, because the block itself is part of
-		what made hydration slow. Either way, `performance.now()` at the moment a
-		prepare step runs already reports how much real wall-clock time has
-		elapsed since navigation -- which is the one number this route actually
-		needs: whether that number has cleared the measured danger window yet.
-		`Math.max(0, 2000 - performance.now())` tops up ONLY the shortfall, so a
-		slow machine (already past 2000ms by the time this runs) waits nothing
-		extra, and a fast one waits up to the same margin the original diagnosis
-		named ("at least ~2000ms, a measured safe margin over the observed
-		0.5-1.5s window"). This is not the rejected fixed sleep: it is the same
-		margin spent only where elapsed wall-clock time proves it has not already
-		been paid by hydration, so it costs the fast machine what the flaky bug
-		needs and the loaded machine nothing.
+		THE BLOCK IS 4.5 SECONDS HERE, AND IT DOES NOT START WHEN THE PREVIOUS
+		FIX ASSUMED. Sampled with a `setTimeout(50)` chain from
+		domcontentloaded, three trials: lateness sits at 0-3ms, then ONE sample
+		reports 4472/4576/4473ms, then settles to 0-84ms for the rest of the
+		page's life. The block STARTED at t=2242ms in one of those trials --
+		AFTER the 2000ms since-navigation margin this step used to spend would
+		have expired. So that margin was not merely inert on a slow machine
+		(hydration measures 5.1-5.4s here, so it waited 0ms every run); it was
+		aimed at a window whose start it could not predict.
+
+		AND PUNCTUALITY IS NOT THE SIGNAL EITHER, for the same reason. The
+		thread is perfectly punctual BEFORE the block as well as after, so any
+		"wait until a queued task fires on time" predicate is satisfiable at
+		t=1300 and the block still lands at 2242.
+
+		WHAT DOES SEPARATE THEM IS THE CANVAS. `<canvas>` starts at the HTML
+		default 300x150 and `WebGLRenderer` resizes it; because the setup is one
+		synchronous block, there is no observable moment inside it, so from
+		outside the canvas is 300x150 before the block and sized after it, with
+		nothing in between. Measured 3/3: `300x150` on every sample up to the
+		block, `1440x900` on the first sample after it. The predicate compares
+		against the DEFAULT PAIR rather than a width, so it reads the same at
+		375 as at 1440.
+
+		PROVED BY REPRODUCTION, not by a clean run. Arming as soon as the
+		control exists (t=216/301/1278ms, which is what a fast machine does)
+		reddens all three presence rows 3/3, with `present 0` -- the overlay
+		gone entirely, exactly the reported signature. Arming on this predicate
+		instead: 0/3 red, with the wait reported at 756-803ms. The step's own
+		`waitFor` row prints that number, so the cost is visible on every run.
+
+		IF WEBGL IS UNAVAILABLE the canvas is never resized and this step
+		reports FAILED after its timeout, which is the honest outcome: the
+		measurements below would be describing a state the run never reached.
+		The old fixed margin proceeded silently in that case.
 	*/
 	prepare: [
 		{
-			evaluate:
-				'async () => { const remaining = Math.max(0, 2000 - performance.now()); if (remaining > 0) await new Promise((r) => setTimeout(r, remaining)); return `waited ${Math.round(remaining)}ms of the 2000ms since-navigation margin (${Math.round(performance.now())}ms elapsed)`; }'
+			waitFor:
+				'() => { const c = document.querySelector(".gt-viewport-bg canvas"); return !!c && !(c.width === 300 && c.height === 150); }',
+			timeoutMs: 30_000
 		},
 		{
 			click: '[data-drive="countdown"]',

@@ -4,6 +4,7 @@
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
+	import Pending from '$lib/Pending.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import UnitManager from '$lib/classroom/UnitManager.svelte';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
@@ -206,6 +207,83 @@
 	let menuHost = $state<HTMLElement | null>(null);
 
 	/**
+	 * SELECTING A POST MUST NOT COST YOU YOUR PLACE IN THE LIST.
+	 *
+	 * Opening an item is not a layout decision, but it lands as one: `ClassSplit`
+	 * gives the navigation pane the whole measure while nothing is open and
+	 * 26rem once something is, and `.stream` is an `auto-fit` grid, so the list
+	 * REFLOWS. Measured at 1440px on /dev/classroom-split with twenty rows: the
+	 * pane goes 1376px -> 416px and the stream goes THREE 426px columns to ONE
+	 * 366px column. A row that was near the top of the third column is then most
+	 * of a page further down, which is the report ("the entire list jumps up")
+	 * and it is a real one.
+	 *
+	 * THE COLUMNS ARE NOT THE BUG AND ARE NOT REMOVED. A list handed the full
+	 * measure and rendering one narrow column is the defect one level in
+	 * (CLAUDE.md: "The list is then responsible for USING the width"). What is
+	 * wrong is only that the reflow moves the row the person just pointed at, so
+	 * that row is what gets put back.
+	 *
+	 * `block: 'nearest'` IS THE WHOLE OF WHY THIS IS SAFE: a row that is already
+	 * on screen after the reflow is not moved at all, so this can only ever undo
+	 * a jump and can never create one. `'instant'` because app.css sets a global
+	 * `scroll-behavior: smooth` and an animated correction reads as a second
+	 * jump rather than as the absence of the first.
+	 *
+	 * IT FIRES ON A CHANGE OF SELECTION, never on a re-render: `lastKeptInView`
+	 * is a PLAIN let and not `$state`, so the effect neither tracks nor writes
+	 * it, and a save that reloads the list underneath an open item does not
+	 * re-scroll anything. The one call is deferred on rAF-or-timeout (never rAF
+	 * alone -- a backgrounded tab never ticks one) so it reads the geometry the
+	 * reflow actually settled on.
+	 *
+	 * BOTH SCHEDULED CALLS RUN, AND THE SECOND ONE IS THE ONE THAT WORKS. The
+	 * first draft let whichever fired first win, which is the animation frame --
+	 * measured doing nothing, because split.css eases `grid-template-columns`
+	 * over 180ms, so at rAF time the pane is still wide, the stream is still
+	 * three columns and the row is still on screen, which is precisely when
+	 * `nearest` correctly declines to move anything. By the time the ease
+	 * finishes the row is 1380px down a 730px pane and nothing is scheduled any
+	 * more. `scrollIntoView({ block: 'nearest' })` is idempotent, so letting
+	 * both run costs nothing and covers both cases: under reduced motion there
+	 * is no ease and the frame call is already right, and the later one is then
+	 * the no-op instead.
+	 *
+	 * IT RETURNS NO CLEANUP, AND THAT IS ALSO A FIX RATHER THAN AN OVERSIGHT. The
+	 * first draft cancelled its own rAF and timeout from an effect teardown,
+	 * which is correct-looking and was measured doing nothing at all: the
+	 * effect re-runs while the pane is still settling, the teardown cancels the
+	 * scheduled call, and the re-run then hits the `id === lastKeptInView`
+	 * guard and never reschedules it. Measured at 1440px, rightmost-column row
+	 * i-13: `.cr-nav` sat at scrollTop 0 with the selected row 1380px down a
+	 * 730px pane. `done` is what makes the pair fire once, and the id re-check
+	 * inside `put` is what makes a stale one stand down.
+	 */
+	/** split.css eases the two columns over 180ms; this is that plus a frame's
+	 *  slack, so the geometry being read is the one the reflow settled on. */
+	const SPLIT_SETTLE_MS = 250;
+	let lastKeptInView: string | null = null;
+	$effect(() => {
+		const id = selectedItemId;
+		const host = menuHost;
+		if (!host) return;
+		if (id === lastKeptInView) return;
+		lastKeptInView = id;
+		if (!id) return;
+		const put = () => {
+			// The selection may have moved on while this was queued; the newest
+			// one owns the pane.
+			if (lastKeptInView !== id) return;
+			const row = host.querySelector('[data-testid="item-row"][data-selected="true"]');
+			if (row instanceof HTMLElement) {
+				row.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+			}
+		};
+		requestAnimationFrame(put);
+		setTimeout(put, SPLIT_SETTLE_MS);
+	});
+
+	/**
 	 * BULK SELECTION. The SET is global to the pane, not per group -- "bundle
 	 * multiple posts together" is a page-level ask, and selecting one unit then
 	 * another accumulates rather than replacing.
@@ -217,6 +295,23 @@
 	 */
 	let bulkSelected = $state<Set<string>>(new Set());
 	let armBulkDelete = $state(false);
+	/**
+	 * WHAT THE BULK RUN IS DOING, for the pending line to name.
+	 *
+	 * `busy` already existed and already greys every control, which is a
+	 * refusal and not an acknowledgement: a manager who presses Publish on
+	 * twelve items watches the bar go flat and is told nothing at all until the
+	 * whole batch answers. This is a bulk RPC over a dozen rows, one nested
+	 * single-row call each -- the one place on this pane where a person
+	 * genuinely waits -- so it is the one place that gets a word.
+	 *
+	 * NULL WHEN NOTHING IS RUNNING, and it is set and cleared beside `busy` in
+	 * the same `try`/`finally`, never derived from it: `busy` is also true for
+	 * a single-row pin or a drag reorder, and those resolve in one round trip
+	 * with the row itself as their acknowledgement. A spinner on those would be
+	 * the flashing noise the standard warns about.
+	 */
+	let bulkPending = $state<string | null>(null);
 	/** Row being dragged, and which group it came from -- a drop outside that
 	 *  group is ignored rather than treated as a file-into-a-unit action,
 	 *  which has its own control. */
@@ -565,11 +660,13 @@
 		if (!transports || !ids.length) return;
 		armBulkDelete = false;
 		busy = true;
+		bulkPending = `Publishing ${ids.length} item${ids.length === 1 ? '' : 's'}`;
 		error = null;
 		localNotice = null;
 		const tx = transports;
 		const outcome = await runBulk(ids, (id) => tx.setPublished(id, true));
 		busy = false;
+		bulkPending = null;
 		bulkSelected = new Set(outcome.failedIds);
 		if (outcome.failedIds.length) {
 			error = bulkFailureMessage(
@@ -597,6 +694,7 @@
 		});
 		const trivialCount = ids.length - needsMove.length;
 		busy = true;
+		bulkPending = `Filing ${needsMove.length || ids.length} item${(needsMove.length || ids.length) === 1 ? '' : 's'}`;
 		error = null;
 		localNotice = null;
 		const outcome = await runBulk(needsMove, async (id) => {
@@ -617,6 +715,7 @@
 			await tx.setOrder(renumberedForFiling(destGroup?.items ?? [], outcome.succeededIds));
 		}
 		busy = false;
+		bulkPending = null;
 		const succeededCount = trivialCount + outcome.succeededIds.length;
 		bulkSelected = new Set(outcome.failedIds);
 		if (outcome.failedIds.length) {
@@ -646,11 +745,13 @@
 		}
 		armBulkDelete = false;
 		busy = true;
+		bulkPending = `Deleting ${ids.length} item${ids.length === 1 ? '' : 's'}`;
 		error = null;
 		localNotice = null;
 		const tx = transports;
 		const outcome = await runBulk(ids, (id) => tx.deleteItem(id));
 		busy = false;
+		bulkPending = null;
 		bulkSelected = new Set(outcome.failedIds);
 		if (outcome.failedIds.length) {
 			error = bulkFailureMessage(
@@ -1284,7 +1385,16 @@
 				trying not to become, and a disabled control cannot explain itself
 				either.
 			-->
-			{#if bulkSelected.size === 0}
+			<!--
+				THE ACKNOWLEDGEMENT, beside the controls it belongs to. It replaces
+				the count rather than sitting under it, so the bar does not change
+				height mid-run and push the list the person is watching.
+			-->
+			{#if bulkPending}
+				<span class="bulk-pending" data-testid="bulk-pending">
+					<Pending label={bulkPending} variant="inline" />
+				</span>
+			{:else if bulkSelected.size === 0}
 				<span class="bulk-hint" data-testid="bulk-hint">
 					Tick items to publish, file or delete several at once.
 				</span>
@@ -1690,6 +1800,11 @@
 		border-color: transparent;
 		padding-inline: 0;
 	}
+	.bulk-pending {
+		display: inline-flex;
+		align-items: center;
+		min-width: 0;
+	}
 	.bulk-count,
 	.bulk-hint {
 		font-family: var(--font-mono);
@@ -2032,6 +2147,26 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 		overflow-wrap: anywhere;
+	}
+	/* THE ROW YOU HAVE OPEN IS THE ONE ROW THAT HAS TO BE IDENTIFIABLE, so it
+	   is the one row that does not get clamped.
+
+	   Every other row is a two-line summary and that is right: twenty rows all
+	   printing their full name is a wall. But opening an item NARROWS this pane
+	   (measured at 1440px: 1376px full-width down to 416px, and the row name's
+	   own box from 217px to 157px), so the selected row is clamped at exactly
+	   the moment it stopped being a summary and became the answer to "which one
+	   am I looking at". The `title` attribute beside it is not the fallback --
+	   IDEA_INTERFACE_STANDARDS 10: a tooltip is not discoverable and a phone
+	   cannot hover.
+
+	   It is `-webkit-line-clamp: none` rather than a `display` change: the
+	   element stays a `-webkit-box`, so nothing about the row's flex behaviour
+	   moves and a short title renders byte-identically to before. */
+	.row-wrap.selected .row-name {
+		-webkit-line-clamp: none;
+		line-clamp: none;
+		overflow: visible;
 	}
 	.row-meta {
 		font-family: var(--font-mono);

@@ -215,6 +215,18 @@ export interface SubmissionRow {
 	teacher_comment: string | null;
 	graded_by: string | null;
 	graded_at: string | null;
+	/**
+	 * POINTS AWARDED BEYOND THE RUBRIC (0171), or null where none were and
+	 * `undefined` off a payload that predates the column.
+	 *
+	 * `score` ALREADY INCLUDES IT -- the database sums the criteria and adds
+	 * this -- so nothing client-side may add it on again. It is stored apart
+	 * from `rubric_scores` because a criterion's maximum is its top level's
+	 * points and the criteria sum to the module total: a criterion carrying a
+	 * score outside its own range is a rubric that no longer describes how the
+	 * work was scored.
+	 */
+	extra_credit?: number | null;
 	updated_at?: string;
 }
 
@@ -794,6 +806,29 @@ export interface UnmetEntry {
 	have: number;
 }
 
+/**
+ * IS THIS TABLE ROW REAL WORK, OR A ROW THE STUDENT LEFT.
+ *
+ * A `table` block stores whatever rows the renderer put on screen, blanks
+ * included, so a trailing empty row is the ordinary case rather than the odd
+ * one. Every count of "how many rows did they fill in" turns on this, and there
+ * were THREE copies of the expression before this function existed --
+ * `blockProgress`, `blockStarted` and the export's own table value -- which is
+ * the shape that stops agreeing the first time somebody decides whitespace
+ * counts.
+ *
+ * A row with SOME cells filled is real and stays; only all-blank is dropped.
+ * Whitespace is blank, which is what makes a row of spaces behave the way it
+ * looks.
+ */
+export function tableRowFilled(row: Record<string, string> | null | undefined): boolean {
+	return (
+		!!row &&
+		typeof row === 'object' &&
+		Object.values(row).some((v) => String(v ?? '').trim() !== '')
+	);
+}
+
 /** How far along one block is against its own constraint. Null = no constraint. */
 export function blockProgress(
 	block: SpecBlock,
@@ -809,9 +844,7 @@ export function blockProgress(
 		const need = block.minRows ?? 0;
 		if (need <= 0) return null;
 		const rows = responses.get(block.id)?.rows ?? [];
-		const have = rows.filter(
-			(r) => r && typeof r === 'object' && Object.values(r).some((v) => String(v ?? '').trim() !== '')
-		).length;
+		const have = rows.filter(tableRowFilled).length;
 		return { need, have };
 	}
 	if (block.type === 'imageZone') {
@@ -903,12 +936,7 @@ export function blockStarted(
 	}
 	if (block.type === 'table') {
 		const rows = responses.get(block.id)?.rows ?? [];
-		return rows.some(
-			(r) =>
-				!!r &&
-				typeof r === 'object' &&
-				Object.values(r).some((v) => String(v ?? '').trim() !== '')
-		);
+		return rows.some(tableRowFilled);
 	}
 	if (block.type === 'imageZone') {
 		return (filesByBlock.get(block.id) ?? 0) > 0;
@@ -1145,7 +1173,17 @@ export function splitLastFirst(displayName: string, email: string): { last: stri
 	return { last: words[words.length - 1], first: words.slice(0, -1).join(' ') };
 }
 
-function csvCell(value: string | number | null): string {
+/**
+ * ONE CSV CELL, ONE ESCAPE RULE, AND IT IS EXPORTED BECAUSE THERE IS A SECOND
+ * CSV IN THIS MODULE NOW (`$lib/classroom/roster-export`).
+ *
+ * The formula-injection guard below is the reason a second copy is not
+ * acceptable rather than merely untidy: a roster export that quoted correctly
+ * and forgot the leading `=` would hand a teacher a spreadsheet that executes a
+ * student's display name. Two implementations of that is the one that stops
+ * matching.
+ */
+export function csvCell(value: string | number | null): string {
 	if (value == null) return '';
 	let text = String(value);
 	// Formula-injection guard: Excel executes leading = + - @ (and trims
@@ -1195,6 +1233,15 @@ export function normalizeSubmissionRow(row: Record<string, unknown>): Submission
 		teacher_comment: (row.teacher_comment as string | null) ?? null,
 		graded_by: (row.graded_by as string | null) ?? null,
 		graded_at: (row.graded_at as string | null) ?? null,
+		// THREE STATES, and flattening them loses the one that matters:
+		// undefined = the column was not selected (pre-0171 rung), null = the
+		// column is there and nothing was awarded, a number = an award.
+		extra_credit:
+			row.extra_credit === undefined
+				? undefined
+				: row.extra_credit === null
+					? null
+					: Number(row.extra_credit),
 		updated_at: (row.updated_at as string | undefined) ?? undefined
 	};
 }
@@ -1303,6 +1350,16 @@ export interface GradingData {
 	 * photographs.
 	 */
 	filesStorageReady?: boolean;
+	/**
+	 * Did this payload come back with 0171's `extra_credit` column.
+	 *
+	 * FALSE MEANS "CANNOT TELL", exactly as `filesStorageReady` does: the
+	 * migration is applied by hand, so a deployment sitting before it is a real
+	 * state, and a console that offered the control there would send every award
+	 * into an RPC that does not have the parameter. The surface turns off that
+	 * one control and says why, rather than blanking the page.
+	 */
+	extraCreditReady?: boolean;
 	approvals: ModuleApprovalRow[];
 }
 
@@ -1318,7 +1375,14 @@ export interface AssignmentTeacherTransports {
 		comment: string | null,
 		release: boolean,
 		/** Per-criterion comments. The server REQUIRES one for every override. */
-		criterionComments?: CriterionComments | null
+		criterionComments?: CriterionComments | null,
+		/**
+		 * Points beyond the rubric (0171). UNDEFINED AND NULL BOTH MEAN "LEAVE
+		 * WHATEVER IS STORED ALONE", and 0 is how an award is taken back -- so a
+		 * client that never learned about extra credit cannot erase one by
+		 * grading again, which is the failure this argument is shaped to avoid.
+		 */
+		extraCredit?: number | null
 	): Promise<TxResult<EngineOpResult>>;
 	approveModule(
 		itemId: string,

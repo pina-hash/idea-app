@@ -218,3 +218,78 @@ export function stampTitle(deploy: DeployStamp): string {
 		? 'Version auto-derived from git history'
 		: 'Build stamp from the deployed commit. No version number: this build saw a truncated git history, and a commit count over one moves backwards.';
 }
+
+/** A month heading in the changelog panel, with the entries filed under it. */
+export interface VersionMonth {
+	/** "YYYY-MM", taken from the entries' own `iso`. */
+	key: string;
+	/** "September 2026", or "Undated" when the month is not 1 through 12. */
+	label: string;
+	entries: VersionEntry[];
+}
+
+/** Month names for the headings. No other caller: the panel is the only reader. */
+const MONTH_NAMES = [
+	'January',
+	'February',
+	'March',
+	'April',
+	'May',
+	'June',
+	'July',
+	'August',
+	'September',
+	'October',
+	'November',
+	'December'
+];
+
+/**
+ * The filtered log cut into month headings.
+ *
+ * A KEY MUST NEVER BE ABLE TO OPEN A SECOND GROUP, WHATEVER ORDER THE INPUT
+ * ARRIVES IN, AND THAT IS WHY THIS IS A MAP RATHER THAN A SINGLE PASS. It used
+ * to walk the log once and compare each entry's month only against the LAST
+ * group opened, which is correct only while the log is monotonic by displayed
+ * date. It is not, and the reason is timezones rather than ordering: `%cI`
+ * carries each commit's own UTC offset, cloud commits are stamped `+00:00` and
+ * commits made through the GitHub web UI are stamped in the author's local
+ * zone, and git orders the log by ABSOLUTE INSTANT. So a commit made at 18:20
+ * -07:00 sorts between two stamped 01:08 and 02:05 +00:00 while displaying a
+ * date one day earlier -- and the month it interrupts is then opened a second
+ * time below it.
+ *
+ * THAT WAS FATAL RATHER THAN UNTIDY. The panel keys its `{#each}` on
+ * `month.key`, and Svelte 5 throws `each_key_duplicate` on a repeated key,
+ * which took the whole homepage blank on hydration while its server HTML
+ * rendered correctly. Committer timezones in history are immutable and
+ * mixed-zone commits keep arriving, so the grouping is correct for a
+ * non-monotonic log rather than the log being cleaned up.
+ *
+ * IT GROUPS, IT NEVER CAPS. Every entry handed in comes back out exactly once:
+ * there is no slice, no cap and no pagination here, because the panel has never
+ * had any and `filteredLog.length` still counts the whole array.
+ */
+export function groupEntriesByMonth(entries: VersionEntry[]): VersionMonth[] {
+	const byKey = new Map<string, VersionMonth>();
+	for (const entry of entries) {
+		const key = entry.iso.slice(0, 7);
+		let month = byKey.get(key);
+		if (!month) {
+			const n = Number(key.slice(5, 7));
+			const name = n >= 1 && n <= 12 ? MONTH_NAMES[n - 1] : undefined;
+			month = { key, label: name ? `${name} ${key.slice(0, 4)}` : 'Undated', entries: [] };
+			byKey.set(key, month);
+		}
+		month.entries.push(entry);
+	}
+	// Plain string comparison, not localeCompare: these are fixed-width keys and
+	// an ICU-dependent order would sort differently on different machines. Sort
+	// is stable, so entries sharing an `iso` keep the order git listed them in.
+	const months = [...byKey.values()];
+	months.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
+	for (const month of months) {
+		month.entries.sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : 0));
+	}
+	return months;
+}

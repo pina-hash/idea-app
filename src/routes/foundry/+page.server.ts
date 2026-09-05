@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { foundryClosureBlocks } from '$lib/foundry/access';
 import { foundryPlayCountMap, type FoundryPlayCountRow } from '$lib/foundry/telemetry';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
@@ -23,7 +24,31 @@ import type { PageServerLoad } from './$types';
  * the viewer was. That is why this is a `+page.server.ts` and not a layout
  * load: a layout load must never read `url`.
  */
-export const load: PageServerLoad = async ({ locals, url }) => {
+/**
+ * THE CLASS GATE'S SERVER HALF (0173, decision 01), AND THIS IS THE ONE
+ * SURFACE A CLOSURE STILL REACHES.
+ *
+ * The gallery is everybody's published apps and it is the one place in the
+ * portal where a student's bundle actually RUNS: `FoundryDetail` is what
+ * mounts `AppStage`. That is the "somebody is playing a game in my class"
+ * behaviour the control exists for, so this load keeps refusing to build the
+ * payload. Absence is the mechanism, exactly as it is for every omitted
+ * transport in this feature: a closed student is not sent the data and then
+ * asked politely not to look at it.
+ *
+ * THE PREDICATE IS READ, NOT RESTATED. `foundryClosureBlocks('gallery')` is
+ * the same answer the layout uses to decide whether to render the refusal in
+ * place of this page, so a route that is dark on the server cannot be lit in
+ * the markup. The argument for the SET is on `FOUNDRY_CLOSURE_BLOCKS`;
+ * `/foundry/mine`, `/foundry/submit`, `/foundry/contract` and
+ * `/foundry/classes` are deliberately not in it and carry on.
+ */
+export const load: PageServerLoad = async ({ locals, url, parent }) => {
+	const { foundryAccess } = await parent();
+	if (foundryAccess && foundryAccess.open === false && foundryClosureBlocks('gallery')) {
+		return { apps: [] as FoundryAppSummary[], selected: null, playCounts: {} };
+	}
+
 	const { data: apps, error: listErr } = await locals.supabase.rpc('foundry_list_apps');
 	if (listErr) error(500, listErr.message);
 

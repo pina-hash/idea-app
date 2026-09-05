@@ -29,6 +29,41 @@ export interface HallPassEntry {
 	/** Null means still out. This is the whole state model -- see 0143. */
 	closed_at: string | null;
 	closed_by: string | null;
+	/**
+	 * WHO OPENED IT (`0174`). NULL is the ordinary case and means the student
+	 * themselves -- which is also every row written before that migration, so
+	 * this needs no legacy branch. An email is the instructor who overrode the
+	 * cooldown or the daily cap for them.
+	 *
+	 * OPTIONAL because a deployment sitting before `0174` answers without the
+	 * field at all, and a surface must render that as "no override marker"
+	 * rather than as a broken row.
+	 */
+	opened_by?: string | null;
+}
+
+/**
+ * THE TWO NUMBERS THE LIMIT USES, PROJECTED RATHER THAN RESTATED (`0174`).
+ *
+ * `_classroom_hall_pass_limits()` is the ONE statement of them and the state
+ * payload carries its answer, so no constant, component or stylesheet in this
+ * repo writes 10 or 3 down. A client-side copy is exactly the thing that stops
+ * agreeing with the refusal behind it -- the surface would draw a button the
+ * server then declines, or grey one out the server would have allowed.
+ *
+ * OPTIONAL, because the migration is applied by hand: a deployment that has not
+ * had it yet answers a payload with no `limits` in it, and the surface then says
+ * nothing about a rule that is not being enforced.
+ */
+export interface HallPassLimits {
+	cooldown_minutes: number;
+	daily_limit: number;
+}
+
+/** One name the override control may pick (`0174`, manager branch only). */
+export interface HallPassRosterEntry {
+	student_email: string;
+	student_name: string;
 }
 
 /**
@@ -46,6 +81,24 @@ export interface HallPassStudentState {
 	taken: boolean;
 	mine: boolean;
 	opened_at: string | null;
+	/** `0174`'s numbers. Absent before that migration is applied. */
+	limits?: HallPassLimits;
+	/**
+	 * HOW MANY PASSES THIS CALLER HAS TAKEN IN THIS CLASS TODAY. Their own
+	 * count, on the America/Los_Angeles calendar day -- a fact about themselves,
+	 * exactly as `opened_at` is, and not a disclosure about anybody.
+	 */
+	used_today?: number;
+	/**
+	 * WHEN THIS CALLER MAY GO AGAIN, or null when they may go now.
+	 *
+	 * The DATABASE decides whether to send it: it is non-null only while the
+	 * cooldown is genuinely still running at read time, so the client asks one
+	 * question (is this null) instead of holding a second copy of the
+	 * comparison. It can be up to one poll interval stale, and the server's own
+	 * refusal is what settles that case.
+	 */
+	retry_at?: string | null;
 }
 
 /** What an instructor of the section is told. */
@@ -61,6 +114,18 @@ export interface HallPassManagerState {
 		opened_at: string;
 	} | null;
 	history: HallPassEntry[];
+	/** `0174`'s numbers, so the instructor surface can state the rule it is about to override. */
+	limits?: HallPassLimits;
+	/**
+	 * THE ACTIVE ROSTER, AND IT IS HERE FOR EXACTLY ONE CONTROL.
+	 * `classroom_hall_pass_open_for` names a student, so the surface offering it
+	 * has to be able to name one; an override that made an instructor type an
+	 * email address at the classroom door is a control nobody uses correctly.
+	 * These are rows this caller already reads on the People tab, and the
+	 * STUDENT TYPE HAS NO SUCH FIELD -- the database never evaluates the
+	 * expression on that branch.
+	 */
+	roster?: HallPassRosterEntry[];
 }
 
 export type HallPassState = HallPassStudentState | HallPassManagerState;
@@ -82,7 +147,26 @@ export type HallPassRefusal =
 	| 'not_a_student'
 	| 'not_open'
 	| 'not_yours'
-	| 'already_closed';
+	| 'already_closed'
+	| 'cooldown'
+	| 'limit_reached'
+	| 'not_enrolled';
+
+/**
+ * WHAT A `0174` REFUSAL CARRIES BESIDES ITS WORD.
+ *
+ * A REFUSAL WITH NO TIME IN IT GETS ASKED AGAIN IMMEDIATELY, IN PERSON, which
+ * is the thing the limit exists to stop. So the database answers `cooldown`
+ * with the instant the student may go again and `limit_reached` with the count
+ * and the cap, and the sentence is built from those rather than from numbers
+ * written down here.
+ */
+export interface HallPassRefusalDetail {
+	/** ISO instant, `cooldown` only. */
+	retryAt?: string | null;
+	used?: number | null;
+	limit?: number | null;
+}
 
 export interface HallPassOpened {
 	pass_id: string;
@@ -100,8 +184,15 @@ export interface HallPassClosed {
 
 export type HallPassResult<T> =
 	| { ok: true; data: T }
-	| { ok: false; refusal: HallPassRefusal }
+	| ({ ok: false; refusal: HallPassRefusal } & HallPassRefusalDetail)
 	| { ok: false; message: string };
+
+/** What the instructor override answers on success (`0174`). */
+export interface HallPassOpenedFor extends HallPassOpened {
+	student_email: string;
+	student_name: string;
+	opened_by: string;
+}
 
 /**
  * THE CLOSE IS TWO TRANSPORTS BECAUSE IT IS TWO DECISIONS (`0144`).
@@ -143,6 +234,22 @@ export interface HallPassTransports {
 	closeMine(sectionId: string): Promise<HallPassResult<HallPassClosed>>;
 	/** An instructor signing ONE NAMED pass back in, from their own payload. */
 	closeById(passId: string): Promise<HallPassResult<HallPassClosed>>;
+	/**
+	 * THE OVERRIDE (`0174`): an instructor of the section sends a NAMED student
+	 * out past the cooldown and the daily cap.
+	 *
+	 * OPTIONAL, AND THE ABSENCE IS THE MECHANISM, exactly as an omitted
+	 * transport is everywhere else in this module. A caller that does not wire
+	 * it gets no override control at all rather than one that would answer
+	 * PGRST202 -- which is also the honest state of a deployment sitting before
+	 * `0174`.
+	 *
+	 * IT NAMES THE STUDENT, which is the opposite of `open` and correct for the
+	 * same reason `closeById` names the pass: the person acting is deciding
+	 * ABOUT somebody, and saying who is the only way that intent survives the
+	 * gap between reading the roster and pressing the control.
+	 */
+	openFor?(sectionId: string, studentEmail: string): Promise<HallPassResult<HallPassOpenedFor>>;
 }
 
 /**
@@ -232,7 +339,10 @@ export function hallPassDurationLabel(entry: HallPassEntry): string {
  * AND IT NAMES NOBODY. "Someone else has the pass" is the whole of what a
  * student may learn -- see `HallPassStudentState`.
  */
-export function hallPassRefusalMessage(refusal: HallPassRefusal): string {
+export function hallPassRefusalMessage(
+	refusal: HallPassRefusal,
+	detail: HallPassRefusalDetail = {}
+): string {
 	switch (refusal) {
 		case 'taken':
 			return 'Someone else has the pass right now. Try again when they are back.';
@@ -252,7 +362,63 @@ export function hallPassRefusalMessage(refusal: HallPassRefusal): string {
 			// this sentence has already been re-read, so whoever is out NOW is on
 			// screen beside it.
 			return 'That pass was already signed back in, so nothing was changed.';
+		case 'cooldown':
+			// THE TIME IS THE WHOLE POINT (`0174`). "Not yet" with no instant in
+			// it is asked again thirty seconds later, out loud, which is exactly
+			// the behaviour the limit exists to stop. The clock label is the
+			// school's own zone, so it matches the bell schedule on the wall.
+			return detail.retryAt
+				? `You just came back. You can take the pass again at ${hallPassClockLabel(detail.retryAt)}.`
+				: 'You just came back. Wait a few minutes before taking the pass again.';
+		case 'limit_reached':
+			// NAMES THE COUNT AND POINTS AT THE OVERRIDE. "No" with no way
+			// forward is what makes a student ask a person instead -- so this
+			// sentence says who to ask, because that person really can say yes.
+			return detail.limit
+				? `You have used all ${detail.limit} passes for this class today. Ask your teacher if you still need to go.`
+				: 'You have used all your passes for this class today. Ask your teacher if you still need to go.';
+		case 'not_enrolled':
+			// Reachable only on the instructor override, where it means the name
+			// picked is not on the live roster.
+			return 'That student is not on this class list right now.';
 	}
+}
+
+/**
+ * IS THIS STUDENT STILL INSIDE THE COOLDOWN, and until when.
+ *
+ * NOT A BOUNDARY, AND THE COMMENT ON `hallPassCanClose` IS THE PRECEDENT: the
+ * database refuses the open, and this decides what the control looks like
+ * beforehand. They are allowed to agree and this one is not trusted.
+ *
+ * IT HOLDS NO NUMBER. `retry_at` is an absolute instant the database computed
+ * from its own single statement of the cooldown, so the only arithmetic here is
+ * a comparison against the clock the surface already threads down. A minutes
+ * figure written in this file would be the second copy.
+ */
+export function hallPassCooldownUntil(state: HallPassState | null, nowMs: number): string | null {
+	if (!state || state.scope !== 'student') return null;
+	const at = state.retry_at;
+	if (!at) return null;
+	const ms = new Date(at).getTime();
+	if (Number.isNaN(ms) || ms <= nowMs) return null;
+	return at;
+}
+
+/**
+ * HAS THIS STUDENT USED THE DAY'S PASSES IN THIS CLASS.
+ *
+ * FALSE WHENEVER THE PAYLOAD CANNOT SAY, which is the fail-open direction and
+ * is deliberate: a deployment before `0174` carries neither field, and a
+ * surface that greyed the button out on a missing number would be enforcing a
+ * limit the database is not enforcing -- a student refused by nothing at all.
+ * The server is the limit; this is the explanation.
+ */
+export function hallPassAtDailyLimit(state: HallPassState | null): boolean {
+	if (!state || state.scope !== 'student') return false;
+	const cap = state.limits?.daily_limit;
+	if (typeof cap !== 'number' || typeof state.used_today !== 'number') return false;
+	return state.used_today >= cap;
 }
 
 /**
@@ -290,8 +456,14 @@ export function hallPassStatusLine(state: HallPassState, nowMs: number): string 
  * routinely do (`0138`). Offering the control and letting the RPC say no would
  * be a control whose only possible answer is a refusal.
  */
-export function hallPassCanOpen(state: HallPassState | null): boolean {
-	return !!state && state.scope === 'student' && !state.taken;
+export function hallPassCanOpen(state: HallPassState | null, nowMs: number): boolean {
+	if (!state || state.scope !== 'student' || state.taken) return false;
+	// `0174`. THE CONTROL MIRRORS THE LIMIT, IT DOES NOT IMPLEMENT IT: both
+	// answers come from the payload, and the database refuses the call
+	// regardless of what this returns. Offering a control whose only possible
+	// answer is a refusal is the thing being avoided.
+	if (hallPassCooldownUntil(state, nowMs)) return false;
+	return !hallPassAtDailyLimit(state);
 }
 
 /**
@@ -314,8 +486,58 @@ export function hallPassCanClose(state: HallPassState | null): boolean {
  * why -- which on the one control this feature has would leave a student
  * tapping a dead button with no account of it anywhere.
  */
-export function hallPassBlockedReason(state: HallPassState | null): string | null {
+export function hallPassBlockedReason(
+	state: HallPassState | null,
+	nowMs: number
+): string | null {
 	if (!state || state.scope !== 'student') return null;
 	if (state.taken && !state.mine) return hallPassRefusalMessage('taken');
+	// SAME SENTENCE THE SERVER WOULD HAVE ANSWERED, from the same builder --
+	// so a student who taps anyway reads the identical words, and there is one
+	// place where the wording of a refusal lives.
+	if (hallPassAtDailyLimit(state)) {
+		return hallPassRefusalMessage('limit_reached', { limit: state.limits?.daily_limit ?? null });
+	}
+	const until = hallPassCooldownUntil(state, nowMs);
+	if (until) return hallPassRefusalMessage('cooldown', { retryAt: until });
 	return null;
+}
+
+/**
+ * "2 of 3 passes used today", or null when the deployment cannot say.
+ *
+ * SHOWN BEFORE ANYBODY TAPS, which is the half of this feature that is not a
+ * refusal: a student who can see the count coming does not spend one finding
+ * out. Both numbers come off the payload, so this sentence cannot disagree
+ * with the rule behind it.
+ */
+export function hallPassUsageLine(state: HallPassState | null): string | null {
+	if (!state || state.scope !== 'student') return null;
+	const cap = state.limits?.daily_limit;
+	if (typeof cap !== 'number' || typeof state.used_today !== 'number') return null;
+	return `${state.used_today} of ${cap} pass${cap === 1 ? '' : 'es'} used today.`;
+}
+
+/**
+ * WHAT AN INSTRUCTOR IS TOLD THE OVERRIDE IGNORES, in their own terms.
+ *
+ * Null when the payload carries no limits, which is a deployment before `0174`:
+ * there is no rule to describe and no override control offered either.
+ */
+export function hallPassLimitSummary(state: HallPassState | null): string | null {
+	const limits = state?.limits;
+	if (!limits) return null;
+	return `Students get ${limits.daily_limit} pass${limits.daily_limit === 1 ? '' : 'es'} a day in this class and wait ${limits.cooldown_minutes} minutes between them. Sending someone out ignores both.`;
+}
+
+/**
+ * THE HISTORY ROW'S OVERRIDE MARKER, for a manager only.
+ *
+ * A pass an instructor authorized must be readable AS one, or the history
+ * cannot tell "this student went four times" from "this student went once and
+ * I sent them three times" -- and a limit whose overrides leave no trace is a
+ * limit nobody can check.
+ */
+export function hallPassOverrideLabel(entry: HallPassEntry): string | null {
+	return entry.opened_by ? `sent out by ${entry.opened_by}` : null;
 }

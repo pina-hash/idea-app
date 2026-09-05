@@ -22,6 +22,7 @@
 	import PathwayPicker from '$lib/PathwayPicker.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import NavigationProgress from '$lib/NavigationProgress.svelte';
+	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 
@@ -77,6 +78,10 @@
      `$app/state` and draws nothing until a navigation has been in flight for
      NAV_INDICATOR_DELAY_MS, so an instant click stays silent. -->
 <NavigationProgress />
+<!-- THE SITE THEME, written onto <html> and nowhere else. Mounted here for the
+     reason the two above it are: there are no layout resets in src/routes, so
+     every page route inherits it. It renders nothing; see the component. -->
+<ThemeRoot />
 {@render children()}
 <!-- First-login pathway picker: renders only for a signed-in student with no
      pathway set (self-contained, reads page data like ProfileMenu). -->

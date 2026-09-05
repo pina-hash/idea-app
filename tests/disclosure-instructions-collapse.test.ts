@@ -41,6 +41,7 @@ import { render } from 'svelte/server';
 import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 import {
 	disclosureKey,
+	disclosureLatch,
 	disclosureOpen,
 	readDisclosure,
 	writeDisclosure
@@ -69,6 +70,47 @@ describe('disclosureOpen: the whole default rule', () => {
 		// third parameter, an instructor and a student can be given different
 		// defaults, which is exactly what section 2 of the standard forbids.
 		expect(disclosureOpen.length).toBe(2);
+	});
+});
+
+describe('disclosureLatch: the collapse signal falls and never rises', () => {
+	// The pure half of the typing-collapse fix (prompt 0018). The behavioural
+	// half is `tests/dom/`; the browser measurement is
+	// `tools/browser-verify/routes/classroom-interaction-case-typing.mjs`.
+
+	it('takes its first sample from whatever the panel arrives with', () => {
+		expect(disclosureLatch(null, 'k', true)).toEqual({ key: 'k', collapsed: true });
+		expect(disclosureLatch(null, 'k', false)).toEqual({ key: 'k', collapsed: false });
+	});
+
+	it('IGNORES A RISE, which is a panel folding under somebody typing in it', () => {
+		const open = { key: 'k', collapsed: false };
+		// The first keystroke that trips `started`/`complete`. Nothing moves,
+		// and the SAME object comes back so no render is minted for it.
+		expect(disclosureLatch(open, 'k', true)).toBe(open);
+		// And it stays ignored, however often the signal flickers.
+		expect(disclosureLatch(disclosureLatch(open, 'k', true), 'k', true)).toBe(open);
+	});
+
+	it('HONOURS A FALL, which is the one moment the reading is wanted', () => {
+		// SpecImporter's refused clipboard copy, and a module whose work is
+		// taken back out. Opening a closed panel takes nothing from anybody.
+		expect(disclosureLatch({ key: 'k', collapsed: true }, 'k', false)).toEqual({
+			key: 'k',
+			collapsed: false
+		});
+	});
+
+	it('re-samples for a DIFFERENT panel rather than carrying the last one', () => {
+		// A caller swapping `scope` without remounting: a different item, a
+		// different check-in. Same discipline as `override`'s own key.
+		const fallen = { key: 'a', collapsed: false };
+		expect(disclosureLatch(fallen, 'b', true)).toEqual({ key: 'b', collapsed: true });
+		// Including the null key, which is the deliberate do-not-persist scope.
+		expect(disclosureLatch({ key: null, collapsed: false }, 'a', true)).toEqual({
+			key: 'a',
+			collapsed: true
+		});
 	});
 });
 

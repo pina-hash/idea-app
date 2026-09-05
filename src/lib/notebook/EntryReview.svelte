@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Avatar from '$lib/Avatar.svelte';
+	import { gridStudentSubject } from '$lib/avatars';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
 	import { deletedNoteThreads, noteThreads } from '$lib/notebook-notes';
@@ -360,9 +362,27 @@
 
 <section class="card entry-panel" data-testid="entry-panel">
 	<header class="entry-head">
-		<div class="head-text">
-			<div class="eyebrow">{student?.name ?? 'Student'}</div>
-			<h2>{title}</h2>
+		<!-- THE FACE BESIDE THE NAME IN THE EYEBROW. This panel only ever opens
+		     from the grid, whose own RPC raised for anybody who is not the
+		     section instructor, a section reviewer or an admin, and the entry
+		     under it is gated again by `notebook_can_read_entry`. So the
+		     audience for the picture is the audience for `student.name`, which
+		     is the line it sits on.
+
+		     28px, the roster size: this is one person read at a time, not a
+		     list being scanned, and it is the same box `GradingConsole`'s
+		     roster row uses. `student` may be undefined -- the eyebrow already
+		     says 'Student' for that -- and the tile handles it. -->
+		<div class="head-who">
+			<Avatar
+				subject={student ? gridStudentSubject(student) : null}
+				tintKey={student?.student_key ?? null}
+				size={28}
+			/>
+			<div class="head-text">
+				<div class="eyebrow">{student?.name ?? 'Student'}</div>
+				<h2>{title}</h2>
+			</div>
 		</div>
 		<button type="button" class="btn secondary tight" onclick={onClose}>Close</button>
 	</header>
@@ -589,6 +609,19 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: var(--space-3);
+	}
+	/* THE PICTURE AND THE TWO LINES BESIDE IT ARE ONE BLOCK, so the Close
+	   button stays where it was: `.entry-head` is `space-between`, and a bare
+	   third child would have floated the text into the middle of the header.
+	   Centred against the pair rather than top-aligned -- the eyebrow is
+	   0.7rem, so a 28px circle hung off its top edge would sit above the
+	   writing it belongs to rather than beside it. */
+	.head-who {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+		flex: 1 1 auto;
 	}
 	.head-text {
 		min-width: 0;

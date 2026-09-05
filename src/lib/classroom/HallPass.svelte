@@ -8,8 +8,12 @@
 		hallPassClockLabel,
 		hallPassDurationLabel,
 		hallPassElapsedLabel,
+		hallPassLimitSummary,
+		hallPassOverrideLabel,
 		hallPassRefusalMessage,
 		hallPassStatusLine,
+		hallPassUsageLine,
+		type HallPassRefusal,
 		type HallPassState,
 		type HallPassTransports
 	} from '$lib/classroom/hall-pass';
@@ -78,10 +82,30 @@
 	});
 	const live = $derived(local ?? serverState);
 
-	const canOpen = $derived(!!transports && hallPassCanOpen(live));
+	const canOpen = $derived(!!transports && hallPassCanOpen(live, now));
 	const canClose = $derived(!!transports && hallPassCanClose(live));
-	const blocked = $derived(hallPassBlockedReason(live));
+	const blocked = $derived(hallPassBlockedReason(live, now));
 	const manager = $derived(live.scope === 'manager' ? live : null);
+
+	/**
+	 * `0174`. THE COUNT IS SHOWN BEFORE ANYBODY TAPS, which is the half of the
+	 * limit that is not a refusal: a student who can see it coming does not
+	 * spend a pass finding out. Null on a deployment without the migration --
+	 * there is no rule to describe, so the card says nothing about one.
+	 */
+	const usage = $derived(hallPassUsageLine(live));
+	const limitSummary = $derived(hallPassLimitSummary(live));
+
+	/**
+	 * THE OVERRIDE CONTROL EXISTS ONLY WHEN ALL THREE HALVES DO: the transport
+	 * (absence is the mechanism, as everywhere else here), the roster the
+	 * database hands a manager to name somebody from, and nobody currently out
+	 * of this room -- the capacity index refuses that case, and a control whose
+	 * only possible answer is a refusal must not be offered.
+	 */
+	const overrideRoster = $derived(manager && !manager.taken ? (manager.roster ?? []) : []);
+	const canOverride = $derived(!!transports?.openFor && overrideRoster.length > 0);
+	let overrideEmail = $state('');
 
 	/** Glyph AND word, never the hue alone. */
 	const chip = $derived.by(() => {
@@ -124,14 +148,33 @@
 		};
 	});
 
-	function report(res: { ok: boolean; refusal?: unknown; message?: string }, done: string): void {
+	/**
+	 * THE REFUSAL'S DETAIL IS CARRIED, NOT DROPPED (`0174`). A `cooldown` whose
+	 * `retryAt` never reached the sentence builder reads "wait a few minutes",
+	 * which is the refusal-with-no-time-in-it the limit exists to avoid.
+	 */
+	function report(
+		res: {
+			ok: boolean;
+			refusal?: unknown;
+			message?: string;
+			retryAt?: string | null;
+			used?: number | null;
+			limit?: number | null;
+		},
+		done: string
+	): void {
 		if (res.ok) {
 			notice = done;
 			return;
 		}
 		notice =
 			'refusal' in res && res.refusal
-				? hallPassRefusalMessage(res.refusal as Parameters<typeof hallPassRefusalMessage>[0])
+				? hallPassRefusalMessage(res.refusal as HallPassRefusal, {
+						retryAt: res.retryAt,
+						used: res.used,
+						limit: res.limit
+					})
 				: (res.message ?? 'Something went wrong. Try again.');
 	}
 
@@ -220,6 +263,40 @@
 			await refresh();
 		}
 	}
+
+	/**
+	 * THE OVERRIDE (`0174`). An instructor sends a NAMED student out past the
+	 * cooldown and the daily cap.
+	 *
+	 * IT NAMES THE STUDENT, which is `closeById`'s argument in the other
+	 * direction: the person acting is deciding ABOUT somebody, and an email
+	 * carried from this paint's own roster is what makes the intent survive the
+	 * gap between reading the list and pressing the control. A manager's payload
+	 * already holds those names, so it costs no disclosure.
+	 *
+	 * IT IS NOT A BOUNDARY. `classroom_hall_pass_open_for` re-checks
+	 * `classroom_manages_section` and raises the same sentence a nonexistent
+	 * section raises for anybody else -- and it still refuses a student who is
+	 * off the roster, already out somewhere, or whose room already has somebody
+	 * in the corridor.
+	 */
+	async function sendOut(): Promise<void> {
+		const send = transports?.openFor;
+		if (busy || !send || !overrideEmail) return;
+		const target = overrideEmail;
+		busy = true;
+		notice = null;
+		try {
+			const res = await send(sectionId, target);
+			report(res, res.ok ? `Sent ${res.data.student_name} out.` : '');
+			if (res.ok) overrideEmail = '';
+		} catch {
+			notice = 'Could not reach the class. Check your connection and try again.';
+		} finally {
+			busy = false;
+			await refresh();
+		}
+	}
 </script>
 
 <section class="hp-card" data-testid="hall-pass" data-scope={live.scope}>
@@ -231,6 +308,15 @@
 	</div>
 
 	<p class="hp-status" data-testid="hall-pass-status">{hallPassStatusLine(live, now)}</p>
+
+	{#if usage}
+		<!--
+			`0174`. THE COUNT BEFORE THE TAP, not only in the refusal after it. A
+			student who can see "2 of 3" coming does not spend the third finding
+			out what the rule is.
+		-->
+		<p class="hp-usage" data-testid="hall-pass-usage">{usage}</p>
+	{/if}
 
 	{#if transports}
 		<div class="hp-actions">
@@ -269,6 +355,47 @@
 		<p class="hp-notice" role="status" data-testid="hall-pass-notice">{notice}</p>
 	{/if}
 
+	{#if manager && canOverride}
+		<!--
+			`0174`. THE OVERRIDE, WHICH IS WHAT KEEPS THE LIMIT FROM BEING WORKED
+			AROUND. A rule with no override becomes a rule an instructor routes
+			around some other way, and a bathroom is not a place to be rigid --
+			so the person who knows the situation can send a student out past the
+			cooldown and the cap, and the row records that they did.
+
+			ONE ROW, NOT A PANEL. This sits on a card an instructor reads while a
+			student is standing in front of them: a select and a button, no
+			disclosure to open, nothing to scroll past.
+		-->
+		<div class="hp-override" data-testid="hall-pass-override">
+			<label class="hp-override-label" for={`hp-send-${sectionId}`}>Send a student out</label>
+			<select
+				id={`hp-send-${sectionId}`}
+				class="hp-override-select tap-44"
+				bind:value={overrideEmail}
+				disabled={busy}
+				data-testid="hall-pass-override-select"
+			>
+				<option value="">Choose a student</option>
+				{#each overrideRoster as person (person.student_email)}
+					<option value={person.student_email}>{person.student_name}</option>
+				{/each}
+			</select>
+			<button
+				type="button"
+				class="btn tap-44 hp-override-go"
+				data-testid="hall-pass-override-go"
+				aria-disabled={busy || !overrideEmail}
+				onclick={sendOut}
+			>
+				Send out
+			</button>
+			{#if limitSummary}
+				<p class="hp-override-note">{limitSummary}</p>
+			{/if}
+		</div>
+	{/if}
+
 	{#if manager}
 		<!--
 			THE HISTORY IS INSTRUCTOR ONLY AND IS NOT A SECOND READ. It arrives on
@@ -295,6 +422,17 @@
 									to {hallPassClockLabel(entry.closed_at)} &middot; {hallPassDurationLabel(entry)}
 								{:else}
 									&middot; still out, {hallPassElapsedLabel(entry.opened_at, now)}
+								{/if}
+								<!--
+									`0174`. AN OVERRIDE IS READABLE AS ONE, or the history
+									cannot tell "went four times" from "went once and I sent
+									them three times" -- and a limit whose overrides leave no
+									trace is a limit nobody can check.
+								-->
+								{#if hallPassOverrideLabel(entry)}
+									&middot; <span class="hp-sent"
+										>{hallPassOverrideLabel(entry)}</span
+									>
 								{/if}
 							</span>
 						</li>
@@ -398,6 +536,56 @@
 		background: transparent;
 		color: var(--ice);
 		box-shadow: none;
+	}
+	/* `0174`. Metadata about the caller's own day, in the metadata register. */
+	.hp-usage {
+		margin: 0;
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+	}
+	.hp-override {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2, 0.5rem);
+		padding-top: var(--space-2, 0.5rem);
+		border-top: 1px solid var(--boundary);
+	}
+	.hp-override-label {
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.hp-override-select {
+		flex: 1 1 12rem;
+		min-width: 0;
+		min-height: 44px;
+	}
+	.hp-override-go {
+		flex: 0 0 auto;
+	}
+	.hp-override-go[aria-disabled='true'] {
+		color: var(--ice);
+		border-color: var(--ice);
+		cursor: not-allowed;
+	}
+	.hp-override-go[aria-disabled='true']:hover {
+		background: transparent;
+		color: var(--ice);
+		box-shadow: none;
+	}
+	.hp-override-note {
+		flex: 1 1 100%;
+		margin: 0;
+		color: var(--text-2);
+		font-size: 0.85rem;
+		line-height: 1.4;
+	}
+	.hp-sent {
+		color: var(--cyan);
 	}
 	.hp-notice {
 		margin: 0;

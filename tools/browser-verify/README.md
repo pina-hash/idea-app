@@ -16,6 +16,135 @@ npm run verify:browser -- --break motion --route marks
 npm run verify:browser -- --json out.json --verbose
 ```
 
+## Counts on this tree
+
+The numbers below are GENERATED. The section that used to carry them by hand
+was wrong on every tree checked on 2026-08-31, because a file cannot be right
+by hand about a number the harness computes on every run. `readme-counts.mjs`
+is the only writer. Quote the block, never a number from prose, and if prose
+elsewhere in this file carries a count, the block wins.
+
+**There are TWO regions, with two costs and two freshness rules**, and the
+split is what stops this file serialising every branch.
+
+| | Static | Measured |
+| --- | --- | --- |
+| Written by | `npm run verify:counts` | `npm run verify:readme` |
+| Costs | a tree read, under a second | a browser and about six minutes |
+| Run it after | adding or removing a route spec or a `/dev` page, and after resolving a merge here | a deliberate visual pass |
+| Checked against | **this tree, on every `npm test`** | its own data line, and the tree's SPEC FILE LIST |
+| Carries a date and a sha | no, on purpose | yes |
+
+`npm run verify:counts -- --check` exits non-zero when the static region
+disagrees with the tree; `npm run verify:readme -- --check` runs the harness
+and exits non-zero when either region disagrees with a fresh run.
+`tests/derived-numbers.test.ts` reddens when a route spec landed without
+regenerating the static region, and when a digit in either table was edited by
+hand -- with no browser anywhere in that path.
+
+**THE MEASURED HALF IS ALLOWED TO BE STALE, AND SINCE PROMPT 0046 IT IS NOT
+ALLOWED TO BE STALE AND SAY NOTHING IS THERE.** Those are different things and
+this file used to conflate them. Staleness is the price of keeping a six-minute
+browser run out of `npm test`, and it is fine right up to the moment the block
+prints `Measurements outside threshold: 0` for a route the run never visited --
+at which point the one generated place a reader consults is telling them a
+finding does not exist. That happened: the spec measuring the classroom spec
+table's four row-action glyphs landed at `700a56d`, `origin/main`'s block was
+measured at `4dc9df8`, which predates it, and the finding was invisible in this
+file for a day while sitting in a code comment, a route file's prose and a
+ledger entry.
+
+So the measured region records `covered`: the route spec files that run actually
+visited.
+
+* **A reader compares two rows.** `Route specs the run covered`, in the
+  measured table, against `Route specs`, in the static table directly above
+  it. The static region is checked against this tree on every `npm test`, so it
+  is the fresh number; if the two differ, every figure in the measured table --
+  the outside-threshold count included -- is a figure about a different set of
+  routes.
+* **The recorded commit is a WEAK signal and must not be read as the freshness
+  answer.** On a history this merge-heavy a stale measurement's commit is still
+  an ancestor of HEAD and reads as perfectly plausible. `4dc9df8` was.
+* **`npm test` refuses one pair and only one:** unmeasured specs AND a block
+  claiming zero findings. It names the specs. It does not refuse a stale block
+  that already names findings, a spec file edited without renaming, or a spec
+  deleted since the measurement -- `verifyMeasured` in `readme-counts.mjs`
+  enumerates each and says why, and `tests/derived-numbers.test.ts` carries a
+  control for each.
+* **`npm run verify:counts` says so too**, because that sub-second command is
+  what a bundle that just added a spec runs, and that is the moment the measured
+  half goes stale. It cannot fix it -- it has no browser and no report -- so it
+  prints which specs went unmeasured and stops there.
+
+**WHY IT IS SPLIT, AND WHY THE STATIC REGION CARRIES NO TIMESTAMP.** It was one
+region written by one all-or-nothing run: the generator demanded a measured
+report before it would write anything, so moving a count that is a directory
+listing and an array length cost a six-minute browser run. On 2026-09-03 five
+finished, CI-green branches all failed to merge, every one of them on this
+file, and every one of those conflicts was strictly inside the markers. Each
+had regenerated the single block against its own tree; each wrote a different
+date, a different sha and different numbers into the same lines. Unpicking it
+took a bundle of its own.
+
+Because the static region is a pure function of the tree -- no clock, no
+commit -- regenerating it on a tree whose counts have not moved produces **no
+diff at all**, and regenerating it on a merged tree produces the merged tree's
+own answer whatever either side had written. So a conflict here is resolved by
+running one sub-second command, never by choosing a side and never by finding a
+browser:
+
+```bash
+npm run verify:counts     # on the merged tree, then commit
+```
+
+The measured region is untouched by a branch that only adds a spec, so it stops
+appearing in those diffs at all.
+
+<!-- counts:begin -->
+
+### Static -- derived from this tree
+
+<!-- counts:static:begin -->
+**Generated by `npm run verify:counts`; do not edit by hand.** Derived from this tree alone: no browser, no dev server, under a second. Rerun it after adding or removing a route spec or a `/dev` page, and after resolving a merge that touched this region. It carries no date and no commit on purpose, so an unchanged tree regenerates to the same bytes. `tests/derived-numbers.test.ts` reddens when it disagrees with the tree.
+
+| Count | Value |
+| --- | --- |
+| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 106 |
+| Distinct routes those specs drive (alias-resolved, query string stripped) | 53 |
+| Directories under `src/routes/dev` with a page (the candidate set) | 83 |
+| Widths | 2 (375, 1440) |
+| Route/width runs a full pass makes (specs x widths) | 212 |
+
+<!-- counts:static:data {"schema":1,"specs":106,"routes":53,"devPages":83,"widths":[375,1440],"runs":212} -->
+<!-- counts:static:end -->
+
+### Measured -- from a full harness run
+
+<!-- counts:measured:begin -->
+**Generated by `npm run verify:readme`; do not edit by hand.** Measured 2026-09-05T18:08:50.395Z on commit `c7f57b9` by a full run of `tools/browser-verify/run.mjs` in this container. It needs a browser and about six minutes, so it is regenerated deliberately and not on every branch; a stale-but-honest measured half is a supported state.
+
+**Is this measured against this tree? Compare `Route specs the run covered` below against `Route specs` in the static region above.** If they differ, every number here -- the outside-threshold count included -- was measured over a different set of routes than this tree has, and a zero is a zero for that set and not for this one. The commit is recorded too, but on its own it is a WEAK signal: a stale measurement's commit is still an ancestor of HEAD and reads as perfectly plausible. `tests/derived-numbers.test.ts` names the unmeasured specs.
+
+| Count | Value |
+| --- | --- |
+| Route specs the run covered | 103 |
+| Route/width runs the report carried | 206 |
+| Measurements | 3010 |
+| Measurements outside threshold | 2 |
+| Full-run wall clock | 467.5s |
+| `--selftest` controls | 70 (36 negative, 34 positive), 0 instrument failure(s) |
+
+Measurements outside threshold on that run:
+
+- `/dev/notebook` @375 `tap-reach` toolbar text controls (under the floor on width -- decision 12, with the owner)
+- `/dev/notebook` @1440 `tap-reach` toolbar text controls (under the floor on width -- decision 12, with the owner)
+
+<!-- counts:measured:data {"schema":2,"date":"2026-09-05T18:08:50.395Z","sha":"c7f57b92dbaaaa418a4b75acbac937bb215a6e06","dirty":false,"covered":["animated-logo-room.mjs","animated-logo.mjs","attach-reach.mjs","avatars.mjs","check-in-manage.mjs","classroom-deck.mjs","classroom-images.mjs","classroom-inspector-case-assignment-open-0.mjs","classroom-inspector-case-assignment-open-1.mjs","classroom-inspector-case-sparse-open-1.mjs","classroom-interaction-case-fresh.mjs","classroom-interaction-case-typing.mjs","classroom-split-s-1-item-i-crowded-manage-1.mjs","classroom-split-s-1-manage-1-state-compose-assignment-rubric.mjs","classroom-split-s-1-manage-1.mjs","classroom-view-as-notebook.mjs","classroom-view-class-bulk-state-no-units.mjs","classroom-view-class-bulk-state-selected.mjs","classroom-view-class-bulk-student.mjs","classroom-view-class-bulk.mjs","classroom-view-class-teacher.mjs","coin-desk-area-economy.mjs","coin-desk-state-picker.mjs","coin-desk.mjs","coin-preview.mjs","coins-signedin-1.mjs","coins.mjs","composer-attach.mjs","feedback.mjs","foundry-admin-refusal.mjs","foundry-admin.mjs","foundry-forge.mjs","foundry-gallery.mjs","foundry-submit.mjs","frc-state-review-console.mjs","frc-state-reviewer.mjs","frc-state-student.mjs","frc.mjs","gauntlet-run.mjs","gauntlet-shell-countdown.mjs","gauntlet-shell.mjs","grading-bulk-case-batch.mjs","grading-bulk-leak-1.mjs","grading-bulk-state-single.mjs","grading-bulk.mjs","grading-change-state-pre-0171.mjs","grading-change-state-selected.mjs","grading-change.mjs","grading-incomplete-state-exports.mjs","grading-incomplete.mjs","hall-pass.mjs","home-feed-teacher.mjs","home-feed.mjs","home-order-role-student-classes-0-rows-3.mjs","home-order-role-student-classes-1-rows-3.mjs","home-order-role-student-classes-1-rows-4-due-1-0-1-5.mjs","home-order-role-teacher-classes-1-rows-3.mjs","instructor-tools-class-big-tool-email.mjs","instructor-tools-tool-email.mjs","instructor-tools-tool-picker.mjs","instructor-tools.mjs","item-images-empty.mjs","item-images-text.mjs","item-images.mjs","maps-edit-state-compartment.mjs","maps-edit-state-node-pending.mjs","maps-edit-state-place.mjs","maps-edit-state-unit.mjs","maps-edit.mjs","maps-grants-state-granted.mjs","maps-grants-state-published.mjs","maps-grants.mjs","maps-media.mjs","maps-shelf-state-no-photos.mjs","maps-shelf.mjs","maps-viewer-state-room.mjs","maps-viewer-state-stage-end.mjs","maps-viewer-state-stage-unit.mjs","maps-viewer-state-thin-stack.mjs","maps-viewer-state-unit.mjs","maps-viewer.mjs","marks.mjs","navigation-force-1.mjs","navigation-room-nb.mjs","navigation-room.mjs","navigation.mjs","notebook-review-realtime-stalled.mjs","notebook-review-student.mjs","notebook-review-viewer-instructor-nosections-1.mjs","notebook-review-viewer-instructor.mjs","notebook-review-viewer-reviewer.mjs","notebook-review.mjs","notebook.mjs","pathways.mjs","profile-menu.mjs","short-links.mjs","song-queue.mjs","spec-importer-case-assignment.mjs","spec-importer-case-staging.mjs","spec-table-empty-1.mjs","spec-table-open.mjs","spec-table-rows-12.mjs","spec-table.mjs"],"runsMeasured":206,"measurements":3010,"outside":2,"outsideRows":[{"path":"/dev/notebook","width":375,"check":"tap-reach","label":"toolbar text controls (under the floor on width -- decision 12, with the owner)"},{"path":"/dev/notebook","width":1440,"check":"tap-reach","label":"toolbar text controls (under the floor on width -- decision 12, with the owner)"}],"totalMs":467479,"selftest":{"controls":70,"negative":36,"positive":34,"failures":0}} -->
+<!-- counts:measured:end -->
+
+<!-- counts:end -->
+
 ## What this container actually has
 
 Measured 2026-08-27, not assumed:
@@ -65,27 +194,15 @@ a moved binary is a named error rather than a stack trace.
 data, need no account and no Supabase, and are compiled out of a production
 build. This is a hard boundary, not a starting set.
 
-**It drives a SELECTED SUBSET of them, and that is also deliberate.** There are
-**69** directories under `src/routes/dev` with a page, and `routes.mjs` lists
-**63 specs over 35 distinct routes** (re-derived 2026-08-30 against `ROUTES`
-itself, on this branch merged with `integration` at `52f4804`: this branch's
-classroom-view-as-notebook and notebook-review-realtime-stalled specs, plus the
-coins, coin-desk, frc-state, maps-placement, maps shelf-entry, navigation and
-notebook-review-viewer specs `integration` brought). This line has been
-re-derived three times on this branch in one session, because `integration`
-moved underneath it each time: 45 over 32 on `main`, 57 over 31 against
-`integration` at `47c77b1`, 59 over 32 at `cadf918`, and 63 over 35 at
-`52f4804`. `integration`'s own copy of this line was stale throughout (it stated
-44 over 28 against a tree measuring 55 over 30). Earlier readings, oldest last:
-36 over 28 the same day, 29 over 24 on 2026-08-29, and 25 over 20 the same day,
-before the marks, room-split, coin-preview and short-link specs. The two maps
-placement specs are why a spec count can move without the route count moving:
-`?state=place` is a fifth STATE of `/dev/maps-edit`. **This count is a snapshot, not a derived value, and it WILL
-go stale the next time a session adds a route --
-do not trust this line, re-derive it**: `ls routes/*.mjs | grep -v '/_' | wc
--l` for the spec count, or import `routes.mjs` and read `ROUTES.length`
-against the distinct `path.split('?')[0]` values (alias-resolved) for both
-numbers at once.
+**It drives a SELECTED SUBSET of them, and that is also deliberate.** How many
+specs, how many distinct routes and how many `/dev` pages exist to choose from
+are in the counts block above, generated. They used to be written out here, and
+the line was re-derived three times in one session while `integration` moved
+underneath it, each reading stale before the paragraph explaining it was
+finished; `integration`'s own copy was stale throughout. A spec count can move
+without the route count moving, because a spec may measure a STATE of a route
+another spec already drives (`?state=place` is a fifth state of
+`/dev/maps-edit`), which is why both numbers are carried rather than one.
 A route pass nobody waits for is a pass nobody runs. Routes earn a place by
 one question -- if this surface broke silently, would anyone find out before a
 student did -- not by existing. `docs/history/dev-routes-audit-5nocl7.md` has
@@ -129,22 +246,17 @@ Two further limits belong in any report that quotes these numbers:
 
 ### Known findings, and the two limits above as they apply to them
 
-**The whole run reports exactly 4 measurements outside threshold** (re-derived
-2026-08-30 on this branch merged with `integration` at `52f4804`: **126
-route/width runs, 1616 measurements**), and they are TWO findings: one seen at
-both widths, and one seen at 375px only on two different routes. Anything
-else is new. **This paragraph is a snapshot and it drifts** -- the run above it
-is the authority, and a session measuring a different number corrects this line
-in the same change, saying which finding moved.
+**How many measurements the whole run reports outside threshold, and which
+ones, is in the counts block above** -- generated, with the sha and the date it
+was measured on. What follows is why each standing finding stands, which the
+block cannot say. Anything the block lists that is not explained here is NEW.
 
-The count moved for two independent reasons and neither of them is a check being
-added -- one reason from each of the two lanes that corrected this paragraph.
-The 28 `prepare` steps are measurements now, at two widths each, which took
-`main`'s own tree from 532 to 580; and `integration` carries seven route specs
-`main` does not, which is the rest of the way to 780. The three findings this
-paragraph used to list are down to one. The other two are named below rather
-than deleted, because a finding that vanishes without a word reads like a check
-that stopped running.
+This paragraph used to carry the totals by hand and they drifted every time a
+lane touched the route list, for reasons that were never a check being added:
+`prepare` steps became measurements (two per step, per width), and a merge
+brought route specs the previous reading had never seen. A finding that leaves
+the list is named below rather than deleted, because a finding that vanishes
+without a word reads like a check that stopped running.
 
 - **`/dev/foundry-submit`'s stale sentence count no longer reproduces.** It read
   `present 2, visible 2` against `exactly 4` at both widths, and still
@@ -152,23 +264,80 @@ that stopped running.
   `integration` with `claude/navigation-loading-indicator-laqsgc`, and the spec
   now passes at both widths. It is named rather than deleted, because a finding
   that vanishes without a word reads like a check that stopped running.
-- **`/dev/pathways`: the two harness controls measure 194.7x26.2px** (min
-  dimension 26.2px), under the 44px floor at both widths. This number is a
-  **tap-target measurement**, so the fallback-stack limit above applies to it
-  directly -- the true box under Rajdhani may differ slightly, though not
-  enough to cross the 44px line from 26.2px.
-- **`/dev/coins` and `/dev/coins-signedin-1`: 51px of horizontal overflow at
-  375px** (scrollWidth 426 vs clientWidth 375; the overhanging nodes are
-  `#student-drawer`'s header and body, its close button, and the drawer's name,
-  stats and transaction-title rows, each reaching right=750 or 727.6 against a
-  375 viewport). **At 375px only -- 1440px is clean on both routes**, which is
-  why one finding accounts for two of the four measurements rather than the four
-  a both-widths finding would give. It arrived with the coin-ledger specs rather
-  than with this bundle, and `integration`'s own copy of this paragraph never
-  recorded it because that copy had gone stale (it stated 44 specs against a
-  tree carrying 55). The drawer is in the LEGACY coin ledger's shipping bytes,
-  which are frozen, so it is recorded here and not fixed: `/dev/coins` is
-  labelled "shipping bytes" for exactly that reason.
+- **`/dev/pathways`'s two harness controls are fixed and the row is green.**
+  They measured 194.7x26.2px (min dimension 26.2px) under the 44px floor at both
+  widths, for weeks, and the fix was `min-height: 44px` in that page's own
+  stylesheet rather than deleting the row -- a dev page's chrome is not a
+  product surface, but a standing finding every prompt has to warn the next
+  session about is noise that trains a reader to skim this list. Measured
+  194.7x44 now.
+- **`/dev/coins` and `/dev/coins-signedin-1`: the 51px of horizontal overflow at
+  375px is fixed, and the two things this bullet used to say about it were both
+  wrong.**
+
+  It said the overhang was `#student-drawer`'s header, body, close button, name,
+  stats and transaction-title rows. Those measurements were real and the
+  conclusion was not: `#student-drawer` is `position: fixed`, and a fixed
+  subtree contributes NOTHING to a document's scrollable overflow. Its children
+  are static or absolute inside that fixed ancestor, so they reach right=727-750
+  against a 375 viewport and sort to the top of any offender list ordered by
+  that number while contributing nothing either. **`horizontal-scroll` in
+  `checks.mjs` skipped an element whose OWN `position` was fixed and did not
+  walk up for a fixed ancestor**, which is why the drawer's six descendants were
+  what its report showed.
+
+  **That instrument gap is CLOSED as of 2026-09-04** (see "The checks" above for
+  the measured tables behind it, including the transformed-ancestor exception
+  that keeps it from becoming a false negative). `/dev/coins` and
+  `/dev/coins-signedin-1` now read `0px overflow ...; 9 node(s) past the edge
+  skipped as viewport-fixed` at both widths, and both specs stay green. It
+  stood open for two bundles after being correctly diagnosed, because the two
+  that found it did not own `checks.mjs` -- which is the argument for reporting
+  a defect outside your scope rather than working around it, and also the
+  argument for closing one when you do own the file.
+
+  The cause was the Ledger's own tab bar: four tabs flexed into a 343px
+  container with no `flex-wrap` and no `overflow-x`, with `Contracts` running
+  329.2 -> 426.3 -- 426 being the reported `scrollWidth`, to the pixel. The
+  page's own `body { overflow-x: hidden }` propagates to the viewport, so
+  `scrollLeft` set to 999 read back 0 on `documentElement`, on `body`, on
+  `window` and on `.tab-bar` itself: **the fourth tab of the public coin ledger
+  could not be reached on a phone, by scrolling, by swiping, or at all.** It was
+  worse in production than this harness could report, which is the one direction
+  the fallback-stack limit above is easy to read the wrong way round -- the tabs
+  are Orbitron, blocked here, and with the real face the overflow measured 89px
+  rather than 51px.
+
+  It then said the row had to stay red because the file is frozen legacy. The
+  freeze is real; the conclusion was not. Its own escape hatch is an explicit
+  rule, and prompt 0025 was issued with one scoped to those two CSS rules and
+  nothing else in the file. `flex-wrap: wrap` and `min-height: 44px` fixed both
+  the overflow and a tap-target finding nothing had ever measured (the tabs were
+  33.8px tall at 1440 and 39.6px at 375). Measured at 320, 375, 414 and 1440:
+  0px overflow at every one, all four tabs inside the viewport and hit-testable,
+  every tab 44.0px.
+
+  **The lesson worth keeping is that a finding recorded as permanently
+  unfixable is a finding nobody reads again.** Both of these stood for weeks
+  with a paragraph here explaining why nobody should look at them.
+- **`ProfileMenu`'s trigger measured 34px against the 44px floor, on 69 product
+  pages, and is fixed.** It never appeared in this list because nothing had ever
+  measured it: the only tap-target row in the harness pointed at a dev page's
+  own buttons. Prompt 0023 added a `.pm-trigger` row to `pathways.mjs` and found
+  44.0x34.0 there and 100.6x34.0 on `/dev/profile-menu` and `/dev/home-order`,
+  at both widths -- `Avatar size={30}` plus 2px of padding, so font-independent
+  and not qualified by the fallback-stack limit above. Fixed with
+  `.tap-reach-44`, which grows the HIT AREA and deliberately leaves the painted
+  box at 34px: this button is a flex item of a masthead row that 69 pages size
+  around, and a taller box would have moved all of their chrome. **So the rows
+  measuring it are `tap-reach`, not `tap-target`** -- pointing the box check at
+  a reach control reports a finding on every one of them, on a surface that is
+  fine, which `checks.mjs` says in its own comment above `tapReach`. The
+  hit-testing row lives on `/dev/profile-menu`, where the control is in the
+  viewport; on `/dev/pathways` the stage sits ~2261px down at 375 and
+  `elementFromPoint` answers null outside the viewport, so all five sample
+  points there are `offscreen` and excluded from the stolen-tap gate. Geometry
+  is still measured on both.
 - **Two findings this list used to carry no longer reproduce**, measured on the
   same run rather than assumed: `/dev/coin-preview`'s student picker is
   **352x44** (it was 247.3x19 at 375px and 352x19 at 1440px, under the 24px
@@ -193,13 +362,13 @@ threshold exists it is printed beside the measurement, never instead of it.
 
 | Check | Measures |
 | --- | --- |
-| `horizontal-scroll` | `scrollWidth - clientWidth`, plus the widest offending elements and their overhang in px |
+| `horizontal-scroll` | `scrollWidth - clientWidth`, plus the widest offending elements and their overhang in px -- SKIPPING a whole viewport-fixed subtree, and counting what it skipped |
 | `contrast` | WCAG ratio of the text against the **real rendered ground**, naming which ancestor supplied it |
 | `tap-target` | Each control's box, the smallest min-dimension, counts under 44px and under the 24px floor, and a centre hit-test |
 | `tap-reach` | A `.tap-reach-44` control's expanded HIT AREA (its `::after` pseudo-element's own geometry, recomputed the way the CSS computes it), not its box -- plus a 5-point hit test across that area for a tap a neighbour might be stealing |
 | `presence` | **present**, **visible** and **aria-hidden** counts -- three different questions -- with a reason for every invisible node |
 | `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
-| `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen |
+| `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen. A non-array on either side is refused IN WORDS, never as a silent red |
 | `motion` | Per ELEMENT, in BOTH media states: how many elements animate under `no-preference`, and how many are still moving, still transformed or unpainted under `reduce`, plus the lowest resting opacity in the set |
 | `console-errors` | Console errors and uncaught exceptions during the run |
 
@@ -226,6 +395,50 @@ Three details are deliberate:
   vacuously about rows inside entrance-faded cards; those specs settle the
   entrance in `prepare` now (see `SETTLE_ENTRANCE`) rather than writing the
   vacuum down as an exemption.
+- **The offender list skips a whole FIXED SUBTREE, not only the fixed element.**
+  A fixed box's containing block is the viewport, so nothing under it
+  contributes to the document's scrollable overflow -- but its static and
+  absolute children carry the overlay's viewport coordinates, and sorted by
+  overhang they top the list. Measured in this container at 375: a 1200px static
+  box grows `scrollWidth` to 1200; a 1200px fixed box, a 300px fixed box with a
+  1200px static child, a fixed drawer at `left: 100%`, and a 1200px absolute
+  child of a fixed box all leave it at 375. The check tested the ELEMENT'S OWN
+  `position` until 2026-09-04, which is why `/dev/coins` reported six
+  descendants of `#student-drawer` as the cause of an overflow the Ledger's tab
+  bar was causing, for weeks. **The exception is measured too and is why this is
+  not a one-line `closest()`:** a `position: fixed` box under an ancestor with
+  `transform`, `translate`, `rotate`, `scale`, `perspective`, `filter`,
+  `backdrop-filter` or a non-`auto` `will-change` is NOT viewport-fixed, scrolls
+  with the document, and does extend it (measured, `scrollWidth` 1200 against a
+  375 viewport) -- so it is still reported, tagged `captured-fixed`. The walk
+  errs toward reporting: `contain` and `container-type` were measured NOT to
+  capture and are treated as if they might, because a false offender gets
+  investigated and a hidden overflow does not. **The skip count rides in the
+  measured string** whenever it is non-zero (`/dev/coins` reads `9 node(s) past
+  the edge skipped as viewport-fixed`), so an empty offender list beside a real
+  overflow can be told from a sweep that skipped the cause.
+- **`--tap-reach-w: 0` means zero, and used to be read as 44.** The reach width
+  was `parseFloat(...) || 44`, and `0 || 44` is 44 -- so a control declaring the
+  documented zero-width knob was modelled with a 44px-wide reach it does not
+  have. Ten components in `src/` declare it (CLAUDE.md requires it wherever two
+  controls sit closer than 44px on one line) and route specs point this check at
+  three of them, so this was a live mis-measurement rather than a latent one:
+  `.attach-name` is 22.5px wide, was reported at 44, and its two horizontal
+  sample points were taken 22px from centre instead of 11.25px. Unset still
+  defaults to 44, because that is what `var(--tap-reach-w, 44px)` in
+  `src/app.css` does; the declared string is reported verbatim as
+  `reachWDeclared` so a non-px value cannot be silently truncated to its number.
+- **`order-result` compares arrays and only arrays, and now SAYS so.** A probe
+  or a spec handing it a joined string could never come out within threshold,
+  and both report columns are `JSON.stringify`, so a row written
+  `expected: 'a,b,c'` against a probe returning `'a,b,c'` printed `"a,b,c"`
+  twice over a red verdict with nothing saying why. Prompt 0027 wrote four such
+  rows. The contract is unchanged -- accepting strings would hand back the
+  separator ambiguity an element-for-element comparison exists to remove -- and
+  the report is not: `measured` now reads `CANNOT COMPARE: ...` and names the
+  type it got, so the two columns can never read the same again. A probe that
+  THREW is reported the same way, instead of printing a bare
+  `{"__evalError":"..."}` against an array.
 - **The centre hit-test is recorded but is only meaningful IN THE VIEWPORT.**
   `document.elementFromPoint` answers null outside it and the harness never
   scrolls, so a control far down a long page reads `centreHitsSelf: false` --
@@ -350,16 +563,29 @@ A check that has never failed has not been tested.
 `--selftest` puts every check to a pair of self-contained fixtures, one built to
 break it and one built to pass it, and prints both measured values. It exits
 non-zero if a check comes back green on the broken fixture or red on the sound
-one, because unlike the measuring run there is a right answer here. **64
-controls, 32 negative and 32 positive** (re-derived from a `--selftest` run
-2026-08-30 on `claude/notebook-audit-fixes-0tkfek`, unchanged by it -- that
-branch added route specs, not checks; it read 54 on 2026-08-29, 44 the same day,
-and 36 on 2026-08-28. A number
-written down here is a number that drifts, so re-derive it rather than trusting
-this line).
+one, because unlike the measuring run there is a right answer here. How many
+controls run, and how they split between negative and positive, is in the counts
+block above; `npm run verify:readme` reads it off a `--selftest` run. It was
+written out here across four readings in three days, wrong on most of them,
+which is the whole argument for generating it.
 Fixtures rather than a mutation of `src/` on purpose: a mutation proves a check
 once in a tree that then has to be restored byte-identically, this proves it on
 every run and touches nothing.
+
+**A SLOT MAY CARRY AN `assert`, AND SOME CLAIMS NEED ONE BECAUSE within/outside
+CANNOT REACH THEM.** `horizontal-scroll`'s verdict is `scrollWidth -
+clientWidth` and nothing else, so no pairing of fixtures can say anything about
+WHICH elements its offender list names -- and the offender list is the whole
+diagnostic value of that check, and was wrong for weeks. `assert` is
+`(result) => string | null` on a slot: null means the extra claim held, a string
+is the reason it did not, and a slot is PROVED only when the verdict AND its
+assert both hold. An assert failure is an instrument failure and is counted as
+one; the controls total stays one per slot, because an assert is a second
+condition on a control rather than a control of its own. Three groups use it
+today (the fixed-subtree walk both ways, the honoured `--tap-reach-w: 0`, and
+`order-result`'s refusal being legible), and all four of those asserts were
+proved to bite by restoring the three defects in `checks.mjs` and watching the
+run report `4 instrument failure(s)` and exit 1.
 
 **`tap-reach` is a SEPARATE check from `tap-target`, not a variant of it, for a
 control whose class is `.tap-reach-44` rather than `.tap-44`.** `.tap-reach-44`
@@ -538,68 +764,28 @@ results rather than one.
 
 ## Why it is not in `npm test` and not in CI
 
-A full run is **282.8 seconds** (2.5s of it the vite boot) for **63 route specs
-x 2 widths = 126 runs and 1616 measurements**; `--selftest` is ~32s (64
-controls). That is measured 2026-08-30 on this branch merged with `integration`
-at `52f4804`. The same branch read 265.6s for 118 runs and 1538 measurements
-against `integration` at `cadf918`, and 253.3s for 114 runs and 1460
-measurements at `47c77b1`; `integration` itself read 207.1s for 88 runs and 1076
-measurements. This branch's own findings paragraph earlier recorded a
-90-run/1064-measurement reading with no wall clock beside it; it read 184.7s for
-72 runs and 780 measurements earlier the same day, and 152.2s for 58 runs and
-580 measurements on `main` alone. The per-route/width cost has held at roughly
-2.2s across that whole range.
+**What a full run costs, and what `--selftest` costs, are in the counts block
+above.** Both were written out here and both were wrong repeatedly: the line
+read "~34 seconds ... 8 route specs" against a tree carrying 14, a task brief
+built from it put a 71.9s tree at "roughly 22 seconds", and a later brief put a
+40-run 94.9s tree at "44 route/width runs at about 107 seconds". Three quoted
+figures, three wrong, none of them caught by the person quoting them. That is
+the failure `readme-counts.mjs` exists to end.
 
-**MEASURE IT, DO NOT QUOTE THIS LINE.** It has been wrong before in the
-direction that matters: it read "~34 seconds ... 8 route specs" against a tree
-carrying 14, and a task brief written from it put the real figure at "roughly 22
-seconds" when the same tree measured **71.9s**. It later read "~91 seconds ...
-17 route specs" (91.4s measured 2026-08-27); three more specs
-(`/dev/notebook`, `/dev/notebook-review-student`, `/dev/song-queue`) measured
-**+9.3s** on 2026-08-28, close to the ~2.6s-per-route/width estimate this line
-already carried (~+15.6s expected for 6 more runs; 9.3s measured -- still in the
-same ballpark, and the discrepancy is plausibly the `/dev/notebook` prepare
-click adding one extra round trip per width rather than a new per-route
-constant). **Then 2026-08-29 measured the baseline at 94.9s, not 101s**, and
-the task brief written from this file put it at "44 route/width runs at about
-107 seconds" against a tree measuring **40 runs and 94.9s** -- the third time
-a quoted figure here has been wrong. Three GAUNTLET specs took it to
-**116.7s (+21.8s for 6 runs, ~3.6s per route/width)**, which is ABOVE the
-~2.6s estimate: two of the three specs mount a `.gt-root` with a live canvas
-background and an rAF clock, and the countdown alias pays a real 3.5s hydration.
-
-Then 2026-08-29 added four specs -- `/dev/marks`, `/dev/animated-logo-room`,
-`/dev/coin-preview`, `/dev/short-links` -- and measured **144.8s for 58 runs**,
-**+27.9s for 8 more runs, ~3.5s per route/width**. That is at the high end of
-the range this line already carried and above the ~2.6s estimate, which is worth
-knowing: none of the four mounts a canvas, so ~3.5s looks like the current
-per-route/width cost rather than a surcharge for animation. `/dev/marks` mounts
-twelve glyphs and runs the `motion` check's two media flips, and still came in
-at 5.6s of measuring for both widths.
-
-Then 2026-08-30 made every `prepare` step a measurement, which added **48
-measurements (24 steps x 2 widths) and no routes**: the same 58 runs measured
-**152.2s**, +7.4s over 144.8s on an identical route list. Roughly 0.15s per
-extra measurement, which is the cost of a step being JUDGED rather than
-narrated, and it is paid whether or not the step passes.
-
-Then merging `integration` in brought the route list to **36 specs, 72 runs and
-780 measurements** at **184.7s** -- **+32.5s for 14 more runs, ~2.3s per
-route/width**, which is BELOW the ~3.5s this line had settled on. The fourteen
-are the classroom-inspector and class-bulk specs, which mount fixture data with
-no canvas, no rAF clock and no media flip, so the per-route/width figure is a
-range set by what a route mounts rather than a constant -- budget ~3.5s for a
-route with animation in it and ~2.3s for one without.
+**What does NOT come out of the block is the budget for the NEXT spec, so it is
+stated here as a range rather than a number.** The per-route/width cost is set
+by what a route mounts, measured repeatedly across those readings: roughly
+**2.3s** for a route mounting fixture data, and roughly **3.5s** for one with a
+live canvas, an rAF clock, or the `motion` check's two media flips. A `prepare`
+step costs about **0.15s** per measurement it adds, paid whether it passes or
+not, because a step is JUDGED now rather than narrated. A session adding specs
+budgets from that range and says out loud what its run cost.
 
 **The marks are ELEVEN GLYPHS ON ONE ROUTE for exactly this reason.** One route
-per mark would have been twenty-two runs and roughly 77 seconds for
-measurements that share a single page load; `data-mark` keeps the reporting
-per-mark anyway. A pass nobody waits for is a pass nobody runs.
-
-**~185 seconds is the point at which this stops being free.** It is still a pass
-a person will run before pushing, but the next session adding specs here should
-budget somewhere in the ~2.3s to ~3.5s per route/width the paragraph above
-brackets, and should say out loud what the run cost.
+per mark would have been twenty-two runs for measurements that share a single
+page load; `data-mark` keeps the reporting per-mark anyway. A pass nobody waits
+for is a pass nobody runs, and the run is long enough now that the next session
+adding to it should think about the cost before adding a route.
 
 It is still deliberately outside `npm test` and outside CI:
 

@@ -1,18 +1,20 @@
 # IDEA Reference Library
-**Version 4.2 - 2026-08-26**
+**Version 4.3 - 2026-08-31**
 
-Owning document for Google Drive source material. Project knowledge holds the working
+Owning document for Google Drive material. Project knowledge holds the working
 set, read automatically every chat. Drive holds bulk source that is consulted
-occasionally and would otherwise crowd out what is needed constantly.
+occasionally and would otherwise crowd out what is needed constantly, and, as of
+Library C, the artifacts this assistant produces.
 
-Two libraries.
+Three libraries. Two are read. One is written.
 
 | Library | Folder ID | Holds |
 |---|---|---|
 | A. Reference PDFs | `1MAEkVrDFMKhMZ2v21AkbYStnEYmFm9ZO` | 39 files. FRC reference set, NASA RAP, CCSS and NGSS source |
 | B. Curriculum and A-G archive | `1eOxBGvFGShn6xBHDZUHe-ueH_Mg_qAHy` | 79 files across four subfolders. Course descriptions, UC policy source, comparison corpus, textbooks |
+| C. Artifact store | `1SkIKOIdMM34f_fFnKmtOw1KsTtqDAOtt` | Finished deliverables produced in claude.ai chats. Written to at every delivery, read by any later chat |
 
-**Established:** August 23, 2026
+**Established:** August 23, 2026. Library C added August 31, 2026.
 
 ---
 
@@ -89,6 +91,30 @@ Then `read_file_content` with the returned `fileId`. Never guess a file ID.
    What is cited and how it reaches students is governed by
    `IDEA_MATERIALS_PROCESS.md`, section "Every Material Cites Its Sources." This rule
    covers the reading; that one covers the writing.
+
+11. **Rule 6 governs A and B only. Library C is written to without asking.** The
+   never-edit-unasked rule exists because Libraries A and B hold source that other work
+   depends on and that this assistant did not create. Library C holds output this
+   assistant did create, and writing to it is the point of it. Creating a file inside
+   Library C needs no instruction. Deleting one still does, and deletion is the only
+   correction available, because the connector cannot replace a file.
+
+12. **The connector creates and cannot replace, so a name is used once.** Two writes
+   under one title return two file IDs and leave two copies with no staleness marker,
+   measured 2026-08-31 on this library. A corrected artifact therefore carries an
+   explicit version marker in its filename rather than reusing the name, and the turn
+   says which file it supersedes. Removing the superseded copy is Mr. Pina's, or this
+   assistant's on his word, and it is never assumed.
+
+13. **A chat looks in Library C when it has a reason to, not at every open.** Drive is
+   not mounted the way project knowledge is, so nothing here is read unless a chat goes
+   and gets it, and rule 4 still holds: nothing read persists to the next conversation.
+   Search before any work that would rebuild something, before any handoff that claims
+   an artifact exists, and whenever Mr. Pina refers to a deliverable this chat has not
+   seen. The folder listing is the index; there is no maintained table, deliberately.
+   A table this assistant cannot update in place would have to be rebuilt by hand every
+   delivery and would drift from the folder it describes, which is the `REGISTER.md`
+   blind spot bought at a cost and for no benefit.
 
 ---
 
@@ -265,6 +291,61 @@ Commercial engineering textbooks, 4 MB to 46 MB. Two constraints.
 
 ---
 
+## Library C - Artifact store
+
+`1SkIKOIdMM34f_fFnKmtOw1KsTtqDAOtt`. Established August 31, 2026. Four folders and
+an index, all at the top level of the folder.
+
+| Folder | Folder ID | Holds |
+|---|---|---|
+| root | `1SkIKOIdMM34f_fFnKmtOw1KsTtqDAOtt` | `README.md` only |
+| IDEA100 | `1H4g7dJyNMJ983rDuBJ-ToDKji3butoDy` | Every IDEA100 artifact |
+| IDEA209H | `1HRaq94Ty3Klp5o7ElX8k5HtJv29qqcq0` | Every IDEA209H artifact |
+| FRC | `1IfL5hKl0f9KDqtE-42BuoWW9iCAiJ2yZ` | Team 5669 artifacts |
+| Program | `1EclTFFWQggLQjI6hRndnTycGHhOBh37C` | Everything not owned by one course: A-G, coin, app prompts, cross-course reports |
+
+`README.md` at the root describes the library and is static. There is no index table:
+the folder listing is the index. Delivered filenames already lead with course and day,
+so `title contains 'IDEA209H_Day08'` returns every class of artifact for that day at
+once, and the four folders exist for Mr. Pina's eye rather than for retrieval.
+
+**What does not go here.**
+
+Standards files. Every file with a row in `docs/standards/REGISTER.md` lives in
+`pina-hash/idea-app` and only there. A second home for a versioned file is a fork
+generator, and the freshness protocol in `IDEA_instructions.md` exists because that
+failure has already happened twice at real cost. Library C holds outputs, never
+governing documents.
+
+Source. Libraries A and B do not move and nothing is copied out of them into C.
+
+Anything large enough to be dragged in by hand. See the size ceiling below.
+
+**Writing to it.** `create_file` with `parentId` set to the folder, `textContent` for
+UTF-8 content and `base64Content` for anything else, `contentMimeType` set to the real
+type, and **`disableConversionToGoogleType` set to true, without exception.** Left
+unset, Drive converts an uploaded `.md` into a Google Doc and an uploaded `.csv` into a
+Sheet, and the file is then no longer the artifact that was delivered. Measured
+2026-08-31 on the round trip that established this library.
+
+**Archiving is never free, and the cost is context rather than Drive.** There is no path
+from the container filesystem to the connector, so every archived file passes through the
+response in full: text as itself, a binary as base64 at roughly 1.37 times its size. A
+file authored in the container and then archived is therefore emitted twice, once to
+write it and once to upload it. Two consequences.
+
+**Binaries have a hard ceiling of about 100 KB.** A 500 KB rendered PDF is on the order
+of 170k tokens and will end a chat rather than archive a file. Above the ceiling, deliver
+the download, name the target folder, and say in one line that it is a manual drag. A
+1367-byte PDF was round-tripped byte-exact on 2026-08-31, so the mechanism is sound and
+the cost is the only limit.
+
+**Text artifacts get a judgment rather than a ceiling.** Archive anything a later chat
+would otherwise rebuild or would have to be told about: specs, prompts worth reusing,
+rendered materials, reports. Do not archive scratch, one-off diagnostics, or a draft
+superseded inside the same turn. The doubling cost is the reason the question is asked
+at all; before this was measured the rule read that text was free, which it is not.
+
 ## Known unreadable
 
 No text layer. Every page is an image. Any tool reading them returns nothing, and the
@@ -281,6 +362,29 @@ to OCR. `effectivestrategies.pdf` is the one worth fixing.
 ---
 
 ## Changelog
+
+**v4.3 - August 31, 2026**
+Added Library C, the artifact store, and with it the first Drive location this
+assistant writes to rather than reads. Built and verified in the same session: folder
+and four subfolders created, a markdown file written and downloaded back to confirm it
+survived as markdown, and a 1367-byte PDF round-tripped byte-exact to prove the binary
+path. Two findings are recorded because neither is guessable and both are expensive to
+rediscover. `disableConversionToGoogleType` must be set on every write or Drive
+silently converts the artifact into a Google first-party file. And the binary ceiling
+is a context cost rather than a Drive limit: base64 in the conversation runs about
+1.37x the file, so a 500 KB PDF is roughly 170k tokens and the practical ceiling is
+100 KB, above which the file is delivered for a manual drag. Scoped Library C against
+the repo deliberately: standards files stay in `docs/standards/` and only there,
+because a versioned file with two homes is the fork generator the freshness protocol
+was written to survive. Added rules 11 and 12, splitting the never-edit-unasked rule
+so it continues to bind A and B while C is written to freely, and stating that a chat
+searches Library C on a reason rather than at every open. A third finding retired a design written earlier in the same
+session before it shipped: the connector creates and cannot replace, so two writes under
+one title return two file IDs and two copies with no staleness marker. That kills any
+maintained index table, since one this assistant cannot update in place would drift from
+the folder it describes and buy the `REGISTER.md` blind spot for no benefit. The folder
+listing is the index, `README.md` is static, and a corrected artifact carries a version
+marker in its filename rather than reusing the name.
 
 **v4.2 - August 26, 2026**
 Added rule 10, extending consult-before-authoring to course materials and naming the

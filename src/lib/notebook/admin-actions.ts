@@ -405,3 +405,136 @@ export function adminLogActor(row: AdminLogRow, viewerId: string | null): string
 	if (viewerId && row.actor_id === viewerId) return 'You';
 	return row.actor_id;
 }
+
+// ---------------------------------------------------------------------------
+// What a check-in already has attached to it, and what an edit would do to it
+// ---------------------------------------------------------------------------
+
+/**
+ * HOW MUCH WORK IS ALREADY FILED AGAINST ONE CHECK-IN, read off the grid the
+ * console has already loaded.
+ *
+ * NO NEW READ AND NO NEW RPC. `notebook_get_section_grid` already returns one
+ * cell per (student, check-in) with `entry_id` and `excused` on it, and the
+ * console holds that payload to draw the grid. Asking the database a second
+ * question would be a second answer that can disagree with the one on screen --
+ * a teacher reading "3 students have answered" above a grid showing four filled
+ * cells has no way to tell which is lying.
+ *
+ * `answered` COUNTS STUDENTS, NOT ENTRIES, and that is the number the sentence
+ * needs: "12 students have already filed against this" is what an instructor is
+ * deciding about, where "17 entries" silently double-counts the student who
+ * filed three pages. `GridCell.entry_count` is the per-student total and is
+ * deliberately not summed here.
+ *
+ * `excused` IS COUNTED BESIDE IT BECAUSE DELETING DESTROYS IT. An entry
+ * survives a delete (`_notebook_detach_session_entries` nulls its `session_id`
+ * and relabels it), but `notebook_session_excusals` is `on delete cascade` --
+ * so an excusal an instructor granted is the ONE thing a delete really does
+ * destroy, and until now nothing said so anywhere on screen.
+ */
+export interface CheckInLoad {
+	/** Students with at least one live, submitted entry filed against it. */
+	answered: number;
+	/** Excusals granted on it. Destroyed by a delete; nothing restores them. */
+	excused: number;
+}
+
+/**
+ * The per-check-in load, keyed by session id, for every check-in THE GRID
+ * COVERS.
+ *
+ * ONLY THE COVERED ONES ARE KEYED, AND THAT IS THE WHOLE POINT OF THE SHAPE.
+ * The console's unit filter narrows the grid to one unit, so a check-in outside
+ * the current filter has no cells in the payload -- and a `Record` that
+ * defaulted a missing key to `{answered: 0}` would answer "nobody has filed
+ * against this" for a check-in with thirty entries on it, which is the exact
+ * sentence that gets work thrown away. A missing key means CANNOT TELL, and
+ * `checkInLoad` below is the one reader that says so.
+ *
+ * `grid.sessions` is the discriminator rather than the cells: a check-in the
+ * grid covers with an empty roster genuinely has zero answers, and keying off
+ * the cells alone could not tell that from not being covered at all.
+ */
+export function checkInLoadIndex(
+	grid: { sessions: { id: string }[]; cells: CheckInLoadCell[] } | null | undefined
+): Map<string, CheckInLoad> {
+	const index = new Map<string, CheckInLoad>();
+	if (!grid) return index;
+	for (const session of grid.sessions) {
+		index.set(session.id, { answered: 0, excused: 0 });
+	}
+	for (const cell of grid.cells) {
+		const row = index.get(cell.session_id);
+		// A cell for a check-in the payload did not list is not counted into a
+		// key that does not exist: inventing one here would turn "cannot tell"
+		// into a number, which is the failure this whole index is shaped around.
+		if (!row) continue;
+		if (cell.entry_id) row.answered += 1;
+		if (cell.excused) row.excused += 1;
+	}
+	return index;
+}
+
+/** The three fields of a grid cell this counts on. Structural, so a test needs no whole grid. */
+export interface CheckInLoadCell {
+	session_id: string;
+	entry_id: string | null;
+	excused: boolean;
+}
+
+/**
+ * What is filed against ONE check-in, or null for "cannot tell".
+ *
+ * Null is a first-class answer and every caller renders it as a sentence rather
+ * than as a zero. It is what a deployment mid-load, a grid narrowed to another
+ * unit, and a console with no grid at all all report -- and "cannot tell" must
+ * never read as "nothing", which is the `manages`-undefined rule this repo
+ * already writes down for the roster.
+ */
+export function checkInLoad(
+	index: Map<string, CheckInLoad>,
+	sessionId: string
+): CheckInLoad | null {
+	return index.get(sessionId) ?? null;
+}
+
+/**
+ * WHAT AN OPEN EDIT WOULD ACTUALLY CHANGE.
+ *
+ * The classification is the design decision of this bundle, and it exists
+ * because "edit a check-in" is two different acts wearing one button.
+ *
+ *   `none`       nothing moved off what was seeded.
+ *   `schedule`   the DAY and/or the UNIT moved, and nothing else. This touches
+ *                no answer and changes nothing about what was asked, so it is
+ *                the cheap path: a teacher moving a date is never walked
+ *                through a warning about work already filed.
+ *   `identity`   the NAME moved. Every student who has already filed sees the
+ *                new name over the page they filed, so this is the edit that
+ *                gets the count named at it.
+ *
+ * A rename that ALSO moves the date is `identity`: the more serious of the two
+ * wins, because the warning is about the rename and the reschedule riding along
+ * does not make it safer.
+ *
+ * THE GUIDANCE PROMPT IS NOT CLASSIFIED HERE and is not part of this edit at
+ * all -- it is written by its own narrow RPC from its own panel, and the form
+ * this compares against has no field for it.
+ */
+export type CheckInEditKind = 'none' | 'schedule' | 'identity';
+
+export function checkInEditKind(
+	before: { unit_number: number; session_date: string; session_label: string },
+	after: { unit_number: number; session_date: string; session_label: string }
+): CheckInEditKind {
+	// `.trim()` on BOTH sides, and never `btrim`'s spaces-only idea of empty:
+	// the RPC stores `btrim(label)`, so a seeded label already has its spaces
+	// off and a form that only added some has changed nothing worth warning
+	// about.
+	if (before.session_label.trim() !== after.session_label.trim()) return 'identity';
+	if (before.unit_number !== after.unit_number || before.session_date !== after.session_date) {
+		return 'schedule';
+	}
+	return 'none';
+}
