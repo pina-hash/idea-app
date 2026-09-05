@@ -47,6 +47,36 @@
 // The comparison logic lives in `readme-counts.mjs` (`verifyStatic`,
 // `verifyMeasured`, `verifyBlock`), imported here rather than reimplemented,
 // so `--check` and CI cannot disagree about what "the region agrees" means.
+//
+// THIS STILL FAILS, AND THE SWEEP DOES NOT MAKE IT REDUNDANT (prompt 0050).
+// `integrate.yml` now regenerates the STATIC region once on the merged tree
+// before it pushes `integration`, which closes the one case neither this test
+// nor prompt 0035's resolver could reach: two branches that each add ONE route
+// spec each write the SAME number for their own tree, git takes the identical
+// edit on both sides with no conflict, and the pushed tree holds one more spec
+// than the region claims.
+//
+// The two act at different times on different refs, so neither replaces the
+// other, and the reconstruction says which has been doing the work: across
+// every merge into `integration` since the region existed, NOT ONE sweep merge
+// left the static region stale -- because this test reddens a branch that added
+// a spec without regenerating, and the sweep merges only green branches. What
+// this catches that the sweep cannot:
+//
+//   * A BRANCH. The sweep never touches a `claude/*` ref. This is what keeps
+//     every branch's region honest for its own tree, which is the gate that has
+//     actually been holding.
+//   * A HAND EDIT, caught on the branch, before the sweep exists at all.
+//   * `main`, which the sweep never pushes and which moves on its own via the
+//     classroom export.
+//   * THE MEASURED HALF, which the sweep never writes and must not: the
+//     covered-set rule below is this file's alone.
+//   * A SWEEP RUN WHOSE REGENERATION FAILED. It warns and pushes anyway, by
+//     design; the next branch's CI is what says the region is behind.
+//
+// Measured on 2026-09-05: one static digit edited by hand in the rendered table
+// reddens 7 of the 18 tests here; the data line and the table edited together
+// into a self-consistent lie about the tree reddens 8.
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';

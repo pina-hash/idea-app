@@ -393,7 +393,8 @@ const CUTTABLE_GATES = [
 	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: null },
 	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null },
 	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' },
-	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' }
+	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'counts_refresh', marker: 'counts_refresh_marker', harness: 'tools/integrate-gate-proof.sh' }
 ] as const;
 
 /**
@@ -833,6 +834,83 @@ describe('POSITIVE CONTROLS: the reader catches what it claims to', () => {
 		expect(emptyInterpolations(f)).toEqual([]);
 	});
 });
+
+/**
+ * EVERY WAY THE STATIC COUNTS REFRESH COULD REGRESS, AS ONE LIST.
+ *
+ * A function over the workflow TEXT rather than a body inside one test,
+ * because the positive control has to put these same rules to a MUTATED copy
+ * of the real file. A findings list that has only ever been computed on the
+ * passing file is a list nobody has tested.
+ *
+ * Everything here is a property `tools/integrate-gate-proof.sh` CANNOT see: it
+ * drives `counts_refresh` directly, so where the call sits, what it is gated
+ * on, and whether a failure can abort the sweep are all green there.
+ */
+function countsRefreshFindings(s: string): string[] {
+	const findings: string[] = [];
+	const CALL = 'if counts_note="$(counts_refresh)"; then';
+
+	// ONCE, AND AFTER THE LOOP. The call has to sit after the `done` that
+	// closes the branch loop and before the push gate, or it is either a
+	// per-branch commit or a regeneration of a tree that was already pushed.
+	// Positions, not prose.
+	const call = s.indexOf(CALL);
+	const loopEnd = s.indexOf('\n            fi\n          done\n');
+	const pushGate = s.indexOf('if target_push_gate "${remote_tip:-}"');
+	if (call < 0) findings.push('nothing calls counts_refresh');
+	if (loopEnd < 0) findings.push('the branch loop no longer ends where this rule looks for it');
+	if (call >= 0 && loopEnd >= 0 && call < loopEnd) {
+		findings.push('counts_refresh is called from INSIDE the branch loop, so it runs per merge');
+	}
+	if (call >= 0 && pushGate >= 0 && call > pushGate) {
+		findings.push('counts_refresh is called AFTER the push, so what it writes is never pushed');
+	}
+	if (s.split('$(counts_refresh)').length - 1 !== 1) {
+		findings.push('counts_refresh is called more than once, or not at all');
+	}
+
+	// THE STATIC HALF ONLY, ASSERTED OVER THE CUT REGION rather than over the
+	// file, so a comment elsewhere cannot satisfy it. The measured half needs a
+	// browser and about six minutes; a sweep that wrote it would be publishing
+	// a measurement it never took.
+	const body = cutRegion(s, 'counts_refresh_marker');
+	if (body.trim() === '') findings.push('the counts_refresh region cuts nothing');
+	if (!body.includes('readme-counts.mjs --static')) {
+		findings.push('the refresh no longer runs the generator in --static mode');
+	}
+	for (const forbidden of ['verify:readme', '--from', '--selftest', 'run.mjs']) {
+		if (body.includes(forbidden)) {
+			findings.push(`the refresh reaches for ${forbidden}, which is the measured half`);
+		}
+	}
+
+	// ONE PATH, NAMED. `git commit -- <path>` is what makes "it never touches
+	// the measured region" a fact about the commit rather than a claim about
+	// the generator.
+	if (!body.includes('-- "$readme"')) {
+		findings.push('the refresh no longer commits exactly the one named path');
+	}
+	if (!/local readme='tools\/browser-verify\/README\.md'/.test(body)) {
+		findings.push('the refresh no longer names the counts README as the one file it may write');
+	}
+
+	// A FAILURE MUST NOT COST A MERGE. Nothing in the refresh or at its call
+	// site may exit the step; the push runs either way. An `exit` on this path
+	// is the shape that would silently discard a whole sweep for a generated
+	// table.
+	if (/(^|\s)exit\s/.test(body)) {
+		findings.push('the refresh can exit the step, which would discard the merges it follows');
+	}
+	const callBlock = call >= 0 ? s.slice(call, s.indexOf('\n          fi\n', call)) : '';
+	if (/(^|\s)exit\s/.test(callBlock)) {
+		findings.push('the refresh call site can exit the step, which would discard the merges');
+	}
+	if (!callBlock.includes('counts_failed=yes')) {
+		findings.push('a failed refresh is not recorded, so the summary cannot report it');
+	}
+	return findings;
+}
 
 describe('the invariants these particular workflows have to hold', () => {
 	it('integrate.yml can never write to the deploy branch', () => {
@@ -1310,7 +1388,7 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
 		// leave a shorter table that still matches itself.
-		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(5);
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(6);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
@@ -1343,6 +1421,85 @@ describe('the invariants these particular workflows have to hold', () => {
 			CUTTABLE_GATES.filter((g) => g.harness === null).map((g) => g.fn),
 			'a gate gained or lost its in-repo proof harness'
 		).toEqual(['contained_delete_gate', 'target_push_gate']);
+	});
+
+	it('the static counts refresh runs ONCE after the loop, writes only the static half, and cannot cost a merge', () => {
+		// THE GAP IT CLOSES IS THE MERGE THAT DOES NOT CONFLICT. `auto_resolve`
+		// covers the conflicting one; this covers the one that merges clean.
+		// Two branches that each add ONE route spec each regenerate the region
+		// to the SAME number, so git takes the identical edit on both sides
+		// with no conflict at all and the pushed tree holds one more spec than
+		// the region claims. Reproduced in throwaway repositories;
+		// `tools/integrate-gate-proof.sh` case 58 is that reproduction, kept as
+		// the positive control for its case 51.
+		expect(
+			countsRefreshFindings(src('integrate.yml')),
+			'the static counts refresh moved'
+		).toEqual([]);
+	});
+
+	it('POSITIVE CONTROL: each way the counts refresh could regress produces a finding', () => {
+		// Every rule above is put to a MUTATED copy of the real file, and each
+		// mutation is one edit somebody could plausibly make. Without this the
+		// list has only ever been computed on a file that passes, and a rule
+		// that silently stopped matching would read exactly the same.
+		const s = src('integrate.yml');
+		const region = cutRegion(s, 'counts_refresh_marker');
+
+		// MUTATED INSIDE THE CUT REGION, not across the file: `_counts_merge`
+		// runs the identical generator line for `auto_resolve`, so a file-wide
+		// anchor is not unique and a file-wide replace would mutate the OTHER
+		// caller, which is a different rule with its own cases.
+		const inRegion = (from: string, to: string) => {
+			expect(
+				region.split(from).length - 1,
+				`the mutation anchor "${from}" is not unique in the cut region`
+			).toBe(1);
+			return s.replace(region, region.replace(from, to));
+		};
+
+		// The generator swapped for the measured one: the six-minute browser run
+		// this must never reach for.
+		const measured = inRegion('readme-counts.mjs --static', 'readme-counts.mjs --from run.mjs');
+		expect(measured).not.toBe(s);
+		expect(countsRefreshFindings(measured)).toEqual(
+			expect.arrayContaining([
+				'the refresh no longer runs the generator in --static mode',
+				'the refresh reaches for --from, which is the measured half',
+				'the refresh reaches for run.mjs, which is the measured half'
+			])
+		);
+
+		// The commit widened past its one path, which is how the measured
+		// region would start riding along.
+		expect(countsRefreshFindings(inRegion('-- "$readme"', ''))).toContain(
+			'the refresh no longer commits exactly the one named path'
+		);
+
+		// The call moved INSIDE the loop: the whole point of running it once.
+		const inLoop = s.replace(
+			'            if git merge --no-ff --no-edit -m "Merge $branch into $TARGET" "$ref"; then',
+			'            if counts_note="$(counts_refresh)"; then :; fi\n            if git merge --no-ff --no-edit -m "Merge $branch into $TARGET" "$ref"; then'
+		);
+		expect(inLoop).not.toBe(s);
+		expect(countsRefreshFindings(inLoop)).toContain(
+			'counts_refresh is called more than once, or not at all'
+		);
+
+		// A failure made fatal, which is the edit that trades a whole sweep for
+		// a generated table. This anchor is at the CALL SITE, outside the cut
+		// region, so it is checked for uniqueness in the file.
+		const fatalAnchor = '              counts_failed=yes\n';
+		expect(s.split(fatalAnchor).length - 1, 'the call-site anchor is not unique').toBe(1);
+		expect(
+			countsRefreshFindings(s.replace(fatalAnchor, fatalAnchor + '              exit 1\n'))
+		).toContain('the refresh call site can exit the step, which would discard the merges');
+
+		// The markers renamed, which is what would make the proof harness cut
+		// nothing -- caught here as well as by the harness's own control.
+		expect(
+			countsRefreshFindings(s.replace(/counts_refresh_marker/g, 'counts_refresh_renamed'))
+		).toContain('the counts_refresh region cuts nothing');
 	});
 
 	it('the per-branch CI query asks for a run on the SHA, not for a run from a TRIGGER', () => {
