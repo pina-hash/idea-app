@@ -32,12 +32,12 @@ import type { RequestHandler } from './$types';
  * refuses everyone else and a locked submission); the orphaned bytes are swept
  * here, since the database cannot talk to storage or to Drive.
  *
- * THE SWEEP RUNS AFTER THE ROW IS ALREADY GONE, which is what makes 0181's
+ * THE SWEEP RUNS AFTER THE ROW IS ALREADY GONE, which is what makes 0182's
  * row-keyed delete policy the only narrowing that works. `classroom_delete_
  * submission_file` deletes the row and THEN hands the key back, so by the time
  * `remove()` is called nothing names the object and the policy lets it go. A
  * submission-keyed narrowing would have refused this on every turned-in
- * hand-in, which is why 0181 does not use one. No change was needed here.
+ * hand-in, which is why 0182 does not use one. No change was needed here.
  *
  * A REFUSAL SAYS WHY, IN WORDS. `{ok:false, reason:'locked'}` is a structured
  * refusal and not an error -- the student did nothing wrong -- so it answers

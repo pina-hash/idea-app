@@ -3,8 +3,9 @@
 - By: router chat for IDEA portal work
 - Owns: exactly one migration (number taken at commit time), the submission-file server route, the submission-file paths in `src/lib/classroom/transports.ts`, `tests/db/classroom-submission-file*`, `tests/classroom-storage-objects.test.ts`, the generated regions of `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0056-*`, and its own `docs/history/` entry.
 - Migration permitted: exactly one, number taken at commit time. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Migration taken: 0182 (`0182_classroom_submission_object_lock.sql`), committed straight to `main` at 25779fb with its db test. 0181 was free across every ref when this bundle started and was taken by prompt 0052 (`0181_avatars_private.sql`) mid-session; 0182 was re-verified free across every remote and local ref and against `git log --all --diff-filter=A` before the commit.
+- Status: pushed
+- Branch: `claude/submission-bytes-deletable-r66zwt`
 - Notes: Prompt 0054 put the student submission boundary to a real student
   across ten cases and answered the question it was sent for: no, a student
   cannot read another student's work. It found one defect on the way.

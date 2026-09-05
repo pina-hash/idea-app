@@ -1125,6 +1125,16 @@
 				"assignments",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Turning work in now really does lock its files",
+			"body": "Once you turn an assignment in, its files belong to the hand-in your teacher is looking at. The Remove button already went away at that point, but the files themselves were not actually protected: anything that reached past the page could still wipe the stored file while the hand-in kept listing it, and your teacher would open it and find nothing there. The files are locked now, properly, and so is adding new ones. If a removal is ever refused you will see why in words instead of nothing happening: \"This is turned in, so files are locked. Your teacher has it now. Unsubmit it to keep working.\" Nothing changes while an assignment is still open, and unsubmitting, or your teacher returning the work after grading it, hands the files back exactly as before.",
+			"tags": [
+				"Assignments",
+				"files",
+				"fix"
+			]
 		}
 	]
 }
