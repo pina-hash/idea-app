@@ -48,6 +48,7 @@
 		registerCommunityTracks
 	} from '$lib/greenline/tracks';
 	import { communityMetaMap, type CommunityTrackSummary } from '$lib/greenline/community';
+	import { pendingLabel } from '$lib/greenline/moderation';
 	import { validatePublishTrack } from '$lib/greenline/builder/validate';
 	import TrackModerationPanel from '$lib/greenline/TrackModerationPanel.svelte';
 	import type { TrackData } from '$lib/greenline/track-schema';
@@ -61,7 +62,24 @@
 	 * /dev/greenline-movement; the full data-backed loop is on /greenline.
 	 */
 	// ?view=garage|results preselects a view (headless screenshot support).
-	const initView = browser ? new URLSearchParams(location.search).get('view') : null;
+	const initParams = browser ? new URLSearchParams(location.search) : null;
+	const initView = initParams?.get('view') ?? null;
+	/**
+	 * `?seed=pending|rejected|approved` puts the harness into ONE of the three
+	 * states a student's own submission can be in, and it does it by calling the
+	 * harness's own real store functions (`devPublish`, `devReview`, the real
+	 * `handleDecalUpload` with a real File through the real `validateDecalFile`)
+	 * rather than by writing rows. A seed that assembled state directly would be
+	 * a fourth definition of what "pending" means, and the whole point of a
+	 * harness is that it drives the same path.
+	 *
+	 * It exists because these three states are what `npm run verify:browser`
+	 * has to MEASURE, and a spec that reached them by chaining clicks measures
+	 * the click chain as well as the state: one broken step and every number
+	 * after it describes a screen the run never got to. A URL is deterministic
+	 * and is reported in the row itself.
+	 */
+	const initSeed = initParams?.get('seed') ?? null;
 	let view = $state<'title' | 'garage' | 'race' | 'results' | 'moderation'>(
 		initView === 'garage' || initView === 'race' || initView === 'results' || initView === 'moderation'
 			? initView
@@ -377,6 +395,15 @@
 	}
 	let devCommunity = $state<DevCommunityTrack[]>([]);
 	let devTrackSeq = 0;
+	/**
+	 * "Am I staff" for the TITLE screen's moderation entry. The real route
+	 * decides this with `isAdmin` in its server load and passes `onModeration`
+	 * only for an admin, so ABSENCE is the mechanism there and here alike --
+	 * this toggle is what makes both halves of that absence drivable without
+	 * auth. It gates NOTHING: the real gate is the moderation route's 404 and
+	 * `is_teacher()` inside the four review RPCs.
+	 */
+	let devStaff = $state(true);
 	const avgOf = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 	/**
 	 * THE 0059 VISIBILITY PREDICATE, mirrored from the RLS select policy and the
@@ -454,6 +481,19 @@
 		registryRev++;
 	}
 	const devCommunityMeta = $derived(communityMetaMap(devSummaries));
+	/**
+	 * The title screen's badge, through the REAL `pendingLabel` the route calls
+	 * -- so the harness cannot show a sentence production never produces. The
+	 * counts are the harness's own store standing in for the two count reads.
+	 */
+	const devPending = $derived({
+		ready: true,
+		tracks: devCommunity.filter((t) => t.status === 'pending' && !t.removed).length,
+		decals: decalQueueItems.length,
+		total:
+			devCommunity.filter((t) => t.status === 'pending' && !t.removed).length +
+			decalQueueItems.length
+	});
 	/** Publish through the REAL authoritative validator (the exact function the
 	 * server endpoint runs); the parked builder track when one exists, else a
 	 * clone of Proving Ground 07. */
@@ -859,8 +899,48 @@
 		requestAnimationFrame(step);
 	}
 
+	/**
+	 * Apply `?seed=`. Runs ONCE on mount, THROUGH the harness's own store
+	 * functions, so the state it produces is by construction a state the flow
+	 * can actually produce: `devPublish` is the real client-side validator the
+	 * publish endpoint gates on, `devReview` is the same function the panel's
+	 * own buttons call, and the decal goes through the REAL `validateDecalFile`
+	 * on a REAL File built from a canvas.
+	 *
+	 * A track lands PENDING and then gets whatever decision the seed names. The
+	 * decal is seeded pending in every case and is left pending for the
+	 * `approved` seed too, so the moderation queue always has one of each kind
+	 * to measure. `syncRegistry` is called by `devPublish`/`devReview`
+	 * themselves, exactly as when a button presses them.
+	 */
+	async function applySeed(seed: string) {
+		const pub = devPublish(undefined, 'Sunset Loop');
+		if (pub.ok && pub.uuid) {
+			if (seed === 'rejected') {
+				devReview(pub.uuid, 'reject', 'Add a runoff at turn 3 before the wall gets anybody.');
+			} else if (seed === 'approved') {
+				devReview(pub.uuid, 'approve');
+			}
+			setSelectedTrack(`community:${pub.uuid}`);
+		}
+		// A real 8x8 PNG through the real upload path. `toBlob` is async and
+		// `validateDecalFile` decodes it, so the seed is too.
+		const c = document.createElement('canvas');
+		c.width = 8;
+		c.height = 8;
+		const ctx = c.getContext('2d');
+		if (ctx) {
+			ctx.fillStyle = '#2ae57e';
+			ctx.fillRect(0, 0, 8, 8);
+		}
+		const blob = await new Promise<Blob | null>((res) => c.toBlob((b) => res(b), 'image/png'));
+		if (blob) await handleDecalUpload(new File([blob], 'seed.png', { type: 'image/png' }));
+		lastAction = `seeded: ${seed}`;
+	}
+
 	onMount(() => {
 		if (!browser) return;
+		if (initSeed) void applySeed(initSeed);
 		(window as unknown as Record<string, unknown>).__greenlineAudio = {
 			engine: audioEngine,
 			tone: toneOn,
@@ -992,6 +1072,13 @@
 			syncRegistry();
 		}}>user B (BEN)</button
 	>
+	<button
+		class:on={devStaff}
+		data-testid="dev-staff"
+		onclick={() => (devStaff = !devStaff)}
+		title="Whether the title screen offers the staff moderation entry (the real route passes the callback only for an admin)"
+		>staff {devStaff ? 'on' : 'off'}</button
+	>
 	<button data-testid="dev-submit" onclick={() => devPublish()}>
 		submit {customTrack.data ? 'parked builder track' : 'sample track'}
 	</button>
@@ -1028,6 +1115,8 @@
 				(lastAction = 'PIECE EDITOR (would goto /greenline/piece-builder)')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
+			onModeration={devStaff ? () => (view = 'moderation') : undefined}
+			moderationLabel={devStaff ? pendingLabel(devPending) : ''}
 			enableShortcut={!settingsOpen && !feedbackOpen}
 		/>
 	{:else if view === 'garage'}
@@ -1142,11 +1231,27 @@
 			<!-- The TEACHER's list (every row at every status), deliberately not
 			     the player-visible `devSummaries` — mirroring the list RPC's
 			     is_teacher() branch. -->
+			<div class="dh-mod-h" data-testid="dev-mod-tracks-h">
+				Community tracks · {devPending.tracks} awaiting review
+			</div>
 			<TrackModerationPanel
 				tracks={devModerationSummaries}
 				onFeature={devFeature}
 				onRemove={devTeacherRemove}
 				onReview={devReview}
+			/>
+			<!-- BOTH QUEUES, the way /greenline/moderation now arranges them.
+			     GREENLINE takes two kinds of student submission that wait on a
+			     teacher, and a moderation surface showing one of them is how the
+			     other one sat somewhere nobody was prompted to look. The harness
+			     mirrors the whole surface or it proves nothing about it. -->
+			<div class="dh-mod-h" data-testid="dev-mod-decals-h">
+				Custom decals · {devPending.decals} awaiting review
+			</div>
+			<DecalReviewQueue
+				items={decalQueueItems}
+				onApprove={devApproveDecal}
+				onRequestRevision={devReviseDecal}
 			/>
 		</div>
 	{:else}
@@ -1305,6 +1410,19 @@
 	}
 	.dh-moderation {
 		padding: 1rem;
+	}
+	/* The harness's stand-in for the real route's section headings, so the two
+	   queues are separated the same way there and here. */
+	.dh-mod-h {
+		margin: 1.2rem 0 0.4rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.76rem;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: #eaf4ff;
+	}
+	.dh-moderation > .dh-mod-h:first-child {
+		margin-top: 0;
 	}
 	.dh-center {
 		min-height: 100%;

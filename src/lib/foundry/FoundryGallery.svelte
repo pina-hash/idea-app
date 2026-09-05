@@ -40,6 +40,7 @@
 
 	import FoundryDetail from './FoundryDetail.svelte';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
+	import { foundryCoverFailed } from './covers.ts';
 	import {
 		FOUNDRY_GALLERY_SORTS,
 		playCountLabel,
@@ -110,7 +111,7 @@
 		selected?: FoundryApp | null;
 		transports?: FoundryGalleryTransports;
 		/** Turns a stored cover path into a URL. Injected, never built here. */
-		coverUrl?: (path: string) => string;
+		coverUrl?: (path: string) => string | null;
 		onSelect: (slug: string | null) => void;
 		appsOrigin?: string | undefined;
 		playCounts?: FoundryPlayCounts;
@@ -212,7 +213,12 @@
 							>
 								<span class="fdy-card-cover">
 									{#if app.cover_path}
-										<img src={coverUrl(app.cover_path)} alt="" loading="lazy" />
+										{@const src = coverUrl(app.cover_path)}
+										{#if src}
+											<img {src} alt="" loading="lazy" onerror={foundryCoverFailed} />
+										{:else}
+											<span class="fg-cover-bad" aria-hidden="true"></span>
+										{/if}
 									{:else}
 										<!-- No cover is a normal state. A tile with the app's own
 										     initial, never a stock "no image" graphic. -->
