@@ -200,13 +200,35 @@
 	function blankRow(block: TableBlock): Record<string, string> {
 		return Object.fromEntries(block.columns.map((c) => [c.key, '']));
 	}
+	/**
+	 * THE CRASH GUARD, AND ONLY THAT: after this runs `values[block.id].rows` is
+	 * an ARRAY, possibly an empty one. It never decides how many rows a person
+	 * has.
+	 *
+	 * It used to also materialise `Math.max(block.minRows ?? 0, 1)` blank rows,
+	 * and because `addRow` calls it BEFORE appending, the first press of Add row
+	 * on an untouched table produced the minimum AND one more -- two rows on a
+	 * table with no `minRows`, four on a table with `minRows: 3`. A student who
+	 * pressed a button reading "Add row" got two, then filled in a blank row that
+	 * should not have been there and wondered whether it counted.
+	 *
+	 * `minRows` IS A COMPLETION REQUIREMENT COUNTED OVER FILLED ROWS, NEVER A
+	 * MATERIALISATION INSTRUCTION, and all three gates that read it already agree
+	 * on that: the counter under this block filters rows with a non-empty cell,
+	 * `blockProgress` filters on `tableRowFilled`, and `_classroom_spec_unmet`
+	 * (0086) counts rows with a `jsonb_each_text` value that is not blank. So a
+	 * materialised blank row advances NOTHING any gate reads -- it is noise on
+	 * the student's screen, and on a `minRows: 3` table it is three obligations
+	 * presented at once to somebody who asked for one place to write.
+	 *
+	 * BOTH CALL SITES KEEP IT and neither may be the thing that sets a count:
+	 * `setCell` writes at an index and `addRow` spreads the array, so both need
+	 * it to exist. Removing the call to fix the count is how the crash it guards
+	 * against comes back.
+	 */
 	function ensureRows(block: TableBlock) {
-		if (!values[block.id]?.rows?.length) {
-			const count = Math.max(block.minRows ?? 0, 1);
-			values[block.id] = {
-				...(values[block.id] ?? {}),
-				rows: Array.from({ length: count }, () => blankRow(block))
-			};
+		if (!Array.isArray(values[block.id]?.rows)) {
+			values[block.id] = { ...(values[block.id] ?? {}), rows: [] };
 		}
 	}
 	function setCell(block: TableBlock, rowIndex: number, key: string, cellValue: string) {
@@ -217,6 +239,8 @@
 		};
 		report(block.id);
 	}
+	/** ONE row, at every state, including the first press on an untouched table.
+	 *  The button says "Add row" and the empty cell says "Add one below". */
 	function addRow(block: TableBlock) {
 		ensureRows(block);
 		values[block.id].rows = [...values[block.id].rows!, blankRow(block)];
@@ -231,6 +255,13 @@
 		];
 		report(block.id);
 	}
+	/**
+	 * ONE row, down to none, and the floor is ZERO on purpose -- which is the
+	 * same rule `addRow` follows read backwards. A floor at `minRows` would
+	 * strand blank rows a student cannot remove while satisfying no gate, since
+	 * every gate counts FILLED rows; and an empty table is not a broken state,
+	 * it is the state the empty cell already has words for.
+	 */
 	function deleteRow(block: TableBlock, index: number) {
 		const rows = values[block.id]?.rows ?? [];
 		values[block.id].rows = rows.filter((_, i) => i !== index);
