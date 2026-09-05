@@ -1,6 +1,55 @@
 # 12 Three `.tap-reach-44` controls measured under the floor, on surfaces no one bundle owns
 - Raised: 2026-09-05  By: prompt 0044, `claude/tap-reach-44-class-bug-fschcn`
-- Status: open
+- Status: PARTLY CLOSED 2026-09-05 by prompt 0047,
+  `claude/decision-12-surfaces-a9e60c`. All three measurements REPRODUCED with the
+  tree's own walked probe, identical at 375 and 1440, and the cause named for each:
+  none of them is the clipping ancestor 0044 found on its own surface. Two are painted
+  small and one is two reaches overlapping vertically, which are different faults with
+  different fixes.
+
+  **Swatches: FIXED, 2.12 step 1.** Seven 44px targets need 356px on one line against a
+  259px fieldset at 375, so the one-line arrangement genuinely does not fit -- but a
+  line was never the only arrangement, and `flex-wrap: wrap` was already declared on the
+  fieldset. At 44px they wrap 5+2 at 375 and 6+1 at 1440 inside the container that was
+  already there. **Step 2 was NOT reached and this bundle did not have to ask whether
+  the palette should carry fewer colours.** Measured after: 45 x 45 on all seven at both
+  widths. Cost: the swatch band 24 -> 96px, the folder editor 247 -> 319px, no
+  horizontal scroll at either width.
+
+  **Attachments: FIXED, 2.12 step 1.** Not a clip and not a paint size: the two rows sat
+  41.3px apart centre to centre (22.5/2 + 8px gap + 44/2), so the second link's reach,
+  which paints later, took the bottom 2.7px of the first's. A 44px floor on the line
+  holding the link rather than a bigger list gap -- the centre distance is
+  `h1/2 + gap + h2/2`, so the 3px gap increase that clears 44 for THIS pair of row
+  heights leaves two 22.5px rows 33.5px apart and overlapping again. Measured after:
+  88 x 45 on both rows at both widths, list 74.5 -> 96px.
+
+  **Toolbar links: NOT FIXED, RAISED HERE, and the entry below is now asking a narrower
+  question than it was.** Four controls, not one: Select 31.1, Done 25.6, Clear 25.7 and
+  Expand all 36.3, all in the notebook toolbar's control row, all under the floor on
+  width. Both PROSE call sites of the same class already clear it (Clear the filters
+  89.9, Manage folders 79.6), so 2.12's prose exemption is not in play and a `min-width`
+  on the shared class would move nothing inside a sentence -- measured. **What stops it
+  is the row, not the class.** At 375 `.tools` has 293px and already carries 307.7px
+  (a 137.4px sort control, a 29.2px counter, three links, four 12px gaps); at 44px each
+  it needs 346.6px, and shipping the width alone buys a **13px document overflow**,
+  which 2.12 step 3 refuses at the narrow width.
+
+  **The answer is measured and it is one line.** `flex-wrap: wrap` plus `min-width: 0`
+  on `.tools` (the second is CLAUDE.md's own automatic-minimum trap, which is why the
+  row overflows the page rather than itself) takes the busiest state at 375 to
+  `scrollWidth 293 == clientWidth 293`, **0px document overflow**, at a cost of **32px of
+  toolbar height at 375 only**; 1440 is unchanged. Prompt 0047 measured that with a
+  probe and restored the file byte-identically (md5 `bcbce4eef0705a7976016c5bccc6c73e`)
+  rather than shipping it, because `.tools` is outside the rule it was given. So this is
+  no longer "should the toolbar carry fewer controls" -- it is **"may `.tools` wrap, for
+  32px at phone width"**, which is a yes or no.
+
+  A harness row now measures all three (`notebook.mjs`, `classroom-split-s-1-item-
+  i-crowded-manage-1.mjs`), both axes, and the toolbar one is RED on purpose: a number
+  that regenerates on every run with this entry against it is the opposite of the
+  standing finding 2.12 forbids, which is one nobody has to look at.
+- Status was, and the reasoning below is unchanged: open
 - Decision:
 - Default this assistant would pick: fix all three under `IDEA_INTERFACE_STANDARDS` 10
   (2.12) step 1, which is available for each of them; the reason they are here rather
