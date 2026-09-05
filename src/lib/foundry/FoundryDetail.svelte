@@ -26,6 +26,7 @@
 	import AppStage from './AppStage.svelte';
 	import FoundryShare from './FoundryShare.svelte';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
+	import { foundryCoverFailed } from './covers.ts';
 	import type { FoundryApp, FoundryGalleryTransports } from './transports.ts';
 
 	let {
@@ -56,7 +57,7 @@
 		/** Defaults to whatever is published. Null with nothing published = no stage. */
 		versionId?: string | null;
 		transports?: FoundryGalleryTransports;
-		coverUrl?: (path: string) => string;
+		coverUrl?: (path: string) => string | null;
 		frameHeight?: string;
 		runningLabel?: string;
 		appsOrigin?: string;
@@ -66,6 +67,8 @@
 	const author = $derived(foundryAuthorName(app));
 	const authorClass = $derived(foundryAuthorClass(app));
 	const cover = $derived(app.cover_path ? coverUrl(app.cover_path) : null);
+	/** A stored value that is not a key: judged locally, no request made. */
+	const coverBad = $derived(!!app.cover_path && !cover);
 
 	/**
 	 * THE SHARE LINK LIVES IN `FoundryShare`, which /foundry/mine mounts too.
@@ -105,7 +108,15 @@
 			image IS the app's own screenshot; a second description would be
 			invented here.
 		-->
-		<img class="fdy-cover" src={cover} alt={app.title} loading="lazy" />
+		<img
+			class="fdy-cover"
+			src={cover}
+			alt={app.title}
+			loading="lazy"
+			onerror={foundryCoverFailed}
+		/>
+	{:else if coverBad}
+		<span class="fdy-cover fg-cover-bad" aria-hidden="true"></span>
 	{/if}
 
 	{#if runs}

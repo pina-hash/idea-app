@@ -25,13 +25,9 @@
 
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
 	import type { FoundryGalleryTransports } from '$lib/foundry/transports';
-	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
+	import { foundryCoverUrl } from '$lib/foundry/covers';
 
 	let { data } = $props();
-
-	function coverUrl(path: string): string {
-		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
-	}
 
 	const transports: FoundryGalleryTransports = {
 		async recordPlay(appId, versionId) {
@@ -131,7 +127,7 @@
 		selected={data.selected}
 		playCounts={data.playCounts}
 		{transports}
-		{coverUrl}
+		coverUrl={foundryCoverUrl}
 		{staffHref}
 		onSelect={select}
 	/>

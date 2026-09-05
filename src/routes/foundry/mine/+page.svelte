@@ -22,6 +22,7 @@
 	import FoundryOwnerStats from '$lib/foundry/FoundryOwnerStats.svelte';
 	import type { FoundryApp, FoundryMineTransports, FoundryOutcome } from '$lib/foundry/transports';
 	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
+	import { foundryCoverUrl } from '$lib/foundry/covers';
 
 	let { data } = $props();
 
@@ -147,15 +148,6 @@
 		}
 	};
 
-	/**
-	 * A public bucket, so the URL is built rather than signed. It is derived
-	 * here and handed in, because a component that builds its own storage URL
-	 * has taken a dependency on the bucket layout.
-	 */
-	function coverUrl(path: string): string {
-		return data.supabase.storage.from(FOUNDRY_COVER_BUCKET).getPublicUrl(path).data.publicUrl;
-	}
-
 	function select(slug: string | null) {
 		const url = new URL(page.url);
 		if (slug) url.searchParams.set('app', slug);
@@ -182,7 +174,7 @@
 		apps={data.apps}
 		selected={data.selected}
 		{transports}
-		{coverUrl}
+		coverUrl={foundryCoverUrl}
 		{now}
 		onSelect={select}
 	/>
