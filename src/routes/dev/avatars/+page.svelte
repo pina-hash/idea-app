@@ -8,7 +8,16 @@
 	 * precisely because it shows a student's face; a harness reachable by
 	 * anyone must therefore be fabricated end to end. The "uploaded" avatar
 	 * below is a data: URI and the "broken" one is a path that resolves to
-	 * nothing, so this page makes no request of any kind.
+	 * nothing.
+	 *
+	 * IT MAKES EXACTLY ONE REQUEST (0052), and it used to make none. The
+	 * `p-upload-refused` row carries a WELL-FORMED storage key for a uuid
+	 * belonging to nobody, so the browser really does ask
+	 * `/api/api/avatar/<key>` and the route really does answer its bodyless 404 with
+	 * no session behind it. That is the only way to measure the claim 0181
+	 * rests on -- that a picture the server REFUSED is indistinguishable on
+	 * screen from a picture nobody chose -- rather than merely asserting the
+	 * fallback still exists.
 	 *
 	 * WHAT IT EXISTS TO MEASURE: that a row does not MOVE between the four
 	 * cases. A missing picture, a broken picture and a picture that loads must
@@ -136,7 +145,38 @@
 		{ key: 'p-none', row: { ...PARITY_TEXT, avatar: null, avatar_url: null } },
 		{ key: 'p-broken', row: { ...PARITY_TEXT, avatar: null, avatar_url: '/dev/avatars/gone.png' } },
 		{ key: 'p-preset', row: { ...PARITY_TEXT, avatar: 'preset:cube', avatar_url: null } },
-		{ key: 'p-upload-broken', row: { ...PARITY_TEXT, avatar: 'upload:nobody/none.png', avatar_url: null } }
+		{ key: 'p-upload-broken', row: { ...PARITY_TEXT, avatar: 'upload:nobody/none.png', avatar_url: null } },
+		/**
+		 * REFUSED (0052), AND IT IS THE REAL REFUSAL RATHER THAN A FABRICATED
+		 * ONE. This is a WELL-FORMED storage key -- a real uuid and a real
+		 * `avatar-<Date.now()>.png` filename -- so `Avatar.svelte` builds
+		 * `/api/api/avatar/<key>` and the browser genuinely asks for it. The harness
+		 * holds no session, so `src/routes/api/avatar/[...path]/+server.ts` answers
+		 * its bodyless 404 and `onerror` lands on the tile.
+		 *
+		 * IT IS THE ONE REQUEST THIS PAGE MAKES, and the header above used to
+		 * say the page made none. That was true when every fixture was a data:
+		 * URI, and buying it back would have cost the only claim worth making
+		 * here: that a REFUSED picture is indistinguishable from an ABSENT one
+		 * on screen. A fabricated refusal proves the fallback still works; this
+		 * one proves the route, the rewrite and the fallback agree end to end.
+		 * The request is to our own origin, carries no session, names a uuid
+		 * belonging to nobody, and returns 404.
+		 *
+		 * `p-upload-broken` above stays and is NOT the same case: its key is
+		 * malformed, so the rewrite refuses it in the CLIENT and no request is
+		 * made at all. Two different mechanisms, and the whole point is that
+		 * they land on the identical tile -- which is what the parity
+		 * measurement checks.
+		 */
+		{
+			key: 'p-upload-refused',
+			row: {
+				...PARITY_TEXT,
+				avatar: 'upload:00000000-0000-4000-8000-000000000000/avatar-1757000000000.png',
+				avatar_url: null
+			}
+		}
 	];
 
 	/**
