@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tools/browser-verify/readme-counts.mjs`, `tools/browser-verify/README.md`, `tests/derived-numbers.test.ts`, `.github/workflows/ci.yml` if B3 requires it, the scripts block of `package.json`, `docs/prompt-ledger/entries/0046-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/stale-measured-region-3labgz`
 - Notes: Prompt 0043 found the sharpest thing in a week of them. The spec
   table's four row-action glyphs were a known, measured, deliberately
   recorded finding for two days -- and the generated counts block reported
