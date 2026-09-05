@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `supabase/roles/idea_migrator.sql` and its README, `tools/apply-migration.mjs`, `tests/apply-migration*`, decision entries 15 and 16 including a numbering collision, `docs/prompt-ledger/entries/0065-*`, and its own `docs/history/` entry.
 - Migration permitted: no. The role file carries a password and is not a migration.
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/guard-outside-database-0uczmi`
 - Notes: Mr. Pina pasted `supabase/roles/idea_migrator.sql` into the Supabase
   SQL editor on 2026-09-05 and it refused at its FIRST statement:
 

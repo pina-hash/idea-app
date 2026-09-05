@@ -90,7 +90,8 @@
 --   7. Read every row in every table, including `auth.users`, because
 --      membership in `postgres` bypasses RLS on tables `postgres` owns.
 --   8. MINT A SECOND CREDENTIAL, in two statements: `set role postgres;` then
---      `create role whatever login password '...';`. NOCREATEROLE does not stop
+--      a `create role ... login` with a password of its choosing. NOCREATEROLE
+--      does not stop
 --      this and the previous version of this file was WRONG to say it did.
 --      Its reasoning was that role ATTRIBUTES are not inherited through
 --      membership, which is true and is not the whole story: `SET ROLE` does
@@ -98,8 +99,8 @@
 --      for `create role` reads `current_user`. Measured on 17.10 against a
 --      NON-superuser `postgres` holding CREATEROLE -- the real Supabase shape:
 --      the DIRECT `create role` is refused 42501, `set role postgres` succeeds
---      because the role is a member of `postgres`, and `create role sneaky2
---      login password '...'` then succeeds and produces a working login. So the
+--      because the role is a member of `postgres`, and a `create role sneaky2
+--      login` with a password then succeeds and produces a working login. So the
 --      credential this file creates is, with one extra statement, as
 --      unconstrained as `postgres` itself.
 --
