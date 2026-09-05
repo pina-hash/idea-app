@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: the schedule block in `.github/workflows/ci.yml`, `.github/workflows/README.md`, `tests/workflows.test.ts`, `tools/integrate-gate-proof.sh`, `docs/prompt-ledger/entries/0040-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0179
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: Prompt 0036 fixed six tests that failed only between 00:00 and 02:00
   America/Los_Angeles, and answered plainly that a scheduled run at a fixed
