@@ -838,11 +838,37 @@
 	 * The verdict is READ OFF `msg` rather than re-derived: a second reading of
 	 * the same run is exactly how an indicator ends up disagreeing with the
 	 * report printed under it.
+	 *
+	 * A HIDDEN TAB MUST NOT WRITE, AND THAT IS WHAT `onHide` IS FOR. The
+	 * paragraph above says this machine adds "no autosave, no debounce, no
+	 * backoff" -- and `attach()` quietly contradicted it. `SaveState`'s
+	 * durability net fires on `visibilitychange` and `pagehide` whenever the
+	 * machine is `dirty`, and `dirty` includes `failed`; a create that came
+	 * back refused therefore re-ran the WHOLE submit on every tab switch,
+	 * screen lock and navigation, with nobody having pressed anything.
+	 *
+	 * MEASURED: one Save draft whose response never arrived, then six tab
+	 * switches, wrote SEVEN rows. That is the reported "infinite copies", and
+	 * the copies are identical because the failure path leaves the form intact.
+	 * The false negative it needs is ordinary rather than exotic -- a phone or
+	 * a Chromebook backgrounding the tab ABORTS the in-flight fetch and fires
+	 * `visibilitychange` in the same breath, so the abort and the re-run are
+	 * the same event, and any attempt that got far enough to commit is a copy.
+	 *
+	 * A net is right for a machine that autosaves: it is landing a write the
+	 * user already asked for and the debounce is merely holding. This one asks
+	 * for nothing until a button is pressed, so there is no owed write for a
+	 * hide to land -- only a whole create to issue a second time. The work is
+	 * still in the form, and the layout's own navigation guard is what asks
+	 * about it, so nothing is lost by declining. `onHide` is the option that
+	 * exists for exactly this decision; the listeners stay attached and only
+	 * the WRITE is withheld.
 	 */
 	let pendingPublish = false;
 	const save = new SaveState({
 		autosave: false,
 		fallbackMessage: 'That save did not land.',
+		onHide: () => {},
 		async save() {
 			await runSubmit(pendingPublish);
 			if (msg && !msg.ok) {
@@ -1057,8 +1083,16 @@
 
 		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
 		const goLive = scheduledAhead ? new Date(localInputToIso(publishAt) ?? '').toLocaleString() : '';
+		/**
+		 * WHAT THIS SAVE ACTUALLY DID, not which mode the form is in. A create
+		 * composer holding `createdItemId` UPDATES the row its last checkpoint
+		 * made, so reporting "saved as a draft to 1 class" a second time would
+		 * describe a post that was not made -- which is precisely the sentence
+		 * somebody read while wondering where the copies were coming from.
+		 */
+		const wasUpdate = target.action === 'update';
 		const where =
-			mode === 'edit'
+			wasUpdate
 				? publish
 					? scheduledAhead
 						? `updated -- students see it from ${goLive}`
@@ -1071,8 +1105,38 @@
 					: `saved as a draft to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`;
 		const text = `${what} ${where}.${attachNote}`;
 
-		if (mode === 'create') {
-			// Everything landed, so the next post is a genuinely new item.
+		/**
+		 * A SAVE DRAFT IS A CHECKPOINT, NOT A FINISH, AND ONLY A PUBLISH ENDS
+		 * THE COMPOSER SESSION.
+		 *
+		 * This block used to run for BOTH buttons. So Save draft created the
+		 * row, then dropped the handle to it and emptied every field -- and the
+		 * next press created a SECOND row, and the one after that a third.
+		 * MEASURED on the real component: five presses, five rows, four of them
+		 * carrying a null title because the form had been wiped after the first.
+		 * That is the reported duplication AND the reported lost progress in one
+		 * defect: the copies pile up, and the writing disappears out of the box
+		 * while the message says it was saved.
+		 *
+		 * It is the rule CLAUDE.md already states for the notebook composer,
+		 * applied to the surface that still broke it: keep the handle across an
+		 * explicit save, so the next write ADDS to the record this session made
+		 * rather than starting a second one, and leave the writing where it is.
+		 * Keeping the text is safe because `baseline.advance` below moves the
+		 * comparison to exactly what was just sent -- the form reads clean and
+		 * nothing goes out again until something actually changes.
+		 *
+		 * A PUBLISH still resets, because that IS the finish: the post is live
+		 * and the next one is a genuinely new item.
+		 */
+		if (mode === 'create' && !publish) {
+			// The row this session owns from here on. Everything after this is an
+			// update of it -- see `saveTarget`.
+			createdItemId = itemId;
+			baseline.advance(composerDraftSignature(draft));
+		} else if (mode === 'create') {
+			// Everything landed and it is published, so the next post is a
+			// genuinely new item.
 			createdItemId = null;
 			title = '';
 			points = '';
