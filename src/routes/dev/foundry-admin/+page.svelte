@@ -169,13 +169,42 @@
 		the shipping path and nothing here stands in for it.
 	</p>
 
-	<section class="harness-case">
-		<h2>A student whose class has closed it</h2>
+	<section class="harness-case" data-testid="case-closed-panel">
+		<h2>A student whose class has closed it: the gallery</h2>
+		<p class="harness-note">
+			The panel a closure produces, in place of the one surface it reaches.
+		</p>
 		<FoundryClosed {closed} />
 	</section>
 
-	<section class="harness-case">
+	<!--
+		THE HALF THIS HARNESS DID NOT HAVE, AND IT IS THE HALF THE SCOPE CHANGE
+		IS ABOUT. A closure now reaches the gallery and nothing else, so the
+		student's own shelf, the publish flow, the build contract and the
+		manager's own control all keep rendering with this notice above them.
+		Without the case on screen, "the student is told why the gallery tab is
+		refusing" would be a claim rather than something anybody has looked at,
+		at 375 and at 1440.
+	-->
+	<section class="harness-case" data-testid="case-closed-notice">
+		<h2>The same student on a surface a closure does not reach</h2>
+		<p class="harness-note">
+			What sits above /foundry/mine, /foundry/submit, /foundry/contract and
+			/foundry/classes while a class has the gallery closed.
+		</p>
+		<FoundryClosed {closed} variant="notice" />
+		<p class="harness-stand-in">
+			(The student's own shelf renders here, unchanged.)
+		</p>
+	</section>
+
+	<section class="harness-case" data-testid="case-class-access">
 		<h2>The teacher of record's control</h2>
+		<p class="harness-note">
+			Read the three sentences above the list: what a close takes, what it leaves,
+			and the reach. The reach is the claim a person pressing this would otherwise
+			guess wrong, and it is restated inside the confirm.
+		</p>
 		<FoundryClassAccess
 			sections={managed}
 			setOpen={async (sectionId, open, note) => {
@@ -256,6 +285,20 @@
 		margin: 0;
 		font-family: var(--font-display);
 		color: var(--text-1);
+	}
+
+	.harness-note {
+		margin: 0 0 0.75rem;
+		color: var(--text-2);
+	}
+
+	.harness-stand-in {
+		margin: 0.75rem 0 0;
+		padding: 1rem;
+		color: var(--text-2);
+		background: var(--surface-2);
+		border: 1px dashed var(--boundary);
+		border-radius: var(--radius-sm, 4px);
 	}
 
 	.harness-lead {
