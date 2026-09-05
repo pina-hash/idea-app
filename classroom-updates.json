@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-05",
+			"title": "Save draft now saves the same draft, instead of starting a new one",
+			"body": "Two of you reported this from opposite ends and it was one fault. When a teacher pressed Save draft while writing a post, the draft was saved but the box emptied itself, which made it look as though the writing had been lost. Pressing Save draft again then started a whole new draft rather than adding to the one already made, so the same post could pile up as several copies in a class. On a phone or a Chromebook it could get worse without anybody pressing anything: if the save looked like it had failed, switching tabs or locking the screen quietly tried the whole thing again, and each attempt that had actually gone through left another copy. Save draft is a checkpoint now. Your writing stays on the screen, the draft you already made is the one that gets updated, and a hidden tab no longer sends anything on its own. Post now still clears the box for the next post, because that is the end of the piece of writing. If your class has duplicate drafts from before today, they are safe to delete, and it is worth checking that the one you keep is the newest.",
+			"tags": [
+				"Classwork",
+				"Stream",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
 			"title": "The little row buttons on a table are big enough to press now",
 			"body": "On an assignment with a table you fill in, each row has four small buttons at the end of it: move the row up, move it down, copy it, and delete it. They were tiny squares, about half the size a finger needs, and on a phone at the bench you would miss and hit the one next to it. They are full size now, laid out two across and two down so they fit in the same space the table already had. The table did not get any wider, and nothing else on the row moved. Rows are a little taller than they were.",
 			"tags": [
