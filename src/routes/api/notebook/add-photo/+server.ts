@@ -6,6 +6,8 @@ import {
 	uploadNotebookPhoto
 } from '$lib/server/notebook-drive';
 import { driveIdentifierFor, formText, readPhotoForm, UUID_RE } from '$lib/server/notebook-upload';
+import { notebookPhotoRefusal } from '$lib/notebook/photo-prepare';
+import { uploadFailureMessage } from '$lib/upload-limits';
 import type { RequestHandler } from './$types';
 
 /**
@@ -34,6 +36,25 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		form = await request.formData();
 	} catch {
 		return json({ error: 'Expected multipart/form-data.' }, { status: 400 });
+	}
+
+	/**
+	 * SIZE FIRST, AND IT IS THE ONE REFUSAL A STUDENT WAS BEING TOLD NOTHING
+	 * USEFUL ABOUT. `readPhotoForm` answers `Photos are capped at 4 MB.` --
+	 * the limit, with neither the size of the file in hand nor anything to do
+	 * about it, which is what a report reading "failed upload" looks like from
+	 * the other side. `notebookPhotoRefusal` reads the SAME cap out of the one
+	 * registry and says all three. `readPhotoForm`'s own branch stays where it
+	 * is as an unreachable backstop: two layers refusing one thing is defence
+	 * in depth, and `tests/upload-limits.test.ts` pins the two numbers to each
+	 * other so they cannot part company in silence.
+	 */
+	const picked = form.get('photo');
+	if (picked instanceof File) {
+		const refusal = notebookPhotoRefusal(picked);
+		if (refusal) {
+			return json({ error: refusal }, { status: picked.size > 0 ? 413 : 400 });
+		}
 	}
 
 	const read = readPhotoForm(form);
@@ -94,7 +115,23 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			})
 		});
 	} catch (e) {
-		return json({ error: (e as Error).message || 'Drive upload failed.' }, { status: 502 });
+		/* WHATEVER DRIVE SAID, TURNED INTO A SENTENCE RATHER THAN PASSED
+		   THROUGH. `Drive upload failed.` was the fallback whenever the thrown
+		   value had no message, which names our storage vendor and tells the
+		   student nothing they can act on -- and a size refusal arriving from
+		   the far end was rendered in Google's words, not ours. Same function
+		   the feedback screenshot path uses, so one failure has one voice. */
+		return json(
+			{
+				error: uploadFailureMessage({
+					id: 'notebook-photo',
+					status: 502,
+					detail: (e as Error)?.message ?? null,
+					sizeBytes: read.photo.size
+				})
+			},
+			{ status: 502 }
+		);
 	}
 
 	const { data, error } = await supabase.rpc('notebook_add_photo', {

@@ -1125,6 +1125,16 @@
 				"assignments",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "When a file will not upload, the message now tells you why",
+			"body": "Two of you reported an upload that failed and could not say what stopped it, because the message did not say. That is fixed where we could reach it. A file that is too big is now told how big it is, what the limit for that kind of upload is, and what to do about it, instead of just \"upload failed\". A notebook photo that is over the limit says so before it starts sending, so you are not waiting on the school wifi for a refusal. And if an upload is stopped by a limit that is set for the whole site rather than by this page, it now says that, and says to tell a teacher, instead of showing you a number nobody here can explain. A few places still show the old bare message; if you hit one, tell us through Report a problem and say which page.",
+			"tags": [
+				"notebook",
+				"files",
+				"fix"
+			]
 		}
 	]
 }
