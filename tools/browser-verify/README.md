@@ -32,7 +32,7 @@ split is what stops this file serialising every branch.
 | Written by | `npm run verify:counts` | `npm run verify:readme` |
 | Costs | a tree read, under a second | a browser and about six minutes |
 | Run it after | adding or removing a route spec or a `/dev` page, and after resolving a merge here | a deliberate visual pass |
-| Checked against | **this tree, on every `npm test`** | its own data line only |
+| Checked against | **this tree, on every `npm test`** | its own data line, and the tree's SPEC FILE LIST |
 | Carries a date and a sha | no, on purpose | yes |
 
 `npm run verify:counts -- --check` exits non-zero when the static region
@@ -41,6 +41,41 @@ and exits non-zero when either region disagrees with a fresh run.
 `tests/derived-numbers.test.ts` reddens when a route spec landed without
 regenerating the static region, and when a digit in either table was edited by
 hand -- with no browser anywhere in that path.
+
+**THE MEASURED HALF IS ALLOWED TO BE STALE, AND SINCE PROMPT 0046 IT IS NOT
+ALLOWED TO BE STALE AND SAY NOTHING IS THERE.** Those are different things and
+this file used to conflate them. Staleness is the price of keeping a six-minute
+browser run out of `npm test`, and it is fine right up to the moment the block
+prints `Measurements outside threshold: 0` for a route the run never visited --
+at which point the one generated place a reader consults is telling them a
+finding does not exist. That happened: the spec measuring the classroom spec
+table's four row-action glyphs landed at `700a56d`, `origin/main`'s block was
+measured at `4dc9df8`, which predates it, and the finding was invisible in this
+file for a day while sitting in a code comment, a route file's prose and a
+ledger entry.
+
+So the measured region records `covered`: the route spec files that run actually
+visited.
+
+* **A reader compares two rows.** `Route specs the run covered`, in the
+  measured table, against `Route specs`, in the static table directly above
+  it. The static region is checked against this tree on every `npm test`, so it
+  is the fresh number; if the two differ, every figure in the measured table --
+  the outside-threshold count included -- is a figure about a different set of
+  routes.
+* **The recorded commit is a WEAK signal and must not be read as the freshness
+  answer.** On a history this merge-heavy a stale measurement's commit is still
+  an ancestor of HEAD and reads as perfectly plausible. `4dc9df8` was.
+* **`npm test` refuses one pair and only one:** unmeasured specs AND a block
+  claiming zero findings. It names the specs. It does not refuse a stale block
+  that already names findings, a spec file edited without renaming, or a spec
+  deleted since the measurement -- `verifyMeasured` in `readme-counts.mjs`
+  enumerates each and says why, and `tests/derived-numbers.test.ts` carries a
+  control for each.
+* **`npm run verify:counts` says so too**, because that sub-second command is
+  what a bundle that just added a spec runs, and that is the moment the measured
+  half goes stale. It cannot fix it -- it has no browser and no report -- so it
+  prints which specs went unmeasured and stops there.
 
 **WHY IT IS SPLIT, AND WHY THE STATIC REGION CARRIES NO TIMESTAMP.** It was one
 region written by one all-or-nothing run: the generator demanded a measured
