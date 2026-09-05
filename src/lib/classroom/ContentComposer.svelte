@@ -7,6 +7,7 @@
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
+	import { imageChoices } from '$lib/classroom/attachments';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
@@ -401,9 +402,62 @@
 	 * staged file is work somebody would mind losing.
 	 */
 	let stagedFileCount = $state(0);
+	/**
+	 * THE STAGED FILES' NAMES, and nothing else about them.
+	 *
+	 * The body's picture picker has to offer a file that is not uploaded yet --
+	 * on a CREATE that is the only kind there is, because the item id the upload
+	 * needs does not exist until the create call returns. A name is enough,
+	 * because the alias is keyed on the recorded FILENAME and that name is a
+	 * pure function of `file.name` (see `recordedAttachmentFilename`).
+	 *
+	 * READ THROUGH THE PANEL'S OWN CHANGE SIGNAL rather than by giving
+	 * FileUploadPanel a second callback: `oncountchange` already fires on every
+	 * mutation it makes -- staging, removing, clearing, and the end of `runAll`
+	 * -- so the count changing IS the moment to re-read `files()`. One
+	 * mechanism, and the panel's interface is untouched.
+	 */
+	let stagedFileNames = $state<string[]>([]);
 	let filePanel = $state<FileUploadPanel | null>(null);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
+
+	/**
+	 * THE PICTURES THE BODY EDITOR MAY OFFER (0041).
+	 *
+	 * THE TWO LISTS ARE NOT THE SAME LIST, AND THEY CANNOT BE MADE SO. `existing`
+	 * is what the item already carries: on an EDIT it is a strict subset of what
+	 * the item saves with, and on a CREATE it is empty, because a staged file
+	 * needs an item id to upload against and the id does not exist until the
+	 * create call returns. That ordering is 0133's shape, not a bug to fix here.
+	 *
+	 * WHAT CLOSES THE GAP IS THE ALIAS. `attachment:<filename>` is keyed on the
+	 * recorded filename, which `/api/classroom/attachment` derives from
+	 * `file.name` by a pure function -- so a staged file's eventual reference is
+	 * COMPUTED, not guessed, and the picker can offer it before a byte moves.
+	 * The one residual case is an upload that fails: the composer already keeps
+	 * that file staged and names it in the failure list, and a reference with no
+	 * row behind it renders as its caption plus a marker, which is 0030's
+	 * designed degradation rather than a broken page. The row says so in words
+	 * before it is chosen.
+	 *
+	 * `imageChoices` decides what is offerable, through `resolveFigureSrc`
+	 * itself. Instructor-only files are not passed and could not be: they are a
+	 * different bucket and a different table, an item body's alias resolves
+	 * against the STUDENT-FACING attachments only, and a body is read by the
+	 * whole class.
+	 */
+	const bodyImages = $derived(
+		imageChoices({
+			attached: existing,
+			staged: stagedFileNames.map((name) => ({ name }))
+		})
+	);
+	const bodyImagesEmptyHint = $derived(
+		attachmentsEnabled
+			? 'No pictures on this item yet. Add one under Files below, then press Image again.'
+			: 'This item cannot take files, so there is no picture to place in it.'
+	);
 	// --- Instructor-only materials (0090, 0135) ----------------------------
 	//
 	// KEPT AS ITS OWN STATE rather than a flag on the student-facing arrays:
@@ -1138,6 +1192,8 @@
 				label={bodyLabel}
 				{compact}
 				disabled={busy}
+				images={bodyImages}
+				imagesEmptyHint={bodyImagesEmptyHint}
 				onchange={(doc) => (bodyDoc = doc)}
 				onready={(doc) => {
 					// THE BASELINE, NOT AN EDIT. Seeding Tiptap emits a transaction
@@ -1229,7 +1285,12 @@
 				label="Files"
 				hint="Any file type, up to 200 MB each. Uploads when you save."
 				showPreviews
-				oncountchange={(n) => (stagedFileCount = n)}
+				oncountchange={(n) => {
+					stagedFileCount = n;
+					// The count is the SIGNAL; the names are the read. See
+					// `stagedFileNames` for why this is not a second panel callback.
+					stagedFileNames = (filePanel?.files() ?? []).map((f) => f.name);
+				}}
 			/>
 			{#if pasteHint}
 				<p class="feedback ok">{pasteHint}</p>

@@ -432,7 +432,7 @@ export async function tapTargets(page, { selector, label = selector, min = 44, f
 }
 
 /* ------------------------------------------------------------------ *
- * 3a. Tap REACH -- a `.tap-reach-44` control's expanded hit area, not its box
+ * 3a. Tap REACH -- a `.tap-reach-44` control's expanded hit area, MEASURED
  * ------------------------------------------------------------------ */
 /**
  * `.tap-reach-44` (app.css) grows a control's HIT AREA with a centred
@@ -442,126 +442,281 @@ export async function tapTargets(page, { selector, label = selector, min = 44, f
  * STANDARDS 10). `tapTargets` measures the element's own rendered box, which
  * for one of these is BY DESIGN under 44px -- so pointing that check at a
  * `.tap-reach-44` selector reports a finding on every one of them, on a
- * surface that is actually fine. This measures the REACH instead: the
- * pseudo-element's box, computed the way the CSS computes it (centred,
- * `max(ownWidth, --tap-reach-w)` x `max(ownHeight, 44px)`), and HIT-TESTS
- * five points across it -- the centre and the midpoint of each edge, inset
- * 1px so a point never lands exactly on a shared boundary with a neighbour
- * -- rather than trusting the box's geometry alone. A neighbouring reach
- * overlapping this one steals a tap silently; measuring the box cannot see
- * that, only a hit test can (CLAUDE.md: "Verify a reach by HIT-TESTING it").
+ * surface that is actually fine.
  *
- * `document.elementFromPoint` answers null OUTSIDE the viewport, and this
- * harness never scrolls (CLAUDE.md, the /dev/foundry-submit case: five
- * controls ~3000px down all read `centreHitsSelf: false`, an artefact of the
- * instrument rather than a finding). A point outside `window.inner{Width,
- * Height}` is therefore marked `offscreen` and excluded from the STOLEN
- * count and from the pass/fail gate -- geometry is still measured and
- * reported for it, only the hit test is skipped.
+ * THIS CHECK HIT-TESTS THE REACH RATHER THAN COMPUTING IT, AND IT USED TO DO
+ * THE OPPOSITE. Until 2026-09-05 the reported geometry was RECONSTRUCTED from
+ * the CSS -- `reachH = Math.max(ownHeight, 44)`, `reachW = Math.max(ownWidth,
+ * --tap-reach-w)` -- so `reachH` was 44 BY CONSTRUCTION for every control the
+ * pair applied to, and the `under` gate could only ever fire on the width. A
+ * `button.info-tip-trigger.tap-reach-44` whose real reach measured 34.5px was
+ * reported as `smallest reach 140.7x44 ... 0/4 reaches under 44px`. The
+ * sentence a reader consults said 44 about a control that was delivering 34.5,
+ * and the number came from the class name by way of the stylesheet rather than
+ * from the page.
+ *
+ * The reach is now WALKED: from the control's centre outward in each of the
+ * four directions, `WALK_STEP` at a time, counting only points that genuinely
+ * hit the control. `walkedW`/`walkedH` are that measurement and are the only
+ * thing the gate reads, so `min - <something>` is a real shortfall rather than
+ * a modelling choice. `reachW`/`reachH` keep their old, reconstructed meaning
+ * and keep their names, because the `--tap-reach-w` knob-parsing controls in
+ * `selftest.mjs` assert on them and that parsing is still worth asserting;
+ * they decide nothing now.
+ * The reconstructed box is a DIAGNOSTIC AND NEVER A SECOND GATE: where the two
+ * disagree, the difference is what something clipped or covered, and having
+ * both in the row is what lets a reader tell a clipped reach from a reach that
+ * was never declared at all. Only the walked numbers decide `withinThreshold`.
+ *
+ * A HIT IS THE CONTROL, SOMETHING INSIDE IT, OR A `<label>` THAT ACTIVATES IT
+ * -- NEVER A PLAIN ANCESTOR, and the ancestor clause is exactly how a miss was
+ * scoring as a hit. `hitsSelf` used to read
+ * `hit === el || el.contains(hit) || hit.contains(el)`, and that third term is
+ * true for every ancestor: a `<td>`, a `<div>`, the disclosure body around the
+ * whole module. Those are precisely the elements a CLIPPED reach falls through
+ * to, so the one case the hit test exists to catch was the one it scored as a
+ * pass. Measured on `/dev/spec-table?empty=1` at 1440 before this change: at
+ * 14px and 16px above the trigger's centre the top element is
+ * `div.disc-body`, `hit.contains(el)` is true, and the sample counted as a
+ * hit on a point where the reach is not there and a finger would press
+ * nothing. Pressing the cell does not press the button.
+ *
+ * A `<label>` is the deliberate exception and not a softening of that rule:
+ * clicking a label that owns a control activates the control, so the label's
+ * box IS the control's hit area, which is the thing CLAUDE.md means by
+ * measuring a wrapped input at its label. `label.control` covers the wrapping
+ * form, `for=`/`id` covers the detached form.
+ *
+ * `document.elementFromPoint` answers null OUTSIDE the viewport, so this check
+ * SCROLLS each control to the middle of the window before walking it and puts
+ * every scroll position back afterwards. That is the one place it departs from
+ * the harness's never-scroll rule, and it departs deliberately: a hit test
+ * cannot be taken on a point that is not in the window, and the alternative --
+ * the /dev/foundry-submit shape, where five controls ~3000px down all read
+ * `centreHitsSelf: false` -- is a row that reports the instrument rather than
+ * the page. A control whose centre is STILL offscreen after that (it is inside
+ * a container that cannot bring it into view) is reported as `offscreen`, and
+ * a walk that runs into a viewport edge before reaching its limit is marked
+ * `clampedByViewport`. Both are excluded from the gate and both are counted in
+ * the sentence, so a shrinking denominator cannot hide behind a clean verdict.
  */
+/**
+ * Hit-test resolution of the walk, in CSS px.
+ *
+ * THE WALK REPORTS THE FIRST DISTANCE THAT MISSES, NOT THE LAST THAT HITS, and
+ * that is forced by the geometry rather than chosen. A box occupies a
+ * half-open interval, so a sample taken at exactly its far edge belongs to the
+ * next element: a perfect 44px reach with pixel-aligned edges hits at 21.75 and
+ * misses at 22.0 on each side, and reporting last-hit gives 43.5 for a reach
+ * that is exactly 44. Measured on the selftest's own fixture, which reproduces
+ * the real `.tap-reach-44` rule pair: last-hit reported 43 and failed a control
+ * that is correct. Reporting the first miss gives 44.0 there, and on the four
+ * healthy call sites in `src/` at both widths.
+ *
+ * The cost is that a reach can be over-credited by up to one step per side. At
+ * 0.25px that is 0.5px worst case on a 44px floor, which is why the step is a
+ * quarter pixel rather than a half: at 0.5 the same fixture measurements showed
+ * a 43.4px reach reporting a clean 44.
+ */
+export const WALK_STEP = 0.25;
+
 export async function tapReach(page, { selector, label = selector, min = 44 } = {}) {
 	await ensureHelpers(page);
 	const data = await page.evaluate(
-		({ selector }) => {
+		({ selector, min, step }) => {
 			const h = window.__bvHelpers;
 			const nodes = Array.from(document.querySelectorAll(selector));
+			/* EVERY SCROLL THIS CHECK MAKES IS PUT BACK. `scrollIntoView` can
+			   move any scrollable ancestor as well as the document, so the
+			   whole chain is recorded first and restored last, and the check
+			   leaves the page where it found it for whatever runs next. */
+			const scrollers = [document.scrollingElement, ...document.querySelectorAll('*')]
+				.filter((n) => n && (n.scrollTop !== 0 || n.scrollLeft !== 0 || n.scrollHeight > n.clientHeight || n.scrollWidth > n.clientWidth))
+				.map((n) => ({ n, top: n.scrollTop, left: n.scrollLeft }));
 			const results = nodes.map((el) => {
+				/* THE HARNESS DOES NOT SCROLL AND THIS CHECK HAS TO. A hit test
+				   needs the point to be inside the viewport --
+				   `elementFromPoint` answers null outside it -- so a control
+				   below the fold was previously reported with five offscreen
+				   sample points and passed on its MODELLED geometry alone, or,
+				   once the model stopped deciding anything, could not be
+				   measured at all. `/dev/classroom-images` is the case: all
+				   four attachment links sit below 900px at both widths, and
+				   walking them after a scroll gives a clean 44 that neither
+				   earlier shape could report. `behavior: 'instant'` because
+				   `src/app.css` sets a global `scroll-behavior: smooth`
+				   (CLAUDE.md), and a smooth scroll would still be in flight
+				   when the walk reads its first point. */
+				try {
+					el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+				} catch {
+					/* An element in a container that cannot scroll is measured
+					   where it is; the viewport clamp below reports it. */
+				}
 				const vis = h.isVisible(el);
 				const own = el.getBoundingClientRect();
 				const cs = getComputedStyle(el);
 				/* THE PSEUDO-ELEMENT MUST ACTUALLY EXIST. There is no API for a
-				   pseudo-element's own geometry, so this recomputes it the way
-				   the CSS computes it -- but only for a control the CSS pair
-				   actually applies to. `content: none` is what a `::after`
-				   reports when no rule defines one; without that check, every
-				   element would be credited with a reach it does not have,
-				   which is a WORSE defect than the one this check exists to
-				   catch (a "44px, 0 stolen" report for a control with no reach
-				   mechanism at all). */
+				   pseudo-element's own geometry, so the MODELLED box below
+				   recomputes it the way the CSS computes it -- but only for a
+				   control the CSS pair actually applies to. `content: none` is
+				   what a `::after` reports when no rule defines one. The model
+				   no longer decides anything; it is carried so a reader can
+				   compare it against the walk. */
 				const after = getComputedStyle(el, '::after');
 				const hasReach = after.content !== 'none' && after.content !== '';
 				/* `|| 44` SWALLOWED A DELIBERATE ZERO, AND ZERO IS THE COMMON
 				   CASE RATHER THAN AN EXOTIC ONE. `--tap-reach-w: 0px` is the
 				   documented width knob and CLAUDE.md says most reaches must
-				   set it -- ten components in `src/` do, ProfileMenu's
-				   `.pm-trigger` and AttachmentList's `.attach-name` among them,
-				   both of which route specs point this check at. `parseFloat`
-				   returns 0 for `0px`, `0 || 44` is 44, so the check modelled a
-				   44px-wide reach where the CSS computes `max(100%, 0px)` --
-				   the element's own width. On a 22.5px filename link that is a
-				   reach reported at nearly twice its real width, and the five
-				   hit-test points are then sampled at +-22px from centre rather
-				   than +-11.25px, which can pick up a neighbour that never
-				   steals a real tap.
-
+				   set it. `parseFloat` returns 0 for `0px`, `0 || 44` is 44.
 				   The UNSET case still defaults to 44, because that is what
 				   `var(--tap-reach-w, 44px)` in `src/app.css` does; the
 				   distinction is between "absent" and "zero", which `||`
-				   cannot make. Only a px value is honoured -- `parseFloat`
-				   reads the number and drops the unit -- so the raw declared
-				   string rides in `reachWDeclared` for a reader to audit
-				   rather than being silently converted. */
+				   cannot make. The raw declared string rides in
+				   `reachWDeclared` for a reader to audit. */
 				const reachDeclared = cs.getPropertyValue('--tap-reach-w').trim();
 				const reachParsed = parseFloat(reachDeclared);
-				const reachW = hasReach ? (Number.isFinite(reachParsed) ? reachParsed : 44) : 0;
-				const w = hasReach ? Math.max(own.width, reachW) : own.width;
-				const ht = hasReach ? Math.max(own.height, 44) : own.height;
+				const knobW = hasReach ? (Number.isFinite(reachParsed) ? reachParsed : 44) : 0;
+				const modelledW = hasReach ? Math.max(own.width, knobW) : own.width;
+				const modelledH = hasReach ? Math.max(own.height, 44) : own.height;
+
 				const cx = own.x + own.width / 2;
 				const cy = own.y + own.height / 2;
-				const box = { left: cx - w / 2, top: cy - ht / 2, right: cx + w / 2, bottom: cy + ht / 2, width: w, height: ht };
-				const inset = 1;
-				const points = [
-					[cx, cy],
-					[box.left + inset, cy],
-					[box.right - inset, cy],
-					[cx, box.top + inset],
-					[cx, box.bottom - inset]
-				];
-				const hits = points.map(([x, y]) => {
-					const offscreen = x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight;
-					if (offscreen) return { x: +x.toFixed(1), y: +y.toFixed(1), offscreen: true, hitsSelf: null, hitPath: null };
-					const hit = document.elementFromPoint(x, y);
-					const hitsSelf = !!hit && (hit === el || el.contains(hit) || hit.contains(el));
-					return { x: +x.toFixed(1), y: +y.toFixed(1), offscreen: false, hitsSelf, hitPath: hit ? h.cssPath(hit) : null };
-				});
-				const onscreen = hits.filter((p) => !p.offscreen);
+				const inView = (x, y) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight;
+				/* THE ONE DEFINITION OF A HIT. The element, anything inside it,
+				   or a <label> that activates it. An ancestor is not a hit. */
+				const isHit = (hit) => {
+					if (!hit) return false;
+					if (hit === el || el.contains(hit)) return true;
+					for (let n = hit; n; n = n.parentElement) {
+						if (n.tagName !== 'LABEL') continue;
+						if (n.control === el) return true;
+						if (n.htmlFor && document.getElementById(n.htmlFor) === el) return true;
+					}
+					return false;
+				};
+				const centreOffscreen = !inView(cx, cy);
+				const centreHit = centreOffscreen ? null : isHit(document.elementFromPoint(cx, cy));
+
+				/* THE WALK IS CAPPED PER DIRECTION AND THE FLOOR IS READ OFF THE
+				   TOTAL, WHICH IS NOT THE SAME AS CAPPING EACH SIDE AT
+				   `min / 2`. Measured on five healthy `.tap-reach-44` controls
+				   at both widths, a correct 44px reach walks 22.5px one way and
+				   21.5px the other: the pseudo-element is centred on the
+				   control's box, the control's own centre lands on a fraction
+				   of a pixel, and the browser's hit test resolves the two edges
+				   half a step apart. The sum is 44.0 every time. A per-side cap
+				   of 22 would have reported 43.5 for all of them and failed
+				   every passing call site in the repo. `blockedBy` is the
+				   element that took the tap at the first miss, which is what
+				   names a clip or a neighbour. */
+				const limit = min;
+				const walk = (dx, dy) => {
+					if (!centreHit) return { px: 0, clamped: false, blockedBy: null };
+					let lastHit = 0;
+					for (let d = step; d <= limit + 1e-9; d += step) {
+						const x = cx + dx * d;
+						const y = cy + dy * d;
+						if (!inView(x, y)) return { px: lastHit, clamped: true, blockedBy: null };
+						const took = document.elementFromPoint(x, y);
+						/* `d` and not `lastHit`: the edge lies in (lastHit, d],
+						   and a box's far edge belongs to the next element, so
+						   the miss distance is the extent. See WALK_STEP. */
+						if (!isHit(took)) return { px: d, clamped: false, blockedBy: took ? h.cssPath(took) : null };
+						lastHit = d;
+					}
+					return { px: lastHit, clamped: false, blockedBy: null };
+				};
+				const up = walk(0, -1);
+				const down = walk(0, 1);
+				const left = walk(-1, 0);
+				const right = walk(1, 0);
+				/* A SIDE THE WINDOW CUT OFF IS MIRRORED FROM ITS OPPOSITE; A SIDE
+				   AN ELEMENT CUT OFF IS NOT, AND THE WHOLE VALUE OF THE CHECK IS
+				   IN THAT DIFFERENCE. The pseudo-element is centred on the
+				   control by construction (`top:50%; left:50%;
+				   translate(-50%,-50%)` in app.css), so the two sides of an axis
+				   are equal in the CSS and a measured difference can only come
+				   from the window or from something on the page. `clamped` is
+				   set ONLY when a point left the viewport, which after the
+				   scroll above means the document was too short to give the
+				   control `min` of headroom -- a fact about the window, and the
+				   same artefact this check already refuses to report as a
+				   finding. Something on the page stopping the walk sets
+				   `blockedBy` instead and is never mirrored, so the clipped
+				   `.tap-reach-44` case this rewrite exists to catch (top blocked
+				   by an ancestor, bottom clear) still reports its real
+				   shortfall. An axis clamped on BOTH sides has nothing to mirror
+				   from and excludes the control. */
+				const pair = (a, b) => {
+					if (a.clamped && b.clamped) return { px: null, mirrored: false };
+					if (a.clamped) return { px: b.px * 2, mirrored: true };
+					if (b.clamped) return { px: a.px * 2, mirrored: true };
+					return { px: a.px + b.px, mirrored: false };
+				};
+				const vert = pair(up, down);
+				const horiz = pair(left, right);
+				const clamped = vert.px === null || horiz.px === null;
+				const walkedW = horiz.px === null ? 0 : +horiz.px.toFixed(1);
+				const walkedH = vert.px === null ? 0 : +vert.px.toFixed(1);
+				const blockers = [up, down, left, right].map((w) => w.blockedBy).filter(Boolean);
+
 				return {
 					path: h.cssPath(el),
 					hasReach,
 					reachWDeclared: reachDeclared || '(unset -- app.css defaults it to 44px)',
 					ownW: +own.width.toFixed(1),
 					ownH: +own.height.toFixed(1),
-					reachW: +w.toFixed(1),
-					reachH: +ht.toFixed(1),
-					minDim: +Math.min(w, ht).toFixed(1),
-					allHit: onscreen.every((p) => p.hitsSelf),
-					stolen: onscreen.filter((p) => !p.hitsSelf).length,
-					offscreenCount: hits.length - onscreen.length,
-					hits,
+					/* WHAT THE CSS SAYS, kept under the names it has always had so
+					   the knob-parsing controls in selftest.mjs keep asserting
+					   the thing they were written for. These decide NOTHING. */
+					reachW: +modelledW.toFixed(1),
+					reachH: +modelledH.toFixed(1),
+					/* WHAT THE PAGE ACTUALLY GIVES, walked. The gate reads these
+					   and only these. */
+					walkedW,
+					walkedH,
+					up: +up.px.toFixed(1),
+					down: +down.px.toFixed(1),
+					left: +left.px.toFixed(1),
+					right: +right.px.toFixed(1),
+					mirroredFromViewportClamp: vert.mirrored || horiz.mirrored,
+					minDim: +Math.min(walkedW, walkedH).toFixed(1),
+					blockedBy: blockers.length ? Array.from(new Set(blockers)) : null,
+					centreHit,
+					offscreen: centreOffscreen,
+					clampedByViewport: clamped,
 					visible: vis.visible,
 					invisibleBecause: vis.reasons
 				};
 			});
+			for (const s of scrollers) {
+				s.n.scrollTop = s.top;
+				s.n.scrollLeft = s.left;
+			}
 			return { matchCount: nodes.length, results };
 		},
-		{ selector }
+		{ selector, min, step: WALK_STEP }
 	);
 
-	const measurable = data.results.filter((r) => r.visible);
+	/* A control the harness could not put a point on is not a finding about
+	   the page. Both exclusions are reported as counts so a shrinking
+	   denominator cannot hide behind a clean verdict. */
+	const visible = data.results.filter((r) => r.visible);
+	const excluded = visible.filter((r) => r.offscreen || r.clampedByViewport);
+	const measurable = visible.filter((r) => !r.offscreen && !r.clampedByViewport);
 	const smallest = measurable.reduce((a, r) => (a === null || r.minDim < a.minDim ? r : a), null);
 	const under = measurable.filter((r) => r.minDim < min).length;
-	const stolenTotal = measurable.reduce((a, r) => a + r.stolen, 0);
-	const offscreenTotal = measurable.reduce((a, r) => a + r.offscreenCount, 0);
 	return {
 		check: 'tap-reach',
 		selector,
 		label,
 		measured:
 			measurable.length === 0
-				? `${data.matchCount} matched, 0 visible/measurable`
-				: `smallest reach ${smallest.reachW}x${smallest.reachH} (min dim ${smallest.minDim}px, own box ${smallest.ownW}x${smallest.ownH}); ${under}/${measurable.length} reaches under ${min}px, ${stolenTotal} tap(s) stolen of ${measurable.length * 5 - offscreenTotal} on-screen sample points (${offscreenTotal} offscreen, not scrolled into view -- an artefact of the harness, not a finding)`,
-		threshold: `${min}px reach, 0 stolen taps`,
-		withinThreshold: measurable.length > 0 && under === 0 && stolenTotal === 0,
+				? `${data.matchCount} matched, ${visible.length} visible, 0 measurable (${excluded.length} offscreen or clamped by the viewport -- an artefact of the harness, not a finding)`
+				: `smallest walked reach ${smallest.walkedW}x${smallest.walkedH} (min dim ${smallest.minDim}px, own box ${smallest.ownW}x${smallest.ownH}, CSS models ${smallest.reachW}x${smallest.reachH}); ${under}/${measurable.length} reaches under ${min}px${under ? `, first blocked by ${(smallest.blockedBy || ['nothing -- the walk ran out']).join(' / ')}` : ''}; ${excluded.length} offscreen or clamped, excluded`,
+		threshold: `${min}px walked reach in both axes`,
+		withinThreshold: measurable.length > 0 && under === 0,
 		matchCount: data.matchCount,
 		data
 	};

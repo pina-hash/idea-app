@@ -95,6 +95,19 @@ export default {
 		{
 			click: '.pick.free',
 			until: '() => document.querySelector(".pick.free").getAttribute("aria-pressed") === "true"'
+		},
+		/* THE FOLDER MANAGER IS SHUT UNTIL SOMETHING PRESSES Manage folders, and
+		   its colour swatches are the only mount of `.swatch` anywhere in the
+		   harness. Without this step the `tapReach` row below matches nothing
+		   and reports a clean pass over an empty set, which is the shape 0044
+		   spent a bundle removing. Verified not to disturb the rows already on
+		   this route: every other check on `/dev/notebook` reports the same
+		   value at both widths with the panel open as it did with it shut, the
+		   panel being a nav-pane sibling of the feed rather than anything the
+		   compose card or the check-in picker sits inside. */
+		{
+			click: '[data-testid="manage-folders"]',
+			until: '() => !!document.querySelector("[data-testid=\'folder-name\']")'
 		}
 	],
 	presence: [
@@ -142,6 +155,35 @@ export default {
 			other geometry measurement here.
 		*/
 		{ selector: '.pick.free', label: 'free-entry check-in chip (student-facing, no density exemption)', min: 44 }
+	],
+	/* TWO `.tap-reach-44` SURFACES, ONE FIXED AND ONE WAITING ON ITS OWNER, and
+	   both are here because 0044 measured every user of that class and found
+	   these two had no row of any kind pointing at them. The class expands a
+	   control's HIT AREA rather than its box, so `tapTargets` would report a
+	   finding on every one of them; `tapReach` walks the hit area in both axes
+	   (../checks.mjs) and is the only check that can tell these apart.
+
+	   THE SWATCHES ARE FIXED AND THIS ROW IS THE REGRESSION GUARD. They ran
+	   `--tap-reach-w: 0px` (correct: seven on a 32px pitch, and 44px-wide
+	   reaches would have handed most of them to the neighbour painting last)
+	   over a 24px painted box, so the knob left the WIDTH at 24 and all seven
+	   walked 25 x 45 at both widths. Grown to a 44px box on 2026-09-05, which
+	   wraps them 5+2 at 375 and 6+1 at 1440 inside the fieldset that was
+	   already there. Measured after: 45 x 45, all seven, both widths.
+
+	   THE TOOLBAR LINKS ARE NOT FIXED AND THIS ROW WILL REPORT THEM. Four of
+	   them -- Select 31.1, Done 25.6, Clear 25.7, Expand all 36.3 -- are under
+	   the floor on width for the same reason, and the fix does not fit: at 44px
+	   the row needs 346.6px against 293px of container at 375, so it buys a
+	   13px document overflow, which 2.12 step 3 refuses at the narrow width.
+	   The arrangement that does fit costs one property on `.tools`, which this
+	   bundle does not own; decision 12 carries the arithmetic and the owner.
+	   The row is here rather than absent BECAUSE it is failing: a number that
+	   regenerates every run with a decision entry against it is the opposite of
+	   the standing finding 2.12 forbids, which is one nobody has to look at. */
+	tapReach: [
+		{ selector: '.swatch', label: 'folder colour swatches (fixed 2026-09-05)', min: 44 },
+		{ selector: '.tools .inline-link', label: 'toolbar text controls (under the floor on width -- decision 12, with the owner)', min: 44 }
 	],
 	/*
 		THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER

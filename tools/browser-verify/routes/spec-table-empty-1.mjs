@@ -56,6 +56,11 @@ export default {
 	   on the second would assert nothing at all. */
 	presence: [
 		{ selector: '[data-testid=ed] td.row-ops', label: 'rows after one press', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
+		/* TWO CONTROLS IN THAT ONE ROW, stated as a ceiling as well as a floor:
+		   a third wraps the 2-track grid to a second line and puts the row back
+		   to 98.3px, which is exactly what `?rows=12` exists to catch on a page
+		   and this catches on a single row. */
+		{ selector: '[data-testid=ed] td.row-ops button', label: 'row action controls in that row', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
 		{ selector: '[data-testid=ed] td.empty-cell', label: 'empty-state cell after one press', expectPresent: 0 },
 		/* THE POSITIVE CONTROL for that absence row: the read-only mount beside
 		   it seeds no rows either and is never pressed, so its empty cell is
@@ -72,13 +77,66 @@ export default {
 	],
 	tapTargets: [
 		{ selector: '[data-testid=ed] .table-foot button', label: 'Add row', min: 44 },
-		/* A STANDING FINDING, MEASURED RATHER THAN OMITTED. The four glyph
-		   controls on a row (move up, move down, duplicate, delete) are 1.45rem
-		   squares in a 6.4rem column, inside a table that already scrolls
-		   horizontally at 375px; four 44px targets would need ~11rem of that
-		   column. That is a layout decision with its own measurements, not a
-		   class to add, so this row reports the number instead of hiding it --
-		   a control nobody measures is a control nobody fixes. */
-		{ selector: '[data-testid=ed] td.row-ops button', label: 'row action glyphs (known finding)', min: 44 }
+		/* NO LONGER A STANDING FINDING, AND THERE ARE TWO OF THEM NOW RATHER
+		   THAN FOUR. This row read `known finding` and reported 23.2x23.2 every
+		   run from 2026-09-04, on the grounds that four 44px targets need ~11rem
+		   of a 6.4rem column inside a table that already scrolls at 375px. The
+		   arithmetic was right about ONE LINE of four and wrong that a line was
+		   the only arrangement: 2x2 needs 2*44 + gap + cell padding = 102.4px,
+		   which is the 6.4rem the column was already declared at. Measured
+		   after: 44x44 on all four at both widths, the column NARROWED (125.4
+		   -> 100.0 at 375, 125.4 -> 102.4 at 1440), the table's own scrollWidth
+		   fell 653 -> 628 at 375, and the document overflowed 0px at both. The
+		   cost was row height, 40.4 -> 98.3.
+
+		   THAT COST WAS A PER-ROW NUMBER AND THE PAGE IS WHAT A STUDENT HAS.
+		   `/dev/spec-table?rows=12` measures it: 1244.5px of table between a
+		   student and the Add row control at 375, 1.94 phone screens against
+		   1.26 before. Reordering was dropped under step 2 of
+		   `IDEA_INTERFACE_STANDARDS` 10 (2.12) -- decision entry 13 owns what
+		   that costs -- and the remaining two sit on ONE line at 44x44, in the
+		   same 6.4rem column, with the row back to 51.4px here.
+
+		   THE ROW STAYS, and its label no longer excuses it. A row kept only
+		   while it is failing is a row that disappears at exactly the moment it
+		   starts being the thing that would catch a regression. */
+		{ selector: '[data-testid=ed] td.row-ops button', label: 'row action controls', min: 44 },
+		/* 33px AT BOTH WIDTHS UNTIL 2026-09-05, and it cost the row nothing to
+		   fix. The reason it costs nothing CHANGED on the same day and the
+		   figure did not: it used to fit inside a 98.3px row set by the 2x2
+		   grid; with two controls on one line the 44px BUTTON beside it is what
+		   holds a short row at 51.4px, so the cell still grows into height the
+		   row already has. Measured by deleting the cell's own `min-height`
+		   alone on `?rows=12` at 375 -- rows 127.4/51.4/62.4 and table 822.3px,
+		   identical either way. Measured after the fix: 44x44 (96 wide at 375,
+		   241.5 at 1440), column still 100.0/102.4, scrollWidth still 628. */
+		{ selector: '[data-testid=ed] textarea.cell', label: 'editable table cells', min: 44 },
+		/* THE LABEL AND NOT THE INPUT, because the label is what a finger hits
+		   (CLAUDE.md) -- the input inside it stays 13x13 deliberately. The
+		   `tapReach` row below is what proves the two are actually one target
+		   rather than two things that happen to be nested. Measured 293x23 at
+		   375 and 1358x23 at 1440 before, both under the 24px absolute floor's
+		   own margin; 293x44 and 1358x44 after. */
+		{ selector: 'ul.checklist label.check-item', label: 'checklist rows (measured at the label)', min: 44 }
+	],
+	/* THE COLUMN TIP TRIGGER, WHICH IS WHY THIS BUNDLE EXISTS. It carries
+	   `.tap-reach-44` and was delivering 34.5px of walked reach at 1440 and
+	   42.5px at 375 -- its `::after` computes 44px, and the `.table-scroll`
+	   around the table clipped the top half of it away, because `overflow-x:
+	   auto` forces `overflow-y` to `auto`. Nothing reported it: no spec pointed
+	   at this control, and the check itself RECONSTRUCTED the reach from the
+	   CSS rather than walking it, so it would have answered 44 if one had.
+	   Both halves are fixed; this row is what keeps them fixed.
+
+	   THE CHECKBOX IS HERE RATHER THAN IN `tapTargets` ON PURPOSE. It has no
+	   reach mechanism at all, so the modelled columns just echo its 13x13 box;
+	   what the row is for is the WALK, which follows the activating `<label>`
+	   and therefore measures the pair as one target. Measured 45.3px tall at
+	   both widths. A `tapTargets` row on the input alone would report 13x13 and
+	   be wrong about a control that is fine; a `tapTargets` row on the label
+	   alone would report 44 without ever proving the input goes with it. */
+	tapReach: [
+		{ selector: '[data-testid=ed] button.info-tip-trigger', label: 'column tip triggers (reach, not box)', min: 44 },
+		{ selector: 'ul.checklist input[type=checkbox]', label: 'checklist inputs, walked through their label', min: 44 }
 	]
 };

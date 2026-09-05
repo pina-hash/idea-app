@@ -12,7 +12,7 @@ this directory shows `not yet mirrored` in both cells rather than a guess.
 | `IDEA_RUBRIC_STANDARDS.md` | 1.3 | 2026-08-25 | Leveled criteria, `short` forms, descriptor writing, grading behavior |
 | `IDEA_PRINT_STANDARDS.md` | 1.0 | 2026-08-10 | Rendering rules for print-first materials: page rules, typography, color in print, document structure |
 | `IDEA_CLAUDE_DESIGN_STANDARDS.md` | 2.1 | 2026-08-27 | The IDEA pathway's sole hand-maintained design standard: visual identity (absorbed from the retired `IDEA_Design_System.md`) plus the scoping and prompting of every Claude Design artifact |
-| `IDEA_INTERFACE_STANDARDS.md` | 2.11 | 2026-08-26 | Layout, viewport behaviour, role parity, legibility, interaction structure for shipped app surfaces |
+| `IDEA_INTERFACE_STANDARDS.md` | 2.12 | 2026-09-05 | Layout, viewport behaviour, role parity, legibility, interaction structure for shipped app surfaces |
 | `IDEA_VERIFICATION_ADDENDA.md` | 2.3 | 2026-08-31 | The owning verification standard (no longer staging, despite the filename it deliberately keeps): how any build claim is proven, harnesses, mutation proof, positive controls, mock fidelity |
 | `IDEA_HUMOR_STANDARDS.md` | 2.2 | 2026-08-26 | Governs deliberate humor in IDEA and Team 5669 presentation artifacts: the three admission gates, sourcing, density and placement |
 | `IDEA_HUMOR_LEDGER.md` | 1.4 | 2026-08-25 | The anti-repetition record and cooldown mechanism for every humor insertion. 1.3 is void and was never a real state; discard any copy carrying that number |

@@ -858,6 +858,125 @@ jobs:
           }
           # auto_resolve_marker:end
 
+          # THE STATIC COUNTS REGION AFTER A MERGE THAT DID NOT CONFLICT, which
+          # is a DIFFERENT GAP from the one `auto_resolve` closes and is not
+          # covered by it. That function runs when a merge CONFLICTS on the
+          # counts README; this runs when it does not.
+          #
+          # THE SHAPE, REPRODUCED BEFORE IT WAS WRITTEN RATHER THAN ARGUED. Two
+          # branches each add ONE route spec. Each is green on its own CI,
+          # because `tests/derived-numbers.test.ts` checks the static region
+          # against the tree on every run and each branch regenerated for its
+          # own tree -- and each therefore wrote the SAME number, base + 1. Git
+          # sees an IDENTICAL edit on both sides of the second merge, takes it
+          # with no conflict at all, and `integration` is pushed with a region
+          # saying 103 over a tree holding 104. Measured in throwaway
+          # repositories: base 102/102, after the first merge 103/103, after
+          # the second 103/104, `--static --check` stale. Prompt 0035's own
+          # fixture names the shape in a comment ("two branches that each add
+          # exactly one page regenerate to the SAME number, git merges the
+          # identical text cleanly") and steered around it, because it was
+          # proving the resolver and this is not the resolver's case.
+          #
+          # ONCE, AFTER EVERY MERGE IN THE SWEEP, ON THE FINAL TREE. Per merge
+          # would be several commits saying the same thing and would still have
+          # to be redone at the end: the only tree whose counts are right is
+          # the one that gets pushed.
+          #
+          # ONLY THE STATIC HALF, AND THAT IS ASSERTED RATHER THAN INTENDED.
+          # `--static` is a tree read -- no browser, no dev server, no network,
+          # no `node_modules`; measured at 96-313ms on a checkout with none of
+          # them. The MEASURED half needs a browser and about six minutes, and a
+          # sweep that rewrote it would be publishing a measurement it never
+          # took; prompt 0046's covered-set check is what carries that half. So
+          # this refuses to commit unless the ONE file it expects is the only
+          # thing that moved.
+          #
+          # IT NEVER LOSES A MERGE. Every failure returns non-zero having
+          # committed nothing, the caller reports it and pushes the merges
+          # anyway, and the region is left exactly as stale as every run before
+          # this one left it.
+          #
+          # THE EXTRA COMMIT IS SAFE AND STARTS NOTHING. It rides the same
+          # single `git push` as the merges, and `ci.yml`'s own header records
+          # why that push triggers no workflow run at all: GitHub starts none
+          # from a push made with `GITHUB_TOKEN`. So there is no loop to break
+          # here and none is added.
+          #
+          # It is a FUNCTION and between markers for `auto_resolve`'s reason: it
+          # is PROVED by cutting this exact text out of THIS FILE and running it
+          # against throwaway git repositories, so no proof can drift into
+          # testing a private copy of the rule. Do not rename the markers and do
+          # not move the bodies out from between them.
+          # counts_refresh_marker:begin
+          counts_refresh() {
+            # Called with a merged, committed tree and nothing staged. Prints
+            # ONE line -- the region's counts before and after -- and returns 0
+            # when it committed; prints NOTHING and returns 0 when the region
+            # was already the merged tree's own answer; returns non-zero, having
+            # committed nothing, on every failure.
+            local readme='tools/browser-verify/README.md'
+            local before after
+            local -a moved=()
+
+            [ -f "$readme" ] || return 1
+            [ -f tools/browser-verify/readme-counts.mjs ] || return 1
+
+            # THE DATA LINE, NOT THE RENDERED TABLE. The table is derived from
+            # it, so a summary quoting the derived copy would be a second
+            # reading of one fact.
+            before="$(_counts_data "$readme")" || return 1
+
+            node tools/browser-verify/readme-counts.mjs --static >/dev/null 2>&1 || return 1
+
+            # NOTHING BUT THAT ONE FILE MAY HAVE MOVED, and this is where that
+            # is CHECKED rather than trusted. A generator that wrote anywhere
+            # else is exactly the case where committing "the regeneration"
+            # would carry something nobody looked at into $TARGET. An empty set
+            # is the ordinary answer on a tree whose counts did not move: the
+            # static region carries no clock and no commit, so regenerating it
+            # unchanged rewrites the bytes that were already there.
+            mapfile -t moved < <(
+              {
+                git diff --name-only
+                git diff --cached --name-only
+                git ls-files --others --exclude-standard
+              } | sort -u
+            )
+            case "${#moved[@]}" in
+              0) return 0 ;;
+              1) [ "${moved[0]}" = "$readme" ] || return 1 ;;
+              *) return 1 ;;
+            esac
+
+            # THE COUNTS ACTUALLY MOVED. Reaching here with an unchanged data
+            # line means the generator rewrote the file without changing what
+            # it claims, which is not a state this understands, so it refuses
+            # rather than committing a diff it cannot describe.
+            after="$(_counts_data "$readme")" || return 1
+            [ "$before" != "$after" ] || return 1
+
+            # ONE PATH NAMED EXPLICITLY. `git commit -- <path>` commits that
+            # path's working-tree content and nothing else, so even a staged
+            # something-else could not ride along.
+            git commit -q -m 'Regenerate the static browser-verify counts on the merged tree' -- "$readme" || return 1
+            printf '%s -> %s\n' "$before" "$after"
+            return 0
+          }
+
+          _counts_data() {
+            # What the static region CLAIMS, as one short string: the numbers on
+            # its own `counts:static:data` line. Exactly one such line or this
+            # refuses -- a merge that duplicated the region would otherwise make
+            # "the counts" ambiguous, and the ambiguous answer is the one that
+            # must not be reported.
+            local line
+            line="$(grep -F '<!-- counts:static:data ' "$1")" || return 1
+            [ "$(printf '%s\n' "$line" | grep -c .)" = 1 ] || return 1
+            printf '%s' "$line" | sed -e 's/.*<!-- counts:static:data //' -e 's/ -->[[:space:]]*$//'
+          }
+          # counts_refresh_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
@@ -1046,6 +1165,33 @@ jobs:
             fi
           done
 
+          # THE STATIC COUNTS REGION, ONCE, ON THE FINAL TREE. See
+          # `counts_refresh` above for the gap this closes and why it is here
+          # rather than inside the loop.
+          #
+          # GATED ON THE TREE HAVING MOVED, which is exactly the two ways it
+          # can: a branch merge, or the main catch-up. Those are also the two
+          # ways a spec file can arrive. A run that merged nothing and caught
+          # nothing up has nothing to push, and repairing staleness this run did
+          # not cause is a different job with a different argument -- the daily
+          # scheduled CI run against `integration` is what reports that one.
+          #
+          # A FAILURE HERE IS NOT A LOST MERGE. It is a warning and a summary
+          # line; the push below runs either way.
+          counts_note=''
+          counts_failed=no
+          if [ ${#merged[@]} -gt 0 ] || [ "$caught_up" = yes ]; then
+            if counts_note="$(counts_refresh)"; then
+              if [ -n "$counts_note" ]; then
+                echo "::notice::static counts regenerated on the merged tree: $counts_note"
+              fi
+            else
+              counts_note=''
+              counts_failed=yes
+              echo "::warning::the static counts region could not be regenerated on the merged tree. Everything that merged is still being pushed and nothing was lost; the region is left as it was, and running 'npm run verify:counts' on $TARGET and committing the result is what fixes it."
+            fi
+          fi
+
           # THE TARGET MOVED AT ALL -- the main-merge above, a branch merge in
           # the loop, or both. NOT "a branch merged", which is the condition
           # this replaces and the whole of the deadlock argued at the
@@ -1156,6 +1302,18 @@ jobs:
               echo "- **Pushed.** \`$TARGET\` on the remote is now \`$(git rev-parse --short HEAD)\`."
             else
               echo "- Nothing pushed -- \`$TARGET\` did not move this run."
+            fi
+            # THE STATIC COUNTS REGION, SAID ON ITS OWN LINE AND IN NUMBERS.
+            # "Regenerated" with no figures is the sentence a reader has to go
+            # and check; the before and after are what make it readable at 7am.
+            # The silent case is deliberate: on a run that merged nothing there
+            # is nothing to say about a region nobody touched.
+            if [ "$counts_failed" = yes ]; then
+              echo "- **The static counts region was NOT regenerated** -- the attempt failed. Everything that merged was still pushed and nothing was lost. Run \`npm run verify:counts\` on \`$TARGET\` and commit the result."
+            elif [ -n "$counts_note" ]; then
+              echo "- **Static counts regenerated** on the merged tree -- was \`${counts_note%% -> *}\`, now \`${counts_note##* -> }\`."
+            elif [ ${#merged[@]} -gt 0 ] || [ "$caught_up" = yes ]; then
+              echo "- Static counts unchanged -- the region was already the merged tree's own answer, so nothing was committed."
             fi
             if [ ${#conflicted[@]} -gt 0 ]; then
               if [ "$pushed" = yes ]; then

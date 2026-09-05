@@ -441,16 +441,45 @@
 		letter-spacing: 0;
 		font-weight: 400;
 	}
+	/* 24px WAS THE DRAWN SIZE AND THE HIT AREA BOTH, WHICH IS THE HALF THAT
+	   WAS WRONG. The comment here used to say the circle was the point, so the
+	   drawn size stays and the reach carries the floor -- and it was right that
+	   a 44px-WIDE reach could not be used: the swatches sit on a 32px pitch
+	   (24px dot + 8px gap), so seven overlapping 44px reaches would hand most
+	   of them to the neighbour that paints last, which is what
+	   `--tap-reach-w: 0px` is set here to prevent. What it missed is that the
+	   knob then leaves the WIDTH at whatever the dot is drawn at. Hit-tested
+	   2026-09-05, all seven at 375 and 1440: **25 x 45**. Height carried by the
+	   reach, width 19px under the floor, on a student surface declaring no
+	   density class. `tapReach` could not have reported it before 0044 -- it
+	   reconstructed the height from the CSS and nobody had looked at the width.
+
+	   `IDEA_INTERFACE_STANDARDS` 10 (2.12) step 1 is to re-lay the controls in
+	   the space that is already there, and the arithmetic says it fits. The
+	   `fieldset.colors` around them measures 259px inside at 375 and 332px at
+	   1440, with an 8px gap and `flex-wrap: wrap` already declared. Seven 44px
+	   targets need 356px on one line and do not fit at either width -- but a
+	   line was never the only arrangement: at 44px they wrap to FIVE on the
+	   first row at 375 and SIX at 1440, two rows either way, inside the
+	   container that is already there. So step 2 (carry fewer colours) is not
+	   reached and this bundle did not have to ask whether the palette should
+	   shrink. The cost is the swatch band, 24px to 96px, stated as a number.
+
+	   THE DOT IS DRAWN AT 44px RATHER THAN HIDDEN INSIDE A 44px BOX. A 24px dot
+	   centred in a transparent 44px button was the alternative and is refused
+	   twice over: it needs `background-clip: content-box` plus a radial-gradient
+	   to put the 1px rim back at 24px, which is a trick the next reader has to
+	   decode, and it tells a student the target is 24px when it is 44 -- on a
+	   phone the affordance IS the size. A row of 44px colour circles is what a
+	   phone colour picker looks like. */
 	.swatch {
-		/* 1.5rem = 24px measured, and the CIRCLE is the point -- a folder
-		   colour reads as a dot, so the drawn size stays. The hit area is
-		   expanded instead (see `.tap-reach-44` in src/app.css). The swatches
-		   sit ~8px apart on one wrapping row, so the reach is HEIGHT ONLY:
-		   seven overlapping 44px-wide targets would make most of them
-		   unpickable (IDEA_INTERFACE_STANDARDS 10). */
+		/* HEIGHT-ONLY REACH IS KEPT AND IS STILL LOAD-BEARING. The painted box
+		   carries the width now, but the swatches remain closer than 44px apart
+		   vertically once they wrap, and a 44px-wide reach on top of a 44px box
+		   would still overlap its neighbour on the same row. */
 		--tap-reach-w: 0px;
-		width: 1.5rem;
-		height: 1.5rem;
+		width: 44px;
+		height: 44px;
 		border-radius: 50%;
 		border: 1px solid var(--nb-hairline-strong);
 		background: var(--dot, transparent);

@@ -9,6 +9,9 @@
 		ClassroomSection
 	} from '$lib/classroom/classroom';
 	import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
+	import { imageChoices } from '$lib/classroom/attachments';
+	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
+	import { LANDSCAPE, SQUARE } from '../classroom-images/fixtures';
 
 	/**
 	 * Dev harness for 0176: a picture in an item body, and the feed card that
@@ -42,6 +45,56 @@
 	];
 
 	const RESOLVABLE = '/IDEA/idea-gear.png';
+
+	/* ------------------------------------------------------------------ 0041.
+	   THE PICKER'S OWN FIXTURES.
+
+	   `registerLocalAttachmentUrl` is `attachmentSrc`'s own dev-harness seam, so
+	   the picker runs its REAL src builder and only the bytes are local -- the
+	   same thing /dev/classroom-images does, and the reason the thumbnails here
+	   are measurable at all (the proxy needs a session this route has not got).
+	   Registered at module evaluation so the first server-rendered markup
+	   already carries the data URI: a src registered later 404s through the
+	   proxy path, fires `onerror`, and drops the thumbnail being measured. */
+	registerLocalAttachmentUrl('pick-1', LANDSCAPE.src);
+	registerLocalAttachmentUrl('pick-2', SQUARE.src);
+
+	/* SIX CANDIDATES, of which exactly THREE may be offered. The three refusals
+	   are each a different rule, and all three are silent failures if they get
+	   through -- a picture chosen off a list that then does not draw is the
+	   defect 0041 exists to remove, wearing a picker's clothes. */
+	const PICKER_ATTACHMENTS: ClassroomAttachment[] = [
+		/* offered: a picture, resolvable, unique. */
+		{ id: 'pick-1', filename: 'bearing-race.png', mime_type: 'image/png', sort_order: 0 },
+		{ id: 'pick-2', filename: 'truss-detail.png', mime_type: 'image/png', sort_order: 1 },
+		/* REFUSED: an SVG is a document, not a picture, and `resolveFigureSrc`
+		   refuses it by name AND by stored mime. */
+		{ id: 'pick-3', filename: 'schematic.svg', mime_type: 'image/svg+xml', sort_order: 2 },
+		/* REFUSED: `resolveFigureSrc` resolves this happily -- it decides ACCESS,
+		   not whether bytes decode -- so the name check is what stops an `img`
+		   being pointed at a PDF. */
+		{ id: 'pick-4', filename: 'safety-sheet.pdf', mime_type: 'application/pdf', sort_order: 3 },
+		/* REFUSED: the alias matches case-insensitively and FIRST MATCH WINS, so
+		   a second row claiming a name already taken is a row that cannot be told
+		   apart from the first by the document it produces. */
+		{ id: 'pick-5', filename: 'BEARING-RACE.png', mime_type: 'image/png', sort_order: 4 }
+	];
+
+	/* Staged, not uploaded: on a CREATE this is the only kind there is. The
+	   second one carries spaces, which the record route sanitizes out, so the
+	   row shows what the item will actually call it. */
+	const PICKER_STAGED = [{ name: 'jig-setup.jpg' }, { name: 'first cut.JPG' }];
+
+	const pickerChoices = imageChoices({
+		attached: PICKER_ATTACHMENTS,
+		staged: PICKER_STAGED
+	});
+	const pickerRefused = PICKER_ATTACHMENTS.filter(
+		(a) => !pickerChoices.some((c) => c.filename.toLowerCase() === a.filename.toLowerCase())
+	);
+
+	let pickerDoc = $state<TiptapNode | null>(null);
+	let emptyDoc = $state<TiptapNode | null>(null);
 
 	const withPicture: ItemDoc = [
 		{
@@ -195,19 +248,68 @@
 		{/each}
 	</ul>
 
-	<h2>The editor's Image control</h2>
+	<h2>The editor's Image control: the picker (0041)</h2>
 	<p class="note">
-		Press <strong>Image</strong>. Add stays refused until both a file and a description are typed.
+		Press <strong>Image</strong>. The control offers this item's own pictures instead of asking for
+		a filename; Add stays refused until a picture is chosen AND a description is typed.
 	</p>
-	<div class="card">
-		<RichTextEditor
-			value={noPicture}
-			label="Body"
-			onchange={(d) => (editorDoc = d)}
-			onready={(d) => (editorDoc = d)}
-		/>
-	</div>
-	<pre class="dump" data-editor-dump>{JSON.stringify(editorDoc, null, 2)}</pre>
+	<section class="case" data-editor-case="picker">
+		<div class="card">
+			<RichTextEditor
+				value={noPicture}
+				label="Body with a picker"
+				images={pickerChoices}
+				imagesEmptyHint="No pictures on this item yet. Add one under Files below, then press Image again."
+				onchange={(d) => (pickerDoc = d)}
+				onready={(d) => (pickerDoc = d)}
+			/>
+		</div>
+		<ul class="cover-report" data-picker-report>
+			{#each pickerChoices as c (c.ref)}
+				<li>offered: <code>{c.ref}</code> ({c.state})</li>
+			{/each}
+			{#each pickerRefused as a (a.id)}
+				<li>refused: <code>{a.filename}</code></li>
+			{/each}
+		</ul>
+		<pre class="dump" data-picker-dump>{JSON.stringify(pickerDoc, null, 2)}</pre>
+	</section>
+
+	<h2>The picker with nothing to offer</h2>
+	<p class="note">
+		An item with no pictures on it yet. The popover must say so and say how to leave the state,
+		never show an empty list with no explanation.
+	</p>
+	<section class="case" data-editor-case="empty">
+		<div class="card">
+			<RichTextEditor
+				value={noPicture}
+				label="Body with no pictures"
+				images={[]}
+				imagesEmptyHint="No pictures on this item yet. Add one under Files below, then press Image again."
+				onchange={(d) => (emptyDoc = d)}
+				onready={(d) => (emptyDoc = d)}
+			/>
+		</div>
+	</section>
+
+	<h2>The editor's Image control: no picker (the unchanged callers)</h2>
+	<p class="note">
+		A caller that cannot say which pictures exist -- a spec's prose field, a check-in's guidance --
+		passes no list, and the control stays the free-text field it has always been. Add stays refused
+		until both a file and a description are typed.
+	</p>
+	<section class="case" data-editor-case="text">
+		<div class="card">
+			<RichTextEditor
+				value={noPicture}
+				label="Body"
+				onchange={(d) => (editorDoc = d)}
+				onready={(d) => (editorDoc = d)}
+			/>
+		</div>
+		<pre class="dump" data-editor-dump>{JSON.stringify(editorDoc, null, 2)}</pre>
+	</section>
 </div>
 
 <style>

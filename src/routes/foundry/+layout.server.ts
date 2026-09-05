@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { FOUNDRY_ACCESS_OPEN, type FoundryAccess } from '$lib/foundry/access';
+import { foundryAccessFromRpc } from '$lib/foundry/access';
 import { queueOrder } from '$lib/foundry/review';
 import type { FoundryAppSummary } from '$lib/foundry/transports';
 import type { LayoutServerLoad } from './$types';
@@ -56,25 +56,19 @@ export const load: LayoutServerLoad = async ({ locals, parent }) => {
 	 * stated reason in place of the area, which is what makes it a refusal
 	 * somebody can act on rather than a blank page or a 404.
 	 *
-	 * `PGRST202` ALONE DEGRADES TO OPEN. A deployment between 0172 and 0173
-	 * is a real state and the function is genuinely absent on it; the gate did
-	 * not exist in that world, so open is "as it was". Any OTHER error is a
-	 * runtime failure inside a gate and closes, per the standing rule that an
-	 * access helper fails closed rather than falling through to a weaker
-	 * check.
+	 * THE DEGRADATION LADDER IS `foundryAccessFromRpc`'S AND IS NOT RESTATED
+	 * HERE. It used to be spelled out inline, which was correct while this was
+	 * the function's ONE caller; 0045 gave it three more (the serve routes,
+	 * which are `+server.ts` and get no layout data to inherit an answer
+	 * from), and four inline copies of "what does an error from this RPC mean"
+	 * is four things that can stop agreeing about whether a failure is open or
+	 * closed. `PGRST202` alone degrades to open and every other error closes;
+	 * the argument for both is beside the function.
 	 */
 	const { data: accessRow, error: accessErr } = await locals.supabase.rpc(
 		'foundry_section_access'
 	);
-	let access: FoundryAccess = FOUNDRY_ACCESS_OPEN;
-	if (accessErr) {
-		access =
-			accessErr.code === 'PGRST202'
-				? FOUNDRY_ACCESS_OPEN
-				: { open: false, closed: [] };
-	} else if (accessRow) {
-		access = accessRow as FoundryAccess;
-	}
+	const access = foundryAccessFromRpc(accessRow, accessErr);
 
 	/**
 	 * WHETHER TO OFFER THE CLASSES TAB. `manages`, never `role === 'teacher'`:

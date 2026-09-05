@@ -21,18 +21,29 @@ import type { PageServerLoad } from './$types';
  * exactly that reason -- a layout load must never read `url`.
  */
 /**
- * THE CLASS GATE'S SERVER HALF (0173, decision 01). The layout resolved it
- * once; this refuses to build the payload when it says closed, so a student
- * whose class has turned the Foundry off is not sent the data and then asked
- * politely not to look at it. Absence is the mechanism, exactly as it is for
- * every omitted transport in this feature.
+ * A CLOSURE DOES NOT REACH THIS SURFACE, AND IT USED TO.
+ *
+ * This load short-circuited to an empty payload whenever any class the student
+ * is enrolled in had closed the Foundry, which meant one teacher closing one
+ * period took a student's OWN apps, their own versions, their own play
+ * figures, their own share links and their own delete away from them in every
+ * other class and at home. The site cannot tell which class somebody is
+ * sitting in (there is no bell schedule in this schema and nothing records a
+ * presence), so a closure that reaches here reaches everywhere and never
+ * stops until somebody opens it.
+ *
+ * NOTHING ON THIS PAGE RUNS AN APP. `FoundryMine` mounts no `AppStage`; the
+ * preview link beside a version goes to `/foundry/preview`, a `+server.ts`
+ * that no layout gate ever covered and that has always answered a closed
+ * student regardless. So blocking this bought nothing against the behaviour a
+ * closure is for and cost the student their own record.
+ *
+ * `FOUNDRY_CLOSURE_BLOCKS` in `$lib/foundry/access` is the one statement of
+ * which surfaces stand down, and the gallery is the only one. The layout still
+ * renders the class and the note as a notice above this page, so a student
+ * reading their shelf is told why the gallery tab is answering a refusal.
  */
-export const load: PageServerLoad = async ({ locals, url, parent }) => {
-	const { foundryAccess } = await parent();
-	if (foundryAccess && foundryAccess.open === false) {
-		return { apps: [] as FoundryAppSummary[], selected: null, uid: '', playCounts: {} };
-	}
-
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const uid = locals.claims?.sub ?? null;
 	if (!uid) return { apps: [] as FoundryAppSummary[], selected: null, uid: '' };
 

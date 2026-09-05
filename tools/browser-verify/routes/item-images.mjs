@@ -22,8 +22,27 @@ export default {
 		   and inert, for longer than on any ordinary surface. A single click here
 		   would be a coin flip. */
 		{
-			click: '.rt-toolbar button[aria-expanded]:not([aria-pressed])',
-			until: '() => !!document.querySelector(".image-pop")',
+			/* SCOPED TO ONE EDITOR, and that is forced rather than tidy: each
+			   instance's outside-dismiss listener closes its own popover on a
+			   pointerdown anywhere outside its wrapper, so opening a second one
+			   CLOSES the first. Three popovers cannot be measured in one pass,
+			   which is why the empty case and the free-text case are alias specs
+			   of this same page rather than more rows here.
+
+			   `button[aria-expanded]:not([aria-pressed])` is the Image button and
+			   only the Image button: Link carries both attributes. */
+			click: '[data-editor-case="picker"] .rt-toolbar button[aria-expanded]:not([aria-pressed])',
+			until: '() => !!document.querySelector(\'[data-editor-case="picker"] .image-pop\')',
+			waitMs: 150
+		},
+		/* CHOOSE ONE, so the checks below read a control that has actually been
+		   operated rather than one that merely rendered. The `until` is the
+		   selection landing on the row, not the click reporting itself: an
+		   `aria-checked` that never flips is a picker whose handler is not
+		   wired, which is exactly what a click-count would fail to notice. */
+		{
+			click: '[data-editor-case="picker"] .image-choice',
+			until: '() => !!document.querySelector(\'[data-editor-case="picker"] .image-choice[aria-checked="true"]\')',
 			waitMs: 150
 		}
 	],
@@ -46,9 +65,26 @@ export default {
 		{ selector: '.legacy-index .assignment-icon-thumb.has-cover', label: 'feed cards showing a cover', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
 		{ selector: '.legacy-index .assignment-icon-thumb svg', label: 'feed cards keeping the per-kind glyph', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
 		{ selector: '.legacy-index .assignment-item.linked', label: 'feed rows', expectPresent: 3, maxPresent: 3, expectVisible: 3, maxVisible: 3 },
-		/* The editor's image form, open, with its two fields and its refusal. */
+		/* The editor's image form, open. ONE form, because opening a second
+		   would have closed this one -- see the prepare note. */
 		{ selector: '.image-pop', label: 'the image form (opened by the prepare click)', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
-		{ selector: '.image-pop .link-input', label: 'its two fields: the file and the description', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
+		/* ONE field now, not two: the file NAME is no longer typed. The
+		   description is the only thing left that a person writes, and its
+		   `.link-input` is what says the free-text src box is genuinely gone
+		   from this surface rather than merely hidden. */
+		{ selector: '.image-pop .link-input', label: 'the one remaining field: the description', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
+		{ selector: '.image-pop input[aria-label="Picture file"]', label: 'the free-text file field, GONE from the picker', expectPresent: 0 },
+		/* THE OFFER, EXACTLY. Five attachments and two staged files go in; three
+		   come out. Counting the CEILING as well as the floor is the whole
+		   point: an extra row here is a picture offered that the page will then
+		   refuse to draw, which is the defect this bundle exists to remove. */
+		{ selector: '[data-editor-case="picker"] .image-choice', label: 'pictures offered (2 attached + 2 staged, out of 7 candidates)', expectPresent: 4, maxPresent: 4, expectVisible: 4, maxVisible: 4 },
+		{ selector: '[data-editor-case="picker"] .image-choice[aria-checked="true"]', label: 'exactly one chosen, after the prepare click', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
+		/* The two attached rows carry the SAME proxy src the page uses; the
+		   staged row carries no thumbnail and a word saying why. */
+		{ selector: '[data-editor-case="picker"] .image-choice-thumb:not(.is-none)', label: 'thumbnails, one per attached picture', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
+		{ selector: '[data-editor-case="picker"] .image-choice-state', label: 'the staged rows say their reference lands on save', expectPresent: 2, maxPresent: 2, expectVisible: 2, maxVisible: 2 },
+		{ selector: '[data-editor-case="picker"] .image-empty', label: 'no empty-case sentence while there is something to offer', expectPresent: 0 },
 		/* AND THE CONTROL IS `aria-disabled`, NEVER `disabled`. A genuinely
 		   disabled control swallows pointer events, so it could never explain
 		   why it is refusing -- which is the only reason somebody presses it. */
@@ -60,6 +96,26 @@ export default {
 			selector: '.image-hint',
 			label: 'the image form says the description is required BEFORE anything is pressed',
 			must: ['description is required', 'screen reader']
+		},
+		{
+			selector: '[data-editor-case="picker"] .image-pick',
+			label: 'the picker names this item\u2019s own pictures, and says which one is not on it yet',
+			must: [
+				'bearing-race.png',
+				'truss-detail.png',
+				'Added when you save',
+				/* THE SANITIZED NAME IS SHOWN, and shown BESIDE the one that was
+				   picked. A person choosing `first cut.JPG` off a list must not
+				   have to discover afterwards that the item calls it something
+				   else -- the reference the document carries is the right-hand
+				   name, and the record route is what will write it. */
+				'first cut.JPG (saved as first-cut.JPG)'
+			],
+			/* THE REFUSALS, BY NAME. Each is a different rule and each fails
+			   silently if it gets through: an SVG is a document, a PDF resolves
+			   perfectly and does not decode, and a case-variant duplicate cannot
+			   be told from the row it duplicates by the document it produces. */
+			mustNot: ['schematic.svg', 'safety-sheet.pdf', 'BEARING-RACE.PNG']
 		},
 		{
 			selector: '.item-body',
@@ -74,7 +130,11 @@ export default {
 		   the text threshold and not the 3:1 non-text one. */
 		{ selector: '.item-figure-missing', label: 'the refusal marker', min: 4.5 },
 		{ selector: '.legacy-index .assignment-name', label: 'feed row title beside a cover', min: 4.5 },
-		{ selector: '.image-hint', label: 'the image form\u2019s required-description sentence', min: 4.5 }
+		{ selector: '.image-hint', label: 'the image form\u2019s required-description sentence', min: 4.5 },
+		{ selector: '[data-editor-case="picker"] .image-choice-name', label: 'a picture\u2019s name in the picker', min: 4.5 },
+		/* The staged chip is a WORD carrying the one thing that distinguishes
+		   the row, so it takes the text threshold and not the 3:1 non-text one. */
+		{ selector: '[data-editor-case="picker"] .image-choice-state', label: 'the added-on-save chip', min: 4.5 }
 	],
 	orderResult: [
 		{
@@ -102,6 +162,10 @@ export default {
 	tapTargets: [
 		/* A cover must not change what a finger has to hit: the rows are measured
 		   with one carrying a picture and two carrying a glyph, in one reading. */
-		{ selector: '.legacy-index .assignment-item.linked', label: 'feed rows, cover and glyph alike', min: 44 }
+		{ selector: '.legacy-index .assignment-item.linked', label: 'feed rows, cover and glyph alike', min: 44 },
+		/* THE PICKER ROWS TAKE THE FULL 44px FLOOR. The editor declares no named
+		   density contract, so decision 09 grants it no exception -- and this is
+		   an instructor surface, which the floor covers at every width anyway. */
+		{ selector: '[data-editor-case="picker"] .image-choice', label: 'a picture row in the picker', min: 44 }
 	]
 };

@@ -1,6 +1,6 @@
 export default {
 	path: '/dev/foundry-admin',
-	label: '0173: class gate, trusted publishers, owner roll-up, pinned detail pane',
+	label: '0173/0042: class gate scope, trusted publishers, owner roll-up, pinned detail pane',
 	/*
 		THE THREE STATES 0173 CREATES, none of which any automated session can
 		reach on a real deployment: a student in a closed class, the teacher of
@@ -10,6 +10,34 @@ export default {
 		tests/foundry-section-gate-trust.test.ts, where opening each clause
 		permissively flips the refusal.
 	*/
+	/*
+		0045: THE CONFIRM STEP IS OPENED FOR REAL, BECAUSE ITS SENTENCE IS THE
+		ONE THAT MATTERS MOST AND IT IS NOT ON SCREEN UNTIL SOMEBODY ARMS A ROW.
+
+		`.fdy-access-confirm-reach` restates `FOUNDRY_CLOSURE_REACH` at the
+		press that costs something -- including, since 0045, the two things a
+		closure cannot stop. A spec that only measured the lead paragraph would
+		be silent about the moment an instructor is actually deciding.
+
+		THE PRESS RETRIES AGAINST ITS OWN EFFECT AND REPORTS ATTEMPTS. Paint is
+		not interactivity: this page's markup is server-rendered and on screen
+		before hydration attaches a handler, and no window marker separates the
+		two. `clickUntil` retries until the confirm block exists and prints the
+		attempt count and the elapsed milliseconds, so a step that "worked"
+		through twelve dead clicks reads differently from one that landed
+		first time.
+
+		IT ARMS THE FIRST OPEN ROW, never a nth-child index: `foundrySectionOrder`
+		puts the CLOSED section first, so `:first-child` here would press the
+		row whose control says "Open it" and the confirm would never appear.
+	*/
+	prepare: [
+		{
+			click: '[data-testid="foundry-class-access"] .fdy-access-row:not(.is-closed) .fdy-access-do button',
+			until: '() => !!document.querySelector(".fdy-access-confirm-reach")',
+			label: 'arm a close so the confirm sentence is on screen'
+		}
+	],
 	presence: [
 		{ selector: '.harness h1', label: 'page heading', expectPresent: 1 },
 
@@ -19,8 +47,36 @@ export default {
 		   what makes "a note is optional" a measurement rather than a claim.
 		   Without the ceiling, a panel that invented a placeholder for the
 		   missing note would pass. */
-		{ selector: '[data-testid="foundry-closed"]', label: 'closed refusal panel', expectPresent: 1 },
-		{ selector: '[data-testid="foundry-closed"] .fdy-closed-notes li', label: 'instructor notes (1 of 2 closed classes left one)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="panel"]', label: 'closed refusal panel', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="panel"] .fdy-closed-notes li', label: 'instructor notes (1 of 2 closed classes left one)', expectPresent: 1, maxPresent: 1 },
+
+		/* THE OTHER HALF OF THE SCOPE (0042), AND IT IS THE HALF A GREEN RUN
+		   WOULD OTHERWISE NEVER LOOK AT. A closure reaches the gallery and
+		   nothing else, so the student's own shelf, the publish flow, the
+		   build contract and the manager's control keep rendering with this
+		   NOTICE above them. Both variants are on this page at once, which is
+		   also why every row here is scoped by `data-variant`: an unscoped
+		   `[data-testid="foundry-closed"]` now matches two elements. */
+		{ selector: '[data-testid="foundry-closed"][data-variant="notice"]', label: 'closed notice on a surface a closure does not reach', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="notice"] .fdy-closed-kicker', label: 'notice kicker', expectPresent: 1, maxPresent: 1 },
+		/* A NOTICE IS NOT A HEADING FOR THE PAGE IT SITS ABOVE. It carries a
+		   kicker paragraph and no h2, so somebody navigating by headings does
+		   not read another class's name as this page's title. An exclusion
+		   with the panel's own h2 beside it as the positive control. */
+		{ selector: '[data-testid="foundry-closed"][data-variant="notice"] h2', label: 'notice must own no heading', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="panel"] h2', label: 'panel keeps its heading (control)', expectPresent: 1, maxPresent: 1 },
+
+		/* THE REACH SENTENCE, WHERE THE SWITCH IS PRESSED. A control whose
+		   blast radius nobody can predict is the defect 0042 fixes, so the
+		   sentence saying a close binds those students in every class and at
+		   home is a measured element and not a comment. */
+		{ selector: '[data-testid="foundry-class-access"] .fdy-access-reach', label: 'reach sentence beside the switch', expectPresent: 1, maxPresent: 1 },
+		/* 0045: and again at the confirm, which is the press that costs
+		   something. Only reachable because the `prepare` step above armed a
+		   row; if that step ever silently stops landing, this row is the thing
+		   that reddens rather than the run going quietly green over a state it
+		   never reached. */
+		{ selector: '[data-testid="foundry-class-access"] .fdy-access-confirm-reach', label: 'reach sentence restated at the confirm', expectPresent: 1, maxPresent: 1 },
 
 		/* The teacher's control: three sections, one currently closed. The
 		   closed one sorts FIRST (foundrySectionOrder), which dom-order below
@@ -41,12 +97,67 @@ export default {
 	],
 	textContains: [
 		{
-			selector: '[data-testid="foundry-closed"]',
+			selector: '[data-testid="foundry-closed"][data-variant="panel"]',
 			label: 'the refusal names both classes and no email address',
 			must: ['Engineering I Honors (3)', 'Engineering Design and Development (6)'],
 			/* THE PAYLOAD CARRIES NO TEACHER ADDRESS (0173 projects the course
 			   title and the label and nothing else), so no '@' may reach the
-			   screen. An exclusion with the two positive controls above it. */
+			   screen. 0045 adds the second exclusion: the two things a closure
+			   cannot stop are the INSTRUCTOR's to read, and writing "a published
+			   app opened by its own share link keeps running" onto a closed
+			   student's panel would hand them the way around it, in our own
+			   words, on the surface refusing them. Both are exclusions with the
+			   two positive controls above them. */
+			mustNot: ['@', 'share link', 'without signing in']
+		},
+		{
+			selector: '[data-testid="foundry-closed"][data-variant="notice"]',
+			label: 'the notice names the same classes and says what is still reachable',
+			/* THE SAME SENTENCE FROM THE SAME SOURCE. `foundryClosedSentence`
+			   builds the class list and `FOUNDRY_CLOSURE_LIMIT` says what a
+			   close leaves alone; the panel above reads both too, so a change
+			   that told the student one thing here and another there reddens
+			   on one of these two rows. */
+			must: ['Engineering I Honors (3)', 'their own apps', 'publishing'],
+			mustNot: ['@', 'share link', 'without signing in']
+		},
+		{
+			selector: '[data-testid="foundry-class-access"]',
+			label: 'the instructor reads what a close takes, leaves and reaches',
+			/* B2. Read off the three constants rather than paraphrased: the
+			   reach clause is the one claim about this switch a person would
+			   otherwise guess wrong, and the limit clause is the SAME string
+			   the student's panel renders. */
+			must: [
+				'takes the app gallery away',
+				'their own apps',
+				'in every class and at home',
+				'not only during your period',
+				/* 0045. The closure now reaches `/foundry/preview` too, so the
+				   effect sentence says so: an instructor reading only "the
+				   gallery" would not expect Preview to stop working.
+
+				   AND THE TWO THINGS IT CANNOT STOP ARE ON SCREEN. This is the
+				   half that matters most: an instructor who believes the button
+				   stops a student playing, and finds out in front of a class
+				   that it does not, is worse off than one who was told the limit
+				   up front. `/a/` and `/b/` answer on an origin that holds no
+				   session by design, so there is no viewer there to gate and no
+				   version of this feature in which those sentences stop being
+				   true. They are read off `FOUNDRY_CLOSURE_REACH` rather than
+				   paraphrased. */
+				'running one of their own builds',
+				'share link',
+				'without signing in',
+				'until they reload it'
+			],
+			/* AND THEY ARE NOT ON THE STUDENT'S PANEL. Which constant a
+			   sentence lands in is a disclosure decision: `FOUNDRY_CLOSURE_REACH`
+			   renders only here, behind `classroom_manages_section`, while
+			   `FOUNDRY_CLOSURE_LIMIT` renders on the closed student's own
+			   refusal. The exclusion is asserted on the two `foundry-closed`
+			   rows above, with these four `must` entries as its positive
+			   control on the same page. */
 			mustNot: ['@']
 		},
 		{
@@ -121,8 +232,18 @@ export default {
 		}
 	],
 	contrast: [
-		{ selector: '[data-testid="foundry-closed"] .fdy-closed-lead', label: 'refusal sentence', min: 4.5 },
-		{ selector: '[data-testid="foundry-closed"] .fdy-closed-note', label: 'instructor note', min: 4.5 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="panel"] .fdy-closed-lead', label: 'refusal sentence', min: 4.5 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="panel"] .fdy-closed-note', label: 'instructor note', min: 4.5 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="panel"] .fdy-closed-next', label: 'what a close leaves alone (panel)', min: 4.5 },
+		/* THE NOTICE'S OWN GROUND IS NOT THE PANEL'S. It sits on the room's
+		   surface with a heat edge rather than inside a bordered card, so its
+		   ink is measured separately: a shared component entering a second
+		   ground is measured there, never assumed from the first. */
+		{ selector: '[data-testid="foundry-closed"][data-variant="notice"] .fdy-closed-kicker', label: 'notice kicker', min: 4.5 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="notice"] .fdy-closed-lead', label: 'notice sentence', min: 4.5 },
+		{ selector: '[data-testid="foundry-closed"][data-variant="notice"] .fdy-closed-next', label: 'what a close leaves alone (notice)', min: 4.5 },
+		{ selector: '[data-testid="foundry-class-access"] .fdy-access-reach', label: 'reach sentence', min: 4.5 },
+		{ selector: '[data-testid="foundry-class-access"] .fdy-access-confirm-reach', label: 'reach sentence at the confirm', min: 4.5 },
 		{ selector: '[data-testid="foundry-class-access"] .fdy-access-course', label: 'section course title', min: 4.5 },
 		{ selector: '[data-testid="foundry-class-access"] .fdy-access-state[data-state="open"]', label: 'Open state chip', min: 4.5 },
 		{ selector: '[data-testid="foundry-class-access"] .fdy-access-state[data-state="closed"]', label: 'Closed state chip', min: 4.5 },

@@ -13,6 +13,16 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-05",
+			"title": "The little row buttons on a table are big enough to press now",
+			"body": "On an assignment with a table you fill in, each row has four small buttons at the end of it: move the row up, move it down, copy it, and delete it. They were tiny squares, about half the size a finger needs, and on a phone at the bench you would miss and hit the one next to it. They are full size now, laid out two across and two down so they fit in the same space the table already had. The table did not get any wider, and nothing else on the row moved. Rows are a little taller than they were.",
+			"tags": [
+				"Assignments",
+				"accessibility",
+				"fix"
+			]
+		},
+		{
 			"date": "2026-09-02",
 			"title": "The hall pass now has a limit, and your teacher can wave it",
 			"body": "The bathroom pass used to have no rules at all: you could sign back in and straight out again, as many times as you liked. Now the card tells you how many passes you have used in that class today before you tap, and if you have just come back it tells you the time you can go again. If you genuinely need to go and the pass will not let you, ask your teacher. They can send you out anyway, from the same card. Nothing about how long you can be out has changed, and nobody else in the class can see who is out or for how long.",
@@ -1040,6 +1050,76 @@
 			"date": "2026-09-05",
 			"title": "Add row on a blank table now adds one row, not two",
 			"body": "On an assignment with a table, pressing Add row when the table was still empty gave you more rows than you asked for: two on most tables, and four on a table that asks for at least three filled rows. It now adds exactly one, every time, and each further press adds one more. Nothing you have already typed is affected, and the note under the table has not changed meaning: it counts rows you have actually filled in, so an empty row never counted toward it and still does not. If you had been deleting the extra blank rows before turning work in, you no longer need to. The Add row button is also bigger now, which matters if you are working from a phone at the bench.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "One class closing the Foundry no longer closes it in your other classes",
+			"body": "When a teacher closes the Foundry for their class, that used to shut the whole Foundry for every student on that roster: in all their other classes, at lunch and at home, until that one teacher opened it again. It now closes one thing, the app gallery, which is where you browse and open other students' apps. Everything else stays yours and stays open: your own apps and their versions, your play counts and share links, uploading and publishing a new version, and the build contract you paste into an AI tool. If one of your classes has the gallery closed you will see a short note at the top of those pages saying which class it is and why, so you are not left guessing. Teachers: the control at Foundry, Classes now spells out exactly what closing does, what it leaves alone, and that it applies to those students everywhere and not only during your period. Closing your own class also no longer locks you out of the page you reopen it from.",
+			"tags": [
+				"foundry",
+				"classroom",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Closing the Foundry for a class now stops previews too",
+			"body": "When a teacher closes the Foundry for a class, students in that class lose the app gallery, as before, and can no longer run one of their own builds from the preview link either. That was the gap: the gallery closed but preview kept working, so the control did not do what it looked like it did. Everything else is untouched. You can still open your own apps page, publish work, download a copy of your own build and read the build contract while a class has it closed. Teachers: the control at Foundry, Classes now also spells out the two things closing cannot stop, so you know before you press it.",
+			"tags": [
+				"foundry",
+				"classroom",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Bigger targets on assignment tables and checklists",
+			"body": "Three controls on assignment pages were too small to press reliably on a phone. The boxes you type into inside a table are taller now, checklist items are a full row rather than a thin line, and the little i beside a column heading takes a tap anywhere in its row instead of only on the letter itself. Nothing about the work changed, only how easy it is to hit. Table rows are the same height as before; checklists take a little more room on the page.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Easier to tap: folder colours and attachment links",
+			"body": "Two more things that were hard to hit on a phone. The colour circles when you name a notebook folder are much bigger now, and they sit on two rows instead of one so none of them overlaps its neighbour. On a class page, the file links under an assignment or a handout each get their own row, so tapping one no longer lands on the file below it. Nothing moved and nothing was renamed, only the size of what you press.",
+			"tags": [
+				"notebook",
+				"classroom",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Assignment tables are shorter, and the arrows for reordering rows are gone",
+			"body": "Each row of a table on an assignment used to carry four small buttons stacked two by two, which made every row about twice as tall as it needed to be. On a phone, a twelve row table put nearly two full screens between the top of the table and the Add row button underneath it. The buttons are now side by side on one line, so a busy table takes roughly a third of a screen less. The trade is that the up and down arrows for reordering a row have been removed. Duplicate and delete are still there, still one tap, and still easy to hit. Nothing you have already typed changed, and the order your rows are in is still exactly what your teacher sees. If you need rows in a different order now, retype them, or use duplicate and delete. Tell us if you miss the arrows, through Report a problem on the page.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "A Matrix theme, and how to turn it on",
+			"body": "Somebody asked for a Matrix theme, so there is one. Open the menu behind your picture at the top of any page and pick it under Theme: the backgrounds go black, the writing goes phosphor green, and green code drifts down behind the page. Pick IDEA in the same place to go back, and nothing is left behind when you do. What deliberately does NOT change colour is anything that tells you what something is: every app keeps its own colour on the home screen, so GAUNTLET is still green, the Foundry is still orange and FRC is still red, and the colours that mean warning, error, done and in progress all stay what they were. The choice is remembered on this computer, not on your account, so a laptop at night and a shop machine in daylight can be set differently. If you have turned motion off in your device settings the falling code stays still instead, and everything is still there to read. You need to be signed in for it: the switch lives in your profile menu, and the theme is on only where that switch is.",
+			"tags": [
+				"portal",
+				"theme",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-05",
+			"title": "Table cells now show everything you typed after you reopen a module",
+			"body": "A module on an assignment folds itself shut once you have finished it, and you can open it again by pressing the title. If a module was shut when the page loaded, the boxes in its table did not know how tall to be, so opening it back up showed only the first line or two of longer answers. The rest of the writing was still saved and still went to your teacher, but you could not see it on screen, and there was no scrollbar to tell you anything was missing. Table boxes now measure themselves the moment they appear, so a reopened module shows your full answer straight away. On a phone this was the worst case: about a third of the cells in a busy table were cut off. Nothing you wrote was ever lost. If you still see a cut off cell anywhere, tell us through Report a problem on the page.",
 			"tags": [
 				"classroom",
 				"assignments",

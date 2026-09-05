@@ -26,11 +26,30 @@
 	 * class of students, so it arms and then confirms; opening gives it back
 	 * and needs no ceremony. That asymmetry is deliberate: a confirm on the
 	 * harmless direction is a confirm nobody reads.
+	 *
+	 * THE CONTROL SAYS WHAT IT WILL AND WILL NOT DO, IN WORDS, ON THE SCREEN
+	 * WHERE IT IS PRESSED, AND THAT IS THE POINT OF THIS REVISION. It used to
+	 * say "stops students in that class opening the Foundry until you open it
+	 * again", which was three things wrong at once: it named the whole area
+	 * when only the gallery stands down, it said nothing about the fact that a
+	 * close binds those students in EVERY class and at home, and it therefore
+	 * described a blast radius nobody pressing it could have predicted. A
+	 * control whose reach cannot be predicted is the defect being fixed here,
+	 * so the reach sentence is beside the switch and repeated at the confirm,
+	 * not tucked in a help page.
+	 *
+	 * THE THREE SENTENCES ARE `access.ts`'s, NOT THIS COMPONENT'S. The student
+	 * reads `FOUNDRY_CLOSURE_LIMIT` on the panel a close produces; the
+	 * instructor reads it here before producing one. Two spellings of what a
+	 * close costs is exactly the pair that stops matching.
 	 */
 	import Pending from '$lib/Pending.svelte';
 	import { pendingLabel } from '$lib/pending';
 
 	import {
+		FOUNDRY_CLOSURE_EFFECT,
+		FOUNDRY_CLOSURE_LIMIT,
+		FOUNDRY_CLOSURE_REACH,
 		foundrySectionOrder,
 		foundrySectionStateLabel,
 		type FoundryManagedSection
@@ -127,10 +146,12 @@
 <section class="fdy-access" data-testid="foundry-class-access">
 	<header class="fdy-access-head">
 		<h2>Foundry access for your classes</h2>
-		<p class="fdy-access-lead">
-			Closing it stops students in that class opening the Foundry until you open it
-			again. Their apps and everything published stay exactly as they are.
-		</p>
+		<p class="fdy-access-lead">{FOUNDRY_CLOSURE_EFFECT}</p>
+		<p class="fdy-access-lead">{FOUNDRY_CLOSURE_LIMIT}</p>
+		<!-- THE REACH, MARKED AS THE THING TO READ. It is the one claim about
+		     this switch a reasonable person would guess wrong, so it does not
+		     sit as a third indistinguishable paragraph. -->
+		<p class="fdy-access-reach">{FOUNDRY_CLOSURE_REACH}</p>
 	</header>
 
 	{#if ordered.length === 0}
@@ -175,6 +196,11 @@
 								</button>
 							{:else if arming === section.section_id}
 								<div class="fdy-access-confirm">
+									<!-- RESTATED AT THE CONFIRM, because the lead is at the
+									     top of a list somebody has scrolled past by the time
+									     they arm a row, and this is the press that costs
+									     something. -->
+									<p class="fdy-access-confirm-reach">{FOUNDRY_CLOSURE_REACH}</p>
 									<label class="fdy-access-note-field">
 										<span>Why, for the students (optional)</span>
 										<input
@@ -243,8 +269,31 @@
 
 	.fdy-access-lead,
 	.fdy-access-empty {
-		margin: 0 0 1rem;
+		margin: 0 0 0.6rem;
 		color: var(--text-2);
+	}
+
+	.fdy-access-empty {
+		margin-bottom: 1rem;
+	}
+
+	/* THE REACH READS AS THE WARNING IT IS, and not by hue alone: it carries
+	   the heat edge this room already uses for "an adult turned something
+	   off", and the ink is the room's own body colour rather than a tone
+	   nothing else on the page measures against. */
+	.fdy-access-reach {
+		margin: 0 0 1rem;
+		padding: 0.6rem 0.75rem;
+		color: var(--text-1);
+		background: var(--surface-2);
+		border-left: 3px solid var(--fg-heat-ember, var(--boundary));
+		border-radius: var(--radius-sm, 4px);
+	}
+
+	.fdy-access-confirm-reach {
+		margin: 0;
+		color: var(--text-1);
+		font-size: 0.9rem;
 	}
 
 	.fdy-access-list {
