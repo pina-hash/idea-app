@@ -267,17 +267,47 @@ real one.
   not load (the harness blocks every non-loopback request), so all text above was
   measured in the fallback stack.
 
-## The eleven other buckets, swept again
+## All fourteen buckets, swept again at the end
 
-`avatars` is closed (0181). `foundry-covers` is closed here. Of the rest, nothing
-a STUDENT made is readable without a session: `foundry-uploads` is write-only plus
-0131's own-folder read, `foundry-bundles` carries no policy at all (which is the
-mechanism, not an omission), `submission-files` and `instructor-attachments` are
-private with 0133/0135's classroom predicates, and `classroom-attachments` is
-private with one deliberate `anon` policy narrowed to an object whose prefix names
-a material a teacher published. The four GAUNTLET buckets and `maps-media` hold
-STAFF assets rather than student uploads, and `maps-media` is public with an
-`image/*` wildcard that admits SVG -- which `CLAUDE.md` already records as needing
-a migration nobody has written. `tournament-thumbs` is the one bucket left where a
-student's own upload is world readable and world listable, and decision entry 15
-is where that sits.
+The enumeration is taken from the migrations rather than from 0052's report:
+every `insert into storage.buckets` in `supabase/migrations/*.sql` names one of
+these fourteen. **This corrects the count this entry first carried** -- an earlier
+draft said "the eleven other buckets", grouped `gauntlet-drawings` under staff
+assets when it holds student work, and omitted `feedback-media` and
+`greenline-decals` altogether.
+
+**Public flag `true` after this bundle:** `gauntlet`, `gauntlet-tools`,
+`maps-media`, `tournament-thumbs`.
+
+**Per bucket, does anything a STUDENT made read without a session:**
+
+| bucket | flag | select policy | student work | readable with no session |
+|---|---|---|---|---|
+| `avatars` | private (0181) | `authenticated` | yes | no |
+| `foundry-covers` | private (0183) | `authenticated` | yes | **no, as of this bundle** |
+| `foundry-uploads` | private | own-folder (0131) | yes | no |
+| `foundry-bundles` | private | none at all | yes | no |
+| `submission-files` | private | classroom predicates (0133) | yes | no |
+| `classroom-attachments` | private | one `anon` policy, narrowed to an object whose prefix names a material a teacher published (0135) | yes | only what a teacher deliberately published |
+| `instructor-attachments` | private | classroom predicates (0135) | no (staff) | no |
+| `feedback-media` | private | -- | yes (report screenshots) | no |
+| `greenline-decals` | private | `authenticated` | yes | no |
+| `gauntlet-drawings` | private | -- | yes | no |
+| `gauntlet` | **public** | `authenticated` | no (challenge assets) | flag only, no listing |
+| `gauntlet-tools` | **public** | `for all to authenticated` | no (staff tools) | flag only, no listing |
+| `maps-media` | **public** | **`to anon, authenticated`** | no (admin uploads, `is_admin()` writes) | yes, and LISTABLE |
+| `tournament-thumbs` | **public** | **`to public`** | **yes** | **yes, and LISTABLE** |
+
+So the answer to "is anything a student made readable without a session" is now
+**one bucket: `tournament-thumbs`**, which is decision entry 15.
+
+Two others are worth naming even though no student made what is in them.
+`maps-media` is public AND world-listable with a `to anon, authenticated` select
+policy; it holds admin uploads, and `CLAUDE.md` already records that its
+`image/*` wildcard admits SVG and that closing that properly is a migration
+nobody has written. `gauntlet` and `gauntlet-tools` carry the public FLAG without
+an `anon` select policy, so the `/object/public/` path answers for anyone holding
+a key while the listing does not -- which is the middle state decision 15 asks
+about for `tournament-thumbs`, already in production on two buckets, and a
+second reason the storage-api measurement that entry names is worth someone
+making once.
