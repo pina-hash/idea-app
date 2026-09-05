@@ -4,10 +4,12 @@
 		itemBodyDoc,
 		safeHref,
 		type ItemDoc,
+		type ItemImage,
 		type ItemInline,
 		type ItemItem,
 		type ItemList
 	} from '$lib/classroom/classroom-doc';
+	import { resolveFigureSrc, type ClassroomAttachment } from '$lib/classroom/classroom';
 	import { itemParts } from '$lib/rich-text-doc';
 
 	/**
@@ -45,17 +47,50 @@
 	 */
 	let {
 		item,
-		compact = false
+		compact = false,
+		publicAttachments = false
 	}: {
-		item: { body: string; body_doc?: ItemDoc | null };
+		item: {
+			body: string;
+			body_doc?: ItemDoc | null;
+			attachments?: ClassroomAttachment[];
+		};
 		/** The stream's denser type scale; the item page uses the roomy one. */
 		compact?: boolean;
+		/**
+		 * Resolve an `attachment:` image through the proxy's `?public=1` branch,
+		 * for the signed-out reference viewer. Passed down rather than sniffed,
+		 * exactly as MarkdownText takes it.
+		 */
+		publicAttachments?: boolean;
 	} = $props();
 
 	const doc = $derived(itemBodyDoc(item));
 
 	function href(run: ItemInline): string | null {
 		return safeHref(run.href);
+	}
+
+	/**
+	 * AN IMAGE IS RESOLVED THROUGH `resolveFigureSrc`, THE SAME ONE PREDICATE
+	 * the spec and reference renderers use, against THIS ITEM'S OWN attachments
+	 * (0176). It is never `safeHref`: a reader CHOOSES to follow a link, and a
+	 * browser fetches an `img` automatically, carrying their IP and Referer,
+	 * before anybody has decided anything. So the source is same-origin only --
+	 * an alias resolved through the existing proxy, or a path under
+	 * FIGURE_STATIC_PREFIXES -- and SVG is refused from every source.
+	 *
+	 * NO ATTACHMENTS IS NOT AN ERROR AND IS THE ORDINARY CASE HERE: a surface
+	 * that renders a body without loading its files (a preview, a harness)
+	 * resolves every alias to `unresolved`, which renders as the description
+	 * plus a visible marker -- the same degradation a typo produces, and the
+	 * same one MarkdownText already gives. Never a broken `img`, never silence,
+	 * and the refused reference never reaches an attribute at all.
+	 */
+	function figure(block: ItemImage) {
+		return resolveFigureSrc(block.src, item.attachments ?? [], {
+			public: publicAttachments
+		});
 	}
 </script>
 
@@ -111,6 +146,16 @@
 			<h3>{@render runs(block.runs)}</h3>
 		{:else if block.type === 'h4'}
 			<h4>{@render runs(block.runs)}</h4>
+		{:else if block.type === 'img'}
+			{@const src = figure(block)}
+			<figure class="item-figure">
+				{#if src.ok}
+					<img src={src.src} alt={block.alt} loading="lazy" />
+				{:else}
+					<div class="item-figure-missing">Image unavailable</div>
+				{/if}
+				<figcaption>{block.alt}</figcaption>
+			</figure>
 		{:else}
 			{@render list(block, 1)}
 		{/if}
@@ -147,6 +192,41 @@
 	}
 	.item-body li {
 		margin: 0.15rem 0;
+	}
+	/* A FIGURE IS A BLOCK LIKE ANY OTHER, and it is capped so one photograph
+	   off a phone cannot own the whole column. `contain` rather than `cover`,
+	   the same call the composer's pre-save preview makes: cropping to fill
+	   hides the cut-off edge, and on a picture of a part the cut-off edge is
+	   routinely the measurement somebody needs to read. */
+	.item-body .item-figure {
+		margin: 0 0 0.7rem;
+	}
+	.item-body .item-figure img {
+		display: block;
+		max-width: 100%;
+		max-height: 22rem;
+		object-fit: contain;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-2, var(--bg2));
+	}
+	/* The marker for a reference nothing could load: a word, never a broken
+	   image and never an empty box. Colour is not the only signal -- the
+	   sentence is the signal and the tone only agrees with it. */
+	.item-body .item-figure-missing {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--body-figure-missing, var(--amber));
+		border: 1px dashed var(--boundary);
+		border-radius: var(--radius-card);
+		padding: 0.85rem 1rem;
+	}
+	.item-body .item-figure figcaption {
+		font-size: 0.82rem;
+		color: var(--text-2);
+		margin-top: 0.35rem;
 	}
 	/* h1 is the item's title and h2 its section label, so a body starts at h3
 	   and is styled to read as subordinate to both -- the same rule, for the

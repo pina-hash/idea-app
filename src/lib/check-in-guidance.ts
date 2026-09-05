@@ -83,7 +83,14 @@ export function hasGuidance(doc: ItemDoc | null | undefined): boolean {
 	for (const block of doc) {
 		if ('runs' in block) {
 			if (block.runs.some((run: ItemInline) => run.text.trim() !== '')) return true;
-		} else if (block.items.length > 0) {
+		} else if ('items' in block && block.items.length > 0) {
+			// `'items' in block` is a NARROWING, not a new case. `ItemBlock` gained
+			// an image member in 0176 and a guidance document cannot hold one --
+			// `notebook_set_session_guidance` calls the ONE-ARGUMENT
+			// `_classroom_doc_ok`, which is the narrow form that still refuses an
+			// image, and the notebook's normalizer supplies no `imageBlock` hook so
+			// nothing can emit one either. Without the test this reads `.items` off
+			// a union member that has none.
 			return true;
 		}
 	}

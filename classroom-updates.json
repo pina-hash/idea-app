@@ -1026,6 +1026,15 @@
 				"classroom",
 				"profile"
 			]
+		},
+		{
+			"date": "2026-09-04",
+			"title": "Pictures can go inside an assignment now, and they show up on your class list",
+			"body": "Your teacher can put a photo or a drawing straight into an assignment or an announcement, in with the writing, instead of only attaching it as a file at the bottom. If they do, the first picture also shows up as a small thumbnail next to that item on your home page, so a list of assignments is easier to tell apart at a glance. Items with no picture look exactly as they did. Every picture has to be given a short description of what it shows, so it still makes sense if you are using a screen reader or if the picture does not load.",
+			"tags": [
+				"new",
+				"classroom"
+			]
 		}
 	]
 }

@@ -22,9 +22,11 @@
  */
 import {
 	isUpdatedForViewer,
+	resolveFigureSrc,
 	type ClassroomItem,
 	type ClassroomSection
 } from '$lib/classroom/classroom';
+import { itemBodyDoc, itemCoverImage } from '$lib/classroom/classroom-doc';
 
 /** How far ahead "due soon" reaches. */
 export const DUE_SOON_DAYS = 7;
@@ -586,4 +588,52 @@ export function emptyMessage(feed: SectionFeed): string {
 			: 'Nothing posted to this class yet. Anything your teacher posts shows up here.';
 	}
 	return feed.manages ? 'Nothing waiting on you right now.' : "You are all caught up. Nothing due.";
+}
+
+
+// ---------------------------------------------------------------------------
+// The card thumbnail (0176)
+// ---------------------------------------------------------------------------
+
+/** A card's picture: what to load, and what to say about it. */
+export interface FeedCover {
+	src: string;
+	alt: string;
+}
+
+/**
+ * The thumbnail for one feed card, or null.
+ *
+ * NO SECOND ROUND TRIP, AND NO NEW COLUMN, because the read this surface
+ * already makes carries both halves. `ITEM_SELECT` has embedded
+ * `classroom_attachments(id, filename, mime_type, size_bytes, sort_order)`
+ * since attachments existed, and `selectItemsWithDoc`'s widest three rungs
+ * carry `body_doc`; the home feed calls that ladder. So a cover is a pure
+ * function of rows that are already in memory -- thirty cards cost thirty
+ * array lookups, not thirty signed URLs.
+ *
+ * THIS IS WHY 0176 CARRIES NO PROJECTION. A `cover_attachment_id` column, an
+ * RPC widening, a definer-side resolution: all of it was on the table and none
+ * of it is needed, and a stored cover would additionally be a second copy of
+ * "which picture leads" that could disagree with the body the moment somebody
+ * reordered it.
+ *
+ * IT DEGRADES TO NULL THREE WAYS, all of them meaning the same thing to the
+ * card: a read whose rung did not carry `body_doc` (`itemBodyDoc` then converts
+ * the PLAIN TEXT, which has no images in it by construction), a body with no
+ * image, and an image whose reference `resolveFigureSrc` refuses or cannot
+ * resolve. In every one of them the card keeps exactly the per-kind glyph it
+ * renders today.
+ *
+ * REFUSAL IS THE ONE PREDICATE, NOT A LOOSER ONE FOR A SMALL PICTURE. A
+ * thumbnail is an `img` the browser fetches automatically, same as a body
+ * figure, so it is the same same-origin rule with SVG refused from every
+ * source -- a 44px box is not a reason to relax what may be loaded into it.
+ */
+export function feedCover(item: ClassroomItem): FeedCover | null {
+	const image = itemCoverImage(itemBodyDoc(item));
+	if (!image) return null;
+	const res = resolveFigureSrc(image.src, item.attachments ?? []);
+	if (!res.ok) return null;
+	return { src: res.src, alt: image.alt };
 }
