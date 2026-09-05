@@ -163,9 +163,16 @@ naming 3 uncovered specs (`themes-signedout-1.mjs`, `themes-state-matrix.mjs`,
 `themes.mjs`). That is inherited from `integration` and is not this bundle's.
 
 After: `107 specs over 54 routes, 84 /dev pages, 2 widths, 214 runs` -- one spec, one
-route, one `/dev` page, two runs, exactly this bundle's addition. `covered` against the
-tree is 4 uncovered until the final full pass, which regenerates it; the fourth is this
-bundle's own `upload-limits.mjs` and it clears when the measured region is rewritten.
+route, one `/dev` page, two runs, exactly this bundle's addition.
+
+**`covered` now equals the tree: 107 of 107, nothing unmeasured**, because this bundle
+regenerated the measured region and the full pass covers every spec in the directory. So
+the two `tests/derived-numbers.test.ts` assertions that were RED on `integration` -- both
+about the three `themes*` specs the measured region had never covered -- are green here,
+as a side effect rather than as a repair. Nothing was done to the `themes*` specs
+themselves; they were simply included in a run that happened. **If a later bundle
+regenerates the static region without re-running the full pass, they go red again**, and
+that is the inherited condition rather than a new one.
 
 ## What was built
 
@@ -261,7 +268,17 @@ project limit read first, because a bucket limit above the project limit does no
   40 MB file into a 200 MB bucket"). Both are true sentences a student never sees, and
   both reported a correct page as a failure. The selectors are now scoped to the refusal
   paragraph itself. A `mustNot` is only as good as the node it is asked about.
-- **Full suite** and **both mutation controls**, below.
+- **Full suite: 277 files, 5680 tests, all passing.** Run at **13:54 PDT on 2026-09-05**
+  (America/Los_Angeles), 207.7s. The run before the measured region was regenerated had
+  277 files with 2 failing assertions in `tests/derived-numbers.test.ts`; both are the
+  inherited uncovered-spec pair described under A5 and both are green in the final run.
+- **The full browser pass on a CLEAN tree: 214 route/width runs, 3140 measurements, 2
+  outside threshold, 482.8s, measured on `ca18cd7` with `dirty: false`.** The two outside
+  threshold are `/dev/notebook`'s `tap-reach` toolbar rows at both widths, which are
+  pre-existing and annotated in the README as decision 12, with the owner. An earlier
+  regeneration was taken on a dirty tree and stamped itself `dirty: true`; the bundle was
+  committed and the pass re-run so the region's claim is about a real commit.
+- **Both mutation controls**, below.
 
 ## The two positive controls
 
