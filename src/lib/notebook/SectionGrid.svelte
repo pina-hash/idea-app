@@ -336,7 +336,15 @@
 								{:else}
 									<span class="student-name">{summary.student.name}</span>
 								{/if}
-								</span>
+								<!-- THE `left` CHIP IS INSIDE THE NAME LINE, and that is a
+								     MEASUREMENT rather than a preference. It was an
+								     `inline-block` sibling of the name, so it sat on the
+								     name's line; making `.name-line` a block-level flex
+								     container pushed it onto a second one and took that row
+								     from 43px to 66px -- a real 23px regression on exactly
+								     the rows the density contract protects, caught by
+								     re-running the harness against the pre-change file. It
+								     belongs on this line anyway: it qualifies the name. -->
 								{#if !summary.student.enrolled}
 									<span
 										class="left-class"
@@ -344,6 +352,7 @@
 										>left</span
 									>
 								{/if}
+								</span>
 								{#if summary.student.free_entries > 0}
 									<span
 										class="free"
@@ -550,7 +559,10 @@
 	 */
 	.left-class {
 		display: inline-block;
-		margin-left: 0.35rem;
+		/* The margin is GONE, not zeroed for tidiness: this chip now sits
+		   inside `.name-line`, whose `gap` supplies the space the inline
+		   margin used to. Leaving both would double it. */
+		flex: 0 0 auto;
 		padding: 0 0.3rem;
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 3px;

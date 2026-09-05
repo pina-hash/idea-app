@@ -113,7 +113,7 @@ const strip = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 function renderGrid(withAvatars: boolean): string {
 	return strip(
-		render(SectionGrid as never, {
+		render(SectionGrid, {
 			props: { grid: gridPayload({ withAvatars }), onOpen: () => {} }
 		}).body
 	);
@@ -243,7 +243,7 @@ const readSource = (p: string) => readFileSync(p, 'utf8');
 
 describe('the wiring, on the four surfaces this bundle owns', () => {
 	const cases = [
-		['src/lib/classroom/GradingConsole.svelte', 'avatarByEmail.get(s.email)', 'size={28}'],
+		['src/lib/classroom/GradingConsole.svelte', 'avatarByEmail.get(s.email)', 'size={24}'],
 		['src/lib/notebook/SectionGrid.svelte', 'gridStudentSubject(summary.student)', 'size={24}'],
 		['src/lib/notebook/EntryReview.svelte', 'gridStudentSubject(student)', 'size={28}'],
 		['src/lib/notebook/ReviewConsole.svelte', 'gridStudentSubject(cursorStudent)', 'size={28}']

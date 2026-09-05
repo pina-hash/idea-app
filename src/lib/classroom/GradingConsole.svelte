@@ -1317,11 +1317,23 @@
 							     a scanning list of thirty, and the picture is a way of
 							     finding the name faster rather than a portrait. It sits
 							     INSIDE the button, so the whole row stays one target and
-							     nothing new is tabbable. -->
+							     nothing new is tabbable.
+
+							     24 AND NOT 28, AND THAT IS A MEASUREMENT. This row's
+							     height is decided by `min-height: 44px` -- the tap floor,
+							     which the padding was tuned to carry after the row
+							     measured 35px. With 18px of padding and border, a 28px
+							     face makes the AVATAR the tallest thing in the box and the
+							     row grew to 46px at both widths, measured on
+							     `/dev/grading-bulk` against the pre-change file. 24 leaves
+							     `min-height` deciding, exactly as it did, so the console's
+							     row rhythm is byte-identical to what it was. Same argument
+							     as `SectionGrid`'s 24 against its 1.9rem cell: a face goes
+							     UNDER whatever already sets the row, never over it. -->
 							<Avatar
 								subject={avatarByEmail.get(s.email) ?? null}
 								tintKey={s.email}
-								size={28}
+								size={24}
 							/>
 							<span class="roster-name">{s.displayName}</span>
 							<span class="roster-chips">
