@@ -294,9 +294,28 @@ describe('the server normalizer', () => {
 // Part 3. THE PROJECTION. Measured, not assumed; SQL parity is in the db file.
 // ---------------------------------------------------------------------------
 describe('the plain-text projection', () => {
-	it('an image contributes an EMPTY LINE, which is what the SQL column does too', () => {
-		expect(docText([{ type: 'img', src: 'attachment:x.jpg', alt: 'A bearing' }])).toBe('');
-		expect(docText(STORED)).toBe('Measure the race before you press it out.\n\ncalipers');
+	it('an image contributes ITS DESCRIPTION, which is what 0178 made the SQL column do too', () => {
+		// THIS ASSERTION USED TO READ `.toBe('')`, AND IT WAS TRUE WHEN IT WAS
+		// WRITTEN. This bundle was authored against 0176, where an image block
+		// had no `runs`, fell into `richDocText`'s general arm and contributed a
+		// BLANK line -- so an image-only body left `classroom_items.body` empty,
+		// which is derived from this projection. 0178 widened both sides at
+		// once: the `img` arm emits `alt` now, and an announcement whose content
+		// is a photograph saves and reads as its description.
+		//
+		// MEASURED FROM THE SHIPPED MODULE RATHER THAN REASONED FROM THE
+		// MIGRATION, which is the only way this line can be trusted: a value
+		// re-derived from the rule it is checking cannot fail.
+		expect(docText([{ type: 'img', src: 'attachment:x.jpg', alt: 'A bearing' }])).toBe('A bearing');
+		expect(docText(STORED)).toBe(
+			`Measure the race before you press it out.\n${ALT}\ncalipers`
+		);
+		// AND THE PARITY CLAIM IS NOT HERE, deliberately. This file has no
+		// database in it, so it can only ever measure one of the two sides.
+		// That `docText` and `_classroom_doc_text` agree case for case over a
+		// whole corpus is asserted in tests/db/classroom-doc-text-images.test.ts,
+		// against the migration the shipped mirror actually mirrors. Restating
+		// half of it here is how the two stop agreeing.
 	});
 });
 
