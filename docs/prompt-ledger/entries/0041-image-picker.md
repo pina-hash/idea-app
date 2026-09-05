@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `RichTextEditor.svelte`, `ContentComposer.svelte`, `src/lib/classroom/attachments.ts` (conditional), `src/routes/dev/item-images/**`, `tests/classroom-item-image*`, `tests/dom/item-image*`, `tools/browser-verify/routes/item-images*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0041-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/image-picker-classroom-ry2jle`
 - Notes: Prompt 0030 shipped images in an item body and said plainly what it
   could not finish: the toolbar's Image control ASKS FOR A FILENAME, because
   `ContentComposer` passes the editor no attachment list and that prop was
