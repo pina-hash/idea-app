@@ -97,13 +97,25 @@ page straight back is confirmed structurally: `foundry_set_section_open(true)` n
 `foundry_closed_at` in the same statement, and the next layout load reads the new answer, so the
 delay is one navigation.
 
-**A5. The counts block's outside-threshold rows, by identity: THERE ARE NONE, and the prompt's
-claim about two of them is stale.** `tools/browser-verify/README.md`'s measured block on
-`origin/integration` reads `"outside":0,"outsideRows":[]`, measured 2026-09-05T01:02:31.797Z on
-commit `4dc9df8` (which is an ancestor of this branch's base). The two spec-table row-action
-rows prompt 0039 is credited with recording were not recorded: 0039's own commit `700a56d`
-("Add row is a 44px target") FIXED them, and `80dfe19` regenerated the block to zero. The tree
-wins; the comparison target for B5 was therefore `outside: 0`, `outsideRows: []`.
+**A5. The counts block's outside-threshold rows, by identity, and the COMMITTED BLOCK WAS
+LYING.** `tools/browser-verify/README.md`'s measured region on `origin/integration` read
+`"outside":0,"outsideRows":[]`, measured 2026-09-05T01:02:31.797Z on commit `4dc9df8` over 196
+runs and 2762 measurements. Taken at face value that says there are no outside-threshold rows
+at all and the prompt's claim about two of them is stale. **Taken as a measurement it is simply
+OLD**: prompt 0039 added a spec after that run and never regenerated the region, and a real full
+run on this branch reports 198 runs, 2870 measurements (a delta of exactly one spec at two
+widths) and the TWO rows the prompt named:
+
+    /dev/spec-table?empty=1  @375   tap-target  row action glyphs (known finding)
+    /dev/spec-table?empty=1  @1440  tap-target  row action glyphs (known finding)
+
+Both are 23.2x23.2 against the 44px floor, both are marked `(known finding)` in 0039's own spec,
+and neither is this bundle's. **The staleness was also making `npm test` red before this branch
+touched anything**: `tests/derived-numbers.test.ts` renders the region from its own data line and
+compares, and with `outsideRows: []` the renderer emits "No measurement was outside its threshold
+on that run." where the committed text said "Measurements outside threshold on that run:". Two
+assertions in that file failed on the base commit, byte-identical README and all. Regenerating in
+B5 is what resolves them; the finding is recorded here rather than fixed twice.
 
 ## What was built
 
@@ -179,7 +191,18 @@ from the baseline taken on this branch's base. The two placeholder `PUBLIC_SUPAB
 were exported before the sync, per CLAUDE.md's note about the eleven phantom errors in a
 checkout with no `.env` (this container has none).
 
-**The suite:** see the run recorded at the end of this entry.
+**The suite, twice, and the difference between the two runs is the point.**
+
+* First run, started **2026-09-05 07:44:35 America/Los_Angeles**, 225.3s: **267 files, 5537
+  tests, 5535 passed, 2 FAILED.** Both failures were the pre-existing
+  `tests/derived-numbers.test.ts` pair described in A5, on a `tools/browser-verify/README.md`
+  byte-identical to this branch's base commit. Nothing in this bundle caused them and nothing in
+  it could have fixed them: the input is a generated region measured on an older tree.
+* Second run, after the B5 regeneration, started **2026-09-05 07:58:29 America/Los_Angeles**,
+  241.7s: **267 files, 5537 tests, ALL PASSING, exit 0.**
+
+The new `tests/foundry-section-gate-scope.test.ts` contributes 10 of those, and
+`tests/foundry-section-gate-trust.test.ts` (0173's own, untouched) stays green at 25.
 
 **Mutation proof, four mutations, all four bite.** Restored from `cp` copies in the scratchpad
 and md5-verified against the pre-mutation baseline after every one; `git checkout --` was never
@@ -234,6 +257,13 @@ to take.
 **Counts.** `npm run verify:counts` reported the static region already current (99 specs over 51
 routes, 82 `/dev` pages, 198 runs) and wrote nothing, which is right: no route spec and no
 `/dev` page was added or removed, only an existing spec was extended.
+
+`npm run verify:readme` was then run ONCE at the end, on a clean tree at `3f4ccaf`, with nothing
+else holding port 5199: **198 route/width runs, 2870 measurements, 2 outside threshold, 465.7s,
+70 selftest controls (36 negative, 34 positive), 0 instrument failures.** Compared by identity
+against A5, the two outside-threshold rows are the same two spec-table row-action glyph rows
+0039 recorded deliberately, at 375 and 1440, and nothing this bundle touched appears. The
+region's `dirty` flag reads `false`, which is the tree it says it is.
 
 ## What is NOT verified
 

@@ -3,8 +3,9 @@
 - By: router chat for IDEA portal work
 - Owns: the Foundry section gate wherever the audit finds it, `src/routes/foundry/**`, one migration (conditional, number taken at commit time), `src/routes/dev/foundry-admin/**`, `tests/foundry-section-gate*`, `tests/db/foundry-section-gate*`, `tools/browser-verify/routes/foundry-*.mjs`, the generated regions in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0042-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Migration taken: NONE. Phase A did not prove the fix needs schema and it does not: the closure's reach lives entirely in which page loads short-circuit. 0173 is unedited and no number was reserved.
+- Status: pushed
+- Branch: claude/foundry-section-gate-avjwzf
 - Notes: Prompt 0015 built decision 01 as Mr. Pina answered it: a per-section
   toggle, checked on the server, so an instructor can close the Foundry during
   their own class. It then flagged the consequence in its own report:
