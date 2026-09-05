@@ -17,8 +17,14 @@
  * decision rather than a convenience: every real surface this bundle touches
  * is staff-gated precisely because it renders a minor's face, and `/dev` has
  * no guard. The "uploaded" avatar is a data: URI and the "broken" one is a
- * path that resolves to nothing, so this page holds no real person and makes
- * no request.
+ * path that resolves to nothing, so this page holds no real person.
+ *
+ * IT MAKES EXACTLY ONE REQUEST NOW (0052), and it used to make none. The
+ * `p-upload-refused` row carries a well-formed storage key for a uuid
+ * belonging to nobody, so the browser really asks `/api/api/avatar/<key>` and the
+ * route really answers its bodyless 404 with no session behind it. That
+ * request is what makes the refusal probe below an end-to-end measurement
+ * instead of an assertion that the fallback still exists.
  *
  * THE EIGHT TINTS ARE MEASURED HERE AND NOWHERE ELSE. `$lib/avatars.ts` picks
  * an initials colour per person from a pinned set, and the set was chosen at
@@ -39,7 +45,7 @@ export default {
 	prepare: [
 		{
 			waitFor:
-				'() => document.querySelectorAll("[data-testid=\\"gc-case\\"] .roster-row").length === 18 && document.querySelectorAll("img[src$=\\"gone.png\\"], img[src$=\\"this-object-does-not-exist.png\\"]").length === 0'
+				'() => document.querySelectorAll("[data-testid=\\"gc-case\\"] .roster-row").length === 18 && document.querySelectorAll("img[src$=\\"gone.png\\"], img[src$=\\"this-object-does-not-exist.png\\"], img[src^=\\"/api/avatar/\\"]").length === 0'
 		}
 	],
 	label: 'Avatar cases: no picture, a broken picture, a long name',
@@ -50,7 +56,18 @@ export default {
 		   geometry probes would compare nothing against nothing. */
 		{ selector: '[data-testid="avatar-row"]', label: 'the six roster cases', expectPresent: 6, maxPresent: 6 },
 		{ selector: '[data-testid="avatar-tint"]', label: 'one sample per tint (a key per BUCKET, searched)', expectPresent: 8, maxPresent: 8 },
-		{ selector: '[data-testid="avatar-parity-row"]', label: 'the five parity rows (identical text)', expectPresent: 5, maxPresent: 5 },
+		{ selector: '[data-testid="avatar-parity-row"]', label: 'the six parity rows (identical text)', expectPresent: 6, maxPresent: 6 },
+		/* -----------------------------------------------------------------
+		   PROMPT 0052: A REFUSED PICTURE. `p-upload-refused` carries a
+		   WELL-FORMED storage key for a uuid belonging to nobody, so
+		   `Avatar.svelte` really builds `/api/api/avatar/<key>`, the browser really
+		   asks for it, and the route really answers its bodyless 404 with no
+		   session behind it. These two rows are the only place the end-to-end
+		   claim is measured: a picture the SERVER refused paints the same tile
+		   as a picture nobody chose.
+		   ----------------------------------------------------------------- */
+		{ selector: '[data-case="p-upload-refused"] img', label: 'a refused avatar left no img behind', expectPresent: 0 },
+		{ selector: '[data-case="p-upload-refused"] .initials', label: 'a refused avatar became a tile', expectPresent: 1, maxPresent: 1 },
 		/* The picture that LOADS, and the preset glyph: the two states that
 		   must still be a picture rather than a tile. One img is the data: URI
 		   (the broken one has swapped to a tile by the time this reads). */
@@ -121,6 +138,57 @@ export default {
 	],
 	orderResult: [
 		{
+			/* PROMPT 0052, AND IT IS THE PRIVACY CLAIM RATHER THAN A LAYOUT
+			   ONE. 0181 closes the avatars bucket, so a picture can now be
+			   REFUSED as well as absent -- and a 404 meaning "this person has
+			   no picture" and a refusal meaning "not yours to see" are two
+			   different facts, only one of which is safe to publish. If a
+			   refused row looked even slightly different from an empty one, a
+			   roster would say by its own layout which faces the viewer was
+			   denied.
+
+			   THREE MECHANISMS, ONE APPEARANCE, and they are genuinely
+			   different mechanisms rather than three spellings of one:
+			   `p-none` chose no picture and never had a src; `p-upload-broken`
+			   carries a MALFORMED key the CLIENT refused, so no request was
+			   made; `p-upload-refused` carries a well-formed key the SERVER
+			   refused with a real 404 over the wire. The comparison is on the
+			   rendered innerHTML of the avatar box, which is what a person
+			   looking at the screen can tell apart.
+
+			   `p-loads` IS COMPARED TOO, in the other direction: without it
+			   three identical empties would satisfy this row even if every
+			   avatar on the page had stopped rendering. */
+			label: 'a refused picture is indistinguishable from no picture, and a real one is not',
+			/* COMPARED ON WHAT IS RENDERED, NOT ON `innerHTML`, and the first
+			   draft compared `innerHTML` and reported DIFFER for two reasons
+			   that are both invisible. Measured, so the next reader does not
+			   re-derive it:
+
+			     none          <!--[-1--><span ... style="font-size:11px">SS</span>
+			     serverRefused <!--[0--><span ... style="font-size: 11px;">SS</span>
+
+			   Svelte's branch anchor carries -1 for a branch that was rendered
+			   on the server and never moved, and 0 for one the client switched
+			   after `onerror`; and the inline style is re-serialized by the
+			   CSSOM once the browser has touched it. Same element, same class,
+			   same text, same computed value, two spellings. So the probe reads
+			   the tag, the class, the text and the COMPUTED font-size and
+			   colour -- which is the list of things a person looking at the
+			   screen could tell apart, and which no serializer can move. */
+			evaluate:
+				'() => { const look = (c) => { const box = document.querySelector(`[data-case="${c}"] .avatar`); if (!box) return "MISSING:" + c; const kid = box.firstElementChild; if (!kid) return "EMPTY:" + c; const cs = getComputedStyle(kid); const r = box.getBoundingClientRect(); return [kid.tagName, kid.className.replace(/\\s*svelte-\\w+/g, ""), (kid.textContent || "").trim(), cs.fontSize, cs.color, Math.round(r.width) + "x" + Math.round(r.height)].join("|"); }; const none = look("p-none"); const clientRefused = look("p-upload-broken"); const serverRefused = look("p-upload-refused"); const loads = look("p-loads"); if ([none, clientRefused, serverRefused, loads].some((v) => v.startsWith("MISSING:") || v.startsWith("EMPTY:"))) return ["A CASE DID NOT RENDER: " + [none, clientRefused, serverRefused, loads].join(" / ")]; const same = none === clientRefused && none === serverRefused; return [same ? "refused matches absent: " + none : "DIFFER: none=" + none + " client=" + clientRefused + " server=" + serverRefused, loads !== none && loads.startsWith("IMG") ? "a real picture is still distinguishable" : "A REAL PICTURE LOOKS LIKE AN ABSENCE: " + loads]; }',
+			expected: [
+				// The class has its Svelte scope hash stripped: that hash is a
+				// function of the component's CSS and would redden this row on an
+				// unrelated restyle, which is how a real check gets deleted for
+				// being noisy. The colour is Sam Sample's own tint out of the
+				// pinned eight, so it is a fixture value and not a moving one.
+				'refused matches absent: SPAN|initials|SS|11px|rgb(225, 177, 152)|28x28',
+				'a real picture is still distinguishable'
+			]
+		},
+		{
 			/* THE WHOLE POINT OF THIS SPEC. Six rows, four of them differing
 			   only in what the picture is doing, and the heights must agree. It
 			   answers a CATEGORY rather than a pixel count because an
@@ -130,7 +198,7 @@ export default {
 			   reported separately below. */
 			label: 'a missing or broken picture does not change a row height',
 			evaluate:
-				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"avatar-parity-row\\"]")]; if (rows.length !== 5) return ["EXPECTED 5 PARITY ROWS, GOT " + rows.length]; const hs = rows.map((r) => Math.round(r.getBoundingClientRect().height)); if (hs.some((v) => v < 1)) return ["A ROW HAD NO BOX: " + JSON.stringify(hs)]; const same = hs.every((v) => Math.abs(v - hs[0]) <= 1); return [same ? "identical" : "DIFFER: " + rows.map((r, i) => r.dataset.case + "=" + hs[i]).join(" ")]; }',
+				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"avatar-parity-row\\"]")]; if (rows.length !== 6) return ["EXPECTED 6 PARITY ROWS, GOT " + rows.length]; const hs = rows.map((r) => Math.round(r.getBoundingClientRect().height)); if (hs.some((v) => v < 1)) return ["A ROW HAD NO BOX: " + JSON.stringify(hs)]; const same = hs.every((v) => Math.abs(v - hs[0]) <= 1); return [same ? "identical" : "DIFFER: " + rows.map((r, i) => r.dataset.case + "=" + hs[i]).join(" ")]; }',
 			expected: ['identical']
 		},
 		{
@@ -141,7 +209,7 @@ export default {
 			   the name got shorter. */
 			label: 'the avatar box is the same size whatever it is painting',
 			evaluate:
-				'() => { const boxes = [...document.querySelectorAll("[data-testid=\\"avatar-row\\"] .avatar, [data-testid=\\"avatar-parity-row\\"] .avatar")].map((e) => { const r = e.getBoundingClientRect(); return Math.round(r.width) + "x" + Math.round(r.height); }); if (boxes.length !== 11) return ["EXPECTED 11, GOT " + boxes.length]; const uniq = [...new Set(boxes)]; return [uniq.length === 1 ? "one size: " + uniq[0] : "DIFFER: " + uniq.join(", ")]; }',
+				'() => { const boxes = [...document.querySelectorAll("[data-testid=\\"avatar-row\\"] .avatar, [data-testid=\\"avatar-parity-row\\"] .avatar")].map((e) => { const r = e.getBoundingClientRect(); return Math.round(r.width) + "x" + Math.round(r.height); }); if (boxes.length !== 12) return ["EXPECTED 12, GOT " + boxes.length]; const uniq = [...new Set(boxes)]; return [uniq.length === 1 ? "one size: " + uniq[0] : "DIFFER: " + uniq.join(", ")]; }',
 			expected: ['one size: 28x28']
 		},
 		{
