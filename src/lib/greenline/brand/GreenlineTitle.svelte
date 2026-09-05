@@ -16,6 +16,8 @@
 		onPieceBuilder,
 		onSettings,
 		onFeedback,
+		onModeration,
+		moderationLabel = '',
 		trackName = 'Proving Ground 07',
 		enableShortcut = true
 	}: {
@@ -33,6 +35,23 @@
 		 * v2 ribbon layouts), so they are separate doors, not modes of one tool.
 		 */
 		onPieceBuilder?: () => void;
+		/**
+		 * Optional: renders the MODERATION entry, which is the whole reason a
+		 * teacher opening GREENLINE now learns that anything is waiting on them.
+		 * ABSENCE IS THE MECHANISM, as everywhere else in this codebase: the
+		 * route passes this only for an admin, so a student has no control to
+		 * find rather than a control that refuses. The GATE is the moderation
+		 * route's own 404 and, authoritatively, `is_teacher()` inside the four
+		 * review RPCs; this is discoverability.
+		 */
+		onModeration?: () => void;
+		/**
+		 * The sentence beside that entry, computed ONCE by
+		 * `pendingLabel` in $lib/greenline/moderation.ts and handed down. It is
+		 * rendered verbatim, including at ZERO -- a badge that disappears when
+		 * nothing is waiting cannot be told from a badge that broke.
+		 */
+		moderationLabel?: string;
 		/** Optional: renders a gear button that opens the settings overlay. */
 		onSettings?: () => void;
 		/** Optional: renders a button that opens the host's feedback box. */
@@ -95,6 +114,18 @@
 				{/if}
 			</div>
 		{/if}
+		{#if onModeration}
+			<!-- Staff only (the route hands this callback down for an admin and
+			     nobody else). It carries the COUNT rather than a bare word, so a
+			     teacher learns there is work waiting without opening anything --
+			     which is the one thing no GREENLINE surface said before. -->
+			<button class="tt-moderation" data-testid="title-moderation" onclick={onModeration}>
+				<span class="tt-mod-label">MODERATION</span>
+				{#if moderationLabel}
+					<span class="tt-mod-count">{moderationLabel}</span>
+				{/if}
+			</button>
+		{/if}
 	</div>
 
 	<div class="tt-foot">
@@ -121,8 +152,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 2.4rem;
-		height: 2.4rem;
+		/* 38.4px was under the floor. It owns its corner with nothing within
+		   44px of it, so the box itself grows rather than taking a reach. */
+		width: 44px;
+		height: 44px;
 		padding: 0;
 		background: var(--glb-panel);
 		border: 1px solid var(--glb-line-strong);
@@ -229,6 +262,14 @@
 		}
 		.tt-builder {
 			animation: tt-fade 0.6s 1.14s ease-out both;
+		}
+		/* The staff entry joins the same one-time cascade, last, so it does not
+		   arrive ahead of the controls above it. NOTHING IS HIDDEN IN A BASE
+		   STATE: with the animation cancelled (reduced motion) the button is at
+		   full opacity and no transform from the first frame, exactly like every
+		   other element in this block. */
+		.tt-moderation {
+			animation: tt-fade 0.6s 1.26s ease-out both;
 		}
 	}
 	@keyframes tt-sheen-sweep {
@@ -409,6 +450,14 @@
 	/* The builder entry: same machined language as START, deliberately quieter
 	   (smaller, steel) — authoring is the second door, racing the first. */
 	.tt-builder {
+		/* 44px MIN-HEIGHT, never a height (IDEA_INTERFACE_STANDARDS 10). The
+		   title screen is a student surface played on a phone and declares no
+		   instructor-only density class, so there is no 24px exception here.
+		   `.tt-builders` already wraps, so the floor costs row height. */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
 		margin-top: 0.7rem;
 		padding: 0.42rem 1.6rem;
 		background: linear-gradient(180deg, rgba(16, 21, 27, 0.75), rgba(7, 10, 13, 0.85));
@@ -437,6 +486,43 @@
 	}
 	.tt-builder:active {
 		transform: translateY(1px);
+	}
+
+	/* The staff moderation entry. Deliberately quieter than START and quieter
+	   than the two editors -- a teacher is not the primary reader of this
+	   screen -- but it carries a COUNT, which nothing else here does, because
+	   the number is the only reason it exists. The amber is GREENLINE's own
+	   impact-state token and is spent once, on the count. */
+	.tt-moderation {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		/* 44px min-height, per .tt-builder above. */
+		min-height: 44px;
+		margin-top: 0.55rem;
+		padding: 0.36rem 1.1rem;
+		background: rgba(7, 10, 13, 0.85);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		cursor: pointer;
+		color: var(--glb-steel-dim);
+		font: 600 0.6rem var(--glb-font-ui);
+		letter-spacing: 0.24em;
+		transition:
+			border-color 160ms ease,
+			color 160ms ease;
+	}
+	.tt-moderation:hover,
+	.tt-moderation:focus-visible {
+		color: var(--glb-ink);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	.tt-mod-count {
+		color: var(--glb-amber, #ffb02e);
+		letter-spacing: 0.14em;
 	}
 	.tt-foot {
 		position: absolute;
@@ -470,7 +556,12 @@
 		color: var(--glb-ink-faint);
 		font: inherit;
 		letter-spacing: 0.2em;
-		padding: 0.2rem 0.5rem;
+		/* See .tt-builder. The footer row wraps at 375, so the floor is paid in
+		   height rather than in an overflow. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0.2rem 0.7rem;
 		cursor: pointer;
 		transition:
 			color 140ms ease,
