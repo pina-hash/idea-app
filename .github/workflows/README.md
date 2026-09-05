@@ -12,6 +12,10 @@ that passed; `deploy.yml` is the one path that writes `main`.
 - **The branch to look at is `integration`.** It is long-lived, it always has
   the latest `main` merged into it, and it carries every finished bundle that
   has not been deployed yet.
+- **The CI nightly on `integration` runs at 01:00 Pacific in summer and 00:00
+  in winter, and that hour is load-bearing.** It is inside the only window in
+  which a day-boundary defect is visible; see "The nightly hour is chosen"
+  below before moving it.
 - **`main` is written by `deploy.yml` and by nothing else, and it now has a
   nightly schedule as well as the button.** It runs only when `main` is an
   ancestor of `integration`, CI is green on `integration`'s exact tip, and
@@ -128,11 +132,45 @@ and answered `false` for three columns that were present, while the
 it with `GITHUB_TOKEN` and GitHub's loop-breaker starts no run from that. On
 2026-08-29 it went red silently and stopped eight branches.
 
-So `ci.yml` carries a **schedule** (04:30 UTC daily, which is 21:30 Pacific) and
-a **workflow_dispatch** that test `integration` itself. A red scheduled CI run
-is the signal that `integration` is broken and nothing will merge until somebody
-looks. To check it on demand: Actions -> **CI** -> **Run workflow**, which
-defaults to `integration` and accepts any other ref.
+So `ci.yml` carries a **schedule** and a **workflow_dispatch** that test
+`integration` itself. A red scheduled CI run is the signal that `integration` is
+broken and nothing will merge until somebody looks. To check it on demand:
+Actions -> **CI** -> **Run workflow**, which defaults to `integration` and
+accepts any other ref.
+
+### The nightly hour is chosen, and moving it costs detection
+
+**`0 8 * * *` -- 08:00 UTC, which is 01:00 Pacific in summer and 00:00 Pacific
+in winter.** It was `30 4` (21:30 and 20:30 Pacific) until 2026-09-05.
+
+GitHub cron is UTC and does not shift with daylight saving, so ONE entry lands
+on TWO different local hours across the year, and any hour you pick has that
+property. **Both** of these are inside 00:00 to 02:00 Pacific, which is the only
+window in which a whole class of defect is visible at all.
+
+`tests/db/classroom-hall-pass-limits.test.ts` is why. Six of its 24 tests failed
+only between 00:00 and 02:00 Pacific -- the fixtures backdate up to 120 minutes
+and land on the previous Los Angeles calendar day -- and it passed every CI run
+for weeks from prompt 0016 onward. It surfaced because a person happened to
+re-run a branch at 00:58, not because anything tested for it. A suite that only
+ever runs during the working day samples one part of the clock and calls it
+coverage.
+
+Two things about the choice, both of which a future tidy-up would undo without
+noticing:
+
+- **UTC [08:00, 09:00) is the whole intersection.** Any other hour is inside the
+  window for at most half the year. The old `30 4` was inside it for none of it.
+- **Detection degrades across the window.** Measured at fixed Pacific instants:
+  6 failures at 00:05, 00:30 and 01:00; only **2** at 01:30; **0** at 02:05,
+  because only the tests backdating 90 minutes or more still fail late. `0 8` is
+  the latest minute at which both local hours sit at or before the last
+  full-strength reading. `30 8` would put the summer run at 01:30 and catch two
+  of the six -- in the window, and still mostly reporting a pass.
+
+`tests/workflows.test.ts` pins both properties and derives the local hours from
+the cron rather than restating them, so this section cannot quietly drift from
+the file.
 
 Neither of those STARTS an Integrate sweep: `integrate.yml`'s job-level `if`
 requires `github.event.workflow_run.event == 'push'`, so a scheduled or
