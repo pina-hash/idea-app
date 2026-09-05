@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `.github/workflows/integrate.yml`, `.github/workflows/README.md`, `tools/integrate-gate-proof.sh`, `tools/browser-verify/readme-counts.mjs`, the generated regions of its README, `tests/workflows.test.ts`, `tests/derived-numbers.test.ts`, `docs/prompt-ledger/entries/0050-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0180
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/integration-route-spec-red-upd2no`
 - Notes: Three bundles in three days started work and found the suite ALREADY
   RED on their base commit, every time for the same reason: a branch added a
   route spec, merged cleanly, and nothing regenerated the static counts

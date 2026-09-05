@@ -259,6 +259,21 @@ Both are recorded because a prompt is a claim like any other and the tree wins.
    splitting of the counts block into two regions, not a finding about a
    toolbar. The block on `17be15b` reports zero rows.
 
+## Verification
+
+- **Full suite: 269 files, 5584 tests, 0 failures**, 203.18s, run
+  2026-09-05 11:08:36 to 11:12:01 America/Los_Angeles, on an idle machine with
+  the harness finished.
+- **`npm run check`: 0 errors, 37 warnings** over 2941 files / 20 files with
+  problems, breakdown 31 `state_referenced_locally` / 5 `css_unused_selector` /
+  1 `perf_avoid_nested_class` -- the baseline exactly, both number and mix.
+  `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` were exported as
+  placeholders before `svelte-kit sync`, per the phantom-error rule; without
+  that this fresh checkout reports 11 errors in files no change touched.
+- **`tools/integrate-gate-proof.sh`: 65 of 65 cases, 0 failures.**
+- **`tests/derived-numbers.test.ts`: 18 of 18**, where the base was 5-of-18 red.
+- `npm run history:verify` and `npm run verify:counts` both clean.
+
 ## Not verified
 
 - **Nothing was run on GitHub Actions.** Every case is a local reproduction
