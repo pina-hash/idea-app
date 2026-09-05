@@ -6,6 +6,13 @@
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import { pathwayColor } from '$lib/pathways';
 	import {
+		SITE_THEMES,
+		SITE_THEME_LABELS,
+		SITE_THEME_NOTES,
+		setSiteTheme,
+		siteTheme
+	} from '$lib/theme.svelte';
+	import {
 		AVATAR_PRESETS,
 		displayName,
 		signOutEverywhere,
@@ -223,6 +230,39 @@
 								Use Google photo
 							</button>
 						{/if}
+					</div>
+				</div>
+
+				<!-- THE SITE THEME CONTROL. Here and nowhere else, which is what the
+				     session gate in ThemeRoot is paired with: the theme is on exactly
+				     where the thing that turns it off is reachable.
+
+				     RADIOS, NOT A SWITCH. Two states today and a third is a file, so a
+				     boolean control would have to be rebuilt the first time somebody
+				     adds one -- and a radio group already says "these are the choices,
+				     this is the current one" without a label anybody has to read twice.
+				     Each row carries its name AND what it is for: "Matrix" is a name
+				     nobody can infer a look from, exactly as "IDEA" is in the
+				     notebook's own picker. -->
+				<div class="pm-section">
+					<div class="pm-label" id="pm-theme-label">Theme</div>
+					<div class="pm-themes" role="radiogroup" aria-labelledby="pm-theme-label">
+						{#each SITE_THEMES as t (t)}
+							<button
+								class="pm-theme"
+								class:selected={siteTheme() === t}
+								type="button"
+								role="radio"
+								aria-checked={siteTheme() === t}
+								onclick={() => setSiteTheme(t)}
+							>
+								<span class="pm-theme-swatch" data-theme-swatch={t} aria-hidden="true"></span>
+								<span class="pm-theme-text">
+									<span class="pm-theme-name">{SITE_THEME_LABELS[t]}</span>
+									<span class="pm-theme-note">{SITE_THEME_NOTES[t]}</span>
+								</span>
+							</button>
+						{/each}
 					</div>
 				</div>
 
@@ -496,5 +536,82 @@
 		.pm-preset {
 			transition: none;
 		}
+	}
+
+	/* --- The theme picker ---------------------------------------------------
+	   44px is the floor on a student-facing control at every width
+	   (IDEA_INTERFACE_STANDARDS 10), and it is a `min-height` rather than a
+	   height so a row whose note wraps at 375px grows instead of clipping. The
+	   whole row is the target, not the swatch. */
+	.pm-themes {
+		display: grid;
+		gap: 0.35rem;
+	}
+	.pm-theme {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		width: 100%;
+		min-height: 44px;
+		padding: 0.4rem 0.5rem;
+		text-align: left;
+		background: var(--bg2, #081209);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		border-radius: var(--radius-control, 3px);
+		cursor: pointer;
+		color: inherit;
+		transition: border-color 0.2s ease;
+	}
+	.pm-theme:hover {
+		border-color: var(--line-strong, rgba(0, 255, 65, 0.35));
+	}
+	/* THE SELECTED ROW IS MARKED THREE WAYS -- the accent border, the tint fill
+	   and the name going to --green -- because colour is never the only signal.
+	   `aria-checked` carries it for anyone not looking at any of the three. */
+	.pm-theme.selected {
+		border-color: var(--green);
+		background: var(--green-tint, var(--bg2));
+	}
+	.pm-theme.selected .pm-theme-name {
+		color: var(--green);
+	}
+	/* The swatch is the two grounds and the body ink of the theme it names,
+	   written as literals ON PURPOSE: it has to show a theme that is NOT
+	   currently applied, so it cannot read the tokens, which are whatever is
+	   showing now. The values are the ones in colors.css and
+	   design-system/themes/matrix.css. */
+	.pm-theme-swatch {
+		flex: 0 0 auto;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+	}
+	.pm-theme-swatch[data-theme-swatch='idea'] {
+		background: linear-gradient(135deg, #121a12 0 50%, #78b870 50% 100%);
+	}
+	.pm-theme-swatch[data-theme-swatch='matrix'] {
+		background: linear-gradient(135deg, #040804 0 50%, #00ff41 50% 100%);
+	}
+	.pm-theme-text {
+		display: grid;
+		min-width: 0;
+	}
+	.pm-theme-name {
+		font-family: var(--font-display, 'Rajdhani', sans-serif);
+		font-size: 0.9rem;
+		line-height: 1.2;
+		color: var(--white);
+	}
+	/* MUTED COPY THAT SITS ON AN ACTIVE FILL TAKES --text-2, NEVER --dim, and
+	   this is the notebook's own rule arriving one room over. The selected row
+	   is filled with --green-tint, which is a veil laid on the panel: measured
+	   in Chromium, --dim on it is 3.84:1 themed and 3.78:1 on the base palette
+	   -- below 4.5 in BOTH, so it was a defect the theme merely made visible.
+	   --text-2 clears both (4.91 base, 5.57 themed) on the same fill. */
+	.pm-theme-note {
+		font-size: 0.72rem;
+		line-height: 1.25;
+		color: var(--text-2);
 	}
 </style>
