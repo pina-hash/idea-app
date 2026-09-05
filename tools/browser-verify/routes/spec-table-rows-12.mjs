@@ -35,32 +35,38 @@ export default {
 			attempts: 6,
 			waitMs: 300
 		},
-		/* THE RE-OPENED STATE, MEASURED AND REPORTED RATHER THAN SKIPPED PAST,
-		   BECAUSE IT IS A DEFECT THIS ROUTE FOUND AND DOES NOT OWN.
-		   `use:autoresize` writes `style.height` once at mount and then only on
-		   `input`. A textarea mounted inside a CLOSED disclosure has
-		   scrollHeight 0, so it fits to nothing and never re-runs; when the
-		   student re-opens the module the cell sits at the `min-height: 44px`
-		   floor with `overflow: hidden` over content taller than that. So the
-		   44px TAP FLOOR IS SAFE -- measured, 0 of 60 cells under 44px -- and
-		   what is lost is the sight of the writing: a cell needing 127px shows
-		   44 until the student types in it. Handed on under section 12 rather
-		   than fixed here; this bundle owns the row-action column.
+		/* THE RE-OPENED STATE, GATED. This route FOUND the defect at prompt 0048
+		   and only reported it -- `use:autoresize` wrote `style.height` once at
+		   mount and then only on `input`, so a textarea mounted inside a CLOSED
+		   disclosure measured `scrollHeight` 0, fitted itself to `2px`, and never
+		   re-ran; re-opening the module left the cell at its `min-height: 44px`
+		   floor with `overflow: hidden` over content taller than that. Measured
+		   here at the time: 19 of 60 cells clipped at 375, worst 118px of writing
+		   in a 42px box, and 0 of 60 under the 44px tap floor -- so what was lost
+		   was never reach, it was the sight of a student's own answer.
+		   `SpecRenderer` now shares one `ResizeObserver` across a renderer's
+		   textareas and refuses to fit a box with no width, so the cell fits the
+		   frame it becomes visible in (prompt 0051).
 
-		   The number it prints is the understated one, and the step below
-		   prints the true one beside it. */
+		   THE REFIT STEP THAT USED TO FOLLOW THIS ONE IS GONE. It dispatched
+		   `input` at all 60 cells so the page cost below was measured over fitted
+		   boxes rather than clipped ones; it was a workaround for the defect, and
+		   with the defect fixed it would MASK a regression from the page-cost band
+		   by repairing the page between the two. The gate below runs first either
+		   way, but a check whose neighbour quietly undoes what it measures is the
+		   shape that costs the next reader an hour.
+
+		   IT REFUSES A STATE IT COULD NOT MEASURE, WHICH IS THE HALF THAT MATTERS.
+		   A cell inside a collapsed module has `clientHeight` and `scrollHeight`
+		   both 0, so `scrollHeight > clientHeight + 1` is FALSE for every one of
+		   them and a naive count comes back `0 of 60 clipped` -- a perfect score
+		   over a table nobody ever opened. That is not a hypothetical: this
+		   route's own first draft omitted the click above and read 0px everywhere,
+		   and prompt 0048's first browser spec did the same thing. So the zero-box
+		   cells are counted FIRST and any of them is a refusal, never a pass. */
 		{
 			evaluate:
-				'() => { const c = [...document.querySelectorAll("[data-testid=ed] textarea.cell")]; if (!c.length) throw new Error("no editable cells found"); const t = document.querySelector("[data-testid=ed] table.entry-table"); const clipped = c.filter((el) => el.scrollHeight > el.clientHeight + 1).length; const under = c.filter((el) => el.getBoundingClientRect().height < 44).length; return "re-opened, cells unrefitted: table " + Math.round(t.getBoundingClientRect().height * 10) / 10 + "px, " + clipped + " of " + c.length + " cells clipped by overflow, " + under + " under the 44px floor"; }'
-		},
-		/* REFIT, WHICH PUTS THE PAGE IN THE STATE A STUDENT WHO TYPED THE TABLE
-		   IS ACTUALLY IN. Dispatching `input` re-runs the action's own `fit()`;
-		   the handler writes the identical string back, so no value changes.
-		   Without this the page cost below is measured over clipped cells and
-		   understates itself by 163.5px at this row count. */
-		{
-			evaluate:
-				'() => { const c = [...document.querySelectorAll("[data-testid=ed] textarea.cell")]; for (const el of c) el.dispatchEvent(new Event("input", { bubbles: true })); return "refitted " + c.length + " cell(s)"; }'
+				'() => { const c = [...document.querySelectorAll("[data-testid=ed] textarea.cell")]; if (!c.length) throw new Error("no editable cells found"); const t = document.querySelector("[data-testid=ed] table.entry-table"); const r = (x) => Math.round(x * 10) / 10; const unmeasured = c.filter((el) => el.clientWidth === 0 || el.clientHeight === 0); const clipped = c.filter((el) => el.scrollHeight > el.clientHeight + 1); const worst = clipped.length ? Math.max(...clipped.map((el) => el.scrollHeight - el.clientHeight)) : 0; const said = "re-opened at " + window.innerWidth + "px: table " + r(t.getBoundingClientRect().height) + "px, " + clipped.length + " of " + c.length + " cells clipped by overflow (worst " + worst + "px hidden), " + c.filter((el) => el.getBoundingClientRect().height < 44).length + " under the 44px floor"; if (unmeasured.length) throw new Error(unmeasured.length + " of " + c.length + " cells have no box -- the module is still collapsed, so a clipped count here is NOT MEASURED and must not read as 0 clipped. " + said); if (clipped.length) throw new Error(clipped.length + " of " + c.length + " cells clip their own content: a cell mounted inside a collapsed module was never refitted when the module opened. " + said); return said; }'
 		},
 		/* THE PAGE COST, REPORTED AND GATED IN BOTH DIRECTIONS. A band and not
 		   a ceiling: a table that grew is the regression this route exists for,

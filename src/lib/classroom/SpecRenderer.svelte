@@ -280,7 +280,9 @@
 	}
 
 	/**
-	 * Auto-resizing textarea: grow to fit on every input, BOUNDED.
+	 * Auto-resizing textarea: grow to fit on every input AND whenever the box
+	 * itself appears or changes width, BOUNDED. See the two notes inside for why
+	 * the second half is not optional and what it costs.
 	 *
 	 * The cap is `.answer`'s own `max-height` and is read back from the computed
 	 * style rather than written down again here -- one statement of it, so the
@@ -296,8 +298,39 @@
 	 * as `none`, which is not a number, so it keeps growing to fit exactly as
 	 * it always did. See the cap's own note on `.answer` for the figures.
 	 */
+	/**
+	 * ONE OBSERVER PER RENDERER, NOT ONE PER BOX. A table is sixty textareas at
+	 * twelve rows and five columns; sixty `ResizeObserver` instances to answer
+	 * one question about all of them is the wrong shape. A single observer takes
+	 * sixty observations and the `WeakMap` says which box asked, so the cost per
+	 * cell is one observation record and one weak entry rather than an object
+	 * with its own callback queue.
+	 */
+	let fitObserver: ResizeObserver | null = null;
+	const fitters = new WeakMap<Element, () => void>();
+
 	function autoresize(el: HTMLTextAreaElement) {
 		const fit = () => {
+			/* A BOX THAT IS NOT BEING LAID OUT CANNOT BE MEASURED, AND MEASURING
+			   IT ANYWAY IS THE WHOLE DEFECT. `Disclosure` hides a collapsed
+			   region with `display: none`, so a cell mounted inside a module
+			   that arrives closed -- which is every module a student has
+			   FINISHED, `collapseWhen={complete}` -- has `scrollHeight` 0.
+			   Measured at 375 on `/dev/spec-table?rows=12`: all 60 cells wrote
+			   `height: 2px` at mount (0 + the 2px border allowance), nothing
+			   re-ran, and re-opening the module left 19 of them clipped, worst
+			   118px of content in a 42px box. `.cell` is `overflow: hidden`
+			   with no scrollbar, and a wheel over it moves nothing (measured,
+			   `scrollTop` 0 after a 200px wheel), so what a student loses is the
+			   sight of their own writing on a graded assignment, with no cue
+			   that anything is missing.
+
+			   `clientWidth` and not `offsetParent`: a zero WIDTH is what makes
+			   the wrap -- and therefore `scrollHeight` -- a fiction, and it is
+			   the one reading that is 0 for a hidden box and never 0 for a shown
+			   one (`.cell` carries `min-width: 6rem`). `offsetParent` is also
+			   null for a `position: fixed` box that is perfectly visible. */
+			if (el.clientWidth === 0) return;
 			el.style.height = 'auto';
 			const cap = Number.parseFloat(getComputedStyle(el).maxHeight);
 			const wanted = el.scrollHeight + 2;
@@ -305,7 +338,43 @@
 		};
 		fit();
 		el.addEventListener('input', fit);
-		return { destroy: () => el.removeEventListener('input', fit) };
+		/* THE BOX APPEARING IS AN EVENT, AND `ResizeObserver` IS THE ONLY ONE OF
+		   THE THREE CANDIDATES THAT CAN SEE IT. An effect keyed to the
+		   disclosure's open state is not available: `Disclosure` LATCHES that
+		   state inside itself (prompt 0018), so `collapseWhen` says only how the
+		   module arrives and this component genuinely cannot know whether the
+		   region is open. Refitting on focus fixes the cell only once a student
+		   taps it, which is the one case the `input` handler already covers, and
+		   does nothing at all for READING BACK work already typed -- which is
+		   the defect. And a `setTimeout` after the press is a race that loses on
+		   a slow phone; this repository has rejected that shape twice (0012,
+		   0018).
+
+		   IT CANNOT LOOP, AND THAT IS A PROPERTY OF `fit()` RATHER THAN A GUARD
+		   BOLTED ON. `fit()` writes HEIGHT; the second delivery recomputes the
+		   same string, the box therefore ends that frame at the height it
+		   started, and an observer reports nothing when nothing moved. The
+		   intermediate `height: auto` is never seen on its own -- deliveries are
+		   batched at the end of the frame and the callback is synchronous.
+		   Measured: 0 console errors on the run, so no undelivered-notification
+		   loop.
+
+		   IT ALSO CLOSES A SECOND, QUIETER CASE THAT WAS ALWAYS OPEN: a cell
+		   whose WIDTH changes -- a phone rotating, a pane resizing -- rewraps
+		   its text and used to keep the height it was fitted to. Same defect,
+		   same mechanism, no extra code. */
+		fitters.set(el, fit);
+		fitObserver ??= new ResizeObserver((entries) => {
+			for (const entry of entries) fitters.get(entry.target)?.();
+		});
+		fitObserver.observe(el);
+		return {
+			destroy: () => {
+				el.removeEventListener('input', fit);
+				fitters.delete(el);
+				fitObserver?.unobserve(el);
+			}
+		};
 	}
 
 	function counterFor(block: TextFieldBlock): { count: number; state: string; label: string } {
