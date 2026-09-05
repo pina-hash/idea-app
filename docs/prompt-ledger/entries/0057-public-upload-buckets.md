@@ -3,8 +3,9 @@
 - By: router chat for IDEA portal work
 - Owns: at most one migration (number taken at commit time), cover and thumb URL construction under `src/lib/foundry/**` and `src/lib/tournaments/**`, proxy routes if the design needs them, `src/routes/dev/foundry-covers/**`, `tests/foundry-cover*`, `tests/db/foundry-cover*`, `tests/db/tournament-thumb*`, `tools/browser-verify/routes/foundry-cover*.mjs`, the generated regions of its README, one decision entry, `docs/prompt-ledger/entries/0057-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0181
-- Status: issued
-- Branch: assigned by the harness
+- Migration taken: `0183_foundry_covers_private.sql`, committed straight to `main` with its db test (`0ba816a`). 0182 was free across every ref when this bundle started and was taken mid-session by `0182_classroom_submission_object_lock.sql`; 0183 was re-verified free across every remote and local ref immediately before the commit.
+- Status: pushed
+- Branch: `claude/public-upload-buckets-4dqkbe`
 - Notes: Prompt 0052 closed the `avatars` bucket and found the exposure was
   worse than two earlier bundles had recorded. `0020`'s read policy was
   `using (bucket_id = 'avatars')` and nothing else, so an anonymous caller
