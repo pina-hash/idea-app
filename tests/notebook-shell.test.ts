@@ -613,16 +613,20 @@ describe('bringing the detail pane into view', () => {
 	}
 
 	/**
-	 * THE FOUR, each with the reason it is exempt rather than merely listed.
+	 * THE THREE, each with the reason it is exempt rather than merely listed.
 	 *
-	 * IT WAS SIX. `FoundryGallery` and `ReviewQueue` moved to `scroll="fill"`
-	 * in prompt 0015 -- their detail pane holds a RUNNING STUDENT APP, and
-	 * under page-flow scrolling the card list carried it off the top -- so
-	 * they are no longer page-flow and have nothing to reveal. This list's own
-	 * third assertion is what said to drop them, by name and in its failure
-	 * message, which is the shape it was written in: it can only shrink.
-	 * `FoundryMine` stays, because its detail pane is a long metadata form and
-	 * page-flow is the right trade there, exactly as it is for the notebook.
+	 * IT WAS SIX, THEN FOUR. `FoundryGallery` and `ReviewQueue` moved to
+	 * `scroll="fill"` in prompt 0015 -- their detail pane holds a RUNNING
+	 * STUDENT APP, and under page-flow scrolling the card list carried it off
+	 * the top -- so they are no longer page-flow and have nothing to reveal.
+	 * `MapsEditor` followed in prompt 0093: the maps editor became a workspace
+	 * whose detail pane is a plan sheet beside an inspector, each owning its
+	 * own scroll under `scroll="fill"`, so it too has nothing to reveal. This
+	 * list's own third assertion is what said to drop each of them, by name
+	 * and in its failure message, which is the shape it was written in: it can
+	 * only shrink. `FoundryMine` stays, because its detail pane is a long
+	 * metadata form and page-flow is the right trade there, exactly as it is
+	 * for the notebook.
 	 * Every one is another lane's file: this bundle owns `src/lib/notebook/**`,
 	 * `src/routes/notebook/**` and `src/routes/dev/**`, and reaching into a
 	 * surface somebody else is working in to add an effect and a binding is how
@@ -631,7 +635,6 @@ describe('bringing the detail pane into view', () => {
 	 */
 	const KNOWN_UNREVEALED: { file: string; why: string }[] = [
 		{ file: 'src/lib/coin-desk/LogView.svelte', why: 'coin-desk lane owns it' },
-		{ file: 'src/lib/maps/MapsEditor.svelte', why: 'maps lane owns it' },
 		{ file: 'src/lib/foundry/FoundryMine.svelte', why: 'foundry lane owns it' },
 		{
 			file: 'src/routes/dev/classroom-inspector/+page.svelte',
@@ -670,8 +673,8 @@ describe('bringing the detail pane into view', () => {
 				`${file} now reveals (${why}) -- remove it from KNOWN_UNREVEALED`
 			).toBe(false);
 		}
-		// Pinned, so a fifth is a deliberate act and not a quiet widening.
-		expect(KNOWN_UNREVEALED.length).toBe(4);
+		// Pinned, so a fourth is a deliberate act and not a quiet widening.
+		expect(KNOWN_UNREVEALED.length).toBe(3);
 	});
 });
 
