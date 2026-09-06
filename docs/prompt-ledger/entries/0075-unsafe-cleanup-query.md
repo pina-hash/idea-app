@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `docs/history/duplicate-drafts-production-ru7pag.md` (new), ONE pointer line at the top of `docs/history/draft-duplication-homework-progress-65qxgf.md` and nothing else in that file, and `docs/prompt-ledger/entries/0075-*`.
 - Migration permitted: no.
-- Status: issued
+- Status: pushed
 - Branch: `claude/duplicate-drafts-production-ru7pag`
 - Notes: This session was issued prompt 0074 and stood down from its surface.
   Two sessions were issued 0074 within three seconds of each other --
