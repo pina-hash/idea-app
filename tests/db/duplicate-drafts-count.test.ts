@@ -5,7 +5,7 @@
 //
 // WHY THIS IS A DATABASE TEST. Every claim under test is about ROWS THAT
 // EXIST rather than about rows a client can read, and the gap between those
-// two is the whole reason 0186 is a SECURITY DEFINER function instead of a
+// two is the whole reason 0187 is a SECURITY DEFINER function instead of a
 // browser-side count off the existing grants. A mounted component cannot see
 // that gap; only real Postgres with the real policies in force can.
 //
@@ -23,12 +23,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 
 /**
- * The classroom chain, plus every table 0186 counts, plus 0186 itself.
+ * The classroom chain, plus every table 0187 counts, plus 0187 itself.
  *
- * 0137 SITS BEFORE 0186 ON PURPOSE. It is a one-time repair of the grants that
+ * 0137 SITS BEFORE 0187 ON PURPOSE. It is a one-time repair of the grants that
  * already existed, so a function created after it arrives granted to `anon`
  * again unless its own migration names the roles. Putting the sweep first is
- * what makes section 5's ACL assertions mean "0186 revoked for itself" rather
+ * what makes section 5's ACL assertions mean "0187 revoked for itself" rather
  * than "0137 happened to catch it".
  */
 const CHAIN = [
@@ -53,7 +53,7 @@ const CHAIN = [
 	'0122_rich_text_nested_lists.sql',
 	'0128_classroom_instructor_copy.sql',
 	'0137_anon_execute_sweep.sql',
-	'0186_classroom_duplicate_drafts.sql'
+	'0187_classroom_duplicate_drafts.sql'
 ] as const;
 
 type Group = {
@@ -468,7 +468,7 @@ describe('0074: duplicate drafts, counted as they exist', () => {
 	// -----------------------------------------------------------------------
 	// 4. THE MEASUREMENT THAT DECIDES THE DESIGN.
 	//
-	// The same submission, counted two ways. This is why 0186 exists rather
+	// The same submission, counted two ways. This is why 0187 exists rather
 	// than a browser-side count off the existing `grant select`.
 	// -----------------------------------------------------------------------
 	describe('a browser-side count would under-report, in the unsafe direction', () => {
@@ -518,7 +518,7 @@ describe('0074: duplicate drafts, counted as they exist', () => {
 	// -----------------------------------------------------------------------
 	// 5. THE FUNCTION IS READ ONLY, AND CLOSED.
 	// -----------------------------------------------------------------------
-	describe('0186 itself', () => {
+	describe('0187 itself', () => {
 		it('is granted to authenticated and to nobody else', async () => {
 			const { rows } = await db.sql<{
 				anon: boolean;
@@ -572,7 +572,7 @@ describe('0074: duplicate drafts, counted as they exist', () => {
 
 		it('re-applies cleanly, because a migration gets re-pasted', async () => {
 			const sql = await import('node:fs/promises').then((fs) =>
-				fs.readFile('supabase/migrations/0186_classroom_duplicate_drafts.sql', 'utf8')
+				fs.readFile('supabase/migrations/0187_classroom_duplicate_drafts.sql', 'utf8')
 			);
 			await db.sql(sql);
 			const a = await ask(teacher);

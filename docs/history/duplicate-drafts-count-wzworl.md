@@ -1,8 +1,8 @@
 ---
-title: "The count nobody has, taken through the app: duplicate drafts grouped, the oldest kept, and student work refused twice (`claude/duplicate-drafts-count-wzworl`, migration 0186)"
+title: "The count nobody has, taken through the app: duplicate drafts grouped, the oldest kept, and student work refused twice (`claude/duplicate-drafts-count-wzworl`, migration 0187)"
 date: 2026-09-06
 branches: [claude/duplicate-drafts-count-wzworl]
-migrations: ["0186"]
+migrations: ["0187"]
 subsystems: ["Classroom", "Testing"]
 ---
 
@@ -22,7 +22,7 @@ made to reach it.
 ## The audit, and the three places 0061's specification did not survive the tree
 
 0061's history entry is the specification, and it holds where it matters. Its
-grouping query is reproduced verbatim inside 0186 in spirit: group
+grouping query is reproduced verbatim inside 0187 in spirit: group
 `classroom_items` by `(author_email, kind, title, body)` where
 `published = false`, keep the oldest, everything after it is surplus. Three
 things about it changed on contact with the schema.
@@ -57,7 +57,7 @@ insert. **So every item, draft included, has at least one posting by
 construction.** 0061's safety query lists `postings` beside `files`,
 `student_work`, `specs`, `rubrics` and `decks` under the instruction "check what
 hangs off each surplus row before deleting it" -- and read straight, that makes
-every row unremovable and the whole cleanup impossible. 0186 projects the
+every row unremovable and the whole cleanup impossible. 0187 projects the
 posting count because a person wants to see "listed in 2 classes" before
 pressing anything; it is never a blocker, and
 `tests/classroom-duplicate-drafts.test.ts` pins that in both directions.
@@ -82,7 +82,7 @@ submission row, which carries `state`, `submitted_at`, `rubric_scores`, `score`,
 `teacher_comment` and `graded_at`, and is the parent of
 `classroom_submission_files`. A copy with a turned-in, graded hand-in on it and
 no saved responses would have read as "carries nothing" under 0061's query.
-0186 counts submissions, responses AND module approvals, and any of the three
+0187 counts submissions, responses AND module approvals, and any of the three
 blocks.
 
 `classroom_content_revisions` is deliberately NOT counted, and the reason is the
@@ -94,7 +94,7 @@ is impossible by the read rule above, and a view is not work.
 ## A5: the migration was NECESSARY, and the reason is not convenience
 
 The prompt asked to prefer no migration, and the tree refused that. Every table
-0186 counts carries `grant select ... to authenticated`, so a browser genuinely
+0187 counts carries `grant select ... to authenticated`, so a browser genuinely
 CAN read them. **The counts it would get are wrong, and wrong in the direction
 that deletes a student's work.**
 
@@ -174,7 +174,7 @@ item page, where a teacher deleting an assignment with hand-ins knows what they
 are deleting. **This surface makes a different promise** -- it calls rows surplus
 copies and offers to sweep them -- so the safety is re-asked in
 `src/routes/classroom/[sectionId]/duplicates/remove/+server.ts`, which re-runs
-0186, refuses anything that is not a removable surplus copy of this section, and
+0187, refuses anything that is not a removable surplus copy of this section, and
 then forwards to `delete-content` through SvelteKit's own `fetch`. **There is no
 second deletion path**: `classroom_delete_item` is still the only thing that
 deletes.
@@ -201,7 +201,7 @@ take that work with it..."). That is 0061's trap and it is the one thing this
 surface must not get wrong.
 
 A class with nothing to clean up gets a written statement that it was looked at,
-never a blank pane. A deployment without 0186 applied says the count cannot be
+never a blank pane. A deployment without 0187 applied says the count cannot be
 taken here and that nothing is missing from the class, only from the page.
 
 ## The removal is one row at a time, and that is a decision
@@ -222,7 +222,7 @@ verified before and after. `git checkout --` was never run.
 | # | what was opened | md5 in/out | assertions red |
 | --- | --- | --- | --- |
 | 1 | the grouping: `body` dropped from the group key | `de9b45...77c3` | **4 of 24** |
-| 2 | the safety clause: `student_work` forced to 0 in 0186 | `de9b45...77c3` | **4 of 24** |
+| 2 | the safety clause: `student_work` forced to 0 in 0187 | `de9b45...77c3` | **4 of 24** |
 | 3 | the visibility predicate: `_classroom_manages_item(i.id)` -> `true` | `de9b45...77c3` | **4 of 24** |
 
 Each reddened a **disjoint** set, so the three rules are independently pinned
@@ -326,14 +326,29 @@ contiguous. On this branch it reports a hole at **0185**.
 file.** `0185_bucket_limits_under_the_global.sql` landed on `origin/main`
 (`eec8151`) and `origin/main` is NOT contained in `origin/integration`, whose
 highest migration is 0184. Taken across every ref and against
-`git log --all --diff-filter=A`, **0186 is the next free number**, and numbering
+`git log --all --diff-filter=A`, **0187 is the next free number**, and numbering
 this file 0185 would put two different files under one number, one of which is
 already on `main`.
+
+**THIS FILE WAS 0186 UNTIL THE LAST COMMIT, AND THE COLLISION IS WHY THE PROMPT
+SAYS TO RE-CHECK AT COMMIT TIME.** A concurrent session pushed
+`supabase/migrations/0186_maps_media_no_anon_listing.sql` on
+`origin/claude/maps-media-bucket-he0wnn` at **07:46:13 UTC**, part-way through
+this one. The number was free when it was chosen and was not free when the work
+was committed. Re-checked with `git fetch --prune` and
+`git log --all --diff-filter=A` immediately before the final push, the file was
+renumbered to 0187 and every reference to it moved with it -- the SQL header,
+its self-check messages, both database tests' chains, the component, the page
+load, the removal guard, the harness, the ledger and this entry.
+**`git ls-remote` alone would not have caught it**: the check that did was the
+one over every ref's add-history.
 
 **Measured rather than reasoned:** `origin/main`'s own 0185 was copied into the
 tree, the test was re-run, and it **passed (4 of 4)**; the file was then removed
 again. So the hole closes the moment `integration` takes `main`'s 0185, with no
-change to anything here.
+change to anything here. After the renumber below the branch is missing 0185 AND
+0186, and the same argument covers both: each is a file that exists on another
+ref and will arrive with it.
 
 The practical consequence worth naming: the integrate workflow merges a
 `claude/**` branch only when CI is green on its tip, and CI is already red on
@@ -341,9 +356,9 @@ The practical consequence worth naming: the integrate workflow merges a
 branch will stand rather than auto-merge**, which is a signal and not a
 leftover.
 
-## The migration: 0186, read only
+## The migration: 0187, read only
 
-`supabase/migrations/0186_classroom_duplicate_drafts.sql`. It creates two
+`supabase/migrations/0187_classroom_duplicate_drafts.sql`. It creates two
 functions and nothing else -- no table, no policy, no table grant, no trigger,
 no column, no backfill. It is declared `stable`, which the suite asserts from
 `pg_proc.provolatile`, and the suite also measures that a call leaves the
@@ -351,9 +366,11 @@ no column, no backfill. It is declared `stable`, which the suite asserts from
 
 **Cold apply steps, for whoever pastes it:**
 
-1. It is the LOWEST unapplied file only once `main`'s 0185 is applied; apply
-   0185 first, then this. `node tools/apply-migration.mjs 186` will refuse it
-   otherwise, correctly.
+1. It is the LOWEST unapplied file only once **0185** (`main`'s bucket-limits
+   file) and **0186** (the maps-media file from
+   `origin/claude/maps-media-bucket-he0wnn`) are applied. Apply those first,
+   then this. `node tools/apply-migration.mjs 187` will refuse it otherwise,
+   correctly, and that refusal is the tool working rather than a fault.
 2. It carries no destructive DDL, so `tools/apply-migration.mjs` is available
    for it rather than a hand paste.
 3. Its self-check asserts shape and privilege rather than counting rows it
@@ -368,8 +385,8 @@ no column, no backfill. It is declared `stable`, which the suite asserts from
    (`from public, anon, authenticated, service_role`) rather than relying on
    `from public`, which under the hosted project's default privileges would
    leave `anon` holding a direct grant. The chain in
-   `tests/db/duplicate-drafts-count.test.ts` puts 0137 BEFORE 0186 for exactly
-   this reason, so the ACL assertions mean "0186 closed itself" and not "0137
+   `tests/db/duplicate-drafts-count.test.ts` puts 0137 BEFORE 0187 for exactly
+   this reason, so the ACL assertions mean "0187 closed itself" and not "0137
    happened to catch it".
 
 **What undoes it:** `drop function if exists
@@ -401,8 +418,8 @@ rather than assumed.
 * **Nothing was run against the live Supabase project, and no attempt was
   made.** The number of duplicate drafts actually sitting in `ideabosco.com`
   right now is still **unknown to this session**. What changed is that it is no
-  longer unknown to Mr. Pina: it is one page load, once 0186 is applied.
-* **0186 has not been applied anywhere.** It has been applied to real embedded
+  longer unknown to Mr. Pina: it is one page load, once 0187 is applied.
+* **0187 has not been applied anywhere.** It has been applied to real embedded
   Postgres, over the real migration chain, unmodified -- 31 assertions across
   two files -- and to no production database.
 * **No signed-in production surface was driven.** `npm run verify:browser`
@@ -451,7 +468,7 @@ rather than assumed.
   who reads whose drafts.
 * **`classroom_content_revisions` is not offered as a signal.** A surplus copy's
   revision chain is the record of its own accidental creation, which might be
-  worth showing to date a burst of copies. It would need a projection 0186 does
+  worth showing to date a burst of copies. It would need a projection 0187 does
   not make.
 * **The composer still closes on a draft save.**
   `src/routes/classroom/[sectionId]/+layout.svelte`'s `composerSaved` is what

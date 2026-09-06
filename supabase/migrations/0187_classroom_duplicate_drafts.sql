@@ -1,4 +1,4 @@
--- 0186_classroom_duplicate_drafts.sql
+-- 0187_classroom_duplicate_drafts.sql
 --
 -- THE COUNT NOBODY HAS. Read only: this file COUNTS and LISTS. It deletes
 -- nothing, it updates nothing, and it creates no write path of any kind.
@@ -307,19 +307,19 @@ begin
 	join pg_catalog.pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = 'classroom_duplicate_drafts';
 	if v_n <> 1 then
-		raise exception '0186: expected exactly one classroom_duplicate_drafts, found %', v_n;
+		raise exception '0187: expected exactly one classroom_duplicate_drafts, found %', v_n;
 	end if;
 
 	if has_function_privilege('anon', 'public.classroom_duplicate_drafts(uuid)', 'execute') then
-		raise exception '0186: anon can execute classroom_duplicate_drafts';
+		raise exception '0187: anon can execute classroom_duplicate_drafts';
 	end if;
 	if not has_function_privilege('authenticated', 'public.classroom_duplicate_drafts(uuid)', 'execute') then
-		raise exception '0186: authenticated cannot execute classroom_duplicate_drafts';
+		raise exception '0187: authenticated cannot execute classroom_duplicate_drafts';
 	end if;
 	if has_function_privilege('authenticated', 'public._classroom_item_attached_counts(uuid)', 'execute') then
-		raise exception '0186: authenticated can execute the private counter';
+		raise exception '0187: authenticated can execute the private counter';
 	end if;
 
-	raise notice '0186: read-only. classroom_duplicate_drafts(uuid) granted to authenticated only; the counter is private. No rows were read, written or deleted by this file.';
+	raise notice '0187: read-only. classroom_duplicate_drafts(uuid) granted to authenticated only; the counter is private. No rows were read, written or deleted by this file.';
 end;
 $$;

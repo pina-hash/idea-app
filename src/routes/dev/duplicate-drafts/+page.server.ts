@@ -4,7 +4,7 @@ import type { PageServerLoad } from './$types';
 
 /**
  * DEV ONLY. 404 in production, no auth, no Supabase, no network -- the harness
- * mounts the REAL `DuplicateDrafts` with a fixture shaped exactly as 0186
+ * mounts the REAL `DuplicateDrafts` with a fixture shaped exactly as 0187
  * answers, and an in-memory removal that reports back.
  */
 export const load: PageServerLoad = async () => {

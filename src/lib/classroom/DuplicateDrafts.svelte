@@ -2,7 +2,7 @@
 	DuplicateDrafts.svelte -- the surplus copies of a draft, grouped, with the
 	oldest kept, and one Remove per row.
 
-	WHY THE PURE LAYER IS IN THIS FILE'S `<script module>` BLOCK. The shape 0186
+	WHY THE PURE LAYER IS IN THIS FILE'S `<script module>` BLOCK. The shape 0187
 	answers in, the sentence that says why a row cannot be removed, and the one
 	predicate deciding whether a Remove may be offered are ordinary data and
 	arithmetic, and the registry convention wants them assertable without a
@@ -23,7 +23,7 @@
 	blocked row anyway is refused there.
 -->
 <script module lang="ts">
-/** The per-item counts 0186 projects. Keys mirror the SQL exactly. */
+/** The per-item counts 0187 projects. Keys mirror the SQL exactly. */
 export type AttachedCounts = {
 	postings: number;
 	submissions: number;
@@ -70,7 +70,7 @@ export type DuplicateAnswer = {
 	totals: { groups: number; surplus: number; removable: number; blocked: number };
 };
 
-/** The answer a database with no duplicates gives, and the one a missing 0186 degrades to. */
+/** The answer a database with no duplicates gives, and the one a missing 0187 degrades to. */
 export const EMPTY_ANSWER: DuplicateAnswer = {
 	groups: [],
 	totals: { groups: 0, surplus: 0, removable: 0, blocked: 0 }
@@ -219,7 +219,7 @@ function num(v: unknown, fallback: number): number {
 	}: {
 		sectionName?: string;
 		answer: DuplicateAnswer;
-		/** False when the project has no 0186: the page says so rather than blanking. */
+		/** False when the project has no 0187: the page says so rather than blanking. */
 		ready?: boolean;
 		/** OMITTED REMOVES EVERY REMOVE CONTROL. Absence is the mechanism. */
 		remove?: (id: string) => Promise<RemoveResult>;

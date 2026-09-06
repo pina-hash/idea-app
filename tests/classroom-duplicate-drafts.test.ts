@@ -239,7 +239,7 @@ describe('0074 render: the surface says what it is doing', () => {
 		expect(withRows).not.toContain('data-dd-empty');
 	});
 
-	it('a deployment without 0186 SAYS SO, and does not claim the class is clean', () => {
+	it('a deployment without 0187 SAYS SO, and does not claim the class is clean', () => {
 		const html = strip(
 			render(DuplicateDrafts, { props: { answer: EMPTY_ANSWER, ready: false } }).body
 		);

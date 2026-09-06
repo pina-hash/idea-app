@@ -21,7 +21,7 @@ import type { RequestHandler } from './$types';
  * keeps is a promise a crafted request breaks. So the safety is re-asked here,
  * server-side, on counts the database takes itself.
  *
- * IT RE-ASKS 0186 RATHER THAN TRUSTING THE PAYLOAD. The caller sends an id and
+ * IT RE-ASKS 0187 RATHER THAN TRUSTING THE PAYLOAD. The caller sends an id and
  * nothing else; whether that id is a surplus copy, whether it is removable, and
  * whether this caller may see it at all are all answered by re-running the same
  * function the page ran, scoped to the same section. The client cannot assert

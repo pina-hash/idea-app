@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: a panel entry in `InstructorTools.svelte`, `src/routes/classroom/[sectionId]/duplicates/**`, `DuplicateDrafts.svelte` (new), at most one read-only migration, `src/routes/dev/duplicate-drafts/**`, `tests/classroom-duplicate-drafts*`, `tests/db/duplicate-drafts*`, `tools/browser-verify/routes/duplicate-drafts*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0074-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, read-only, number taken at commit time. Highest on origin/main at issue: 0185
-- Migration taken: `0186_classroom_duplicate_drafts.sql`. READ ONLY: it counts and lists, and deletes nothing. It was NECESSARY rather than convenient -- a browser-side count off the existing grants under-reports `classroom_submissions` in the unsafe direction, because the reviewer arm of its RLS policy requires the student to hold an enrollment row. NOT APPLIED anywhere; Mr. Pina applies it by hand, after `main`'s 0185.
+- Migration taken: `0187_classroom_duplicate_drafts.sql`. READ ONLY: it counts and lists, and deletes nothing. It was NECESSARY rather than convenient -- a browser-side count off the existing grants under-reports `classroom_submissions` in the unsafe direction, because the reviewer arm of its RLS policy requires the student to hold an enrollment row. NOT APPLIED anywhere; Mr. Pina applies it by hand, after `main`'s 0185.
 - Status: pushed
 - Branch: `claude/duplicate-drafts-count-wzworl` (from `origin/integration` at `13d1747`)
 - Notes: Prompt 0061 found why Save draft made copies: it ran the

@@ -45,7 +45,7 @@ const CHAIN = [
 	'0122_rich_text_nested_lists.sql',
 	'0128_classroom_instructor_copy.sql',
 	'0137_anon_execute_sweep.sql',
-	'0186_classroom_duplicate_drafts.sql'
+	'0187_classroom_duplicate_drafts.sql'
 ] as const;
 
 describe('0074: the removal guard refuses what the surface promises it refuses', () => {

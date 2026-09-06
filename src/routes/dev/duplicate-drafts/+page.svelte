@@ -9,12 +9,12 @@
 	 * mounts, with a fixture in the shape `classroom_duplicate_drafts` answers,
 	 * and switches between the three states worth looking at: groups present,
 	 * a class with nothing to clean up, and the read-only state a deployment
-	 * without 0186 lands in.
+	 * without 0187 lands in.
 	 *
 	 * THE REMOVAL TRANSPORT IS A STAND-IN AND SAYS SO. It records the id and
 	 * drops the row from the fixture, which is what `invalidateAll()` does on
 	 * the real page. What it deliberately does NOT stand in for is the SERVER
-	 * guard: the real removal re-asks 0186 and refuses a copy carrying student
+	 * guard: the real removal re-asks 0187 and refuses a copy carrying student
 	 * work, and that refusal is proven against real Postgres in
 	 * `tests/db/duplicate-drafts-remove-guard.test.ts`, never here.
 	 *
@@ -193,7 +193,7 @@
 	<div class="controls">
 		<fieldset>
 			<legend>State</legend>
-			{#each [['groups', 'Groups present'], ['empty', 'Nothing to clean up'], ['unready', 'No 0186 on this deployment']] as [id, label] (id)}
+			{#each [['groups', 'Groups present'], ['empty', 'Nothing to clean up'], ['unready', 'No 0187 on this deployment']] as [id, label] (id)}
 				<label class="opt tap-44">
 					<input type="radio" name="mode" value={id} checked={mode === id} onchange={() => (mode = id as Mode)} />
 					<span>{label}</span>

@@ -16,11 +16,11 @@ import type { PageServerLoad } from './$types';
  *
  * THE GATE IS ASKED TWICE AND THEY ARE DIFFERENT QUESTIONS.
  * `classroom_manages_section` decides whether this PAGE exists for the caller.
- * `_classroom_manages_item`, inside 0186, decides which ITEMS it may name --
+ * `_classroom_manages_item`, inside 0187, decides which ITEMS it may name --
  * every section the item is posted to, which is the delete gate. A manager of
  * one section of a co-posted draft gets the page and not that draft.
  *
- * THE RPC LADDER. 0186 is applied by hand and separately, so a deployment
+ * THE RPC LADDER. 0187 is applied by hand and separately, so a deployment
  * sitting between two migrations is a real state. `dupesReady` starts FALSE and
  * is turned on only by a call that actually answered; a `PGRST202` -- the
  * function not existing -- degrades to the empty answer and the page SAYS the
