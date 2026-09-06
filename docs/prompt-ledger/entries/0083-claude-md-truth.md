@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `CLAUDE.md`, `tools/claude-md-check.mjs` (new), `tests/claude-md*` (new), `docs/prompt-ledger/entries/0083-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0186
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/claude-md-truth-izb551`
 - Notes: `CLAUDE.md` is read by every Claude Code session in this repository
   before it does anything. Seven bundles between 2026-09-05 and 2026-09-06
   found a sentence in it that is false, and every one of them correctly
