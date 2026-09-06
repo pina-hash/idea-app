@@ -1258,13 +1258,319 @@ else
 	check_says "60. renamed refresh markers cut nothing (the FATAL guard above then fires)" empty non-empty
 fi
 
+
+# ===========================================================================
+# THE SUITE ON THE MERGED TREE (`merged_suite`, `run_is_red`).
+#
+# `counts_refresh` above repairs ONE generated region. The shape it repairs is
+# general: ANY check that relates two files is defeated by two branches each
+# touching one of them, because neither branch's tree holds both edits and the
+# merge is the first tree that does. Measured on this repository's own history
+# -- `74be202` added `tools/gauntlet-doc-check.mjs`, `7d848d7` added
+# `0184_gauntlet_run_event_bounds.sql`, they are siblings off `fdf8c68`, each is
+# green on its own tree and the merge `5877f19` is red -- and there are 47 tests
+# under `tests/` with that property, so it is a shape and not an incident.
+#
+# The fixture below is that shape in miniature and it is MEASURED rather than
+# stipulated: the stub suite is a real checker reading the fixture tree, so
+# "each parent is green" is something these cases observe (cases 66 and 67)
+# rather than something the harness asserts about itself.
+#
+# Cut from the workflow exactly as the four gates above are: the text between
+# `# merged_suite_marker:begin` and `# merged_suite_marker:end` is taken out of
+# the workflow with the same `cut_marker` and sourced, so no case here can drift
+# into testing a private copy.
+# ===========================================================================
+echo "== case 0e: the workflow runs the suite and reads its verdict (structural, by grep) =="
+suite_call_ok=yes
+for needle in \
+	'suite_out="$(merged_suite)" || suite_rc=$?' \
+	'if run_is_red "${#conflicted[@]}" "$suite_verdict"; then' \
+	'for f in "${suite_findings[@]}"; do echo "- \`$f\`"; done'
+do
+	if grep -qF -- "$needle" "$WORKFLOW"; then
+		echo "  found: $needle"
+	else
+		echo "  MISSING: $needle"
+		suite_call_ok=no
+	fi
+done
+# AFTER THE PUSH, which is the one thing a grep can say about placement and the
+# one thing that matters here: `npm ci` plus a three-minute suite are the two
+# longest things in this job and the two most able to end it from outside, and
+# run before the push they would take every merge in the sweep with them.
+suite_at="$(grep -n 'suite_out="$(merged_suite)"' "$WORKFLOW" | cut -d: -f1)"
+push_at="$(grep -n 'if git push origin "HEAD:refs/heads/\$TARGET"; then' "$WORKFLOW" | cut -d: -f1)"
+if [ -n "$suite_at" ] && [ -n "$push_at" ] && [ "$suite_at" -gt "$push_at" ]; then
+	echo "  ordered: the suite runs at line $suite_at, after the push at line $push_at"
+else
+	echo "  MISORDERED: suite at '${suite_at:-none}', push at '${push_at:-none}' -- a suite before the push can cost every merge"
+	suite_call_ok=no
+fi
+if [ "$suite_call_ok" = yes ]; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
+echo
+
+SUITE_SRC="$(cut_marker "$WORKFLOW" merged_suite_marker)"
+if [ -z "${SUITE_SRC//[[:space:]]/}" ]; then
+	echo "FATAL: cut nothing between merged_suite_marker:begin/end in $WORKFLOW"
+	exit 1
+fi
+if ! bash -n <(printf '%s\n' "$SUITE_SRC"); then
+	echo "FATAL: the text between the merged_suite markers is not valid shell"
+	exit 1
+fi
+# shellcheck disable=SC1090
+source <(printf '%s\n' "$SUITE_SRC")
+if ! declare -F merged_suite >/dev/null || ! declare -F run_is_red >/dev/null; then
+	echo "FATAL: the merged_suite region did not define merged_suite and run_is_red"
+	exit 1
+fi
+if [ "${1:-}" = --show ]; then
+	echo '--- merged_suite as cut from the workflow ----------------------------'
+	printf '%s\n' "$SUITE_SRC"
+	echo '---------------------------------------------------------------------'
+	echo
+fi
+
+# --- the stub suite --------------------------------------------------------
+# `merged_suite` runs `npm ci` and `npm test` LITERALLY, which is what makes it
+# worth proving; so the thing that varies here is `npm` itself, put earlier on
+# PATH. The stub is not a canned string: for `test` it runs the fixture tree's
+# own `fixture-suite.mjs` when one is present, which is a real checker relating
+# `migrations/*.sql` to `docs/DOC.md` -- the miniature of `gauntlet-doc-check`.
+# So a branch that adds the CHECKER and a branch that adds a MIGRATION are each
+# genuinely green, and the merge genuinely red, as an observation.
+#
+# IT PRINTS ANSI, deliberately. The default vitest reporter colours its output
+# on a runner and not in a pipe, and an escape between the space and the F is
+# enough to make a `grep '^ FAIL '` match nothing at all in CI. The strip inside
+# `merged_suite` is only exercised if the fixture is coloured.
+SUITEBIN="$WORK/suitebin"
+mkdir -p "$SUITEBIN"
+cat > "$SUITEBIN/npm" <<'STUB'
+#!/usr/bin/env bash
+set -u
+case "${1:-}" in
+	ci)
+		if [ -f .fixture-install-fails ]; then
+			printf 'npm error code EUSAGE\nnpm error `npm ci` can only install with an existing package-lock.json\n' >&2
+			exit 1
+		fi
+		exit 0 ;;
+	test)
+		if [ -f .fixture-suite-crashes ]; then
+			printf 'node:internal/modules/run_main: Cannot find module vitest.mjs\n'
+			exit 7
+		fi
+		if [ -f fixture-suite.mjs ]; then
+			node fixture-suite.mjs
+			exit $?
+		fi
+		printf ' \033[2mTest Files\033[22m  \033[1m\033[32m3 passed\033[39m\033[22m\033[90m (3)\033[39m\n'
+		printf ' \033[2m      Tests\033[22m  \033[1m\033[32m12 passed\033[39m\033[22m\033[90m (12)\033[39m\n'
+		exit 0 ;;
+esac
+exit 0
+STUB
+chmod +x "$SUITEBIN/npm"
+
+# The checker a branch adds. Reads every migration in the fixture tree and
+# requires a row for it in the fixture document -- `gauntlet-doc-check.mjs` in
+# one screen -- and reports in the reporter's own shape, so the parser under
+# test has something real to parse.
+fx_add_checker() {
+	cat > fixture-suite.mjs <<'CHK'
+import { readdirSync, readFileSync } from 'node:fs';
+const E = '\u001b';
+const doc = readFileSync('docs/DOC.md', 'utf8');
+const missing = readdirSync('migrations')
+	.filter((f) => f.endsWith('.sql'))
+	.filter((f) => !doc.includes(f.slice(0, 4)))
+	.sort();
+for (const f of missing) {
+	process.stdout.write(
+		` ${E}[41m${E}[1m FAIL ${E}[22m${E}[49m ${E}[30m${E}[43m node ${E}[49m${E}[39m tests/fixture-doc.test.ts${E}[2m > ${E}[22mthe real tree${E}[2m > ${E}[22mdocs/DOC.md has a row for ${f}\n`
+	);
+}
+const total = 12;
+process.stdout.write(
+	missing.length
+		? ` ${E}[2m      Tests${E}[22m  ${E}[1m${E}[31m${missing.length} failed${E}[39m${E}[22m${E}[2m | ${E}[22m${E}[1m${E}[32m${total} passed${E}[39m${E}[22m${E}[90m (${total + missing.length})${E}[39m\n`
+		: ` ${E}[2m      Tests${E}[22m  ${E}[1m${E}[32m${total} passed${E}[39m${E}[22m${E}[90m (${total})${E}[39m\n`
+);
+process.exit(missing.length ? 1 : 0);
+CHK
+}
+fx_add_migration() { printf -- '-- fixture migration\n' > "migrations/$1.sql"; }
+fx_install_fails() { : > .fixture-install-fails; }
+fx_suite_crashes() { : > .fixture-suite-crashes; }
+
+# The suite's own verdict on whatever tree is checked out, used to establish
+# that each PARENT is green before any claim about the merge is made.
+suite_on() {
+	local repo="$1" ref="$2" rc=0 out
+	git_q -C "$repo" checkout --detach "$ref"
+	out="$( cd "$repo" && PATH="$SUITEBIN:$PATH" merged_suite )" || rc=$?
+	git_q -C "$repo" checkout integration 2>/dev/null || true
+	printf '%s\n' "$(printf '%s' "$out" | head -n 1 | cut -d' ' -f1)"
+}
+
+# The workflow's own tail in miniature, in its order and at its places: merge
+# every branch named, push, THEN run the suite, then decide the exit status.
+# Prints, on one line: the merge verdicts, whether the push landed, the suite
+# verdict, how many findings it named, and whether the run goes red.
+# THE FINDINGS GO TO A FILE, not to a variable. `suite_sweep` is called inside
+# `$( )`, which is a SUBSHELL, so a global it assigns is gone by the time the
+# next case reads it -- the first draft of case 64 observed an empty string and
+# reported it as a lost finding. The workflow has no such problem (its own
+# `mapfile` runs in the same shell as its caller); this is the harness paying
+# for driving the function through a command substitution.
+SUITE_FINDINGS_FILE="$WORK/suite-findings.txt"
+suite_sweep() {
+	local repo="$1"; shift
+	local b v verdicts='' conflicts=0 pushed=no rc=0 out verdict findings rc_word
+	# THE REMOTE BRANCH IS DROPPED FIRST, because each case here rebuilds
+	# `integration` from `main` and the workflow never does: it checks the
+	# target out FROM the remote and merges onto it, so its push is always a
+	# fast-forward. Forcing the push instead would test a `--force` this file
+	# is elsewhere asserting the workflow does not have.
+	git_q -C "$repo" push origin --delete integration || true
+	git_q -C "$repo" checkout -B integration main
+	for b in "$@"; do
+		v="$( cd "$repo" && fx_merge "$b" | cut -d' ' -f1 )"
+		verdicts="$verdicts $v"
+		[ "$v" = CONFLICTED ] && conflicts=$((conflicts + 1))
+	done
+	if git_q -C "$repo" push origin 'HEAD:refs/heads/integration'; then pushed=yes; fi
+	out="$( cd "$repo" && PATH="$SUITEBIN:$PATH" merged_suite )" || rc=$?
+	verdict="$(printf '%s' "$out" | head -n 1 | cut -d' ' -f1)"
+	printf '%s\n' "$out" | tail -n +2 > "$SUITE_FINDINGS_FILE"
+	findings="$(grep -c . "$SUITE_FINDINGS_FILE" || true)"
+	if run_is_red "$conflicts" "$verdict"; then rc_word=RED; else rc_word=green; fi
+	printf 'merges:%s push:%s suite:%s findings:%s run:%s\n' \
+		"$verdicts" "$pushed" "$verdict" "$findings" "$rc_word"
+}
+
+# What the REMOTE holds, which is the only place a merge is safe. Every case
+# below asks this rather than asking about the runner's own HEAD: the whole
+# argument for running the suite after the push is that a merge on the runner
+# and nowhere else is work that can still be lost.
+on_remote() {
+	local repo="$1" branch="$2"
+	if git -C "$repo.git" merge-base --is-ancestor \
+		"$(git -C "$repo" rev-parse "origin/$branch")" \
+		"$(git -C "$repo.git" rev-parse refs/heads/integration)" 2>/dev/null
+	then echo reachable; else echo LOST; fi
+}
+
+sq="$(new_repo suite)"
+mkdir -p "$sq/migrations" "$sq/docs"
+printf '# The fixture document\n\n| migration | what it did |\n| --- | --- |\n| 0001 | the baseline |\n' > "$sq/docs/DOC.md"
+printf -- '-- fixture migration\n' > "$sq/migrations/0001.sql"
+git -C "$sq" add -A
+git_q -C "$sq" commit -m 'a document, a migration, and no checker'
+publish_main "$sq"
+
+# THE TWO SIBLINGS, off one merge base, touching disjoint files -- which is
+# exactly why git merges them with no conflict and why neither can see the
+# other. `74be202` and `7d848d7` in miniature.
+branch_with "$sq" claude/adds-checker   fx_add_checker
+branch_with "$sq" claude/adds-migration fx_add_migration 0002
+branch_with "$sq" claude/install-broken fx_install_fails
+branch_with "$sq" claude/suite-broken   fx_suite_crashes
+# A branch that conflicts with `main` on one file, for the both-causes case.
+branch_with "$sq" claude/conflicts      fx_edit_source 'branch three writes app.txt'
+git_q -C "$sq" checkout main
+printf 'main moved first, on the same line\n' > "$sq/src/app.txt"
+git -C "$sq" add -A
+git_q -C "$sq" commit -m 'main writes the same file'
+publish_main "$sq"
+
+# --- case 61/62: one branch, merged tree green -> pushed, run green ---------
+out_s1="$(suite_sweep "$sq" claude/adds-migration)"
+check_says "61. one branch merges and the merged tree is GREEN: pushed, run green" \
+	'merges: CLEAN push:yes suite:green findings:0 run:green' "$out_s1"
+check_says "62. ...and that branch's work is on the remote" \
+	reachable "$(on_remote "$sq" claude/adds-migration)"
+
+# --- case 63-67: THE SHAPE -- two branches, each green, merge red -----------
+# 66 and 67 are what make 63 a measurement rather than a claim: the same suite,
+# run on each PARENT, comes back green. Without them "the merge is red" would be
+# indistinguishable from a fixture that is red everywhere.
+out_s2="$(suite_sweep "$sq" claude/adds-checker claude/adds-migration)"
+check_says "63. two branches merge, the merged tree is RED: both merges PUSHED, run red" \
+	'merges: CLEAN CLEAN push:yes suite:red findings:1 run:RED' "$out_s2"
+# THE `FAIL` PREFIX IS GONE AND THE REST IS VERBATIM: `merged_suite` strips the
+# reporter's own label because the summary already says these are failing
+# assertions, and keeps every character after it -- file, suite and test name --
+# because that is the whole of what a person needs to stop diagnosing.
+check_says "64. ...and the finding names the file, the suite and the test" \
+	'node  tests/fixture-doc.test.ts > the real tree > docs/DOC.md has a row for 0002.sql' \
+	"$(cat "$SUITE_FINDINGS_FILE")"
+check_says "65. ...and BOTH branches' work is on the remote, red tree or not" \
+	'reachable reachable' \
+	"$(printf '%s %s' "$(on_remote "$sq" claude/adds-checker)" "$(on_remote "$sq" claude/adds-migration)")"
+check_says "66. PARENT A ALONE IS GREEN (the checker, with nothing uncovered)" \
+	green "$(suite_on "$sq" origin/claude/adds-checker)"
+check_says "67. PARENT B ALONE IS GREEN (the migration, with no checker to see it)" \
+	green "$(suite_on "$sq" origin/claude/adds-migration)"
+
+# --- case 68/69: red AND a conflict -- both reported, merges still pushed ---
+out_s5="$(suite_sweep "$sq" claude/adds-checker claude/adds-migration claude/conflicts)"
+check_says "68. a red merged tree AND a conflicted branch: both causes, merges pushed" \
+	'merges: CLEAN CLEAN CONFLICTED push:yes suite:red findings:1 run:RED' "$out_s5"
+check_says "69. ...the conflicted branch is unmerged, and the other two are on the remote" \
+	'LOST reachable reachable' \
+	"$(printf '%s %s %s' "$(on_remote "$sq" claude/conflicts)" \
+		"$(on_remote "$sq" claude/adds-checker)" "$(on_remote "$sq" claude/adds-migration)")"
+
+# --- case 70-72: the suite cannot RUN -- never silently green ---------------
+# Two different ways, because they arrive differently: the install fails before
+# any test exists, and the runner dies with a non-zero status and no test name.
+# Both are `unrun`, both push, and neither may read as a test failure -- sending
+# somebody to read a diff that has nothing wrong with it is the cost of getting
+# that distinction wrong.
+out_s6="$(suite_sweep "$sq" claude/install-broken)"
+check_says "70. an install that fails is UNRUN, not green and not red, and the merge is pushed" \
+	'merges: CLEAN push:yes suite:unrun findings:0 run:RED' "$out_s6"
+out_s7="$(suite_sweep "$sq" claude/suite-broken)"
+check_says "71. a suite that exits non-zero naming no test is UNRUN, and the merge is pushed" \
+	'merges: CLEAN push:yes suite:unrun findings:0 run:RED' "$out_s7"
+check_says "72. ...and that branch's work is on the remote" \
+	reachable "$(on_remote "$sq" claude/suite-broken)"
+
+# --- case 73/74: the exit rule itself, at its corners ----------------------
+# `run_is_red` is the whole decision and it is driven directly, because the
+# sweeps above can only reach the combinations their fixtures produce.
+check_says "73. run_is_red: green with no conflicts is the ONLY green answer" \
+	'green RED RED RED RED' \
+	"$(printf '%s %s %s %s %s' \
+		"$(run_is_red 0 green && echo RED || echo green)" \
+		"$(run_is_red 0 red   && echo RED || echo green)" \
+		"$(run_is_red 0 unrun && echo RED || echo green)" \
+		"$(run_is_red 1 green && echo RED || echo green)" \
+		"$(run_is_red 2 red   && echo RED || echo green)")"
+check_says "74. run_is_red: a run that merged nothing is not red for a suite it never ran" \
+	green "$(run_is_red 0 skipped && echo RED || echo green)"
+
+# --- negative control: the cut refuses when the markers are renamed --------
+ncs="$(mktemp)"
+sed 's/merged_suite_marker/merged_suite_renamed/g' "$WORKFLOW" > "$ncs"
+ncs_out="$(cut_marker "$ncs" merged_suite_marker)"
+rm -f "$ncs"
+if [ -z "${ncs_out//[[:space:]]/}" ]; then
+	check_says "75. renamed suite markers cut nothing (the FATAL guard above then fires)" empty empty
+else
+	check_says "75. renamed suite markers cut nothing (the FATAL guard above then fires)" empty non-empty
+fi
+
 # ---------------------------------------------------------------------------
 # THE CASE COUNT. Without it, deleting every SKIP-direction case leaves
 # `fail=0` and a green exit -- a sweep that generated nothing cannot be allowed
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=65
+EXPECTED_CASES=81
 ran=$((pass + fail))
 
 echo

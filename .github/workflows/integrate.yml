@@ -126,6 +126,20 @@ jobs:
           # Merges need real history and every branch, not a shallow cone.
           fetch-depth: 0
 
+      # NODE, BECAUSE THIS JOB NOW RUNS THE REPOSITORY'S OWN SUITE ON THE TREE
+      # IT PUSHES. `24` is not a preference: `ci.yml` pins it because
+      # adapter-vercel hard-rejects any Node major outside 20, 22 or 24, and a
+      # sweep that ran the suite on a different major from the one CI runs it on
+      # would be answering a question nobody asked. Two files naming one version
+      # is the duplication this repo's own rules are against, and it is accepted
+      # here for exactly one reason: `ci.yml` is READ-ONLY to the bundle that
+      # added this, and a shared value would have to live in one of them anyway.
+      # `tests/workflows.test.ts` asserts the two agree, which is the cheap half
+      # of extracting it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Configure git identity
         run: |
           git config user.name 'github-actions[bot]'
@@ -143,6 +157,18 @@ jobs:
           # name is attacker-controllable text and `${{ }}` pastes it into the
           # shell before bash ever sees a quote.
           TRIGGER_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          # PLACEHOLDERS, COMMITTED ON PURPOSE, and the same two values
+          # `ci.yml`'s own env block carries -- where the full reasoning is
+          # written out. `npm test` reaches `svelte-kit sync` through the vitest
+          # config, which generates `$env/static/public` from whatever
+          # `PUBLIC_`-prefixed variables are in the environment; it reads their
+          # PRESENCE and never their value, and with neither set the generated
+          # module exports nothing and eight files fail to type-check. Nothing
+          # in the suite makes a network call -- it talks to an embedded
+          # Postgres, never to Supabase. NEVER a real credential here: this
+          # workflow holds `contents: write`.
+          PUBLIC_SUPABASE_URL: 'https://ci-placeholder.supabase.co'
+          PUBLIC_SUPABASE_ANON_KEY: 'ci-placeholder-anon-key'
         run: |
           set -euo pipefail
 
@@ -977,6 +1003,150 @@ jobs:
           }
           # counts_refresh_marker:end
 
+          # THE SUITE, ON THE TREE THAT WAS ACTUALLY PUSHED. This is the half
+          # `counts_refresh` does not cover and could not: it repairs ONE
+          # generated region, and the shape it repairs is general.
+          #
+          # A CHECK THAT RELATES TWO FILES IS DEFEATED BY TWO BRANCHES EACH
+          # TOUCHING ONE OF THEM, and neither branch can see it. Measured, not
+          # argued: `74be202` added `tools/gauntlet-doc-check.mjs`, which
+          # requires every GAUNTLET migration to have a row in
+          # `docs/GAUNTLET.md`; `7d848d7`, its sibling off merge base
+          # `fdf8c68`, added `0184_gauntlet_run_event_bounds.sql` and touched
+          # no document. Each tree is green on its own -- re-run in this
+          # container on 2026-09-06, exit 0 on the first, the checker does not
+          # exist on the second. The files are disjoint, so git merged them
+          # with no conflict, and the merge `5877f19` is red. Nothing on either
+          # branch could have caught it and nothing looked at the merge.
+          #
+          # AFTER THE PUSH AND AFTER THE DELETES, WHICH IS THE WHOLE OF WHERE
+          # IT MAY GO. `npm ci` and a three-minute suite are the two longest
+          # things this job does and the two most able to end it from outside
+          # -- an out-of-memory kill, a runner eviction, the six-hour job cap.
+          # Run BEFORE the push, any of those discards every merge in the
+          # sweep, each of which was individually fine. Run after, the merges
+          # are on the remote before this function is entered and nothing it
+          # can do reaches them. That is the same rule `counts_refresh` states
+          # for itself -- a failure here is never a lost merge -- taken to the
+          # one step big enough to lose the job rather than the step.
+          #
+          # SO A RED TREE IS PUSHED, DELIBERATELY. The alternative is throwing
+          # away several good merges to avoid recording one bad interaction,
+          # which leaves the branches outstanding, the target behind `main`,
+          # and nobody told. A red `integration` is information a person needs;
+          # it is not a reason to lose work. What changes is that the run goes
+          # RED and the summary NAMES the assertions.
+          #
+          # WHY THE WHOLE SUITE AND NOT THE CROSS-FILE CHECKS ALONE. A subset
+          # would have to be a list, the list would be the same kind of
+          # two-file agreement it is meant to police, and it lets through every
+          # merge-only failure that is not one of the listed checks -- two
+          # branches editing one function's callers, a rename against a new
+          # call site. Measured on the runner that found `5877f19`: the suite
+          # is 174.50s over 287 files, and `npm ci` here is 15s. Against a
+          # window this reconstruction measured in HOURS, four minutes on a
+          # serialized job is not the expensive side of the trade.
+          #
+          # ONCE, ON THE FINAL TREE, for `counts_refresh`'s own reason: the
+          # only tree whose answer matters is the one that gets pushed, and
+          # per-merge would be O(branches) suites to learn something the
+          # summary's merge list already narrows.
+          #
+          # IT IS A FUNCTION AND BETWEEN MARKERS for the reason the four gates
+          # above are: it is PROVED by cutting this exact text out of THIS FILE
+          # and running it against throwaway repositories with a stub `npm` on
+          # PATH, so no proof can drift into testing a private copy. Do not
+          # rename the markers and do not move the body out from between them.
+          # merged_suite_marker:begin
+          merged_suite() {
+            # Called with the merged tree checked out and already pushed.
+            # Prints a VERDICT on its first line and, when the suite ran and
+            # failed, one failing assertion per line after it. Returns
+            #   0  the suite ran and passed
+            #   1  the suite ran and reported failures
+            #   2  the suite could not be run at all
+            # and never exits, so no caller can lose a merge to it.
+            local log rc=0 plain findings summary
+            log="$(mktemp)"
+
+            # THE INSTALL IS PART OF "COULD IT RUN", not a separate concern: a
+            # lockfile two branches both touched is exactly the kind of merge
+            # this exists to look at, and it fails here rather than looking
+            # like a test failure. `npm ci` never writes package-lock.json, so
+            # it cannot dirty the tree that was pushed.
+            if ! npm ci >"$log" 2>&1; then
+              printf 'unrun could not install dependencies on the merged tree (npm ci failed)\n'
+              tail -n 40 "$log" >&2
+              rm -f "$log"
+              return 2
+            fi
+
+            # `npm test`, NEVER `vitest` DIRECTLY, and `tools/run-tests.mjs`'s
+            # own header is the reason: importing `embedded-postgres` registers
+            # a `beforeExit` handler that calls `process.exit(0)`, so vitest's
+            # exit code reports success however many tests failed. That wrapper
+            # reads vitest's JSON report instead -- and then DELETES it, which
+            # is why the findings below are parsed out of the printed output
+            # rather than read from a file.
+            # THE OUTPUT GOES TO THE LOG AND THEN TO STDERR, NEVER THROUGH
+            # STDOUT, and that is not tidiness. This function's stdout IS its
+            # verdict -- the caller reads it through `$(merged_suite)` -- so a
+            # `tee` to stdout puts several hundred lines of reporter output
+            # ahead of the verdict line and the caller reads an empty verdict
+            # and treats a red tree as skipped. `tools/integrate-gate-proof.sh`
+            # case 61 caught exactly that on the first run of this function.
+            # Stderr reaches the step log and nothing else.
+            npm test >"$log" 2>&1 || rc=$?
+            cat "$log" >&2
+
+            # THE DEFAULT REPORTER COLOURS ITS OUTPUT ON A RUNNER AND NOT IN A
+            # PIPE, so the escape between the space and the F is enough to make
+            # a `grep '^ FAIL '` match nothing locally-verified and nothing at
+            # all in CI. Strip first, match after.
+            plain="$(sed -e 's/\x1b\[[0-9;]*m//g' "$log")"
+            findings="$(printf '%s\n' "$plain" | grep -E '^[[:space:]]*FAIL[[:space:]]' | sed -e 's/^[[:space:]]*FAIL[[:space:]]*//' -e 's/[[:space:]]*$//' | sort -u || true)"
+            summary="$(printf '%s\n' "$plain" | grep -E '^[[:space:]]*Tests[[:space:]]+[0-9]' | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)"
+            rm -f "$log"
+
+            if [ "$rc" -eq 0 ]; then
+              printf 'green %s\n' "${summary:-the suite reported no failures}"
+              return 0
+            fi
+
+            # NON-ZERO WITH NOTHING TO NAME IS `unrun`, NOT `red`, and the
+            # distinction is the one a reader needs: a suite that never got to
+            # a test body is a broken runner or a broken checkout, and
+            # reporting it as a test failure sends somebody to read a diff that
+            # has nothing wrong with it.
+            if [ -z "$findings" ]; then
+              printf 'unrun the suite exited %s without naming a failing test\n' "$rc"
+              return 2
+            fi
+
+            printf 'red %s\n' "${summary:-the suite reported failures}"
+            printf '%s\n' "$findings"
+            return 1
+          }
+
+          run_is_red() {
+            # THE WHOLE EXIT DECISION, IN ONE PLACE AND UNDER THE MARKERS, so
+            # the proof harness drives the real rule instead of a second copy
+            # of it. $1 is the number of conflicted branches, $2 the suite
+            # verdict. Returns 0 when this run must go red.
+            #
+            # TWO INDEPENDENT CAUSES, AND NEITHER SHORT-CIRCUITS THE OTHER'S
+            # REPORT: the ::error:: lines are emitted at the two places that
+            # know their own cause, and this only decides the status. A run
+            # that merged four branches into a tree that fails the suite while
+            # a fifth conflicted is red for both, and says both.
+            if [ "${1:-0}" -gt 0 ]; then return 0; fi
+            case "${2:-skipped}" in
+              red|unrun) return 0 ;;
+            esac
+            return 1
+          }
+          # merged_suite_marker:end
+
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 
           if git rev-parse --verify --quiet "refs/remotes/origin/$TARGET" >/dev/null; then
@@ -1278,6 +1448,33 @@ jobs:
             i=$((i + 1))
           done
 
+          # THE SUITE ON THE MERGED TREE. See `merged_suite` above for why it
+          # sits HERE -- after the push and after the deletes -- rather than
+          # anywhere earlier: everything this sweep merged is already on the
+          # remote, so nothing this call does, including being killed outright,
+          # can cost a merge.
+          #
+          # GATED ON THE TREE HAVING MOVED, the same condition `counts_refresh`
+          # uses and for the same reason: a run that merged nothing and caught
+          # nothing up is looking at a tree the previous run already looked at,
+          # and re-reporting somebody else's redness as this run's is how a
+          # summary stops being read.
+          suite_verdict=skipped
+          suite_summary=''
+          suite_findings=()
+          if [ ${#merged[@]} -gt 0 ] || [ "$caught_up" = yes ]; then
+            suite_rc=0
+            suite_out="$(merged_suite)" || suite_rc=$?
+            suite_verdict="$(printf '%s' "$suite_out" | head -n 1 | cut -d' ' -f1)"
+            suite_summary="$(printf '%s' "$suite_out" | head -n 1 | cut -d' ' -f2-)"
+            mapfile -t suite_findings < <(printf '%s\n' "$suite_out" | tail -n +2)
+            case "$suite_rc" in
+              0) echo "::notice::the merged tree passes the suite -- $suite_summary" ;;
+              1) echo "::error::the merged tree FAILS the suite -- $suite_summary. Every merge above was still pushed and nothing was lost. The failing assertions are named in the job summary." ;;
+              *) echo "::error::the suite could not be run on the merged tree -- $suite_summary. Every merge above was still pushed and nothing was lost." ;;
+            esac
+          fi
+
           {
             echo "## Integration sweep"
             echo
@@ -1315,6 +1512,26 @@ jobs:
             elif [ ${#merged[@]} -gt 0 ] || [ "$caught_up" = yes ]; then
               echo "- Static counts unchanged -- the region was already the merged tree's own answer, so nothing was committed."
             fi
+            # THE MERGED TREE'S OWN VERDICT, AND THE FAILING ASSERTIONS BY
+            # NAME. Four bundles have each spent part of an audit establishing
+            # that a red `integration` was inherited rather than theirs; a
+            # summary that says which assertions the merge broke is what ends
+            # that, and it is the reason this step exists at all rather than
+            # only the exit code.
+            case "$suite_verdict" in
+              green)
+                echo "- **The merged tree passes the suite** -- $suite_summary."
+                ;;
+              red)
+                echo "- **The merged tree FAILS the suite** -- $suite_summary. Everything above was still pushed and nothing was lost; a red merged tree is information, not a reason to discard merges that were each individually green."
+                ;;
+              unrun)
+                echo "- **The suite could not be run on the merged tree** -- $suite_summary. Everything above was still pushed and nothing was lost. This is NOT a test failure: nothing got as far as a test body, so read the step log for the install or the runner rather than the diff."
+                ;;
+              *)
+                echo "- The suite was not run -- \`$TARGET\` did not move this run, so the tree is the one the previous run already reported on."
+                ;;
+            esac
             if [ ${#conflicted[@]} -gt 0 ]; then
               if [ "$pushed" = yes ]; then
                 echo "- ${#conflicted[@]} branch(es) conflicted, so **this run is red for that reason and no other**. Everything above still landed, and \`deploy.yml\` is no longer blocked by \`$TARGET\` being behind \`main\`."
@@ -1331,6 +1548,18 @@ jobs:
               echo "- nothing (no branch was both green and outstanding)"
             fi
             echo
+            if [ ${#suite_findings[@]} -gt 0 ]; then
+              echo "### The merged tree's failing assertions"
+              echo
+              echo "These are the suite's own \`FAIL\` lines on the tree that was just pushed, as"
+              echo "\`<file> > <suite> > <test>\`. NEITHER PARENT OF A MERGE NEED HAVE BEEN RED for"
+              echo "one of these to appear: any check that relates two files is defeated by two"
+              echo "branches each touching one of them, and the merge is the first tree on which"
+              echo "both edits exist."
+              echo
+              for f in "${suite_findings[@]}"; do echo "- \`$f\`"; done
+              echo
+            fi
             if [ ${#resolved[@]} -gt 0 ]; then
               echo "### Resolved mechanically"
               echo
@@ -1362,22 +1591,32 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # THE EXIT CODE DOES NOT MOVE, and that is a decision rather than an
-          # omission. A conflicted branch is a normal steady state when several
-          # lanes run at once -- it is two bundles genuinely touching one file,
-          # which no machine may resolve -- but it is also the one outcome here
-          # that NEEDS a person, and a green run is a run nobody opens. Nothing
+          # THE EXIT CODE IS RED FOR TWO REASONS NOW, AND THEY ARE INDEPENDENT.
+          # A conflicted branch is a normal steady state when several lanes run
+          # at once -- it is two bundles genuinely touching one file, which no
+          # machine may resolve -- but it is also an outcome that NEEDS a
+          # person, and a green run is a run nobody opens. A merged tree that
+          # fails the suite is the second: it is not a reason to have refused
+          # the merges, which is why they are pushed above, but it is precisely
+          # the thing nothing in this pipeline used to say out loud. Nothing
           # downstream reads this conclusion: the only `workflow_run` trigger in
           # this repo watches `CI`, and `deploy.yml` is `workflow_dispatch` and
           # decides from git state (is `main` an ancestor of `integration`),
           # never from whether this job passed. So the exit code costs a red
           # mark and buys the notification, and the summary above is what says
-          # the target itself is fine.
+          # which of the two it is and that the target itself was still pushed.
+          #
+          # BOTH ARE REPORTED, NEVER JUST THE FIRST. A sweep can perfectly well
+          # merge four branches into a tree that fails the suite while a fifth
+          # branch conflicts, and a run that named only one of those would send
+          # the next person looking for one cause.
           if [ ${#conflicted[@]} -gt 0 ]; then
             if [ "$pushed" = yes ]; then
-              echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET ITSELF WAS PUSHED and is not blocked -- this run is red only for the conflicts. See the job summary."
+              echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET ITSELF WAS PUSHED and is not blocked -- this run is red for that reason as well as for anything the suite found. See the job summary."
             else
               echo "::error::${#conflicted[@]} branch(es) conflicted with $TARGET and were left untouched. $TARGET did not move this run. See the job summary."
             fi
+          fi
+          if run_is_red "${#conflicted[@]}" "$suite_verdict"; then
             exit 1
           fi

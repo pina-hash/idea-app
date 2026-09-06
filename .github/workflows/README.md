@@ -12,6 +12,12 @@ that passed; `deploy.yml` is the one path that writes `main`.
 - **The branch to look at is `integration`.** It is long-lived, it always has
   the latest `main` merged into it, and it carries every finished bundle that
   has not been deployed yet.
+- **The sweep now runs the suite on the tree it just built, and a red merged
+  tree makes the Integrate run red WITH THE FAILING ASSERTIONS NAMED IN ITS
+  SUMMARY.** The merges are still pushed -- discarding several good merges to
+  avoid recording one bad interaction is worse -- so a red Integrate run is a
+  report, not a rollback. See "The merged tree is tested, and neither parent
+  need have been red".
 - **The CI nightly on `integration` runs at 01:00 Pacific in summer and 00:00
   in winter, and that hour is load-bearing.** It is inside the only window in
   which a day-boundary defect is visible; see "The nightly hour is chosen"
@@ -191,15 +197,21 @@ red branch's CI" below.
 ## When something is stuck
 
 Open the **Actions** tab and find the red **Integrate** run. Its job summary has
-up to SIX sections. The first two are always there -- the first is about
+up to SEVEN sections. The first two are always there -- the first is about
 `integration` itself rather than about any branch -- and the last four appear
 only when they have something to report:
 
 - **`integration` itself** -- whether it was caught up to `main` (and by how
   many commits), whether it was pushed, whether the static counts region was
   regenerated (with the numbers before and after), and, when something
-  conflicted, that the red X is for the conflict and for nothing else.
+  conflicted, that the red X is for the conflict and for nothing else. Since
+  2026-09-06 it also carries the merged tree's own verdict -- passes, FAILS, or
+  could not be run -- in words, on its own line.
 - **Merged into `integration` and deleted** -- the branches that landed.
+- **The merged tree's failing assertions** -- one line per `FAIL` the suite
+  reported on the tree that was just pushed, as `<file> > <suite> > <test>`.
+  This section is the point of the whole step: NEITHER PARENT OF A MERGE NEED
+  HAVE BEEN RED for something to appear here.
 - **Resolved mechanically** -- branches that CONFLICTED and were merged anyway,
   with what was done to each file. See below; nothing here picked a side of
   anybody's writing.
@@ -219,10 +231,13 @@ the delete itself was refused.
 
 **A RED RUN DOES NOT MEAN NOTHING LANDED.** Since the deadlock fix, `integration`
 is caught up to `main` and pushed whenever it moved at all, including on a run
-where every outstanding branch conflicted. The run is still red -- a conflict
-needs a person and a green run is one nobody opens -- but the first summary
-section says in words whether the target itself was pushed, and `deploy.yml` is
-not blocked by it. Before the fix that main-merge was computed and thrown away
+where every outstanding branch conflicted, and since 2026-09-06 also on a run
+whose merged tree FAILS the suite. The run is still red -- a conflict needs a
+person, a red merged tree needs a person, and a green run is one nobody opens --
+but the first summary section says in words whether the target itself was
+pushed, and `deploy.yml` is not blocked by it. **There are two independent
+reasons a run can be red now** (a conflict, and the suite), both are reported,
+and neither hides the other. Before the fix that main-merge was computed and thrown away
 on such a run, which deadlocked Integrate against Deploy's own
 "`integration` is behind `main`" refusal.
 
@@ -297,6 +312,86 @@ git push origin claude/<the branch>
 
 CI runs again, and the next green run picks it up. You can also press **Run
 workflow** on Integrate to retry the sweep immediately.
+
+### The merged tree is tested, and neither parent need have been red
+
+The counts regeneration above repairs ONE generated region. **The shape it
+repairs is general, and this is the other half of it.**
+
+**A check that relates two files is defeated by two branches each touching one
+of them.** Neither branch's tree holds both edits, so neither branch can be red;
+the merge is the first tree on which both exist, and nothing used to look at the
+merge. It is not a coincidence when it happens and it is not anybody's mistake.
+
+The measured case, from this repository's own history on 2026-09-05:
+
+| | |
+| --- | --- |
+| `74be202` 19:48 UTC | added `tools/gauntlet-doc-check.mjs`, which requires every GAUNTLET migration to have a row in `docs/GAUNTLET.md`. Green. |
+| `7d848d7` 20:30 UTC | added `0184_gauntlet_run_event_bounds.sql` and touched no document. Green -- the checker does not exist on this tree. |
+| merge base | `fdf8c68`. Neither contains the other. |
+| `5877f19` 21:28 UTC | the merge. The files are disjoint, so git took both with no conflict. **Red**, four assertions across two test files. |
+
+Every row of that was re-measured in a container on 2026-09-06 rather than
+inferred: exit 0 on the first tree, no checker at all on the second, and the
+`0184` finding on the merge.
+
+**There are 47 tests under `tests/` with the same property.** A census is in
+`docs/history/red-merge-green-parents-ft3e57.md`. The three that need no
+cleverness at all to trigger:
+
+- `tests/db/migration-0177-tombstone.test.ts` -> `the migration series is
+  contiguous, with 0177 in it`. Two branches each appending the next migration
+  number both produce a contiguous chain; the merge has two `0186` and no
+  `0187`.
+- `tests/derived-numbers.test.ts` -> the counts regions. The case the
+  regeneration above already covers, which is why it exists.
+- `tests/gauntlet-volume-tolerance.test.ts` -> `all four agree`. One tolerance
+  band written down in SQL, TypeScript, a VBA macro and a C# add-in, owned by
+  different lanes.
+
+So the sweep now runs `npm ci && npm test` **once, on the final merged tree**:
+
+- **After the push and after the deletes.** `npm ci` plus a three-minute suite
+  are the two longest things this job does and the two most able to end it from
+  outside -- an out-of-memory kill, a runner eviction, the job cap. Run before
+  the push, any of those would discard every merge in the sweep, each of which
+  was individually fine. Run after, the merges are on the remote before the
+  suite starts and nothing it can do reaches them.
+- **A red tree is pushed anyway, and the run goes red.** Throwing away several
+  good merges to avoid recording one bad interaction leaves the branches
+  outstanding, `integration` behind `main`, and nobody told. A red
+  `integration` is information a person needs.
+- **The failing assertions are NAMED in the job summary**, by file, suite and
+  test. Four bundles have now each spent part of an audit establishing that a
+  red `integration` was inherited rather than theirs. That is what this ends.
+- **The whole suite, not a subset.** A subset would have to be a list; the list
+  would be the same kind of two-file agreement it is meant to police; and it
+  would let through every merge-only failure that is not a listed check -- two
+  branches editing one function's callers, a rename against a new call site.
+- **`unrun` is a third verdict, not a kind of red.** An install that fails or a
+  runner that dies naming no test is not a test failure, and reporting it as one
+  sends somebody to read a diff that has nothing wrong with it. It still makes
+  the run red and it still never blocks the push.
+
+**The cost.** Measured on the GitHub runner that found `5877f19`: 174.50s for
+287 files and 5,821 tests. `npm ci` was 15s in a cloud container. Against a
+window this was reconstructed at in HOURS, roughly four minutes on a serialized
+job is not the expensive side.
+
+**The nightly CI run on `integration` does not become redundant, and its hour
+does not move.** The sweep samples whatever hour a session finishes at, which is
+the working day -- exactly the part of the clock "The nightly hour is chosen"
+above says is NOT coverage. The nightly is the only thing sampling 00:00-02:00
+Pacific, where a whole class of wall-clock defect is visible. It also catches
+the run where the sweep's own suite step could not run.
+
+`tools/integrate-gate-proof.sh` cases 61-75 prove this against throwaway
+repositories with a stub `npm` on PATH whose `test` runs a real checker over the
+fixture tree -- so cases 66 and 67, which observe that each PARENT is green,
+are measurements rather than stipulations. `tests/workflows.test.ts` guards the
+step against silent removal, with a positive control that mutates the real file
+one edit at a time.
 
 ### Re-running a red branch's CI
 

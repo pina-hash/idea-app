@@ -394,7 +394,8 @@ const CUTTABLE_GATES = [
 	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null },
 	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
-	{ fn: 'counts_refresh', marker: 'counts_refresh_marker', harness: 'tools/integrate-gate-proof.sh' }
+	{ fn: 'counts_refresh', marker: 'counts_refresh_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'merged_suite', marker: 'merged_suite_marker', harness: 'tools/integrate-gate-proof.sh' }
 ] as const;
 
 /**
@@ -912,6 +913,117 @@ function countsRefreshFindings(s: string): string[] {
 	return findings;
 }
 
+/**
+ * THE SUITE ON THE MERGED TREE, AS A SET OF FINDINGS.
+ *
+ * The step this guards is the one that can be deleted with everything else
+ * still passing: take it out and the sweep goes back to merging and pushing
+ * without ever looking at what it built, which is the state that cost five
+ * sessions an audit each on 2026-09-05 and left `integration` red for hours
+ * with nothing saying so. Nothing else in this file or in
+ * `tools/integrate-gate-proof.sh` would notice its absence -- the harness
+ * drives the cut function, and a function nobody calls cuts and sources
+ * perfectly happily.
+ *
+ * Every rule is a POSITION or a LITERAL in `integrate.yml`, never prose, and
+ * the paired positive control below puts each one to a mutated copy of the
+ * real file.
+ */
+function mergedSuiteFindings(s: string): string[] {
+	const findings: string[] = [];
+	const CALL = 'suite_out="$(merged_suite)" || suite_rc=$?';
+
+	// IT IS CALLED AT ALL. This is the assertion the whole guard exists for.
+	const call = s.indexOf(CALL);
+	if (call < 0) findings.push('nothing runs the suite on the merged tree');
+	// COUNTED OVER COMMENT-STRIPPED SOURCE, because the workflow explains this
+	// function's own stdout contract in prose beside it and a property must only
+	// ever be satisfiable -- or violated -- by code.
+	if (stripShellComments(s).split('$(merged_suite)').length - 1 !== 1) {
+		findings.push('merged_suite is called more than once, or not at all');
+	}
+
+	// AFTER THE PUSH, AND AFTER THE DELETES. `npm ci` plus the suite are the
+	// two longest things in this job and the two most able to end it from
+	// outside -- an OOM kill, a runner eviction, the job cap. Run before the
+	// push, any of those discards every merge in the sweep, each of which was
+	// individually fine. Positions, not prose.
+	const pushGate = s.indexOf('if git push origin "HEAD:refs/heads/$TARGET"; then');
+	const deletes = s.indexOf('if git push origin --force-with-lease=');
+	if (pushGate < 0) findings.push('the push no longer sits where this rule looks for it');
+	if (call >= 0 && pushGate >= 0 && call < pushGate) {
+		findings.push('the suite runs BEFORE the push, so a killed job would discard the merges');
+	}
+	if (call >= 0 && deletes >= 0 && call < deletes) {
+		findings.push('the suite runs before the branch deletes, which is still before the work is safe');
+	}
+
+	// A RED TREE IS STILL PUSHED. There is exactly one push of the target in
+	// this file and nothing about the suite may gate it: discarding several
+	// good merges to avoid recording one bad interaction is the trade this
+	// bundle refuses.
+	if (/if\s+\S*suite\S*[^\n]*then\s*\n\s*if git push origin "HEAD/.test(s)) {
+		findings.push('the push is gated on the suite, so a red tree would discard the merges');
+	}
+
+	// THE VERDICT REACHES THE EXIT CODE, through the one function that decides
+	// it. A step that ran the suite and ignored the answer is the current
+	// behaviour with a four-minute delay added.
+	if (!s.includes('if run_is_red "${#conflicted[@]}" "$suite_verdict"; then')) {
+		findings.push('the run status no longer reads the suite verdict');
+	}
+
+	// THE FAILING ASSERTIONS REACH THE SUMMARY BY NAME. Four bundles have each
+	// spent part of an audit establishing that a red `integration` was
+	// inherited; the names are what ends that, and an exit code alone does not.
+	if (!s.includes('for f in "${suite_findings[@]}"; do echo "- \\`$f\\`"; done')) {
+		findings.push('the failing assertions no longer reach the job summary');
+	}
+
+	// THE REGION'S CODE, comments removed, for the reason above: this one
+	// quotes `process.exit(0)` while explaining why it runs `npm test` rather
+	// than vitest, and an `exit` rule reading the raw text would find it.
+	const body = stripShellComments(cutRegion(s, 'merged_suite_marker'));
+	if (body.trim() === '') findings.push('the merged_suite region cuts nothing');
+
+	// THE WHOLE SUITE, THROUGH THE WRAPPER. `tools/run-tests.mjs`'s own header
+	// is the reason `npm test` and not `vitest`: importing `embedded-postgres`
+	// registers a `beforeExit` handler that calls `process.exit(0)`, so vitest
+	// reports success however many tests failed.
+	if (!/(^|\s)npm test(\s|$)/m.test(body)) {
+		findings.push('the suite is no longer run through `npm test`');
+	}
+	if (/(^|\s)npx?\s+vitest/.test(body) || /vitest\.mjs/.test(body)) {
+		findings.push('the suite reaches for vitest directly, whose exit code cannot be trusted here');
+	}
+	if (!/(^|\s)npm ci(\s|$)/m.test(body)) {
+		findings.push('the suite no longer installs dependencies, so it can only ever be `unrun`');
+	}
+
+	// THE VERDICT IS ITS STDOUT, so nothing else may be written there. The tee
+	// that put several hundred reporter lines ahead of the verdict was caught
+	// by `tools/integrate-gate-proof.sh` case 61 on this function's first run.
+	if (/\|\s*tee\s+"\$log"\s*$/m.test(body)) {
+		findings.push('the suite tees its output to stdout, which is where the verdict is read from');
+	}
+
+	// THE THREE VERDICTS ARE ALL THERE. `unrun` is the one that gets dropped:
+	// folding it into `red` reports a broken runner as a test failure and sends
+	// somebody to read a diff that has nothing wrong with it.
+	for (const verdict of ['green', 'red', 'unrun']) {
+		if (!body.includes(`'${verdict} `)) {
+			findings.push(`the suite can no longer report \`${verdict}\``);
+		}
+	}
+
+	// A FAILURE MUST NOT COST A MERGE, the same rule `counts_refresh` holds and
+	// for a stronger reason: this one is big enough to lose the job.
+	if (/(^|\s)exit\s/.test(body)) {
+		findings.push('the suite region can exit the step, which would skip the summary');
+	}
+	return findings;
+}
+
 describe('the invariants these particular workflows have to hold', () => {
 	it('integrate.yml can never write to the deploy branch', () => {
 		const s = src('integrate.yml');
@@ -1388,7 +1500,7 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
 		// leave a shorter table that still matches itself.
-		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(6);
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(7);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
@@ -1500,6 +1612,136 @@ describe('the invariants these particular workflows have to hold', () => {
 		expect(
 			countsRefreshFindings(s.replace(/counts_refresh_marker/g, 'counts_refresh_renamed'))
 		).toContain('the counts_refresh region cuts nothing');
+	});
+
+	it('the merged tree is put to the suite, after the push, and the failures are named', () => {
+		// THE STEP THAT CAN BE DELETED SILENTLY. Everything else in this file
+		// guards something with a visible consequence; take this step out and
+		// the sweep goes back to merging and pushing without ever looking at
+		// what it built, which is a green run over a red `integration` and
+		// exactly the state that cost five sessions an audit each on
+		// 2026-09-05. `tools/integrate-gate-proof.sh` drives the cut function,
+		// and a function nobody calls cuts and sources perfectly happily, so
+		// the harness cannot see its removal either.
+		expect(
+			mergedSuiteFindings(src('integrate.yml')),
+			'the merged-tree suite step moved'
+		).toEqual([]);
+	});
+
+	it('POSITIVE CONTROL: each way the merged-tree suite could regress produces a finding', () => {
+		// Every rule above is put to a MUTATED copy of the real file, one edit
+		// at a time, and each mutation is one somebody could plausibly make.
+		// Without this the list has only ever been computed on a file that
+		// passes, and a rule that silently stopped matching would read the same.
+		const s = src('integrate.yml');
+		const region = cutRegion(s, 'merged_suite_marker');
+
+		const inRegion = (from: string, to: string) => {
+			expect(
+				region.split(from).length - 1,
+				`the mutation anchor "${from}" is not unique in the cut region`
+			).toBe(1);
+			return s.replace(region, region.replace(from, to));
+		};
+
+		// THE STEP DELETED OUTRIGHT -- the regression this test exists for, and
+		// the one nothing else in the repo would report.
+		const removed = s.replace('suite_out="$(merged_suite)" || suite_rc=$?\n', '');
+		expect(removed).not.toBe(s);
+		expect(mergedSuiteFindings(removed)).toEqual(
+			expect.arrayContaining([
+				'nothing runs the suite on the merged tree',
+				'merged_suite is called more than once, or not at all'
+			])
+		);
+
+		// The verdict computed and then ignored: the whole cost with none of
+		// the benefit.
+		expect(
+			mergedSuiteFindings(
+				s.replace('if run_is_red "${#conflicted[@]}" "$suite_verdict"; then', 'if false; then')
+			)
+		).toContain('the run status no longer reads the suite verdict');
+
+		// The assertions dropped from the summary, leaving an exit code that
+		// says a merge is red and not which merge or which assertion.
+		expect(
+			mergedSuiteFindings(
+				s.replace('for f in "${suite_findings[@]}"; do echo "- \\`$f\\`"; done', 'true')
+			)
+		).toContain('the failing assertions no longer reach the job summary');
+
+		// MOVED AHEAD OF THE PUSH, which is the edit that reads as tidier and
+		// costs every merge in a sweep the first time the job is killed.
+		const beforePush = s
+			.replace('          suite_verdict=skipped\n', '')
+			.replace(
+				'          pushed=no\n',
+				'          suite_verdict=skipped\n          suite_out="$(merged_suite)" || suite_rc=$?\n          pushed=no\n'
+			)
+			.replace('          suite_out="$(merged_suite)" || suite_rc=$?\n          suite_verdict="$(printf', '          suite_verdict="$(printf');
+		expect(beforePush).not.toBe(s);
+		expect(mergedSuiteFindings(beforePush)).toContain(
+			'the suite runs BEFORE the push, so a killed job would discard the merges'
+		);
+
+		// `vitest` reached for directly, which is the edit that looks like a
+		// simplification and silently makes every red tree read as green:
+		// importing `embedded-postgres` clobbers the exit code with 0.
+		expect(mergedSuiteFindings(inRegion('npm test >"$log"', 'npx vitest run >"$log"'))).toEqual(
+			expect.arrayContaining([
+				'the suite is no longer run through `npm test`',
+				'the suite reaches for vitest directly, whose exit code cannot be trusted here'
+			])
+		);
+
+		// `unrun` FOLDED INTO `red` -- which reports a broken runner as a test
+		// failure and sends somebody to read a diff that is fine. Mutated at
+		// BOTH sites at once, deliberately: there are two ways to be unrunnable
+		// (the install, and a runner that dies naming no test), and collapsing
+		// only one of them leaves the verdict reachable and proves nothing.
+		const noUnrun = s.replace(region, region.replaceAll("printf 'unrun ", "printf 'red "));
+		expect(noUnrun).not.toBe(s);
+		expect(region.split("printf 'unrun ").length - 1, 'there are no longer two unrun sites').toBe(2);
+		expect(mergedSuiteFindings(noUnrun)).toContain('the suite can no longer report `unrun`');
+
+		// The install dropped, which leaves a step that can only ever answer
+		// `unrun` and would read as a permanently broken runner.
+		expect(mergedSuiteFindings(inRegion('if ! npm ci >"$log" 2>&1; then', 'if false; then'))).toContain(
+			'the suite no longer installs dependencies, so it can only ever be `unrun`'
+		);
+
+		// The tee restored: the bug this function shipped with for one run, and
+		// the reason the verdict is read off stdout at all.
+		expect(mergedSuiteFindings(inRegion('npm test >"$log" 2>&1 || rc=$?', 'npm test 2>&1 | tee "$log"'))).toContain(
+			'the suite tees its output to stdout, which is where the verdict is read from'
+		);
+
+		// An `exit` inside the region, which would skip the summary the failing
+		// assertions are printed into.
+		expect(
+			mergedSuiteFindings(inRegion('"$rc"\n              return 2', '"$rc"\n              exit 2'))
+		).toContain('the suite region can exit the step, which would skip the summary');
+
+		// The markers renamed, which is what would make the proof harness cut
+		// nothing -- caught here as well as by the harness's own control.
+		expect(
+			mergedSuiteFindings(s.replace(/merged_suite_marker/g, 'merged_suite_renamed'))
+		).toContain('the merged_suite region cuts nothing');
+	});
+
+	it('the sweep and CI run the suite on the same Node major', () => {
+		// TWO FILES NAMING ONE VERSION, which is the duplication this repo's
+		// rules are against and is accepted here for one reason: `ci.yml` is
+		// read-only to the bundle that added the sweep's own suite step, so the
+		// value could not be extracted into a place both read. This assertion is
+		// the cheap half of extracting it -- a bump in one file that does not
+		// land in the other reddens rather than quietly answering a different
+		// question from the one CI answers.
+		const version = (f: string) => src(f).match(/node-version:\s*'(\d+)'/)?.[1];
+		expect(version('ci.yml'), 'ci.yml no longer pins a node version').toBeDefined();
+		expect(version('integrate.yml'), 'integrate.yml no longer sets up node').toBe(version('ci.yml'));
 	});
 
 	it('the per-branch CI query asks for a run on the SHA, not for a run from a TRIGGER', () => {
