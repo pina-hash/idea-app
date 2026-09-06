@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.20 - 2026-09-05**
+**Version 4.21 - 2026-09-06**
 
 ## These Instructions Evolve
 
@@ -976,8 +976,38 @@ costs nothing to keep.
   see each other's branches at all, so nothing local can warn either one. Observed on
   the same date: a branch carrying `0136_classroom_manager_exclusion_and_enrollment_removal.sql`
   against a `main` that already had `0136_foundry_delete.sql` and `0137_anon_execute_sweep.sql`.
-  Every prompt that may produce a migration fetches and lists the highest number on
-  `origin/main` before choosing one.
+
+  **THE NUMBER IS ALLOCATED IN THE PROMPT AND CLAIMED IN THE SESSION'S FIRST COMMIT.
+  Corrected 2026-09-06, and the rule it replaces was measured wrong rather than merely
+  improved.** This bullet used to end "Every prompt that may produce a migration fetches
+  and lists the highest number on `origin/main` before choosing one", and the migration
+  paragraph below said that doing so "already closes" the hazard. On 2026-09-06 three
+  lanes did exactly that -- each fetched `origin/main`, each read `0185` as the highest,
+  each wrote `0186` -- within four and a half minutes of one another, and a fourth pair
+  then collided on `0187` twenty-nine minutes after the first of them had pushed it.
+  Reading the highest landed number is a correct answer to a different question. **A
+  number for a new migration is not a fact the repository can answer; it is ALLOCATION,
+  and allocation needs an allocator**, which for prompt ids is already this chat.
+
+  - **The prompt names the number.** `node tools/migration-claims.mjs` reads every ref
+    and reports which numbers are landed, which a lane in flight is holding, and which
+    are free; its `next free` is what the prompt writes into the ledger entry's
+    `Migration permitted: ... Claims: NNNN` field. `ls supabase/migrations/`,
+    `git ls-tree` over one ref and `git log --all --diff-filter=A` are all truthful about
+    the past and silent about what is in flight, and all three were consulted correctly
+    by every session that collided.
+  - **The session's FIRST commit is the ledger entry, pushed alone, so the claim is
+    visible before the work exists.** Measured across the five branches that wrote a
+    migration on 2026-09-06, the file appeared 24, 26, 28, 28 and 41 minutes after the
+    entry. That window is what the claim buys.
+  - **It does not close the window, and the prompt says so rather than implying
+    otherwise.** Two sessions started inside the same few seconds still collide -- the
+    three `0186` branches pushed their first commits sixteen seconds apart end to end --
+    and a lane that claims a number and is abandoned burns it until its entry is given a
+    terminal status. Both are better than two files with one name.
+  - **A prompt that permits no migration writes `Claims: none`**, so the line is never
+    ambiguous between "no migration" and "a migration whose number nobody has stated".
+    `docs/prompt-ledger/README.md` owns the format.
 - **A migration is correct against the schema it will meet, not the one it was written
   against, and a branch left sitting goes stale in ways nothing checks.** The number
   collision above is the visible half. The dangerous half is semantic: a migration that
@@ -1139,8 +1169,11 @@ UI, content, or read-only.
 and the load-bearing half of the rule is that only one lane produces migrations.**
 Established 2026-09-01 on `fll-app`. A cloud session has no local stack and no token, so
 a migration file it writes is inert until Mr. Pina delivers it: number collision is the
-only hazard the file itself carries, and fetching the highest number on `origin/main`
-before choosing one already closes that. Forcing the inert file onto `main` drags the UI
+only hazard the file itself carries, and the number is allocated in the prompt and
+claimed in the session's first commit, per the migration-number rule above. **That
+sentence used to read "and fetching the highest number on `origin/main` before choosing
+one already closes that", and it was false** -- five collisions on 2026-09-05 and
+2026-09-06 were produced by sessions that had done precisely that. Forcing the inert file onto `main` drags the UI
 that depends on it onto `main` too, and on a repo that deploys from `main` that ships
 unverified UI to production to satisfy a rule about a file nobody has executed. So the
 file rides the branch, the SQL is delivered by its repo's own documented path first, and
@@ -2471,6 +2504,24 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-06 (4.21)** - Five number collisions in two days, every one of them produced
+  by a session that had verified correctly. Two decision entries numbered `15` six and a
+  half minutes apart; prompt `0074` taken by two sessions three seconds apart and prompt
+  `0075` by two more ten seconds apart; `0077` taken while a renumbered entry already
+  held it; and THREE migrations claiming `0186` inside four and a half minutes, which
+  then produced a fourth pair on `0187` that is still unresolved. The migration-number
+  rule is rewritten: the number is ALLOCATED IN THE PROMPT and CLAIMED IN THE SESSION'S
+  FIRST COMMIT, from `node tools/migration-claims.mjs` (new, in `idea-app`), which reads
+  every ref for landed files, branch files and ledger claims. The instruction it replaces
+  -- fetch the highest number on `origin/main` before choosing one -- is not merely
+  improved but was measured FALSE, and the paragraph that said doing so "already closes"
+  the hazard is corrected in place with the measurement beside it. The ledger entry's
+  `Migration permitted` line gains a `Claims: <NNNN | none>` field so that "no migration"
+  and "a migration whose number nobody has stated" stop reading the same, and the ledger
+  README's pre-issue check gains the tool as its fourth step. Stated plainly in both
+  documents: this does not close the window (two sessions starting seconds apart still
+  collide) and a claim that never lands burns a number until its entry goes terminal.
 
 - **2026-09-05 (4.20)** - Mr. Pina asked for every remaining manual step to be automated.
   Two were left that a session could take, and this version hands both to the canned lane
