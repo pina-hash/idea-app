@@ -1860,10 +1860,14 @@
 		min-width: 0;
 	}
 	.due-part-label {
-		/* One tier quieter than the field's own name, because it labels a half
-		   of it rather than a field of its own. */
-		font-size: 0.6rem;
-		color: var(--text-3);
+		/* SMALLER THAN THE FIELD'S OWN NAME, NOT QUIETER. It was `--text-3`,
+		   which measured 2.98:1 on this ground in the browser pass -- `--text-3`
+		   is DECORATIVE tertiary in this room (CLAUDE.md), and "Date" / "Time"
+		   are the two words that say which box is which, so they are real copy
+		   and take the 4.5 floor like every other label here. The tier is carried
+		   by SIZE alone, which costs nothing and is measured. */
+		font-size: 0.62rem;
+		color: var(--text-2);
 	}
 	.kind-toggle {
 		display: flex;
