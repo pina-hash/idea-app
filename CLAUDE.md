@@ -40,10 +40,12 @@ Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
 programme), IDEA Foundry (student-published static web apps), IDEA Maps
 (`/maps/edit`, the admin editor, and `/maps/edit/shelf`, ITEM ENTRY AT THE
 SHELF -- a phone-first flow used standing at a toolbox, so 375px is its primary
-width and not the one checked afterwards; the public viewer at `/maps` is a
-later bundle -- `docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161-0165
-plus the `maps-media` bucket, writes through the `is_admin()` RLS policies with
-`maps_publish` as the one RPC per 0161's own header), and the portal shell
+width and not the one checked afterwards; **the PUBLIC VIEWER AT `/maps` HAS
+SHIPPED** and this line called it "a later bundle" until 2026-09-06 --
+`docs/standards/IDEA_MAPS_SPEC.md` governs, schema 0161 through 0165 plus 0168
+(the `maps-media` raster list and the plan frame) and 0172 (the editor grants),
+writes through the `is_admin()` RLS policies with `maps_publish` as the one RPC
+per 0161's own header), and the portal shell
 (`/`, `/dashboard`, `/admin`).
   - **THE `/maps/edit` GATE IS THE AREA'S `+layout.server.ts`**, hoisted there
     the moment there was a second page, so a third cannot ship ungated by
@@ -59,10 +61,17 @@ plus the `maps-media` bucket, writes through the `is_admin()` RLS policies with
     that happens, and the size ceiling beside it (20 MiB) is refused from
     `File.size` BEFORE the transfer, because a refusal after a minute of school
     wifi is the same refusal at the worst moment.
-  - **THE BUCKET'S `image/*` WILDCARD ADMITS SVG AND THE CLIENT REFUSES IT
-    ANYWAY.** An SVG is a document, not a picture, and `maps-media` is PUBLIC --
-    closing it properly is a migration replacing the wildcard with a concrete
-    raster list, which no bundle has written yet.
+  - **THE BUCKET'S `image/*` WILDCARD USED TO ADMIT SVG AND `0168` CLOSED IT.**
+    An SVG is a document, not a picture, and `maps-media` is PUBLIC, so an
+    accepted one is served back as `image/svg+xml` from a public URL on the
+    Storage origin, where navigating to it executes it -- Storage's own
+    content-type rewrite catches `text/html` alone. `0168` replaced the
+    wildcard with a concrete raster list and RAISES if any SVG spelling
+    survives in `allowed_mime_types`; it also warns, by key, about SVG objects
+    already in the bucket, which it deliberately does not delete. This rule
+    read "which no bundle has written yet" for a full day after `0168` landed,
+    which is what a paragraph describing an unwritten migration turns into the
+    moment somebody writes it.
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
@@ -907,8 +916,10 @@ below; a third mount is a caller of it, never a third handler.
 
 ```bash
 npm run dev                             # dev server
-npx svelte-check                        # type + a11y check
+npm run check                           # svelte-kit sync && svelte-check, in one step
+npx svelte-check                        # the same check without the sync (see the stale-types trap)
 npm test                                # full suite (see the parallelism trap)
+node tools/claude-md-check.mjs          # does THIS file still agree with the tree
 npm run verify:browser                  # the visual pass: /dev routes at 375 and 1440
 npm run verify:browser -- --probe       # what this machine's browser can actually do
 npm run verify:browser -- --selftest    # negative controls for every check
@@ -927,12 +938,15 @@ This applies to every change. Prompts do not need to restate it.
     npx svelte-check`, and read the count off its own summary line -- the sync
     first, because stale generated route types report phantom errors (see the
     toolchain traps).
-  - **A CHECKOUT WITH NO `.env` REPORTS 11 PHANTOM ERRORS, AND THEY ARE NOT A
+  - **A CHECKOUT WITH NO `.env` REPORTS 13 PHANTOM ERRORS, AND THEY ARE NOT A
     REGRESSION.** `$env/static/public` is generated from the environment, so
     with no `.env` present -- which is every fresh cloud session, since `.env`
     is gitignored -- `svelte-kit sync` writes a module exporting nothing and
-    eleven `has no exported member 'PUBLIC_SUPABASE_URL'`/`_ANON_KEY` errors
-    land across eight files that no change touched. **Export the two values
+    **13** `has no exported member 'PUBLIC_SUPABASE_URL'`/`_ANON_KEY` errors
+    land across **10** files that no change touched. **This line said eleven
+    across eight until 2026-09-06**, and prompts 0071 and 0074 each measured 13
+    independently before either said so, which is the same failure as the
+    warning count below and the reason both are re-measured rather than read. **Export the two values
     (any placeholder will do) BEFORE the sync** and the count returns to 0
     errors / 37 warnings with the 31/5/1 breakdown intact, measured. The
     warnings are unaffected either way, which is the tell: a real regression
@@ -1012,8 +1026,10 @@ it is not required to browse.
 - **Public tier (no login):** the landing page `/`, every assignment and
   reference doc (`/assignments/<slug>`), VANGUARD, the coin leaderboard
   (`/coins/`), the tournament section, the reference-document viewer
-  `/reference/<itemId>` (only for a MATERIAL a teacher flagged public), and the
-  short-link redirects `/<slug>` such as `/209h`.
+  `/reference/<itemId>` (only for a MATERIAL a teacher flagged public), the
+  IDEA Maps viewer (`/maps`, which reads no session and is deliberately not
+  under the `/maps/edit` gate), and the short-link redirects `/<slug>` such as
+  `/209h`.
   - **The public reference viewer and short links live OUTSIDE `/classroom`
     deliberately** -- that prefix is in `authedPrefixes` and would bounce a
     signed-out visitor to `/` before either load ran.
@@ -1032,8 +1048,8 @@ it is not required to browse.
   tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`), the Foundry source reader
   (`POST /api/foundry/source`), the IDEA Maps editor (everything under
-  `/maps/edit`, gated once in its own `+layout.server.ts` -- the future `/maps`
-  viewer is PUBLIC per the maps spec and must never be prefix-guarded) and GAUNTLET's ranked-run review
+  `/maps/edit`, gated once in its own `+layout.server.ts` -- the `/maps` viewer
+  is PUBLIC per the maps spec, has shipped, and must never be prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
@@ -1148,16 +1164,24 @@ those.
   **Left on `is_admin()` deliberately**, because authoring a question is not a
   licence to read what was answered: every student-work read (own submissions,
   own run events, own run analysis), `gauntlet_run_review` (`0152`, the ranked
-  forensics console at `/gauntlet/run-review`) and `gauntlet_practice_meter`
-  (`0151`), the global Speedrun ruleset singleton, the unread `gauntlet-tools`
+  forensics console at `/gauntlet/run-review`) and `gauntlet_practice_pressure`
+  (`0151`; the name `gauntlet_practice_meter` is FICTION and this line carried
+  it until 2026-09-06 -- it exists only inside `0155`'s own comment and in the
+  copy of that comment this file was written from, which is why
+  `tools/claude-md-check.mjs` reads a migration with its comments stripped), the global Speedrun ruleset singleton, the unread `gauntlet-tools`
   bucket, and all eleven `not v_published and not is_teacher()` draft-PLAY
   gates (an author publishes and plays like anyone else; test-driving a DRAFT
   run stays admin-only).
 - **APPLIED STATE IS A PROPERTY OF PRODUCTION, AND NO FILE IN THIS REPO RECORDS
   IT.** Run `tools/idea-status.py` for the landed set and paste its probe block
-  into the Supabase SQL editor to learn the applied set. A paragraph stating
-  applied status anywhere in this file is a snapshot and is to be treated as
-  wrong.
+  into the Supabase SQL editor to learn the applied set; `tools/deploy-probe.mjs`
+  is the other instrument and the one a gate reads, because it queries
+  production's own `pg_catalog` itself and fails closed, where `CANNOT SAY` is
+  never a pass. **A paragraph stating applied status anywhere in this file is a
+  snapshot and is to be treated as wrong** -- one was wrong for a whole night on
+  2026-08-31, which is why this rule replaced it with a pointer rather than with
+  a corrected list. The same goes for any figure here that a commit can move:
+  prefer the instrument to the number.
 
 ### Probing must reveal nothing
 
@@ -1617,7 +1641,11 @@ with its own answer for the rows already stored.
   else REPLACES instead.
 - **A SPEC'S RUBRIC AND AN ITEM'S RUBRIC ARE TWO DIFFERENT RECORDS, AND ONLY ONE
   OF THEM IS GRADED AGAINST.** The criteria an author writes live inside the
-  spec JSON (`classroom_set_spec`, validated by `_classroom_check_spec`);
+  spec JSON (written by `classroom_set_assignment_spec` or
+  `classroom_set_reference_spec`, both validated by `_classroom_check_spec`);
+  **there is no `classroom_set_spec`** -- that name is a contraction of the
+  two, it names no database object, and three source comments under
+  `src/lib/classroom/` still use it;
   grading reads `classroom_rubrics`, written only by `classroom_set_rubric` and
   loaded by the item page as its own `rubric`. Nothing in the database bridges
   them, and nothing should -- a rubric is editable after generation, so a
@@ -2058,8 +2086,19 @@ inside the function fails closed rather than falling through to a weaker path.
   at RPCs; the dev harness answers in memory. That split is what makes multi-step
   orchestration verifiable with no network.
 - **The whole screen is a component the route mounts** (`ReviewConsole`,
-  `CoinDeskTool`, `GreenlineRace`, `ClassView`), so the dev harness mounts the
-  IDENTICAL thing rather than a copy.
+  `GreenlineRace`, `ClassView`), so the dev harness mounts the IDENTICAL thing
+  rather than a copy.
+  - **THE COIN DESK IS THE EXCEPTION, AND THIS LINE USED TO NAME IT AS AN
+    EXAMPLE.** It read `CoinDeskTool` in that list; no such component exists,
+    and four source comments under `src/lib/coin-desk/` and
+    `src/lib/coin-balance/` still name it as the thing they were factored out
+    of. The desk is one component per AREA now (`LogView`, `SectionManager`,
+    `BalanceAdminPanel`, `ContractsManager`, `RolesManager`,
+    `CategoriesManager`, `PayoutManager`), mounted by the route group and by
+    `/dev/coin-desk` alike -- so the harness still mounts the identical
+    components, and what the two no longer share is a screen-level parent. A
+    surface split that way keeps the rule by mounting every real part; it does
+    not get to mount a stand-in for the whole.
 - **An omitted optional transport REMOVES the control it drives**, down through
   child components. Read-only is then structural -- there is no write to execute --
   rather than a discipline. A `readOnly` prop may state the intent once, but
@@ -2265,7 +2304,15 @@ inside the function fails closed rather than falling through to a weaker path.
 - **Colour is never the only signal** -- glyph AND word, or an icon beside the hue.
 - **44px minimum tap targets** on anything a phone touches, AND on every
   student-facing surface at every width, with 24px as the absolute floor
-  everywhere else (`IDEA_INTERFACE_STANDARDS` 10). The documented exception is a
+  everywhere else (`IDEA_INTERFACE_STANDARDS` 10).
+  - **THE 24px FLOOR IS A PROPERTY A SURFACE DECLARES, NEVER ONE A BUNDLE
+    ASSERTS ABOUT IT**, which is the standard's own rule and was missing here.
+    A surface sits on 24px only when it is instructor-only AND says so in a
+    named class on its own root, so the claim is written where a later sweep
+    can read it off the element. **A surface with no such class is
+    student-facing for the purpose of this rule** and clears 44px at every
+    width, whatever the density argument -- nobody measuring a control six
+    months later can see "this is an instructor console" from the control. The documented exception is a
   control inside a locked density contract, where inflating it would break a real
   invariant to satisfy a guideline written for standalone controls -- say so
   rather than breaking the contract.
@@ -2365,9 +2412,9 @@ inside the function fails closed rather than falling through to a weaker path.
       asserts it for this surface specifically rather than inheriting the
       typed-document argument, which does not apply here.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
-  (`$lib/save-state.svelte`), never a sixth hand-rolled variant. It owns the five
+  (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
-  8s, and the visibilitychange / pagehide net; `$lib/save-guard.svelte` is its
+  8s, and the visibilitychange / pagehide net; `$lib/save-guard.svelte.ts` is its
   navigation guard and `SaveIndicator.svelte` is the one set of words for it.
   - **`saved` is the ACKNOWLEDGEMENT, never the dispatch**, and it carries the
     clock time of the write. A status set beside a `fetch` call says a request
@@ -2389,7 +2436,10 @@ inside the function fails closed rather than falling through to a weaker path.
   - **A SURFACE WHOSE ONLY COPY OF SOMEBODY'S WRITING IS IN MEMORY HAS NO
     FAILURE TO REPORT WHEN IT LOSES IT**, which is why the notebook composer
     mirrors its note into `localStorage` (`$lib/notebook/draft-mirror.ts`,
-    `IDEA_INTERFACE_STANDARDS` 2.11). A tab discarded under memory pressure
+    `IDEA_INTERFACE_STANDARDS` 6, the two rules its version 2.11 added -- this
+    line cited it as "2.11" and there is no section 2.11, which is the one
+    trap in citing that document: its sections are integers and everything
+    with a decimal point in it is a CHANGELOG VERSION). A tab discarded under memory pressure
     dispatches nothing, so no save machine, no beacon and no navigation guard
     ever sees it. **The keepalive beacon is not the answer at the sizes that
     matter** -- 64KB across every in-flight keepalive request, against a
@@ -2415,6 +2465,28 @@ inside the function fails closed rather than falling through to a weaker path.
       claiming to be what is on screen and not being it is worse than no slot --
       and tell the person the backup is not there. A safety net nobody knows is
       missing is worse than none.
+    - **IT EXPIRES, AND THE CAP IS ABOUT EXPOSURE RATHER THAN CONVENIENCE.**
+      `DRAFT_MIRROR_MAX_AGE_MS` is 24 hours. Past it a slot is abandoned work
+      rather than lost work, and the window it bounds is how long unsaved
+      typing sits in plain `localStorage` on a shared school device -- not how
+      long somebody might want their draft back. A stored SHAPE VERSION older
+      or unknown is DROPPED rather than coerced, for the same reason a
+      preference read drops an unrecognised value: a mirror that half-restores
+      is worse than one that admits it cannot.
+    - **THIS IS A PATTERN A SECOND SURFACE MAY RE-IMPLEMENT, WHICH IS THE ONE
+      PLACE "DO NOT DUPLICATE A RULE" IS ANSWERED WITH A COPY.**
+      `$lib/maps/shelf-mirror.ts` is the second one -- the shelf card, on a
+      phone standing at a toolbox, which is the worst connection and the most
+      fragile tab in the building. Every RULE above is followed there; what
+      differs is the PAYLOAD, and generalising the notebook module into a
+      type-parameter shape would mean editing somebody else's surface from a
+      maps bundle to remove a duplication smaller than the change. **So a
+      third mirror is a third module, not a third caller** -- and it owes all
+      seven properties: one namespaced prefix, a key per viewer and per
+      record, a dropped-not-coerced shape version, the age cap, a quota answer
+      that sweeps other slots and retries, a refusal reported rather than
+      thrown, and a written statement of what it cannot hold (a `File` handle
+      is memory, and the surface says so while the picture is still staged).
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
@@ -2772,8 +2844,12 @@ These have each cost a debugging session. They are not hypothetical.
     bundle; pointed at the tree it found SIX more, in five files across three
     subsystems, none of them the classroom. A checker aimed at the component
     that was already fixed only ever proves the fix is still there. It walks
-    every `.svelte` file under `src/` (350 files, 164 effects at the time of
-    writing) and reddens with a file and a line. **`.svelte.ts` modules are
+    every `.svelte` file under `src/` and reddens with a file and a line.
+    **DO NOT WRITE ITS FILE OR EFFECT COUNT DOWN HERE.** This sentence carried
+    "350 files, 164 effects at the time of writing" and the tree was at 423 and
+    196 within weeks -- a figure that decays every time somebody adds a
+    component, hedged into being unfalsifiable rather than kept true. The test
+    walks whatever is there; run it if you want the number. **`.svelte.ts` modules are
     outside it** -- they have no `$props()`, so "caller-supplied" is a different
     shape there -- and that gap is a TRIPWIRE rather than an omission: no such
     module runs an effect today, and the test reddens the moment one does.
@@ -3146,6 +3222,15 @@ belong wherever the app's own behaviour is documented.
 parallelism trap under Machine and toolchain).
 This is the **only** automated suite, and it is deliberately narrow.
 
+- **`tests/claude-md.test.ts` IS THE ONE TEST OVER A DOCUMENT, and it is here
+  for the reason the rule below gives.** A stale `CLAUDE.md` fails SILENTLY --
+  it renders, it reads as authoritative, and the only symptom is a session
+  acting on a sentence that stopped being true. It runs
+  `tools/claude-md-check.mjs`, which is the same thing `node
+  tools/claude-md-check.mjs` prints. It checks NAMES against the tree and
+  nothing else: never that prose is true, never a measurement. See "Keeping the
+  documentation current" for the ownership split it enforces the checkable half
+  of.
 - **Automated tests are the exception, not the default.** New work is verified by
   dev harnesses and browser passes. **Add a test only for a guarantee whose
   regression would be SILENT** -- security boundaries, exclusion filters, data
@@ -3189,8 +3274,12 @@ This is the **only** automated suite, and it is deliberately narrow.
   is a vitest `globalSetup` that boots a single embedded Postgres for the whole run.
   `startTestDb` does not boot a server: it creates a fresh database on that cluster,
   applies the stub and the requested chain to it, and drops it in `stop()`. Booting
-  per file cost a measured 5.49s x 48 = 263s of a 320s run; it is 5.7s once now.
-  **Write a test exactly as before** -- the `startTestDb()` signature is unchanged.
+  per file cost a measured 5.49s x 48 = 263s of a 320s run when the change was
+  made; it is one boot now. **That is a 2026-08 measurement of a tree that has
+  since roughly tripled its database files, kept as the ARGUMENT for the shape
+  and not as a current figure** -- the run's own timing line is what says how
+  long it takes today. **Write a test exactly as before** -- the
+  `startTestDb()` signature is unchanged.
 - **ISOLATION IS THE DATABASE BOUNDARY**, chosen over the two alternatives on
   purpose. A per-file SCHEMA would mean rewriting migration SQL (they name `public`,
   `auth` and `storage` literally) or bending `search_path`, which is the very thing
@@ -3199,9 +3288,12 @@ This is the **only** automated suite, and it is deliberately narrow.
   tests assert a statement is REJECTED, and one rejection poisons everything after
   it. Separate databases mean separate catalogs, so nothing a file leaves behind is
   reachable from another even by name.
-- **The migrations run per database rather than from a TEMPLATE**, and the number
-  says why: 50 `startTestDb` calls request 37 DISTINCT chains, so a template cache
-  would warm only 13 of them, at 0.28s each. Applying them keeps the fixture's
+- **The migrations run per database rather than from a TEMPLATE**, and the ratio
+  says why: at the time the shape was chosen, 50 `startTestDb` calls requested 37
+  DISTINCT chains, so a template cache would have warmed only 13 of them, at
+  0.28s each. **The counts have moved and are not restated here** -- `grep -c
+  startTestDb tests/**` is the current answer, and the ratio is what the
+  decision rests on. Applying them keeps the fixture's
   central claim literally true -- every test database has had the real migration
   files applied to it, in order, not a byte-copy of one that did.
 - **That isolation is PROVEN, not asserted.** `tests/db-isolation-a.test.ts` leaves a
@@ -3816,13 +3908,37 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   branch. **The commits are not lost** -- they are on `integration` -- and
   **`main` still moves only when a person merges it**, because that push is
   the deploy to `ideabosco.com` mid-class, and several bundles carry a
-  migration CI cannot see and that has to be applied by hand first. Nothing in
-  this file changes: push the branch, do not merge to `main`, exactly as every
-  prompt already says. **A `claude/**` branch still standing after a session
+  migration CI cannot see and that has to be applied by hand first. **WHETHER
+  A LANE MAY MERGE `integration` INTO `main` IS NOT THIS FILE'S TO SAY, AND
+  THIS PARAGRAPH USED TO SAY IT ANYWAY** -- it read "push the branch, do not
+  merge to `main`, exactly as every prompt already says", which was already
+  false when it was written: `docs/decisions/entries/16-a-lane-may-merge-to-main.md`
+  was decided YES on 2026-09-05 and `docs/standards/IDEA_instructions.md` 4.20
+  grants it against a six-gate checklist a session reports. Prompt 0055 found
+  the contradiction, could not edit a file it did not own, and wrote it into
+  decision 16's own tree-check line instead. **The rule is: obey your own
+  prompt's ending, which is the only thing that knows whether this bundle was
+  granted the merge; where it is silent, `IDEA_instructions.md` owns the
+  answer and this file does not.** What this file DOES own is the reason a
+  gate exists at all -- a push to `main` deploys `ideabosco.com` mid-class,
+  and a bundle carrying a migration ships an RPC call to a function
+  production may not have yet. **A `claude/**` branch still standing after a session
   ends is a SIGNAL, not a leftover** -- its CI failed, its CI has not finished,
   its session's ledger entry still reads `Status: issued`, or its merge into
   `integration` conflicted -- and is worth naming in the same report a still-open
   branch already gets.
+  - **WHAT "CI GOES GREEN" MEANS IS THE WORKFLOW'S OWN DEFINITION, IT HAS
+    MOVED, AND IT IS NOT RESTATED HERE.** `integrate.yml` decides what it
+    checks before it merges, and `ci.yml`'s header explains why `integration`
+    gets no push-triggered run of its own and takes a daily scheduled one
+    instead. Both have moved more than once -- at the time of writing, a
+    change adding a SUITE RUN ON THE MERGED TREE is sitting unmerged on
+    `claude/red-merge-green-parents-ft3e57`, and the day it lands, a red
+    Integrate run stops meaning only "a merge conflicted" and starts also
+    meaning "the merged tree failed the suite", which is a different thing to
+    do about it. **Read the workflow rather than this paragraph**; a mechanism
+    copied into prose here is one that goes stale silently, which is what the
+    two sentences above it did.
   - **A BRANCH THE TARGET ALREADY CONTAINS IS DELETED TOO, WHICH IT USED NOT TO
     BE.** The workflow used to merge-and-delete only what IT merged, so a branch
     landed by hand -- every source branch of a merge bundle, for one -- became a
@@ -3936,6 +4052,44 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
 ### Keeping the documentation current -- READ THIS BEFORE WRITING EITHER FILE
 
 The two files have different jobs, and the split is the point.
+
+**WHAT THIS FILE OWNS, AND WHAT IT MUST NOT RESTATE.** The boundary is not
+this file's invention: `docs/standards/IDEA_REPO_WORKFLOW_STANDARD.md` states
+it in its own header -- "`IDEA_instructions.md` owns how a prompt is written
+and how a session behaves; each repo's own `CLAUDE.md` owns what is true
+inside that repo only". So:
+
+- **`CLAUDE.md` owns FACTS ABOUT THIS TREE**: what a module does, why a rule
+  exists, which trap bit and how, the migration apply path. Nothing else
+  states these and nothing else should.
+- **`docs/standards/IDEA_instructions.md` owns SESSION BEHAVIOUR** -- whether
+  a lane may merge, what a prompt's ending requires, how a ledger entry is
+  written. A rule of that shape written here is a second copy that drifts, and
+  it did: the `claude/**` paragraph under Working conventions carried an
+  unconditional "do not merge to `main`" that contradicted decision 16 for a
+  day, and the bundle that found it could not fix it.
+- **`docs/standards/*` own the STANDARDS** -- interface, material spec,
+  rubric, verification. Where this file repeats one it repeats it as a
+  POINTER with a section number, never as a paraphrase, and where the two
+  disagree that is a bug in one of them and worth raising rather than a
+  licence to pick.
+- **`docs/decisions/entries/` owns WHAT MR. PINA DECIDED.** A decision is
+  never restated here as a rule without naming its entry; a decision that
+  moves then leaves a rule here saying the old thing with nothing pointing at
+  the new one.
+
+**AND THE CHECKABLE HALF OF THIS FILE IS CHECKED.** `tools/claude-md-check.mjs`,
+run by `tests/claude-md.test.ts`, asserts every NAME this document uses --
+file paths, routes, database objects, exported symbols, npm scripts, CSS
+custom properties -- against the tree, and asserts the handful it says are
+GONE have stayed gone. It never asserts that prose is true and never checks a
+measurement. **A correction made by hand is a correction that goes stale
+again**: `docs/GAUNTLET.md` was corrected on 2026-08-29 and was wrong in
+fifteen places by 2026-09-05, and seven bundles found this file wrong in one
+week. So when you change a rule here, change the name in the same edit and
+run the check; and when a claim you are writing could be checked, prefer
+writing it in a form the check can read (a backticked name) over a
+paraphrase it cannot.
 
 - **A shipped bundle writes its record as a NEW FILE:
   `docs/history/<your branch slug>.md`** -- your session's git branch with the
