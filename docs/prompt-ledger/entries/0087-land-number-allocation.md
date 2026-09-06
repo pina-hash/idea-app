@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `docs/standards/IDEA_instructions.md` and its `REGISTER.md` row, `docs/prompt-ledger/README.md`, the claim-line format across ledger entries, `tools/migration-claims.mjs`, `tests/migration-claims*`, the contiguity assertion in `tests/db/migration-0177-tombstone.test.ts`, `docs/prompt-ledger/entries/0087-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0189
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: Prompt 0084 built the migration-claim tool and the contiguity fix
   that tells a number a branch is holding from a number nothing accounts
