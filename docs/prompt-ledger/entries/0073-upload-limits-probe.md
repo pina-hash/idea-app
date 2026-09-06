@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: prompt 0072's migration and app changes on `claude/upload-limit-fiction-jv9w43`, `docs/prompt-ledger/entries/0073-*`, and its own `docs/history/` entry.
 - Migration permitted: exactly one, the file 0072 wrote, number re-verified at commit time. Highest on origin/main at issue: 0184
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness, starting from `claude/upload-limit-fiction-jv9w43`
 - Notes: Prompt 0072 finished its work and could not apply it, for two
   reasons it established precisely.
