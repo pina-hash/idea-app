@@ -23,6 +23,26 @@
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
+	import { serializeForBaseline } from '$lib/edit-baseline.svelte';
+	import { untrack } from 'svelte';
+	import { page } from '$app/state';
+	import {
+		ASSIGNMENT_MIRROR_DEBOUNCE_MS,
+		ASSIGNMENT_MIRROR_UNAVAILABLE,
+		assignmentMirrorKey,
+		assignmentRestoreMessage,
+		baselineOf,
+		blockById,
+		clearAssignmentMirror,
+		mirrorBlockLabel,
+		mirrorValueLines,
+		planAssignmentRestore,
+		readAssignmentMirror,
+		sweepAssignmentMirrors,
+		writeAssignmentMirror,
+		type AssignmentMirror,
+		type MirrorConflict
+	} from '$lib/classroom/assignment-draft-mirror';
 
 	/**
 	 * The student half of the assignment engine, mounted in the item detail
@@ -107,6 +127,23 @@
 	// ------------------------------------------------------------------
 	const dirtyBlocks = new Set<string>();
 
+	/**
+	 * WHAT THE SERVER HAS ACKNOWLEDGED, PER BLOCK, through `serializeForBaseline`
+	 * -- the same serializer `EditBaseline` uses, so "the same value" means one
+	 * thing across this component and the mirror rather than two.
+	 *
+	 * `dirtyBlocks` says which blocks still OWE a write and is enough for the
+	 * write loop. It is not enough for the mirror: a restore has to tell an
+	 * answer the server never received from one the server has since replaced,
+	 * and only a recorded baseline separates those. See
+	 * `planAssignmentRestore`'s three-cornered comparison.
+	 */
+	function ackedFrom(rows: { block_id: string; value: ResponseValue | null }[]) {
+		return baselineOf(Object.fromEntries(rows.map((r) => [r.block_id, r.value ?? {}])));
+	}
+	// svelte-ignore state_referenced_locally
+	let acked = $state<Record<string, string>>(ackedFrom(data.responses));
+
 	function refusalText(reason: string | undefined): string {
 		return reason === 'locked'
 			? 'This is submitted, so edits are locked. Unsubmit to keep working.'
@@ -123,7 +160,13 @@
 			let transportFail: string | null = null;
 			let refusal: string | null = null;
 			for (const id of ids) {
-				const res = await transports.saveResponse(item.id, id, values[id] ?? {});
+				// THE VALUE THAT GOES OUT IS THE ONE THE ACKNOWLEDGEMENT IS ABOUT.
+				// Read once, here, and remembered: an edit landing while this
+				// request is in flight makes `values[id]` a NEWER answer than the
+				// server agreed to, and stamping that as acknowledged would make
+				// the mirror treat a genuinely unsaved edit as already saved.
+				const sent = ($state.snapshot(values[id] ?? {}) ?? {}) as ResponseValue;
+				const res = await transports.saveResponse(item.id, id, sent);
 				if (!res.ok) {
 					// STAYS DIRTY, so the retry re-sends it. The value is still in
 					// `values`, which is what the field renders from, so nothing the
@@ -136,6 +179,7 @@
 					continue;
 				}
 				dirtyBlocks.delete(id);
+				acked = { ...acked, [id]: serializeForBaseline(sent) };
 			}
 			// A transport failure outranks a refusal for RETRYABILITY: if any block
 			// failed to reach the server at all, another attempt can still change
@@ -156,6 +200,230 @@
 		warning:
 			'Your last answer has not been saved yet, and leaving now will lose it.'
 	});
+
+	// ------------------------------------------------------------------
+	// THE LOCAL DRAFT MIRROR.
+	//
+	// Measured against this component before it existed: sixty characters typed
+	// at 110ms a character produced ZERO dispatches over 6694ms and ZERO bytes
+	// in `localStorage` -- every keystroke cancels and re-arms the 800ms
+	// debounce, so the window is the whole of the typing plus 800ms, and the
+	// answer lived in `values` and nowhere else. See
+	// `$lib/classroom/assignment-draft-mirror.ts` for why the durability net is
+	// not the answer to that.
+	// ------------------------------------------------------------------
+
+	/**
+	 * WHO IS LOOKING AT THIS PAGE, read here rather than threaded through a
+	 * prop -- the `Disclosure` rule, for the same reason: "per person" is then
+	 * one rule in one place and no caller can forget it.
+	 *
+	 * NO VIEWER MEANS NO MIRROR AT ALL, which is where this departs from
+	 * `Disclosure`'s `anon` fallback and has to. What a disclosure remembers is
+	 * whether a panel was open; what this holds is a student's answers, and a
+	 * shared `anon` slot on a school desktop would hand one student another's
+	 * work. `/classroom` is in `authedPrefixes`, so a viewer is always there on
+	 * the real surface and this branch is a fail-closed guard rather than a
+	 * supported state.
+	 */
+	const viewerId = $derived((page.data?.claims as { sub?: string } | undefined)?.sub ?? null);
+	const mirrorKey = $derived(viewerId ? assignmentMirrorKey(viewerId, item.id) : null);
+
+	/** The restore pass has run. Nothing is written before it has. */
+	let mirrorChecked = $state(false);
+	/** What was recovered, in words. Null when there was nothing to recover. */
+	let mirrorNote = $state<string | null>(null);
+	/** Answers NOT put back because the saved answer is newer. */
+	let mirrorConflicts = $state<MirrorConflict[]>([]);
+	/** Storage refused the mirror, so the student is told the net is not there. */
+	let mirrorBlocked = $state(false);
+	/** Which conflicted answer was last copied, so the control can acknowledge. */
+	let copied = $state<string | null>(null);
+	let mirrorTimer: ReturnType<typeof setTimeout> | null = null;
+	/**
+	 * THE SLOT AS IT WOULD BE WRITTEN RIGHT NOW, or null when there is nothing
+	 * unacknowledged to keep.
+	 *
+	 * A PLAIN FIELD AND NOT `$state`, deliberately: nothing renders it, and the
+	 * one thing that reads it is an event handler that must see the newest value
+	 * without waiting for a render to settle.
+	 */
+	let mirrorPending: AssignmentMirror | null = null;
+
+	function cancelMirrorTimer() {
+		if (mirrorTimer !== null) {
+			clearTimeout(mirrorTimer);
+			mirrorTimer = null;
+		}
+	}
+
+	/** Forget the slot and everything the restore pass put on screen about it. */
+	function dropMirror() {
+		cancelMirrorTimer();
+		mirrorPending = null;
+		if (mirrorKey) clearAssignmentMirror(mirrorKey);
+	}
+
+	/**
+	 * PUT BACK WHAT THIS BROWSER KEPT, once.
+	 *
+	 * `viewerId` and `editable` are read TRACKED, because the pass must not
+	 * latch on a frame where either is not settled yet; everything it DOES is
+	 * inside `untrack`, because it writes most of the state it reads and a
+	 * tracked write of that is how an effect re-enters itself.
+	 */
+	$effect(() => {
+		const who = viewerId;
+		const key = mirrorKey;
+		const canEdit = editable;
+		untrack(() => {
+			if (mirrorChecked || !who || !key) return;
+			mirrorChecked = true;
+			// A LOCKED ASSIGNMENT IS NOT RESTORED AND ITS SLOT IS DROPPED. There is
+			// no write to make on a submitted assignment, so putting an answer back
+			// into a locked field would show work that can never be saved.
+			if (!canEdit) {
+				clearAssignmentMirror(key);
+				return;
+			}
+			const now = Date.now();
+			// Housekeeping first, and it only ever drops EXPIRED slots: a live one
+			// belonging to another assignment is somebody's answer, not litter.
+			sweepAssignmentMirrors(key, now);
+			const found = readAssignmentMirror(key, now);
+			if (!found) return;
+			if (found.itemId !== item.id) {
+				// The key names this assignment, so a slot that names another is a
+				// shape nothing in this module writes. Drop it rather than read it.
+				clearAssignmentMirror(key);
+				return;
+			}
+			const server = Object.fromEntries(engine.responses.map((r) => [r.block_id, r.value ?? {}]));
+			const plan = planAssignmentRestore(found, server);
+			if (plan.action === 'drop') {
+				clearAssignmentMirror(key);
+				return;
+			}
+			for (const id of plan.restoredIds) {
+				values[id] = plan.restore[id];
+				dirtyBlocks.add(id);
+			}
+			if (plan.restoredIds.length) {
+				// SpecRenderer seeds `initialValues` once, at mount, so a restored
+				// answer reaches a field only through the remount `rendererKey`
+				// already exists for.
+				rendererKey += 1;
+				// AND IT IS DIRTY, which is what actually saves it. A restore that
+				// only put text on screen would leave the student looking at an
+				// answer the server still does not have.
+				save.markDirty();
+			}
+			mirrorConflicts = plan.conflicts;
+			mirrorNote = assignmentRestoreMessage(plan);
+		});
+	});
+
+	/**
+	 * MIRROR THE ANSWERS, DEBOUNCED, WHILE THE SERVER HAS NOT ACKNOWLEDGED THEM.
+	 *
+	 * The gate is `save.dirty` -- the SAME signal the navigation guard reads --
+	 * so the slot exists exactly while there is something to lose. That is one
+	 * comparison rather than a second idea of what "unsaved" means, and it is
+	 * why the clear below is not a "clear on dispatch": `dirty` stays true
+	 * through `writing` and through `failed`, and only an acknowledgement ends
+	 * it.
+	 *
+	 * THE CLEAR IS IMMEDIATE AND ONLY THE WRITE IS DEBOUNCED. Debouncing the
+	 * write is what stops a keystroke costing a storage round trip; debouncing
+	 * the clear would leave a student's answers sitting in a shared machine's
+	 * storage for no reason at all.
+	 */
+	$effect(() => {
+		if (!mirrorChecked) return;
+		const key = mirrorKey;
+		const canEdit = editable;
+		const due = save.dirty;
+		const snapshot = $state.snapshot(values) as Record<string, ResponseValue>;
+		const baseline = { ...acked };
+		const id = item.id;
+		if (!key || !canEdit) return;
+		if (!due) {
+			cancelMirrorTimer();
+			mirrorPending = null;
+			clearAssignmentMirror(key);
+			return;
+		}
+		mirrorPending = { v: 1, at: Date.now(), itemId: id, values: snapshot, baseline };
+		cancelMirrorTimer();
+		mirrorTimer = setTimeout(() => {
+			mirrorTimer = null;
+			writeMirrorNow(key);
+		}, ASSIGNMENT_MIRROR_DEBOUNCE_MS);
+		return cancelMirrorTimer;
+	});
+
+	/** Put the pending slot down, now, and report whether storage took it. */
+	function writeMirrorNow(key: string) {
+		if (!mirrorPending) return;
+		const result = writeAssignmentMirror(key, { ...mirrorPending, at: Date.now() });
+		// SAY SO WHEN THE NET IS NOT THERE. A safety net nobody knows is missing
+		// is worse than none, because the student goes on typing a long answer
+		// under an assumption that stopped being true.
+		mirrorBlocked = result !== 'ok';
+	}
+
+	/**
+	 * THE DURABILITY NET FOR THE MIRROR, AND IT IS THE HALF THAT CLOSES THE
+	 * WINDOW RATHER THAN NARROWING IT.
+	 *
+	 * `SaveState.attach()` already flushes the SAVE on these two events, and
+	 * that flush is an ordinary `fetch` a freezing page is free to abandon --
+	 * which is the whole reason this module exists. `localStorage.setItem` is
+	 * SYNCHRONOUS: it has completed before the handler returns, so a tab
+	 * reclaimed after being backgrounded keeps the answers whatever happens to
+	 * the request. The debounce below it covers only the case with no event at
+	 * all, which is a hard kill.
+	 *
+	 * Registered once, and it reads `mirrorPending` rather than closing over a
+	 * snapshot, so the newest answers are what goes down.
+	 */
+	$effect(() => {
+		if (typeof document === 'undefined' || typeof window === 'undefined') return;
+		const flush = () => {
+			const key = mirrorKey;
+			if (!key) return;
+			cancelMirrorTimer();
+			if (mirrorPending) writeMirrorNow(key);
+			else clearAssignmentMirror(key);
+		};
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') flush();
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('pagehide', flush);
+		return () => {
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('pagehide', flush);
+		};
+	});
+
+	/** The browser's copy of one conflicted answer, as the lines on screen. */
+	function conflictLines(c: MirrorConflict): string[] {
+		return mirrorValueLines(c.local, blockById(spec, c.blockId));
+	}
+
+	async function copyConflict(c: MirrorConflict) {
+		const text = conflictLines(c).join('\n');
+		try {
+			await navigator.clipboard.writeText(text);
+			copied = c.blockId;
+		} catch {
+			// A refused clipboard is not a failure worth a message: the lines are
+			// selectable text a few pixels away, which is what the control is a
+			// shortcut for.
+			copied = null;
+		}
+	}
 
 	function queueSave(blockId: string, value: ResponseValue) {
 		values[blockId] = value;
@@ -246,7 +514,14 @@
 			// naming a local edit that no longer exists. Leaving them marked would
 			// make the guard ask about work that is not there.
 			dirtyBlocks.clear();
+			acked = ackedFrom(res.data.responses);
 			save.markSaved();
+			// AND THE SLOT GOES WITH THEM. What is on screen is now what the server
+			// holds, so a mirror surviving this would claim to be unsaved work and
+			// would be offered back on the next load as a recovery of nothing.
+			dropMirror();
+			mirrorNote = null;
+			mirrorConflicts = [];
 		}
 	}
 
@@ -341,6 +616,48 @@
 			/>
 		{/if}
 	</div>
+
+	{#if mirrorBlocked}
+		<p class="feedback warn" data-testid="engine-mirror-blocked">{ASSIGNMENT_MIRROR_UNAVAILABLE}</p>
+	{/if}
+
+	<!--
+		WHAT THIS BROWSER PUT BACK, AND WHAT IT DID NOT.
+
+		Two outcomes, so two sentences, and the second half is the one a student
+		has to act on: an answer that was NOT put back is one whose only
+		remaining copy is the lines in this card. It is rendered as selectable
+		text with a Copy control beside it, because the next thing that happens
+		to a recovered answer is being pasted back into the field it came from.
+	-->
+	{#if mirrorNote}
+		<section class="card mirror-card" data-testid="engine-mirror-note">
+			<h3 class="section-label">Recovered from this browser</h3>
+			<p class="mirror-line">{mirrorNote}</p>
+			{#if mirrorConflicts.length}
+				<ul class="conflict-list" data-testid="engine-mirror-conflicts">
+					{#each mirrorConflicts as c (c.blockId)}
+						<li class="conflict">
+							<p class="conflict-where">{mirrorBlockLabel(spec, c.blockId)}</p>
+							<div class="conflict-copy">
+								{#each conflictLines(c) as line, i (i)}
+									<p class="conflict-text">{line}</p>
+								{/each}
+							</div>
+							<button
+								type="button"
+								class="btn secondary tiny tap-44"
+								data-testid="engine-mirror-copy"
+								onclick={() => void copyConflict(c)}
+							>
+								{copied === c.blockId ? 'Copied' : 'Copy'}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{/if}
 
 	{#if notice}<p class="feedback ok">{notice}</p>{/if}
 
@@ -600,6 +917,66 @@
 	.check-item input {
 		margin-top: 0.2rem;
 		accent-color: var(--green);
+	}
+	.mirror-card {
+		border-color: var(--cyan);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.mirror-line {
+		margin: 0;
+		font-size: 0.88rem;
+		color: var(--text-1);
+	}
+	.conflict-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.conflict {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-2);
+		/* `--boundary` and not `--hairline`: this rule is the only separator
+		   between two adjacent recovered answers, each of which carries its own
+		   control. */
+		border-top: 1px solid var(--boundary);
+		padding-top: var(--space-2);
+	}
+	.conflict-where {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.06em;
+		color: var(--cyan);
+	}
+	.conflict-copy {
+		width: 100%;
+		/* The lines are the only remaining copy, so they are selectable text on
+		   a plate of their own rather than a quiet aside. */
+		background: var(--bg2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-1);
+		padding: var(--space-2);
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		/* A long answer scrolls inside its own box; the page never does. */
+		max-height: 14rem;
+		overflow-y: auto;
+	}
+	.conflict-text {
+		margin: 0;
+		font-size: 0.85rem;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		/* `min-width: 0` is not enough on its own for an unbroken paste. */
+		min-width: 0;
 	}
 	.preflight-card {
 		border-color: var(--amber);

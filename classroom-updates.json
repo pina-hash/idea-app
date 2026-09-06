@@ -23,6 +23,15 @@
 			]
 		},
 		{
+			"date": "2026-09-06",
+			"title": "Your answers are kept in this browser while you type, so a closed tab does not take them",
+			"body": "An assignment saves your answers a moment after you stop typing, and until that moment the only copy was in the page itself. If your phone or Chromebook closed the tab first, which browsers do on their own when they need the memory, the answer went with it. Nothing had failed, so nothing said anything, and the next time you opened the assignment the box was simply empty. Now, while you are typing, this browser keeps its own copy of every answer on the page. If you come back and an answer had not reached us, it is put back into the box for you and a note at the top of the assignment says so, and it saves from there as usual. The note tells you what it put back, so you always know when it happened. If you had already answered the same question somewhere else and that answer did save, the saved one is the one you keep: this browser's copy is shown underneath instead, with a Copy button, so you can put it back yourself if it was the better one. Nothing is ever swapped out from under you without telling you. Two things worth knowing. The copy lives in the browser you typed in, so it does not follow you to a different computer, and it is thrown away as soon as your answer has actually saved. And the academic integrity tick is never filled in for you, because that is yours to make. If your browser will not keep a copy at all, which happens in private browsing or when storage is full, the assignment says so at the top and asks you to press Save now after each answer.",
+			"tags": [
+				"Classwork",
+				"Assignments"
+			]
+		},
+		{
 			"date": "2026-09-05",
 			"title": "Save draft now saves the same draft, instead of starting a new one",
 			"body": "Two of you reported this from opposite ends and it was one fault. When a teacher pressed Save draft while writing a post, the draft was saved but the box emptied itself, which made it look as though the writing had been lost. Pressing Save draft again then started a whole new draft rather than adding to the one already made, so the same post could pile up as several copies in a class. On a phone or a Chromebook it could get worse without anybody pressing anything: if the save looked like it had failed, switching tabs or locking the screen quietly tried the whole thing again, and each attempt that had actually gone through left another copy. Save draft is a checkpoint now. Your writing stays on the screen, the draft you already made is the one that gets updated, and a hidden tab no longer sends anything on its own. Post now still clears the box for the next post, because that is the end of the piece of writing. If your class has duplicate drafts from before today, they are safe to delete, and it is worth checking that the one you keep is the newest.",
