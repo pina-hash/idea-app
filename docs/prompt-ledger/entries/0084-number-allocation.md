@@ -2,9 +2,9 @@
 - Issued: 2026-09-06
 - By: router chat for IDEA portal work
 - Owns: `docs/prompt-ledger/README.md`, the `Migration permitted` line format across ledger entries, `tools/migration-claims.mjs` (new), `tests/migration-claims*` (new), the contiguity assertion in `tests/db/migration-0177-tombstone.test.ts`, the migration-number clause of `IDEA_instructions.md` with its REGISTER row, `docs/prompt-ledger/entries/0084-*`, and its own `docs/history/` entry.
-- Migration permitted: no, deliberately. Highest on origin/main at issue: 0185
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: no, deliberately. Claims: none. Highest on origin/main at issue: 0185
+- Status: pushed
+- Branch: `claude/number-allocation-ledger-c30ms5`
 - Notes: On 2026-09-05 and 2026-09-06 the same defect fired five times.
   
     two decision entries numbered 15
