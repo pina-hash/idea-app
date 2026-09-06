@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/maps/**` except the viewer, `src/routes/maps/edit/**`, the entry control on `src/routes/maps/+page.svelte`, `src/routes/dev/maps-editor/**`, migration 0191 (conditional), `tests/maps-editor*`, `tests/dom/maps-editor*`, `tools/browser-verify/routes/maps-editor*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0093-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, 0191, conditional. Claims: 0191. Highest on origin/main at issue: 0189
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: Mr. Pina used the editor on 2026-09-06 and reported he is typing
   inch dimensions into boxes with nothing appearing anywhere. He is right,

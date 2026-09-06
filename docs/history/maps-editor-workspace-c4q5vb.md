@@ -179,7 +179,36 @@ not measured against 44 (stated in each spec); the sketch's other slots
 clear the 24px floor.
 
 `svelte-check`: 0 errors, 37 warnings (31 `state_referenced_locally`, 5
-`css_unused_selector`, 1 `perf_avoid_nested_class`), before and after.
+`css_unused_selector`, 1 `perf_avoid_nested_class`), before and after; `npm
+run check` the same.
+
+**The full suite**, three runs, all on 2026-09-06 Pacific. The first two
+(15:39 and 15:44 PDT starts) reported 313 files / 6319 tests with 4 failures
+in 3 files, and none of the four was this bundle's code:
+
+- `tests/notebook-shell.test.ts`, two: its page-flow reveal sweep pins an
+  exemption list naming `MapsEditor.svelte` as a page-flow split, and its own
+  failure message reads "is no longer page-flow; drop it from the list". The
+  editor is `scroll="fill"` now, so the list shrank to three and its pinned
+  length with it -- the same shape prompt 0015 took when `FoundryGallery` and
+  `ReviewQueue` left it. That file is outside this bundle's owned surface;
+  the edit is the one the test prescribes and is reported here for that
+  reason.
+- `tests/apply-migration-guard.test.ts` and `tests/apply-migration-trace.test.ts`,
+  one each: both drive the real CLI with `--ref origin/integration`, and this
+  container was cloned shallow with only `main` fetched, so the tool answered
+  "could not list supabase/migrations on origin/integration. Cannot say is
+  never a pass." Environmental; `git fetch origin integration` and both
+  passed, unchanged.
+
+The third run, with the ref fetched and the list shrunk, started 15:50 PDT
+and finished 15:54 PDT: **313 files, 6319 tests, 0 failures** (the prompt's
+baseline read 311 / 6,301; the two new files here are
+`tests/dom/maps-editor-stage-mount.test.ts` and
+`tests/maps-editor-entry.test.ts`, 18 tests between them). `npm run
+verify:counts` regenerated the static region for the five new specs (138
+specs, 65 routes, 93 dev pages, 276 runs) and `npm run verify:readme` the
+measured one, on the committed tree at `73d762a`.
 
 ## The three positive controls (B6)
 
