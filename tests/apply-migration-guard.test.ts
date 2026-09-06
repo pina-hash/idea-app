@@ -95,6 +95,15 @@ function ledgerIdWhere(permitted: boolean): string {
 	if (!hit) throw new Error(`no ledger entry with permitted=${permitted}; the corpus changed shape`);
 	return hit.slice(0, 4);
 }
+/** A SQL comment block read as the prose it is: markers out, whitespace collapsed. */
+function prose(text: string): string {
+	return text
+		.split('\n')
+		.map((l) => l.replace(/^\s*--\s?/, ''))
+		.join(' ')
+		.replace(/\s+/g, ' ');
+}
+
 const permittingLedgerId = () => ledgerIdWhere(true);
 const refusingLedgerId = () => ledgerIdWhere(false);
 
@@ -208,12 +217,36 @@ describe('the role file installs what its header says it installs', () => {
 	});
 
 	it('states in its own header what does not protect the reader', () => {
-		// The header IS the deliverable of this bundle. A file that quietly
-		// dropped the guard and said nothing is the failure being prevented.
+		// The header IS the deliverable of prompt 0065. A file that quietly
+		// dropped the guard and said nothing is the failure being prevented. The
+		// CLAIM is pinned rather than the sentence: the wording moved in 0066
+		// (the credential in use is the project's `postgres` string, not this
+		// role's password) and a test that pinned the phrasing would have read as
+		// a regression when it was a correction.
 		const text = readFileSync(ROLE_SQL, 'utf8');
 		expect(text).toContain('WHAT DOES NOT PROTECT YOU');
 		expect(text).toMatch(/NOTHING IN THE DATABASE REFUSES ANYTHING FROM THIS ROLE/);
-		expect(text).toMatch(/bypassable by anyone holding this password/);
+		// The header is a comment block, so a sentence wraps as `\n-- `. Every
+		// assertion over its prose reads a whitespace-collapsed copy with the
+		// comment markers taken out, or it pins where the line happened to break.
+		expect(prose(text)).toMatch(/bypassable by anyone holding (this password|the connection string)/);
+		expect(text).toMatch(/CLIENT-SIDE/);
+	});
+
+	it('says that nothing uses it, which is the thing a reader most needs to know', () => {
+		// 0066: the role exists with LOGIN and nothing else, the grant was refused
+		// on 17.0.6, and Mr. Pina declined the support ticket that would finish
+		// it. A file describing a credential nobody holds, with nothing saying so,
+		// is how the next reader concludes the project applies migrations as
+		// `idea_migrator`.
+		const text = readFileSync(ROLE_SQL, 'utf8');
+		const p = prose(text);
+		expect(p).toMatch(/NOTHING USES THIS FILE/);
+		expect(p).toMatch(/17\.0\.6/);
+		expect(p).toMatch(/declined to raise one/);
+		expect(p).toMatch(/Membership in `postgres` IS `postgres`/);
+		// And it must not have been softened into a to-do.
+		expect(p).toMatch(/That is a decision, not an outstanding task/);
 	});
 });
 

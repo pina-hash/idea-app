@@ -1,11 +1,51 @@
 -- supabase/roles/idea_migrator.sql
 --
--- THE SCOPED ROLE A SESSION APPLIES ONE MIGRATION AS.
+-- THE SCOPED ROLE A SESSION APPLIES ONE MIGRATION AS -- EXCEPT THAT IT DOES
+-- NOT, AND NOTHING USES THIS FILE. READ THIS BLOCK BEFORE ANYTHING ELSE.
+--
+-- ===========================================================================
+-- WHAT IS ACTUALLY DEPLOYED, AS OF 2026-09-05
+-- ===========================================================================
+--
+-- `idea_migrator` EXISTS on the production project with LOGIN and nothing else.
+-- The paste got as far as creating the role and stopped at the grant:
+--
+--     grant postgres to idea_migrator;  ->  refused
+--
+-- on PostgreSQL 17.0.6, from the SQL editor, exactly as the section "THE SERVER
+-- VERSION DECIDES WHETHER THIS PASTE CAN SUCCEED" below predicted it would. The
+-- only way past it is a superuser running that one statement, which means a
+-- Supabase support ticket, and **Mr. Pina declined to raise one.** That is a
+-- decision, not an outstanding task; nobody is waiting on it.
+--
+-- SO THE ROLE OWNS NOTHING AND CANNOT APPLY A MIGRATION. What
+-- `tools/apply-migration.mjs` actually connects as is the project's own
+-- `postgres` connection string, held in `IDEA_MIGRATION_URL`. The tool says so
+-- out loud on every run: "WARNING: session_user is postgres, not
+-- idea_migrator".
+--
+-- **NOTHING WAS LOST BY NOT FINISHING IT, AND THAT IS THE POINT.** Membership in
+-- `postgres` IS `postgres`: the privilege on the far side of that grant is
+-- identical to the privilege the connection string already carries. The role
+-- would have bought a separate USERNAME and nothing else -- useful for reading a
+-- log, worth nothing as a boundary -- because the narrowing the whole design was
+-- built around was an event trigger, and Supabase does not permit one. The
+-- section "WHAT DOES NOT PROTECT YOU" below was written about `idea_migrator`
+-- and is TRUE WORD FOR WORD of the credential in use today, with one difference:
+-- item 8 no longer needs its `set role postgres` first.
+--
+-- **DO NOT DELETE THIS FILE AND DO NOT FINISH IT WITHOUT A DECISION.** It is the
+-- one written account of why the project applies migrations as `postgres`, and
+-- of what that costs. If a support ticket is ever raised, the file below is
+-- ready to paste and the self-check will tell the truth either way.
+--
+-- ===========================================================================
 --
 -- THERE IS NO GUARD IN THE DATABASE. There was meant to be one, it was written,
 -- it was measured, and it cannot be installed on Supabase. Read the section
 -- "WHAT DOES NOT PROTECT YOU" below before pasting this. It is the most
--- important thing in this file.
+-- important thing in this file, and it describes the credential actually in use
+-- as accurately as it describes the one this file would have made.
 --
 -- THIS IS NOT A MIGRATION AND MUST NEVER BECOME ONE. It carries a password;
 -- `supabase/migrations/` is committed to a public repository. Paste it once, by
@@ -61,7 +101,8 @@
 --
 -- NOTHING IN THE DATABASE REFUSES ANYTHING FROM THIS ROLE. There is no event
 -- trigger, no guard function, no policy and no privilege check standing between
--- `idea_migrator` and any destructive statement. The role is a member of
+-- `idea_migrator` -- or, as things actually stand, `postgres` itself -- and any
+-- destructive statement. The role is a member of
 -- `postgres`, so it OWNS every table in `public`, and ownership in PostgreSQL
 -- is not divisible: there is no per-command owner privilege, so a role that can
 -- `alter table` can also `drop` it. The previous version of this file bought
@@ -69,9 +110,14 @@
 --
 -- THE ONLY CONTROL IS `tools/apply-migration.mjs`. It parses a migration into
 -- top-level statements -- respecting dollar-quoted bodies, quoted strings and
--- comments -- and refuses to SEND one containing a destructive statement. It is
--- CLIENT-SIDE. It is bypassable by anyone holding this password and a `psql`
--- prompt, in one line, with nothing anywhere recording that it happened.
+-- comments -- and refuses to SEND one containing a destructive statement; since
+-- prompt 0066 it also refuses unless the bundle's own ledger entry permitted a
+-- migration, and writes a committed record under `docs/migrations-applied/` when
+-- one applies. It is CLIENT-SIDE, all of it. It is bypassable by anyone holding
+-- the connection string and a `psql` prompt, in one line, and the record is
+-- written by the same process that did the applying into a repository that
+-- process can also edit. It catches a session that forgot. It does not catch a
+-- session that meant to.
 --
 -- So, concretely, a session or a person holding this password CAN:
 --

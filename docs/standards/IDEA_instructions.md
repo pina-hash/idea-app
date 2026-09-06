@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.20 - 2026-09-05**
+**Version 4.21 - 2026-09-06**
 
 ## These Instructions Evolve
 
@@ -1204,6 +1204,19 @@ reports. A parallel-lane prompt ends:**
 > `supabase db push`, never a second file, never SQL pasted through anything else. Report
 > the per-object verification and every notice it printed, in order. If
 > `IDEA_MIGRATION_URL` is unset, or the tool refuses, name the refusal and stop.
+>
+> **The tool will refuse unless your own ledger entry permits a migration**, so check the
+> `Migration permitted:` line before you write one. An entry beginning `no` is a bundle
+> that was not asked for a migration, and that is not yours to change: the entry is the
+> router chat's. The tool works out which entry is yours from the one your branch adds;
+> `--ledger <nnnn>` names it when it cannot tell. It permits AT MOST ONE, counted across
+> runs, so a second migration is a second bundle.
+>
+> **A successful apply writes `docs/migrations-applied/<nnnn>-<branch slug>.md`, and you
+> commit it with your work.** It is the only record that the database was touched at all,
+> it is written by the tool and never by hand, and a bundle that applied a migration and
+> left that file uncommitted has applied a migration nobody can find. Nothing is written
+> when nothing applied.
 >
 > **You may then merge `integration` into `main`, and only after reporting all six of
 > these with the command you ran and the answer it gave.** Any one unmet and you stop and
@@ -2471,6 +2484,22 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-06 (4.21)** - A session applies its own migrations now, so the canned lane
+  ending's migration clause gains the two things that were missing while a person was
+  still in the loop. **Permission**: `tools/apply-migration.mjs` reads the bundle's own
+  ledger entry and refuses unless its `Migration permitted:` line permits one, counted at
+  most one across runs rather than per command. Every bundle has declared this in writing
+  since prompt 0001 and nothing read it; the ordering rule was never a substitute, because
+  a migration a session invented and nobody asked for is the lowest unapplied file the
+  moment it is committed. The PERMISSION refuses and the NUMBER only warns, because 23 of
+  the 66 entries say "number taken at commit time" and a gate that refused on a mismatch
+  would refuse the ordinary case. **A trace**: a successful apply writes one file under
+  `docs/migrations-applied/`, which the session commits with its work -- the number and
+  sha256, the branch and commit, the authorising entry, the UTC instant, every notice in
+  order, and the per-object verification. Nothing is written when nothing applied, which
+  was the tool's older promise and stays true. The ending says both, because a record the
+  tool writes and the session leaves uncommitted is a record nobody can find.
 
 - **2026-09-05 (4.20)** - Mr. Pina asked for every remaining manual step to be automated.
   Two were left that a session could take, and this version hands both to the canned lane
