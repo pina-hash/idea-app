@@ -6,6 +6,8 @@ migrations: []
 subsystems: ["Classroom", "Testing"]
 ---
 
+**SUPERSEDED IN PART: the "THE CLEANUP QUERY" section below is UNSAFE as written -- its safety query omits `classroom_submissions` (and `classroom_submission_files` behind it) and `classroom_module_approvals`, so a draft carrying a student's hand-in reads as a surplus copy and is deleted with it. Read `docs/history/duplicate-drafts-production-ru7pag.md` (prompt 0080) before running either query. Everything else in this entry stands.**
+
 Prompt 0061 carried two reports from the 2026-09-05 feedback pull and asked
 whether they were one defect or two:
 
