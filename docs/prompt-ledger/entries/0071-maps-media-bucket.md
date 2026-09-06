@@ -2,9 +2,9 @@
 - Issued: 2026-09-05
 - By: router chat for IDEA portal work
 - Owns: at most one migration (number taken at commit time), media URL construction under `src/lib/maps/**`, a proxy route if the design needs one, `src/routes/dev/maps-media/**`, `tests/maps-media*`, `tests/db/maps-media*`, `tools/browser-verify/routes/maps-media*.mjs`, the generated regions of its README, one decision entry, `docs/prompt-ledger/entries/0071-*`, and its own `docs/history/` entry.
-- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0184
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0184. TAKEN: `0186_maps_media_no_anon_listing.sql` (0185 landed on `origin/main` between issue and commit; 0186 verified free across every ref and against `git log --all --diff-filter=A` at commit time). NOT APPLIED -- this container has no route to the live project, so there is no `docs/migrations-applied/` record and the apply is Mr. Pina's.
+- Status: pushed
+- Branch: `claude/maps-media-bucket-he0wnn`
 - Notes: Prompt 0057 closed `foundry-covers`, deliberately left
   `tournament-thumbs` public because `/tournaments` is a signed-out surface,
   and then enumerated all fourteen buckets. Its sweep named one more:
