@@ -47,7 +47,7 @@ const MIGRATION = read('supabase/migrations/0145_classroom_song_queue.sql');
 
 /**
  * EVERY MIGRATION THAT EMITS A SONG REFUSAL, not just the one that started the
- * feature. 0186 added `not_spotify` by replacing `classroom_song_request`, so a
+ * feature. 0188 added `not_spotify` by replacing `classroom_song_request`, so a
  * sweep reading 0145 alone would report the client inventing a reason the
  * database never answers with -- which is exactly backwards, and is what a list
  * pinned to one filename does the first time a rule moves.
@@ -59,7 +59,7 @@ const MIGRATION = read('supabase/migrations/0145_classroom_song_queue.sql');
  */
 const REFUSAL_SOURCES = [
 	MIGRATION,
-	read('supabase/migrations/0186_song_spotify_and_feedback_spam.sql')
+	read('supabase/migrations/0188_song_spotify_and_feedback_spam.sql')
 ];
 const COMPONENT = read('src/lib/classroom/SongQueue.svelte');
 const TRANSPORTS = read('src/lib/classroom/transports.ts');
@@ -147,7 +147,7 @@ describe('the refusal vocabulary matches the database', () => {
 		expect(emitted).toContain('debt');
 		// AND THAT THE SECOND SOURCE CONTRIBUTED. A union over two files whose
 		// second one silently stopped matching reads exactly like a union over
-		// one, so the reason only 0186 emits is named here on purpose.
+		// one, so the reason only 0188 emits is named here on purpose.
 		expect(emitted).toContain('not_spotify');
 		expect(REFUSAL_SOURCES.length).toBe(2);
 	});
@@ -251,7 +251,7 @@ describe('the scope boundary is visible in the source', () => {
 
 	/**
 	 * THIS TEST USED TO SAY "no service host appears in the migration or the
-	 * client", full stop, and 0186 makes that sentence false ON PURPOSE: the
+	 * client", full stop, and 0188 makes that sentence false ON PURPOSE: the
 	 * school asked for Spotify only, so exactly one host family is now named.
 	 *
 	 * GENERALIZED RATHER THAN DELETED, because two of the three things it was
@@ -306,7 +306,7 @@ describe('the scope boundary is visible in the source', () => {
 			}
 		}
 		// POSITIVE CONTROL: 0145's own text is still what is being read, and it
-		// still names no host of any kind -- the Spotify rule is 0186's, and
+		// still names no host of any kind -- the Spotify rule is 0188's, and
 		// putting it in the older file would be editing an applied record.
 		expect(MIGRATION_CODE.toLowerCase()).not.toContain('spotify.com');
 	});

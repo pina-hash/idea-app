@@ -1955,7 +1955,7 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 // ---------------------------------------------------------------------------
 
 /**
- * Every reason `0145` -- and `0186`, which added `not_spotify` -- can refuse
+ * Every reason `0145` -- and `0188`, which added `not_spotify` -- can refuse
  * with, as a value the client can switch on.
  *
  * A NARROW LIST, CHECKED. An unrecognised `reason` is NOT passed through as a

@@ -27,10 +27,10 @@
  * the TYPE as well as of the payload: a component handed a student state cannot
  * render a peer's name, because there is no expression that would produce one.
  *
- * THERE IS NO URL VALIDATION IN THIS MODULE, DELIBERATELY, AND `0186` ADDING A
+ * THERE IS NO URL VALIDATION IN THIS MODULE, DELIBERATELY, AND `0188` ADDING A
  * SECOND URL RULE DID NOT CHANGE THAT. `_classroom_song_url_ok` is the one
  * implementation of "is this a usable link" and
- * `_classroom_song_url_is_spotify` (`0186`) is the one implementation of "does
+ * `_classroom_song_url_is_spotify` (`0188`) is the one implementation of "does
  * the school accept this host"; a mirror of either here would be a second copy
  * that can stop agreeing. The round trip is one cheap RPC and each refusal comes
  * back as `bad_url` or `not_spotify` with a sentence already written for it.

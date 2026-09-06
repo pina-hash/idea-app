@@ -1,8 +1,8 @@
 ---
-title: "Five instructor requests, four built: the 11:59pm due default (which forced the due field into two boxes), Spotify-only song links validated before the charge, spam as a fourth feedback status, and one word plus one attribute separating Edit from Instructor tools (`claude/instructor-requests-surfaces-j2dfjc`, migration 0186)"
+title: "Five instructor requests, four built: the 11:59pm due default (which forced the due field into two boxes), Spotify-only song links validated before the charge, spam as a fourth feedback status, and one word plus one attribute separating Edit from Instructor tools (`claude/instructor-requests-surfaces-j2dfjc`, migration 0188)"
 date: 2026-09-06
 branches: [claude/instructor-requests-surfaces-j2dfjc]
-migrations: ["0186"]
+migrations: ["0188"]
 subsystems: ["IDEA Classroom", "IDEA Coin economy", "Feedback", "Browser harness", "Testing"]
 ---
 
@@ -106,7 +106,7 @@ refusal vocabulary exists to prevent.
 So `_classroom_song_url_ok` is untouched, the constraint is untouched, and the
 policy question is its own predicate, `_classroom_song_url_is_spotify`, asked in
 the request path only. Two questions, two functions. Pinned both ways: the test
-seeds a legacy YouTube request through the real pre-0186 RPC, applies the migration
+seeds a legacy YouTube request through the real pre-0188 RPC, applies the migration
 over the top, and approves it -- it must still charge 2i¢.
 
 ### What counts as Spotify
@@ -228,7 +228,7 @@ item asked for.
 
 ## The migration
 
-**`supabase/migrations/0186_song_spotify_and_feedback_spam.sql`**, one file, both
+**`supabase/migrations/0188_song_spotify_and_feedback_spam.sql`**, one file, both
 halves. `_classroom_song_url_is_spotify` (revoked from every client role),
 `classroom_song_request` replaced at its identical signature with one block
 inserted, the `app_feedback_status_check` constraint replaced with the four values,
@@ -255,14 +255,14 @@ that DOES apply this file will have to create that directory rather than add to 
 **Neither half names a new RPC parameter, so there is no ordering that BREAKS
 anything** -- both functions are replaced at their identical signatures and the
 signature trap does not apply. But the two halves degrade differently against a
-backend that has not had `0186` applied yet, and that is worth knowing:
+backend that has not had `0188` applied yet, and that is worth knowing:
 
 * **The Spotify half is inert.** `classroom_song_request` never answers
   `not_spotify`, so the surface says "Spotify only" while the database still
   accepts any https host. A student is told a rule that is not being enforced --
   which is a wrong sentence, not a broken one.
 * **The Spam half is VISIBLY refused.** `app_feedback_set_status(id, 'spam')`
-  raises `Status must be new, seen or resolved.` on a pre-0186 backend, the route
+  raises `Status must be new, seen or resolved.` on a pre-0188 backend, the route
   returns it as `{ok:false, message}`, and the console renders it as an error where
   the admin is working. Nothing is written and nothing is lost -- but the Spam
   button does not work until the file is applied, and the sentence it shows names
@@ -271,26 +271,74 @@ backend that has not had `0186` applied yet, and that is worth knowing:
 So the file should be applied BEFORE this branch reaches production, and if it is
 not, the failure is legible rather than silent in both directions.
 
+**THE RENUMBER TO 0188 MAKES THIS MORE PRESSING, NOT LESS, AND THAT IS THE ONE
+THING TO CARRY OUT OF THE COLLISION.** The file now sits behind two other bundles'
+numbers, so the order it lands in is no longer this branch's to predict: whoever
+applies migrations is applying 0186, 0187 and 0188 in some sequence set by which
+lanes land first, and **0188 has no dependency on either of the other two** -- it
+touches the song queue and `app_feedback` and neither of those. But a longer queue
+is a longer window in which this branch's client can be deployed with its migration
+still unapplied, and in that window the Spam button in `/classroom/feedback` raises
+in front of an admin every time it is pressed. Nothing is written and nothing is
+lost, and the sentence names the cause -- but "the file must land before this branch
+reaches production" is the sentence to act on rather than to read.
+
 **Because it is one file, a database missing EITHER subsystem cannot apply it**,
 and both test chains say so in a comment rather than working around it: the song
 test carries `0053`/`0085`, the feedback test carries the coin files and `0145`.
 Either subsystem missing is a failed apply that rolls back whole.
 
-## The 0185 hole, and the merge that closed it
+## The number: 0188, STATED rather than derived, after 0186 collided
 
-The full suite reddened `tests/db/migration-0177-tombstone.test.ts` with
-`the migration series has a hole in it: expected [ 185 ] to deeply equal []`.
+**This file was written as `0186`, and `0186` collided.** `claude/maps-media-bucket-he0wnn`
+pushed `0186_maps_media_no_anon_listing.sql` against this bundle's
+`0186_song_spotify_and_feedback_spam.sql`. **Both sessions verified the number free
+and both were right**: neither had pushed at the time the other checked, and a
+number a session is holding in an unpushed commit is invisible to every check
+available from inside a session -- `ls supabase/migrations`, `git ls-tree` over
+every ref, and `git log --all --diff-filter=A` all agree it is free, correctly, and
+all three are answering a question about the past. It was the fourth such collision
+in one day.
 
-That is a real consequence of starting from `origin/integration`, which carried
-through `0184`, while `origin/main` carried `0185_bucket_limits_under_the_global.sql`.
-`0186` is the next free number across EVERY ref -- checked again at commit time,
-including `git log --all --diff-filter=A`, where the only branch adding a `0186*`
-file is this one -- so **renumbering to 0185 was never available**: two different
-files sharing one number is far worse than a gap.
+**So `0188` was ISSUED by the router, not found here, and the distinction is the
+whole lesson.** The router is the only party that can see a number a session holds
+and has not pushed. `0187` is `claude/duplicate-drafts-count-wzworl`'s. **Nothing in
+this session re-derived or re-verified 0188**, deliberately: re-deriving it would
+have reproduced exactly the check that produced the collision, and a second right
+answer to the wrong question is still the wrong question.
 
-`git merge --no-edit origin/main` closed it, cleanly, adding exactly one file. That
-is what `CLAUDE.md` prescribes before a merge anyway, and it makes the series
-contiguous 0001..0186 on this branch.
+**A NUMBER FOR A NEW MIGRATION IS NOT A FACT THIS REPOSITORY CAN ANSWER.** It is
+allocation, and allocation needs an allocator. Any future session that finds itself
+computing the next migration number from the tree should read that as the same
+defect wearing a fourth hat.
+
+### The series now has two holes, and neither is this branch's to close
+
+`tests/db/migration-0177-tombstone.test.ts` reports
+`the migration series has a hole in it: expected [ 186, 187 ]`. Both are real, both
+are named, and both have since been pushed on their own branches:
+
+* `0186_maps_media_no_anon_listing.sql` on `claude/maps-media-bucket-he0wnn`
+* `0187_classroom_duplicate_drafts.sql` on `claude/duplicate-drafts-count-wzworl`
+
+**They are deliberately NOT merged into this branch.** Dragging two unrelated
+bundles in to satisfy a contiguity check would put three lanes' work behind one
+review, and neither is landed on `integration` or `main` yet. The check goes green
+on its own the moment `integration` carries them, and **the test was not touched** --
+loosening a contiguity assertion to accept holes because one's own number sits above
+two unpushed ones is the ratchet `CLAUDE.md` names: it would record what happened to
+be true today and check nothing thereafter.
+
+### The 0185 hole, which WAS this branch's, and the merge that closed it
+
+Separately and earlier, the same test reported a hole at `185`: this branch started
+from `origin/integration`, which carried through `0184`, while `origin/main` carried
+`0185_bucket_limits_under_the_global.sql`. That one WAS this branch's problem, and
+`git merge --no-edit origin/main` closed it cleanly, adding exactly one file -- which
+is what `CLAUDE.md` prescribes before a merge anyway. The difference between the two
+cases is the whole of why one was merged and two were not: `0185` is LANDED work this
+branch was simply behind on; `0186` and `0187` are two other sessions' bundles that
+have not landed anywhere.
 
 ## The privacy sweep that caught a comment
 
@@ -383,7 +431,7 @@ split rather than removed:
 What is genuinely gone is "the instructor is the filter for WHICH SERVICE", which
 is a policy the school has now decided differently. They are still the filter for
 which song. The refusal sweep in the same file was widened from reading `0145`
-alone to a UNION over both migrations, because `not_spotify` is emitted by `0186`
+alone to a UNION over both migrations, because `not_spotify` is emitted by `0188`
 and a list pinned to one filename reports the client inventing reasons the moment a
 rule moves.
 

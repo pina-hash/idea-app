@@ -1,6 +1,6 @@
 // tests/classroom-song-queue-spotify.test.ts
 //
-// 0186: class music links are Spotify only, and A REFUSED LINK CANNOT COST A
+// 0188: class music links are Spotify only, and A REFUSED LINK CANNOT COST A
 // STUDENT A COIN.
 //
 // WHY THIS IS A TEST AND NOT A HARNESS DRIVE. Two of the three claims here fail
@@ -19,14 +19,14 @@
 //      every already-pending non-Spotify request raising a constraint violation
 //      at the moment an instructor pressed Approve -- and nothing before that
 //      moment would say so. This file seeds such rows through the REAL
-//      pre-0186 RPC and then applies the migration over the top.
+//      pre-0188 RPC and then applies the migration over the top.
 //   3. WHAT COUNTS AS SPOTIFY. A restriction that turns away a link a student
 //      legitimately pasted teaches them only that the platform is arbitrary, and
 //      the forms are not guessable -- `intl-es` in the path, `?si=` on the end,
 //      two short domains, and a `spotify:` URI that is not a web link at all.
 //
 // THE PRE-MIGRATION SEED IS THE POINT OF THE CHAIN BELOW. It boots SHORT of
-// 0186, files requests through the real `classroom_song_request` of that world
+// 0188, files requests through the real `classroom_song_request` of that world
 // (which accepts any https host), and only then applies the file -- so the
 // legacy rows here genuinely predate the rule, exactly as production's do.
 //
@@ -50,16 +50,16 @@ import {
 } from './db/harness';
 
 /**
- * The chain SHORT OF 0186. This is `classroom-song-queue-race.test.ts`'s chain
+ * The chain SHORT OF 0188. This is `classroom-song-queue-race.test.ts`'s chain
  * verbatim -- the coin migrations `_coin_insert` and `_coin_balance` arrive in,
  * the classroom ones the section and roster come from, 0137 last as it is
  * everywhere, then 0145.
  */
-const PRE_0186 = [
+const PRE_0188 = [
 	'0001_profiles.sql',
 	'0003_profile_section.sql',
 	'0020_profiles_identity.sql',
-	// 0053 + 0085 are here because 0186 IS ONE FILE and its other half is the
+	// 0053 + 0085 are here because 0188 IS ONE FILE and its other half is the
 	// fourth feedback status: a chain without `app_feedback` cannot apply it,
 	// which is itself worth having pinned -- the two halves ship together and
 	// either one missing is a failed apply rather than a half-applied schema.
@@ -85,8 +85,8 @@ const PRE_0186 = [
 	'0145_classroom_song_queue.sql'
 ] as const;
 
-const SQL_0186 = readFileSync(
-	new URL('../supabase/migrations/0186_song_spotify_and_feedback_spam.sql', import.meta.url),
+const SQL_0188 = readFileSync(
+	new URL('../supabase/migrations/0188_song_spotify_and_feedback_spam.sql', import.meta.url),
 	'utf8'
 );
 
@@ -241,7 +241,7 @@ async function grantCoins(handle: TestDb, admin: SeededUser, email: string, time
 }
 
 beforeAll(async () => {
-	db = await startTestDb(PRE_0186);
+	db = await startTestDb(PRE_0188);
 	const world = await seedWorld(db);
 	teacher = world.teacher;
 	ana = world.ana;
@@ -253,10 +253,10 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Before the migration: the world 0186 has to survive.
+// Before the migration: the world 0188 has to survive.
 // ---------------------------------------------------------------------------
 
-describe('before 0186, any https host is accepted', () => {
+describe('before 0188, any https host is accepted', () => {
 	test('a YouTube link files a request', async () => {
 		const res = await submitOn(db, sectionId, ana, REFUSED_NOT_SPOTIFY[0]);
 		// THE PREMISE OF EVERY LEGACY-ROW ASSERTION BELOW. If this stopped being
@@ -267,7 +267,7 @@ describe('before 0186, any https host is accepted', () => {
 	});
 });
 
-describe('after 0186', () => {
+describe('after 0188', () => {
 	let legacyRequestId: string;
 
 	beforeAll(async () => {
@@ -276,7 +276,7 @@ describe('after 0186', () => {
 		const legacy = await submitOn(db, sectionId, ana, 'https://music.youtube.com/watch?v=abc');
 		expect(legacy.ok).toBe(true);
 		legacyRequestId = legacy.request_id!;
-		await db.sql(SQL_0186);
+		await db.sql(SQL_0188);
 		await grantCoins(db, teacher, ana.email, 20);
 	}, 120_000);
 
@@ -434,10 +434,10 @@ describe('after 0186', () => {
 
 describe('the charge path, opened', () => {
 	test('with the Spotify rule removed, the refused link DOES take the coins', async () => {
-		const mutant = await startTestDb(PRE_0186);
+		const mutant = await startTestDb(PRE_0188);
 		try {
 			const world = await seedWorld(mutant);
-			await mutant.sql(SQL_0186);
+			await mutant.sql(SQL_0188);
 			await grantCoins(mutant, world.teacher, world.ana.email, 20);
 
 			// Sanity: with the file applied as written, the link is refused.

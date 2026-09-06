@@ -1,6 +1,6 @@
 // tests/db/feedback-delete-is-a-status.test.ts
 //
-// 0186: "delete a false or spam report" is a FOURTH STATUS, and the row is
+// 0188: "delete a false or spam report" is a FOURTH STATUS, and the row is
 // still there.
 //
 // WHY THIS IS A TEST AND NOT A HARNESS DRIVE. The console renders identically
@@ -23,8 +23,8 @@
 //      widening is exactly the edit that could turn it into "anything goes".
 //
 // SEEDED PRE-MIGRATION, THEN MIGRATED OVER THE TOP: the chain boots SHORT of
-// 0186, files reports through the REAL write paths of that world and moves them
-// through the REAL pre-0186 RPC, and only then applies the file. So the rows
+// 0188, files reports through the REAL write paths of that world and moves them
+// through the REAL pre-0188 RPC, and only then applies the file. So the rows
 // asserted about genuinely predate the fourth status.
 //
 // THE POSITIVE CONTROL IS AN IN-DATABASE MUTATION on a THROWAWAY database: the
@@ -36,19 +36,19 @@ import { readFileSync } from 'node:fs';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 
 /**
- * The chain SHORT OF 0186. 0053 is the table, 0067 the admin tier its policies
+ * The chain SHORT OF 0188. 0053 is the table, 0067 the admin tier its policies
  * resolve through, 0082/0083/0085 the classroom files the status column and its
  * RPC arrive in, 0126/0127 the anonymous path and the console read, 0170 the
  * current shape of both. 0137 is LAST, as in every chain here.
  *
- * THE COIN FILES AND 0145 ARE HERE BECAUSE 0186 IS ONE FILE. Its other half is
+ * THE COIN FILES AND 0145 ARE HERE BECAUSE 0188 IS ONE FILE. Its other half is
  * the song queue's Spotify rule, which replaces `classroom_song_request` and
  * calls `_classroom_song_url_ok` -- so a database without the song queue cannot
  * apply it. That is worth having pinned rather than worked around: the two
  * halves ship together, and either subsystem missing is a failed apply that
  * rolls back whole, not a half-applied schema.
  */
-const PRE_0186 = [
+const PRE_0188 = [
 	'0001_profiles.sql',
 	'0003_profile_section.sql',
 	'0020_profiles_identity.sql',
@@ -77,8 +77,8 @@ const PRE_0186 = [
 	'0145_classroom_song_queue.sql'
 ] as const;
 
-const SQL_0186 = readFileSync(
-	new URL('../../supabase/migrations/0186_song_spotify_and_feedback_spam.sql', import.meta.url),
+const SQL_0188 = readFileSync(
+	new URL('../../supabase/migrations/0188_song_spotify_and_feedback_spam.sql', import.meta.url),
 	'utf8'
 );
 
@@ -128,7 +128,7 @@ async function statusOf(handle: TestDb, id: string): Promise<string | null> {
 }
 
 beforeAll(async () => {
-	db = await startTestDb(PRE_0186);
+	db = await startTestDb(PRE_0188);
 	admin = await createUser(db, 'apina@boscotech.edu', 'A. Pina');
 	student = await createUser(db, 'ana@boscotech.net', 'Ana Reyes');
 	await makeAdmin(db, admin);
@@ -136,12 +136,12 @@ beforeAll(async () => {
 	legacyId = await fileReport(db, student, 'The grade page will not open on my phone.');
 	spamId = await fileReport(db, student, 'BUY CHEAP WATCHES AT example.net');
 
-	// Moved through the PRE-0186 RPC, so the row carries a real triage history
+	// Moved through the PRE-0188 RPC, so the row carries a real triage history
 	// across the apply rather than arriving fresh.
 	const pre = await setStatus(db, admin, legacyId, 'seen');
 	expect(pre.ok).toBe(true);
 
-	await db.sql(SQL_0186);
+	await db.sql(SQL_0188);
 }, 180_000);
 
 afterAll(async () => {
@@ -316,12 +316,12 @@ describe('the constraint is the backstop, not the RPC', () => {
 
 describe('the constraint, opened', () => {
 	test('with the CHECK dropped, an unknown status lands and the probe notices', async () => {
-		const mutant = await startTestDb(PRE_0186);
+		const mutant = await startTestDb(PRE_0188);
 		try {
 			const a = await createUser(mutant, 'apina@boscotech.edu', 'A. Pina');
 			const s = await createUser(mutant, 'ana@boscotech.net', 'Ana Reyes');
 			await makeAdmin(mutant, a);
-			await mutant.sql(SQL_0186);
+			await mutant.sql(SQL_0188);
 			const id = await fileReport(mutant, s, 'seed');
 
 			// As applied, the raw write is refused.

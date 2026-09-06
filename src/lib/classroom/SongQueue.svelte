@@ -265,7 +265,7 @@
 		know approval costs coins is going to be surprised by a balance. Both facts
 		are one sentence and neither is discoverable any other way.
 
-		AND SINCE 0186, SO IS THE SPOTIFY RULE. A restriction a student meets only
+		AND SINCE 0188, SO IS THE SPOTIFY RULE. A restriction a student meets only
 		by being refused is a restriction nobody told them about, and the refusal
 		arrives after they have already gone and found a link. THIS IS COPY, NEVER
 		A GATE: nothing in this component reads a URL, `_classroom_song_url_is_spotify`

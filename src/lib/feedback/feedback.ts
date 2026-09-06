@@ -526,7 +526,7 @@ export function feedbackIsAnonymous(
 // ---------------------------------------------------------------------------
 
 /**
- * THE FOUR TRIAGE STATES. `spam` is `0186`'s and is A STATUS, NOT A DELETE.
+ * THE FOUR TRIAGE STATES. `spam` is `0188`'s and is A STATUS, NOT A DELETE.
  *
  * `app_feedback` has no delete grant and no delete policy for anyone, and its
  * rows are the record: a report removed is one no export, no count and no

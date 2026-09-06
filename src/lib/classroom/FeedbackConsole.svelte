@@ -166,7 +166,7 @@
 
 	/**
 	 * THE ONE LIST, AND EVERY STATUS CONTROL IS DERIVED FROM IT -- the per-row
-	 * buttons, the bulk bar, and the filter tabs below. Adding `spam` (`0186`)
+	 * buttons, the bulk bar, and the filter tabs below. Adding `spam` (`0188`)
 	 * touched exactly this array, which is the point of it being one.
 	 *
 	 * SPAM IS NOT A DELETE AND ITS UNDO IS THE ROW BESIDE IT. Every row renders

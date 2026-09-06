@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0186  Two instructor requests: song links are Spotify only, and a feedback
+-- 0188  Two instructor requests: song links are Spotify only, and a feedback
 --       report can be marked spam.
 --
 -- Both are POLICY changes to surfaces instructors work in every day, and both
@@ -211,7 +211,7 @@ begin
 		return jsonb_build_object('ok', false, 'reason', 'bad_url');
 	end if;
 	-- ------------------------------------------------------------------
-	-- 0186: THE SPOTIFY RULE, ASKED HERE AND NOWHERE ELSE.
+	-- 0188: THE SPOTIFY RULE, ASKED HERE AND NOWHERE ELSE.
 	--
 	-- ABOVE the capacity check, above the lock and above the insert, so a
 	-- refused link never becomes a row -- which is what makes it impossible
@@ -282,7 +282,7 @@ comment on function public.classroom_song_request(uuid, text, text) is
 
 TAKES NO IDENTITY PARAMETER: the requester is current_user_email(), so "can only ask as yourself" is a property of the signature. Refuses not_a_student for anyone who manages the section, pending_cap at the per-student cap (holding the enrollment row so two submits cannot both pass), and note_too_long / url_too_long over the caps.
 
-THE LINK IS JUDGED TWICE, BY TWO DIFFERENT QUESTIONS. _classroom_song_url_ok asks whether it is a usable https URL and answers bad_url; _classroom_song_url_is_spotify (0186) asks whether the school accepts that host and answers not_spotify. Both are asked BEFORE the insert, so a refused link never becomes a row, never reaches classroom_song_approve, and can never be charged for -- the charge is at approval, and there is no other way in.';
+THE LINK IS JUDGED TWICE, BY TWO DIFFERENT QUESTIONS. _classroom_song_url_ok asks whether it is a usable https URL and answers bad_url; _classroom_song_url_is_spotify (0188) asks whether the school accepts that host and answers not_spotify. Both are asked BEFORE the insert, so a refused link never becomes a row, never reaches classroom_song_approve, and can never be charged for -- the charge is at approval, and there is no other way in.';
 
 revoke all on function public.classroom_song_request(uuid, text, text)
 	from public, anon, authenticated, service_role;
@@ -310,7 +310,7 @@ begin
 			and conname = 'app_feedback_status_check'
 	) then
 		raise exception
-			'0186: app_feedback_status_check is not on app_feedback -- 0085 section 13 has not been applied, or the constraint was renamed. Refusing rather than adding a second, differently named status check beside whatever is really there.';
+			'0188: app_feedback_status_check is not on app_feedback -- 0085 section 13 has not been applied, or the constraint was renamed. Refusing rather than adding a second, differently named status check beside whatever is really there.';
 	end if;
 end;
 $$;
@@ -337,7 +337,7 @@ begin
 	if not public.is_admin() then
 		raise exception 'Only a site admin can triage feedback.';
 	end if;
-	-- 0186 adds `spam`. It is a status like the other three and NOT a delete:
+	-- 0188 adds `spam`. It is a status like the other three and NOT a delete:
 	-- the row stays, the export can still be pointed at it, and moving it back
 	-- to `new` is this same call with a different argument.
 	if v_status not in ('new', 'seen', 'resolved', 'spam') then
@@ -358,7 +358,7 @@ end;
 $$;
 
 comment on function public.app_feedback_set_status(uuid, text) is
-'Moves one feedback report between new, seen, resolved and spam (0186). Admin only, and the ONLY write path for the column -- app_feedback carries no update grant and no update policy for anyone.
+'Moves one feedback report between new, seen, resolved and spam (0188). Admin only, and the ONLY write path for the column -- app_feedback carries no update grant and no update policy for anyone.
 
 SPAM IS A STATUS, NOT A DELETE. The row is not removed and cannot be: this table has no delete grant, its rows are the record, and a reporter_hash that exists to be counted is only countable while its rows are there. Marking spam is reversible by this same call, and reviewed_by/reviewed_at record who did it in either direction.';
 
@@ -423,11 +423,11 @@ begin
 		select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 		where n.nspname = 'public' and p.proname = '_classroom_song_url_is_spotify'
 	) then
-		raise exception '0186: _classroom_song_url_is_spotify was not created.';
+		raise exception '0188: _classroom_song_url_is_spotify was not created.';
 	end if;
 	if has_function_privilege('anon', 'public._classroom_song_url_is_spotify(text)', 'execute')
 	or has_function_privilege('authenticated', 'public._classroom_song_url_is_spotify(text)', 'execute') then
-		raise exception '0186: _classroom_song_url_is_spotify must not be granted to a client role.';
+		raise exception '0188: _classroom_song_url_is_spotify must not be granted to a client role.';
 	end if;
 
 	-- Exactly one arity of the request function, so nothing resolves to an old
@@ -435,23 +435,23 @@ begin
 	select count(*) into v_n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = 'classroom_song_request';
 	if v_n <> 1 then
-		raise exception '0186: expected exactly one classroom_song_request, found %.', v_n;
+		raise exception '0188: expected exactly one classroom_song_request, found %.', v_n;
 	end if;
 
 	-- THE BEHAVIOURAL PROBE, both directions.
 	foreach v_url in array v_accept loop
 		if not public._classroom_song_url_is_spotify(v_url) then
-			raise exception '0186: the Spotify predicate refuses a link it must accept: %', v_url;
+			raise exception '0188: the Spotify predicate refuses a link it must accept: %', v_url;
 		end if;
 		-- And every accepted form must still be a usable https url, or the
 		-- request path would refuse it one line earlier with `bad_url`.
 		if not public._classroom_song_url_ok(v_url) then
-			raise exception '0186: _classroom_song_url_ok refuses an accepted Spotify form: %', v_url;
+			raise exception '0188: _classroom_song_url_ok refuses an accepted Spotify form: %', v_url;
 		end if;
 	end loop;
 	foreach v_url in array v_refuse loop
 		if coalesce(public._classroom_song_url_is_spotify(v_url), false) then
-			raise exception '0186: the Spotify predicate accepts a link it must refuse: %', v_url;
+			raise exception '0188: the Spotify predicate accepts a link it must refuse: %', v_url;
 		end if;
 	end loop;
 
@@ -461,23 +461,23 @@ begin
 	select pg_get_constraintdef(oid) into v_bad from pg_constraint
 	where conrelid = 'public.app_feedback'::regclass and conname = 'app_feedback_status_check';
 	if v_bad is null then
-		raise exception '0186: app_feedback_status_check is missing after the replacement.';
+		raise exception '0188: app_feedback_status_check is missing after the replacement.';
 	end if;
 	if v_bad not like '%spam%' or v_bad not like '%resolved%'
 		or v_bad not like '%seen%' or v_bad not like '%new%' then
-		raise exception '0186: app_feedback_status_check does not admit all four statuses: %', v_bad;
+		raise exception '0188: app_feedback_status_check does not admit all four statuses: %', v_bad;
 	end if;
 
 	-- The status RPC is still admin-only and still granted the same way.
 	if has_function_privilege('anon', 'public.app_feedback_set_status(uuid, text)', 'execute') then
-		raise exception '0186: app_feedback_set_status must not be granted to anon.';
+		raise exception '0188: app_feedback_set_status must not be granted to anon.';
 	end if;
 	if not has_function_privilege('authenticated', 'public.app_feedback_set_status(uuid, text)', 'execute') then
-		raise exception '0186: app_feedback_set_status must stay granted to authenticated.';
+		raise exception '0188: app_feedback_set_status must stay granted to authenticated.';
 	end if;
 
 	select count(*) into v_n from public.app_feedback where status = 'spam';
-	raise notice '0186: applied. Spotify forms probed: % accepted, % refused. Feedback rows already marked spam: % (expected 0 on a first apply).',
+	raise notice '0188: applied. Spotify forms probed: % accepted, % refused. Feedback rows already marked spam: % (expected 0 on a first apply).',
 		array_length(v_accept, 1), array_length(v_refuse, 1), v_n;
 end;
 $$;
