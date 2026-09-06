@@ -266,6 +266,15 @@ recorded a byte-identical ledger entry --
 that both write a prompt in the same minute, before either records an entry".
 Nothing is broken and neither session erred.
 
+The same gap bit this bundle's own ledger number twice over within four
+minutes: it was issued 0075, verified free against every ref tip and against
+`git log --all --diff-filter=A`, and collided with
+`claude/red-merge-green-parents-ft3e57` -- which had been issued 0075 already
+and pushed ten seconds later -- and 0076 went to
+`claude/tournament-thumbs-listing-psuleu` at 08:06:56. It is 0077 now. **A
+number verified free is a number nobody has PUSHED, not a number nobody
+HOLDS**, and no git command can close that distance.
+
 The two audited 0061 independently and reached the same conclusions, which is
 why this is written as corroboration rather than as one session's reading.
 `wzworl` builds the surface; this session stood down from it and carries the
