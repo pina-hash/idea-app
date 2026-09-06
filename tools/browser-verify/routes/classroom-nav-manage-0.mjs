@@ -3,11 +3,11 @@ export default {
 	label: 'A student on the same URL: no tab bar at all, and the switcher still there',
 	/* THE TAB IS NOT THE GATE, AND THIS IS THE HALF THAT SAYS SO ON SCREEN.
 	   Every manage-only destination refuses a non-manager itself -- People and
-	   Grades 404, `/notebook/review` 404s a non-reviewer -- so nothing here
-	   decides access. What it decides is what a student is shown, and there are
-	   two independent reasons they are shown nothing: `visibleSectionTabs`
-	   drops all three manage-only tabs, and the bar renders only when more than
-	   one survives. Opening either one alone still leaves the other closed;
+	   Grades 404, Duplicates 404s anyone `classroom_manages_section` refuses,
+	   `/notebook/review` 404s a non-reviewer -- so nothing here decides access.
+	   What it decides is what a student is shown, and there are two independent
+	   reasons they are shown nothing: `visibleSectionTabs` drops all four
+	   manage-only tabs, and the bar renders only when more than one survives. Opening either one alone still leaves the other closed;
 	   `tests/classroom-nav-doors.test.ts` opens the first and reddens.
 
 	   THE SWITCHER IS THE POSITIVE CONTROL. Without it, "no tabs" cannot be
@@ -17,6 +17,9 @@ export default {
 		{ selector: '[data-testid="section-tabs"]', label: 'the tab bar (absent for a student)', expectPresent: 0 },
 		{ selector: '[data-testid^="section-tab-"]', label: 'any section tab (absent for a student)', expectPresent: 0 },
 		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the check-ins departure (absent for a student)', expectPresent: 0 },
+		/* NAMED ABSENCES, not just a count: a tab renamed rather than withheld
+		   would keep the total at zero and lose the meaning. */
+		{ selector: '[data-testid="section-tab-duplicates"]', label: 'the duplicates tab (absent for a student)', expectPresent: 0 },
 		{ selector: '[data-testid="greenline-pending"]', label: 'GREENLINE cards still render (second positive control)', expectPresent: 3, maxPresent: 3 }
 	],
 	tapTargets: [

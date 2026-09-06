@@ -1,13 +1,13 @@
 export default {
 	path: '/dev/classroom-nav',
-	label: 'Section tab bar with the check-ins departure, and the GREENLINE card in three states',
+	label: 'Section tab bar at five tabs, with the check-ins departure and the GREENLINE card in three states',
 	/* THE DOORS THIS LANE ADDED, at the two widths, mounted through the REAL
 	   ClassroomShell fed by the REAL `sectionTabs()` and the REAL
 	   GreenlineDashboardCard fed by real `GreenlinePending` values.
 
 	   WHY THIS SPEC EXISTS RATHER THAN AN ASSERTION IN `tests/`. Everything
 	   below is geometric or perceptual -- a tap box, a contrast ratio against
-	   the ground the card actually sits on, whether four tabs still fit a
+	   the ground the card actually sits on, whether five tabs still fit a
 	   phone -- and `tests/dom/` has no layout engine, so every one of those
 	   claims written there would read zero and pass vacuously. The structural
 	   half (which tabs exist, which are offered to whom, which activates) is
@@ -20,20 +20,22 @@ export default {
 		{ selector: '[data-testid="section-tabs"] .sec-tab', label: 'section tabs', min: 4.5 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (four, including the departure)', min: 44 },
+		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (five, including the departure)', min: 44 },
 		{ selector: '[data-testid="greenline-cards"] a.btn', label: 'GREENLINE card, Open panel', min: 44 }
 	],
 	presence: [
-		/* Four tabs for a manager, and the fourth is the one this lane added.
-		   A floor AND a ceiling: a fifth tab appearing here means somebody
-		   shipped the duplicates tab without the page, which is the 404 this
-		   lane refused. */
-		{ selector: '[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		/* Five tabs for a manager: 0081 added the departure, 0086 added
+		   Duplicates once 0074's page and its `0187` were on `main`. A floor
+		   AND a ceiling, so a sixth tab appearing here is a finding. */
+		{ selector: '[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
 		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the check-ins departure', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		/* THE POSITIVE CONTROL FOR THE ABSENCE BELOW. Without it, "no
-		   duplicates tab" cannot be told from "the selector was renamed". */
-		{ selector: '[data-testid="section-tab-grades"]', label: 'Grades (positive control for the absence below)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="section-tab-duplicates"]', label: 'duplicates tab (absent: the page is not on this base)', expectPresent: 0 },
+		{ selector: '[data-testid="section-tab-grades"]', label: 'Grades', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		/* THE TAB THIS BUNDLE LANDED. It was asserted at exactly 0 here for one
+		   bundle, against Grades as the positive control, because the page it
+		   points at was on an unmerged branch. Both halves are on `main` now and
+		   `tests/classroom-nav-doors.test.ts` refuses either one without the
+		   other; this is the same pairing measured on a rendered bar. */
+		{ selector: '[data-testid="section-tab-duplicates"]', label: 'the duplicates tab', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="greenline-pending"]', label: 'GREENLINE pending line, all three states', expectPresent: 3, maxPresent: 3, expectVisible: 3 }
 	],
 	textContains: [
@@ -49,49 +51,57 @@ export default {
 	],
 	orderResult: [
 		{
-			/* THE ONE CLAIM THAT NEEDS ITS OWN NEGATIVE CONTROL, taken in one
-			   evaluation so both numbers come off the same layout: with the bar
-			   wrapping, the four shipped tabs sit on one row at both widths and
-			   the document never exceeds the viewport. Forcing `nowrap` on and
-			   releasing it is what proves the wrap is a rule rather than
-			   something incidentally true at this tab count -- at four tabs it
-			   changes nothing, which is the honest answer here and is exactly
-			   why the five-tab spec beside this one exists.
-
-			   ARRAY OF LABELLED FACTS, because `orderResult` compares arrays
-			   element for element and refuses anything else (see checks.mjs).
-			   Every entry is width-independent on purpose: a row count that
-			   differs between 375 and 1440 cannot be one `expected`. */
+			/* THE NEGATIVE CONTROL IS THE MEASUREMENT. Wrapping only means
+			   something where the bar is one tab too wide for its box, so the
+			   probe works out whether it IS -- from the tabs' own widths and
+			   the bar's own content box, never from a pinned pixel figure --
+			   and then asserts that forcing `nowrap` overflows the document
+			   exactly when it is. At 375px that is true (measured 2026-09-06:
+			   five tabs on two rows and a 375px document with wrap, one row and
+			   a 401px document without it, on a 375px viewport). At 1440px
+			   there is room either way and the same statement is true the other
+			   way round, which is why it is phrased as an equivalence rather
+			   than as a pixel count: a row count that differs between the two
+			   widths cannot be one `expected`, and a fixture asserting 26px of
+			   overflow at 1440 would be asserting a number the layout does not
+			   produce. */
 			evaluate: `() => {
 				const d = document.documentElement;
 				const bar = document.querySelector('[data-testid="section-tabs"]');
 				const tabs = [...bar.querySelectorAll('a')];
+				const cs = getComputedStyle(bar);
+				const inner =
+					bar.getBoundingClientRect().width -
+					parseFloat(cs.paddingLeft) -
+					parseFloat(cs.paddingRight);
+				const gap = parseFloat(cs.columnGap) || 0;
+				const needed =
+					tabs.reduce((n, a) => n + a.getBoundingClientRect().width, 0) + gap * (tabs.length - 1);
+				const tooWide = needed > inner + 0.5;
 				const rows = () => new Set(tabs.map((a) => Math.round(a.getBoundingClientRect().top))).size;
-				const wrap = getComputedStyle(bar).flexWrap;
-				const before = { overflow: d.scrollWidth > d.clientWidth, rows: rows() };
+				const overflowWrapped = d.scrollWidth > d.clientWidth;
+				const rowsWrapped = rows();
 				const style = document.createElement('style');
 				style.textContent = '[data-testid="section-tabs"]{flex-wrap:nowrap !important}';
 				document.head.appendChild(style);
 				bar.getBoundingClientRect();
-				const forcedRows = rows();
+				const overflowNowrap = d.scrollWidth > d.clientWidth;
 				style.remove();
 				bar.getBoundingClientRect();
 				return [
-					'wrap:' + wrap,
 					'tabs:' + tabs.length,
-					'document-overflows:' + before.overflow,
-					'rows:' + before.rows,
-					'rows-if-nowrap-forced:' + forcedRows
+					'document-overflows-with-wrap:' + overflowWrapped,
+					'rows-match-what-the-width-needs:' + (rowsWrapped === (tooWide ? 2 : 1)),
+					'nowrap-overflows-exactly-when-the-bar-is-too-wide:' + (overflowNowrap === tooWide)
 				];
 			}`,
 			expected: [
-				'wrap:wrap',
-				'tabs:4',
-				'document-overflows:false',
-				'rows:1',
-				'rows-if-nowrap-forced:1'
+				'tabs:5',
+				'document-overflows-with-wrap:false',
+				'rows-match-what-the-width-needs:true',
+				'nowrap-overflows-exactly-when-the-bar-is-too-wide:true'
 			],
-			label: 'the four shipped tabs fit one row at both widths, wrap on or off'
+			label: 'the five shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
 		}
 	]
 };

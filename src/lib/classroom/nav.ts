@@ -19,7 +19,7 @@ export interface Crumb {
 	href?: string;
 }
 
-export type SectionTabId = 'class' | 'people' | 'grades' | 'check-ins';
+export type SectionTabId = 'class' | 'people' | 'grades' | 'duplicates' | 'check-ins';
 
 export interface SectionTab {
 	id: SectionTabId;
@@ -47,6 +47,7 @@ export type ClassroomPlace =
 	| 'section'
 	| 'people'
 	| 'grades'
+	| 'duplicates'
 	| 'item'
 	| 'item-grade'
 	| 'item-deck'
@@ -93,6 +94,7 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 	if (rest.length === 1) return { place: 'section', sectionId, itemId: null };
 	if (rest[1] === 'people') return { place: 'people', sectionId, itemId: null };
 	if (rest[1] === 'grades') return { place: 'grades', sectionId, itemId: null };
+	if (rest[1] === 'duplicates') return { place: 'duplicates', sectionId, itemId: null };
 	if (rest[1] === 'item' && rest[2]) {
 		const itemId = rest[2];
 		if (rest[3] === 'grade') return { place: 'item-grade', sectionId, itemId };
@@ -131,23 +133,29 @@ export function locateClassroom(pathname: string): ClassroomLocation {
  * both are tiers `notebookAccess` recognizes -- so the tab is offered exactly
  * where it resolves, and withholding it decides nothing.
  *
- * THERE IS NO DUPLICATES TAB HERE AND THERE MUST NOT BE ONE UNTIL THE PAGE
- * LANDS. `/classroom/[sectionId]/duplicates` exists only on the unmerged
- * branch `claude/duplicate-drafts-count-wzworl`, behind an unapplied migration
- * -- so a tab for it on this base would be a 404 offered to every manager,
- * which is strictly worse than the typed URL it was meant to replace. The
- * patch it needs, when that branch lands, is six edits and not four: this
- * union gains `'duplicates'`, this list gains an entry, `ClassroomPlace` gains
- * the place, `locateClassroom` gains its `rest[1]` branch, `activeTab` gains
- * its case, and `classroomCrumbs` gains its own. `classroomMeasure` needs
- * nothing -- an unlisted place already falls through to `page`, which is what
- * a report table wants.
+ * THE DUPLICATES TAB SITS ABOVE THE DEPARTURE BECAUSE IT IS A VIEW AND NOT A
+ * DOOR OUT. It was deliberately withheld for one bundle -- 0074's page and its
+ * `0187` were on an unmerged branch, and a tab pointing at them would have been
+ * a 404 offered to every manager, strictly worse than the typed URL it
+ * replaces. The page landed, so the tab did, and the pairing is asserted in
+ * BOTH directions by `tests/classroom-nav-doors.test.ts`: neither half may
+ * stand without the other. It took six edits and not four -- this union, this
+ * list, `ClassroomPlace`, `locateClassroom`'s `rest[1]` branch, `activeTab`'s
+ * case and `classroomCrumbs`'s. `classroomMeasure` needs nothing: an unlisted
+ * place already falls through to `page`, which is what a report table wants,
+ * and it stays unlisted.
  */
 export function sectionTabs(sectionId: string, basePath = '/classroom'): SectionTab[] {
 	return [
 		{ id: 'class', label: 'Class', href: `${basePath}/${sectionId}`, manageOnly: false },
 		{ id: 'people', label: 'People', href: `${basePath}/${sectionId}/people`, manageOnly: true },
 		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true },
+		{
+			id: 'duplicates',
+			label: 'Duplicates',
+			href: `${basePath}/${sectionId}/duplicates`,
+			manageOnly: true
+		},
 		{
 			id: 'check-ins',
 			label: 'Check-ins',
@@ -212,6 +220,7 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'section') return 'class';
 	if (loc.place === 'people') return 'people';
 	if (loc.place === 'grades') return 'grades';
+	if (loc.place === 'duplicates') return 'duplicates';
 	return null;
 }
 
@@ -312,6 +321,8 @@ export function classroomCrumbs(
 			return [home, section(false), { label: 'People' }];
 		case 'grades':
 			return [home, section(false), { label: 'Grades' }];
+		case 'duplicates':
+			return [home, section(false), { label: 'Duplicates' }];
 		case 'item':
 			return [home, section(false), { label: labels.item || 'Item' }];
 		case 'item-grade':

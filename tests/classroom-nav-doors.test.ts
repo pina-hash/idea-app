@@ -61,13 +61,20 @@ describe('control 1: a caller who manages no section is offered no manage-only t
 		// would keep the count and lose the meaning.
 		expect(visible.some((t) => t.id === 'people')).toBe(false);
 		expect(visible.some((t) => t.id === 'grades')).toBe(false);
+		expect(visible.some((t) => t.id === 'duplicates')).toBe(false);
 		expect(visible.some((t) => t.id === 'check-ins')).toBe(false);
 	});
 
-	it('POSITIVE CONTROL: a manager sees all four, so the absences above are the predicate', () => {
+	it('POSITIVE CONTROL: a manager sees all five, so the absences above are the predicate', () => {
 		const visible = visibleSectionTabs(tabs, true);
-		expect(visible.map((t) => t.id)).toEqual(['class', 'people', 'grades', 'check-ins']);
-		expect(visible.length).toBe(4);
+		expect(visible.map((t) => t.id)).toEqual([
+			'class',
+			'people',
+			'grades',
+			'duplicates',
+			'check-ins'
+		]);
+		expect(visible.length).toBe(5);
 	});
 
 	it('the shell filters through that one function and does not spell it again', () => {
@@ -196,13 +203,13 @@ describe('control 3: every section tab still resolves', () => {
 	 * check names the file it looked for. The duplicates tab is absent from
 	 * both directions on purpose -- see the last block.
 	 */
-	it('the shipped set is exactly these four, in reading order', () => {
-		expect(tabs.map((t) => t.id)).toEqual(['class', 'people', 'grades', 'check-ins']);
+	it('the shipped set is exactly these five, in reading order', () => {
+		expect(tabs.map((t) => t.id)).toEqual(['class', 'people', 'grades', 'duplicates', 'check-ins']);
 	});
 
 	it('every in-classroom tab points at a page that exists on disk', () => {
 		const internal = tabs.filter((t) => !t.external);
-		expect(internal.length).toBe(3);
+		expect(internal.length).toBe(4);
 		for (const t of internal) {
 			const file = routeFileFor(t.href);
 			expect(existsSync(new URL(`../${file}`, import.meta.url)), `${t.id} -> ${file}`).toBe(true);
@@ -240,14 +247,17 @@ describe('control 3: every section tab still resolves', () => {
 	});
 });
 
-describe('the duplicates tab is absent because the page is', () => {
+describe('the duplicates tab and its page stand or fall together', () => {
 	/**
-	 * NOT A GAP, A REFUSAL. `/classroom/[sectionId]/duplicates` is on the
-	 * unmerged branch `claude/duplicate-drafts-count-wzworl` behind an
-	 * unapplied migration; a tab for it on this base would be a 404 offered to
-	 * every manager, which is worse than the typed URL it was meant to
-	 * replace. This asserts the pairing in BOTH directions, so whichever half
-	 * lands first is a red test rather than a silent 404 or a silent orphan.
+	 * BOTH HALVES HAVE LANDED, AND THE BICONDITIONAL IS WHAT KEPT THEM
+	 * HONEST WHILE ONLY ONE HAD. 0081 withheld the tab because 0074's page was
+	 * on an unmerged branch behind an unapplied migration, and a tab for it
+	 * would have been a 404 offered to every manager -- worse than the typed
+	 * URL it replaces. The page landed on `main` with `0187`; this test went
+	 * red with both parents green, which is exactly what it was written to do,
+	 * and 0086 answered it with the tab. It is left pointing BOTH ways: delete
+	 * the page and it reddens naming the orphaned tab, delete the tab and it
+	 * reddens naming the orphaned page.
 	 */
 	it('no tab names it while no page answers it', () => {
 		const pageExists = existsSync(
@@ -262,9 +272,32 @@ describe('the duplicates tab is absent because the page is', () => {
 		).toBe(pageExists);
 	});
 
-	it('nav.ts carries the patch that tab needs, so nobody has to re-derive it', () => {
+	it('the deferred patch note stands exactly while the tab does not', () => {
+		// GENERALIZED FROM "nav.ts carries the patch", which landing the tab
+		// legitimately broke. A note telling a reader how to add a tab that is
+		// already there is worse than no note -- it reads as work outstanding.
+		// So the note and the tab are mutually exclusive, and this bites in both
+		// directions: re-withdraw the tab without restoring the note and it is
+		// red, leave the note standing over a shipped tab and it is red.
 		const nav = read('src/lib/classroom/nav.ts');
-		expect(nav).toContain('duplicate-drafts-count-wzworl');
-		expect(nav).toMatch(/six edits and not four/);
+		const noteStands = nav.includes('duplicate-drafts-count-wzworl');
+		const tabStands = sectionTabs('s-1').some((t) => t.href.endsWith('/duplicates'));
+		expect(
+			noteStands,
+			tabStands
+				? 'the tab has landed, so the patch note in nav.ts is stale: remove it'
+				: 'the tab is withheld, so nav.ts must carry the patch that lands it'
+		).toBe(!tabStands);
+	});
+
+	it('the tab activates on its own page, and is an in-classroom view not a departure', () => {
+		const dupes = sectionTabs('s-1').find((t) => t.id === 'duplicates') as SectionTab;
+		expect(dupes.manageOnly).toBe(true);
+		expect(dupes.external).toBeUndefined();
+		expect(dupes.href).toBe('/classroom/s-1/duplicates');
+		expect(activeTab(locateClassroom(dupes.href))).toBe('duplicates');
+		// It sits above the departure: an in-classroom view before a door out.
+		const ids = sectionTabs('s-1').map((t) => t.id);
+		expect(ids.indexOf('duplicates')).toBeLessThan(ids.indexOf('check-ins'));
 	});
 });

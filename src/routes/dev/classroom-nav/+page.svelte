@@ -8,8 +8,7 @@
 		activeTab,
 		classroomCrumbs,
 		locateClassroom,
-		sectionTabs,
-		type SectionTab
+		sectionTabs
 	} from '$lib/classroom/nav';
 	import type { GreenlinePending } from '$lib/greenline/moderation';
 
@@ -37,45 +36,30 @@
 	const tab = activeTab(loc);
 	const crumbs = classroomCrumbs(loc, { section: 'IDEA209H · Period 1' });
 
-	/** The tabs that SHIP today, from the real function. */
-	const shipped = sectionTabs('s-1');
-
 	/**
-	 * THE DAY THE DUPLICATES PAGE LANDS, as a local fixture rather than as an
-	 * entry in `sectionTabs()`. `/classroom/s-1/duplicates` does not exist on
-	 * this base -- it is on the unmerged `claude/duplicate-drafts-count-wzworl`
-	 * behind an unapplied migration -- so shipping the tab would offer every
-	 * manager a 404. What can honestly be measured now is whether the BAR
-	 * survives the tab, which is what the wrapping rule promises, and that is
-	 * measurable with a fixture that never leaves this file.
+	 * THE TABS THAT SHIP, FROM THE REAL FUNCTION -- five of them now.
 	 *
-	 * It is the exact object nav.ts's header says the patch would add.
+	 * THIS USED TO BE FOUR PLUS A LOCAL `withDuplicates` FIXTURE, and the
+	 * fixture is gone rather than kept beside the real thing. 0081 built it
+	 * because `/classroom/[sectionId]/duplicates` was on an unmerged branch
+	 * behind an unapplied migration, so the tab could not ship and the only
+	 * honest thing left to measure was whether the BAR survives the count. The
+	 * page landed with `0187` and the tab landed with it, so a hand-built fifth
+	 * tab beside the real fifth tab would be a second answer to a question the
+	 * shipping function now answers -- and the one that drifts.
 	 */
-	const withDuplicates: SectionTab[] = [
-		...shipped.slice(0, 3),
-		{
-			// The cast stands in for the union member the patch adds. Widening
-			// `SectionTabId` for a fixture would put the id in the shipping type
-			// with no tab behind it, which is the half-landed state this lane
-			// exists to stop producing.
-			id: 'duplicates' as SectionTab['id'],
-			label: 'Duplicates',
-			href: '/classroom/s-1/duplicates',
-			manageOnly: true
-		},
-		...shipped.slice(3)
-	];
+	const shipped = sectionTabs('s-1');
 
 	const WAITING: GreenlinePending = { ready: true, tracks: 2, decals: 1, total: 3 };
 	const EMPTY: GreenlinePending = { ready: true, tracks: 0, decals: 0, total: 0 };
 	const UNREADY: GreenlinePending = { ready: false, tracks: 0, decals: 0, total: 0 };
 
-	// ?tabs=5 measures the bar the day duplicates lands; ?manage=0 is a
-	// student's own view of the same URL, which must have no bar at all.
+	// ?manage=0 is a student's own view of the same URL, which must have no bar
+	// at all -- four of the five tabs are `manageOnly` and the fifth alone
+	// renders no bar.
 	const params = $derived(page.url.searchParams);
 	const manages = $derived(params.get('manage') !== '0');
-	const five = $derived(params.get('tabs') === '5');
-	const tabs = $derived(five ? withDuplicates : shipped);
+	const tabs = shipped;
 </script>
 
 <div class="cr-root" style="--cr-measure-route: var(--measure-page)">
@@ -95,10 +79,10 @@
 				<h1>The doors</h1>
 				<p class="dv-lead">
 					Above: the real section tab bar, fed by the real <code>sectionTabs()</code>. Check-ins is
-					a departure, so it carries a guillemet and never takes the active underline.
-					<code>?tabs=5</code> adds the duplicates tab as a local fixture, which is the count the
-					bar holds the day that page lands. <code>?manage=0</code> is a student, who gets no bar
-					at all because only one tab survives the manage filter.
+					a departure, so it carries a guillemet and never takes the active underline;
+					Duplicates is an in-classroom view and does take it, on its own page.
+					<code>?manage=0</code> is a student, who gets no bar at all because only one tab
+					survives the manage filter.
 				</p>
 			</section>
 
