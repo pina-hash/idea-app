@@ -24,7 +24,15 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import MapsViewer from '$lib/maps/viewer/MapsViewer.svelte';
-	import { mapsViewerTransports, type MapsPublicClient } from '$lib/maps/transports';
+	import MapsEditEntry from '$lib/maps/MapsEditEntry.svelte';
+	import {
+		loadMapsScope,
+		mapsViewerTransports,
+		type MapsPublicClient,
+		type MapsWriteClient
+	} from '$lib/maps/transports';
+	import { MAPS_ADMIN_SCOPE, type MapsEditorScope } from '$lib/maps/grants';
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -34,6 +42,29 @@
 			? mapsViewerTransports(page.data.supabase as unknown as MapsPublicClient)
 			: null
 	);
+
+	/* THE WAY INTO THE EDITOR (prompt 0093). A site admin's scope is known on
+	   the server -- the root layout puts `isAdmin` on page data -- so the
+	   control is in the first render for them. A signed-in NON-admin may hold
+	   an editor grant (0172), which only `maps_my_editor_grants` can say: it
+	   is asked once after hydration, through the same browser client the
+	   search uses, and the control appears when the answer is yes. A signed-out
+	   visitor asks nothing and sees nothing: the existence of an editor lane is
+	   not something the public map advertises. This resolves ONLY whether the
+	   control is offered; the route under `/maps/edit` keeps its own 404. */
+	const isAdmin = $derived(Boolean(page.data.isAdmin));
+	let probedScope = $state<MapsEditorScope | null>(null);
+	const entryScope = $derived<MapsEditorScope | null>(isAdmin ? MAPS_ADMIN_SCOPE : probedScope);
+	onMount(() => {
+		if (isAdmin || !page.data.claims || !page.data.supabase) return;
+		let live = true;
+		loadMapsScope(page.data.supabase as unknown as MapsWriteClient, false).then((scope) => {
+			if (live) probedScope = scope;
+		});
+		return () => {
+			live = false;
+		};
+	});
 </script>
 
 <svelte:head>
@@ -47,6 +78,7 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
+		<MapsEditEntry scope={entryScope} />
 		<a class="btn secondary" href="/">&lsaquo; Home</a>
 		<ProfileMenu />
 	</div>

@@ -41,24 +41,34 @@ function section(html: string, testid: string): string {
 	return html.slice(start, end === -1 ? undefined : end);
 }
 
-describe('nothing selected: the tree, with state visible from the list', () => {
-	it('renders all 8 fixture nodes with their publish states, and no detail pane', () => {
+describe('nothing selected: the tree, with state visible from the list, and the OVERVIEW beside it', () => {
+	it('renders all 8 fixture nodes with their publish states, no detail pane, and the map drawn', () => {
 		const html = renderEditor();
 		expect(count(html, 'tree-row')).toBeGreaterThanOrEqual(8);
 		// One pending chip (Mill Room), two draft chips (Drawer 2, Prototype
-		// Lab), five published -- the whole fixture accounted for, so a chip
-		// that stopped rendering moves a number instead of vanishing quietly.
-		// The fifth published node is Workbench B, added as the sibling the
-		// plan canvas's snap targets need something to be.
+		// Lab), five published in the TREE plus one more on the overview's root
+		// card (IDEA Building is published) -- the whole fixture accounted for,
+		// so a chip that stopped rendering moves a number instead of vanishing
+		// quietly. The fifth published node is Workbench B, added as the
+		// sibling the plan canvas's snap targets need something to be.
 		expect(count(html, 'data-state="pending"')).toBe(1);
 		expect(count(html, 'data-state="draft"')).toBe(2);
-		expect(count(html, 'data-state="published"')).toBe(5);
-		// The absent half: no detail pane -- and no PLAN CANVAS either, which
-		// is a real absence now that one exists. It is a property of the
-		// SELECTION (a canvas needs a node open), and its positive control is
-		// the ?state=place assertions below, where the same testid matches.
+		expect(count(html, 'data-state="published"')).toBe(6);
+		// The absent half: no detail pane, no editing shape and no elevation
+		// editor. What IS there is the OVERVIEW (prompt 0093): the one root
+		// drawn read-only with its two placed rooms inside it, and the draft
+		// room with no outline NAMED rather than skipped. Its editing-only
+		// pieces are absent, with their positive control in the ?state=place
+		// assertions below, where the same selectors match.
 		expect(count(html, 'maps-node-detail')).toBe(0);
-		expect(count(html, 'maps-plan-canvas')).toBe(0);
+		expect(count(html, 'maps-overview"')).toBe(1);
+		expect(count(html, 'maps-overview-root')).toBe(1);
+		expect(count(html, 'maps-plan-child"')).toBe(2);
+		expect(count(html, 'maps-plan-shape')).toBe(0);
+		expect(count(html, 'maps-plan-nudge')).toBe(0);
+		expect(count(html, 'maps-plan-tools')).toBe(0);
+		expect(html).toContain('Prototype Lab');
+		expect(count(html, 'maps-plan-unplaced')).toBe(1);
 		expect(count(html, 'maps-unit-elevation')).toBe(0);
 		// The root ladder, before the action: exactly the three legal kinds.
 		const addRoot = html.slice(html.indexOf('maps-add-root'));

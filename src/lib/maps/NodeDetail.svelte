@@ -15,7 +15,7 @@
 	 *
 	 * Geometry is TYPED INCHES (spec 7): text inputs parsed by the registry,
 	 * never number inputs (the bind:value coercion trap). The PLAN CANVAS
-	 * beneath them is a positioning instrument for those same fields, never a
+	 * BESIDE them is a positioning instrument for those same fields, never a
 	 * second store of the value: it renders what they hold and writes a
 	 * position back into them, so "the typed value wins" needs no
 	 * reconciliation because there is only one value. It can move a shape and
@@ -23,6 +23,26 @@
 	 * its compartments (spec 7), which is the same rule one dimension over:
 	 * the drawn stack is a rendering of the typed heights and nothing in it is
 	 * draggable.
+	 *
+	 * TWO REGIONS, ONE COMPONENT: THE STAGE AND THE INSPECTOR. This component
+	 * is the right two-thirds of the workspace -- the drawing (the plan sheet,
+	 * and for a unit its elevation editor; for a compartment the unit's
+	 * elevation SKETCH, since a compartment has no plan geometry) and the form.
+	 * They are one component rather than two siblings of the shell because the
+	 * drawing is a rendering of THIS form's live fields: hoisting the sheet out
+	 * would mean lifting every typed value with it, and the mount test that
+	 * proves a pointer cannot reach a dimension (`tests/dom/`) mounts exactly
+	 * this component and finds both halves inside it. Above a container width
+	 * of 46rem the two sit side by side, the sheet taking the room and the
+	 * inspector a bounded column, each scrolling on its own when the shell
+	 * bounds their height; below it they stack, drawing first, because the
+	 * drawing is what the person came to see.
+	 *
+	 * IT USED TO SAY "drawing and dragging are a later bundle" ABOVE THE
+	 * GEOMETRY FIELDS, 245px above a working canvas, and a new building drew
+	 * nothing at all because a root has no parent frame. Both are gone: the
+	 * sheet draws a root's own outline live from these fields, and a shape
+	 * with a size and no position is a ghost to drag rather than nothing.
 	 */
 	import { onMount, untrack } from 'svelte';
 	import { SaveState } from '$lib/save-state.svelte';
@@ -59,6 +79,7 @@
 	import MapsStockForm from './MapsStockForm.svelte';
 	import PlanCanvas from './PlanCanvas.svelte';
 	import UnitElevation from './UnitElevation.svelte';
+	import ElevationSketch from './ElevationSketch.svelte';
 
 	let {
 		node,
@@ -216,6 +237,17 @@
 	const liveX = $derived(isCompartment ? null : inchesOrNull(posX));
 	const liveY = $derived(isCompartment ? null : inchesOrNull(posY));
 	const liveRotation = $derived(isCompartment ? null : inchesOrNull(rotation));
+	/* The compartment's OWN typed slot, height and width, as the elevation
+	   sketch draws them: typing 5 into the height makes the drawn drawer
+	   taller as it is typed, the plan-sheet rule one dimension over. */
+	const liveElevOrder = $derived(
+		isCompartment && /^-?\d+$/.test(elevOrder.trim()) ? Number(elevOrder.trim()) : null
+	);
+	const liveElevH = $derived(isCompartment ? inchesOrNull(elevH) : null);
+	const liveElevW = $derived(isCompartment ? inchesOrNull(elevW) : null);
+	/* Whether there is anything to draw beside the form: a compartment inside
+	   a unit (its stack), or any other kind (its sheet). */
+	const hasStage = $derived(!isCompartment || parentNode !== null);
 
 	/**
 	 * A placement lands in the TYPED FIELDS and nowhere else -- the canvas has
@@ -483,6 +515,50 @@
 </script>
 
 <div class="node-detail" data-testid="maps-node-detail">
+<div class="node-grid" class:has-stage={hasStage}>
+	{#if hasStage}
+		<div class="stage" data-testid="maps-node-stage">
+			{#if isCompartment && parentNode}
+				<ElevationSketch
+					unit={parentNode}
+					markId={node?.id ?? null}
+					liveHeightIn={liveElevH}
+					liveWidthIn={liveElevW}
+					liveName={name}
+					liveOrder={liveElevOrder}
+					{data}
+					onselect={onselectnode}
+				/>
+			{:else if !isCompartment}
+				<PlanCanvas
+					selfId={node?.id ?? null}
+					selfName={name.trim() === '' ? 'This shape' : name.trim()}
+					selfKind={kind}
+					parent={parentNode}
+					outline={liveOutline}
+					rotationDeg={liveRotation}
+					x={liveX}
+					y={liveY}
+					{data}
+					onplace={acceptPlacement}
+					onselect={onselectnode}
+					visibleIds={caps.visibleNodeIds}
+				/>
+				{#if node && kind === 'unit'}
+					<UnitElevation
+						unit={node}
+						{data}
+						{transports}
+						{onchanged}
+						{onselectnode}
+						onaddchild={(parentId, presetKind) => onaddchild(parentId, presetKind)}
+						{registerForm}
+					/>
+				{/if}
+			{/if}
+		</div>
+	{/if}
+	<div class="inspector" data-testid="maps-node-inspector">
 	<header class="detail-head">
 		{#if node}
 			<p class="crumb">{mapsNodePath(data.nodes, node.id)}</p>
@@ -591,7 +667,8 @@
 			<h3>Geometry, typed inches</h3>
 			<p class="hint">
 				All numbers are inches in the parent's frame, from the SolidWorks numbers. Accuracy comes
-				from what you type here; drawing and dragging are a later bundle.
+				from what you type here: the drawing beside these fields redraws as you type, and dragging
+				the shape on it types a position back into Position X and Y.
 			</p>
 			<div class="field">
 				<label for="{formKey}-outline">Outline</label>
@@ -633,30 +710,7 @@
 				</div>
 			</div>
 
-			<PlanCanvas
-				selfId={node?.id ?? null}
-				selfName={name.trim() === '' ? 'This shape' : name.trim()}
-				parent={parentNode}
-				outline={liveOutline}
-				rotationDeg={liveRotation}
-				x={liveX}
-				y={liveY}
-				{data}
-				onplace={acceptPlacement}
-			/>
 		</section>
-	{/if}
-
-	{#if node && kind === 'unit'}
-		<UnitElevation
-			unit={node}
-			{data}
-			{transports}
-			{onchanged}
-			{onselectnode}
-			onaddchild={(parentId, presetKind) => onaddchild(parentId, presetKind)}
-			{registerForm}
-		/>
 	{/if}
 
 	{#if problems.length > 0}
@@ -926,6 +980,8 @@
 			{/if}
 		</section>
 	{/if}
+	</div>
+</div>
 </div>
 
 <style>
@@ -938,11 +994,70 @@
 		font-size: 0.85rem;
 		color: var(--text-2, var(--white));
 	}
+	/* THE STAGE AND THE INSPECTOR. The root is the container-query container
+	   and the grid is its child, because a container query cannot style the
+	   container itself. Above 46rem of container width the sheet takes the
+	   room and the inspector a bounded column (`--mp-inspector-w`, set on the
+	   room; 26rem where nobody set one); below it they stack, drawing first.
+	   46rem is where the inspector's three-field inch row (3 x 8.5rem + gaps)
+	   and a sheet of at least 20rem both fit -- measured, not named. */
 	.node-detail {
+		min-width: 0;
+		min-height: 0;
+		container-type: inline-size;
+		height: 100%;
+	}
+	.node-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1rem;
+		min-width: 0;
+		min-height: 0;
+		height: 100%;
+		align-items: start;
+	}
+	.stage {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
 		min-width: 0;
+		min-height: 0;
+	}
+	/* The sheet takes the column's height; a unit's elevation editor under it
+	   keeps its own and the column scrolls when both do not fit. */
+	.stage > :global([data-testid='maps-plan-canvas']) {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+	.stage > :global([data-testid='maps-unit-elevation']) {
+		flex: 0 0 auto;
+	}
+	.inspector {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		min-width: 0;
+		min-height: 0;
+	}
+	@container (min-width: 46rem) {
+		.node-grid.has-stage {
+			grid-template-columns: minmax(0, 1fr) var(--mp-inspector-w, 26rem);
+			align-items: stretch;
+		}
+		/* EACH REGION OWNS ITS OWN SCROLL when the shell has bounded the
+		   height (the workspace's fill layout): reading down the form never
+		   scrolls the drawing away, which is the whole reason the two are side
+		   by side. Where nothing bounds the height these are inert and the
+		   document scrolls, exactly as before. */
+		.node-grid.has-stage > .stage,
+		.node-grid.has-stage > .inspector {
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			max-height: 100%;
+		}
+		.node-grid.has-stage > .inspector {
+			padding-right: 0.15rem;
+		}
 	}
 	.detail-head .crumb {
 		margin: 0 0 0.2rem;
