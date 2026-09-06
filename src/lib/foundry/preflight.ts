@@ -155,6 +155,43 @@ export const FOUNDRY_KNOWN_SHIMS: readonly string[] = [
  * (every inflated file held at once), plus one transient UTF-8 string for
  * whichever text file is mid-scan, plus the Deno isolate's own baseline.
  *
+ * LOWERED 2026-09-06 (0072) FROM 75 MiB TO 45 MiB ON THE ZIP, AND THE REASON IS
+ * NOT MEMORY. Everything below this paragraph is 0014's memory argument and
+ * still stands; it simply never was the binding constraint. The binding one is
+ * the SUPABASE PROJECT-WIDE UPLOAD LIMIT: 50 MB, FIXED, because the project is
+ * on the Free plan. `foundry-uploads` carried no `file_size_limit` of its own,
+ * so a zip between 50 MB and 75 MiB passed this preflight, transferred whole
+ * over school wifi, and was refused at the far end by a ceiling no sentence in
+ * this application could name. A student with a 60 MB app met that every single
+ * time, after the wait.
+ *
+ * 45 MiB IS `PORTAL_UPLOAD_MAX_BYTES` IN `src/lib/upload-limits.ts`, WHICH IS
+ * WHERE THE ARITHMETIC LIVES, and `0185_bucket_limits_under_the_global.sql`
+ * writes the identical number into the bucket. THE NUMBER IS RESTATED HERE
+ * RATHER THAN IMPORTED, and that is forced rather than chosen: this module is
+ * imported by `supabase/functions/foundry-ingest/index.ts`, a Deno isolate that
+ * resolves relative `.ts` paths and cannot resolve a `$lib` alias, and
+ * `$lib/upload-limits` imports `$lib/classroom/upload-errors` in turn. So the
+ * three statements of it -- this constant, the registry's, and the bucket row --
+ * are pinned to each other by `tests/upload-limits.test.ts` instead, which is
+ * the shape CLAUDE.md permits when a number genuinely has to exist twice.
+ *
+ * `maxTotalBytes` IS UNCHANGED AT 110 MiB AND IS STILL COHERENT, which is worth
+ * saying because the obvious reading is that a smaller zip makes it dead. It is
+ * a DIFFERENT AXIS: the zip cap bounds what crosses the wire and what Storage
+ * will hold, the unpacked cap bounds what the ingest function holds in memory,
+ * and neither implies the other. A 45 MiB archive of HTML, CSS and JavaScript
+ * routinely inflates four to ten times, so the unpacked cap still bites on
+ * exactly the bundles it was written for; an archive of PNGs and MP3s barely
+ * compresses at all, so the zip cap binds first there. Both still have cases
+ * where they are the one that refuses. And the worst-case resident set this
+ * function has to survive FALLS from ~185 MiB (75 + 110) to ~155 MiB (45 + 110),
+ * so 0014's argument below is left with strictly more headroom than it was
+ * written against, never less.
+ *
+ * 0014's ORIGINAL NOTE, KEPT VERBATIM BECAUSE THE MEMORY REASONING IS STILL THE
+ * REASON `maxTotalBytes` IS WHERE IT IS:
+ *
  * RAISED 2026-09-02 (0014) FROM 50 MB / 75 MB TO 75 MB ZIP / 110 MB UNPACKED
  * (~185 MB of bytes at the worst case), again by REASONING rather than by a
  * measurement, because a real Vercel-function memory reading is still not
@@ -219,8 +256,13 @@ export const FOUNDRY_KNOWN_SHIMS: readonly string[] = [
  * either byte cap.
  */
 export const FOUNDRY_LIMITS = {
-	/** The zip as uploaded. */
-	maxZipBytes: 75 * 1024 * 1024,
+	/**
+	 * The zip as uploaded. 45 MiB, under the 50 MB Supabase global with margin
+	 * for the multipart envelope -- see the paragraph above and
+	 * `PORTAL_UPLOAD_MAX_BYTES` in `src/lib/upload-limits.ts`, which is the one
+	 * place the arithmetic is written down.
+	 */
+	maxZipBytes: 45 * 1024 * 1024,
 	maxFiles: 1500,
 	/** Everything the zip unpacks to, counted while unpacking. */
 	maxTotalBytes: 110 * 1024 * 1024,

@@ -2,9 +2,9 @@
 - Issued: 2026-09-05
 - By: router chat for IDEA portal work
 - Owns: exactly one migration (number taken at commit time), the upload-limit registry, the Foundry size ceiling in `preflight.ts`, `src/routes/dev/upload-limits/**`, `tests/upload-limit*`, `tests/db/bucket-limits*`, `tools/browser-verify/routes/upload-limits*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0072-*`, and its own `docs/history/` entry.
-- Migration permitted: exactly one, number taken at commit time. Highest on origin/main at issue: 0184
-- Status: issued
-- Branch: assigned by the harness
+- Migration permitted: exactly one, number taken at commit time. Highest on origin/main at issue: 0184. TAKEN: 0185 (`0185_bucket_limits_under_the_global.sql`), verified free across every remote ref and across `git log --all --diff-filter=A` at commit time. NOT APPLIED: `tools/apply-migration.mjs` cannot start in this container (`pg` is not installed, npm registry blocked by egress policy) and, independently, `idea-status.py` derives no probe from a migration that creates no object, so the tool refuses it. See the history entry.
+- Status: pushed
+- Branch: claude/upload-limit-fiction-jv9w43
 - Notes: Mr. Pina read the Supabase dashboard on 2026-09-05 and it settles
   what prompt 0064 could not reach:
   
