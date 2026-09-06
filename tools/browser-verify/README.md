@@ -110,13 +110,13 @@ appearing in those diffs at all.
 
 | Count | Value |
 | --- | --- |
-| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 117 |
-| Distinct routes those specs drive (alias-resolved, query string stripped) | 58 |
-| Directories under `src/routes/dev` with a page (the candidate set) | 87 |
+| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 122 |
+| Distinct routes those specs drive (alias-resolved, query string stripped) | 61 |
+| Directories under `src/routes/dev` with a page (the candidate set) | 90 |
 | Widths | 2 (375, 1440) |
-| Route/width runs a full pass makes (specs x widths) | 234 |
+| Route/width runs a full pass makes (specs x widths) | 244 |
 
-<!-- counts:static:data {"schema":1,"specs":117,"routes":58,"devPages":87,"widths":[375,1440],"runs":234} -->
+<!-- counts:static:data {"schema":1,"specs":122,"routes":61,"devPages":90,"widths":[375,1440],"runs":244} -->
 <!-- counts:static:end -->
 
 ### Measured -- from a full harness run
