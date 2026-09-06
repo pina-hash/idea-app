@@ -1,4 +1,10 @@
-# 15 Foundry covers are closed; tournament thumbnails are still world-listable, deliberately
+# 17 Foundry covers are closed; tournament thumbnails are still world-listable, deliberately
+- Renumbered 2026-09-05 by prompt 0065, from 15. It and `15-scoped-migration-role.md` both claimed 15 on 2026-09-05, and this one's
+  creating commit was seven minutes later, so under the rule now written down in
+  `docs/decisions/README.md` it is the one that moves. Nothing else about this entry
+  changed. `docs/history/public-upload-buckets-4dqkbe.md` cites it as "decision 15";
+  that file is a dated record and is not edited, so the citation stands and this line
+  is what resolves it.
 - Raised: 2026-09-05  By: prompt 0057, `claude/public-upload-buckets-4dqkbe`
 - Status: open
 - Decision:

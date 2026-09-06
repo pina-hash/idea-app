@@ -1,14 +1,31 @@
 // tests/apply-migration-guard.test.ts
 //
-// The four positive controls for `tools/apply-migration.mjs` and
+// The positive controls for `tools/apply-migration.mjs` and
 // `supabase/roles/idea_migrator.sql`, driven against a REAL Postgres with the
 // REAL role file applied to it, unmodified except for the password placeholder
 // a person replaces in the SQL editor.
 //
-//   1. A migration that tries `drop table` is REFUSED by the guard, and nothing
-//      the file did before that survives.
+// THE FILENAME IS HISTORICAL AND THE GUARD IS GONE. This file used to prove
+// that an event-trigger guard in the database refused `drop table` from
+// `idea_migrator`. That guard was written, measured, and cannot be installed:
+// `create event trigger` requires superuser and Supabase's `postgres` is not
+// one, measured as 42501 against a non-superuser holding CREATEROLE, CREATEDB
+// and ownership of the database. See `supabase/roles/idea_migrator.sql`,
+// section "WHY THERE IS NO GUARD".
+//
+// SO THE FIRST DESCRIBE BELOW ASSERTS THE EXPOSURE RATHER THAN THE CONTROL, and
+// that is deliberate. A test suite that simply dropped its guard assertions
+// would leave a reader with no way to tell "this was removed on purpose" from
+// "somebody deleted a failing test". What `idea_migrator` can now do unopposed
+// is written down here as passing assertions, so it is a recorded fact rather
+// than an absence.
+//
+//   1. A migration that tries `drop table` is refused BY THE TOOL, before
+//      anything is sent -- and the mutation beside it shows the same statement
+//      landing when the scan is not consulted, which is what the guard used to
+//      prevent.
 //   2. A migration that raises in its own self-check is reported as a REFUSAL
-//      rather than a crash, and nothing it did survives either.
+//      rather than a crash, and nothing it did survives.
 //   3. A migration applied out of order is refused BEFORE it runs -- driven
 //      through the real CLI, against a real database, with the real probes.
 //   4. A successful apply is verified object by object, and breaking one object
@@ -16,17 +33,18 @@
 //
 // THE PRODUCTION PATH IS UNEXERCISED AND THIS FILE CANNOT EXERCISE IT. No
 // session holds a credential for the live project, this one asked for none, and
-// the role file has never been pasted anywhere. What is proven here is that the
-// SQL applies, that the guard fires, and that the tool reads what the guard
-// says. Whether Supabase's `postgres` role can create an event trigger at all,
-// and whether it holds ADMIN OPTION on itself so `grant postgres to
-// idea_migrator` lands, are properties of that project. The file's own
-// self-check raises on both, which is the whole reason it is one transaction.
+// the role file has never been pasted successfully anywhere.
 //
-// The embedded cluster's `postgres` IS a superuser and Supabase's is not. That
-// difference cannot change what the guard refuses -- an event trigger fires for
-// superusers too -- but it does mean the two `raise exception` rungs above are
-// measured here only in the direction where they pass.
+// AND THE EMBEDDED CLUSTER'S `postgres` IS A SUPERUSER, WHICH IS THE ONE WAY
+// THIS FIXTURE IS UNLIKE PRODUCTION AND THE REASON THE ROLE FILE APPLIES HERE
+// AT ALL. On a real Supabase project `grant postgres to idea_migrator` is
+// expected to be refused on PostgreSQL 16+ (42501: the grantor needs ADMIN
+// OPTION on `postgres`, which a non-superuser `postgres` can never hold,
+// because a role cannot be granted to itself). Measured separately, outside
+// this suite, on a fixture whose `postgres` was a non-superuser: the file
+// raised with its own explanation and left no role behind, which is the
+// behaviour it is written for. What this suite proves is the OTHER half -- that
+// when the grant can land, the file produces the credential it describes.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -41,7 +59,10 @@ import {
 	applyInTransaction,
 	claims,
 	guardFingerprint,
+	head,
 	makeClient,
+	scanFile,
+	splitStatements,
 	EXIT
 } from '../tools/apply-migration.mjs';
 
@@ -81,8 +102,11 @@ beforeAll(async () => {
 	const notices: string[] = [];
 	owner.on('notice', (n) => notices.push(n.message ?? ''));
 	await owner.query(roleSqlToPaste());
-	// The file talks to whoever pasted it. If it stops, that is a finding.
-	expect(notices.join('\n')).toMatch(/role and guard installed/);
+	// The file talks to whoever pasted it. If it stops, that is a finding -- and
+	// what it must say now is that there is NO guard, every time, so nobody
+	// pastes this believing otherwise.
+	expect(notices.join('\n')).toMatch(/THERE IS NO GUARD IN THE DATABASE/);
+	expect(notices.join('\n')).toMatch(/the ONLY control is tools\/apply-migration\.mjs/);
 
 	url = `postgresql://idea_migrator:${TEST_PASSWORD}@${cluster.host}:${cluster.port}/${db.databaseName}?sslmode=disable`;
 	migrator = new pg.Client({ connectionString: url });
@@ -113,16 +137,36 @@ describe('the role file installs what its header says it installs', () => {
 		});
 	});
 
-	it('installs two ENABLED event triggers and a guard function nobody but postgres can reach', async () => {
+	it('installs NO event trigger and NO guard function, because it cannot', async () => {
+		// The ABSENCE is the assertion. `create event trigger` needs superuser;
+		// this cluster's `postgres` HAS superuser, so if the file still tried, it
+		// would succeed here and this would redden -- which makes this a real
+		// check on the file's contents rather than a restatement of the platform.
 		const t = await owner.query(
-			`select evtname, evtevent, evtenabled from pg_event_trigger
-			 where evtname like 'idea_applier_guard%' order by evtname`
+			`select count(*)::int as n from pg_event_trigger where evtname like 'idea_applier_guard%'`
 		);
-		expect(t.rows).toEqual([
-			{ evtname: 'idea_applier_guard_drop', evtevent: 'sql_drop', evtenabled: 'O' },
-			{ evtname: 'idea_applier_guard_start', evtevent: 'ddl_command_start', evtenabled: 'O' }
-		]);
-		expect(await guardFingerprint(owner)).toMatch(/^[0-9a-f]{32}$/);
+		expect(t.rows[0].n).toBe(0);
+		const sc = await owner.query(
+			`select count(*)::int as n from pg_namespace where nspname = 'idea_guard'`
+		);
+		expect(sc.rows[0].n).toBe(0);
+		expect(await guardFingerprint(owner)).toBeNull();
+		// And the file must not have left the machinery behind. Asked through the
+		// tool's OWN splitter rather than a regex over the text, because the file
+		// legitimately says "CREATE EVENT TRIGGER needs superuser" inside a
+		// `raise notice` and inside its header, and a text sweep cannot tell that
+		// from a statement. The question is whether any TOP-LEVEL STATEMENT is
+		// one, which is exactly what `splitStatements` + `head` answer.
+		const heads = splitStatements(readFileSync(ROLE_SQL, 'utf8')).map((st) => head(st.text));
+		expect(heads.filter((h) => /^create event trigger\b/.test(h))).toEqual([]);
+		expect(heads.filter((h) => /^create schema\b.*idea_guard/.test(h))).toEqual([]);
+		expect(heads.filter((h) => /returns event_trigger\b/.test(h))).toEqual([]);
+		// The positive control on that sweep: it DOES see the statements the file
+		// really does carry, so an empty result above is the file and not the
+		// parser coming back blank.
+		expect(heads.filter((h) => /^alter role idea_migrator\b/.test(h))).toHaveLength(1);
+		expect(heads.filter((h) => /^grant postgres to idea_migrator\b/.test(h))).toHaveLength(0);
+		expect(heads.some((h) => h.startsWith('do $$'))).toBe(true);
 	});
 
 	it('re-applies over itself, because a second paste is ordinary', async () => {
@@ -132,61 +176,86 @@ describe('the role file installs what its header says it installs', () => {
 	it('carries its own reversal, and the reversal names every object it made', () => {
 		const text = readFileSync(ROLE_SQL, 'utf8');
 		const reversal = text.slice(text.lastIndexOf('\n', text.indexOf('THE REVERSAL')) + 1);
-		for (const object of [
-			'idea_applier_guard_start',
-			'idea_applier_guard_drop',
-			'idea_guard',
-			'idea_migrator'
-		]) {
+		for (const object of ['revoke postgres from idea_migrator', 'idea_migrator']) {
 			expect(reversal).toContain(object);
 		}
 		// It is commented out, so a careless whole-file paste cannot undo itself.
-		expect(reversal).toMatch(/^-- drop event trigger if exists idea_applier_guard_start;$/m);
+		expect(reversal).toMatch(/^-- drop role if exists idea_migrator;$/m);
 	});
 
 	it('has no real password in it', () => {
 		expect(readFileSync(ROLE_SQL, 'utf8')).toContain(PLACEHOLDER);
 	});
+
+	it('states in its own header what does not protect the reader', () => {
+		// The header IS the deliverable of this bundle. A file that quietly
+		// dropped the guard and said nothing is the failure being prevented.
+		const text = readFileSync(ROLE_SQL, 'utf8');
+		expect(text).toContain('WHAT DOES NOT PROTECT YOU');
+		expect(text).toMatch(/NOTHING IN THE DATABASE REFUSES ANYTHING FROM THIS ROLE/);
+		expect(text).toMatch(/bypassable by anyone holding this password/);
+	});
 });
 
-describe('the guard fires for idea_migrator and only for idea_migrator', () => {
-	it('refuses drop table, drop schema and a dropped column from the scoped role', async () => {
-		await owner.query('create table public.guard_probe (id int primary key, doomed text)');
-		for (const sql of [
-			'drop table public.guard_probe',
-			'drop schema idea_guard cascade',
-			'alter table public.guard_probe drop column doomed'
-		]) {
-			await expect(migrator.query(sql)).rejects.toMatchObject({ code: '42501' });
-		}
-		// Still standing, column and all.
-		const r = await owner.query(
+describe('NOTHING IN THE DATABASE REFUSES ANYTHING FROM THIS ROLE', () => {
+	// These assertions are the opposite of what this file used to hold, and they
+	// are the honest record of what the missing event triggers cost. Each one
+	// SUCCEEDS. If one of them ever starts failing, something grew a control and
+	// the role file's header is out of date -- which is a finding either way.
+
+	it('lets the scoped role drop a table, which the guard used to refuse', async () => {
+		await owner.query('create table public.exposure_a (id int primary key, doomed text)');
+		await expect(migrator.query('drop table public.exposure_a')).resolves.toBeTruthy();
+		const r = await owner.query(`select to_regclass('public.exposure_a') as t`);
+		expect(r.rows[0].t).toBeNull();
+	});
+
+	it('lets it drop a column, truncate, delete and update, unopposed', async () => {
+		await owner.query('create table public.exposure_b (id int primary key, doomed text)');
+		await owner.query("insert into public.exposure_b values (1, 'x'), (2, 'y')");
+		await expect(migrator.query('update public.exposure_b set doomed = null')).resolves.toBeTruthy();
+		await expect(migrator.query('delete from public.exposure_b where id = 1')).resolves.toBeTruthy();
+		await expect(migrator.query('truncate public.exposure_b')).resolves.toBeTruthy();
+		await expect(
+			migrator.query('alter table public.exposure_b drop column doomed')
+		).resolves.toBeTruthy();
+		const cols = await owner.query(
 			`select count(*)::int as n from information_schema.columns
-			 where table_schema = 'public' and table_name = 'guard_probe'`
+			 where table_schema = 'public' and table_name = 'exposure_b'`
 		);
-		expect(r.rows[0].n).toBe(2);
+		expect(cols.rows[0].n).toBe(1);
+		await owner.query('drop table public.exposure_b');
 	});
 
-	it('does NOT refuse the same statements from another session_user -- the positive control', async () => {
-		// Without this the assertions above would pass just as well against a
-		// guard that refused everything for everyone, which would be a database
-		// nobody could use.
-		await owner.query('create table public.owner_probe (id int, doomed text)');
-		await expect(owner.query('alter table public.owner_probe drop column doomed')).resolves.toBeTruthy();
-		await expect(owner.query('drop table public.owner_probe')).resolves.toBeTruthy();
-	});
-
-	it('holds through SET ROLE, because it keys on session_user', async () => {
+	it('CAN mint a second credential through SET ROLE, which the old header denied', async () => {
+		// THIS ASSERTION IS A CORRECTION. Both the previous role file and decision
+		// 15 said NOCREATEROLE meant "it cannot mint a second credential", on the
+		// grounds that role ATTRIBUTES are not inherited through membership. The
+		// inheritance half is true and the conclusion is not: `SET ROLE postgres`
+		// does not inherit anything, it CHANGES current_user, and the attribute
+		// check for `create role` reads current_user. Measured separately against
+		// a fixture whose `postgres` was a NON-superuser holding CREATEROLE -- the
+		// real Supabase shape -- with the same result, so this is not an artefact
+		// of this cluster's superuser `postgres`.
+		//
+		// The DIRECT path is still refused, which is the half NOCREATEROLE buys.
+		await expect(migrator.query("create role sneaky login password 'x'")).rejects.toMatchObject({
+			code: '42501'
+		});
+		// The SET ROLE path is not.
 		await migrator.query('set role postgres');
 		try {
 			const ids = await migrator.query('select current_user as cu, session_user as su');
 			expect(ids.rows[0]).toEqual({ cu: 'postgres', su: 'idea_migrator' });
-			await expect(migrator.query('drop table public.guard_probe')).rejects.toMatchObject({
-				code: '42501'
-			});
+			await expect(migrator.query("create role sneaky2 login password 'x'")).resolves.toBeTruthy();
 		} finally {
 			await migrator.query('reset role');
 		}
+		const made = await owner.query(
+			`select rolcanlogin from pg_roles where rolname = 'sneaky2'`
+		);
+		expect(made.rows[0]).toEqual({ rolcanlogin: true });
+		await owner.query('drop role sneaky2');
 	});
 
 	it('lets through every statement shape the last twenty migrations actually issue', async () => {
@@ -216,37 +285,52 @@ describe('the guard fires for idea_migrator and only for idea_migrator', () => {
 /* CONTROL 1 and CONTROL 2.                                                  */
 /* ------------------------------------------------------------------------ */
 
-describe('control 1: a migration that tries drop table is refused, and nothing lands', () => {
-	it('rolls the whole file back, including what ran before the drop', async () => {
+describe('control 1: a migration that tries drop table is refused BY THE TOOL', () => {
+	// THIS CONTROL MOVED, AND THE MOVE IS THE POINT OF PROMPT 0065. It used to
+	// send the file and let the database's event trigger refuse it mid-flight.
+	// There is no event trigger, so the refusal has to happen BEFORE the file is
+	// sent, in `scanFile`, or it does not happen at all. The second test is the
+	// mutation that proves that: the identical statement, sent without consulting
+	// the scan, lands.
+	const file = `create table public.c1_new (id int);
+		 do $$ begin raise notice 'c1: the table was created'; end $$;
+		 drop table public.c1_victim;`;
+
+	it('refuses the file before opening a connection at all', () => {
+		const refusals = scanFile(file).findings.filter((f) => f.kind === 'refuse');
+		expect(refusals.map((f) => f.what)).toEqual(['drop table']);
+		// The line reported is the statement's own, not the file's first.
+		expect(refusals[0].line).toBe(3);
+	});
+
+	it('MUTATION: sent anyway, the drop lands, because nothing in the database refuses it', async () => {
 		await owner.query('create table public.c1_victim (id int)');
 		const notices: string[] = [];
 		const client = new pg.Client({ connectionString: url });
 		client.on('notice', (n) => notices.push(n.message ?? ''));
 		await client.connect();
 		try {
+			// `applyInTransaction` is the sending half and does NOT re-run the
+			// scan -- `main()` is what refuses. So this is exactly what a `psql`
+			// prompt holding the password would do, which is the exposure the
+			// role file's header names in words.
 			const result = await applyInTransaction(
 				client,
-				`create table public.c1_new (id int);
-				 do $$ begin raise notice 'c1: the table was created'; end $$;
-				 drop table public.c1_victim;`,
+				file,
 				false,
 				notices.map((m) => ({ severity: 'NOTICE', message: m }))
 			);
-			expect(result.ok).toBe(false);
-			expect(result.ok === false && result.code).toBe('42501');
-			expect(result.ok === false && result.refusal).toBe(true);
-			expect(result.ok === false && result.message).toMatch(/idea_migrator may not run DROP TABLE/);
+			expect(result.ok).toBe(true);
 		} finally {
 			await client.end();
 		}
 		const after = await owner.query(
 			`select to_regclass('public.c1_new') as made, to_regclass('public.c1_victim') as victim`
 		);
-		expect(after.rows[0]).toEqual({ made: null, victim: 'c1_victim' });
-		// The notice from before the refusal still reached the caller, which is
-		// the whole reason notices are collected on the connection rather than
-		// read off a result.
+		expect(after.rows[0].made).toBe('c1_new');
+		expect(after.rows[0].victim).toBeNull();
 		expect(notices.join('\n')).toContain('c1: the table was created');
+		await owner.query('drop table public.c1_new');
 	});
 });
 
@@ -411,31 +495,41 @@ describe('control 4: the post-apply verification is object by object', () => {
 		expect((await probe(owner)).every((o) => o.present)).toBe(true);
 	});
 
-	it('notices when a file moves the guard out from under it', async () => {
+	it('reports the guard as absent on both sides, which is now the unchanging answer', async () => {
+		// The fingerprint check is kept because it costs one query and it is the
+		// only thing that would notice an event trigger appearing. Its answer is
+		// null before and null after, and `guardMoved` is therefore false, so a
+		// clean apply still exits `applied` rather than `unverified`.
 		const client = new pg.Client({ connectionString: url });
 		await client.connect();
 		try {
 			const before = await guardFingerprint(client);
-			// This is the one-statement defeat the role file's header names. It
-			// succeeds -- that is the honest finding -- and the fingerprint is
-			// what makes it VISIBLE rather than silent.
-			await client.query(
-				`create or replace function idea_guard.applier_guard() returns event_trigger
-				 language plpgsql as $g$ begin end $g$`
+			expect(before).toBeNull();
+			const result = await applyInTransaction(
+				client,
+				'create table public.c4_after (id int);',
+				false,
+				[]
 			);
+			expect(result.ok).toBe(true);
 			const after = await guardFingerprint(client);
-			expect(after).not.toBe(before);
-			await expect(client.query('create table public.defeated (id int)')).resolves.toBeTruthy();
-			await expect(client.query('drop table public.defeated')).resolves.toBeTruthy();
+			expect(after).toBeNull();
+			expect(after).toBe(before);
 		} finally {
-			// Put the real guard back, byte for byte, from the file itself.
-			await owner.query(roleSqlToPaste());
 			await client.end();
 		}
+		// POSITIVE CONTROL on the fingerprint itself: it is null because there is
+		// no such function, not because the query always answers null. Create one
+		// by hand -- which only works here because this cluster's postgres is a
+		// superuser -- and the fingerprint appears.
+		await owner.query('create schema if not exists idea_guard');
+		await owner.query(
+			`create or replace function idea_guard.applier_guard() returns event_trigger
+			 language plpgsql as $g$ begin end $g$`
+		);
 		expect(await guardFingerprint(owner)).toMatch(/^[0-9a-f]{32}$/);
-		await expect(migrator.query('drop table public.c4_thing')).rejects.toMatchObject({
-			code: '42501'
-		});
+		await owner.query('drop schema idea_guard cascade');
+		expect(await guardFingerprint(owner)).toBeNull();
 	});
 });
 
