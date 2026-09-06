@@ -198,16 +198,41 @@ remaining anon-admitting policy is scoped to a row the caller can already read.
 Read out of `tools/browser-verify/README.md`'s generated data comment by
 identity, not off the prose:
 
+**AT HEAD, BEFORE THIS BUNDLE TOUCHED ANYTHING:**
+
 - `covered` array length: **107**. Static region: **116 specs / 57 routes / 86
-  dev pages / 232 runs**. **0071's "117 covered" does not match this tree** --
-  the measured region says 107, and 116 is the SPEC count, not the covered
-  count. The gap is named in the README itself and by
-  `tests/derived-numbers.test.ts`: 9 specs the measured region never measured.
-- `outside`: **2**, and both rows are exactly as claimed --
-  `/dev/notebook` @375 and @1440, `tap-reach`, "toolbar text controls (under the
-  floor on width -- decision 12, with the owner)". Confirmed.
-- The measured region's `sha` is `4ecf48f` dated 2026-09-05, so it is a stale
-  measurement against this tree either way; the static region is current.
+  dev pages / 232 runs**. **0071's "117 covered" does not match that tree** --
+  the measured region said 107. The likeliest reading of where 117 came from is
+  that it is a SPEC count and not a covered count; the two are different numbers
+  and the README's own prose says to compare them precisely because they can
+  differ. Nine specs the measured region had never measured are named by
+  `tests/derived-numbers.test.ts`.
+- `outside`: **2**, both rows exactly as claimed -- `/dev/notebook` @375 and
+  @1440, `tap-reach`, "toolbar text controls (under the floor on width --
+  decision 12, with the owner)". Confirmed.
+- The measured region's `sha` was `4ecf48f` dated 2026-09-05, so it was a stale
+  measurement against that tree either way.
+
+**AFTER B7 (this bundle added one spec, then re-measured everything):**
+
+- `npm run verify:counts` rewrote the static region: **117 specs over 58 routes,
+  87 /dev pages, 2 widths, 234 runs**.
+- `npm run verify:readme` ran the whole set on a clean tree with no dev server
+  already listening: **234 route/width runs, 3444 measurements, 2 outside
+  threshold, 557.3s wall clock, measured on `675dc1b`, `dirty: false`**.
+  `--selftest` reported 70 controls (36 negative, 34 positive), 0 instrument
+  failures.
+- `covered` is now **117**, equal to the static spec count, with
+  `tournament-thumbs.mjs` in it. Nothing is unmeasured any more.
+- The 2 outside rows are unchanged and are still the two decision-12
+  `/dev/notebook` `tap-reach` rows. **This bundle added no outside-threshold
+  measurement**, which is the number that matters: 34 of the 3444 are the new
+  route's and all 34 are within threshold.
+- Note for whoever merges: `tools/browser-verify/README.md` is also touched by
+  `origin/claude/four-red-integration-tests-62a7ba`, so the two will conflict
+  there. Regenerating (`npm run verify:counts` then `npm run verify:readme`)
+  resolves it and is the only correct resolution -- both regions are generated
+  and neither should be hand-merged.
 
 ## B1 -- what was built
 
@@ -428,6 +453,67 @@ a checker that pretended to would be the ratchet
 `tests/spec-instructions-budget.test.ts` already was. **Not built here: it is its
 own lane, and it needs the file's owner, since a checker that reddens on a file
 nobody in the lane may edit is a permanently red suite.**
+
+## B8 -- the suite, and the three red files
+
+`npx svelte-kit sync && npx svelte-check`: **0 errors, 37 warnings**, breakdown
+**31 `state_referenced_locally` / 5 `css_unused_selector` / 1
+`perf_avoid_nested_class`** -- the documented baseline, unmoved by this bundle.
+(With no `.env` and the two placeholders unexported the same tree reports 13
+errors; see the `CLAUDE.md` report above.)
+
+`npm test`, run at **01:36 PDT on 2026-09-06** (America/Los_Angeles) and again
+after the regeneration: **292 test files, 5959 tests**. The first run had **8
+failures across 3 files**; after `verify:counts` and `verify:readme` that is
+**3 failures across 2 files**, and here is every one of them by name.
+
+**GONE, and they were this bundle's own:** the five `tests/derived-numbers.test.ts`
+failures. Adding a route spec without regenerating is exactly what that file is
+built to redden, and B7 cleared it.
+
+**PRE-EXISTING ON `main`, NOT THIS BUNDLE'S (2), and the prompt predicted them:**
+`tests/gauntlet-doc.test.ts` -- "agrees with docs/GAUNTLET.md and
+docs/GAUNTLET-DESIGN.md" and "covers every GAUNTLET migration in the tree".
+The uncovered migration is named in the failure output:
+`0184_gauntlet_run_event_bounds.sql`. Verified independently that this is not
+mine: `git show origin/main:docs/GAUNTLET.md | grep -c 0184` answers **0**, and
+this branch's diff against `origin/main` touches no gauntlet file and not
+`docs/GAUNTLET.md`. The migration arrived on
+`origin/claude/gauntlet-run-events-zspf1y` without its doc row and that branch
+reached `main`. **The fix exists and is unmerged**: swept every remote branch for
+a `docs/GAUNTLET.md` containing `0184` and exactly one has it --
+`origin/claude/four-red-integration-tests-62a7ba` (prompt 0067), whose whole diff
+is that one line plus `tools/browser-verify/README.md` plus its own records.
+
+**INTRODUCED BY THIS BRANCH, AND IT IS A TRUE STATEMENT ABOUT THE TREE (1):**
+`tests/db/migration-0177-tombstone.test.ts` -- "the migration series is
+contiguous, with 0177 in it". This branch's `supabase/migrations/` runs
+`... 0183, 0184, 0185, 0187` and the walk reports a hole at **186**.
+
+**The hole is real and the number is still right.** 0186 is taken: it exists as
+`0186_maps_media_no_anon_listing.sql` on
+`origin/claude/maps-media-bucket-he0wnn` and on no other ref, `main` and
+`integration` included. Taking 186 would collide with a real migration; taking
+188 would leave two holes. So 187 is the only correct answer under "the next free
+number verified across every ref at commit time", and the failing assertion is
+reporting a fact about the repository's cross-branch state rather than a defect
+in this file. `origin/claude/maps-media-bucket-he0wnn` itself is contiguous
+through 0186 and does not fail this test, which is what confirms the direction of
+the dependency.
+
+**It clears the moment 0186 lands on `main` or `integration`, and nothing this
+bundle may do clears it sooner.** 0186 is READ-ONLY to this bundle, so carrying
+the file across, cherry-picking it, or merging that branch in were all declined
+rather than overlooked -- each would take ownership of another session's work and
+would conflict when that branch integrates. Merging THIS migration to `main`
+would make it worse, not better: `main` would then read `0185, 0187` and go red
+itself.
+
+**So this branch is deliberately left red on one assertion, and it is named here
+rather than left to be found.** Since CI is already red on `main` for the
+gauntlet-doc pair, `integrate.yml` (which merges only on green) is not merging
+anything at present anyway; landing 0067's branch and 0071's branch clears all
+three of these together.
 
 ## What was NOT verified
 

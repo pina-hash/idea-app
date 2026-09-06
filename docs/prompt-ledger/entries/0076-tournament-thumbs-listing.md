@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: at most one migration (number taken at commit time), the thumbnail render path under `src/lib/tournaments/**` and `src/routes/tournaments/**`, `src/routes/dev/tournament-thumbs/**`, `tests/tournament-thumbs*`, `tests/db/tournament-thumbs*`, `tools/browser-verify/routes/tournament-thumbs*.mjs`, the generated regions of its README, decision 17's Status line, `docs/prompt-ledger/entries/0076-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, number taken at commit time after merging origin/main. Highest on origin/main at issue: 0185
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/tournament-thumbs-listing-psuleu`
 - Notes: Prompt 0071 closed `maps-media`'s listing and, in doing so, proved
   the shape decision 17 already proposed as its own default: close the
   listing, leave the public flag. It also reported the state of every bucket
