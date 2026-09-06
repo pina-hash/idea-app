@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/classroom/nav.ts`, `ClassroomShell.svelte`, `src/routes/classroom/+layout.svelte`, `src/routes/dev/classroom-nav/**`, the tab lists in the two `/dev` classroom harnesses, `GreenlineDashboardCard.svelte` and its mount, `tests/classroom-nav*`, `tests/dom/classroom-nav*`, `tools/browser-verify/routes/classroom-nav*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0086-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0189
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/land-duplicates-tab-0by1zg`
 - Notes: Prompt 0081 built three doors and deliberately withheld one. The
   duplicates tab would have pointed at `/classroom/[sectionId]/duplicates`,
   which on its base existed only on an unmerged branch behind an unapplied
