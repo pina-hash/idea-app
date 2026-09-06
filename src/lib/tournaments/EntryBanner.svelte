@@ -1,6 +1,7 @@
 <script lang="ts">
 	import BadgeIcon from './BadgeIcon.svelte';
 	import type { TournamentEntry } from './tournaments';
+	import { THUMBNAIL_MARK, thumbnailSrc, thumbnailState } from './thumbnail';
 	import {
 		accentAlpha,
 		accentOf,
@@ -91,6 +92,21 @@
 			.filter(Boolean)
 			.join(';')
 	);
+
+	/**
+	 * The four thumbnail states, decided in ONE place for both surfaces
+	 * ($lib/tournaments/thumbnail.ts). `thumbFailed` is keyed on the URL rather
+	 * than left standing: this component is reused across bracket rounds and a
+	 * re-render with a DIFFERENT entry must not inherit the previous one's
+	 * failure. Comparing against the last URL we armed for is what resets it,
+	 * and it is a plain derivation rather than an $effect precisely so there is
+	 * no write-during-render to schedule.
+	 */
+	let failedFor = $state<string | null>(null);
+	const thumbSrc = $derived(thumbnailSrc(entry?.thumbnail_url));
+	const thumbFailed = $derived(!!thumbSrc && failedFor === thumbSrc);
+	const thumbState = $derived(thumbnailState(entry?.thumbnail_url, thumbFailed));
+
 </script>
 
 <div
@@ -127,8 +143,22 @@
 
 	<div class="body">
 		{#if entry}
-			{#if entry.thumbnail_url}
-				<img class="thumb" src={entry.thumbnail_url} alt="" loading="lazy" />
+			{#if thumbSrc && !thumbFailed}
+				<img
+					class="thumb"
+					src={thumbSrc}
+					alt=""
+					loading="lazy"
+					onerror={() => (failedFor = thumbSrc)}
+				/>
+			{:else if thumbState === 'refused'}
+				<span class="thumb mark refused" role="img" aria-label={THUMBNAIL_MARK.refused.label}
+					>{THUMBNAIL_MARK.refused.glyph}</span
+				>
+			{:else if thumbState === 'failed'}
+				<span class="thumb mark failed" role="img" aria-label={THUMBNAIL_MARK.failed.label}
+					>{THUMBNAIL_MARK.failed.glyph}</span
+				>
 			{:else}
 				<span class="thumb initial" aria-hidden="true">{initial}</span>
 			{/if}
@@ -359,6 +389,41 @@
 		font-size: calc(var(--thumb) * 0.42);
 		color: currentColor;
 		opacity: 0.65;
+	}
+	/* The two FAULT marks -- see EntryChip for the argument. Same box as the
+	   picture (width/height/radius/flex all live on `.thumb`), distinct on ink,
+	   fill and border style, with a glyph of its own. Full opacity, unlike the
+	   initial: an initial is decoration and these two are information. */
+	.thumb.mark {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: calc(var(--thumb) * 0.46);
+		line-height: 1;
+	}
+	/* `--amber` (#d08030) is the warning IDENTITY and does not move. What moves
+	   is the derived INK: the same hue (30deg) and the same saturation (63%) at
+	   65% lightness instead of 50%, which is the `--acc-ink` rule applied here.
+	   Measured against the fill this mark actually sits on inside a banner --
+	   the pinned amber wash over the room's dark plate, rgb(54, 56, 37) -- the
+	   identity value came out at 3.9:1 and this one at 5.6:1. The FILL stays
+	   pinned rather than mixed from the ink, or lightening the ink would
+	   lighten its own ground and hand most of that back. */
+	.thumb.mark.refused {
+		color: #dea66e;
+		background: rgba(208, 128, 48, 0.16);
+		border-style: solid;
+		border-color: #dea66e;
+	}
+	.thumb.mark.failed {
+		color: var(--ice, #a8b6ad);
+		background: rgba(0, 0, 0, 0.62);
+		border-style: dashed;
+		border-color: var(--ice, #a8b6ad);
+	}
+	.entry-banner.has-acc .thumb.mark {
+		border-color: currentColor;
 	}
 	.text {
 		display: flex;

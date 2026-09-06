@@ -6,7 +6,35 @@
   that file is a dated record and is not edited, so the citation stands and this line
   is what resolves it.
 - Raised: 2026-09-05  By: prompt 0057, `claude/public-upload-buckets-4dqkbe`
-- Status: open
+- Status: open -> ANSWERED 2026-09-06 by prompt 0076, `claude/tournament-thumbs-listing-psuleu`.
+  The listing is closed by `supabase/migrations/0189_tournament_thumbs_no_anon_listing.sql`
+  and the bucket flag is left `public = true`, which is this entry's own stated default.
+  Two things this entry says were corrected by measuring them, and the corrections are why
+  the shipped shape is not the one proposed here:
+  (a) THE RESIDUE IS SMALLER THAN THIS ENTRY CLAIMS. "0064 put entry BANNER art in the same
+  bucket ... None of those is named by any `thumbnail_url`" is true of `thumbnail_url` and
+  false of the bucket: `tournament_entry_styles.background_value` holds the whole public URL
+  and 0064 grants `anon` SELECT on that table under `using (true)`, so a banner comes through
+  the FRONT door like every thumbnail. `tests/db/tournament-thumb-stays-public.test.ts` reads
+  it as residue only because it deliberately leaves 0064 out of its chain and therefore
+  measures a database with no such table in it. Measured with 0064 applied, over four objects:
+  anon listed 4 of 4, `thumbnail_url` named 2, `background_value` named a third, and the
+  residue was 1 -- the ORPHAN. Orphans are the whole of what this closes, and they are not
+  rare: both upload paths PUT the bytes before the row exists and the banner editor uploads
+  again on every re-pick, so an abandoned registration or a changed mind leaves one behind,
+  and nothing sweeps them.
+  (b) THE MEASUREMENT THIS ENTRY SAYS IS BLOCKING IS NO LONGER BLOCKING, because the shipped
+  policy does not need it. This entry's proposed narrowing was `to authenticated`, which
+  breaks every spectator thumbnail if the bucket-flag claim is wrong -- hence the `curl`.
+  0189 instead keeps an `anon` policy and SCOPES it to keys a row an anonymous caller can
+  already read (0186's shape, applied here), so the set it admits and the set the bracket
+  renders are the same set BY CONSTRUCTION. Under either answer to the unmeasured question
+  nothing on the bracket changes, and the `curl` is no longer a precondition. It is still
+  worth running: it is the one thing that would let a later bundle close the exact-key read
+  of an orphan as well.
+  Left open and NOT answered here: question 2 (should a tournament thumbnail be public at
+  all) and question 3 (what happens to an object when the student leaves) -- 0189 deletes
+  nothing and expires nothing. Question 1 is answered yes, on the orphans.
 - Decision:
 - Default this assistant would pick: keep 0183 as shipped -- `foundry-covers` private,
   one read policy `to authenticated`, every cover asked for through
