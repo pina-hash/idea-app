@@ -64,11 +64,20 @@ export default {
   press; `evaluate` runs a page-side function SOURCE and reports its return
   value.
   **Every step is a measurement** (`prepare-click`, `prepare-wait`,
-  `prepare-eval`), counted in the summary and gating `--strict`. A click step
-  passes only if the click ACTUALLY FIRED: a `until` the page satisfies at REST
-  short-circuits `clickUntil` and the step reaches no state, which is a finding.
-  Write the predicate against something only the click can produce; `force: true`
-  is the escape hatch and annotates itself in the report.
+  `prepare-eval`, `prepare-step`), counted in the summary and gating `--strict`.
+  A click step passes only if the click ACTUALLY FIRED: a `until` the page
+  satisfies at REST short-circuits `clickUntil` and the step reaches no state,
+  which is a finding. Write the predicate against something only the click can
+  produce; `force: true` is the escape hatch and annotates itself in the report.
+  **`until` IS READ BY `click` AND BY `evaluate`, AND BY NOTHING ELSE.** On an
+  `evaluate` it re-runs the step (up to `attempts`, `gapMs` apart, both
+  defaulting as they do for a click) until the predicate holds, and fails the
+  step when it never does -- it was DISCARDED IN SILENCE until 2026-09-06, so
+  any `until` on an `evaluate` older than that never waited for anything. A
+  `waitFor` step's predicate is its own `waitFor`, so an `until` beside one, and
+  a step with no action key at all, are `prepare-step` findings rather than
+  silence. The harness README's "`until` -- which steps read one" section is the
+  full reference.
 - `settleMs` -- how long to let entrance animations finish before measuring.
 - `contrast` -- `[{ selector, label, min }]` -- 4.5 for copy, 3 for a
   boundary.

@@ -556,6 +556,101 @@ number. `SETTLE_ENTRANCE` in `routes/_shared.mjs` uses that to say how many card
 it settled -- a settling step that reports `0 course-card(s)` is a silent no-op
 made visible, which is what happens the day a class name moves.
 
+### `until` -- which steps read one, and what it does on each
+
+**`until` was silently DISCARDED on an `evaluate` step, and it is honoured
+now.** The branch judged such a step on whether it THREW and read `step.until`
+nowhere, so a predicate an author wrote as a guarantee bought nothing, the step
+reported `ok`, and the run went on measuring a state it had not reached. It is
+the eighth entry in this file's own list of green checks proving nothing and the
+first where the instrument threw away a guard somebody wrote on purpose.
+
+| step | reads `until`? | what it does with it |
+| --- | --- | --- |
+| `click` | yes | `clickUntil`: re-clicks up to `attempts` times until the predicate holds. Fails when it never does, and when the predicate held at REST so the click never fired (above). |
+| `evaluate` | yes | Re-runs the step up to `attempts` times until the predicate holds, reporting the attempt count AND the elapsed time. Fails when it never does. |
+| `waitFor` | **no** | Its predicate IS its `waitFor`. An `until` beside one is reported as a `prepare-step` finding rather than ignored. |
+
+```js
+prepare: [
+	// Without `until`: judged only on not throwing. Right for a step that
+	// merely reads something back, wrong for one that has to LAND.
+	{ evaluate: '() => window.__imgGrids()' },
+
+	// With `until`: the step is re-run until its own predicate holds.
+	{
+		evaluate: '() => window.__seedThirtyCells()',
+		until: '() => document.querySelectorAll(".nb-cell").length === 30',
+		attempts: 12, // default 12
+		gapMs: 300    // default 300, and the poll interval inside each attempt
+	}
+]
+```
+
+Three things about the row it produces:
+
+- **The threshold sentence changes with the step.** Without an `until` it reads
+  `the step runs without throwing`; with one, `the step runs without throwing
+  AND its \`until\` then holds`. A step whose row still says the short sentence
+  is a step carrying no predicate.
+- **A THROW stops immediately** rather than being retried into a count. Retrying
+  measures the same exception twelve times; the author needs the message.
+- **A predicate that ALREADY HELD is annotated, not failed** -- the opposite
+  verdict from a click, and for a stated reason. A click whose predicate held at
+  rest never physically fired and reached no state; an evaluate DID run. What is
+  left to say is that the predicate could not have told the difference, so the
+  row carries `[the predicate ALREADY HELD before the step ran -- it does not
+  discriminate]` and stays green.
+
+**A step whose SHAPE cannot keep its promise is a `prepare-step` finding.** Two
+cases, both previously silent: an `until` on a step that reads none, and a step
+with no action key at all -- which is what a mistyped `evaulate:` produces, and
+today it is a 200ms wait wearing a spec's clothes. A route spec is a plain
+object literal, so nothing type-checks either one.
+
+**A failed `until` prints the predicate in full**, on its own line under the
+row. The label carries the step, truncated; the predicate is the half that did
+not hold and is what has to be read to fix it.
+
+`tests/browser-verify-prepare-until.test.ts` is the durable control for all of
+this and lives in `npm test` rather than here, because this harness is
+deliberately outside CI (below) and a discarded `until` prints `ok`, costs
+nothing and reads in the spec source exactly like a working one.
+
+### A PREPARE STEP THAT PASSES FOR A REASON NOBODY CHECKED
+
+The `until` defect above was found while chasing a spec that passed one run in
+two, always at 375, always on the first pass after a cold `vite dev` boot. **The
+first fix offered for it went green three times and was wrong**, and it is
+written down here because a wrong fix that goes green is harder to catch than
+the bug.
+
+It was a prepare step that cleared stale `localStorage` slots before measuring.
+Three passes, three greens, finding gone. What it was actually buying was **about
+300ms of incidental delay** ahead of the keystrokes -- enough, that afternoon, for
+hydration to attach the handler the step's real problem was landing ahead of.
+There was nothing stale to clear: browser contexts are per-run here (`openPage`
+opens a fresh one per route/width), so no slot ever survives into the next run.
+
+**The step said so itself, on the line above the green:**
+
+```
+  ok  prepare-eval [() => clearStaleSlots()]   returned -- cleared 0 stale slot(s)
+```
+
+`0` is the whole diagnosis. The step printed its own return value -- which is
+exactly what that feature is for -- and the number said the work it claimed to
+do had not been done, next to a row saying `ok`, in a run reporting 0 outside
+threshold.
+
+**So a prepare step is only as good as the reason it works, and the two
+questions are different**: "did the finding go away" and "did this step do the
+thing it says". Ask the second by reading the step's own printed return value,
+and by removing the step and confirming the finding comes BACK for the reason
+you think -- a delay dressed as a fix passes the first question every time.
+Where the answer is genuinely "this needs to wait for something", `until` is the
+spelling that says so, and since this bundle it is the spelling that does so.
+
 ## Negative controls -- the part that makes the numbers mean anything
 
 A check that has never failed has not been tested.

@@ -159,10 +159,150 @@ function printDetail(r, indent = '        ') {
 			console.log(`${indent}${e.running} -> rest opacity ${e.restOpacity}, transform ${e.restTransform}, ${e.restAnimations} animation(s)  ${e.path}`);
 		}
 	}
+	/* A FAILED `until` PRINTS THE PREDICATE, not only the step it sat on. The
+	   step's own source is in the label; the predicate is the half that did not
+	   hold, and it is what the author has to read to fix it. It is truncated in
+	   the label line and never truncated here. */
+	if (r.check === 'prepare-eval' && r.data?.until) {
+		console.log(`${indent}until: ${r.data.until}`);
+	}
 	if (r.check === 'console-errors') {
 		for (const e of r.data.errors) console.log(`${indent}[${e.type}] ${e.text.split('\n')[0].slice(0, 200)}`);
 		for (const e of r.data.ignored) console.log(`${indent}(ignored) ${e.text.split('\n')[0].slice(0, 140)}`);
 	}
+}
+
+/** The action keys a `prepare` step can carry, and whether each reads `until`. */
+const PREPARE_ACTIONS = { click: true, evaluate: true, waitFor: false };
+
+/**
+ * Run an `evaluate` prepare step until its own `until` predicate holds.
+ *
+ * THE SHAPE IS `clickUntil`'s, DELIBERATELY, because the question is the same
+ * one: did the thing this step does actually reach the state the spec says it
+ * reaches. It re-runs the evaluate and re-checks the predicate, up to
+ * `attempts` times, and reports the attempt count and the elapsed time -- so a
+ * step that needed nine tries says nine rather than reading identically to one
+ * that landed first go.
+ *
+ * THE PREDICATE IS INVOKED THROUGH `waitUntil`, NOT THROUGH A SECOND POLL LOOP
+ * WRITTEN HERE. `waitUntil` already carries the `page.evaluate(string)`
+ * expression workaround -- an arrow-function source handed over bare becomes a
+ * function OBJECT and is never `=== true` -- and a second copy of that is
+ * precisely the thing that stops matching. Each attempt gets `gapMs` of it,
+ * which is the gap and the poll in one primitive.
+ *
+ * A THROW IS STILL A THROW AND STOPS IMMEDIATELY. Retrying a step that raised
+ * measures the same exception `attempts` times and buys nothing; the author
+ * needs the message, not the count.
+ */
+export async function evaluateUntil(page, step, { attempts = step.attempts ?? 12, gapMs = step.gapMs ?? 300 } = {}) {
+	const started = Date.now();
+	const run = () =>
+		page
+			.evaluate(`(${step.evaluate})()`)
+			.then((v) => ({ ok: true, v }))
+			.catch((e) => ({ ok: false, err: e.message.split('\n')[0] }));
+
+	/* Asked ONCE, before anything runs, and it is an annotation rather than a
+	   verdict. A click whose predicate already held never fired and reached no
+	   state, which is why `prepareClickResult` fails it; an evaluate DID run,
+	   so the step happened. What the reader still needs to know is that the
+	   predicate could not have told the difference. */
+	const heldBefore = (await waitUntil(page, step.until, { timeoutMs: 0 })).ok;
+
+	let last = { ok: false };
+	for (let i = 1; i <= attempts; i++) {
+		last = await run();
+		if (!last.ok) return { ...last, attempts: i, elapsedMs: Date.now() - started, heldBefore, reason: 'THREW' };
+		const s = await waitUntil(page, step.until, { timeoutMs: gapMs, pollMs: Math.min(100, Math.max(1, gapMs)) });
+		if (s.ok) {
+			return {
+				ok: true,
+				v: last.v,
+				attempts: i,
+				elapsedMs: Date.now() - started,
+				heldBefore,
+				reason: 'predicate satisfied'
+			};
+		}
+	}
+	return {
+		ok: false,
+		v: last.v,
+		attempts,
+		elapsedMs: Date.now() - started,
+		heldBefore,
+		reason: `predicate never satisfied in ${attempts} attempt(s)`
+	};
+}
+
+/**
+ * The result row for an `evaluate` step that carries an `until`.
+ *
+ * It is built here rather than in `checks.mjs` because it is a DIFFERENT claim
+ * from `prepareEvalResult`'s, not a wider spelling of it: that row's threshold
+ * is "the step runs without throwing", which is exactly the sentence this
+ * bundle exists to stop being the whole of what an `until`-carrying step
+ * promises. A step with no `until` still takes that row, unchanged.
+ */
+export function prepareEvalUntilResult(step, r) {
+	const said = typeof r.v === 'string' || typeof r.v === 'number' ? ` -- ${r.v}` : '';
+	const src = String(step.evaluate).replace(/\s+/g, ' ').slice(0, 70);
+	const held = r.heldBefore ? '  [the predicate ALREADY HELD before the step ran -- it does not discriminate]' : '';
+	const measured =
+		r.reason === 'THREW'
+			? `THREW: ${r.err}  (attempt ${r.attempts}, ${r.elapsedMs}ms)`
+			: `${r.attempts} attempt(s), ${r.elapsedMs}ms, ${r.reason}${said}${held}`;
+	return {
+		check: 'prepare-eval',
+		label: src,
+		measured,
+		threshold: 'the step runs without throwing AND its `until` then holds',
+		withinThreshold: r.ok,
+		data: { ...r, until: String(step.until).replace(/\s+/g, ' ') }
+	};
+}
+
+/**
+ * A step whose SHAPE cannot do what it says. Two cases, both silent until now:
+ *
+ *  - an `until` on a step no branch reads one from. `waitFor`'s predicate is
+ *    its own `waitFor`, so an `until` beside it is discarded; a step with no
+ *    action key at all discards everything.
+ *  - a step carrying no action key, which today is a 200ms wait wearing a
+ *    spec's clothes. A mistyped `evaulate:` is exactly this and type-checks
+ *    nowhere, because a route spec is a plain object literal.
+ *
+ * Returned as rows rather than thrown, for the reason the prepare loop's own
+ * header gives: a red row above the numbers it invalidates is what makes the
+ * report read in the order the run happened.
+ */
+export function prepareStepShapeResults(step) {
+	const out = [];
+	const actions = Object.keys(PREPARE_ACTIONS).filter((k) => step[k] !== undefined);
+	const readsUntil = actions.filter((k) => PREPARE_ACTIONS[k]);
+	if (!actions.length) {
+		out.push({
+			check: 'prepare-step',
+			label: Object.keys(step).join(', ') || '(empty step)',
+			measured: `no action key (${Object.keys(PREPARE_ACTIONS).join(' | ')}) -- this step ran nothing`,
+			threshold: 'a prepare step names exactly one action',
+			withinThreshold: false,
+			data: { keys: Object.keys(step) }
+		});
+	}
+	if (step.until !== undefined && !readsUntil.length) {
+		out.push({
+			check: 'prepare-step',
+			label: String(step.until).replace(/\s+/g, ' ').slice(0, 70),
+			measured: `\`until\` written on a step that reads none (keys: ${Object.keys(step).join(', ')}) -- it was DISCARDED`,
+			threshold: '`until` sits on a `click` or an `evaluate`',
+			withinThreshold: false,
+			data: { keys: Object.keys(step), until: String(step.until).replace(/\s+/g, ' ') }
+		});
+	}
+	return out;
 }
 
 async function runRoute(browser, origin, spec, width, opts) {
@@ -242,12 +382,30 @@ async function runRoute(browser, origin, spec, width, opts) {
 				   reports "settled 0 card(s)" is a silent no-op made visible --
 				   which is what happens the day a class name moves and the step
 				   goes on succeeding while doing nothing. */
-				const out = await page
-					.evaluate(`(${step.evaluate})()`)
-					.then((v) => ({ ok: true, v }))
-					.catch((e) => ({ ok: false, err: e.message.split('\n')[0] }));
-				results.push(prepareEvalResult(step, out));
+				/* AN `until` ON THIS STEP IS HONOURED, AND USED NOT TO BE. The branch
+				   judged the step on whether it THREW and read `step.until` nowhere,
+				   so a predicate an author wrote as a guarantee was discarded in
+				   silence and the step reported success without waiting for
+				   anything -- the exact shape of a green check proving nothing. A
+				   step with no `until` takes the unchanged path below, byte for
+				   byte. */
+				if (step.until) {
+					results.push(prepareEvalUntilResult(step, await evaluateUntil(page, step)));
+				} else {
+					const out = await page
+						.evaluate(`(${step.evaluate})()`)
+						.then((v) => ({ ok: true, v }))
+						.catch((e) => ({ ok: false, err: e.message.split('\n')[0] }));
+					results.push(prepareEvalResult(step, out));
+				}
 			}
+			/* AN `until` NO BRANCH ABOVE CONSUMED IS A MEASUREMENT, NOT A SHRUG.
+			   Only `click` and `evaluate` read one; a `waitFor` step's predicate
+			   IS its `waitFor`, and a step with neither key runs nothing at all.
+			   Either way an author has written a guarantee the run cannot keep,
+			   and the whole cost of this defect was that saying nothing looks
+			   exactly like honouring it. */
+			results.push(...prepareStepShapeResults(step));
 			await page.waitForTimeout(step.waitMs ?? 200);
 		}
 
@@ -363,11 +521,18 @@ async function main() {
 	return opts.strict && outside.length ? 1 : 0;
 }
 
-main().then(
-	(code) => process.exit(code),
-	(err) => {
-		console.error('\nbrowser-verify failed to run:\n' + (err?.stack ?? err));
-		console.error('\nIf this is a missing browser, run: node tools/browser-verify/run.mjs --probe');
-		process.exit(2);
-	}
-);
+/* RUN ONLY WHEN THIS FILE IS THE ENTRY POINT. It used to call `main()` at
+   module scope, so merely IMPORTING it -- which is what a test asserting any
+   of the exports above has to do -- booted a vite dev server and a Chromium
+   and started a full pass. `tests/browser-verify-prepare-until.test.ts` is
+   what needs this; the CLI behaves identically either way. */
+const isEntry = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isEntry)
+	main().then(
+		(code) => process.exit(code),
+		(err) => {
+			console.error('\nbrowser-verify failed to run:\n' + (err?.stack ?? err));
+			console.error('\nIf this is a missing browser, run: node tools/browser-verify/run.mjs --probe');
+			process.exit(2);
+		}
+	);
