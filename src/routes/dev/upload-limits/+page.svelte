@@ -1,6 +1,8 @@
 <script lang="ts">
 	import {
+		PORTAL_UPLOAD_MAX_BYTES,
 		PROJECT_CEILING_SENTENCE,
+		SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES,
 		UPLOAD_CEILING_LIST,
 		formatCap,
 		uploadFailureMessage,
@@ -25,6 +27,27 @@
 	}));
 
 	/**
+	 * THE TWO NUMBERS EVERY ROW ABOVE SITS UNDER, rendered from the constants
+	 * rather than typed, so this panel cannot go on saying 50 MB after somebody
+	 * moves it. `margin` is the headroom the arithmetic in `upload-limits.ts`
+	 * spends on the multipart request envelope and on the fact that "50 MB" is
+	 * an ambiguous phrase.
+	 */
+	const global = {
+		limit: SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES,
+		portal: PORTAL_UPLOAD_MAX_BYTES,
+		margin: SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES - PORTAL_UPLOAD_MAX_BYTES
+	};
+
+	/**
+	 * HOW MANY ROWS STILL STATE NOTHING. It is zero, and that is the whole
+	 * outcome of the bundle that built this panel -- it used to be five. Shown
+	 * as a count rather than as an absence, because a section that renders
+	 * nothing is indistinguishable from a section that broke.
+	 */
+	const unstated = UPLOAD_CEILING_LIST.filter((c) => c.maxBytes == null);
+
+	/**
 	 * THE FOUR OTHER WAYS AN UPLOAD FAILS, on one path, so the discrimination
 	 * is readable rather than asserted. The one that matters is the third: a
 	 * file well under the ceiling, refused for a reason that has nothing to do
@@ -33,17 +56,17 @@
 	const others: { key: string; about: string; message: string }[] = [
 		{
 			key: 'too-large-project',
-			about: 'Storage refused it for size, on a path whose ceiling is not set here',
+			about: 'Storage refused a 60 MB Foundry zip for size, on a path that now names its own ceiling',
 			message: uploadFailureMessage({
 				id: 'foundry-bundle',
 				status: 413,
 				detail: 'The object exceeded the maximum allowed size',
-				sizeBytes: 30 * 1024 * 1024
+				sizeBytes: 60 * 1024 * 1024
 			})
 		},
 		{
 			key: 'denied',
-			about: 'A 40 MB file into a 200 MB bucket, refused by row-level security',
+			about: 'A 40 MB file into a 45 MB bucket, refused by row-level security',
 			message: uploadFailureMessage({
 				id: 'classroom-submission',
 				status: 403,
@@ -112,7 +135,36 @@
 		{/each}
 	</ul>
 
-	<h2>The ceiling nobody here can read</h2>
+	<h2>The two numbers every row sits under</h2>
+	<dl class="globals" data-testid="upload-limits-globals">
+		<div>
+			<dt>Supabase project limit</dt>
+			<dd data-testid="upload-limits-global">
+				{global.limit.toLocaleString()} bytes. Fixed by the Free plan, not a project
+				setting, and nothing in this repository can read it. Written as the smaller
+				reading of "50 MB", because a ceiling is the wrong thing to be optimistic about.
+			</dd>
+		</div>
+		<div>
+			<dt>Portal ceiling</dt>
+			<dd data-testid="upload-limits-portal">
+				{global.portal.toLocaleString()} bytes ({formatCap(global.portal)}). The largest
+				number any bucket states. {global.margin.toLocaleString()} bytes of margin, against
+				a multipart request envelope well under a kilobyte.
+			</dd>
+		</div>
+		<div>
+			<dt>Rows still stating nothing</dt>
+			<dd data-testid="upload-limits-unstated">
+				{unstated.length} of {UPLOAD_CEILING_LIST.length}.{' '}
+				{unstated.length === 0
+					? 'Every path names a number, so the sentence below is unreachable and is kept as a tripwire.'
+					: `Still unstated: ${unstated.map((c) => c.id).join(', ')}.`}
+			</dd>
+		</div>
+	</dl>
+
+	<h2>The sentence for a ceiling nobody here can read</h2>
 	<p class="note" data-testid="upload-limits-project-note">{PROJECT_CEILING_SENTENCE}</p>
 
 	<h2>Failing for a reason that is not size</h2>
@@ -203,6 +255,30 @@
 		color: var(--text-2);
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
+	}
+	.globals {
+		margin: 0.8rem 0 0;
+		display: grid;
+		gap: 0.7rem;
+	}
+	.globals div {
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-2, 4px);
+		padding: 0.7rem 0.8rem;
+		min-width: 0;
+	}
+	.globals dt {
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		color: var(--text-1);
+		margin: 0 0 0.3rem;
+	}
+	.globals dd {
+		margin: 0;
+		color: var(--text-2);
+		font-size: 0.9rem;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 	.note {
 		color: var(--text-1);

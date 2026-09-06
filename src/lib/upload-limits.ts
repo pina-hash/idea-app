@@ -1,6 +1,6 @@
 /**
- * EVERY UPLOAD CEILING IN THE PORTAL, IN ONE PLACE, INCLUDING THE ONES THAT DO
- * NOT LIVE IN THIS REPOSITORY.
+ * EVERY UPLOAD CEILING IN THE PORTAL, IN ONE PLACE, AND THE GLOBAL THEY ALL
+ * SIT UNDER.
  *
  * WHY THIS EXISTS. Two students filed a report on the same day. One said "file
  * size limit at 25 mb". The other said "failed upload" and nothing else. No 25
@@ -11,25 +11,30 @@
  * sentence carried no number at all.
  *
  * THE DEFECT IS NOT A CEILING BEING TOO LOW. It is that a student cannot find
- * out which ceiling stopped them. Nine of the thirteen upload paths below
- * render an upstream error verbatim -- `Upload failed: <whatever storage
- * said>` -- and a raw storage sentence names neither the file, nor the limit,
- * nor anything to do about it.
+ * out which ceiling stopped them, and -- this is the half that took a second
+ * bundle to reach -- that most of the ceilings this application stated were
+ * FICTION. The project is on the Supabase FREE plan, whose global upload file
+ * size limit is 50 MB and is FIXED. Twelve of the fifteen buckets said
+ * something else: three claimed 200 MiB, which the platform would never have
+ * honoured, and nine said nothing at all and inherited a number no sentence
+ * here could name.
  *
- * A CEILING THAT IS NOT IN THIS REPOSITORY IS STILL A CEILING, AND SAYING SO
- * IS HALF THE POINT OF THIS MODULE. A Storage bucket created with no
- * `file_size_limit` does not thereby have no limit: the PROJECT-WIDE upload
- * limit applies to it, that number is a Supabase dashboard setting, and
- * nothing in this codebase can read it. Five buckets here are in that state
- * (`foundry-uploads`, `foundry-covers`, `avatars`, `tournament-thumbs`, the
- * four `gauntlet*` buckets). For those, `maxBytes` is NULL -- deliberately,
- * rather than being filled in with a guess -- and a refusal names the
- * situation instead of a number it does not have.
+ * `0185_bucket_limits_under_the_global.sql` ended that: every bucket now states
+ * a limit at or below `PORTAL_UPLOAD_MAX_BYTES`, and this module is where that
+ * number and the global above it are written down. A Pro upgrade is the two
+ * constants below plus the migration that follows them, not a hunt.
  *
- * WHAT THIS MODULE DOES NOT DO: it does not change a single ceiling. Every
- * number here is the number that was already being enforced, transcribed from
- * the migration or the module that enforces it. Raising one is a separate
- * decision with a cost, and this bundle makes them legible rather than larger.
+ * NULL IS STILL A REAL ANSWER AND THE MACHINERY FOR IT STAYS. No row carries it
+ * today, and `tests/upload-limits.test.ts` pins that; but a bucket added
+ * tomorrow with no `file_size_limit` is a bucket back in the old state, and
+ * `PROJECT_CEILING_SENTENCE` is what it should say rather than a number nobody
+ * here can read. The branch is a tripwire, not dead code.
+ *
+ * WHAT THIS MODULE DOES NOT DO: it does not choose a ceiling on its own. Every
+ * number here is either the number the enforcing module already used, or that
+ * number capped at the portal ceiling the migration writes into the bucket.
+ * Raising the global is a plan decision with a bill attached and is not made in
+ * code.
  *
  * WHY A REGISTRY AND NOT A CONSTANT PER PATH. There already is a constant per
  * path, in nine different modules, several of them server-only and therefore
@@ -53,6 +58,59 @@
 import { formatBytesShort, formatCap } from '$lib/classroom/upload-errors';
 
 export { formatBytesShort, formatCap };
+
+/**
+ * THE SUPABASE PROJECT-WIDE UPLOAD LIMIT. THE ONE PLACE IT IS STATED.
+ *
+ * Read off the Supabase dashboard on 2026-09-05: "Global file size limit
+ * 50 MB", FIXED, because the project is on the Free plan -- the dashboard's own
+ * words are "Free Plan has a fixed upload file size limit of 50 MB". It is not
+ * a project setting that can be raised; it moves when the plan does.
+ *
+ * IT IS WRITTEN AS 50,000,000 AND NOT AS 50 MiB, AND THE CHOICE IS THE
+ * CONSERVATIVE ONE. "50 MB" is ambiguous: read as MiB it is 52,428,800, read as
+ * decimal MB it is 50,000,000. Nothing in this repository can settle which --
+ * the only channel to that database is `tools/apply-migration.mjs`, which
+ * applies files and does not answer questions. Every consumer of this constant
+ * is a CEILING, and a ceiling read too high is the exact defect this module
+ * exists to end: a file that passes every check here and is refused at the far
+ * end after the whole transfer. So the smaller reading is the binding one, and
+ * the ~2.4 MB of possible headroom is left on the table deliberately.
+ *
+ * NOTHING SHOULD BE SET TO THIS NUMBER. It is what the platform refuses at, not
+ * what this application should promise; `PORTAL_UPLOAD_MAX_BYTES` is the number
+ * a bucket and a preflight actually carry, and it sits below this one with the
+ * margin explained there.
+ */
+export const SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES = 50_000_000;
+
+/**
+ * THE LARGEST CEILING ANY BUCKET IN THIS PROJECT STATES: 45 MiB.
+ *
+ * THE ARITHMETIC, in the shape prompt 0014 used for `FOUNDRY_LIMITS`:
+ *
+ *   1. The binding global is 50,000,000 (see above -- the pessimistic reading,
+ *      chosen because a ceiling is the wrong thing to be optimistic about).
+ *   2. 45 MiB is 47,185,920, which is 94.4% of that, leaving 2,814,080 bytes.
+ *   3. The margin has to absorb the REQUEST ENVELOPE, not just the file:
+ *      supabase-js wraps a Blob in a `FormData` in the browser, so what crosses
+ *      the wire is the file plus a multipart boundary, two part headers and a
+ *      `cacheControl` field. That is under a kilobyte -- three orders of
+ *      magnitude inside the margin. (The tree already leaves headroom for this:
+ *      the notebook photo path refuses at 3.6 MiB in the browser against a
+ *      4 MiB route cap, "because a multipart body is the file plus its part
+ *      headers".)
+ *   4. It renders as "45 MB" through `formatCap`, which divides by 1024 twice
+ *      -- the same MiB convention every other limit in the chain uses (200, 20,
+ *      8 and 1 MB), so a student reads a round number and not 47.2.
+ *
+ * WHY NOT CLOSER TO THE GLOBAL. A couple more megabytes of app costs the whole
+ * of the margin that makes this number true under BOTH readings of "50 MB". The
+ * refusal a student meets here is one they meet before a byte moves and with a
+ * number in it; the one they would meet at 49 MiB is an upstream sentence after
+ * a full transfer over school wifi. That trade is not close.
+ */
+export const PORTAL_UPLOAD_MAX_BYTES = 45 * 1024 * 1024;
 
 /** Where a ceiling is actually applied, in the order a byte meets them. */
 export type UploadGuard =
@@ -95,12 +153,24 @@ export interface UploadCeiling {
 }
 
 /**
- * 200 MiB, three times. The classroom trio share one number and one migration
- * pair, and they are listed separately anyway because the SENTENCE differs --
- * a student handing in work and a teacher posting a handout are refused by
- * different policies and need different next steps.
+ * THE THREE CLASSROOM BUCKETS SHARE ONE NUMBER, AND IT IS NO LONGER 200 MiB.
+ *
+ * 0133 and 0135 set `file_size_limit = 209715200` and CLAUDE.md still
+ * celebrates it: "that is what moved the cap from 4 MiB to 200 MB and made a
+ * 60 MB SLDASM an ordinary hand-in". The bucket row said so; the platform never
+ * agreed. On the Free plan the global refused everything over 50 MB, so a 60 MB
+ * assembly was refused at the far end after the whole transfer, every time,
+ * with an upstream sentence nobody wrote. 0185 writes the true number.
+ *
+ * THE BROWSER GUARD ON THIS PATH IS STILL 200 MiB AND THIS BUNDLE CANNOT MOVE
+ * IT. `CLASSROOM_UPLOAD_MAX_BYTES` lives in `$lib/classroom/file-upload`, which
+ * is outside what this bundle owns, so a classroom pick between 45 MiB and
+ * 200 MiB still passes the browser and is refused by the bucket. That is the
+ * Foundry defect, one directory over, and it is the follow-up this bundle
+ * reports rather than makes: the fix is one constant, and
+ * `tests/upload-limits.test.ts` is what will notice when it lands.
  */
-const CLASSROOM_BYTES = 209715200;
+const CLASSROOM_BYTES = PORTAL_UPLOAD_MAX_BYTES;
 
 const CEILINGS = [
 	{
@@ -109,7 +179,9 @@ const CEILINGS = [
 		bucket: 'classroom-attachments',
 		maxBytes: CLASSROOM_BYTES,
 		guards: ['browser', 'route', 'bucket'],
-		statedBy: '0133 file_size_limit; CLASSROOM_UPLOAD_MAX_BYTES in $lib/classroom/file-upload',
+		statedBy:
+			'0185 file_size_limit (0133 said 209715200, which the 50 MB global never honoured); ' +
+			'CLASSROOM_UPLOAD_MAX_BYTES in $lib/classroom/file-upload is still 200 MB and is now the looser of the two',
 		advice: 'Split it, zip it, or link to it instead.'
 	},
 	{
@@ -118,7 +190,9 @@ const CEILINGS = [
 		bucket: 'submission-files',
 		maxBytes: CLASSROOM_BYTES,
 		guards: ['browser', 'route', 'bucket'],
-		statedBy: '0133 file_size_limit; CLASSROOM_UPLOAD_MAX_BYTES in $lib/classroom/file-upload',
+		statedBy:
+			'0185 file_size_limit (0133 said 209715200); CLASSROOM_UPLOAD_MAX_BYTES in ' +
+			'$lib/classroom/file-upload is still 200 MB and is now the looser of the two',
 		advice: 'Split it, zip it, or link to it instead.'
 	},
 	{
@@ -127,7 +201,9 @@ const CEILINGS = [
 		bucket: 'instructor-attachments',
 		maxBytes: CLASSROOM_BYTES,
 		guards: ['browser', 'route', 'bucket'],
-		statedBy: '0135 file_size_limit; CLASSROOM_UPLOAD_MAX_BYTES in $lib/classroom/file-upload',
+		statedBy:
+			'0185 file_size_limit (0135 said 209715200); CLASSROOM_UPLOAD_MAX_BYTES in ' +
+			'$lib/classroom/file-upload is still 200 MB and is now the looser of the two',
 		advice: 'Split it, zip it, or link to it instead.'
 	},
 	{
@@ -136,7 +212,8 @@ const CEILINGS = [
 		/**
 		 * NO BUCKET. This is the one classroom path that still POSTs bytes to a
 		 * function of ours, which is what holds its cap four orders of
-		 * magnitude below the other three.
+		 * magnitude below the other three. It is far under the global and 0185
+		 * does not touch it.
 		 */
 		bucket: null,
 		maxBytes: 4 * 1024 * 1024,
@@ -192,52 +269,62 @@ const CEILINGS = [
 		label: 'an app upload for the Foundry',
 		bucket: 'foundry-uploads',
 		/**
-		 * NULL, AND THIS IS THE WORST GAP IN THE TABLE. The browser refuses at
-		 * 75 MB (FOUNDRY_LIMITS.maxZipBytes, set deliberately by prompt 0014
-		 * with measured arithmetic) and the bucket carries NO `file_size_limit`
-		 * at all -- so anything between the project-wide limit and 75 MB passes
-		 * the preflight, transfers over school wifi, and is refused at the far
-		 * end by a ceiling nobody in this repository can name.
+		 * THIS WAS THE WORST GAP IN THE TABLE AND IT IS THE ONE THIS BUNDLE
+		 * CLOSED. It read null: the browser refused at 75 MiB
+		 * (`FOUNDRY_LIMITS.maxZipBytes`) and the bucket carried NO
+		 * `file_size_limit` at all, so anything between the 50 MB global and
+		 * 75 MiB passed the preflight, transferred whole over school wifi, and
+		 * was refused at the far end by a ceiling nobody in this repository
+		 * could name. That is the best explanation in the tree for the "failed
+		 * upload" report. 0185 gives the bucket the number and the browser now
+		 * refuses at the same one, before a byte moves.
 		 */
-		maxBytes: null,
-		guards: ['browser', 'project'],
-		statedBy: 'FOUNDRY_LIMITS.maxZipBytes in $lib/foundry/preflight refuses at 75 MB; 0130 sets no file_size_limit',
+		maxBytes: PORTAL_UPLOAD_MAX_BYTES,
+		guards: ['browser', 'bucket'],
+		statedBy: '0185 file_size_limit; FOUNDRY_LIMITS.maxZipBytes in $lib/foundry/preflight',
 		advice: 'Remove the largest files from the folder and upload it again.'
 	},
 	{
 		id: 'foundry-cover',
 		label: 'a cover image for a Foundry app',
 		bucket: 'foundry-covers',
-		maxBytes: null,
-		guards: ['project'],
-		statedBy: '0130 sets no file_size_limit, and nothing checks a size before sending',
+		maxBytes: PORTAL_UPLOAD_MAX_BYTES,
+		guards: ['bucket'],
+		statedBy: '0185 file_size_limit (0130 set none); nothing checks a size before sending',
 		advice: 'Pick a smaller image, or export it again at a lower resolution.'
 	},
 	{
 		id: 'avatar',
 		label: 'a profile picture',
 		bucket: 'avatars',
-		maxBytes: null,
-		guards: ['browser', 'project'],
-		statedBy: '0020/0181 set no file_size_limit; the browser refuses at 2 MB in ProfileMenu.svelte',
+		/**
+		 * THE BROWSER IS THE BINDING GUARD HERE, NOT THE BUCKET, and that is
+		 * why this row keeps 2 MB rather than taking the portal ceiling: a
+		 * profile picture is refused at 2 MB in `ProfileMenu.svelte` long
+		 * before Storage is asked. 0185 gave the bucket a number too, which is
+		 * defence in depth and not the ceiling a student meets.
+		 */
+		maxBytes: 2 * 1024 * 1024,
+		guards: ['browser', 'bucket'],
+		statedBy: 'the browser refuses at 2 MB in ProfileMenu.svelte; 0185 sets the bucket to 45 MB behind it',
 		advice: 'Pick a smaller picture, or crop it first.'
 	},
 	{
 		id: 'tournament-thumb',
 		label: 'a tournament entry thumbnail or banner',
 		bucket: 'tournament-thumbs',
-		maxBytes: null,
-		guards: ['project'],
-		statedBy: '0062 sets no file_size_limit, and nothing checks a size before sending',
+		maxBytes: PORTAL_UPLOAD_MAX_BYTES,
+		guards: ['bucket'],
+		statedBy: '0185 file_size_limit (0062 set none); nothing checks a size before sending',
 		advice: 'Pick a smaller image, or export it again at a lower resolution.'
 	},
 	{
 		id: 'gauntlet-asset',
 		label: 'a GAUNTLET challenge asset',
 		bucket: 'gauntlet',
-		maxBytes: null,
-		guards: ['project'],
-		statedBy: '0009/0015/0031 set no file_size_limit on any gauntlet bucket',
+		maxBytes: PORTAL_UPLOAD_MAX_BYTES,
+		guards: ['bucket'],
+		statedBy: '0185 file_size_limit (0009/0015/0031 set none on any gauntlet bucket)',
 		advice: 'Save the drawing or model at a smaller size and attach it again.'
 	}
 ] as const satisfies readonly UploadCeiling[];
@@ -255,12 +342,24 @@ export const UPLOAD_CEILINGS: Readonly<Record<UploadPathId, UploadCeiling>> = Ob
 );
 
 /**
- * The table in its declared order, for a surface that renders all of it. Typed
- * off `CEILINGS` itself rather than widened to `UploadCeiling[]`, so `row.id`
- * stays an `UploadPathId` and a caller iterating the list can pass it straight
- * back into `uploadTooLargeMessage` with no cast.
+ * The table in its declared order, for a surface that renders all of it.
+ *
+ * NARROW ON `id`, DECLARED ON THE REST, AND BOTH HALVES ARE LOAD-BEARING. It is
+ * not widened to `UploadCeiling[]`, because `row.id` must stay an
+ * `UploadPathId` so a caller iterating the list can pass it straight back into
+ * `uploadTooLargeMessage` with no cast. It is not `typeof CEILINGS` either,
+ * which is what it was until every ceiling in the table became a number:
+ * `as const` then made each `maxBytes` an exact numeric literal, TypeScript
+ * proved every `maxBytes == null` branch unreachable, and narrowed the row to
+ * `never` inside it -- so the five `Property 'id' does not exist on type
+ * 'never'` errors landed on the deliberate TRIPWIRES rather than on a mistake.
+ * Those branches are the point: this table has carried nulls before and the
+ * comments beside them say they are kept for when one returns. Deleting them to
+ * satisfy the checker would delete the guard, so the TYPE gives way instead and
+ * `maxBytes` reads as the `number | null` the interface declares.
  */
-export const UPLOAD_CEILING_LIST: typeof CEILINGS = CEILINGS;
+export const UPLOAD_CEILING_LIST: readonly (UploadCeiling & { readonly id: UploadPathId })[] =
+	CEILINGS;
 
 export function uploadCeiling(id: UploadPathId): UploadCeiling {
 	return UPLOAD_CEILINGS[id];
