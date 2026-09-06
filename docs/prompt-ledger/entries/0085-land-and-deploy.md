@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the merge of finished `claude/**` branches into `main`, and one push. Changes no file's content beyond conflict resolution.
 - Migration permitted: no. Highest on origin/main at issue: 0185
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/land-twenty-two-branches-fuv0tw`; `main` advanced `eec8151..5b3e14b` (82 commits, fast-forward)
 - Notes: Twenty-two branches finished across 2026-09-05 and 2026-09-06 and
   none is merged. Lanes have begun building around each other rather than on
   each other: prompt 0081 could not add a duplicates tab because 0074's page
