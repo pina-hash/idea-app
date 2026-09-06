@@ -2447,6 +2447,7 @@
 		'/classroom/s-1',
 		'/classroom/s-1/people',
 		'/classroom/s-1/grades',
+		'/classroom/s-1/duplicates',
 		'/classroom/s-1/item/i-3',
 		'/classroom/s-1/item/i-3/grade',
 		'/classroom/s-2',

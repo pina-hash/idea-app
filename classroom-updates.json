@@ -52,6 +52,24 @@
 			]
 		},
 		{
+			"date": "2026-09-06",
+			"title": "And a Duplicates tab, for when the same post went up twice",
+			"body": "A class can end up with the same draft post sitting in it more than once. It used to happen on its own: pressing Save draft emptied the box, so it looked as though nothing had saved, and pressing it again started a fresh copy rather than adding to the one already there. That is fixed, but the copies it already made are still in the classes it made them in, and until now there was no way to see them together, so the only way to find them was to scroll. There is a page that lists them, grouped so the copies of one post sit side by side with the dates they were made, and it has a tab on your class now beside Class, People, Grades and Check-ins. Deleting from it deletes one copy, it names which one, and it will not let go of anything a student has already worked on. Only the teacher of the class sees the tab, and nothing a student can see changes. On a phone the tabs stack onto a second line, so the new one cannot end up off the side of the screen.",
+			"tags": [
+				"Classwork",
+				"Stream"
+			]
+		},
+		{
+			"date": "2026-09-06",
+			"title": "Your class now has a Check-ins tab, next to Class, People and Grades",
+			"body": "Notebook check-ins are set up in one place and attached to a class in another, and until now there was no way to walk between them: a teacher who attached a check-in to an assignment had to know the address of the check-in list and type it in. There is a Check-ins tab on your class now, beside Class, People and Grades, and it opens straight onto this class's check-ins rather than a list of every class. It has a small arrow on it, because it takes you out of the classroom and into the notebook. Only the teacher of the class sees the tab; nothing has changed about how you file a check-in, or about what your teacher can read. On a phone the tabs now stack onto a second line instead of running off the side of the screen, so none of them can end up somewhere you cannot reach.",
+			"tags": [
+				"classroom",
+				"notebook"
+			]
+		},
+		{
 			"date": "2026-09-05",
 			"title": "Save draft now saves the same draft, instead of starting a new one",
 			"body": "Two of you reported this from opposite ends and it was one fault. When a teacher pressed Save draft while writing a post, the draft was saved but the box emptied itself, which made it look as though the writing had been lost. Pressing Save draft again then started a whole new draft rather than adding to the one already made, so the same post could pile up as several copies in a class. On a phone or a Chromebook it could get worse without anybody pressing anything: if the save looked like it had failed, switching tabs or locking the screen quietly tried the whole thing again, and each attempt that had actually gone through left another copy. Save draft is a checkpoint now. Your writing stays on the screen, the draft you already made is the one that gets updated, and a hidden tab no longer sends anything on its own. Post now still clears the box for the next post, because that is the end of the piece of writing. If your class has duplicate drafts from before today, they are safe to delete, and it is worth checking that the one you keep is the newest.",
