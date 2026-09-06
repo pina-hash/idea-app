@@ -44,6 +44,23 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
 
 const MIGRATION = read('supabase/migrations/0145_classroom_song_queue.sql');
+
+/**
+ * EVERY MIGRATION THAT EMITS A SONG REFUSAL, not just the one that started the
+ * feature. 0186 added `not_spotify` by replacing `classroom_song_request`, so a
+ * sweep reading 0145 alone would report the client inventing a reason the
+ * database never answers with -- which is exactly backwards, and is what a list
+ * pinned to one filename does the first time a rule moves.
+ *
+ * A FILE JOINS THIS ARRAY, IT DOES NOT REPLACE ANYTHING IN IT: 0145 still emits
+ * every other reason, and a later file that replaces one of its functions does
+ * not stop the earlier text being the record of what that function used to say.
+ * The sweep is a UNION, and the count assertion below is what keeps it honest.
+ */
+const REFUSAL_SOURCES = [
+	MIGRATION,
+	read('supabase/migrations/0186_song_spotify_and_feedback_spam.sql')
+];
 const COMPONENT = read('src/lib/classroom/SongQueue.svelte');
 const TRANSPORTS = read('src/lib/classroom/transports.ts');
 const PURE = read('src/lib/classroom/song-queue.ts');
@@ -87,6 +104,7 @@ const TRANSPORTS_CODE = stripJsComments(TRANSPORTS);
 const CLIENT_REFUSALS: SongRefusal[] = [
 	'not_a_student',
 	'bad_url',
+	'not_spotify',
 	'url_too_long',
 	'note_too_long',
 	'pending_cap',
@@ -115,7 +133,11 @@ describe('the refusal vocabulary matches the database', () => {
 	 * failure this test exists to catch.
 	 */
 	const emitted = [
-		...new Set([...MIGRATION.matchAll(/'reason',\s*'([a-z_]+)'/g)].map((m) => m[1]))
+		...new Set(
+			REFUSAL_SOURCES.flatMap((sql) =>
+				[...sql.matchAll(/'reason',\s*'([a-z_]+)'/g)].map((m) => m[1])
+			)
+		)
 	].sort();
 
 	test('the sweep found the reasons at all', () => {
@@ -123,6 +145,11 @@ describe('the refusal vocabulary matches the database', () => {
 		expect(emitted.length).toBeGreaterThanOrEqual(8);
 		expect(emitted).toContain('pending_cap');
 		expect(emitted).toContain('debt');
+		// AND THAT THE SECOND SOURCE CONTRIBUTED. A union over two files whose
+		// second one silently stopped matching reads exactly like a union over
+		// one, so the reason only 0186 emits is named here on purpose.
+		expect(emitted).toContain('not_spotify');
+		expect(REFUSAL_SOURCES.length).toBe(2);
 	});
 
 	test('every reason 0145 emits has a sentence, and the client invents none', () => {
@@ -223,19 +250,65 @@ describe('the scope boundary is visible in the source', () => {
 	});
 
 	/**
-	 * NO STREAMING SERVICE IS PARSED OR SPECIAL-CASED, on either side. A host
-	 * named anywhere in this feature is a maintenance commitment against somebody
-	 * else's URL formats, and it is also the thing that would make the
-	 * instructor stop being the filter.
+	 * THIS TEST USED TO SAY "no service host appears in the migration or the
+	 * client", full stop, and 0186 makes that sentence false ON PURPOSE: the
+	 * school asked for Spotify only, so exactly one host family is now named.
+	 *
+	 * GENERALIZED RATHER THAN DELETED, because two of the three things it was
+	 * protecting are untouched and are the ones that matter:
+	 *
+	 *   1. THE CLIENT STILL PARSES NOTHING. Naming Spotify in COPY -- a label, a
+	 *      placeholder, the sentence a refusal renders -- is the surface telling
+	 *      a student the rule before they go and find a link. Naming it in a
+	 *      CONDITIONAL would be a second implementation of the rule, which is the
+	 *      thing that stops agreeing with the database. So the sweep now asks
+	 *      about the SHAPE of the mention, not whether there is one.
+	 *   2. IT IS AN ALLOW, NOT A BLOCKLIST. Every other service stays unnamed
+	 *      everywhere, which is what keeps this from becoming a maintenance
+	 *      commitment against somebody else's URL formats -- the failure the
+	 *      original sentence was really about.
+	 *
+	 * What is genuinely gone is only "the instructor is the filter for WHICH
+	 * SERVICE", which was a policy the school has now decided differently. They
+	 * are still the filter for which song.
 	 */
-	test('no service host appears in the migration or the client', () => {
+	test('the client names Spotify only in copy, never in a condition', () => {
 		const songTransportsCode = TRANSPORTS_CODE.slice(TRANSPORTS_CODE.indexOf('SONG_REFUSALS'));
 		expect(songTransportsCode.length).toBeGreaterThan(500);
-		for (const src of [MIGRATION_CODE, PURE_CODE, COMPONENT_CODE, songTransportsCode]) {
-			for (const host of ['spotify', 'youtube', 'youtu.be', 'soundcloud', 'apple.com/music', 'tidal']) {
+		const clientSources = [PURE_CODE, COMPONENT_CODE, songTransportsCode];
+
+		// POSITIVE CONTROL FIRST: the surface really does say the rule out loud,
+		// so the shape assertions below are running over text that mentions it.
+		expect(COMPONENT_CODE.toLowerCase()).toContain('spotify');
+		expect(PURE_CODE.toLowerCase()).toContain('spotify');
+
+		for (const src of clientSources) {
+			// No host comparison, no host regex, no membership test. These are the
+			// four spellings a mirrored rule would actually be written in.
+			expect(src).not.toMatch(/\.(host|hostname|origin)\s*(===|==|!==|!=)/);
+			expect(src).not.toMatch(/\/\^?https?:\\?\/\\?\//);
+			expect(src).not.toMatch(/\bincludes\(\s*['"`][^'"`]*spotify/i);
+			expect(src).not.toMatch(/\b(startsWith|endsWith|test|match)\(\s*['"`/][^'"`]*spotify/i);
+		}
+	});
+
+	/**
+	 * AND IT IS AN ALLOW OF ONE, NOT A BLOCKLIST OF MANY. A refusal that had to
+	 * name every service it turns away is a list somebody has to keep current
+	 * forever, and the first one nobody adds is a link that gets through.
+	 */
+	test('no other service is named anywhere in the feature', () => {
+		const songTransportsCode = TRANSPORTS_CODE.slice(TRANSPORTS_CODE.indexOf('SONG_REFUSALS'));
+		const sources = [MIGRATION_CODE, PURE_CODE, COMPONENT_CODE, songTransportsCode];
+		for (const src of sources) {
+			for (const host of ['youtube', 'youtu.be', 'soundcloud', 'apple.com/music', 'tidal', 'bandcamp']) {
 				expect(src.toLowerCase()).not.toContain(host);
 			}
 		}
+		// POSITIVE CONTROL: 0145's own text is still what is being read, and it
+		// still names no host of any kind -- the Spotify rule is 0186's, and
+		// putting it in the older file would be editing an applied record.
+		expect(MIGRATION_CODE.toLowerCase()).not.toContain('spotify.com');
 	});
 
 	/**

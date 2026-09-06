@@ -689,14 +689,37 @@
 				{#if editable || quickGradeHref}
 					<span class="insp-quick">
 						{#if editable}
+							<!--
+								IT SAYS WHAT IT EDITS, AND IT SAYS WHAT IT OPENS.
+
+								This control and the Instructor tools toggle beside it are
+								adjacent, are the same size, and BOTH open a panel below this
+								strip -- and a bare "Edit" said neither which of the two
+								panels it opens nor what it edits, so the pair read as two
+								halves of one thing. Two changes, both one attribute or one
+								word wide, and no rearrangement of the strip:
+
+								  * "Edit post" names its object. The toggle names a
+								    collection of tools; this names the thing on the page.
+								  * `aria-expanded` + `aria-controls` give it the disclosure
+								    contract the toggle already has, pointing at a DIFFERENT
+								    region id -- so the two are announced as controlling two
+								    regions rather than as two unlabelled buttons in a row.
+								    `item-edit-direct` is the wrapper this button's editor
+								    actually appears in, which is why it is rendered whenever
+								    `editable` holds rather than only while `editing` does:
+								    an `aria-controls` pointing at nothing is worse than none.
+							-->
 							<button
 								type="button"
 								class="btn secondary tiny insp-quick-btn"
 								data-testid="item-edit-toggle"
+								aria-expanded={editing}
+								aria-controls="item-edit-direct"
 								disabled={busy}
 								onclick={() => (editing = !editing)}
 							>
-								{editing ? 'Close editor' : 'Edit'}
+								{editing ? 'Close editor' : 'Edit post'}
 							</button>
 						{/if}
 						{#if quickGradeHref}
@@ -706,7 +729,7 @@
 				{/if}
 			</div>
 			{#if editable && (alsoIn.length || editing)}
-				<div class="insp-edit" data-testid="item-edit-direct">
+				<div class="insp-edit" id="item-edit-direct" data-testid="item-edit-direct">
 					{#if alsoIn.length}
 						<p class="also-line">
 							Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy,

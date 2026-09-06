@@ -525,7 +525,22 @@ export function feedbackIsAnonymous(
 // The triage queue (0085's status columns and admin RPCs)
 // ---------------------------------------------------------------------------
 
-export type FeedbackStatus = 'new' | 'seen' | 'resolved';
+/**
+ * THE FOUR TRIAGE STATES. `spam` is `0186`'s and is A STATUS, NOT A DELETE.
+ *
+ * `app_feedback` has no delete grant and no delete policy for anyone, and its
+ * rows are the record: a report removed is one no export, no count and no
+ * rate-limit forensic can ever see again, on a table whose `reporter_hash`
+ * exists precisely to be counted. So a false or spam report is MARKED, by the
+ * same `app_feedback_set_status` every other state moves through, and moving it
+ * back to `new` is that same call with a different argument.
+ *
+ * IT HIDES NOTHING BY ITSELF, which is what keeps the export honest. The
+ * console's `all` filter still means every status and the export header still
+ * prints the filter verbatim; what makes the feature work is only that the
+ * console opens on `new`, which it already did.
+ */
+export type FeedbackStatus = 'new' | 'seen' | 'resolved' | 'spam';
 
 /** One row as app_feedback_admin_list returns it. */
 export interface FeedbackRow {

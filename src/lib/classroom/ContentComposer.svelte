@@ -48,6 +48,11 @@
 		type ClassroomItemKind,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
+	import {
+		DEFAULT_DUE_TIME,
+		joinDueInput,
+		splitDueInput
+	} from '$lib/classroom/due-default';
 	import { claimPaste, dropTarget, filesFromClipboard } from '$lib/file-drop';
 
 	/**
@@ -208,7 +213,23 @@
 	// svelte-ignore state_referenced_locally
 	let points = $state<string | number>(item?.points == null ? '' : String(item.points));
 	// svelte-ignore state_referenced_locally
-	let due = $state(isoToLocalInput(item?.due_at ?? null));
+	/**
+	 * THE DUE FIELD IS TWO BOXES AND ONE VALUE. `due` is still the
+	 * `datetime-local` string every other line in this file already speaks --
+	 * `dueToSend`, the reset and the draft signature are untouched -- and the two
+	 * pieces of state below are what the instructor actually types into.
+	 *
+	 * THE TIME STARTS AT 11:59PM AND THE DATE STARTS EMPTY. Seeding a date too
+	 * would invent a deadline nobody chose; leaving the time empty is what the
+	 * single `datetime-local` did, and it is why an instructor who filled in a
+	 * day and tabbed away got no due date at all. See `due-default.ts` for the
+	 * measurement that rules the one-input version out, and for which time zone
+	 * 11:59pm resolves against.
+	 */
+	const seededDue = splitDueInput(isoToLocalInput(item?.due_at ?? null));
+	let dueDate = $state(seededDue.date);
+	let dueTime = $state(seededDue.time);
+	const due = $derived(joinDueInput(dueDate, dueTime));
 	// svelte-ignore state_referenced_locally
 	let category = $state(item?.category ?? '');
 	/**
@@ -1163,7 +1184,11 @@
 			createdItemId = null;
 			title = '';
 			points = '';
-			due = '';
+			// THE DATE CLEARS AND THE TIME GOES BACK TO THE DEFAULT, which is what
+			// "a fresh post" means for this field: `due` is derived, so clearing
+			// the date is what empties it.
+			dueDate = '';
+			dueTime = DEFAULT_DUE_TIME;
 			publishAt = '';
 			category = '';
 			links = [];
@@ -1306,10 +1331,40 @@
 				<span>Points</span>
 				<input type="number" min="0" max="10000" bind:value={points} placeholder="20" />
 			</label>
-			<label>
-				<span>Due date</span>
-				<input type="datetime-local" bind:value={due} />
-			</label>
+			<!--
+				TWO CONTROLS, ONE FIELD, AND THE TIME CARRIES THE DEFAULT. A single
+				`datetime-local` has nowhere to put an 11:59pm default: with only its
+				date segments filled its value is the empty string, `badInput` is
+				true and no event has fired, so there is nothing for a default to
+				react to. Measured in Chromium; `due-default.ts` carries the numbers.
+
+				THE DATE IS WHAT DECIDES WHETHER THERE IS A DEADLINE. Clearing it
+				clears the due date whatever the time says, which is why the two are
+				labelled as one field rather than as two independent ones.
+			-->
+			<span class="due-field">
+				<span class="due-legend" id="due-legend">Due</span>
+				<span class="due-inputs">
+					<label class="due-part">
+						<span class="due-part-label">Date</span>
+						<input
+							type="date"
+							bind:value={dueDate}
+							aria-describedby="due-legend"
+							data-testid="composer-due-date"
+						/>
+					</label>
+					<label class="due-part">
+						<span class="due-part-label">Time</span>
+						<input
+							type="time"
+							bind:value={dueTime}
+							aria-describedby="due-legend"
+							data-testid="composer-due-time"
+						/>
+					</label>
+				</span>
+			</span>
 			<label>
 				<span>Grading category</span>
 				<input
@@ -1763,6 +1818,52 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 		gap: 0.6rem;
+	}
+
+	/* THE DUE FIELD IS TWO BOXES THAT READ AS ONE. It matches the `label`
+	   rhythm above -- a caption, then the control, then the same bottom margin
+	   -- so it sits in `.field-row`'s grid exactly as Points and Grading
+	   category do, and the row still collapses to one column on a phone.
+
+	   `.due-legend` IS THE FIELD'S NAME AND `.due-part-label` IS THE PART'S.
+	   Both inputs point at the legend with `aria-describedby`, so each control
+	   is announced as "Date, Due" rather than as a bare date box next to a bare
+	   time box with nothing joining them. It is not a `<fieldset>` because that
+	   would put a second border and a second box model inside a grid cell whose
+	   siblings are plain labels, for a group of two. */
+	.due-field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin-bottom: var(--space-2);
+		min-width: 0;
+	}
+	.due-legend {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.due-inputs {
+		display: grid;
+		/* The date box needs more room than the time box at every width, and
+		   `minmax(0, ...)` is what stops either one forcing the row wider than
+		   its cell -- an input's automatic minimum is its min-content, which for
+		   a date control is the whole `mm/dd/yyyy` picker. */
+		grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+		gap: 0.4rem;
+	}
+	.due-part {
+		/* Overrides the shared `label` rule: these two sit INSIDE a field that
+		   already carries the caption and the margin. */
+		margin-bottom: 0;
+		min-width: 0;
+	}
+	.due-part-label {
+		/* One tier quieter than the field's own name, because it labels a half
+		   of it rather than a field of its own. */
+		font-size: 0.6rem;
+		color: var(--text-3);
 	}
 	.kind-toggle {
 		display: flex;

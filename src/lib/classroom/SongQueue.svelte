@@ -264,22 +264,29 @@
 		"play a song" is going to wonder why nothing happened, and one who does not
 		know approval costs coins is going to be surprised by a balance. Both facts
 		are one sentence and neither is discoverable any other way.
+
+		AND SINCE 0186, SO IS THE SPOTIFY RULE. A restriction a student meets only
+		by being refused is a restriction nobody told them about, and the refusal
+		arrives after they have already gone and found a link. THIS IS COPY, NEVER
+		A GATE: nothing in this component reads a URL, `_classroom_song_url_is_spotify`
+		is the one implementation, and a paste that gets past this sentence is
+		still judged by the database.
 	-->
 	<p class="sq-note">
-		Paste a link to a song. Your teacher plays approved ones in class, so nothing plays here.
-		Asking is free; you are charged only if it is approved.
+		Paste a Spotify link to a song. Your teacher plays approved ones in class, so nothing plays
+		here. Asking is free; you are charged only if it is approved.
 	</p>
 
 	{#if student}
 		{#if transports}
 			<div class="sq-compose">
 				<label class="sq-field">
-					<span class="sq-label">Link</span>
+					<span class="sq-label">Spotify link</span>
 					<input
 						class="sq-input"
 						type="url"
 						inputmode="url"
-						placeholder="https://"
+						placeholder="https://open.spotify.com/track/..."
 						bind:value={url}
 						data-testid="song-queue-url"
 					/>
