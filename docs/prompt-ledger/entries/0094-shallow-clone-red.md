@@ -73,3 +73,7 @@
   refusal sentence byte-identical both times, `redact()` applied to the same
   string, `return EXIT.refused` untouched. Only added print lines.
 
+  CI GREEN on the branch: run 34062080600 on `5073db38`, job `test` conclusion
+  success, suite 3m42s. The Actions API reported that job `in_progress` for
+  over an hour after it finished, on two runs at once, which reads exactly like
+  a stall and is not one.

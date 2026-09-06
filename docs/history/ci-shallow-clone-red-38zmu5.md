@@ -144,6 +144,20 @@ one added function and three lines at the call site that print its output; the
   spec, so no counts region is regenerated and none needed to be.
 - **`npm run history:verify`: 168 entries, sha256 IDENTICAL, and the git byte
   compare now IDENTICAL** rather than unavailable.
+- **CI IS GREEN, measured on the runner.** Run 34062080600 on `5073db38` (the
+  commit carrying every substantive change): job `test` conclusion **success**,
+  every step green, suite 21:47:42 to 21:51:24 = **3m42s**, against 3m30s for
+  the same branch's last shallow run. The full history costs the suite nothing
+  either.
+  - **AND THE ACTIONS API LIED ABOUT IT FOR AN HOUR, WHICH IS WORTH KNOWING
+    BEFORE SOMEBODY ELSE DIAGNOSES A STALL THAT IS NOT THERE.** Read through
+    the GitHub MCP tools from this container, the job reported `Test suite:
+    in_progress` with a frozen `updated_at` for more than sixty minutes after
+    it had in fact completed, on two runs at once, and the in-progress job's
+    logs answer HTTP 404. Two independent runs appearing stuck at the same step
+    reads exactly like a real hang. The discriminator is to re-read the JOB
+    (not the run) later, or open the run in a browser; a cached snapshot never
+    corrects itself on the timescale you are watching.
 
 ## What was NOT verified
 
@@ -151,11 +165,9 @@ one added function and three lines at the call site that print its output; the
   connection, no Supabase project reached. Prompt 0073 already proved a cloud
   container cannot reach that host and this bundle did not test the claim
   again.
-- **The suite has not been observed green in Actions under `fetch-depth: 0`.**
-  The checkout STEP was measured on a runner (6s, above); the run carrying it
-  was still executing when this entry was written, so the claim that CI goes
-  green rests on the local full suite plus the reproduction, not on a green
-  tick. Read run 34062080600.
+- **`integration` and `main` have not been run under `fetch-depth: 0`.** CI is
+  green on this branch (below), which is the same job over the same tree; the
+  other two refs get their runs when this lands.
 - **No browser pass.** This bundle renders nothing.
 - **`tools/idea-status.py` was not exercised against a shallow clone on its
   own.** It survives one — the reproduction shows it producing a probe list at
