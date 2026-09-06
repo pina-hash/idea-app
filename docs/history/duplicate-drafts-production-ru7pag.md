@@ -271,9 +271,15 @@ minutes: it was issued 0075, verified free against every ref tip and against
 `git log --all --diff-filter=A`, and collided with
 `claude/red-merge-green-parents-ft3e57` -- which had been issued 0075 already
 and pushed ten seconds later -- and 0076 went to
-`claude/tournament-thumbs-listing-psuleu` at 08:06:56. It is 0077 now. **A
-number verified free is a number nobody has PUSHED, not a number nobody
-HOLDS**, and no git command can close that distance.
+`claude/tournament-thumbs-listing-psuleu` at 08:06:56. It was renumbered to
+0077 by the identical checks, with a note beside it predicting that 0077
+carried the identical weakness -- and it did: 0077 had gone to the tournament
+redesign at 08:11, unpushed and invisible, the third collision in an hour. It
+is **0080** now, and 0080 was not derived: it was stated by the person holding
+the issue list, with 0078 and 0079 reserved as a deliberate gap. **A number
+verified free is a number nobody has PUSHED, not a number nobody HOLDS**, no
+git command can close that distance, and the fix is the issuer saying the
+number rather than a session deriving one.
 
 The two audited 0061 independently and reached the same conclusions, which is
 why this is written as corroboration rather than as one session's reading.
