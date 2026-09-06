@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/design-system/themes/**`, `src/lib/theme.ts`, `src/lib/theme.svelte.ts`, a rain component if the design needs one, `src/routes/dev/themes/**`, `tests/theme*`, `tests/dom/theme*`, `tools/browser-verify/routes/theme*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0090-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0189
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/matrix-theme-rain-598tt0`
 - Notes: Mr. Pina looked at the Matrix theme on 2026-09-06 and reported it
   himself: it tints everything an unpleasant green and there are no falling
   letters anywhere. A student had said the same thing more bluntly a day

@@ -451,9 +451,18 @@ harness runs: `waitForApp` 452-939ms; every scripted press 1 attempt.
 route/width runs, **94 measurements, 0 outside threshold**; the rain `waitFor` satisfied
 in 515ms (375) and 516ms (1440); lit pixels 0.71% and 0.90%.
 
-## B7: suite and check
+## B6 and B7: counts, suite and check
 
-Filled in by the final commit's run, below.
+`npm run verify:counts` found the static region already current (133 specs over 64
+routes, 92 `/dev` pages, 266 runs); no spec file was added, three were changed.
+`npm run verify:readme` was run once at the end on the clean committed tree, with its
+own server on 5199 (the session's dev server sat on 5190), and rewrote the measured
+region; its figures are in the README's own data line.
+
+The full suite, run once at the end, from 15:39:23 to 15:43:29 America/Los_Angeles: **313 files, 6331 tests, 0 failures, 244.6s. A first run at 15:34 PDT had 2 failures, both in the migration-apply CLI tests (`tests/apply-migration-guard.test.ts`, `tests/apply-migration-trace.test.ts`) and both with one cause -- the CLI reads the applied set off `origin/integration`, which this fresh container had never fetched; a read-only `git fetch origin integration` and the two files pass (51 tests), and the full re-run is the figure above**.
+`npx svelte-check` after `npx svelte-kit sync` with the two `PUBLIC_SUPABASE_*`
+placeholders exported: **0 errors, 37 warnings**, breakdown **31 `state_referenced_locally` / 5
+`css_unused_selector` / 1 `perf_avoid_nested_class`** -- the baseline, unmoved.
 
 ## What a person now sees
 
