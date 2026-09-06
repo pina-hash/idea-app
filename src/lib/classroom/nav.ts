@@ -19,7 +19,7 @@ export interface Crumb {
 	href?: string;
 }
 
-export type SectionTabId = 'class' | 'people' | 'grades';
+export type SectionTabId = 'class' | 'people' | 'grades' | 'check-ins';
 
 export interface SectionTab {
 	id: SectionTabId;
@@ -27,6 +27,19 @@ export interface SectionTab {
 	href: string;
 	/** Manager-only tabs. A student is never offered these and cannot load them. */
 	manageOnly: boolean;
+	/**
+	 * LEAVES /classroom ENTIRELY, so it can never be the active tab and must not
+	 * look like one.
+	 *
+	 * `activeTab` reads a `ClassroomLocation`, and `locateClassroom` only ever
+	 * describes a /classroom path -- a tab whose href is somewhere else is
+	 * therefore null on every route the bar renders on, forever. That is the
+	 * honest answer rather than a gap: the destination is another room, and a
+	 * tab that silently never highlights reads as a broken tab. The shell marks
+	 * these with a trailing guillemet and withholds `aria-current` from them,
+	 * exactly as the class stream marks a link out.
+	 */
+	external?: boolean;
 }
 
 export type ClassroomPlace =
@@ -89,13 +102,83 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 	return { place: 'other', sectionId, itemId: null };
 }
 
-/** The three tabs a section has. Order is the reading order: content, then people, then marks. */
+/**
+ * A section's tabs. Order is the reading order: content, then people, then
+ * marks, then the check-ins that hang off them.
+ *
+ * CHECK-INS IS A DEPARTURE, NOT A ROUTE OF OURS, and that is the whole reason
+ * it carries `external`. The check-in manager is `SessionManager` under
+ * `/notebook/review`, which owns the date, the label and the guidance; the
+ * classroom is where a check-in is CREATED (0120 hangs one off an item) and
+ * until this tab existed the only path from here to there was a link inside
+ * the People tab's Notebook-compliance card, which renders only when that
+ * panel's grid transport is handed in. So an instructor who attached a
+ * check-in to an item had no way from the class to the console that manages
+ * it, and `ItemDetail`'s duplicate-date refusal still tells them to "edit the
+ * existing one" without saying where.
+ *
+ * `?section=` IS WHAT MAKES IT A TAB RATHER THAN A LINK TO A HUB.
+ * `/notebook/review` reads that parameter and preselects the section, and it
+ * VALIDATES it against the caller's own accessible list rather than passing it
+ * through -- so a manager lands on this class's grid and anyone else lands on
+ * their default, which is courtesy on top of a boundary
+ * (`notebook_get_section_grid` refuses a section the caller neither teaches
+ * nor administers whatever the URL says).
+ *
+ * IT IS `manageOnly` AND THE TAB IS NOT THE GATE. `/notebook/review` answers
+ * 404 to a non-reviewer, and a manager of a section is by construction inside
+ * that page's own population -- `canManage` is teacher of record or admin, and
+ * both are tiers `notebookAccess` recognizes -- so the tab is offered exactly
+ * where it resolves, and withholding it decides nothing.
+ *
+ * THERE IS NO DUPLICATES TAB HERE AND THERE MUST NOT BE ONE UNTIL THE PAGE
+ * LANDS. `/classroom/[sectionId]/duplicates` exists only on the unmerged
+ * branch `claude/duplicate-drafts-count-wzworl`, behind an unapplied migration
+ * -- so a tab for it on this base would be a 404 offered to every manager,
+ * which is strictly worse than the typed URL it was meant to replace. The
+ * patch it needs, when that branch lands, is six edits and not four: this
+ * union gains `'duplicates'`, this list gains an entry, `ClassroomPlace` gains
+ * the place, `locateClassroom` gains its `rest[1]` branch, `activeTab` gains
+ * its case, and `classroomCrumbs` gains its own. `classroomMeasure` needs
+ * nothing -- an unlisted place already falls through to `page`, which is what
+ * a report table wants.
+ */
 export function sectionTabs(sectionId: string, basePath = '/classroom'): SectionTab[] {
 	return [
 		{ id: 'class', label: 'Class', href: `${basePath}/${sectionId}`, manageOnly: false },
 		{ id: 'people', label: 'People', href: `${basePath}/${sectionId}/people`, manageOnly: true },
-		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true }
+		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true },
+		{
+			id: 'check-ins',
+			label: 'Check-ins',
+			// NOT `basePath`: the review console is a real route in another room,
+			// so the dev harnesses link at the shipping URL rather than at a
+			// harness path that answers nothing.
+			href: `/notebook/review?section=${encodeURIComponent(sectionId)}`,
+			manageOnly: true,
+			external: true
+		}
 	];
+}
+
+/**
+ * WHICH OF A SECTION'S TABS THIS CALLER IS OFFERED.
+ *
+ * ONE IMPLEMENTATION, and it moved here from inside `ClassroomShell` for the
+ * ordinary reason: the filter is the sentence "a manage-only tab is offered to
+ * a manager", and a second spelling of it -- in a test, in a second shell, in
+ * a harness -- is the copy that stops agreeing with the one on screen. The
+ * shell calls this; nothing re-derives it.
+ *
+ * IT IS NOT A GATE AND MUST NEVER BE READ AS ONE. Every manage-only
+ * destination refuses a non-manager itself: `/classroom/<id>/people` and
+ * `/classroom/<id>/grades` 404, and `/notebook/review` 404s a non-reviewer.
+ * What this decides is what a caller is SHOWN, which is a different job from
+ * what they may reach, and `tests/classroom-nav-doors.test.ts` opens this
+ * predicate to prove the tests are watching it rather than the fixture.
+ */
+export function visibleSectionTabs(tabs: SectionTab[], canManage: boolean): SectionTab[] {
+	return tabs.filter((t) => !t.manageOnly || canManage);
 }
 
 /**
@@ -117,7 +200,14 @@ export function navKeepsComposer(sectionId: string, pathname: string, basePath =
 	return loc.place === 'section' || loc.place === 'item';
 }
 
-/** Which tab a location sits on, or null when it is not a section-level route. */
+/**
+ * Which tab a location sits on, or null when it is not a section-level route.
+ *
+ * NO CASE FOR `check-ins`, AND ADDING ONE IS THE MISTAKE TO AVOID: that tab's
+ * href is `/notebook/review`, which `locateClassroom` reads as `other` because
+ * it is not a /classroom path at all. There is no `ClassroomLocation` this
+ * could return it for, so a case would be dead code that reads as coverage.
+ */
 export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'section') return 'class';
 	if (loc.place === 'people') return 'people';
