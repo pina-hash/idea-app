@@ -43,6 +43,12 @@ export default {
 		   shut until something opens it -- so present 0 is correct here and the
 		   themed spec is where the control is measured. */
 		{ selector: '.pm-root', label: 'ProfileMenu (signed in)', expectPresent: 1, maxPresent: 1 },
+		/* NO RAIN WITH THE THEME OFF. The canvas exists only while the theme is
+		   on (ThemeRoot mounts it keyed on the applied attribute), and this row
+		   is the negative control for the themed spec's "one canvas, running":
+		   a canvas that leaked onto the base palette would be a theme that had
+		   not turned off. */
+		{ selector: '.bg-fx canvas', label: 'rain canvas (theme off)', expectPresent: 0, maxPresent: 0 },
 		{ selector: '.pm-theme', label: 'theme radios (menu closed)', expectPresent: 0, maxPresent: 0 }
 	],
 	/* THE BOARD IS NOT ASSERTED HERE, AND THAT IS DELIBERATE RATHER THAN A GAP.
@@ -68,9 +74,9 @@ export default {
 	tapTargets: [{ selector: '.switch .sw', label: 'theme switch buttons', min: 44 }],
 	/* `.bg-fx` is unthemed here: its own scanline lives on a ::after, which
 	   `getAnimations` on the element cannot see, so the ELEMENT carries no
-	   animation at all on the base palette. `expect: 'never'` says exactly
-	   that, and it is the negative control for the themed spec's `gated` row --
-	   without it, a themed `gated` result could not be told from a rule that
-	   had always been there. */
+	   animation at all on the base palette. The themed spec says `never` too
+	   now -- the rain is a JS-driven canvas and the theme's CSS hatch is gone
+	   -- so the two rows agree, and what tells them apart is the canvas rows:
+	   0 here, 1 running there. */
 	motion: [{ selector: '.bg-fx', label: 'background layer (unthemed)', expect: 'never' }]
 };

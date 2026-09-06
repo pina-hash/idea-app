@@ -3,8 +3,8 @@
    building is that the product already half looks like it: the IDEA plate is
    green metal on near-black and the IDEA pathway's own identity colour is
    #00FF41. What this does is finish the sentence -- black grounds, phosphor
-   green type -- WITHOUT taking any of the colours that tell one thing from
-   another.
+   type, falling code -- WITHOUT taking any of the colours that tell one thing
+   from another.
 
    ------------------------------------------------------------------------
    THE RULE THIS FILE OBEYS. Every colour in the token layer is exactly one of
@@ -39,6 +39,26 @@
    not have had.
 
    ------------------------------------------------------------------------
+   THE TINT, AND WHY THE SECOND VERSION OF THIS FILE IS LESS GREEN THAN THE
+   FIRST. The first version put every chrome tier at the phosphor's own hue
+   AND a heavy saturation -- --white at hsl(122 56% 87%), --text-1 at #ccf5cc,
+   --dim at 24% -- and Mr. Pina's report was that it "tints everything an
+   unpleasant green". Measured on the launcher harness at 1440: with the theme
+   on, 0.0% of lit pixels were neutral and the lit pixels' mean saturation was
+   0.78, against 1.7% neutral and 0.34 on the base palette. Everything on
+   screen was ONE hue at ONE saturation, and a page with one hue at one
+   saturation has no depth: nothing is nearer, nothing is further, nothing is
+   the accent because everything is.
+
+   The answer is restraint, not a different green. The GROUNDS keep the green
+   cast, near-black, and step more than they did (a card on the page reads
+   1.09:1 and the plate 1.36:1, against 1.05 and 1.23 before). The TEXT TIERS
+   go to a phosphor-tinted near-neutral at 12-21% saturation -- the hue still
+   says green under a bright light, the saturation says "ink" -- so the one
+   thing on the page that is vividly green is the rain, and the semantic six
+   (which this file never touches) read as accents again.
+
+   ------------------------------------------------------------------------
    AND THE ONE CONSTRAINT ON *HOW*: A CHROME TOKEN WHOSE GROUND THIS THEME
    DOES NOT OWN MOVES IN HUE AND SATURATION ONLY, AT HELD RELATIVE LUMINANCE.
 
@@ -55,19 +75,18 @@
    reasoned. Each of the four below was solved for its base token's own
    luminance at the new hue and saturation:
 
-     --white  #eae6d8 L=0.7904  ->  #caf0cb L=0.7919  (+0.18%)
-     --dim    #849080 L=0.2641  ->  #5e9a60 L=0.2634  (-0.28%)
-     --ice    #a9bcab L=0.4734  ->  #91c492 L=0.4757  (+0.49%)
-     --gear   #75846f L=0.2143  ->  #568c58 L=0.2144  (+0.03%)
+     --white  #eae6d8 L=0.7904  ->  #e0e8e0 L=0.7894  (-0.13%)
+     --dim    #849080 L=0.2641  ->  #769477 L=0.2636  (-0.18%)
+     --ice    #a9bcab L=0.4734  ->  #a7bda8 L=0.4744  (+0.20%)
+     --gear   #75846f L=0.2143  ->  #6a876b L=0.2145  (+0.10%)
 
      --dim on FRC paper  #ffffff : 3.34 base -> 3.35 themed
      --dim on FRC card   #f2f5f8 : 3.06 base -> 3.06 themed
-     --white on FSP navy #0a2540 : 12.44 base -> 12.46 themed
+     --white on FSP navy #0a2540 : 12.44 base -> 12.42 themed
 
    THE GROUNDS AND THE REGISTER TIERS ARE THIS THEME'S OWN and move freely --
    they are read only where this file also decides what is behind them. Every
-   one is re-measured in the table at the foot of this file, and every text
-   role comes out ABOVE its base value rather than merely clearing 4.5:1.
+   one is re-measured in the table at the foot of this file.
 
    NOT TOUCHED, DELIBERATELY:
      - --line / --line-strong / --hairline. Already sage and mint; --hairline
@@ -83,107 +102,91 @@
    ========================================================================== */
 
 :root[data-theme='matrix'] {
-	/* --- Grounds. Near-black with the green cast still in it: the plate did
-	   not stop being machined metal, the lights went out. ----------------- */
-	--bg0: #040804;
-	--bg1: #081108;
-	--bg2: #0d1a0d;
-	--plate: #132313;
-	--edge: #010301;
+	/* --- Grounds. Near-black with the green cast still in it, and stepped so
+	   a card is a card: the plate did not stop being machined metal, the
+	   lights went out. ------------------------------------------------- */
+	--bg0: #030503;
+	--bg1: #0c140d;
+	--bg2: #111911;
+	--plate: #1b2a1c;
+	--edge: #010201;
 
 	/* --- The classroom / console register's own grounds and tiers. -------- */
-	--surface-0: #020502;
-	--surface-1: #060e07;
-	--surface-2: #0a150b;
-	--text-1: #ccf5cc;
-	--text-2: #7fb883;
-	--text-3: #4a6f4d;
-	--boundary: #5f8a63;
-	--green-tint: #073a1c;
+	--surface-0: #020402;
+	--surface-1: #080e09;
+	--surface-2: #0c150d;
+	--text-1: #dce8dc;
+	--text-2: #8fae94;
+	--text-3: #4f6853;
+	--boundary: #64826b;
+	--green-tint: #093619;
 
 	/* --- The four luminance-held tiers. See the block above for why each of
 	   these is a solved value and not a chosen one. ------------------------ */
-	--white: #caf0cb;
-	--dim: #5e9a60;
-	--ice: #91c492;
-	--gear: #568c58;
+	--white: #e0e8e0;
+	--dim: #769477;
+	--ice: #a7bda8;
+	--gear: #6a876b;
 }
 
 /* --------------------------------------------------------------------------
-   THE RAIN, AND THE ONE NON-TOKEN RULE IN THIS FILE.
+   THE RAIN, AND THE THREE NON-TOKEN RULES IN THIS FILE.
 
-   .bg-fx is the app shell's own decorative background layer -- it already
+   THE RAIN IS NOT IN THIS FILE. It is `$lib/MatrixRain.svelte`, a canvas of
+   falling glyphs that `ThemeRoot` mounts inside `.bg-fx` while the theme is
+   on, simulated by `$lib/design-system/themes/matrix-rain.ts`. The first
+   version of this theme animated `.bg-fx`'s `background-position` over a
+   17px repeating gradient and called it rain; it was a striped hatch sliding
+   downward, with no glyph anywhere, and every horizontal band of it lined up
+   because every column's "head" sat on the same row. That rule is gone. What
+   `.bg-fx` keeps under the theme is the two radial washes, which are depth
+   and not motion, and its own scanline `::after` from app.css, which paints
+   over the canvas and is already gated in that file.
+
+   `.bg-fx` is the app shell's own decorative background layer -- it already
    exists on every page, it is `position: fixed`, `pointer-events: none`,
    `z-index: 0` and `aria-hidden`, so restyling it can change no geometry, eat
-   no tap and reach no reader. That is the whole of the exception: everything
-   else this theme does is a token value.
+   no tap and reach no reader. That is the whole of the exception.
 
-   THE MOTION IS BACKGROUND-POSITION AND NOTHING ELSE. No transform, no
-   opacity, no filter -- so the still state is the running state with the
-   columns parked, which is what "a still version that is not a broken
-   version" has to mean. Nothing is hidden at rest and nothing has to be
-   restored under `reduce`.
+   THE LANDING PAGE IS THE SECOND AND THIRD EXCEPTION, AND THE REASON IS THAT
+   WITHOUT THEM THE RAIN FALLS BEHIND AN OPAQUE PLATE ON THE ONE PAGE EVERY
+   STUDENT OPENS. `/` is wrapped in `.legacy-index.surface-machined`, which is
+   `position: relative; z-index: 1` with `background-color: var(--bg0)` --
+   opaque, and ABOVE `.bg-fx`. Measured on the home harness with the first
+   version of this theme on: no part of `.bg-fx` was visible anywhere on the
+   page, which is what "there are no falling letters anywhere" looked like
+   from the code. So under this theme the plate's colour is made transparent
+   (its vignette and brushed textures stay, and they sit over the rain as a
+   darkening at the edges), and the page's own particle starfield -- a second
+   fixed canvas at 35% opacity inside that wrapper -- is switched off, because
+   two particle systems on one ground are noise and the rain is the one this
+   theme is for. Both rules are keyed on the theme root, both are the only
+   way to reach an element this file does not otherwise touch, and
+   `tests/theme-tokens.test.ts` pins the list of non-root selectors a theme
+   may carry at exactly these three, with the reason beside each.
 
-   THE GATE IS `no-preference`, THE REPOSITORY'S OWN SHAPE (every mark in
-   $lib/marks, AnimatedLogo, MoltenSeam). Declared inside the query rather
-   than declared and then cancelled, so a reader with the preference set never
-   has an animation to cancel: `animation-name` computes to `none` and
-   `getAnimations()` is empty, which is what tools/browser-verify's
-   `motionSweep` measures rather than trusting.
+   NOTHING HERE ANIMATES. There is no `animation` declaration left in this
+   file: the motion is the canvas's, it is gated on
+   `prefers-reduced-motion` in the component (no frame is scheduled under
+   `reduce`, and the canvas holds a seeded still field instead), and the
+   harness reads `data-motion` and `data-frames` off the canvas rather than
+   `getAnimations()`, which cannot see a JS-driven picture.
    -------------------------------------------------------------------------- */
 :root[data-theme='matrix'] .bg-fx {
 	background-color: transparent;
 	background-image:
-		/* the column streaks: a head that is bright and a tail that fades */
-		repeating-linear-gradient(
-			to bottom,
-			rgba(0, 255, 65, 0.13) 0,
-			rgba(0, 255, 65, 0) 90px,
-			rgba(0, 255, 65, 0) 220px
-		),
-		repeating-linear-gradient(
-			to right,
-			rgba(0, 255, 65, 0.055) 0,
-			rgba(0, 255, 65, 0.055) 1px,
-			transparent 1px,
-			transparent 17px
-		),
-		radial-gradient(ellipse at 50% -10%, rgba(0, 255, 65, 0.07), transparent 62%),
-		radial-gradient(ellipse at 50% 120%, rgba(0, 255, 65, 0.04), transparent 55%);
-	background-size:
-		17px 220px,
-		17px 100%,
-		100% 100%,
-		100% 100%;
-	background-repeat: repeat, repeat-x, no-repeat, no-repeat;
-	background-position:
-		0 0,
-		0 0,
-		0 0,
-		0 0;
+		radial-gradient(ellipse at 50% -10%, rgba(0, 255, 65, 0.06), transparent 62%),
+		radial-gradient(ellipse at 50% 120%, rgba(0, 255, 65, 0.035), transparent 55%);
+	background-size: 100% 100%, 100% 100%;
+	background-repeat: no-repeat, no-repeat;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-	:root[data-theme='matrix'] .bg-fx {
-		animation: matrix-rain 7s linear infinite;
-	}
+:root[data-theme='matrix'] .legacy-index.surface-machined {
+	background-color: transparent;
 }
 
-@keyframes matrix-rain {
-	from {
-		background-position:
-			0 0,
-			0 0,
-			0 0,
-			0 0;
-	}
-	to {
-		background-position:
-			0 220px,
-			0 0,
-			0 0,
-			0 0;
-	}
+:root[data-theme='matrix'] .legacy-index #bg-canvas {
+	display: none;
 }
 
 /* ==========================================================================
@@ -203,14 +206,14 @@
    WORST GROUND PER ROLE, base -> matrix:
 
      role        floor  worst ground     base    matrix
-     --white      4.5   --plate           9.39   13.18
-     --text-1     4.5   --green-tint     10.42   10.73
+     --white      4.5   --plate           9.39   12.04
+     --text-1     4.5   --green-tint     10.42   10.70
      --text-2     4.5   --green-tint      4.91    5.57
-     --ice        4.5   --bg2             7.06    8.98
-     --dim        4.5   --bg2             4.24    5.35
+     --ice        4.5   --bg2             7.06    8.96
+     --dim        4.5   --bg2             4.24    5.36
      --gear       4.5   --bg2             3.57    4.52
-     --boundary   3     --green-tint      2.86    3.25
-     --text-3     0     --bg2             2.38    3.14   (decorative)
+     --boundary   3     --green-tint      2.86    3.18
+     --text-3     0     --bg2             2.38    2.94   (decorative)
 
    ALL 54 CELLS CLEAR THEIR FLOOR UNDER THE THEME AND NOT ONE IS WORSE THAN
    THE BASE PALETTE. Three of them clear a floor the base palette MISSES
@@ -218,6 +221,11 @@
    pre-existing gaps CLAUDE.md already names in words, improved here as a side
    effect and not fixed: fixing them is a palette bundle with its own answer
    for every surface that reads those tokens.
+
+   THE RAIN'S OWN WORST FRAME is a separate table, in
+   $lib/design-system/themes/matrix-rain.ts and its test: the brightest cell
+   the rain can put behind a word inside the content band, composited over
+   --bg0, against every text tier this theme paints on the bare page ground.
 
    A green-on-black theme is exactly where contrast quietly fails, so the
    number is here rather than an assurance.

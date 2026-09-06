@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import MatrixRain from '$lib/MatrixRain.svelte';
 	import { siteTheme, siteThemeAttr } from '$lib/theme.svelte';
 
 	/**
@@ -29,11 +30,19 @@
 	 * never `style`. `data-theme` absent IS the default state, so turning the
 	 * theme off leaves `<html>` exactly as a session that never turned it on --
 	 * there is no residue to clean up because there is no residue.
+	 *
+	 * THE RAIN IS MOUNTED HERE TOO, KEYED ON THE SAME ANSWER. `MatrixRain`
+	 * renders no markup of its own; it takes `active` and creates its canvas
+	 * inside `.bg-fx` only while that is true, so the rain is on exactly when
+	 * the attribute is `matrix` -- one derived value drives both, and there is
+	 * no second reading of the preference or the session for them to disagree
+	 * on. Turning the theme off unmounts the canvas in the same tick the
+	 * attribute comes off.
 	 */
 	const signedIn = $derived(!!page.data.claims);
+	const attr = $derived(signedIn ? siteThemeAttr(siteTheme()) : undefined);
 
 	$effect(() => {
-		const attr = signedIn ? siteThemeAttr(siteTheme()) : undefined;
 		const el = document.documentElement;
 		if (attr) el.setAttribute('data-theme', attr);
 		else el.removeAttribute('data-theme');
@@ -43,3 +52,5 @@
 		return () => el.removeAttribute('data-theme');
 	});
 </script>
+
+<MatrixRain active={attr === 'matrix'} />
