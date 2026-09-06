@@ -326,7 +326,32 @@ the motion sweep's own flip.
 
 ### Counts, suite, check (B7, B8)
 
-COUNTS_PLACEHOLDER
+`npm run verify:counts`: 124 specs over 58 routes, 86 `/dev` pages, 2 widths, 248 runs
+(was 116 / 57 / 232), and `-- --check` agrees with the tree. `npm run verify:readme`,
+run on the clean tree at `be91dde` with the dev server on port 5199 already up (the
+harness reused it, with the same placeholder env): **248 route/width runs, 3,668
+measurements, 2 outside threshold, 587.3s**, `covered` 124 of the static region's 124,
+so every tournament spec is in the measured half. The two outside rows are the notebook
+toolbar's text controls at 375 and 1440 (decision 12, with the owner), which were the
+same two rows in the previous block.
+
+`npm test`, the full suite, run at **02:00-02:04 PDT on 2026-09-06**: 292 files, 5,951
+tests, 3 failed in 2 files, 233s. One was this bundle's -- `tests/upload-limits.test.ts`
+pins a positive control BY LINE NUMBER (`routes/tournaments/[id]/+page.svelte:182`, the
+`Upload failed` sentence in the banner uploader) and the thirteen lines added to that
+page's script moved it to 195; the pin was corrected, which is the one edit outside this
+prompt's ownership list, and that file passes 22 of 22 again. The other two are
+`tests/gauntlet-doc.test.ts`: migration `0184_gauntlet_run_event_bounds.sql` is on
+`origin/main` and `docs/GAUNTLET.md` does not mention it -- reproduced in a pristine
+`origin/main` worktree (`eec8151`), 2 failed there too, so it is main's and not this
+branch's. Re-run in full after the pin was corrected, **02:07-02:11 PDT**: 292 files, 5,951 tests,
+**2 failed, 5,949 passed**, 237s -- the two GAUNTLET doc tests and nothing else.
+
+`npm run check` at **02:05 PDT**: 0 errors, 37 warnings, 20 files with problems -- the
+baseline, with the breakdown intact: 31 `state_referenced_locally`, 5
+`css_unused_selector`, 1 `perf_avoid_nested_class`. The harness page briefly carried six
+extra `state_referenced_locally` warnings when its initial sim was built by reading
+`$state` at the top level; building it from plain values first removed them.
 
 ## Not verified
 
