@@ -342,12 +342,24 @@ export const UPLOAD_CEILINGS: Readonly<Record<UploadPathId, UploadCeiling>> = Ob
 );
 
 /**
- * The table in its declared order, for a surface that renders all of it. Typed
- * off `CEILINGS` itself rather than widened to `UploadCeiling[]`, so `row.id`
- * stays an `UploadPathId` and a caller iterating the list can pass it straight
- * back into `uploadTooLargeMessage` with no cast.
+ * The table in its declared order, for a surface that renders all of it.
+ *
+ * NARROW ON `id`, DECLARED ON THE REST, AND BOTH HALVES ARE LOAD-BEARING. It is
+ * not widened to `UploadCeiling[]`, because `row.id` must stay an
+ * `UploadPathId` so a caller iterating the list can pass it straight back into
+ * `uploadTooLargeMessage` with no cast. It is not `typeof CEILINGS` either,
+ * which is what it was until every ceiling in the table became a number:
+ * `as const` then made each `maxBytes` an exact numeric literal, TypeScript
+ * proved every `maxBytes == null` branch unreachable, and narrowed the row to
+ * `never` inside it -- so the five `Property 'id' does not exist on type
+ * 'never'` errors landed on the deliberate TRIPWIRES rather than on a mistake.
+ * Those branches are the point: this table has carried nulls before and the
+ * comments beside them say they are kept for when one returns. Deleting them to
+ * satisfy the checker would delete the guard, so the TYPE gives way instead and
+ * `maxBytes` reads as the `number | null` the interface declares.
  */
-export const UPLOAD_CEILING_LIST: typeof CEILINGS = CEILINGS;
+export const UPLOAD_CEILING_LIST: readonly (UploadCeiling & { readonly id: UploadPathId })[] =
+	CEILINGS;
 
 export function uploadCeiling(id: UploadPathId): UploadCeiling {
 	return UPLOAD_CEILINGS[id];

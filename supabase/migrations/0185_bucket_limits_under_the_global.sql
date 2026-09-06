@@ -66,9 +66,40 @@
 -- ---------------------------------------------------------------------------
 -- WHAT THIS FILE DOES AND DOES NOT DO.
 --
--- It writes `storage.buckets` rows. It creates no table, no function, no
--- policy, no view and no index, and it grants nothing. Nothing about who may
--- read or write any bucket changes.
+-- It writes `storage.buckets` rows, and it creates ONE function --
+-- `public.portal_upload_max_bytes()`, which returns 47185920 and nothing else.
+-- It creates no table, no policy, no view and no index, and it grants nothing
+-- beyond EXECUTE on that one function. Nothing about who may read or write any
+-- bucket changes.
+--
+-- WHY THERE IS A FUNCTION AT ALL, since an earlier draft of this file
+-- deliberately had none. `tools/idea-status.py` derives a migration's
+-- applied-state probe from the FIRST OBJECT the file creates. A file that
+-- creates nothing has no probe, so its applied state reads `unknown` for ever
+-- -- and `orderVerdict` refuses to apply it, correctly, because cannot-say is
+-- never a pass. Measured on the draft with no function: `first_object(0185)`
+-- returned None. So a migration nobody can confirm is applied is a migration
+-- nobody should apply, and the fix is an object worth having rather than a
+-- marker: the ceiling itself, stated once, by the database.
+--
+-- AND IT IS LOAD-BEARING RATHER THAN DECORATIVE, WHICH IS THE POINT. It is
+-- created FIRST, and the update, the self-check and the census below all read
+-- it instead of repeating a literal. 47185920 therefore appears EXACTLY ONCE
+-- in the executable half of this file, in that function's body. A probe object
+-- that nothing else uses is a thing a later session deletes as dead weight;
+-- this one cannot be dropped without the file ceasing to run.
+--
+-- IT IS NOT `security definer` AND NEEDS NO `search_path` PIN. Both exist to
+-- stop a caller's schema resolution reaching an object the function did not
+-- mean; this body names no object at all, so there is nothing to resolve and a
+-- pin here would be cargo. It is IMMUTABLE because it is a constant.
+--
+-- IT REVOKES FOR ITSELF, NAMING THE ROLES. 0137 was a one-time sweep of what
+-- already existed; a function created after it arrives with a fresh `anon`
+-- grant from the project's default privileges, and `revoke ... from public`
+-- alone would not remove it (see CLAUDE.md). `anon` is refused because no
+-- anonymous caller has an upload path: the one public write, anonymous
+-- feedback, goes through `service_role` in `/api/feedback`.
 --
 -- AND IT CHANGES NO UPLOAD OUTCOME, which is the property that makes it safe to
 -- apply to a live database during a school term. Every ceiling it writes is at
@@ -114,12 +145,34 @@
 --                  'foundry-uploads', 'foundry-bundles', 'foundry-covers');
 --   -- maps-media (20971520), feedback-media (8388608) and greenline-decals
 --   -- (1048576) are not touched by this file and need no rollback.
+--   drop function if exists public.portal_upload_max_bytes();
+--
+-- Dropping the function is safe in the sense that nothing in `src/` calls it
+-- (it is the database stating a number, not a surface), but it also removes
+-- this file's probe, so an operator who drops it can no longer be told whether
+-- the file is applied. Prefer leaving it.
 --
 -- Rolling back restores the fiction. The app-side half (the Foundry browser
 -- ceiling) is a deploy, not a migration, and reverts independently.
 -- ---------------------------------------------------------------------------
 
--- 1. Report what is there now, per bucket, before anything moves. The operator
+-- 1. THE NUMBER, STATED ONCE, BY THE DATABASE. Everything below reads this
+--    rather than repeating the literal. See the header for why this file has a
+--    function in it and why that function is this one.
+create or replace function public.portal_upload_max_bytes()
+returns bigint
+language sql
+immutable
+as $$ select 47185920::bigint $$;
+
+comment on function public.portal_upload_max_bytes() is
+	'The largest upload this project accepts, in bytes (45 MiB). Every storage.buckets row states this or less, and 0185 is what made that true. Mirrors PORTAL_UPLOAD_MAX_BYTES in src/lib/upload-limits.ts; the Supabase Free-plan global above it is 50 MB and is not readable from here.';
+
+revoke all on function public.portal_upload_max_bytes()
+	from public, anon, authenticated, service_role;
+grant execute on function public.portal_upload_max_bytes() to authenticated, service_role;
+
+-- 2. Report what is there now, per bucket, before anything moves. The operator
 --    reads this against the dashboard.
 do $$
 declare
@@ -134,11 +187,14 @@ begin
 	end loop;
 end $$;
 
--- 2. The whole of the change.
+-- 3. The whole of the change.
 update storage.buckets
-set file_size_limit = least(coalesce(file_size_limit, 47185920), 47185920);
+set file_size_limit = least(
+	coalesce(file_size_limit, public.portal_upload_max_bytes()),
+	public.portal_upload_max_bytes()
+);
 
--- 3. Report what is there now, and REFUSE rather than commit if any row is
+-- 4. Report what is there now, and REFUSE rather than commit if any row is
 --    still wrong. Check A is against 50000000, the pessimistic reading of
 --    "50 MB" (see the header); check C is against this project's own ceiling,
 --    which is the number the client preflights are pinned to, so a row at
@@ -148,7 +204,7 @@ set file_size_limit = least(coalesce(file_size_limit, 47185920), 47185920);
 do $$
 declare
 	v_global constant bigint := 50000000;
-	v_portal constant bigint := 47185920;
+	v_portal constant bigint := public.portal_upload_max_bytes();
 	r record;
 	v_bad text;
 	v_n int;
@@ -200,7 +256,7 @@ begin
 end $$;
 --    0185-SELFCHECK-END
 
--- 4. REPORT ONLY -- no writes, no DDL, nothing this file depends on.
+-- 5. REPORT ONLY -- no writes, no DDL, nothing this file depends on.
 --
 --    A3 of the prompt that produced this file asks what a real student app
 --    bundle actually weighs, because if 45 MiB has never been approached then
@@ -230,7 +286,7 @@ begin
 	       coalesce(max(byte_size), 0),
 	       coalesce(percentile_disc(0.5) within group (order by byte_size), 0),
 	       coalesce(percentile_disc(0.9) within group (order by byte_size), 0),
-	       count(*) filter (where byte_size > 47185920)
+	       count(*) filter (where byte_size > public.portal_upload_max_bytes())
 	into v_n, v_max, v_p50, v_p90, v_over
 	from public.student_app_versions;
 	raise notice '0185: Foundry bundle census. % version(s); unpacked bytes: median %, p90 %, max %; % over the new 45 MiB ceiling.',

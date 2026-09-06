@@ -134,6 +134,20 @@ function bucketLimitsFromChain(): Map<string, number | null> {
 				if (!limits.has(id) || value !== null) limits.set(id, value);
 			}
 		}
+		// CONSTANT-RETURNING FUNCTIONS THIS FILE CREATES, so a ceiling stated
+		// once and read back by name resolves to the number rather than to
+		// nothing. Keyed both with and without the `public.` qualifier,
+		// because a call site may write either.
+		const consts = new Map<string, number>();
+		const constFn =
+			/create\s+(?:or\s+replace\s+)?function\s+([\w.]+)\s*\(\s*\)[\s\S]*?\$\$\s*select\s+(\d+)\s*(?:::\s*\w+)?\s*\$\$/gi;
+		let f: RegExpExecArray | null;
+		while ((f = constFn.exec(code))) {
+			const name = f[1].toLowerCase();
+			consts.set(name, Number(f[2]));
+			consts.set(name.replace(/^public\./, ''), Number(f[2]));
+		}
+
 		// `on conflict ... do update set file_size_limit = N` restates it, and
 		// a bare `update storage.buckets set file_size_limit = N where id = 'x'`
 		// moves it. Both are the live value once applied.
@@ -153,21 +167,50 @@ function bucketLimitsFromChain(): Map<string, number | null> {
 		// applies the REAL file to a REAL Postgres and asserts the resulting
 		// rows against the same registry these assertions read. If this parser
 		// were wrong, the database half would still redden. Keep both.
+		//
+		// EITHER SIDE MAY BE A LITERAL OR A CONSTANT-RETURNING FUNCTION THE
+		// SAME FILE CREATED, and 0185 is the second: it states 47185920 once,
+		// in `public.portal_upload_max_bytes()`, and the sweep reads that
+		// rather than repeating it. Resolving the call here is what keeps this
+		// parser reading the number the database will actually use.
 		const cap =
-			/update\s+storage\.buckets\s+set\s+file_size_limit\s*=\s*least\s*\(\s*coalesce\s*\(\s*file_size_limit\s*,\s*(\d+)\s*\)\s*,\s*(\d+)\s*\)\s*;/gi;
+			/update\s+storage\.buckets\s+set\s+file_size_limit\s*=\s*least\s*\(\s*coalesce\s*\(\s*file_size_limit\s*,\s*([\w.]+\s*\(\s*\)|\d+)\s*\)\s*,\s*([\w.]+\s*\(\s*\)|\d+)\s*\)\s*;/gi;
 		let c: RegExpExecArray | null;
 		while ((c = cap.exec(code))) {
-			// The two literals are the same number in the shipped file; if a
+			// The two sides are the same number in the shipped file; if a
 			// future edit makes them differ, the `coalesce` default is what an
 			// unset bucket gets and the outer one is the cap.
-			const fallback = Number(c[1]);
-			const ceiling = Number(c[2]);
+			const fallback = resolveCeiling(c[1], consts, file);
+			const ceiling = resolveCeiling(c[2], consts, file);
 			for (const [id, value] of [...limits.entries()]) {
 				limits.set(id, Math.min(value ?? fallback, ceiling));
 			}
 		}
 	}
 	return limits;
+}
+
+/**
+ * A CEILING WRITTEN AS A LITERAL, OR AS A CALL TO A CONSTANT THE SAME FILE
+ * DEFINED. It THROWS on anything else rather than returning a default, and
+ * that is the whole point of it being a function: a resolver that quietly
+ * answered `null` for an unrecognised call would make the cap sweep above
+ * parse as nothing, every bucket would keep whatever it had, and the two
+ * assertions that read this would pass over a chain nobody had actually
+ * modelled. A rename is then a loud failure here instead of a silent one.
+ */
+function resolveCeiling(token: string, consts: Map<string, number>, file: string): number {
+	if (/^\d+$/.test(token)) return Number(token);
+	const key = token.replace(/\s+/g, '').replace(/\(\)$/, '').toLowerCase();
+	const found = consts.get(key) ?? consts.get(key.replace(/^public\./, ''));
+	if (found === undefined) {
+		throw new Error(
+			`${file}: the bucket cap reads \`${token}\`, which is not a literal and not a ` +
+				'constant-returning function this file creates. This parser cannot model the ' +
+				'sweep, so it refuses rather than reporting an unswept chain as swept.'
+		);
+	}
+	return found;
 }
 
 /** Split a SQL tuple body on top-level commas (an `array[...]` has its own). */
