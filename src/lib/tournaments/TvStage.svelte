@@ -14,6 +14,13 @@
 		statusLabel
 	} from './tournaments';
 	import { matchQueue } from './live';
+	import {
+		EXIT_CONTROL_IDLE_MS,
+		fullscreenActive,
+		keyHasModifier,
+		keyTargetIsTextEntry,
+		toggleFullscreen
+	} from './fullscreen';
 	import type {
 		BracketMatch,
 		MatchGame,
@@ -180,23 +187,78 @@
 	);
 	const resultEliminated = $derived(!!resultMatch && resultMatch.loser_to_match_id === null);
 
-	// --- fullscreen: the only input this screen takes ------------------------
+	// --- fullscreen, and the way back out ------------------------------------
+	// Prompt 0077 gave this screen an F key and nothing else. Prompt 0091 is
+	// the first report from a real projector and it says two things: the layout
+	// is wrong (see `.tv-body` below) and there is NO WAY OUT a person can
+	// find. The Fullscreen API's own exit is Escape and the browser
+	// deliberately paints no chrome, so a page that offers fullscreen and no
+	// visible control has handed a projector to somebody who has to already
+	// know a keyboard shortcut.
+	/** Whether the DOCUMENT is fullscreen, read from the browser's own event
+	 * rather than tracked beside the toggle -- Escape, the F key and the
+	 * control below are three ways in and out and only `fullscreenchange`
+	 * sees all three. Seeded on mount so opening the page with fullscreen
+	 * already on (a reload inside it) still renders the exit. */
+	let isFull = $state(false);
+	onMount(() => {
+		const sync = () => (isFull = fullscreenActive(document));
+		sync();
+		document.addEventListener('fullscreenchange', sync);
+		document.addEventListener('webkitfullscreenchange', sync);
+		return () => {
+			document.removeEventListener('fullscreenchange', sync);
+			document.removeEventListener('webkitfullscreenchange', sync);
+		};
+	});
+
+	// The startup hint is for getting IN, so it stands down the moment somebody
+	// is in -- the exit control is what that state needs instead.
 	let hintExpired = $state(false);
-	const hintVisible = $derived(showHint && !hintExpired);
+	const hintVisible = $derived(showHint && !hintExpired && !isFull);
 	onMount(() => {
 		const id = setTimeout(() => (hintExpired = true), 9000);
 		return () => clearTimeout(id);
 	});
 
+	/** The exit control DIMS after a few seconds of stillness; it never
+	 * disappears. See EXIT_CONTROL_IDLE_MS for why that trade goes this way on
+	 * a machine driving a class. */
+	let controlAwake = $state(true);
+	let awakeTimer: ReturnType<typeof setTimeout> | undefined;
+	function wake() {
+		controlAwake = true;
+		clearTimeout(awakeTimer);
+		awakeTimer = setTimeout(() => (controlAwake = false), EXIT_CONTROL_IDLE_MS);
+	}
+	$effect(() => {
+		if (!isFull) {
+			clearTimeout(awakeTimer);
+			controlAwake = true;
+			return;
+		}
+		wake();
+		return () => clearTimeout(awakeTimer);
+	});
+
 	function onKeydown(e: KeyboardEvent) {
+		// SOMEBODY MAY BE TYPING ON THIS PAGE. The report affordance is mounted
+		// in the root layout and this route is not excluded, so the report box
+		// is here like everywhere else -- and this handler used to eat the `f`
+		// out of it. `keyTargetIsTextEntry` is the one place that question is
+		// asked; see `fullscreen.ts` for the measurement.
+		if (keyTargetIsTextEntry(e.target)) return;
+		if (isFull) wake();
+		if (keyHasModifier(e)) return;
 		if (e.key !== 'f' && e.key !== 'F') return;
 		e.preventDefault();
-		if (document.fullscreenElement) document.exitFullscreen();
-		else document.documentElement.requestFullscreen?.().catch(() => {});
+		// STILL A TOGGLE, not an entry. F is the only way out for a person who
+		// has already learned it, and Escape stays the browser's.
+		toggleFullscreen(document.documentElement, document);
 	}
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onpointermove={() => isFull && wake()} />
 
 <div class="tnm-root tv" class:fixed={fullscreen}>
 	<header class="tv-head">
@@ -366,7 +428,28 @@
 
 	<footer class="tv-foot">
 		<span>{shareUrl.replace(/^https?:\/\//, '')}</span>
-		{#if hintVisible}<span class="hint">Press F for fullscreen</span>{/if}
+		{#if isFull}
+			<!-- THE WAY BACK OUT. It lives in the FOOTER'S OWN FLOW rather than
+			     floating over the stage, which is what makes "it never covers the
+			     match" a property of the box model instead of a number somebody
+			     tuned: `.tv-foot` is a `flex: none` sibling BELOW `.tv-body`, so
+			     no rect inside the stage can intersect it at any size or ratio.
+			     It carries a WORD, it is a real button, and it says which key
+			     does the same thing so the next person needs the mouse once. -->
+			<button
+				type="button"
+				class="tv-exit"
+				class:awake={controlAwake}
+				onclick={() => toggleFullscreen(document.documentElement, document)}
+				onfocus={wake}
+				onpointerenter={wake}
+			>
+				<span class="tv-exit-word">Exit full screen</span>
+				<span class="tv-exit-key">Esc</span>
+			</button>
+		{:else if hintVisible}
+			<span class="hint">Press F for fullscreen</span>
+		{/if}
 	</footer>
 </div>
 
@@ -431,6 +514,24 @@
 		min-height: 0;
 		display: flex;
 		padding: clamp(1rem, 3vh, 2.6rem) clamp(1.2rem, 3vw, 3rem);
+		/* THIS IS A PROJECTOR, AND `main` IS CAPPED AT 880px IN `src/app.css`.
+		   That cap is right for every reading surface in the app and wrong for
+		   the one element in it that is a WALL. It applied here because this is
+		   a `<main>` and the component only ever overrode `padding`, so a
+		   1920-wide stage rendered in an 880px column centred by `margin: auto`
+		   with 520px of dead black down each side -- while `.tv-head` and
+		   `.tv-foot` (a `header` and a `footer`) went full bleed, which is what
+		   made it read as broken rather than merely narrow.
+
+		   MEASURED at 1920x1080 before this rule: body 880px of 1920 (45.8% of
+		   the screen), `.split-main` 243px, and the up-next entry names -- the
+		   two words the room is there to read -- laid out at ZERO pixels wide
+		   (`scrollWidth` 155, `clientWidth` 0), ellipsised out of existence by
+		   a grid track that had nothing left to give. It is a WIDTH defect and
+		   not a fullscreen one: fullscreen is simply how somebody first reaches
+		   the widest state, and the wider the screen the worse it gets. */
+		max-width: none;
+		margin: 0;
 	}
 	.stage {
 		flex: 1;
@@ -631,10 +732,32 @@
 		flex: none;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
+		gap: clamp(1rem, 2vw, 2.5rem);
 		padding: clamp(0.5rem, 1.2vh, 1rem) clamp(1.2rem, 3vw, 3rem);
 		border-top: 1px solid var(--tnm-line);
+		/* LEFT-PACKED, AND THE BOTTOM-RIGHT CORNER IS LEFT EMPTY ON PURPOSE.
+		   `SiteFeedback`'s shell pill is `position: fixed` at `right`/`bottom`
+		   with `z-index: 90` and is mounted in the ROOT LAYOUT, so it is on
+		   this page like every other and it owns that corner at every width.
+		   The exit control was written into the right end first and Chromium
+		   refused to click it at 1024x768 -- "Report a problem intercepts
+		   pointer events" -- which is a way out that cannot be taken. Packing
+		   the footer from the left makes the clearance a property of the
+		   layout rather than a margin somebody measured against another
+		   component's size. */
+		justify-content: flex-start;
+		/* AND IT WRAPS, WHICH IS A REACHABILITY FIX RATHER THAN A TIDINESS ONE.
+		   At 375px the share address alone is 246px of a 375px row, so a
+		   `nowrap` footer pushed the exit control to `right: 473` -- 98px
+		   outside the viewport, CLIPPED IN SILENCE by `.tv`'s own
+		   `overflow: hidden`, so the horizontal-scroll check read 0px overflow
+		   and said nothing. What caught it was hit-testing the control's own
+		   span: three of five sample points answered `null` (outside the
+		   viewport) and two answered the report pill. `order: -1` then puts the
+		   way out on the FIRST row and lets the address wrap under it, which
+		   also lifts the control clear of the bottom band the report pill is
+		   anchored in. */
+		flex-wrap: wrap;
 		font-family: 'Share Tech Mono', monospace;
 		/* The share address is typed from a phone at the back: recognise, not
 		   read, so the smaller floor. 16.8 -> 26.9 px at 1920. */
@@ -644,6 +767,60 @@
 	}
 	.hint {
 		opacity: 0.55;
+	}
+
+	/* THE EXIT CONTROL. Present the whole time fullscreen is on; it DIMS after
+	   EXIT_CONTROL_IDLE_MS of stillness and never disappears, because the
+	   failure it exists to fix is a person stuck in front of a room and a
+	   control that has vanished is one more thing they have to know how to
+	   summon. `opacity` only -- the box does not move, so the footer never
+	   reflows and the pill stays hit-testable and Tab-focusable at every
+	   moment rather than only after a reveal gesture. */
+	.tv-exit {
+		order: -1;
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.9em;
+		min-height: 44px;
+		padding: 0.35em 1em;
+		/* The outer edge of an interactive control is a `--boundary`-class line
+		   and clears 3:1, so it is the ink-dim token in BOTH states rather than
+		   the room's decorative `--tnm-line`. Measured below. */
+		border: 1px solid var(--tnm-ink-dim);
+		border-radius: 999px;
+		background: transparent;
+		font: inherit;
+		color: var(--tnm-ink);
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		cursor: pointer;
+		opacity: 0.62;
+	}
+	.tv-exit.awake {
+		opacity: 1;
+		border-color: var(--tnm-ink-dim);
+	}
+	.tv-exit:hover,
+	.tv-exit:focus-visible {
+		opacity: 1;
+		border-color: var(--tnm-ink-dim);
+	}
+	/* THE KEY HINT IS THE PILL'S OWN INK, NOT THE DIM TOKEN, AND THAT IS A
+	   MEASUREMENT RATHER THAN A PREFERENCE. `--tnm-ink-dim` reads 6.86:1 on
+	   the footer at full strength and 3.36:1 once the pill settles to its
+	   idle opacity -- under the 4.5 floor for a word, in the state it spends
+	   almost all of its life in. Solving the composite for 4.5 at that
+	   opacity needs an ink of at least 213 on this ground, which is
+	   `--tnm-ink` (237) and nothing dimmer, so the two halves are separated
+	   by SIZE and the gap instead of by hue. 6.60:1 idle, measured. */
+	.tv-exit-key {
+		font-size: 0.85em;
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.tv-exit {
+			transition: opacity 220ms ease;
+		}
 	}
 
 	/* Portrait / narrow projectors: stack rather than crush the columns. */
