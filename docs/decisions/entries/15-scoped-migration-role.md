@@ -1,8 +1,23 @@
 # 15 A scoped Postgres role a session applies one migration as
 - Raised: 2026-09-05  By: session on `claude/full-auto-migration-deploy-w9w48f` (prompt 0055)
-- Status: decided 2026-09-05, and REOPENED-AND-REDECIDED the same day on narrower terms.
+- Status: decided 2026-09-05, REOPENED-AND-REDECIDED the same day on narrower terms, and
+  then NOT COMPLETED AT ALL -- which is also decided, and is where it rests.
   See "What actually happened" at the bottom, which is the part to read first: the guard
   this entry describes CANNOT BE INSTALLED, and Mr. Pina chose the weaker thing anyway.
+  **And then the weaker thing was not built either.** `idea_migrator` exists on the
+  production project with LOGIN and nothing else: `grant postgres to idea_migrator` was
+  refused from the SQL editor on PostgreSQL 17.0.6, exactly as this entry's own "NOT
+  verified" line said it might be, and finishing it needs a superuser, which needs a
+  Supabase support ticket, which **Mr. Pina declined to raise on 2026-09-05.** That is a
+  decision and not an outstanding task. What `tools/apply-migration.mjs` connects as is
+  the project's own `postgres` connection string in `IDEA_MIGRATION_URL`.
+  **Nothing was lost by not finishing it.** Membership in `postgres` IS `postgres`, so the
+  privilege on the far side of that grant is identical to the privilege the connection
+  string already carries; the role would have bought a separate USERNAME and nothing else,
+  because the narrowing it was designed around was the event trigger Supabase does not
+  permit. The controls that actually stand are all in the tool and all client-side: the
+  statement scanner (0065), and since 0066 the ledger gate and the committed record under
+  `docs/migrations-applied/`. Recorded by prompt 0066.
 - Decision: YES, asked for. Mr. Pina asked on 2026-09-05 for every remaining manual step
   to be automated, and applying a migration was one of the two that were left. The role
   and its guard are written and committed as `supabase/roles/idea_migrator.sql`; nothing

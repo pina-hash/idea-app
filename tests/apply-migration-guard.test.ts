@@ -46,7 +46,7 @@
 // behaviour it is written for. What this suite proves is the OTHER half -- that
 // when the grant can land, the file produces the credential it describes.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -60,6 +60,8 @@ import {
 	claims,
 	guardFingerprint,
 	head,
+	ledgerPermission,
+	LEDGER_DIR,
 	makeClient,
 	scanFile,
 	splitStatements,
@@ -77,6 +79,33 @@ function roleSqlToPaste(): string {
 	expect(text).toContain(PLACEHOLDER);
 	return text.split(PLACEHOLDER).join(TEST_PASSWORD);
 }
+
+/**
+ * A real ledger entry that permits a migration, and one that refuses. Both are
+ * DISCOVERED rather than pinned: the ledger moves every bundle, and a number
+ * written down here would be a second thing to edit when it does.
+ */
+function ledgerIdWhere(permitted: boolean): string {
+	const names = readdirSync(LEDGER_DIR)
+		.filter((f) => /^\d{4}-.*\.md$/.test(f))
+		.sort();
+	const hit = names.find(
+		(f) => ledgerPermission(readFileSync(join(LEDGER_DIR, f), 'utf8')).permitted === permitted
+	);
+	if (!hit) throw new Error(`no ledger entry with permitted=${permitted}; the corpus changed shape`);
+	return hit.slice(0, 4);
+}
+/** A SQL comment block read as the prose it is: markers out, whitespace collapsed. */
+function prose(text: string): string {
+	return text
+		.split('\n')
+		.map((l) => l.replace(/^\s*--\s?/, ''))
+		.join(' ')
+		.replace(/\s+/g, ' ');
+}
+
+const permittingLedgerId = () => ledgerIdWhere(true);
+const refusingLedgerId = () => ledgerIdWhere(false);
 
 let db: TestDb;
 let url: string;
@@ -188,12 +217,36 @@ describe('the role file installs what its header says it installs', () => {
 	});
 
 	it('states in its own header what does not protect the reader', () => {
-		// The header IS the deliverable of this bundle. A file that quietly
-		// dropped the guard and said nothing is the failure being prevented.
+		// The header IS the deliverable of prompt 0065. A file that quietly
+		// dropped the guard and said nothing is the failure being prevented. The
+		// CLAIM is pinned rather than the sentence: the wording moved in 0066
+		// (the credential in use is the project's `postgres` string, not this
+		// role's password) and a test that pinned the phrasing would have read as
+		// a regression when it was a correction.
 		const text = readFileSync(ROLE_SQL, 'utf8');
 		expect(text).toContain('WHAT DOES NOT PROTECT YOU');
 		expect(text).toMatch(/NOTHING IN THE DATABASE REFUSES ANYTHING FROM THIS ROLE/);
-		expect(text).toMatch(/bypassable by anyone holding this password/);
+		// The header is a comment block, so a sentence wraps as `\n-- `. Every
+		// assertion over its prose reads a whitespace-collapsed copy with the
+		// comment markers taken out, or it pins where the line happened to break.
+		expect(prose(text)).toMatch(/bypassable by anyone holding (this password|the connection string)/);
+		expect(text).toMatch(/CLIENT-SIDE/);
+	});
+
+	it('says that nothing uses it, which is the thing a reader most needs to know', () => {
+		// 0066: the role exists with LOGIN and nothing else, the grant was refused
+		// on 17.0.6, and Mr. Pina declined the support ticket that would finish
+		// it. A file describing a credential nobody holds, with nothing saying so,
+		// is how the next reader concludes the project applies migrations as
+		// `idea_migrator`.
+		const text = readFileSync(ROLE_SQL, 'utf8');
+		const p = prose(text);
+		expect(p).toMatch(/NOTHING USES THIS FILE/);
+		expect(p).toMatch(/17\.0\.6/);
+		expect(p).toMatch(/declined to raise one/);
+		expect(p).toMatch(/Membership in `postgres` IS `postgres`/);
+		// And it must not have been softened into a to-do.
+		expect(p).toMatch(/That is a decision, not an outstanding task/);
 	});
 });
 
@@ -392,9 +445,24 @@ describe('control 3: a migration applied out of order is refused before it runs'
 			`select count(*)::int as n from pg_class c join pg_namespace n on n.oid = c.relnamespace
 			 where n.nspname = 'public' and c.relkind = 'r'`
 		);
+		// `--ledger` names a bundle that WAS permitted a migration, because since
+		// prompt 0066 the ledger gate runs before the ordering rule and this test
+		// is about the ordering rule. The entry is discovered rather than pinned:
+		// a hard-coded number here would be a second place to edit whenever the
+		// ledger moves. The next test is the control for the gate itself.
+		const permittingLedger = permittingLedgerId();
 		const run = spawnSync(
 			process.execPath,
-			['tools/apply-migration.mjs', '0180', '--since', '151', '--ref', 'origin/integration'],
+			[
+				'tools/apply-migration.mjs',
+				'0180',
+				'--since',
+				'151',
+				'--ref',
+				'origin/integration',
+				'--ledger',
+				permittingLedger
+			],
 			{
 				cwd: REPO_ROOT,
 				encoding: 'utf8',
@@ -417,6 +485,33 @@ describe('control 3: a migration applied out of order is refused before it runs'
 		);
 		expect(after.rows[0].n).toBe(before.rows[0].n);
 	}, 180_000);
+
+	it('refuses at the LEDGER GATE before it opens a connection, when the bundle was permitted nothing', async () => {
+		// The control for the change above. Same file, same everything, except
+		// the ledger entry named is one that says "Migration permitted: no" --
+		// and the refusal now arrives without a session_user line, because no
+		// connection was opened at all.
+		const refusingLedger = refusingLedgerId();
+		const run = spawnSync(
+			process.execPath,
+			[
+				'tools/apply-migration.mjs',
+				'0180',
+				'--since',
+				'151',
+				'--ref',
+				'origin/integration',
+				'--ledger',
+				refusingLedger
+			],
+			{ cwd: REPO_ROOT, encoding: 'utf8', env: { ...process.env, IDEA_MIGRATION_URL: url }, timeout: 60_000 }
+		);
+		expect(run.status).toBe(EXIT.refused);
+		expect(run.stdout).toMatch(/Migration permitted: no/);
+		expect(run.stdout).toMatch(/no connection was opened/);
+		expect(run.stdout).not.toMatch(/session_user/);
+		expect(run.stdout + run.stderr).not.toContain(TEST_PASSWORD);
+	}, 60_000);
 
 	it('refuses a file it will not send before it looks at the ordering at all', async () => {
 		// 0162 creates an extension. The scan runs before the connection, so
