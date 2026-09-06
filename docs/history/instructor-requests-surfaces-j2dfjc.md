@@ -238,8 +238,38 @@ Its self-check puts fifteen real share-link forms and twelve refusals through th
 new predicate at apply time, rather than reading the function's source back --
 which would only prove the text landed.
 
-**It was NOT applied to the live project.** No `IDEA_MIGRATION_URL` connection was
-opened. The path is listed at the end of the session report for pasting.
+**It was NOT applied to the live project, and could not have been from here:
+`IDEA_MIGRATION_URL` is not set in this container at all.** No connection was
+opened. `tools/apply-migration.mjs` would have refused it in any case -- its probe
+is derived from `origin/main`, and a migration sitting only on a `claude/**` branch
+gets no probe, which is correctly read as a refusal rather than a pass. The path is
+listed at the end of the session report for pasting into the SQL editor.
+
+**`docs/migrations-applied/` does not exist anywhere in this tree** -- not on this
+branch, not on `origin/main`, and nothing in `CLAUDE.md`, `docs/` or `tools/`
+mentions it. Since the file was not applied, no record under it was due; a session
+that DOES apply this file will have to create that directory rather than add to it.
+
+### Deploy ordering, which is not symmetric between the two halves
+
+**Neither half names a new RPC parameter, so there is no ordering that BREAKS
+anything** -- both functions are replaced at their identical signatures and the
+signature trap does not apply. But the two halves degrade differently against a
+backend that has not had `0186` applied yet, and that is worth knowing:
+
+* **The Spotify half is inert.** `classroom_song_request` never answers
+  `not_spotify`, so the surface says "Spotify only" while the database still
+  accepts any https host. A student is told a rule that is not being enforced --
+  which is a wrong sentence, not a broken one.
+* **The Spam half is VISIBLY refused.** `app_feedback_set_status(id, 'spam')`
+  raises `Status must be new, seen or resolved.` on a pre-0186 backend, the route
+  returns it as `{ok:false, message}`, and the console renders it as an error where
+  the admin is working. Nothing is written and nothing is lost -- but the Spam
+  button does not work until the file is applied, and the sentence it shows names
+  exactly why.
+
+So the file should be applied BEFORE this branch reaches production, and if it is
+not, the failure is legible rather than silent in both directions.
 
 **Because it is one file, a database missing EITHER subsystem cannot apply it**,
 and both test chains say so in a comment rather than working around it: the song
