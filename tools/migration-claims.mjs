@@ -27,10 +27,10 @@
  *   2. THE `Migration permitted` LINE OF EVERY LEDGER ENTRY, on every ref,
  *      whose `Status` is not terminal. That line is written in the session's
  *      FIRST commit, pushed alone before any work -- roughly half an hour
- *      before the migration file itself exists (measured across the five
- *      branches that wrote one on 2026-09-06: 24m03s, 26m14s, 28m15s, 28m46s
- *      and 41m25s). A claim recorded there is visible for that whole window;
- *      a claim recorded by the file is visible only after it.
+ *      before the migration file itself exists (measured across the five lanes
+ *      that wrote one on 2026-09-06: 24m03s, 26m14s, 28m15s, 28m46s and
+ *      41m25s). A claim recorded there is visible for that whole window; a
+ *      claim recorded by the file is visible only after it.
  *
  * IT READS GIT AND NOTHING ELSE. No database, no browser, no network beyond
  * whatever `git fetch` the caller has already done. It cannot apply anything and
@@ -70,6 +70,28 @@ export const REPO_ROOT = resolve(HERE, '..');
 export const MIGRATIONS_DIR = join('supabase', 'migrations');
 export const LEDGER_DIR = join('docs', 'prompt-ledger', 'entries');
 
+/**
+ * @typedef {{ file: string, text: string }} LedgerBlob
+ * @typedef {{ ref: string, branch: string, landed: boolean, migrations?: string[], entries?: LedgerBlob[] }} InventoryRef
+ * @typedef {{ refs: InventoryRef[], refsVisible?: boolean }} Inventory
+ * @typedef {{ raw: string, permits: boolean, numbers: number[], resolution: string }} Permitted
+ * @typedef {{ ref: string, branch: string, sources: string[], entries: string[], files: string[] }} Holder
+ * @typedef {{ number: number, holders: Holder[] }} ClaimRow
+ * @typedef {{ number: number, files: string[], refs: string[] }} LandedRow
+ * @typedef {{ ref: string, branch: string, entry: string, status: string, raw: string }} UnspecifiedRow
+ * @typedef {{
+ *   refsVisible: boolean,
+ *   landed: LandedRow[],
+ *   claimed: ClaimRow[],
+ *   unspecified: UnspecifiedRow[],
+ *   highestLanded: number,
+ *   next: number,
+ *   inFlightHoles: number[],
+ *   unexplainedHoles: number[],
+ *   contested: ClaimRow[]
+ * }} Classification
+ */
+
 /** Refs whose migration files count as LANDED rather than claimed. */
 export const LANDED_REFS = ['origin/main', 'origin/integration'];
 
@@ -84,16 +106,28 @@ export const TERMINAL_STATUS = new Set(['deployed', 'superseded', 'withdrawn']);
 
 export const STATUS_RANK = { issued: 0, pushed: 1, 'in-integration': 2, deployed: 3, superseded: 3, withdrawn: 3 };
 
+/**
+ * @param {string} status
+ * @returns {number}
+ */
 export function statusRank(status) {
-	return STATUS_RANK[status] ?? -1;
+	return /** @type {Record<string, number>} */ (STATUS_RANK)[status] ?? -1;
 }
 
+/**
+ * @param {unknown} raw
+ * @returns {string}
+ */
 export function normaliseStatus(raw) {
 	const first = String(raw ?? '').trim().split(/\s+/)[0] ?? '';
 	return first.replace(/^[^\w-]+|[^\w-]+$/g, '').toLowerCase();
 }
 
 /** `0186_maps_media_no_anon_listing.sql` -> 186. Anything else -> null. */
+/**
+ * @param {unknown} filename
+ * @returns {number | null}
+ */
 export function migrationNumber(filename) {
 	const base = String(filename ?? '').split('/').pop() ?? '';
 	const m = /^(\d{4})_.*\.sql$/.exec(base);
@@ -122,11 +156,20 @@ export function migrationNumber(filename) {
  *      number, which is the state that produced every collision this tool
  *      exists for. It is reported as `unspecified` and never silently as none.
  */
+/**
+ * @param {unknown} rawLine
+ * @returns {Permitted}
+ */
 export function parsePermitted(rawLine) {
 	const raw = String(rawLine ?? '');
 	const value = raw.replace(/^\s*[-*]?\s*Migration permitted:\s*/i, '');
 	const body = value.replace(/Highest on origin\/main at issue:\s*\d{4}/gi, ' ');
 
+	/**
+	 * @param {number[]} numbers
+	 * @param {string} resolution
+	 * @returns {Permitted}
+	 */
 	const claims = (numbers, resolution) => ({
 		raw: value.trim(),
 		permits: numbers.length > 0 || resolution === 'unspecified',
@@ -153,6 +196,10 @@ export function parsePermitted(rawLine) {
 	return claims([], 'unspecified');
 }
 
+/**
+ * @param {string[] | null | undefined} list
+ * @returns {number[]}
+ */
 function uniqueNumbers(list) {
 	return [...new Set((list ?? []).map(Number))].sort((a, b) => a - b);
 }
@@ -162,8 +209,13 @@ function uniqueNumbers(list) {
  * Deliberately tolerant in the same direction `idea-status.py` is: a value
  * folded onto a continuation line still belongs to its key.
  */
+/**
+ * @param {unknown} text
+ * @returns {{ id: string, title: string, fields: Record<string, string> }}
+ */
 export function parseEntry(text) {
 	const lines = String(text ?? '').split(/\r?\n/);
+	/** @type {Record<string, string>} */
 	const fields = {};
 	let key = null;
 	let title = '';
@@ -196,6 +248,10 @@ export function parseEntry(text) {
  *   refsVisible: bool
  * }
  */
+/**
+ * @param {Inventory | null | undefined} inventory
+ * @returns {Classification}
+ */
 export function classify(inventory) {
 	const refs = inventory?.refs ?? [];
 	const landed = new Map();
@@ -211,14 +267,20 @@ export function classify(inventory) {
 		}
 	}
 
+	/** @type {Map<number, ClaimRow>} */
 	const claims = new Map();
+	/** @type {UnspecifiedRow[]} */
 	const unspecified = [];
+	/**
+	 * @param {number} n
+	 * @param {{ ref: string, branch: string, source: string, entry?: string, file?: string }} holder
+	 */
 	const addClaim = (n, holder) => {
 		// A number both claimed and landed IS landed, and is reported once.
 		// The lane that wrote it is not still holding it -- it let go the
 		// moment the file reached a landed ref.
 		if (landed.has(n)) return;
-		const row = claims.get(n) ?? { number: n, holders: [] };
+		const row = claims.get(n) ?? /** @type {ClaimRow} */ ({ number: n, holders: [] });
 		const same = row.holders.find((h) => h.ref === holder.ref);
 		if (same) {
 			if (!same.sources.includes(holder.source)) same.sources.push(holder.source);
@@ -312,7 +374,7 @@ export function classify(inventory) {
 			files: [...landed.get(n).files].sort(),
 			refs: [...landed.get(n).refs].sort()
 		})),
-		claimed: claimedNums.map((n) => claims.get(n)),
+		claimed: [...claims.values()].sort((a, b) => a.number - b.number),
 		unspecified,
 		highestLanded,
 		next,
@@ -320,9 +382,9 @@ export function classify(inventory) {
 		unexplainedHoles,
 		// A number held by two different refs at once. This is the collision
 		// itself, reported before either one is a file on main.
-		contested: claimedNums
-			.filter((n) => claims.get(n).holders.length > 1)
-			.map((n) => claims.get(n))
+		contested: [...claims.values()]
+			.filter((row) => row.holders.length > 1)
+			.sort((a, b) => a.number - b.number)
 	};
 }
 
@@ -331,7 +393,12 @@ export function classify(inventory) {
  * A plain object of plain strings, so a test can build one by hand and a caller
  * cannot accidentally depend on the shape of a holder record.
  */
+/**
+ * @param {Classification | null | undefined} result
+ * @returns {Record<number, string[]>}
+ */
 export function claimMap(result) {
+	/** @type {Record<number, string[]>} */
 	const out = {};
 	for (const row of result?.claimed ?? []) {
 		out[row.number] = row.holders.map((h) => h.branch || h.ref);
@@ -346,17 +413,31 @@ export function claimMap(result) {
  * caller that matters, and two implementations of "is this hole explained" is
  * the pair that stops agreeing.
  */
+/**
+ * @param {number[]} nums
+ * @param {Record<number, string[]>} [claims]
+ * @returns {number[]}
+ */
 export function unexplainedHoles(nums, claims = {}) {
 	return holesIn(nums).filter((n) => !(claims && claims[n]));
 }
 
 /** The other half: holes a lane in flight accounts for, with who holds each. */
+/**
+ * @param {number[]} nums
+ * @param {Record<number, string[]>} [claims]
+ * @returns {{ number: number, branches: string[] }[]}
+ */
 export function inFlightHoles(nums, claims = {}) {
 	return holesIn(nums)
 		.filter((n) => claims && claims[n])
 		.map((n) => ({ number: n, branches: [...claims[n]] }));
 }
 
+/**
+ * @param {number[] | null | undefined} nums
+ * @returns {number[]}
+ */
 function holesIn(nums) {
 	const sorted = [...new Set((nums ?? []).map(Number))].sort((a, b) => a - b);
 	if (sorted.length === 0) return [];
@@ -370,10 +451,20 @@ function holesIn(nums) {
 // The git shell. Everything below here is IO.
 // ---------------------------------------------------------------------------
 
+/**
+ * @param {string} root
+ * @param {string[]} args
+ * @returns {string}
+ */
 function git(root, args) {
 	return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
+/**
+ * @param {string} root
+ * @param {string[]} args
+ * @returns {boolean}
+ */
 function gitOk(root, args) {
 	try {
 		git(root, args);
@@ -383,6 +474,12 @@ function gitOk(root, args) {
 	}
 }
 
+/**
+ * @param {string} root
+ * @param {string} ref
+ * @param {string} dir
+ * @returns {string[]}
+ */
 function lsTree(root, ref, dir) {
 	try {
 		return git(root, ['ls-tree', '-r', '--name-only', ref, `${dir}/`])
@@ -399,6 +496,11 @@ function lsTree(root, ref, dir) {
  * 70 ledger entries is roughly 1,500 process spawns, measured at 5.4 seconds,
  * which is too slow to sit inside a test that also boots Postgres. `ls-tree`
  * long-format gives the blob shas and one `cat-file --batch` streams every body.
+ *
+ * @param {string} root
+ * @param {string} ref
+ * @param {string} dir
+ * @returns {LedgerBlob[]}
  */
 function readDirBlobs(root, ref, dir) {
 	let listing;
@@ -411,7 +513,7 @@ function readDirBlobs(root, ref, dir) {
 	for (const line of listing.split('\n')) {
 		const m = /^\d+ blob ([0-9a-f]+)\t(.+)$/.exec(line);
 		if (!m) continue;
-		const file = m[2].split('/').pop();
+		const file = m[2].split('/').pop() ?? '';
 		if (!file.endsWith('.md')) continue;
 		wanted.push({ sha: m[1], file });
 	}
@@ -448,6 +550,10 @@ function readDirBlobs(root, ref, dir) {
 	return out;
 }
 
+/**
+ * @param {string} [root]
+ * @returns {Inventory}
+ */
 export function collect(root = REPO_ROOT) {
 	const refs = [];
 
@@ -477,6 +583,7 @@ export function collect(root = REPO_ROOT) {
 		});
 	}
 
+	/** @type {string[]} */
 	let branchRefs = [];
 	try {
 		branchRefs = git(root, ['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/claude'])
@@ -498,6 +605,10 @@ export function collect(root = REPO_ROOT) {
 	return { refs, refsVisible: branchRefs.length > 0 };
 }
 
+/**
+ * @param {string} root
+ * @returns {string}
+ */
 function currentBranch(root) {
 	try {
 		return git(root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
@@ -506,6 +617,10 @@ function currentBranch(root) {
 	}
 }
 
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
 function safeListDir(dir) {
 	try {
 		return readdirSync(dir);
@@ -514,6 +629,10 @@ function safeListDir(dir) {
 	}
 }
 
+/**
+ * @param {string} path
+ * @returns {string}
+ */
 function safeRead(path) {
 	try {
 		return readFileSync(path, 'utf8');
@@ -522,8 +641,13 @@ function safeRead(path) {
 	}
 }
 
+/**
+ * @param {Classification} result
+ * @returns {string}
+ */
 export function formatReport(result) {
 	const out = [];
+	/** @param {number} n */
 	const pad = (n) => String(n).padStart(4, '0');
 	out.push('MIGRATION NUMBERS');
 	out.push('');
@@ -589,6 +713,10 @@ export function formatReport(result) {
 	return out.join('\n');
 }
 
+/**
+ * @param {string[]} [argv]
+ * @returns {number}
+ */
 export function main(argv = process.argv.slice(2)) {
 	const result = classify(collect(REPO_ROOT));
 	if (argv.includes('--next')) {

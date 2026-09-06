@@ -48,8 +48,19 @@ import {
 
 const LEDGER_DIR = fileURLToPath(new URL('../docs/prompt-ledger/entries', import.meta.url));
 
+type LedgerBlob = { file: string; text: string };
+type FixtureBranch = { branch: string; migrations?: string[]; entries?: LedgerBlob[] };
+
 /** A ledger entry in the shape a real one is written in. */
-function entry({ id, status = 'issued', permitted = 'no.' }) {
+function entry({
+	id,
+	status = 'issued',
+	permitted = 'no.'
+}: {
+	id: string;
+	status?: string;
+	permitted?: string;
+}): LedgerBlob {
 	return {
 		file: `${id}-fixture.md`,
 		text: [
@@ -65,7 +76,13 @@ function entry({ id, status = 'issued', permitted = 'no.' }) {
 	};
 }
 
-function inventory({ landedFiles = [], branches = [] }) {
+function inventory({
+	landedFiles = [],
+	branches = []
+}: {
+	landedFiles?: string[];
+	branches?: FixtureBranch[];
+}) {
 	return {
 		refsVisible: true,
 		refs: [

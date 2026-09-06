@@ -72,7 +72,7 @@ each wrote `0186`, over four and a half minutes. Every one of them verified corr
 
 **So the `Migration permitted` line names the number, and it is pushed before the work.**
 A session's entry is already its FIRST commit, pushed alone before anything else -- that
-was measured across the five branches that wrote a migration on 2026-09-06, and the file
+was measured across the five lanes that wrote a migration on 2026-09-06, and the file
 appeared 24, 26, 28, 28 and 41 minutes after the entry. A claim recorded in the entry is
 visible for that whole window. A claim recorded by the file is visible only after it.
 

@@ -997,7 +997,7 @@ costs nothing to keep.
     the past and silent about what is in flight, and all three were consulted correctly
     by every session that collided.
   - **The session's FIRST commit is the ledger entry, pushed alone, so the claim is
-    visible before the work exists.** Measured across the five branches that wrote a
+    visible before the work exists.** Measured across the five lanes that wrote a
     migration on 2026-09-06, the file appeared 24, 26, 28, 28 and 41 minutes after the
     entry. That window is what the claim buys.
   - **It does not close the window, and the prompt says so rather than implying
