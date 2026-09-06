@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `AssignmentEngine.svelte`, `src/lib/classroom/assignment-draft-mirror.ts` (new), `SaveIndicator.svelte`, `src/routes/dev/assignment-mirror/**`, `tests/classroom-assignment-mirror*`, `tests/dom/assignment-mirror*`, `tools/browser-verify/routes/assignment-mirror*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0070-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0184
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/assignment-draft-mirror-zpzkzd
 - Notes: Prompt 0061 was sent after two reports, "infinite copies of that
   draft" and "Homework progress didn't save". It found the first, fixed it,
   and reported that the second had no silent-failure path on the student
