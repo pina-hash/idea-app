@@ -5,12 +5,15 @@
 	import TournamentQr from './TournamentQr.svelte';
 	import {
 		entryMap,
+		formatDuration,
 		isByeMatch,
 		isForfeitMatch,
 		matchScoreline,
+		msBetween,
 		roundLabel,
 		statusLabel
 	} from './tournaments';
+	import { matchQueue } from './live';
 	import type {
 		BracketMatch,
 		MatchGame,
@@ -65,18 +68,12 @@
 	const t = $derived(tournament);
 	const entries = $derived(entryMap(entryRows));
 
-	const liveMatches = $derived(matches.filter((m) => m.status === 'in_progress'));
-	const readyMatches = $derived(
-		matches
-			.filter((m) => m.status === 'pending' && m.entry_a_id && m.entry_b_id)
-			.sort(
-				(a, b) =>
-					['winners', 'losers', 'grand_final', 'grand_final_reset'].indexOf(a.bracket) -
-						['winners', 'losers', 'grand_final', 'grand_final_reset'].indexOf(b.bracket) ||
-					a.round - b.round ||
-					a.slot - b.slot
-			)
-	);
+	// ONE queue, shared with the host console and the public page (live.ts):
+	// the match the projector shows as next is the one the host's Start
+	// button is on.
+	const queue = $derived(matchQueue(matches));
+	const liveMatches = $derived(queue.inProgress);
+	const readyMatches = $derived(queue.ready);
 	const playedCount = $derived(
 		matches.filter((m) => m.status === 'complete' && m.winner_id).length
 	);
@@ -136,6 +133,21 @@
 	});
 	const featured = $derived(
 		liveMatches.length ? liveMatches[rotateTick % liveMatches.length] : null
+	);
+
+	// THE MATCH CLOCK (prompt 0077): how long the featured match has been
+	// running, off its own started_at, ticking once a second. A tournament
+	// is an event and a clock is what says so; it is text, so nothing here
+	// moves under reduced motion. The interval is cleared on unmount and only
+	// runs while a match is featured.
+	let now = $state(Date.now());
+	$effect(() => {
+		if (!featured) return;
+		const id = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(id);
+	});
+	const featuredElapsed = $derived(
+		featured?.started_at ? msBetween(featured.started_at, new Date(now).toISOString()) : null
 	);
 
 	type View = 'result' | 'match' | 'champion' | 'register' | 'between';
@@ -256,9 +268,16 @@
 						size="xl"
 					/>
 				</div>
-				{#if matchScoreline(featured, games)}
-					<p class="scoreline">{matchScoreline(featured, games)}</p>
-				{/if}
+				<div class="live-foot">
+					{#if matchScoreline(featured, games)}
+						<p class="scoreline">{matchScoreline(featured, games)}</p>
+					{/if}
+					{#if featuredElapsed !== null && featuredElapsed >= 0}
+						<p class="clock" aria-label="Match running time">
+							<span class="clock-word">on the clock</span>{formatDuration(featuredElapsed)}
+						</p>
+					{/if}
+				</div>
 			</div>
 		{:else if view === 'champion' && champion}
 			<div class="stage stack center">
@@ -392,12 +411,12 @@
 		white-space: nowrap;
 	}
 	.tv-live {
-		font-size: clamp(0.9rem, 1.6vw, 1.6rem);
+		font-size: clamp(1rem, 2vw, 2.1rem);
 		flex: none;
 	}
 	.tv-state {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: clamp(0.75rem, 1.3vw, 1.3rem);
+		font-size: clamp(0.85rem, 1.6vw, 1.7rem);
 		letter-spacing: 0.2em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -444,8 +463,19 @@
 		align-items: center;
 	}
 
+	/* SIZED FOR A ROOM, NOT A DESK (prompt 0077). The assumption every figure
+	   below is measured against: a 1920x1080 image about 2.2 m wide (a 100"
+	   16:9 projection), read from the back of a shop classroom at 8 m. At that
+	   distance the 1:200 rule of thumb wants ~40 mm of cap height for a word
+	   that must be READ and 20 mm for one that only needs to be recognised;
+	   at 2.2 m / 1920 px one pixel is ~1.15 mm and Rajdhani's cap height is
+	   ~0.7 em, so "read from the back" is ~50 px of font and "recognise" is
+	   ~25 px. Before this block the round label was 22.4 px, the up-next
+	   names 24.8 px and their round labels 17.6 px -- the name about to be
+	   called was the smallest thing on the screen. Measured before/after in
+	   the bundle's history entry. */
 	.stage-label {
-		font-size: clamp(0.78rem, 1.35vw, 1.4rem);
+		font-size: clamp(0.9rem, 2.1vw, 2.2rem);
 	}
 	.of {
 		color: var(--tnm-ink-dim);
@@ -468,7 +498,24 @@
 		flex: none;
 	}
 	.vs.small {
-		font-size: clamp(0.8rem, 1.2vw, 1.2rem);
+		font-size: clamp(0.9rem, 1.7vw, 1.8rem);
+	}
+	/* The banners the room has to read: the pair about to be called and the
+	   result pair. EntryBanner's own sizes are for a page; the stage outranks
+	   them (one more class in the selector) rather than adding a fifth size
+	   to a component four surfaces share. Up-next md: name 24.8 -> 57.6 px,
+	   result lg: 48 -> 76.8 px at 1920. */
+	.tv :global(.entry-banner.md) {
+		--pad: clamp(0.8rem, 1.4vw, 1.4rem);
+		--thumb: clamp(3rem, 5vw, 5rem);
+		--name: clamp(1.6rem, 3vw, 3.6rem);
+		--tag: clamp(0.9rem, 1.3vw, 1.3rem);
+	}
+	.tv :global(.entry-banner.lg) {
+		--pad: clamp(1.2rem, 2vw, 2rem);
+		--thumb: clamp(4rem, 7vw, 7rem);
+		--name: clamp(2rem, 4vw, 4.8rem);
+		--tag: clamp(1rem, 1.6vw, 1.6rem);
 	}
 
 	.result-grid {
@@ -484,7 +531,27 @@
 		min-width: 0;
 	}
 	.win-label {
-		font-size: clamp(0.8rem, 1.4vw, 1.5rem);
+		font-size: clamp(0.9rem, 2.1vw, 2.2rem);
+	}
+	.live-foot {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: clamp(0.3rem, 1vh, 0.8rem);
+	}
+	.clock {
+		margin: 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: clamp(1rem, 2.4vw, 2.6rem);
+		letter-spacing: 0.1em;
+		font-variant-numeric: tabular-nums;
+		color: var(--tnm-ink);
+	}
+	.clock-word {
+		color: var(--tnm-ink-dim);
+		text-transform: uppercase;
+		font-size: 0.55em;
+		margin-right: 0.8em;
 	}
 	.scoreline.forfeit {
 		color: var(--tnm-gold);
@@ -513,7 +580,7 @@
 	.sub-line {
 		margin: 0;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: clamp(0.85rem, 1.5vw, 1.5rem);
+		font-size: clamp(0.95rem, 1.9vw, 2rem);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -547,7 +614,7 @@
 	}
 	.upnext-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: clamp(0.7rem, 1.1vw, 1.1rem);
+		font-size: clamp(0.8rem, 1.6vw, 1.7rem);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -569,7 +636,9 @@
 		padding: clamp(0.5rem, 1.2vh, 1rem) clamp(1.2rem, 3vw, 3rem);
 		border-top: 1px solid var(--tnm-line);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: clamp(0.7rem, 1.05vw, 1.05rem);
+		/* The share address is typed from a phone at the back: recognise, not
+		   read, so the smaller floor. 16.8 -> 26.9 px at 1920. */
+		font-size: clamp(0.8rem, 1.4vw, 1.7rem);
 		letter-spacing: 0.1em;
 		color: var(--tnm-ink-dim);
 	}

@@ -683,3 +683,84 @@ export function buildQualSample(): {
 	}
 	return { entries, pools, matches, events };
 }
+
+// ---------------------------------------------------------------------------
+// Prompt 0077: the host console's OWN transports, by match id, so the REAL
+// HostMatchControl can be driven in a browser against this sim with the same
+// payload shapes the route sends to the RPCs. `playNext` / `forfeitNext` /
+// `correctLast` above stay as the one-button drivers for the other sections.
+// ---------------------------------------------------------------------------
+
+function byId(sim: Sim, matchId: string): BracketMatch | undefined {
+	return sim.matches.find((m) => m.id === matchId);
+}
+
+/** Mirrors tournament_start_match: pending + both sides known -> in_progress. */
+export function startMatch(sim: Sim, matchId: string): boolean {
+	const m = byId(sim, matchId);
+	if (!m || m.status !== 'pending' || m.entry_a_id === null || m.entry_b_id === null) return false;
+	m.started_at = tick(1, 14);
+	m.status = 'in_progress';
+	logEvent(sim, m.id, 'started');
+	return true;
+}
+
+/**
+ * Mirrors tournament_submit_match_result for the ordinary payload
+ * (`{ games: [{ winner: 'a'|'b' } | { score_a, score_b }] }`): games are
+ * recorded, the majority side wins, the win is paid, byes downstream resolve.
+ * Refused unless the match is in progress, exactly as the RPC refuses.
+ */
+export function submitResult(sim: Sim, matchId: string, result: unknown): boolean {
+	const m = byId(sim, matchId);
+	if (!m || m.status !== 'in_progress' || !m.entry_a_id || !m.entry_b_id) return false;
+	const games = ((result as { games?: unknown[] })?.games ?? []) as Record<string, unknown>[];
+	if (!games.length) return false;
+	let a = 0;
+	let b = 0;
+	sim.games = sim.games.filter((g) => g.bracket_match_id !== m.id);
+	games.forEach((g, i) => {
+		let side: 'a' | 'b';
+		let score_a: number | null = null;
+		let score_b: number | null = null;
+		if (typeof g.score_a === 'number' && typeof g.score_b === 'number') {
+			score_a = g.score_a;
+			score_b = g.score_b;
+			side = score_a > score_b ? 'a' : 'b';
+		} else {
+			side = g.winner === 'b' ? 'b' : 'a';
+		}
+		if (side === 'a') a++;
+		else b++;
+		sim.games.push({
+			id: uid('g'),
+			tournament_id: 'sim',
+			bracket_match_id: m.id,
+			game_number: i + 1,
+			score_a,
+			score_b,
+			winner_id: side === 'a' ? m.entry_a_id! : m.entry_b_id!
+		});
+	});
+	const winner = a >= b ? m.entry_a_id : m.entry_b_id;
+	tick(2, 22);
+	completeMatch(sim, m, winner, 'completed', { games });
+	awardMatchWin(sim, m, winner);
+	resolveByes(sim);
+	return true;
+}
+
+/** Mirrors the 0065 forfeit payload (`{ forfeit: true, winner_id, reason }`). */
+export function forfeitMatch(sim: Sim, matchId: string, winnerId: string, reason: string): boolean {
+	const m = byId(sim, matchId);
+	if (!m || m.status === 'complete' || !m.entry_a_id || !m.entry_b_id) return false;
+	if (winnerId !== m.entry_a_id && winnerId !== m.entry_b_id) return false;
+	if (!reason.trim()) return false;
+	const loser = winnerId === m.entry_a_id ? m.entry_b_id : m.entry_a_id;
+	m.forfeit = true;
+	m.forfeit_reason = reason.trim();
+	tick(1, 5);
+	completeMatch(sim, m, winnerId, 'completed', { forfeit: true, reason, forfeited_by: loser });
+	resolveByes(sim);
+	return true;
+}

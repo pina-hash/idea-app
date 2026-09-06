@@ -5,21 +5,12 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
-	import ResultForm from '$lib/tournaments/ResultForm.svelte';
-	import ForfeitForm from '$lib/tournaments/ForfeitForm.svelte';
+	import HostMatchControl from '$lib/tournaments/HostMatchControl.svelte';
 	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
-	import {
-		entryMap,
-		matchHref,
-		parseConfig,
-		roundLabel,
-		statusLabel,
-		isByeMatch,
-		isForfeitMatch,
-		type BracketMatch
-	} from '$lib/tournaments/tournaments';
+	import { hostSectionOrder } from '$lib/tournaments/live';
+	import { entryMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -186,41 +177,18 @@
 	let qualB = $state<Record<string, string>>({});
 
 	// --- match control ---
-	let correctingId = $state<string | null>(null);
-	/** Forfeit is a separate, explicitly opened panel: see ForfeitForm. */
-	let forfeitingId = $state<string | null>(null);
-
+	// The controls themselves live in HostMatchControl (prompt 0077), which
+	// the dev harness mounts identically; this route only points its
+	// callbacks at the RPCs. Each answers whether the write landed so the
+	// component can close a forfeit or correction panel on success only.
 	const setStatus = (status: string) =>
 		run(
 			() => data.supabase.rpc('tournament_set_status', { p_tournament_id: t.id, p_status: status }),
 			`Status: ${statusLabel(status)}`
 		);
 
-	const bracketByState = $derived.by(() => {
-		const rows = [...data.bracketMatches].sort(
-			(a, b) =>
-				['winners', 'losers', 'grand_final', 'grand_final_reset'].indexOf(a.bracket) -
-					['winners', 'losers', 'grand_final', 'grand_final_reset'].indexOf(b.bracket) ||
-				a.round - b.round ||
-				a.slot - b.slot
-		);
-		return {
-			ready: rows.filter(
-				(m) => m.status === 'pending' && m.entry_a_id !== null && m.entry_b_id !== null
-			),
-			waiting: rows.filter(
-				(m) => m.status === 'pending' && (m.entry_a_id === null || m.entry_b_id === null)
-			),
-			inProgress: rows.filter((m) => m.status === 'in_progress'),
-			completed: rows.filter((m) => m.status === 'complete' && !isByeMatch(m))
-		};
-	});
-
-	function maxRound(bracket: string): number {
-		return Math.max(0, ...data.bracketMatches.filter((m) => m.bracket === bracket).map((m) => m.round));
-	}
-	const matchLabel = (m: BracketMatch) =>
-		`${roundLabel(m.bracket, m.round, maxRound(m.bracket))} · M${m.slot}`;
+	const startMatch = (matchId: string) =>
+		run(() => data.supabase.rpc('tournament_start_match', { p_match_id: matchId }), 'Match started');
 
 	async function submitQualScore(matchId: string) {
 		const a = Number.parseInt(qualA[matchId] ?? '', 10);
@@ -250,7 +218,7 @@
 			'Result recorded'
 		);
 
-	const submitResult = (matchId: string) => (result: unknown) =>
+	const submitResult = (matchId: string, result: unknown) =>
 		run(
 			callPush({ action: 'submit-result', tournamentId: t.id, matchId, result }),
 			'Result recorded'
@@ -262,13 +230,11 @@
 	 * -- so it also goes through /api/tournament-push and the newly-paired
 	 * competitors downstream still get their "your next match is set" alert.
 	 */
-	const submitForfeit = (matchId: string) => async (result: unknown) => {
-		const okDone = await run(
+	const submitForfeit = (matchId: string, result: unknown) =>
+		run(
 			callPush({ action: 'submit-result', tournamentId: t.id, matchId, result }),
 			'Forfeit recorded'
 		);
-		if (okDone) forfeitingId = null;
-	};
 
 	/**
 	 * Deleting leaves nothing to come back to, so this navigates away rather
@@ -295,13 +261,11 @@
 		await goto('/tournaments', { invalidateAll: true });
 	}
 
-	const correctResult = (matchId: string) => async (result: unknown, reason: string) => {
-		const okDone = await run(
+	const correctResult = (matchId: string, result: unknown, reason: string) =>
+		run(
 			callPush({ action: 'correct-result', tournamentId: t.id, matchId, result, reason }),
 			'Correction applied'
 		);
-		if (okDone) correctingId = null;
-	};
 </script>
 
 <svelte:head>
@@ -317,7 +281,7 @@
 	</div>
 </div>
 
-<main class="host-page">
+<main class="host-page tnm-root">
 	<section class="hero">
 		<div class="eyebrow">Host console · {data.hostCount} host{data.hostCount === 1 ? '' : 's'}</div>
 		<h1>{t.name}</h1>
@@ -331,21 +295,21 @@
 	{#if actionError}<p class="feedback error">{actionError}</p>{/if}
 	{#if notice}<p class="feedback notice">{notice}</p>{/if}
 
-	{#snippet pingButtons(m: BracketMatch)}
-		{#each [m.entry_a_id, m.entry_b_id] as eid (eid)}
-			{#if eid && entries[eid]?.user_id}
-				<button
-					class="mini"
-					disabled={busy}
-					title="Send this player a push notification now"
-					onclick={() => ping(m.id, eid, entries[eid]?.display_name ?? '')}
-				>
-					ping {entries[eid].display_name}
-				</button>
-			{/if}
-		{/each}
-	{/snippet}
+	<!-- THE CARDS RENDER IN hostSectionOrder'S ORDER (live.ts): match control
+	     first the moment there is a bracket, setup cards first before that. -->
+	{#each hostSectionOrder(t.status) as section (section)}
+		{#if section === 'phase'}{@render phaseCard()}
+		{:else if section === 'matches'}{@render matchesCard()}
+		{:else if section === 'entries'}{@render entriesCard()}
+		{:else if section === 'invites'}{@render invitesCard()}
+		{:else if section === 'quals'}{@render qualsCard()}
+		{:else if section === 'rewards'}{@render rewardsCard()}
+		{:else if section === 'danger'}{@render dangerCard()}
+		{/if}
+	{/each}
+</main>
 
+{#snippet phaseCard()}
 	<section class="card">
 		<h2>Phase</h2>
 		<div class="btn-row">
@@ -400,7 +364,29 @@
 			{/if}
 		</div>
 	</section>
+{/snippet}
 
+{#snippet matchesCard()}
+	{#if data.bracketMatches.length}
+		<section class="card matches">
+			<h2>Match control</h2>
+			<HostMatchControl
+				matches={data.bracketMatches}
+				{entries}
+				scoreEntry={config.score_entry}
+				{busy}
+				tournamentId={t.id}
+				onstart={startMatch}
+				onsubmit={submitResult}
+				onforfeit={submitForfeit}
+				oncorrect={correctResult}
+				onping={ping}
+			/>
+		</section>
+	{/if}
+{/snippet}
+
+{#snippet entriesCard()}
 	<section class="card">
 		<h2>Entries ({data.entries.length})</h2>
 		{#if preBracket}
@@ -537,7 +523,9 @@
 			banner and sets it from the live view.
 		</p>
 	</section>
+{/snippet}
 
+{#snippet invitesCard()}
 	<section class="card">
 		<h2>Invites & co-hosts</h2>
 		<div class="add-row">
@@ -595,7 +583,9 @@
 			chosen display name, never an account name.
 		</p>
 	</section>
+{/snippet}
 
+{#snippet qualsCard()}
 	{#if config.quals_enabled && data.qualMatches.length}
 		<section class="card">
 			<h2>Qualifying results</h2>
@@ -652,7 +642,9 @@
 			</div>
 		</section>
 	{/if}
+{/snippet}
 
+{#snippet rewardsCard()}
 	<section class="card">
 		<h2>Rewards</h2>
 		<RewardRulesEditor
@@ -670,143 +662,9 @@
 				)}
 		/>
 	</section>
+{/snippet}
 
-	{#if data.bracketMatches.length}
-		<section class="card">
-			<h2>Match control</h2>
-
-			{#if bracketByState.inProgress.length}
-				<h3 class="mc-sub live-sub">In progress</h3>
-				{#each bracketByState.inProgress as m (m.id)}
-					<div class="mc-block">
-						<div class="mc-row slim">
-							<span class="mc-label">{matchLabel(m)}</span>
-							{@render pingButtons(m)}
-							<button
-								class="mini gold"
-								disabled={busy}
-								title="Award this match without it being played"
-								onclick={() => (forfeitingId = forfeitingId === m.id ? null : m.id)}
-							>
-								{forfeitingId === m.id ? 'cancel forfeit' : 'forfeit'}
-							</button>
-						</div>
-						{#if forfeitingId === m.id}
-							<ForfeitForm
-								match={m}
-								{entries}
-								{busy}
-								onsubmit={submitForfeit(m.id)}
-								oncancel={() => (forfeitingId = null)}
-							/>
-						{:else}
-							<ResultForm
-								match={m}
-								{entries}
-								scoreEntry={config.score_entry}
-								{busy}
-								onsubmit={submitResult(m.id)}
-							/>
-						{/if}
-					</div>
-				{/each}
-			{/if}
-
-			{#if bracketByState.ready.length}
-				<h3 class="mc-sub">Ready to start</h3>
-				{#each bracketByState.ready as m (m.id)}
-					<div class="mc-row">
-						<span class="mc-label">{matchLabel(m)}</span>
-						<span class="mc-vs">
-							{entries[m.entry_a_id ?? '']?.display_name}
-							<span class="vs-sep">vs</span>
-							{entries[m.entry_b_id ?? '']?.display_name}
-						</span>
-						<span class="row-actions">
-							{@render pingButtons(m)}
-							<button
-								class="mini gold"
-								disabled={busy}
-								title="Nobody turned up: award it without starting the clock"
-								onclick={() => (forfeitingId = forfeitingId === m.id ? null : m.id)}
-							>
-								{forfeitingId === m.id ? 'cancel forfeit' : 'forfeit'}
-							</button>
-							<button
-								class="btn"
-								disabled={busy}
-								onclick={() =>
-									run(
-										() => data.supabase.rpc('tournament_start_match', { p_match_id: m.id }),
-										'Match started'
-									)}
-							>
-								Start
-							</button>
-						</span>
-					</div>
-					{#if forfeitingId === m.id}
-						<div class="mc-block">
-							<ForfeitForm
-								match={m}
-								{entries}
-								{busy}
-								onsubmit={submitForfeit(m.id)}
-								oncancel={() => (forfeitingId = null)}
-							/>
-						</div>
-					{/if}
-				{/each}
-			{/if}
-
-			{#if bracketByState.waiting.length}
-				<h3 class="mc-sub">Waiting on earlier results</h3>
-				<p class="note">
-					{bracketByState.waiting.length} match{bracketByState.waiting.length === 1 ? '' : 'es'}
-					still missing a participant.
-				</p>
-			{/if}
-
-			{#if bracketByState.completed.length}
-				<h3 class="mc-sub">Completed</h3>
-				{#each bracketByState.completed as m (m.id)}
-					<div class="mc-row done">
-						<span class="mc-label">
-							<a class="mc-link" href={matchHref(t.id, m.id)}>{matchLabel(m)}</a>
-						</span>
-						<span class="mc-vs">
-							{entries[m.entry_a_id ?? '']?.display_name}
-							<span class="vs-sep">vs</span>
-							{entries[m.entry_b_id ?? '']?.display_name}
-							<span class="mc-winner">→ {entries[m.winner_id ?? '']?.display_name}</span>
-							{#if isForfeitMatch(m)}
-								<span class="ff-tag" title={m.forfeit_reason ?? ''}>by forfeit</span>
-							{/if}
-						</span>
-						<button
-							class="mini"
-							onclick={() => (correctingId = correctingId === m.id ? null : m.id)}
-						>
-							{correctingId === m.id ? 'cancel' : 'correct'}
-						</button>
-					</div>
-					{#if correctingId === m.id}
-						<div class="mc-block">
-							<ResultForm
-								match={m}
-								{entries}
-								scoreEntry={config.score_entry}
-								mode="correct"
-								{busy}
-								onsubmit={correctResult(m.id)}
-							/>
-						</div>
-					{/if}
-				{/each}
-			{/if}
-		</section>
-	{/if}
-
+{#snippet dangerCard()}
 	<section class="card danger">
 		<h2>Danger zone</h2>
 		<DeleteTournament
@@ -821,7 +679,7 @@
 			ondelete={deleteTournament}
 		/>
 	</section>
-</main>
+{/snippet}
 
 <style>
 	.host-page {
@@ -829,7 +687,7 @@
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}
-	.host-page > .card {
+	.host-page .card {
 		margin-bottom: 1.1rem;
 	}
 	.host-page h2 {
@@ -871,7 +729,8 @@
 		border-radius: 4px;
 		color: var(--white);
 		font-family: 'Rajdhani', sans-serif;
-		padding: 0.4rem 0.55rem;
+		padding: 0.4rem 0.6rem;
+		min-height: 44px;
 	}
 	.add-row {
 		display: flex;
@@ -902,6 +761,9 @@
 		color: var(--cyan);
 		flex: none;
 	}
+	.matches {
+		border-color: var(--line-strong, var(--line));
+	}
 	.style-row {
 		padding: 0.8rem 0 1rem 2.3rem;
 		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
@@ -926,7 +788,10 @@
 		color: var(--dim);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		padding: 0.15rem 0.5rem;
+		padding: 0.15rem 0.8rem;
+		/* A phone in a host's hand: 44px floor (prompt 0077), min-height never
+		   a height. Measured about 20px before. */
+		min-height: 44px;
 		cursor: pointer;
 	}
 	.mini:hover:not(:disabled) {
@@ -940,27 +805,6 @@
 	.mini.danger {
 		color: var(--crimson);
 		border-color: var(--crimson);
-	}
-	/* Forfeit is the exception path, in the exception colour everywhere: gold,
-	 * never the primary action's green. */
-	.mini.gold {
-		color: var(--gold);
-		border-color: rgba(200, 168, 72, 0.45);
-	}
-	.mini.gold:hover:not(:disabled) {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
-	.ff-tag {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--gold);
-		margin-left: 0.5rem;
-	}
-	.mc-link {
-		color: var(--dim);
 	}
 	.danger h2 {
 		color: var(--crimson);
@@ -1031,59 +875,5 @@
 	}
 	.qual-entry input {
 		width: 4rem;
-	}
-	.mc-sub {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--cyan);
-		margin: 1rem 0 0.4rem;
-	}
-	.mc-sub.live-sub {
-		color: var(--crimson);
-	}
-	.mc-row {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		padding: 0.3rem 0;
-		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
-	}
-	.mc-row.done {
-		opacity: 0.85;
-	}
-	.mc-row.slim {
-		border-bottom: none;
-		padding: 0 0 0.2rem;
-	}
-	.mc-row.slim .mini {
-		margin-left: 0;
-	}
-	.mc-label {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--dim);
-		min-width: 11rem;
-	}
-	.mc-vs {
-		font-weight: 700;
-	}
-	.mc-winner {
-		color: var(--green);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		margin-left: 0.4rem;
-	}
-	.mc-row .btn,
-	.mc-row .mini {
-		margin-left: auto;
-	}
-	.mc-block {
-		margin: 0.4rem 0 0.8rem;
-	}
-	.mc-block .mc-label {
-		margin-bottom: 0.3rem;
 	}
 </style>

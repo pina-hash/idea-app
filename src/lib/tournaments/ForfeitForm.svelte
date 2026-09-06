@@ -14,6 +14,7 @@
 	 * match state server-side.
 	 */
 	import type { BracketMatch, TournamentEntry } from './tournaments';
+	import { FORFEIT_REASONS } from './live';
 
 	let {
 		match,
@@ -81,11 +82,29 @@
 		{/each}
 	</div>
 
+	<!-- A tap, not a keyboard: the reason the RPC logs is still the text in
+	     the field, and a chip only fills it (prompt 0077). -->
+	<div class="reasons" role="group" aria-label="Reason">
+		{#each FORFEIT_REASONS as preset (preset)}
+			<button
+				type="button"
+				class="chip"
+				class:on={reason === preset}
+				onclick={() => {
+					reason = preset;
+					confirming = false;
+				}}
+			>
+				{preset}
+			</button>
+		{/each}
+	</div>
 	<input
 		class="reason"
 		type="text"
 		maxlength="200"
-		placeholder="Reason (e.g. no-show, withdrew, disqualified)"
+		placeholder="Or type a reason (logged on the match)"
+		aria-label="Forfeit reason"
 		bind:value={reason}
 		oninput={() => (confirming = false)}
 	/>
@@ -131,7 +150,12 @@
 	}
 	.ff-note {
 		font-size: 0.8rem;
-		color: var(--dim, #7a8a7a);
+		/* --text-2, not --dim: this note sits on the gold wash the panel lays
+		   over a card, and --dim measured 4.07:1 there on the portal plate
+		   (prompt 0077's harness run); --text-2 is the register's secondary
+		   token and clears it. The room aliases neither, so the fallback chain
+		   is what the portal plate reads. */
+		color: var(--text-2, var(--dim, #7a8a7a));
 	}
 	.picks {
 		display: flex;
@@ -147,11 +171,35 @@
 		color: var(--white, #e8ffe8);
 		font-family: 'Rajdhani', sans-serif;
 		font-weight: 600;
-		padding: 0.3rem 0.45rem;
+		padding: 0.3rem 0.65rem;
+		/* THE FLOOR IS min-height, NEVER A HEIGHT (CLAUDE.md): a host's thumb
+		   on a phone beside a table. Measured 28.6px before prompt 0077. */
+		min-height: 44px;
 		cursor: pointer;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.reasons {
+		display: flex;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+	}
+	.chip {
+		background: none;
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
+		border-radius: 999px;
+		color: var(--white, #e8ffe8);
+		font-family: 'Rajdhani', sans-serif;
+		font-weight: 600;
+		font-size: 0.95rem;
+		padding: 0.3rem 0.9rem;
+		min-height: 44px;
+		cursor: pointer;
+	}
+	.chip.on {
+		border-color: var(--gold, #c8a848);
+		color: var(--gold, #c8a848);
 	}
 	.pick.on {
 		border-color: var(--gold, #c8a848);
@@ -167,7 +215,8 @@
 		border-radius: 4px;
 		color: var(--white, #e8ffe8);
 		font-family: 'Rajdhani', sans-serif;
-		padding: 0.35rem 0.5rem;
+		padding: 0.35rem 0.6rem;
+		min-height: 44px;
 	}
 	.actions {
 		display: flex;
@@ -182,7 +231,8 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		letter-spacing: 0.06em;
-		padding: 0.3rem 0.7rem;
+		padding: 0.3rem 0.9rem;
+		min-height: 44px;
 		cursor: pointer;
 	}
 	.go.confirm {
@@ -200,7 +250,8 @@
 		color: var(--dim, #7a8a7a);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		padding: 0.25rem 0.55rem;
+		padding: 0.25rem 0.8rem;
+		min-height: 44px;
 		cursor: pointer;
 	}
 	.err {

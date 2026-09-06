@@ -203,7 +203,11 @@
 		border-radius: 4px;
 		color: var(--white, #e8ffe8);
 		font-family: 'Share Tech Mono', monospace;
+		font-size: 1.1rem;
 		padding: 0.3rem 0.45rem;
+		/* A phone beside a table: the floor is min-height, never a height
+		   (CLAUDE.md). Measured 30px before prompt 0077. */
+		min-height: 44px;
 	}
 	.dash {
 		color: var(--dim, #7a8a7a);
@@ -217,7 +221,10 @@
 		color: var(--white, #e8ffe8);
 		font-family: 'Rajdhani', sans-serif;
 		font-weight: 600;
-		padding: 0.3rem 0.45rem;
+		font-size: 1.05rem;
+		padding: 0.3rem 0.65rem;
+		/* Measured 28.6px before prompt 0077; a winner pick on a phone. */
+		min-height: 44px;
 		cursor: pointer;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -238,7 +245,8 @@
 		color: var(--dim, #7a8a7a);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		padding: 0.15rem 0.5rem;
+		padding: 0.15rem 0.8rem;
+		min-height: 44px;
 		cursor: pointer;
 	}
 	.mini:disabled {
@@ -251,7 +259,8 @@
 		border-radius: 4px;
 		color: var(--white, #e8ffe8);
 		font-family: 'Rajdhani', sans-serif;
-		padding: 0.35rem 0.5rem;
+		padding: 0.35rem 0.6rem;
+		min-height: 44px;
 	}
 	.err {
 		color: var(--amber, #ffb347);
