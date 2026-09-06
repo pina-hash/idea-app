@@ -45,6 +45,7 @@ import {
 // where the agreement is asserted, so a change to `parsePermitted` reddens in
 // BOTH tools' suites rather than only in its own.
 import { parsePermitted } from '../tools/migration-claims.mjs';
+import { PROBE_REF, requireProbeRefs } from './git-refs-precondition';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -623,6 +624,16 @@ describe('the real CLI, end to end: gate, apply, record', () => {
 	let appliedDir: string;
 
 	beforeAll(async () => {
+		// THE PRECONDITION FIRST, BEFORE THE CHAIN IS EVEN BUILT, AND IT FAILS
+		// NAMING THE CHECKOUT. Every drive below passes `--ref PROBE_REF`, which
+		// reaches the applied-set probe and asks git to list `supabase/migrations`
+		// on that ref and on `origin/main`. A checkout with neither makes the tool
+		// refuse before it applies anything -- correctly, exit 2 -- and the
+		// assertion below then reads "the CLI did not apply 0042", which points at
+		// the tool in a state where the tool is right. That is what made `main` red
+		// on 2026-09-06 while every local run was green. See
+		// `tests/git-refs-precondition.ts`.
+		requireProbeRefs();
 		const all = readdirSync(join(REPO_ROOT, 'supabase', 'migrations'))
 			.filter((f) => /^\d{4}_.*\.sql$/.test(f))
 			.sort();
@@ -652,7 +663,7 @@ describe('the real CLI, end to end: gate, apply, record', () => {
 			.filter((f) => /^\d{4}-.*\.md$/.test(f))
 			.sort()
 			.find((f) => !ledgerPermission(readFileSync(join(LEDGER_DIR, f), 'utf8')).permitted)!;
-		const run = cli([TARGET, '--since', SINCE, '--ref', 'origin/integration', '--ledger', refusing.slice(0, 4)]);
+		const run = cli([TARGET, '--since', SINCE, '--ref', PROBE_REF, '--ledger', refusing.slice(0, 4)]);
 		expect(run.status).toBe(2);
 		expect(run.stdout).toMatch(/Migration permitted: no/);
 		expect(run.stdout).toMatch(/no connection was opened/);
@@ -670,7 +681,7 @@ describe('the real CLI, end to end: gate, apply, record', () => {
 			'--since',
 			SINCE,
 			'--ref',
-			'origin/integration',
+			PROBE_REF,
 			'--ledger',
 			permitting.slice(0, 4),
 			'--dry-run'
@@ -701,7 +712,7 @@ describe('the real CLI, end to end: gate, apply, record', () => {
 		const ledgerId = permitting.slice(0, 4);
 		const before = new Set(readdirSync(appliedDir));
 
-		const run = cli([TARGET, '--since', SINCE, '--ref', 'origin/integration', '--ledger', ledgerId]);
+		const run = cli([TARGET, '--since', SINCE, '--ref', PROBE_REF, '--ledger', ledgerId]);
 		const written = readdirSync(appliedDir).filter((f) => !before.has(f));
 		try {
 			// NO EARLY RETURN. An earlier draft let a refusal here pass as "a real
@@ -726,7 +737,7 @@ describe('the real CLI, end to end: gate, apply, record', () => {
 			expect(text).not.toContain(String(inject('pgCluster').port));
 
 			// THE SECOND RUN, same ledger: refused on the trace this one just wrote.
-			const again = cli(['0041', '--since', SINCE, '--ref', 'origin/integration', '--ledger', ledgerId]);
+			const again = cli(['0041', '--since', SINCE, '--ref', PROBE_REF, '--ledger', ledgerId]);
 			expect(again.status).toBe(2);
 			expect(again.stdout).toMatch(/has already applied a migration/);
 			expect(again.stdout).toMatch(/no connection was opened/);
