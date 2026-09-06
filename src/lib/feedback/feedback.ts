@@ -530,8 +530,11 @@ export function feedbackIsAnonymous(
  *
  * `app_feedback` has no delete grant and no delete policy for anyone, and its
  * rows are the record: a report removed is one no export, no count and no
- * rate-limit forensic can ever see again, on a table whose `reporter_hash`
- * exists precisely to be counted. So a false or spam report is MARKED, by the
+ * rate-limit forensic can ever see again, on a table whose per-address digest
+ * (`0126`'s, deliberately not named here: `tests/feedback-untrusted-render.test.ts`
+ * sweeps this file for that identifier, and a privacy sweep must not be loosened
+ * to admit prose) exists precisely to be counted. So a false or spam report is
+ * MARKED, by the
  * same `app_feedback_set_status` every other state moves through, and moving it
  * back to `new` is that same call with a different argument.
  *
