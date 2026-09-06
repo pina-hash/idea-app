@@ -356,13 +356,21 @@ instead, with a note saying why.
 
 ## What was measured
 
-* **The full suite: 2 failing tests in 1 file, 5988 passing (5990), 253.94s**, run
-  at **01:32 PDT on 2026-09-06**. Both failures are `tests/gauntlet-doc.test.ts`,
-  pre-existing on `integration` (0184 is not written up in `docs/GAUNTLET.md`) and
-  owned by prompt 0067. **That is BETTER than the baseline this branch started
-  from, which was 4 failing in 2 files**: `tests/derived-numbers.test.ts`'s two are
+* **The full suite, re-run AFTER the renumber to 0188: 3 failing tests in 2 files,
+  5987 passing (5990), 252.79s**, at **01:42 PDT on 2026-09-06**. Two are
+  `tests/gauntlet-doc.test.ts`, pre-existing on `integration` (0184 is not written
+  up in `docs/GAUNTLET.md`) and owned by prompt 0067. **The third is the
+  contiguity check reporting `[ 186, 187 ]`** -- the two numbers held by
+  `claude/maps-media-bucket-he0wnn` and `claude/duplicate-drafts-count-wzworl`,
+  which is the expected and correct reading of a tree whose migration sits above
+  two bundles that have not landed. See the numbering section above for why
+  neither is merged in and why the test is not touched.
+  **The run immediately BEFORE the renumber was 2 failing in 1 file** (5988
+  passing), which is the number to compare against the 4-failing-in-2-files
+  baseline this branch started from: `tests/derived-numbers.test.ts`'s two went
   green because the `verify:readme` run below measured every spec in the tree,
-  including the nine that had never been measured. No new failure was introduced.
+  including the nine that had never been measured. **No failure in any of these
+  runs is a defect this bundle introduced.**
 * **`svelte-check`: 0 errors, 37 warnings**, re-derived with the two
   `PUBLIC_SUPABASE_*` placeholders exported before `svelte-kit sync` (a checkout
   with no `.env` reports 13 phantom errors here, not the 11 CLAUDE.md records --
