@@ -36,9 +36,15 @@
 	 * component against sample data with no auth and no Supabase.
 	 *
 	 * Design rules, all of them load-bearing:
-	 *   * Nobody is standing at this screen. No buttons, no links, no
-	 *     sign-in prompt, no host control. The only input is a hidden F for
-	 *     fullscreen, hinted once at startup and then gone.
+	 *   * Nobody is standing at this screen. No links, no sign-in prompt, no
+	 *     host control, and EXACTLY ONE button -- the way out of fullscreen,
+	 *     which is there only while somebody is in it (prompt 0091). That is
+	 *     not a softening of this rule: a projector page that offers
+	 *     fullscreen on a hidden key and renders nothing to leave it by has
+	 *     stranded whoever is driving it in front of a room, because the
+	 *     Fullscreen API's own exit is Escape and browsers paint no chrome
+	 *     for it. The F key is still there and still a toggle, and it is
+	 *     still hinted once at startup and then gone.
 	 *   * Everything is sized for distance. Pairings render as full banners,
 	 *     never the dense bracket grid -- a 16-node bracket laid out on one
 	 *     screen is unreadable from across a room, so this shows WHO IS

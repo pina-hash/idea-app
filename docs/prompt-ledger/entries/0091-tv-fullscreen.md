@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `TvStage.svelte`, `src/routes/tournaments/[id]/tv/**`, a fullscreen module if the design needs one, `src/routes/dev/tournaments/**`, `tests/tournament-tv*`, `tests/dom/tournament-tv*`, `tools/browser-verify/routes/tournament*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0091-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0189
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/tournament-fullscreen-nav-jnzb4d
 - Notes: Mr. Pina reported it himself on 2026-09-06, from the tournaments
   surface: "ullscreen ormatting is poor. missing button to go back to last
   page". The dropped leading letters are a keystroke swallowed by the page,
