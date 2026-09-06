@@ -13,6 +13,16 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-06",
+			"title": "Due dates now default to 11:59pm, and class music links are Spotify",
+			"body": "Three things instructors asked for, all in the class surfaces. First, when a teacher sets a due date on an assignment, the time now starts at 11:59pm instead of being blank. The due date is two boxes now, a day and a time: pick the day and the deadline is the end of it, or change the time if the work is due earlier. This also fixes something quieter that had been happening all along -- filling in the day and moving on used to leave the assignment with no due date at all, silently, because the box needed both halves before it counted for anything. Assignments that already have a due date keep exactly the time they were given. Second, song requests are Spotify links now. Open the song in Spotify, press Share, and paste what it copies; a share link from the phone app works too. If you paste something else you are told straight away, before you have asked for anything, so nothing is charged and nothing goes to your teacher. Requests already waiting are unaffected. Third, a report sent through the report button can now be marked as spam by a site admin, which takes it out of the queue without deleting it -- the report is still there and can be put back in one press.",
+			"tags": [
+				"Classwork",
+				"Class music",
+				"Reporting a problem"
+			]
+		},
+		{
 			"date": "2026-09-05",
 			"title": "Save draft now saves the same draft, instead of starting a new one",
 			"body": "Two of you reported this from opposite ends and it was one fault. When a teacher pressed Save draft while writing a post, the draft was saved but the box emptied itself, which made it look as though the writing had been lost. Pressing Save draft again then started a whole new draft rather than adding to the one already made, so the same post could pile up as several copies in a class. On a phone or a Chromebook it could get worse without anybody pressing anything: if the save looked like it had failed, switching tabs or locking the screen quietly tried the whole thing again, and each attempt that had actually gone through left another copy. Save draft is a checkpoint now. Your writing stays on the screen, the draft you already made is the one that gets updated, and a hidden tab no longer sends anything on its own. Post now still clears the box for the next post, because that is the end of the piece of writing. If your class has duplicate drafts from before today, they are safe to delete, and it is worth checking that the one you keep is the newest.",
@@ -1140,7 +1150,7 @@
 			"date": "2026-09-05",
 			"title": "Turning work in now really does lock its files",
 			"body": "Once you turn an assignment in, its files belong to the hand-in your teacher is looking at. The Remove button already went away at that point, but the files themselves were not actually protected: anything that reached past the page could still wipe the stored file while the hand-in kept listing it, and your teacher would open it and find nothing there. The files are locked now, properly, and so is adding new ones. If a removal is ever refused you will see why in words instead of nothing happening: \"This is turned in, so files are locked. Your teacher has it now. Unsubmit it to keep working.\" Nothing changes while an assignment is still open, and unsubmitting, or your teacher returning the work after grading it, hands the files back exactly as before.",
-						"tags": [
+			"tags": [
 				"Assignments",
 				"files",
 				"fix"
