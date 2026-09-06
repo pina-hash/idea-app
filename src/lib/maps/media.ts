@@ -27,24 +27,27 @@ export const MAPS_MEDIA_BUCKET = 'maps-media';
 export const MAPS_MEDIA_MAX_BYTES = 20971520;
 
 /**
- * WHAT `image/*` ADMITS AND WHAT THIS REFUSES ANYWAY, which is a narrowing and
- * is deliberate.
+ * WHAT THIS REFUSES BEFORE THE BUCKET DOES, which is a narrowing and is
+ * deliberate.
  *
- * The bucket's `allowed_mime_types` is the single wildcard `image/*`, so
- * Storage itself would accept `image/svg+xml`. An SVG is a DOCUMENT, not a
- * picture -- it carries script, external references and event handlers -- and
- * `maps-media` is a PUBLIC bucket, so an accepted one is a scriptable document
- * served from the project's own Storage origin on a URL anybody can open
- * directly. The classroom's own rule already says this ("Everything else is
- * refused by name, including SVG from ANY source (it is a document, not a
- * picture)") and refuses it by extension AND by declared type, because either
- * can be the only spelling present.
+ * An SVG is a DOCUMENT, not a picture -- it carries script, external
+ * references and event handlers -- and `maps-media` is a PUBLIC bucket, so an
+ * accepted one would be a scriptable document served from the project's own
+ * Storage origin on a URL anybody can open directly. The classroom's own rule
+ * already says this ("Everything else is refused by name, including SVG from
+ * ANY source (it is a document, not a picture)") and refuses it by extension
+ * AND by declared type, because either can be the only spelling present.
  *
- * This list cannot close the hole -- a caller that skips this module reaches
- * the same bucket -- and closing it properly is a migration replacing the
- * wildcard with a concrete raster list. That is reported rather than written
- * here (this bundle writes no migration). What this list buys is that the one
- * shipped upload path never produces one.
+ * THE BUCKET NOW REFUSES IT TOO, AND THIS COMMENT USED TO SAY OTHERWISE. It
+ * read "the bucket's `allowed_mime_types` is the single wildcard `image/*`, so
+ * Storage itself would accept `image/svg+xml` ... closing it properly is a
+ * migration replacing the wildcard with a concrete raster list. That is
+ * reported rather than written here". That migration is
+ * `0168_maps_media_types_and_plan_frame.sql`: the wildcard is gone and the
+ * list is six concrete raster types, with an apply-time assertion that no SVG
+ * spelling survives. So this is the FIRST of two gates now rather than the
+ * only one, and what it still buys is a refusal the person reads BEFORE the
+ * transfer, in their own terms, instead of a Storage error after it.
  */
 const REFUSED_TYPES = new Set(['image/svg+xml']);
 const REFUSED_EXTENSIONS = new Set(['svg', 'svgz']);
@@ -201,11 +204,29 @@ export interface MapsPhoto {
 }
 
 /**
- * The public URL of a stored object. Built rather than fetched: `maps-media`
- * is a PUBLIC bucket (0163, the spec's own 4.4 call), so the object's address
- * is a pure function of the project URL and the key and needs no round trip
- * and no signature. An empty base answers empty, so a surface with no
- * configured project renders no broken image rather than a wrong one.
+ * THE ONE PLACE A `maps-media` URL IS BUILT. Both surfaces that show a photo
+ * call it -- the public viewer's `MapsItemCard` and the shelf editor's
+ * thumbnail -- so the bucket layout is stated once. Three byte-identical
+ * copies of one of these is what prompt 0057 found in Foundry, and there the
+ * rule was a security boundary.
+ *
+ * Built rather than fetched: `maps-media` is a PUBLIC bucket (0163, the spec's
+ * own 4.4 call), so the object's address is a pure function of the project URL
+ * and the key and needs no round trip and no signature. An empty base answers
+ * empty, so a surface with no configured project renders no broken image
+ * rather than a wrong one.
+ *
+ * WHAT 0186 CHANGED, AND WHAT IT DID NOT. It narrowed the SELECT policy on
+ * `storage.objects` so an anonymous caller can no longer LIST this bucket --
+ * it now reads exactly the objects a `maps_photos` row names, which for
+ * `anon` is the published ones. It left `storage.buckets.public` alone, so
+ * this endpoint is unchanged and this function is unchanged with it. If the
+ * bucket is ever flipped private, this is the function that becomes a proxy
+ * path, and every caller follows for free.
+ *
+ * A CALLER STILL HANDLES FAILURE. Even an unchanged URL can 404 (an object
+ * swept, a row naming bytes that are gone), so both callers render a stated
+ * tile on the img's own `onerror` rather than a broken image.
  */
 export function mapsPhotoUrl(supabaseUrl: string, storageKey: string): string {
 	const base = supabaseUrl.replace(/\/+$/, '');

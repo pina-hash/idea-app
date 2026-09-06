@@ -18,9 +18,39 @@
 	 * THE PHOTOS ARE PLAIN `<img>` OFF THE PUBLIC BUCKET. `maps-media` is public
 	 * by 0163's own decision (spec 4.4), so the URL is a pure function of the
 	 * project URL and the key, needs no round trip and no signature, and a
-	 * viewer with no configured project renders no broken image rather than a
-	 * wrong one -- `mapsPhotoUrl` answers empty and the element is not drawn.
+	 * viewer with no configured project builds no URL at all rather than a
+	 * wrong one -- `mapsPhotoUrl` answers empty.
+	 *
+	 * THAT CASE USED TO RENDER NOTHING, AND NOW RENDERS A TILE. The empty src
+	 * was FILTERED OUT of the list, so a misconfigured deployment showed a card
+	 * with no photo region and nothing anywhere saying a photo existed. The
+	 * repo's own rule for an image it will not resolve is the opposite: the
+	 * caption plus a visible marker, "never a broken img and never silence".
+	 *
+	 * FOUR OUTCOMES, AND THEY ARE FOUR DIFFERENT THINGS ON SCREEN.
+	 *   PRESENT       the photo drew.
+	 *   ABSENT        the thing has no photos: no list, no placeholder, no gap.
+	 *                 A card with nothing to show says nothing.
+	 *   REFUSED       `mapsPhotoUrl` answered empty, which is the local
+	 *                 judgement (no configured project). Judged without asking
+	 *                 anybody, so it is a state of its own rather than a
+	 *                 request that failed.
+	 *   FAILED        the request was made and the bytes did not arrive or did
+	 *                 not decode -- a swept object, a row naming bytes that are
+	 *                 gone, or (after 0186, if the public endpoint turns out to
+	 *                 consult RLS) a photo this caller may not read.
+	 *
+	 * THE LAST TWO USED TO BE A BROKEN IMAGE ICON UNDER A CAPTION, which reads
+	 * as a bad upload rather than as a state, and on a public map is the one
+	 * thing a visitor cannot report usefully. The shelf editor's own thumbnail
+	 * has had this fallback since it shipped; this is the public half of the
+	 * same rule.
+	 *
+	 * THE TILE KEEPS THE ROW'S GEOMETRY. It is the same grid cell with the same
+	 * caption beneath it, so a photo failing does not reflow the card around
+	 * it -- what moves is what the cell says, never where anything sits.
 	 */
+	import { SvelteSet } from 'svelte/reactivity';
 	import { mapsPhotoUrl, type MapsPhoto } from '../media';
 	import type { MapsItem, MapsItemType, MapsNode, MapsStock } from '../maps';
 
@@ -45,7 +75,14 @@
 		nodeHref: string;
 	} = $props();
 
-	const shown = $derived(photos.map((p) => ({ photo: p, src: mapsPhotoUrl(supabaseUrl, p.storage_key) })).filter((p) => p.src));
+	const shown = $derived(
+		photos.map((p) => ({ photo: p, src: mapsPhotoUrl(supabaseUrl, p.storage_key) }))
+	);
+
+	/* Photo ids whose object did not arrive in THIS browser. A SvelteSet so
+	   adding one repaints, and keyed by the photo's own id so a list that
+	   reloads cannot carry one card's failure onto another's. */
+	const broken = new SvelteSet<string>();
 </script>
 
 <article class="mv-card" data-testid="maps-viewer-card">
@@ -100,10 +137,26 @@
 	{/if}
 
 	{#if shown.length > 0}
-		<ul class="mv-photos">
+		<ul class="mv-photos" data-testid="maps-card-photos">
 			{#each shown as entry (entry.photo.id)}
 				<li>
-					<img src={entry.src} alt={entry.photo.caption ?? heading} loading="lazy" />
+					{#if !entry.src}
+						<span class="mv-photo-out is-refused" data-testid="maps-photo-refused"
+							>Photo not available here</span
+						>
+					{:else if broken.has(entry.photo.id)}
+						<span class="mv-photo-out is-failed" data-testid="maps-photo-failed"
+							>Photo could not be loaded</span
+						>
+					{:else}
+						<img
+							src={entry.src}
+							alt={entry.photo.caption ?? heading}
+							loading="lazy"
+							data-testid="maps-photo"
+							onerror={() => broken.add(entry.photo.id)}
+						/>
+					{/if}
 					{#if entry.photo.caption}<span class="mv-photo-caption">{entry.photo.caption}</span>{/if}
 				</li>
 			{/each}
@@ -202,6 +255,48 @@
 		border: 1px solid var(--mv-boundary);
 		border-radius: var(--radius-card);
 		background: var(--surface-2, #161a18);
+	}
+	/*
+	 * THE TWO OUT-STATES SHARE A BOX WITH THE PHOTO, which is what keeps a
+	 * failure from moving the row: same `width: 100%` in the same grid cell,
+	 * same border radius, same caption underneath. The 4/3 ratio is a stated
+	 * guess and cannot be anything else -- a placeholder does not know the
+	 * height of the photo that did not arrive -- so the WIDTH and the column
+	 * positions are what hold, and the height is the one thing that moves.
+	 *
+	 * NEITHER IS SOLID, so both read as absence at a glance against a real
+	 * photo's solid edge -- and the two are DOTTED and DASHED rather than both
+	 * dashed, which is the half a first pass got wrong. The browser probe on
+	 * `/dev/maps-media/photos` compares what the four states PAINT, and it
+	 * reported the two out-tiles as one appearance: identical ground, identical
+	 * border, differing only in their words. Colour is never the only signal
+	 * here and neither is wording, so the fill STYLE carries the difference the
+	 * way the notebook grid's states do -- refused DOTTED, failed DASHED, on a
+	 * phone held at arm's length in a workshop.
+	 */
+	.mv-photo-out {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		padding: var(--space-2);
+		box-sizing: border-box;
+		border: 1px solid var(--mv-boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2, #161a18);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		text-align: center;
+		color: var(--text-2, #9aa49d);
+	}
+	/* Judged here, nothing asked. */
+	.mv-photo-out.is-refused {
+		border-style: dotted;
+	}
+	/* Asked, and nothing came back. */
+	.mv-photo-out.is-failed {
+		border-style: dashed;
 	}
 	.mv-photo-caption {
 		display: block;
