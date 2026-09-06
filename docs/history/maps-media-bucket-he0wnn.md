@@ -149,6 +149,36 @@ claiming the bucket's list is still the `image/*` wildcard, which 0168 replaced.
 - **The neighbouring maps harnesses, re-run after the `MapsItemCard` change**:
   `/dev/maps-media`, `/dev/maps-viewer` and `/dev/maps-shelf`, 20 route/width runs,
   378 measurements, 0 outside threshold.
+- **`npm run verify:counts` then `npm run verify:readme`**, the second on a clean
+  tree at commit `495eae0` (`dirty: false`): 117 route specs over 58 routes, 87
+  `/dev` pages, **234 route/width runs, 3466 measurements, 2 outside threshold**,
+  556.6s wall clock, `--selftest` 70 controls (36 negative, 34 positive), 0
+  instrument failures. `covered` is 117, matching the static region's spec count, so
+  the measured half is measured against THIS tree. The 2 outside threshold are the
+  two standing `/dev/notebook` `tap-reach` rows at 375 and 1440 (decision 12, with
+  the owner) and are unchanged by this bundle.
+- **`npm test`: 291 files, 5943 tests, 290 files and 5941 tests passing.** Run
+  2026-09-06 00:56:47 to 01:00:22 America/Los_Angeles, 214.09s. **`npm run check`
+  (the package script): 2998 files, 0 errors, 37 warnings, 20 files with problems.**
+
+**THE TWO FAILURES ARE PRE-EXISTING ON `origin/main` AND WERE MEASURED THERE RATHER
+THAN ASSUMED.** `tests/gauntlet-doc.test.ts` fails on both "agrees with
+docs/GAUNTLET.md and docs/GAUNTLET-DESIGN.md" and "covers every GAUNTLET migration
+in the tree", because `0184_gauntlet_run_event_bounds.sql` landed on `main` and
+neither document mentions it (`grep -c 0184` answers 0 in both). Checked out
+`origin/main` in a throwaway worktree, ran that one file, and got the identical two
+failures, 14 passing. This bundle touches no GAUNTLET file and does not own either
+document.
+
+**AND STARTING FROM `origin/integration` COST ONE ROUND, WHICH IS WORTH RECORDING.**
+`origin/integration` was strictly BEHIND `origin/main` -- zero commits main did not
+have, four commits it lacked -- and one of them was
+`0185_bucket_limits_under_the_global.sql`. So the first full run reddened
+`tests/db/migration-0177-tombstone.test.ts` with "the migration series has a hole in
+it: expected [185] to deeply equal []", which is that test doing exactly its job:
+0186 numbered over a file the branch could not see. `origin/main` was merged into
+the branch (`--no-edit`, one file, no conflict) and the hole closed. A lane numbering
+a migration off a branch that is behind main will hit this every time.
 
 ## Deploy order
 
