@@ -9,6 +9,7 @@
 	import PoolsView from '$lib/tournaments/PoolsView.svelte';
 	import EntryBanner from '$lib/tournaments/EntryBanner.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
+	import EventRail from '$lib/tournaments/EventRail.svelte';
 	import MatchAlerts from '$lib/tournaments/MatchAlerts.svelte';
 	import RewardsPanel from '$lib/tournaments/RewardsPanel.svelte';
 	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
@@ -22,6 +23,7 @@
 		statusLabel
 	} from '$lib/tournaments/tournaments';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
+	import { matchQueue } from '$lib/tournaments/live';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -35,8 +37,19 @@
 		t.champion_entry_id ? (entries[t.champion_entry_id] ?? null) : null
 	);
 
-	/** The live match view: matches the host has actually started. */
-	const liveMatches = $derived(data.bracketMatches.filter((m) => m.status === 'in_progress'));
+	/** ONE queue, shared with the host console and the projector (live.ts):
+	 * what is on now, and what gets called next. */
+	const queue = $derived(matchQueue(data.bracketMatches));
+	const liveMatches = $derived(queue.inProgress);
+	const upNext = $derived(queue.ready.slice(0, 3));
+
+	// The event clock, threaded into the rail rather than read there. A
+	// 30-second tick is plenty for a figure that reads "38m".
+	let now = $state<number>(Date.now());
+	onMount(() => {
+		const id = setInterval(() => (now = Date.now()), 30_000);
+		return () => clearInterval(id);
+	});
 	function maxRound(bracket: string): number {
 		return Math.max(
 			0,
@@ -212,14 +225,26 @@
 		<div class="eyebrow">IDEA // Tournaments</div>
 		<div class="title-row">
 			<h1>{t.name}</h1>
-			<span class="status" class:live={t.status === 'live'} class:open={t.status === 'registration_open'}>
-				{#if t.status === 'live'}<span class="live-dot" aria-hidden="true"></span>{/if}
-				{statusLabel(t.status)}
-			</span>
+			{#if t.status === 'live'}
+				<span class="tnm-live tnm-status live">Live</span>
+			{:else}
+				<span
+					class="tnm-status"
+					class:open={t.status === 'registration_open'}
+					class:done={t.status === 'complete'}
+				>
+					{statusLabel(t.status)}
+				</span>
+			{/if}
 		</div>
 		{#if t.description}<p class="lead">{t.description}</p>{/if}
+		{#if data.bracketMatches.length}
+			<div class="rail-row">
+				<EventRail matches={data.bracketMatches} {now} />
+			</div>
+		{/if}
 		{#if data.isHost}
-			<a class="btn" href="/tournaments/{t.id}/host">Host console</a>
+			<a class="btn host-link" href="/tournaments/{t.id}/host">Host console</a>
 		{/if}
 	</section>
 
@@ -238,7 +263,7 @@
 
 	{#if liveMatches.length}
 		<section class="block">
-			<h2 class="block-title live-title">Now playing</h2>
+			<h2 class="block-title">Now playing</h2>
 			<div class="live-list">
 				{#each liveMatches as m (m.id)}
 					<div class="live-match">
@@ -261,6 +286,27 @@
 							/>
 						</div>
 					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<!-- THE NAME ABOUT TO BE CALLED. The same queue the host's console starts
+	     from and the projector shows, so a competitor reading this page knows
+	     they are up before anybody says so. -->
+	{#if t.status === 'live' && upNext.length}
+		<section class="block">
+			<h2 class="block-title">Up next</h2>
+			<div class="upnext">
+				{#each upNext as m (m.id)}
+					<a class="upnext-row" href={matchHref(t.id, m.id)}>
+						<span class="upnext-label">{roundLabel(m.bracket, m.round, maxRound(m.bracket))}</span>
+						<span class="upnext-pair">
+							<span class="upnext-name">{m.entry_a_id ? (entries[m.entry_a_id]?.display_name ?? '?') : 'TBD'}</span>
+							<span class="live-vs">vs</span>
+							<span class="upnext-name">{m.entry_b_id ? (entries[m.entry_b_id]?.display_name ?? '?') : 'TBD'}</span>
+						</span>
+					</a>
 				{/each}
 			</div>
 		</section>
@@ -423,43 +469,52 @@
 	.title-row h1 {
 		margin: 0;
 	}
-	.status {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.7rem;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--dim);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
-		border-radius: 999px;
-		padding: 0.2rem 0.7rem;
-		display: inline-flex;
+	.rail-row {
+		margin: 1rem 0 0.2rem;
+		max-width: 44rem;
+	}
+	.host-link {
+		margin-top: 1rem;
+	}
+	.upnext {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.upnext-row {
+		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.6rem 1rem;
+		flex-wrap: wrap;
+		padding: 0.7rem 0.9rem;
+		min-height: 44px;
+		border: 1px solid var(--tnm-line);
+		border-radius: 10px;
+		background: var(--tnm-panel);
+		color: var(--tnm-ink);
+		text-decoration: none;
 	}
-	.status.live {
-		color: var(--crimson);
-		border-color: var(--crimson);
+	.upnext-row:hover,
+	.upnext-row:focus-visible {
+		border-color: var(--tnm-line-strong);
 	}
-	.status.open {
-		color: var(--green);
-		border-color: var(--green);
+	.upnext-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--tnm-ink-dim);
+		min-width: 9rem;
 	}
-	.live-dot {
-		width: 0.45rem;
-		height: 0.45rem;
-		border-radius: 50%;
-		background: var(--crimson);
-		animation: pulse 1.2s ease-in-out infinite;
+	.upnext-pair {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.6rem;
+		flex-wrap: wrap;
 	}
-	@keyframes pulse {
-		50% {
-			opacity: 0.3;
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.live-dot {
-			animation: none;
-		}
+	.upnext-name {
+		font-weight: 700;
+		font-size: 1.15rem;
 	}
 	.qr-section {
 		margin-bottom: 1.1rem;
@@ -523,9 +578,6 @@
 		text-decoration: none;
 		border-radius: 10px;
 		min-width: 0;
-	}
-	.block-title.live-title {
-		color: var(--crimson);
 	}
 	.live-pair {
 		display: grid;
@@ -600,12 +652,13 @@
 	.block {
 		margin-top: 1.6rem;
 	}
+	/* Neutral, the room's label: the page's one emerald is the LIVE chip. */
 	.block-title {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.8rem;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--green);
+		color: var(--tnm-ink-dim);
 	}
 	.entrants {
 		display: grid;

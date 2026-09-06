@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import BracketView from '$lib/tournaments/BracketView.svelte';
 	import PoolsView from '$lib/tournaments/PoolsView.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
@@ -6,12 +7,15 @@
 	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
 	import EntryBanner from '$lib/tournaments/EntryBanner.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
+	import EventRail from '$lib/tournaments/EventRail.svelte';
+	import HostMatchControl from '$lib/tournaments/HostMatchControl.svelte';
 	import TvStage from '$lib/tournaments/TvStage.svelte';
 	import TournamentStats from '$lib/tournaments/TournamentStats.svelte';
 	import MatchDetail from '$lib/tournaments/MatchDetail.svelte';
 	import EntryDetail from '$lib/tournaments/EntryDetail.svelte';
 	import ForfeitForm from '$lib/tournaments/ForfeitForm.svelte';
 	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
+	import '$lib/tournaments/tournaments-theme.css';
 	import {
 		entryMap,
 		entryBracketRecord,
@@ -29,15 +33,60 @@
 		buildQualSample,
 		correctLast,
 		eventsFor,
+		forfeitMatch,
 		forfeitNext,
 		playNext,
 		setSimRewardRules,
+		startMatch,
 		startNext,
+		submitResult,
 		type Sim
 	} from './sim';
 
-	let fieldSize = $state(6);
-	let sim = $state<Sim>(buildSim(6));
+	/**
+	 * QUERY-DRIVEN VIEWS (prompt 0077), so the browser harness can measure one
+	 * surface in its real room at its real size:
+	 *
+	 *   ?view=tv&status=live&field=8     TvStage pinned to the viewport, the
+	 *                                    way the /tv route mounts it -- drive
+	 *                                    the run at 1920x1080 for a projector
+	 *                                    figure rather than a framed one.
+	 *   ?view=host&field=8&state=live    the REAL HostMatchControl, alone,
+	 *                                    inside the room, mid-match.
+	 *   ?view=page&field=16&state=live   the public page's composition pieces
+	 *                                    (event rail, up-next, bracket) in
+	 *                                    the room.
+	 *   (no view)                        the full harness, every component.
+	 *
+	 * `state=live` starts the first callable match; `state=played` plays
+	 * three first; `state=done` plays the whole bracket.
+	 */
+	const params = page.url.searchParams;
+	const view = params.get('view') ?? '';
+	const fieldParam = Number(params.get('field'));
+	const stateParam = params.get('state') ?? '';
+
+	const initialField = Number.isInteger(fieldParam) && fieldParam >= 2 ? fieldParam : 6;
+	/** Built from the query BEFORE any state exists, so the initial drive
+	 * reads plain values and no rune is captured at its initial value. */
+	function initialSim(n: number, state: string): Sim {
+		const s = buildSim(n);
+		if (state === 'played') {
+			playNext(s);
+			playNext(s);
+			playNext(s);
+		}
+		if (state === 'played' || state === 'live') startNext(s);
+		if (state === 'done') {
+			let guard = 0;
+			while (guard++ < 300 && playNext(s)) {
+				/* run to champion */
+			}
+		}
+		return s;
+	}
+	let fieldSize = $state(initialField);
+	let sim = $state<Sim>(initialSim(initialField, stateParam));
 	let linkMatches = $state(false);
 	const qual = buildQualSample();
 
@@ -78,7 +127,12 @@
 	let editId = $state<string | null>(null);
 	const editEntry = $derived(sim.entries.find((e) => e.id === editId) ?? sim.entries[0]);
 
-	let tvStatus = $state<Tournament['status']>('live');
+	const statusParam = params.get('status') as Tournament['status'] | null;
+	let tvStatus = $state<Tournament['status']>(
+		statusParam && ['registration_open', 'seeding', 'live', 'complete'].includes(statusParam)
+			? statusParam
+			: 'live'
+	);
 	const tvTournament = $derived<Tournament>({
 		id: 'sim',
 		name: 'Harness Invitational',
@@ -96,6 +150,42 @@
 			/* run to champion */
 		}
 	}
+
+	// --- 0077: the host's match control, driven end to end against the sim.
+	// The same callback shapes the route hands the component; each answers
+	// whether the write landed, exactly as the route's run() does.
+	let hostLog = $state<string[]>([]);
+	let hostBusy = $state(false);
+	const hostScoreEntry = params.get('scores') === '1';
+	const hostTransports = {
+		onstart: (id: string) => {
+			const ok = startMatch(sim, id);
+			hostLog = [...hostLog, `start ${id} -> ${ok}`];
+			return ok;
+		},
+		onsubmit: (id: string, result: unknown) => {
+			const ok = submitResult(sim, id, result);
+			hostLog = [...hostLog, `submit ${id} ${JSON.stringify(result)} -> ${ok}`];
+			return ok;
+		},
+		onforfeit: (id: string, result: unknown) => {
+			const r = result as { winner_id: string; reason: string };
+			const ok = forfeitMatch(sim, id, r.winner_id, r.reason);
+			hostLog = [...hostLog, `forfeit ${id} ${JSON.stringify(result)} -> ${ok}`];
+			return ok;
+		},
+		oncorrect: (id: string, result: unknown, reason: string) => {
+			// The sim corrects the LAST unwindable match rather than by id; the
+			// route's correction goes through the RPC. Logged so the payload
+			// shape can still be read off the harness.
+			const corrected = correctLast(sim, reason);
+			hostLog = [...hostLog, `correct ${id} ${JSON.stringify(result)} "${reason}" -> ${corrected}`];
+			return corrected !== null;
+		}
+	};
+
+	// The event clock, threaded in the way the public page threads it.
+	let now = $state(Date.now());
 
 	// --- 3a: detail pages, stats, forfeits ---
 	const simTournament = $derived<Tournament>({
@@ -223,6 +313,78 @@
 	<title>DEV · Tournaments harness</title>
 </svelte:head>
 
+{#if view === 'tv'}
+	<!-- Pinned to the viewport exactly as /tournaments/[id]/tv mounts it. -->
+	<TvStage
+		tournament={tvTournament}
+		entries={sim.entries}
+		styles={sim.styles}
+		matches={sim.matches}
+		games={sim.games}
+		shareUrl="https://ideabosco.com/tournaments/sim-demo"
+		showHint={false}
+	/>
+{:else if view === 'host'}
+	<div class="tnm-root tnm-shell">
+		<main class="room-page">
+			<h1 class="room-h1">Host console · match control</h1>
+			<p class="note">
+				The real HostMatchControl in the room, {fieldSize} entries, {stateParam || 'fresh'}.
+				{hostScoreEntry ? 'Score entry.' : 'Win/loss entry.'}
+			</p>
+			<section class="card matches">
+				<h2>Match control</h2>
+				<HostMatchControl
+					matches={sim.matches}
+					{entries}
+					scoreEntry={hostScoreEntry}
+					busy={hostBusy}
+					{...hostTransports}
+				/>
+			</section>
+			{#if hostLog.length}
+				<div class="audit" data-testid="host-log">
+					<strong>Transport log</strong>
+					{#each hostLog as line, i (i)}<div>{line}</div>{/each}
+				</div>
+			{/if}
+		</main>
+	</div>
+{:else if view === 'page'}
+	<div class="tnm-root tnm-shell">
+		<main class="room-page">
+			<section class="hero">
+				<div class="eyebrow">IDEA // Tournaments</div>
+				<div class="title-row">
+					<h1>Harness Invitational</h1>
+					{#if sim.status === 'complete'}
+						<span class="tnm-status done">Complete</span>
+					{:else}
+						<span class="tnm-live tnm-status live">Live</span>
+					{/if}
+				</div>
+				<div class="rail-row"><EventRail matches={sim.matches} {now} /></div>
+			</section>
+			<section class="block">
+				<h2>Bracket · {fieldSize} entries</h2>
+				<BracketView
+					matches={sim.matches}
+					{entries}
+					styles={sim.styles}
+					games={sim.games}
+					championId={sim.championId}
+					tournamentId="sim"
+				/>
+			</section>
+			<section class="card">
+				<h2>Entries ({sim.entries.length})</h2>
+				<p>Plain paragraph copy inside a card, on the room's panel.</p>
+				<p class="note">Secondary copy in the room's dim ink.</p>
+				<a href="/dev/tournaments">A bare link in the room</a>
+			</section>
+		</main>
+	</div>
+{:else}
 <main class="harness">
 	<h1>Tournaments harness (dev)</h1>
 	<p class="note">
@@ -232,7 +394,7 @@
 
 	<div class="controls">
 		<span>Field:</span>
-		{#each [2, 5, 6, 8, 11, 16] as n (n)}
+		{#each [2, 4, 5, 6, 8, 11, 16] as n (n)}
 			<button class="ctl" class:on={fieldSize === n} onclick={() => rebuild(n)}>{n}</button>
 		{/each}
 		<span class="sep"></span>
@@ -250,6 +412,40 @@
 			{sim.matches.filter((m) => m.status === 'complete').length}/{sim.matches.length} matches
 		</span>
 	</div>
+
+	<section>
+		<h2>HostMatchControl · the host console's match card (0077)</h2>
+		<p class="note">
+			The real control the host runs a bracket from, in the room, against the sim: Start the
+			next match, pick a winner, submit, forfeit with a preset reason. Add <code>?view=host</code>
+			for it alone, <code>&amp;scores=1</code> for score entry.
+		</p>
+		<div class="tnm-root room-box">
+			<section class="card matches">
+				<h2>Match control</h2>
+				<HostMatchControl
+					matches={sim.matches}
+					{entries}
+					scoreEntry={hostScoreEntry}
+					busy={hostBusy}
+					{...hostTransports}
+				/>
+			</section>
+		</div>
+		{#if hostLog.length}
+			<div class="audit" data-testid="host-log">
+				<strong>Transport log</strong>
+				{#each hostLog as line, i (i)}<div>{line}</div>{/each}
+			</div>
+		{/if}
+	</section>
+
+	<section>
+		<h2>EventRail · the bracket filling in (0077)</h2>
+		<div class="tnm-root room-box">
+			<EventRail matches={sim.matches} {now} />
+		</div>
+	</section>
 
 	<section>
 		<h2>BracketView · {fieldSize} entries</h2>
@@ -543,7 +739,7 @@
 			{/each}
 			<span class="sep"></span>
 			<span class="state">
-				start a match for the live view · play one for the result beat (13s)
+				start a match for the live view · play one for the result beat (13s) · <code>?view=tv</code> for the full viewport
 			</span>
 		</div>
 		<div class="tv-frame">
@@ -589,12 +785,42 @@
 		</div>
 	</section>
 </main>
+{/if}
 
 <style>
 	.harness {
 		max-width: 76rem;
 		margin: 0 auto;
 		padding: 1.5rem 1.2rem 4rem;
+	}
+	/* The room views: the same measure the real pages use. */
+	.room-page {
+		max-width: 60rem;
+		margin: 0 auto;
+		padding: 0 1.2rem 3rem;
+	}
+	.room-h1 {
+		margin-top: 1.4rem;
+	}
+	.title-row {
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+		flex-wrap: wrap;
+	}
+	.title-row h1 {
+		margin: 0;
+	}
+	.rail-row {
+		margin: 1rem 0 0.2rem;
+		max-width: 44rem;
+	}
+	.block {
+		margin-top: 1.6rem;
+	}
+	.room-box {
+		padding: 1rem;
+		border-radius: 10px;
 	}
 	.note {
 		color: var(--dim, #7a8a7a);
@@ -632,7 +858,7 @@
 	section {
 		margin-top: 2rem;
 	}
-	h2 {
+	.harness h2 {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.8rem;
 		letter-spacing: 0.12em;

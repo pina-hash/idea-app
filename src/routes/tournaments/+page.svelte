@@ -137,9 +137,11 @@
 					<div class="t-top">
 						<h2>{t.name}</h2>
 						<span
-							class="status"
+							class="tnm-status"
+							class:tnm-live={t.status === 'live'}
 							class:live={t.status === 'live'}
 							class:open={t.status === 'registration_open'}
+							class:done={t.status === 'complete'}
 						>
 							{statusLabel(t.status)}
 						</span>
@@ -239,7 +241,7 @@
 		transition: border-color 120ms ease;
 	}
 	.t-card:hover {
-		border-color: var(--green);
+		border-color: var(--tnm-line-strong);
 	}
 	.t-top {
 		display: flex;
@@ -247,27 +249,16 @@
 		justify-content: space-between;
 		gap: 0.8rem;
 	}
+	/* The tournament's NAME, not a section label: the room's h2 rule is for
+	 * card headings and this card is the link itself. */
 	.t-top h2 {
 		margin: 0;
-	}
-	.status {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--dim);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
-		border-radius: 999px;
-		padding: 0.15rem 0.6rem;
-		white-space: nowrap;
-	}
-	.status.live {
-		color: var(--crimson);
-		border-color: var(--crimson);
-	}
-	.status.open {
-		color: var(--green);
-		border-color: var(--green);
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 1.4rem;
+		font-weight: 700;
+		letter-spacing: 0;
+		text-transform: none;
+		color: var(--tnm-ink);
 	}
 	.t-desc {
 		color: var(--dim);
@@ -286,7 +277,7 @@
 		color: var(--gold);
 	}
 	.host-tag {
-		color: var(--green);
+		color: var(--tnm-accent);
 	}
 	.page-footer {
 		margin-top: 2.5rem;

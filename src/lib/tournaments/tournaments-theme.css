@@ -88,3 +88,184 @@
 		animation: none;
 	}
 }
+
+/* ==========================================================================
+   THE ROOM AT PAGE SCALE (prompt 0077).
+
+   Until this block existed the room dressed only the projector stage and the
+   two detail components; the list, the event page, the host console and the
+   new-tournament form all rendered in the portal's own chrome, which is why
+   the surface "just looked like the standard website". The layout chain
+   (`/tournaments/+layout.svelte`) now puts `.tnm-root` on every page, and
+   this block is what the portal's shared classes become inside it.
+
+   THE ROOM ALIASES, IT DOES NOT REDECLARE (the .nb-root rule). Source and
+   target sit on the SAME element, `.tnm-root`, so the var()-resolves-where-
+   declared trap cannot reach it: `.card`, `.btn.secondary`, `.lead`, every
+   `--dim`/`--white`/`--bg*` read inside the room lands on the room's own
+   plate with no rule rewritten. The SEMANTIC accents (--green, --gold,
+   --cyan, --amber, --crimson) are NOT re-pointed: a state colour keeps its
+   meaning in every room (design-system/themes/index.css), and --green stays
+   the primary-action colour on the `.btn`.
+
+   Measured against the three plate grounds (bg / panel / panel-2):
+     ink #edede8       15.86 / 14.10 / 12.72
+     ink-dim #93a09a    6.86 /  6.10 /  5.50   (was --dim #849080: 5.57 / 4.95 / 4.47)
+     accent #0fbe7a     7.69 /  6.83 /  6.16
+     gold #e0ac4e       9.03 /  8.03 /  7.24
+     --green #78b870    7.88 /  7.01 /  6.32
+     --cyan #5abda8     8.23 /  7.32 /  6.60
+     --amber #d08030    6.04 /  5.37 /  4.85
+     --crimson #d95f5f  5.10 /  4.54 /  4.09   (text only on bg and panel)
+   So every word the room paints clears 4.5:1, and the aliasing RAISES the
+   secondary tier rather than costing it.
+
+   RESTRAINT STILL HOLDS AT PAGE SCALE: one emerald element per screen. On
+   the event page it is the LIVE chip while a match runs; the section titles,
+   the eyebrow and the cards are neutral, which is the exact opposite of the
+   portal shell's green `//` h2 prefix -- neutralised below -- and its cyan
+   glow eyebrow.
+   ========================================================================== */
+
+.tnm-root {
+	--bg0: var(--tnm-bg);
+	--bg1: var(--tnm-panel);
+	--bg2: var(--tnm-panel-2);
+	--plate: var(--tnm-panel-2);
+	--white: var(--tnm-ink);
+	--dim: var(--tnm-ink-dim);
+	--line: var(--tnm-line);
+	--line-strong: var(--tnm-line-strong);
+	--surface-page: var(--tnm-bg);
+	--surface-card: var(--tnm-panel);
+	--surface-input: var(--tnm-panel-2);
+	--text-body: var(--tnm-ink);
+	--text-muted: var(--tnm-ink-dim);
+	--border-hairline: var(--tnm-line);
+	--border-active: var(--tnm-line-strong);
+}
+
+/* The wrapper the layout chain mounts: opaque, over .bg-fx (z-index: 1, the
+ * .frc-root / .fsp-root convention), the full viewport tall so the plate
+ * never ends above the fold on a short page. */
+.tnm-shell {
+	position: relative;
+	z-index: 1;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+.tnm-shell > main {
+	flex: 1 0 auto;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.tnm-root .app-header {
+	background: var(--tnm-panel);
+	border-bottom: 1px solid var(--tnm-line);
+}
+
+/* A scoreboard masthead, not a centred landing hero. */
+.tnm-root .hero {
+	text-align: left;
+	padding: 2.2rem 0 1.4rem;
+	margin-bottom: 1.2rem;
+	border-bottom: 1px solid var(--tnm-line);
+}
+.tnm-root .hero .eyebrow {
+	margin-bottom: 0.7rem;
+}
+.tnm-root .eyebrow {
+	color: var(--tnm-ink-dim);
+	text-shadow: none;
+}
+.tnm-root .lead {
+	color: var(--tnm-ink-dim);
+}
+.tnm-root h1 {
+	font-size: clamp(2rem, 4.5vw, 3rem);
+	letter-spacing: 0.005em;
+}
+
+/* Section titles read as the room's labels, and the portal's green `// `
+ * prefix is neutralised: it would spend emerald on every card. */
+.tnm-root h2 {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.78rem;
+	font-weight: 400;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--tnm-ink-dim);
+	margin: 0 0 0.9rem;
+}
+.tnm-root h2::before {
+	content: none;
+}
+
+.tnm-root .card {
+	background: var(--tnm-panel);
+	border: 1px solid var(--tnm-line);
+	border-radius: 10px;
+	box-shadow: none;
+	padding: 1.1rem 1.2rem;
+	margin: 0 0 1.1rem;
+}
+.tnm-root .card > p {
+	color: var(--tnm-ink);
+}
+
+/* A bare link is ink with a quiet underline; the green link glow is the
+ * portal's and does not come into the room. `:where()` keeps this at one
+ * class of specificity, so any component's own scoped link rule (a card, a
+ * bracket node, a detail link) still outranks it, and `.btn` is excluded
+ * outright. NOT `a:not([class])`: Svelte stamps its scope class on any
+ * element a component stylesheet could match, so a "bare" anchor in a
+ * component rarely has no class at all (measured on the harness). */
+.tnm-root a {
+	text-shadow: none;
+}
+.tnm-root :where(a:not(.btn)) {
+	color: var(--tnm-ink);
+	text-decoration: underline;
+	text-decoration-color: var(--tnm-line-strong);
+	text-underline-offset: 0.18em;
+}
+.tnm-root :where(a:not(.btn)):hover {
+	text-decoration-color: var(--tnm-accent);
+}
+.tnm-root .btn:hover,
+.tnm-root .btn.secondary:hover {
+	box-shadow: none;
+	text-shadow: none;
+}
+
+/* The shared status chip on the list and the event page. */
+.tnm-root .tnm-status {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.7rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--tnm-ink-dim);
+	border: 1px solid var(--tnm-line-strong);
+	border-radius: 999px;
+	padding: 0.25rem 0.75rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	white-space: nowrap;
+}
+.tnm-root .tnm-status.open {
+	color: var(--tnm-ink);
+	border-color: var(--tnm-ink-dim);
+}
+.tnm-root .tnm-status.done {
+	color: var(--tnm-gold);
+	border-color: var(--tnm-gold);
+}
+/* Live is the one emerald element on the screen that carries it. */
+.tnm-root .tnm-status.live {
+	color: var(--tnm-accent);
+	border-color: var(--tnm-accent);
+	background: var(--tnm-accent-wash);
+}
