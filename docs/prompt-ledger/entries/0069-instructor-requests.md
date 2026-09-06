@@ -3,8 +3,10 @@
 - By: router chat for IDEA portal work
 - Owns: the due-date default in `ContentComposer.svelte`, `SongQueue.svelte`, the instructor-tools dropdown, the feedback console's delete path, at most one migration (number taken at commit time), `src/routes/dev/instructor-requests/**`, the named test files, `tools/browser-verify/routes/instructor-requests*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0069-*`, and its own `docs/history/` entry.
 - Migration permitted: at most one, conditional, number taken at commit time. Highest on origin/main at issue: 0184
-- Status: issued
-- Branch: assigned by the harness
+- Migration taken: 0186 (`supabase/migrations/0186_song_spotify_and_feedback_spam.sql`). NOT applied: `IDEA_MIGRATION_URL` is not set in the session container, and `tools/apply-migration.mjs` derives its probe from `origin/main`, which a branch-only file gets no probe from. Highest across every ref at commit time was 0185 (on `origin/main`); `origin/integration` carried through 0184, so `origin/main` was merged into the branch to close the gap the contiguity test found.
+- Status: pushed
+- Branch: `claude/instructor-requests-surfaces-j2dfjc`, started from `origin/integration` at `13d1747`
+- Built: items 1, 2, 3 and 5. Item 4 (sorting by date) DECLINED -- six candidate lists, no way to choose; the question is in the history entry.
 - Notes: Five items from the 2026-09-05 feedback pull, all instructor
   requests rather than defects, and all in the class surfaces so they travel
   as one bundle:

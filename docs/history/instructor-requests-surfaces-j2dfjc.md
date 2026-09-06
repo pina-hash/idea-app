@@ -276,14 +276,59 @@ and both test chains say so in a comment rather than working around it: the song
 test carries `0053`/`0085`, the feedback test carries the coin files and `0145`.
 Either subsystem missing is a failed apply that rolls back whole.
 
+## The 0185 hole, and the merge that closed it
+
+The full suite reddened `tests/db/migration-0177-tombstone.test.ts` with
+`the migration series has a hole in it: expected [ 185 ] to deeply equal []`.
+
+That is a real consequence of starting from `origin/integration`, which carried
+through `0184`, while `origin/main` carried `0185_bucket_limits_under_the_global.sql`.
+`0186` is the next free number across EVERY ref -- checked again at commit time,
+including `git log --all --diff-filter=A`, where the only branch adding a `0186*`
+file is this one -- so **renumbering to 0185 was never available**: two different
+files sharing one number is far worse than a gap.
+
+`git merge --no-edit origin/main` closed it, cleanly, adding exactly one file. That
+is what `CLAUDE.md` prescribes before a merge anyway, and it makes the series
+contiguous 0001..0186 on this branch.
+
+## The privacy sweep that caught a comment
+
+A doc comment written for the fourth-status argument named the address-hash column
+literally, and `tests/feedback-untrusted-render.test.ts` sweeps
+`src/lib/feedback/**` and `FeedbackConsole.svelte` for that identifier with a plain
+`includes`. It cannot tell a read from prose, and that crudeness is deliberate --
+it is the strongest statement available about a column that is not in the payload
+at all.
+
+**The comment was reworded rather than the sweep loosened.** Stripping comments
+before the sweep would weaken a privacy guard to accommodate a sentence, which is
+the wrong direction; the comment now says what it means and names the migration
+instead, with a note saying why.
+
 ## What was measured
 
+* **The full suite: 2 failing tests in 1 file, 5988 passing (5990), 253.94s**, run
+  at **01:32 PDT on 2026-09-06**. Both failures are `tests/gauntlet-doc.test.ts`,
+  pre-existing on `integration` (0184 is not written up in `docs/GAUNTLET.md`) and
+  owned by prompt 0067. **That is BETTER than the baseline this branch started
+  from, which was 4 failing in 2 files**: `tests/derived-numbers.test.ts`'s two are
+  green because the `verify:readme` run below measured every spec in the tree,
+  including the nine that had never been measured. No new failure was introduced.
 * **`svelte-check`: 0 errors, 37 warnings**, re-derived with the two
   `PUBLIC_SUPABASE_*` placeholders exported before `svelte-kit sync` (a checkout
   with no `.env` reports 13 phantom errors here, not the 11 CLAUDE.md records --
   worth knowing, and not a regression: they are all
   `has no exported member 'PUBLIC_SUPABASE_URL'`/`_ANON_KEY` in files no change
   touched, and they clear entirely with the placeholders).
+* **`npm run verify:readme` on a genuinely clean tree: 234 route/width runs, 3474
+  measurements, 2 outside threshold, 569.5s, `dirty: false` on `cfeb123`.** The two
+  are the known `/dev/notebook` toolbar tap-reach rows, decision 12, with the owner.
+  `Route specs the run covered` is 117 and `Route specs` is 117, so nothing in the
+  tree went unmeasured -- which is what took `derived-numbers` green. A first run
+  came back `dirty: true` because a docs edit landed mid-run; it was re-run rather
+  than reported, since a dirty flag is exactly the signal that stops being
+  trustworthy if it is ever explained away.
 * **`npm run verify:browser -- --route instructor-requests`: 64 measurements at
   375 and 1440, 0 outside threshold**, after the two findings above were fixed.
   Due date box 92.1x58.2 at 375 and 207.1x58.2 at 1440; due time 68.2 and 153.4
