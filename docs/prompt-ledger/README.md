@@ -45,13 +45,63 @@ easy case and not the dangerous one.
 3. Flag any whose **Owns** paths intersect the new prompt's Owns paths. Intersection is by
    path prefix and glob, not by topic. Two prompts for unrelated features that both touch
    `src/lib/components/` intersect.
-4. Flag any entry with **Migration permitted: yes** if the new prompt also permits one,
-   regardless of file surface. There is one migration number sequence and two sessions
-   cannot both take the next number.
+4. Run `node tools/migration-claims.mjs`. It reads every ref and answers which migration
+   numbers are LANDED, which a lane in flight is already HOLDING, and which are free. If
+   the new prompt permits a migration, its `Claims:` number is the tool's `next free` and
+   is written into the entry BEFORE the prompt is handed over. Do not derive it from
+   `ls supabase/migrations/`, from `git ls-tree`, or from the highest number on
+   `origin/main`: all three are truthful about the past and silent about what is in
+   flight, and all three were consulted, correctly, by the three sessions that wrote
+   `0186` on 2026-09-06.
 5. If anything is flagged, do not issue. Name the collision and stop.
 
 An entry is written **before** the prompt is handed over. An entry written afterwards
 records history; an entry written first prevents a collision.
+
+## The migration number is CLAIMED in the first commit, not chosen at the end
+
+**A number for a new migration is not a fact this repository can answer. It is
+allocation, and allocation needs an allocator.** For prompt ids the allocator is the
+router chat, which is why this file's ids are stated in the prompt and never derived. For
+migration numbers there was no allocator at all: the number was chosen by the SESSION, at
+commit time, after the work was written -- which is the worst possible moment, because
+every other session that started in the meantime chose from the same reading.
+
+On 2026-09-06 three lanes each fetched `origin/main`, each read `0185` as the highest, and
+each wrote `0186`, over four and a half minutes. Every one of them verified correctly.
+
+**So the `Migration permitted` line names the number, and it is pushed before the work.**
+A session's entry is already its FIRST commit, pushed alone before anything else -- that
+was measured across the five lanes that wrote a migration on 2026-09-06, and the file
+appeared 24, 26, 28, 28 and 41 minutes after the entry. A claim recorded in the entry is
+visible for that whole window. A claim recorded by the file is visible only after it.
+
+`Claims: none` where no migration is permitted, so the line is never ambiguous between
+"no migration" and "a migration whose number nobody has stated". The second is the shape
+every collision to date was written in, and `tools/migration-claims.mjs` reports it
+separately for exactly that reason.
+
+**What this does not fix, stated here rather than discovered later.**
+
+- **A session that claims and never lands burns a number.** A lane that claims `0190` and
+  is abandoned holds it until somebody notices. That is why an abandoned entry gets a
+  TERMINAL status rather than being deleted: a terminal entry stops claiming, and a
+  deleted one takes its history with it.
+- **Two sessions started inside the same few seconds still collide.** The three branches
+  that took `0186` pushed their first commits at 07:17:42, 07:17:47 and 07:17:58 -- the
+  claim helps only where one of them reads after another has pushed. This is the same
+  limit the file already states above for prompts themselves, and nothing short of a lock
+  closes it.
+
+Both are better than two files with one name and a renumber after the work is written.
+
+**Historical entries are NOT rewritten to this format.** Eleven of them already name a
+number in advance (`0011` through `0034`, seven with an explicit RESERVED clause naming
+another prompt's number), which is where this format came from -- it is a practice this
+ledger had and dropped, not an invention. Fifteen later ones read "number taken at commit
+time", which is the shape being replaced. An entry is a dated record of what was issued;
+editing one to match a later rule falsifies it. `tools/migration-claims.mjs` reads all of
+them, in every shape, and the shapes are pinned by `tests/migration-claims.test.ts`.
 
 ## Entry format
 
@@ -59,7 +109,7 @@ records history; an entry written first prevents a collision.
     - Issued: <UTC timestamp>
     - By: <which chat or session wrote the prompt>
     - Owns: <paths and globs, copied verbatim from the prompt's canned opening block>
-    - Migration permitted: <yes | no>. Highest on origin/main at issue: <NNNN>
+    - Migration permitted: <yes | no>. Claims: <NNNN | none>. Highest on origin/main at issue: <NNNN>
     - Status: <issued | pushed | in-integration | deployed>
     - Branch: <from the session's FINAL REPORT, never from the prompt>
     - Notes: <including anything deliberately excluded>
