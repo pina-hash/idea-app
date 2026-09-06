@@ -275,7 +275,54 @@ Both files restored from `cp` copies and verified `md5sum -c` OK; the pair then 
 
 ### Browser proof (B6)
 
-BROWSER_PROOF_PLACEHOLDER
+Eight route specs (`tools/browser-verify/routes/tournaments*.mjs`), driven by
+`npm run verify:browser -- --route tournaments` at 375 and 1440 and again with
+`--width 1920` on the two projector specs. **16 route/width runs, 258 measurements, 0
+outside threshold** at both harness widths; the 1920 run of the two projector specs was
+clean as well. Every page rendered in 780-920ms; `waitForApp` needed no retry because
+every prepare step was a query parameter rather than a click. Two instrument facts were
+found on the way and are written into the specs rather than worked around silently:
+
+- A styled banner paints its own art behind the name and picks its ink from that art's
+  luminance (`bannerInk`, 0064); the sweep resolves a ground by walking ANCESTORS, so on
+  the sim's one light-background entry it reported the dark ink at **1.13:1** against the
+  panel behind the art -- a true reading of the wrong ground. Its own art measures
+  **14.98:1** (`#0e1412` on `#f2e6c4`). The name rows measure unstyled banners only and
+  say so.
+- The projector's LIVE pulse animates a `::before`, which `Element.getAnimations()` (the
+  motion sweep's discovery mechanism) does not return, so a motion row there reads "0
+  animated" about a running pulse. The rail's live cell animates the element and is the
+  motion row instead: 1 animated under no-preference, 0 still moving under reduce, on all
+  three page specs at both widths.
+
+The rows that matter, all at both widths unless noted:
+
+| surface | row | measured |
+| --- | --- | --- |
+| host, live | winner picks | 116.8x44 at 375, 409.3x44 at 1440; 0/2 under 44 |
+| host, live | Submit / Start | smallest 156.1x44; 0/4 under 44 |
+| host, live | forfeit / correct minis | 68.7x44; 0/4 under 44 |
+| host, scores | score inputs | 86.4x44; 0/2 under 44 |
+| host, live | winner picks (ink on plate) | 15.86:1 |
+| host, live | Start control (green on panel-2) | 6.32:1 |
+| host, live | forfeit toggle, best-of line (gold) | 6.51:1 |
+| host, live | match labels / waiting note | 5.5:1 / 6.1:1 |
+| host, live | order | live precedes next precedes ready; ping controls 0 with no transport, forfeit toggles 2 |
+| page, 4/8/16 | eyebrow / name / LIVE chip | 6.86 / 15.86 / 6.79:1 (chip on its own wash) |
+| page, 4/8/16 | card body / bare link / card h2 | 14.1 / 14.1 / 6.1:1 |
+| page, 4/8/16 | bracket round label / node head / LIVE chip / section title | 7.85 / 6.1 / 4.54 / 6.86:1 |
+| page, 4/8/16 | bracket node links | 216x95.6; 0 of 6 / 14 / 30 under 44 |
+| page, 4/8/16 | one live cell, one live node, one LIVE chip | 1 / 1 / 1 |
+| tv, live (1920 too) | name / LIVE / round / names / vs / clock / clock word / footer | 15.86 / 7.69 / 6.86 / 14.1 / 6.86 / 15.86 / 6.86 / 6.86:1 |
+| tv, live | controls on the projector | 0 |
+| tv, between | up-next rows / banners / QR panel / LIVE | 3 / 6 / 1 / 0 |
+| tv, between (1920 too) | Next up / round labels / names / count / status | 7.69 / 6.86 / 14.1 / 6.86 / 6.86:1 |
+| default harness | forfeit note | 4.07:1 before (`--dim` on the gold wash over a portal card), moved to `--text-2`: 5.28:1 |
+| every run | horizontal scroll | 0px at 375 and 1440 |
+
+Web fonts are blocked by the harness (fonts.googleapis.com, 1 request per page), so every
+figure is in the fallback stack; `prefers-reduced-motion` is `no-preference` except inside
+the motion sweep's own flip.
 
 ### Counts, suite, check (B7, B8)
 

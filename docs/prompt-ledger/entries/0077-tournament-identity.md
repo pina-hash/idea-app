@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/tournaments/**`, `src/routes/tournaments/**`, the tournaments entry in `src/lib/site-manifest.ts`, `src/routes/dev/tournaments/**`, `tests/tournament*`, `tests/dom/tournament*`, `tools/browser-verify/routes/tournament*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0077-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0185
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/tournament-bracket-surface-jf28qc`
 - Notes: DEADLINE: Tuesday 2026-09-08, the IDEA100 Hook Design Competition
   bracket, run live in class on this surface for the first time.
   
