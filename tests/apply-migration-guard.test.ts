@@ -46,7 +46,7 @@
 // behaviour it is written for. What this suite proves is the OTHER half -- that
 // when the grant can land, the file produces the credential it describes.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -60,6 +60,8 @@ import {
 	claims,
 	guardFingerprint,
 	head,
+	ledgerPermission,
+	LEDGER_DIR,
 	makeClient,
 	scanFile,
 	splitStatements,
@@ -77,6 +79,24 @@ function roleSqlToPaste(): string {
 	expect(text).toContain(PLACEHOLDER);
 	return text.split(PLACEHOLDER).join(TEST_PASSWORD);
 }
+
+/**
+ * A real ledger entry that permits a migration, and one that refuses. Both are
+ * DISCOVERED rather than pinned: the ledger moves every bundle, and a number
+ * written down here would be a second thing to edit when it does.
+ */
+function ledgerIdWhere(permitted: boolean): string {
+	const names = readdirSync(LEDGER_DIR)
+		.filter((f) => /^\d{4}-.*\.md$/.test(f))
+		.sort();
+	const hit = names.find(
+		(f) => ledgerPermission(readFileSync(join(LEDGER_DIR, f), 'utf8')).permitted === permitted
+	);
+	if (!hit) throw new Error(`no ledger entry with permitted=${permitted}; the corpus changed shape`);
+	return hit.slice(0, 4);
+}
+const permittingLedgerId = () => ledgerIdWhere(true);
+const refusingLedgerId = () => ledgerIdWhere(false);
 
 let db: TestDb;
 let url: string;
@@ -392,9 +412,24 @@ describe('control 3: a migration applied out of order is refused before it runs'
 			`select count(*)::int as n from pg_class c join pg_namespace n on n.oid = c.relnamespace
 			 where n.nspname = 'public' and c.relkind = 'r'`
 		);
+		// `--ledger` names a bundle that WAS permitted a migration, because since
+		// prompt 0066 the ledger gate runs before the ordering rule and this test
+		// is about the ordering rule. The entry is discovered rather than pinned:
+		// a hard-coded number here would be a second place to edit whenever the
+		// ledger moves. The next test is the control for the gate itself.
+		const permittingLedger = permittingLedgerId();
 		const run = spawnSync(
 			process.execPath,
-			['tools/apply-migration.mjs', '0180', '--since', '151', '--ref', 'origin/integration'],
+			[
+				'tools/apply-migration.mjs',
+				'0180',
+				'--since',
+				'151',
+				'--ref',
+				'origin/integration',
+				'--ledger',
+				permittingLedger
+			],
 			{
 				cwd: REPO_ROOT,
 				encoding: 'utf8',
@@ -417,6 +452,33 @@ describe('control 3: a migration applied out of order is refused before it runs'
 		);
 		expect(after.rows[0].n).toBe(before.rows[0].n);
 	}, 180_000);
+
+	it('refuses at the LEDGER GATE before it opens a connection, when the bundle was permitted nothing', async () => {
+		// The control for the change above. Same file, same everything, except
+		// the ledger entry named is one that says "Migration permitted: no" --
+		// and the refusal now arrives without a session_user line, because no
+		// connection was opened at all.
+		const refusingLedger = refusingLedgerId();
+		const run = spawnSync(
+			process.execPath,
+			[
+				'tools/apply-migration.mjs',
+				'0180',
+				'--since',
+				'151',
+				'--ref',
+				'origin/integration',
+				'--ledger',
+				refusingLedger
+			],
+			{ cwd: REPO_ROOT, encoding: 'utf8', env: { ...process.env, IDEA_MIGRATION_URL: url }, timeout: 60_000 }
+		);
+		expect(run.status).toBe(EXIT.refused);
+		expect(run.stdout).toMatch(/Migration permitted: no/);
+		expect(run.stdout).toMatch(/no connection was opened/);
+		expect(run.stdout).not.toMatch(/session_user/);
+		expect(run.stdout + run.stderr).not.toContain(TEST_PASSWORD);
+	}, 60_000);
 
 	it('refuses a file it will not send before it looks at the ordering at all', async () => {
 		// 0162 creates an extension. The scan runs before the connection, so

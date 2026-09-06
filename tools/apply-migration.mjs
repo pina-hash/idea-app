@@ -8,6 +8,9 @@
  *   node tools/apply-migration.mjs supabase/migrations/0181_x.sql
  *   node tools/apply-migration.mjs 0181 --dry-run       # every check, no apply
  *   node tools/apply-migration.mjs 0181 --json
+ *   node tools/apply-migration.mjs 0181 --ledger 0066   # name the authorising
+ *                                                       # bundle, when the tool
+ *                                                       # cannot infer it
  *
  * ---------------------------------------------------------------------------
  * ONE FILE. NEVER A DIRECTORY, NEVER A LOOP, NEVER `supabase db push`.
@@ -52,11 +55,35 @@
  * so the next reader does not fold them together.
  *
  * ---------------------------------------------------------------------------
- * IT WRITES NOTHING ANYWHERE ON FAILURE. The apply is one transaction; a raise
- * from the file's own self-check, a refusal from the guard, or any other error
- * rolls the whole thing back, and this tool writes no file, no ledger and no
- * marker of any kind at any point. There is no state to clean up after a failed
- * run because there is none to begin with.
+ * WHO ASKED FOR THIS MIGRATION. Before it opens a connection, this reads the
+ * ledger entry for the bundle it is running under and refuses unless that entry
+ * permits a migration. Every bundle has declared this in writing since prompt
+ * 0001 and nothing read it until 0066. The ordering rule below is not a
+ * substitute: a migration a session invented and nobody asked for IS the lowest
+ * unapplied file the moment it is committed. See the ledger-gate section.
+ *
+ * ---------------------------------------------------------------------------
+ * IT WRITES NOTHING ANYWHERE ON FAILURE, AND EXACTLY ONE FILE ON SUCCESS.
+ *
+ * The failure half is unchanged and is the older promise: the apply is one
+ * transaction; a raise from the file's own self-check, a refusal, or any other
+ * error rolls the whole thing back, and nothing is written anywhere. There is
+ * no state to clean up after a failed run because there is none to begin with.
+ *
+ * The success half is new in prompt 0066 and is the point of it. A migration
+ * that applies itself with nobody watching has to leave something a person can
+ * find afterwards, so a run that COMMITS writes one file under
+ * `docs/migrations-applied/`, named `<nnnn>-<branch slug>.md`, carrying the
+ * migration's number and sha256, the branch and commit it ran from, the ledger
+ * entry that authorised it, the UTC instant, every notice in order with its
+ * severity, and the per-object verification. The session commits it with its
+ * work. It carries nothing from the connection string; see
+ * `renderAppliedRecord` for exactly what is and is not in it and why.
+ *
+ * THE TWO HALVES MEET AT ONE LINE. The write sits after the apply has
+ * committed and after verification, so every path that applied nothing returns
+ * before reaching it -- which is the mechanism, rather than a flag somebody has
+ * to keep true.
  *
  * ---------------------------------------------------------------------------
  * THE CONNECTION STRING IS READ FROM `IDEA_MIGRATION_URL` AND IS NEVER PRINTED.
@@ -74,7 +101,9 @@
  * which `psql`'s interleaved stderr does not give.
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join, basename } from 'node:path';
 import net from 'node:net';
@@ -84,6 +113,10 @@ import { readProbes, prepare, buildSql, verdicts, redact } from './deploy-probe.
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '..');
 export const MIGRATIONS_DIR = join(REPO_ROOT, 'supabase', 'migrations');
+/** Ledger entries, one per bundle. The authorisation this tool reads. */
+export const LEDGER_DIR = join(REPO_ROOT, 'docs', 'prompt-ledger', 'entries');
+/** The committed trace, one file per successful apply. */
+export const APPLIED_DIR = join(REPO_ROOT, 'docs', 'migrations-applied');
 
 /** The environment variable holding the scoped role's connection string. */
 export const URL_VAR = 'IDEA_MIGRATION_URL';
@@ -113,6 +146,395 @@ export const EXIT = {
 	/** It applied, and the post-apply verification could not confirm an object. */
 	unverified: 4
 };
+
+/* ------------------------------------------------------------------------ */
+/* The ledger gate: WHO ASKED FOR THIS MIGRATION.                            */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * THE ORDERING RULE IS NOT AN AUTHORISATION RULE, WHICH IS WHY THIS EXISTS.
+ * `orderVerdict` refuses anything that is not the LOWEST unapplied file. That
+ * is a correctness check and it is a good one, but a migration a session
+ * invented and nobody asked for IS the lowest unapplied file the moment it is
+ * committed, so the ordering rule waves it straight through. Nothing in this
+ * tool has ever asked whether the bundle it is running under was permitted a
+ * migration at all -- and every bundle has said so, in writing, in its ledger
+ * entry, since prompt 0001.
+ *
+ * Read across all 66 entries on `origin/integration`, the line has exactly two
+ * meanings and many spellings:
+ *
+ *   REFUSING    "no. Highest on origin/main at issue: 0184"
+ *               "no. The role file carries a password and is not a migration."
+ *   PERMITTING  "at most one, number taken at commit time. Highest ...: 0180"
+ *               "exactly one, 0176. Highest on origin/main at issue: 0175"
+ *               "yes, exactly one, 0170. Highest ...: 0169"
+ *               "at most one, conditional. Highest ...: 0180"
+ *               "only if A3 proved it. Highest ...: 0180. NONE WRITTEN: ..."
+ *
+ * So the partition is `^no\b` and nothing cleverer. Anything else permits at
+ * most one file, which is what every permitting spelling in the corpus means:
+ * not one of them permits two.
+ */
+
+/** The one place the permission line is named, so a rename is one edit. */
+export const PERMISSION_FIELD = 'Migration permitted';
+
+/**
+ * `- Migration permitted: <this>` from a ledger entry's body, or null when the
+ * line is absent. Read off the FIRST match: an entry is a list of fields and a
+ * later mention inside the prose of `Notes:` is prose.
+ *
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function permissionLine(text) {
+	const m = new RegExp(`^-\\s*${PERMISSION_FIELD}:\\s*(.*)$`, 'm').exec(text);
+	return m ? m[1].trim() : null;
+}
+
+/**
+ * Whether a ledger entry permits a migration, and which number it named.
+ *
+ * THE NUMBER IS ADVISORY AND THE PERMISSION IS NOT, and that asymmetry is
+ * deliberate. 23 of the 66 entries say "number taken at commit time" precisely
+ * because the number is not knowable when the entry is written: prompt 0056
+ * renumbered mid-session, and prompt 0064's own line records taking 0184 after
+ * 0183 landed on main mid-flight. A gate that refused on a number mismatch
+ * would refuse the ordinary case. So a mismatch is a WARNING carried into the
+ * record, where a person reading the trace afterwards can see it, and the
+ * refusal is reserved for the one thing the entry can state unambiguously at
+ * issue time: whether a migration was permitted at all.
+ *
+ * A NUMBER IS ONLY READ FROM THE PERMITTING CLAUSE, never from the whole line.
+ * Every entry -- including every refusing one -- carries
+ * "Highest on origin/main at issue: 0184", and a naive four-digit scan would
+ * read that as the permitted number and then "confirm" it against a file that
+ * has nothing to do with it.
+ *
+ * @param {string} text
+ * @returns {{ permitted: boolean, raw: string | null, number: string | null }}
+ */
+export function ledgerPermission(text) {
+	const raw = permissionLine(text);
+	if (raw === null) return { permitted: false, raw: null, number: null };
+	const lower = raw.toLowerCase();
+	if (/^no\b/.test(lower)) return { permitted: false, raw, number: null };
+	// Drop the context clause before looking for a number.
+	const clause = raw.split(/highest on origin\/main at issue/i)[0];
+	const num = /\b(\d{4})\b/.exec(clause);
+	return { permitted: true, raw, number: num ? num[1] : null };
+}
+
+/**
+ * The ledger entries this branch ADDS, newest-numbered last.
+ *
+ * HOW THE TOOL LEARNS WHICH BUNDLE IT IS RUNNING UNDER, and why this and not
+ * the branch name. Every ledger entry carries a `Branch:` line, but it is a
+ * human sentence -- "none on the remote", "`claude/x` at `0d73f72`, swept into
+ * integration as ...", and, for the bundle currently running, "assigned by the
+ * harness", because the line is filled in at the END. Keying on it would key on
+ * the one field that is reliably wrong while the bundle is in flight.
+ *
+ * What IS reliable is the repository's own standing rule: a bundle's FIRST
+ * commit is its ledger entry. So the entry this branch introduces, relative to
+ * the branch it came off, is the bundle. `origin/integration` is tried first
+ * because that is what sessions branch from; `origin/main` is the fallback for
+ * a lane cut from main. The first base that yields exactly one added entry
+ * wins, and anything else is "cannot tell", which refuses.
+ *
+ * @param {string} [cwd]
+ * @returns {{ id: string, file: string } | null}
+ */
+export function inferLedgerEntry(cwd = REPO_ROOT) {
+	for (const base of ['origin/integration', 'origin/main']) {
+		let out;
+		try {
+			out = execFileSync(
+				'git',
+				['diff', '--name-only', '--diff-filter=A', `${base}...HEAD`, '--', 'docs/prompt-ledger/entries/'],
+				{ cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+			);
+		} catch {
+			continue;
+		}
+		const added = out
+			.split('\n')
+			.map((l) => l.trim())
+			.filter((l) => /\/\d{4}-[^/]+\.md$/.test(l));
+		if (added.length === 1) {
+			const file = basename(added[0]);
+			return { id: file.slice(0, 4), file };
+		}
+	}
+	return null;
+}
+
+/**
+ * @typedef {{ ok: true, id: string, file: string, raw: string, number: string | null }
+ *   | { ok: false, why: string, how: string }} LedgerVerdict
+ */
+
+/**
+ * Resolve and read the authorising ledger entry.
+ *
+ * FAILING CLOSED IS RIGHT AND BEING UNUSABLE IS NOT, so every refusal here
+ * carries the one flag that recovers it. `--ledger 0066` names the entry
+ * outright, which is what a person does when the inference cannot decide --
+ * a branch carrying two bundles' entries, a detached HEAD, a checkout with no
+ * `origin/integration`.
+ *
+ * @param {string | undefined} explicit
+ * @param {string} [dir]
+ * @returns {LedgerVerdict}
+ */
+export function resolveLedger(explicit, dir = LEDGER_DIR) {
+	/** @type {{ id: string, file: string } | null} */
+	let found = null;
+	if (explicit) {
+		const id = String(explicit).padStart(4, '0');
+		let names = [];
+		try {
+			names = readdirSync(dir).filter((f) => f.startsWith(`${id}-`) && f.endsWith('.md'));
+		} catch {
+			names = [];
+		}
+		if (names.length !== 1) {
+			return {
+				ok: false,
+				why:
+					names.length === 0
+						? `no ledger entry ${id} in docs/prompt-ledger/entries/.`
+						: `${names.length} ledger entries claim ${id} (${names.join(', ')}).`,
+				how: `Check the number. Entries are docs/prompt-ledger/entries/<nnnn>-<slug>.md.`
+			};
+		}
+		found = { id, file: names[0] };
+	} else {
+		found = inferLedgerEntry();
+		if (!found) {
+			return {
+				ok: false,
+				why: 'could not tell which bundle this is: this branch adds no ledger entry, or more than one, relative to origin/integration and origin/main.',
+				how: 'Name it: --ledger <nnnn>. A bundle writes its ledger entry as its first commit, which is what the inference looks for.'
+			};
+		}
+	}
+
+	let text;
+	try {
+		text = readFileSync(join(dir, found.file), 'utf8');
+	} catch {
+		return {
+			ok: false,
+			why: `ledger entry ${found.file} could not be read.`,
+			how: 'Name a different one with --ledger <nnnn>.'
+		};
+	}
+	const perm = ledgerPermission(text);
+	if (perm.raw === null) {
+		return {
+			ok: false,
+			why: `ledger entry ${found.file} has no "${PERMISSION_FIELD}:" line, so it does not say whether a migration was permitted.`,
+			how: `Every entry carries one. Add it to the entry, or name a different entry with --ledger <nnnn>.`
+		};
+	}
+	if (!perm.permitted) {
+		return {
+			ok: false,
+			why: `ledger entry ${found.file} says "${PERMISSION_FIELD}: ${perm.raw}".`,
+			how: 'This bundle was not asked for a migration. If that is wrong, the entry is what changes, and it is the router chat that changes it -- not this tool and not the session.'
+		};
+	}
+	return { ok: true, id: found.id, file: found.file, raw: perm.raw, number: perm.number };
+}
+
+/**
+ * Applies already recorded under this ledger entry, read off the committed
+ * trace. This is what makes "at most one" mean one across INVOCATIONS rather
+ * than one per command line: a session that applied 0185 and then tried 0186
+ * under the same entry would otherwise be two perfectly ordinary runs.
+ *
+ * @param {string} ledgerId
+ * @param {string} [dir]
+ * @returns {string[]} filenames of existing records
+ */
+export function appliesUnderLedger(ledgerId, dir = APPLIED_DIR) {
+	let names;
+	try {
+		names = readdirSync(dir).filter((f) => f.endsWith('.md'));
+	} catch {
+		return [];
+	}
+	const out = [];
+	for (const n of names) {
+		let text;
+		try {
+			text = readFileSync(join(dir, n), 'utf8');
+		} catch {
+			continue;
+		}
+		const m = /^ledger:\s*"?(\d{4})/m.exec(text);
+		if (m && m[1] === ledgerId) out.push(n);
+	}
+	return out.sort();
+}
+
+/* ------------------------------------------------------------------------ */
+/* The trace.                                                                */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * The branch this is running on, with the `claude/` or `lane/` prefix removed
+ * -- the same slug `docs/history/` names its entries by, and for the same
+ * reason: the harness mints one branch per session and a branch name cannot be
+ * taken twice, so it is collision-free BY CONSTRUCTION rather than by anyone
+ * checking. Falls back to the commit when there is no branch (detached HEAD).
+ *
+ * @param {string} [cwd]
+ */
+export function branchSlug(cwd = REPO_ROOT) {
+	const run = (/** @type {string[]} */ args) => {
+		try {
+			return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+		} catch {
+			return '';
+		}
+	};
+	const branch = run(['rev-parse', '--abbrev-ref', 'HEAD']);
+	if (branch && branch !== 'HEAD') return branch.replace(/^(claude|lane)\//, '').replace(/\//g, '-');
+	const sha = run(['rev-parse', '--short', 'HEAD']);
+	return sha ? `detached-${sha}` : 'unknown';
+}
+
+/** @param {string} [cwd] */
+export function headCommit(cwd = REPO_ROOT) {
+	try {
+		return execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+	} catch {
+		return 'unknown';
+	}
+}
+
+/**
+ * The record's path. `<nnnn>-<branch slug>.md`, which cannot collide even in
+ * the race the number alone would lose: two sessions that both saw a migration
+ * unapplied and both applied it are two branches, and two branches are two
+ * names. See `branchSlug`.
+ *
+ * @param {string} migrationNum
+ * @param {string} slug
+ * @param {string} [dir]
+ */
+export function appliedRecordPath(migrationNum, slug, dir = APPLIED_DIR) {
+	return join(dir, `${migrationNum}-${slug}.md`);
+}
+
+/**
+ * @typedef {{
+ *   migrationNum: string, migrationFile: string, sha256: string,
+ *   branch: string, slug: string, commit: string,
+ *   ledgerId: string, ledgerFile: string, ledgerRaw: string,
+ *   numberWarning: string | null,
+ *   sessionUser: string, database: string,
+ *   at: string,
+ *   notices: Notice[],
+ *   objects: { kind: string, name: string, present: boolean }[],
+ *   exit: string
+ * }} AppliedRecord
+ */
+
+/**
+ * Render the trace.
+ *
+ * WHAT IS DELIBERATELY NOT IN IT: the connection string, in any form. No host,
+ * no port, no password, and the URL itself never reaches this function. What IS
+ * here is `session_user` and `current_database()` -- answers the SERVER gave to
+ * a query, not strings parsed out of the URL -- because "this ran as postgres
+ * rather than idea_migrator" is exactly the fact a person reading a trace
+ * afterwards needs, and withholding it would make the record unable to answer
+ * the question it exists for. Every free-text field still goes through
+ * `redact`, so if a URL ever turns up inside a notice it is masked rather than
+ * committed to a public repository.
+ *
+ * @param {AppliedRecord} r
+ * @param {string} url the connection string, used ONLY to redact it back out
+ */
+export function renderAppliedRecord(r, url) {
+	const clean = (/** @type {string} */ t) => redact(t ?? '', url);
+	const lines = [];
+	lines.push('---');
+	lines.push(`migration: "${r.migrationNum}"`);
+	lines.push(`file: ${r.migrationFile}`);
+	lines.push(`sha256: ${r.sha256}`);
+	lines.push(`applied_at: ${r.at}`);
+	lines.push(`ledger: "${r.ledgerId}"`);
+	lines.push(`branch: ${r.branch}`);
+	lines.push(`commit: ${r.commit}`);
+	lines.push(`session_user: ${clean(r.sessionUser)}`);
+	lines.push(`database: ${clean(r.database)}`);
+	lines.push(`outcome: ${r.exit}`);
+	lines.push('---');
+	lines.push('');
+	lines.push(`# ${r.migrationNum} applied from ${r.branch}`);
+	lines.push('');
+	lines.push(
+		`\`${r.migrationFile}\` was applied at ${r.at} by \`tools/apply-migration.mjs\`, running on branch \`${r.branch}\` at commit \`${r.commit}\`.`
+	);
+	lines.push('');
+	lines.push('## Authorisation');
+	lines.push('');
+	lines.push(`- Ledger entry: \`docs/prompt-ledger/entries/${r.ledgerFile}\``);
+	lines.push(`- \`${PERMISSION_FIELD}: ${clean(r.ledgerRaw)}\``);
+	if (r.numberWarning) {
+		lines.push(`- **WARNING: ${r.numberWarning}**`);
+	}
+	lines.push('');
+	lines.push('## What the database said');
+	lines.push('');
+	if (r.notices.length === 0) {
+		lines.push('The migration raised no notices.');
+	} else {
+		lines.push(`${r.notices.length} notice(s), in the order they arrived:`);
+		lines.push('');
+		for (const n of r.notices) lines.push(`- \`${n.severity}\` ${clean(n.message)}`);
+	}
+	lines.push('');
+	lines.push('## Verification, object by object');
+	lines.push('');
+	if (r.objects.length === 0) {
+		lines.push('This file names no object the post-apply probe could derive.');
+	} else {
+		lines.push('| object | present |');
+		lines.push('| --- | --- |');
+		for (const o of r.objects) {
+			lines.push(`| ${o.kind} \`${clean(o.name)}\` | ${o.present ? 'yes' : '**NO**'} |`);
+		}
+	}
+	lines.push('');
+	return lines.join('\n');
+}
+
+/**
+ * Write the trace. Called on SUCCESS ONLY -- see `main`, where the single call
+ * site sits after the apply has committed and after verification.
+ *
+ * @param {AppliedRecord} r
+ * @param {string} url
+ * @param {string} [dir]
+ * @returns {string} the path written
+ */
+export function writeAppliedRecord(r, url, dir = APPLIED_DIR) {
+	mkdirSync(dir, { recursive: true });
+	const path = appliedRecordPath(r.migrationNum, r.slug, dir);
+	writeFileSync(path, renderAppliedRecord(r, url), 'utf8');
+	return path;
+}
+
+/** @param {string} text */
+export function sha256(text) {
+	return createHash('sha256').update(text, 'utf8').digest('hex');
+}
 
 /* ------------------------------------------------------------------------ */
 /* Splitting SQL.                                                            */
@@ -834,7 +1256,8 @@ export function parseArgs(argv) {
 		ref: 'origin/integration',
 		json: false,
 		dryRun: false,
-		allowDml: false
+		allowDml: false,
+		ledger: undefined
 	};
 	for (let i = 0; i < argv.length; i += 1) {
 		const a = argv[i];
@@ -843,6 +1266,7 @@ export function parseArgs(argv) {
 		else if (a === '--json') o.json = true;
 		else if (a === '--dry-run') o.dryRun = true;
 		else if (a === '--allow-dml') o.allowDml = true;
+		else if (a === '--ledger') o.ledger = argv[++i];
 		else if (a.startsWith('--')) throw new Error(`unknown argument: ${a}`);
 		else if (!o.target) o.target = a;
 		else throw new Error('exactly one migration may be named');
@@ -901,6 +1325,49 @@ async function main() {
 		if (opts.json) say(JSON.stringify(report, null, 2));
 		return EXIT.refused;
 	}
+
+	// --- the ledger gate ------------------------------------------------
+	// BEFORE the connection, deliberately: an unauthorised bundle should not
+	// even open a socket to the production database, and every check here is
+	// local. See `resolveLedger` for how the entry is found and why.
+	const ledger = resolveLedger(opts.ledger);
+	if (!ledger.ok) {
+		say('');
+		say(`REFUSING to apply ${target.file}: ${ledger.why}`);
+		say(`  ${ledger.how}`);
+		say('  Nothing was sent, and no connection was opened.');
+		report.ledger = { ok: false, why: ledger.why };
+		if (opts.json) say(JSON.stringify(report, null, 2));
+		return EXIT.refused;
+	}
+	say(`  ledger ${ledger.file} permits a migration ("${ledger.raw}")`);
+
+	// "At most one" has to mean one across INVOCATIONS, not one per command
+	// line, or a session applies 0185 and then 0186 as two ordinary runs. The
+	// committed trace from B1 is what makes that answerable.
+	const already = appliesUnderLedger(ledger.id);
+	if (already.length) {
+		say('');
+		say(
+			`REFUSING to apply ${target.file}: ledger entry ${ledger.file} has already applied a migration -- docs/migrations-applied/${already.join(', ')}.`
+		);
+		say(
+			'  Every permitting spelling in the ledger permits AT MOST ONE. A second migration is a second bundle, with its own entry.'
+		);
+		say('  Nothing was sent, and no connection was opened.');
+		report.ledger = { ok: false, why: 'a migration is already recorded under this ledger entry', already };
+		if (opts.json) say(JSON.stringify(report, null, 2));
+		return EXIT.refused;
+	}
+
+	// The number is ADVISORY. See `ledgerPermission` for why a mismatch is a
+	// warning carried into the record rather than a refusal.
+	const numberWarning =
+		ledger.number && ledger.number !== target.num
+			? `the ledger entry names migration ${ledger.number} and this is ${target.num}. The number in an entry is written at issue time and is routinely stale (prompt 0056 renumbered mid-session); the permission is what was checked.`
+			: null;
+	if (numberWarning) say(`  NOTE: ${numberWarning}`);
+	report.ledger = { ok: true, id: ledger.id, file: ledger.file, raw: ledger.raw, number: ledger.number, numberWarning };
 
 	const url = process.env[URL_VAR];
 	if (!url) {
@@ -1045,7 +1512,52 @@ async function main() {
 			say(`  guard unchanged (${fpAfter.slice(0, 12)}).`);
 		}
 
+		// --- the trace ------------------------------------------------------
+		// THE APPLY HAS COMMITTED BY THIS POINT AND CANNOT BE UNDONE, so the
+		// record is written for `unverified` too: "it applied and one object is
+		// missing" is exactly the run somebody needs to find afterwards, and a
+		// trace that only covered the clean case would be missing the
+		// interesting half. What it is NOT written for is any path where nothing
+		// was applied -- a scan refusal, a ledger refusal, an ordering refusal, a
+		// dry run, a failed connection, or a raise that rolled back. Those all
+		// return above this line, which is the whole mechanism.
 		const missing = objects.filter((o) => !o.present);
+		const outcome = missing.length || guardMoved ? 'unverified' : 'applied';
+		let recordPath = null;
+		try {
+			recordPath = writeAppliedRecord(
+				{
+					migrationNum: target.num,
+					migrationFile: target.file,
+					sha256: sha256(sql),
+					branch: branchSlug(),
+					slug: branchSlug(),
+					commit: headCommit(),
+					ledgerId: ledger.id,
+					ledgerFile: ledger.file,
+					ledgerRaw: ledger.raw,
+					numberWarning,
+					sessionUser: String(who.rows[0].su ?? ''),
+					database: String(who.rows[0].db ?? ''),
+					at: new Date().toISOString(),
+					notices,
+					objects,
+					exit: outcome
+				},
+				url
+			);
+			report.record = recordPath;
+			say(`  recorded: ${recordPath.slice(REPO_ROOT.length + 1)}`);
+		} catch (err) {
+			// THE APPLY STILL HAPPENED. A record that could not be written is a
+			// finding to shout about, never a reason to report the apply as
+			// having failed -- that is how somebody runs it a second time.
+			say(
+				`  COULD NOT WRITE THE RECORD (${redact(/** @type {Error} */ (err).message, url)}). THE MIGRATION IS APPLIED ANYWAY. Write docs/migrations-applied/${target.num}-${branchSlug()}.md by hand from the output above.`
+			);
+			report.recordError = redact(/** @type {Error} */ (err).message, url);
+		}
+
 		if (missing.length || guardMoved) {
 			say('');
 			say(
@@ -1058,6 +1570,7 @@ async function main() {
 		}
 		say('');
 		say(`${target.file} is applied and every object it names is present.`);
+		say(`Commit the record with your work: git add docs/migrations-applied/`);
 		if (opts.json) say(JSON.stringify(report, null, 2));
 		return EXIT.applied;
 	} finally {
