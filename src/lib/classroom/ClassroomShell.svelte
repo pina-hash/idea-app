@@ -3,7 +3,14 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { sectionTitle, sortSections, type ClassroomSection } from '$lib/classroom/classroom';
-	import { canCollapseNav, locateClassroom, type Crumb, type SectionTab, type SectionTabId } from '$lib/classroom/nav';
+	import {
+		canCollapseNav,
+		locateClassroom,
+		visibleSectionTabs,
+		type Crumb,
+		type SectionTab,
+		type SectionTabId
+	} from '$lib/classroom/nav';
 	import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
 
@@ -99,7 +106,9 @@
 
 	const ordered = $derived(sortSections(sections));
 	const current = $derived(ordered.find((s) => s.id === currentSectionId) ?? null);
-	const visibleTabs = $derived(tabs.filter((t) => !t.manageOnly || canManage));
+	// The filter is `visibleSectionTabs` in nav.ts -- see its header for why it
+	// is not written out here.
+	const visibleTabs = $derived(visibleSectionTabs(tabs, canManage));
 
 	/**
 	 * Dismiss on POINTERDOWN, not click, and ignore a target already detached --
@@ -269,17 +278,39 @@
 	</nav>
 {/if}
 
+<!--
+	THE BAR WRAPS RATHER THAN OVERFLOWING, and that is a rule about the phone
+	rather than a preference. It was `display: flex` with no `flex-wrap` and
+	`overflow-x: visible`: three tabs measured 16px to 226.4px inside a 375px
+	viewport, so it fit with 132.6px to spare and nothing said what the fourth
+	one would do. A flex item's automatic minimum is its min-content, and every
+	label here is one unbreakable word, so a bar one tab too wide does not
+	scroll and does not clip -- it pushes the DOCUMENT past the viewport, which
+	is exactly the reachability defect prompt 0025 spent a bundle undoing on the
+	Coin Ledger's tab bar (a fourth tab off the right edge of a phone under
+	`body { overflow-x: hidden }`, unreachable by scrolling, by swiping, or at
+	all). Wrapping is the answer that cannot produce that at ANY tab count, so
+	the next tab added here needs no second look at this file.
+
+	A DEPARTURE IS MARKED AND IS NEVER `aria-current`. `external` tabs leave
+	/classroom, so `activeTab` cannot ever name one (see nav.ts) -- rendering
+	one that silently never highlights would read as a broken tab rather than
+	as a door. The guillemet is `aria-hidden` because the accessible name is
+	already the label and a screen reader announcing "Check-ins right angle
+	quotation mark" is noise; what carries the meaning for everyone is that the
+	tab never takes the active underline and its target is another room.
+-->
 {#if !minimal && visibleTabs.length > 1 && tab}
 	<nav class="sec-tabs" aria-label="Class views" data-testid="section-tabs">
 		{#each visibleTabs as t (t.id)}
 			<a
 				class="sec-tab"
-				class:active={t.id === tab}
-				aria-current={t.id === tab ? 'page' : undefined}
+				class:active={!t.external && t.id === tab}
+				aria-current={!t.external && t.id === tab ? 'page' : undefined}
 				href={t.href}
 				data-testid="section-tab-{t.id}"
 			>
-				{t.label}
+				{t.label}{#if t.external}<span class="sec-tab-out" aria-hidden="true">&rsaquo;</span>{/if}
 			</a>
 		{/each}
 	</nav>
@@ -547,6 +578,9 @@
 	   rule above them. 24px, from the scale. */
 	.sec-tabs {
 		display: flex;
+		/* See the comment above the markup: one tab too many must wrap, never
+		   push the document wider than the phone it is on. */
+		flex-wrap: wrap;
 		gap: 0.3rem;
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto var(--space-5);
@@ -571,6 +605,11 @@
 	.sec-tab.active {
 		color: var(--green);
 		border-bottom-color: var(--green);
+	}
+	/* The guillemet sits inside the tab's own box, so it costs the row nothing
+	   the label was not already going to cost it. */
+	.sec-tab-out {
+		margin-left: 0.3rem;
 	}
 
 	/* NO NAV-COLLAPSE TOGGLE BELOW THE SPLIT'S OWN BREAKPOINT (split.css's

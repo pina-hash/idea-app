@@ -8,6 +8,7 @@
 	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
 	import FrcReviewQueue from '$lib/frc/FrcReviewQueue.svelte';
 	import DecalReviewQueue from '$lib/greenline/DecalReviewQueue.svelte';
+	import GreenlineDashboardCard from '$lib/greenline/GreenlineDashboardCard.svelte';
 	import { reviewDecal } from '$lib/greenline/decals';
 	import { PATHWAY_IDS, pathwayColor } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
@@ -346,23 +347,13 @@
 			{/if}
 		</div>
 
-		<!-- Community-track moderation (Bundle 4b) lives on its own page: the
-		     panel is telemetry-wide and the real gate is in its RPCs; this card
-		     is the teacher's way to find it. -->
-		<div class="course-card visible">
-			<div class="course-header">
-				<div class="course-header-left">
-					<div class="course-id">Community Track Moderation</div>
-					<div class="course-updated">
-						Published GREENLINE community tracks: reports, star ratings, completion telemetry,
-						featuring (ranked eligibility + IC payout), and removal.
-					</div>
-				</div>
-				<div class="course-meta">
-					<a class="btn secondary" href="/greenline/moderation">Open panel</a>
-				</div>
-			</div>
-		</div>
+		<!-- GREENLINE moderation lives on its own page: the panel is
+		     telemetry-wide and the real gate is in its RPCs; this card is the
+		     teacher's way to find it, and since it is the ONLY way to find it
+		     from here it now carries the count as well as the link. The card
+		     itself is $lib/greenline/GreenlineDashboardCard.svelte -- see its
+		     header for what its old copy claimed and why that mattered. -->
+		<GreenlineDashboardCard pending={data.greenlinePending} />
 	</div>
 
 	<div class="divider" style="margin-top:2.5rem">
