@@ -58,7 +58,11 @@ export default {
 		{ selector: 'html:not([data-theme])', label: 'document carries NO theme', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-theme]', label: 'nothing anywhere is themed', expectPresent: 0, maxPresent: 0 },
 		/* And the reason the gate exists: there is no control on this page. */
-		{ selector: '.pm-root', label: 'ProfileMenu (signed out)', expectPresent: 0, maxPresent: 0 }
+		{ selector: '.pm-root', label: 'ProfileMenu (signed out)', expectPresent: 0, maxPresent: 0 },
+		/* The gate holds the rain off with the tokens: the canvas is mounted
+		   keyed on the same applied attribute, so a signed-out visitor with
+		   the preference stored gets neither. */
+		{ selector: '.bg-fx canvas', label: 'rain canvas (signed out, preference stored)', expectPresent: 0, maxPresent: 0 }
 	],
 	motion: [{ selector: '.bg-fx', label: 'background layer stays unthemed', expect: 'never' }]
 };

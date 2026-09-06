@@ -236,58 +236,118 @@ describe('a chrome token whose ground the theme does not own holds its luminance
 
 describe('a theme is a token layer, not a stylesheet', () => {
 	/* WHAT KEEPS A THEME BOUNDED. Every selector in a theme file must be the
-	   theme root itself, or the one named non-token exception -- the shell's
-	   own decorative `.bg-fx` layer, which is fixed, pointer-events:none and
-	   aria-hidden, so it can change no geometry and eat no tap. A theme that
-	   started restyling components would be unbounded, and nothing else would
-	   report it. */
+	   theme root itself, or one of a NAMED list of non-token exceptions, each
+	   with the reason it is there and a pinned shape. A theme that started
+	   restyling components would be unbounded, and nothing else would report
+	   it. The list is pinned in length, every entry must be USED by some theme
+	   (a stale exception is a hole nobody is looking through), and each
+	   exception may carry only the declarations named beside it. */
 	const ROOT = /^:root\[data-theme='[a-z-]+'\]$/;
-	const BG_FX = /^:root\[data-theme='[a-z-]+'\] \.bg-fx$/;
+	const EXCEPTIONS: { selector: RegExp; why: string; onlyDeclares: RegExp[] }[] = [
+		{
+			/* The shell's own decorative background layer: position fixed,
+			   pointer-events none, aria-hidden, z-index 0, mounted once in the
+			   root layout -- restyling it can change no geometry, eat no tap and
+			   reach no reader. The rain canvas is its child (MatrixRain.svelte)
+			   and rides on the same properties. */
+			selector: /^:root\[data-theme='[a-z-]+'\] \.bg-fx$/,
+			why: 'the shell background layer',
+			onlyDeclares: [/^background(-color|-image|-size|-repeat|-position)?$/]
+		},
+		{
+			/* The landing page's opaque plate. `/` is wrapped in
+			   `.legacy-index.surface-machined`: position relative, z-index 1,
+			   `background-color: var(--bg0)` -- opaque and ABOVE .bg-fx, so
+			   without this the rain falls behind a plate on the one page every
+			   student opens. Measured: with the first version of the theme on,
+			   no part of .bg-fx was visible anywhere on the home harness. The
+			   plate's textures stay (they are translucent and sit over the
+			   rain as an edge vignette); only its colour goes. */
+			selector: /^:root\[data-theme='[a-z-]+'\] \.legacy-index\.surface-machined$/,
+			why: "the landing page's opaque plate, made transparent so the rain shows on /",
+			onlyDeclares: [/^background-color$/]
+		},
+		{
+			/* The landing page's own particle starfield, a second fixed canvas
+			   at 35% opacity inside that wrapper. Two particle systems on one
+			   ground are noise; under this theme the rain is the one. */
+			selector: /^:root\[data-theme='[a-z-]+'\] \.legacy-index #bg-canvas$/,
+			why: "the landing page's starfield, switched off under the rain",
+			onlyDeclares: [/^display$/]
+		}
+	];
 
-	it('every theme selector is the theme root or the shell background layer', () => {
+	/** The rule bodies of a stylesheet, comments stripped: [selector, body]. */
+	function rules(css: string): [string, string][] {
+		const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+		const out: [string, string][] = [];
+		/* Each match consumes `selector { body }` whole; what is left between
+		   matches is whitespace, an at-rule prelude or a stray brace, none of
+		   which is a selector. An at-rule prelude cannot match: `@` is excluded
+		   from the selector class. */
+		for (const m of bare.matchAll(/([^{};@]+?)\s*\{([^{}]*)\}/g)) {
+			const sel = m[1].trim().replace(/\s+/g, ' ');
+			if (sel && !sel.startsWith('@') && !/^(from|to|\d+%)$/.test(sel)) out.push([sel, m[2]]);
+		}
+		return out;
+	}
+	const propsOf = (body: string) =>
+		[...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]).filter((n) => !n.startsWith('--'));
+
+	it('the exception list is exactly three entries, each used by some theme', () => {
+		expect(EXCEPTIONS.length).toBe(3);
+		for (const ex of EXCEPTIONS) {
+			const used = Object.values(themeSource).some((css) => selectors(css).some((s) => ex.selector.test(s)));
+			expect(used, `stale exception: ${ex.why}`).toBe(true);
+		}
+	});
+
+	it('every theme selector is the theme root or a named exception, and each exception declares only what it is for', () => {
 		const offenders: string[] = [];
 		let seen = 0;
 		for (const [file, css] of Object.entries(themeSource)) {
-			for (const sel of selectors(css)) {
+			for (const [sel, body] of rules(css)) {
 				seen++;
-				if (!ROOT.test(sel) && !BG_FX.test(sel)) offenders.push(`${file}: ${sel}`);
+				if (ROOT.test(sel)) continue;
+				const ex = EXCEPTIONS.find((e) => e.selector.test(sel));
+				if (!ex) {
+					offenders.push(`${file}: ${sel}`);
+					continue;
+				}
+				for (const prop of propsOf(body)) {
+					if (!ex.onlyDeclares.some((re) => re.test(prop))) offenders.push(`${file}: ${sel} declares ${prop}, outside its exception`);
+				}
 			}
 		}
-		expect(seen).toBeGreaterThan(0);
+		expect(seen).toBeGreaterThan(3); // the root block plus the three exceptions, at least
 		expect(offenders).toEqual([]);
 	});
 
-	it('POSITIVE CONTROL: the selector reader finds a component rule', () => {
-		const mutant = ":root[data-theme='x'] .app-card { border-color: #0f0; }\n.pm-panel { color: red; }";
-		const found = selectors(mutant);
-		expect(found).toContain(':root[data-theme=\'x\'] .app-card');
-		expect(found).toContain('.pm-panel');
-		expect(found.filter((s) => !ROOT.test(s) && !BG_FX.test(s)).length).toBe(2);
+	it('POSITIVE CONTROL: the selector reader finds a component rule, and an exception that grows is caught', () => {
+		const mutant = ":root[data-theme='x'] .app-card { border-color: #0f0; }\n.pm-panel { color: red; }\n:root[data-theme='x'] .legacy-index #bg-canvas { display: none; opacity: 0.5; }";
+		const found = rules(mutant);
+		expect(found.map(([s]) => s)).toContain(":root[data-theme='x'] .app-card");
+		expect(found.map(([s]) => s)).toContain('.pm-panel');
+		const unlisted = found.filter(([s]) => !ROOT.test(s) && !EXCEPTIONS.some((e) => e.selector.test(s)));
+		expect(unlisted.length).toBe(2);
+		const grown = found.find(([s]) => /#bg-canvas/.test(s))!;
+		const ex = EXCEPTIONS[2];
+		expect(propsOf(grown[1]).filter((p) => !ex.onlyDeclares.some((re) => re.test(p)))).toEqual(['opacity']);
 	});
 
-	it('anything a theme animates is gated on prefers-reduced-motion', () => {
-		/* A theme that rains characters down a screen is motion. The gate is
-		   `no-preference` -- declared inside the query rather than declared and
-		   cancelled -- so a reader with the preference set has no animation to
-		   cancel. `tools/browser-verify/routes/themes-state-matrix.mjs` measures
-		   the running and reduced phases in a real browser; this is the cheap
-		   half that reddens with no browser at all. */
+	it('a theme file carries no CSS animation at all: the motion is the canvas, gated in the component', () => {
+		/* The first version of the theme animated .bg-fx's background-position
+		   and gated it on prefers-reduced-motion in this file. That rule is
+		   gone, and the rain is a JS-driven canvas whose gate is measured by
+		   tests/dom/theme-rain-mount.test.ts (no frame scheduled under
+		   `reduce`, a still field painted instead) and by the harness reading
+		   data-motion off the canvas. A CSS animation reappearing here would be
+		   a second, ungated copy of the motion -- so its absence is asserted,
+		   not merely its gating. */
 		for (const [file, css] of Object.entries(themeSource)) {
 			const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
-			const animates = /(^|[\s;{])animation\s*:/m.test(bare);
-			if (!animates) continue;
-			for (const m of bare.matchAll(/(^|[\s;{])animation\s*:\s*([^;]+);/g)) {
-				const decl = m[2].trim();
-				if (/^\s*none\b/.test(decl)) continue;
-				// The declaration must sit inside a no-preference query.
-				const before = bare.slice(0, m.index ?? 0);
-				const lastQuery = before.lastIndexOf('@media (prefers-reduced-motion: no-preference)');
-				const lastClose = before.lastIndexOf('\n}\n');
-				expect(lastQuery, `${file}: ungated \`animation: ${decl}\``).toBeGreaterThan(-1);
-				expect(lastQuery, `${file}: \`animation: ${decl}\` is outside the gate`).toBeGreaterThan(
-					lastClose
-				);
-			}
+			expect(bare, `${file} declares an animation`).not.toMatch(/(^|[\s;{])animation(-name)?\s*:/m);
+			expect(bare, `${file} declares keyframes`).not.toMatch(/@keyframes/);
 		}
 	});
 });

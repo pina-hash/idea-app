@@ -110,7 +110,7 @@
 
 <svelte:head><title>Site theme harness</title></svelte:head>
 
-<div class="harness">
+<main class="harness">
 	<header class="hz">
 		<h1>Site theme: the launcher, and every repainted role on every repainted ground</h1>
 		<ProfileMenu />
@@ -159,7 +159,7 @@
 		<h2>The launcher, unmodified</h2>
 		<AppLauncher onRequireSignIn={() => {}} />
 	</section>
-</div>
+</main>
 
 <style>
 	.harness {
