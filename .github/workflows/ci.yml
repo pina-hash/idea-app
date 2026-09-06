@@ -109,9 +109,50 @@ jobs:
       #   push / pull_request -> '' , which actions/checkout treats as
       #     unspecified and resolves to the ref that triggered the run. It is
       #     not "check out nothing".
+      #
+      # AND `fetch-depth: 0`, WHICH IS NOT A CONVENIENCE. The default is 1: one
+      # commit, and a refspec naming ONLY the ref that triggered the run, so the
+      # checkout carries `refs/remotes/origin/<that ref>` and no sibling branch
+      # ref at all. `tests/apply-migration-guard.test.ts` and
+      # `tests/apply-migration-trace.test.ts` drive the real
+      # `tools/apply-migration.mjs` with `--ref origin/integration`, which
+      # reaches `migrationsOnlyOn` in `tools/deploy-probe.mjs` and asks git to
+      # list `supabase/migrations` on BOTH `origin/main` and that ref. Under the
+      # default the second read has no ref to read, so the tool answers
+      #   REFUSING: the applied set could not be read
+      #   (could not list supabase/migrations on origin/integration).
+      # -- its designed fail-closed path, exit 2, nothing applied, and the only
+      # control standing between a session and the production database. It is
+      # CORRECT, and it made `main` red on 2026-09-06 (run 34060552250, 2 failed
+      # of 6301) while every local run was green, because a local clone has the
+      # sibling refs and a CI checkout does not.
+      #
+      # WHAT IT COSTS, MEASURED against this repository (1,702 commits) rather
+      # than extrapolated -- three clones of each shape from github.com, wall
+      # clock, and the resulting `.git`:
+      #   depth 1 (the old default)   9.80 / 7.77 / 7.73s   161M
+      #   fetch-depth: 0              8.30 / 8.26 / 7.35s   172M
+      #   depth 1 + a targeted
+      #     fetch of integration      9.77 / 9.06 / 9.51s   163M
+      # THE FULL HISTORY IS FREE HERE, AND THE FIRST SINGLE-SHOT READING SAID
+      # OTHERWISE -- one clone each made the full one look 1.3s dearer, which
+      # three runs show is network noise: the two ranges overlap and the full
+      # clone's best is the fastest number in the table. What is real is 11M
+      # more `.git`, and that the "cheaper" targeted fetch is the only shape
+      # that is consistently SLOWER, because a second round trip costs more
+      # than the objects it saves. It also fixes one named ref, where the full
+      # fetch makes every branch readable and cannot go stale the next time a
+      # test names a different one. `deploy.yml` and `integrate.yml` already
+      # both pin `fetch-depth: 0`; this was the last workflow that did not.
+      #
+      # The two tests now REFUSE TO PASS SILENTLY without those refs -- they
+      # assert the precondition first and fail naming the shallow clone -- so
+      # dropping this line does not quietly restore the string-comparison
+      # failure that sent five sessions to read the wrong file.
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || (github.event_name == 'schedule' && 'integration') || '' }}
+          fetch-depth: 0
 
       # adapter-vercel (node_modules/@sveltejs/adapter-vercel/utils.js,
       # resolved via package-lock.json) hard-rejects any Node major outside
@@ -193,11 +234,15 @@ jobs:
       # fast (~1.3s wall including node startup, measured; no embedded
       # Postgres, no network) and deterministic (it reads only committed
       # files and hashes them). It also tries a byte-for-byte `git show`
-      # against the pre-split commit, but that leg is best-effort: this
-      # checkout is shallow (actions/checkout@v4 defaults to fetch-depth 1),
-      # so that commit is normally unreachable here and the script falls back
-      # to the sha256 compare alone, exactly as it does when run locally
-      # against a shallow clone -- this is not a reason it can fail. The only
+      # against the pre-split commit, and THAT LEG NOW RUNS: this step used to
+      # print `git byte compare : unavailable`, because the checkout was
+      # shallow and the pre-split tree was not reachable from it. With
+      # `fetch-depth: 0` above it reports `IDENTICAL against ea9f043b6c`
+      # instead -- measured on a full clone of this tree -- so the step got
+      # strictly stronger for free. It is still best-effort: the script
+      # catches a failed `git show` and falls back to the sha256 compare, so a
+      # checkout that cannot reach that commit is not a reason it can fail.
+      # The only
       # way this step goes red is a genuinely malformed or drifted entry (a
       # retyped `## ` heading, a title that stopped matching, a broken
       # record_order, or the reassembled body itself changing), which is

@@ -273,11 +273,25 @@ section says **A cross-branch check did not answer** on its own line. Holding a
 branch open costs somebody a look; refusing to sweep on a broken read would
 stall the queue on a tool nobody has to have. It can only ever ADD a skip.
 
-**IT IS HERE AND NOT IN A TEST BECAUSE NO BRANCH CAN SEE ANOTHER BRANCH.**
-`ci.yml` checks out one ref, shallow, with no sibling branch refs, so every
-check in this repository that relates two files is green on each side of a
-collision. The sweep is the first moment two branches are in one process at the
-same time. `tools/integrate-gate-proof.sh` cases 76-87 prove it against
+**IT IS HERE AND NOT IN A TEST BECAUSE A BRANCH'S OWN RUN CANNOT ACT ON ANOTHER
+BRANCH.** Every check in this repository that relates two files is green on each
+side of a collision, because each side is a different run over a different tree;
+the sweep is the first moment two branches are in one process at the same time,
+and the first moment anything can HOLD one of them.
+
+**THAT SENTENCE USED TO REST ON THE CHECKOUT AND NO LONGER MAY.** It read
+"`ci.yml` checks out one ref, shallow, with no sibling branch refs", which was
+true until prompt 0094 gave that step `fetch-depth: 0` -- so a CI job can now
+read `origin/**` perfectly well. The reason the sweep lives here is unchanged
+and was never really about visibility: it runs on the MERGE RESULT, it decides
+what merges, and it fails toward merging (above), none of which a test in a
+branch's own run can do. **The checkout had to change** because
+`tests/apply-migration-*.test.ts` drive the real `tools/apply-migration.mjs`
+with `--ref origin/integration`, and a checkout without that ref made the tool
+refuse -- correctly, fail-closed -- while the assertion reported it as a defect
+in the tool. `main` was red for it on 2026-09-06 (run 34060552250).
+
+`tools/integrate-gate-proof.sh` cases 76-87 prove it against
 throwaway repositories with two real `claude/**` branches on a real bare
 remote, including case 82, which reads the merged blob back and confirms git
 really does take that header line silently.
