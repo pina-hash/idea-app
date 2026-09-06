@@ -1955,7 +1955,8 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 // ---------------------------------------------------------------------------
 
 /**
- * Every reason `0145` can refuse with, as a value the client can switch on.
+ * Every reason `0145` -- and `0188`, which added `not_spotify` -- can refuse
+ * with, as a value the client can switch on.
  *
  * A NARROW LIST, CHECKED. An unrecognised `reason` is NOT passed through as a
  * refusal -- it falls to the generic message below, because a string this module
@@ -1964,6 +1965,7 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 const SONG_REFUSALS = new Set<SongRefusal>([
 	'not_a_student',
 	'bad_url',
+	'not_spotify',
 	'url_too_long',
 	'note_too_long',
 	'pending_cap',

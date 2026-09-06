@@ -27,11 +27,19 @@
  * the TYPE as well as of the payload: a component handed a student state cannot
  * render a peer's name, because there is no expression that would produce one.
  *
- * THERE IS NO URL VALIDATION IN THIS MODULE, DELIBERATELY. `_classroom_song_url_ok`
- * is the one implementation of "is this a usable link", and a mirror of it here
- * would be a second copy that can stop agreeing -- the round trip is one cheap
- * RPC and the refusal comes back as `bad_url` with a sentence already written
- * for it. Do not add one.
+ * THERE IS NO URL VALIDATION IN THIS MODULE, DELIBERATELY, AND `0188` ADDING A
+ * SECOND URL RULE DID NOT CHANGE THAT. `_classroom_song_url_ok` is the one
+ * implementation of "is this a usable link" and
+ * `_classroom_song_url_is_spotify` (`0188`) is the one implementation of "does
+ * the school accept this host"; a mirror of either here would be a second copy
+ * that can stop agreeing. The round trip is one cheap RPC and each refusal comes
+ * back as `bad_url` or `not_spotify` with a sentence already written for it.
+ * Do not add one.
+ *
+ * WHAT THE SURFACE MAY SAY, AND WHY THAT IS NOT A MIRROR. The compose form
+ * states the Spotify rule in words BEFORE the paste, because a rule discovered
+ * only by being refused is a rule nobody was told. Stating it is copy; deciding
+ * it is the database's, and no branch here reads a URL.
  */
 
 /** Every state a request can be in. Derived in `0145`, never stored. */
@@ -127,6 +135,7 @@ export type SongQueueState = SongQueueStudentState | SongQueueManagerState;
 export type SongRefusal =
 	| 'not_a_student'
 	| 'bad_url'
+	| 'not_spotify'
 	| 'url_too_long'
 	| 'note_too_long'
 	| 'pending_cap'
@@ -299,6 +308,13 @@ export function songRefusalMessage(refusal: SongRefusal, detail: SongRefusalDeta
 			return 'Song requests are for students in this class.';
 		case 'bad_url':
 			return 'That does not look like a link. Paste the full web address, starting with https://.';
+		case 'not_spotify':
+			// NAMES WHAT IS ACCEPTED, not just what was refused, and names the
+			// `spotify:` URI form explicitly -- that is what the desktop app's
+			// right-click copies, it is not https, and a student holding one needs
+			// to be told which of the two things to copy rather than being told
+			// again that their link is wrong.
+			return 'Class music is Spotify only. Open the song in Spotify, use Share, and paste the link it copies -- it starts with https://open.spotify.com/ (a spotify.link share is fine too). A spotify: address copied from the desktop app is not a web link, so use Share instead.';
 		case 'url_too_long':
 			return `That link is longer than ${detail.max ?? 2000} characters. Try the short share link instead.`;
 		case 'note_too_long':

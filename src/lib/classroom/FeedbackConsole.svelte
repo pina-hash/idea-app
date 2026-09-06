@@ -164,10 +164,23 @@
 		return extras.sort((a, b) => a.key.localeCompare(b.key));
 	}
 
+	/**
+	 * THE ONE LIST, AND EVERY STATUS CONTROL IS DERIVED FROM IT -- the per-row
+	 * buttons, the bulk bar, and the filter tabs below. Adding `spam` (`0188`)
+	 * touched exactly this array, which is the point of it being one.
+	 *
+	 * SPAM IS NOT A DELETE AND ITS UNDO IS THE ROW BESIDE IT. Every row renders
+	 * a button for every status it is not currently in, so a report marked spam
+	 * carries New, Seen and Resolved -- the reversal is the same control, in the
+	 * same place, with no separate restore path to find. That is the whole
+	 * reason this is a status rather than a removal: there is nothing to undo
+	 * FROM, because nothing was destroyed.
+	 */
 	const STATUSES: { id: FeedbackStatus; label: string }[] = [
 		{ id: 'new', label: 'New' },
 		{ id: 'seen', label: 'Seen' },
-		{ id: 'resolved', label: 'Resolved' }
+		{ id: 'resolved', label: 'Resolved' },
+		{ id: 'spam', label: 'Spam' }
 	];
 
 	let filter = $state<FeedbackFilter>({ ...EMPTY_FEEDBACK_FILTER, status: 'new' });
@@ -189,11 +202,16 @@
 	// New first is the working order: the queue exists to be worked through,
 	// and a resolved note is history.
 	const visible = $derived(filterFeedback(rows, filter, statusOf));
-	const counts = $derived({
-		new: rows.filter((r) => statusOf(r) === 'new').length,
-		seen: rows.filter((r) => statusOf(r) === 'seen').length,
-		resolved: rows.filter((r) => statusOf(r) === 'resolved').length
-	});
+	/**
+	 * A COUNT PER STATUS, DERIVED FROM `STATUSES` RATHER THAN SPELLED OUT. The
+	 * three keys used to be written here by hand, which is one of the two places
+	 * a fourth status had to be remembered; now there are none.
+	 */
+	const counts = $derived(
+		Object.fromEntries(
+			STATUSES.map((s) => [s.id, rows.filter((r) => statusOf(r) === s.id).length])
+		) as Record<FeedbackStatus, number>
+	);
 	const roles = $derived(facetValues(rows, rowRole));
 	const sections = $derived(facetValues(rows, rowSection));
 
@@ -411,7 +429,14 @@
 		{/if}
 
 		<div class="filters" role="tablist" aria-label="Status filter">
-			{#each [{ id: 'new' as const, label: `New (${counts.new})` }, { id: 'seen' as const, label: `Seen (${counts.seen})` }, { id: 'resolved' as const, label: `Resolved (${counts.resolved})` }, { id: 'all' as const, label: `All (${rows.length})` }] as f (f.id)}
+			<!--
+				THE TABS ARE `STATUSES` PLUS `all`, in that order, so a status added
+				to the one list gets its tab with nothing else to remember. `all`
+				stays LAST and stays LITERAL: it means every status, spam included,
+				and the export header prints `status: all` for it -- so nothing this
+				console can be pointed at silently omits a row.
+			-->
+			{#each [...STATUSES.map((s) => ({ id: s.id, label: `${s.label} (${counts[s.id]})` })), { id: 'all' as const, label: `All (${rows.length})` }] as f (f.id)}
 				<button
 					type="button"
 					role="tab"
@@ -879,6 +904,19 @@
 	.fb-status.status-seen {
 		color: var(--cyan);
 		border-color: var(--cyan);
+	}
+	/*
+	   SPAM IS AMBER, NOT CRIMSON. `--crimson` is reserved for live/rec/error and
+	   a spam report is neither an error nor an identity -- it is a warning about
+	   the row's contents, which is exactly what `--amber` means in this register.
+	   THE HUE IS NEVER THE ONLY SIGNAL: the chip prints the word, as every other
+	   status chip does, and the row's own buttons say which state it is in.
+	   `resolved` deliberately keeps no rule and falls to the base `--text-2`,
+	   which is what makes a worked-through row the quiet one.
+	*/
+	.fb-status.status-spam {
+		color: var(--amber);
+		border-color: var(--amber);
 	}
 	.fb-page {
 		font-family: var(--font-mono);

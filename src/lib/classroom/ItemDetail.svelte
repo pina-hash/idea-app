@@ -647,12 +647,30 @@
 				are open or shut, so reaching the console costs neither an
 				expansion nor a scroll.
 			-->
+			<!--
+				`aria-controls` ONLY WHILE THE REGION IS THERE, which is a fix to a
+				dangling reference this strip already carried rather than anything
+				this bundle introduced: `#item-inspector-body` is inside
+				`{#if inspectorOpen}`, so a collapsed toggle was naming an element
+				that is not in the document. The browser pass reports it as "the
+				toggle names no real region", and a reader told there is a region
+				and sent nowhere is worse off than one told nothing.
+
+				NOT THE `hidden` ANSWER THE EDIT CONTROL BESIDE IT TAKES, and the
+				difference is cost rather than taste. That region is a paragraph and
+				a composer nobody has opened -- free to leave in the document. This
+				one is the WHOLE inspector: the deck panel, the check-in manager,
+				the rubric builder, the spec importer and the revision history, each
+				with its own effects and transports. Mounting all of it hidden on
+				every item page a manager opens, to resolve one id, is a behaviour
+				change well past what this item asked for.
+			-->
 			<div class="insp-head">
 				<button
 					type="button"
 					class="insp-strip"
 					aria-expanded={inspectorOpen}
-					aria-controls="item-inspector-body"
+					{...inspectorOpen ? { 'aria-controls': 'item-inspector-body' } : {}}
 					data-testid="inspector-toggle"
 					onclick={toggleItemInspector}
 				>
@@ -689,14 +707,37 @@
 				{#if editable || quickGradeHref}
 					<span class="insp-quick">
 						{#if editable}
+							<!--
+								IT SAYS WHAT IT EDITS, AND IT SAYS WHAT IT OPENS.
+
+								This control and the Instructor tools toggle beside it are
+								adjacent, are the same size, and BOTH open a panel below this
+								strip -- and a bare "Edit" said neither which of the two
+								panels it opens nor what it edits, so the pair read as two
+								halves of one thing. Two changes, both one attribute or one
+								word wide, and no rearrangement of the strip:
+
+								  * "Edit post" names its object. The toggle names a
+								    collection of tools; this names the thing on the page.
+								  * `aria-expanded` + `aria-controls` give it the disclosure
+								    contract the toggle already has, pointing at a DIFFERENT
+								    region id -- so the two are announced as controlling two
+								    regions rather than as two unlabelled buttons in a row.
+								    `item-edit-direct` is the wrapper this button's editor
+								    actually appears in, which is why it is rendered whenever
+								    `editable` holds rather than only while `editing` does:
+								    an `aria-controls` pointing at nothing is worse than none.
+							-->
 							<button
 								type="button"
 								class="btn secondary tiny insp-quick-btn"
 								data-testid="item-edit-toggle"
+								aria-expanded={editing}
+								aria-controls="item-edit-direct"
 								disabled={busy}
 								onclick={() => (editing = !editing)}
 							>
-								{editing ? 'Close editor' : 'Edit'}
+								{editing ? 'Close editor' : 'Edit post'}
 							</button>
 						{/if}
 						{#if quickGradeHref}
@@ -705,8 +746,29 @@
 					</span>
 				{/if}
 			</div>
-			{#if editable && (alsoIn.length || editing)}
-				<div class="insp-edit" data-testid="item-edit-direct">
+			<!--
+				THE REGION EXISTS WHENEVER THE CONTROL DOES, and is HIDDEN rather
+				than removed when there is nothing in it.
+
+				This used to be `{#if editable && (alsoIn.length || editing)}`, and
+				the `aria-controls` added beside it pointed at an element that was
+				not in the document until somebody pressed Edit -- which is worse
+				than no attribute at all: a reader is told there is a region and
+				sent nowhere. The browser pass caught it (`Edit names no real
+				region: item-edit-direct`), which is what that probe is for.
+
+				`hidden` is the same answer `$lib/Disclosure` gives: the region is
+				hidden in CSS, never removed, so the id always resolves and a
+				collapsed disclosure is the ordinary ARIA shape. `[hidden]` takes no
+				box, so the layout is byte-identical to the removed version.
+			-->
+			{#if editable}
+				<div
+					class="insp-edit"
+					id="item-edit-direct"
+					data-testid="item-edit-direct"
+					hidden={!(alsoIn.length || editing)}
+				>
 					{#if alsoIn.length}
 						<p class="also-line">
 							Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy,
