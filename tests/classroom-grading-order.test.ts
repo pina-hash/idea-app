@@ -224,7 +224,11 @@ describe('the undated boundary is drawn only where there is one', () => {
 // ---------------------------------------------------------------------------
 
 function renderPanel(standings: AssignmentStanding[]): string {
-	return render(GradesPanel as never, { props: { section: SECTION, standings } }).body;
+	// No cast. `as never` type-checks the CALL and then makes the props object
+	// unassignable, which is two errors rather than none -- and `svelte-check`
+	// covers `tests/` too, so it is a baseline move and not a local
+	// inconvenience.
+	return render(GradesPanel, { props: { section: SECTION, standings } }).body;
 }
 
 /** Rendered order, read off the titles in the order they appear in the markup. */
