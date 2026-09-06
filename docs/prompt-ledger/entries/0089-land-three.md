@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: the merge of three finished `claude/**` branches into `main`, and one push. Changes no file's content beyond conflict resolution.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0189
-- Status: issued
+- Status: pushed
 - Branch: claude/land-three-branches-deploy-go0ji5
 - Notes: Three branches finished after prompt 0085's sweep and are unmerged:
 
