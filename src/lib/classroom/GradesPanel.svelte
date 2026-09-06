@@ -10,6 +10,14 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import { formatSectionLabel } from '$lib/section-label';
+	import {
+		GRADING_ORDER_DEFAULT,
+		GRADING_ORDER_OPTIONS,
+		gradingOrderSays,
+		orderStandings,
+		undatedBoundary,
+		type GradingOrderKey
+	} from '$lib/classroom/grading-order';
 
 	/**
 	 * Every assignment in one class, with where its grading stands and a direct
@@ -47,17 +55,26 @@
 	} = $props();
 
 	/**
-	 * Anything waiting first, then by due date. A teacher opening this page is
-	 * asking one question, and the answer should be at the top of it.
+	 * THE ORDER LIVES IN `grading-order.ts`, NOT HERE, and the reason is in that
+	 * module's header: the sort this replaces was reported as "kinda random",
+	 * and the claim "the list is in due order" has to be assertable without
+	 * rendering anything.
+	 *
+	 * THE CONTROL IS PER VISIT AND IS NOT REMEMBERED, which is a real cost and
+	 * is stated rather than hidden: a teacher who prefers the marking queue
+	 * picks it again next time they open the tab. Persisting it means a new
+	 * namespace in `profiles.preferences` and a write path from this page, which
+	 * is a larger change than the one the report asked for; the DEFAULT is the
+	 * half that matters and the default is now the date.
 	 */
-	const ordered = $derived(
-		[...standings].sort(
-			(a, b) =>
-				(b.awaiting > 0 ? 1 : 0) - (a.awaiting > 0 ? 1 : 0) ||
-				b.awaiting - a.awaiting ||
-				Date.parse(b.item.due_at ?? '0') - Date.parse(a.item.due_at ?? '0')
-		)
-	);
+	let orderKey = $state<GradingOrderKey>(GRADING_ORDER_DEFAULT);
+	const ordered = $derived(orderStandings(standings, orderKey));
+	/**
+	 * Where the undated rows begin, or -1. Only ever drawn under `due`: under
+	 * `queue` the list is not in date groups at all, so a "No due date" heading
+	 * there would be labelling a boundary that does not exist.
+	 */
+	const undatedFrom = $derived(orderKey === 'due' ? undatedBoundary(ordered) : -1);
 	const totalAwaiting = $derived(ordered.reduce((n, s) => n + s.awaiting, 0));
 </script>
 
@@ -90,8 +107,41 @@
 		</section>
 	{:else}
 		<section class="card">
+			<!--
+				THE LIST SAYS WHAT IT IS SORTED BY. That sentence is half the fix:
+				an order nobody states is an order a reader has to infer from the
+				rows, and inferring wrongly is what "kinda random" was. Every
+				option carries a visible WORD, never a glyph or a direction arrow.
+			-->
+			<div class="order-bar">
+				<span class="order-says" data-testid="grades-order-says">{gradingOrderSays(orderKey)}</span>
+				<span class="order-controls" role="group" aria-label="Sort assignments">
+					{#each GRADING_ORDER_OPTIONS as opt (opt.key)}
+						<button
+							type="button"
+							class="order-btn tap-44"
+							class:is-on={orderKey === opt.key}
+							aria-pressed={orderKey === opt.key}
+							data-testid={`grades-order-${opt.key}`}
+							onclick={() => (orderKey = opt.key)}
+						>
+							{opt.label}
+						</button>
+					{/each}
+				</span>
+			</div>
 			<ul class="grade-rows">
-				{#each ordered as s (s.item.id)}
+				{#each ordered as s, i (s.item.id)}
+					{#if i === undatedFrom}
+						<!--
+							The boundary between the two groups a due sort produces, drawn
+							ONLY when both groups exist (`undatedBoundary` answers -1
+							otherwise). Without it the list reads as dates descending and
+							then, with no explanation, rows carrying no date at all --
+							which is the moment the order looks random again.
+						-->
+						<li class="group-head" data-testid="grades-undated-head">No due date</li>
+					{/if}
 					<li class="grade-row" data-testid="grade-row">
 						<a class="grade-main" href={`${basePath}/${section.id}/item/${s.item.id}/grade`}>
 							<span class="grade-text">
@@ -171,10 +221,61 @@
 	.empty-state {
 		padding: 0.4rem 0;
 	}
+	.order-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		padding-bottom: 0.4rem;
+		border-bottom: 1px solid var(--boundary);
+	}
+	.order-says {
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		color: var(--text-2);
+	}
+	.order-controls {
+		display: flex;
+		gap: 0.3rem;
+		flex-wrap: wrap;
+	}
+	/* 44px via `.tap-44` in the markup rather than a height here, so the floor is
+	   the one mechanism the rest of the app uses and a later sweep can read the
+	   claim off the element. This panel declares no density class, so it is
+	   student-facing for the purpose of IDEA_INTERFACE_STANDARDS 10 and clears
+	   44px at every width -- the same reasoning `.grade-open` beside it carries. */
+	.order-btn {
+		display: inline-flex;
+		align-items: center;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		background: none;
+		color: var(--text-2);
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		padding: 0 0.7rem;
+		cursor: pointer;
+	}
+	.order-btn.is-on {
+		color: var(--green);
+		border-color: var(--green);
+	}
 	.grade-rows {
 		list-style: none;
 		margin: 0;
 		padding: 0;
+	}
+	/* The word is the signal, not the rule under it: a heading that reads only as
+	   a line would be a separator, and a separator does not say "no due date". */
+	.group-head {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
+		padding: 0.7rem 0.2rem 0.25rem;
+		border-top: 1px solid var(--boundary);
 	}
 	.grade-row {
 		display: flex;
