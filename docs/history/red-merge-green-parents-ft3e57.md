@@ -305,6 +305,20 @@ call.
   `perf_avoid_nested_class`. Baseline exactly.
 - `bash tools/integrate-gate-proof.sh`: **passed 81, failed 0, ran 81 of 81**.
 - `npx vitest run tests/workflows.test.ts`: **57 passed**.
+- `npm test`, the full suite, run at **01:28-01:32 PDT on 2026-09-06**
+  (255.69s): **290 files, 5,930 tests, 4 failed, 288 files passed**. The four
+  are the inherited ones named below and none of them reads a file this bundle
+  touches. The arithmetic is worth recording: prompt 0067 reported 290 files
+  and **5,927** tests on its own branch, this bundle adds exactly **3** tests to
+  `tests/workflows.test.ts`, and 5,927 + 3 = 5,930. The file count is unchanged
+  because no test file was added.
+- **Negative controls, both run and both restored byte-identically** (copied
+  with `cp` first and md5-compared after, never `git checkout --`):
+  renaming `merged_suite_marker` throughout the workflow makes the harness print
+  `FATAL: cut nothing between merged_suite_marker:begin/end` and **exit 1**
+  rather than passing a file it could not read; deleting the one call site
+  reddens `tests/workflows.test.ts` at exactly the two new assertions (2 failed,
+  55 passed) and nothing else.
 - `node tools/browser-verify/readme-counts.mjs --static --check`: the static
   region agrees with the tree. No route spec is added by this bundle, so no
   counts regeneration was needed.
@@ -332,7 +346,14 @@ call.
 - **`tests/derived-numbers.test.ts` and `tests/gauntlet-doc.test.ts` are red on
   this branch and were red before it.** Four assertions, inherited from
   `origin/main`, fixed on `claude/four-red-integration-tests-62a7ba` which has
-  not landed. This bundle changes no file either test reads.
+  not landed. This bundle changes no file either test reads, and the four were
+  measured red on the pristine tree before the first edit.
+- **CLAUDE.md is not updated**, and it should be: the section on `claude/**`
+  branches vanishing describes what the sweep does, and "a red Integrate run may
+  now mean the merged tree failed the suite, with the assertions in its summary"
+  is a rule a future unrelated session needs. `CLAUDE.md` is outside this
+  bundle's owned file surface, so it was left alone rather than edited across a
+  boundary. It is one paragraph and wants its own small bundle.
 
 ## Deferred, and named
 

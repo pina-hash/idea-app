@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `.github/workflows/integrate.yml`, `.github/workflows/README.md`, `tools/integrate-gate-proof.sh`, `tests/workflows.test.ts`, `docs/prompt-ledger/entries/0075-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0185
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/red-merge-green-parents-ft3e57`
 - Notes: Prompt 0067 cleared four tests that had been red on `integration`
   for a day and cost five sessions an audit each. Its diagnosis of the
   `gauntlet-doc` half is the reason for this bundle.
