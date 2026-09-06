@@ -1,4 +1,4 @@
--- 0187_tournament_thumbs_no_anon_listing.sql
+-- 0189_tournament_thumbs_no_anon_listing.sql
 --
 -- STOP AN ANONYMOUS CALLER ENUMERATING `tournament-thumbs`. The bucket stays
 -- PUBLIC and every thumbnail and banner the spectator bracket shows keeps
@@ -255,7 +255,7 @@ declare
 	v_leaving integer;
 begin
 	if not exists (select 1 from storage.buckets where id = 'tournament-thumbs') then
-		raise exception '0187: the tournament-thumbs bucket does not exist -- apply 0062 first.';
+		raise exception '0189: the tournament-thumbs bucket does not exist -- apply 0062 first.';
 	end if;
 
 	-- 0064 is a hard dependency rather than a nice-to-have: the anon policy
@@ -263,7 +263,7 @@ begin
 	-- at creation time. Refusing here with a sentence beats failing thirty
 	-- lines down with `relation does not exist`.
 	if to_regclass('public.tournament_entry_styles') is null then
-		raise exception '0187: public.tournament_entry_styles does not exist -- apply 0064 first. Without it an image banner would be delisted along with the orphans.';
+		raise exception '0189: public.tournament_entry_styles does not exist -- apply 0064 first. Without it an image banner would be delisted along with the orphans.';
 	end if;
 
 	select count(*) into v_total
@@ -288,9 +288,9 @@ begin
 
 	v_leaving := v_total - v_named;
 
-	raise notice '0187: tournament-thumbs holds % object(s); % of them are named by a row an anonymous caller can already read (tournament_entries.thumbnail_url or an image tournament_entry_styles.background_value).',
+	raise notice '0189: tournament-thumbs holds % object(s); % of them are named by a row an anonymous caller can already read (tournament_entries.thumbnail_url or an image tournament_entry_styles.background_value).',
 		v_total, v_named;
-	raise notice '0187: an anonymous caller could list % object(s) before this file and can list % after -- % object(s) leave the anonymous set. Those are ORPHANS: uploads no row names, left behind by an abandoned registration or a replaced banner. They are NOT deleted, and each remains readable by its EXACT KEY through /object/public/, which is 0062''s accepted trade and not what this file is about.',
+	raise notice '0189: an anonymous caller could list % object(s) before this file and can list % after -- % object(s) leave the anonymous set. Those are ORPHANS: uploads no row names, left behind by an abandoned registration or a replaced banner. They are NOT deleted, and each remains readable by its EXACT KEY through /object/public/, which is 0062''s accepted trade and not what this file is about.',
 		v_total, v_named, v_leaving;
 end $$;
 
@@ -361,7 +361,7 @@ begin
 		and (roles::text[] && array['public', 'anon'])
 		and qual not like '%tournament_entries%';
 	if v_unscoped <> 0 then
-		raise exception '0187: % select policy/policies still admit public or anon to tournament-thumbs without asking a tournament table.', v_unscoped;
+		raise exception '0189: % select policy/policies still admit public or anon to tournament-thumbs without asking a tournament table.', v_unscoped;
 	end if;
 
 	select count(*) into v_anon
@@ -373,7 +373,7 @@ begin
 		and qual like '%tournament_entries%'
 		and qual like '%tournament_entry_styles%';
 	if v_anon <> 1 then
-		raise exception '0187: expected exactly one scoped anon read policy naming both tournament tables, found %.', v_anon;
+		raise exception '0189: expected exactly one scoped anon read policy naming both tournament tables, found %.', v_anon;
 	end if;
 
 	select count(*) into v_authed
@@ -383,7 +383,7 @@ begin
 		and cmd = 'SELECT'
 		and roles::text[] = array['authenticated'];
 	if v_authed <> 1 then
-		raise exception '0187: expected exactly one authenticated read policy on tournament-thumbs, found %.', v_authed;
+		raise exception '0189: expected exactly one authenticated read policy on tournament-thumbs, found %.', v_authed;
 	end if;
 
 	-- (b) 0062's three own-folder write policies are untouched.
@@ -396,7 +396,7 @@ begin
 			'tournament thumbs delete own folder'
 		);
 	if v_writes <> 3 then
-		raise exception '0187: expected 0062''s three tournament-thumbs write policies, found %.', v_writes;
+		raise exception '0189: expected 0062''s three tournament-thumbs write policies, found %.', v_writes;
 	end if;
 
 	-- (c) The delegation only works if `anon` may actually SELECT the tables the
@@ -410,7 +410,7 @@ begin
 		select 1 where has_table_privilege('anon', 'public.tournament_entry_styles', 'SELECT')
 	) t;
 	if v_grants <> 2 then
-		raise exception '0187: anon holds SELECT on % of the 2 tournament tables this policy delegates to. Without both grants the scoped policy admits nothing and every spectator thumbnail disappears from the listing path.', v_grants;
+		raise exception '0189: anon holds SELECT on % of the 2 tournament tables this policy delegates to. Without both grants the scoped policy admits nothing and every spectator thumbnail disappears from the listing path.', v_grants;
 	end if;
 
 	-- (d) The bucket row is exactly as this file found it. Asserted rather than
@@ -419,11 +419,11 @@ begin
 	select public, file_size_limit into v_public, v_limit
 	from storage.buckets where id = 'tournament-thumbs';
 	if v_public is distinct from true then
-		raise exception '0187: tournament-thumbs is not public (public = %). This file does not flip that flag; something else did, and the anonymous read path is now the scoped policy alone.', v_public;
+		raise exception '0189: tournament-thumbs is not public (public = %). This file does not flip that flag; something else did, and the anonymous read path is now the scoped policy alone.', v_public;
 	end if;
 
-	raise notice '0187: tournament-thumbs -- 0 unscoped public/anon select policies, 1 scoped anon read (via tournament_entries + tournament_entry_styles), 1 authenticated read, 3 own-folder write policies intact, anon SELECT held on both delegated tables.';
-	raise notice '0187: bucket row untouched by this file -- public = %, file_size_limit = %.', v_public, v_limit;
-	raise notice '0187: this was the LAST bucket in the project an anonymous caller could enumerate. avatars (0181) and foundry-covers (0183) are private; maps-media (0186) and this one are public with a scoped anon read.';
-	raise notice '0187: OPEN, with an owner (Mr. Pina): any signed-in account can still list this bucket in full; every orphan is still readable by its exact key through /object/public/ and is still stored; and nothing sweeps an abandoned upload. Deleting orphaned bytes is its own bundle.';
+	raise notice '0189: tournament-thumbs -- 0 unscoped public/anon select policies, 1 scoped anon read (via tournament_entries + tournament_entry_styles), 1 authenticated read, 3 own-folder write policies intact, anon SELECT held on both delegated tables.';
+	raise notice '0189: bucket row untouched by this file -- public = %, file_size_limit = %.', v_public, v_limit;
+	raise notice '0189: this was the LAST bucket in the project an anonymous caller could enumerate. avatars (0181) and foundry-covers (0183) are private; maps-media (0186) and this one are public with a scoped anon read.';
+	raise notice '0189: OPEN, with an owner (Mr. Pina): any signed-in account can still list this bucket in full; every orphan is still readable by its exact key through /object/public/ and is still stored; and nothing sweeps an abandoned upload. Deleting orphaned bytes is its own bundle.';
 end $$;

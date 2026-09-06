@@ -1,8 +1,8 @@
 ---
-title: "The last enumerable bucket: `tournament-thumbs` keeps its public flag and loses its listing, and the residue turns out to be orphans only (`claude/tournament-thumbs-listing-psuleu`, migration 0187)"
+title: "The last enumerable bucket: `tournament-thumbs` keeps its public flag and loses its listing, and the residue turns out to be orphans only (`claude/tournament-thumbs-listing-psuleu`, migration 0189)"
 date: 2026-09-06
 branches: [claude/tournament-thumbs-listing-psuleu]
-migrations: ["0187"]
+migrations: ["0189"]
 subsystems: ["tournaments", "storage buckets", "browser-verify harness"]
 ---
 
@@ -121,7 +121,7 @@ always accepted an arbitrary external URL (0062's own comment says "Public URL o
 a path in the public 'tournament-thumbs' bucket"), such a row names no object in
 this bucket, and an unmatched row costs a stranger a listing entry rather than
 costing a spectator a picture -- the `<img>` reads `thumbnail_url` and goes to
-`/object/public/`, which 0187 does not touch.
+`/object/public/`, which 0189 does not touch.
 
 ## A3 -- who renders these
 
@@ -162,7 +162,7 @@ the read, it BLANKS it.
 Booted the full chain (every file in `supabase/migrations`, in order, over the
 stub plus `full-chain-fixture-completion.sql`) plus 0186 from
 `origin/claude/maps-media-bucket-he0wnn`, and read `storage.buckets` and
-`pg_policies` directly. Sixteen buckets. **State BEFORE 0187:**
+`pg_policies` directly. Sixteen buckets. **State BEFORE 0189:**
 
 | bucket | `public` | SELECT policies | admitting anon/public | scoped |
 |---|---|---|---|---|
@@ -190,7 +190,7 @@ every list to every client role while `/object/public/<key>` still serves a
 known key. Public and listable are different properties and this is the pair
 that shows it.
 
-**After 0187 no bucket in the project admits an unscoped anonymous read.** Every
+**After 0189 no bucket in the project admits an unscoped anonymous read.** Every
 remaining anon-admitting policy is scoped to a row the caller can already read.
 
 ## A6 -- the counts block
@@ -236,7 +236,7 @@ identity, not off the prose:
 
 ## B1 -- what was built
 
-`supabase/migrations/0187_tournament_thumbs_no_anon_listing.sql`. The public flag
+`supabase/migrations/0189_tournament_thumbs_no_anon_listing.sql`. The public flag
 is left alone and nothing is written to `storage.buckets`. The bracket keeps
 working with no session, which was the whole constraint.
 
@@ -259,7 +259,7 @@ object back.
 There is no unpublished entry (above), so the question lands on the ORPHAN, and
 the answer is in the migration header in as many words: **an orphan is delisted,
 not deleted, and remains readable by its EXACT KEY through `/object/public/`.**
-That is 0062's accepted trade. 0187 sweeps nothing -- a migration that deleted
+That is 0062's accepted trade. 0189 sweeps nothing -- a migration that deleted
 student-uploaded bytes on the strength of a string match is the one thing worse
 than the exposure -- and the test asserts both halves: four objects still in
 `storage.objects` afterwards, and `buckets.public` still true.
@@ -268,13 +268,13 @@ than the exposure -- and the test asserts both halves: four objects still in
 
 1. **Deploy the app half** (this branch's `src/` changes: the shared thumbnail
    decision and the two components' fault tiles).
-2. **Apply `0187` by hand** in the Supabase SQL editor.
+2. **Apply `0189` by hand** in the Supabase SQL editor.
 
 **Either order is safe, and that is measured rather than hoped.** The 0071
 finding holds here for the same reason: the read path does not move.
 `getPublicUrl()` builds the identical URL before and after, and
 `/object/public/` is governed by the bucket flag, which this file leaves at
-`true`. So applying 0187 against the currently deployed app breaks nothing, and
+`true`. So applying 0189 against the currently deployed app breaks nothing, and
 deploying the app half against an un-applied database breaks nothing.
 
 App first is still the order to take, for the smaller reason: the app half is
@@ -295,7 +295,7 @@ create policy "tournament thumbs public read" on storage.objects
 
 ### Cold apply steps
 
-1. `git pull` on `main` so `supabase/migrations/0187_*.sql` is present.
+1. `git pull` on `main` so `supabase/migrations/0189_*.sql` is present.
 2. Paste the whole file into the Supabase SQL editor and run it. It refuses if
    the bucket is missing (apply 0062), if `tournament_entry_styles` is missing
    (apply 0064), if any unscoped public/anon select policy survives, if 0062's
@@ -403,8 +403,41 @@ recurring state and tells you what to do about it. Measured this session:
 before this one did exactly what the first paragraph forbids. Whichever sentence
 is meant to govern, they cannot both stand; the honest repair is probably to
 narrow the first to what it is actually protecting ("a migration is not merged
-to `main` before it is applied, and the number is taken across every ref at
-commit time") rather than to keep a rule the last two bundles have not followed.
+to `main` before it is applied") rather than to keep a rule the last two bundles
+have not followed.
+
+**AND THE OBVIOUS REPLACEMENT CLAUSE IS ITSELF BROKEN, WHICH THIS SESSION FOUND
+OUT BY BEING RENUMBERED.** An earlier draft of this finding proposed adding "and
+the number is taken across every ref at commit time" to that repair -- which is
+what the prompt commissioning this bundle already says, and what this session
+did. **It does not work.** This file was pushed as `0187` and `0187` was taken by
+`claude/duplicate-drafts-count-wzworl` while it was in flight; it is now `0189`,
+stated rather than derived, with `0188` also gone. That was reported as the sixth
+such collision in a single day.
+
+The rule has no lock in it. Every concurrent session reads the same refs,
+computes the same "next free" number, and pushes; whoever pushes second is wrong
+and does not find out until somebody tells them. So a `CLAUDE.md` sentence
+promising that a cross-ref check yields a safe number would be teaching a
+procedure that has now failed six times in a day, and adding it would make the
+file MORE wrong rather than less.
+
+**What the file should carry instead is the failure, not a procedure**, because
+this bundle cannot fix the allocation problem and should not pretend to:
+
+> **A MIGRATION NUMBER CANNOT BE ALLOCATED BY LOOKING.** "The next free number
+> across every ref" is what every concurrent session computes, so they all
+> compute the same one and the second to push collides -- six times on
+> 2026-09-06 alone. There is no lock and this file cannot invent one. Until
+> something allocates numbers centrally, a session takes the number it is GIVEN
+> where one is given, expects to be renumbered where it is not, and writes its
+> migration so a renumber is a `git mv` plus a `sed` -- which means the number
+> appears only in the filename and in the file's own `raise` prefixes, never in
+> a table name, a policy name, a function name or a test's expected value.
+
+That last clause is the only part a session controls, and it is what made this
+renumber a two-minute mechanical change with the whole suite green afterwards
+rather than a rewrite.
 
 **6. `CLAUDE.md` says nothing about the four bucket-closing migrations.** Not a
 stale sentence but a missing one, and the whole reason this bundle had to
@@ -414,7 +447,7 @@ material:
 > **NO BUCKET IN THIS PROJECT ADMITS AN UNSCOPED ANONYMOUS READ, AND THAT TOOK
 > FOUR MIGRATIONS.** `avatars` (0181) and `foundry-covers` (0183) are PRIVATE
 > with a proxy route in front. `maps-media` (0186) and `tournament-thumbs`
-> (0187) stay PUBLIC, because the surfaces that render them are signed-out on
+> (0189) stay PUBLIC, because the surfaces that render them are signed-out on
 > purpose, and instead scope the `anon` SELECT policy to keys a row the caller
 > can already read -- so the storage listing mirrors the row read instead of
 > being a second, wider door. **The bucket flag and the select policy govern
@@ -426,7 +459,7 @@ material:
 > are different properties. **A scoped policy delegates and never restates**: the
 > subquery is evaluated as the QUERYING role, so it is filtered by the owning
 > table's own RLS and narrows automatically when that table does. A new public
-> bucket copies 0186 or 0187; a new one that does not is the fifth of these.
+> bucket copies 0186 or 0189; a new one that does not is the fifth of these.
 
 ### Does `CLAUDE.md` need a check like 0060's `docs/GAUNTLET.md` one?
 
@@ -471,6 +504,16 @@ failures across 3 files**; after `verify:counts` and `verify:readme` that is
 failures. Adding a route spec without regenerating is exactly what that file is
 built to redden, and B7 cleared it.
 
+**RE-RUN AFTER THE 0187 -> 0189 RENUMBER, at 02:02 PDT: byte-for-byte the same
+result** -- 292 files, 5959 tests, the same 3 failures, `svelte-check` still 0
+errors / 37 warnings / 31-5-1. The renumber touched the filename, the file's own
+`raise` prefixes, one test constant and the prose; it moved no number any
+assertion reads. The browser README's regions are unchanged by it too (no route
+spec and no `/dev` page moved), so its measured region still records the run on
+`675dc1b` -- which the README's own prose already calls a weak signal, and
+`derived-numbers` passes because what it actually compares is the covered set
+against the tree.
+
 **PRE-EXISTING ON `main`, NOT THIS BUNDLE'S (2), and the prompt predicted them:**
 `tests/gauntlet-doc.test.ts` -- "agrees with docs/GAUNTLET.md and
 docs/GAUNTLET-DESIGN.md" and "covers every GAUNTLET migration in the tree".
@@ -488,43 +531,76 @@ is that one line plus `tools/browser-verify/README.md` plus its own records.
 **INTRODUCED BY THIS BRANCH, AND IT IS A TRUE STATEMENT ABOUT THE TREE (1):**
 `tests/db/migration-0177-tombstone.test.ts` -- "the migration series is
 contiguous, with 0177 in it". This branch's `supabase/migrations/` runs
-`... 0183, 0184, 0185, 0187` and the walk reports a hole at **186**.
+`... 0183, 0184, 0185, 0189` and the walk reports holes at **186, 187, 188**.
 
-**The hole is real and the number is still right.** 0186 is taken: it exists as
-`0186_maps_media_no_anon_listing.sql` on
-`origin/claude/maps-media-bucket-he0wnn` and on no other ref, `main` and
-`integration` included. Taking 186 would collide with a real migration; taking
-188 would leave two holes. So 187 is the only correct answer under "the next free
-number verified across every ref at commit time", and the failing assertion is
-reporting a fact about the repository's cross-branch state rather than a defect
-in this file. `origin/claude/maps-media-bucket-he0wnn` itself is contiguous
-through 0186 and does not fail this test, which is what confirms the direction of
-the dependency.
+### The number was 0187 and it collided, which is the finding
 
-**It clears the moment 0186 lands on `main` or `integration`, and nothing this
-bundle may do clears it sooner.** 0186 is READ-ONLY to this bundle, so carrying
-the file across, cherry-picking it, or merging that branch in were all declined
-rather than overlooked -- each would take ownership of another session's work and
-would conflict when that branch integrates. Merging THIS migration to `main`
-would make it worse, not better: `main` would then read `0185, 0187` and go red
-itself.
+**This file was written, tested, committed and pushed as
+`0187_tournament_thumbs_no_anon_listing.sql`, and 0187 was taken while it was in
+flight.** `claude/duplicate-drafts-count-wzworl` pushed
+`0187_classroom_duplicate_drafts.sql`. It was reported as the **sixth such
+collision in one day**, and this session was told to renumber to **0189**, with
+0188 already taken by `song_spotify_and_feedback_spam` on
+`instructor-requests-surfaces-j2dfjc`. **0189 is STATED, not derived** -- this
+session was told not to re-check whether it is free, and did not, because the
+check is what failed: the number was verified across every ref at commit time
+and was still wrong minutes later.
+
+**That is worth writing down as more than a renumber.** "Take the next free
+number verified across every ref AT COMMIT TIME" is not a rule that can work
+under concurrent sessions. It has no lock in it: every session reads the same
+refs, computes the same answer, and pushes. Six sessions in one day found that
+out independently. Nothing in this bundle fixes it and nothing in this bundle
+should -- it is a repository-wide allocation problem, and the honest note is that
+the procedure is the defect rather than any of the six sessions.
+
+### What the holes are, and they are not all the same kind
+
+The renumber makes the finding SIMPLER rather than worse, and the three holes
+have two different explanations:
+
+- **186 is an ABANDONED hole from this branch's point of view**:
+  `0186_maps_media_no_anon_listing.sql` exists on
+  `origin/claude/maps-media-bucket-he0wnn` and on no other ref, `main` and
+  `integration` included. That branch is contiguous through 0186 and does not
+  fail this test, which is what confirms the direction of the dependency.
+- **187 and 188 are LANDED-ELSEWHERE**: `0187_classroom_duplicate_drafts.sql`
+  and `0188_song_spotify_and_feedback_spam.sql` are real files on
+  `claude/duplicate-drafts-count-wzworl` and
+  `instructor-requests-surfaces-j2dfjc`. **Not verified from this container** --
+  they are taken on the word of the instruction that renumbered this file, which
+  is the whole point of the number being stated rather than derived.
+
+**0189 is contiguous behind them.** Once all four branches land, the series reads
+`... 0185, 0186, 0187, 0188, 0189` with no hole at all, and this assertion goes
+green on its own with nothing to fix.
+
+**The assertion is left exactly as it is, for the second time in this session.**
+It is reporting a true fact about a tree mid-integration, and the right repair is
+not here: **prompt 0084 is teaching it to tell a claimed hole from an abandoned
+one**, which is the distinction the three holes above make concrete. Carrying,
+cherry-picking or merging another session's migration file to close a hole was
+declined for the same reason it was declined before the renumber -- each takes
+ownership of another session's work and conflicts when that branch integrates.
+Merging THIS migration to `main` alone would make it worse, not better: `main`
+would then read `0185, 0189` and go red itself.
 
 **So this branch is deliberately left red on one assertion, and it is named here
 rather than left to be found.** Since CI is already red on `main` for the
 gauntlet-doc pair, `integrate.yml` (which merges only on green) is not merging
-anything at present anyway; landing 0067's branch and 0071's branch clears all
-three of these together.
+anything at present anyway; landing 0067's branch and the three migration
+branches clears all of it together.
 
 ## What was NOT verified
 
 - **The live Supabase project.** Nothing in this container can reach it; prompt
   0073 established that the egress proxy accepts a CONNECT to 5432 and then
   carries no bytes. Every count above is from the embedded fixture, and **the
-  orphan count on production is unknown and will only be known when 0187's
+  orphan count on production is unknown and will only be known when 0189's
   census notice prints.**
 - **Whether `/storage/v1/object/public/<bucket>/<key>` consults RLS at all.** No
   Docker daemon, no Supabase CLI, so no running storage-api. 0183's header states
-  it does not; that is cited, not re-measured. 0187 is written to be safe under
+  it does not; that is cited, not re-measured. 0189 is written to be safe under
   both answers -- the set its policy admits and the set the bracket renders are
   the same set by construction -- which is why, unlike decision 17's proposed
   `to authenticated` narrowing, it does not depend on the answer.

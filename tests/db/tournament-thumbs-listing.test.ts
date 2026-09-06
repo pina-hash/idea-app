@@ -48,7 +48,7 @@ const CHAIN = [
 ] as const;
 
 const MIGRATION_0064 = 'supabase/migrations/0064_tournament_entry_styles.sql';
-const MIGRATION_0187 = 'supabase/migrations/0187_tournament_thumbs_no_anon_listing.sql';
+const MIGRATION_0189 = 'supabase/migrations/0189_tournament_thumbs_no_anon_listing.sql';
 
 /** The grants a hosted Supabase project carries on the storage schema. */
 async function grantLikeProduction(d: TestDb) {
@@ -253,9 +253,9 @@ describe('A1: the two doors, measured before anything is changed', () => {
 // B1 -- the migration, and what it actually changes.
 // ---------------------------------------------------------------------------
 
-describe('B1: 0187 closes the listing and leaves the public flag alone', () => {
+describe('B1: 0189 closes the listing and leaves the public flag alone', () => {
 	test('the migration applies, and re-applies (idempotence)', async () => {
-		const text = readFileSync(MIGRATION_0187, 'utf8');
+		const text = readFileSync(MIGRATION_0189, 'utf8');
 		await db.sql(text);
 		await db.sql(text);
 	});
@@ -336,7 +336,7 @@ describe('B1: 0187 closes the listing and leaves the public flag alone', () => {
 
 describe('B1 controls: each clause is load-bearing, proved by removing it', () => {
 	const restore = async () => {
-		await db.sql(readFileSync(MIGRATION_0187, 'utf8'));
+		await db.sql(readFileSync(MIGRATION_0189, 'utf8'));
 	};
 
 	test('CONTROL 1 -- drop the scoping clause and anon lists everything again', async () => {

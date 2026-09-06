@@ -7,7 +7,7 @@
   is what resolves it.
 - Raised: 2026-09-05  By: prompt 0057, `claude/public-upload-buckets-4dqkbe`
 - Status: open -> ANSWERED 2026-09-06 by prompt 0076, `claude/tournament-thumbs-listing-psuleu`.
-  The listing is closed by `supabase/migrations/0187_tournament_thumbs_no_anon_listing.sql`
+  The listing is closed by `supabase/migrations/0189_tournament_thumbs_no_anon_listing.sql`
   and the bucket flag is left `public = true`, which is this entry's own stated default.
   Two things this entry says were corrected by measuring them, and the corrections are why
   the shipped shape is not the one proposed here:
@@ -26,14 +26,14 @@
   (b) THE MEASUREMENT THIS ENTRY SAYS IS BLOCKING IS NO LONGER BLOCKING, because the shipped
   policy does not need it. This entry's proposed narrowing was `to authenticated`, which
   breaks every spectator thumbnail if the bucket-flag claim is wrong -- hence the `curl`.
-  0187 instead keeps an `anon` policy and SCOPES it to keys a row an anonymous caller can
+  0189 instead keeps an `anon` policy and SCOPES it to keys a row an anonymous caller can
   already read (0186's shape, applied here), so the set it admits and the set the bracket
   renders are the same set BY CONSTRUCTION. Under either answer to the unmeasured question
   nothing on the bracket changes, and the `curl` is no longer a precondition. It is still
   worth running: it is the one thing that would let a later bundle close the exact-key read
   of an orphan as well.
   Left open and NOT answered here: question 2 (should a tournament thumbnail be public at
-  all) and question 3 (what happens to an object when the student leaves) -- 0187 deletes
+  all) and question 3 (what happens to an object when the student leaves) -- 0189 deletes
   nothing and expires nothing. Question 1 is answered yes, on the orphans.
 - Decision:
 - Default this assistant would pick: keep 0183 as shipped -- `foundry-covers` private,
