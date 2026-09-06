@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tools/browser-verify/run.mjs`, `tools/browser-verify/README.md`, an `until` in any route spec this bundle proves inert, `tests/browser-verify*`, `docs/prompt-ledger/entries/0082-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0186
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/inert-until-step-wcw884`
 - Notes: Prompt 0070 spent most of a session chasing a flaky spec --
   one pass in two, always at 375, always on the first run after a cold
   `vite dev` boot -- and found the cause in the harness rather than in its

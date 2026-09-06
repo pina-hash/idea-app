@@ -258,6 +258,24 @@ So "always at 375, always on the first run after a cold `vite dev` boot" is one
 cause counted twice, not two causes. Nothing in this bundle's readings needs a
 second one.
 
+## The suite and the type check
+
+Run in this container on 2026-09-06, times in **America/Los_Angeles**:
+
+- **`npx svelte-kit sync && npx svelte-check`, 02:08:11 to 02:09:02 PDT: 0
+  errors, 37 warnings**, breakdown **31 `state_referenced_locally` / 5
+  `css_unused_selector` / 1 `perf_avoid_nested_class`** -- the baseline
+  `CLAUDE.md` states, re-derived rather than trusted, with
+  `PUBLIC_SUPABASE_URL`/`PUBLIC_SUPABASE_ANON_KEY` exported as placeholders
+  before the sync so the eleven phantom `$env/static/public` errors a
+  `.env`-less checkout reports do not land.
+- **`npm test`, 02:03:31 to 02:07:35 PDT: 291 test files, 289 passed, 2 failed;
+  5,936 tests, 5,932 passed, 4 failed. 241.6s.** Both failing FILES are RED AT
+  BASE and are named under "Not verified" below: `tests/derived-numbers.test.ts`
+  (2) and `tests/gauntlet-doc.test.ts` (2). Nothing this branch wrote fails, and
+  the new `tests/browser-verify-prepare-until.test.ts` is among the 289 passing
+  files.
+
 ## Not verified
 
 - **Nothing was run against the live Supabase project**, no migration was
