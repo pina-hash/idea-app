@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `src/lib/classroom/nav.ts`, `ClassroomShell.svelte`, `src/routes/classroom/+layout.svelte`, the tab lists in the two `/dev` classroom harnesses, the GREENLINE dashboard card, `tests/classroom-nav*`, `tests/dom/classroom-nav*`, `tools/browser-verify/routes/classroom-nav*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0081-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0186
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/classroom-nav-surfaces-v958ub`
 - Notes: Three bundles have now built a working surface and been unable to
   link to it, each correctly declining to reach outside its ownership.
   
