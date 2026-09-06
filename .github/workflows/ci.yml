@@ -127,18 +127,28 @@ jobs:
       # of 6301) while every local run was green, because a local clone has the
       # sibling refs and a CI checkout does not.
       #
-      # WHAT IT COSTS, MEASURED against this repository (1,702 commits) rather
-      # than extrapolated -- three clones of each shape from github.com, wall
-      # clock, and the resulting `.git`:
+      # WHAT IT COSTS ON THE RUNNER, WHICH IS THE READING THAT SETTLES IT:
+      # NOTHING MEASURABLE. Two `ubuntu-latest` runs of this job, three minutes
+      # apart, same repository, same branch -- the `actions/checkout@v4` step
+      # took SIX SECONDS under the old default (run 34061189403, 21:28:51 to
+      # 21:28:57) and SIX SECONDS with `fetch-depth: 0` (run 34062080600,
+      # 21:46:46 to 21:46:52). GitHub's own network to its own object store is
+      # not what this job spends its time on; `npm ci` alone is twice the
+      # checkout, and the suite is thirty times it.
+      #
+      # AND MEASURED AGAINST THIS REPOSITORY (1,702 commits) OFF-RUNNER, which
+      # is where the shape was chosen before the runner confirmed it -- three
+      # clones of each from github.com, wall clock, and the resulting `.git`:
       #   depth 1 (the old default)   9.80 / 7.77 / 7.73s   161M
       #   fetch-depth: 0              8.30 / 8.26 / 7.35s   172M
       #   depth 1 + a targeted
       #     fetch of integration      9.77 / 9.06 / 9.51s   163M
       # THE FULL HISTORY IS FREE HERE, AND THE FIRST SINGLE-SHOT READING SAID
       # OTHERWISE -- one clone each made the full one look 1.3s dearer, which
-      # three runs show is network noise: the two ranges overlap and the full
-      # clone's best is the fastest number in the table. What is real is 11M
-      # more `.git`, and that the "cheaper" targeted fetch is the only shape
+      # three runs show is network noise: the two ranges overlap, the full
+      # clone's best is the fastest number in the table, and the runner
+      # measurement above puts both at the same six seconds. What is real is
+      # 11M more `.git`, and that the "cheaper" targeted fetch is the only shape
       # that is consistently SLOWER, because a second round trip costs more
       # than the objects it saves. It also fixes one named ref, where the full
       # fetch makes every branch readable and cannot go stale the next time a

@@ -61,8 +61,17 @@ the tree is intolerant of a shallow clone": in the automated suite, nothing.
 
 ## What changed
 
-**`fetch-depth: 0` on `ci.yml`'s checkout.** Measured against this repository
-(1,702 commits), three clones of each shape from github.com:
+**`fetch-depth: 0` on `ci.yml`'s checkout.**
+
+**On the runner it costs nothing measurable, and that is the reading that
+settles it.** Two `ubuntu-latest` runs of this job, three minutes apart, same
+repository, same branch: the `actions/checkout@v4` step took **6s** under the
+old default (run 34061189403, 21:28:51→21:28:57) and **6s** with `fetch-depth:
+0` (run 34062080600, 21:46:46→21:46:52). `npm ci` alone is twice that and the
+suite is thirty times it.
+
+The shape was chosen before that confirmation, off-runner, against this
+repository (1,702 commits) — three clones of each from github.com:
 
 | shape | wall clock | `.git` |
 | --- | --- | --- |
@@ -142,12 +151,11 @@ one added function and three lines at the call site that print its output; the
   connection, no Supabase project reached. Prompt 0073 already proved a cloud
   container cannot reach that host and this bundle did not test the claim
   again.
-- **`fetch-depth: 0` has not run in GitHub Actions yet.** The clone timings
-  are from this container against github.com, not from an `ubuntu-latest`
-  runner, and the equivalence of `checkout@v4` with `fetch-depth: 0` to a plain
-  `git clone` is read off the action's documented refspec plus the fact that
-  `integrate.yml` already depends on it, not measured on a runner. What the
-  push of this branch reports is the first real reading.
+- **The suite has not been observed green in Actions under `fetch-depth: 0`.**
+  The checkout STEP was measured on a runner (6s, above); the run carrying it
+  was still executing when this entry was written, so the claim that CI goes
+  green rests on the local full suite plus the reproduction, not on a green
+  tick. Read run 34062080600.
 - **No browser pass.** This bundle renders nothing.
 - **`tools/idea-status.py` was not exercised against a shallow clone on its
   own.** It survives one — the reproduction shows it producing a probe list at
