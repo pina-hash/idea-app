@@ -1,6 +1,8 @@
 # 15 A scoped Postgres role a session applies one migration as
 - Raised: 2026-09-05  By: session on `claude/full-auto-migration-deploy-w9w48f` (prompt 0055)
-- Status: decided 2026-09-05
+- Status: decided 2026-09-05, and REOPENED-AND-REDECIDED the same day on narrower terms.
+  See "What actually happened" at the bottom, which is the part to read first: the guard
+  this entry describes CANNOT BE INSTALLED, and Mr. Pina chose the weaker thing anyway.
 - Decision: YES, asked for. Mr. Pina asked on 2026-09-05 for every remaining manual step
   to be automated, and applying a migration was one of the two that were left. The role
   and its guard are written and committed as `supabase/roles/idea_migrator.sql`; nothing
@@ -23,6 +25,10 @@
   It is a member of `postgres`, because ownership is the only way Postgres lets a role
   `alter table` something that already exists and there is no per-command owner privilege
   to grant instead.
+- WHAT THE GUARD REFUSES -- **NONE OF THIS IS TRUE ANY MORE. The paragraph below and
+  the two after it describe a guard that does not exist.** They are left standing
+  unedited because they are what was agreed to on 2026-09-05, and the entry has to show
+  what was agreed as well as what was delivered. Read "What actually happened" first.
 - What the guard refuses, measured on PostgreSQL 17.10: `drop table`, `drop schema`,
   `drop owned`, extension DDL, and any dropped table, column, schema, sequence,
   materialized view or foreign table. It keys on `session_user`, so `set role postgres`
@@ -59,3 +65,66 @@
   `grant postgres to idea_migrator` lands, are properties of that project that the file's
   own self-check raises on -- which is why the whole file is one transaction and a paste
   that cannot install the guard leaves no role behind.
+
+## What actually happened, 2026-09-05, recorded by prompt 0065
+
+**The guard was correct and is unavailable.** Mr. Pina pasted
+`supabase/roles/idea_migrator.sql` and it refused at its FIRST statement:
+`ERROR 42501: permission denied to alter role -- Only roles with the SUPERUSER attribute
+may alter roles with the SUPERUSER attribute.` Naming `nosuperuser`, `noreplication` or
+`nobypassrls` needs superuser on PostgreSQL 16 and later, even to set them false, and
+Supabase's `postgres` is not a superuser. Nothing was created; the file is one
+transaction, which is the one part of the design that worked exactly as intended.
+
+**And stripping those three would not have saved it.** `create event trigger` also needs
+superuser and there is no privilege that can be granted instead. Measured on 17.10
+against a non-superuser holding CREATEROLE, CREATEDB and ownership of the database: the
+guard schema creates, the guard function creates, and both event triggers are refused
+42501. So the function would have been dead code that reads as a control.
+
+**The guard therefore moved to the tool**, which is where this entry already said the
+compensating control lived. `tools/apply-migration.mjs` refuses to SEND a file
+containing a destructive statement, and prompt 0065 hardened it, because it is now the
+only control rather than the outer half of a pair: its statement scanner stripped
+comments only from the FRONT of a statement, so `drop /* x */ table public.t;` and
+`drop -- x` + newline + `table public.t;` were both SENT. Measured before and after; all
+180 committed migrations still refuse exactly the same seven files.
+
+**Mr. Pina chose this over leaving migrations manual, on 2026-09-05, knowing it is
+weaker than what he agreed to an hour earlier.** What he is now holding is a credential
+whose only restraint is a client-side scanner that anyone with the password and a `psql`
+prompt bypasses in one line.
+
+**Two claims in this entry were WRONG when it was written, independently of the guard,
+and are corrected here rather than edited above:**
+
+1. "No service key, and nothing that reaches storage object BYTES" stands. But this
+   entry did not say that membership in `postgres` means the role READS EVERY ROW IN
+   EVERY TABLE, `auth.users` included, because it owns them and ownership bypasses RLS.
+   That was true of the guarded design too -- an event trigger never fires on a select.
+2. "NOCREATEROLE ... so it cannot mint a second credential ... Measured" is **false**.
+   The inheritance half is right: attributes are not inherited through membership. The
+   conclusion is not: `SET ROLE postgres` does not inherit anything, it changes
+   `current_user`, and the privilege check for `create role` reads `current_user`.
+   Measured on 17.10 against a NON-superuser `postgres` holding CREATEROLE -- the real
+   Supabase shape -- the direct `create role` is refused 42501, `set role postgres`
+   succeeds, and `create role sneaky2 login password '...'` then succeeds and produces a
+   working login. `tests/apply-migration-guard.test.ts` now asserts that as a passing
+   test, so it is a recorded fact rather than an absence.
+
+**AND THE PASTE MAY STILL NOT SUCCEED, for a reason this entry's own "NOT verified"
+section named.** `grant postgres to idea_migrator` needs ADMIN OPTION on `postgres`. On
+PostgreSQL 16+ a non-superuser `postgres` can never hold it: admin option comes from a
+membership, and a role cannot be granted to itself (`grant postgres to postgres` is
+refused 0LP01). Measured: the grant is refused 42501. There is a second, independent
+refusal underneath it -- PostgreSQL 16+ auto-grants a CREATEROLE role admin membership
+in every role it creates, so `create role idea_migrator` makes `postgres` a member of
+`idea_migrator` and the grant closes a loop (0LP01, refused even for a superuser), and
+that membership cannot be revoked from the SQL editor because its recorded grantor is
+the bootstrap superuser. On PostgreSQL 15 and earlier neither applies; that half is
+**not measured** here, because the repository's harness only supplies 17.10. The file
+now reports `server_version` at paste time and turns each refusal into a sentence naming
+the cause.
+
+- Context added 2026-09-05: `docs/prompt-ledger/entries/0065-guard-outside-the-database.md`,
+  `docs/history/guard-outside-database-0uczmi.md`.

@@ -18,9 +18,18 @@
 // pins the SEVEN files it refuses by name. A scanner nobody has pointed at the
 // corpus is a scanner whose false-refusal rate is unknown.
 //
-// The database-driven controls -- the guard refusing, a self-check raising,
-// nothing being left behind, the post-apply verification -- are
-// `tests/apply-migration-guard.test.ts`, because they need a real Postgres.
+// THE SCANNER IS NOW THE ONLY REFUSAL THAT EXISTS. It used to be the outer half
+// of a pair, with an event-trigger guard in the database behind it. That guard
+// was never installed and cannot be: `create event trigger` needs superuser and
+// Supabase's `postgres` is not one. See `supabase/roles/idea_migrator.sql`,
+// section "WHAT DOES NOT PROTECT YOU". So a statement this file lets through is
+// a statement nothing anywhere refuses, which is why the comment-hiding controls
+// below exist and why the corpus sweep matters more than it did.
+//
+// The database-driven controls -- a self-check raising, nothing being left
+// behind, the post-apply verification, and the honest recording of what the role
+// can now do unopposed -- are `tests/apply-migration-guard.test.ts`, because they
+// need a real Postgres.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -81,7 +90,7 @@ do $guard$ begin raise notice 'x;y'; end $guard$;`;
 	});
 });
 
-describe('scanFile refuses what the database cannot', () => {
+describe('scanFile is the ONLY refusal there is, so it refuses everything destructive', () => {
 	const cases: [string, string][] = [
 		['drop table public.t;', 'drop table'],
 		['truncate public.t;', 'truncate'],
@@ -100,10 +109,19 @@ describe('scanFile refuses what the database cannot', () => {
 		});
 	}
 
-	it('reports top-level DML rather than refusing it, and every refusal carries a reason', () => {
+	it('marks top-level DML releasable rather than unconditional, and every refusal carries a reason', () => {
+		// `kind: 'warn'` does NOT mean "sent". `main()` returns EXIT.refused for a
+		// warn too; what the kind decides is whether `--allow-dml` can release it,
+		// which it can for these two and cannot for `delete` or `truncate`. The
+		// census is the reason the release exists: 2 inserts and 1 update across
+		// the last twenty migrations, all against `storage.buckets`.
 		const scan = scanFile(`insert into storage.buckets (id) values ('x');\nupdate storage.buckets set public = false;`);
 		expect(scan.findings.every((f) => f.kind === 'warn')).toBe(true);
 		expect(scan.findings).toHaveLength(2);
+		// The pair that has no release, as the positive control beside it.
+		expect(
+			scanFile('delete from public.t;\ntruncate public.t;').findings.map((f) => f.kind)
+		).toEqual(['refuse', 'refuse']);
 		for (const f of scanFile('drop table public.t;').findings) {
 			expect(f.why.length).toBeGreaterThan(20);
 		}
@@ -143,6 +161,85 @@ end $$;`;
 	it('notices a file that opens its own transaction', () => {
 		expect(scanFile('begin;\nselect 1;\ncommit;').selfManagedTransaction).toBe(true);
 		expect(scanFile('select 1;').selfManagedTransaction).toBe(false);
+	});
+});
+
+describe('a keyword cannot be hidden from the scanner by a comment', () => {
+	// THE FOUR CONTROLS FROM PROMPT 0065, AND THE REASON THEY ARE HERE. Until
+	// this bundle the scanner stripped comments only from the FRONT of a
+	// statement, so a comment in the MIDDLE hid the keyword pair the refusal
+	// list matches on. Measured against the shipping scanner before the fix:
+	// `drop table public.b;` was refused, and `drop /* sneaky */ table public.b;`
+	// and `drop -- sneaky\ntable public.b;` were both SENT. That was survivable
+	// while an event-trigger guard stood behind it. There is no guard -- it
+	// cannot be installed on Supabase, see `supabase/roles/idea_migrator.sql` --
+	// so a statement this scanner sends is a statement nothing else refuses.
+	const refusals = (sql: string) =>
+		scanFile(sql)
+			.findings.filter((f) => f.kind === 'refuse')
+			.map((f) => f.what);
+
+	it('control 1: a top-level drop table is refused before anything is sent', () => {
+		expect(refusals('create table public.a (id int);\ndrop table public.b;')).toEqual([
+			'drop table'
+		]);
+	});
+
+	it('control 2: the same text inside a body, a comment or a string is NOT refused', () => {
+		// Migrations legitimately contain all of these, and refusing them would
+		// be a false refusal on a real file rather than a safe default.
+		for (const sql of [
+			"do $$ begin execute 'drop table public.b'; end $$;",
+			'create or replace function f() returns void language plpgsql as $b$ begin drop table public.b; end $b$;',
+			'-- drop table public.b\nselect 1;',
+			'/* drop table public.b */\nselect 1;',
+			"insert into log(msg) values ('drop table public.b');",
+			'create function g() returns void language plpgsql as $body$ begin truncate public.b; end $body$;'
+		]) {
+			expect(refusals(sql)).toEqual([]);
+		}
+	});
+
+	it('control 3: split across lines, or with a comment inside it, is still refused', () => {
+		const hidden: [string, string][] = [
+			['drop\n\ttable public.b;', 'drop table'],
+			['drop /* sneaky */ table public.b;', 'drop table'],
+			['drop -- sneaky\ntable public.b;', 'drop table'],
+			// Postgres block comments NEST, so an inner `*/` must not end the outer.
+			['drop /* a /* b */ c */ table public.b;', 'drop table'],
+			['truncate /* x */ public.b;', 'truncate'],
+			['delete /* x */ from public.b;', 'top-level delete'],
+			['drop /* x */\nschema public cascade;', 'drop schema'],
+			['drop /* x */ owned by idea_migrator;', 'drop owned'],
+			['alter table public.b /* x */ drop column c;', 'alter table ... drop column']
+		];
+		for (const [sql, what] of hidden) expect(refusals(sql)).toContain(what);
+		expect(hidden).toHaveLength(9);
+	});
+
+	it('control 4: an ordinary migration is sent, comments and all', () => {
+		const clean = `-- 0184: a perfectly ordinary migration.
+begin;
+create table if not exists public.thing (id uuid primary key);
+alter table public.thing enable row level security;
+drop policy if exists thing_read on public.thing;
+create policy thing_read on public.thing for select to authenticated using (true);
+create or replace function public.thing_count() returns integer language sql stable as $$
+  select count(*)::integer from public.thing;
+$$;
+revoke all on function public.thing_count() from public, anon, authenticated, service_role;
+grant execute on function public.thing_count() to authenticated;
+do $$ begin raise notice 'applied'; end $$;
+commit;`;
+		expect(scanFile(clean).findings).toEqual([]);
+	});
+
+	it('strips a comment without welding two tokens together', () => {
+		// A comment becomes a SPACE, not nothing: `drop/*x*/table` is one token
+		// to a naive join and two to Postgres.
+		expect(head('drop/*x*/table public.b;')).toBe('drop table public.b;');
+		// And a `--` inside a string literal is not a comment.
+		expect(head("insert into t values ('a--b');")).toBe("insert into t values ('a--b');");
 	});
 });
 
