@@ -183,10 +183,21 @@ files**, breakdown 31 `state_referenced_locally` / 5 `css_unused_selector` / 1
 `PUBLIC_SUPABASE_*` placeholders were exported before the sync, per the
 missing-`.env` note.
 
-Full suite on the final tree: recorded in the report for this bundle. The
-`origin/integration` baseline this branch started from was **4 failed / 5921
-passed over 289 files**, two files, and both failures are `tests/gauntlet-doc`
-and its neighbour, which prompt 0067 owns.
+Full suite on the final tree, run 2026-09-06 01:27 PDT: **2 failed / 5967
+passed over 292 files**, one failed file. The `origin/integration` baseline this
+branch started from was **4 failed / 5923 passed over 290 files**, two files.
++42 tests over +2 files is exactly what this bundle adds.
+
+**Two of the four went GREEN, and it was not an accident of this bundle's own
+code.** They were `tests/derived-numbers.test.ts`, which compares
+`tools/browser-verify/README.md`'s measured region against the tree: the
+measurement on `integration` covered 107 specs against a tree holding 116, and
+the full harness run below re-measured all 118. Proven rather than assumed --
+putting `origin/integration`'s README back over this tree reddens
+`derived-numbers` again (5 of 18, since the tree now carries two more specs),
+and restoring the regenerated one is md5-identical and green. What is left red
+is `tests/gauntlet-doc.test.ts` alone, both of its failures, which prompt 0067
+owns and this bundle does not touch.
 
 **Mutation proof, four mutants, every restore by `cp` and md5-checked** (`git
 checkout --` was never run):
@@ -202,7 +213,13 @@ checkout --` was never run):
 
 Browser pass, `/dev/assignment-mirror` at **375 and 1440**, two specs (the
 recovery and the conflict): **54 measurements, 0 outside threshold**, and three
-consecutive passes to prove it. Measured values include the recovery sentence at
+consecutive passes to prove it. And a FULL harness run afterwards, which is
+what rewrote the measured README region: **236 route/width runs, 3464
+measurements, 2 outside threshold, 609.5s**, on commit `f2a5d8f`. The two are
+the standing `/dev/notebook` `tap-reach` rows (decision 12, with the owner) and
+neither is this bundle's. `--selftest` reported 70 controls (36 negative, 34
+positive), 0 instrument failures; no new CHECK KIND was added here, only new
+routes for existing ones, so no control was owed. Measured values include the recovery sentence at
 12.47:1, the conflicted answer's text at 11.34:1 on its own recessed plate, its
 block label at 6.68:1, the Copy control at 78.2x44, the answer field at 275x62
 (@375) and 860x62 (@1440), and 0px horizontal overflow at both widths. Web
@@ -251,6 +268,11 @@ asserted in `tests/dom/` instead, where the clock can be held still.
 `npm run verify:counts`: **118 specs over 58 routes, 87 `/dev` pages, 236
 route/width runs** -- up from 116 / 57 / 86 / 232, which is the two new specs
 and the one new dev page and nothing else.
+
+`npm run verify:readme`: `Route specs the run covered` is now **118**, against
+`Route specs` **118** in the static region. Those two had read 107 against 116,
+which is the README's own stated tell that every number in the measured half was
+taken over a different set of routes than the tree has. They agree again.
 
 ### NOT verified, and one thing deliberately left undone
 
