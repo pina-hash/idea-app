@@ -23,6 +23,25 @@
 //     read off the real directory listing, which is also the sort
 //     `tools/idea-status.py` and every hand-pasted apply follow.
 //
+// A HOLE IS TWO DIFFERENT THINGS AND THIS USED TO REPORT THEM AS ONE. A number
+// a landed migration SKIPPED is a defect: the series is short a file and
+// nothing will ever fill it. A number a `claude/**` branch is HOLDING is the
+// system working -- the branch has not merged yet, so of course this tree does
+// not have it, and it is not this session's to fix. On 2026-09-06
+// `claude/instructor-requests-surfaces-j2dfjc` reported `[186, 187]` and both
+// belonged to lanes in flight; the session could neither merge them in nor
+// loosen the assertion, so it argued with a red test instead. So the walk now
+// asks `tools/migration-claims.mjs` which kind each hole is: an unexplained one
+// still FAILS, by number, exactly as before, and one a branch accounts for
+// passes and says which branch.
+//
+// THE ASSERTION IS NOT LOOSENED BY THIS, AND THE DEGRADATION IS THE PROOF.
+// Claims come from `origin/claude/**` refs, and CI checks out shallow with no
+// remote branch refs at all -- so in CI the claim map is EMPTY and every hole
+// fails, which is the strictest reading and the one that used to be the only
+// reading. What the claims buy is a session with a full clone getting a true
+// answer instead of a puzzle.
+//
 // THE POSITIVE CONTROL IS NOT IMPLIED. A snapshot comparison between two
 // readings of an unchanged database passes for a snapshot that measures
 // nothing, so the same comparison is put to a database that DID change -- one
@@ -33,6 +52,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startTestDb, type TestDb } from './harness';
+import {
+	claimMap,
+	classify,
+	collect,
+	inFlightHoles,
+	unexplainedHoles
+} from '../../tools/migration-claims.mjs';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
 const TOMBSTONE = '0177_reserved_number_tombstone.sql';
@@ -182,20 +208,54 @@ describe('0177 is a tombstone', () => {
 		expect(new Set(nums).size, 'two migrations share a number').toBe(nums.length);
 		expect(nums[0]).toBe(1);
 
-		const gaps: number[] = [];
-		for (let n = nums[0]; n <= nums[nums.length - 1]; n += 1) {
-			if (!nums.includes(n)) gaps.push(n);
+		// Which numbers a lane in flight is holding. Reading git can fail for
+		// ordinary reasons -- a shallow clone, a tarball, no `git` on PATH --
+		// and every one of them means "no claims", which is the STRICT answer:
+		// nothing is excused and every hole fails.
+		let claims: Record<number, string[]> = {};
+		try {
+			claims = claimMap(classify(collect()));
+		} catch {
+			claims = {};
 		}
-		expect(gaps, 'the migration series has a hole in it').toEqual([]);
+
+		const gaps = unexplainedHoles(nums, claims);
+		const inFlight = inFlightHoles(nums, claims);
+		expect(
+			gaps,
+			`the migration series has a hole nothing accounts for. Holes a branch IS holding: ${
+				inFlight.map((h) => `${h.number} (${h.branches.join(', ')})`).join('; ') || 'none'
+			}. Run \`node tools/migration-claims.mjs\` for the full picture.`
+		).toEqual([]);
 		expect(nums).toContain(177);
 
-		// NOT VACUOUS: the same walk over a series with 0177 removed must
-		// report exactly the hole this file was written to fill.
-		const without = nums.filter((n) => n !== 177);
-		const holes: number[] = [];
-		for (let n = without[0]; n <= without[without.length - 1]; n += 1) {
-			if (!without.includes(n)) holes.push(n);
-		}
-		expect(holes, 'the contiguity walk cannot see a hole').toEqual([177]);
+		// NOT VACUOUS, AND THE CONTROL IS NOW A PAIR, because the walk has two
+		// answers to be wrong about.
+		//
+		// THE CONTROL RUNS OVER THE CONTIGUOUS PREFIX OF THE REAL SERIES, NOT
+		// OVER THE WHOLE OF IT, and that is not tidiness. A control that takes
+		// the live listing and removes one number reports every OTHER hole in
+		// the tree alongside it -- so on a branch legitimately sitting below
+		// two numbers other lanes hold, the control itself goes red while the
+		// assertion it is guarding passes. Measured: with 0189 in the tree it
+		// answered `[177, 186, 187, 188]` against an expected `[177]`. That is
+		// the same noise this whole change exists to remove, reappearing one
+		// line down. The prefix is real committed data and is contiguous by
+		// construction, so the only hole it can ever have is the one put there.
+		const firstHole = unexplainedHoles(nums, {})[0] ?? nums[nums.length - 1] + 1;
+		const dense = nums.filter((n) => n < firstHole);
+		expect(dense, 'the contiguous prefix must still contain 0177').toContain(177);
+		const without = dense.filter((n) => n !== 177);
+		expect(unexplainedHoles(without, {}), 'the contiguity walk cannot see a hole').toEqual([177]);
+		expect(inFlightHoles(without, {}), 'an unclaimed hole must not read as in flight').toEqual([]);
+
+		// ...and the SAME hole, with a claim on a branch, must stop being a
+		// defect and start naming who holds it. If both halves did not flip
+		// together the check would be either noise or blind.
+		const held = { 177: ['claude/example-lane-abc123'] };
+		expect(unexplainedHoles(without, held), 'a claimed hole must not fail').toEqual([]);
+		expect(inFlightHoles(without, held), 'a claimed hole must name its branch').toEqual([
+			{ number: 177, branches: ['claude/example-lane-abc123'] }
+		]);
 	});
 });

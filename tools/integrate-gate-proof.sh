@@ -72,10 +72,14 @@ echo
 # block is a legitimate edit, and a hardcoded width would answer it by silently
 # cutting characters off the front of every line.
 #
-# It is a FUNCTION because this file cuts TWO regions now -- `ledger_gate` and
-# `auto_resolve` -- and two copies of the cut is exactly the duplication the
-# cut itself exists to prevent one level down. It takes the workflow path so
-# the negative control at the end can point it at a mutated copy.
+# It is a FUNCTION because this file cuts SEVERAL regions -- `ledger_gate`,
+# `contained_delete_gate`, `target_push_gate`, `ci_conclusion`, `auto_resolve`,
+# `merged_suite` and `cross_branch` -- and a copy of the cut per region is
+# exactly the duplication the cut itself exists to prevent one level down. It
+# takes the workflow path so each negative control can point it at a mutated
+# copy. (This comment said "TWO regions now" and named two of them; the count
+# is deliberately not restated -- `grep -c 'cut_marker "\$WORKFLOW"'` is the
+# answer that cannot go stale.)
 # ---------------------------------------------------------------------------
 cut_marker() {
 	awk -v name="$2" '
@@ -1564,13 +1568,293 @@ else
 	check_says "75. renamed suite markers cut nothing (the FATAL guard above then fires)" empty non-empty
 fi
 
+
+# ===========================================================================
+# THE CROSS-BRANCH GATE (cases 76-83).
+#
+# The four functions between `cross_branch_marker` answer the ONE question no
+# branch's own CI can: what does ANOTHER unmerged branch hold. Everything below
+# drives the real cut text against throwaway repositories with two real
+# `claude/**` branches on a real bare remote, because a fixture with one branch
+# cannot exercise a rule about pairs at all.
+#
+# THE MIGRATION HALF SHELLS OUT TO THE REAL TOOL. `tools/migration-claims.mjs`
+# is copied into each fixture repo and run there, so these cases prove the pair
+# -- the workflow's shell AND the tool's `--contested-branches` output -- rather
+# than a stub agreeing with itself. Case 82 is what happens when that copy is
+# not there, which is also exactly what a deployment missing the tool looks
+# like.
+# ===========================================================================
+# The cut points, written out so a grep for them finds this harness: the text
+# between `# cross_branch_marker:begin` and `# cross_branch_marker:end`.
+CROSS_SRC="$(cut_marker "$WORKFLOW" cross_branch_marker)"
+if [ -z "${CROSS_SRC//[[:space:]]/}" ]; then
+	echo "FATAL: extracted nothing between the cross_branch markers in $WORKFLOW" >&2
+	exit 2
+fi
+CROSS_FILE="$(mktemp)"
+printf '%s\n' "$CROSS_SRC" > "$CROSS_FILE"
+if ! bash -n "$CROSS_FILE"; then
+	echo "FATAL: the extracted cross-branch text is not valid shell" >&2
+	exit 2
+fi
+# shellcheck source=/dev/null
+. "$CROSS_FILE"
+rm -f "$CROSS_FILE"
+for fn in contested_number_rows standards_version contested_version_rows cross_branch_gate; do
+	if ! declare -F "$fn" >/dev/null; then
+		echo "FATAL: the extracted cross-branch text did not define $fn()" >&2
+		exit 2
+	fi
+done
+echo
+echo "extracted $(printf '%s\n' "$CROSS_SRC" | wc -l | tr -d ' ') lines of cross-branch gate from $WORKFLOW"
+echo
+
+# The pre-pass exactly as the workflow runs it, so a case observes the TABLE
+# the loop would actually be handed rather than one producer in isolation.
+cross_table() {
+	local repo="$1" rows='' one
+	if one="$( cd "$repo" && contested_number_rows )"; then
+		[ -z "$one" ] || rows+="$one"$'\n'
+	else
+		rows+='!NUMBERS-UNREADABLE'$'\n'
+	fi
+	if one="$( cd "$repo" && contested_version_rows )"; then
+		[ -z "$one" ] || rows+="$one"$'\n'
+	else
+		rows+='!VERSIONS-UNREADABLE'$'\n'
+	fi
+	printf '%s' "$rows"
+}
+
+# SKIP or MERGE for one branch against a table, which is the loop's own verdict.
+cross_verdict() {
+	local branch="$1" table="$2"
+	if cross_branch_gate "$branch" "$table" >/dev/null; then echo SKIP; else echo MERGE; fi
+}
+
+cross_reason_for() {
+	cross_branch_gate "$1" "$2" || true
+}
+
+# A repo whose `tools/` carries the REAL claims tool, plus the ledger README's
+# entry shape and a migrations directory.
+new_claims_repo() {
+	local name="$1" repo
+	repo="$(new_repo "$name")"
+	mkdir -p "$repo/tools" "$repo/supabase/migrations" "$repo/docs/standards"
+	cp "$ROOT/tools/migration-claims.mjs" "$repo/tools/migration-claims.mjs"
+	echo 'create table landed ();' > "$repo/supabase/migrations/0001_landed.sql"
+	git -C "$repo" add -A
+	git_q -C "$repo" commit -m 'the claims tool and a landed migration'
+	printf '%s\n' "$repo"
+}
+
+# Stages a ledger entry CLAIMING a migration number, in the `Claims:` shape the
+# repository moved to, plus the migration file itself.
+fx_claim() {
+	local id="$1" num="$2"
+	# `mkdir -p` because `branch_with` checks main back out between branches and
+	# git removes a directory whose last tracked file went with it -- so the
+	# SECOND branch of a contest fixture finds no `entries/` at all. That failure
+	# is a redirect error mid-run, not a case that reports something.
+	mkdir -p docs/prompt-ledger/entries supabase/migrations
+	{
+		printf '# %s A fixture entry\n' "$id"
+		printf -- '- Issued: 2026-09-06\n'
+		printf -- '- By: tools/integrate-gate-proof.sh\n'
+		printf -- '- Owns: `nothing at all`\n'
+		printf -- '- Migration permitted: yes. Claims: %s. Highest on origin/main at issue: 0001\n' "$num"
+		printf -- '- Status: pushed\n'
+		printf -- '- Branch: fixture\n'
+		printf -- '- Notes: written by the proof harness.\n'
+	} > "docs/prompt-ledger/entries/$id-a-fixture.md"
+	printf 'create table t%s ();\n' "$num" > "supabase/migrations/${num}_fixture.sql"
+}
+
+# Stages a standards document at a version, with the lane's own edit dropped
+# into ONE numbered paragraph of forty.
+#
+# THE FORTY PARAGRAPHS ARE THE POINT AND NOT PADDING. Two lanes editing
+# paragraph 5 and paragraph 35 of one document is the ordinary shape -- and it
+# is the shape in which git merges the whole file, header included, with no
+# marker anywhere. A two-line fixture would conflict on the body and the case
+# would then "pass" while proving something else entirely.
+fx_standard() {
+	local file="$1" version="$2" slot="$3" text="$4" i
+	mkdir -p docs/standards
+	{
+		printf '# A fixture standard\n'
+		printf '**Version %s - 2026-09-06**\n' "$version"
+		printf '\n'
+		for i in $(seq 1 40); do
+			if [ "$i" = "$slot" ]; then printf '%s\n' "$text"; else printf 'paragraph %s\n' "$i"; fi
+		done
+	} > "docs/standards/$file"
+}
+
+# --- case 76: the call site -----------------------------------------------
+# A gate nobody calls proves nothing, and that is not observable from the
+# functions themselves. Three needles: the pre-pass that builds the table, the
+# loop's own skip, and the summary line that reports a read which did not
+# answer -- the last because a gate failing toward merging is INVISIBLE in
+# every other line of the summary.
+cross_call_ok=yes
+for needle in \
+	'if cross_numbers="$(contested_number_rows)"; then' \
+	'if cross_versions="$(contested_version_rows)"; then' \
+	'if cross_reason="$(cross_branch_gate "$branch" "$cross_rows")"; then' \
+	'skipped+=("$branch -- $cross_reason")' \
+	'if [ -n "$cross_note" ]; then'
+do
+	grep -qF -- "$needle" "$WORKFLOW" || cross_call_ok=no
+done
+check_says "76. the workflow builds the table, calls the gate, and reports a failed read" \
+	yes "$cross_call_ok"
+
+# --- case 77: two branches claiming one migration number -------------------
+xr="$(new_claims_repo contested-number)"
+publish_main "$xr"
+branch_with "$xr" claude/takes-0002-first  fx_claim 0091 0002
+branch_with "$xr" claude/takes-0002-second fx_claim 0092 0002
+xt="$(cross_table "$xr")"
+check_says "77. two branches claiming migration 0002: BOTH skipped" \
+	'SKIP SKIP' \
+	"$( cd "$xr" && printf '%s %s' \
+		"$(cross_verdict claude/takes-0002-first "$xt")" \
+		"$(cross_verdict claude/takes-0002-second "$xt")" )"
+check_says "78. ...and each skip reason names the tool that says which branch" \
+	'yes yes' \
+	"$( cd "$xr" && printf '%s %s' \
+		"$(case "$(cross_reason_for claude/takes-0002-first "$xt")" in *migration-claims.mjs*) echo yes ;; *) echo no ;; esac)" \
+		"$(case "$(cross_reason_for claude/takes-0002-second "$xt")" in *migration-claims.mjs*) echo yes ;; *) echo no ;; esac)" )"
+
+# --- case 79: one branch, a number nothing else holds ----------------------
+yr="$(new_claims_repo free-number)"
+publish_main "$yr"
+branch_with "$yr" claude/takes-0002-alone fx_claim 0093 0002
+branch_with "$yr" claude/takes-0003-alone fx_claim 0094 0003
+yt="$(cross_table "$yr")"
+check_says "79. two branches taking DIFFERENT numbers: both merge" \
+	'MERGE MERGE' \
+	"$( cd "$yr" && printf '%s %s' \
+		"$(cross_verdict claude/takes-0002-alone "$yt")" \
+		"$(cross_verdict claude/takes-0003-alone "$yt")" )"
+
+# --- case 80: two branches, one standards file, one version ----------------
+# THE 2026-09-06 COLLISION ITSELF. Both sides write the identical header string
+# from different content, which is precisely why no merge and no version test
+# can see it.
+vr="$(new_claims_repo contested-version)"
+( cd "$vr" && fx_standard IDEA_fixture.md 4.20 0 '' )
+git -C "$vr" add -A; git_q -C "$vr" commit -m 'the standard at 4.20 on main'
+publish_main "$vr"
+branch_with "$vr" claude/bumps-a fx_standard IDEA_fixture.md 4.21 5  'what lane A added, near the top'
+branch_with "$vr" claude/bumps-b fx_standard IDEA_fixture.md 4.21 35 'what lane B added, thirty paragraphs away'
+vt="$(cross_table "$vr")"
+check_says "80. two branches bumping one standards file to 4.21: BOTH skipped" \
+	'SKIP SKIP' \
+	"$( cd "$vr" && printf '%s %s' \
+		"$(cross_verdict claude/bumps-a "$vt")" \
+		"$(cross_verdict claude/bumps-b "$vt")" )"
+check_says "81. ...and each names the OTHER branch, the file and the version" \
+	'yes yes' \
+	"$( cd "$vr" && printf '%s %s' \
+		"$(case "$(cross_reason_for claude/bumps-a "$vt")" in *'IDEA_fixture.md'*'4.21'*'claude/bumps-b'*) echo yes ;; *) echo no ;; esac)" \
+		"$(case "$(cross_reason_for claude/bumps-b "$vt")" in *'IDEA_fixture.md'*'4.21'*'claude/bumps-a'*) echo yes ;; *) echo no ;; esac)" )"
+
+# --- case 82: THE CONTROL FOR THE MERGE ITSELF ----------------------------
+# Case 80 is only worth anything if the merge really would have been silent.
+# This asserts it on the same two tips: `git merge-tree` resolves the header
+# line with NO conflict marker, because both sides made the identical change.
+# A version test comparing a header to its own changelog sees two internally
+# consistent files. Nothing anywhere reports it -- which is the whole argument
+# for asking the question at sweep time.
+vout="$( cd "$vr" && git merge-tree --write-tree origin/claude/bumps-a origin/claude/bumps-b 2>/dev/null || true )"
+vmerged="${vout%%$'\n'*}"
+vblob="$( cd "$vr" && git show "$vmerged:docs/standards/IDEA_fixture.md" 2>/dev/null || true )"
+check_says "82. ...and git merges those two tips SILENTLY, header and all (why this gate exists)" \
+	'4.21 no-conflict-marker both-edits-present' \
+	"$(printf '%s %s %s' \
+		"$(printf '%s\n' "$vblob" | sed -n 's/^\*\*Version \([0-9.]*\) .*$/\1/p')" \
+		"$(case "$vblob" in *'<<<<<<<'*) echo conflict-marker ;; *) echo no-conflict-marker ;; esac)" \
+		"$(case "$vblob" in *'near the top'*'thirty paragraphs away'*) echo both-edits-present ;; *) echo lost-an-edit ;; esac)" )"
+
+# --- case 83: SAME VERSION, IDENTICAL BYTES, WHICH IS NOT A COLLISION ------
+# One branch merged the other, so both carry 4.21 and the blob is the same. An
+# ancestry-free version check would report this pair; the blob comparison is
+# what makes it a merge, and it is the ordinary shape of a landing bundle.
+sr="$(new_claims_repo shared-version)"
+( cd "$sr" && fx_standard IDEA_fixture.md 4.20 0 '' )
+git -C "$sr" add -A; git_q -C "$sr" commit -m 'the standard at 4.20 on main'
+publish_main "$sr"
+branch_with "$sr" claude/bumped-it fx_standard IDEA_fixture.md 4.21 5 'one lane wrote this'
+git_q -C "$sr" checkout -B claude/carries-it main
+git_q -C "$sr" merge --no-ff --no-edit claude/bumped-it
+git_q -C "$sr" push origin claude/carries-it
+git_q -C "$sr" fetch origin
+git_q -C "$sr" checkout main
+st="$(cross_table "$sr")"
+check_says "83. one branch carrying the other's bump, byte-identical: both merge" \
+	'MERGE MERGE' \
+	"$( cd "$sr" && printf '%s %s' \
+		"$(cross_verdict claude/bumped-it "$st")" \
+		"$(cross_verdict claude/carries-it "$st")" )"
+
+# --- case 84: two branches bumping DIFFERENT standards files ---------------
+dr="$(new_claims_repo two-standards)"
+( cd "$dr" && fx_standard IDEA_one.md 1.0 0 '' && fx_standard IDEA_two.md 1.0 0 '' )
+git -C "$dr" add -A; git_q -C "$dr" commit -m 'two standards on main'
+publish_main "$dr"
+branch_with "$dr" claude/bumps-one fx_standard IDEA_one.md 1.1 5 'lane A moved the first document'
+branch_with "$dr" claude/bumps-two fx_standard IDEA_two.md 1.1 5 'lane B moved the second document'
+dt="$(cross_table "$dr")"
+check_says "84. two branches bumping DIFFERENT files to the same string: both merge" \
+	'MERGE MERGE' \
+	"$( cd "$dr" && printf '%s %s' \
+		"$(cross_verdict claude/bumps-one "$dt")" \
+		"$(cross_verdict claude/bumps-two "$dt")" )"
+
+# --- case 85/86: THE TOOL CANNOT RUN -- MERGE, AND SAY SO ------------------
+# The direction that matters, and the opposite of `ledger_gate`'s. A broken
+# read leaves its half of the table empty and every branch sweeps exactly as it
+# would have; what it must never do is stall the queue, and what it must never
+# do QUIETLY is stop running. So the producer's non-zero exit is what the
+# pre-pass turns into the summary line case 76 greps for.
+br="$(new_claims_repo tool-missing)"
+publish_main "$br"
+branch_with "$br" claude/takes-0002-x fx_claim 0095 0002
+branch_with "$br" claude/takes-0002-y fx_claim 0096 0002
+rm -f "$br/tools/migration-claims.mjs"
+bt="$(cross_table "$br")"
+check_says "85. the claims tool cannot run: the number read REPORTS FAILURE, never silence" \
+	'reported' \
+	"$(case "$bt" in *'!NUMBERS-UNREADABLE'*) echo reported ;; *) echo silent ;; esac)"
+check_says "86. ...and both contesting branches MERGE rather than stalling the queue" \
+	'MERGE MERGE' \
+	"$( cd "$br" && printf '%s %s' \
+		"$(cross_verdict claude/takes-0002-x "$bt")" \
+		"$(cross_verdict claude/takes-0002-y "$bt")" )"
+
+# --- negative control: the cut refuses when the markers are renamed --------
+ncx="$(mktemp)"
+sed 's/cross_branch_marker/cross_branch_renamed/g' "$WORKFLOW" > "$ncx"
+ncx_out="$(cut_marker "$ncx" cross_branch_marker)"
+rm -f "$ncx"
+if [ -z "${ncx_out//[[:space:]]/}" ]; then
+	check_says "87. renamed cross-branch markers cut nothing (the FATAL guard above then fires)" empty empty
+else
+	check_says "87. renamed cross-branch markers cut nothing (the FATAL guard above then fires)" empty non-empty
+fi
+
 # ---------------------------------------------------------------------------
 # THE CASE COUNT. Without it, deleting every SKIP-direction case leaves
 # `fail=0` and a green exit -- a sweep that generated nothing cannot be allowed
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=81
+EXPECTED_CASES=93
 ran=$((pass + fail))
 
 echo

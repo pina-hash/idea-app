@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { loadProgressForUsers } from '$lib/frc/progression';
 import { loadPendingSubmissions } from '$lib/frc/gate-submissions';
 import { GREENLINE_DECALS_BUCKET, loadPendingDecals } from '$lib/greenline/decals';
+import { loadGreenlinePending } from '$lib/greenline/moderation';
 import { isAdmin } from '$lib/server/admin';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -74,6 +75,20 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		}));
 	}
 
+	/**
+	 * WHAT IS WAITING IN THE TWO GREENLINE QUEUES, for the moderation card's
+	 * count. Read through `loadGreenlinePending`, which is the ONE reader of
+	 * that question and already backs GREENLINE's own title screen -- a second
+	 * count computed on this page is how a badge comes to disagree with the
+	 * page it links to. Safe to call unconditionally HERE and only here: the
+	 * load has already redirected every non-admin above, so the `isAdmin` gate
+	 * every other call site states is the redirect on line 19.
+	 *
+	 * Fails soft to `ready: false` on a pre-0051/0059 deployment, which the
+	 * card renders as "count unavailable" rather than as zero.
+	 */
+	const greenlinePending = await loadGreenlinePending(supabase);
+
 	// New-report count for the Feedback entry point card. Same RPC the console
 	// itself reads (app_feedback_admin_list); fails soft to 0 pending a
 	// migration rather than blocking the rest of the dashboard.
@@ -93,6 +108,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		frcReviewReady,
 		greenlineDecalQueue,
 		greenlineDecalReady,
+		greenlinePending,
 		feedbackNewCount
 	};
 };

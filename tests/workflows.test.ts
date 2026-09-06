@@ -395,7 +395,18 @@ const CUTTABLE_GATES = [
 	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'counts_refresh', marker: 'counts_refresh_marker', harness: 'tools/integrate-gate-proof.sh' },
-	{ fn: 'merged_suite', marker: 'merged_suite_marker', harness: 'tools/integrate-gate-proof.sh' }
+	{ fn: 'merged_suite', marker: 'merged_suite_marker', harness: 'tools/integrate-gate-proof.sh' },
+	// FOUR FUNCTIONS, ONE MARKER PAIR, and that is the shape rather than an
+	// oversight: `contested_number_rows` and `contested_version_rows` are two
+	// PRODUCERS of one table and `cross_branch_gate` is the single lookup over
+	// it, so cutting them apart would give the harness three fragments that
+	// only mean anything together. `markerFindings` asks each row whether the
+	// cut DEFINES its function, so all four are pinned individually and a
+	// producer deleted from between the markers still reddens.
+	{ fn: 'contested_number_rows', marker: 'cross_branch_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'standards_version', marker: 'cross_branch_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'contested_version_rows', marker: 'cross_branch_marker', harness: 'tools/integrate-gate-proof.sh' },
+	{ fn: 'cross_branch_gate', marker: 'cross_branch_marker', harness: 'tools/integrate-gate-proof.sh' }
 ] as const;
 
 /**
@@ -1500,7 +1511,7 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// NOT VACUOUS: a gate that lost its markers entirely would otherwise
 		// leave a shorter table that still matches itself.
-		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(7);
+		expect(CUTTABLE_GATES.length, 'a cuttable gate was added or removed').toBe(11);
 
 		// THE CALL SITE IS THE HALF THE HARNESS CANNOT PROVE. It drives the
 		// function directly, so a gate that is never called, or whose reason
@@ -1533,6 +1544,72 @@ describe('the invariants these particular workflows have to hold', () => {
 			CUTTABLE_GATES.filter((g) => g.harness === null).map((g) => g.fn),
 			'a gate gained or lost its in-repo proof harness'
 		).toEqual(['contained_delete_gate', 'target_push_gate']);
+	});
+
+	it('the cross-branch gate is read once outside the loop, asked in the right place, and fails toward merging', () => {
+		// EVERYTHING HERE IS A PROPERTY `tools/integrate-gate-proof.sh` CANNOT
+		// SEE. That harness cuts the four functions out and drives them
+		// directly, so it proves their verdicts and nothing about WHERE the
+		// workflow asks them or what it does when they refuse. Both of those
+		// are the whole design.
+		const s = src('integrate.yml');
+		const at = (needle: string) => {
+			const i = s.indexOf(needle);
+			expect(i, `integrate.yml no longer contains: ${needle}`).toBeGreaterThan(-1);
+			return i;
+		};
+
+		const prepassNumbers = at('if cross_numbers="$(contested_number_rows)"; then');
+		const prepassVersions = at('if cross_versions="$(contested_version_rows)"; then');
+		const loopStart = at("for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do");
+		const ciSkip = at('skipped+=("$branch -- CI on ${sha:0:7} is $conclusion")');
+		const ledgerSkip = at('skipped+=("$branch -- $ledger_reason")');
+		const crossSkip = at('skipped+=("$branch -- $cross_reason")');
+		const containment = at('if git merge-base --is-ancestor "$ref" HEAD; then');
+		const merge = at('if git merge --no-ff --no-edit -m "Merge $branch into $TARGET" "$ref"; then');
+
+		// READ ONCE, BEFORE THE LOOP. Inside it the answer would be recomputed
+		// per branch AND would change under the loop's own merges, so a branch
+		// swept early would be judged against a different set of outstanding
+		// branches from one swept late.
+		expect(prepassNumbers, 'the migration-number read moved into the loop').toBeLessThan(loopStart);
+		expect(prepassVersions, 'the standards-version read moved into the loop').toBeLessThan(loopStart);
+
+		// AND ASKED IN THE LOOP, in prompt 0084's position: after the CI and
+		// ledger skips, before the containment check that can DELETE a ref.
+		// Every surprise in this loop leaves a branch standing rather than
+		// removing it, and this order is what keeps that true.
+		expect(crossSkip, 'the cross-branch skip moved above the CI check').toBeGreaterThan(ciSkip);
+		expect(crossSkip, 'the cross-branch skip moved above the ledger gate').toBeGreaterThan(ledgerSkip);
+		expect(crossSkip, 'the cross-branch skip moved below the containment check').toBeLessThan(containment);
+		expect(crossSkip, 'the cross-branch skip moved below the merge').toBeLessThan(merge);
+
+		// IT FAILS TOWARD MERGING, WHICH IS THE OPPOSITE OF `ledger_gate`, and
+		// that direction lives in the pre-pass rather than in the gate: a
+		// producer that returns non-zero must leave its half of the table EMPTY
+		// and must never `exit`, `continue` or set a skip. The bodies of both
+		// else-branches are asserted to do exactly one thing -- append to
+		// `cross_note` -- because anything else there is a queue that stalls on
+		// a tool nobody has to have.
+		const prepass = s.slice(prepassNumbers, loopStart);
+		const elseBodies = prepass.match(/\n\s*else\n([\s\S]*?)\n\s*fi\n/g) ?? [];
+		expect(elseBodies.length, 'the two cross-branch failure branches changed shape').toBe(2);
+		for (const body of elseBodies) {
+			expect(body, 'a failed cross-branch read no longer reports itself').toContain('cross_note+=');
+			for (const forbidden of ['exit ', 'continue', 'skipped+=', 'return 1']) {
+				expect(body, `a failed cross-branch read now does "${forbidden}", which can stall the queue`).not.toContain(forbidden);
+			}
+		}
+
+		// AND THE FAILURE IS SAID OUT LOUD. A gate that fails toward merging is
+		// INVISIBLE in every other line of the summary -- the run reads exactly
+		// like one where nothing was contested -- so the note is the only thing
+		// standing between a broken tool and a gate nobody knows stopped
+		// running.
+		expect(s, 'a failed cross-branch read no longer reaches the job summary').toContain(
+			'if [ -n "$cross_note" ]; then'
+		);
+		expect(s).toContain('**A cross-branch check did not answer**');
 	});
 
 	it('the static counts refresh runs ONCE after the loop, writes only the static half, and cannot cost a merge', () => {

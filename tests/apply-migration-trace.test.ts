@@ -41,6 +41,10 @@ import {
 	LEDGER_DIR,
 	APPLIED_DIR
 } from '../tools/apply-migration.mjs';
+// THE OTHER SIDE OF THE ONE PARSER. Imported here on purpose: this suite is
+// where the agreement is asserted, so a change to `parsePermitted` reddens in
+// BOTH tools' suites rather than only in its own.
+import { parsePermitted } from '../tools/migration-claims.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -91,7 +95,13 @@ describe('the permission line means one of two things, across every entry in the
 			['exactly one, 0176. Highest on origin/main at issue: 0175', true, '0176'],
 			['yes, exactly one, 0170. Highest on origin/main at issue: 0169', true, '0170'],
 			['at most one, conditional. Highest on origin/main at issue: 0180', true, null],
-			['only if A3 proved it. Highest on origin/main at issue: 0180. NONE WRITTEN: x', true, null],
+			// THIS ROW READ `true` UNTIL 2026-09-06 AND WAS WRONG. `^no\\b` looks at
+			// the FIRST word only, so an entry that ends by RECORDING having
+			// written none read as permitting one. Three committed entries are
+			// this shape -- 0049, 0058 and 0064 -- and the flip is toward
+			// REFUSING, which is the safe direction for a gate whose only job is
+			// to ask whether anybody asked for this migration.
+			['only if A3 proved it. Highest on origin/main at issue: 0180. NONE WRITTEN: x', false, null],
 			[
 				'at most one, 0174, only for the hall pass. 0171 taken, 0172 reserved for 0013, 0173 for 0015. Highest on origin/main at issue: 0171',
 				true,
@@ -122,6 +132,71 @@ describe('the permission line means one of two things, across every entry in the
 		expect(
 			ledgerPermission('- Migration permitted: exactly one, 0176. Highest on origin/main at issue: 0175').number
 		).toBe('0176');
+	});
+
+	it('is the SAME parser `tools/migration-claims.mjs` uses, over the whole committed corpus', () => {
+		// TWO PARSERS OF ONE HAND-WRITTEN FORMAT, WRITTEN BY TWO LANES THAT
+		// COULD NOT SEE EACH OTHER. `tools/migration-claims.mjs` was written on
+		// a branch cut before `tools/apply-migration.mjs` landed on `main`, so
+		// the repository ended up reading `Migration permitted:` twice -- which
+		// is the same cross-branch blindness the sweep gate in `integrate.yml`
+		// exists for, one file over.
+		//
+		// MEASURED OVER ALL 82 COMMITTED ENTRIES BEFORE THEY WERE MADE ONE, they
+		// disagreed EIGHT TIMES: three entries recording `NONE TAKEN` /
+		// `NONE WRITTEN` read as PERMITTING here, four entries naming the file
+		// they actually took after the "Highest at issue" clause lost the number
+		// here, and one PROMPT number (`0073`: "exactly one, the file 0072
+		// wrote") was read here as migration `0072`.
+		//
+		// THIS IS THE ASSERTION THAT KEEPS THEM ONE. It is deliberately over the
+		// REAL corpus rather than over fixtures: a fixture pair proves the two
+		// agree about what somebody thought to write down, and every one of the
+		// eight was a shape nobody thought of.
+		const files = readdirSync(LEDGER_DIR).filter((f) => f.endsWith('.md'));
+		const disagreements: string[] = [];
+		let compared = 0;
+		for (const f of files) {
+			const text = readFileSync(join(LEDGER_DIR, f), 'utf8');
+			const line = permissionLine(text);
+			if (line === null) continue;
+			compared += 1;
+			const mine = ledgerPermission(text);
+			const theirs = parsePermitted(line);
+			if (mine.permitted !== theirs.permits) {
+				disagreements.push(`${f}: permitted ${mine.permitted} here, ${theirs.permits} there`);
+			}
+			const theirNumbers = theirs.numbers.map((n: number) => String(n).padStart(4, '0'));
+			if (JSON.stringify(mine.numbers ?? []) !== JSON.stringify(theirNumbers)) {
+				disagreements.push(`${f}: numbers ${JSON.stringify(mine.numbers)} here, ${JSON.stringify(theirNumbers)} there`);
+			}
+		}
+		expect(disagreements, 'the two readers of `Migration permitted:` have drifted apart again').toEqual([]);
+		// NOT VACUOUS: a corpus that produced no comparisons would agree with
+		// itself perfectly.
+		expect(compared, 'no committed entry carried a permission line to compare').toBeGreaterThan(60);
+	});
+
+	it('carries the three shapes the two parsers used to disagree about', () => {
+		// One per disagreement class, spelled out so a reader can see what
+		// changed rather than having to diff two tools. Each of these came back
+		// differently from `ledgerPermission` before it became a caller.
+		const recorded = ledgerPermission(
+			'- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0181. NONE TAKEN: Phase A established the schema needs no change.'
+		);
+		expect(recorded.permitted, 'a recorded NONE TAKEN read as permitting').toBe(false);
+
+		const took = ledgerPermission(
+			'- Migration permitted: at most one, number taken at commit time. Highest on origin/main at issue: 0179. TAKEN: `0180_notebook_grid_avatar.sql`'
+		);
+		expect(took.permitted).toBe(true);
+		expect(took.number, 'the number the entry actually took was dropped').toBe('0180');
+
+		const prompt = ledgerPermission(
+			'- Migration permitted: exactly one, the file 0072 wrote, number re-verified at commit time. Highest on origin/main at issue: 0184'
+		);
+		expect(prompt.permitted).toBe(true);
+		expect(prompt.number, 'a PROMPT number was read as a migration number').toBeNull();
 	});
 
 	it('takes the FIELD line and not a mention of it in the prose', () => {
