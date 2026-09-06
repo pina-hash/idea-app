@@ -491,7 +491,8 @@ describe('B1 control: a trace appears only for an apply that actually committed'
 		const sql = `create table public.t_ok (id int primary key);
 			do $$ begin raise notice 'probe: made the table'; end $$;`;
 		const notices: { severity: string; message: string }[] = [];
-		const collect = (n: pg.Notice) => notices.push({ severity: n.severity ?? 'NOTICE', message: n.message ?? '' });
+		const collect = (n: { severity?: string; message?: string }) =>
+			notices.push({ severity: n.severity ?? 'NOTICE', message: n.message ?? '' });
 		client.on('notice', collect);
 		const result = await applyInTransaction(client, sql, false, notices);
 		client.removeListener('notice', collect);

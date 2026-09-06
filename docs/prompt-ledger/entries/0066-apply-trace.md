@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `tools/apply-migration.mjs`, `tests/apply-migration*`, `docs/migrations-applied/` (new), the migration clause of the canned ending with its REGISTER row, the header of `supabase/roles/idea_migrator.sql`, decision 15's Status line, `docs/prompt-ledger/entries/0066-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Highest on origin/main at issue: 0184
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/apply-trace-r4kd2p`
 - Notes: Mr. Pina turned migration applies over to sessions on 2026-09-05,
   using the project's existing `postgres` connection string in
   `IDEA_MIGRATION_URL` rather than the `idea_migrator` role, which could not

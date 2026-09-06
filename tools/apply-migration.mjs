@@ -293,6 +293,7 @@ export function resolveLedger(explicit, dir = LEDGER_DIR) {
 	let found = null;
 	if (explicit) {
 		const id = String(explicit).padStart(4, '0');
+		/** @type {string[]} */
 		let names = [];
 		try {
 			names = readdirSync(dir).filter((f) => f.startsWith(`${id}-`) && f.endsWith('.md'));
@@ -1257,6 +1258,7 @@ export function parseArgs(argv) {
 		json: false,
 		dryRun: false,
 		allowDml: false,
+		/** @type {string | undefined} */
 		ledger: undefined
 	};
 	for (let i = 0; i < argv.length; i += 1) {
