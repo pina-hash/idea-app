@@ -149,9 +149,17 @@ export function migrationNumber(filename) {
  *   3. A recorded OUTCOME (`TAKEN`, `TOOK`, `NONE TAKEN`, `NONE WRITTEN`) beats
  *      a stated intent, because it is what the session actually did.
  *   4. `exactly one, NNNN` / `at most one, NNNN` is an intent naming a number,
- *      and the digits must follow the comma IMMEDIATELY -- entry 0083 reads
- *      "exactly one, the file 0069 wrote", where 0069 is a PROMPT number, and a
- *      looser regex claims a migration nobody mentioned.
+ *      and the digits must follow the comma IMMEDIATELY -- entry 0073 reads
+ *      "exactly one, the file 0072 wrote", where 0072 is a PROMPT number, and a
+ *      looser regex claims a migration nobody mentioned. That is not
+ *      hypothetical and it is not an old bug: `ledgerPermission` in
+ *      `tools/apply-migration.mjs` read exactly that line as migration `0072`
+ *      until it was made a caller of this function, which is the one measured
+ *      case where the two parsers disagreed about a NUMBER NEITHER SIDE HAD
+ *      ANY REASON TO NAME. (This paragraph named "entry 0083" and "0069" until
+ *      2026-09-06. 0083's line reads `no.` and names nothing at all, so the
+ *      example the rule was written from pointed at the wrong entry, which is
+ *      the same class of staleness the rule itself is about.)
  *   5. Anything else that permits a migration permits it WITHOUT saying which
  *      number, which is the state that produced every collision this tool
  *      exists for. It is reported as `unspecified` and never silently as none.
@@ -386,6 +394,52 @@ export function classify(inventory) {
 			.filter((row) => row.holders.length > 1)
 			.sort((a, b) => a.number - b.number)
 	};
+}
+
+/**
+ * THE BRANCHES A SWEEP MUST LEAVE ALONE: every `claude/**` branch holding a
+ * migration number that ANOTHER `claude/**` branch also holds.
+ *
+ * This is the half of the collision problem no branch can see for itself.
+ * `integrate.yml` is the first moment in the system where two branches are in
+ * one process at the same time, so it is the only place the question can be
+ * asked -- and it asks it through this function so the rule has one
+ * implementation rather than a copy embedded in a workflow's shell.
+ *
+ * TWO FILTERS, AND BOTH ARE LOAD-BEARING RATHER THAN TIDINESS:
+ *
+ *   * ONLY `claude/**` HOLDERS COUNT. `collect()` deliberately treats the
+ *     WORKING TREE as a holder, because the person running the tool by hand is
+ *     usually the session that is holding the number. On the sweep runner the
+ *     working tree is `integration` mid-merge, so every number `integration`
+ *     carries would otherwise read as a second holder and contest with the
+ *     very branch that wrote it. Measured against nothing -- it is arithmetic:
+ *     one claude branch plus one working tree is `holders.length === 2`, which
+ *     is `contested`, which would skip a branch nobody is contesting.
+ *   * TWO DISTINCT CLAUDE BRANCHES, not two holders. A row whose only claude
+ *     holder appears twice (an entry AND a file, which is the ordinary shape
+ *     for a session that has written its migration) is one branch, not two.
+ *
+ * Returns a sorted array of branch names, and an EMPTY array is the ordinary
+ * answer. A caller that cannot run this at all must merge everything: see the
+ * gate in `.github/workflows/integrate.yml`, which fails toward merging on
+ * purpose and in the opposite direction from `ledger_gate`.
+ */
+/**
+ * @param {Classification | null | undefined} result
+ * @returns {string[]}
+ */
+export function contestedBranches(result) {
+	/** @type {Set<string>} */
+	const out = new Set();
+	for (const row of result?.contested ?? []) {
+		const branches = [
+			...new Set((row?.holders ?? []).map((h) => String(h?.branch ?? '')).filter((b) => b.startsWith('claude/')))
+		];
+		if (branches.length < 2) continue;
+		for (const b of branches) out.add(b);
+	}
+	return [...out].sort();
 }
 
 /**
@@ -725,6 +779,15 @@ export function main(argv = process.argv.slice(2)) {
 	}
 	if (argv.includes('--json')) {
 		console.log(JSON.stringify(result, null, 2));
+		return 0;
+	}
+	// ONE BRANCH PER LINE AND NOTHING ELSE, because the caller is a shell loop
+	// in `integrate.yml` and a shell loop that has to parse JSON is a second
+	// parser. No branches is EMPTY OUTPUT and exit 0 -- which is the ordinary
+	// answer and must never be confused with the tool failing, since those two
+	// take the sweep in opposite directions.
+	if (argv.includes('--contested-branches')) {
+		for (const b of contestedBranches(result)) console.log(b);
 		return 0;
 	}
 	console.log(formatReport(result));

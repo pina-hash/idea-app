@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	claimMap,
 	classify,
+	contestedBranches,
 	inFlightHoles,
 	migrationNumber,
 	normaliseStatus,
@@ -337,6 +338,105 @@ describe('classify', () => {
 		);
 		expect(r.inFlightHoles).toEqual([186]);
 		expect(r.unexplainedHoles).toEqual([184]);
+	});
+});
+
+describe('contestedBranches -- what the sweep gate reads', () => {
+	// THIS IS THE ONE QUESTION NO BRANCH CAN ANSWER FOR ITSELF, so the only
+	// caller is `.github/workflows/integrate.yml`, which shells out to
+	// `--contested-branches`. It gates whether a branch is merged and deleted,
+	// so both directions matter and a false positive is as real a defect as a
+	// false negative: it holds somebody's finished branch open.
+
+	it('names both branches of a real contest', () => {
+		const r = classify(
+			inventory({
+				landedFiles: ['0001_landed.sql'],
+				branches: [
+					{ branch: 'claude/lane-a', migrations: ['0002_a.sql'] },
+					{ branch: 'claude/lane-b', migrations: ['0002_b.sql'] }
+				]
+			})
+		);
+		expect(contestedBranches(r)).toEqual(['claude/lane-a', 'claude/lane-b']);
+	});
+
+	it('says nothing when two branches take two numbers', () => {
+		const r = classify(
+			inventory({
+				landedFiles: ['0001_landed.sql'],
+				branches: [
+					{ branch: 'claude/lane-a', migrations: ['0002_a.sql'] },
+					{ branch: 'claude/lane-b', migrations: ['0003_b.sql'] }
+				]
+			})
+		);
+		expect(r.contested).toEqual([]);
+		expect(contestedBranches(r)).toEqual([]);
+	});
+
+	it('THE FALSE POSITIVE IT EXISTS TO PREVENT: the working tree is not a second branch', () => {
+		// `collect()` deliberately reports the WORKING TREE as a holder, because
+		// the person running this by hand is usually the session holding the
+		// number. On the sweep runner the working tree IS `integration`
+		// mid-merge, so without the `claude/**` filter every number integration
+		// carries would read as a second holder and skip the very branch that
+		// wrote it. The row is still CONTESTED -- two holders is two holders --
+		// and it must still name nobody.
+		const shared = { file: '0090-fixture.md', text: entry({ id: '0090', permitted: 'yes. Claims: 0002.' }).text };
+		const r = classify({
+			refsVisible: true,
+			refs: [
+				{ ref: 'origin/main', branch: 'origin/main', landed: true, migrations: [], entries: [] },
+				{
+					ref: '(working tree)',
+					branch: 'integration',
+					landed: false,
+					migrations: ['supabase/migrations/0002_a.sql'],
+					entries: [shared]
+				},
+				{
+					ref: 'origin/claude/lane-a',
+					branch: 'claude/lane-a',
+					landed: false,
+					migrations: ['supabase/migrations/0002_a.sql'],
+					entries: [shared]
+				}
+			]
+		});
+		expect(r.contested.map((row) => row.number), 'the row itself is still contested').toEqual([2]);
+		expect(contestedBranches(r), 'a branch was held against the runner it is being merged on').toEqual([]);
+	});
+
+	it('one branch holding a number by BOTH a file and an entry is one branch, not two', () => {
+		// `holders.length > 1` is what makes a row contested, and a single lane
+		// that has written its migration AND its ledger claim is the ORDINARY
+		// shape. Counting holders rather than distinct branches would skip every
+		// such branch.
+		const r = classify(
+			inventory({
+				branches: [
+					{
+						branch: 'claude/lane-a',
+						migrations: ['0002_a.sql'],
+						entries: [entry({ id: '0090', permitted: 'yes. Claims: 0002.' })]
+					}
+				]
+			})
+		);
+		expect(contestedBranches(r)).toEqual([]);
+	});
+
+	it('is empty, never a throw, on a classification it cannot read', () => {
+		// The workflow distinguishes "no contest" (empty output, exit 0) from
+		// "could not answer" (non-zero) and takes the sweep in OPPOSITE
+		// directions on the two. A throw in here would be read as the second,
+		// which is the safe direction -- but a throw on a well-formed absence
+		// would report a broken tool on every ordinary run.
+		expect(contestedBranches(null)).toEqual([]);
+		expect(contestedBranches(undefined)).toEqual([]);
+		expect(contestedBranches({ contested: [] } as never)).toEqual([]);
+		expect(contestedBranches({ contested: [{ holders: [] }] } as never)).toEqual([]);
 	});
 });
 

@@ -109,6 +109,9 @@ import { dirname, resolve, join, basename } from 'node:path';
 import net from 'node:net';
 import pg from 'pg';
 import { readProbes, prepare, buildSql, verdicts, redact } from './deploy-probe.mjs';
+// THE ONE PARSER OF THE `Migration permitted:` LINE. See `ledgerPermission`
+// below for what this replaced and what it measurably got wrong.
+import { parsePermitted } from './migration-claims.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '..');
@@ -172,9 +175,34 @@ export const EXIT = {
  *               "at most one, conditional. Highest ...: 0180"
  *               "only if A3 proved it. Highest ...: 0180. NONE WRITTEN: ..."
  *
- * So the partition is `^no\b` and nothing cleverer. Anything else permits at
- * most one file, which is what every permitting spelling in the corpus means:
- * not one of them permits two.
+ * THAT SURVEY IS STILL RIGHT AND `^no\b` IS NO LONGER THE WHOLE OF IT, because
+ * a SECOND tool learned to read the same line while this one could not see it.
+ * `tools/migration-claims.mjs` was written on a branch cut before this file
+ * landed on `main`, and neither lane could see the other, so the repository
+ * ended up with two parsers of one hand-written format -- which is the same
+ * blindness the sweep gate in `.github/workflows/integrate.yml` exists for, one
+ * file over. `parsePermitted` there is now the ONE implementation and
+ * `ledgerPermission` below is a caller of it.
+ *
+ * MEASURED OVER ALL 82 ENTRIES AT THE TIME OF THE MERGE, they disagreed EIGHT
+ * TIMES, in three shapes, and this side was wrong in all three:
+ *
+ *   3x  a recorded OUTCOME this side could not see. 0049, 0058 and 0064 each
+ *       end "NONE WRITTEN" / "NONE TAKEN"; `^no\b` looks only at the FIRST
+ *       word, so all three read as PERMITTING a migration their own author
+ *       recorded not writing.
+ *   4x  a TAKEN number this side dropped. 0038, 0063, 0071 and 0072 name the
+ *       file they actually wrote AFTER the "Highest on origin/main at issue"
+ *       clause, and the split below discards everything after that clause, so
+ *       the number came back null on exactly the entries that state it most
+ *       precisely.
+ *   1x  a PROMPT number read as a migration. 0073 reads "exactly one, the file
+ *       0072 wrote"; the four-digit scan below took `0072`, which is a prompt.
+ *
+ * The number stays ADVISORY, so none of the four dropped numbers ever refused
+ * anything; the three outcome entries are the ones that change a verdict, and
+ * they change it toward REFUSING, which is the safe direction for a gate whose
+ * only job is to ask whether anybody asked for this migration.
  */
 
 /** The one place the permission line is named, so a rename is one edit. */
@@ -213,17 +241,27 @@ export function permissionLine(text) {
  * has nothing to do with it.
  *
  * @param {string} text
- * @returns {{ permitted: boolean, raw: string | null, number: string | null }}
+ * @returns {{ permitted: boolean, raw: string | null, number: string | null, numbers?: string[] }}
  */
 export function ledgerPermission(text) {
 	const raw = permissionLine(text);
 	if (raw === null) return { permitted: false, raw: null, number: null };
-	const lower = raw.toLowerCase();
-	if (/^no\b/.test(lower)) return { permitted: false, raw, number: null };
-	// Drop the context clause before looking for a number.
-	const clause = raw.split(/highest on origin\/main at issue/i)[0];
-	const num = /\b(\d{4})\b/.exec(clause);
-	return { permitted: true, raw, number: num ? num[1] : null };
+
+	// THE WHOLE DECISION IS `parsePermitted`'s AND NONE OF IT IS RESTATED HERE.
+	// What this function still owns is the SHAPE its callers read: `number` is
+	// a ZERO-PADDED STRING because it is compared against a migration filename,
+	// where `0176` and `176` are not the same thing, and `parsePermitted`
+	// answers in numbers because its own callers do arithmetic on them.
+	//
+	// `numbers` is carried through as well, and it is not decoration: the
+	// `Claims:` shape this repository moved to can name more than one, and a
+	// caller silently seeing only the first is how the second one gets applied
+	// with nothing having permitted it. Nothing reads it yet. The gate below
+	// still permits AT MOST ONE FILE, which is what every spelling in the
+	// corpus means.
+	const parsed = parsePermitted(raw);
+	const numbers = parsed.numbers.map((n) => String(n).padStart(4, '0'));
+	return { permitted: parsed.permits, raw, number: numbers[0] ?? null, numbers };
 }
 
 /**

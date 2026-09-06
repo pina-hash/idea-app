@@ -220,7 +220,8 @@ only when they have something to report:
   held nothing a delete could take away.
 - **CONFLICTED -- a person is needed** -- see below.
 - **Left alone**, with the reason: `CI on abc1234 is failure`, a ledger entry
-  that `still says its session is running (Status: issued)`, or
+  that `still says its session is running (Status: issued)`, a number or a
+  version another unmerged branch also holds (see below), or
   `already in integration` in the narrow case where the delete was refused or
   declined.
 
@@ -240,6 +241,46 @@ reasons a run can be red now** (a conflict, and the suite), both are reported,
 and neither hides the other. Before the fix that main-merge was computed and thrown away
 on such a run, which deadlocked Integrate against Deploy's own
 "`integration` is behind `main`" refusal.
+
+### Two branches can collide without either one being wrong
+
+Since 2026-09-06 the sweep also leaves a branch alone when ANOTHER outstanding
+branch holds the same thing. Two shapes, both measured on real branches that day:
+
+- **A migration number.** Five collisions in two days. Both branches are
+  green, both are finished, and sweeping both gives `integration` two files
+  with one number -- which reddens the contiguity assertion in
+  `tests/db/migration-0177-tombstone.test.ts` for a reason neither author can
+  fix alone. `node tools/migration-claims.mjs` says who holds what;
+  `--contested-branches` is the sweep's own reading of it.
+- **A standards version.** Two lanes bumped `docs/standards/IDEA_instructions.md`
+  to the identical string `**Version 4.21 - 2026-09-06**`. **Git merged that
+  header line with no conflict marker**, because a three-way merge whose two
+  sides made the same change has nothing to report, and
+  `tests/standards-version-header.test.ts` compares a file's header to its own
+  changelog, which both sides passed. A branch is held only when the two
+  bump one document to one version string FROM DIFFERENT CONTENT: a branch
+  carrying another's bump byte-for-byte is one change, not two, and merges.
+
+Both skips name the other branch, and neither is a verdict about which side is
+wrong -- there is no rule here for picking one. Renumber on either branch and
+push; the next run picks both up.
+
+**THIS CHECK FAILS TOWARD MERGING, WHICH IS THE OPPOSITE OF EVERY OTHER GATE
+HERE.** If it cannot read -- the tool is missing, node is not there, a git read
+fails -- every branch sweeps exactly as it would have, and the summary's first
+section says **A cross-branch check did not answer** on its own line. Holding a
+branch open costs somebody a look; refusing to sweep on a broken read would
+stall the queue on a tool nobody has to have. It can only ever ADD a skip.
+
+**IT IS HERE AND NOT IN A TEST BECAUSE NO BRANCH CAN SEE ANOTHER BRANCH.**
+`ci.yml` checks out one ref, shallow, with no sibling branch refs, so every
+check in this repository that relates two files is green on each side of a
+collision. The sweep is the first moment two branches are in one process at the
+same time. `tools/integrate-gate-proof.sh` cases 76-87 prove it against
+throwaway repositories with two real `claude/**` branches on a real bare
+remote, including case 82, which reads the merged blob back and confirms git
+really does take that header line silently.
 
 ### Two files are resolved without you, and only two
 

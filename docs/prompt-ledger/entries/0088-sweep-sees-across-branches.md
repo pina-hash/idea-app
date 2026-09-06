@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: `.github/workflows/integrate.yml`, `.github/workflows/README.md`, `tools/integrate-gate-proof.sh`, the duplicate permitted-line parser in `tools/apply-migration.mjs`, `tools/migration-claims.mjs`, `tests/workflows.test.ts`, `tests/migration-claims*`, `tests/apply-migration*`, `docs/prompt-ledger/entries/0088-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0189
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: `claude/sweep-cross-branch-visibility-xo9yz1`
 - Notes: Three findings from 2026-09-06 are one defect: a `claude/**` branch
   cannot see another `claude/**` branch, its CI cannot either, and the sweep
   that CAN see all of them checks nothing across them.

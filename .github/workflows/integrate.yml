@@ -426,6 +426,228 @@ jobs:
           }
           # ledger_gate_marker:end
 
+          # -----------------------------------------------------------------
+          # THE CROSS-BRANCH GATE. A branch is not swept while another unmerged
+          # branch holds the same migration number, or bumps the same standards
+          # document to the same version string.
+          #
+          # THIS IS THE ONE QUESTION NO BRANCH CAN ANSWER FOR ITSELF, which is
+          # why it is here and not a test. A `claude/**` branch cannot see
+          # another `claude/**` branch and neither can its CI: `ci.yml` checks
+          # out one ref, shallow, with no sibling branch refs, so every check in
+          # this repository that relates two files is green on each side of a
+          # collision and red only where both edits first exist. Prompt 0075
+          # answered half of that by running the suite on the MERGED tree
+          # (`merged_suite` below). This is the other half: the sweep is the
+          # first moment two branches are in one process at the same time, so it
+          # is the only place a question ABOUT THE PAIR can be asked, and the
+          # cheap ones are worth asking BEFORE the merge rather than after.
+          #
+          # TWO MEASURED COLLISIONS, both from 2026-09-06:
+          #
+          #   * MIGRATION NUMBERS. Five in two days. Sweeping both sides of a
+          #     contested number gives `integration` two files with one number,
+          #     which reddens the contiguity assertion in
+          #     `tests/db/migration-0177-tombstone.test.ts` for a reason neither
+          #     author can fix alone. Specified by prompt 0084, which owned the
+          #     tool and not this file.
+          #   * STANDARDS VERSIONS. Two lanes bumped `IDEA_instructions.md` to
+          #     the IDENTICAL string `**Version 4.21 - 2026-09-06**`. Measured
+          #     with `git merge-tree` on the two real tips: the header line
+          #     merges with NO CONFLICT MARKER, because a 3-way merge whose two
+          #     sides made the same change has, by definition, nothing to
+          #     report. `tests/standards-version-header.test.ts` cannot see it
+          #     either -- it compares a file's header to its own changelog, and
+          #     both sides were internally consistent.
+          #
+          # IT FAILS TOWARD MERGING, WHICH IS THE OPPOSITE DIRECTION FROM
+          # `ledger_gate`, AND THAT IS DELIBERATE. Either read failing leaves
+          # its half of the table empty and every branch sweeps exactly as it
+          # did before this existed; the failure is NAMED in the job summary and
+          # never swallowed. `ledger_gate` holds a branch on a surprise because
+          # the cost of getting it wrong is a live session losing its branch.
+          # Here the cost of a broken read is a contested number reaching
+          # `integration`, which is recoverable and visible; the cost of failing
+          # the other way is a queue stalled on a tool nobody has to have. So
+          # this gate can only ever ADD a skip.
+          #
+          # It is FUNCTIONS and between markers for `ledger_gate`'s reason: they
+          # are PROVED by cutting this exact text out of THIS FILE and running
+          # it against throwaway git repositories, so no proof can drift into
+          # testing a private copy of the rule. Do not rename the markers and do
+          # not move the bodies out from between them.
+          # cross_branch_marker:begin
+          contested_number_rows() {
+            # Prints `<branch>\t<reason>` for every branch holding a migration
+            # number another unmerged branch also holds. Returns 1, having
+            # printed nothing, when the tool could not answer at all.
+            #
+            # THE TOOL IS ASKED FOR BRANCH NAMES AND NOT FOR JSON. A shell loop
+            # that parses JSON is a second parser of the tool's own output, and
+            # `--contested-branches` exists so there is one. Its filters -- only
+            # `claude/**` holders, and two DISTINCT ones -- are argued in
+            # `contestedBranches` in `tools/migration-claims.mjs`; the important
+            # one is that the sweep runner's own working tree is `integration`
+            # mid-merge and would otherwise contest with the branch that wrote
+            # the number.
+            #
+            # EMPTY OUTPUT AND EXIT 0 IS THE ORDINARY ANSWER and is not the same
+            # as the tool failing. Those two take the sweep in opposite
+            # directions, so they are distinguished by the exit status alone.
+            local out one
+            out="$(node tools/migration-claims.mjs --contested-branches 2>/dev/null)" || return 1
+            [ -n "$out" ] || return 0
+            while IFS= read -r one; do
+              [ -n "$one" ] || continue
+              printf '%s\t%s\n' "$one" \
+                'holds a migration number another unmerged branch also holds; run `node tools/migration-claims.mjs` to see which'
+            done <<<"$out"
+            return 0
+          }
+
+          standards_version() {
+            # $1 ref, $2 path. Prints the version out of the document's HEADER
+            # (`**Version 4.21 - 2026-09-06**` -> `4.21`), or nothing when the
+            # file has no such header. Returns 1 only when the blob is missing.
+            #
+            # THE FIRST TWELVE LINES ONLY, because these documents discuss their
+            # own version numbers in prose ("stale at 1.1 since that version")
+            # and a body mention must never be read as the header. Same bound
+            # `tests/standards-version-header.test.ts` uses for the same reason.
+            #
+            # NO `head` AND NO `exit` IN THE awk, and that is not style. Either
+            # one stops reading before `git show` has finished writing, `git`
+            # takes SIGPIPE, and under the `set -o pipefail` this step runs with
+            # the whole pipeline reports failure -- which here would read as a
+            # missing header on a document that has one.
+            local blob
+            blob="$(git show "$1:$2" 2>/dev/null)" || return 1
+            printf '%s\n' "$blob" | awk '
+              !found && NR <= 12 && match($0, /^\*\*Version[ \t]+[0-9][0-9.]*/) {
+                v = substr($0, RSTART, RLENGTH)
+                sub(/^\*\*Version[ \t]+/, "", v)
+                print v
+                found = 1
+              }'
+          }
+
+          contested_version_rows() {
+            # Prints `<branch>\t<reason>` for every branch bumping a standards
+            # document to a version string another unmerged branch also bumps it
+            # to. Returns 1, having printed nothing, when a read failed.
+            #
+            # A BRANCH CLAIMS A VERSION ONLY WHEN IT MOVED IT OFF `origin/main`'s.
+            # Carrying main's own version is not a claim, so a document nobody
+            # touched cannot contest with anything.
+            #
+            # AND THE COLLISION IS `SAME VERSION, DIFFERENT BYTES`, WHICH IS THE
+            # PRECISE SHAPE AND NOT AN APPROXIMATION. Two branches can hold one
+            # version string legitimately -- branch B merged branch A, or both
+            # merged a third -- and in every one of those the BLOB is identical,
+            # so the merge is a no-op and there is nothing to contest. Comparing
+            # blobs rather than walking ancestry gets that exactly right in one
+            # `git rev-parse`, where an ancestor check would have reported both
+            # sides of a shared third branch as a collision.
+            #
+            # WHAT IT DELIBERATELY DOES NOT CATCH, said plainly: two branches
+            # editing one standards document WITHOUT bumping it. That is a
+            # different defect (nobody claimed a version at all), git will
+            # usually conflict on it, and widening this to cover it would hold
+            # every branch that touches a standards file main also moved.
+            local dir='docs/standards'
+            local refs ref branch path mine theirs blob rows=''
+            local -a fields=()
+            local n i
+            refs="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/claude 2>/dev/null)" || return 1
+            [ -n "$refs" ] || return 0
+            while IFS= read -r ref; do
+              [ -n "$ref" ] || continue
+              branch="${ref#origin/}"
+              case "$branch" in claude/*) ;; *) continue ;; esac
+
+              # NUL-DELIMITED AND NEVER THROUGH `$(...)`, for the reason written
+              # out at `ledger_gate`: command substitution DROPS NUL bytes, so a
+              # captured `-z` list arrives as one run-on string that matches no
+              # path. `--name-only` writes ONE record per path (no status
+              # field), which is why this steps by one where `ledger_gate`'s
+              # `--name-status` walk steps by two.
+              mapfile -d '' -t fields < <(
+                git -c core.quotePath=false diff --name-only -z "origin/main...$ref" -- "$dir" 2>/dev/null
+                printf 'rc=%s\0' "$?"
+              )
+              n="${#fields[@]}"
+              [ "${fields[n-1]}" = rc=0 ] || return 1
+              i=0
+              while [ "$i" -lt "$((n - 1))" ]; do
+                path="${fields[i]}"
+                i=$((i + 1))
+                case "$path" in *.md) ;; *) continue ;; esac
+                mine="$(standards_version "$ref" "$path")" || continue
+                [ -n "$mine" ] || continue
+                theirs="$(standards_version origin/main "$path")" || theirs=''
+                [ "$mine" != "$theirs" ] || continue
+                blob="$(git rev-parse "$ref:$path" 2>/dev/null)" || continue
+                # TAB-DELIMITED AND BUILT WITH `$'\t'`/`$'\n'` RATHER THAN LITERAL
+                # WHITESPACE: a real newline inside this string would sit at column
+                # zero of the YAML block scalar and end the `run:` block.
+                rows+="${branch}"$'\t'"${path}"$'\t'"${mine}"$'\t'"${blob}"$'\n'
+              done
+            done <<<"$refs"
+            [ -n "$rows" ] || return 0
+
+            # GROUPED ON (path, version), REPORTED ONLY WHERE THE GROUP HOLDS
+            # TWO OR MORE DISTINCT BLOBS, and every branch in such a group is
+            # named to every other one. Neither side is wrong and there is no
+            # rule here for picking one; what there is, is a reason a person
+            # needs to read.
+            printf '%s' "$rows" | awk -F'\t' '
+              {
+                key = $2 SUBSEP $3
+                if (!((key SUBSEP $4) in seenblob)) { seenblob[key SUBSEP $4] = 1; blobs[key]++ }
+                if (!((key SUBSEP $1) in seenbranch)) {
+                  seenbranch[key SUBSEP $1] = 1
+                  who[key] = who[key] (who[key] == "" ? "" : ", ") $1
+                }
+                rk[NR] = key; rb[NR] = $1; rp[NR] = $2; rv[NR] = $3
+              }
+              END {
+                for (i = 1; i <= NR; i++) {
+                  if (blobs[rk[i]] < 2) continue
+                  others = ""
+                  parts = split(who[rk[i]], w, ", ")
+                  for (j = 1; j <= parts; j++)
+                    if (w[j] != rb[i]) others = others (others == "" ? "" : ", ") w[j]
+                  printf "%s\tbumps %s to version %s, and so does %s, from different content -- one of the two has to renumber\n", \
+                    rb[i], rp[i], rv[i], others
+                }
+              }'
+          }
+
+          cross_branch_gate() {
+            # $1 the branch, $2 the table both producers above wrote. Prints a
+            # skip reason and returns 0 to SKIP; returns 1, silently, to let the
+            # merge proceed.
+            #
+            # ONE LOOKUP FOR BOTH PRODUCERS, on purpose. Two gates asking the
+            # same "is this branch in a list" question in two spellings is the
+            # duplication this repository's own rules are against, and the skip
+            # reads the same way in the job summary whichever produced it.
+            #
+            # AN EMPTY TABLE IS THE ORDINARY CASE and must stay the cheapest
+            # path through here: most sweeps contest nothing.
+            local branch="$1" table="$2" who why
+            [ -n "$table" ] || return 1
+            while IFS="$(printf '\t')" read -r who why; do
+              [ "$who" = "$branch" ] || continue
+              [ -n "$why" ] || continue
+              printf '%s\n' "$why"
+              return 0
+            done <<<"$table"
+            return 1
+          }
+          # cross_branch_marker:end
+
+
           # A BRANCH THE TARGET ALREADY CONTAINS IS DELETED NOW, AND THAT
           # REVERSES WHAT THIS FILE USED TO SAY.
           #
@@ -1213,6 +1435,31 @@ jobs:
             caught_up=yes
           fi
 
+          # THE CROSS-BRANCH TABLE, READ ONCE, BEFORE ANY BRANCH IS TOUCHED.
+          # See `cross_branch_gate` above for what it is and why it fails toward
+          # merging. Read HERE rather than inside the loop for one reason: the
+          # question is about the WHOLE SET of outstanding branches, so asking
+          # it per branch would be the same answer computed N times -- and it
+          # would change under the loop's own merges, so a branch swept early
+          # would be judged against a different set from one swept late.
+          #
+          # EACH HALF FAILS ON ITS OWN. A migration read that cannot answer must
+          # not take the version read down with it, and neither may take the
+          # sweep down: both are reported in the summary and both leave their
+          # half of the table empty.
+          cross_rows=''
+          cross_note=''
+          if cross_numbers="$(contested_number_rows)"; then
+            [ -z "$cross_numbers" ] || cross_rows+="$cross_numbers"$'\n'
+          else
+            cross_note+="the migration-number read did not answer (\`node tools/migration-claims.mjs --contested-branches\` failed), so no branch was held for a contested number this run. "
+          fi
+          if cross_versions="$(contested_version_rows)"; then
+            [ -z "$cross_versions" ] || cross_rows+="$cross_versions"$'\n'
+          else
+            cross_note+="the standards-version read did not answer, so no branch was held for a contested version this run. "
+          fi
+
           merged=()
           merged_shas=()
           conflicted=()
@@ -1277,6 +1524,24 @@ jobs:
             # other one, so it lands in the job summary under "Left alone".
             if ledger_reason="$(ledger_gate "$ref")"; then
               skipped+=("$branch -- $ledger_reason")
+              continue
+            fi
+
+            # A NUMBER OR A VERSION ANOTHER UNMERGED BRANCH ALSO HOLDS? Leave it
+            # alone, and the other side is left alone by the same table on its
+            # own pass. `cross_branch_gate` above carries the whole argument.
+            #
+            # HERE, AFTER `ledger_gate` AND BEFORE THE CONTAINMENT CHECK, which
+            # is where prompt 0084 specified it and is right for a reason worth
+            # writing down: a branch already contained in $TARGET has had its
+            # number LANDED (`origin/integration` is a landed ref to the claims
+            # tool, so it stops being a holder), and a version it already merged
+            # is byte-identical on both sides, so neither producer can name a
+            # contained branch anyway. Ahead of containment, a branch that IS
+            # somehow named is left standing rather than deleted, which is the
+            # direction every surprise in this loop goes.
+            if cross_reason="$(cross_branch_gate "$branch" "$cross_rows")"; then
+              skipped+=("$branch -- $cross_reason")
               continue
             fi
 
@@ -1511,6 +1776,14 @@ jobs:
               echo "- **Static counts regenerated** on the merged tree -- was \`${counts_note%% -> *}\`, now \`${counts_note##* -> }\`."
             elif [ ${#merged[@]} -gt 0 ] || [ "$caught_up" = yes ]; then
               echo "- Static counts unchanged -- the region was already the merged tree's own answer, so nothing was committed."
+            fi
+            # A CROSS-BRANCH READ THAT DID NOT ANSWER, SAID OUT LOUD. This
+            # gate fails toward merging, so its failure is INVISIBLE in every
+            # other line of this summary -- the run reads exactly like one where
+            # nothing was contested. Silence here is how a broken tool becomes a
+            # gate nobody knows stopped running.
+            if [ -n "$cross_note" ]; then
+              echo "- **A cross-branch check did not answer** -- ${cross_note% }. Every branch was swept exactly as it would have been without it, deliberately: this gate can only ever ADD a skip, so a broken read must never stall the queue."
             fi
             # THE MERGED TREE'S OWN VERDICT, AND THE FAILING ASSERTIONS BY
             # NAME. Four bundles have each spent part of an audit establishing
