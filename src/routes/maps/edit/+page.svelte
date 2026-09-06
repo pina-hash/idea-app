@@ -1,15 +1,14 @@
 <script lang="ts">
 	/**
-	 * The route shell for the admin maps editor: chrome above, the real
-	 * MapsEditor below, transports built over the caller's own browser client
-	 * -- the writes go through 0161's `is_admin()` RLS policies, which is this
-	 * feature's stated write path, and `maps_publish` is the one RPC.
+	 * The route for the maps editor: the load's payload and the transports,
+	 * handed to `MapsEditorShell`, which is the whole screen -- chrome bar and
+	 * workspace -- and is what the `/dev/maps-editor` harness mounts too. The
+	 * transports are built over the caller's own browser client: the writes go
+	 * through 0161's `is_admin()` RLS policies, which is this feature's stated
+	 * write path, and `maps_publish` is the one RPC.
 	 */
 	import { untrack } from 'svelte';
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
-	import VersionBadge from '$lib/VersionBadge.svelte';
-	import MapsEditor from '$lib/maps/MapsEditor.svelte';
+	import MapsEditorShell from '$lib/maps/MapsEditorShell.svelte';
 	import GrantAdmin from '$lib/maps/GrantAdmin.svelte';
 	import { mapsGrantTransports, mapsTransportsFor } from '$lib/maps/transports';
 	import { MAPS_ADMIN_SCOPE } from '$lib/maps/grants';
@@ -29,7 +28,8 @@
 	   captures are deliberate and untrack says so. */
 	const transports = untrack(() => mapsTransportsFor(data.supabase, data.mapsScope ?? MAPS_ADMIN_SCOPE));
 	/* The grant console is a THIRD injected object, handed in only for an
-	   admin -- so for everybody else it is not on the page at all. */
+	   admin -- so for everybody else it is not on the page at all, and the
+	   workspace renders no Editors tab. */
 	const grantTransports = untrack(() =>
 		data.mapsScope?.admin === false ? null : mapsGrantTransports(data.supabase)
 	);
@@ -39,52 +39,15 @@
 	<title>Maps Editor // IDEA</title>
 </svelte:head>
 
-<div class="maps-edit-shell">
-	<div class="app-header">
-		<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-		<div class="header-right">
-			<a class="btn secondary" href="/dashboard">Dashboard</a>
-			<a class="btn secondary" href="/">&lsaquo; Home</a>
-			<ProfileMenu />
-		</div>
-	</div>
+{#snippet editors()}
+	{#if grantTransports}
+		<GrantAdmin nodes={data.maps.nodes} transports={grantTransports} />
+	{/if}
+{/snippet}
 
-	<main class="maps-edit-page">
-		<section class="hero">
-			<div class="eyebrow">IDEA // Maps</div>
-			<h1>Maps editor</h1>
-		</section>
-
-		<MapsEditor initial={data.maps} {transports} {scope} />
-
-		{#if grantTransports}
-			<section class="grants">
-				<GrantAdmin nodes={data.maps.nodes} transports={grantTransports} />
-			</section>
-		{/if}
-
-		<footer class="page-footer">
-			<VersionBadge app="maps" />
-		</footer>
-	</main>
-</div>
-
-<style>
-	.maps-edit-page {
-		max-width: 90rem;
-		margin: 0 auto;
-		padding: 0 1rem 2rem;
-	}
-	.hero {
-		padding: 1rem 0 0.8rem;
-	}
-	.hero h1 {
-		margin: 0.1rem 0 0;
-	}
-	.grants {
-		margin-top: 2rem;
-	}
-	.page-footer {
-		margin-top: 2rem;
-	}
-</style>
+<MapsEditorShell
+	initial={data.maps}
+	{transports}
+	{scope}
+	editors={grantTransports ? editors : null}
+/>

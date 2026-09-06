@@ -907,11 +907,20 @@ export function mapsSnapTargets(
 	selfId: string | null
 ): MapsSnapTarget[] {
 	const targets: MapsSnapTarget[] = [];
-	if (parent?.outline) {
-		const f = mapsFootprint(parent.outline, null);
+	if (!parent) return targets;
+	// The parent's walls come from its EFFECTIVE content -- the staged pending
+	// edit when one exists -- for the same reason the siblings below do: the
+	// canvas draws the frame from that content, and a shape that snapped to a
+	// wall the drawing does not show is a shape that snapped somewhere other
+	// than where it looks.
+	const parentOutline = mapsEffectiveNodeContent(
+		parent,
+		pendingFor(data.pending, 'maps_nodes', parent.id)
+	).outline;
+	if (parentOutline) {
+		const f = mapsFootprint(parentOutline, null);
 		targets.push({ label: `the ${MAPS_KIND_LABELS[parent.kind].toLowerCase()} walls`, box: f });
 	}
-	if (!parent) return targets;
 	for (const sibling of data.nodes) {
 		if (sibling.parent_id !== parent.id || sibling.id === selfId) continue;
 		const pending = pendingFor(data.pending, 'maps_nodes', sibling.id);
@@ -919,4 +928,40 @@ export function mapsSnapTargets(
 		if (box) targets.push({ label: sibling.name, box });
 	}
 	return targets;
+}
+
+/**
+ * THE GRID PITCH THE CANVAS DRAWS, in inches, chosen so a line is never
+ * closer than `minPx` to its neighbour: a foot when a foot is at least that
+ * many pixels, coarser steps as the plan is drawn smaller, and an inch only
+ * when the drawing is zoomed far enough in for one to be legible. Inches are
+ * the canonical unit (spec 2), so the ladder is in inches and feet rather
+ * than a round number of pixels that would mean nothing on the plan.
+ */
+export const MAPS_GRID_STEPS_IN: readonly number[] = [1, 6, 12, 24, 48, 120, 240, 600];
+
+export function mapsGridStepIn(pxPerInch: number, minPx = 14): number | null {
+	if (!(pxPerInch > 0)) return null;
+	for (const step of MAPS_GRID_STEPS_IN) {
+		if (step * pxPerInch >= minPx) return step;
+	}
+	return null;
+}
+
+/**
+ * WHERE A SHAPE WITH A SIZE AND NO POSITION IS DRAWN: centred in its frame,
+ * as a GHOST somebody can drag into place or accept as-is. The position it
+ * returns is the value the typed X/Y fields would hold if the ghost were
+ * accepted, so accepting it and dragging it are the same write as typing --
+ * there is still exactly one store of the value. Before this existed a shape
+ * with a typed width and depth was drawn nowhere at all until BOTH position
+ * fields had been typed, which is the state Mr. Pina reported as "nothing
+ * showing up".
+ */
+export function mapsGhostPosition(frame: MapsBox, footprint: MapsBox): { x: number; y: number } {
+	const fw = footprint.maxX - footprint.minX;
+	const fh = footprint.maxY - footprint.minY;
+	const x = frame.minX + (frame.maxX - frame.minX - fw) / 2 - footprint.minX;
+	const y = frame.minY + (frame.maxY - frame.minY - fh) / 2 - footprint.minY;
+	return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
 }

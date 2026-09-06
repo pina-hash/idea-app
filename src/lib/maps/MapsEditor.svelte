@@ -1,11 +1,33 @@
 <script lang="ts">
 	/**
-	 * THE WHOLE EDITOR SCREEN, mounted identically by `/maps/edit` and by the
-	 * dev harness -- the route owns the load and the transports, this owns the
-	 * arrangement. Master-detail through the ONE shared split (ClassSplit):
-	 * the navigation pane holds the node tree and the item-type vocabulary,
-	 * the detail pane holds the selected object's editor, and nothing selected
-	 * gives the tree the full measure.
+	 * THE WORKSPACE, mounted identically by `/maps/edit` (through
+	 * `MapsEditorShell`) and by the dev harnesses -- the route owns the load
+	 * and the transports, this owns the arrangement.
+	 *
+	 * THREE REGIONS: TREE, STAGE, INSPECTOR, the shape every tool of this kind
+	 * converges on, through the ONE shared split (ClassSplit). The navigation
+	 * pane holds the tree (and the item-type vocabulary, and for an admin the
+	 * grant console); the detail pane holds the selected object's editor, which
+	 * for a container is itself the stage beside the inspector (`NodeDetail`).
+	 * The stage takes the room a wide screen gives it and the two side panels
+	 * are BOUNDED (`--mp-tree-w`, `--mp-inspector-w`): they grow a little with
+	 * the window and stop, so a 2560px monitor buys a bigger drawing and not a
+	 * wider form.
+	 *
+	 * NOTHING SELECTED IS THE OVERVIEW, NOT AN EMPTY PANE. The detail pane
+	 * always holds something -- with no selection it draws every root container
+	 * with what is inside it (`MapsOverview`), so the editor opens on the map
+	 * rather than on a list beside a void. That is the standard's own
+	 * exemption ("a surface whose detail pane always holds something passes
+	 * `hasDetail` and simply never collapses"): the overview is content, and
+	 * it is the content a person came for.
+	 *
+	 * `scroll="fill"` so each pane owns its scroll where the shell bounds the
+	 * height (the app shell above 1024px), and the document scrolls where
+	 * nothing does (a phone, or a harness that mounts this in a page). The
+	 * console measure (`--measure-console`, 100%) replaces the split's reading
+	 * measure: a console is not a reading surface and a 92rem cap on a 2560px
+	 * window is 1100px of drawing thrown away.
 	 *
 	 * UNSAVED WORK NEVER DISCARDS SILENTLY, in either direction a person can
 	 * move. Mounted forms register a {dirty, flush} handle here; switching
@@ -15,7 +37,7 @@
 	 * beforeNavigate on the page.
 	 */
 	import '$lib/shell/split.css';
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
@@ -30,22 +52,20 @@
 		type MapsSelection
 	} from './maps';
 	import type { MapsTransports } from './transports';
-	import {
-		MAPS_ADMIN_SCOPE,
-		mapsCaps,
-		type MapsEditorScope
-	} from './grants';
+	import { MAPS_ADMIN_SCOPE, mapsCaps, type MapsEditorScope } from './grants';
 	import { mapsNodePath } from './maps';
 	import NodeTree from './NodeTree.svelte';
 	import NodeDetail from './NodeDetail.svelte';
 	import ItemTypeDetail from './ItemTypeDetail.svelte';
 	import MapsStatusChip from './MapsStatusChip.svelte';
+	import MapsOverview from './MapsOverview.svelte';
 
 	let {
 		initial,
 		transports,
 		initialSelection = null,
-		scope = MAPS_ADMIN_SCOPE
+		scope = MAPS_ADMIN_SCOPE,
+		editors = null
 	}: {
 		initial: MapsEditorData;
 		transports: MapsTransports;
@@ -58,6 +78,14 @@
 		 * else; publishing is removed by the transports rather than by this.
 		 */
 		scope?: MapsEditorScope;
+		/**
+		 * THE GRANT CONSOLE, as a snippet, rendered as a third tab of the tree
+		 * pane. Null renders no tab: the console's transports are a separate
+		 * injected object (`MapsGrantTransports`), so a surface handed none --
+		 * a granted editor's page, every harness that predates this -- has no
+		 * tab and no console, and absence is the mechanism.
+		 */
+		editors?: Snippet | null;
 	} = $props();
 
 	// The load's payload seeds the editor once; every later change flows
@@ -95,8 +123,9 @@
 	let listNotice = $state<string | null>(null);
 
 	type Selection = MapsSelection;
+	type Section = 'places' | 'types' | 'editors';
 
-	let section = $state<'places' | 'types'>(
+	let section = $state<Section>(
 		untrack(() => (initialSelection?.kind === 'type' || initialSelection?.kind === 'new-type' ? 'types' : 'places'))
 	);
 	let selection = $state<Selection | null>(untrack(() => initialSelection));
@@ -175,12 +204,13 @@
 		if (!s || s.kind !== 'type') return null;
 		return data.itemTypes.find((t) => t.id === s.id) ?? null;
 	});
-	const hasDetail = $derived.by(() => {
+	/** What the detail pane holds. `overview` is the nothing-selected state, and it is content. */
+	const detailKind = $derived.by<'node' | 'new-node' | 'type' | 'new-type' | 'overview'>(() => {
 		const s = selection;
-		if (!s) return false;
-		if (s.kind === 'node') return selectedNode !== null;
-		if (s.kind === 'type') return selectedType !== null;
-		return true;
+		if (!s) return 'overview';
+		if (s.kind === 'node') return selectedNode ? 'node' : 'overview';
+		if (s.kind === 'type') return selectedType ? 'type' : 'overview';
+		return s.kind;
 	});
 	const selectionKey = $derived.by(() => {
 		const s = selection;
@@ -198,6 +228,11 @@
 	function onDeleted(message: string) {
 		listNotice = message;
 		selection = null;
+	}
+	/** Selecting a node from anywhere -- the tree, a sheet, an elevation -- lands on the Places tab. */
+	function selectNode(id: string) {
+		section = 'places';
+		attemptSelect({ kind: 'node', id });
 	}
 </script>
 
@@ -224,10 +259,10 @@
 		</p>
 	{/if}
 
-	<ClassSplit {hasDetail} narrow="swap" scroll="page" detailWidth="roomy">
+	<ClassSplit hasDetail={true} narrow="stack-nav-first" scroll="fill">
 		{#snippet nav()}
 			<nav class="maps-nav" aria-label="Map contents">
-				<div class="section-tabs" role="tablist" aria-label="Places or item types">
+				<div class="section-tabs" role="tablist" aria-label="Places, item types or editors">
 					<button
 						type="button"
 						class="tab"
@@ -244,6 +279,17 @@
 					>
 						Item types
 					</button>
+					{#if editors}
+						<button
+							type="button"
+							class="tab"
+							aria-pressed={section === 'editors'}
+							onclick={() => (section = 'editors')}
+							data-testid="maps-editors-tab"
+						>
+							Editors
+						</button>
+					{/if}
 				</div>
 
 				{#if listNotice}
@@ -274,7 +320,7 @@
 							</div>
 						</div>
 					{/if}
-				{:else}
+				{:else if section === 'types'}
 					<ul class="type-list" data-testid="maps-type-list">
 						{#each sortedTypes as t (t.id)}
 							<li>
@@ -303,88 +349,94 @@
 							</button>
 						</div>
 					{/if}
+				{:else if editors}
+					<div class="editors-pane" data-testid="maps-editors-pane">
+						{@render editors()}
+					</div>
 				{/if}
 			</nav>
 		{/snippet}
 
-		{#if pendingSwitch}
-			<div class="switch-confirm" role="alertdialog" aria-label="Unsaved changes">
-				<p>
-					Your changes on {pendingSwitch.labels.join(' and ')} could not be saved. Switching now
-					discards them.
-				</p>
-				<div class="confirm-row">
-					<button type="button" class="btn" onclick={() => (pendingSwitch = null)}>
-						Keep editing
-					</button>
-					<button type="button" class="btn secondary" onclick={discardAndSwitch}>
-						Discard and switch
-					</button>
+		<div class="detail-flow">
+			{#if pendingSwitch}
+				<div class="switch-confirm" role="alertdialog" aria-label="Unsaved changes">
+					<p>
+						Your changes on {pendingSwitch.labels.join(' and ')} could not be saved. Switching now
+						discards them.
+					</p>
+					<div class="confirm-row">
+						<button type="button" class="btn" onclick={() => (pendingSwitch = null)}>
+							Keep editing
+						</button>
+						<button type="button" class="btn secondary" onclick={discardAndSwitch}>
+							Discard and switch
+						</button>
+					</div>
 				</div>
-			</div>
-		{/if}
-
-		{#key selectionKey}
-			{#if selection?.kind === 'node' && selectedNode}
-				<NodeDetail
-					node={selectedNode}
-					{data}
-					{transports}
-					onchanged={refresh}
-					onselectnode={(id) => attemptSelect({ kind: 'node', id })}
-					onaddchild={(parentId, presetKind) =>
-						attemptSelect({ kind: 'new-node', parentId, presetKind })}
-					ondeleted={onDeleted}
-					{registerForm}
-					{caps}
-				/>
-			{:else if selection?.kind === 'new-node'}
-				<NodeDetail
-					node={null}
-					parentId={selection.parentId}
-					presetKind={selection.presetKind}
-					{data}
-					{transports}
-					onchanged={refresh}
-					onselectnode={(id) => attemptSelect({ kind: 'node', id })}
-					onaddchild={(parentId, presetKind) =>
-						attemptSelect({ kind: 'new-node', parentId, presetKind })}
-					ondeleted={onDeleted}
-					{registerForm}
-					{caps}
-				/>
-			{:else if selection?.kind === 'type' && selectedType}
-				<ItemTypeDetail
-					itemType={selectedType}
-					{data}
-					{transports}
-					onchanged={refresh}
-					onselectnode={(id) => {
-						section = 'places';
-						attemptSelect({ kind: 'node', id });
-					}}
-					onselecttype={(id) => attemptSelect({ kind: 'type', id })}
-					ondeleted={onDeleted}
-					{registerForm}
-					{caps}
-				/>
-			{:else if selection?.kind === 'new-type'}
-				<ItemTypeDetail
-					itemType={null}
-					{data}
-					{transports}
-					onchanged={refresh}
-					onselectnode={(id) => {
-						section = 'places';
-						attemptSelect({ kind: 'node', id });
-					}}
-					onselecttype={(id) => attemptSelect({ kind: 'type', id })}
-					ondeleted={onDeleted}
-					{registerForm}
-					{caps}
-				/>
 			{/if}
-		{/key}
+
+			{#key selectionKey}
+				{#if detailKind === 'node' && selectedNode}
+					<NodeDetail
+						node={selectedNode}
+						{data}
+						{transports}
+						onchanged={refresh}
+						onselectnode={selectNode}
+						onaddchild={(parentId, presetKind) =>
+							attemptSelect({ kind: 'new-node', parentId, presetKind })}
+						ondeleted={onDeleted}
+						{registerForm}
+						{caps}
+					/>
+				{:else if detailKind === 'new-node' && selection?.kind === 'new-node'}
+					<NodeDetail
+						node={null}
+						parentId={selection.parentId}
+						presetKind={selection.presetKind}
+						{data}
+						{transports}
+						onchanged={refresh}
+						onselectnode={selectNode}
+						onaddchild={(parentId, presetKind) =>
+							attemptSelect({ kind: 'new-node', parentId, presetKind })}
+						ondeleted={onDeleted}
+						{registerForm}
+						{caps}
+					/>
+				{:else if detailKind === 'type' && selectedType}
+					<div class="type-pane">
+						<ItemTypeDetail
+							itemType={selectedType}
+							{data}
+							{transports}
+							onchanged={refresh}
+							onselectnode={selectNode}
+							onselecttype={(id) => attemptSelect({ kind: 'type', id })}
+							ondeleted={onDeleted}
+							{registerForm}
+							{caps}
+						/>
+					</div>
+				{:else if detailKind === 'new-type'}
+					<div class="type-pane">
+						<ItemTypeDetail
+							itemType={null}
+							{data}
+							{transports}
+							onchanged={refresh}
+							onselectnode={selectNode}
+							onselecttype={(id) => attemptSelect({ kind: 'type', id })}
+							ondeleted={onDeleted}
+							{registerForm}
+							{caps}
+						/>
+					</div>
+				{:else}
+					<MapsOverview nodes={visibleNodes} {data} onselect={selectNode} />
+				{/if}
+			{/key}
+		</div>
 	</ClassSplit>
 </div>
 
@@ -406,6 +458,71 @@
 		   fills in one line here and nothing else moves. */
 		--maps-accent: var(--gear);
 		color: var(--white);
+
+		/* THE WORKSPACE'S OWN MEASURES, all three on one element.
+		   The two side panels are BOUNDED and the stage takes the rest: a tree
+		   is a column of two-line rows and an inspector is a form with a
+		   three-field inch row, and neither gets better by being wider than
+		   that, while the drawing between them does. Each grows a little with
+		   the window and stops -- so a 2560px monitor buys a bigger plan, not a
+		   wider form. The split reads `--measure-nav` for its first track and
+		   `--measure-split` for its cap, so both are re-pointed here rather than
+		   overridden by selector: a console takes the window (`--measure-console`
+		   is the design system's own name for that) and its tree takes the
+		   tree's width. */
+		--mp-tree-w: clamp(16rem, 16vw, 20rem);
+		--mp-inspector-w: clamp(24rem, 24vw, 30rem);
+		--measure-nav: var(--mp-tree-w);
+		--measure-split: var(--measure-console);
+
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		min-width: 0;
+		height: 100%;
+	}
+	/* The split fills whatever the shell gives this root; in a page that bounds
+	   nothing it is simply as tall as its content. */
+	.mp-root > :global(.cr-split) {
+		flex: 1 1 auto;
+		min-height: 0;
+		padding-top: var(--space-3);
+		padding-bottom: var(--space-3);
+	}
+	/* The tree pane's padding is the split's 24px by default; a bounded tree
+	   pane at 16rem gives 12px of it back to the rows. */
+	.mp-root > :global(.cr-split > .cr-nav) {
+		padding: var(--space-3);
+	}
+	/* The detail pane's own child fills it, so the stage and the inspector
+	   inside NodeDetail have a height to divide between them. A flex column
+	   rather than a plain block, so the unsaved-changes dialog above the
+	   detail takes its row and the detail takes the rest. */
+	.mp-root :global(.cr-split > .cr-detail > .cr-detail-page) {
+		height: 100%;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.detail-flow {
+		display: flex;
+		flex-direction: column;
+		gap: 0.8rem;
+		min-height: 0;
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	/* NodeDetail is the flex child that takes the rest; the overview and the
+	   type pane are ordinary blocks that scroll with the pane. */
+	.detail-flow > :global([data-testid='maps-node-detail']) {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+	/* An item type has no drawing beside it, so its form keeps a form's
+	   measure instead of stretching across the stage's room. */
+	.type-pane {
+		max-width: var(--measure-form);
+		min-width: 0;
 	}
 	.load-problem {
 		margin: 0 0 0.8rem;
@@ -424,19 +541,21 @@
 	.section-tabs {
 		display: flex;
 		gap: 0.4rem;
+		flex-wrap: wrap;
 	}
 	.tab {
 		flex: 1 1 0;
 		min-height: 44px;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
-		letter-spacing: 0.12em;
+		font-size: 0.74rem;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--white);
 		background: transparent;
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control, 6px);
 		cursor: pointer;
+		padding: 0.3rem 0.4rem;
 	}
 	.tab[aria-pressed='true'] {
 		border-color: var(--maps-accent, var(--boundary));
@@ -472,6 +591,9 @@
 		display: flex;
 		gap: 0.5rem;
 		flex-wrap: wrap;
+	}
+	.editors-pane {
+		min-width: 0;
 	}
 	.type-list {
 		list-style: none;
@@ -516,7 +638,6 @@
 		white-space: nowrap;
 	}
 	.switch-confirm {
-		margin-bottom: 0.8rem;
 		padding: 0.8rem;
 		border: 1px solid var(--amber);
 		border-radius: var(--radius-control, 6px);
