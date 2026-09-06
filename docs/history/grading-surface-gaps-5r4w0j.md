@@ -254,6 +254,26 @@ student-facing for the purpose of the rule whatever its audience, and the sort
 controls clear 44px at both widths. The floor is `min-height` through `.tap-44`,
 never a height in the component.
 
+**THE COUNTS BLOCK WAS REGENERATED TWICE, AND THE FIRST RUN IS WORTH RECORDING.**
+The measured region now reads **134 covered against 134 route specs, 268
+route/width runs, 4022 measurements, 2 outside threshold, 670.6s**, on commit
+`efd7da3` with `dirty: false` -- the two being `/dev/notebook` `tap-reach` at both
+widths, unchanged. The run BEFORE it reported **14**, and the twelve extra were
+all `/dev/pathways` at 1440 in one block: five `contrast [no match]`, one
+`tap-target [0 matched]`, one `tap-reach [0 matched]` and five `presence
+[present 0]`, on a page that had reported `HTTP 200` and `app rendered in
+1065ms` moments earlier. The tell is in the same run's own network lines --
+`net::ERR_ABORTED` on `/dev/pathways` AND on its
+`__data.json?x-sveltekit-invalidated=10` -- so the document navigated away after
+the harness's `prepare-click` and every selector afterwards was querying a blank
+page. The SAME route at 375 in the SAME run passed all sixteen, and
+`--route /dev/pathways` on its own came back **2 runs, 32 measurements, 0 outside
+threshold**. So it is a run-level instability in that harness and not a finding
+about that page; it is recorded here because "12 new outside-threshold rows"
+is exactly the shape a real regression takes, and the next reader deserves the
+discriminator (a same-route control at the other width, plus a targeted re-run)
+rather than the conclusion.
+
 ## What was NOT verified
 
 * **The live Supabase project.** `IDEA_MIGRATION_URL` is unset in this container
