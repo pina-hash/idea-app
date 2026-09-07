@@ -9,7 +9,8 @@
 		visibleSectionTabs,
 		type Crumb,
 		type SectionTab,
-		type SectionTabId
+		type SectionTabId,
+		classroomPathname
 	} from '$lib/classroom/nav';
 	import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
@@ -40,6 +41,7 @@
 		isStaff = false,
 		isAdmin = false,
 		minimal = false,
+		basePath = '/classroom',
 		backHref = '/classroom',
 		backLabel = 'Classroom',
 		children
@@ -60,6 +62,8 @@
 		 * and loses the furniture.
 		 */
 		minimal?: boolean;
+		/** Where this shell is mounted; the dev harnesses pass their own base so the location logic reads true there. */
+		basePath?: string;
 		/** The way up in minimal mode, where there is no switcher to be the way up. */
 		backHref?: string;
 		backLabel?: string;
@@ -86,7 +90,11 @@
 	 * this is a decision about how this person reads, not about the screen
 	 * in front of them.
 	 */
-	const loc = $derived(locateClassroom(page.url.pathname));
+	/* Read through `classroomPathname` so a harness mounting this shell under
+	   another base sees the same place the shipping route does -- the collapse
+	   control below is gated on it, and a harness that never rendered the
+	   control measured nothing (prompt 0098, item H). */
+	const loc = $derived(locateClassroom(classroomPathname(page.url.pathname, basePath)));
 	const showNavToggle = $derived(!minimal && canCollapseNav(loc));
 	const viewer = $derived((page.data?.claims?.sub as string | undefined) ?? null);
 	const navCollapseStorageKey = $derived(navCollapseKey(viewer));

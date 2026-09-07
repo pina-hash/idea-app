@@ -223,6 +223,19 @@ export function visibleSectionTabs(tabs: SectionTab[], canManage: boolean): Sect
 }
 
 /**
+ * A PATHNAME AS `locateClassroom` READS IT, whatever base the surface is
+ * mounted under. The dev harnesses mount the real classroom shell under
+ * `/dev/classroom-split`, and a location read off the raw pathname there is
+ * `other` for every page -- which is how the nav-collapse control (prompt
+ * 0098, item H) came to render on the shipping route and never on the harness
+ * meant to measure it. One normalisation, read by the shell and by
+ * `navKeepsComposer`, so the two cannot disagree about where they are.
+ */
+export function classroomPathname(pathname: string, basePath = '/classroom'): string {
+	return basePath === '/classroom' ? pathname : pathname.replace(basePath, '/classroom');
+}
+
+/**
  * DOES THIS NAVIGATION KEEP THE COMPOSER ALIVE?
  *
  * The composer is owned by the SECTION LAYOUT, which is not remounted while you
@@ -235,8 +248,7 @@ export function visibleSectionTabs(tabs: SectionTab[], canManage: boolean): Sect
  * outside /classroom. Those are the navigations worth stopping.
  */
 export function navKeepsComposer(sectionId: string, pathname: string, basePath = '/classroom'): boolean {
-	const normalized = basePath === '/classroom' ? pathname : pathname.replace(basePath, '/classroom');
-	const loc = locateClassroom(normalized);
+	const loc = locateClassroom(classroomPathname(pathname, basePath));
 	if (loc.sectionId !== sectionId) return false;
 	return loc.place === 'section' || loc.place === 'item';
 }

@@ -289,3 +289,20 @@ describe('classroomMeasure agrees the item page keeps its own reading measure', 
 		expect(classroomMeasure(locateClassroom('/classroom/s-1/item/i-1'))).toBe('reading');
 	});
 });
+
+describe('the collapsed detail pane is placed, not left to auto-placement (prompt 0098, item H)', () => {
+	// With the nav at display:none the detail is the FIRST grid item and, with
+	// the first track at 0px, auto-placement put it there: measured at 1024,
+	// 1440 and 1920, the pane painted 0px wide and the control hid the item
+	// with the list. The rule that pins it to the second track is asserted at
+	// the source; the geometry is tools/browser-verify's claim
+	// (classroom-split-s-1-item-i-crowded-manage-1-state-collapsed.mjs).
+	it('the collapse block pins .cr-detail to grid-column 2', () => {
+		const css = readFileSync(new URL('../src/lib/classroom/classroom.css', import.meta.url), 'utf8');
+		const start = css.indexOf("[aria-pressed='true']) .cr-split > .cr-nav");
+		expect(start).toBeGreaterThan(-1);
+		const block = css.slice(start, css.indexOf('\n}\n', start));
+		expect(block).toMatch(/> \.cr-detail \{\s*grid-column: 2;/);
+		expect(block).toMatch(/--cr-nav-w: 0px;/);
+	});
+});

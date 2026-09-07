@@ -452,6 +452,7 @@
 
 <div class="cr-root" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
 	<ClassroomShell
+		basePath="/dev/classroom-split"
 		sections={[data.section]}
 		currentSectionId="s-1"
 		{crumbs}
