@@ -1239,6 +1239,16 @@
 				"home page",
 				"assignments"
 			]
+		},
+		{
+			"date": "2026-09-07",
+			"title": "A fast GAUNTLET clear now counts everywhere, the FRC quizzes stop giving the answer away by length, and Send feedback sends once",
+			"body": "Three things you may notice. In GAUNTLET, a Speedrun you passed in under thirty seconds now counts as cleared on the GAUNTLET home page and is no longer offered back to you as the next drawing after a run; it still does not appear on the leaderboard, which is on purpose, and the Feature Golf and Reverse Engineer lists now show your clears too, which they never did. In FRC Training, sixteen quiz questions had wrong answers that were much shorter than the right one, so picking the longest option got you through; the wrong answers say the same wrong thing in more words now, and nothing about what is right or wrong has changed, so a retake asks exactly what it asked before. And the Send feedback box sends one report even if you keep typing while it says SENDING: the box locks while your report goes out, and unlocks with a Retry control if it did not get through. A few classroom buttons, like the hall pass and song request, now go grey for the moment a request is in flight and explain themselves the rest of the time.",
+			"tags": [
+				"gauntlet",
+				"frc",
+				"feedback"
+			]
 		}
 	]
 }

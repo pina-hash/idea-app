@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the GAUNTLET sub-30-second pass, the FRC quiz distractor lengths, decision 06's Status line, the two defects prompt 0098's sweep found, migrations 0190 and 0191 if needed, and its own `docs/history/` entry.
 - Migration permitted: at most two, 0190 and 0191. Claims: 0190, 0191. Highest on origin/main at issue: 0189
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/prompt-0099-last-four-2dbr68
 - Notes: The last four items, all decided by Mr. Pina on 2026-09-06.
   
   ONE. **A sub-30-second GAUNTLET pass must count.** Prompt 0098 found the
