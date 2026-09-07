@@ -52,6 +52,18 @@ export default {
 			expected: ['Overdue yesterday', 'Due today', 'Due tomorrow', 'Due in 5 days']
 		},
 		{
+			/* PROMPT 0098, ITEM I: the due-today row breathes, and only that row.
+			   The harness runs with `prefers-reduced-motion: no-preference`, so
+			   the computed animation-name is the scoped keyframe on `today` and
+			   `none` on the other three. The reduced-motion path is not
+			   exercised here (a stated harness limit) and is pinned at the
+			   source in tests/classroom-feed-due-today-motion.test.ts. */
+			label: 'only the due-today row animates (a reduced-motion-gated breath on its marker)',
+			evaluate: `() => [...document.querySelectorAll('[data-tour="classes"] .assignment-item.linked')]
+				.map((el) => /feed-due-today/.test(getComputedStyle(el).animationName))`,
+			expected: [false, true, false, false]
+		},
+		{
 			label: 'weight steps up as the deadline closes, and stops at the ordinary step',
 			evaluate: `() => [...document.querySelectorAll('[data-tour="classes"] .assignment-item.linked')]
 				.map((el) => getComputedStyle(el.querySelector('.feed-flag')).fontWeight)`,
