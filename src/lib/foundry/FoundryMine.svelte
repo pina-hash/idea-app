@@ -603,7 +603,7 @@
 										onclick={async () => {
 											if (!canSend) return;
 											const outcome = await run('Submitting', () => transports.submitVersion!(v.id));
-											if (outcome) {
+											if (outcome?.ok) {
 												submitAck = foundrySubmitAcknowledgement(outcome, v.ordinal).sentence;
 											}
 										}}
