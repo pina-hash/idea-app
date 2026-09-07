@@ -376,6 +376,33 @@
 	}
 
 	/*
+	 * DUE TODAY BREATHES (prompt 0098, item I). The static rule above is the
+	 * base state and is what a reduced-motion reader sees: fully drawn, nothing
+	 * hidden. With motion allowed the same marker widens and eases back on a
+	 * slow cycle -- an addition on top of the words, the weight and the rule,
+	 * never the signal itself, and in the hue the row is already wearing.
+	 * Slow and small on purpose: a row that flashes teaches a reader to ignore
+	 * the one row that matters. ONLY `today`: overdue is already stated as
+	 * loudly as this palette allows, and a scale whose every step moves has no
+	 * "now" left in it. The keyframe starts and ends AT the static value, so the
+	 * cycle never passes through a frame the base state does not already show.
+	 */
+	@media (prefers-reduced-motion: no-preference) {
+		.feed-row[data-urgency='today'] {
+			animation: feed-due-today 2.8s ease-in-out infinite;
+		}
+		@keyframes feed-due-today {
+			0%,
+			100% {
+				box-shadow: inset 3px 0 0 0 var(--cyan);
+			}
+			50% {
+				box-shadow: inset 7px 0 0 0 color-mix(in srgb, var(--cyan) 72%, transparent);
+			}
+		}
+	}
+
+	/*
 	 * THE HEADER LOSES A LINE AT PHONE WIDTH, WHICH IS WHERE IT HAD TWO STACKED
 	 * BLOCKS. `.course-meta` used to be a third flex child that dropped below the
 	 * code and title at 375px; the badge and the count chip sit up on the code's

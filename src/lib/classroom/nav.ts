@@ -170,6 +170,39 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
 }
 
 /**
+ * THE DUPLICATE-DATE REFUSAL, WITH ITS DESTINATION (prompt 0081 wrote the
+ * sentence, prompt 0086 corrected where it points, prompt 0098 landed it).
+ *
+ * `ItemDetail` refuses a second check-in on a date an item already has one,
+ * and for two bundles the sentence ended "edit the existing one instead"
+ * without saying where. The existing one lives in the check-in manager under
+ * `/notebook/review`, which is the class's Check-ins tab -- NOT the
+ * Duplicates tab, which is about duplicate DRAFTS, a different object. The
+ * address is read off `sectionTabs` rather than spelled again here, so the
+ * sentence and the tab cannot point two different ways. And it is a LINK, not
+ * only a sentence: 0081's wording said "the Check-ins tab above", but the
+ * section tab bar does not render on the item page (`activeTab` is null for
+ * `item`, so `ClassroomShell` draws no tabs there), so a sentence alone would
+ * name chrome that is not on screen.
+ */
+export function checkInDuplicateRefusal(
+	sectionId: string,
+	basePath = '/classroom'
+): { message: string; href: string; linkLabel: string } {
+	const tab = sectionTabs(sectionId, basePath).find((t) => t.id === 'check-ins');
+	if (!tab) throw new Error('sectionTabs no longer carries a check-ins tab');
+	return {
+		message:
+			'This item already has a check-in on that date. Pick a different date, or edit the ' +
+			'existing one in the check-in manager, which is this class\'s Check-ins tab. A duplicate ' +
+			"would put a second column on every affected class's grid and ask students for the same " +
+			'page twice.',
+		href: tab.href,
+		linkLabel: 'Open the check-in manager'
+	};
+}
+
+/**
  * WHICH OF A SECTION'S TABS THIS CALLER IS OFFERED.
  *
  * ONE IMPLEMENTATION, and it moved here from inside `ClassroomShell` for the
@@ -190,6 +223,19 @@ export function visibleSectionTabs(tabs: SectionTab[], canManage: boolean): Sect
 }
 
 /**
+ * A PATHNAME AS `locateClassroom` READS IT, whatever base the surface is
+ * mounted under. The dev harnesses mount the real classroom shell under
+ * `/dev/classroom-split`, and a location read off the raw pathname there is
+ * `other` for every page -- which is how the nav-collapse control (prompt
+ * 0098, item H) came to render on the shipping route and never on the harness
+ * meant to measure it. One normalisation, read by the shell and by
+ * `navKeepsComposer`, so the two cannot disagree about where they are.
+ */
+export function classroomPathname(pathname: string, basePath = '/classroom'): string {
+	return basePath === '/classroom' ? pathname : pathname.replace(basePath, '/classroom');
+}
+
+/**
  * DOES THIS NAVIGATION KEEP THE COMPOSER ALIVE?
  *
  * The composer is owned by the SECTION LAYOUT, which is not remounted while you
@@ -202,8 +248,7 @@ export function visibleSectionTabs(tabs: SectionTab[], canManage: boolean): Sect
  * outside /classroom. Those are the navigations worth stopping.
  */
 export function navKeepsComposer(sectionId: string, pathname: string, basePath = '/classroom'): boolean {
-	const normalized = basePath === '/classroom' ? pathname : pathname.replace(basePath, '/classroom');
-	const loc = locateClassroom(normalized);
+	const loc = locateClassroom(classroomPathname(pathname, basePath));
 	if (loc.sectionId !== sectionId) return false;
 	return loc.place === 'section' || loc.place === 'item';
 }

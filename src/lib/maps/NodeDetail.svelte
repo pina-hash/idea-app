@@ -92,7 +92,8 @@
 		onaddchild,
 		ondeleted,
 		registerForm,
-		caps = MAPS_ADMIN_CAPS
+		caps = MAPS_ADMIN_CAPS,
+		savedAt = null
 	}: {
 		/** null = create a new node under `parentId`. */
 		node: MapsNode | null;
@@ -101,7 +102,13 @@
 		data: MapsEditorData;
 		transports: MapsTransports;
 		onchanged: () => Promise<void>;
-		onselectnode: (id: string) => void;
+		/**
+		 * `savedAt` rides along ONLY on the call a create makes: the shell keys
+		 * this form on the selection, so the instance that pressed "Create
+		 * draft" is not the one on screen once the selection moves to the
+		 * created node, and the acknowledgement has to be handed across.
+		 */
+		onselectnode: (id: string, savedAt?: number) => void;
 		onaddchild: (parentId: string | null, presetKind: MapsKind) => void;
 		/**
 		 * The delete acknowledgement, handed UP: the pane this form lives in is
@@ -117,6 +124,8 @@
 		 * byte-identical without passing one.
 		 */
 		caps?: MapsCaps;
+		/** The clock time of the create that opened this form on its row, if that is how it opened. */
+		savedAt?: number | null;
 	} = $props();
 
 	/* THE THREE THINGS A GRANTED EDITOR MAY NOT DO, each read from the one
@@ -366,26 +375,43 @@
 		};
 	}
 
+	/* THE ID A CREATE RETURNED, remembered by THIS instance. The shell moves
+	   the selection onto the created node and remounts a fresh form on it, so
+	   ordinarily this is never read again -- but the remount is not
+	   guaranteed (the reload after the insert can fail, the unsaved-changes
+	   prompt can hold the switch), and a press on a surviving create form
+	   with nothing remembered is a second row. Measured before this existed:
+	   four spaced presses wrote four rooms (prompt 0098). */
+	let createdRow: { id: string; status: 'draft' | 'published' } | null = null;
 	let publishNow = false;
 	const save = new SaveState({
 		autosave: false,
 		fallbackMessage: 'This container was not saved.',
 		async save() {
+			const row = node ?? createdRow;
 			const result = await mapsSaveObject(transports, {
 				table: 'maps_nodes',
-				row: node,
+				row,
 				content: content(),
-				publishNow
+				publishNow,
+				onLanded: (id) => {
+					if (row === null) createdRow = { id, status: 'draft' };
+				}
 			});
 			if (!result.ok) return result;
+			if (row === null && publishNow && createdRow) createdRow.status = 'published';
 			baseline.advance(signature());
-			const created = node === null;
+			const created = row === null;
 			await onchanged();
-			if (created) onselectnode(result.data.id);
+			if (created) onselectnode(result.data.id, Date.now());
 			return { ok: true };
 		}
 	});
 	$effect(() => save.attach());
+	/* The create acknowledgement, carried over the remount: this form opened
+	   on the row its predecessor just created, so it starts `saved` at that
+	   clock time rather than blank. A prop read once, at init, on purpose. */
+	if (untrack(() => savedAt) != null) save.markSaved(untrack(() => savedAt));
 
 	function touch() {
 		if (baseline.changed(signature())) save.markDirty();
@@ -393,6 +419,18 @@
 
 	async function doSave(publish: boolean) {
 		if (problems.length > 0) return;
+		/* A PRESS WHILE A SAVE IS IN FLIGHT JOINS THAT SAVE AND STARTS NOTHING.
+		   `markDirty()` during a write is the machine's "an edit landed
+		   mid-write" signal, which re-sends the newest value once this run
+		   settles -- right for typing, and a SECOND ROW for a create, because
+		   `node` is still null. The shell's flush-on-switch reaches this
+		   function too (it is what turned one press into thirty: the create's
+		   own `onselectnode` made the shell flush a form that was mid-write,
+		   forever), so the guard lives here and not on the button. */
+		if (save.phase === 'writing') {
+			await save.saveNow();
+			return;
+		}
 		publishNow = publish;
 		save.markDirty();
 		await save.saveNow();
@@ -721,11 +759,28 @@
 
 	<div class="actions">
 		{#if canEditThis}
-			<button type="button" class="btn" aria-disabled={problems.length > 0} onclick={() => doSave(false)}>
+			<!-- `aria-disabled` while there are problems, so the control still
+			     takes the tap and the list beside it says why; a real `disabled`
+			     while a write is in flight, because there is nothing to explain
+			     then that the indicator is not already saying, and a control
+			     that swallows the tap is the point. -->
+			<button
+				type="button"
+				class="btn"
+				aria-disabled={problems.length > 0}
+				disabled={save.phase === 'writing'}
+				onclick={() => doSave(false)}
+			>
 				{node === null ? 'Create draft' : node.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
 			</button>
 			{#if canPublish}
-				<button type="button" class="btn secondary" aria-disabled={problems.length > 0} onclick={() => doSave(true)}>
+				<button
+					type="button"
+					class="btn secondary"
+					aria-disabled={problems.length > 0}
+					disabled={save.phase === 'writing'}
+					onclick={() => doSave(true)}
+				>
 					{node === null ? 'Create & publish' : 'Save & publish'}
 				</button>
 			{/if}

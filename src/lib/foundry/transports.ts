@@ -78,7 +78,7 @@ export interface FoundrySubmitTransports {
 	 * ingest has succeeded, and absent it removes that control (the harness's
 	 * read-only mounting stays structural).
 	 */
-	submitVersion?: (versionId: string) => Promise<FoundryOutcome>;
+	submitVersion?: (versionId: string) => Promise<FoundryOutcome<{ autoPublished?: boolean }>>;
 
 	/** Cover image into `foundry-covers`, returning the stored path. */
 	uploadCover(file: File): Promise<FoundryOutcome<{ path: string }>>;
@@ -92,7 +92,7 @@ export interface FoundrySubmitTransports {
 
 export interface FoundryMineTransports {
 	/** `foundry_submit_version`. Draft to submitted, a separate deliberate act. */
-	submitVersion?: (versionId: string) => Promise<FoundryOutcome>;
+	submitVersion?: (versionId: string) => Promise<FoundryOutcome<{ autoPublished?: boolean }>>;
 	/** `foundry_withdraw_version`. Submitted back to draft. */
 	withdrawVersion?: (versionId: string) => Promise<FoundryOutcome>;
 	/**

@@ -538,4 +538,16 @@ body:has(.cr-root) {
 		--cr-nav-w: 0px;
 		gap: 0;
 	}
+	/* THE DETAIL PANE STAYS IN THE SECOND TRACK (prompt 0098, item H). With
+	   the nav at `display: none` it leaves the grid flow, so the detail became
+	   the FIRST grid item and auto-placed into the 0px track: measured at
+	   1024, 1440 and 1920, `grid-template-columns` read `0px 1376px` and the
+	   pane painted at 0px wide -- the control hid the item along with the
+	   list, which is what "doesn't seem to do anything useful" was. Pinning
+	   the column is what the two rules above always assumed. */
+	.cr-root:has([data-testid='nav-collapse-toggle'][aria-pressed='true'])
+		.cr-split:not(.nav-wide)
+		> .cr-detail {
+		grid-column: 2;
+	}
 }

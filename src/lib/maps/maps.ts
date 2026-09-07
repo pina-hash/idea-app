@@ -521,7 +521,9 @@ export type MapsSelection =
 	| { kind: 'node'; id: string }
 	| { kind: 'type'; id: string }
 	| { kind: 'new-node'; parentId: string | null; presetKind: MapsKind | null }
-	| { kind: 'new-type' };
+	| { kind: 'new-type' }
+	/** The surplus-copies panel (prompt 0098). Content, like the overview. */
+	| { kind: 'duplicates' };
 
 /**
  * What a mounted form hands the editor shell, so switching selection can
@@ -964,4 +966,172 @@ export function mapsGhostPosition(frame: MapsBox, footprint: MapsBox): { x: numb
 	const x = frame.minX + (frame.maxX - frame.minX - fw) / 2 - footprint.minX;
 	const y = frame.minY + (frame.maxY - frame.minY - fh) / 2 - footprint.minY;
 	return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+}
+
+// ---------------------------------------------------------------------------
+// DUPLICATE CONTAINERS (prompt 0098)
+//
+// The maps editor once turned one press of "Create draft" into about thirty
+// identical rooms (the mechanism is in NodeDetail's `doSave` and in
+// `tests/dom/maps-node-create-once.test.ts`). The rows are in the live map,
+// and this is the pure half of the surface that lets a person see them and
+// remove them ONE AT A TIME: what makes two containers copies, which one is
+// kept, and why a copy may not be offered a Remove control.
+//
+// THE SHAPE IS PROMPT 0074's, for classroom drafts, whose hardest finding was
+// that a row carrying something must be SHOWN SEPARATELY and marked, not
+// hidden. The maps equivalent of student work is anything a container holds
+// (containers, items, stock) and anything already on the public map.
+
+/** One surplus copy and, when it may not be removed from here, the sentence saying why. */
+export interface MapsDuplicateCopy {
+	node: MapsNode;
+	/** Why this copy is not offered a Remove control, in words, or null when it is. */
+	blocked: string | null;
+}
+
+export interface MapsDuplicateGroup {
+	/** The identity the copies share, as one string, for keying. */
+	key: string;
+	kind: MapsKind;
+	name: string;
+	/** The containment path of the shared parent, or '' at the top level. */
+	parentPath: string;
+	/** The shared outline, in words: "466.25 x 477.75 in", "polygon, 5 corners", "no outline". */
+	outlineLabel: string;
+	/** The copy that stays: the published one when exactly that many are published, otherwise the oldest. */
+	keep: MapsNode;
+	/** Every other copy, oldest first. */
+	surplus: MapsDuplicateCopy[];
+}
+
+/** What a caps object has to answer for the panel; `MapsCaps` satisfies it. */
+export interface MapsDuplicateCaps {
+	canEditNode(node: MapsNode): boolean;
+}
+
+function outlineSignature(outline: MapsOutline | null): string {
+	if (!outline) return 'none';
+	if (outline.kind === 'rect') return `rect:${outline.w}:${outline.h}`;
+	return `poly:${outline.points.map(([x, y]) => `${x},${y}`).join(';')}`;
+}
+
+/** The outline in words, for a group heading. */
+export function mapsOutlineLabel(outline: MapsOutline | null): string {
+	if (!outline) return 'no outline';
+	if (outline.kind === 'rect') return `${formatInches(outline.w)} x ${formatInches(outline.h)} in`;
+	return `polygon, ${outline.points.length} corners`;
+}
+
+/**
+ * WHAT MAKES TWO CONTAINERS COPIES: the same parent, the same kind, the same
+ * name (trimmed, case-folded) and the same outline. A compartment has no
+ * outline, so its slot and subtype stand in for one: two drawers both named
+ * "Drawer" in different slots are two drawers.
+ */
+export function mapsDuplicateKey(node: MapsNode): string {
+	const parts = [
+		node.parent_id ?? 'root',
+		node.kind,
+		node.name.trim().toLowerCase(),
+		node.kind === 'compartment'
+			? `slot:${node.elevation_order ?? ''}:${(node.subtype ?? '').trim().toLowerCase()}`
+			: outlineSignature(node.outline)
+	];
+	return parts.join('|');
+}
+
+/**
+ * WHY A COPY MAY NOT BE OFFERED A REMOVE CONTROL, or null when it may. Read
+ * from the data the editor already holds, so the sentence names the real
+ * counts; the database refuses independently (`maps_nodes` has no cascade and
+ * `deleteRow` mirrors the refusal), so this decides only what is OFFERED.
+ */
+export function mapsDuplicateBlockedReason(
+	node: MapsNode,
+	data: MapsEditorData,
+	caps: MapsDuplicateCaps
+): string | null {
+	if (node.status === 'published') {
+		return 'It is on the public map, so it is not offered for removal here. Open it to edit or move it instead.';
+	}
+	const children = data.nodes.filter((n) => n.parent_id === node.id).length;
+	const items = data.items.filter((i) => i.node_id === node.id).length;
+	const stock = data.stock.filter((s) => s.node_id === node.id).length;
+	const parts: string[] = [];
+	if (children > 0) parts.push(`${children} ${children === 1 ? 'container' : 'containers'}`);
+	if (items > 0) parts.push(`${items} ${items === 1 ? 'item' : 'items'}`);
+	if (stock > 0) parts.push(`${stock} ${stock === 1 ? 'stock row' : 'stock rows'}`);
+	if (parts.length > 0) {
+		return `It holds ${parts.join(', ')}, so it is not offered for removal here. Open it and move or delete what is inside first.`;
+	}
+	if (!caps.canEditNode(node)) return MAPS_DUPLICATE_GRANT_REFUSAL;
+	return null;
+}
+
+/** The sentence a granted editor reads on a copy outside what they hold. */
+export const MAPS_DUPLICATE_GRANT_REFUSAL =
+	'It is outside the containers you have been given to edit, so it is not offered for removal here.';
+
+/**
+ * EVERY GROUP OF COPIES, largest first. A group is two or more containers
+ * sharing `mapsDuplicateKey`. Within a group the copies are ordered published
+ * first, then oldest first, then by id -- so `keep` is the published copy when
+ * there is one (it is what the public map shows) and the oldest otherwise,
+ * and a second published copy lands in `surplus` marked not removable.
+ */
+export function mapsDuplicateGroups(data: MapsEditorData, caps: MapsDuplicateCaps): MapsDuplicateGroup[] {
+	const byKey = new Map<string, MapsNode[]>();
+	for (const node of data.nodes) {
+		const key = mapsDuplicateKey(node);
+		const list = byKey.get(key);
+		if (list) list.push(node);
+		else byKey.set(key, [node]);
+	}
+	const groups: MapsDuplicateGroup[] = [];
+	for (const [key, nodes] of byKey) {
+		if (nodes.length < 2) continue;
+		const ordered = nodes.slice().sort((a, b) => {
+			const pa = a.status === 'published' ? 0 : 1;
+			const pb = b.status === 'published' ? 0 : 1;
+			if (pa !== pb) return pa - pb;
+			const ta = Date.parse(a.created_at);
+			const tb = Date.parse(b.created_at);
+			if (ta !== tb) return (Number.isNaN(ta) ? 0 : ta) - (Number.isNaN(tb) ? 0 : tb);
+			return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+		});
+		const keep = ordered[0];
+		groups.push({
+			key,
+			kind: keep.kind,
+			name: keep.name.trim(),
+			parentPath: keep.parent_id ? mapsNodePath(data.nodes, keep.parent_id) : '',
+			outlineLabel: mapsOutlineLabel(keep.outline),
+			keep,
+			surplus: ordered.slice(1).map((node) => ({
+				node,
+				blocked: mapsDuplicateBlockedReason(node, data, caps)
+			}))
+		});
+	}
+	groups.sort((a, b) => b.surplus.length - a.surplus.length || a.name.localeCompare(b.name));
+	return groups;
+}
+
+/** The counts the panel's summary line reads. */
+export function mapsDuplicateTotals(groups: MapsDuplicateGroup[]): {
+	groups: number;
+	surplus: number;
+	removable: number;
+	blocked: number;
+} {
+	let surplus = 0;
+	let removable = 0;
+	for (const g of groups) {
+		for (const c of g.surplus) {
+			surplus += 1;
+			if (c.blocked === null) removable += 1;
+		}
+	}
+	return { groups: groups.length, surplus, removable, blocked: surplus - removable };
 }
