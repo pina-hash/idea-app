@@ -18,6 +18,7 @@
 	 * structural rather than a `readOnly` flag someone has to honour.
 	 */
 	import { env } from '$env/dynamic/public';
+	import { foundrySubmitAcknowledgement } from '$lib/foundry/surface';
 
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
@@ -95,14 +96,21 @@
 	 * A throw mid-submit that skipped the reset would disable the surface until
 	 * a reload, with nothing on screen saying why.
 	 */
-	async function run(label: string, work: () => Promise<{ ok: boolean; message?: string }>) {
+	/** The one sentence a submit press earns beyond "Saved at": went live, or queued. */
+	let submitAck = $state<string | null>(null);
+
+	async function run<T extends { ok: boolean; message?: string }>(
+		label: string,
+		work: () => Promise<T>
+	): Promise<T | null> {
 		problems = [];
+		submitAck = null;
 		busy = label;
 		try {
 			const result = await work();
 			if (!result.ok) {
 				note(result.message ?? 'That did not work.');
-				return false;
+				return null;
 			}
 			// The acknowledgement, with the clock time of the write -- never the
 			// dispatch. A status set beside the call says a request was made.
@@ -111,10 +119,10 @@
 				const fresh = await transports.refresh(app.slug);
 				if (fresh) app = fresh;
 			}
-			return true;
+			return result;
 		} catch (err) {
 			note(err instanceof Error ? err.message : 'That did not work.');
-			return false;
+			return null;
 		} finally {
 			busy = null;
 		}
@@ -323,7 +331,10 @@
 			{#if busy}
 				<p class="fdy-busy" role="status">{busy}&hellip;</p>
 			{:else if saidAt}
-				<p class="fdy-saved" role="status">Saved at {saidAt}</p>
+				<p class="fdy-saved" role="status">
+					Saved at {saidAt}{#if submitAck}
+						<span class="fdy-submit-ack" data-testid="fdy-submit-ack">{submitAck}</span>{/if}
+				</p>
 			{/if}
 
 			{#if deleteNote}
@@ -589,9 +600,12 @@
 										class="btn fdy-primary tap-44"
 										disabled={busy !== null}
 										aria-disabled={!canSend ? 'true' : undefined}
-										onclick={() => {
+										onclick={async () => {
 											if (!canSend) return;
-											run('Submitting', () => transports.submitVersion!(v.id));
+											const outcome = await run('Submitting', () => transports.submitVersion!(v.id));
+											if (outcome) {
+												submitAck = foundrySubmitAcknowledgement(outcome, v.ordinal).sentence;
+											}
 										}}
 									>
 										Submit for review
@@ -1139,6 +1153,10 @@
 		font-size: 0.85rem;
 		color: var(--green);
 		margin: 0 0 var(--space-2, 0.5rem);
+	}
+	.fdy-submit-ack {
+		display: block;
+		margin-top: 0.25rem;
 	}
 
 	.fdy-primary {

@@ -352,3 +352,34 @@ export function foundryAuthorLine(owner: {
 	if (name && cls) return `${name} · ${cls}`;
 	return name ?? cls ?? '';
 }
+
+/**
+ * WHAT A STUDENT READS THE MOMENT A SUBMIT LANDS (prompt 0098, item C).
+ *
+ * `foundry_submit_version` (0173) publishes a TRUSTED publisher's build in the
+ * same transaction instead of queueing it, and says so with `auto_published:
+ * true` -- and until this existed neither student surface rendered that
+ * answer, so a trusted student read "in the review queue" about a build that
+ * was already on the gallery. One sentence for each outcome, read by
+ * `/foundry/submit` and `/foundry/mine` alike so the two cannot drift.
+ */
+export function foundrySubmitAcknowledgement(
+	outcome: { autoPublished?: boolean },
+	ordinal: number | null
+): { tone: 'live' | 'waiting'; word: string; sentence: string } {
+	const version = ordinal === null ? 'This version' : `v${ordinal}`;
+	if (outcome.autoPublished === true) {
+		return {
+			tone: 'live',
+			word: 'Live',
+			sentence:
+				`${version} is on the gallery now. You are a trusted publisher, so it went live ` +
+				'without waiting for review; a reviewer can still take it down afterwards.'
+		};
+	}
+	return {
+		tone: 'waiting',
+		word: 'Waiting for review',
+		sentence: `${version} is in the review queue. You can withdraw it from My apps while it waits.`
+	};
+}

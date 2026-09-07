@@ -29,6 +29,7 @@
 	 * and nothing else about what is legal.
 	 */
 	import { untrack } from 'svelte';
+	import { foundrySubmitAcknowledgement } from '$lib/foundry/surface';
 
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryIssues from './FoundryIssues.svelte';
@@ -254,6 +255,8 @@
 	let createdOrdinal = $state<number | null>(null);
 	let submitting = $state(false);
 	let submittedForReview = $state(false);
+	/** 0173: a trusted publisher's submit is a publish, and the acknowledgement says which happened. */
+	let wentLive = $state(false);
 
 	/**
 	 * THE PREVIEW OF WHAT WAS JUST UPLOADED.
@@ -413,6 +416,7 @@
 				return;
 			}
 			submittedForReview = true;
+			wentLive = result.autoPublished === true;
 		} catch (err) {
 			problem(err instanceof Error ? err.message : 'That did not work. Try again.');
 		} finally {
@@ -807,11 +811,10 @@
 				{#if submittedForReview}
 					<!-- HEATING: the one confirmation that wears the heat language,
 					     because this is the moment work goes into the fire. -->
-					<p class="fdy-queued">
-						<ForgeStatus tone="waiting" word="Waiting for review" />
-						{#if createdOrdinal !== null}v{createdOrdinal} is in the review queue.{:else}This
-							version is in the review queue.{/if}
-						You can withdraw it from My apps while it waits.
+					{@const ack = foundrySubmitAcknowledgement({ autoPublished: wentLive }, createdOrdinal)}
+					<p class="fdy-queued" data-testid="fdy-submit-ack" data-live={wentLive}>
+						<ForgeStatus tone={ack.tone} word={ack.word} />
+						{ack.sentence}
 					</p>
 				{:else}
 					<!--

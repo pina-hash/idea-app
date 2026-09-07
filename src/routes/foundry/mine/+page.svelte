@@ -85,7 +85,19 @@
 	}
 
 	const transports: FoundryMineTransports = {
-		submitVersion: (versionId) => callRpc('foundry_submit_version', { p_version_id: versionId }),
+		// Not `callRpc`: the answer carries `auto_published` (0173), which the
+		// acknowledgement reads, and callRpc discards the row.
+		submitVersion: async (versionId) => {
+			const { data: answer, error } = await data.supabase.rpc('foundry_submit_version', {
+				p_version_id: versionId
+			});
+			if (error) return fail(error);
+			await invalidateAll();
+			return {
+				ok: true,
+				autoPublished: (answer as { auto_published?: boolean } | null)?.auto_published === true
+			};
+		},
 		withdrawVersion: (versionId) =>
 			callRpc('foundry_withdraw_version', { p_version_id: versionId }),
 		rollback: (appId, versionId) =>

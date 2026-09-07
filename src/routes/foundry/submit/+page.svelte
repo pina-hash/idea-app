@@ -121,11 +121,16 @@
 		 * finished ingest) inside its own body; this is only the wire.
 		 */
 		async submitVersion(versionId) {
-			const { error } = await data.supabase.rpc('foundry_submit_version', {
+			const { data: answer, error } = await data.supabase.rpc('foundry_submit_version', {
 				p_version_id: versionId
 			});
 			if (error) return fail(error);
-			return { ok: true };
+			// 0173 answers `auto_published: true` when a trusted publisher's
+			// build went live in the same transaction; the surface says so.
+			return {
+				ok: true,
+				autoPublished: (answer as { auto_published?: boolean } | null)?.auto_published === true
+			};
 		},
 
 		async uploadCover(file) {
