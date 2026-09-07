@@ -248,7 +248,7 @@ against the same server. Result: 284 route/width runs, 4340 measurements, 2 outs
 
 ## Suite and check
 
-SUITE_PLACEHOLDER
+`npm test`, run alone on this tree from 18:49 to 18:55 PDT on 2026-09-06 (America/Los_Angeles): 324 files, 6,444 tests, 0 failures, 368.4 s. Prompt 0095 left `main` at 318 files and 6,404 tests; the six files and forty tests above that are the six this bundle added (`maps-duplicates`, `dom/maps-duplicates-mount`, `dom/maps-node-create-once`, `classroom-check-in-refusal`, `classroom-feed-due-today-motion`, `foundry-submit-acknowledgement`). `svelte-check`: 0 errors, 37 warnings, 31 `state_referenced_locally`, 5 `css_unused_selector`, 1 `perf_avoid_nested_class`, re-derived after a sync with the two public variables exported. One error appeared on the way (a union not narrowed before reading `autoPublished` in `FoundryMine`) and was fixed before the measured region was written.
 
 ## Not verified
 
