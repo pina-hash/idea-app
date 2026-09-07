@@ -1,9 +1,14 @@
 <script lang="ts">
 	/**
-	 * The node tree as a flattened, indented list of real buttons -- no canvas
-	 * and no dragging in this bundle. Every row carries its name, its kind in
-	 * words, and its publish-state chip, so a draft or a staged edit is
-	 * visible from the list without opening anything.
+	 * The node tree as a flattened, indented list of real buttons. Every row
+	 * carries its name, its kind in words, and its publish-state chip, so a
+	 * draft or a staged edit is visible from the list without opening anything.
+	 *
+	 * THE KIND SITS ABOVE THE NAME, NOT BESIDE IT. The tree is a bounded 16-20rem
+	 * pane in the workspace; beside the name the kind word and the chip left a
+	 * row of "Machin..." and "Wor..." at 1440px (measured, prompt 0093), which
+	 * is a tree nobody can read. Two lines per row costs height, which the pane
+	 * scrolls, and buys the whole name, which is what a tree is for.
 	 */
 	import {
 		MAPS_KIND_LABELS,
@@ -43,7 +48,7 @@
 			>
 				<span class="row-main">
 					<span class="row-kind">{MAPS_KIND_LABELS[row.node.kind]}</span>
-					<span class="row-name">{row.node.name}</span>
+					<span class="row-name" title={row.node.name}>{row.node.name}</span>
 				</span>
 				<MapsStatusChip
 					state={mapsPublishState(row.node, pendingFor(pending, 'maps_nodes', row.node.id))}
@@ -71,7 +76,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
-		padding: 0.35rem 0.6rem 0.35rem calc(0.6rem + var(--depth) * 1.1rem);
+		padding: 0.3rem 0.5rem 0.3rem calc(0.5rem + var(--depth) * 0.8rem);
 		background: transparent;
 		border: 1px solid transparent;
 		border-radius: var(--radius-control, 6px);
@@ -96,8 +101,9 @@
 		flex: 1 1 auto;
 		min-width: 0;
 		display: flex;
-		align-items: baseline;
-		gap: 0.5rem;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.05rem;
 	}
 	.row-kind {
 		flex: 0 0 auto;
@@ -109,9 +115,11 @@
 	}
 	.row-name {
 		min-width: 0;
+		max-width: 100%;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		line-height: 1.2;
 	}
 	.empty {
 		margin: 0.6rem 0 0;

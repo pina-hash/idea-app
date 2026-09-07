@@ -1221,6 +1221,15 @@
 				"files",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-06",
+			"title": "The Matrix theme now rains, and stops tinting everything green",
+			"body": "If you switched the site to the Matrix theme from your profile menu, you will have noticed it turned everything the same green and nothing fell. It rains now: columns of letters and numbers fall down the sides of the page, bright at the leading edge and fading behind, changing as they go. Behind the writing itself the rain is kept faint on purpose, so the page stays readable. The green tint is gone too: text is close to white with a hint of green, the black is blacker, and the colours that tell things apart, like each app’s own colour on the home page and the colour of a warning, are exactly as they were. If your device is set to reduce motion you get a still picture of the rain instead of movement, and if your computer cannot keep up the rain slows down and then parks itself. The theme is still per browser, and it still switches off when you sign out.",
+			"tags": [
+				"theme",
+				"home page"
+			]
 		}
 	]
 }

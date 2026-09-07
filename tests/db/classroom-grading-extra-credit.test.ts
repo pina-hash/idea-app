@@ -341,6 +341,35 @@ describe('extra credit reaches the score and never a criterion', () => {
 		expect(message).toContain('classroom_submissions_extra_credit_range');
 	});
 
+	/**
+	 * THE OTHER END OF THE RANGE, which had no case. A ceiling is only a rule if
+	 * something is on the far side of it, and an untested ceiling is a number in
+	 * a comment. Both halves are asserted for the same reason the negative is:
+	 * the RPC's sentence is what a grader READS, and the column's CHECK is what
+	 * a direct write cannot route around, so opening either one alone leaves the
+	 * other refusing and neither test can see it.
+	 */
+	test('an award ABOVE the ceiling is refused by name', async () => {
+		const message = await captureError(() =>
+			gradeWide(teacher.id, alice.email, { c1: 10, c2: 5 }, 10001)
+		);
+		expect(message).toContain('Extra credit must be 10000 or less');
+	});
+
+	test('the ceiling itself is accepted, so the refusal is a bound and not an off-by-one', async () => {
+		const res = await gradeWide(teacher.id, bruno.email, { c1: 10, c2: 10 }, 10000, true);
+		expect(res.ok).toBe(true);
+		const row = await submission(bruno.email);
+		expect(Number(row.extra_credit)).toBe(10000);
+	});
+
+	test('the column constraint refuses an over-ceiling write directly, not only the RPC', async () => {
+		const message = await captureError(() =>
+			db.sql(`update public.classroom_submissions set extra_credit = 10001 where item_id = $1`, [item])
+		);
+		expect(message).toContain('classroom_submissions_extra_credit_range');
+	});
+
 	test('ZERO is an award taken back, and scores identically to none', async () => {
 		await gradeWide(teacher.id, alice.email, { c1: 10, c2: 5 }, 0, true);
 		const row = await submission(alice.email);
