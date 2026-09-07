@@ -38,8 +38,8 @@
         {"id":"qf2-04","objective":"build","stem":"Which best describes build season?","options":["Design, build, test, and fix, over and over","Building it perfectly the first time","Only writing code","Only watching videos"],"answer":0},
         {"id":"qf2-05","objective":"events","stem":"What do qualification matches decide?","options":["Your ranking at the event","The final winner","The team name","The game rules"],"answer":0},
         {"id":"qf2-06","objective":"events","stem":"What happens in alliance selection?","options":["The top-ranked teams pick partners","The event ends","Everyone goes home","The robot is weighed"],"answer":0},
-        {"id":"qf2-07","objective":"events","stem":"What are the playoffs?","options":["Elimination rounds that decide the winner","Practice matches","The lunch break","The awards only"],"answer":0},
-        {"id":"qf2-08","objective":"after","stem":"What is the off-season for?","options":["Learning skills, training new members, and preparing","Nothing happens","Taking apart the shop","Ending the team"],"answer":0},
+        {"id":"qf2-07","objective":"events","stem":"What are the playoffs?","options":["Elimination rounds that decide the winner","Matches that the teams play in order to practice","The lunch break","The awards only"],"answer":0},
+        {"id":"qf2-08","objective":"after","stem":"What is the off-season for?","options":["Learning skills, training new members, and preparing","Nothing happens during the off-season","Taking apart the shop that the team builds its robots in","Ending the team"],"answer":0},
         {"id":"qf2-09","objective":"after","stem":"What can teams that do well move on to?","options":["A Championship","Nothing bigger","A different sport","Summer break only"],"answer":0},
         {"id":"qf2-10","objective":"build","stem":"The season is best described as what?","options":["A sprint where everyone has a part to play","A slow, quiet year","A one-person job","Only for drivers"],"answer":0}
       ]
@@ -72,8 +72,8 @@
         {"id":"qf4-02","objective":"steps","stem":"What do you do first?","options":["Understand the problem","Build the final version","Test something","Write the notebook"],"answer":0},
         {"id":"qf4-03","objective":"steps","stem":"Why come up with several ideas instead of one?","options":["A better chance of finding a good one","It wastes time","It is required by rules","To confuse people"],"answer":0},
         {"id":"qf4-04","objective":"steps","stem":"What is a quick, rough first version for?","options":["To learn whether the idea works","To be the final part","To show judges","To sell"],"answer":0},
-        {"id":"qf4-05","objective":"steps","stem":"What does testing do?","options":["Shows what works and what to fix","Ends the project","Proves you are done","Nothing useful"],"answer":0},
-        {"id":"qf4-06","objective":"mindset","stem":"A test failed. What is the healthy response?","options":["Learn what to fix and try again","Quit","Hide it","Blame the tools"],"answer":0},
+        {"id":"qf4-05","objective":"steps","stem":"What does testing do?","options":["Shows what works and what to fix","Testing ends the project","Testing proves that you are done","Nothing useful"],"answer":0},
+        {"id":"qf4-06","objective":"mindset","stem":"A test failed. What is the healthy response?","options":["Learn what to fix and try again","Quit","Hide the failure","Put the blame on the tools that were used"],"answer":0},
         {"id":"qf4-07","objective":"mindset","stem":"\"The first version is never the last\" means what?","options":["Expect to improve and repeat","Build once and stop","Only experts iterate","Failure is not allowed"],"answer":0},
         {"id":"qf4-08","objective":"loop","stem":"Does this process only work for robot parts?","options":["No, it works for any problem","Yes, only mechanical parts","Only for code","Only for strategy"],"answer":0},
         {"id":"qf4-09","objective":"steps","stem":"What happens after you improve a version?","options":["You test it again and repeat the loop","You are finished for good","You start a new team","You skip testing"],"answer":0},
@@ -86,13 +86,13 @@
       "passPercent": 90,
       "objectives": {"purpose":"Why the notebook matters.","content":"What to write.","habits":"Notebook habits."},
       "items": [
-        {"id":"qf5-01","objective":"purpose","stem":"What is the engineering notebook?","options":["The team's written record of what it did, why, and what it learned","A list of team members","A rulebook","A scorecard"],"answer":0},
+        {"id":"qf5-01","objective":"purpose","stem":"What is the engineering notebook?","options":["The team's written record of what it did, why, and what it learned","A list of the team members, with the names of the people who are on the team","A rulebook","A scorecard"],"answer":0},
         {"id":"qf5-02","objective":"purpose","stem":"Why does the notebook matter?","options":["New members can pick up work and the team avoids repeating mistakes","It is just for looks","Only judges care","It is required to be long"],"answer":0},
         {"id":"qf5-03","objective":"content","stem":"What should an entry include?","options":["What you did, why, results, the date, and your name","Only the date","Only what went well","Just a drawing"],"answer":0},
         {"id":"qf5-04","objective":"content","stem":"Should you record failures?","options":["Yes, the team learns from them","No, only successes","Only big ones","Never"],"answer":0},
         {"id":"qf5-05","objective":"habits","stem":"Who contributes to the notebook?","options":["Everyone who works on the robot","Only the captain","Only mentors","Only drivers"],"answer":0},
-        {"id":"qf5-06","objective":"content","stem":"What is a good test of an entry?","options":["Could someone else continue your work from it","Is it colorful","Is it short","Does it rhyme"],"answer":0},
-        {"id":"qf5-07","objective":"content","stem":"Why write down why you chose something?","options":["So the team remembers the reason and does not re-argue it","To fill space","It is not needed","To confuse judges"],"answer":0},
+        {"id":"qf5-06","objective":"content","stem":"What is a good test of an entry?","options":["Could someone else continue your work from it","Is the entry colorful when you look at the page","Is it short","Does it rhyme"],"answer":0},
+        {"id":"qf5-07","objective":"content","stem":"Why write down why you chose something?","options":["So the team remembers the reason and does not re-argue it","To fill space","It is not needed","The purpose of writing down why you chose it is to confuse the judges"],"answer":0},
         {"id":"qf5-08","objective":"purpose","stem":"What does hiding a failure lead to?","options":["Someone repeating it later","A better robot","Nothing","A prize"],"answer":0},
         {"id":"qf5-09","objective":"purpose","stem":"Judges use the notebook to do what?","options":["Understand your team's work","Score the match","Pick the drivers","Set the rules"],"answer":0},
         {"id":"qf5-10","objective":"habits","stem":"Notebook entries should be what?","options":["Clear and honest","Vague","Secret","As long as possible"],"answer":0}
@@ -199,15 +199,15 @@
         {"id":"m10-03","objective":"fits","stem":"A bearing is pressed into a plate bore. Which fit is that?","options":["A clearance fit","An interference or press fit","A loose fit","No fit"],"answer":1},
         {"id":"m10-04","objective":"fits","stem":"A shaft slides and spins inside a bearing. Which fit is that?","options":["A clearance fit","An interference fit","A press fit","A welded fit"],"answer":0},
         {"id":"m10-05","objective":"practical","stem":"For a laser-cut slot-and-tab joint, how do you adjust for a good fit?","options":["Shrink the slot and grow the tab","Open the slot about 0.005 and shrink the tab about 0.005","Make both exactly nominal","Grow both by 0.010"],"answer":1},
-        {"id":"m10-06","objective":"gdt","stem":"A feature control frame specifies what?","options":["Only a diameter","A geometric control, a tolerance zone, and datums","The material","The part number"],"answer":1},
-        {"id":"m10-07","objective":"gdt","stem":"Datums are what?","options":["Extra holes","The reference features everything else is measured from","Hidden lines","Title-block notes"],"answer":1},
+        {"id":"m10-06","objective":"gdt","stem":"A feature control frame specifies what?","options":["Only a diameter","A geometric control, a tolerance zone, and datums","The material the part is made from","The part number that was assigned to that particular part"],"answer":1},
+        {"id":"m10-07","objective":"gdt","stem":"Datums are what?","options":["Extra holes","The reference features everything else is measured from","Hidden lines","The notes that are written in the title block of the drawing"],"answer":1},
         {"id":"m10-08","objective":"gdt","stem":"Which of these are GD and T geometric controls?","options":["Position, flatness, and perpendicularity","Red, green, and blue","Steel, aluminum, and plastic","Front, top, and side"],"answer":0},
-        {"id":"m10-09","objective":"judgment","stem":"Why not put a tight tolerance on every dimension?","options":["It is against the rules","Tight tolerances waste shop time, so tolerance only what needs it","Loose is always better","It changes the material"],"answer":1},
+        {"id":"m10-09","objective":"judgment","stem":"Why not put a tight tolerance on every dimension?","options":["Putting a tight tolerance on each of the dimensions is against the rules","Tight tolerances waste shop time, so tolerance only what needs it","Loose is always better","It changes the material"],"answer":1},
         {"id":"m10-10","objective":"fits","stem":"A transition fit is what?","options":["Always loose","Between a clearance and an interference fit","Always pressed","The same as a clearance fit"],"answer":1},
-        {"id":"m10-11","objective":"practical","stem":"A torque-carrying shaft section is often made slightly long by about how much, and why?","options":["1 inch, to save material","About 0.01 inch, to absorb part-width and manufacturing variation","1 foot, for safety","Nothing is added"],"answer":1},
+        {"id":"m10-11","objective":"practical","stem":"A torque-carrying shaft section is often made slightly long by about how much, and why?","options":["1 inch, with the shaft section made an inch longer in order to save material","About 0.01 inch, to absorb part-width and manufacturing variation","1 foot, for safety","Nothing is added"],"answer":1},
         {"id":"m10-12","objective":"judgment","stem":"Where does tight tolerancing and GD and T belong in FRC?","options":["On every edge","On precision interfaces like bearing bores and bolt patterns","Only on the drawing border","Nowhere"],"answer":1},
         {"id":"m10-13","objective":"gdt","stem":"GD and T controls what beyond size?","options":["Color and finish","Form, orientation, and position","Weight and cost","Vendor and price"],"answer":1},
-        {"id":"m10-14","objective":"fits","stem":"Why does a press fit stay put?","options":["Glue holds it","The part is slightly larger than the bore and is pressed in","A nut holds it","Gravity holds it"],"answer":1}
+        {"id":"m10-14","objective":"fits","stem":"Why does a press fit stay put?","options":["Glue holds it","The part is slightly larger than the bore and is pressed in","A nut holds it","Gravity holds it, meaning the pull of gravity keeps the part in place"],"answer":1}
       ]
     }
   }

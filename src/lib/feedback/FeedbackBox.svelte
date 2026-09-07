@@ -239,9 +239,17 @@
 	});
 
 	const sent = $derived(save.phase === 'saved');
+	/**
+	 * A REPORT IS ON ITS WAY, and the fields are `disabled` for exactly that
+	 * long. A real `disabled` rather than `aria-disabled`, because nothing on a
+	 * field has a reason to give while a send is in flight, and the box is
+	 * replaced by the thank-you the moment it lands. A `failed` outcome leaves
+	 * `writing`, which is what hands the fields back to the Retry control.
+	 */
+	const sending = $derived(save.phase === 'writing');
 	const remaining = $derived(FEEDBACK_MAX_LEN - message.trim().length);
 	const canSend = $derived(
-		save.phase !== 'writing' &&
+		!sending &&
 			// A screenshot still going up is work this report would leave behind.
 			!shotBusy &&
 			feedbackIssue(message) === null &&
@@ -251,12 +259,25 @@
 
 	/** From the input event, never from an `$effect`: markDirty reads the phase
 	 * it then writes, so a tracked call would turn `saved` straight back into
-	 * `dirty` on every transition. */
+	 * `dirty` on every transition.
+	 *
+	 * NOT WHILE A SEND IS IN FLIGHT. A report is sent as it was when SEND was
+	 * pressed; an edit that lands mid-flight is not a newer version of the same
+	 * report, it is a second report nobody asked for. `markDirty()` during a
+	 * write is the machine's "an edit landed, send the newest value once this
+	 * settles" -- right for an autosaving document, and here it was what
+	 * inserted a SECOND `app_feedback` row carrying the newer text. The fields
+	 * are also `disabled` for the flight, but `dispatchEvent` reaches a disabled
+	 * control's listener regardless, so this gate is the half that holds the
+	 * row count and the attribute is the half a person meets. */
 	function typed() {
+		if (save.phase === 'writing') return;
 		save.markDirty();
 	}
 
 	function send() {
+		// A scripted dispatch at the disabled control must not mint a row either.
+		if (sending) return;
 		// A `submit` that throws rather than resolving is handled inside the
 		// SaveState, which treats a throw as a retryable failure; there is no
 		// busy flag here left to strand.
@@ -355,6 +376,7 @@
 						role="radio"
 						aria-checked={kind === k.id}
 						title={k.hint}
+						disabled={sending}
 						onclick={() => (kind = k.id)}
 					>
 						{k.label}
@@ -365,12 +387,17 @@
 			<label class="fb-label" for="fb-msg">
 				{FEEDBACK_KINDS.find((k) => k.id === kind)?.hint ?? 'What happened?'}
 			</label>
+			<!-- OFF WHILE A SEND IS IN FLIGHT, every field alike: what is on its way
+			     is what was on screen at the press, and typing into that is how a
+			     second report gets minted. See `typed()` for the half that holds
+			     even when an event reaches the listener anyway. -->
 			<textarea
 				id="fb-msg"
 				class="fb-area"
 				bind:this={areaEl}
 				bind:value={message}
 				oninput={typed}
+				disabled={sending}
 				rows="5"
 				maxlength={FEEDBACK_MAX_LEN}
 				placeholder="What happened, and what were you doing at the time?"
@@ -388,6 +415,7 @@
 				class="fb-area fb-area-tried"
 				bind:value={tried}
 				oninput={typed}
+				disabled={sending}
 				rows="2"
 				maxlength={FEEDBACK_TRIED_MAX}
 				placeholder="Reloaded it, tried another browser, asked someone else to try..."
@@ -479,6 +507,7 @@
 					type="text"
 					bind:value={contact}
 					oninput={typed}
+					disabled={sending}
 					maxlength={FEEDBACK_CONTACT_MAX}
 					autocomplete="off"
 					placeholder="an email, a name, a class period, or nothing at all"
@@ -500,7 +529,7 @@
 				<span class="fb-count" class:low={remaining < 120}>{remaining} left</span>
 				<button class="fb-btn" onclick={onClose}>CANCEL</button>
 				<button class="fb-btn fb-btn-primary" disabled={!canSend} onclick={send}>
-					{save.phase === 'writing' ? 'SENDING' : 'SEND'}
+					{sending ? 'SENDING' : 'SEND'}
 				</button>
 			</div>
 		{/if}
@@ -681,6 +710,15 @@
 
 	.fb-area-tried {
 		margin-bottom: 0.6rem;
+	}
+	/* Off for exactly the length of a send. `.fb-btn:disabled` below is the
+	   same reading on the buttons; the fields take it here so a box mid-send
+	   reads as one surface waiting rather than a dead button over live text. */
+	.fb-kind:disabled,
+	.fb-area:disabled,
+	.fb-contact:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	/* The screenshot block. Nothing here animates, so there is nothing for

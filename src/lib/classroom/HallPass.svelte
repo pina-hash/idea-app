@@ -183,10 +183,13 @@
 	 * `aria-disabled` attribute and again as the first line here; two spellings
 	 * of "is this ready" is what produces a click that does nothing.
 	 *
-	 * THE CONTROL IS `aria-disabled` AND NOT `disabled`, so a student who taps a
-	 * taken pass gets a sentence rather than a dead button. A genuinely disabled
-	 * control swallows the pointer event and can never explain itself, which on
-	 * the only control this feature has would be the whole surface going quiet.
+	 * THE EXPLANATION IS `aria-disabled` AND THE IN-FLIGHT STATE IS `disabled`.
+	 * A student who taps a taken pass gets a sentence rather than a dead button,
+	 * so the `canOpen` half is `aria-disabled`: a genuinely disabled control
+	 * swallows the pointer event and can never explain itself, which on the only
+	 * control this feature has would be the whole surface going quiet. `busy`
+	 * has nothing to explain -- a request is already on its way and a second
+	 * tap could only queue behind it -- so that half is a real `disabled`.
 	 */
 	async function signOut(): Promise<void> {
 		if (busy || !transports) return;
@@ -325,7 +328,7 @@
 					type="button"
 					class="btn tap-44 hp-action"
 					data-testid="hall-pass-close"
-					aria-disabled={busy}
+					disabled={busy}
 					onclick={signIn}
 				>
 					Sign back in
@@ -336,13 +339,16 @@
 					removing the control -- leaves a student staring at a card with no
 					affordance and no account of why, and "the pass is taken" is a
 					sentence they are entitled to whether or not they can act on it.
-					`aria-disabled` is what lets it say so; `disabled` would eat the tap.
+					`aria-disabled` is what lets it say so; a real `disabled` would eat
+					the tap. The in-flight half IS a real `disabled`: a tap during a
+					request has nothing to be told.
 				-->
 				<button
 					type="button"
 					class="btn tap-44 hp-action"
 					data-testid="hall-pass-open"
-					aria-disabled={!canOpen || busy}
+					disabled={busy}
+					aria-disabled={!canOpen}
 					onclick={signOut}
 				>
 					Sign out
@@ -385,7 +391,8 @@
 				type="button"
 				class="btn tap-44 hp-override-go"
 				data-testid="hall-pass-override-go"
-				aria-disabled={busy || !overrideEmail}
+				disabled={busy}
+				aria-disabled={!overrideEmail}
 				onclick={sendOut}
 			>
 				Send out
@@ -527,7 +534,8 @@
 	}
 	.hp-action[aria-disabled='true'] {
 		/* aria-disabled, so the control still receives the tap and can say why.
-		   `--ice` is the disabled token; the cursor says the same thing again. */
+		   `--ice` is the disabled token; the cursor says the same thing again.
+		   The in-flight `disabled` half is painted by app.css's `.btn:disabled`. */
 		color: var(--ice);
 		border-color: var(--ice);
 		cursor: not-allowed;

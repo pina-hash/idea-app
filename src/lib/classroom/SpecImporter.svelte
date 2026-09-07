@@ -101,8 +101,11 @@
 	 * moved off it, so "is there content in here" can never be mistaken for
 	 * "has this been edited" (the presence-of-state bug, which is why that class
 	 * exists). ONE predicate -- `publishReady` -- drives both the control and
-	 * the handler, and the control is `aria-disabled` rather than `disabled` so
-	 * that pressing it explains itself instead of doing nothing.
+	 * the handler. On the control it is rendered in two halves: the explanation
+	 * (`publishable`, nothing parsed or nothing changed) is `aria-disabled` so
+	 * that pressing it explains itself instead of doing nothing, and the
+	 * in-flight half (`busy`) is a real `disabled`, because a write already on
+	 * its way has nothing to say to a second press.
 	 */
 
 	type ImporterKind = 'assignment' | 'reference';
@@ -185,9 +188,13 @@
 	/**
 	 * The ONE answer to "would pressing Publish do anything". The button reads
 	 * it and so does the handler; two spellings of this is what produces a
-	 * click that silently does nothing.
+	 * click that silently does nothing. `publishable` is the half of it with a
+	 * sentence behind it (`explainRefusal` has one for each clause), which is
+	 * what the control's `aria-disabled` reads; `busy` is the control's real
+	 * `disabled`. The handler still asks `publishReady` and nothing narrower.
 	 */
-	const publishReady = $derived(!!parsed && !busy && !seededUnchanged);
+	const publishable = $derived(!!parsed && !seededUnchanged);
+	const publishReady = $derived(publishable && !busy);
 
 	type CopyNote = { tone: 'ok' | 'error'; text: string };
 	let copyNote = $state<CopyNote | null>(null);
@@ -767,14 +774,17 @@
 			{/if}
 
 			<span class="tool-actions">
-				<!-- `aria-disabled`, never `disabled`: a genuinely disabled control
-				     swallows the press, so it can never say why it refused. The
-				     unchanged-from-attached case is the one that most needs to. -->
+				<!-- The explanation is `aria-disabled`: a genuinely disabled control
+				     swallows the press, so it could never say why it refused, and
+				     the unchanged-from-attached case is the one that most needs to.
+				     The in-flight state is a real `disabled`: a write on its way has
+				     nothing to explain. -->
 				<button
 					type="button"
 					class="btn tiny"
 					data-testid="spec-publish"
-					aria-disabled={!publishReady}
+					disabled={busy}
+					aria-disabled={!publishable}
 					onclick={publish}
 				>
 					{stagingMode ? `Use this ${words.noun}` : words.publish}

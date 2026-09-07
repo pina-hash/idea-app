@@ -189,7 +189,8 @@
 			<button
 				type="button"
 				class="btn tap-44"
-				aria-disabled={!changed || busy}
+				disabled={busy}
+				aria-disabled={!changed}
 				data-testid="move-apply"
 				onclick={submit}
 			>
@@ -197,8 +198,11 @@
 			</button>
 		</div>
 		{#if !changed}
-			<!-- `aria-disabled`, never `disabled`: a genuinely disabled control
-			     swallows pointer events and can never explain itself. -->
+			<!-- The explanation is `aria-disabled`: a genuinely disabled control
+			     swallows pointer events and can never explain itself, and this
+			     sentence is what `!changed` has to say. The in-flight half above
+			     is a real `disabled`, because a move already on its way has
+			     nothing to add. -->
 			<p class="note" data-testid="move-unchanged">
 				Both pickers still read where this entry already is, so there is nothing to move.
 			</p>

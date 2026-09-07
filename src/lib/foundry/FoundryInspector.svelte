@@ -582,15 +582,18 @@
 
 			<div class="fdy-send-row">
 				<!--
-					`aria-disabled`, NOT `disabled`. A genuinely disabled control
-					swallows pointer events, so the sentence explaining why it is off
-					could never be reached from it. The handler refuses too, so the
-					control is not merely styled as unavailable.
+					THE EXPLANATION IS `aria-disabled` AND THE IN-FLIGHT STATE IS
+					`disabled`. A genuinely disabled control swallows pointer events, so
+					the sentence explaining why `canSend` is false could never be
+					reached from it; `sending` has no sentence to give, so that half is
+					real. The handler refuses on both, so the control is not merely
+					styled as unavailable.
 				-->
 				<button
 					type="button"
 					class="btn fdy-send tap-44"
-					aria-disabled={!canSend || sending}
+					disabled={sending}
+					aria-disabled={!canSend}
 					onclick={send}
 				>
 					{sending ? 'Sending...' : 'Send decision'}

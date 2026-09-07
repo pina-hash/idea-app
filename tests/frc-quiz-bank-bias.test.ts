@@ -78,6 +78,7 @@ import {
 	allItems,
 	absoluteFreeOption,
 	articleAgreementOption,
+	correctNeeded,
 	expectedAttempts,
 	expectedCooldownSeconds,
 	fixesNeeded,
@@ -88,6 +89,7 @@ import {
 	measureBank,
 	nearDuplicatePair,
 	ofTheAboveOption,
+	passProbability,
 	runTell,
 	shortestOption,
 	stemEchoOption,
@@ -531,38 +533,55 @@ describe('the OTHER cheap strategies a student could run instead', () => {
 
 // ---------------------------------------------------------------------------
 describe('the tell that looks real and is not', () => {
-	it('stem echo is the length tell in a second costume, and is not budgeted', () => {
+	it('stem echo cannot clear a unit, and is not budgeted', () => {
 		// WORTH THE WORDS, because the naive reading of this one is wrong and
 		// the wrong reading sends somebody rewriting questions to fix a shadow.
 		// Pick the option sharing the most content words with the question: it
-		// fires on 40 items and is correct on 27, 67.5% against 25% chance, which
-		// reads as a second serious leak.
+		// fires on about 40 items and is correct on well over half of them,
+		// against 25% chance, which reads as a second serious leak.
 		const echo = runTell(allItems(), stemEchoOption);
 		expect(echo.applies).toBeGreaterThan(30);
 		expect(echo.rate!).toBeGreaterThan(2 * echo.chance);
 
-		// It carries no signal of its own. On the items where the two heuristics
-		// point at DIFFERENT options -- the only place they can be told apart --
-		// length is right far more often than the echo is. A longer option
-		// overlaps a stem more because it has more words in it.
+		// THE ASSERTION THAT USED TO SIT HERE WAS A CORPUS FACT, AND IT REDDENED
+		// ON AN IMPROVEMENT. Prompt 0059 measured that on the ten items where the
+		// echo and the length tell disagreed, length was right eight times and
+		// the echo once, and pinned `tellRight / disagreements <= 0.25` as the
+		// proof that the echo was the length tell in a second costume. That was
+		// true only while the length tell was right nearly everywhere. Prompt
+		// 0099 lengthened the distractors on the sixteen items that shut the
+		// gate, which makes the length tell WRONG on those sixteen by
+		// construction; six of them have a correct answer that already echoed
+		// the stem, so the disagreements went 10 -> 16 and the echo's share of
+		// them 1 -> 6 (37.5%) with nothing about the echo having changed. The
+		// ratio was measuring the fix, not the echo, which is the exact shape
+		// the header of this file says a guard must not take.
+		//
+		// WHAT IS DURABLE IS WHAT A STUDENT CAN DO WITH IT. Per bank, the echo
+		// fires on a handful of items and is right on fewer than the pass
+		// threshold needs, so a student who answers with the echo where it fires
+		// and gets the rest wrong (the model `passProbability` states, and the
+		// one the shortest-option assertion above already rests on) cannot reach
+		// the gate on ANY draw, at any number of retries: the hypergeometric pass
+		// probability is exactly zero on every bank. Asserted per bank, so a bank
+		// whose echo grows into a real tell reddens by name and then needs a
+		// budget of its own -- which is what this assertion is here to notice.
+		for (const [unitId, bank] of Object.entries(BANKS)) {
+			const t = runTell(bank.items, stemEchoOption);
+			expect(
+				t.hits,
+				`${unitId}: the echo is right on ${t.hits} of the ${t.applies} items it fires on, ` +
+					`against a pass threshold of ${correctNeeded(bank)}`
+			).toBeLessThan(correctNeeded(bank));
+			expect(passProbability(bank, stemEchoOption), `${unitId}: echo-only pass rate`).toBeLessThan(
+				0.01
+			);
+		}
+
+		// And it still disagrees with length somewhere, so the two are
+		// distinguishable rather than one measurement under two names.
 		const indep = independenceFrom(allItems(), stemEchoOption);
 		expect(indep.disagreements, 'they disagree somewhere, so this is decidable').toBeGreaterThan(5);
-		// The claim is not merely "length wins" -- that is true of a comparison
-		// restricted to nothing in particular, and stays true if the AGREEMENTS
-		// are wrongly folded in, because those inflate both sides equally
-		// (measured: with agreements included, 27 against 34, and this assertion
-		// would not have noticed). The claim is that on the items where the echo
-		// says something DIFFERENT, it is not even worth a guess.
-		expect(
-			indep.tellRight / indep.disagreements,
-			`where they disagree (${indep.disagreements} items): echo right ${indep.tellRight}, ` +
-				`length right ${indep.baselineRight}`
-		).toBeLessThanOrEqual(0.25);
-		expect(indep.baselineRight / indep.disagreements).toBeGreaterThan(0.5);
-
-		// So it gets no budget of its own. If that ever inverts -- the echo
-		// beating length on the disagreements -- it has become a real second
-		// tell and needs one, which is what this assertion is here to notice.
 	});
 });
 

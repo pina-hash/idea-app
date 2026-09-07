@@ -23,8 +23,8 @@ export default {
 	presence: [
 		{ selector: 'section.mount[data-mount]', label: 'the seven state mounts', expectPresent: 7, maxPresent: 7 },
 		{ selector: '[data-testid="song-queue"]', label: 'SongQueue card, one per mount', expectPresent: 7, maxPresent: 7 },
-		{ selector: '[data-mount="student / at the cap"] [data-testid="song-queue-send"][aria-disabled="true"]', label: 'capped student control is aria-disabled', expectPresent: 1, maxPresent: 1 },
-		{ selector: '[data-testid="song-queue-send"][disabled], [data-testid="song-queue-approve"][disabled], [data-testid="song-queue-reject"][disabled]', label: 'no control carries a real disabled attribute', expectPresent: 0, expectVisible: 0 }
+		{ selector: '[data-mount="student / at the cap"] [data-testid="song-queue-send"][aria-disabled="true"]', label: 'capped student control is aria-disabled (the explanation half)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="song-queue-send"][disabled], [data-testid="song-queue-approve"][disabled], [data-testid="song-queue-reject"][disabled]', label: 'no real disabled at rest (the in-flight half, never observed here)', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [
 		{ selector: '[data-testid="song-queue-price"]', label: 'price label', min: 4.5 },
@@ -47,11 +47,17 @@ export default {
 		{ selector: '.sq-link.tap-reach-44', label: 'approved/pending row links (reach, not box)', min: 44 }
 	],
 	/*
-		THE aria-disabled CONTRACT AGAIN, the same shape as /dev/hall-pass:
-		the capped student's Request control must still take the tap and
-		explain itself. Proven by actually clicking it (clickUntil's
-		coordinate click, which lands on aria-disabled where
-		locator.click() would refuse) and reading the notice it produces.
+		THE TWO HALVES AGAIN, the same shape as /dev/hall-pass. The
+		EXPLANATION half is `aria-disabled`: the capped student's Request
+		control must still take the tap and say why. Proven by actually
+		clicking it (clickUntil's coordinate click, which lands on
+		aria-disabled where locator.click() would refuse) and reading the
+		notice it produces. The `[disabled]` row in `presence` above is the
+		IN-FLIGHT half (`disabled={busy}` on Request, Approve and Reject),
+		asserted absent AT REST: nothing is in flight when the page is read,
+		and nothing ever is here, because the harness transports answer
+		immediately and `busy` holds for one microtask this run never
+		samples.
 	*/
 	prepare: [
 		{

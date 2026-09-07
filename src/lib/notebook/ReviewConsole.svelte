@@ -1148,13 +1148,16 @@
 					>
 				{/if}
 				{#if docCheck && sectionManages}
+					<!-- A real `disabled`, and only that: a disabled control does not
+					     receive the tap, so nothing here promises an explanation on
+					     press. The `title` is what a hover reads; the unit picker
+					     above is where the answer is. -->
 					<button
 						type="button"
 						class="mode"
 						class:on={mode === 'grade'}
 						aria-pressed={mode === 'grade'}
 						disabled={unit === null}
-						aria-disabled={unit === null}
 						data-testid="mode-grade"
 						title={unit === null
 							? 'Pick a unit above: a Documentation Check grades one unit.'
@@ -1420,10 +1423,11 @@
 		color: var(--text-1);
 		font-weight: 700;
 	}
-	/* aria-disabled rather than `disabled` on a control that has to explain
-	   itself: a genuinely disabled button swallows pointer events, so its own
-	   "pick a unit first" tooltip could never fire from it. */
-	.mode[aria-disabled='true'] {
+	/* `.mode` is not a `.btn`, so app.css's `.btn:disabled` never reaches it and
+	   the disabled reading is painted here. A disabled mode does not receive
+	   the tap; its `title` is a hover's reading and the picker beside it is the
+	   answer, so nothing about this control claims to explain itself on press. */
+	.mode:disabled {
 		color: var(--text-3);
 		cursor: not-allowed;
 	}

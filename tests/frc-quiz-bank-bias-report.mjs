@@ -43,6 +43,8 @@ import {
 	expectedAttempts,
 	expectedCooldownSeconds,
 	fixesNeeded,
+	correctNeeded,
+	passProbability,
 	worstFirst
 } from './frc-quiz-bank-bias.ts';
 import { FRC_QUIZ_COOLDOWNS_SEC, cooldownSecondsForFailStreak } from '../src/lib/frc/track.ts';
@@ -74,6 +76,12 @@ const dupTell = runTell(
 const shortTell = runTell(items, shortestOption);
 const techTell = runTell(items, techiestOption);
 const echoIndep = independenceFrom(items, stemEchoOption);
+// Per bank, because the durable claim about the echo is per bank: fewer hits than the
+// threshold needs means a pass probability of exactly zero at any number of retries.
+const echoPerBank = Object.entries(BANKS).map(([unitId, b]) => {
+	const t = runTell(b.items, stemEchoOption);
+	return { unitId, applies: t.applies, hits: t.hits, need: correctNeeded(b), pass: passProbability(b, stemEchoOption) };
+});
 const techIndep = independenceFrom(items, techiestOption);
 // The retake and workload arithmetic, per bank, in the same pass. `fixesNeeded`
 // is where the two numbers a person deciding actually needs come from.
@@ -184,11 +192,15 @@ L.push(row('a/an agreement with the stem', articleTell, articleTell.applies === 
 L.push(`| Option count | ${optionCounts.length > 1 ? items.length : 0} | - | - | ${optionCounts.length === 1 ? `clean: every item offers exactly ${optionCounts[0]}` : `CHECK: mixed (${optionCounts.join(', ')})`} |`);
 L.push('');
 L.push(`**On the stem-echo row.** Taken alone it looks like a second serious leak: it`);
-L.push(`fires on ${echoTell.applies} items and is right on ${echoTell.hits}, ${pct(echoTell.rate)} against ${pct(echoTell.chance)}. It is not one. On the`);
-L.push(`${echoIndep.disagreements} items where it and the length tell point at DIFFERENT options, length is`);
-L.push(`right ${echoIndep.baselineRight} times and the echo ${echoIndep.tellRight}. A longer option overlaps the question more`);
-L.push('because it has more words in it, so this is the length tell wearing a second');
-L.push('costume. Fixing the lengths fixes it; nothing needs rewriting for it separately.');
+L.push(`fires on ${echoTell.applies} items and is right on ${echoTell.hits}, ${pct(echoTell.rate)} against ${pct(echoTell.chance)}. It is not a`);
+L.push(`way through the gate. Per bank it fires on at most ${Math.max(...echoPerBank.map((b) => b.applies))} items and is right on at most`);
+L.push(`${Math.max(...echoPerBank.map((b) => b.hits))}, below what any bank's threshold needs (${echoPerBank.map((b) => `${b.unitId} ${b.hits}/${b.need}`).join(', ')}),`);
+L.push(`so a student who answers with the echo where it fires and gets the rest wrong passes`);
+L.push(`${pct(Math.max(...echoPerBank.map((b) => b.pass)))} of attempts on the worst bank -- it cannot clear a unit at any number of retries.`);
+L.push(`On the ${echoIndep.disagreements} items where it and the length tell point at DIFFERENT options, length is`);
+L.push(`right ${echoIndep.baselineRight} times and the echo ${echoIndep.tellRight}; that ratio moves whenever a distractor is lengthened past an`);
+L.push('answer that echoes the stem, because the length tell is then wrong on that item by');
+L.push('construction, so it describes the state of the length fix rather than the echo.');
 L.push('');
 L.push('**On the other two strategies.** Neither is a second way through the gate, which');
 L.push('is worth stating because if either were, lengthening distractors would not');
