@@ -292,9 +292,10 @@
 	.dup-open {
 		background: none;
 		border: 0;
-		padding: 0;
-		margin-left: 0.3rem;
+		padding: 0 0.4rem;
+		margin-left: 0.1rem;
 		min-height: 44px;
+		min-width: 44px;
 		color: var(--cyan);
 		font: inherit;
 		text-decoration: underline;

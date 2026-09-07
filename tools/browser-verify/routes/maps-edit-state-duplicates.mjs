@@ -120,6 +120,7 @@ export default {
 	tapTargets: [
 		{ selector: '[data-testid="maps-dup-entry"]', label: 'the Places-tab entry', min: 44 },
 		{ selector: '[data-testid="maps-dup-arm"]', label: 'Remove (arm)', min: 44 },
-		{ selector: '[data-testid="maps-duplicates"] .dup-open-btn', label: 'Open it (blocked copy)', min: 44 }
+		{ selector: '[data-testid="maps-duplicates"] .dup-open-btn', label: 'Open it (blocked copy)', min: 44 },
+		{ selector: '[data-testid="maps-duplicates"] .dup-open', label: 'Open it (kept copy, inline)', min: 44 }
 	]
 };
