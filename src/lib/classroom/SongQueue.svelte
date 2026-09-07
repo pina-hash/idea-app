@@ -157,9 +157,12 @@
 	 * the `aria-disabled` attribute and again as the first line here; two
 	 * spellings of "is this ready" is what produces a click that does nothing.
 	 *
-	 * THE CONTROL IS `aria-disabled` AND NOT `disabled`, so a student at the cap
-	 * gets a sentence naming the cap rather than a dead button. A genuinely
-	 * disabled control swallows the pointer event and can never explain itself.
+	 * THE EXPLANATION IS `aria-disabled` AND THE IN-FLIGHT STATE IS `disabled`.
+	 * A student at the cap gets a sentence naming the cap rather than a dead
+	 * button, so the `canRequest` half is `aria-disabled`: a genuinely disabled
+	 * control swallows the pointer event and can never explain itself. `busy`
+	 * has nothing to explain -- the request is already on its way -- so that
+	 * half is a real `disabled`, on every control in this file alike.
 	 *
 	 * THE FIELDS ARE CLEARED ONLY ON A CONFIRMED ACCEPTANCE. A refusal keeps what
 	 * was typed, because the next thing that happens to a rejected link is being
@@ -308,7 +311,8 @@
 						type="button"
 						class="btn tap-44 sq-action"
 						data-testid="song-queue-send"
-						aria-disabled={!canRequest || busy}
+						disabled={busy}
+						aria-disabled={!canRequest}
 						onclick={send}
 					>
 						Request
@@ -417,7 +421,7 @@
 									type="button"
 									class="btn tap-44 sq-action"
 									data-testid="song-queue-approve"
-									aria-disabled={busy}
+									disabled={busy}
 									onclick={() => decideApprove(row.request_id)}
 								>
 									Approve
@@ -426,7 +430,7 @@
 									type="button"
 									class="btn tap-44 sq-action"
 									data-testid="song-queue-reject"
-									aria-disabled={busy}
+									disabled={busy}
 									onclick={() => armReject(row.request_id)}
 								>
 									{rejecting === row.request_id ? 'Cancel' : 'Reject'}
@@ -454,7 +458,8 @@
 										type="button"
 										class="btn tap-44 sq-action"
 										data-testid="song-queue-reject-send"
-										aria-disabled={!reasonOk || busy}
+										disabled={busy}
+										aria-disabled={!reasonOk}
 										onclick={() => decideReject(row.request_id)}
 									>
 										Send reason
@@ -638,7 +643,8 @@
 	}
 	.sq-action[aria-disabled='true'] {
 		/* aria-disabled, so the control still receives the tap and can say why.
-		   `--ice` is the disabled token; the cursor says the same thing again. */
+		   `--ice` is the disabled token; the cursor says the same thing again.
+		   The in-flight `disabled` half is painted by app.css's `.btn:disabled`. */
 		color: var(--ice);
 		border-color: var(--ice);
 		cursor: not-allowed;
