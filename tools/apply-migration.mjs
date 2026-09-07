@@ -1318,6 +1318,54 @@ export function parseArgs(argv) {
 
 const STATE_WORD = { applied: 'APPLIED', 'not-applied': 'NOT APPLIED', unknown: 'CANNOT SAY' };
 
+/**
+ * The lines printed UNDER "the applied set could not be read", naming a cause a
+ * person can act on. MESSAGE ONLY: nothing here changes what the tool does. The
+ * refusal above it stands whatever this returns, and returning nothing is a
+ * silent refusal rather than a permissive one.
+ *
+ * IT EXISTS BECAUSE THE BARE SENTENCE SENT FIVE SESSIONS TO THE WRONG FILE. On
+ * 2026-09-06 `main` was red in CI (run 34060552250) with two failures in
+ * `tests/apply-migration-*.test.ts`, both of which read as defects in this tool.
+ * The cause was `.github/workflows/ci.yml`: `actions/checkout@v4` with no
+ * `fetch-depth`, so the checkout carried one commit and only the ref that
+ * triggered the run, and `git ls-tree origin/integration` had no ref to read.
+ * The tool printed exactly what it prints today -- correctly, exit 2, nothing
+ * applied -- and the one word missing from it was "checkout".
+ *
+ * @param {string} why the already-redacted message the read failed with
+ * @returns {string[]}
+ */
+export function appliedSetCause(why) {
+	const ref = /could not list supabase\/migrations on (\S+)/.exec(why);
+	if (ref) {
+		return [
+			`THE CAUSE IS THIS CHECKOUT, NOT THE DATABASE: git cannot read ${ref[1]}, so the`,
+			`set of applied migrations cannot be derived and nothing here is a statement`,
+			`about production. A SHALLOW OR SINGLE-REF CHECKOUT is the usual reason --`,
+			`actions/checkout fetches one commit and only the triggering ref unless it is`,
+			`given fetch-depth: 0, and git clone --depth 1 fetches only one branch.`,
+			`Fix the checkout, not this tool:`,
+			`  in a workflow:  give the actions/checkout step  fetch-depth: 0`,
+			`  in a clone:     git fetch origin '+refs/heads/*:refs/remotes/origin/*'`,
+			`                  (add --unshallow first if the clone is shallow)`
+		];
+	}
+	if (/idea-status\.py|returned no probe list/.test(why)) {
+		return [
+			`THE CAUSE IS tools/idea-status.py, NOT THE DATABASE: the probe list could not`,
+			`be derived from this working tree. python3 must be on PATH and the tree must`,
+			`carry supabase/migrations. Run  python3 tools/idea-status.py --json  to see it`,
+			`fail on its own.`
+		];
+	}
+	return [
+		`This can be the CHECKOUT (git could not read a ref the probe needs), the TOOL`,
+		`chain (python3 or tools/idea-status.py), or the CONNECTION. The message above`,
+		`is the one the failing step gave; nothing was applied either way.`
+	];
+}
+
 /** @param {string} s */
 const say = (s) => process.stdout.write(s + '\n');
 
@@ -1475,9 +1523,9 @@ async function main() {
 			}
 			findings = verdicts(probes, rows);
 		} catch (err) {
-			say(
-				`  REFUSING: the applied set could not be read (${redact(/** @type {Error} */ (err).message, url)}). Cannot say is never a pass.`
-			);
+			const why = redact(/** @type {Error} */ (err).message, url);
+			say(`  REFUSING: the applied set could not be read (${why}). Cannot say is never a pass.`);
+			for (const line of appliedSetCause(why)) say(`    ${line}`);
 			return EXIT.refused;
 		}
 		report.probe = findings;

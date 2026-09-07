@@ -55,6 +55,7 @@ import pg from 'pg';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startTestDb, type TestDb } from './db/harness';
+import { PROBE_REF, requireProbeRefs } from './git-refs-precondition';
 import {
 	applyInTransaction,
 	claims,
@@ -437,6 +438,18 @@ describe('control 2: a self-check that raises is a refusal, not a crash', () => 
 /* ------------------------------------------------------------------------ */
 
 describe('control 3: a migration applied out of order is refused before it runs', () => {
+	// THE PRECONDITION FIRST, AND IT FAILS NAMING THE CHECKOUT. Both drives below
+	// hand the CLI `--ref origin/integration`, which reaches the applied-set
+	// probe and asks git to list `supabase/migrations` on that ref and on
+	// `origin/main`. A checkout that has neither makes the tool refuse EARLIER
+	// than the ordering rule -- correctly, exit 2, nothing applied -- and the
+	// assertion below then fails on a string, pointing at the tool. That is what
+	// made `main` red on 2026-09-06 while every local run was green. See
+	// `tests/git-refs-precondition.ts`.
+	beforeAll(() => {
+		requireProbeRefs();
+	});
+
 	it('exits `refused` and leaves the database untouched, through the real CLI', async () => {
 		// This database has NO migration applied to it, so every probeable file
 		// below the target comes back NOT APPLIED and the target is not the
@@ -459,7 +472,7 @@ describe('control 3: a migration applied out of order is refused before it runs'
 				'--since',
 				'151',
 				'--ref',
-				'origin/integration',
+				PROBE_REF,
 				'--ledger',
 				permittingLedger
 			],
@@ -500,7 +513,7 @@ describe('control 3: a migration applied out of order is refused before it runs'
 				'--since',
 				'151',
 				'--ref',
-				'origin/integration',
+				PROBE_REF,
 				'--ledger',
 				refusingLedger
 			],
