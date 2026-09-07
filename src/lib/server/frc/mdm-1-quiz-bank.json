@@ -145,7 +145,7 @@
       "id": "m1-019",
       "objective": "constraints-first",
       "stem": "Why set constraints before sketching geometry?",
-      "options": ["To make the drawing look neater", "Constraints shrink the design space so the geometry has something to satisfy", "Because CAD requires it", "To slow the process down on purpose"],
+      "options": ["To make the drawing look neater", "Constraints shrink the design space so the geometry has something to satisfy", "Because CAD requires it", "Setting constraints before you sketch is done to slow the process down on purpose"],
       "answer": 1
     },
     {
@@ -166,7 +166,7 @@
       "id": "m1-022",
       "objective": "select-why",
       "stem": "Why document the reason a concept was chosen?",
-      "options": ["To fill pages in the notebook", "It records design intent and stops the team from re-arguing the decision", "It is required by the game manual", "It is not useful"],
+      "options": ["To fill pages in the notebook", "It records design intent and stops the team from re-arguing the decision", "It is required by the game manual, which is where that requirement is written", "It is not useful"],
       "answer": 1
     },
     {
@@ -194,7 +194,7 @@
       "id": "m1-026",
       "objective": "prototype-purpose",
       "stem": "A team spends a week building a beautiful, final-quality prototype before testing the concept at all. What is wrong?",
-      "options": ["Nothing, more polish is always better", "A prototype should be fast and crude to answer a question, so polishing before proving the concept wastes time", "The prototype should have been skipped entirely", "They should have manufactured the real part first"],
+      "options": ["Nothing, more polish is always better", "A prototype should be fast and crude to answer a question, so polishing before proving the concept wastes time", "The prototype should have been skipped entirely", "They should have manufactured the real part first, ahead of the prototype, with the real part built before the prototype was"],
       "answer": 1
     },
     {
@@ -229,7 +229,7 @@
       "id": "m1-031",
       "objective": "scenario-apply",
       "stem": "A team jumps straight from defining the problem to detailing the design in CAD, skipping concepts and prototyping. What is the most likely consequence?",
-      "options": ["They save time with no downside", "They commit to an unproven idea and may waste manufacturing time on a design that does not work", "The robot will automatically be better", "Nothing changes"],
+      "options": ["They save time, and there is no downside to doing it", "They commit to an unproven idea and may waste manufacturing time on a design that does not work", "The robot will automatically be better, meaning the finished robot will be a better one without anything more being done", "Nothing changes"],
       "answer": 1
     },
     {

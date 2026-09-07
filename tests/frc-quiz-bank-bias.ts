@@ -318,10 +318,19 @@ export function allItems(banks: Record<string, Bank> = BANKS): (BankItem & { uni
  * the question -- fires on 40 items and is correct on 27, 67.5% against 25%
  * chance, which reads as a second serious leak. It is not one: 26 of those 27
  * are items where the longest option was already the answer, and on the ten
- * items where the two heuristics disagree, LENGTH is right 8 times and echo
- * once. A longer option overlaps a stem more because it has more words in it.
- * So the echo carries no signal of its own, and reporting it as a separate
- * finding would send somebody rewriting questions to fix a shadow.
+ * items where the two heuristics disagreed on the 2026-08-29 corpus, LENGTH
+ * was right 8 times and echo once. A longer option overlaps a stem more
+ * because it has more words in it. So the echo carried no signal of its own,
+ * and reporting it as a separate finding would send somebody rewriting
+ * questions to fix a shadow.
+ *
+ * THAT RATIO DECAYS AS THE LENGTH TELL IS FIXED, and is not what the lint
+ * asserts any more. Lengthening a distractor past the answer makes the length
+ * tell WRONG on that item by construction, so an item whose answer happens to
+ * echo the stem joins the disagreements on the echo's side without the echo
+ * having changed (prompt 0099: 10 -> 16 disagreements, echo right 1 -> 6). The
+ * durable statement is `passProbability(bank, stemEchoOption)`, zero on every
+ * bank; this function is kept for the report, which prints both numbers.
  */
 export function independenceFrom(
 	items: BankItem[],
