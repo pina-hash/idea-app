@@ -3,8 +3,8 @@
 - By: router chat for IDEA portal work
 - Owns: the maps editor save path, the eight open feedback items across their own subsystems, the merge of `integration` into `main`, migrations 0190 and 0191 if needed (both read-only), and its own `docs/history/` entry.
 - Migration permitted: at most two, 0190 and 0191, READ-ONLY. Claims: 0190, 0191. Highest on origin/main at issue: 0189
-- Status: issued
-- Branch: assigned by the harness
+- Status: pushed
+- Branch: claude/close-list-maps-duplication-nz2an9
 - Notes: Everything still open, after prompts 0039, 0061, 0069, 0070, 0072,
   0090, 0091, 0092, 0093 and 0095 closed the rest.
   

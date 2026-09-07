@@ -1230,6 +1230,15 @@
 				"theme",
 				"home page"
 			]
+		},
+		{
+			"date": "2026-09-07",
+			"title": "Due today stands out, and hiding the other items keeps the one you are reading",
+			"body": "Two small things on the classroom pages. On the home page, an assignment that is due today now has a marker down its left edge that gently widens and settles back, so the row that needs you first is the one your eye lands on. It only moves if your device allows motion; with reduced motion on, the marker is simply there. And on an item page, the Hide other items button used to hide the item as well as the list on some screens, which is why it looked like it did nothing. It now puts the list away and gives the item the whole width, and Show other items brings the list back.",
+			"tags": [
+				"home page",
+				"assignments"
+			]
 		}
 	]
 }
