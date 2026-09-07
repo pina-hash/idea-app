@@ -57,9 +57,9 @@ because a tie is a question the trick does not answer.
 | Dimension | Fires on | Correct | Chance | Verdict |
 |---|---|---|---|---|
 | Longest option (characters) | 130 | 79 (60.8%) | 25.0% | **the dominant tell** |
-| Most words | 105 | 73 (69.5%) | 25.0% | the same tell, second reading |
+| Most words | 106 | 73 (68.9%) | 25.0% | the same tell, second reading |
 | Only option with no absolute ("Only...", "Never...") | 9 | 9 (100.0%) | 25.0% | **certain where it fires** |
-| Correct option echoes the stem most | 40 | 23 (57.5%) | 25.0% | no signal of its own -- see below |
+| Correct option echoes the stem most | 41 | 23 (56.1%) | 25.0% | no signal of its own -- see below |
 | Shortest option | 116 | 11 (9.5%) | 25.0% | worse than guessing |
 | Most technical-sounding option | 54 | 31 (57.4%) | 25.0% | chance over the corpus -- see below |
 | Near-duplicate option pair contains the answer | 22 | 12 (54.5%) | 50.0% | noise, not a tell |
@@ -68,7 +68,7 @@ because a tie is a question the trick does not answer.
 | Option count | 0 | - | - | clean: every item offers exactly 4 |
 
 **On the stem-echo row.** Taken alone it looks like a second serious leak: it
-fires on 40 items and is right on 23, 57.5% against 25.0%. It is not a
+fires on 41 items and is right on 23, 56.1% against 25.0%. It is not a
 way through the gate. Per bank it fires on at most 14 items and is right on at most
 5, below what any bank's threshold needs (MDM-1 5/9, F1 0/8, F2 1/6, F3 2/6, F4 2/6, F5 3/6, MDM-2 3/6, MDM-3 3/6, MDM-9 2/6, MDM-10 2/6),
 so a student who answers with the echo where it fires and gets the rest wrong passes

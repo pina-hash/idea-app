@@ -92,7 +92,7 @@
         {"id":"qf5-04","objective":"content","stem":"Should you record failures?","options":["Yes, the team learns from them","No, only successes","Only big ones","Never"],"answer":0},
         {"id":"qf5-05","objective":"habits","stem":"Who contributes to the notebook?","options":["Everyone who works on the robot","Only the captain","Only mentors","Only drivers"],"answer":0},
         {"id":"qf5-06","objective":"content","stem":"What is a good test of an entry?","options":["Could someone else continue your work from it","Is the entry colorful when you look at the page","Is it short","Does it rhyme"],"answer":0},
-        {"id":"qf5-07","objective":"content","stem":"Why write down why you chose something?","options":["So the team remembers the reason and does not re-argue it","To fill space","It is not needed","The purpose of writing the reason is to confuse the judges"],"answer":0},
+        {"id":"qf5-07","objective":"content","stem":"Why write down why you chose something?","options":["So the team remembers the reason and does not re-argue it","To fill space","It is not needed","The purpose of writing down why you chose it is to confuse the judges"],"answer":0},
         {"id":"qf5-08","objective":"purpose","stem":"What does hiding a failure lead to?","options":["Someone repeating it later","A better robot","Nothing","A prize"],"answer":0},
         {"id":"qf5-09","objective":"purpose","stem":"Judges use the notebook to do what?","options":["Understand your team's work","Score the match","Pick the drivers","Set the rules"],"answer":0},
         {"id":"qf5-10","objective":"habits","stem":"Notebook entries should be what?","options":["Clear and honest","Vague","Secret","As long as possible"],"answer":0}
