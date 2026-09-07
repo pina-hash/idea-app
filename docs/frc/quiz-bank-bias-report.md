@@ -50,31 +50,31 @@ that bank's own draw, against its own test length and 90% threshold.
 
 "Fires on" is the number of items where the heuristic points at an option at
 all; a tie points at nothing and is neither a hit nor a miss. That is why the
-longest-option row reads 60.3% of the 131 it fires on, while the headline above
+longest-option row reads 60.8% of the 130 it fires on, while the headline above
 is 56.4% of all 140 items -- the second is the number a student experiences,
 because a tie is a question the trick does not answer.
 
 | Dimension | Fires on | Correct | Chance | Verdict |
 |---|---|---|---|---|
-| Longest option (characters) | 131 | 79 (60.3%) | 25.0% | **the dominant tell** |
-| Most words | 106 | 72 (67.9%) | 25.0% | the same tell, second reading |
+| Longest option (characters) | 130 | 79 (60.8%) | 25.0% | **the dominant tell** |
+| Most words | 105 | 73 (69.5%) | 25.0% | the same tell, second reading |
 | Only option with no absolute ("Only...", "Never...") | 9 | 9 (100.0%) | 25.0% | **certain where it fires** |
-| Correct option echoes the stem most | 40 | 24 (60.0%) | 25.0% | no signal of its own -- see below |
+| Correct option echoes the stem most | 40 | 23 (57.5%) | 25.0% | no signal of its own -- see below |
 | Shortest option | 116 | 11 (9.5%) | 25.0% | worse than guessing |
-| Most technical-sounding option | 55 | 31 (56.4%) | 25.0% | chance over the corpus -- see below |
+| Most technical-sounding option | 54 | 31 (57.4%) | 25.0% | chance over the corpus -- see below |
 | Near-duplicate option pair contains the answer | 22 | 12 (54.5%) | 50.0% | noise, not a tell |
 | "All / none of the above" | 0 | - | - | clean: none present |
 | a/an agreement with the stem | 0 | - | - | clean: none present |
 | Option count | 0 | - | - | clean: every item offers exactly 4 |
 
 **On the stem-echo row.** Taken alone it looks like a second serious leak: it
-fires on 40 items and is right on 24, 60.0% against 25.0%. It is not a
+fires on 40 items and is right on 23, 57.5% against 25.0%. It is not a
 way through the gate. Per bank it fires on at most 14 items and is right on at most
-5, below what any bank's threshold needs (MDM-1 5/9, F1 0/8, F2 1/6, F3 2/6, F4 2/6, F5 3/6, MDM-2 3/6, MDM-3 3/6, MDM-9 2/6, MDM-10 3/6),
+5, below what any bank's threshold needs (MDM-1 5/9, F1 0/8, F2 1/6, F3 2/6, F4 2/6, F5 3/6, MDM-2 3/6, MDM-3 3/6, MDM-9 2/6, MDM-10 2/6),
 so a student who answers with the echo where it fires and gets the rest wrong passes
 0.0% of attempts on the worst bank -- it cannot clear a unit at any number of retries.
-On the 16 items where it and the length tell point at DIFFERENT options, length is
-right 8 times and the echo 6; that ratio moves whenever a distractor is lengthened past an
+On the 15 items where it and the length tell point at DIFFERENT options, length is
+right 8 times and the echo 5; that ratio moves whenever a distractor is lengthened past an
 answer that echoes the stem, because the length tell is then wrong on that item by
 construction, so it describes the state of the length fix rather than the echo.
 
@@ -86,8 +86,8 @@ finish the job.
   every bank it reaches fewer correct answers than the pass threshold needs, so
   it cannot clear a single unit at any number of retries. It is the length tell
   seen from the other end, not an independent fact.
-- **Most technical-sounding option** fires on 55 items and is right on 31 of them
-  (56.4%), which reads alarming, and is 22.1% of the whole corpus, which is
+- **Most technical-sounding option** fires on 54 items and is right on 31 of them
+  (57.4%), which reads alarming, and is 22.1% of the whole corpus, which is
   chance. Where it and the length tell disagree (25 items) length is right
   15 times and this 7. A longer option holds more long words.
 

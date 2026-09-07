@@ -194,7 +194,7 @@
       "id": "m1-026",
       "objective": "prototype-purpose",
       "stem": "A team spends a week building a beautiful, final-quality prototype before testing the concept at all. What is wrong?",
-      "options": ["Nothing, more polish is always better", "A prototype should be fast and crude to answer a question, so polishing before proving the concept wastes time", "The prototype should have been skipped entirely", "They should have manufactured the real part first, ahead of the prototype, with the real part built before the prototype was"],
+      "options": ["Nothing, more polish is always better", "A prototype should be fast and crude to answer a question, so polishing before proving the concept wastes time", "The prototype should have been skipped entirely", "They should have manufactured the real part first, that is, built the real part before they built the prototype"],
       "answer": 1
     },
     {
@@ -229,7 +229,7 @@
       "id": "m1-031",
       "objective": "scenario-apply",
       "stem": "A team jumps straight from defining the problem to detailing the design in CAD, skipping concepts and prototyping. What is the most likely consequence?",
-      "options": ["They save time, and there is no downside to doing it", "They commit to an unproven idea and may waste manufacturing time on a design that does not work", "The robot will automatically be better, meaning the finished robot will be a better one without anything more being done", "Nothing changes"],
+      "options": ["They save time, and there is no downside to doing it", "They commit to an unproven idea and may waste manufacturing time on a design that does not work", "The robot will automatically be better, meaning it ends up a better robot without anything more being done", "Nothing changes"],
       "answer": 1
     },
     {
