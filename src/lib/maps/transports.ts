@@ -323,6 +323,14 @@ export async function mapsSaveObject(
 		row: { id: string; status: 'draft' | 'published' } | null;
 		content: Record<string, unknown>;
 		publishNow: boolean;
+		/**
+		 * Called the moment the row EXISTS, with the id it exists under, before
+		 * any publish step. A create-and-publish whose publish half fails
+		 * returns ok:false -- correctly, that half did not land -- but the row
+		 * is there, and a caller that only learns the id from an ok result
+		 * inserts a second one on the next press.
+		 */
+		onLanded?: (id: string) => void;
 	}
 ): Promise<MapsResult<{ id: string }>> {
 	let id: string;
@@ -339,6 +347,7 @@ export async function mapsSaveObject(
 		if (!staged.ok) return staged;
 		id = args.row.id;
 	}
+	args.onLanded?.(id);
 	if (args.publishNow) {
 		if (!transports.publish) {
 			// Unreachable through the UI -- with no publish transport no control

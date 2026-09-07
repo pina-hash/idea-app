@@ -12,7 +12,9 @@ import { error } from '@sveltejs/kit';
  * `?state=` opens a selection: `node-pending`, `compartment`, `unit`
  * (the front elevation, on a unit that has compartments), `place` (the plan
  * canvas on a unit that has none, so the placement checks measure the canvas
- * on its own), `type-pending`, `new-root`. Reading `url` here is fine -- this is a PAGE
+ * on its own), `type-pending`, `new-root`, and `duplicates` (the surplus rooms
+ * one press once left in the live map, prompt 0098, on a fixture that carries
+ * them). Reading `url` here is fine -- this is a PAGE
  * load, so a state change re-runs it, which is exactly what the harness wants.
  */
 export const prerender = false;

@@ -49,13 +49,16 @@
 		pendingFor,
 		type MapsEditorData,
 		type MapsFormHandle,
-		type MapsSelection
+		type MapsSelection,
+		mapsDuplicateGroups,
+		mapsDuplicateTotals
 	} from './maps';
 	import type { MapsTransports } from './transports';
 	import { MAPS_ADMIN_SCOPE, mapsCaps, type MapsEditorScope } from './grants';
 	import { mapsNodePath } from './maps';
 	import NodeTree from './NodeTree.svelte';
 	import NodeDetail from './NodeDetail.svelte';
+	import MapsDuplicates from './MapsDuplicates.svelte';
 	import ItemTypeDetail from './ItemTypeDetail.svelte';
 	import MapsStatusChip from './MapsStatusChip.svelte';
 	import MapsOverview from './MapsOverview.svelte';
@@ -184,12 +187,29 @@
 		}
 		pendingSwitch = null;
 		selection = next;
+		if (acknowledged && acknowledged.key !== keyFor(next)) acknowledged = null;
 	}
 
 	function discardAndSwitch() {
 		if (!pendingSwitch) return;
 		selection = pendingSwitch.next;
 		pendingSwitch = null;
+		if (acknowledged && acknowledged.key !== keyFor(selection)) acknowledged = null;
+	}
+
+	/* THE CREATE ACKNOWLEDGEMENT, which the remount would otherwise drop. The
+	   form that pressed "Create draft" is keyed on `new-node`; the one on
+	   screen afterwards is keyed on the created id; and a `saved` indicator
+	   does not cross that boundary on its own -- measured, the pane simply
+	   switched with nothing anywhere saying the write landed. The clock time
+	   is handed across and cleared the moment the selection moves on. */
+	let acknowledged = $state<{ key: string; at: number } | null>(null);
+	function keyFor(s: Selection | null): string {
+		if (!s) return 'none';
+		if (s.kind === 'node') return `node:${s.id}`;
+		if (s.kind === 'type') return `type:${s.id}`;
+		if (s.kind === 'new-node') return `new-node:${s.parentId ?? 'root'}:${s.presetKind ?? ''}`;
+		return s.kind;
 	}
 
 	// --- Resolve the selection against the CURRENT data, never a snapshot ---
@@ -205,21 +225,28 @@
 		return data.itemTypes.find((t) => t.id === s.id) ?? null;
 	});
 	/** What the detail pane holds. `overview` is the nothing-selected state, and it is content. */
-	const detailKind = $derived.by<'node' | 'new-node' | 'type' | 'new-type' | 'overview'>(() => {
+	const detailKind = $derived.by<'node' | 'new-node' | 'type' | 'new-type' | 'duplicates' | 'overview'>(() => {
 		const s = selection;
 		if (!s) return 'overview';
 		if (s.kind === 'node') return selectedNode ? 'node' : 'overview';
 		if (s.kind === 'type') return selectedType ? 'type' : 'overview';
 		return s.kind;
 	});
-	const selectionKey = $derived.by(() => {
-		const s = selection;
-		if (!s) return 'none';
-		if (s.kind === 'node') return `node:${s.id}`;
-		if (s.kind === 'type') return `type:${s.id}`;
-		if (s.kind === 'new-node') return `new-node:${s.parentId ?? 'root'}:${s.presetKind ?? ''}`;
-		return 'new-type';
-	});
+
+	/* THE SURPLUS COPIES, derived from the same `data` everything else reads,
+	   so a removal that lands is a group that shrinks on the next reload and
+	   nothing here keeps a second list. Offered to a granted editor too: the
+	   copies they may not remove are listed with the reason, not hidden. */
+	const duplicateGroups = $derived(mapsDuplicateGroups(data, caps));
+	const duplicateTotals = $derived(mapsDuplicateTotals(duplicateGroups));
+	/** ONE row per press, through the same transport NodeDetail's own delete uses. */
+	async function removeDuplicate(id: string) {
+		const result = await transports.deleteRow('maps_nodes', id);
+		if (result.ok) await refresh();
+		return result;
+	}
+	const selectionKey = $derived(keyFor(selection));
+	const savedAtForPane = $derived(acknowledged?.key === selectionKey ? acknowledged.at : null);
 
 	const sortedTypes = $derived(
 		data.itemTypes.slice().sort((a, b) => a.name.localeCompare(b.name))
@@ -230,9 +257,14 @@
 		selection = null;
 	}
 	/** Selecting a node from anywhere -- the tree, a sheet, an elevation -- lands on the Places tab. */
-	function selectNode(id: string) {
+	function selectNode(id: string, savedAt?: number) {
 		section = 'places';
+		if (savedAt !== undefined) acknowledged = { key: `node:${id}`, at: savedAt };
 		attemptSelect({ kind: 'node', id });
+	}
+	function selectType(id: string, savedAt?: number) {
+		if (savedAt !== undefined) acknowledged = { key: `type:${id}`, at: savedAt };
+		attemptSelect({ kind: 'type', id });
 	}
 </script>
 
@@ -303,6 +335,25 @@
 						selectedId={selectedNode?.id ?? null}
 						onselect={(id) => attemptSelect({ kind: 'node', id })}
 					/>
+					{#if duplicateGroups.length > 0}
+						<!-- THE WAY IN, ON THE TAB THE COPIES ARE ON. Rendered only
+						     while there is something to clean up: a permanent
+						     "Duplicates" entry that usually reads "none" is one
+						     more row in a list somebody scans for a room. -->
+						<button
+							type="button"
+							class="dup-entry"
+							aria-pressed={selection?.kind === 'duplicates'}
+							onclick={() => attemptSelect({ kind: 'duplicates' })}
+							data-testid="maps-dup-entry"
+						>
+							<span class="dup-entry-count">{duplicateTotals.surplus}</span>
+							<span class="dup-entry-text">
+								surplus {duplicateTotals.surplus === 1 ? 'copy' : 'copies'} of
+								{duplicateTotals.groups} {duplicateTotals.groups === 1 ? 'container' : 'containers'}
+							</span>
+						</button>
+					{/if}
 					{#if caps.canAddChild(null)}
 						<div class="add-root" data-testid="maps-add-root">
 							<p class="hint">{mapsNestingSentence(null)}</p>
@@ -381,6 +432,7 @@
 						node={selectedNode}
 						{data}
 						{transports}
+						savedAt={savedAtForPane}
 						onchanged={refresh}
 						onselectnode={selectNode}
 						onaddchild={(parentId, presetKind) =>
@@ -410,9 +462,10 @@
 							itemType={selectedType}
 							{data}
 							{transports}
+							savedAt={savedAtForPane}
 							onchanged={refresh}
 							onselectnode={selectNode}
-							onselecttype={(id) => attemptSelect({ kind: 'type', id })}
+							onselecttype={selectType}
 							ondeleted={onDeleted}
 							{registerForm}
 							{caps}
@@ -426,12 +479,19 @@
 							{transports}
 							onchanged={refresh}
 							onselectnode={selectNode}
-							onselecttype={(id) => attemptSelect({ kind: 'type', id })}
+							onselecttype={selectType}
 							ondeleted={onDeleted}
 							{registerForm}
 							{caps}
 						/>
 					</div>
+				{:else if detailKind === 'duplicates'}
+					<MapsDuplicates
+						groups={duplicateGroups}
+						totals={duplicateTotals}
+						remove={removeDuplicate}
+						onselectnode={selectNode}
+					/>
 				{:else}
 					<MapsOverview nodes={visibleNodes} {data} onselect={selectNode} />
 				{/if}
@@ -651,5 +711,37 @@
 		display: flex;
 		gap: 0.6rem;
 		flex-wrap: wrap;
+	}
+
+	/* THE SURPLUS ENTRY: a real button, the 44px floor, and a count a reader
+	   can see from across the room -- it exists only while there is
+	   something to clean up. */
+	.dup-entry {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		width: 100%;
+		min-height: 44px;
+		margin: 0.6rem 0 0;
+		padding: 0.45rem 0.7rem;
+		background: color-mix(in srgb, var(--amber) 10%, transparent);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		color: var(--text-1);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.dup-entry[aria-pressed='true'] {
+		border-color: var(--green);
+	}
+	.dup-entry-count {
+		font-family: var(--font-mono);
+		font-size: 1.05rem;
+		color: var(--amber);
+		min-width: 2ch;
+	}
+	.dup-entry-text {
+		font-size: 0.85rem;
 	}
 </style>

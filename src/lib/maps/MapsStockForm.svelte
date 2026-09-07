@@ -99,20 +99,28 @@
 		return { item_type_id: typeId, node_id: nodeId, qty: qty ?? 0 };
 	}
 
+	/* The id a create returned, remembered by THIS instance -- the NodeDetail
+	   rule: a surviving create form with nothing remembered is a second row. */
+	let createdRow: { id: string; status: 'draft' | 'published' } | null = null;
 	let publishNow = false;
 	const save = new SaveState({
 		autosave: false,
 		fallbackMessage: 'That placement was not saved.',
 		async save() {
+			const row = stock ?? createdRow;
 			const result = await mapsSaveObject(transports, {
 				table: 'maps_stock',
-				row: stock,
+				row,
 				content: content(),
-				publishNow
+				publishNow,
+				onLanded: (id) => {
+					if (row === null) createdRow = { id, status: 'draft' };
+				}
 			});
 			if (!result.ok) return result;
+			if (row === null && publishNow && createdRow) createdRow.status = 'published';
 			baseline.advance(signature());
-			const created = stock === null;
+			const created = row === null;
 			await onchanged();
 			if (created) onclose();
 			return { ok: true };
@@ -126,6 +134,12 @@
 
 	async function doSave(publish: boolean) {
 		if (problems.length > 0) return;
+		// A press while a save is in flight joins it and starts nothing -- the
+		// NodeDetail rule; the flush-on-switch reaches here too.
+		if (save.phase === 'writing') {
+			await save.saveNow();
+			return;
+		}
 		publishNow = publish;
 		save.markDirty();
 		await save.saveNow();
@@ -219,6 +233,7 @@
 				type="button"
 				class="btn"
 				aria-disabled={problems.length > 0}
+				disabled={save.phase === 'writing'}
 				onclick={() => doSave(false)}
 			>
 				{stock === null ? 'Create draft' : stock.status === 'published' ? 'Save (not public yet)' : 'Save draft'}
@@ -228,6 +243,7 @@
 					type="button"
 					class="btn secondary"
 					aria-disabled={problems.length > 0}
+					disabled={save.phase === 'writing'}
 					onclick={() => doSave(true)}
 				>
 					{stock === null ? 'Create & publish' : 'Save & publish'}

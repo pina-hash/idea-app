@@ -272,6 +272,12 @@
 
 	async function doSave() {
 		if (problems.length > 0) return;
+		// A press while a save is in flight joins it and starts nothing -- the
+		// NodeDetail rule; the flush-on-switch reaches here too.
+		if (save.phase === 'writing') {
+			await save.saveNow();
+			return;
+		}
 		save.markDirty();
 		await save.saveNow();
 	}
@@ -419,7 +425,13 @@
 		{/if}
 
 		<div class="actions">
-			<button type="button" class="btn" aria-disabled={problems.length > 0} onclick={doSave}>
+			<button
+				type="button"
+				class="btn"
+				aria-disabled={problems.length > 0}
+				disabled={save.phase === 'writing'}
+				onclick={doSave}
+			>
 				Save elevation
 			</button>
 			<SaveIndicator state={save} />

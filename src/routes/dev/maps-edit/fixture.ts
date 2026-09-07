@@ -455,3 +455,65 @@ export function memoryMapsTransports(state: MapsEditorData): MapsTransports {
 		}
 	};
 }
+
+// ---------------------------------------------------------------------------
+// THE SURPLUS (prompt 0098). What one press of "Create draft" left in the live
+// map on 2026-09-06: identical draft rooms under the building, same name, same
+// 466.25 x 477.75 outline. Four of them here rather than thirty, because the
+// panel's claims are about SHAPE -- one kept, the rest offered one at a time,
+// and a copy holding something listed separately with no control -- and four
+// copies show every one of those. The fourth holds a unit, so it is the
+// blocked case.
+
+/** The ids the surplus fixture adds, so a test can name them rather than count. */
+export const SURPLUS = {
+	keep: 'node-dup-1',
+	safe: ['node-dup-2', 'node-dup-3'],
+	blocked: 'node-dup-4',
+	blockedChild: 'node-dup-4-bench'
+} as const;
+
+export function mapsEditFixtureWithSurplus(): MapsEditorData {
+	const data = mapsEditFixture();
+	const at = (minutes: number) => new Date(Date.parse(T) + minutes * 60_000).toISOString();
+	const room = (id: string, minutes: number): MapsNode => ({
+		id,
+		parent_id: FIX.building,
+		kind: 'room',
+		name: 'IDEA Classroom',
+		subtype: null,
+		description: null,
+		outline: { kind: 'rect', w: 466.25, h: 477.75 },
+		position_x_in: null,
+		position_y_in: null,
+		rotation_deg: null,
+		elevation_order: null,
+		elevation_h_in: null,
+		elevation_w_in: null,
+		status: 'draft',
+		published_at: null,
+		created_at: at(minutes),
+		updated_at: at(minutes)
+	});
+	data.nodes.push(room(SURPLUS.keep, 1), room(SURPLUS.safe[0], 2), room(SURPLUS.safe[1], 3), room(SURPLUS.blocked, 4));
+	data.nodes.push({
+		id: SURPLUS.blockedChild,
+		parent_id: SURPLUS.blocked,
+		kind: 'unit',
+		name: 'Bench',
+		subtype: null,
+		description: null,
+		outline: { kind: 'rect', w: 72, h: 30 },
+		position_x_in: null,
+		position_y_in: null,
+		rotation_deg: null,
+		elevation_order: null,
+		elevation_h_in: null,
+		elevation_w_in: null,
+		status: 'draft',
+		published_at: null,
+		created_at: at(5),
+		updated_at: at(5)
+	});
+	return data;
+}
