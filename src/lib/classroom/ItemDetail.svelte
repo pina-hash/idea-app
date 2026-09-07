@@ -19,6 +19,7 @@
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import SpecTextEditor from '$lib/classroom/SpecTextEditor.svelte';
 	import { uploadClassroomFile } from '$lib/classroom/file-upload';
+	import { checkInDuplicateRefusal } from '$lib/classroom/nav';
 	import type { EditableSpec } from '$lib/classroom/spec-text';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import { flagReasonLabel } from '$lib/notebook';
@@ -355,6 +356,8 @@
 	// throw mid-attach cannot disable the controls for good.
 	let checkInBusy = $state(false);
 	let checkInError = $state<string | null>(null);
+	/** Where the refusal points, when it points somewhere: the Check-ins tab, for a duplicate date. */
+	let checkInErrorHref = $state<{ href: string; label: string } | null>(null);
 	/** Two-step, because detaching moves where a student reads their obligation. */
 	let detaching = $state<string | null>(null);
 
@@ -367,14 +370,17 @@
 		// allows more than one check-in per item and does not itself enforce
 		// distinct dates -- so it only catches what THIS page is about to do.
 		if (checkIns.some((c) => c.session_date === draft.session_date)) {
-			checkInError =
-				'This item already has a check-in on that date. Pick a different date, or edit the ' +
-				'existing one instead -- a duplicate would put a second column on every affected ' +
-				"class's grid and ask students for the same page twice.";
+			// THE SENTENCE SAYS WHERE. The existing check-in is managed on the
+			// Check-ins tab (not Duplicates, which is about drafts), and the
+			// address comes from the tab list itself -- see nav.ts.
+			const refusal = checkInDuplicateRefusal(section.id, basePath);
+			checkInError = refusal.message;
+			checkInErrorHref = { href: refusal.href, label: refusal.linkLabel };
 			return;
 		}
 		checkInBusy = true;
 		checkInError = null;
+		checkInErrorHref = null;
 		try {
 			const res = await checkInTransports.createForItem(item.id, draft);
 			if (!res.ok) {
@@ -411,6 +417,7 @@
 		if (!checkInTransports || checkInBusy) return;
 		checkInBusy = true;
 		checkInError = null;
+		checkInErrorHref = null;
 		try {
 			const res = await checkInTransports.unlink(checkIn.session_id, checkIn.section_id);
 			if (!res.ok) {
@@ -1019,7 +1026,19 @@
 										onstage={attachCheckIn}
 									/>
 									{#if checkInError}
-										<p class="feedback error" data-testid="check-in-error">{checkInError}</p>
+										<p class="feedback error" data-testid="check-in-error">
+					{checkInError}
+					{#if checkInErrorHref}
+						<a
+							class="check-in-error-link tap-reach-44"
+							style="--tap-reach-w: 0px"
+							href={checkInErrorHref.href}
+							data-testid="check-in-error-link"
+						>
+							{checkInErrorHref.label}
+						</a>
+					{/if}
+				</p>
 									{/if}
 								</div>
 							{/if}
