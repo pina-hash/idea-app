@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `docs/standards/IDEA_instructions.md`, `docs/standards/IDEA_VERIFICATION_ADDENDA.md`, `docs/standards/REGISTER.md`, `docs/prompt-ledger/entries/0100-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0189
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness
 - Notes: `IDEA_instructions.md` to 4.23 and `IDEA_VERIFICATION_ADDENDA.md` to
   2.4, carrying what the 2026-09-05/06 run established. Both files were built

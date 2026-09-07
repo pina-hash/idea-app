@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.22 - 2026-09-06**
+**Version 4.23 - 2026-09-07**
 
 ## These Instructions Evolve
 
@@ -1589,6 +1589,101 @@ set of lanes.
 
 ---
 
+### The container arrives crippled, and the first three commands fix it
+
+**Every cloud session starts with a shallow clone, a stale `origin/main`, and no sibling
+refs.** Five separate sessions between 2026-09-05 and 2026-09-06 each rediscovered this
+independently, and two of them mistook it for a defect in `tools/apply-migration.mjs`.
+
+Every Claude Code prompt therefore opens with these three, before the ledger commit,
+before anything:
+
+```
+git fetch --unshallow origin || git fetch origin
+git fetch origin integration
+git config user.email   # set one if empty, and say so
+```
+
+- **`--unshallow`** because a shallow clone reports history metadata that is wrong rather
+  than absent. On 2026-09-06 one container's `origin/main` was pinned 20 commits behind
+  the tip while its working branch was cut correctly from the tip.
+- **`origin/integration`** because `tools/apply-migration.mjs` derives its applied-set
+  probes from `git show origin/<ref>:`, and `actions/checkout@v4` creates only
+  `refs/remotes/origin/<triggering ref>`. Without it, two apply-migration tests fail with
+  a string-comparison error that names nothing about clones. Prompt 0094 fixed the CI
+  half and made those tests refuse to run rather than fail obscurely; the container half
+  is still the session's own to do.
+- **The identity** because a merge with no committer identity fails with "Please tell me
+  who you are", **which looks exactly like a conflict and is not.**
+
+**A test that fails on an assertion when its precondition was never met sends five people
+to read the wrong file.** That is the general form, and it is the same shape as an inert
+`until` and a vacuous positive control.
+
+### Numbers are allocated, never derived
+
+Fully stated in the 4.22 changelog entry. The operative half for prompt writing:
+
+**Every prompt states its own ledger number and, where a migration is permitted, states
+the migration number too.** No prompt ever tells a session to take the next free number.
+
+A session verifying a number is free can only prove that nobody has **pushed** it. It
+cannot see a number a router chat holds in an unsent draft, nor one another session holds
+uncommitted. Six collisions on 2026-09-06 were produced by sessions that all verified
+correctly. The router chat is the only party that can see the whole allocation, so the
+router chat allocates.
+
+**The router chat keeps the running list of issued numbers in its own context and burns a
+gap deliberately when it needs a firebreak.**
+
+### Agents split inside a lane, never across lanes
+
+`EFFORT: ultracode` with subagents is the right shape when **one lane has independent
+work**: a canvas renderer, its drag behaviour, its layout and its tests are four surfaces
+in one bundle. It is the wrong shape for four bundles.
+
+Agents share a container and a working tree, so:
+
+- **Assign each agent a FILE SURFACE, never a topic.** Two agents in one file is a lost
+  hour.
+- **One agent owns `classroom-updates.json` and appends last.** It is a single array every
+  bundle appends to, and it is this repository's most reliable conflict.
+- **Nothing runs `verify:readme` until every agent is done and the tree is committed.**
+- **Serialise the full suite.** Parallel vitest perturbs the timing-sensitive db tests.
+
+Across lanes the discipline is the opposite and it is what makes a bad bundle survivable:
+one branch, one ledger entry, one file surface, one merge. When one of five sessions goes
+wrong you drop that branch, as prompt 0085 dropped 0081. When one of five agents goes
+wrong you have one branch with five bundles tangled in it.
+
+### Four of eight is the ordinary rate
+
+On 2026-09-06 a closeout bundle took eight open feedback items and found **four of them
+already shipped**, three of those in a single August bundle nobody had re-read. A second
+was a deliberate control that should not be removed. A third was a stale report, already
+fixed one document over.
+
+That is not an aberration, it is the base rate. **The audit phase is not a formality on a
+mature codebase; it is most of the work.** A prompt that says "build X" without an audit
+gate is a prompt that will build a second X beside the first.
+
+### A report to the router chat is not a record
+
+Prompt 0091 wrote a five-step projector checklist into its report. The router chat then
+told a later session to quote that checklist from 0091's history entry, where it had
+never been written. The later session searched exhaustively, found nothing, said so, and
+reconstructed it from what 0091 had actually measured.
+
+**Anything a session wants a person to act on goes in the `docs/history/` entry, not only
+in the report.** The report is read once by one chat and then lost; the history entry is
+what the next session and the next person can find.
+
+The router chat's half of the same rule: **do not tell a session to quote something from a
+file unless you have read that file.** A prompt written from a report is a prompt written
+from a tree the reader cannot see.
+
+---
+
 ## Claude Design Prompting
 
 Two systems, two standards, and they never mix. IDEA pathway artifacts follow
@@ -2074,6 +2169,37 @@ has: the script that replaced this checklist refuses to run `db push` at all whe
 ledger has a hole below the target, and that is the failure that repo had already
 suffered three times. Anything longer than about two hand-executed steps is a script that
 has not been written yet.
+**Never route Alejandro through GitHub Actions.** Standing instruction, 2026-09-06, in his
+words: Actions are an "extreme time waster." Every merge, deploy and re-run he performs by
+hand is written as a pull request: **Pull requests, New pull request, set base and compare,
+Create pull request, Merge pull request, Confirm merge.**
+
+The evidence is on the record and it is one-sided. On 2026-09-05 the Integrate and Deploy
+buttons refused four separate times for four different reasons, three of them because a
+router chat's instruction named the wrong dropdown or the wrong workflow source, and one
+because the two workflows had a deadlock neither could break. Every merge that actually
+landed that day landed by pull request. A run is also titled by its commit message rather
+than its branch, so "find the failed run for branch X" is an instruction he cannot follow.
+
+The workflows remain, and sessions still use them. He does not.
+
+**A cloud container cannot reach the production database, and this is permanent.** Prompt
+0073 measured it: the egress proxy answers `200 Connection Established` for a CONNECT to
+port 5432 and then carries no bytes. Its own relay log reads `8 B sent, 39 B received`,
+where the 8 is the Postgres SSLRequest and the 39 is the proxy's own header. Nothing ever
+came back from the pooler.
+
+So `tools/apply-migration.mjs` works, and no cloud session can use it. **Migrations are
+applied by Alejandro, by hand, in the Supabase SQL editor.** A local session on his own
+machine could apply one; a cloud session never will. A prompt that plans around a session
+applying its own migration is planning around something that cannot happen.
+
+The `idea_migrator` role was built for this and abandoned: `grant postgres to
+idea_migrator` is unreachable from the SQL editor on PostgreSQL 16 and later, because a
+non-superuser `postgres` cannot hold ADMIN OPTION on itself. The role exists on the
+project with LOGIN and nothing else. Supabase support could complete it with one statement;
+Alejandro has declined to ask.
+
 ---
 
 ## Output Defaults
@@ -2517,6 +2643,29 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-07 (4.23)** - The lessons of the 2026-09-05/06 run, which shipped
+  roughly forty bundles and took `main` from red to 326 files and 6,504 green tests. Five
+  additions. THE CONTAINER ARRIVES CRIPPLED: every cloud session starts shallow with a
+  stale `origin/main` and no sibling refs, five sessions each rediscovered it
+  independently, two mistook it for a defect in `apply-migration.mjs`, and every prompt
+  now opens with `git fetch --unshallow`, `git fetch origin integration` and the identity
+  check before the ledger commit. NUMBERS ARE ALLOCATED, NEVER DERIVED: the operative half
+  of 4.22 restated for prompt writing, since six collisions in one day were all produced by
+  sessions that verified correctly and the router chat is the only party that can see an
+  unsent draft. AGENTS SPLIT INSIDE A LANE, NEVER ACROSS LANES: `ultracode` with subagents
+  is right for one bundle with independent surfaces and wrong for four bundles, because
+  agents share a working tree, and the across-lane discipline is what makes a bad bundle
+  survivable. FOUR OF EIGHT IS THE ORDINARY RATE: a closeout found half its items already
+  shipped, three in one August bundle nobody had re-read, so the audit phase is most of the
+  work on a mature codebase rather than a formality. A REPORT TO THE ROUTER CHAT IS NOT A
+  RECORD: a checklist written into a report and not into a history entry could not be found
+  by the session sent to quote it, and the router chat's half of that rule is not to tell a
+  session to quote a file it has not read. Also added to Hard Rules: never route Alejandro
+  through GitHub Actions, which is a standing instruction of his and one the record supports
+  one-sidedly; and a cloud container cannot reach the production database, permanently,
+  measured, so migrations are applied by hand and no prompt may plan around a session
+  applying its own.
 
 - **2026-09-06 (4.22)** - Two lanes bumped this file to 4.21 on the same day without
   seeing each other, and the resolution keeps BOTH rules rather than either version

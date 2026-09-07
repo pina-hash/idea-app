@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.3 - 2026-08-31**
+**Version 2.4 - 2026-09-07**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -296,7 +296,114 @@ Rules 1 through 3 form one lesson and should probably merge as one clause with t
 
 ---
 
+
+### Five ways a measurement lies, all observed in one week
+
+**A measurement taken on the first page load after a cold `vite dev` boot is not a
+measurement.** Prompt 0047 read 45px once and 41.5px on three consecutive re-runs of
+byte-identical geometry. Prompt 0070 chased a spec that passed one run in two, always at
+375, until it found the cause: `WIDTHS` is `[375, 1440]` and the harness loop is
+spec-outer, so **375 is by construction the first visit to every route** and pays vite's
+module-graph compile. Warm the server and re-run before recording any number.
+
+**A cell inside a collapsed module measures zero, and zero passes.** Prompt 0048's first
+browser spec omitted the click-open step and every number came back 0px, which read as a
+clean pass. Prompt 0051 then built the check that tells not-clipped from not-measured, and
+its own required control was pointing the check at a still-shut module and confirming it
+refuses rather than reporting zero clipped cells. Any spec that measures inside a
+disclosure opens it in a prepare step and asserts it is open.
+
+**A prepare step's `until` did nothing for the life of the harness.** `run.mjs` judged an
+`evaluate` step on whether it threw and read `step.until` nowhere, while the click branch
+four lines away honoured it. Prompt 0082 fixed it and then found the blast radius was
+**zero**, because no spec had ever written one: the defect was latent, and what shipped is
+a guard against the next author. Its report also corrected the router chat's "71 spec
+files", which was a grep for the word `evaluate` and counted `orderResult` entries that
+are a check field rather than a prepare step.
+
+**A tool's cached answer can look exactly like a stalled job.** Prompt 0094 reported two
+CI runs stuck at the same step for over an hour, which is a convincing shape for a real
+hang, and then found the GitHub API had been serving an hour-stale snapshot of a job that
+finished normally in 3m42s. The discriminator: re-read the **job** later, or open the run
+in a browser. A cached snapshot never corrects itself on the timescale you are watching it.
+
+**A waiter loop that greps for a string its own command line contains never exits.**
+Observed in at least four sessions on 2026-09-06, costing wall clock in every one.
+`pgrep -f vitest` matches the waiter. It costs time rather than correctness, and every
+measurement behind it was real, but it is worth avoiding.
+
+### `verify:readme` needs a clean, committed, uncontended tree
+
+The measured region records the sha it measured and a `dirty` flag. Three separate
+failures, all in one week:
+
+- Prompt 0086 wrote a history entry while the pass ran, the run recorded `dirty: true`,
+  and the tree was genuinely not attributable because `classroom-updates.json` feeds
+  `src/lib/classroom/updates.ts`. It repeated the eleven minutes.
+- Prompt 0092's first pass reported 14 outside threshold, twelve of them on one route at
+  one width. The network log showed `ERR_ABORTED` on that page's document: it had
+  navigated away mid-measurement and every later selector queried a blank page. The same
+  route alone came back clean. **A block of findings on one route at one width is
+  re-run alone before it is believed.**
+- Prompt 0093 killed a vitest suite beside a running pass and six of its rows were
+  contention artefacts.
+
+So: commit everything, guard the port, run it once at the end, and stay off the tree.
+
+### A merge can be red when both parents were green
+
+Prompt 0075 established the shape and counted it: **47 tests in this repository relate two
+or more files**, and any of them is defeated by two branches each touching one. Sixteen of
+eighteen measurable tips over one week were red on a cross-file check.
+
+The concrete case: a doc check and the migration it wanted documented were siblings off
+one merge base, neither containing the other, each honestly green on its own tree. Git
+merged them with no conflict because the files are disjoint.
+
+Two answers, both now shipped. `integrate.yml` runs the suite on the merged tree and
+pushes a red result loudly rather than discarding good merges. And the sweep checks what
+only the sweep can see, before the merge: two branches claiming one migration number, and
+two branches bumping one standards file to the same version string.
+
+**That second one is not a merge conflict and cannot be a test.** Both sides write the
+identical text, so `git merge-tree --write-tree` produces a blob with no conflict marker;
+and each file is internally consistent, so the version-header test passes on both. It is
+invisible to everything except something looking across branches.
+
+### `aria-disabled` disables nothing
+
+A control reading `aria-disabled={...}` with an `onclick` is a control that fires. It is an
+accessibility annotation, not a guard, and it reads exactly like one in a diff.
+
+Found 2026-09-06 in the maps editor, where it was one of two candidates for a create loop.
+A repository-wide sweep then found **twenty more** controls carrying a handler, twelve of
+them where a real `disabled` belongs, and one in `ReviewConsole` carrying both attributes.
+
+The related defect, and the more expensive one: **a write path with no in-flight guard
+duplicates under any repeat trigger.** The maps case was not the missing attribute at all.
+After a create, the form's save callback told the shell to select the new node while its
+own write was in flight; the shell flushed the form before switching, the flush called
+`doSave`, `doSave` marked the machine dirty, and the machine read that as an edit landing
+mid-write and re-ran the create with the id still null. **One press wrote twelve rows.**
+
+The general rule: a save path tracks its in-flight request, a press during a write joins it
+and starts nothing, and a press after a create uses the id that create returned. And a
+control's positive control counts rows **rising** on N presses with N greater than two,
+because "one row exists" passes trivially on a working save and proves nothing.
+
 ## Changelog
+
+- **2.4 (2026-09-07)** - Five ways a measurement lies, all observed between
+  2026-09-05 and 2026-09-06: a cold `vite dev` first load, a cell inside a collapsed
+  module reading zero and zero passing, a prepare step's `until` that had never been
+  honoured, a cached API snapshot that looks exactly like a stalled job, and a waiter loop
+  that greps for a string its own command line contains. Plus three rules earned the same
+  week: `verify:readme` needs a clean, committed, uncontended tree and a block of findings
+  on one route at one width is re-run alone before it is believed; a merge can be red when
+  both parents were green, with 47 cross-file tests counted and the version-string
+  collision that is invisible to git and to the version test alike; and `aria-disabled`
+  disables nothing, with the write-path in-flight guard that the same investigation
+  actually turned out to need.
 
 - **2.3 (2026-08-31)** - Four rules from a nineteen-hour session running three parallel lanes, plus two rules that were violated by the instrument that enforces them. Rule 33: `expectPresent: 0` meant `>= 0`, so thirty absence rows could not fail, twenty-three of them written the same night by the lane that found the defect and closed it on three of its own rows; the fix went in the core because a per-spec fix leaves the next spec to rediscover it. Rule 34: a `not.toContain` for `lovelace` against a hex digest cannot fail because `l`, `o` and `v` are not hex digits, while its twin for `ada` fires by chance at one run in 132 measured over 200,000 real derivations; a hardcoded-salt mutant, an id anyone could reproduce from the migration, passed all twenty-three tests, and only an assertion that every id moves on a salt rotation catches it. Rule 35: a `data-testid` on a zero-box element made the readiness probe pick it first, so every route in the application timed out at thirty seconds and a full pass went from three minutes to fifty with nothing going red. Rule 36: a deletion count of zero does not prove pure insertion, since content can be reshuffled with every line present; assert the old file as an ordered subsequence of the new. Two existing rules earned fresh instances rather than new numbers, and both were broken by the harness itself: rule 23's prepare-step trap was implemented in `clickUntil`, which skips its click when the predicate already holds, so a spec's tap-target rows reported zero matched while looking green; and rule 20's no-independent-oracle trap is exactly what rule 34 describes.
 
