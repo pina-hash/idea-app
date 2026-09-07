@@ -47,13 +47,29 @@
 	let armed = $state<string | null>(null);
 
 	/**
-	 * ONE PREDICATE, read by the control and by the handler. Two spellings of
-	 * "is this ready" is what produces a press that does nothing.
+	 * TWO HALVES, read by the control and by the handler alike, so neither has
+	 * a spelling the other lacks. Two spellings of "is this ready" is what
+	 * produces a press that does nothing.
+	 *
+	 * `emailOk` is the half with a sentence behind it (a field that does not
+	 * hold an address yet): it is the control's `aria-disabled`, which lets the
+	 * press land, and `grant()` answers it on `problem`, the same line a
+	 * refused grant renders on. `busy` has nothing to explain and is the
+	 * control's real `disabled`; `grant()` still checks it, silently, because
+	 * a disabled control does not receive the press and only a scripted
+	 * dispatch can arrive there.
 	 */
-	const canGrant = $derived(email.trim().length > 3 && email.includes('@') && !busy);
+	const emailOk = $derived(email.trim().length > 3 && email.includes('@'));
 
 	async function grant() {
-		if (!canGrant || !transports.grantTrust) return;
+		if (!transports.grantTrust || busy) return;
+		if (!emailOk) {
+			// Cleared together, as every other write path here clears them: a
+			// refusal must not sit under the previous press's success sentence.
+			problem = "Type the student's school email address first.";
+			said = null;
+			return;
+		}
 		busy = true;
 		problem = null;
 		said = null;
@@ -125,7 +141,8 @@
 			<button
 				type="button"
 				class="btn fdy-trust-do tap-44"
-				aria-disabled={!canGrant ? 'true' : undefined}
+				disabled={busy}
+				aria-disabled={!emailOk ? 'true' : undefined}
 				onclick={grant}
 			>
 				Trust them
@@ -238,6 +255,14 @@
 
 	.fdy-trust-do {
 		justify-self: start;
+	}
+
+	/* The explanation half: `aria-disabled`, so the control keeps the press
+	   and `grant()` says why. The in-flight `disabled` half is painted by
+	   app.css's `.btn:disabled`. */
+	.fdy-trust-do[aria-disabled='true'] {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 
 	.fdy-trust-list {

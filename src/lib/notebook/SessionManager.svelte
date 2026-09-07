@@ -381,7 +381,26 @@
 	}
 
 	async function applyLink(sessionId: string) {
-		if (!itemLink || linkBusy || linkChoice === '') return;
+		// The in-flight half is a real `disabled`, so a press cannot reach here
+		// while a link is on its way; only a scripted dispatch can, and it gets
+		// the silent return the attribute already gave it.
+		if (!itemLink || linkBusy) return;
+		// THE SAME TWO CLAUSES THE CONTROL RENDERS AS `aria-disabled`, re-asked
+		// here and ANSWERED: an `aria-disabled` control still receives the press,
+		// so each refusal lands on `linkErr`, the line a refused link renders on.
+		// A bare return here is a press that does nothing, which is the defect
+		// the aria form exists to avoid.
+		if (linkChoice === '') {
+			linkErr = 'Pick an item first.';
+			return;
+		}
+		// Refusing the already-attached item is what keeps a press on "Attach"
+		// from re-sending the link RPC for a row that has not moved. `linkedItem`
+		// is per posting, exactly as the template reads it.
+		if (linkChoice === linkedItem(sessionId)?.id) {
+			linkErr = 'That item is already attached to this check-in.';
+			return;
+		}
 		linkBusy = true;
 		linkErr = null;
 		try {
@@ -738,10 +757,16 @@
 										</select>
 									</label>
 									<div class="item-actions">
+										<!-- The explanation (nothing picked, or the item it is already
+										     attached to) is `aria-disabled`, so the press still lands and
+										     `applyLink` answers it on `linkErr`, the same line a refused
+										     link renders on; the in-flight half is a real `disabled`,
+										     which never reaches the handler. -->
 										<button
 											type="button"
 											class="btn"
-											aria-disabled={linkChoice === '' || linkChoice === current?.id || linkBusy}
+											disabled={linkBusy}
+											aria-disabled={linkChoice === '' || linkChoice === current?.id}
 											data-testid="session-item-apply"
 											onclick={() => applyLink(session.id)}
 										>

@@ -50,16 +50,21 @@ export default {
 		   being measured in the direction the prose claims. */
 		{ selector: '.hp-actions', label: 'action blocks (read-only renders none; manager-empty renders an empty one)', expectPresent: 5, maxPresent: 5, expectVisible: 4, maxVisible: 4 },
 		/*
-			THE aria-disabled CONTRACT, ASSERTED IN BOTH DIRECTIONS. The
-			blocked student's control must carry `aria-disabled="true"` so it
-			can still receive the tap and explain itself, and NOTHING here may
-			carry a real `disabled` attribute -- that swallows the pointer
-			event and takes the explanation with it. The second row is the one
-			that bites: a `disabled` added "to be consistent" looks correct in
-			every screenshot.
+			THE TWO HALVES OF ONE CONTROL, ASSERTED IN BOTH DIRECTIONS. The
+			EXPLANATION half is `aria-disabled`: the blocked student's control
+			must carry `aria-disabled="true"`, because that is what lets the
+			tap land so the control can say why. The IN-FLIGHT half is a real
+			`disabled` (`disabled={busy}` on both controls while a request is
+			on its way), and it is absent AT REST: the second row asserts 0
+			because nothing is in flight when the harness reads the page, and
+			nothing ever is here -- the harness transports answer immediately,
+			so `busy` holds for one microtask this run never samples. What
+			the second row still catches is a `disabled` put on the
+			EXPLANATION half "to be consistent", which looks correct in every
+			screenshot and eats the tap.
 		*/
-		{ selector: '[data-mount="student-blocked"] [data-testid="hall-pass-open"][aria-disabled="true"]', label: 'blocked control is aria-disabled', expectPresent: 1, maxPresent: 1 },
-		{ selector: '[data-testid="hall-pass-open"][disabled], [data-testid="hall-pass-close"][disabled]', label: 'no control carries a real disabled attribute', expectPresent: 0, expectVisible: 0 }
+		{ selector: '[data-mount="student-blocked"] [data-testid="hall-pass-open"][aria-disabled="true"]', label: 'blocked control is aria-disabled (the explanation half)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="hall-pass-open"][disabled], [data-testid="hall-pass-close"][disabled]', label: 'no real disabled at rest (the in-flight half, never observed here)', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [
 		{ selector: '[data-testid="hall-pass-status"]', label: 'status line', min: 4.5 },
