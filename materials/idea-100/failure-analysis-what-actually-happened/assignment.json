@@ -7,7 +7,7 @@
     "dueDate": "2026-09-08",
     "totalPoints": 15,
     "assignmentId": "idea100-hook-failure",
-    "buildVersion": "v1",
+    "buildVersion": "v3",
     "headerFields": [
       "studentName",
       "date"
@@ -27,14 +27,13 @@
           "type": "checklist",
           "items": [
             "My hook was pulled in the bracket",
-            "I know how many matches it survived",
-            "I kept the broken pieces",
+            "I know the load it held",
             "I photographed the break before putting it away"
           ],
-          "points": 5
+          "points": 3
         }
       ],
-      "points": 5,
+      "points": 3,
       "rubric": [
         {
           "id": "match-done",
@@ -42,14 +41,14 @@
             {
               "label": "Complete",
               "short": "Pulled and recorded",
-              "points": 5,
-              "descriptor": "Hook pulled, match count known, pieces kept and the break photographed."
+              "points": 3,
+              "descriptor": "Hook pulled, load known, and the break photographed before the pieces went away."
             },
             {
               "label": "Developing",
               "short": "Pulled, record thin",
-              "points": 3,
-              "descriptor": "Hook was pulled but the count, the pieces or the photograph is missing."
+              "points": 2,
+              "descriptor": "Hook was pulled but the load or the photograph is missing."
             },
             {
               "label": "Absent",
@@ -76,7 +75,7 @@
         {
           "id": "break-photo",
           "type": "imageZone",
-          "points": 3,
+          "points": 2,
           "printAs": "notebookRef",
           "captions": false,
           "minImages": 1
@@ -84,7 +83,7 @@
         {
           "id": "predicted-vs-actual",
           "type": "textField",
-          "points": 4,
+          "points": 3,
           "prompt": "You predicted a load and a place it would break. What actually happened, and were you right about each one?",
           "maxSentences": 4,
           "minSentences": 2
@@ -92,7 +91,7 @@
         {
           "id": "one-change",
           "type": "textField",
-          "points": 3,
+          "points": 2,
           "prompt": "One change to this hook, and why. Name the place on the part.",
           "maxSentences": 3,
           "minSentences": 2
@@ -102,7 +101,7 @@
           "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Where Hooks Break and Tournament Rules.\n- Your own V3 prediction, your scale test, and the bracket board.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration and modes of failure.\n- IDEA AI Use Policy."
         }
       ],
-      "points": 10,
+      "points": 7,
       "rubric": [
         {
           "id": "break-shown",
@@ -110,13 +109,13 @@
             {
               "label": "Complete",
               "short": "Break in focus",
-              "points": 3,
+              "points": 2,
               "descriptor": "The broken face is visible and in focus and is this student's hook."
             },
             {
               "label": "Developing",
               "short": "Shown, unclear",
-              "points": 2,
+              "points": 1,
               "descriptor": "A photograph where the break cannot be made out."
             },
             {
@@ -134,8 +133,8 @@
             {
               "label": "Complete",
               "short": "Both checked honestly",
-              "points": 4,
-              "descriptor": "Says what happened and states clearly whether the predicted load and the predicted place were right. A stated miss is full marks."
+              "points": 3,
+              "descriptor": "States clearly whether the predicted load and the predicted place were right. A stated miss is full marks."
             },
             {
               "label": "Proficient",
@@ -164,13 +163,13 @@
             {
               "label": "Complete",
               "short": "Change tied to break",
-              "points": 3,
+              "points": 2,
               "descriptor": "Names the change, names where on the hook, and connects it to the break."
             },
             {
               "label": "Developing",
               "short": "Change, weak tie",
-              "points": 2,
+              "points": 1,
               "descriptor": "Names a change without connecting it to what actually broke."
             },
             {
@@ -184,6 +183,69 @@
         }
       ],
       "aiLevel": 1
+    },
+    {
+      "id": "slide",
+      "intro": "One slide in IDEA Hook Designs. This is what stays after the hooks are gone.",
+      "title": "Your Slide",
+      "aiNote": "No AI. These are your own images from your own work.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Add one slide to **[IDEA Hook Designs](https://docs.google.com/presentation/d/1b6EarIaB3UGrG1Ee7HwFap8aBLAiEdwBRE6myKoFLg8/edit)**. Copy the layout of the slides already in there.\n\nSix things have to be on it:\n\n1. Your hook's name and your name.\n2. The load it held, in pounds.\n3. A CAD image of your hook.\n4. Your simulation image, with the color scale showing.\n5. A photo of the real printed hook.\n6. A slicer view showing the toolpath.\n\nYou already have every one of these. The CAD, the simulation and the slicer view are on your own machine. The photo and the load come from today."
+        },
+        {
+          "id": "slide-checks",
+          "type": "checklist",
+          "items": [
+            "My slide is in the IDEA Hook Designs deck",
+            "Hook name and my name are on it",
+            "The load it held, in pounds",
+            "A CAD image and a simulation image with the color scale",
+            "A photo of the real printed hook",
+            "A slicer view showing the toolpath"
+          ],
+          "points": 5
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- [IDEA Hook Designs](https://docs.google.com/presentation/d/1b6EarIaB3UGrG1Ee7HwFap8aBLAiEdwBRE6myKoFLg8/edit), the slides already in the deck.\n- Your own CAD, simulation, slicer and photographs.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "slide-built",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All six present",
+              "points": 5,
+              "descriptor": "Slide is in the deck with name, student, load, CAD, simulation and slicer view, and a photo of the real hook."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two missing",
+              "points": 3,
+              "descriptor": "Slide is in the deck but one or two of the six are missing or unreadable."
+            },
+            {
+              "label": "Developing",
+              "short": "Slide barely started",
+              "points": 1,
+              "descriptor": "A slide exists with three or more of the six missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No slide",
+              "points": 0,
+              "descriptor": "Nothing in the deck."
+            }
+          ],
+          "criterion": "One slide in the deck carrying all six required things"
+        }
+      ],
+      "aiLevel": 0
     }
   ],
   "approvalGate": null,
