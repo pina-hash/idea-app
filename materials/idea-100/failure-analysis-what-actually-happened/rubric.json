@@ -5,14 +5,14 @@
       {
         "label": "Complete",
         "short": "Pulled and recorded",
-        "points": 5,
-        "descriptor": "Hook pulled, match count known, pieces kept and the break photographed."
+        "points": 3,
+        "descriptor": "Hook pulled, load known, and the break photographed before the pieces went away."
       },
       {
         "label": "Developing",
         "short": "Pulled, record thin",
-        "points": 3,
-        "descriptor": "Hook was pulled but the count, the pieces or the photograph is missing."
+        "points": 2,
+        "descriptor": "Hook was pulled but the load or the photograph is missing."
       },
       {
         "label": "Absent",
@@ -21,7 +21,7 @@
         "descriptor": "Nothing recorded."
       }
     ],
-    "points": 5,
+    "points": 3,
     "criterion": "Your Match: The match result is recorded from the bracket and the part",
     "incomplete": false
   },
@@ -31,13 +31,13 @@
       {
         "label": "Complete",
         "short": "Break in focus",
-        "points": 3,
+        "points": 2,
         "descriptor": "The broken face is visible and in focus and is this student's hook."
       },
       {
         "label": "Developing",
         "short": "Shown, unclear",
-        "points": 2,
+        "points": 1,
         "descriptor": "A photograph where the break cannot be made out."
       },
       {
@@ -47,7 +47,7 @@
         "descriptor": "No photograph."
       }
     ],
-    "points": 3,
+    "points": 2,
     "criterion": "Right Or Wrong, And What You Would Change: A close photograph of this student's own break",
     "incomplete": false
   },
@@ -57,8 +57,8 @@
       {
         "label": "Complete",
         "short": "Both checked honestly",
-        "points": 4,
-        "descriptor": "Says what happened and states clearly whether the predicted load and the predicted place were right. A stated miss is full marks."
+        "points": 3,
+        "descriptor": "States clearly whether the predicted load and the predicted place were right. A stated miss is full marks."
       },
       {
         "label": "Proficient",
@@ -79,7 +79,7 @@
         "descriptor": "Nothing written."
       }
     ],
-    "points": 4,
+    "points": 3,
     "criterion": "Right Or Wrong, And What You Would Change: Compares the prediction to what happened, on both load and place",
     "incomplete": false
   },
@@ -89,13 +89,13 @@
       {
         "label": "Complete",
         "short": "Change tied to break",
-        "points": 3,
+        "points": 2,
         "descriptor": "Names the change, names where on the hook, and connects it to the break."
       },
       {
         "label": "Developing",
         "short": "Change, weak tie",
-        "points": 2,
+        "points": 1,
         "descriptor": "Names a change without connecting it to what actually broke."
       },
       {
@@ -105,8 +105,40 @@
         "descriptor": "Nothing written."
       }
     ],
-    "points": 3,
+    "points": 2,
     "criterion": "Right Or Wrong, And What You Would Change: Names one change and ties it to what the break showed",
+    "incomplete": false
+  },
+  {
+    "id": "slide-slide-built",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All six present",
+        "points": 5,
+        "descriptor": "Slide is in the deck with name, student, load, CAD, simulation and slicer view, and a photo of the real hook."
+      },
+      {
+        "label": "Proficient",
+        "short": "One or two missing",
+        "points": 3,
+        "descriptor": "Slide is in the deck but one or two of the six are missing or unreadable."
+      },
+      {
+        "label": "Developing",
+        "short": "Slide barely started",
+        "points": 1,
+        "descriptor": "A slide exists with three or more of the six missing."
+      },
+      {
+        "label": "Absent",
+        "short": "No slide",
+        "points": 0,
+        "descriptor": "Nothing in the deck."
+      }
+    ],
+    "points": 5,
+    "criterion": "Your Slide: One slide in the deck carrying all six required things",
     "incomplete": false
   }
 ]
