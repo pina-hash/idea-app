@@ -28,7 +28,7 @@
       }
     ],
     "points": 4,
-    "criterion": "Engineering Report: All four sections complete",
+    "criterion": "Engineering Report: All four sections complete - each component represented with its calcs",
     "incomplete": false
   },
   {
@@ -38,29 +38,29 @@
         "label": "Complete",
         "short": "All sourced",
         "points": 4,
-        "descriptor": "Every published property named in the report carries its value and the vendor page, datasheet, or catalog it was read from."
+        "descriptor": "Every component given a solid logical selection basis"
       },
       {
         "label": "Proficient",
         "short": "One source missing",
         "points": 3,
-        "descriptor": "One property is named with its value but no source, or with a source too vague to find again."
+        "descriptor": "Mostly well reasoned, with some points missing or incorrect"
       },
       {
         "label": "Developing",
         "short": "Two or three unsourced",
         "points": 1,
-        "descriptor": "Two or three properties are named with no source, or are asserted with no value at all."
+        "descriptor": "reasoning given in the form \"this part is correct because it satisfies the criteria.\""
       },
       {
         "label": "Absent",
         "short": "Four or more unsourced",
         "points": 0,
-        "descriptor": "Four or more properties carry no source, or the report names no published property."
+        "descriptor": "no reasoning given"
       }
     ],
     "points": 4,
-    "criterion": "Engineering Report: Every value and property carries its source",
+    "criterion": "Engineering Report: logical process explained",
     "incomplete": false
   },
   {
@@ -70,23 +70,23 @@
         "label": "Complete",
         "short": "Follows on one read",
         "points": 2,
-        "descriptor": "A reader who has not seen the checkpoints can follow the report on one read."
+        "descriptor": "all calcs present and correct"
       },
       {
         "label": "Proficient",
         "short": "One passage needs rereading",
         "points": 1,
-        "descriptor": "One passage has to be reread or guessed at, but the rest follows."
+        "descriptor": "all calcs present, but some errors"
       },
       {
         "label": "Absent",
         "short": "Cannot be followed",
         "points": 0,
-        "descriptor": "The report cannot be followed without asking the writer what was meant."
+        "descriptor": "no calcs"
       }
     ],
     "points": 2,
-    "criterion": "Engineering Report: Readable without asking the writer",
+    "criterion": "Engineering Report: calculation correctness",
     "incomplete": false
   },
   {
