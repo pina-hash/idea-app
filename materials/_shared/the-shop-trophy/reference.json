@@ -1,0 +1,124 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-steel",
+    "title": "The Shop Trophy",
+    "course": "IDEA209H",
+    "subtitle": "Five stations. Five parts. They bolt together and you take it home.",
+    "referenceId": "idea209h-u2-shop-trophy",
+    "buildVersion": "v1"
+  },
+  "sections": [
+    {
+      "slug": "how-it-works",
+      "blurb": "Read this once. It is the same at every station.",
+      "title": "How it works",
+      "blocks": [
+        {
+          "type": "callout",
+          "title": "Watch. Plan. Cut.",
+          "content": "**Watch** your station's video before your rotation opens. Not at the machine.\n\n**Plan** in your notebook before you touch anything. Five questions, below.\n\n**Cut** with the video playing. Your partner holds the phone. You run the machine.\n\n**No plan, no machine.** Your notebook gets checked before you start.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "### Two classes per station\n\nYour group gets two class periods at each station. In those two periods, **every person in the group leaves with their own part.** How you get there is up to the group.\n\nFive rotations. Five stations. Five parts. They assemble into your trophy."
+        }
+      ]
+    },
+    {
+      "slug": "videos",
+      "blurb": "Watch yours before your rotation opens",
+      "title": "The five videos",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Runtimes run from about 17 to 43 minutes. Check yours before you start so you know what you are getting into. You do not have to memorize it. You will have it playing while you work."
+        },
+        {
+          "type": "linkCard",
+          "links": [
+            {
+              "url": "https://youtu.be/-IrsuGIgOPw",
+              "fallbackLabel": "1. H2D Laser, Shop Trophy, the base"
+            },
+            {
+              "url": "https://youtu.be/JWL5daOmujI",
+              "fallbackLabel": "2. Manual Mill, Shop Trophy, the column"
+            },
+            {
+              "url": "https://youtu.be/_2fvjiBbSLc",
+              "fallbackLabel": "3. Axiom CNC Router, Shop Trophy, the platform"
+            },
+            {
+              "url": "https://youtu.be/_M3INhehlA4",
+              "fallbackLabel": "4. Manual Lathe, Shop Trophy, the shaft"
+            },
+            {
+              "url": "https://youtu.be/P0xCyK7I92Q",
+              "fallbackLabel": "5. xTool MetalFab, Shop Trophy, the topper"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "drawing",
+      "blurb": "One per part, on paper, before you make it",
+      "title": "The drawing",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "You get the model file for each part. Before you make that part, you draw it on paper.\n\n**The standard: someone who has never seen the model could make the part from your drawing.** Every dimension needed to manufacture it. Every feature. If something is missing, they would have to guess, and a guess is a wrong part.\n\nYou will end the unit with five drawings, one per part."
+        },
+        {
+          "type": "callout",
+          "title": "Draw one rotation ahead",
+          "content": "Draw your first part in class before the rotations start.\n\nAfter that, you draw the **next** rotation's part while you are at your current station and not on the machine. That is what the waiting time is for.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "### The topper is different\n\nThere is no model for the topper. You design it yourself in the xTool software. Two rules:\n\n- **2 inches maximum** width or diameter\n- **A 1/4 inch hole dead center**\n\nEverything else is yours. Sketch your design on paper first, same standard as the others."
+        }
+      ]
+    },
+    {
+      "slug": "plan",
+      "blurb": "In your notebook, before every station",
+      "title": "The five plan questions",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Same five questions at every station. Write them in your notebook before you start.\n\n**1.** What am I making? Sketch it with the dimensions.\n\n**2.** What are the steps, in order?\n\n**3.** What tool and what settings for each step?\n\n**4.** Where do I stop and measure?\n\n**5.** What is most likely to go wrong here?"
+        }
+      ]
+    },
+    {
+      "slug": "phones",
+      "blurb": "You need one. These are the rules that come with it.",
+      "title": "Phones at the machines",
+      "blocks": [
+        {
+          "type": "callout",
+          "title": "One holds the phone, one runs the machine",
+          "content": "- **Never the same person.** The person running the machine does not touch the phone at any point.\n- The phone stays **off the machine and out of the hazard area.** Never on the table, the ways, or inside the enclosure.\n- You should be able to **turn your head and see it.** If you have to lean, reach, or step to see it, move it.\n- Phones come out for the station video and **nothing else**, at any point in the block.",
+          "variant": "warn"
+        }
+      ]
+    },
+    {
+      "slug": "parts",
+      "blurb": "Bottom to top",
+      "title": "What you are making",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "**Base**, plywood, cut and engraved on the H2D laser. Your name goes on it. Add a logo or an image if you have time.\n\n**Column**, aluminum box tube, squared up on the mill, then two holes: one tapped 1/4-20, one 1/4 inch through.\n\n**Platform**, polycarbonate, cut on the Axiom CNC router.\n\n**Shaft**, hex stock, turned on the lathe, tapped 1/4-20 at both ends, rounded on one end.\n\n**Topper**, steel, cut on the xTool MetalFab. Your design.\n\nAll the threads are 1/4-20."
+        }
+      ]
+    }
+  ],
+  "navigation": "stacked",
+  "schemaVersion": 2
+}
