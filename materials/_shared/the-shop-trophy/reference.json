@@ -33,7 +33,32 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Runtimes run from about 17 to 43 minutes. Check yours before you start so you know what you are getting into. You do not have to memorize it. You will have it playing while you work.\n\n**1. H2D Laser, the base**\nhttps://youtu.be/-IrsuGIgOPw\n\n**2. Manual Mill, the column**\nhttps://youtu.be/JWL5daOmujI\n\n**3. Axiom CNC Router, the platform**\nhttps://youtu.be/_2fvjiBbSLc\n\n**4. Manual Lathe, the shaft**\nhttps://youtu.be/_M3INhehlA4\n\n**5. xTool MetalFab, the topper**\nhttps://youtu.be/P0xCyK7I92Q"
+          "content": "Runtimes run from about 17 to 43 minutes. Check yours before you start so you know what you are getting into. You do not have to memorize it. You will have it playing while you work."
+        },
+        {
+          "type": "linkCard",
+          "links": [
+            {
+              "url": "https://youtu.be/-IrsuGIgOPw",
+              "fallbackLabel": "1. H2D Laser, Shop Trophy, the base"
+            },
+            {
+              "url": "https://youtu.be/JWL5daOmujI",
+              "fallbackLabel": "2. Manual Mill, Shop Trophy, the column"
+            },
+            {
+              "url": "https://youtu.be/_2fvjiBbSLc",
+              "fallbackLabel": "3. Axiom CNC Router, Shop Trophy, the platform"
+            },
+            {
+              "url": "https://youtu.be/_M3INhehlA4",
+              "fallbackLabel": "4. Manual Lathe, Shop Trophy, the shaft"
+            },
+            {
+              "url": "https://youtu.be/P0xCyK7I92Q",
+              "fallbackLabel": "5. xTool MetalFab, Shop Trophy, the topper"
+            }
+          ]
         }
       ]
     },
