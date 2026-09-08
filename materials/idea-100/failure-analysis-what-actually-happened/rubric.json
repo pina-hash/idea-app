@@ -1,0 +1,112 @@
+[
+  {
+    "id": "match-match-done",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Pulled and recorded",
+        "points": 5,
+        "descriptor": "Hook pulled, match count known, pieces kept and the break photographed."
+      },
+      {
+        "label": "Developing",
+        "short": "Pulled, record thin",
+        "points": 3,
+        "descriptor": "Hook was pulled but the count, the pieces or the photograph is missing."
+      },
+      {
+        "label": "Absent",
+        "short": "No record",
+        "points": 0,
+        "descriptor": "Nothing recorded."
+      }
+    ],
+    "points": 5,
+    "criterion": "Your Match: The match result is recorded from the bracket and the part",
+    "incomplete": false
+  },
+  {
+    "id": "analysis-break-shown",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Break in focus",
+        "points": 3,
+        "descriptor": "The broken face is visible and in focus and is this student's hook."
+      },
+      {
+        "label": "Developing",
+        "short": "Shown, unclear",
+        "points": 2,
+        "descriptor": "A photograph where the break cannot be made out."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No photograph."
+      }
+    ],
+    "points": 3,
+    "criterion": "Right Or Wrong, And What You Would Change: A close photograph of this student's own break",
+    "incomplete": false
+  },
+  {
+    "id": "analysis-prediction-verdict",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both checked honestly",
+        "points": 4,
+        "descriptor": "Says what happened and states clearly whether the predicted load and the predicted place were right. A stated miss is full marks."
+      },
+      {
+        "label": "Proficient",
+        "short": "One of the two",
+        "points": 2,
+        "descriptor": "Checks either the load or the place, not both."
+      },
+      {
+        "label": "Developing",
+        "short": "Vague comparison",
+        "points": 1,
+        "descriptor": "Refers to the prediction without saying whether it held."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "Right Or Wrong, And What You Would Change: Compares the prediction to what happened, on both load and place",
+    "incomplete": false
+  },
+  {
+    "id": "analysis-change-named",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Change tied to break",
+        "points": 3,
+        "descriptor": "Names the change, names where on the hook, and connects it to the break."
+      },
+      {
+        "label": "Developing",
+        "short": "Change, weak tie",
+        "points": 2,
+        "descriptor": "Names a change without connecting it to what actually broke."
+      },
+      {
+        "label": "Absent",
+        "short": "No answer",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 3,
+    "criterion": "Right Or Wrong, And What You Would Change: Names one change and ties it to what the break showed",
+    "incomplete": false
+  }
+]

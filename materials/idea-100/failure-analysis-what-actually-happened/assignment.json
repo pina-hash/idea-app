@@ -1,0 +1,194 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "theme": "idea-green",
+    "title": "Failure Analysis - What Actually Happened",
+    "course": "IDEA100",
+    "dueDate": "2026-09-08",
+    "totalPoints": 15,
+    "assignmentId": "idea100-hook-failure",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "Hook Design Competition"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "match",
+      "intro": "Record it from the board and from your own eyes.",
+      "title": "Your Match",
+      "aiNote": "No AI here. You were at the rig. Nothing else was.",
+      "blocks": [
+        {
+          "id": "match-checks",
+          "type": "checklist",
+          "items": [
+            "My hook was pulled in the bracket",
+            "I know how many matches it survived",
+            "I kept the broken pieces",
+            "I photographed the break before putting it away"
+          ],
+          "points": 5
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "match-done",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Pulled and recorded",
+              "points": 5,
+              "descriptor": "Hook pulled, match count known, pieces kept and the break photographed."
+            },
+            {
+              "label": "Developing",
+              "short": "Pulled, record thin",
+              "points": 3,
+              "descriptor": "Hook was pulled but the count, the pieces or the photograph is missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No record",
+              "points": 0,
+              "descriptor": "Nothing recorded."
+            }
+          ],
+          "criterion": "The match result is recorded from the bracket and the part"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "analysis",
+      "intro": "You wrote a prediction before this. Now you find out.",
+      "title": "Right Or Wrong, And What You Would Change",
+      "aiNote": "Ask what a fracture surface shows. Do not ask it to explain your break. You saw it.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Upload a close photo of the break. Get the broken face in focus.\n\n**Windows + Shift + S**, then **Ctrl + V** in an answer box.\n\nYou predicted a load and a place. Say plainly whether you were right. **A wrong prediction scores the same as a right one here** as long as you say which it was and why."
+        },
+        {
+          "id": "break-photo",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "notebookRef",
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "id": "predicted-vs-actual",
+          "type": "textField",
+          "points": 4,
+          "prompt": "You predicted a load and a place it would break. What actually happened, and were you right about each one?",
+          "maxSentences": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "one-change",
+          "type": "textField",
+          "points": 3,
+          "prompt": "One change to this hook, and why. Name the place on the part.",
+          "maxSentences": 3,
+          "minSentences": 2
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- Hook Design and Manufacturing Guide, Where Hooks Break and Tournament Rules.\n- Your own V3 prediction, your scale test, and the bracket board.\n- Shigley's Mechanical Engineering Design, 10th edition, Budynas and Nisbett, McGraw-Hill, 2015. Stress concentration and modes of failure.\n- IDEA AI Use Policy."
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "break-shown",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Break in focus",
+              "points": 3,
+              "descriptor": "The broken face is visible and in focus and is this student's hook."
+            },
+            {
+              "label": "Developing",
+              "short": "Shown, unclear",
+              "points": 2,
+              "descriptor": "A photograph where the break cannot be made out."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No photograph."
+            }
+          ],
+          "criterion": "A close photograph of this student's own break"
+        },
+        {
+          "id": "prediction-verdict",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both checked honestly",
+              "points": 4,
+              "descriptor": "Says what happened and states clearly whether the predicted load and the predicted place were right. A stated miss is full marks."
+            },
+            {
+              "label": "Proficient",
+              "short": "One of the two",
+              "points": 2,
+              "descriptor": "Checks either the load or the place, not both."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague comparison",
+              "points": 1,
+              "descriptor": "Refers to the prediction without saying whether it held."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Compares the prediction to what happened, on both load and place"
+        },
+        {
+          "id": "change-named",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Change tied to break",
+              "points": 3,
+              "descriptor": "Names the change, names where on the hook, and connects it to the break."
+            },
+            {
+              "label": "Developing",
+              "short": "Change, weak tie",
+              "points": 2,
+              "descriptor": "Names a change without connecting it to what actually broke."
+            },
+            {
+              "label": "Absent",
+              "short": "No answer",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "criterion": "Names one change and ties it to what the break showed"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
