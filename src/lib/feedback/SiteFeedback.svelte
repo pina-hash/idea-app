@@ -69,6 +69,7 @@
 		errorMessage = null,
 		errorId = null,
 		label = 'Report a problem',
+		dictation = undefined,
 		now = () => Date.now()
 	}: {
 		routeId: string | null;
@@ -129,6 +130,9 @@
 		errorMessage?: string | null;
 		errorId?: string | null;
 		label?: string;
+		/** Handed straight to the box: a stand-in speech constructor for a
+		 * harness, `null` to refuse dictation, `undefined` to ask the browser. */
+		dictation?: import('./dictation').SpeechRecognitionCtor | null;
 		/** Injectable clock, so a harness can pin the captured timestamp. */
 		now?: () => number;
 	} = $props();
@@ -292,6 +296,7 @@
 			askContact={anonymous}
 			uploadScreenshot={attach}
 			screenshotNote={attachNote}
+			{dictation}
 			onClose={() => (open = false)}
 			title={status === null ? 'Report a problem' : `Report this ${status}`}
 			note={noteFor}
@@ -378,16 +383,65 @@
 		}
 	}
 
-	/* The box reads its palette from --fb-* on an ancestor rather than growing a
-	   per-app branch; the portal's tokens are handed to it here. */
-	.sfb-host {
-		--fb-bg: var(--surface-1, #0b1016);
-		--fb-bg-deep: var(--bg0, #05080b);
-		--fb-ink: var(--text-1, #dfe8ee);
-		--fb-ink-dim: var(--text-2, #b3c1cc);
-		--fb-line: var(--hairline, rgba(147, 163, 176, 0.22));
-		--fb-line-strong: var(--line-strong, rgba(147, 163, 176, 0.4));
-		--fb-accent: var(--green, #7fd0ff);
-		--fb-font: var(--font-display, inherit);
+	/*
+	   THE IDEA THEME FOR THE REPORT WINDOW, and the reason it is written ON THE
+	   SCRIM rather than on this host.
+
+	   This block used to declare the same tokens on `.sfb-host` itself, and it
+	   never painted anything: `FeedbackBox` declares every `--fb-*` token on
+	   `.fb-scrim`, a DESCENDANT, and a descendant's own declaration beats an
+	   inherited one. So the box wore its neutral blue defaults on every portal
+	   surface while this file said it was handing the portal's tokens down --
+	   "it is blue currently and looks kinda out of place" (Mr. Pina, prompt
+	   0111). `:global(.fb-scrim)` under this host is the component's own
+	   documented override shape, the one GREENLINE has used all along.
+
+	   EVERY VALUE IS A DESIGN-SYSTEM TOKEN READ BY NAME, NEVER A LITERAL, which
+	   is what makes one block right in more than one room. Mounted in the shell
+	   it reads `src/lib/design-system/colors.css`; mounted in the GAUNTLET
+	   footer it sits inside `.gt-root`, which re-points `--green`, `--bg0/1/2`
+	   and both font tokens, so the same box comes out in the VIEWPORT's neon on
+	   graphite with no GAUNTLET branch anywhere. A site theme (`data-theme`)
+	   moves it the same way.
+
+	   THE INKS ARE THE MEASURED ONES, not the obvious ones (prompt 0111, all
+	   three grounds of the box, portal / matrix / GAUNTLET):
+	     * secondary copy is `--text-2` (worst 5.51:1 on --bg2), because `--dim`
+	       is the register's own dim token and fails at 4.24 on --bg2, which is
+	       exactly the ground a placeholder sits on;
+	     * the danger tone is `--amber` (worst 4.60), because `--crimson` reads
+	       3.88 on --bg2 and is reserved for live/rec status anyway;
+	     * every line is `--boundary` (worst 3.21 against a 3:1 non-text floor):
+	       the box has ONE token for a control's edge and a divider, and a
+	       control's outer edge is what the load-bearing token exists for.
+	   GREENLINE is untouched by construction: it mounts `FeedbackBox` itself,
+	   under its own `.gp-feedback :global(.fb-scrim)` override, and every new
+	   hook defaults to the literal the component painted before.
+	*/
+	.sfb-host :global(.fb-scrim) {
+		--fb-bg: var(--bg1);
+		--fb-bg-deep: var(--bg0);
+		--fb-shade: color-mix(in srgb, var(--bg0) 82%, transparent);
+		--fb-ink: var(--white);
+		--fb-ink-dim: var(--text-2);
+		--fb-ink-faint: var(--text-2);
+		--fb-line: var(--boundary);
+		--fb-line-strong: var(--boundary);
+		--fb-accent: var(--green);
+		/* The FULL accent on the primary edge and the selected chip, not the
+		   component's 45% / 55% tints: measured, the tints of this green read
+		   2.37:1 and 2.83:1 against --bg2, and a control's outer edge owes 3:1.
+		   `.btn` in the shell draws its edge in --green for the same reason. */
+		--fb-accent-edge: var(--green);
+		--fb-accent-edge-on: var(--green);
+		--fb-danger: var(--amber);
+		/* An open microphone is live/rec, which is what --crimson is reserved
+		   for; it paints a dot and an edge beside the word STOP, never a word. */
+		--fb-live: var(--crimson);
+		--fb-field: var(--bg2);
+		--fb-chip: var(--bg2);
+		--fb-control: var(--bg2);
+		--fb-font: var(--font-display);
+		--fb-font-mono: var(--font-mono);
 	}
 </style>
