@@ -18,7 +18,11 @@
   `tests/db/classroom-*`; `tools/browser-verify/routes/classroom-*.mjs`,
   `composer-attach*.mjs`, `hall-pass*.mjs`; the generated regions of
   `tools/browser-verify/README.md`; `docs/prompt-ledger/entries/0118-*`, and its
-  own `docs/history/` entry.
+  own `docs/history/` entry. NEW FILES this bundle created, added here the moment
+  they existed so the collision check covers them: `src/lib/classroom/live.ts`,
+  `src/lib/classroom/sort-drag.ts`, `src/routes/dev/classroom-tools/**`,
+  `tools/browser-verify/routes/classroom-tools*.mjs`, `tests/classroom-live*`,
+  `tests/classroom-sort-drag*`.
 - Migration permitted: at most one. Claims: 0193.
 - Lands on: `integration`. If it writes `0193`, it stops at its branch and does
   NOT merge to `main`: a migration is applied by hand in the Supabase SQL editor
