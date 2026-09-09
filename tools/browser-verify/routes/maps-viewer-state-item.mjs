@@ -97,8 +97,11 @@ export default {
 	textContains: [
 		{
 			selector: '[data-testid="maps-viewer-card"]',
+			/* By now the prepare step has pressed the copy control, so it reads
+			   "Link copied" where the clipboard agreed and "Copy link" where it
+			   refused; "link" is in both, and in the sentence beneath either. */
 			label: 'the card names the thing, where it is, and both controls',
-			must: ['Dial Caliper', 'Drawer 1', 'Show me the way', 'Copy link']
+			must: ['Dial Caliper', 'Drawer 1', 'Show me the way', 'link']
 		}
 	],
 	contrast: [
