@@ -196,7 +196,11 @@ those rooms really mount.
   `css_unused_selector` / 1 `perf_avoid_nested_class`, re-derived after the
   sync with the two public env placeholders exported. One deliberate
   capture-once read in the console is `svelte-ignore`d rather than counted.
-- Full suite: see the closing commit's message for the file and test counts.
+- Full suite: **345 files / 6778 tests, 2 failed** on the first run, both in
+  `tests/derived-numbers.test.ts` and both the 0116 shape -- the README's
+  measured region had never covered the seven new specs. The full pass below
+  regenerated it and the file is green again (18 passed); nothing else in
+  the suite moved.
 - `npm run verify:browser` with Vite started separately on 5199 (boot 3.0s
   here; the harness reported "reused a server already on
   http://127.0.0.1:5199", server boot 51-395ms): thirteen specs this bundle
@@ -206,7 +210,11 @@ those rooms really mount.
   `profile-menu-state-open.mjs`, three `themes-state-matrix-room-*.mjs`);
   the README's static region regenerated to 163 specs / 68 routes / 96 dev
   pages / 326 runs, and its measured region by the full pass on the committed
-  tree (recorded in that commit).
+  tree (`dirty: false`, sha `85c7ea9`, server reused): **326 runs, 5520
+  measurements, 163 of 163 specs covered, 833.1s, selftest 70 controls / 0
+  failures, 4 rows outside threshold** -- the two standing `/dev/notebook`
+  toolbar tap-reach rows (decision 12, with the owner) and the two FRC queue
+  rows above, one per width, which this entry hands on.
 - Text is measured in the fallback stack (the harness blocks
   fonts.googleapis.com) and `prefers-reduced-motion` is `no-preference`.
 

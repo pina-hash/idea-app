@@ -19,9 +19,11 @@
   the standing note that gate 4's probe cannot pass in this container and that
   neither substitution on record (0114, 0115) generalises here: if a migration
   is in range at that gate, the session stops.
-- Status: issued
+- Status: pushed
 - Branch: `claude/portal-dashboard-theme-vycnkh`, from `origin/main` at
-  `b03a941`.
+  `b03a941`. Report 22 was diagnosed and handed to 0118 (the fix is in
+  `ClassroomFeed.svelte`); the FRC queue controls on the console measure
+  18.4 and 26.2px and are handed to the owner of `src/lib/frc/**`.
 - Notes: the six reports, numbered as issued. 21: for STUDENTS the apps come
   before their classes on the home page (staff ordering is not this). 22: a
   collapsed class opens in one click, not two. 23: the profile customization
