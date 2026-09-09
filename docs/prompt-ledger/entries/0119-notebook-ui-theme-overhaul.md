@@ -47,3 +47,47 @@
   `pkill -f`.
 
   Baseline svelte-check 0 errors / 37 warnings at 31/5/1.
+
+  **OUTCOME.** Both reports built; the record is
+  `docs/history/notebook-ui-theme-overhaul-0gnx0f.md`. Report 28: the hero
+  became one bar (title, class, entries, drafts, check-ins-to-file as a
+  button, Section review, New entry), the student's notebook took the review
+  console's application frame so both panes own their scroll above 1024px
+  (`scroll="fill"`, conditional on `masthead` so the view-as mount degrades to
+  page-flow by construction), the list pane became a pinned head over a
+  scrolling body, nothing-open gives the list the whole measure in columns,
+  and the compose actions are pinned to the pane's foot above the breakpoint.
+  Report 29: a fourth notebook plate, `matrix`, keyed on BOTH the room's own
+  attribute and `:root[data-theme='matrix']` over an unset plate, so the
+  default ("the same surfaces as your classes") follows the site theme by
+  cascade; the picker reads `<html data-theme>` back through a
+  MutationObserver and says "Following the site theme: Matrix right now"; the
+  six register tokens are matrix.css's values to the byte and a test compares
+  the two files. The rain stays out of the room, with the reason stated.
+
+  **DECISION 12'S TOOLBAR ROWS ARE FIXED**, on step 1 of
+  IDEA_INTERFACE_STANDARDS 10: the four words are `.tool-btn` boxes on a row
+  that wraps, and at 375 the busiest ordinary state (Sort, Expand all, Select)
+  fits on ONE line at 44px each with `scrollWidth 375 == clientWidth 375`. The
+  harness measures them as `tapTargets` (smallest 137.4 x 44 at both widths);
+  the `tapReach` row on `.tools .inline-link` is deleted with the reason
+  beside the swatch row that stays. The decision entry is not this bundle's
+  file and is not edited.
+
+  **VERIFIED.** svelte-check 0 errors / 37 warnings at 31/5/1 before and
+  after. Notebook harness routes: 20 runs / 242 measurements / 0 outside
+  threshold; the two new plate specs 4 runs / 64 measurements / 0 outside.
+  Full harness run over the committed tree and the regenerated measured
+  region: see the README's block and the final notes below. Not verified: any
+  signed-in surface (every measurement is a `/dev` fixture); the follow state
+  was reached by writing the site attribute by hand because the harness holds
+  no session.
+
+  **NOT MINE, NAMED:** `CLAUDE.md` says three plates in four places; decision
+  12's entry; the plate block's proper home in `colors.css` (0117's lane at
+  the time); `ThemeRoot` exporting its derived attribute. One selector in
+  `tools/browser-verify/routes/classroom-view-as-notebook.mjs` was updated
+  (`.pane-head h2` no longer exists on the read-only mount, so its contrast
+  row matched nothing); that file is outside the `notebook*.mjs` pattern and
+  the one-line touch is reported here.
+
