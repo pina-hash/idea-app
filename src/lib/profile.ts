@@ -6,6 +6,7 @@
  */
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { feedbackColumnMissing as columnMissing } from '$lib/feedback/feedback';
 
 /** The profile row as loaded for the signed-in user by the root layout. */
 export interface UserProfile {
@@ -49,32 +50,62 @@ const PROFILE_SELECT_LEGACY =
  * Works with either the server or browser client, so both the SSR load and the
  * client-side hydration self-heal can use it. Returns null if the row isn't
  * readable (missing, or blocked by RLS because the request wasn't authed yet).
+ *
+ * THE LADDER STEPS DOWN ON THE ERROR CODE, NEVER ON AN ABSENT ROW, and the
+ * difference is not academic. It used to retry on `!data`, but `maybeSingle()`
+ * answers `data: null, error: null` for a row that is simply NOT THERE -- which
+ * is the ordinary shape of the sign-in transient the caller in
+ * `+layout.server.ts` exists to cover. So every one of those walked all three
+ * rungs, and that caller then slept 200ms and walked them again: up to SIX
+ * round trips plus 200ms to learn a thing the first rung already knew. Keyed on
+ * the code, an absent row costs exactly one round trip and the happy path is
+ * unchanged at one.
+ *
+ * A NARROWER RUNG IS ONLY WORTH ASKING FOR WHEN A COLUMN IS MISSING, which is
+ * the one thing these three selects differ by (0045's `tour_completed_at`,
+ * 0038's `pathway`). Anything else -- RLS, a transport failure, a malformed
+ * request -- is answered the same way by all three, so retrying it is three
+ * round trips to receive one refusal three times.
+ *
+ * `columnMissing` IS THE REPO'S ONE STATEMENT OF THAT RULE and is imported
+ * rather than re-spelled here. Its `feedback` prefix says where it was born,
+ * not what it does -- the `_notebook_email_for_user` situation -- and a second
+ * copy under a `profile` name is exactly the pair that stops matching when
+ * PostgREST changes which of `PGRST204` / `42703` it answers with.
  */
 export async function fetchUserProfile(
 	supabase: SupabaseClient,
 	userId: string
 ): Promise<UserProfile | null> {
-	let { data } = await supabase
-		.from('profiles')
-		.select(PROFILE_SELECT)
-		.eq('id', userId)
-		.maybeSingle();
-	if (!data) {
-		({ data } = await supabase
+	const rungs = [PROFILE_SELECT, PROFILE_SELECT_NO_TOUR, PROFILE_SELECT_LEGACY];
+
+	for (let rung = 0; rung < rungs.length; rung++) {
+		const { data, error } = await supabase
 			.from('profiles')
-			.select(PROFILE_SELECT_NO_TOUR)
+			.select(rungs[rung])
 			.eq('id', userId)
-			.maybeSingle());
+			.maybeSingle();
+
+		if (!error) {
+			/* The legacy rung has no `pathway` column to return, so the shape is
+			   completed here rather than left undefined -- unchanged behaviour,
+			   just moved with the select it belongs to. */
+			if (data && rungs[rung] === PROFILE_SELECT_LEGACY) {
+				/* Through `unknown`: with a non-literal select string PostgREST's
+				   types widen `data` to include its error shape, which does not
+				   overlap a plain record. The runtime value here is a row. */
+				(data as unknown as Record<string, unknown>).pathway = null;
+			}
+			return (data as unknown as UserProfile) ?? null;
+		}
+
+		/* Only a missing column earns the next rung down; every other error is
+		   this read's answer, and there is nothing narrower to ask after the
+		   last one. */
+		if (!columnMissing((error as { code?: string }).code)) return null;
 	}
-	if (!data) {
-		({ data } = await supabase
-			.from('profiles')
-			.select(PROFILE_SELECT_LEGACY)
-			.eq('id', userId)
-			.maybeSingle());
-		if (data) (data as Record<string, unknown>).pathway = null;
-	}
-	return (data as unknown as UserProfile) ?? null;
+
+	return null;
 }
 
 /** The name to show for a user anywhere in the portal. */

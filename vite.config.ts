@@ -28,18 +28,50 @@ import { devRouteStub } from './src/lib/dev-routes';
  * history yields no version number at all rather than a smaller one. Set
  * `VERCEL_DEEP_CLONE=true` on the project to restore them -- and the build says
  * so, loudly, every time it has to withhold one.
+ *
+ * IT EMITS TWO MODULES, AND THE SPLIT IS A PAYLOAD DECISION MEASURED IN A REAL
+ * BUILD RATHER THAN A TIDINESS ONE. `virtual:site-versions` is the SMALL,
+ * EAGER half -- `apps`, `deploy`, `total`, `latest` -- and is imported by the
+ * root layout, the error page, `VersionBadge` and four legacy endpoints, which
+ * between them put it on every route in the site. `virtual:site-changelog` is
+ * the full commit log, which exactly two surfaces render (`/`'s changelog panel
+ * and the FRC `ChangelogFooter`) and both `await import()` on open.
+ *
+ * ONE MODULE COULD NOT DO THIS, AND THE REASON IS CHUNKING RATHER THAN
+ * TREE-SHAKING. Rollup will happily drop an unused export from a module, but a
+ * module imported by several entry points is HOISTED INTO A SHARED CHUNK, and
+ * that chunk carries every binding any of its dependents needs. Measured on the
+ * build before this split: the root layout and `entry/app.js` imported `deploy`
+ * alone, and the shared chunk they got was 247,850 bytes (54,894 gzipped)
+ * holding all 1,433 commit records -- so the changelog was downloaded on every
+ * route in the site, including the signed-out landing page and every legacy
+ * assignment handout. A second module is a second chunk, which is the only
+ * thing that separates them.
+ *
+ * `total` AND `latest` ARE SCALARS, NOT A SECOND COPY OF THE LOG. `/` renders
+ * `<filtered> / <total>` before the log has loaded and `ChangelogFooter` puts
+ * the newest date in its collapsed summary, so both numbers have to survive the
+ * lazy half being absent. A `recent` SLICE was the rejected alternative: it
+ * would be a second copy of the entry data in the eager module, and two copies
+ * of the changelog is the thing that quietly stops matching.
  */
 function siteVersionsPlugin(): Plugin {
-	const virtualId = 'virtual:site-versions';
-	const resolvedId = '\0' + virtualId;
+	const virtualIds = {
+		'virtual:site-versions': 'meta',
+		'virtual:site-changelog': 'log'
+	} as const;
+	const resolved = (id: string) => '\0' + id;
 
 	return {
 		name: 'idea-site-versions',
 		resolveId(id) {
-			if (id === virtualId) return resolvedId;
+			if (id in virtualIds) return resolved(id);
 		},
 		load(id) {
-			if (id !== resolvedId) return;
+			const wanted = (Object.keys(virtualIds) as Array<keyof typeof virtualIds>).find(
+				(key) => resolved(key) === id
+			);
+			if (!wanted) return;
 
 			let raw = '';
 			let complete = false;
@@ -71,10 +103,17 @@ function siteVersionsPlugin(): Plugin {
 				);
 			}
 
+			/* The warning above is emitted from whichever module the build asks
+			   for first, and both are asked for in any real build. */
+			if (virtualIds[wanted] === 'log') {
+				return `export const entries = ${JSON.stringify(site.entries)};`;
+			}
+
 			return [
-				`export const entries = ${JSON.stringify(site.entries)};`,
 				`export const apps = ${JSON.stringify(site.apps)};`,
-				`export const deploy = ${JSON.stringify(site.deploy)};`
+				`export const deploy = ${JSON.stringify(site.deploy)};`,
+				`export const total = ${JSON.stringify(site.entries.length)};`,
+				`export const latest = ${JSON.stringify(site.entries[0] ?? null)};`
 			].join('\n');
 		}
 	};
