@@ -12,7 +12,7 @@
   `NotebookThemeToggle.svelte`) is inside that surface; `ThemeRoot.svelte` is
   not, and a change it needs there is reported, never made.
 - Migration permitted: no. Claims: none. Schema need is a STOP and a report.
-- Status: issued
+- Status: pushed
 - Branch: `claude/notebook-ui-theme-overhaul-t3dc3a`, branched from
   `origin/main` at `b03a9410`.
 - Notes: two reports. (28) "Overhaul the notebook UI/UX" -- the whole brief; the
