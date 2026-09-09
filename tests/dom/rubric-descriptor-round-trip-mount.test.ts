@@ -45,6 +45,13 @@
 //      and the editor SAYS SO on that level rather than letting the pair
 //      disagree in silence.
 //
+// AND 0113 CLOSED THE TAIL 0106 LEFT, which is the third test below. Clearing
+// a short line used to fall the console to the SPEC's copy of the same stale
+// sentence, because `levelShort`'s rung two paired the two levels on their
+// POINTS. It pairs on the DESCRIPTOR now, so it can only answer where nothing
+// has been edited. The assertion here moved with it and is quoted in that
+// bundle's history entry beside the one it replaced.
+//
 // NO GEOMETRY IS ASSERTED HERE. See `tests/dom/mount.ts` for why. The layout of
 // the widened level row is measured by
 // `tools/browser-verify/routes/grading-rubric.mjs`.
@@ -55,8 +62,10 @@ import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 import { mountInto, typeAt, type Mounted } from './mount';
 import {
 	levelShort,
+	rubricFromSpec,
 	type AssignmentSpec,
-	type RubricCriterion
+	type RubricCriterion,
+	type RubricLevel
 } from '$lib/classroom/assignment-spec';
 
 const Builder = RubricBuilder as unknown as Component<Record<string, unknown>>;
@@ -251,14 +260,38 @@ describe('an edited description reaches the grading console', () => {
 
 		const top = d.sent?.[0]?.levels?.[0];
 		expect(top?.short).toBeUndefined();
-		// RESIDUAL, AND NOT THIS LANE'S TO CLOSE: with the stored short gone,
-		// `levelShort` rung two hands back the SPEC's short, which is the same
-		// stale sentence. Closing that means pinning rung two to the spec's own
-		// descriptor, inside `levelShort` -- `src/lib/classroom/assignment-spec.ts`,
-		// which prompt 0106 does not own. Asserted as it BEHAVES, so the day it
-		// is fixed this line reddens and names itself.
-		expect(levelShort(top, 'm1-c2', SPEC)).toBe('All sourced');
+		// THE RESIDUAL, CLOSED BY 0113. With the stored short gone, rung two used
+		// to hand back the SPEC's copy of the same stale sentence, because it
+		// paired on POINTS -- a weight, which says nothing about whether the two
+		// levels still describe the same standard. It pairs on the DESCRIPTOR
+		// now, so a rewritten description matches no spec level and the console
+		// falls to the sentence the instructor just wrote. The spec is STILL
+		// ATTACHED here and still carries "All sourced": that is what makes this
+		// the assertion the old rule fails.
+		expect(levelShort(top, 'm1-c2', SPEC)).toBe(NEW_DESCRIPTOR);
+		expect(levelShort(top, 'm1-c2', SPEC)).not.toBe('All sourced');
+		// Detaching the spec changes nothing, which is the point: the answer no
+		// longer depends on whether a spec happens to be in the payload.
 		expect(levelShort(top, 'm1-c2', null)).toBe(NEW_DESCRIPTOR);
+
+		// THE POSITIVE CONTROL ON RUNG TWO, so the two assertions above cannot be
+		// passing because rung two stopped answering at all.
+		//
+		// IT IS BUILT BY THE REAL PRODUCER. A pre-0106 stored rubric is exactly
+		// `rubricFromSpec`'s output with `short` not yet carried through, so that
+		// is what this is: generate, drop the field, keep everything else. Typing
+		// the level out by hand is what got the first draft of this control
+		// wrong -- STORED's descriptors are deliberately NOT the spec's in this
+		// fixture (the instructor had already been editing), so a hand-built
+		// "untouched" level was nothing of the sort.
+		const generated = rubricFromSpec(SPEC).find((c) => c.id === 'm1-c2')!.levels[1];
+		const untouched: RubricLevel = {
+			points: generated.points,
+			label: generated.label,
+			descriptor: generated.descriptor
+		};
+		expect(untouched.short).toBeUndefined();
+		expect(levelShort(untouched, 'm1-c2', SPEC)).toBe('One source missing');
 		await d.m.stop();
 	});
 });
