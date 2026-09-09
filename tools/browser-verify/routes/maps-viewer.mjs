@@ -163,7 +163,7 @@ export default {
 			   numbers themselves are printed by the prepare step above. */
 			evaluate: `() => {
 				const w = window.innerWidth;
-				/* The panel is `display: contents` below the breakpoint -- a zero
+				/* The panel is display: contents below the breakpoint -- a zero
 				   box by design, so its children can take a phone's order in one
 				   column -- which is why it is read here and not on a presence
 				   row, where "visible 0" would be the right answer and a finding. */
