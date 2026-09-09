@@ -100,12 +100,13 @@ export default {
 			selector: '.fb-dictate-status',
 			label: 'the status says what listening means here',
 			must: ['Listening', 'added to the box']
-		},
-		{
-			selector: '#fb-msg',
-			label: 'the typed text is still the prefix, the dictated sentence follows it',
-			must: ['I typed this first the launch button did nothing']
 		}
+		/* The never-overwrite rule itself is the SECOND PREPARE STEP's predicate:
+		   the field's `.value` must start with the typed text and carry the
+		   dictated sentence after it. It is not a text-contains row because that
+		   check reads `textContent`, and a textarea whose value was set by script
+		   has none (measured: "1 node(s), 0 chars" on a field visibly holding the
+		   sentence). A prepare predicate that never holds reddens its own row. */
 	],
 	contrast: [
 		{ selector: '.fb-dictate', label: 'STOP, on the listening control', min: 4.5 },
