@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.24 - 2026-09-08**
+**Version 4.25 - 2026-09-09**
 
 ## These Instructions Evolve
 
@@ -166,6 +166,26 @@ server exposes no branch-delete tool. Branch cleanup is therefore not something 
 prompt can promise. Prompts may verify a branch is fully merged and report it; deleting it
 is Mr. Pina's, in the GitHub UI. Do not write a prompt whose success depends on a deletion
 landing.
+
+**GitHub write access is per repository, and access to one implies nothing about
+another.** The finding above is about a VERB being refused inside a repository a session
+could otherwise write. This is the wider case and it cost a day's work: on 2026-09-09 two
+sessions were refused on `mrpina-dev/IDEA` while both were writing `pina-hash/idea-app`
+freely. One was refused by the permission classifier at `add_repo`, so the repository was
+never attached and could not even be READ. The other took a 403 on `git push` and a 403
+on the GitHub MCP write alike, which is the same refusal arriving through two doors rather
+than a transport problem to retry. Neither is a defect: a session's repository scope is
+granted at session creation, and `pina-hash/idea-app` was the whole of it.
+
+So: **a prompt names one repository, and a second repository is a second session.** Do not
+write a prompt whose success depends on reaching a repo the session was not given, and do
+not treat a refusal there as something to work around -- there is nothing to work around,
+the access is simply not held. Where the work genuinely spans two repositories, that is
+two prompts and two ledger entries, or it is Mr. Pina by hand, which is what the rulebook
+redirect became (`docs/prompt-ledger/entries/0104-portal-rulebook-redirect.md`). The cost
+of getting this wrong is not a failed command: it is a session that spends its run
+diagnosing an access refusal as a tooling fault, and a bundle whose real deliverable was
+in the repository it could not open.
 
 **This does not make simultaneous editing safe, it makes it visible.** Two chats that
 fetch within the same minute still collide. What changes is that the second one to
@@ -611,6 +631,30 @@ it does not hold, and CC records the reason rather than building the nearest pla
 thing. A prompt written from names, paths, or asset inventories is exactly where this
 fails, because those are the parts of a repo that outlive the behavior they describe.
 
+**But a prompt cannot set a session's REPOSITORY SCOPE, and that is a false precondition
+of a different kind -- one the check-and-report rule above cannot rescue.** Scope is fixed
+when the session is created. Prose in the prompt does not attach a repository, does not
+widen a grant, and cannot be checked-and-reported past, because there is no degraded
+version of the work to fall back to: a session told to edit a tree it cannot see has
+nothing to read, nothing to diff and nothing to commit. Every other false precondition in
+this section leaves the session able to do the rest of the bundle and report the gap. This
+one takes the bundle with it.
+
+**And the failure mode is worse than a halt, which is why it is written down separately.**
+A prompt asserting that an unattached repository is the working tree is pressure toward
+INVENTING values: the session cannot read the file, the prompt says what the file
+contains, and the path of least resistance is to build the nearest plausible thing from
+the prompt's own description and report success. A prompt written on 2026-09-09 did
+exactly this. The prompt is what created the pressure; the rule is therefore about how
+prompts are written, not about how sessions behave under one.
+
+**A prompt names paths inside the scope it was given.** If the work is in another
+repository, say so as a REPORT item and name whose it is, exactly as a lane boundary is
+named -- "files outside these directories are out of scope even if they look wrong, report
+rather than fix" is the same rule and this is its widest case. Before writing a path into
+a prompt, ask which repository holds it; if the answer is not the one the session opens
+in, it is not a path in this prompt.
+
 **Bundle by file surface, not by tier, and lift the tier only for a real unknown.** A
 bundle is partitioned by the file surface a lane owns, and everything inside that
 surface goes in one prompt. The bundle takes the tier of its hardest item, so before
@@ -691,7 +735,7 @@ between two rows, round up.
 | Trivial mechanical edit: copy tweak, rename, single-locator swap, static-content change, one-line fix | Haiku 4.5 | low |
 | Bounded and fully specified, one file surface, nothing to investigate: a locator swap set, a copy pass, a portal update from settled text, a standards push with its fork check | Sonnet 5 | medium |
 | The default build row. Any well-scoped bundle of any size within one owned surface: surgical edits with subtle correctness, a migration with its test, a harness spec, an audit phase whose questions have answers in the tree, a read-only audit | Opus 5 | high |
-| The session must decide something the chat could not specify: an undocumented or unfamiliar subsystem, a port of a shape between repos, a repo-wide conformance or sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high; `xhigh`, `max` or `ultracode` only for the irreversible or repo-wide case |
+| The session must decide something the chat could not specify: an undocumented or unfamiliar subsystem, a port of a shape between repos, a repo-wide conformance or sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high; `xhigh` only for the irreversible or repo-wide case. `ultracode` is NOT a higher rung than either and is never chosen on severity; see the override below |
 
 **The header carries the minimum too**, in the shape the chat-side standard uses:
 `MODEL: Opus 5 (min: Sonnet 5) | EFFORT: high - row 3`, or `MODEL: Fable 5.1 (min: Opus 5)`
@@ -708,24 +752,56 @@ shape between repos and decides a CI database strategy from what it finds.
 Overrides that beat the table:
 
 - **Highest-scrutiny or hard-to-reverse work** (A-G area reclassifications, any repo edit
-  with data-loss or ranking-integrity risk): bump one model tier up and set effort to `max`.
+  with data-loss or ranking-integrity risk): bump one model tier up and set effort to
+  `xhigh`. **This said `max` until 4.25, and the live documentation is why it no longer
+  does.** `max` is the deepest rung and it carries a warning of its own: it "may show
+  diminishing returns and is prone to overthinking. Test before adopting broadly". A
+  standing override that reaches for the top rung on every irreversible change is exactly
+  the broad adoption that sentence tells you to test first, and nobody here has tested it.
+  `xhigh` is the deepest level this document is entitled to spend by default; `max` is
+  available, and reaching for it is a deliberate one-off with a reason stated in the
+  routing line, not a rule.
   **The test is whether the shipped change is reversible, not whether the area it touches
   is important.** A soft-delete design in a grading-adjacent subsystem is row 3; a hard
   delete anywhere is not. Applying this override to a bundle whose own spec removed the
   irreversibility is paying the top tier for a risk that was already designed out.
-- **Repo-wide sweep or migration** (audit every RLS policy for a missing check, migrate
-  every component off a deprecated pattern, keep re-running a check until it passes):
-  add the word `ultracode` in the prompt itself instead of a routing header. This is a
-  Claude Code setting, not a bigger model - CC writes and runs a background multi-agent
-  script instead of working turn by turn, and it asks for approval (shows the planned
-  phases) before starting. Reserve it for genuinely repo-wide work, not as a routine
-  substitute for the table above.
-- **Concurrent heavy bundles:** what serializes is effort, not model. One `xhigh`, `max`
-  or `ultracode` bundle runs at a time across all lanes; `high` bundles of any model run
-  in parallel up to the lane cap. If two heavy bundles are queued, sequence them.
+- **Multi-part work inside one lane** (a repo-wide sweep, a migration off a deprecated
+  pattern, a bundle whose four file surfaces are independent of each other, a check
+  re-run until it passes): add the word `ultracode` in the prompt itself instead of a
+  routing header. CC writes and runs a multi-agent workflow script instead of working
+  turn by turn, and shows the planned phases before starting.
+  **`ultracode` IS NOT THE TOP OF THE EFFORT LADDER AND THIS DOCUMENT SAID OTHERWISE
+  UNTIL 4.25.** Verified against Anthropic's live model-configuration documentation on
+  2026-09-09, in its own words: "Ultracode is a Claude Code setting rather than a model
+  effort level: it sends `xhigh` to the model and additionally has Claude orchestrate
+  dynamic workflows for substantive tasks." So its reasoning depth is `xhigh`, which is
+  one rung BELOW `max`; strip the orchestration and what is left is plain `xhigh`, which
+  is what `--effort ultracode` falls back to when workflows are turned off. What it adds
+  is not depth, it is SHAPE: agents fanned out across independent surfaces and
+  reconverged.
+  **Which makes it the right default for a large bundle rather than a reserved
+  instrument.** Reserve is the wrong instinct here and this document carried it: a bundle
+  is partitioned by the file surface a lane owns, everything inside that surface goes in
+  one prompt, and the bigger that surface the more of it is independent work an
+  orchestrated fan-out does better than a session working file by file. The test is
+  whether the bundle HAS independent parts, not whether it is dangerous. A bundle with one
+  hard, serial, subtle change in one file wants `xhigh` and no workflow; a bundle with six
+  unrelated corrections across six files wants the workflow and does not want `max`.
+  See "Agents split inside a lane, never across lanes" for the half of this that is a
+  hard rule rather than a preference.
+- **Concurrent heavy bundles:** what serializes is effort, not model. One `xhigh` or
+  `max` bundle runs at a time across all lanes; `high` bundles of any model run in
+  parallel up to the lane cap. If two heavy bundles are queued, sequence them.
+  **An `ultracode` bundle serializes for a DIFFERENT reason and the two used to be
+  conflated here.** It is not serialized because of its reasoning depth, which is `xhigh`
+  like any other `xhigh` bundle; it is serialized because its agents share one container
+  and one working tree, so a second orchestrated bundle in another lane is a second fan-out
+  writing the same tree. Sequence it for that reason and say so, because a reader who
+  thinks it is about depth will let two of them run the moment the depth argument stops
+  applying.
 - **Scope note:** Apps Script `Code.gs` patches are pasted into the Apps Script editor by
   hand, not run through CC, so this routing covers repo-based CC prompts only. A rare
-  high-risk repo edit still follows the tier-up plus max-effort override.
+  high-risk repo edit still follows the tier-up plus `xhigh` override above.
 
 **Re-derive every time; never carry forward.** Classify each CC prompt against the
 table above on its own, independent of what model or effort the previous prompt in
@@ -744,10 +820,18 @@ regardless of how much design it touches. What was formerly the argument for dro
 tier, that an audit and a chat decision could close the ambiguity, is now the argument
 for an audit phase at the top of the same prompt.
 
-Effort labels (low / medium / high / xhigh / max, plus the `ultracode` setting) map
-directly to Claude Code's own `/effort` picker, not this chat's separate adaptive-thinking
-setting. `max` and `ultracode` apply to the current CC session only; they are not saved
-as a default the way low/medium/high/xhigh are.
+Effort labels (low / medium / high / xhigh / max) map directly to Claude Code's own
+`/effort` picker, not this chat's separate adaptive-thinking setting. `max` applies to the
+current CC session only; it is not saved as a default the way low / medium / high / xhigh
+are, and it is not accepted in the settings keys that persist one.
+
+**`ultracode` is offered in that same picker and is still not a sixth label.** It is a
+setting whose reasoning depth is `xhigh`, so a routing header carrying `EFFORT: ultracode`
+is saying two things at once -- run at `xhigh`, and orchestrate -- and that is fine as long
+as nobody reads it as a rung above `max`. Where only the depth is wanted, write `xhigh`.
+Where only the orchestration is wanted, the keyword in the prompt body does it without
+changing the session's effort at all. It is also availability-conditional: it only appears
+on models that support `xhigh`, and it is inert where workflows are turned off.
 
 **Safety-classifier awareness.** Fable 5.1, Fable 5 and Opus 5 run their own safety
 classifiers for cybersecurity and biology content. When one flags a request, Claude Code
@@ -1301,8 +1385,10 @@ The remote will be ahead routinely, from both the other lanes and the app's own 
 commits under `materials/`. That is expected and needs no flagging. Resolving on the
 branch keeps every conflict off the deployed branch.
 
-**What still serializes.** One `xhigh`, `max` or `ultracode` bundle at a time across all
-lanes, not one per lane; `high` bundles run in every lane whatever their model.
+**What still serializes.** One `xhigh` or `max` bundle at a time across all lanes, not
+one per lane; `high` bundles run in every lane whatever their model. One `ultracode`
+bundle at a time as well, for the separate reason given in the routing overrides -- its
+agents share a working tree, not because it is a deeper rung than `max`, which it is not.
 Migrations, per above. Anything repo-wide. Read-only audits are the opposite case and may
 run in any lane at any time, provided the prompt forbids all writes, git state changes,
 dev servers, and test runs.
@@ -1318,13 +1404,23 @@ wrong, with instruction to report rather than fix. A lane that silently fixes so
 another lane's surface produces a merge conflict that looks like a git problem and is
 actually two sessions disagreeing.
 
-Last verified against Anthropic's live Claude Code documentation on September 2, 2026,
-the previous check being August 3. What moved in the month: the `fable` alias resolves to
-Fable 5.1 from v2.1.255; the effort ladder is unchanged and Fable 5.1 has no held default
-effort the way Fable 5 did; `/goal <condition>` keeps a session working until a separate
-model judges the condition met, which suits a bundle with a verifiable end state, so a
-prompt for one states its completion condition in a single line the session can be
-handed as a goal. Re-check this section every 4-6 weeks.
+Last verified against Anthropic's live Claude Code documentation on September 9, 2026,
+the previous check being September 2 and the one before that August 3. What the September
+9 check moved, all of it in the routing overrides above and none of it in the model rows:
+`ultracode` is a Claude Code SETTING that sends `xhigh` and additionally orchestrates
+dynamic workflows, so it is not a rung above `max` and this document had implied for three
+versions that it was; and `max`, while genuinely the deepest rung, carries a documented
+warning -- diminishing returns, prone to overthinking, test before adopting broadly -- which
+is what took it out of the standing highest-scrutiny override in favour of `xhigh`. The
+ladder itself is unchanged at low / medium / high / xhigh / max, is calibrated per model
+rather than absolute, and falls back to the highest supported level at or below the one
+set. Carried from September 2 and re-confirmed: the `fable` alias resolves to Fable 5.1
+from v2.1.255; `/goal <condition>` keeps a session working until a separate model judges
+the condition met, which suits a bundle with a verifiable end state, so a prompt for one
+states its completion condition in a single line the session can be handed as a goal.
+**The canonical location moved and a checker should expect it:**
+`docs.claude.com/en/docs/claude-code/model-config` now 301s to
+`code.claude.com/docs/en/model-config`. Re-check this section every 4-6 weeks.
 
 ---
 
@@ -1638,9 +1734,12 @@ gap deliberately when it needs a firebreak.**
 
 ### Agents split inside a lane, never across lanes
 
-`EFFORT: ultracode` with subagents is the right shape when **one lane has independent
-work**: a canvas renderer, its drag behaviour, its layout and its tests are four surfaces
-in one bundle. It is the wrong shape for four bundles.
+`ultracode` with subagents is the right shape when **one lane has independent work**: a
+canvas renderer, its drag behaviour, its layout and its tests are four surfaces in one
+bundle. It is the wrong shape for four bundles. This is the whole of what it is FOR, which
+is why the routing overrides now call it the right default for a large bundle rather than
+an instrument held back for the worst cases -- it is chosen on whether the work splits,
+never on how much reasoning depth the work deserves.
 
 Agents share a container and a working tree, so:
 
@@ -2671,6 +2770,34 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-09 (4.25)** - Four corrections, all verified against Anthropic's live Claude
+  Code model-configuration documentation on 2026-09-09, the previous check being
+  2026-09-02. ULTRACODE IS NOT THE TOP OF THE EFFORT LADDER: it is a Claude Code setting
+  that sends `xhigh` to the model and additionally orchestrates dynamic workflows, so its
+  depth is one rung BELOW `max` and this file had implied since 4.17 that it sat above it.
+  Corrected in the routing table's row 4, the repo-wide-sweep override, the
+  concurrent-heavy-bundles override, the effort-labels paragraph, the "What still
+  serializes" paragraph and the agents-split section; the file's own line saying the
+  labels are "exactly low, medium, high, xhigh, or max" was already right and is now what
+  the rest agrees with. Recorded with it: its real value is multi-part work inside one
+  lane, which makes it the right DEFAULT for a large bundle rather than a reserved
+  instrument, and it serializes across lanes because its agents share a working tree, not
+  because it is deep. `max` CARRIES A DOCUMENTED WARNING -- "may show diminishing returns
+  and is prone to overthinking. Test before adopting broadly" -- so the standing
+  highest-scrutiny override, which had said bump a tier and set `max`, now says `xhigh`:
+  a standing rule reaching for the top rung on every irreversible change is exactly the
+  broad adoption that sentence says to test first, and nobody has tested it. GITHUB WRITE
+  ACCESS IS PER REPOSITORY and access to one implies nothing about another, recorded
+  beside the 2026-08-26 branch-deletion 403: on 2026-09-09 two sessions were refused on
+  `mrpina-dev/IDEA` while writing `pina-hash/idea-app` freely, one by the permission
+  classifier at `add_repo` and one by a 403 on `git push` and the GitHub MCP write alike,
+  so a second repository is a second session and never a line in a prompt. PROMPT TEXT
+  CANNOT SET A SESSION'S REPOSITORY SCOPE, which is fixed at session creation: a prompt
+  asserting that an unattached repo is the working tree states a precondition the
+  check-and-report rule cannot rescue, because there is no rest-of-the-bundle to fall back
+  to, and it is pressure toward inventing values rather than halting. One such prompt was
+  written on 2026-09-09. A prompt names paths inside the scope it was given.
 
 - **2026-09-08** - Re-lands the American spelling rule, first delivered as 4.10 on
   2026-08-30 and lost when a parallel chat carried 4.9 to 4.23 without it. Adds two
