@@ -11,7 +11,7 @@
   own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration`, in order behind 0106.
-- Status: issued
+- Status: pushed
 - Branch: `claude/rubric-descriptor-save-bug-rtbqud`.
 - Notes: resumes from 0106's branch (`claude/rubric-descriptors-save-bug-4zg5hv`,
   sha `1fcbe84a`) rather than from `main`, because
