@@ -22,6 +22,12 @@
 	import { noteThreads } from '$lib/notebook-notes';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
+	import {
+		NOTEBOOK_THEMES,
+		setNotebookTheme,
+		type NotebookTheme
+	} from '$lib/notebook/notebook-theme.svelte';
+	import { setSiteTheme } from '$lib/theme.svelte';
 
 	/**
 	 * Dev harness: mounts the REAL NotebookView with the five save transports
@@ -86,6 +92,55 @@
 	let bulk = $state(false);
 	/** The read-only preview an admin gets at /classroom/view-as/<email>/notebook. */
 	let viewAs = $state(page.url.searchParams.get('viewas') === '1');
+
+	/**
+	 * THE PLATE, PINNED FROM THE URL ON EVERY LOAD, DEFAULT INCLUDED.
+	 *
+	 * `?plate=matrix` chooses the notebook's own fourth plate through the
+	 * SHIPPING setter; `?site=matrix` turns the SITE theme on through ITS
+	 * shipping setter (`setSiteTheme`, the call ProfileMenu makes) and leaves
+	 * the notebook on its default plate, which is the state report 29 exists
+	 * for: the default follows the site theme in CSS alone. The site store is
+	 * what the picker's `data-plate` reads, so the shipping store has to be
+	 * the thing that changes -- an attribute written by hand would paint the
+	 * plate and leave the control claiming otherwise (measured: `data-plate`
+	 * stayed `default` on a page painted matrix until this called the setter).
+	 * The ATTRIBUTE is still written here as well, because ThemeRoot gates
+	 * the real write on a session this dev page has none of; it is written
+	 * after ThemeRoot's own effect has run and removed it (ThemeRoot mounts
+	 * before the page in the root layout) and a zero-delay re-apply covers
+	 * any later ordering.
+	 *
+	 * AND WITH NO PARAM BOTH ARE SET BACK TO THEIR DEFAULTS, deliberately:
+	 * both setters persist to localStorage, so a harness that measured
+	 * `?plate=matrix` and then loaded this page bare would otherwise measure
+	 * the plain notebook on the matrix plate, with every contrast number
+	 * silently taken off the wrong ground. A harness page pins its own state
+	 * or it is not a fixture.
+	 */
+	const plateParam = page.url.searchParams.get('plate');
+	const siteParam = page.url.searchParams.get('site');
+	const plate: NotebookTheme = NOTEBOOK_THEMES.includes(plateParam as NotebookTheme)
+		? (plateParam as NotebookTheme)
+		: 'default';
+	$effect(() => {
+		setNotebookTheme(plate);
+		const el = document.documentElement;
+		if (siteParam !== 'matrix') {
+			setSiteTheme('idea');
+			el.removeAttribute('data-theme');
+			return;
+		}
+		setSiteTheme('matrix');
+		const apply = () => el.setAttribute('data-theme', 'matrix');
+		apply();
+		const t = setTimeout(apply, 0);
+		return () => {
+			clearTimeout(t);
+			setSiteTheme('idea');
+			el.removeAttribute('data-theme');
+		};
+	});
 	let log = $state<string[]>([]);
 
 	/**
