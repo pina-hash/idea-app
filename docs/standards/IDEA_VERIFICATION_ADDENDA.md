@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.4 - 2026-09-07**
+**Version 2.5 - 2026-09-09**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -288,6 +288,56 @@ anchor ends mid-paragraph leaves the remainder of the original sentence trailing
 block, and the result still reads plausibly. An anchor for a pure insertion ends at a blank
 line or a section boundary.
 
+## 37. A coverage reconciliation done by name misses whatever the instrument names differently, so count first
+
+Two lists that should describe the same work -- a route table and a harness log, a spec
+inventory and a results file, a manifest and what shipped -- are routinely reconciled by
+matching their entries as strings. That check answers "does every name on the left appear
+on the right", and it fails silently in exactly one direction: an item the instrument
+records under a name the table does not carry is not reported as a mismatch, it simply
+**leaves the reconciliation altogether**. Both sides then look internally consistent,
+because the item is absent from the comparison rather than present and unequal.
+
+**So the check is arithmetic before it is nominal.** Count what went in, count what came
+out, and reconcile the TOTALS first; only then match names, to say WHICH one is missing. A
+count cannot be evaded by a renaming, and a difference of one in a total is visible where
+one absent row is not. This is the same property a positive control has: the check must be
+able to notice something that is not there.
+
+**Evidence.** Prompt 0116 measured nine tournament routes a browser pass had never
+visited. The harness logs one of them as `?view=team&state=open&viewer=host`, without the
+`&team=3` its own route table carries for that entry, so a by-name reconciliation matched
+eight of the nine and the ninth vanished from both sides of the comparison rather than
+appearing as a discrepancy. What caught it was the arithmetic: 678 new measurements over
+18 new runs, against what nine routes at two widths must produce. The names agreed; the
+counts did not, and only the counts could not be talked out of it.
+
+## 38. Elapsed time is read from the clock, never from a timer the session started
+
+A session that starts a long-running job, waits, and then reports how long it has been
+waiting is quoting its own arithmetic. Nothing in a wait loop, a sleep, a poll interval or
+a mental tally is measured against a clock: a loop can be entered late, a poll can return
+from a cache, a step can be counted that never ran, and the resulting figure is confidently
+wrong in whichever direction the miscount went. **The figure then becomes evidence**, and a
+number that arrived without a clock behind it is indistinguishable from one that did.
+
+**Read the clock before believing any elapsed-time claim, INCLUDING YOUR OWN.** Take a
+timestamp at the start, take another at the read, and report the difference between two
+observed times rather than the sum of intervals you believe elapsed. The same rule governs
+a claim inherited from a prior report: an elapsed figure quoted forward is still an
+unverified figure.
+
+**This one is expensive out of proportion to its size, because it inverts a diagnosis.**
+An overstated wait turns a healthy job into a hung one, and a session that believes a job
+is hung stops asking whether it is running and starts asking what broke it -- which is a
+search with no terminating condition, conducted over code that is fine.
+
+**Evidence.** Ledger 0114 reported a CI job hung for 17 minutes, then 30, then 38, against
+a measured 4m39s norm for that job, and began diagnosing a healthy branch as broken on the
+strength of it. Four minutes had passed. Every figure came from the session's own count of
+how long it had been waiting; no `date -u` was read at any point, and the one command that
+would have ended the investigation before it started cost nothing.
+
 ## Note on internal organization
 
 This section was written as a merge plan for a document that does not exist. It is kept because the groupings are real and a future reorganization of this file should follow them, not because anything is waiting to move.
@@ -392,6 +442,22 @@ control's positive control counts rows **rising** on N presses with N greater th
 because "one row exists" passes trivially on a working save and proves nothing.
 
 ## Changelog
+
+- **2.5 (2026-09-09)** - Two rules earned in one week, both about a check that reported
+  success over something it never saw. Rule 37: a coverage reconciliation done by name
+  fails silently in one direction, because an item the instrument records under a name the
+  table does not carry leaves the comparison rather than appearing as a mismatch; prompt
+  0116's harness logs a tournament route without the `&team=3` its own route table carries,
+  so eight of nine reconciled and the ninth vanished from both sides, and what caught it was
+  arithmetic -- 678 new measurements over 18 new runs -- so the totals are reconciled before
+  the names, and the names only to say which one is missing. Rule 38: elapsed time is read
+  from the clock and never from a timer the session started, after ledger 0114 reported a CI
+  job hung for 17, then 30, then 38 minutes against a 4m39s norm and began diagnosing a
+  healthy branch as broken, when four minutes had passed and no `date -u` had been read;
+  filed with the group about assertions that report success without touching what they name,
+  because it is that failure aimed at the session's own report, and it is expensive out of
+  proportion to its size, since an overstated wait inverts a diagnosis and starts a search
+  with no terminating condition over code that is fine.
 
 - **2.4 (2026-09-07)** - Five ways a measurement lies, all observed between
   2026-09-05 and 2026-09-06: a cold `vite dev` first load, a cell inside a collapsed

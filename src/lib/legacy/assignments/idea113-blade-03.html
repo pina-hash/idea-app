@@ -2271,6 +2271,24 @@ async function downloadHTML(){
   clone.querySelectorAll('input[type="text"],input[type="number"],input[type="password"],textarea,select').forEach(el=>{if(el.tagName==='TEXTAREA')el.textContent='';else el.removeAttribute('value');if(el.tagName==='SELECT')el.querySelectorAll('option').forEach(o=>o.removeAttribute('selected'));});
   clone.querySelectorAll('input[type="radio"],input[type="checkbox"]').forEach(el=>el.removeAttribute('checked'));
   clone.querySelector('#comp-body').innerHTML='';clone.querySelector('#bolt-body').innerHTML='';clone.querySelector('#dev-body').innerHTML='';clone.querySelector('#dev-log-body').innerHTML='';
+  /*
+     THE EXPORT IS A BLANK TEMPLATE PLUS ITS DATA, NEVER A TEMPLATE PLUS ITS
+     DATA PLUS A PICTURE OF ITS DATA. Same repair as idea100-blade-01, and
+     deliberately the same shape rather than a second one.
+     The four screenshot grids are built by renderImgs() from _imgs on every
+     open, so cloning the LIVE document writes each photo into the file as
+     markup and then loadData() builds it AGAIN. It is INVISIBLE, because
+     renderImgs opens with c.innerHTML='' and throws its own copy away -- the
+     only symptom is a file twice the size it needs to be. Measured over a real
+     file:// round trip: two photos in, four base64 payloads out.
+     The lightbox is the same defect with a different cause: its <img src> is a
+     reflected attribute, so a student who zoomed one photo before exporting
+     serialized a THIRD copy of it. Nothing rebuilds it and nothing needs it.
+     The row thumbnails need no reset here: they live inside #comp-body, which
+     is already emptied above.
+  */
+  ['ss-mass','ss-iso','ss-top','ss-side'].forEach(z=>{const el=clone.querySelector('#'+z);if(el)el.innerHTML='';});
+  const cloneLb=clone.querySelector('#lightbox-img');if(cloneLb)cloneLb.setAttribute('src','');
   clone.querySelectorAll('#__ib_data__').forEach(el=>el.remove());
   const sc=document.createElement('script');sc.id='__ib_data__';sc.type='application/json';sc.textContent=JSON.stringify(data);clone.querySelector('head').appendChild(sc);
   const html='<!DOCTYPE html>\n'+clone.outerHTML;
