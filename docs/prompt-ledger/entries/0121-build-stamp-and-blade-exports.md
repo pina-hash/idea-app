@@ -14,7 +14,7 @@
   `.github/workflows/integrate.yml`, which item FOUR is about.
 - Migration permitted: no. Claims: none.
 - Lands on: `main`.
-- Status: issued
+- Status: pushed
 - Branch: `claude/site-versions-build-blade-fix-gqksqp`, branched from
   `origin/main` at `b03a9410`.
 - Notes: four items, three of which change files and one of which deliberately
