@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.23 - 2026-09-07**
+**Version 4.24 - 2026-09-08**
 
 ## These Instructions Evolve
 
@@ -1787,6 +1787,31 @@ Read the relevant file before starting any task that touches those domains.
 - **Brief corrections.** When feedback is given, apply it without lengthy
   acknowledgment. Do not restate what changed unless asked.
 - **No em dashes.** Use a hyphen or rewrite the sentence.
+- **American spelling, everywhere, without exception.** Every artifact this project
+  produces, student-facing or not: assignments, reference documents, decks, print
+  renderings, standards files, Classroom post text, Claude Code prompts, and chat
+  replies. Center, color, behavior, analyze, organize, modeled, defense, license,
+  gray, program, toward. Not centre, colour, behaviour, analyse, organise, modelled,
+  defence, licence, grey, programme, towards. A proper noun keeps its own spelling and
+  a quotation is never silently corrected; everything else converts. Established
+  2026-08-30 by Alejandro after the IDEA100 hook phase was found to have been authored
+  consistently in British spelling across four published artifacts, two of them already
+  in front of students. It was consistent, which is why nothing caught it: a mixed
+  document looks like an error and a uniformly wrong one looks like a choice. The check
+  is a scan of the delivered file for the forms above, not a reread. First delivered as
+  4.10 on 2026-08-30 and lost when a parallel chat carried 4.9 to 4.23 without it.
+- **Verify against the artifact on the server, never against your own reconstruction.**
+  A file regenerated from the script that first produced it is not evidence of what is
+  live. Established 2026-09-04: two published items both held the Scale Test spec, one
+  of them titled V3, and an in-place edit was built and checked against a rebuilt copy
+  of a spec that existed on no server. Every block id would have changed and two
+  students' answers would have stopped rendering. The app exports every published item
+  to `materials/<course>/<slug>/` in `pina-hash/idea-app`; diff against that.
+- **A vendor document answering an adjacent question is not an answer to yours.**
+  Bambu's LAN-mode page says a print cannot be STARTED without the SD card present. That
+  was read as the print RUNNING off the card, and a whole print-queue plan was refused on
+  it. Mr. Pina, who owns the printers, said pulling the card does not stop the print.
+  Where the operator has the hardware in front of them, the operator is the source.
 - **Every manual instruction is a last resort, and the search for an alternative
   happens before the instruction is written.** See the Hard Rule "A manual instruction
   is the last resort, and the search comes first". The rule governs whether to hand
@@ -2206,7 +2231,10 @@ Alejandro has declined to ask.
 
 - **Assignments and worksheets:** authored as assignment spec files per
   `IDEA_MATERIAL_SPEC_v2.md` and delivered for engine import. A print rendering
-  accompanies the spec only when one of the four print triggers applies.
+  accompanies the spec only when one of the print triggers in
+  `IDEA_MATERIALS_PROCESS.md` applies. Take the count from that file rather than
+  from here: it was four, trigger 5 was deleted and restored, and a count stated in
+  a second document is how the deletion stayed invisible.
   Standalone single-file HTML is legacy, produced only on explicit request.
 - **Syllabi, policies, and standing references:** authored as reference spec files
   per `IDEA_MATERIAL_SPEC_v2.md` and delivered for a Materials post. No points,
@@ -2643,6 +2671,18 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-08** - Re-lands the American spelling rule, first delivered as 4.10 on
+  2026-08-30 and lost when a parallel chat carried 4.9 to 4.23 without it. Adds two
+  rules from the IDEA100 hook close: verify against the exported artifact on the server
+  rather than a local reconstruction, after an in-place spec edit was validated against
+  a rebuild of a spec that existed on no server and would have orphaned two students'
+  answers; and a vendor document answering an adjacent question is not an answer to
+  yours, after Bambu's LAN-mode page was read as proof that removing an SD card kills a
+  running print, which the person holding the printers says it does not. Also re-applies
+  the Output Defaults correction from that lost 4.10: the print trigger count is no
+  longer stated here, because a count carried in a second document is how the original
+  deletion of trigger 5 stayed invisible.
 
 - **2026-09-07 (4.23)** - The lessons of the 2026-09-05/06 run, which shipped
   roughly forty bundles and took `main` from red to 326 files and 6,504 green tests. Five
