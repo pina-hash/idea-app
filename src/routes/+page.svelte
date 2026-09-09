@@ -74,8 +74,8 @@
 	 * so it earns the top. For an instructor it is a roster of what THEY posted,
 	 * which they can also reach from /classroom, and it is much taller -- four
 	 * classes push the Apps section most of a screen further down than one does.
-	 * So a manager gets the launcher first and the feed under it; a student's
-	 * order is untouched.
+	 * So a manager gets the launcher first and the feed under it. (A student's
+	 * order is decided separately, below.)
 	 *
 	 * DERIVED FROM WHAT THE PAGE ALREADY HAS. `buildFeed` already computes
 	 * `manages` per section (teacher of record, or admin -- mirroring
@@ -86,42 +86,46 @@
 	const managesAnySection = $derived(classroomFeeds.some((f) => f.manages));
 
 	/**
-	 * ARE THERE ANY CLASSES TO PUT FIRST -- the other half of the same decision.
+	 * ARE THERE ANY CLASSES TO PUT FIRST -- the other half of the same decision
+	 * for STAFF.
 	 *
-	 * THIS PARAGRAPH USED TO SAY THE OPPOSITE, AND THE MEASUREMENT IS WHY IT
-	 * CHANGED. It read: "A viewer with no feed at all -- nobody's teacher, or a
-	 * backend where the classroom read failed -- gets the student order, which
-	 * is the order this page has always had." That is true of the code and was
-	 * the wrong answer, because the student order is earned by CONTENT rather
-	 * than granted by role. `buildFeed` returns nothing for a signed-out
-	 * visitor, for a student before the roster import, for anyone whose
+	 * `buildFeed` returns nothing for a signed-out visitor, for anyone whose
 	 * classroom read failed, and for a teacher between terms -- and in every one
 	 * of those cases `ClassroomFeed` still renders a card, so a 230px empty
-	 * state ("You are not in any classes yet") sat above the launcher with
-	 * nothing in it to open.
-	 *
-	 * MEASURED at 375px on `/dev/home-order`, first app card from the top of the
-	 * document: 900px (1.13 screens) with an empty feed, against 1409px (1.76
-	 * screens) with one real class. So an empty block was costing a full screen
-	 * of scroll to say that there is nothing here.
-	 *
-	 * THE ORDER IS NOT FLIPPED FOR A STUDENT WHO HAS CLASSES, AND THAT IS THE
-	 * POINT. The report behind this was "apps should be above classes", and the
-	 * same measurement is what refuses the general form of it: a student's block
-	 * grows 616px per class at 375px (1.76 / 2.53 / 3.30 / 4.07 screens at one
-	 * through four classes), so flipping the order does not remove that scroll,
-	 * it moves it onto the one thing on this page that deep-links a student into
-	 * the exact item that is due. Bounding the height of a class card is the fix
-	 * for that, and it belongs to `ClassroomFeed`, not here.
-	 *
-	 * So the rule keeps its own stated reason and stops applying where the
-	 * reason does not: Your Classes holds the top exactly while it has a class
-	 * in it.
+	 * state ("You are not in any classes yet") would sit above the launcher with
+	 * nothing in it to open. MEASURED at 375px on `/dev/home-order`, first app
+	 * card from the top of the document: 900px (1.13 screens) with an empty
+	 * feed, against 1409px (1.76 screens) with one real class.
 	 */
 	const hasClasses = $derived(classroomFeeds.length > 0);
 
-	/** Apps first for a manager, or when there is no class to put above them. */
-	const appsFirst = $derived(managesAnySection || !hasClasses);
+	/**
+	 * A STUDENT GETS THE APPS FIRST, ALWAYS. This is Mr. Pina's call (ledger
+	 * 0117, report 21: "for students, the apps should come before their classes
+	 * on the home page"), and it is the SECOND time he has asked for it.
+	 *
+	 * THE PARAGRAPH THIS REPLACES REFUSED IT, AND THE MEASUREMENT IT CITED IS
+	 * STILL TRUE: a student's class block grows 616px per class at 375px (1.76 /
+	 * 2.53 / 3.30 / 4.07 screens at one through four classes), so putting Apps
+	 * first does not remove that scroll, it moves it off the launcher and onto
+	 * the feed. That was the argument for keeping the feed on top, and it was
+	 * an argument about which of two things a student should have to scroll
+	 * past. The owner has decided the launcher is the one that stays in reach,
+	 * which is a product decision and not a measurement, so the measurement is
+	 * kept here as the cost of the decision rather than as a reason to undo it.
+	 * Bounding the height of a class card is still the fix for the scroll
+	 * itself, and it still belongs to `ClassroomFeed`, not here.
+	 *
+	 * STUDENTS ONLY. Staff ordering is not this report: a manager already gets
+	 * the launcher first (their feed is a roster of what THEY posted, reachable
+	 * from /classroom too, and much taller), and staff who manage nothing keep
+	 * the content-earned rule below. The student key is the ROLE and not the
+	 * absence of `manages`, because a `visitor` account is neither.
+	 */
+	const isStudent = $derived(signedIn && profile?.role === 'student');
+
+	/** Apps first for a student, for a manager, or when there is no class to put above them. */
+	const appsFirst = $derived(isStudent || managesAnySection || !hasClasses);
 
 	// Collapse state, persisted per USER in profiles.preferences.classroomFeed
 	// (the AppLauncher pattern), so a folded class stays folded on their phone
@@ -411,7 +415,7 @@
 			<div class="auth-block">
 				{#if signedIn}
 					{#if isAdmin}
-						<a class="auth-link" href="/dashboard">Dashboard</a>
+						<a class="auth-link" href="/dashboard">Admin</a>
 					{/if}
 					<ProfileMenu />
 				{:else}

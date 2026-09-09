@@ -38,7 +38,7 @@ export default {
 		   card including the three admin-only ones is on screen. A floor AND a
 		   ceiling: a launcher that quietly rendered one card would satisfy a
 		   floor of 1 and tell nobody. */
-		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: 13, maxPresent: 13 },
+		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: 12, maxPresent: 12 },
 		/* The theme control itself, closed. Two radios, in the menu, which is
 		   shut until something opens it -- so present 0 is correct here and the
 		   themed spec is where the control is measured. */

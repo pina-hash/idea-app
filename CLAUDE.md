@@ -1057,14 +1057,19 @@ it is not required to browse.
   GAUNTLET AUTHOR TIER below.
 - **The homepage `/` IS the student dashboard.** Students have no separate one;
   `/dashboard` is admin-only.
-  - **ITS SECTION ORDER TURNS ON WHAT THE VIEWER MANAGES, never on their role.**
-    Apps sits above Your Classes for anyone who manages a section, and below it
-    for everyone else -- a student's feed deep-links them into the exact item
-    that is due, which nothing else on the page does, so it keeps the top. The
-    signal is `classroomFeeds.some((f) => f.manages)`, reusing `buildFeed`'s own
-    `manages` (which mirrors `classroom_manages_section`); `profile.role` is the
-    wrong key, because the email domain grants `teacher` to staff who teach no
-    section and an admin can manage every section without it.
+  - **A STUDENT GETS APPS ABOVE YOUR CLASSES, ALWAYS; FOR STAFF THE ORDER TURNS
+    ON WHAT THE VIEWER MANAGES.** Mr. Pina asked for the student half twice
+    (ledger 0117, report 21), the second time with the cost known: a student's
+    class block grows 616px per class at 375px, so the scroll moves onto the
+    feed's deep links rather than going away. The student key is
+    `profile.role === 'student'` -- a `visitor` is neither a student nor staff
+    and keeps the content-earned rule. For everyone else Apps sits above Your
+    Classes for anyone who manages a section, or when the feed is empty, and
+    below it otherwise; that signal is `classroomFeeds.some((f) => f.manages)`,
+    reusing `buildFeed`'s own `manages` (which mirrors
+    `classroom_manages_section`), because the email domain grants `teacher` to
+    staff who teach no section and an admin can manage every section without
+    it.
 
 ### Roles
 

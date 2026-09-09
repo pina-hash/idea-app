@@ -41,14 +41,14 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
-		<a class="btn secondary" href="/admin">&lsaquo; Admin</a>
+		<a class="btn secondary" href="/dashboard#panel-links">&lsaquo; Admin console</a>
 		<ProfileMenu />
 	</div>
 </div>
 
 <main class="admin-page">
 	<section class="hero">
-		<div class="eyebrow">Admin</div>
+		<div class="eyebrow">Admin console</div>
 		<h1>Short links</h1>
 		<p class="lede">Printed QR codes point here; the targets move, the paper does not.</p>
 	</section>

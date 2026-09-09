@@ -274,6 +274,47 @@ describe('a theme is a token layer, not a stylesheet', () => {
 			selector: /^:root\[data-theme='[a-z-]+'\] \.legacy-index #bg-canvas$/,
 			why: "the landing page's starfield, switched off under the rain",
 			onlyDeclares: [/^display$/]
+		},
+		/* THE THREE ROOMS THE RAIN REACHES INTO (ledger 0117, report 25), two
+		   selectors each and one declaration each. The room stylesheet hides
+		   `.bg-fx` with `body:has(<room>) .bg-fx { display: none }` and paints
+		   the wrapper opaque; under the theme the first is put back and the
+		   second is made transparent, and nothing else about the room moves --
+		   its cards keep their fills, so copy inside one is unchanged. The
+		   notebook's selector is its DEFAULT plate only: the light and IDEA
+		   plates are the room's own choice and a site theme does not fight
+		   them. GAUNTLET, GREENLINE, VANGUARD, FRC, Tournaments and FSP are
+		   deliberately NOT here, and a fourth room is a fourth pair with its
+		   reason written beside it, never a wider selector. */
+		{
+			selector: /^:root\[data-theme='[a-z-]+'\] body:has\(\.cr-root\) \.bg-fx$/,
+			why: 'the classroom room lets the shell layer back under the theme',
+			onlyDeclares: [/^display$/]
+		},
+		{
+			selector: /^:root\[data-theme='[a-z-]+'\] \.cr-root$/,
+			why: "the classroom's opaque plate, made transparent so the rain shows",
+			onlyDeclares: [/^background-color$/]
+		},
+		{
+			selector: /^:root\[data-theme='[a-z-]+'\] body:has\(\.nb-root:not\(\[data-nb-theme\]\)\) \.bg-fx$/,
+			why: 'the notebook on its default plate lets the shell layer back under the theme',
+			onlyDeclares: [/^display$/]
+		},
+		{
+			selector: /^:root\[data-theme='[a-z-]+'\] \.nb-root:not\(\[data-nb-theme\]\)$/,
+			why: "the notebook's default plate, made transparent so the rain shows",
+			onlyDeclares: [/^background-color$/]
+		},
+		{
+			selector: /^:root\[data-theme='[a-z-]+'\] body:has\(\.fg-root\) \.bg-fx$/,
+			why: 'the Foundry room lets the shell layer back under the theme',
+			onlyDeclares: [/^display$/]
+		},
+		{
+			selector: /^:root\[data-theme='[a-z-]+'\] \.fg-root$/,
+			why: "the forge's opaque plate, made transparent so the rain shows",
+			onlyDeclares: [/^background-color$/]
 		}
 	];
 
@@ -294,8 +335,8 @@ describe('a theme is a token layer, not a stylesheet', () => {
 	const propsOf = (body: string) =>
 		[...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]).filter((n) => !n.startsWith('--'));
 
-	it('the exception list is exactly three entries, each used by some theme', () => {
-		expect(EXCEPTIONS.length).toBe(3);
+	it('the exception list is exactly nine entries, each used by some theme', () => {
+		expect(EXCEPTIONS.length).toBe(9);
 		for (const ex of EXCEPTIONS) {
 			const used = Object.values(themeSource).some((css) => selectors(css).some((s) => ex.selector.test(s)));
 			expect(used, `stale exception: ${ex.why}`).toBe(true);

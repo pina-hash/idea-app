@@ -40,7 +40,23 @@ export const load: PageLoad = async ({ url }) => {
 	 */
 	const signedOut = url.searchParams.get('signedout') === '1';
 
+	/**
+	 * `?room=classroom|notebook|foundry` WRAPS THE PAGE IN THAT ROOM'S ROOT
+	 * CLASS with the room's real stylesheet imported (ledger 0117, report 25).
+	 * Each of those stylesheets hides the shell layer (`body:has(<room>)
+	 * .bg-fx { display: none }`) and paints its root opaque, which is what
+	 * kept the rain off every classroom, notebook and Foundry page; the theme
+	 * now reaches into the three under `data-theme='matrix'`, and the only
+	 * way to measure that is to put the real room rule and the real theme rule
+	 * in one document and read `.bg-fx`'s display and the root's background
+	 * back. The room stylesheets are imported by +page.svelte for the harness
+	 * only; nothing here mounts a room's components.
+	 */
+	const roomParam = url.searchParams.get('room');
+	const room = roomParam === 'classroom' || roomParam === 'notebook' || roomParam === 'foundry' ? roomParam : null;
+
 	return {
+		room,
 		claims: signedOut
 			? null
 			: { sub: 'dev-theme-user', email: 'alice@boscotech.net', exp: 4102444800 },
