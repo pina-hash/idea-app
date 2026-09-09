@@ -224,13 +224,15 @@ those rooms really mount.
   FRC queue controls above. Seven specs are new (`portal-admin.mjs`,
   `portal-admin-used-roster-admins.mjs`, `portal-admin-owner-1.mjs`,
   `profile-menu-state-open.mjs`, two `themes-state-matrix-room-*.mjs`);
-  the README's static region regenerated to 163 specs / 68 routes / 96 dev
-  pages / 326 runs, and its measured region by the full pass on the committed
-  tree (`dirty: false`, sha `85c7ea9`, server reused): **326 runs, 5520
-  measurements, 163 of 163 specs covered, 833.1s, selftest 70 controls / 0
-  failures, 4 rows outside threshold** -- the two standing `/dev/notebook`
-  toolbar tap-reach rows (decision 12, with the owner) and the two FRC queue
-  rows above, one per width, which this entry hands on.
+  the README's static region regenerated to 164 specs / 68 routes / 96 dev
+  pages / 328 runs on the merged tree, and its measured region by the full
+  pass on the committed merge (`dirty: false`, sha `17e57ee`, server
+  reused): **328 runs, 5604 measurements, 164 of 164 specs covered, 851.6s,
+  selftest 70 controls / 0 failures, 2 rows outside threshold** -- the FRC
+  queue rows above, one per width, which this entry hands on. The two
+  standing `/dev/notebook` toolbar tap-reach rows are gone: 0119 closed them.
+  (A first pass before the merge, on `85c7ea9`, read 326 runs / 5520 / 4
+  outside with those two notebook rows still standing.)
 - Text is measured in the fallback stack (the harness blocks
   fonts.googleapis.com) and `prefers-reduced-motion` is `no-preference`.
 
