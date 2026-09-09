@@ -234,12 +234,17 @@ report it -- the asymmetry the freshness section already states in words.
 
 ## Verification
 
-- `npm test`: reported in full below.
+- `npm test`: **327 files, 6525 tests, all passing**, 314.79s. Identical file and
+  test counts to prompt 0105's run earlier the same day, which is expected: this bundle
+  adds no test and touches no file any test reads except the two documents
+  `tests/standards-version-header.test.ts` and `tests/claude-md.test.ts` sweep.
 - `tests/standards-version-header.test.ts` run on its own after the standards edit and
   again after the register edit: **21 tests, all passing.**
 - `tests/claude-md.test.ts`: **passing**, which matters because this bundle touched no
   source file and `CLAUDE.md` names none of the documents edited here.
-- `npm run history:verify`: reported below.
+- `npm run history:verify`: **168 entries reassembled, 2,252,747 bytes, sha256 identical
+  against `ea9f043b6c:docs/HISTORY.md` by both the git byte compare and the pinned hash.**
+  This entry is parsed by the same run and passed its structural checks.
 - Every replacement in `IDEA_instructions.md` was asserted to occur EXACTLY ONCE before it
   was applied, in a script that exits on any other count. Nine, then three, then the
   changelog insertion, all reporting one match.
