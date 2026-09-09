@@ -4,27 +4,27 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "9 slides, right order",
+        "short": "8 slides, ordered, labeled",
         "points": 4,
-        "descriptor": "All nine slides present in the given order, and each station slide names its station."
+        "descriptor": "All eight slides present in the given order, and slides 2 through 6 each carry their station name."
       },
       {
         "label": "Proficient",
-        "short": "9 slides, one out of order",
+        "short": "One ordering or label error",
         "points": 3,
-        "descriptor": "All nine slides present, with one slide out of order or one station unlabeled."
+        "descriptor": "All eight slides present, with one slide out of order or one station slide missing its name."
       },
       {
         "label": "Developing",
-        "short": "7 or 8 slides",
+        "short": "6 or 7 slides",
         "points": 2,
-        "descriptor": "Seven or eight slides present, or two or more stations missing their own slide."
+        "descriptor": "Six or seven slides present, or two or more stations missing their own slide."
       },
       {
         "label": "Absent",
-        "short": "Under 7 slides",
+        "short": "Under 6 slides or dead link",
         "points": 0,
-        "descriptor": "Fewer than seven slides, or no deck submitted."
+        "descriptor": "Fewer than six slides, no deck submitted, or the link does not open."
       }
     ],
     "points": 4,
@@ -36,27 +36,27 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All slides under 25 words",
+        "short": "No slide breaks either rule",
         "points": 3,
-        "descriptor": "No slide exceeds 25 words, and every slide except the title carries an image."
+        "descriptor": "No slide except the title exceeds 25 words, and every slide except the title carries an image filling at least a third of it."
       },
       {
         "label": "Proficient",
-        "short": "One or two slides over",
+        "short": "One or two slides break one",
         "points": 2,
-        "descriptor": "One or two slides exceed 25 words, or one slide has no image."
+        "descriptor": "One or two slides break either the word limit or the image rule."
       },
       {
         "label": "Developing",
-        "short": "Three or four slides over",
+        "short": "Three or four slides break",
         "points": 1,
-        "descriptor": "Three or four slides exceed 25 words, or two or three slides have no image."
+        "descriptor": "Three or four slides break either rule."
       },
       {
         "label": "Absent",
-        "short": "Five or more over",
+        "short": "Five or more break",
         "points": 0,
-        "descriptor": "Five or more slides exceed 25 words, or the deck is mostly text."
+        "descriptor": "Five or more slides break either rule."
       }
     ],
     "points": 3,
@@ -68,21 +68,21 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All 5 parts, 3 columns",
+        "short": "5 parts, 3 values, signed",
         "points": 3,
-        "descriptor": "Slide 7 shows nominal, measured, and difference for all five parts."
+        "descriptor": "Slide 7 shows nominal, measured, and signed difference for all five parts."
       },
       {
         "label": "Proficient",
-        "short": "3 or 4 parts",
+        "short": "3 or 4 parts, or unsigned",
         "points": 2,
-        "descriptor": "Slide 7 shows those three values for three or four parts."
+        "descriptor": "Those three values appear for three or four parts, or differences are shown unsigned."
       },
       {
         "label": "Developing",
-        "short": "Numbers, no comparison",
+        "short": "No nominal to compare",
         "points": 1,
-        "descriptor": "Measured values appear with no nominal to compare against, or only one or two parts are shown."
+        "descriptor": "Measured values appear with no nominal beside them, or only one or two parts are shown."
       },
       {
         "label": "Absent",
@@ -100,27 +100,27 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All 5 stations, specific",
+        "short": "5 stations, real choices",
         "points": 5,
-        "descriptor": "Names a specific process decision at all five stations, each one a choice that could have gone another way."
+        "descriptor": "States a process decision at all five stations, each one a tool, setting, workholding, or sequence choice."
       },
       {
         "label": "Proficient",
-        "short": "4 stations, or 5 vague",
+        "short": "4 stations",
         "points": 4,
-        "descriptor": "Names a specific decision at four stations, or covers all five but one is a description rather than a decision."
+        "descriptor": "States a qualifying decision at four stations, or at all five with one being a description of what was done rather than a choice."
       },
       {
         "label": "Developing",
         "short": "2 or 3 stations",
         "points": 2,
-        "descriptor": "Names a decision at two or three stations, or describes what was done without identifying a choice."
+        "descriptor": "States a qualifying decision at two or three stations."
       },
       {
         "label": "Absent",
         "short": "0 or 1 station",
         "points": 0,
-        "descriptor": "Covers one station or none."
+        "descriptor": "States a qualifying decision at one station or none."
       }
     ],
     "points": 5,
@@ -132,21 +132,21 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Pattern named and explained",
+        "short": "Named, sourced, tied to number",
         "points": 5,
-        "descriptor": "States which process held dimensions best and worst from their own numbers, and gives a physical reason involving the tool, the beam, the material, or the setup."
+        "descriptor": "Names the closest and furthest process using their own largest differences, gives a reason from the four listed, and ties that reason to one of their measured numbers."
       },
       {
         "label": "Proficient",
-        "short": "Pattern named, thin reason",
+        "short": "Named and sourced, reason loose",
         "points": 4,
-        "descriptor": "States the pattern from their own numbers and offers a reason that is correct but not tied to a specific process characteristic."
+        "descriptor": "Names both processes from their own numbers and gives a reason from the four listed, without tying it to a measured value."
       },
       {
         "label": "Developing",
-        "short": "Numbers restated only",
+        "short": "Numbers read, no reason",
         "points": 2,
-        "descriptor": "Reads the measurements out without saying what pattern they show, or names a pattern with no reason."
+        "descriptor": "Reads measurements aloud without naming which process was closest and furthest, or names them with no reason from the four."
       },
       {
         "label": "Absent",
@@ -164,27 +164,27 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Answers all, from own work",
+        "short": "Both from own work",
         "points": 5,
-        "descriptor": "Answers every question from what they did and measured, including at least one they had not prepared for."
+        "descriptor": "Answers both questions using something they did or measured that is not written on a slide."
       },
       {
         "label": "Proficient",
-        "short": "Answers most",
+        "short": "One from own work",
         "points": 4,
-        "descriptor": "Answers most questions from their own work, with one answer that restates a slide."
+        "descriptor": "Answers one question from their own work and answers the other by repeating slide content."
       },
       {
         "label": "Developing",
-        "short": "Reads slides back",
+        "short": "Both from slides",
         "points": 2,
-        "descriptor": "Answers mainly by reading slides aloud, or cannot answer more than one question."
+        "descriptor": "Answers both questions by repeating slide content, or answers one and cannot answer the other."
       },
       {
         "label": "Absent",
         "short": "No answers",
         "points": 0,
-        "descriptor": "Does not answer questions, or does not present."
+        "descriptor": "Answers neither question, or does not present."
       }
     ],
     "points": 5,
