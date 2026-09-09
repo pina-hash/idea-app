@@ -1081,15 +1081,57 @@ export function rubricFromSpec(
  * A LEVEL'S ONE-LINE FORM, resolved in one place for every caller.
  *
  * THREE SOURCES, in this order, and the order is the whole rule:
- *   1. the STORED level's own `short`, which is what a rubric saved since this
- *      existed carries;
- *   2. the matching SPEC level, paired by criterion id (rubricFromSpec's own id
- *      rule, so a rubric generated from this spec lines up) and then by points
- *      inside that criterion -- points are strictly descending, so at most one
- *      level can match, and matching on them rather than on position survives a
- *      criterion whose levels were reordered or trimmed in the builder;
+ *   1. the STORED level's own `short`, which since 0106 the rubric editor
+ *      writes directly, one input per level;
+ *   2. the matching SPEC level -- but ONLY while nothing has been edited, which
+ *      is what rung two's pairing now establishes (see below);
  *   3. the full descriptor, which is what every level authored before this
  *      field existed has and is never wrong, only long.
+ *
+ * RUNG TWO PAIRS ON THE DESCRIPTOR, NOT ON THE POINTS, AND THAT IS THE FIX FOR
+ * A LIVE DEFECT (reported 2026-09-08, IDEA209H Unit 1; 0106 closed the save
+ * half and left this). It used to pair by criterion id and then by
+ * `Number(l.points) === Number(level.points)` -- a WEIGHT, which says nothing
+ * about whether the two levels still describe the same standard. So an
+ * instructor who rewrote a descriptor and cleared the stale one-liner beside it
+ * got the SPEC's copy of that same stale sentence handed back, silently, on the
+ * one surface they were looking at. Points identify a slot; the descriptor IS
+ * the standard, and a `short` is a summary OF a descriptor -- so pairing the
+ * summary to the text it summarises is the only pairing that cannot hand back a
+ * summary of something else.
+ *
+ * WHAT THAT BUYS AND WHAT IT COSTS.
+ *   * An UNTOUCHED rubric generated from this spec still resolves through rung
+ *     two: `rubricFromSpec` copies each descriptor verbatim, so the pairing is
+ *     exact. That is the case rung two exists for and it is unaffected.
+ *   * A level whose POINTS were changed but whose descriptor was kept still
+ *     pairs, which the old rule got wrong -- the standard did not move, only
+ *     its weight.
+ *   * A level whose descriptor was EDITED, by any amount, no longer pairs, and
+ *     falls to rung three: the instructor reads the sentence they just wrote.
+ *     A one-word fix therefore costs a curated one-liner until somebody types
+ *     one, which is the safe direction to be wrong in -- rung three is long,
+ *     never stale.
+ *   * A level with NO descriptor at all has nothing to pair on and takes rung
+ *     three, which is empty; the console renders points and label and no line
+ *     (`{#if short}`), rather than a sentence the rubric no longer contains.
+ *     Clearing a descriptor is an EDIT, so this is the same rule, not a gap in
+ *     it: there is no path left on which an edited descriptor sits under an
+ *     unchanged sentence.
+ *
+ * THE MATCH MUST BE UNIQUE. Two levels of one criterion carrying the same
+ * descriptor is degenerate, but `find` would silently take the first and could
+ * hand back the other one's summary; ambiguity declines instead.
+ *
+ * RUNG TWO STILL EXISTS, and 0106 is why the question is worth answering: the
+ * editor can write `short` directly now, so the rung is no longer the only way
+ * one can be on screen. It stays because there is NO BACKFILL -- every rubric
+ * generated before 0106 taught `rubricFromSpec` to carry the field is stored
+ * without it, and deleting the rung would take all of them from a one-line
+ * grading control to a wall of descriptor text overnight, on the exact surface
+ * 0106 repaired. What changed is its licence: it may answer only where nothing
+ * has been edited, which is the only condition under which a copy of a sentence
+ * kept somewhere else is safe to show.
  *
  * IT IS A READ, NOT A MIGRATION. Nothing here writes anything back: a spec's
  * short forms reach a stored rubric only when somebody regenerates it, and
@@ -1103,14 +1145,17 @@ export function levelShort(
 	if (!level) return '';
 	const own = level.short?.trim();
 	if (own) return own;
-	if (spec) {
-		const match = rubricFromSpec(spec)
-			.find((c) => c.id === criterionId)
-			?.levels?.find((l) => Number(l.points) === Number(level.points));
-		const fromSpec = match?.short?.trim();
-		if (fromSpec) return fromSpec;
+	const descriptor = level.descriptor?.trim() ?? '';
+	if (spec && descriptor) {
+		const paired = (
+			rubricFromSpec(spec).find((c) => c.id === criterionId)?.levels ?? []
+		).filter((l) => (l.descriptor?.trim() ?? '') === descriptor);
+		if (paired.length === 1) {
+			const fromSpec = paired[0].short?.trim();
+			if (fromSpec) return fromSpec;
+		}
 	}
-	return level.descriptor?.trim() ?? '';
+	return descriptor;
 }
 
 export function rubricTotal(criteria: RubricCriterion[]): number {
