@@ -6,7 +6,7 @@
   `docs/prompt-ledger/entries/0105-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
 - Lands on: `main` directly.
-- Status: issued
+- Status: pushed
 - Branch: none. Commits on `main`.
 - Notes: `idea100-blade-01.html` carries the fix already and is the reference. The
   same defect exists in `mrpina-dev/IDEA` and is not owned here.

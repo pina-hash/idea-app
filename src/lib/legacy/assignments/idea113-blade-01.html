@@ -1322,6 +1322,31 @@ function downloadHTML(){
   const old = clone.querySelector('#__ib_data__');
   if (old) old.remove();
   const data = collectData();
+  /*
+     THE EXPORT IS A BLANK TEMPLATE PLUS ITS DATA, NEVER A TEMPLATE PLUS ITS
+     DATA PLUS A PICTURE OF ITS DATA.
+     Two regions are built by script from the saved data on every open: the
+     sketch previews (renderImageItem, from _images) and any manufacturing row
+     past the fifth (addMfgRow, from _mfgRowCount). Cloning the LIVE document
+     copies those rendered nodes into the file as markup, and then loadData()
+     builds them AGAIN on open. Measured before this reset: two sketches came
+     back as four preview items, the first two with blank captions (an input's
+     live value is not serialized into outerHTML), and six mfg rows came back
+     as seven with two elements sharing data-field="mfg-06-p". A duplicate
+     data-field is the serious half, because collectData() writes one key per
+     field and silently decides which of the two values survives. Emptying them
+     in the CLONE costs nothing, because the data is what restores them, and it
+     drops the duplicated base64 from the file as well.
+  */
+  const clonePreview = clone.querySelector('#sketch-preview');
+  if (clonePreview) clonePreview.innerHTML = '';
+  const cloneTbody = clone.querySelector('#mfg-tbody');
+  if (cloneTbody){
+    cloneTbody.querySelectorAll('tr').forEach(tr => {
+      const n = parseInt(tr.dataset.row, 10);
+      if (!(n >= 1 && n <= 5)) tr.remove();
+    });
+  }
   const sc = document.createElement('script');
   sc.id = '__ib_data__';
   sc.textContent = 'window.__IB_DATA__=' + JSON.stringify(data) + ';';
