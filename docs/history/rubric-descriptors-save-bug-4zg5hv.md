@@ -201,17 +201,27 @@ what the app exported, not a read of the live table. `prefers-reduced-motion: re
 exercised by the harness (it reports `no-preference`), and web fonts do not load there, so
 every text measurement is in the fallback stack.
 
-## The suite
+## The suite, and the full pass the README obliged
 
-`npm test` in full, at the end: reported in the session's closing message with its own
-numbers. The four tests this bundle touches or adds -- `tests/dom/rubric-descriptor-round-trip-mount.test.ts`,
-`tests/classroom-grading-console.test.ts`, `tests/classroom-leveled-rubrics.test.ts` and
-`tests/derived-numbers.test.ts` -- were run individually throughout.
+**`npm test` in full: 328 files, 6529 tests, 332.4s.** The first run came back **327 files
+and 6527 tests passing with 2 failures**, both in `tests/derived-numbers.test.ts` and both
+naming the two new route specs as unmeasured. After the regeneration below that file is
+**18 of 18 green**, and the suite has no other failure.
 
-**`tests/derived-numbers.test.ts` is the one that obliged a full browser pass.** Adding a
-route spec puts a file in the tree that the README's `counts:measured` region has never
+**That pair is why this bundle ran a full browser pass rather than only its own routes.**
+Adding a route spec puts a file in the tree the README's `counts:measured` region has never
 measured, and two of that file's cases assert the real README covers the real spec list
-whenever the block claims zero findings. So the static region was regenerated with
-`npm run verify:counts` (142 -> 144 specs, 66 -> 67 routes, 94 -> 95 `/dev` pages, 284 ->
-288 runs) AND the measured region with a full `run.mjs` pass, hunk by hunk as the prompt
-required rather than whole-file.
+whenever the block claims zero findings. Both regions were regenerated:
+
+- **static**, `npm run verify:counts`: 142 -> 144 specs, 66 -> 67 routes, 94 -> 95 `/dev`
+  pages, 284 -> 288 route/width runs.
+- **measured**, `npm run verify:browser -- --json` then `npm run verify:readme -- --from`:
+  **288 route/width runs, 4396 measurements, 2 outside threshold, 694.2s**, on `3c7f7c7`.
+  **The 2 are pre-existing and are not this bundle's**: `/dev/notebook` `tap-reach` on the
+  notebook toolbar at both widths, which the row's own label records as under the floor on
+  width by decision 12, with the owner. The previous measured region carried the same 2.
+- `--selftest` on this tree: **70 controls (36 negative, 34 positive), 0 instrument
+  failures**, which is the figure the regenerated region quotes.
+
+The README's counts block was resolved region by region rather than whole-file, as the
+prompt required.
