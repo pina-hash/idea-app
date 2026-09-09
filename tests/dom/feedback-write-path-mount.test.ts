@@ -146,10 +146,26 @@ function sendButton(m: Mounted): HTMLButtonElement {
 	return el as HTMLButtonElement;
 }
 
+/**
+ * THE BOX ARRIVES ON A DYNAMIC IMPORT (prompt 0111): the click captures the
+ * meta and sets `open`, and the component mounts when the module resolves.
+ * So the press is followed by a short poll for the field rather than a
+ * synchronous read, bounded so a box that never comes is a failure here and
+ * not a hang.
+ */
+async function untilBox(m: Mounted): Promise<void> {
+	for (let i = 0; i < 100; i++) {
+		m.flush();
+		if (m.all('#fb-msg').length) return;
+		await new Promise((r) => setTimeout(r, 10));
+	}
+	throw new Error('the box did not mount within 1s of the press');
+}
+
 /** Open the box, type a message, press Send, and let the write settle. */
 async function report(m: Mounted): Promise<void> {
 	click(m.one('.sfb-trigger'));
-	m.flush();
+	await untilBox(m);
 	const msg = m.one<HTMLTextAreaElement>('#fb-msg');
 	msg.value = TYPED;
 	msg.dispatchEvent(new Event('input', { bubbles: true }));
@@ -244,7 +260,7 @@ describe('the two helpers are asked the same question at every mount site', () =
 		const { m } = mountAsProduction(w, { client: tableClient(w), userId: USER_ID });
 		track(m);
 		click(m.one('.sfb-trigger'));
-		m.flush();
+		await untilBox(m);
 		expect(m.all('#fb-contact')).toHaveLength(0);
 	});
 
@@ -254,7 +270,7 @@ describe('the two helpers are asked the same question at every mount site', () =
 		const { m } = mountAsProduction(w, { client: null, userId: null });
 		track(m);
 		click(m.one('.sfb-trigger'));
-		m.flush();
+		await untilBox(m);
 		expect(m.all('#fb-contact')).toHaveLength(1);
 	});
 
@@ -266,7 +282,7 @@ describe('the two helpers are asked the same question at every mount site', () =
 		const { m } = mountAsProduction(w, { client: null, userId: null });
 		track(m);
 		click(m.one('.sfb-trigger'));
-		m.flush();
+		await untilBox(m);
 		const contact = m.one<HTMLInputElement>('#fb-contact');
 		contact.value = 'ask me in 4th period';
 		contact.dispatchEvent(new Event('input', { bubbles: true }));

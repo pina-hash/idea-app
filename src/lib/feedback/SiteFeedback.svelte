@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import FeedbackBox from './FeedbackBox.svelte';
+	import type FeedbackBox from './FeedbackBox.svelte';
 	import {
 		probeFeedbackCapabilities,
 		type FeedbackCapabilities,
 		type FeedbackEntry,
 		type FeedbackResult
 	} from './feedback';
-	import { uploadFeedbackScreenshot, type ScreenshotUpload } from './screenshot';
+	import type { uploadFeedbackScreenshot, ScreenshotUpload } from './screenshot';
 	import {
 		appForRouteId,
 		captureMeta,
@@ -156,6 +156,81 @@
 	);
 
 	let open = $state(false);
+
+	/**
+	 * THE BOX IS NOT IN THE SHELL CHUNK, AND THE CLICK MUST NOT WAIT FOR IT.
+	 *
+	 * This component is mounted once in the root layout, so everything it
+	 * imports statically ships on EVERY route. Ledger 0107's loading audit
+	 * measured `FeedbackBox` (and `uploadFeedbackScreenshot` beside it) at
+	 * about a quarter of the shell for a panel that renders only behind
+	 * `{#if open}`. So both are `import()`ed, and the type-only imports above
+	 * are what keep the props typed without pulling the modules in.
+	 *
+	 * THE TRADE IS A FETCH ON THE CLICK PATH, AND IT IS PAID BEFORE THE CLICK.
+	 * The chunk is requested the first time any of these happens, whichever
+	 * comes first:
+	 *   * the component MOUNTS -- one macrotask after hydration, which is the
+	 *     earliest the shell can ask for anything without being on the path
+	 *     to interactivity. The bytes still arrive on every page load; what
+	 *     moved is WHEN: after the page is interactive rather than before it.
+	 *     An IDLE callback was the first shape and was measured out (prompt
+	 *     0111): on a throttled link a click landing in the first second
+	 *     after hydration waited a median 640ms for the chunk against 97ms
+	 *     on the static import, because idle had not come yet. Asking at
+	 *     mount shrinks that window to the fetch itself, in flight.
+	 *   * the pointer ENTERS the trigger, it gains FOCUS, or the pointer goes
+	 *     DOWN on it -- redundant while the mount-time fetch succeeded, and the
+	 *     retry when it did not: a failed fetch forgets itself, and the next
+	 *     hover or tab asks again before the click does.
+	 * None of this runs on the server, and none of it runs twice.
+	 *
+	 * IF THE CHUNK IS NOT THERE WHEN THE CLICK LANDS, the click still does
+	 * everything it did: the meta is captured at the press (the viewport, the
+	 * clock, the route as they were), `open` is set, and the box mounts the
+	 * moment the module resolves. A fetch that FAILS (offline, a deploy that
+	 * rotated the hashes under an open tab) is said out loud beside the
+	 * trigger and the next press tries again, because a report control that
+	 * does nothing on the one day the network is broken is the worst possible
+	 * version of this control.
+	 */
+	type BoxModule = { default: typeof FeedbackBox };
+	type ShotModule = { uploadFeedbackScreenshot: typeof uploadFeedbackScreenshot };
+	let Box = $state<typeof FeedbackBox | null>(null);
+	let uploader = $state<typeof uploadFeedbackScreenshot | null>(null);
+	let loadFailed = $state(false);
+	let loading: Promise<void> | null = null;
+
+	function preload(): Promise<void> {
+		if (loading) return loading;
+		loading = Promise.all([
+			import('./FeedbackBox.svelte') as Promise<BoxModule>,
+			import('./screenshot') as Promise<ShotModule>
+		]).then(
+			([box, shot]) => {
+				Box = box.default;
+				uploader = shot.uploadFeedbackScreenshot;
+				loadFailed = false;
+			},
+			() => {
+				// Forget the attempt so the next press tries again, and say so.
+				loading = null;
+				loadFailed = true;
+			}
+		);
+		return loading;
+	}
+
+	$effect(() => {
+		// The mount-time fetch. `shown` is the one tracked read, so a surface
+		// with no control asks for nothing; nothing injected is called, and
+		// `preload` touches only this component's own state. A macrotask, not
+		// a microtask, so hydration's own flush finishes first.
+		if (!shown) return;
+		const id = setTimeout(() => void preload(), 0);
+		return () => clearTimeout(id);
+	});
+
 	/**
 	 * WHAT THE BACKEND IN FRONT OF US CAN TAKE (0170), probed ONCE PER OPEN.
 	 *
@@ -172,6 +247,7 @@
 	let captured = $state<Record<string, unknown>>({});
 
 	function openBox() {
+		void preload();
 		const viewport =
 			typeof window === 'undefined'
 				? null
@@ -218,9 +294,13 @@
 	const attach = $derived.by(() => {
 		if (uploadScreenshot) return uploadScreenshot;
 		if (!client || !viewer || !capabilities.screenshot) return null;
+		// The transport rides the same lazy chunk as the box; the box is never
+		// on screen before it, so a null here is never what a person sees.
+		const up = uploader;
+		if (!up) return null;
 		const c = client;
 		const uid = viewer;
-		return (file: File) => uploadFeedbackScreenshot(c, uid, file);
+		return (file: File) => up(c, uid, file);
 	});
 
 	/**
@@ -266,6 +346,9 @@
 			class="sfb-trigger"
 			class:sfb-trigger-error={status !== null}
 			onclick={openBox}
+			onpointerenter={preload}
+			onpointerdown={preload}
+			onfocus={preload}
 		>
 			<span class="sfb-glyph" aria-hidden="true">
 				<svg
@@ -283,12 +366,19 @@
 			</span>
 			<span class="sfb-word">{label}</span>
 		</button>
+		{#if loadFailed}
+			<!-- Said beside the control, not swallowed: the one thing worse than a
+			     report window that will not open is one that will not say so. -->
+			<p class="sfb-load-failed" role="alert">
+				The report window did not load. Check the connection and press it again.
+			</p>
+		{/if}
 	</div>
 {/if}
 
-{#if open && submit}
+{#if open && submit && Box}
 	<div class="sfb-host">
-		<FeedbackBox
+		<Box
 			app={appForRouteId(routeId, pathname)}
 			context={contextOf({ routeId, pathname })}
 			meta={captured}
@@ -374,6 +464,23 @@
 				color 140ms ease,
 				border-color 140ms ease;
 		}
+	}
+
+	.sfb-load-failed {
+		margin: 0.4rem 0 0;
+		max-width: 16rem;
+		color: var(--amber, #d08030);
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.68rem;
+		line-height: 1.4;
+	}
+	.sfb-shell .sfb-load-failed {
+		/* Above the floating pill, which sits at the bottom edge: the pill
+		   stays where it was and the sentence takes no space it could push. */
+		position: absolute;
+		right: 0;
+		bottom: calc(100% + 0.4rem);
+		text-align: right;
 	}
 
 	/* A control that cannot be pressed on paper is ink. */
