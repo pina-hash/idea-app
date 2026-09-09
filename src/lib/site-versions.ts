@@ -43,6 +43,21 @@ export const FIELD = '\x1f';
 /** The `--pretty=format:` string whose output `parseGitLog` reads. */
 export const GIT_LOG_FORMAT = `${REC}%h${FIELD}%cd${FIELD}%cI${FIELD}%s`;
 
+/**
+ * The `--pretty=format:` string for the ONE-RECORD HEAD READ, whose output
+ * `parseHeadCommit` reads.
+ *
+ * IT IS A SECOND COMMAND BECAUSE THE FIRST ONE CANNOT SEE A MERGE, AND THE
+ * FIRST ONE MUST NOT LEARN TO. The changelog log runs `--no-merges` on purpose:
+ * a merge subject is not user-facing changelog copy, and counting a merge would
+ * count every commit under it twice. But the commit a deployment is BUILT FROM
+ * is now routinely a merge -- `main` advances by `--no-ff` merges -- and the
+ * build stamp has to be able to recognise one. So the changelog keeps its
+ * filtered walk and the stamp gets an unfiltered one-line read beside it,
+ * rather than one walk trying to answer two questions with opposite needs.
+ */
+export const GIT_HEAD_FORMAT = `%h${FIELD}%cd`;
+
 export interface VersionEntry {
 	/** Short commit SHA. */
 	sha: string;
@@ -74,6 +89,17 @@ export interface DeployStamp {
 	date: string;
 	/** False when the build saw a shallow or unavailable history. */
 	complete: boolean;
+}
+
+/**
+ * The head of the history as git reports it with NOTHING filtered out -- so a
+ * merge commit is a legal value here and is not one in `VersionEntry`.
+ */
+export interface HeadCommit {
+	/** Short commit SHA, as `%h` gives it. */
+	sha: string;
+	/** Human date, e.g. "Sep 9, 2026". */
+	date: string;
 }
 
 export interface SiteVersions {
@@ -148,39 +174,101 @@ export function deriveApps(
 }
 
 /**
+ * Parse the one-record output of `GIT_HEAD_FORMAT`. Null when there was no
+ * history to read, which is the same fail-soft the log parse takes.
+ */
+export function parseHeadCommit(raw: string): HeadCommit | null {
+	const [sha, date] = (raw ?? '').trim().split(FIELD);
+	const s = (sha ?? '').trim();
+	if (!s) return null;
+	return { sha: s, date: (date ?? '').trim().replace(/\s+/g, ' ') };
+}
+
+/**
+ * Does `envSha` -- a full 40-character sha from the platform -- name the same
+ * commit as `sha`, which is a SHORT sha of unspecified length?
+ *
+ * The test is symmetric because neither length is fixed: git lengthens `%h`
+ * past seven whenever seven would be ambiguous (this repo's are eight today),
+ * and the stamp itself renders seven. One prefix test in one direction is a
+ * comparison that starts failing the day the repo grows enough to need a
+ * longer abbreviation.
+ */
+function namesSameCommit(envSha: string, sha: string): boolean {
+	if (!envSha || !sha) return false;
+	return envSha.startsWith(sha) || sha.startsWith(envSha.slice(0, 7));
+}
+
+/**
  * Which commit this build IS.
  *
  * THE PLATFORM'S OWN SHA WINS. `VERCEL_GIT_COMMIT_SHA` names the commit the
  * deployment was created from and is exact whatever the clone depth turned out
  * to be, so it is preferred over the head of a log that may have been
- * truncated. The date comes from the log only when the log's head IS that
- * commit -- dating a build by a commit it was not built from is the same class
- * of quiet lie the version number was telling.
+ * truncated. The date comes from a commit whose sha CORROBORATES that one --
+ * dating a build by a commit it was not built from is the same class of quiet
+ * lie the version number was telling.
+ *
+ * THE CORROBORATION HAS TO BE ABLE TO SEE A MERGE COMMIT, AND FOR TWO MONTHS IT
+ * COULD NOT. It compared the platform's sha against the head of the CHANGELOG
+ * log, which runs `--no-merges`. Since 2026-09-09 `main` advances by `--no-ff`
+ * merge commits, so the commit a production build is made from is routinely a
+ * commit that log excludes by construction: nothing could ever corroborate it,
+ * the date emptied, and every merged deploy stamped `local build` where its
+ * date belongs. Measured on live production thirty seconds apart -- `d7dd04c`,
+ * a plain export commit, rendered `Sep 9, 2026`; `786702d`, a merge, rendered
+ * `local build`.
+ *
+ * WHAT IS NOT DONE ABOUT IT: the check is not removed, and the changelog log is
+ * not taught to include merges. The refusal is the reason the date is worth
+ * reading at all, and a merge subject is not changelog copy. Instead the
+ * gatherer reads the head ONE more time with nothing filtered (`opts.head`),
+ * and that reading is offered to the same unchanged test first. A build whose
+ * sha matches NEITHER head still gets no date, exactly as before.
+ *
+ * `opts.head` IS OPTIONAL, SO THE FALLBACK IS THE OLD BEHAVIOUR EXACTLY. A
+ * caller that supplies none corroborates against the log head alone, which is
+ * what every caller did before this parameter existed.
  */
 export function deriveDeploy(
 	entries: VersionEntry[],
-	opts: { complete: boolean; envSha?: string | null }
+	opts: { complete: boolean; envSha?: string | null; head?: HeadCommit | null }
 ): DeployStamp {
-	const head = entries[0];
+	const logHead = entries[0];
+	/* Unfiltered head first: it is the only one that can name a merge, and
+	   where the build is not a merge the two are the same commit anyway. */
+	const candidates: HeadCommit[] = [];
+	if (opts.head?.sha) candidates.push(opts.head);
+	if (logHead) candidates.push({ sha: logHead.sha, date: logHead.date });
+
 	const env = (opts.envSha ?? '').trim();
 	if (env) {
-		const short = env.slice(0, 7);
-		const agrees = !!head && (env.startsWith(head.sha) || head.sha.startsWith(short));
-		return { sha: short, date: agrees ? head.date : '', complete: opts.complete };
+		const named = candidates.find((c) => namesSameCommit(env, c.sha));
+		return { sha: env.slice(0, 7), date: named?.date ?? '', complete: opts.complete };
 	}
+	/* No platform sha: this is a local or non-Vercel build, and the commit it
+	   IS is whatever git's own head is -- including a merge, whose date the
+	   changelog log would otherwise have swapped for an older commit's. */
+	const head = candidates[0];
 	return { sha: head?.sha ?? 'dev', date: head?.date ?? '', complete: opts.complete };
 }
 
-/** The whole substrate, from one raw log plus what the platform said. */
+/**
+ * The whole substrate, from one raw log plus what the platform said.
+ *
+ * `headRaw` is the unfiltered one-line head read (`GIT_HEAD_FORMAT`), and is
+ * what lets the stamp recognise a build made from a merge commit. Omitted, the
+ * derivation is exactly what it was before that read existed.
+ */
 export function buildSiteVersions(
 	raw: string,
-	opts: { complete: boolean; envSha?: string | null }
+	opts: { complete: boolean; envSha?: string | null; headRaw?: string | null }
 ): SiteVersions {
 	const entries = parseGitLog(raw, opts);
 	return {
 		entries,
 		apps: deriveApps(entries, opts),
-		deploy: deriveDeploy(entries, opts)
+		deploy: deriveDeploy(entries, { ...opts, head: parseHeadCommit(opts.headRaw ?? '') })
 	};
 }
 
