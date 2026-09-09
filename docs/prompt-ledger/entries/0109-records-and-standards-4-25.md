@@ -11,7 +11,7 @@
 - Lands on: `claude/docs-standards-ledger-hihkhd`, branched from `origin/main`.
   Merging `integration` into `main` is permitted after the six-gate checklist of
   `IDEA_instructions.md` 4.20 is reported with the command and the answer.
-- Status: issued
+- Status: pushed
 - Branch: `claude/docs-standards-ledger-hihkhd`
 - Notes: THE BASE IS THE MIRROR, NOT A PASTE. The sweep is the reason: any text
   handed over from a chat is a fork waiting to happen, so this bundle reads
