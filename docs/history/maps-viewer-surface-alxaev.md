@@ -216,9 +216,14 @@ decided by 0020 is unchanged.
   smallest is 44.0 (the search box, the card controls) and the rows are 44.9.
   Two harness limits apply: external requests are blocked so text is measured
   in the fallback stack, and `prefers-reduced-motion` is `no-preference`.
-- **The full harness run, `npm run verify:readme`: README_RUNS runs,
-  README_MEASUREMENTS measurements, README_OUTSIDE outside threshold, README_SECONDS s** on
-  `README_SHA`. README_OUTSIDE_NOTE
+- **The full harness run, `npm run verify:readme`: 292 runs,
+  4502 measurements, 2 outside threshold, 708.6s** on `db87ed2`, clean tree,
+  selftest 70 controls and 0 instrument failures. The two outside rows are the
+  standing `/dev/notebook` toolbar `tap-reach` findings at both widths (decision
+  12, with the owner), identical by identity to the block before this bundle;
+  the eight maps specs and the two grading-rubric specs the merge brought in
+  contribute none. The static region says 146 specs over 67 routes, 95 `/dev`
+  pages, 292 runs, and `tests/derived-numbers.test.ts` agrees with both.
 - **Gestures, driven with a real mouse through playwright-core rather than
   the harness's synthetic events**: at 1440, wheel -600 over the room takes
   zoom 1.00 to 2.46 and the scale bar from 5 ft to 2 ft with `scrollY` 0; a
