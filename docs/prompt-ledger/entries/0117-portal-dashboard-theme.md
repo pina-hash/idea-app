@@ -23,7 +23,10 @@
 - Branch: `claude/portal-dashboard-theme-vycnkh`, from `origin/main` at
   `b03a941`. Report 22 was diagnosed and handed to 0118 (the fix is in
   `ClassroomFeed.svelte`); the FRC queue controls on the console measure
-  18.4 and 26.2px and are handed to the owner of `src/lib/frc/**`.
+  18.4 and 26.2px and are handed to the owner of `src/lib/frc/**`. The rain
+  reaches the classroom and the Foundry; the notebook pair was withdrawn on
+  merging `integration`, where 0119's own Matrix plate says no rain, and
+  that disagreement is Mr. Pina's to settle.
 - Notes: the six reports, numbered as issued. 21: for STUDENTS the apps come
   before their classes on the home page (staff ordering is not this). 22: a
   collapsed class opens in one click, not two. 23: the profile customization

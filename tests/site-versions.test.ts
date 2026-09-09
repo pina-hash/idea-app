@@ -50,6 +50,7 @@ import {
 	REC,
 	buildSiteVersions,
 	deriveDeploy,
+	parseHeadCommit,
 	groupEntriesByMonth,
 	parseGitLog,
 	stampParts,
@@ -250,6 +251,125 @@ describe('which commit the stamp names', () => {
 
 	it("falls back to the log's head when the platform says nothing", () => {
 		expect(deriveDeploy(entries, { complete: true, envSha: null }).sha).toBe('aaaaaaa');
+	});
+
+	/**
+	 * A merged deploy, which is every production deploy since 2026-09-09.
+	 *
+	 * The commit the build was made from is a MERGE, so it is absent from the
+	 * changelog log by construction -- that log runs `--no-merges`. `head` is
+	 * the one-line unfiltered read that can see it. The two fixtures below are
+	 * the two shapes prompt 0116 caught on live production thirty seconds
+	 * apart: a plain commit that rendered its date, and a merge that rendered
+	 * `local build`.
+	 */
+	const MERGE_SHA = '786702d09999999999999999999999999999aaaa';
+	const PLAIN_SHA = 'd7dd04cf8888888888888888888888888888bbbb';
+	/** What `git log -1` says at the merge: the merge itself, dated. */
+	const mergeHead = { sha: '786702d0', date: 'Sep 9, 2026' };
+	/** What `git log --no-merges` says at the same commit: an older one. */
+	const mergeLog: VersionEntry[] = parseGitLog(
+		log(commit('859c7a65', 'Sep  8, 2026', 'ledger: 0116 pushed', [PORTAL_FILE])),
+		{ complete: true }
+	);
+
+	it('dates a build made from a MERGE commit, which the changelog log cannot see', () => {
+		const d = deriveDeploy(mergeLog, {
+			complete: true,
+			envSha: MERGE_SHA,
+			head: mergeHead
+		});
+		expect(d.sha).toBe('786702d');
+		expect(d.date).toBe('Sep 9, 2026');
+	});
+
+	it('is the defect exactly: with no unfiltered head, that same build says nothing', () => {
+		// The positive control for the test above. This is what shipped: the
+		// merge sha cannot match the no-merges head, so the date empties and
+		// `stampParts` renders `local build` in its place.
+		const d = deriveDeploy(mergeLog, { complete: true, envSha: MERGE_SHA });
+		expect(d.date).toBe('');
+		expect(stampParts('classroom', {}, d)).toEqual(['Classroom', '786702d', 'local build']);
+	});
+
+	it('still dates a build made from a PLAIN commit, the shape that always worked', () => {
+		const plainLog = parseGitLog(
+			log(commit('d7dd04cf', 'Sep  9, 2026', 'classroom: The Shop Trophy r2', [PORTAL_FILE])),
+			{ complete: true }
+		);
+		const d = deriveDeploy(plainLog, {
+			complete: true,
+			envSha: PLAIN_SHA,
+			head: { sha: 'd7dd04cf', date: 'Sep 9, 2026' }
+		});
+		expect(d.sha).toBe('d7dd04c');
+		expect(d.date).toBe('Sep 9, 2026');
+	});
+
+	it('REFUSES a date when the build sha matches NEITHER head', () => {
+		// The whole reason the check exists, and the thing widening its field of
+		// view must not cost. A build from a commit that is neither the merge
+		// nor the log head is a build this history cannot speak for.
+		const d = deriveDeploy(mergeLog, {
+			complete: true,
+			envSha: 'ffffffff0000000000000000000000000000cccc',
+			head: mergeHead
+		});
+		expect(d.date).toBe('');
+	});
+
+	it('takes the date from whichever head names the build, not from the first one', () => {
+		// The unfiltered head is tried first, but it is not preferred blindly:
+		// where it names a DIFFERENT commit from the build, the log head is
+		// still asked, and its date is the corroborated one.
+		const d = deriveDeploy(mergeLog, {
+			complete: true,
+			envSha: '859c7a650000000000000000000000000000dddd',
+			head: mergeHead
+		});
+		expect(d.sha).toBe('859c7a6');
+		expect(d.date).toBe('Sep 8, 2026');
+	});
+
+	it('compares short shas in both directions, since neither length is fixed', () => {
+		// This repo abbreviates to eight; the stamp renders seven. A one-way
+		// prefix test passes today and stops the day either length moves.
+		expect(
+			deriveDeploy([], { complete: true, envSha: MERGE_SHA, head: { sha: '786702d', date: 'x' } })
+				.date
+		).toBe('x');
+		expect(
+			deriveDeploy([], {
+				complete: true,
+				envSha: MERGE_SHA,
+				head: { sha: '786702d0999', date: 'y' }
+			}).date
+		).toBe('y');
+	});
+
+	it('stamps the merge itself on a local build, where the platform says nothing', () => {
+		const d = deriveDeploy(mergeLog, { complete: true, envSha: null, head: mergeHead });
+		expect(d.sha).toBe('786702d0');
+		expect(d.date).toBe('Sep 9, 2026');
+	});
+
+	it('reads the unfiltered head record, and answers null for no history', () => {
+		expect(parseHeadCommit(`786702d0${FIELD}Sep  9, 2026`)).toEqual({
+			sha: '786702d0',
+			date: 'Sep 9, 2026'
+		});
+		expect(parseHeadCommit('')).toBeNull();
+		expect(parseHeadCommit('   ')).toBeNull();
+	});
+
+	it('carries the head through buildSiteVersions, which is what the build calls', () => {
+		const site = buildSiteVersions(
+			log(commit('859c7a65', 'Sep  8, 2026', 'ledger: 0116 pushed', [PORTAL_FILE])),
+			{ complete: true, envSha: MERGE_SHA, headRaw: `786702d0${FIELD}Sep  9, 2026` }
+		);
+		expect(site.deploy.date).toBe('Sep 9, 2026');
+		// And the merge is NOT a changelog entry: the log it parsed excluded it.
+		expect(site.entries.map((e) => e.sha)).toEqual(['859c7a65']);
 	});
 
 	it('says "dev" rather than nothing when there is no history at all', () => {

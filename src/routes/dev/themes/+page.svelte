@@ -3,12 +3,11 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
-	/* The three room stylesheets, for `?room=` only (see +page.ts). Each is
+	/* The two room stylesheets, for `?room=` only (see +page.ts). Each is
 	   scoped under its own root class and reaches nothing until that class is
-	   on an element, so importing all three costs this harness nothing on the
+	   on an element, so importing both costs this harness nothing on the
 	   default case. */
 	import '$lib/classroom/classroom.css';
-	import '$lib/notebook/notebook-theme.css';
 	import '$lib/foundry/forge.css';
 	import {
 		SITE_THEMES,
@@ -95,7 +94,7 @@
 
 	const current = $derived(siteTheme());
 	let { data } = $props();
-	const ROOM_CLASS: Record<string, string> = { classroom: 'cr-root', notebook: 'nb-root', foundry: 'fg-root' };
+	const ROOM_CLASS: Record<string, string> = { classroom: 'cr-root', foundry: 'fg-root' };
 	const roomClass = $derived(data.room ? ROOM_CLASS[data.room] : '');
 
 	/**

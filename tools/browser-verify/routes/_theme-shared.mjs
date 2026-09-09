@@ -36,7 +36,9 @@ export const BOARD_CELLS = 54;
 
 /**
  * THE ROOMS THE RAIN REACHES INTO (ledger 0117, report 25), one spec per
- * room from this factory. `/dev/themes?room=<room>` wraps the page in the
+ * room from this factory -- the classroom and the Foundry; the notebook's
+ * pair was withdrawn when ledger 0119's own Matrix plate landed saying no
+ * rain (see matrix.css). `/dev/themes?room=<room>` wraps the page in the
  * room's real root class with the room's real stylesheet imported, so the
  * document holds the room rule (`body:has(<root>) .bg-fx { display: none }`,
  * an opaque root) and the theme rule that reaches past it, and nothing else.

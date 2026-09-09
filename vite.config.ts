@@ -1,7 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
 import { defineConfig, type Plugin } from 'vite';
-import { buildSiteVersions, GIT_LOG_FORMAT } from './src/lib/site-versions';
+import { buildSiteVersions, GIT_HEAD_FORMAT, GIT_LOG_FORMAT } from './src/lib/site-versions';
 import { devRouteStub } from './src/lib/dev-routes';
 
 /**
@@ -74,11 +74,21 @@ function siteVersionsPlugin(): Plugin {
 			if (!wanted) return;
 
 			let raw = '';
+			let headRaw = '';
 			let complete = false;
 			try {
 				raw = execSync(
 					`git log --no-merges --date=format:"%b %e, %Y" --pretty=format:"${GIT_LOG_FORMAT}" --name-only`,
 					{ encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+				);
+				// The THIRD question, and it is a second git command on purpose: the
+				// log above runs --no-merges, so it cannot see the commit a merged
+				// deploy is built FROM, and teaching it to would put merge subjects
+				// in the changelog and count everything under them twice. See
+				// deriveDeploy for what the stamp did while this was missing.
+				headRaw = execSync(
+					`git log -1 --date=format:"%b %e, %Y" --pretty=format:"${GIT_HEAD_FORMAT}"`,
+					{ encoding: 'utf8' }
 				);
 				complete =
 					execSync('git rev-parse --is-shallow-repository', { encoding: 'utf8' }).trim() ===
@@ -87,11 +97,13 @@ function siteVersionsPlugin(): Plugin {
 				// No git history available (e.g. some CI checkouts): fail soft, but
 				// not silently -- see the warning below.
 				raw = '';
+				headRaw = '';
 				complete = false;
 			}
 
 			const site = buildSiteVersions(raw, {
 				complete,
+				headRaw,
 				envSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null
 			});
 

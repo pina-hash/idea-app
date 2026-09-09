@@ -169,25 +169,41 @@ opaque `.cr-root`, `.nb-root` or `.fg-root` under the centre of each; the
 coin desk, the maps viewer, the feedback console, the pathway picker, the
 short-link editor and every `.legacy-index` page already showed the layer.
 
-Six theme-keyed rules in `matrix.css`, two per room and one declaration each:
+Four theme-keyed rules in `matrix.css`, two per room and one declaration each:
 `body:has(<room>) .bg-fx { display: block }` and `<room> { background-color:
-transparent }` for `.cr-root`, `.nb-root:not([data-nb-theme])` and `.fg-root`.
-The notebook only on its DEFAULT plate: light and IDEA are the room's own
-choice. NOT reached: GAUNTLET, GREENLINE, VANGUARD and FRC (named by the
-prompt), Tournaments (an emerald room with a one-emerald rule, not a page
-with cards on it) and FSP (archived, deliberately not IDEA).
-`tests/theme-tokens.test.ts` pins the exception list at nine, each with what
-it may declare.
+transparent }` for `.cr-root` and `.fg-root`. NOT reached: GAUNTLET,
+GREENLINE, VANGUARD and FRC (named by the prompt), Tournaments (an emerald
+room with a one-emerald rule, not a page with cards on it) and FSP (archived,
+deliberately not IDEA). `tests/theme-tokens.test.ts` pins the exception list
+at seven, each with what it may declare.
 
-`/dev/themes?room=classroom|notebook|foundry` wraps the page in the room's
-real root class with the room's real stylesheet imported, and one spec per
-room proves, in order: theme OFF, the room hides the layer (positive control
+**THE NOTEBOOK PAIR WAS WRITTEN, MEASURED AND WITHDRAWN, AND THE QUESTION IS
+MR. PINA'S.** This bundle first reached into the notebook's default plate
+(`.nb-root:not([data-nb-theme])`, measured clean at 375 and 1440: root
+transparent, layer back, canvas running). Merging `integration` at the end
+brought in ledger 0119's notebook overhaul, which gives the room a Matrix
+plate of its own (`.nb-root[data-nb-theme='matrix']`, and the default plate
+following the site theme) and whose header says, in its own words, "NO RAIN
+IN HERE ... the falling code stays on the portal pages that carry it", with
+the room's `.bg-fx` suppression named as what it relies on. A site-theme
+rule reaching past a decision the room's owner wrote down the same day is
+two lanes shipping opposite answers into one surface (`IDEA_INTERFACE_
+STANDARDS` 12: report the disagreement, name both sides, ask), so the pair,
+its two test entries, the notebook room spec and the harness's notebook
+option were removed before landing. Report 25 says "many more pages" and the
+classroom (every `/classroom` page, the reference viewer) and the Foundry
+deliver that; whether the notebook's Matrix plate should carry the rain is
+one decision for its owner, and adding it back is two rules and two test
+entries.
+
+`/dev/themes?room=classroom|foundry` wraps the page in the room's real root
+class with the room's real stylesheet imported, and one spec per room
+proves, in order: theme OFF, the room hides the layer (positive control
 that the room stylesheet is in the document); theme ON, `.bg-fx` is `block`,
 the root computes `rgba(0, 0, 0, 0)`, and the rain canvas is inside the layer,
-`data-motion` running, 30+ frames -- at 375 and 1440 for all three. The board
+`data-motion` running, 30+ frames -- at 375 and 1440 for both. The board
 inside a room is a pairing no page makes (`--gear` read 4.49 on the forge's
-grounds and 4.43 on the notebook's, both token-on-room pairings that predate
-the rain) so the room specs measure the profile panel's copy instead, which
+grounds, a token-on-room pairing that predates the rain) so the room specs measure the profile panel's copy instead, which
 those rooms really mount.
 
 ## Verification
@@ -207,7 +223,7 @@ those rooms really mount.
   owns or touched, at 375 and 1440, every row inside threshold except the
   FRC queue controls above. Seven specs are new (`portal-admin.mjs`,
   `portal-admin-used-roster-admins.mjs`, `portal-admin-owner-1.mjs`,
-  `profile-menu-state-open.mjs`, three `themes-state-matrix-room-*.mjs`);
+  `profile-menu-state-open.mjs`, two `themes-state-matrix-room-*.mjs`);
   the README's static region regenerated to 163 specs / 68 routes / 96 dev
   pages / 326 runs, and its measured region by the full pass on the committed
   tree (`dirty: false`, sha `85c7ea9`, server reused): **326 runs, 5520
@@ -229,8 +245,8 @@ those rooms really mount.
   at 2844); press inside a panel, reload, and see it move up; open `/admin`
   and land on the roster panel; sign in as a student and see Apps above
   Your Classes on `/`; switch to Matrix in the profile menu and open a
-  classroom page, the notebook on its default plate, and the Foundry.
-- The classroom, notebook and Foundry under the theme were measured through
+  classroom page and the Foundry.
+- The classroom and Foundry under the theme were measured through
   their root classes and stylesheets on the theme harness, not by mounting a
   classroom page: the rain's content band (1100px) is narrower than the
   classroom's 92rem split, so its outer columns get the film at full gain,

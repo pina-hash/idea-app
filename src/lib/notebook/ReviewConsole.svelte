@@ -900,8 +900,9 @@
 <svelte:window onkeydown={onWindowKey} />
 
 <!-- .nb-root scopes the notebook's editorial theme (notebook-theme.css) and,
-     through data-nb-theme, which of its three palettes is showing; the review
-     console lives in the same room as the student feed, in every light.
+     through data-nb-theme, which of its four palettes is showing (the default
+     one follows the site theme); the review console lives in the same room as
+     the student feed, in every light.
      `cr-app` is the shell's application frame: above 1024px this room IS the
      viewport, and the body under the bar takes whatever is left. -->
 <div class="nb-root cr-app" data-nb-theme={notebookThemeAttr()}>
