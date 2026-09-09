@@ -1,0 +1,194 @@
+[
+  {
+    "id": "deck-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "9 slides, right order",
+        "points": 4,
+        "descriptor": "All nine slides present in the given order, and each station slide names its station."
+      },
+      {
+        "label": "Proficient",
+        "short": "9 slides, one out of order",
+        "points": 3,
+        "descriptor": "All nine slides present, with one slide out of order or one station unlabeled."
+      },
+      {
+        "label": "Developing",
+        "short": "7 or 8 slides",
+        "points": 2,
+        "descriptor": "Seven or eight slides present, or two or more stations missing their own slide."
+      },
+      {
+        "label": "Absent",
+        "short": "Under 7 slides",
+        "points": 0,
+        "descriptor": "Fewer than seven slides, or no deck submitted."
+      }
+    ],
+    "points": 4,
+    "criterion": "Your deck: Slide structure",
+    "incomplete": false
+  },
+  {
+    "id": "deck-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All slides under 25 words",
+        "points": 3,
+        "descriptor": "No slide exceeds 25 words, and every slide except the title carries an image."
+      },
+      {
+        "label": "Proficient",
+        "short": "One or two slides over",
+        "points": 2,
+        "descriptor": "One or two slides exceed 25 words, or one slide has no image."
+      },
+      {
+        "label": "Developing",
+        "short": "Three or four slides over",
+        "points": 1,
+        "descriptor": "Three or four slides exceed 25 words, or two or three slides have no image."
+      },
+      {
+        "label": "Absent",
+        "short": "Five or more over",
+        "points": 0,
+        "descriptor": "Five or more slides exceed 25 words, or the deck is mostly text."
+      }
+    ],
+    "points": 3,
+    "criterion": "Your deck: Visual density",
+    "incomplete": false
+  },
+  {
+    "id": "deck-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All 5 parts, 3 columns",
+        "points": 3,
+        "descriptor": "Slide 7 shows nominal, measured, and difference for all five parts."
+      },
+      {
+        "label": "Proficient",
+        "short": "3 or 4 parts",
+        "points": 2,
+        "descriptor": "Slide 7 shows those three values for three or four parts."
+      },
+      {
+        "label": "Developing",
+        "short": "Numbers, no comparison",
+        "points": 1,
+        "descriptor": "Measured values appear with no nominal to compare against, or only one or two parts are shown."
+      },
+      {
+        "label": "Absent",
+        "short": "No numbers",
+        "points": 0,
+        "descriptor": "No measurement data on the deck."
+      }
+    ],
+    "points": 3,
+    "criterion": "Your deck: Measurements shown",
+    "incomplete": false
+  },
+  {
+    "id": "portfolio-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All 5 stations, specific",
+        "points": 5,
+        "descriptor": "Names a specific process decision at all five stations, each one a choice that could have gone another way."
+      },
+      {
+        "label": "Proficient",
+        "short": "4 stations, or 5 vague",
+        "points": 4,
+        "descriptor": "Names a specific decision at four stations, or covers all five but one is a description rather than a decision."
+      },
+      {
+        "label": "Developing",
+        "short": "2 or 3 stations",
+        "points": 2,
+        "descriptor": "Names a decision at two or three stations, or describes what was done without identifying a choice."
+      },
+      {
+        "label": "Absent",
+        "short": "0 or 1 station",
+        "points": 0,
+        "descriptor": "Covers one station or none."
+      }
+    ],
+    "points": 5,
+    "criterion": "Present your portfolio: Process decisions",
+    "incomplete": false
+  },
+  {
+    "id": "portfolio-r5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Pattern named and explained",
+        "points": 5,
+        "descriptor": "States which process held dimensions best and worst from their own numbers, and gives a physical reason involving the tool, the beam, the material, or the setup."
+      },
+      {
+        "label": "Proficient",
+        "short": "Pattern named, thin reason",
+        "points": 4,
+        "descriptor": "States the pattern from their own numbers and offers a reason that is correct but not tied to a specific process characteristic."
+      },
+      {
+        "label": "Developing",
+        "short": "Numbers restated only",
+        "points": 2,
+        "descriptor": "Reads the measurements out without saying what pattern they show, or names a pattern with no reason."
+      },
+      {
+        "label": "Absent",
+        "short": "No data used",
+        "points": 0,
+        "descriptor": "Does not refer to their own measurements."
+      }
+    ],
+    "points": 5,
+    "criterion": "Present your portfolio: Data connected to process",
+    "incomplete": false
+  },
+  {
+    "id": "portfolio-r6",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Answers all, from own work",
+        "points": 5,
+        "descriptor": "Answers every question from what they did and measured, including at least one they had not prepared for."
+      },
+      {
+        "label": "Proficient",
+        "short": "Answers most",
+        "points": 4,
+        "descriptor": "Answers most questions from their own work, with one answer that restates a slide."
+      },
+      {
+        "label": "Developing",
+        "short": "Reads slides back",
+        "points": 2,
+        "descriptor": "Answers mainly by reading slides aloud, or cannot answer more than one question."
+      },
+      {
+        "label": "Absent",
+        "short": "No answers",
+        "points": 0,
+        "descriptor": "Does not answer questions, or does not present."
+      }
+    ],
+    "points": 5,
+    "criterion": "Present your portfolio: Answering questions",
+    "incomplete": false
+  }
+]
