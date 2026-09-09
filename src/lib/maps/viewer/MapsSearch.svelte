@@ -2,7 +2,10 @@
 	/**
 	 * THE PERSISTENT SEARCH BAR (spec 6): the same control at every level, with
 	 * the query in the URL so the descent never erases the search that produced
-	 * it.
+	 * it. IT STAYS ON SCREEN: the form is sticky at the top of whatever scrolls
+	 * -- the panel in the application layout, the document on a phone -- so it
+	 * is the one control that is always one tap away, which is what the search
+	 * box of every map a person has used does (prompt 0112).
 	 *
 	 * IT IS A REAL `<form>` WITH A REAL SUBMIT, and the live results are the
 	 * upgrade rather than the mechanism. With no JavaScript the form navigates
@@ -111,11 +114,18 @@
 	function whereOf(row: MapsSearchRow): string {
 		const chain = row.chain ?? [];
 		if (chain.length === 0) return '';
-		return chain.map((link) => link.name).join(' / ');
+		return chain.map((link) => link.name).join(' › ');
 	}
 </script>
 
-<form class="mv-search" data-testid="maps-viewer-search" action="/maps" method="get" role="search" onsubmit={onSubmit}>
+<form
+	class="mv-search"
+	data-testid="maps-viewer-search"
+	action="/maps"
+	method="get"
+	role="search"
+	onsubmit={onSubmit}
+>
 	<label class="mv-search-label" for="mv-q">Search the map</label>
 	<div class="mv-search-row">
 		<input
@@ -125,14 +135,17 @@
 			value={q}
 			placeholder="A name, a brand, a part number, or what it does"
 			autocomplete="off"
+			aria-describedby="mv-q-hint"
 			oninput={onInput}
 		/>
 		<button type="submit" class="tap-44">Search</button>
 	</div>
-	<p class="mv-search-hint">
-		Half a name works. So does the wrong name, a brand, or what the thing is for.
-	</p>
 </form>
+<!-- THE HINT IS THE PROMISE, and it sits under the sticky form rather than
+     inside it so the pinned block stays one label and one row tall. -->
+<p class="mv-search-hint" id="mv-q-hint">
+	Half a name works. So does the wrong name, a brand, or what the thing is for.
+</p>
 
 {#if q.trim()}
 	<section class="mv-results" aria-label="Search results" data-testid="maps-viewer-results">
@@ -170,7 +183,14 @@
 
 <style>
 	.mv-search {
-		margin-bottom: var(--space-4);
+		/* STICKY TO WHATEVER SCROLLS: the panel above the breakpoint, the
+		   document below it. Same rule, both widths. The plate behind it is the
+		   panel's own so the rows scrolling under it are covered, not blended. */
+		position: sticky;
+		top: 0;
+		z-index: 3;
+		padding: var(--space-3) 0 var(--space-2);
+		background: var(--mv-panel, var(--surface-1, #101312));
 	}
 	.mv-search-label {
 		display: block;
@@ -218,7 +238,7 @@
 		background: var(--mv-shape-fill-hover);
 	}
 	.mv-search-hint {
-		margin: var(--space-1) 0 0;
+		margin: 0 0 var(--space-3);
 		font-size: 0.8125rem;
 		color: var(--text-2, #9aa49d);
 	}
@@ -256,7 +276,7 @@
 		gap: 0.15rem;
 		min-height: 44px;
 		padding: var(--space-2) var(--space-3);
-		background: var(--surface-1, #101312);
+		background: var(--surface-2, #161a18);
 		border: 1px solid var(--mv-boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-1, #e7eae8);
@@ -287,7 +307,7 @@
 		display: flex;
 		align-items: center;
 		padding: 0 var(--space-3);
-		background: var(--surface-1, #101312);
+		background: var(--surface-2, #161a18);
 		border: 1px solid var(--mv-boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-2, #9aa49d);

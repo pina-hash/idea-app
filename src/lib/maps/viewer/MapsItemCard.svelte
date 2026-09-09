@@ -62,7 +62,8 @@
 		itemType = null,
 		photos = [],
 		supabaseUrl = '',
-		nodeHref
+		nodeHref,
+		wayHref = null
 	}: {
 		heading: string;
 		/** The container it is in: the card always says where. */
@@ -73,7 +74,32 @@
 		photos?: MapsPhoto[];
 		supabaseUrl?: string;
 		nodeHref: string;
+		/**
+		 * The start of a staged route to THIS thing, offered when the card was
+		 * reached by browsing rather than by a route -- the "Directions" of a
+		 * place card. Null when the walk is already the one in the URL, because
+		 * a control whose outcome is where you already are is not offered.
+		 */
+		wayHref?: string | null;
 	} = $props();
+
+	/* COPY LINK: the position IS the URL, so sharing a thing is copying the
+	   address. The clipboard is asked once and the answer is said in words;
+	   where it refuses (an insecure origin, a browser that will not) the
+	   address is shown selectable instead, which is the Foundry share
+	   control's own fallback and never a control that does nothing. */
+	let copied = $state<'idle' | 'done' | 'shown'>('idle');
+	let shownUrl = $state('');
+	async function copyLink() {
+		const url = typeof location === 'undefined' ? '' : location.href;
+		try {
+			await navigator.clipboard.writeText(url);
+			copied = 'done';
+		} catch {
+			shownUrl = url;
+			copied = 'shown';
+		}
+	}
 
 	const shown = $derived(
 		photos.map((p) => ({ photo: p, src: mapsPhotoUrl(supabaseUrl, p.storage_key) }))
@@ -93,7 +119,52 @@
 				In <a href={nodeHref}>{node.name}</a>
 			</p>
 		{/if}
+		<p class="mv-card-actions">
+			{#if wayHref}
+				<a class="mv-card-way tap-44" href={wayHref} data-testid="maps-card-way">Show me the way</a>
+			{/if}
+			<button type="button" class="mv-card-copy tap-44" onclick={copyLink} data-testid="maps-card-copy">
+				{copied === 'done' ? 'Link copied' : 'Copy link'}
+			</button>
+		</p>
+		{#if copied === 'shown'}
+			<p class="mv-card-url" role="status">
+				Copy this address: <span class="mv-mono">{shownUrl}</span>
+			</p>
+		{:else if copied === 'done'}
+			<p class="mv-card-url" role="status">The link to this card is on your clipboard.</p>
+		{/if}
 	</header>
+
+	<!-- PHOTOS FIRST, the way a place card leads with its picture: on a phone
+	     in a shop the photograph is what says "yes, that one" before any fact
+	     does (prompt 0112). -->
+	{#if shown.length > 0}
+		<ul class="mv-photos" data-testid="maps-card-photos">
+			{#each shown as entry (entry.photo.id)}
+				<li>
+					{#if !entry.src}
+						<span class="mv-photo-out is-refused" data-testid="maps-photo-refused"
+							>Photo not available here</span
+						>
+					{:else if broken.has(entry.photo.id)}
+						<span class="mv-photo-out is-failed" data-testid="maps-photo-failed"
+							>Photo could not be loaded</span
+						>
+					{:else}
+						<img
+							src={entry.src}
+							alt={entry.photo.caption ?? heading}
+							loading="lazy"
+							data-testid="maps-photo"
+							onerror={() => broken.add(entry.photo.id)}
+						/>
+					{/if}
+					{#if entry.photo.caption}<span class="mv-photo-caption">{entry.photo.caption}</span>{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
 
 	<dl class="mv-facts">
 		{#if stock}
@@ -136,32 +207,6 @@
 		<p class="mv-desc">{item.notes}</p>
 	{/if}
 
-	{#if shown.length > 0}
-		<ul class="mv-photos" data-testid="maps-card-photos">
-			{#each shown as entry (entry.photo.id)}
-				<li>
-					{#if !entry.src}
-						<span class="mv-photo-out is-refused" data-testid="maps-photo-refused"
-							>Photo not available here</span
-						>
-					{:else if broken.has(entry.photo.id)}
-						<span class="mv-photo-out is-failed" data-testid="maps-photo-failed"
-							>Photo could not be loaded</span
-						>
-					{:else}
-						<img
-							src={entry.src}
-							alt={entry.photo.caption ?? heading}
-							loading="lazy"
-							data-testid="maps-photo"
-							onerror={() => broken.add(entry.photo.id)}
-						/>
-					{/if}
-					{#if entry.photo.caption}<span class="mv-photo-caption">{entry.photo.caption}</span>{/if}
-				</li>
-			{/each}
-		</ul>
-	{/if}
 </article>
 
 <style>
@@ -185,6 +230,43 @@
 	}
 	.mv-card-where a {
 		color: var(--mv-accent-ink);
+	}
+	.mv-card-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-3);
+	}
+	.mv-card-way,
+	.mv-card-copy {
+		padding: 0 var(--space-3);
+		border-radius: var(--radius-control);
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.mv-card-way {
+		background: color-mix(in srgb, var(--gold) 18%, transparent);
+		border: 1px solid var(--mv-mark);
+		color: var(--mv-mark);
+	}
+	.mv-card-copy {
+		background: var(--surface-2, #161a18);
+		border: 1px solid var(--mv-accent);
+		color: var(--mv-accent-ink);
+	}
+	.mv-card-way:hover,
+	.mv-card-way:focus-visible,
+	.mv-card-copy:hover,
+	.mv-card-copy:focus-visible {
+		background: var(--mv-shape-fill-hover);
+	}
+	.mv-card-url {
+		margin: 0 0 var(--space-3);
+		font-size: 0.8125rem;
+		color: var(--text-2, #9aa49d);
+		overflow-wrap: anywhere;
 	}
 	.mv-facts {
 		display: grid;
@@ -239,7 +321,7 @@
 	}
 	.mv-photos {
 		list-style: none;
-		margin: 0;
+		margin: 0 0 var(--space-3);
 		padding: 0;
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));

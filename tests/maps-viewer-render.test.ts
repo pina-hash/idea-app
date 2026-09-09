@@ -108,11 +108,41 @@ describe('the descent', () => {
 	it('draws a plan for a room and an elevation for a unit, never both', () => {
 		const room = view(`at=${VFIX.machineShop}`);
 		expect(count(room, '<svg')).toBe(1);
-		expect(count(room, 'mv-elev')).toBe(0);
+		expect(count(room, 'data-testid="maps-viewer-stack"')).toBe(0);
 
 		const unit = view(`at=${VFIX.toolChest}`);
-		expect(count(unit, 'mv-elev')).toBe(1);
+		expect(count(unit, 'data-testid="maps-viewer-stack"')).toBe(1);
 		expect(count(unit, '<svg')).toBe(0);
+	});
+
+	it('draws a compartment on its unit\'s front, marked "you are here"', () => {
+		// THE MAP PANE IS NEVER EMPTY WHILE THERE IS SOMETHING TO DRAW. A drawer
+		// has no drawing of its own, so the pane shows the chest's elevation
+		// with that drawer picked out -- the way a map shows a selected place
+		// on the drawing around it rather than blanking. Before this the
+		// compartment level drew nothing (prompt 0112).
+		const drawer = view(`at=${VFIX.drawer1}`);
+		expect(count(drawer, 'data-testid="maps-viewer-stack"')).toBe(1);
+		expect(count(drawer, 'data-here=""')).toBe(1);
+		expect(text(drawer)).toContain('you are here');
+		// And the card over the same drawer keeps the same drawing behind it.
+		const card = view(`at=${VFIX.drawer1}&item=${VFIX.shopCaliper}`);
+		expect(count(card, 'data-testid="maps-viewer-stack"')).toBe(1);
+		expect(count(card, 'data-here=""')).toBe(1);
+		// POSITIVE CONTROL for the "here" mark: a level drawn as ITSELF marks
+		// nothing as here, because there is no parent frame to mark it on.
+		expect(count(view(`at=${VFIX.toolChest}`), 'data-here=""')).toBe(0);
+		expect(count(view(`at=${VFIX.machineShop}`), 'data-here=""')).toBe(0);
+	});
+
+	it('draws the one building at the top of the map rather than an empty pane', () => {
+		// The fixture's root carries an outline and no site position, so the
+		// directory's own plan is empty; a map that opens on nothing is the
+		// wrong first impression, so the single root is drawn as itself.
+		const top = view('');
+		expect(count(top, '<svg')).toBe(1);
+		expect(top).toContain('Plan of IDEA Building');
+		expect(count(top, 'data-testid="maps-viewer-map-empty"')).toBe(0);
 	});
 
 	it('gives every drawn shape a row in the list beside it', () => {
@@ -133,14 +163,29 @@ describe('the descent', () => {
 		expect(text(room)).toContain('1 container is in here but not drawn on the plan yet');
 	});
 
-	it('shows the whole containment chain as a breadcrumb at every depth', () => {
+	it('shows the whole containment chain as a breadcrumb at every depth below the top', () => {
 		const deep = view(`at=${VFIX.drawer1}`);
-		for (const crumb of ['The map', 'IDEA Building', 'Machine Shop', 'Tool Chest A', 'Drawer 1']) {
+		expect(count(deep, 'data-testid="maps-viewer-crumbs"')).toBe(1);
+		for (const crumb of ['>Map<', 'IDEA Building', 'Machine Shop', 'Tool Chest A', 'Drawer 1']) {
 			expect(deep, crumb).toContain(crumb);
 		}
 		// The level you are on is NOT a link: a control whose only outcome is
 		// staying where you are should not be offered.
 		expect(count(deep, 'aria-current="page"')).toBe(1);
+		expect(count(deep, 'aria-label="Where you are"')).toBe(1);
+	});
+
+	it('renders NO breadcrumb at the top of the map, where there is no way back', () => {
+		// Prompt 0112: a one-crumb trail is a heading on a bar, and the heading
+		// is already there. Both directions, on the same instrument: the top
+		// renders none, one level down renders one.
+		const top = view('');
+		expect(count(top, 'data-testid="maps-viewer-crumbs"')).toBe(0);
+		expect(count(top, 'aria-current="page"')).toBe(0);
+		expect(top).toContain('IDEA Maps');
+		const down = view(`at=${VFIX.building}`);
+		expect(count(down, 'data-testid="maps-viewer-crumbs"')).toBe(1);
+		expect(count(down, 'aria-current="page"')).toBe(1);
 	});
 
 	it('puts the item card behind the breadcrumb, not instead of it', () => {
@@ -152,6 +197,50 @@ describe('the descent', () => {
 		// caliper learns the map knows that word.
 		expect(card).toContain('vernier caliper');
 		expect(card).toContain('Mitutoyo');
+	});
+
+	it('offers the way to a card reached by browsing, and not to one reached by the route', () => {
+		// The card's own "Show me the way" is a place card's directions control:
+		// offered when the card was opened by hand, withheld when the URL
+		// already carries this item as the target (the trail above IS the way).
+		const browsed = view(`at=${VFIX.drawer1}&item=${VFIX.shopCaliper}`);
+		expect(count(browsed, 'data-testid="maps-card-way"')).toBe(1);
+		expect(browsed).toContain(`to=item%3A${VFIX.shopCaliper}`);
+		const routed = view(`at=${VFIX.drawer1}&item=${VFIX.shopCaliper}&to=item:${VFIX.shopCaliper}`);
+		expect(count(routed, 'data-testid="maps-card-way"')).toBe(0);
+		// The copy control is on both: the address is the position.
+		expect(count(browsed, 'data-testid="maps-card-copy"')).toBe(1);
+		expect(count(routed, 'data-testid="maps-card-copy"')).toBe(1);
+	});
+
+	it('leads the card with its photos, before the facts', () => {
+		const data = mapsViewerFixture();
+		data.photos.push({
+			id: 'f0000000-0000-4000-8000-000000000001',
+			node_id: null,
+			item_type_id: null,
+			item_id: VFIX.shopCaliper,
+			storage_key: 'items/caliper.jpg',
+			caption: 'The caliper in its case',
+			sort_order: 1,
+			status: 'published',
+			published_at: '2026-08-20T12:00:00Z',
+			created_at: '2026-08-20T12:00:00Z',
+			updated_at: '2026-08-20T12:00:00Z'
+		} as (typeof data.photos)[number]);
+		const html = render(MapsViewer, {
+			props: {
+				data,
+				search: new URLSearchParams(`at=${VFIX.drawer1}&item=${VFIX.shopCaliper}`),
+				supabaseUrl: 'https://example-ref.supabase.co',
+				transports: null
+			}
+		}).body;
+		const photos = html.indexOf('data-testid="maps-card-photos"');
+		const facts = html.indexOf('class="mv-facts');
+		expect(photos).toBeGreaterThan(-1);
+		expect(facts).toBeGreaterThan(-1);
+		expect(photos).toBeLessThan(facts);
 	});
 });
 
@@ -272,5 +361,42 @@ describe('an empty map', () => {
 		}).body;
 		expect(text(html)).toContain('Nothing has been published to the map yet');
 		expect(count(html, 'Search the map')).toBe(1);
+	});
+});
+
+describe('the panel', () => {
+	it('renders the route\'s chrome at the top of the panel, and none when none is handed in', () => {
+		// The portal chrome is the route's, handed in as a snippet: the harness
+		// mounts the viewer without it, and the absence must render as nothing
+		// rather than as an empty bar.
+		const bare = view('');
+		expect(count(bare, 'data-testid="maps-viewer-chrome"')).toBe(0);
+		expect(count(bare, 'data-testid="maps-viewer-panel"')).toBe(1);
+		expect(count(bare, 'data-testid="maps-viewer-map"')).toBe(1);
+	});
+
+	it('keeps the search hint beside the box, outside the pinned form', () => {
+		const html = view('');
+		expect(text(html)).toContain('Half a name works');
+		// The hint is what the input is described by, and it is not inside the
+		// form -- the pinned block is one label and one row tall.
+		expect(html).toContain('aria-describedby="mv-q-hint"');
+		const form = html.indexOf('</form>');
+		const hint = html.indexOf('id="mv-q-hint"');
+		expect(hint).toBeGreaterThan(form);
+	});
+
+	it('says so in the panel when the load failed, and still draws the map', () => {
+		const data = mapsViewerFixture();
+		const html = render(MapsViewer, {
+			props: {
+				data,
+				search: new URLSearchParams(''),
+				transports: null,
+				notice: 'The map could not be loaded. Try again in a moment.'
+			}
+		}).body;
+		expect(count(html, 'data-testid="maps-viewer-notice"')).toBe(1);
+		expect(count(html, '<svg')).toBe(1);
 	});
 });
