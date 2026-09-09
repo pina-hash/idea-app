@@ -183,6 +183,41 @@ branch. That is the whole reason it is a bundle that runs alone.
 `git diff origin/main -- .github/` is empty, which is the check that the report
 stayed a report.
 
+## The landing found a second defect in the same file, and it is recorded in decision 21
+
+This bundle's own Integrate run is what found it. **`integrate.yml`'s
+merged-tree suite has never once run.** `merged_suite` does `npm ci` then
+`npm test` with no `svelte-kit sync` between them, so vitest dies at startup on
+the missing generated tsconfig -- the fresh-checkout trap `CLAUDE.md` already
+documents -- and the function returns "could not be run at all" on every run in
+which the tree moved. `ci.yml` escapes it only because it runs `npm run check`,
+which syncs, as a step before `npm test`.
+
+- **Run 34411071492 (22:13Z)** merged this branch, pushed `integration`, deleted
+  the branch, and then failed on `Tsconfig not found`.
+- **The control: run 34398008856 (19:56Z)**, three and a half hours before this
+  branch existed, merged only a `materials/` fast-forward and failed the same way
+  at the same step. So the defect is not this bundle's.
+- **Reproduced locally, both directions:** `.svelte-kit` present, `npm test`
+  reaches `RUN v4.1.10`; moved aside, it dies at startup on `Tsconfig not found`;
+  deleted and re-synced with `npx svelte-kit sync`, it reaches `RUN v4.1.10`
+  again. The local message is `[TSCONFIG_ERROR]` against `tests/db/cluster.ts`
+  where the runner's is `[RESOLVE_ERROR]` against rolldown's runtime -- one
+  missing generated tsconfig, two different first consumers of it, which is worth
+  writing down because the two messages do not look alike.
+
+**IT REVERSES THE ORDER OF DECISION 21'S OWN PROPOSAL, WHICH IS WHY THE ENTRY
+WAS AMENDED RATHER THAN LEFT AS FILED.** That entry recommends failing closed on
+"could not be run". With the missing sync still in place that return code is not
+a rare fault, it is the permanent state, so a fail-closed gate shipped today
+would block every lane in the repository at once. The sync fix has to land first.
+A gate with one reachable answer is the vacuous-control failure this repository
+keeps meeting, this time aimed at a workflow instead of a test.
+
+**The workflow was still not touched**, and the fact that this bundle found the
+defect BY being merged and deleted by it is the argument for that rather than
+against it.
+
 ## Verification
 
 - **`svelte-check` 0 errors / 37 warnings, 31/5/1 over 20 files**, re-derived
