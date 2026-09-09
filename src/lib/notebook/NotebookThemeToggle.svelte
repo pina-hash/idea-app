@@ -4,10 +4,13 @@
 		NOTEBOOK_THEME_LABELS,
 		NOTEBOOK_THEME_NOTES,
 		NOTEBOOK_THEME_SHORT,
+		notebookDefaultNote,
+		notebookPlate,
 		notebookTheme,
 		setNotebookTheme,
 		type NotebookTheme
 	} from '$lib/notebook/notebook-theme.svelte';
+	import { siteTheme } from '$lib/theme.svelte';
 
 	/**
 	 * The notebook's appearance control, mounted in the masthead of both
@@ -26,11 +29,23 @@
 	 * the dark one now (the classroom's console register), so a separate dark
 	 * option would be a second name for the state the picker already opens on.
 	 * See notebook-theme.svelte.ts for what happens to a stored 'dark'.
+	 *
+	 * THE DEFAULT ROW SAYS WHAT IT FOLLOWS RIGHT NOW. The default plate defers
+	 * to the SITE theme (notebook-theme.css's matrix block), so its note is
+	 * `notebookDefaultNote(siteTheme())` rather than the static sentence --
+	 * a student who picked Matrix on the site can read here why the notebook
+	 * already looks like it, and which row would pin it. The site theme is
+	 * READ only; this control never writes it. The trigger also carries
+	 * `data-plate`, the plate actually painted, beside the chosen state, so a
+	 * harness can tell "default, following Matrix" from "Matrix, chosen".
 	 */
 
 	const theme = $derived(notebookTheme());
 	const short = $derived(NOTEBOOK_THEME_SHORT[theme]);
 	const label = $derived(NOTEBOOK_THEME_LABELS[theme]);
+	const plate = $derived(notebookPlate(theme, siteTheme()));
+	const noteFor = (option: NotebookTheme) =>
+		option === 'default' ? notebookDefaultNote(siteTheme()) : NOTEBOOK_THEME_NOTES[option];
 
 	let open = $state(false);
 	let rootEl = $state<HTMLDivElement | null>(null);
@@ -88,6 +103,15 @@
 				stroke-linecap="round"
 			/>
 		</svg>
+	{:else if which === 'matrix'}
+		<!-- falling code: three vertical dashed strokes of different lengths, the
+		     site theme's own rain reduced to a glyph. Decorative only; the word
+		     beside it carries the meaning. -->
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+			<path d="M6 3v13" stroke-dasharray="2.4 2" stroke-linecap="round" />
+			<path d="M12 5v16" stroke-dasharray="2.4 2" stroke-linecap="round" />
+			<path d="M18 3v9" stroke-dasharray="2.4 2" stroke-linecap="round" />
+		</svg>
 	{:else}
 		<!-- console frame with a prompt caret: the default plate is the classroom's
 		     own register, so the glyph is the surface it matches rather than the
@@ -110,6 +134,7 @@
 		aria-expanded={open}
 		data-testid="nb-theme-toggle"
 		data-theme-state={theme}
+		data-plate={plate}
 		onclick={() => (open = !open)}
 	>
 		<span class="glyph" aria-hidden="true">{@render glyph(theme)}</span>
@@ -131,7 +156,7 @@
 					<span class="glyph" aria-hidden="true">{@render glyph(option)}</span>
 					<span class="text">
 						<span class="name">{NOTEBOOK_THEME_LABELS[option]}</span>
-						<span class="note">{NOTEBOOK_THEME_NOTES[option]}</span>
+						<span class="note">{noteFor(option)}</span>
 					</span>
 					<span class="tick" aria-hidden="true">{option === theme ? '✓' : ''}</span>
 				</button>
@@ -141,7 +166,7 @@
 </div>
 
 <style>
-	/* The masthead is a band in ALL THREE palettes (the emblem and
+	/* The masthead is a band in ALL FOUR palettes (the emblem and
 	   ProfileMenu are drawn for dark ground), so the trigger is styled for that
 	   band rather than for the page -- the same reasoning as the header's own
 	   .btn.secondary override in notebook-theme.css. The MENU is a different

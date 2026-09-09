@@ -113,6 +113,19 @@ export default {
 	presence: [
 		{ selector: '.dev-bar', label: 'harness controls', expectPresent: 1 },
 		{ selector: '.nb-root', label: 'NotebookView mounted', expectPresent: 1 },
+		/* THE PAGE HEAD REPLACED THE HERO (prompt 0119). One head, one status
+		   strip, and on the student account with three scheduled check-ins
+		   (one covered) exactly one "Next check-in" chip and one drafts chip
+		   (the fixture carries drafts). A count of one, not "present": two
+		   heads is the view-as duplication the standard's own section 3
+		   describes. */
+		{ selector: '[data-testid="nb-head"]', label: 'page head (replaces the hero)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="nb-status"]', label: 'head status strip', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="nb-next-check-in"]', label: 'Next check-in chip (student with an outstanding check-in)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="nb-drafts-chip"]', label: 'drafts chip (student fixture carries a draft)', expectPresent: 1, maxPresent: 1 },
+		/* THE HERO'S LEAD PARAGRAPH IS GONE, and this is the absence row paired
+		   with the head's presence above it. */
+		{ selector: '.nb-root .hero, .nb-root .lead', label: 'the old hero and its lead paragraph (removed)', expectPresent: 0 },
 		{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 },
 		/*
 			THE POSITIVE CONTROL FOR `/dev/notebook-review-student`'s ABSENCE ROW.
@@ -125,7 +138,18 @@ export default {
 		*/
 		{ selector: '[data-testid="filter-deleted"]', label: "Recently deleted chip (student's own view: a list IS behind it)", expectPresent: 1, maxPresent: 1 }
 	],
-	contrast: [{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 }],
+	contrast: [
+		{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 },
+		/* The head's one sentence (--text-2) and the two chips' muted words, on
+		   the plate the student lands on. The matrix routes measure the same
+		   selectors on the fourth plate. */
+		{ selector: '[data-testid="nb-privacy"]', label: 'head privacy line', min: 4.5 },
+		{ selector: '.nb-head .chip-meta', label: 'head chip meta words', min: 4.5 },
+		{ selector: '.nb-head .chip-key', label: 'head chip key word (brass on card)', min: 4.5 },
+		{ selector: '.result-count', label: 'toolbar result count (--text-3)', min: 4.5 },
+		{ selector: '.group-head', label: 'date group heading (--text-3)', min: 4.5 },
+		{ selector: '.tools .tool-btn', label: 'toolbar control labels', min: 4.5 }
+	],
 	tapTargets: [
 		{ selector: '.compose-card input[type="text"], .compose-card select', label: 'compose form controls', min: 44 },
 		/*
@@ -154,14 +178,34 @@ export default {
 			fallback-stack limit in ../README.md applies to this number like every
 			other geometry measurement here.
 		*/
-		{ selector: '.pick.free', label: 'free-entry check-in chip (student-facing, no density exemption)', min: 44 }
+		{ selector: '.pick.free', label: 'free-entry check-in chip (student-facing, no density exemption)', min: 44 },
+		/*
+			THE TOOLBAR'S TEXT CONTROLS, MEASURED AS BOXES. These were the repo's
+			only two standing outside-threshold rows (decision 12, item 2): three
+			underlined `.inline-link.tap-reach-44` words at the right end of the
+			filter line, whose reach walked 32.5 x 45 because `--tap-reach-w: 0px`
+			was correct for words on a shared line and the shortest word was
+			narrower than the floor. Prompt 0119 gave the list controls a line of
+			their own and made them ordinary 44px boxes (`.tool-btn`), so the
+			check they face is `tapTargets`, not `tapReach` -- a box is measured
+			as a box. Select (and Done, its pressed label), Expand all / Collapse
+			all at 375 only, and Clear once a query narrows the list; on this
+			route's initial state Select and (at 375) Expand all render.
+		*/
+		{ selector: '.tools .tool-btn', label: 'toolbar list controls (boxes, formerly the standing tap-reach rows)', min: 44 },
+		/* The head's two actionable chips and the review link, all 44px by the
+		   head's own rule. */
+		{ selector: '.nb-head .chip-due, .nb-head .chip-drafts', label: 'head status chips (next check-in, drafts)', min: 44 },
+		/* The filter chips were never measured by any row; the toolbar re-lay is
+		   the moment to pin them. */
+		{ selector: '.chips .chip-toggle', label: 'filter chips', min: 44 }
 	],
-	/* TWO `.tap-reach-44` SURFACES, ONE FIXED AND ONE WAITING ON ITS OWNER, and
-	   both are here because 0044 measured every user of that class and found
-	   these two had no row of any kind pointing at them. The class expands a
-	   control's HIT AREA rather than its box, so `tapTargets` would report a
-	   finding on every one of them; `tapReach` walks the hit area in both axes
-	   (../checks.mjs) and is the only check that can tell these apart.
+	/* TWO `.tap-reach-44` SURFACES, BOTH FIXED, and both are here because 0044
+	   measured every user of that class and found these two had no row of any
+	   kind pointing at them. The class expands a control's HIT AREA rather than
+	   its box, so `tapTargets` would report a finding on every one of them;
+	   `tapReach` walks the hit area in both axes (../checks.mjs) and is the
+	   only check that can tell these apart.
 
 	   THE SWATCHES ARE FIXED AND THIS ROW IS THE REGRESSION GUARD. They ran
 	   `--tap-reach-w: 0px` (correct: seven on a 32px pitch, and 44px-wide
@@ -171,19 +215,21 @@ export default {
 	   wraps them 5+2 at 375 and 6+1 at 1440 inside the fieldset that was
 	   already there. Measured after: 45 x 45, all seven, both widths.
 
-	   THE TOOLBAR LINKS ARE NOT FIXED AND THIS ROW WILL REPORT THEM. Four of
-	   them -- Select 31.1, Done 25.6, Clear 25.7, Expand all 36.3 -- are under
-	   the floor on width for the same reason, and the fix does not fit: at 44px
-	   the row needs 346.6px against 293px of container at 375, so it buys a
-	   13px document overflow, which 2.12 step 3 refuses at the narrow width.
-	   The arrangement that does fit costs one property on `.tools`, which this
-	   bundle does not own; decision 12 carries the arithmetic and the owner.
-	   The row is here rather than absent BECAUSE it is failing: a number that
-	   regenerates every run with a decision entry against it is the opposite of
-	   the standing finding 2.12 forbids, which is one nobody has to look at. */
+	   THE TOOLBAR LINKS ARE GONE FROM THIS CHECK BECAUSE THEY ARE NO LONGER
+	   REACHES. Four of them -- Select 31.1, Done 25.6, Clear 25.7, Expand all
+	   36.3 -- walked under the floor on width for weeks (decision 12, item 2),
+	   and the row that reported them sat here on purpose so the finding
+	   regenerated on every run. Prompt 0119 re-laid the toolbar: the list
+	   controls took a line of their own and became 44px BOXES (`.tool-btn`),
+	   so they are measured under `tapTargets` above. What stays here is the
+	   ONE remaining `.inline-link.tap-reach-44` in this view's prose -- Manage
+	   folders, inside the folder field's hint -- so the class's mechanism is
+	   still walked on this route rather than assumed from the swatches alone.
+	   Measured 79.6 wide before this bundle; a reach that stopped clearing 44
+	   here would be the clipping ancestor the class's own header names. */
 	tapReach: [
 		{ selector: '.swatch', label: 'folder colour swatches (fixed 2026-09-05)', min: 44 },
-		{ selector: '.tools .inline-link', label: 'toolbar text controls (under the floor on width -- decision 12, with the owner)', min: 44 }
+		{ selector: '.compose-card .hint .inline-link', label: 'Manage folders prose link (the one reach left in the view)', min: 44 }
 	],
 	/*
 		THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER

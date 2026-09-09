@@ -457,8 +457,17 @@
 	}
 	/** The open entry only ever takes a pane; below the breakpoint it expands in place. */
 	const showEntry = $derived(wide && !!selectedEntry);
-	const showEmpty = $derived(wide && !selectedEntry && !composerMounted);
-	const detailHasContent = $derived(showEntry || composerMounted || showEmpty);
+	/**
+	 * NOTHING OPEN IS ONE PANE. With the composer closed and no entry picked the
+	 * detail pane is NOT RENDERED and the list takes the whole measure
+	 * (IDEA_INTERFACE_STANDARDS 1: a persistent second column holding a
+	 * placeholder spends most of a desktop screen saying nothing). This used to
+	 * render a "Pick an entry on the left" paragraph in the pane instead, on
+	 * every read-only mount and on a student's own view the moment they closed
+	 * the form -- and a 26rem list beside 900px of one sentence. The feed then
+	 * USES the width it is given: see `.entries` below.
+	 */
+	const detailHasContent = $derived(showEntry || composerMounted);
 
 	/** The split's detail pane, for revealDetailPane. See $lib/shell/reveal.ts. */
 	let detailEl = $state<HTMLElement | null>(null);
@@ -506,6 +515,25 @@
 		clearComposerMirrors();
 		resetForm();
 		composing = false;
+	}
+
+	/**
+	 * The head's check-in chip: pick that session and bring the composer into
+	 * view. The composer is already the first block below the breakpoint and a
+	 * pane above it, so this is a selection plus a scroll, never a second form.
+	 */
+	function focusCheckIn() {
+		if (!nextCheckIn) return;
+		chooseSession(nextCheckIn.id, nextCheckIn.section_id);
+		composing = true;
+		selectedId = null;
+		void tick().then(() => revealDetailPane(detailEl));
+	}
+
+	/** The head's drafts chip: the Drafts filter, applied rather than toggled. */
+	function showDrafts() {
+		showingDeleted = false;
+		if (!filters.includes(DRAFT_FILTER.id)) filters = [...filters, DRAFT_FILTER.id];
 	}
 
 	/**
@@ -737,6 +765,23 @@
 	let inFlight = false;
 
 	const open = $derived(outstandingSessions(sessions, entries));
+
+	/**
+	 * THE PAGE HEAD'S TWO ACTIONABLE FACTS. The head used to be a hero: an
+	 * eyebrow, a title and a three-line paragraph explaining what a notebook is,
+	 * on every visit, above the work. What a student opening their notebook
+	 * actually needs to know is what is OUTSTANDING -- which check-in is due
+	 * next and whether anything is still a draft -- and both are answers the
+	 * page already holds. They render as controls: the check-in chip picks that
+	 * session in the composer and brings it into view, the drafts chip applies
+	 * the Drafts filter. Neither is a second source of truth: `nearestOutstanding`
+	 * is what the composer's own auto-select reads, and the draft count is the
+	 * same predicate the all-drafts note above the feed uses.
+	 */
+	const nextCheckIn = $derived(nearestOutstanding(sessions, entries, todayIso()));
+	const draftCount = $derived(
+		draftsReady ? entries.filter((e) => e.submitted_at === null).length : 0
+	);
 
 	/** How the feed is ordered under the pins. Not persisted: it is a way of
 	    looking at the notebook for a minute, not a setting. */
@@ -2289,8 +2334,9 @@
 	}}
 />
 
-<!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css)
-     and keeps it out of every other surface. -->
+<!-- .nb-root scopes the notebook's editorial theme (notebook-theme.css) and
+     keeps it out of every other surface; data-nb-theme names the plate, and
+     its absence is the default plate, which follows the site theme. -->
 <div class="nb-root" data-nb-theme={notebookThemeAttr()}>
 {#if masthead}
 	<NotebookMasthead backHref={homeHref} backLabel="Home" />
@@ -2305,7 +2351,7 @@
 	-->
 	<section class="card nb-pane-card" data-testid="nb-entries">
 		<div class="pane-head">
-			<h2>My entries</h2>
+			<h2>{readOnly ? 'Entries' : 'My entries'}</h2>
 			{#if !readOnly && wide}
 				<!--
 					THE PANE KEEPS ONLY THE TRIGGER. The form itself is far too wide for
@@ -2468,7 +2514,32 @@
 				</div>
 
 				{#if !showingDeleted}
+				<!--
+					THE LIST CONTROLS ARE A LINE OF THEIR OWN, AND ITS BUTTONS ARE
+					BOXES, NOT REACHES. This row used to sit at the right end of the
+					filter line as three underlined words with a `.tap-reach-44` hit
+					area and `--tap-reach-w: 0px` -- correct for a word inside a
+					sentence, and wrong here, where the shortest word ("Select",
+					"Done", "Clear") walked 32.5px wide against a 44px floor. That
+					was the repo's only standing outside-threshold pair, at 375 and
+					1440, for weeks (decision 12, item 2). The arithmetic that kept
+					it standing was the ROW: at 375 it had 293px and needed 346px at
+					44px each, so widening the words alone bought a 13px overflow.
+
+					Giving the controls their own wrapping line dissolves the
+					arithmetic: nothing shares the line with the sort and the
+					count except by choice, so each control can be an ordinary
+					44px box (IDEA_INTERFACE_STANDARDS 10) and the line takes a
+					second row at phone width instead of the page taking a
+					scrollbar. The harness measures them as boxes now
+					(`tapTargets`), which is the check a box should face.
+				-->
 				<div class="tools">
+					<span class="result-count" data-testid="result-count">
+						{visible.length === entries.length
+							? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
+							: `${visible.length} of ${entries.length}`}
+					</span>
 					{#if pinsReady}
 						<label class="sort">
 							<!-- Visible, where it was screen-reader-only: the
@@ -2483,36 +2554,37 @@
 							</select>
 						</label>
 					{/if}
-					<span class="result-count" data-testid="result-count">
-						{visible.length === entries.length
-							? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
-							: `${visible.length} of ${entries.length}`}
-					</span>
-					{#if narrowed}
-						<button type="button" class="inline-link tap-reach-44" onclick={clearQuery}>Clear</button>
-					{/if}
-					<!-- Nothing to expand above the breakpoint: the rows there open
-					     into the pane beside them rather than in place. -->
-					{#if !wide}
-						<button
-							type="button"
-							class="inline-link tap-reach-44"
-							data-testid="expand-toggle"
-							onclick={() => (expanded.size ? collapseAll() : expandAll())}
-						>
-							{expanded.size ? 'Collapse all' : 'Expand all'}
-						</button>
-					{/if}
-					{#if foldersReady && folderTransports}
-						<button
-							type="button"
-							class="inline-link tap-reach-44"
-							data-testid="select-toggle"
-							onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
-						>
-							{selectMode ? 'Done' : 'Select'}
-						</button>
-					{/if}
+					<div class="tool-set">
+						{#if narrowed}
+							<button type="button" class="tool-btn" data-testid="clear-query" onclick={clearQuery}>
+								Clear
+							</button>
+						{/if}
+						<!-- Nothing to expand above the breakpoint: the rows there open
+						     into the pane beside them rather than in place. -->
+						{#if !wide}
+							<button
+								type="button"
+								class="tool-btn"
+								data-testid="expand-toggle"
+								onclick={() => (expanded.size ? collapseAll() : expandAll())}
+							>
+								{expanded.size ? 'Collapse all' : 'Expand all'}
+							</button>
+						{/if}
+						{#if foldersReady && folderTransports}
+							<button
+								type="button"
+								class="tool-btn"
+								class:on={selectMode}
+								aria-pressed={selectMode}
+								data-testid="select-toggle"
+								onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
+							>
+								{selectMode ? 'Done' : 'Select'}
+							</button>
+						{/if}
+					</div>
 				</div>
 				{/if}
 			</div>
@@ -2695,7 +2767,7 @@
 		-->
 		<section class="card compose-card" class:behind={showEntry} data-testid="nb-compose">
 			<div class="pane-head">
-				<h2>Add an entry</h2>
+				<h2>New entry</h2>
 				{#if wide}
 					<button
 						type="button"
@@ -2838,8 +2910,8 @@
 							disabled={busy}
 						/>
 						<span class="hint">
-							Leave this blank and we will name the entry from your photo's filename, or from
-							the note's opening words.
+							Blank is fine: the entry takes its name from the photo, or from the first words
+							of the note.
 						</span>
 					</label>
 				{/if}
@@ -2863,7 +2935,7 @@
 						</select>
 						<span class="hint">
 							{#if orderedFolders.length}
-								We start you off wherever you filed last.
+								Starts on the folder you filed in last.
 							{:else}
 								You have no folders yet.
 							{/if}
@@ -2925,9 +2997,8 @@
 							</p>
 						{/if}
 						<span class="hint">
-							Write as much as you like. On its own this saves as the whole entry; alongside a
-							photo it is saved with it. You can add photos to an entry later, and come back and
-							edit your own writing whenever you want.
+							Writing alone is enough to save an entry, and so is a photo. Either can be added
+							to later, and your own writing stays editable.
 						</span>
 					</div>
 				{/if}
@@ -3060,27 +3131,65 @@
 		{/key}
 	{/if}
 
-	{#if showEmpty}
-		<p class="detail-empty" data-testid="nb-detail-empty">
-			{#if readOnly}
-				Pick an entry on the left to read it.
-			{:else}
-				Pick an entry on the left to read it, or start a new one.
-			{/if}
-		</p>
-	{/if}
 {/snippet}
 
 <main class="nb-shell">
-	<section class="hero nb-block">
-		<div class="eyebrow">IDEA // Notebook</div>
-		<h1>My Notebook</h1>
-		<p class="lead">
-			Photograph your engineering notebook pages and keep them here, and write down what you
-			worked through. Everything on this page is
-			<strong>yours</strong>: only you, your section instructor, and the department chair can see it.
-		</p>
-		<div class="hero-meta">
+	<!--
+		THE PAGE HEAD, NOT A HERO. The three-line paragraph that used to open this
+		page ("Photograph your engineering notebook pages...") was reading material
+		between a student and their work on every return visit, which
+		IDEA_INTERFACE_STANDARDS 1 names as a cost. What survives of it is the one
+		sentence that matters -- who can see this -- in one line. The rest of the
+		head is what needs doing: the class, the review link for staff, the next
+		check-in due and the drafts still to turn in, each a control where it can
+		be one.
+
+		READ-ONLY MOUNTS ADDRESS THE READER, NOT THE AUTHOR: an instructor looking
+		at a student's notebook is told whose it is and who may see it, never
+		"only you". Same rule as `searchLabel` above.
+	-->
+	<header class="nb-head nb-block" data-testid="nb-head">
+		<div class="head-title">
+			<div class="eyebrow">IDEA // Notebook</div>
+			<h1>{readOnly ? 'Notebook' : 'My Notebook'}</h1>
+			<p class="privacy" data-testid="nb-privacy">
+				{readOnly
+					? 'Only this student, their section instructor and the department chair can see this notebook.'
+					: 'Only you, your section instructor and the department chair can see this notebook.'}
+			</p>
+		</div>
+		<!--
+			ACTIONABLE FIRST, IDENTITY LAST. The check-in and the drafts are what
+			need doing; the class and the review link say where you are. Ordered
+			this way the strip also packs better at 375: the two short chips
+			(drafts, class) share a line under the wide check-in one, where the
+			old order put the class chip on a line of its own above it.
+		-->
+		<div class="head-status" data-testid="nb-status">
+			{#if !readOnly && configured && sessionsReady && nextCheckIn}
+				<button
+					type="button"
+					class="chip chip-due"
+					data-testid="nb-next-check-in"
+					onclick={focusCheckIn}
+				>
+					<span class="chip-key">Next check-in</span>
+					<span class="chip-val">{nextCheckIn.session_label}</span>
+					<span class="chip-meta">{sessionMeta(nextCheckIn)}</span>
+				</button>
+			{/if}
+			{#if configured && draftsReady && draftCount > 0}
+				<button
+					type="button"
+					class="chip chip-drafts"
+					data-testid="nb-drafts-chip"
+					aria-pressed={filters.includes(DRAFT_FILTER.id) && !showingDeleted}
+					onclick={showDrafts}
+				>
+					<span class="chip-val">{draftCount === 1 ? '1 draft' : `${draftCount} drafts`}</span>
+					<span class="chip-meta">{readOnly ? 'not turned in' : 'to turn in'}</span>
+				</button>
+			{/if}
 			{#if sectionLabel}
 				<span class="chip">{sectionLabel}</span>
 			{/if}
@@ -3088,7 +3197,7 @@
 				<a class="chip chip-link" href="/notebook/review">Section review &rsaquo;</a>
 			{/if}
 		</div>
-	</section>
+	</header>
 
 	<!--
 		ONE NOTICE, ABOVE BOTH PANES. These are set from four different places --
@@ -3191,7 +3300,9 @@
 	   Both are the single-column shell's, and this one spans the split. */
 	.nb-shell {
 		max-width: none;
-		padding: var(--space-7) 0 4.5rem;
+		/* Tighter at the top than the hero it replaced needed: the head is two
+		   lines and a strip of chips, and the work starts under it. */
+		padding: var(--space-5) 0 4.5rem;
 	}
 	.nb-block {
 		max-width: var(--measure-split);
@@ -3236,12 +3347,6 @@
 	.open-entry {
 		padding-bottom: var(--space-5);
 	}
-	.detail-empty {
-		margin: 0;
-		padding: var(--space-7) var(--space-1);
-		color: var(--text-3);
-		font-size: 0.92rem;
-	}
 
 	/* A pane's own narrow-width gutter is declared once for the ROOM, in
 	   notebook-theme.css, so both notebook screens get it from one place. */
@@ -3265,24 +3370,61 @@
 			max-width: var(--measure-form);
 		}
 	}
-	.lead strong {
-		color: var(--text-1);
-		font-weight: 600;
+	/* ---- the page head -------------------------------------------------
+	   Title on the left, status on the right, on one line where there is
+	   room and stacked where there is not. `align-items: flex-end` sits the
+	   chips on the baseline of the privacy line rather than floating them
+	   beside the eyebrow. */
+	.nb-head {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: var(--space-3) var(--space-5);
+		flex-wrap: wrap;
+		padding-bottom: var(--space-5);
+		margin-bottom: var(--space-5);
+		border-bottom: 1px solid var(--hairline);
 	}
-	.hero-meta {
+	.head-title {
+		min-width: 0;
+		flex: 1 1 20rem;
+	}
+	.nb-head h1 {
+		margin: var(--space-1) 0 var(--space-2);
+		font-size: 1.85rem;
+	}
+	/* One line, the room's secondary tier: it is the fact worth keeping from
+	   the paragraph it replaces, and it is not the work. */
+	.privacy {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--text-2);
+		max-width: 40rem;
+	}
+	.head-status {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		gap: var(--space-2);
-		margin-top: var(--space-4);
+		flex: 0 1 auto;
 	}
 	.chip {
-		font-size: 0.74rem;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		font-size: 0.78rem;
 		font-weight: 500;
 		letter-spacing: 0.02em;
 		padding: var(--space-1) var(--space-3);
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
 		color: var(--text-2);
+		/* Every chip in the head clears the floor, control or not: the two
+		   that ARE controls sit beside the two that are not, and a strip whose
+		   members differ by 14px in height reads as two rows that failed to
+		   line up (IDEA_INTERFACE_STANDARDS 10). */
+		min-height: 44px;
+		box-sizing: border-box;
 	}
 	.chip-link {
 		color: var(--nb-accent-ink);
@@ -3293,6 +3435,56 @@
 		border-color: var(--nb-accent-ink);
 		background: var(--nb-accent-wash);
 		text-decoration: none;
+	}
+	/* THE TWO ACTIONABLE CHIPS. A key, a value and a meta word, so "Next
+	   check-in  Week 3  Unit 2, Thu" reads as a label and its answer rather
+	   than as a sentence somebody has to parse. The check-in chip carries the
+	   brass thread because it is the primary thing to do; the drafts chip
+	   carries the WARNING thread the draft chip on a card already wears, so
+	   the same fact reads the same in both places. */
+	.chip-due,
+	.chip-drafts {
+		font: inherit;
+		font-size: 0.78rem;
+		cursor: pointer;
+		background: var(--surface-1);
+		text-align: left;
+	}
+	.chip-due {
+		border-color: var(--nb-accent);
+		color: var(--text-1);
+	}
+	.chip-due:hover {
+		background: var(--nb-accent-wash);
+	}
+	.chip-drafts {
+		border-color: color-mix(in srgb, var(--nb-warn) 55%, transparent);
+		color: var(--text-1);
+	}
+	.chip-drafts:hover,
+	.chip-drafts[aria-pressed='true'] {
+		background: color-mix(in srgb, var(--nb-warn) 10%, transparent);
+		border-color: var(--nb-warn);
+	}
+	.chip-key {
+		color: var(--nb-accent-ink);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.66rem;
+	}
+	.chip-val {
+		font-weight: 600;
+	}
+	.chip-drafts .chip-val {
+		color: var(--nb-warn);
+	}
+	/* MUTED COPY ON A CHIP TAKES --text-2, NEVER --text-3: the chip's own
+	   hover fill is a wash over the card, which is the ground the tertiary
+	   tier was never measured on (see .pick.selected .pick-meta). */
+	.chip-meta {
+		color: var(--text-2);
+		font-weight: 400;
 	}
 	.note {
 		color: var(--text-2);
@@ -3343,6 +3535,10 @@
 		flex-direction: column;
 		gap: var(--space-1);
 		text-align: left;
+		/* 44px: a student-facing control at every width, and the one this
+		   form opens on. Measured 42px before the floor was written down. */
+		min-height: 44px;
+		box-sizing: border-box;
 		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
@@ -3543,11 +3739,16 @@
 		cursor: default;
 	}
 
-	/* ---- toolbar ---- */
+	/* ---- toolbar ------------------------------------------------------
+	   THREE LINES, IN THE ORDER A PERSON NARROWS A LIST: what am I looking
+	   for (search), which kind (filters), then how the result is arranged and
+	   acted on (count, sort, the list controls). It was one wrapping flex line
+	   with the controls pushed to the right by `margin-left: auto`, which is
+	   what put three text controls under the 44px floor: the line they shared
+	   with the sort and the count had no room to give them. A grid of rows
+	   has nothing to share. */
 	.toolbar {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
+		display: grid;
 		gap: var(--space-2);
 		padding-bottom: var(--space-4);
 		margin-bottom: var(--space-2);
@@ -3557,7 +3758,6 @@
 		/* 22px measured (the label is the target; the input inside it has no
 		   border of its own). 44px floor (IDEA_INTERFACE_STANDARDS 10). */
 		min-height: 44px;
-		flex: 1 1 14rem;
 		min-width: 0;
 		display: flex;
 		align-items: center;
@@ -3635,14 +3835,59 @@
 	.tools {
 		display: flex;
 		align-items: center;
-		gap: var(--space-3);
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-3);
 		font-size: 0.78rem;
-		margin-left: auto;
+		/* The automatic-minimum trap: a nowrap child (the sort select's longest
+		   option) would otherwise push this row, and the page, past the
+		   viewport rather than wrapping. */
+		min-width: 0;
 	}
 	.result-count {
 		color: var(--text-3);
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
+		/* First on the line, and the sort sits beside it; the controls take
+		   whatever is left and wrap when there is none. */
+		margin-right: var(--space-1);
+	}
+	/* THE LIST CONTROLS: ordinary 44px boxes (IDEA_INTERFACE_STANDARDS 10),
+	   square-cornered so they read as ACTIONS beside the round filter chips
+	   above them, and quiet until pressed. `margin-left: auto` on the group
+	   keeps them at the right end of the line where there is room, and
+	   `flex-wrap` on the row hands them a line of their own where there is
+	   not. */
+	.tool-set {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-left: auto;
+	}
+	.tool-btn {
+		min-height: 44px;
+		min-width: 44px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+		color: var(--text-2);
+		font: inherit;
+		font-size: 0.78rem;
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.tool-btn:hover {
+		border-color: var(--text-3);
+		color: var(--text-1);
+	}
+	.tool-btn.on {
+		border-color: var(--nb-accent);
+		background: var(--nb-accent-wash);
+		color: var(--nb-accent-ink);
 	}
 	/* Quiet: the sort is a way of looking at the feed, not a heading over it. */
 	.sort {
@@ -3723,6 +3968,22 @@
 	.entries > li {
 		min-width: 0;
 	}
+	/* THE LIST USES THE WIDTH IT IS GIVEN. Above the breakpoint, with nothing
+	   open, the split hands the navigation pane the whole measure (split.css's
+	   `:not(.has-detail)` rule) -- and a two-line row with a 40px tile across
+	   1376px is the "fixed-width column centred in the room it was just given"
+	   defect one level in. Each date group lays its rows out in columns
+	   instead, `auto-fit` so a group of two gets two columns rather than two
+	   and a void, and the column is wide enough for a title, four indicators
+	   and a folder name without ellipsising the title on the fixture feed.
+	   The moment something opens, the pane narrows to 26rem and this is one
+	   column again with no rule of its own. */
+	@media (min-width: 1024px) {
+		:global(.cr-split:not(.has-detail)) .entries {
+			grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+			column-gap: var(--space-4);
+		}
+	}
 	.more {
 		margin-top: var(--space-5);
 		display: flex;
@@ -3791,10 +4052,6 @@
 	@media (max-width: 540px) {
 		.quick-picks {
 			grid-template-columns: 1fr;
-		}
-		.tools {
-			margin-left: 0;
-			width: 100%;
 		}
 	}
 </style>
