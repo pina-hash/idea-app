@@ -63,3 +63,12 @@
   inferred: `Assignments v1.12 · 5e7b44f · local build`, the pushed sha, two
   minutes after the push. Nothing was cherry-picked and no source file was
   touched.
+
+  **SECOND PASS.** The loop then ran again: this bundle's own branch was swept
+  into `integration` and deleted by `integrate.yml`, prompt 0108's loading lane
+  landed on top of it, and `main` went on to `1e258835` behind a second
+  independently-gated merge (CI run 34346541626 on `eecb6880`, green, tip
+  confirmed unmoved). Production read `Assignments v1.13 · 1e25883 · local
+  build`. `main` and `integration` are level in both directions, 0 commits
+  either way. Prompts 0110, 0111 and 0112 were all still `Status: issued` at
+  the last reading and were correctly NOT landed; 0192 was never written.
