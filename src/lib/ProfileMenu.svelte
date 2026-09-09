@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import Avatar from '$lib/Avatar.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
@@ -36,6 +37,33 @@
 
 	let open = $state(false);
 	let root: HTMLDivElement | undefined = $state();
+	let panel: HTMLDivElement | undefined = $state();
+	/**
+	 * THE PANEL STAYS INSIDE THE VIEWPORT, WHATEVER HEADER ANCHORS IT. It is
+	 * `right: 0` against the trigger, and on 69 different mastheads the
+	 * trigger's right edge is wherever that header's padding puts it --
+	 * measured 44px in from the edge on /dev/profile-menu, which at 375px
+	 * pushed a 343px panel 12px off the left of the screen. So on open the
+	 * panel's box is read once and, if its left edge is inside the gutter, it
+	 * is shifted right by exactly that much (IDEA_INTERFACE_STANDARDS 11:
+	 * anchored UI is checked for off-edge positioning at both ends). A read of
+	 * the DOM, not a guess about the header, and `untrack`ed because the
+	 * effect's one input is `open`.
+	 */
+	const GUTTER = 8;
+	$effect(() => {
+		if (!open) return;
+		const el = panel;
+		untrack(() => {
+			if (!el) return;
+			el.style.setProperty('--pm-shift', '0px');
+			const r = el.getBoundingClientRect();
+			const overLeft = GUTTER - r.left;
+			const overRight = r.right - (window.innerWidth - GUTTER);
+			const shift = overLeft > 0 ? overLeft : overRight > 0 ? -overRight : 0;
+			if (shift) el.style.setProperty('--pm-shift', `${Math.round(shift)}px`);
+		});
+	});
 	let editingName = $state(false);
 	let nameDraft = $state('');
 	let busy = $state(false);
@@ -163,7 +191,7 @@
 		</button>
 
 		{#if open}
-			<div class="pm-panel" role="menu">
+			<div class="pm-panel" role="menu" bind:this={panel}>
 				<div class="pm-id">
 					<Avatar {profile} size={44} />
 					<div class="pm-id-text">
@@ -175,22 +203,26 @@
 									saveName();
 								}}
 							>
-								<!-- svelte-ignore a11y_autofocus -->
-								<input
-									type="text"
-									bind:value={nameDraft}
-									maxlength="60"
-									placeholder="Display name"
-									autofocus
-									disabled={busy}
-								/>
-								<button type="submit" disabled={busy}>Save</button>
-								<button type="button" onclick={() => (editingName = false)}>Cancel</button>
+								<label class="pm-field">
+									<span>Display name</span>
+									<!-- svelte-ignore a11y_autofocus -->
+									<input
+										type="text"
+										bind:value={nameDraft}
+										maxlength="60"
+										placeholder="Display name"
+										autofocus
+										disabled={busy}
+									/>
+								</label>
+								<div class="pm-row">
+									<button class="pm-btn primary" type="submit" disabled={busy}>Save name</button>
+									<button class="pm-btn" type="button" onclick={() => (editingName = false)}>Cancel</button>
+								</div>
 							</form>
 						{:else}
 							<div class="pm-name" style={nameTint ? `color:${nameTint}` : ''}>
 								{displayName(profile)}
-								<button class="pm-edit" type="button" onclick={startNameEdit}>Edit</button>
 							</div>
 						{/if}
 						<div class="pm-meta">
@@ -200,7 +232,17 @@
 						</div>
 					</div>
 				</div>
+				{#if !editingName}
+					<div class="pm-row">
+						<button class="pm-btn" type="button" onclick={startNameEdit}>Edit name</button>
+					</div>
+				{/if}
 
+				<!-- THE PICTURE: eight preset marks, each a 44px control WITH ITS WORD
+				     (ledger 0117, report 23). They were 8-across at ~32px with a
+				     `title` nobody on a phone can hover; a glyph is not a control's
+				     name. `aria-pressed` carries the selection for anyone not
+				     looking at the ring. -->
 				<div class="pm-section">
 					<div class="pm-label">Picture</div>
 					<div class="pm-presets">
@@ -209,24 +251,26 @@
 								class="pm-preset"
 								class:selected={currentPreset === p.id}
 								type="button"
-								title={p.label}
-								aria-label="Use the {p.label} avatar"
+								aria-pressed={currentPreset === p.id}
 								disabled={busy}
 								onclick={() => choosePreset(p.id)}
 							>
-								<svg viewBox="0 0 24 24" fill="none" stroke={p.fg} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-									<path d={p.d} />
-								</svg>
+								<span class="pm-preset-mark" aria-hidden="true">
+									<svg viewBox="0 0 24 24" fill="none" stroke={p.fg} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+										<path d={p.d} />
+									</svg>
+								</span>
+								<span class="pm-preset-word">{p.label}</span>
 							</button>
 						{/each}
 					</div>
-					<div class="pm-avatar-actions">
-						<label class="pm-upload" class:disabled={busy}>
-							Upload image
+					<div class="pm-row">
+						<label class="pm-btn pm-upload" class:disabled={busy}>
+							Upload a picture
 							<input type="file" accept="image/*" onchange={onUpload} disabled={busy} />
 						</label>
 						{#if profile?.avatar}
-							<button class="pm-textbtn" type="button" disabled={busy} onclick={useGooglePhoto}>
+							<button class="pm-btn" type="button" disabled={busy} onclick={useGooglePhoto}>
 								Use Google photo
 							</button>
 						{/if}
@@ -272,7 +316,7 @@
 
 				<div class="pm-actions">
 					{#if page.data.isAdmin}
-						<a class="pm-link" href="/dashboard" onclick={close}>Dashboard</a>
+						<a class="pm-link" href="/dashboard" onclick={close}>Admin console</a>
 					{/if}
 					<button class="pm-link pm-signout" type="button" onclick={signOut}>Sign out</button>
 				</div>
@@ -282,6 +326,45 @@
 {/if}
 
 <style>
+	/* --------------------------------------------------------------------------
+	   THE PANEL IS A MACHINED SURFACE CARD, ON TOKENS (ledger 0117, report 23:
+	   "the profile customization page looks dated").
+
+	   WHAT WAS DATED, MEASURED RATHER THAN FELT: the rules below used to carry
+	   neon literals as fallbacks (`#00ff41`, `#00f0ff`, `#050f07`) from before
+	   the token layer existed; three text controls (Edit, Upload image, Use
+	   Google photo) were 0.62rem underlined mono words, no box, ~15px tall;
+	   the eight picture presets were 8-across in a 288px panel, ~32px each,
+	   named only by a `title`; the Save/Cancel pair and the Dashboard/Sign out
+	   pair were ~30px. Every one of those is a student-facing control under
+	   the 44px floor (IDEA_INTERFACE_STANDARDS 10), on every one of the 69
+	   pages that mount this menu.
+
+	   THE DIRECTION CHOSEN: keep the anchored popover, and make it the same
+	   object a home card or a console panel is -- `--bg1` on `--boundary`
+	   with the machined bevel, `--radius-card`, the type scale from the token
+	   layer (`--font-display` for the name and control words, `--font-mono`
+	   for the eyebrow labels at a size that clears the floor), one 44px
+	   control class (`.pm-btn`) for every action, presets at four across with
+	   their names under them. Tokens only: the fallbacks are gone, because the
+	   token layer is imported by app.css on every route this mounts on.
+
+	   REJECTED, AND WHY. A `/profile` PAGE: the theme control's whole safety
+	   argument is that the theme is on exactly where the control that turns
+	   it off is reachable (ThemeRoot's session gate is paired with THIS
+	   menu), and a page would be a second surface writing the same four
+	   fields from 69 headers that already carry the first. A MODAL DIALOG: a
+	   name edit does not need to take the page, and the pointerdown
+	   outside-dismiss this component already gets right is the anchored
+	   popover's contract. A LIGHT PAPER PLATE: this is the portal shell's own
+	   component, not a room, and a light card would need a room hook on every
+	   plate the menu can land on to stay readable.
+
+	   IT LANDS IN ROOMS, AND THE ROOMS ALIAS THE TOKENS. `.fg-root`, `.cd-root`
+	   and `.nb-root` alias `--bg1` / `--white` / `--boundary` onto their own
+	   plates, so the panel takes each room's card colours; a room that does
+	   not alias them gets the portal's dark card, which is what it got before.
+	   -------------------------------------------------------------------------- */
 	.pm-root {
 		position: relative;
 		display: inline-flex;
@@ -323,7 +406,7 @@
 	}
 	.pm-caret {
 		font-size: 0.65rem;
-		color: var(--dim, #4a7a52);
+		color: var(--dim);
 		transition: transform 0.2s ease;
 	}
 	.pm-caret.up {
@@ -334,202 +417,254 @@
 		right: 0;
 		top: calc(100% + 10px);
 		z-index: 300;
-		width: min(320px, calc(100vw - 2rem));
-		background: var(--bg1, #050f07);
-		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.35));
-		border-radius: 6px;
-		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-		padding: 1rem;
+		width: min(22rem, calc(100vw - 2rem));
+		background: var(--bg1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		box-shadow:
+			var(--bevel-raised),
+			0 16px 40px rgba(0, 0, 0, 0.55);
+		padding: var(--space-4);
 		text-align: left;
+		display: grid;
+		gap: var(--space-3);
+		/* Set from the script on open when the box would cross a viewport
+		   edge; 0 everywhere the header already leaves room. */
+		transform: translateX(var(--pm-shift, 0px));
 	}
 	.pm-id {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-3);
 	}
 	.pm-id-text {
 		min-width: 0;
 		flex: 1;
 	}
 	.pm-name {
-		font-family: var(--font-display, 'Rajdhani', sans-serif);
-		font-weight: 600;
-		font-size: 1.05rem;
-		color: var(--white, #e8ffe8);
-		display: flex;
-		align-items: baseline;
-		gap: 0.5rem;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 1.15rem;
+		color: var(--white);
 		line-height: 1.2;
-	}
-	.pm-edit,
-	.pm-textbtn {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
-		letter-spacing: 0.06em;
-		color: var(--cyan, #00f0ff);
-		background: none;
-		border: none;
-		cursor: pointer;
-		text-decoration: underline;
-		padding: 0;
-	}
-	.pm-edit:hover,
-	.pm-textbtn:hover {
-		color: var(--green, #00ff41);
+		overflow-wrap: anywhere;
 	}
 	.pm-meta {
 		display: flex;
-		align-items: baseline;
-		gap: 0.6rem;
+		align-items: center;
+		gap: 0.5rem;
 		flex-wrap: wrap;
-		margin-top: 0.15rem;
+		margin-top: 0.3rem;
 	}
 	.pm-role {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.6rem;
-		letter-spacing: 0.16em;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--cyan, #00f0ff);
+		color: var(--cyan);
 	}
 	.pm-email {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
-		color: var(--dim, #4a7a52);
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		color: var(--text-2);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		max-width: 100%;
 	}
-	.pm-name-edit {
+
+	/* --- One control class, 44px, a word on every one -------------------- */
+	.pm-row {
 		display: flex;
-		gap: 0.4rem;
-		align-items: center;
 		flex-wrap: wrap;
+		gap: var(--space-2);
 	}
-	.pm-name-edit input {
-		flex: 1;
-		min-width: 120px;
-		background: var(--bg2, #081209);
-		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.35));
-		border-radius: 3px;
-		color: var(--white, #e8ffe8);
-		font-family: var(--font-display, 'Rajdhani', sans-serif);
-		font-size: 0.95rem;
-		padding: 0.3rem 0.5rem;
-	}
-	.pm-name-edit button {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--green, #00ff41);
-		background: none;
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
-		border-radius: 3px;
-		padding: 0.25rem 0.5rem;
-		cursor: pointer;
-	}
-	.pm-section {
-		margin-top: 0.9rem;
-		padding-top: 0.75rem;
-		border-top: 1px solid var(--line, rgba(0, 255, 65, 0.15));
-	}
-	.pm-label {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.58rem;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		color: var(--dim, #4a7a52);
-		margin-bottom: 0.5rem;
-	}
-	.pm-presets {
-		display: grid;
-		grid-template-columns: repeat(8, 1fr);
-		gap: 0.35rem;
-	}
-	.pm-preset {
-		aspect-ratio: 1;
-		display: flex;
+	.pm-btn {
+		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--bg2, #081209);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
-		border-radius: 50%;
+		min-height: 44px;
+		padding: 0.5rem 0.9rem;
+		font-family: var(--font-display);
+		font-weight: 600;
+		font-size: 0.95rem;
+		color: var(--white);
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
 		cursor: pointer;
-		padding: 0;
-		transition: border-color 0.2s ease, box-shadow 0.2s ease;
+		text-decoration: none;
+		line-height: 1.2;
 	}
-	.pm-preset svg {
-		width: 60%;
-		height: 60%;
+	.pm-btn:hover,
+	.pm-btn:focus-visible {
+		border-color: var(--green);
+		color: var(--green);
 	}
-	.pm-preset:hover {
-		border-color: var(--line-strong, rgba(0, 255, 65, 0.35));
+	.pm-btn:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
 	}
-	.pm-preset.selected {
-		border-color: var(--green, #00ff41);
-		box-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+	.pm-btn.primary {
+		color: var(--green);
+		border-color: var(--green);
 	}
-	.pm-avatar-actions {
-		display: flex;
-		align-items: center;
-		gap: 0.9rem;
-		margin-top: 0.6rem;
-	}
-	.pm-upload {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
-		letter-spacing: 0.06em;
-		color: var(--cyan, #00f0ff);
-		text-decoration: underline;
-		cursor: pointer;
-	}
-	.pm-upload:hover {
-		color: var(--green, #00ff41);
-	}
-	.pm-upload.disabled {
-		color: var(--dim, #4a7a52);
+	.pm-btn:disabled,
+	.pm-btn.disabled {
+		opacity: 0.6;
 		cursor: default;
 	}
 	.pm-upload input {
 		display: none;
 	}
+	.pm-name-edit {
+		display: grid;
+		gap: var(--space-2);
+	}
+	.pm-field {
+		display: grid;
+		gap: 0.3rem;
+	}
+	.pm-field span {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.pm-field input {
+		width: 100%;
+		box-sizing: border-box;
+		min-height: 44px;
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		color: var(--white);
+		font-family: var(--font-display);
+		font-size: 1rem;
+		padding: 0.45rem 0.7rem;
+	}
+	.pm-field input:focus {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
+	}
+
+	/* --- Sections ---------------------------------------------------------- */
+	.pm-section {
+		display: grid;
+		gap: var(--space-2);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--hairline);
+	}
+	.pm-label {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+
+	/* --- The picture presets: four across, a mark and its word ------------ */
+	.pm-presets {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: var(--space-2);
+	}
+	.pm-preset {
+		display: grid;
+		justify-items: center;
+		gap: 0.25rem;
+		min-height: 44px;
+		padding: 0.4rem 0.2rem;
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		cursor: pointer;
+		color: var(--text-2);
+		transition:
+			border-color 0.2s ease,
+			box-shadow 0.2s ease;
+	}
+	.pm-preset-mark {
+		width: 30px;
+		height: 30px;
+		border-radius: 50%;
+		display: grid;
+		place-items: center;
+		background: var(--bg1);
+	}
+	.pm-preset-mark svg {
+		width: 62%;
+		height: 62%;
+	}
+	.pm-preset-word {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.04em;
+		line-height: 1.15;
+		text-align: center;
+	}
+	.pm-preset:hover,
+	.pm-preset:focus-visible {
+		border-color: var(--green);
+	}
+	.pm-preset:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
+	}
+	/* THE SELECTED PRESET IS MARKED THREE WAYS -- the accent edge, the tint
+	   fill and the word going to --green -- plus `aria-pressed` for anyone not
+	   looking at any of them. */
+	.pm-preset.selected {
+		border-color: var(--green);
+		background: var(--green-tint);
+		color: var(--green);
+	}
+	.pm-preset:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
 	.pm-error {
-		margin-top: 0.6rem;
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.66rem;
-		color: var(--amber, #ff8c00);
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		color: var(--amber);
 	}
 	.pm-actions {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
-		margin-top: 0.9rem;
-		padding-top: 0.75rem;
-		border-top: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--hairline);
 	}
 	.pm-link {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.7rem;
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--green, #00ff41);
+		color: var(--green);
 		background: none;
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
-		border-radius: 3px;
-		padding: 0.4rem 0.8rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		padding: 0.5rem 0.9rem;
 		cursor: pointer;
 		text-decoration: none;
 	}
-	.pm-link:hover {
-		border-color: var(--green, #00ff41);
+	.pm-link:hover,
+	.pm-link:focus-visible {
+		border-color: var(--green);
 	}
 	.pm-signout {
 		margin-left: auto;
-		color: var(--dim, #4a7a52);
+		color: var(--white);
 	}
 	.pm-signout:hover {
-		color: var(--green, #00ff41);
+		color: var(--green);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.pm-caret,
@@ -545,7 +680,7 @@
 	   whole row is the target, not the swatch. */
 	.pm-themes {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--space-2);
 	}
 	.pm-theme {
 		display: flex;
@@ -553,17 +688,22 @@
 		gap: 0.55rem;
 		width: 100%;
 		min-height: 44px;
-		padding: 0.4rem 0.5rem;
+		padding: 0.4rem 0.6rem;
 		text-align: left;
-		background: var(--bg2, #081209);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
-		border-radius: var(--radius-control, 3px);
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
 		cursor: pointer;
 		color: inherit;
 		transition: border-color 0.2s ease;
 	}
-	.pm-theme:hover {
-		border-color: var(--line-strong, rgba(0, 255, 65, 0.35));
+	.pm-theme:hover,
+	.pm-theme:focus-visible {
+		border-color: var(--green);
+	}
+	.pm-theme:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
 	}
 	/* THE SELECTED ROW IS MARKED THREE WAYS -- the accent border, the tint fill
 	   and the name going to --green -- because colour is never the only signal.
@@ -585,7 +725,7 @@
 		width: 26px;
 		height: 26px;
 		border-radius: 50%;
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		border: 1px solid var(--boundary);
 	}
 	.pm-theme-swatch[data-theme-swatch='idea'] {
 		background: linear-gradient(135deg, #121a12 0 50%, #78b870 50% 100%);
@@ -598,8 +738,9 @@
 		min-width: 0;
 	}
 	.pm-theme-name {
-		font-family: var(--font-display, 'Rajdhani', sans-serif);
-		font-size: 0.9rem;
+		font-family: var(--font-display);
+		font-size: 0.95rem;
+		font-weight: 600;
 		line-height: 1.2;
 		color: var(--white);
 	}
@@ -610,7 +751,7 @@
 	   -- below 4.5 in BOTH, so it was a defect the theme merely made visible.
 	   --text-2 clears both (4.91 base, 5.57 themed) on the same fill. */
 	.pm-theme-note {
-		font-size: 0.72rem;
+		font-size: 0.74rem;
 		line-height: 1.25;
 		color: var(--text-2);
 	}

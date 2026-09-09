@@ -1249,6 +1249,16 @@
 				"frc",
 				"feedback"
 			]
+		},
+		{
+			"date": "2026-09-10",
+			"title": "Apps above your classes, a clearer profile menu, and the Matrix rain in more rooms",
+			"body": "On the home page your apps now sit above your classes, so the launcher is the first thing you reach; your classes are right under it, exactly as before. The profile menu (your picture, top right) has bigger controls with words on them: every picture choice shows its name, and Edit name, Upload a picture and Use Google photo are real buttons you can tap on a phone. And if you have switched the site to the Matrix theme, the falling code now shows behind the Classroom and the Foundry too, instead of stopping at the home page.",
+			"tags": [
+				"home",
+				"profile",
+				"theme"
+			]
 		}
 	]
 }

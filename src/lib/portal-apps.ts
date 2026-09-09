@@ -218,43 +218,30 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'dashboard',
-		title: 'Admin Dashboard',
-		sub: 'Roles, pathways, and the content review queues.',
+		title: 'Admin',
+		// ONE ADMIN CARD, WHERE THERE USED TO BE TWO (ledger 0117, report 26:
+		// "site admins and the admin dashboard should be one app rather than
+		// two entries"). The paragraph this replaces argued the opposite -- that
+		// /dashboard was a REVIEW console and /admin a CONFIGURATION one, "two
+		// rooms with a path between them" -- and fixed the tagline instead.
+		// Mr. Pina asked again, in the same words, so the rooms are one room:
+		// the admin roster, the IDEA Coin links, the short links and the Drive
+		// connection are PANELS on /dashboard now, beside the review queues, the
+		// feedback queue and the pathway roster, and the console orders its
+		// panels by how often this admin uses each (see
+		// src/routes/dashboard/console.ts). `/admin` answers 404 to everyone it
+		// always did and sends an admin on to the console, so a link printed or
+		// bookmarked before the merge still lands; `/admin/links` and
+		// `/admin/drive-connect` are pages of the same app and keep their paths.
+		//
+		// THE ID STAYS `dashboard`. It is the key a saved layout, a pin and a
+		// usage count are stored under in `profiles.preferences.homepage`, and
+		// renaming it would drop every admin's record of this card for a tidier
+		// string. A stored `admin` id is simply never matched again, which is
+		// what a retired id has always done here.
+		sub: 'Reviews, feedback, students and pathways, the admin roster, short links, coin tools and the Drive connection. Admin tool.',
 		icon: 'dashboard',
 		href: '/dashboard',
-		cta: 'Open',
-		adminOnly: true
-	},
-	{
-		id: 'admin',
-		title: 'Site Admins',
-		// ITS OWN GLYPH, where this used to read `icon: 'dashboard'`. The two
-		// admin cards then drew the same gauge and were told apart by their
-		// titles alone -- and in the compact view, which is the DEFAULT, the
-		// tagline is dropped too. A roster with a key is what this surface
-		// actually is; the gauge stays with the readings it describes.
-		icon: 'admin',
-		// AND THEY STAY TWO CARDS. They were reported as "two doors to one
-		// room" and they are not: /dashboard is a REVIEW console (its own
-		// sections are Profile, FRC Model Reviews, GREENLINE Decal Reviews,
-		// Feedback, Students & Pathways, Content) and /admin is a
-		// CONFIGURATION one (the admin roster, IDEA Coin links, short links,
-		// the Drive connection). Nothing on either is on the other, and /admin
-		// links ACROSS to /dashboard from its own header, which is what two
-		// rooms with a path between them look like rather than one room with
-		// two doors. Merging them would put six review sections and four
-		// settings sections behind one card and take a click away from
-		// nobody.
-		//
-		// WHAT WAS ACTUALLY WRONG WAS THIS LINE. The sub read "Who can
-		// administer the portal. Owner manages the list.", which describes the
-		// FIRST of that route's four sections and none of the rest -- so the
-		// card advertised a slice of "Admin Dashboard" and duly read as a
-		// second way into it. A card that names its whole room is what tells
-		// the two apart; a merge would have been fixing a label with an
-		// architecture change.
-		sub: 'The admin roster, IDEA Coin links, short links, and the Google Drive connection.',
-		href: '/admin',
 		cta: 'Open',
 		adminOnly: true
 	}
@@ -422,12 +409,7 @@ export function sortApps(
 	const curated = new Map(apps.map((a, i) => [a.id, i]));
 	const rank = (a: PortalApp) => curated.get(a.id) ?? 0;
 
-	if (mode === 'used') {
-		return [...apps].sort((a, b) => {
-			const d = (usage[b.id]?.count ?? 0) - (usage[a.id]?.count ?? 0);
-			return d !== 0 ? d : rank(a) - rank(b);
-		});
-	}
+	if (mode === 'used') return rankByUse(apps, usage);
 	// 'recent': anything opened, newest first; everything never opened after it,
 	// in curated order. Comparing the ISO strings directly is safe -- they are
 	// all UTC and fixed-width, so lexical order IS chronological order.
@@ -471,13 +453,56 @@ export function arrangeApps(
  * it with a stale copy.
  */
 export function recordUsage(prefs: HomepagePrefs, id: string, at: Date): HomepagePrefs {
-	const usage = prefs.usage ?? {};
-	const prev = usage[id];
-	return {
-		...prefs,
-		usage: {
-			...usage,
-			[id]: { count: (prev?.count ?? 0) + 1, last: at.toISOString() }
-		}
-	};
+	return { ...prefs, usage: bumpUsage(prefs.usage, id, at) };
+}
+
+/**
+ * THE TWO HALVES OF "MOST USED", AS GENERIC HELPERS, because the admin console
+ * (src/routes/dashboard/console.ts) orders its panels by the same rule the
+ * launcher orders its cards by, and a second spelling of "count descending,
+ * ties in curated order" is the thing that quietly stops matching. Both are
+ * pure and know nothing about apps or panels beyond an `id`.
+ */
+
+/** One more use of `id` at `at`, over a usage map that may be absent. */
+export function bumpUsage(
+	usage: Record<string, AppUsage> | undefined,
+	id: string,
+	at: Date
+): Record<string, AppUsage> {
+	const prev = usage?.[id];
+	return { ...(usage ?? {}), [id]: { count: (prev?.count ?? 0) + 1, last: at.toISOString() } };
+}
+
+/** Most used first; anything never used keeps its position in `items`. STABLE. */
+export function rankByUse<T extends { id: string }>(
+	items: T[],
+	usage: Record<string, AppUsage>
+): T[] {
+	const curated = new Map(items.map((a, i) => [a.id, i]));
+	const rank = (a: T) => curated.get(a.id) ?? 0;
+	return [...items].sort((a, b) => {
+		const d = (usage[b.id]?.count ?? 0) - (usage[a.id]?.count ?? 0);
+		return d !== 0 ? d : rank(a) - rank(b);
+	});
+}
+
+/**
+ * A stored usage map, or nothing. Every entry must be a positive integer count
+ * and a parseable `last`; an entry that is not is DROPPED rather than coerced,
+ * the rule every preference read here follows. Unknown ids are kept (the
+ * caller's registry decides what is live), so a retired id costs nothing and
+ * a not-yet-shipped one is not thrown away by an older client.
+ */
+export function readUsage(raw: unknown): Record<string, AppUsage> | undefined {
+	if (!raw || typeof raw !== 'object') return undefined;
+	const out: Record<string, AppUsage> = {};
+	for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+		if (!v || typeof v !== 'object') continue;
+		const { count, last } = v as { count?: unknown; last?: unknown };
+		if (typeof count !== 'number' || !Number.isInteger(count) || count < 1) continue;
+		if (typeof last !== 'string' || Number.isNaN(Date.parse(last))) continue;
+		out[id] = { count, last };
+	}
+	return Object.keys(out).length ? out : undefined;
 }

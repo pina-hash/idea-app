@@ -3,6 +3,12 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
+	/* The two room stylesheets, for `?room=` only (see +page.ts). Each is
+	   scoped under its own root class and reaches nothing until that class is
+	   on an element, so importing both costs this harness nothing on the
+	   default case. */
+	import '$lib/classroom/classroom.css';
+	import '$lib/foundry/forge.css';
 	import {
 		SITE_THEMES,
 		SITE_THEME_LABELS,
@@ -87,6 +93,9 @@
 	];
 
 	const current = $derived(siteTheme());
+	let { data } = $props();
+	const ROOM_CLASS: Record<string, string> = { classroom: 'cr-root', foundry: 'fg-root' };
+	const roomClass = $derived(data.room ? ROOM_CLASS[data.room] : '');
 
 	/**
 	 * `?state=<id>` starts the harness on a theme, through the SHIPPING call.
@@ -110,6 +119,9 @@
 
 <svelte:head><title>Site theme harness</title></svelte:head>
 
+<!-- The room wrapper is OUTSIDE main: a room root is the page's own root in
+     the routes that mount it, and `body:has(.cr-root)` has to see it. -->
+<div class={roomClass || undefined} data-testid="theme-room" data-room={data.room ?? 'none'}>
 <main class="harness">
 	<header class="hz">
 		<h1>Site theme: the launcher, and every repainted role on every repainted ground</h1>
@@ -160,6 +172,7 @@
 		<AppLauncher onRequireSignIn={() => {}} />
 	</section>
 </main>
+</div>
 
 <style>
 	.harness {
