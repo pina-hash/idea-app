@@ -251,10 +251,33 @@ unchanged.
   The first draft reported 39: the two extra were the deliberate once-at-mount
   read of the `dictation` prop, now `untrack`ed with the reason beside it.
 - Full suite: SUITE_PLACEHOLDER
-- Browser harness (`npm run verify:browser -- --route feedback --route
-  feedback-state-dictating`, Chromium 141.0.7390.37, 375 and 1440, fallback
-  font stack, reduced-motion only where the motion check flips it):
-  HARNESS_PLACEHOLDER
+- Browser harness, the FULL measured pass (`npm run verify:readme`, Chromium
+  141.0.7390.37, every spec at 375 and 1440, fallback font stack,
+  reduced-motion only where the motion check flips it): 290 runs, 4,454
+  measurements, 2 outside threshold, both the known notebook toolbar
+  tap-reach rows (decision 12, with the owner). Measured on `da4605ba`,
+  clean tree; the README's measured region is regenerated from it and
+  `covered` now lists both feedback specs. For the two feedback routes at
+  both widths: box title 14.22:1, note / labels / count / the audio note
+  6.91:1, the selected chip and SEND 6.00:1 on the field fill, the DICTATE
+  word 5.51:1, STOP 11.34:1 on the listening control, the status line 6.91:1;
+  every box button, chip and the dictate control 44px tall at both widths
+  (smallest 104.8x44 resting, 75x44 listening); the live dot is the one
+  animated element in the box, pulses under no-preference and rests at
+  opacity 1 under reduce; 0 console errors. Two earlier full passes went into
+  this one: the first found 14 rows outside on the dictating spec because
+  its click step re-pressed a TOGGLE (STOP at 400ms, before the 900ms
+  sentence), the second found 2 because a text-contains row read a
+  textarea's `textContent`, which is empty for a value set by script; both
+  were spec defects and both are recorded in the spec. A third row,
+  `/dev/frc?state=reviewer` at 375 (`view-as-student` order-result), was
+  outside on that second pass and inside on the first and the third: a flake
+  outside this bundle's paths, reported and not touched.
+- The harness's own Vite boot is 180 to 184 s cold on this container against
+  a 180 s window, so three launches failed to boot; the passes above ran
+  against a server started by hand on port 5199 and warmed on
+  `/dev/pathways` first, which the harness reuses (its `startDevServer`
+  probes the port before spawning).
 - The dom and node feedback files on their own: 10 files, 257 tests, plus the
   two new files at 21 tests.
 - Screenshots of the themed box and the listening state at 375 and 1440 were
