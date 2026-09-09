@@ -9,7 +9,7 @@
 - Migration permitted: no. Claims: none.
 - Lands on: `main` directly. Two legacy HTML files no other lane owns, no schema,
   no migration. Same route ledger 0102 took.
-- Status: issued
+- Status: pushed
 - Branch: none. Commits on `main`.
 - Notes: IDEA100 Rotation 1 runs its Blade tournament on 2026-09-22 and the
   rotation ends 2026-09-23. Those students then leave the pathway, so nothing
