@@ -4,15 +4,15 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "8 slides, all four elements",
+        "short": "8 slides, 4:3, all elements",
         "points": 3,
-        "descriptor": "All eight slides in order, and every station slide carries the part photo, the drawing (or the xTool screenshot on slide 6), a notebook line naming something specific, and a process decision."
+        "descriptor": "Deck is 4:3, all eight slides are in order, and every station slide carries the part photo, the drawing (or the xTool screenshot on slide 6), a notebook line naming something specific, and a process decision."
       },
       {
         "label": "Proficient",
         "short": "One element missing once",
         "points": 2,
-        "descriptor": "All eight slides present, with one required element missing from one station slide."
+        "descriptor": "All eight slides present, with one required element missing from one station slide, or the deck is not 4:3."
       },
       {
         "label": "Developing",
@@ -38,25 +38,25 @@
         "label": "Complete",
         "short": "All real, clear, within limits",
         "points": 3,
-        "descriptor": "Every image is the student's own photo or screenshot, every part is identifiable in its photo, and no slide breaks the word or image rule."
+        "descriptor": "Every image is the student's own photo or screenshot, every part is identifiable in its photo, no slide except the title exceeds 35 words, and every slide except the title carries an image filling at least a third of it."
       },
       {
         "label": "Proficient",
         "short": "One image or slide fails",
         "points": 2,
-        "descriptor": "One image is unusable, generated, or sourced elsewhere, or one slide breaks the word or image rule."
+        "descriptor": "One image is unusable, generated, or sourced elsewhere, or one slide exceeds 35 words, or one slide is missing its image."
       },
       {
         "label": "Developing",
         "short": "Two or three fail",
         "points": 1,
-        "descriptor": "Two or three images or slides fail on the same grounds."
+        "descriptor": "Two or three images or slides fail on those grounds."
       },
       {
         "label": "Absent",
         "short": "Four or more fail",
         "points": 0,
-        "descriptor": "Four or more images or slides fail, or the deck relies on generated or stock images."
+        "descriptor": "Four or more images or slides fail on those grounds, or the deck relies on generated or stock images."
       }
     ],
     "points": 3,
@@ -132,15 +132,15 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Named, sourced, tied to number",
+        "short": "Named, sourced, number, ranked",
         "points": 5,
-        "descriptor": "Names the closest and furthest process using their own largest differences, gives a reason from the four listed, and ties that reason to one of their measured numbers."
+        "descriptor": "Names the closest and furthest process using their own largest differences, gives a reason from the four listed, ties that reason to one of their measured numbers, and ranks all five processes closest to furthest."
       },
       {
         "label": "Proficient",
-        "short": "Named and sourced, reason loose",
+        "short": "Named, sourced, one part missing",
         "points": 4,
-        "descriptor": "Names both processes from their own numbers and gives a reason from the four listed, without tying it to a measured value."
+        "descriptor": "Names both processes from their own numbers and gives a reason from the four listed, but either does not tie it to a measured value or does not rank all five."
       },
       {
         "label": "Developing",
