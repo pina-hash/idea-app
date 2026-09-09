@@ -1,0 +1,285 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 2,
+    "theme": "idea-green",
+    "title": "Shop Trophy: Portfolio Presentation",
+    "course": "IDEA209H",
+    "dueDate": "2026-09-25",
+    "totalPoints": 25,
+    "assignmentId": "idea209h-u2-final",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Assignments"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "deck",
+      "intro": "Build the deck you will present from. It is due before the first presentation day, not on the day you present.",
+      "title": "Your deck",
+      "aiNote": "AI may make or edit images, suggest layouts, and tighten sentences you wrote. It may not generate the deck or write your process decisions for you.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "**Nine slides. Slides 2 through 6 are one per station, in this order.**\n\n```\nSLIDE 1    Title. Your name, and a photo of your finished trophy.\nSLIDE 2    BASE        H2D Laser\nSLIDE 3    COLUMN      Manual Mill\nSLIDE 4    PLATFORM    Axiom CNC Router\nSLIDE 5    SHAFT       Manual Lathe\nSLIDE 6    TOPPER      xTool MetalFab\nSLIDE 7    Your measurements. Nominal, measured, difference.\nSLIDE 8    What the numbers showed.\nSLIDE 9    Rank the five processes. What you would do differently.\n```\n\n**On each station slide (2 through 6), three things:**\n\n1. A photo of **your actual part**, not a render and not the model.\n2. The one process decision that mattered most at that station.\n3. What that station's part taught you about what the machine can and cannot hold.\n\n**The rules on how it looks**\n\n- **4:3 aspect ratio.** Set this before you start. Changing it later breaks your layouts.\n- **25 words maximum on any slide.** Count them. This is the rule that makes the deck watchable.\n- **Every slide has an image**, except the title slide if you want it clean.\n- Slides carry what you point at. They do not carry what you say.\n\n**The rules on what you build it in**\n\nYour deck must open in **Google Slides, PowerPoint, or Canva**, and you must be able to export it to PDF.\n\nIf it only opens in its own web player, it does not count and you will present without slides.\n\nYou may use AI for images, for layout ideas, and to tighten your own writing. You may not have AI generate the deck for you. You will be asked about your own slides."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 3,
+          "columns": [
+            {
+              "key": "tool",
+              "tip": "Google Slides, PowerPoint, or Canva.",
+              "label": "Built in"
+            },
+            {
+              "key": "link",
+              "tip": "Turn view access on for anyone with the link, then test it in a private window.",
+              "label": "Link to your deck"
+            },
+            {
+              "key": "slides",
+              "tip": "Should be 9.",
+              "label": "Slide count"
+            }
+          ],
+          "minRows": 1,
+          "printRows": 1,
+          "rowImages": false,
+          "statusColumn": false
+        },
+        {
+          "id": "c1",
+          "type": "checklist",
+          "items": [
+            "Aspect ratio is set to 4:3",
+            "Nine slides, in the order shown above",
+            "No slide has more than 25 words",
+            "Every station slide has a photo of my actual part",
+            "My measurement numbers are on slide 7",
+            "The link works when I open it in a private window"
+          ],
+          "points": 3
+        },
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 4,
+          "prompt": "Slide 8 is where you say what your numbers showed. Write that here first, in your own words, before you put it on the slide. Name which process held its dimensions best, which held them worst, and one physical reason for the difference.",
+          "maxSentences": 6,
+          "minSentences": 3
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "r1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "9 slides, right order",
+              "points": 4,
+              "descriptor": "All nine slides present in the given order, and each station slide names its station."
+            },
+            {
+              "label": "Proficient",
+              "short": "9 slides, one out of order",
+              "points": 3,
+              "descriptor": "All nine slides present, with one slide out of order or one station unlabeled."
+            },
+            {
+              "label": "Developing",
+              "short": "7 or 8 slides",
+              "points": 2,
+              "descriptor": "Seven or eight slides present, or two or more stations missing their own slide."
+            },
+            {
+              "label": "Absent",
+              "short": "Under 7 slides",
+              "points": 0,
+              "descriptor": "Fewer than seven slides, or no deck submitted."
+            }
+          ],
+          "criterion": "Slide structure"
+        },
+        {
+          "id": "r2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All slides under 25 words",
+              "points": 3,
+              "descriptor": "No slide exceeds 25 words, and every slide except the title carries an image."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two slides over",
+              "points": 2,
+              "descriptor": "One or two slides exceed 25 words, or one slide has no image."
+            },
+            {
+              "label": "Developing",
+              "short": "Three or four slides over",
+              "points": 1,
+              "descriptor": "Three or four slides exceed 25 words, or two or three slides have no image."
+            },
+            {
+              "label": "Absent",
+              "short": "Five or more over",
+              "points": 0,
+              "descriptor": "Five or more slides exceed 25 words, or the deck is mostly text."
+            }
+          ],
+          "criterion": "Visual density"
+        },
+        {
+          "id": "r3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 5 parts, 3 columns",
+              "points": 3,
+              "descriptor": "Slide 7 shows nominal, measured, and difference for all five parts."
+            },
+            {
+              "label": "Proficient",
+              "short": "3 or 4 parts",
+              "points": 2,
+              "descriptor": "Slide 7 shows those three values for three or four parts."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers, no comparison",
+              "points": 1,
+              "descriptor": "Measured values appear with no nominal to compare against, or only one or two parts are shown."
+            },
+            {
+              "label": "Absent",
+              "short": "No numbers",
+              "points": 0,
+              "descriptor": "No measurement data on the deck."
+            }
+          ],
+          "criterion": "Measurements shown"
+        }
+      ],
+      "aiLevel": 2
+    },
+    {
+      "id": "portfolio",
+      "intro": "You walk the class through your trophy and what you found making it. Slides are on the screen. Your five parts are on the bench in front of you.",
+      "title": "Present your portfolio",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "**Seven minutes each. Five minutes presenting, two minutes of questions.**\n\nThe timer is real. At five minutes you stop, wherever you are.\n\n**How the days work**\n\n- **Block 3:** presentations run across two class days. Half the class each day. The order is posted before the first day.\n- **Blocks 2 and 4:** every presentation happens in one class day.\n\nYour deck is due before the **first** presentation day either way. If you present on the second day, your deck was still due on the first.\n\n**What you have to cover in five minutes**\n\n- The most significant process decision you made at each of the five stations.\n- What your measurements showed about which processes held the dimensions and which did not.\n- **Why** that happened. Not that the printer hole was small, but what about that process made it small.\n\n**The two minutes of questions**\n\nQuestions come from the instructor and from the class. They are about what you did and what you measured, not about whether your choices were right. Everyone made the same five parts.\n\nReading your slides out loud is not an answer. If you do not know, say so and say what you would measure to find out."
+        }
+      ],
+      "points": 15,
+      "rubric": [
+        {
+          "id": "r4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 5 stations, specific",
+              "points": 5,
+              "descriptor": "Names a specific process decision at all five stations, each one a choice that could have gone another way."
+            },
+            {
+              "label": "Proficient",
+              "short": "4 stations, or 5 vague",
+              "points": 4,
+              "descriptor": "Names a specific decision at four stations, or covers all five but one is a description rather than a decision."
+            },
+            {
+              "label": "Developing",
+              "short": "2 or 3 stations",
+              "points": 2,
+              "descriptor": "Names a decision at two or three stations, or describes what was done without identifying a choice."
+            },
+            {
+              "label": "Absent",
+              "short": "0 or 1 station",
+              "points": 0,
+              "descriptor": "Covers one station or none."
+            }
+          ],
+          "criterion": "Process decisions"
+        },
+        {
+          "id": "r5",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Pattern named and explained",
+              "points": 5,
+              "descriptor": "States which process held dimensions best and worst from their own numbers, and gives a physical reason involving the tool, the beam, the material, or the setup."
+            },
+            {
+              "label": "Proficient",
+              "short": "Pattern named, thin reason",
+              "points": 4,
+              "descriptor": "States the pattern from their own numbers and offers a reason that is correct but not tied to a specific process characteristic."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers restated only",
+              "points": 2,
+              "descriptor": "Reads the measurements out without saying what pattern they show, or names a pattern with no reason."
+            },
+            {
+              "label": "Absent",
+              "short": "No data used",
+              "points": 0,
+              "descriptor": "Does not refer to their own measurements."
+            }
+          ],
+          "criterion": "Data connected to process"
+        },
+        {
+          "id": "r6",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Answers all, from own work",
+              "points": 5,
+              "descriptor": "Answers every question from what they did and measured, including at least one they had not prepared for."
+            },
+            {
+              "label": "Proficient",
+              "short": "Answers most",
+              "points": 4,
+              "descriptor": "Answers most questions from their own work, with one answer that restates a slide."
+            },
+            {
+              "label": "Developing",
+              "short": "Reads slides back",
+              "points": 2,
+              "descriptor": "Answers mainly by reading slides aloud, or cannot answer more than one question."
+            },
+            {
+              "label": "Absent",
+              "short": "No answers",
+              "points": 0,
+              "descriptor": "Does not answer questions, or does not present."
+            }
+          ],
+          "criterion": "Answering questions"
+        }
+      ],
+      "aiLevel": null
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
