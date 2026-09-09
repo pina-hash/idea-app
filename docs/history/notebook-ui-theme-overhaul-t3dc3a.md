@@ -218,3 +218,21 @@ not exercise `prefers-reduced-motion`. `tests/dom/` mounts nothing here.
   entries is a list again: an entry's buttons appear when you open it. The
   appearance menu gained Matrix, and Default now follows whatever site theme
   you picked."
+
+### The full pass, on the committed tree
+
+`npm test`: **345 files, 6793 tests passed, 2 failed**, and the two were
+`tests/derived-numbers.test.ts` reading a measured README region that had not
+yet covered the two new specs; after the region below was regenerated it is
+**18 passed** serially. 347s.
+
+`npm run verify:browser`, full, on commit `947c3e5` with `dirty: false`, Vite
+pre-started on 5199 and reused (server boot 62ms): **316 route/width runs,
+5356 measurements, 0 outside threshold, 798.0s**; selftest **70 controls (36
+negative, 34 positive), 0 instrument failures**. The two `/dev/notebook`
+tap-reach rows that were the only outside rows of every pass since 2026-09-05
+are gone, and the two new matrix routes are covered (158 of 158 specs). The
+measured region of `tools/browser-verify/README.md` is regenerated from that
+run's own JSON (`--from`), never edited.
+
+`svelte-check`: 0 errors / 37 warnings at 31/5/1, unchanged from the baseline.
