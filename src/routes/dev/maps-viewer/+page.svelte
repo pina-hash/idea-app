@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import type { MapsSearchRow } from '$lib/maps/transports';
+	import '$lib/shell/split.css';
 	import MapsViewer from '$lib/maps/viewer/MapsViewer.svelte';
 	import { mapsViewerFixture, memoryMapsViewerTransports, VFIX } from './fixture';
 
@@ -45,14 +47,19 @@
 		return new URLSearchParams(named);
 	});
 
-	let { data }: { data: { state: string | null } } = $props();
+	let { data }: { data: { state: string | null; initialResults: MapsSearchRow[] } } = $props();
 </script>
 
 <svelte:head>
 	<title>maps-viewer harness</title>
 </svelte:head>
 
-<main class="harness">
+<!-- THE SAME APPLICATION FRAME THE ROUTE USES: a bar of chrome that measures
+     itself (the state list) and a body that takes the rest, so the geometry
+     the harness measures is the shipping geometry. A harness note ABOVE the
+     frame would have handed the viewer a window minus a line nobody could
+     predict; inside it, the body simply takes what is left. -->
+<main class="harness cr-app">
 	<p class="harness-note">
 		Dev harness: the real MapsViewer over published-only fixture data, with an in-memory
 		search transport. States:
@@ -60,20 +67,27 @@
 				href={`/dev/maps-viewer?state=${name}`}>{name}</a
 			>{/each}.
 	</p>
-	{#key data.state}
-		<MapsViewer data={fixture} {search} {transports} />
-	{/key}
+	<div class="cr-app-body">
+		{#key data.state}
+			<MapsViewer data={fixture} {search} {transports} initialResults={data.initialResults} />
+		{/key}
+	</div>
 </main>
 
 <style>
+	/* The route's own shell releases app.css's 880px reading `main` the same
+	   way; the harness must too, or it measures a map pane the route does
+	   not have. */
 	.harness {
-		padding: 0 1rem 2rem;
-		max-width: 90rem;
-		margin: 0 auto;
+		min-height: 0;
+		max-width: none;
+		margin: 0;
+		padding: 0;
 	}
 	.harness-note {
+		margin: 0;
 		font-size: 0.8rem;
 		color: var(--dim);
-		padding: 0.6rem 0;
+		padding: 0.4rem 1rem;
 	}
 </style>

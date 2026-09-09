@@ -63,6 +63,7 @@ export default {
 		}
 	],
 	contrast: [
+		{ selector: '[data-testid="maps-viewer-elevation"] .mv-elev-name', label: 'the sheet caption naming the unit', min: 4.5 },
 		{ selector: '[data-testid="maps-viewer-stack"] .mv-slot-name', label: 'a compartment name', min: 4.5 },
 		{ selector: '[data-testid="maps-viewer-stack"] .mv-slot-meta', label: 'the height and subtype beside it', min: 4.5 }
 	],
