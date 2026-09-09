@@ -923,6 +923,7 @@ node tools/claude-md-check.mjs          # does THIS file still agree with the tr
 npm run verify:browser                  # the visual pass: /dev routes at 375 and 1440
 npm run verify:browser -- --probe       # what this machine's browser can actually do
 npm run verify:browser -- --selftest    # negative controls for every check
+python3 tools/idea_icon_gen.py <outdir> # regenerates the site icons; it and `tools/idea_logo_vector.py` are the ONLY place icon and logo geometry is edited
 npm run build                           # see the Windows EPERM trap below
 ```
 

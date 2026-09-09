@@ -9,7 +9,7 @@
   `docs/prompt-ledger/entries/0102-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
 - Lands on: `main` directly (static assets, one head file, one test, two tools, one CLAUDE.md line).
-- Status: issued
+- Status: pushed to branch, BLOCKED before `main`
 - Branch: `claude/site-icon-set-bybeed`
 - Notes: the site has never carried a favicon at the document root. `src/app.html`
   points `rel="icon"` and `rel="apple-touch-icon"` at
@@ -29,3 +29,16 @@
   Surface-intersection check at issue: no other ledger entry, landed or in flight,
   owns `static/`, `src/app.html` or `static/manifest.webmanifest`. No `0102` entry
   exists on `origin/main`, `origin/integration` or any `origin/claude/**` ref.
+
+  BLOCKED BEFORE `main`, and the block is a migration this entry does not
+  permit. The six new files are slug-shaped top-level entries under `static/`,
+  so `tests/short-link-reserved-names.test.ts` reddens until they join
+  `RESERVED_SLUGS` -- and that file's second half asserts the TypeScript list
+  and `_app_short_link_reserved`'s own `prosrc` name the IDENTICAL set, so the
+  list cannot move without the function moving with it. `src/lib/short-links.ts`
+  is not on the Owns line above and no migration was written. The icons, the
+  head, the manifest, the two tools, the `CLAUDE.md` line and the 18-assertion
+  test are pushed to `claude/site-icon-set-bybeed`; the follow-up bundle needs
+  one migration in `0166_short_link_reserve_maps.sql`'s shape plus the six names
+  in `src/lib/short-links.ts` and in `tests/short-link-redirect.test.ts`. See
+  `docs/history/site-icon-set-bybeed.md`.
