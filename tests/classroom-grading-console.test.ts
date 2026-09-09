@@ -419,9 +419,37 @@ describe('a level shows a line, and the line comes from one place', () => {
 		// Exactly the shape every rubric row in the database has today.
 		const stored = { points: 3, label: 'Proficient', descriptor: 'All three views drawn; two or three members unlabeled.' };
 		expect(levelShort(stored, 'm1-views', SPEC)).toBe('Some labels missing');
-		// Paired on POINTS inside the criterion, so a reordered or trimmed
-		// builder rubric still lines up.
-		expect(levelShort({ points: 0, label: 'x' }, 'm1-views', SPEC)).toBe('Nothing drawn');
+		// PAIRED ON THE DESCRIPTOR inside the criterion, and since 0113 NOT on
+		// the points: a reordered, trimmed or REWEIGHTED builder rubric still
+		// lines up, because what identifies the standard is the sentence and not
+		// the number beside it. This level carries the spec's bottom descriptor
+		// at a weight no level in the spec has, which the old points pairing
+		// could not resolve at all.
+		expect(
+			levelShort(
+				{ points: 2, label: 'x', descriptor: 'No views drawn, or not attempted.' },
+				'm1-views',
+				SPEC
+			)
+		).toBe('Nothing drawn');
+		// AND THE OTHER DIRECTION, which is why it moved. A descriptor the
+		// instructor rewrote matches no spec level, so the console reads what
+		// they wrote instead of the spec's summary of what it used to say --
+		// under the points pairing this answered 'Nothing drawn' over a sentence
+		// that says something else, which is the reported defect's tail.
+		expect(
+			levelShort(
+				{ points: 0, label: 'Absent', descriptor: 'Nothing handed in at all.' },
+				'm1-views',
+				SPEC
+			)
+		).toBe('Nothing handed in at all.');
+		// A level with NO descriptor has nothing to pair on and nothing to fall
+		// back to; the console renders its points and label and no line. Neither
+		// producer emits this shape -- `rubricFromSpec` copies the descriptor and
+		// the builder always writes the field -- so it is here as the boundary,
+		// not as a case anybody meets.
+		expect(levelShort({ points: 0, label: 'x' }, 'm1-views', SPEC)).toBe('');
 	});
 
 	it('falls back to the FULL descriptor when nothing anywhere has one', () => {
