@@ -9,7 +9,7 @@
   `docs/prompt-ledger/entries/0108-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration`, then `main` against the six-item checklist.
-- Status: issued
+- Status: pushed
 - Branch: `claude/loading-perf-audit-0108-ynczwk`.
 - Notes: audit findings 1, 2, 8, 10, 11. Finding 3's `transports.ts` item is
   excluded because ledger 0106 owns that file. The audit could not run a build,
