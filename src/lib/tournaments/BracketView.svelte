@@ -67,7 +67,7 @@
 	</div>
 {/snippet}
 
-<div class="bracket-scroll">
+<div class="bracket-scroll" data-testid="bracket">
 	{#each sections as section (section.id)}
 		<div class="bracket-section">
 			<h3 class="section-title">{section.title}</h3>
@@ -145,6 +145,17 @@
 	.round {
 		display: flex;
 		flex-direction: column;
+		/* THE COLUMNS TAKE THE WIDTH THE PAGE GIVES THEM (prompt 0110, item 2).
+		   `min-width` alone made every round exactly 13.5rem however wide the
+		   page was: on a 2844px screen a four-round winners bracket sat in
+		   ~900px of a page that offered three times that, and the chips
+		   ellipsised at the same width they do on a laptop. `flex: 1 1
+		   13.5rem` keeps the floor -- a round never narrows past what a chip
+		   needs, and `.bracket-scroll` still scrolls sideways when the sum of
+		   the floors is wider than the page -- and lets the rounds grow into
+		   whatever is left over, evenly. The node chips keep their own size;
+		   what widens is the room around the name. */
+		flex: 1 1 13.5rem;
 		min-width: 13.5rem;
 	}
 	.round-label {

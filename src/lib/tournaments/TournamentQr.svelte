@@ -90,7 +90,7 @@
 {:else}
 <div class="qr-card">
 	{#if qrFailed}
-		<p class="qr-fail">QR unavailable — share the link: <span class="qr-url">{displayUrl}</span></p>
+		<p class="qr-fail">QR unavailable. Share the link: <span class="qr-url">{displayUrl}</span></p>
 	{:else}
 		<div class="qr-frame"><canvas bind:this={smallCanvas}></canvas></div>
 		<div class="qr-side">

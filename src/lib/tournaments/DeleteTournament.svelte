@@ -189,8 +189,20 @@
 		flex-direction: column;
 		gap: 0.35rem;
 	}
+	/* BOTH CONTROLS CLEAR 44px AS A `min-height`, NEVER A HEIGHT, and they get
+	   it HERE so every mount inherits the floor -- the host console's full
+	   card and the board's compact strip alike. MEASURED before this rule by
+	   the browser run: the compact trigger on the board was 114.8 x 18.8 px,
+	   under even the 24px instructor-only floor, let alone the 44px a
+	   student-facing surface owes (the board is public). The padding and the
+	   type size stay; `inline-flex` centres the word in the taller box and
+	   `border-box` keeps the 1px edge inside the measured height. */
 	.trigger,
 	.cancel {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		box-sizing: border-box;
 		background: none;
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
 		border-radius: 4px;
@@ -268,7 +280,13 @@
 		gap: 0.4rem;
 		align-items: center;
 	}
+	/* The same floor as the trigger and Cancel: it sits beside Cancel in one
+	   row and is the control the whole form exists to reach. */
 	.go {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		box-sizing: border-box;
 		background: none;
 		border: 1px solid var(--crimson, #ff3355);
 		border-radius: 4px;

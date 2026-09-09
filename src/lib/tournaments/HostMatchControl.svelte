@@ -6,9 +6,11 @@
 	import {
 		isForfeitMatch,
 		matchHref,
+		memberNames,
 		roundLabel,
 		type BracketMatch,
-		type TournamentEntry
+		type TournamentEntry,
+		type TournamentEntryMember
 	} from './tournaments';
 
 	/**
@@ -42,6 +44,7 @@
 		scoreEntry,
 		busy = false,
 		tournamentId = null,
+		members = {},
 		onstart,
 		onsubmit,
 		onforfeit,
@@ -54,6 +57,10 @@
 		busy?: boolean;
 		/** Given one, a completed row links to its match detail page. */
 		tournamentId?: string | null;
+		/** Registrants by entry id (0192), for the NEXT UP banners: a host
+		 * calling a team reads every name on it. Default empty: nothing changes
+		 * on a surface that has not loaded them. */
+		members?: Record<string, TournamentEntryMember[]>;
 		onstart: (matchId: string) => Promise<boolean> | boolean | void;
 		onsubmit: (matchId: string, result: unknown) => Promise<boolean> | boolean | void;
 		onforfeit: (matchId: string, result: unknown) => Promise<boolean> | boolean | void;
@@ -165,12 +172,14 @@
 				<EntryBanner
 					entry={next.entry_a_id ? (entries[next.entry_a_id] ?? null) : null}
 					seed={next.entry_a_id ? entries[next.entry_a_id]?.seed : null}
+					members={next.entry_a_id ? memberNames(members[next.entry_a_id]) : []}
 					size="sm"
 				/>
 				<span class="vs-sep">vs</span>
 				<EntryBanner
 					entry={next.entry_b_id ? (entries[next.entry_b_id] ?? null) : null}
 					seed={next.entry_b_id ? entries[next.entry_b_id]?.seed : null}
+					members={next.entry_b_id ? memberNames(members[next.entry_b_id]) : []}
 					size="sm"
 				/>
 			</div>

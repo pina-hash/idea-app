@@ -271,7 +271,7 @@
 				</button>
 			{/each}
 		</div>
-		<p class="hint">Cosmetic only — flourishes never change how a match is scored or shown.</p>
+		<p class="hint">Cosmetic only. Flourishes never change how a match is scored or shown.</p>
 	</div>
 
 	<div class="field">

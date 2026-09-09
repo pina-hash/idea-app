@@ -85,7 +85,7 @@
 			const round = Number.parseInt(txt(row.round), 10);
 			const amt = parseAmount(row.amount);
 			if (!Number.isFinite(round) || round < 1 || round > 20 || !amt) {
-				formError = 'Each round bonus needs a round (1–20) and a positive amount.';
+				formError = 'Each round bonus needs a round (1 to 20) and a positive amount.';
 				return;
 			}
 			if (seenRounds.has(round)) {

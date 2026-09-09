@@ -5,12 +5,13 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
+	import EntryTeamPanel from '$lib/tournaments/EntryTeamPanel.svelte';
 	import HostMatchControl from '$lib/tournaments/HostMatchControl.svelte';
 	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import { hostSectionOrder } from '$lib/tournaments/live';
-	import { entryMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
+	import { entryMap, memberMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -19,7 +20,18 @@
 	const config = $derived(parseConfig(t.config));
 	const entries = $derived(entryMap(data.entries));
 	const styles = $derived(styleMap(data.entryStyles));
+	const members = $derived(memberMap(data.members));
+	const teamSize = $derived(config.team_size);
 	const preBracket = $derived(t.status !== 'live' && t.status !== 'complete');
+	/**
+	 * 0192 READINESS, READ OFF THE DATA (the event page's rule): after the
+	 * backfill every entry has a member row, so entries with no members at
+	 * all is a deployment the migration has not reached, where the rename
+	 * and roster RPCs do not exist. Those controls stay off until it has.
+	 */
+	const membersReady = $derived(data.entries.length === 0 || data.members.length > 0);
+	/** A site admin managing an event they do not host (item 5). */
+	const adminOnly = $derived(data.isAdmin && !data.isHost);
 
 	let busy = $state(false);
 	let actionError = $state('');
@@ -109,6 +121,7 @@
 		let channel = data.supabase.channel(`tournament-host-${t.id}`);
 		for (const table of [
 			'tournament_entries',
+			'tournament_entry_members',
 			'tournament_qual_matches',
 			'tournament_bracket_matches',
 			'tournament_match_games',
@@ -137,6 +150,64 @@
 	let walkName = $state('');
 	let walkDescription = $state('');
 	let confirmRemoveId = $state<string | null>(null);
+
+	// --- entry names and rosters (0192, items 6 and 7) ---
+	// A host renames an entry inline while the bracket does not exist yet
+	// (`tournament_update_entry` refuses after, for a host and an admin too,
+	// so the control is only offered pre-bracket). The roster of a team
+	// event opens per entry behind a `team` toggle and is `EntryTeamPanel`
+	// with the console's transports: the same component the competitor sees
+	// on the event page, pointed at the same RPCs, which re-check that the
+	// caller is a host or an admin.
+	let renameId = $state<string | null>(null);
+	let renameName = $state('');
+	let teamOpenId = $state<string | null>(null);
+
+	function toggleRename(entryId: string, current: string) {
+		if (renameId === entryId) {
+			renameId = null;
+			return;
+		}
+		renameId = entryId;
+		renameName = current;
+	}
+	async function saveRename(entryId: string) {
+		const name = renameName.trim();
+		if (!name) return;
+		const okDone = await run(
+			() =>
+				data.supabase.rpc('tournament_update_entry', {
+					p_entry_id: entryId,
+					p_display_name: name
+				}),
+			'Entry renamed'
+		);
+		if (okDone) renameId = null;
+	}
+	const hostAddMember = (entryId: string) => (name: string, email: string | null) =>
+		run(
+			() =>
+				data.supabase.rpc('tournament_add_entry_member', {
+					p_entry_id: entryId,
+					p_name: name,
+					p_email: email
+				}),
+			'Teammate added'
+		);
+	const hostRemoveMember = (memberId: string) =>
+		run(
+			() => data.supabase.rpc('tournament_remove_entry_member', { p_member_id: memberId }),
+			'Teammate removed'
+		);
+	const hostRenameMember = (memberId: string, name: string) =>
+		run(
+			() =>
+				data.supabase.rpc('tournament_rename_entry_member', {
+					p_member_id: memberId,
+					p_name: name
+				}),
+			'Teammate renamed'
+		);
 
 	/**
 	 * Banner styling for WALK-UP entries only. A linked player's banner is
@@ -281,7 +352,8 @@
 	</div>
 </div>
 
-<main class="host-page tnm-root">
+<!-- A grid of cards: the split measure (D8). -->
+<main class="host-page tnm-page wide">
 	<section class="hero">
 		<div class="eyebrow">Host console · {data.hostCount} host{data.hostCount === 1 ? '' : 's'}</div>
 		<h1>{t.name}</h1>
@@ -289,8 +361,17 @@
 			Status: <strong>{statusLabel(t.status)}</strong>
 			· {config.quals_enabled ? 'Qualifying pools on' : 'No qualifying'}
 			· {config.score_entry ? 'Score entry' : 'Win/loss entry'}
+			{#if teamSize > 1}· Teams of up to {teamSize}{/if}
 		</p>
 	</section>
+
+	{#if adminOnly}
+		<!-- Said in words at the top, because every control below works and
+		     none of them was granted by this event's hosts (item 5). -->
+		<section class="card admin-notice" data-testid="admin-notice">
+			<p>You are managing this tournament as a site admin. You are not one of its hosts.</p>
+		</section>
+	{/if}
 
 	{#if actionError}<p class="feedback error">{actionError}</p>{/if}
 	{#if notice}<p class="feedback notice">{notice}</p>{/if}
@@ -373,6 +454,7 @@
 			<HostMatchControl
 				matches={data.bracketMatches}
 				{entries}
+				{members}
 				scoreEntry={config.score_entry}
 				{busy}
 				tournamentId={t.id}
@@ -481,6 +563,26 @@
 							>
 								↓
 							</button>
+							{#if membersReady}
+								<button
+									class="mini"
+									disabled={busy}
+									onclick={() => toggleRename(e.id, e.display_name)}
+									data-action="rename-entry"
+								>
+									{renameId === e.id ? 'close rename' : 'rename'}
+								</button>
+								{#if teamSize > 1}
+									<button
+										class="mini"
+										disabled={busy}
+										onclick={() => (teamOpenId = teamOpenId === e.id ? null : e.id)}
+										data-action="team"
+									>
+										{teamOpenId === e.id ? 'close team' : 'team'}
+									</button>
+								{/if}
+							{/if}
 							{#if confirmRemoveId === e.id}
 								<button
 									class="mini danger"
@@ -504,6 +606,49 @@
 						</span>
 					{/if}
 				</div>
+				{#if (members[e.id] ?? []).length}
+					<!-- The roster under its entry, chosen names only, mono and
+					     dim: a host calling a team reads every name on it. -->
+					<p class="members-line" data-testid="host-members">
+						{(members[e.id] ?? []).map((m) => m.name).join(' · ')}
+					</p>
+				{/if}
+				{#if renameId === e.id}
+					<form
+						class="rename-row"
+						data-form="host-rename"
+						onsubmit={(ev) => {
+							ev.preventDefault();
+							saveRename(e.id);
+						}}
+					>
+						<input
+							type="text"
+							maxlength="40"
+							required
+							aria-label="Entry name"
+							bind:value={renameName}
+						/>
+						<button type="submit" class="btn" disabled={busy || !renameName.trim()}>Save name</button>
+						<button type="button" class="btn secondary" onclick={() => (renameId = null)}>Cancel</button>
+					</form>
+				{/if}
+				{#if teamOpenId === e.id}
+					<div class="team-row">
+						<EntryTeamPanel
+							entry={e}
+							members={members[e.id] ?? []}
+							{teamSize}
+							status={t.status}
+							viewerId={data.claims?.sub ?? null}
+							manager={true}
+							{busy}
+							onaddmember={hostAddMember(e.id)}
+							onremovemember={hostRemoveMember}
+							onrenamemember={hostRenameMember}
+						/>
+					</div>
+				{/if}
 				{#if stylingId === e.id}
 					<div class="style-row">
 						<EntryStyleEditor
@@ -682,11 +827,6 @@
 {/snippet}
 
 <style>
-	.host-page {
-		max-width: 60rem;
-		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
-	}
 	.host-page .card {
 		margin-bottom: 1.1rem;
 	}
@@ -764,9 +904,36 @@
 	.matches {
 		border-color: var(--line-strong, var(--line));
 	}
-	.style-row {
+	.style-row,
+	.team-row {
 		padding: 0.8rem 0 1rem 2.3rem;
 		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
+	}
+	/* The roster line under an entry: --tnm-ink-dim (#93a09a) on the card
+	 * plate, 6.10:1 (EntryTeamPanel's own measurement of the same pair). */
+	.members-line {
+		margin: 0 0 0.3rem 2.3rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--tnm-ink-dim);
+	}
+	.rename-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		align-items: center;
+		padding: 0.4rem 0 0.8rem 2.3rem;
+	}
+	.rename-row input {
+		flex: 1;
+		min-width: 11rem;
+	}
+	.rename-row .btn {
+		min-height: 44px;
+	}
+	.admin-notice p {
+		margin: 0;
+		color: var(--tnm-ink);
 	}
 	.linked-tag {
 		font-family: 'Share Tech Mono', monospace;

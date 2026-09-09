@@ -141,7 +141,10 @@ const TOURNAMENT_PUBLIC_REASON =
 	'email column, there is no view over any of them, and the public identity is ' +
 	'tournament_entries.display_name, TYPED by the entrant at registration, never a Google ' +
 	'account name -- 0062 calls it an IDENTITY RULE. user_id columns are opaque uuids, opaque ' +
-	'because profiles is not anon-readable.';
+	'because profiles is not anon-readable. tournament_entry_members (0192) is the thirteenth, on ' +
+	'the same decision: the roster under an entry, one CHOSEN name per registrant and never a ' +
+	'profile name, revoked from anon and authenticated and then granted SELECT in the 0062 loop ' +
+	'shape, because the projector (session-blind by rule) names the pair on the floor from it.';
 
 const TOURNAMENT_TABLES = [
 	'tournaments',
@@ -155,7 +158,8 @@ const TOURNAMENT_TABLES = [
 	'tournament_match_events',
 	'tournament_reward_rules',
 	'tournament_reward_ledger',
-	'tournament_entry_styles'
+	'tournament_entry_styles',
+	'tournament_entry_members'
 ] as const;
 
 const ANON_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
@@ -215,7 +219,7 @@ const ANON_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
 };
 
 /** Pinned so an entry added silently fails. */
-const ANON_SURFACE_SIZE = 19;
+const ANON_SURFACE_SIZE = 20;
 
 // ---------------------------------------------------------------------------
 // B. THE CLIENT WRITE SURFACE.
@@ -448,7 +452,7 @@ describe('grant surface: the migrations against the catalog', () => {
 			// If heldBy() ever returns nothing -- a renamed role, a typo in the
 			// privilege list, a catalog query that stopped matching -- every
 			// `toEqual([])` below passes and reports a clean database.
-			expect(new Set(anonHeld.map((h) => h.name)).size, 'anon: the twelve tournament tables, the six IDEA Maps tables, and fsp_frc_interest.').toBe(ANON_SURFACE_SIZE);
+			expect(new Set(anonHeld.map((h) => h.name)).size, 'anon: the thirteen tournament tables, the six IDEA Maps tables, and fsp_frc_interest.').toBe(ANON_SURFACE_SIZE);
 			expect(
 				new Set(
 					authedHeld

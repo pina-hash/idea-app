@@ -9,11 +9,12 @@
 		isByeMatch,
 		isForfeitMatch,
 		matchScoreline,
+		memberNames,
 		msBetween,
 		roundLabel,
 		statusLabel
 	} from './tournaments';
-	import { matchQueue } from './live';
+	import { ROSTER_PAGE_MS, matchQueue, rosterWindow } from './live';
 	import {
 		EXIT_CONTROL_IDLE_MS,
 		fullscreenActive,
@@ -25,7 +26,8 @@
 		BracketMatch,
 		MatchGame,
 		Tournament,
-		TournamentEntry
+		TournamentEntry,
+		TournamentEntryMember
 	} from './tournaments';
 	import type { EntryStyle } from './entry-styles';
 
@@ -62,6 +64,7 @@
 		styles = {},
 		matches = [],
 		games = [],
+		members = {},
 		shareUrl,
 		showHint = true,
 		fullscreen = true
@@ -71,6 +74,8 @@
 		styles?: Record<string, EntryStyle>;
 		matches?: BracketMatch[];
 		games?: MatchGame[];
+		/** Registrants by entry id (0192); the banners name every one. */
+		members?: Record<string, TournamentEntryMember[]>;
 		shareUrl: string;
 		showHint?: boolean;
 		/** The route pins this to the viewport; the dev harness mounts it
@@ -91,6 +96,7 @@
 		matches.filter((m) => m.status === 'complete' && m.winner_id).length
 	);
 	const champion = $derived(t.champion_entry_id ? (entries[t.champion_entry_id] ?? null) : null);
+	const names = (id: string | null) => (id ? memberNames(members[id]) : []);
 
 	function maxRound(bracket: string): number {
 		return Math.max(0, ...matches.filter((m) => m.bracket === bracket).map((m) => m.round));
@@ -147,6 +153,33 @@
 	const featured = $derived(
 		liveMatches.length ? liveMatches[rotateTick % liveMatches.length] : null
 	);
+
+	// --- the roster page (prompt 0110, item 1) -------------------------------
+	// The register view shows EVERY entry, a page at a time (`rosterWindow` in
+	// live.ts is the arithmetic). The page turns on its own while there is more
+	// than one -- the rotateTick shape, cleared on unmount and not running at
+	// all for a field that fits -- and turns by keyboard for whoever is at the
+	// machine, because a projector has no mouse and a student at the back
+	// could not reach the entries past the sixth. ArrowRight / PageDown go
+	// forward, ArrowLeft / PageUp back; the tick is a plain counter and the
+	// window takes its remainder, so neither can run off the end.
+	let rosterTick = $state(0);
+	const roster = $derived(rosterWindow(entryRows.length, rosterTick));
+	const rosterPage = $derived(entryRows.slice(roster.start, roster.end));
+	// THE PAGE COUNT IS A FUNCTION OF THE FIELD ALONE, and the interval effect
+	// reads THAT rather than `roster.pages`. `roster` is re-derived on every
+	// tick (the tick is one of its inputs), so an effect that read a field
+	// off it re-ran on every tick too -- tearing the interval down and
+	// setting a fresh one each time it fired, which also re-based the seven
+	// seconds on the tick instead of on the mount. Read at tick 0 the window
+	// carries the same page count as at any other tick, so the count below
+	// changes only when the entry count does, and the effect with it.
+	const rosterPages = $derived(rosterWindow(entryRows.length, 0).pages);
+	$effect(() => {
+		if (rosterPages <= 1) return;
+		const id = setInterval(() => (rosterTick += 1), ROSTER_PAGE_MS);
+		return () => clearInterval(id);
+	});
 
 	// THE MATCH CLOCK (prompt 0077): how long the featured match has been
 	// running, off its own started_at, ticking once a second. A tournament
@@ -256,6 +289,21 @@
 		if (keyTargetIsTextEntry(e.target)) return;
 		if (isFull) wake();
 		if (keyHasModifier(e)) return;
+		// The roster page turns by keyboard. Only claimed while there IS a
+		// page to turn to, so a one-page roster and every other view leave
+		// the arrow keys to the browser.
+		if (view === 'register' && roster.pages > 1) {
+			if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+				e.preventDefault();
+				rosterTick += 1;
+				return;
+			}
+			if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+				e.preventDefault();
+				rosterTick -= 1;
+				return;
+			}
+		}
 		if (e.key !== 'f' && e.key !== 'F') return;
 		e.preventDefault();
 		// STILL A TOGGLE, not an entry. F is the only way out for a person who
@@ -288,6 +336,7 @@
 						<EntryBanner
 							entry={resultWinnerId ? (entries[resultWinnerId] ?? null) : null}
 							style={resultWinnerId ? (styles[resultWinnerId] ?? null) : null}
+							members={names(resultWinnerId)}
 							size="lg"
 							winner
 							event="win"
@@ -298,6 +347,7 @@
 						<EntryBanner
 							entry={resultLoserId ? (entries[resultLoserId] ?? null) : null}
 							style={resultLoserId ? (styles[resultLoserId] ?? null) : null}
+							members={names(resultLoserId)}
 							size="lg"
 							dim
 							event={resultEliminated ? 'eliminated' : null}
@@ -327,12 +377,14 @@
 					<EntryBanner
 						entry={featured.entry_a_id ? (entries[featured.entry_a_id] ?? null) : null}
 						style={featured.entry_a_id ? (styles[featured.entry_a_id] ?? null) : null}
+						members={names(featured.entry_a_id)}
 						size="xl"
 					/>
 					<span class="vs">vs</span>
 					<EntryBanner
 						entry={featured.entry_b_id ? (entries[featured.entry_b_id] ?? null) : null}
 						style={featured.entry_b_id ? (styles[featured.entry_b_id] ?? null) : null}
+						members={names(featured.entry_b_id)}
 						size="xl"
 					/>
 				</div>
@@ -354,6 +406,7 @@
 					<EntryBanner
 						entry={champion}
 						style={styles[champion.id] ?? null}
+						members={names(champion.id)}
 						size="xl"
 						winner
 						event="win"
@@ -369,14 +422,23 @@
 						{entryRows.length} entr{entryRows.length === 1 ? 'y' : 'ies'} so far
 					</p>
 					{#if entryRows.length}
-						<div class="roster">
-							{#each entryRows.slice(0, 6) as e (e.id)}
-								<EntryBanner entry={e} style={styles[e.id] ?? null} size="md" />
+						<div class="roster" data-testid="tv-roster">
+							{#each rosterPage as e (e.id)}
+								<EntryBanner
+									entry={e}
+									style={styles[e.id] ?? null}
+									members={names(e.id)}
+									size="md"
+								/>
 							{/each}
-							{#if entryRows.length > 6}
-								<p class="more">+{entryRows.length - 6} more</p>
-							{/if}
 						</div>
+						<p class="roster-page" data-testid="tv-roster-page">
+							Showing {roster.start + 1} to {roster.end} of {entryRows.length}{#if roster.pages > 1}
+								<!-- The space is INSIDE the span: Svelte trims whitespace at a
+								     block boundary, so a space before `{#if}` never reaches the
+								     screen (measured: "of 22· page 1 of 3"). -->
+								<span class="of">&nbsp;· page {roster.page + 1} of {roster.pages}</span>{/if}
+						</p>
 					{/if}
 				</div>
 				<div class="split-side tnm-panel">
@@ -396,12 +458,14 @@
 										<EntryBanner
 											entry={m.entry_a_id ? (entries[m.entry_a_id] ?? null) : null}
 											style={m.entry_a_id ? (styles[m.entry_a_id] ?? null) : null}
+											members={names(m.entry_a_id)}
 											size="md"
 										/>
 										<span class="vs small">vs</span>
 										<EntryBanner
 											entry={m.entry_b_id ? (entries[m.entry_b_id] ?? null) : null}
 											style={m.entry_b_id ? (styles[m.entry_b_id] ?? null) : null}
+											members={names(m.entry_b_id)}
 											size="md"
 										/>
 									</div>
@@ -538,6 +602,41 @@
 		   the widest state, and the wider the screen the worse it gets. */
 		max-width: none;
 		margin: 0;
+		/* THE BODY SCROLLS; THE SHELL DOES NOT (prompt 0110, item 1). `.tv` is
+		   a fixed, `overflow: hidden` frame so the head and foot stay pinned,
+		   and the body used to inherit that clip: MEASURED at 375x667 on the
+		   register state with a 22-entry field, the body's scrollHeight was
+		   greater than its clientHeight and nothing below the fold could be
+		   reached -- not by wheel, not by keyboard, not by touch -- because the
+		   only scroll container was the one element told not to. `min-height:
+		   0` is what lets a flex child shrink below its content at all; with it
+		   and `overflow-y: auto` the body scrolls INSIDE the frame, the exit
+		   control stays in the footer's own flow under it, and `overscroll-
+		   behavior: contain` stops a scroll at the end of the roster from
+		   reaching the document, which is `overflow: hidden` and would jolt.
+		   The scrollbar is thin and ink-dim on transparent: a region that
+		   scrolls shows its scrollbar (CLAUDE.md), sized for a wall rather
+		   than a desk.
+
+		   KEYBOARD SCROLLING OF THIS BODY, OUTSIDE THE REGISTER VIEW, RELIES ON
+		   KEYBOARD-FOCUSABLE SCROLLERS. The body carries no tabindex (it is not
+		   a control and the stage renders none but the exit), so a scroll
+		   container with no focusable content inside it is reachable by key
+		   only where the engine makes such scrollers focusable on its own --
+		   Chromium does (keyboard-focusable scrollers, shipped in 130: a
+		   scrollable region with nothing focusable in it takes Tab focus and
+		   then answers the arrow and page keys); an engine that does not
+		   leaves the between/result/match views to wheel, touch or the
+		   scrollbar. That is accepted rather than fixed with a tabindex on the
+		   body, which would make the stage focusable and the stage carries no
+		   control but the exit. The REGISTER view is the one
+		   whose content can outgrow a wall (a 22-entry field), and it has its
+		   own keyboard path that needs no focus at all: the arrow and page keys
+		   turn the roster page from the window handler above. */
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		scrollbar-color: var(--tnm-ink-dim) transparent;
 	}
 	.stage {
 		flex: 1;
@@ -692,18 +791,26 @@
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
 	}
+	/* No `overflow: hidden` here any more: the roster is paged rather than
+	   clipped, so every banner on a page is a whole banner, and what does not
+	   fit the stage scrolls in `.tv-body` above. */
 	.roster {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
 		gap: 0.6rem;
 		margin-top: 0.4rem;
-		overflow: hidden;
 	}
-	.more {
+	/* The page indicator: mono, dim, the sub-line's size floor. It is text
+	   and it is information (which eight of the twenty-two are these), so it
+	   is not hidden on a one-page roster either -- "Showing 1 to 5 of 5" is a
+	   true sentence. The range is spelled with the word "to": no en-dash
+	   ranges in copy (CLAUDE.md, copy conventions), and the middot between
+	   the range and the page count stays because it separates two facts. */
+	.roster-page {
 		margin: 0;
-		align-self: center;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 1rem;
+		font-size: clamp(0.85rem, 1.5vw, 1.6rem);
+		letter-spacing: 0.1em;
 		color: var(--tnm-ink-dim);
 	}
 

@@ -1,41 +1,66 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
-	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
-	import { statusLabel, type Tournament } from '$lib/tournaments/tournaments';
+	import TournamentBoard from '$lib/tournaments/TournamentBoard.svelte';
+	import { styleMap } from '$lib/tournaments/entry-styles';
 	import type { PageData } from './$types';
 
+	/**
+	 * The list route (prompt 0110, item 3): the load, the realtime
+	 * subscription and the two RPC transports. Everything on screen below the
+	 * masthead is `TournamentBoard`, which the dev harness mounts identically
+	 * against a fixture -- the route owns no card markup of its own any more.
+	 */
 	let { data }: { data: PageData } = $props();
 
 	const signedIn = $derived(!!data.claims);
-	/** A host of this one, or any site admin. The RPC enforces the same rule. */
-	const canDelete = (t: Tournament) => data.isAdmin || data.hostedIds.includes(t.id);
-	const entryCount = (t: Tournament) =>
-		data.entryRows.filter((e) => e.tournament_id === t.id).length;
-	const rewardCount = (t: Tournament) => data.rewardCountById[t.id] ?? 0;
-	const rewardCoins = (t: Tournament) => data.rewardCoinsById[t.id] ?? 0;
-	const rewardEntries = (t: Tournament) => data.rewardEntriesById[t.id] ?? 0;
-	const championName = (t: Tournament) =>
-		t.champion_entry_id
-			? (data.entryRows.find((e) => e.id === t.champion_entry_id)?.display_name ?? null)
-			: null;
-	const tournamentName = (id: string) =>
-		data.tournaments.find((t) => t.id === id)?.name ?? 'a tournament';
+	const styles = $derived(styleMap(data.entryStyles));
 
-	// Pending-invite responses (display name required to accept).
-	let inviteNames = $state<Record<string, string>>({});
+	// The event clock for the marquee's rail, threaded in rather than read
+	// there. A 30-second tick is plenty for a figure that reads "38m".
+	let now = $state<number>(Date.now());
+	onMount(() => {
+		const id = setInterval(() => (now = Date.now()), 30_000);
+		return () => clearInterval(id);
+	});
+
+	// THE BOARD FOLLOWS THE FLOOR. The spectator list is public, so this
+	// subscribes with NO filter to the two tables that move the marquee: a
+	// status change on any tournament re-sorts the lanes, and a match
+	// starting or finishing anywhere live swaps the pair on the floor.
+	// Debounced, the same shape every other tournament surface uses.
+	onMount(() => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const kick = () => {
+			clearTimeout(timer);
+			timer = setTimeout(() => invalidateAll(), 150);
+		};
+		let channel = data.supabase.channel('tournaments-board');
+		for (const table of ['tournaments', 'tournament_bracket_matches']) {
+			channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, kick);
+		}
+		channel.subscribe();
+		return () => {
+			clearTimeout(timer);
+			data.supabase.removeChannel(channel);
+		};
+	});
+
+	// Pending-invite responses (display name required to accept). The name
+	// is typed inside the board and arrives with the call.
 	let inviteBusy = $state<string | null>(null);
 	let inviteError = $state('');
 
-	async function respond(inviteId: string, accept: boolean) {
+	async function respond(inviteId: string, accept: boolean, displayName: string | null) {
 		inviteError = '';
 		inviteBusy = inviteId;
 		const { error } = await data.supabase.rpc('tournament_respond_invite', {
 			p_invite_id: inviteId,
 			p_accept: accept,
-			p_display_name: inviteNames[inviteId]?.trim() || null
+			p_display_name: displayName
 		});
 		inviteBusy = null;
 		if (error) {
@@ -46,7 +71,10 @@
 	}
 
 	// Deletion (0066, payout warning 0068). Per-row busy/error so one card's
-	// failure never blanks another's control.
+	// failure never blanks another's control. The transport is handed to the
+	// board only for a signed-in viewer: absence is what removes the control
+	// for everyone else, and the board's own hosted/admin check narrows it
+	// to the cards this account may act on. tournament_delete re-checks.
 	let deleteBusy = $state<string | null>(null);
 	let deleteErrors = $state<Record<string, string>>({});
 
@@ -79,102 +107,42 @@
 	</div>
 </div>
 
-<main class="tournaments-page">
+<!-- The board is a grid of cards, so the page takes the split measure (D8):
+     the room's own class, no width of this route's own. -->
+<main class="tnm-page wide">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Tournaments</div>
 		<h1>Tournaments</h1>
-		<p class="lead">
-			Live double-elimination brackets, open to watch by anyone. Sign in to register or host.
+		<p class="lead tnm-prose">
+			Live double-elimination brackets, open to watch by anyone. Sign in to enter or to host.
 		</p>
 		{#if signedIn}
-			<a class="btn" href="/tournaments/new">New tournament</a>
-		{/if}
-	</section>
-
-	{#if data.myInvites.length}
-		<section class="card invites">
-			<h2>Your invites</h2>
-			{#if inviteError}<p class="error">{inviteError}</p>{/if}
-			{#each data.myInvites as inv (inv.id)}
-				<div class="invite-row">
-					<div class="invite-name">{tournamentName(inv.tournament_id)}</div>
-					<input
-						class="invite-input"
-						type="text"
-						maxlength="40"
-						placeholder="Display name (shown publicly)"
-						bind:value={inviteNames[inv.id]}
-					/>
-					<button
-						class="btn"
-						disabled={inviteBusy === inv.id || !inviteNames[inv.id]?.trim()}
-						onclick={() => respond(inv.id, true)}
-					>
-						Accept
-					</button>
-					<button
-						class="btn secondary"
-						disabled={inviteBusy === inv.id}
-						onclick={() => respond(inv.id, false)}
-					>
-						Decline
-					</button>
-				</div>
-			{/each}
-		</section>
-	{/if}
-
-	<section class="list">
-		{#if !data.tournaments.length}
-			<div class="card"><p>No tournaments yet.</p></div>
-		{/if}
-		{#each data.tournaments as t (t.id)}
-			<!-- The card itself stays one big link; the delete control is a
-			     SIBLING beneath it, never nested inside the anchor (a button in
-			     an <a> is invalid markup and its clicks would navigate). -->
-			<div class="t-row">
-				<a class="card t-card" href="/tournaments/{t.id}">
-					<div class="t-top">
-						<h2>{t.name}</h2>
-						<span
-							class="tnm-status"
-							class:tnm-live={t.status === 'live'}
-							class:live={t.status === 'live'}
-							class:open={t.status === 'registration_open'}
-							class:done={t.status === 'complete'}
-						>
-							{statusLabel(t.status)}
-						</span>
-					</div>
-					{#if t.description}<p class="t-desc">{t.description}</p>{/if}
-					<div class="t-meta">
-						<span>{entryCount(t)} entr{entryCount(t) === 1 ? 'y' : 'ies'}</span>
-						{#if championName(t)}
-							<span class="champ">Champion: {championName(t)}</span>
-						{/if}
-						{#if data.hostedIds.includes(t.id)}
-							<span class="host-tag">You host this</span>
-						{/if}
-					</div>
-				</a>
-				{#if canDelete(t)}
-					<div class="t-admin">
-						<DeleteTournament
-							tournament={t}
-							entryCount={entryCount(t)}
-							rewardCount={rewardCount(t)}
-							rewardCoins={rewardCoins(t)}
-							rewardEntries={rewardEntries(t)}
-							compact
-							busy={deleteBusy === t.id}
-							error={deleteErrors[t.id] ?? ''}
-							ondelete={(name, ack) => remove(t.id, name, ack)}
-						/>
-					</div>
-				{/if}
+			<div class="tnm-actions">
+				<a class="btn" href="/tournaments/new">New tournament</a>
 			</div>
-		{/each}
+		{/if}
 	</section>
+
+	<TournamentBoard
+		tournaments={data.tournaments}
+		entries={data.entries}
+		matches={data.matches}
+		{styles}
+		hostedIds={data.hostedIds}
+		isAdmin={data.isAdmin}
+		{signedIn}
+		{now}
+		rewardCountById={data.rewardCountById}
+		rewardCoinsById={data.rewardCoinsById}
+		rewardEntriesById={data.rewardEntriesById}
+		myInvites={data.myInvites}
+		onrespond={signedIn ? respond : undefined}
+		ondelete={signedIn ? remove : undefined}
+		deleteBusyId={deleteBusy}
+		{deleteErrors}
+		inviteBusyId={inviteBusy}
+		{inviteError}
+	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="tournaments" />
@@ -182,103 +150,6 @@
 </main>
 
 <style>
-	.tournaments-page {
-		max-width: 60rem;
-		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
-	}
-	.hero {
-		margin-bottom: 1.4rem;
-	}
-	.invites {
-		margin-bottom: 1.2rem;
-	}
-	.invites h2 {
-		margin-top: 0;
-	}
-	.invite-row {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		flex-wrap: wrap;
-		padding: 0.4rem 0;
-	}
-	.invite-name {
-		font-weight: 700;
-		min-width: 10rem;
-	}
-	.invite-input {
-		flex: 1;
-		min-width: 12rem;
-		background: var(--bg0);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
-		padding: 0.4rem 0.55rem;
-	}
-	.error {
-		color: var(--amber);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
-	}
-	.list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.9rem;
-	}
-	.t-row {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-	}
-	.t-admin {
-		padding-left: 0.2rem;
-	}
-	.t-card {
-		display: block;
-		text-decoration: none;
-		transition: border-color 120ms ease;
-	}
-	.t-card:hover {
-		border-color: var(--tnm-line-strong);
-	}
-	.t-top {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 0.8rem;
-	}
-	/* The tournament's NAME, not a section label: the room's h2 rule is for
-	 * card headings and this card is the link itself. */
-	.t-top h2 {
-		margin: 0;
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 1.4rem;
-		font-weight: 700;
-		letter-spacing: 0;
-		text-transform: none;
-		color: var(--tnm-ink);
-	}
-	.t-desc {
-		color: var(--dim);
-		margin: 0.4rem 0 0;
-	}
-	.t-meta {
-		display: flex;
-		gap: 1rem;
-		flex-wrap: wrap;
-		margin-top: 0.6rem;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--cyan);
-	}
-	.champ {
-		color: var(--gold);
-	}
-	.host-tag {
-		color: var(--tnm-accent);
-	}
 	.page-footer {
 		margin-top: 2.5rem;
 		display: flex;

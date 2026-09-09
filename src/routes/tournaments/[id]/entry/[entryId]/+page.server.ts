@@ -7,7 +7,8 @@ import type {
 	QualPool,
 	RewardLedgerRow,
 	Tournament,
-	TournamentEntry
+	TournamentEntry,
+	TournamentEntryMember
 } from '$lib/tournaments/tournaments';
 import type { EntryStyle } from '$lib/tournaments/entry-styles';
 
@@ -35,9 +36,11 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		.maybeSingle();
 	if (!entry) error(404, 'Entry not found');
 
-	const [entriesRes, stylesRes, bracketRes, qualRes, poolsRes, gamesRes, ledgerRes] =
+	const [entriesRes, membersRes, stylesRes, bracketRes, qualRes, poolsRes, gamesRes, ledgerRes] =
 		await Promise.all([
 			supabase.from('tournament_entries').select('*').eq('tournament_id', params.id),
+			// The registrants (0192): chosen names only, the same identity rule.
+			supabase.from('tournament_entry_members').select('*').eq('tournament_id', params.id),
 			supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
 			supabase.from('tournament_bracket_matches').select('*').eq('tournament_id', params.id),
 			supabase
@@ -59,6 +62,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		tournament: tournament as Tournament,
 		entry: entry as TournamentEntry,
 		entries: (entriesRes.data ?? []) as TournamentEntry[],
+		// Fails soft to empty pre-0192.
+		members: (membersRes.data ?? []) as TournamentEntryMember[],
 		entryStyles: (stylesRes.data ?? []) as EntryStyle[],
 		bracketMatches: (bracketRes.data ?? []) as BracketMatch[],
 		qualMatches: (qualRes.data ?? []) as QualMatch[],
