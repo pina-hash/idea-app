@@ -15,11 +15,30 @@
 
 	/**
 	 * The rubric builder: ordered criteria, each an ordered list of LEVELS with
-	 * points, a short label and a descriptor. Saved as ONE full-set replacement
-	 * through classroom_set_rubric (validated and stamped in SQL); for a
-	 * spec-driven assignment "Generate from spec" carries the authored levels
-	 * through, which are then ordinary editable rows -- generation is a starting
-	 * point, never a lock.
+	 * points, a label, a SHORT LINE and a descriptor. Saved as ONE full-set
+	 * replacement through classroom_set_rubric (validated and stamped in SQL);
+	 * for a spec-driven assignment "Generate from spec" carries the authored
+	 * levels through, which are then ordinary editable rows -- generation is a
+	 * starting point, never a lock.
+	 *
+	 * EVERY FIELD THE GRADING CONSOLE READS IS EDITABLE HERE, AND `short` USED
+	 * NOT TO BE. This panel edited `descriptor` and carried `short` through the
+	 * save untouched with no input anywhere on screen -- but `short` is the line
+	 * the grading console's level control actually SHOWS (`levelShort`, whose
+	 * first rung is the stored level's own `short`; the descriptor is the tip
+	 * behind it). So an instructor who rewrote a level's description saved it
+	 * correctly, went to grade, and read the old one-liner still sitting there:
+	 * the edit had landed in the database and was invisible on the one surface
+	 * they were looking at. Reported 2026-09-08 against IDEA209H Unit 1 as
+	 * "the level descriptions would not save", after two attempts.
+	 *
+	 * `IDEA_RUBRIC_STANDARDS` 1.2 is what settles the shape rather than taste:
+	 * the short form carries the SELECTION, the descriptor carries the
+	 * AUTHORITY, and "the short must name the same countable thing the
+	 * descriptor does". A surface that lets one of that pair be edited and not
+	 * the other cannot keep that invariant, so both are on screen and the level
+	 * SAYS SO when the short is still the line it was opened with over a
+	 * description that has changed.
 	 *
 	 * THE TOP LEVEL IS THE MAXIMUM. There is deliberately no separate "criterion
 	 * points" field to keep in step with it: the server re-derives `points` from
@@ -70,6 +89,19 @@
 	let notice = $state<string | null>(null);
 	let armRemove = $state(false);
 	let nextId = $state(1);
+	/**
+	 * WHAT EACH LEVEL'S SHORT LINE AND DESCRIPTION SAID WHEN THE EDITOR OPENED,
+	 * per criterion id, in level order. It is what "the short is still the one
+	 * you opened on, and the description under it is not" is measured against;
+	 * nothing here is ever saved.
+	 *
+	 * DROPPED FOR A ROW THE MOMENT ITS LADDER CHANGES. The entries are matched
+	 * by POSITION, so adding or removing a level makes every index below the
+	 * cut name a different level, and a note pinned to the wrong row is worse
+	 * than no note. Losing it costs the flag on that criterion until the next
+	 * save reopens the editor, which is the honest trade.
+	 */
+	let seeded = $state<Record<string, { shortLine: string; descriptor: string }[]>>({});
 
 	const total = $derived(rubricTotal(rows));
 	const unfinished = $derived(rows.filter((r) => criterionIssues(r).length > 0).length);
@@ -94,9 +126,48 @@
 			...r,
 			levels: r.levels ?? []
 		}));
+		seeded = Object.fromEntries(
+			rows.map((r) => [
+				r.id,
+				(r.levels ?? []).map((l) => ({
+					shortLine: l.short?.trim() ?? '',
+					descriptor: l.descriptor?.trim() ?? ''
+				}))
+			])
+		);
 		editing = true;
 		error = null;
 		notice = null;
+	}
+
+	/** This row's ladder moved, so the seeded lines no longer name its levels. */
+	function forgetSeed(id: string) {
+		if (id in seeded) {
+			const next = { ...seeded };
+			delete next[id];
+			seeded = next;
+		}
+	}
+
+	/**
+	 * The short line is still the one this level was opened with, and the
+	 * description under it is not. FALSE when the short line is empty, because
+	 * an empty one claims nothing and so cannot contradict anything.
+	 *
+	 * The baseline's own key is `shortLine` rather than `short` deliberately:
+	 * `tests/classroom-grading-console.test.ts` counts the field's own key,
+	 * written as an object key in this file, as the number of WRITE PATHS for
+	 * it -- which is one, the save payload -- and a read-side baseline must not
+	 * read as a second emitter.
+	 */
+	function shortIsStale(row: RubricCriterion, li: number): boolean {
+		const seed = seeded[row.id]?.[li];
+		if (!seed) return false;
+		const level = row.levels?.[li];
+		if (!level) return false;
+		const short = level.short?.trim() ?? '';
+		if (!short) return false;
+		return short === seed.shortLine && (level.descriptor?.trim() ?? '') !== seed.descriptor;
 	}
 
 	function addRow() {
@@ -132,6 +203,7 @@
 	function addLevel(index: number) {
 		const levels = rows[index].levels ?? [];
 		if (levels.length >= MAX_LEVELS) return;
+		forgetSeed(rows[index].id);
 		const last = levels[levels.length - 1];
 		const closed = levels.length > 0 && Number(last?.points) === 0;
 		const blank = (points: number): RubricLevel => ({
@@ -155,6 +227,7 @@
 	}
 
 	function removeLevel(index: number, li: number) {
+		forgetSeed(rows[index].id);
 		const levels = (rows[index].levels ?? []).filter((_, i) => i !== li);
 		rows[index] = { ...rows[index], levels };
 		syncMax(index);
@@ -326,6 +399,12 @@
 				criterion maximum, the bottom level is 0, and each level is worth less than the one
 				above it.
 			</p>
+			<p class="rule">
+				The short line is what a grader reads while picking a level, so it is the line that
+				shows on the grading console. The description is what settles a disagreement and what
+				students read on the assignment. Keep the two saying the same thing: changing one and
+				leaving the other is how a grader ends up marking against a standard nobody wrote.
+			</p>
 			{#each rows as row, i (row.id)}
 				{@const issues = criterionIssues(row)}
 				<div class="crit-row" class:unfinished={issues.length > 0}>
@@ -364,6 +443,13 @@
 							/>
 							<input
 								type="text"
+								class="level-short"
+								placeholder="Short line a grader sees"
+								bind:value={level.short}
+								aria-label={`Level ${li + 1} short line, shown on the grading console`}
+							/>
+							<input
+								type="text"
 								class="level-desc"
 								placeholder="What this level looks like"
 								bind:value={level.descriptor}
@@ -377,6 +463,13 @@
 								onclick={() => removeLevel(i, li)}>✕</button
 							>
 						</div>
+						{#if shortIsStale(row, li)}
+							<p class="level-stale" data-testid="level-short-stale">
+								Level {li + 1}: a grader still sees the short line you opened with, and the
+								description under it has changed. Rewrite the short line too, or clear it and
+								the description will be shown instead.
+							</p>
+						{/if}
 					{/each}
 					{#if (row.levels?.length ?? 0) < MAX_LEVELS}
 						<button type="button" class="add-level" onclick={() => addLevel(i)}>+ level</button>
@@ -523,11 +616,18 @@
 		font-family: var(--font-mono) !important;
 	}
 	.level-label {
-		flex: 0 1 9rem;
-		min-width: 6rem;
+		flex: 0 1 8rem;
+		min-width: 5.5rem;
+	}
+	/* The line the grading console shows. IDEA_RUBRIC_STANDARDS 1.2 caps it at
+	   six words, so it needs materially less room than the descriptor beside
+	   it and materially more than the label. */
+	.level-short {
+		flex: 1 1 10rem;
+		min-width: 0;
 	}
 	.level-desc {
-		flex: 3 1 14rem;
+		flex: 3 1 12rem;
 		min-width: 0;
 	}
 	.level-row input {
@@ -569,6 +669,15 @@
 		font-size: 0.72rem;
 		color: var(--amber);
 	}
+	/* --amber, the register's warning: the pair genuinely disagrees now and a
+	   grader is reading the stale half. Not --gold, which is a callout. */
+	.level-stale {
+		margin: 0 0 0 0.2rem;
+		font-size: 0.72rem;
+		line-height: 1.45;
+		color: var(--amber);
+		max-width: 62ch;
+	}
 	.total {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
@@ -576,6 +685,7 @@
 	}
 	@media (max-width: 640px) {
 		.level-label,
+		.level-short,
 		.level-desc {
 			flex: 1 1 100%;
 		}
