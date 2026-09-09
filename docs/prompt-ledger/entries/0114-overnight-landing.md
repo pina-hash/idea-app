@@ -71,4 +71,18 @@
   confirmed unmoved). Production read `Assignments v1.13 · 1e25883 · local
   build`. `main` and `integration` are level in both directions, 0 commits
   either way. Prompts 0110, 0111 and 0112 were all still `Status: issued` at
-  the last reading and were correctly NOT landed; 0192 was never written.
+  the last reading and were correctly NOT landed.
+
+  **STOPPED ON THE MIGRATION RULE, WHICH IS THE INTENDED ENDING.** The loop ran
+  four full passes and landed 0104, 0106, 0109, 0113, 0108, 0112, 0114 and 0111,
+  each behind its own gates and each confirmed against the production stamp:
+  `main` went `917d976f` -> `5e7b44f1` -> `1e258835` -> `999e0612` -> `09433a98`.
+  At 13:22 UTC prompt 0110 set its ledger to `pushed`, `integrate.yml` swept
+  `claude/tournaments-surface-scroll-yqplco` into `integration` and deleted it,
+  and the migration check went non-empty for the first time:
+  `supabase/migrations/0192_tournament_entry_members_and_admin_hosts.sql`,
+  claimed by `docs/prompt-ledger/entries/0110-tournaments-surface.md`
+  (`Migration permitted: exactly one. Claims: 0192.`). Per the rule that
+  overrides everything else, `main` was NOT advanced past `09433a98`. Nothing
+  was cherry-picked around it. `integration` rests 7 commits ahead at
+  `b2a2026d`, green and undeployed, waiting on Mr. Pina to apply 0192 by hand.
