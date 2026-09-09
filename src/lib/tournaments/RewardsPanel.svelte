@@ -4,9 +4,18 @@
 	 * full permanent ledger. Presentation only (props in, nothing out), so the
 	 * dev harness mounts it against simulated data -- and it renders for
 	 * signed-out spectators exactly like the bracket does.
+	 *
+	 * AWARDS, NOT ROWS (0192). A team entry's win is one ledger row per
+	 * registrant, each for the full amount; read row by row a team of two
+	 * would show twice the figure it was promised and twice the payouts.
+	 * `rewardAwards` folds the rows of one award back together, so the
+	 * standings figure is what EACH registrant holds and the history is one
+	 * line per award, with `× n` and an `each` chip saying how many people it
+	 * reached. A pre-0192 ledger folds to exactly what it showed before.
 	 */
 	import EntryChip from './EntryChip.svelte';
 	import {
+		rewardAwards,
 		rewardRuleLabel,
 		rewardTotals,
 		type RewardLedgerRow,
@@ -25,9 +34,7 @@
 	} = $props();
 
 	const totals = $derived(rewardTotals(ledger));
-	const history = $derived(
-		[...ledger].sort((a, b) => b.id - a.id)
-	);
+	const history = $derived([...rewardAwards(ledger)].sort((a, b) => b.firstId - a.firstId));
 	const ruleOrder: Record<string, number> = { win: 0, round_reached: 1, placement: 2 };
 	const orderedRules = $derived(
 		[...rules].sort(
@@ -66,6 +73,9 @@
 					<span class="award-count">
 						{t.awards} award{t.awards === 1 ? '' : 's'}
 					</span>
+					{#if t.recipients > 1}
+						<span class="each">each · {t.recipients} registrants</span>
+					{/if}
 					<span class="total-amount">+{t.total}</span>
 				</div>
 			{/each}
@@ -73,19 +83,22 @@
 
 		<div class="history card">
 			<h3>Payout history</h3>
-			{#each history as row (row.id)}
+			{#each history as row (row.firstId)}
 				<div class="ledger-row">
 					<span class="ledger-entry">
-						<EntryChip entry={entries[row.entry_id] ?? null} />
+						<EntryChip entry={entries[row.entryId] ?? null} />
 					</span>
 					<span class="ledger-reason">{row.reason}</span>
-					<span class="ledger-when">{when(row.awarded_at)}</span>
-					<span class="ledger-amount">+{row.amount}</span>
+					<span class="ledger-when">{when(row.awardedAt)}</span>
+					<span class="ledger-amount"
+						>+{row.amount}{#if row.recipients > 1}<span class="times"> × {row.recipients}</span
+							>{/if}</span
+					>
 				</div>
 			{/each}
 		</div>
 	{:else if orderedRules.length}
-		<p class="note">No payouts yet — rewards land here as matches are won.</p>
+		<p class="note">No payouts yet. Rewards land here as matches are won.</p>
 	{/if}
 </div>
 
@@ -142,6 +155,22 @@
 		font-size: 0.68rem;
 		color: var(--dim, #7a8a7a);
 		flex: none;
+	}
+	/* The "each" chip: the same dim mono as the award count, because it
+	   qualifies the figure beside it rather than competing with it. */
+	.each {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		color: var(--dim, #7a8a7a);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
+		border-radius: 999px;
+		padding: 0.1rem 0.5rem;
+		flex: none;
+		white-space: nowrap;
+	}
+	.times {
+		color: var(--dim, #7a8a7a);
+		font-size: 0.85em;
 	}
 	.total-amount,
 	.ledger-amount {

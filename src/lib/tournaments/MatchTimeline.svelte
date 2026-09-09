@@ -120,7 +120,7 @@
 		<div class="forfeit-note">
 			<span class="ff-tag">Forfeit</span>
 			<span class="ff-text">
-				Awarded without being played{forfeitReason ? ` — ${forfeitReason}` : ''}.
+				Awarded without being played{forfeitReason ? `, ${forfeitReason}` : ''}.
 			</span>
 		</div>
 	{/if}

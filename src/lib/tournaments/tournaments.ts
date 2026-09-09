@@ -19,6 +19,13 @@ export interface TournamentConfig {
 	best_of_default: number;
 	/** Per-round overrides: 'winners' | 'losers' | 'grand_final' | 'winners:<n>' | 'losers:<n>'. */
 	best_of: Record<string, number>;
+	/**
+	 * Registrants per entry (0192): 1 is a solo event, up to TEAM_SIZE_MAX. An
+	 * entry may hold fewer than this and never more; the RPCs refuse the
+	 * (team_size + 1)th member and `entryIsFull` is the client's reading of
+	 * the same number.
+	 */
+	team_size: number;
 }
 
 export interface Tournament {
@@ -41,6 +48,23 @@ export interface TournamentEntry {
 	description: string;
 	thumbnail_url: string | null;
 	seed: number | null;
+	created_at: string;
+}
+
+/**
+ * One registrant on an entry (0192: `tournament_entry_members`). An entry
+ * has at least one; the CAPTAIN is the member whose user_id equals the
+ * entry's own user_id. `name` is the name the registrant CHOSE for this
+ * tournament -- never a profile name, which is the identity rule above
+ * extended to teammates. `user_id` null is a walk-up teammate with no
+ * account.
+ */
+export interface TournamentEntryMember {
+	id: string;
+	entry_id: string;
+	tournament_id: string;
+	user_id: string | null;
+	name: string;
 	created_at: string;
 }
 
@@ -145,6 +169,13 @@ export interface RewardLedgerRow {
 	/** Null exactly for placement awards. */
 	match_id: string | null;
 	awarded_at: string;
+	/**
+	 * Which registrant this row paid (0192). Optional on the type and null on
+	 * a row written before the column existed, when an award was one row per
+	 * ENTRY; after it an award is one row per MEMBER, each carrying the full
+	 * amount. `rewardAwards` is what folds those rows back into one award.
+	 */
+	member_id?: string | null;
 }
 
 const PLACEMENT_LABELS: Record<number, string> = { 1: '1st place', 2: '2nd place', 3: '3rd place' };
@@ -155,23 +186,83 @@ export function rewardRuleLabel(r: Pick<RewardRule, 'trigger_type' | 'trigger_va
 	return PLACEMENT_LABELS[r.trigger_value ?? 0] ?? `Placement ${r.trigger_value}`;
 }
 
-export interface RewardTotalRow {
+/**
+ * ONE AWARD, however many rows paid it.
+ *
+ * Since 0192 `_tournament_award` writes one ledger row PER MEMBER of the
+ * winning entry, each for the full amount, so a team of two that wins a
+ * 10-coin match puts two 10-coin rows in the table. Read row by row that is
+ * "+20" beside an entry that was told the match pays 10, which is a total
+ * nobody was promised. This folds the rows of one award back together: the
+ * amount is what EACH registrant received, `recipients` is how many did.
+ *
+ * The fold key is `entry | match | reason`: a placement award has no match
+ * and is told apart by its reason; a match win has exactly one row per
+ * member for one reason. A pre-0192 row (member_id null, one per entry) is
+ * an award with one recipient, so the answer for a legacy ledger is the
+ * answer it always was.
+ */
+export interface RewardAward {
 	entryId: string;
-	total: number;
-	awards: number;
+	/** What each registrant received, not the sum over them. */
+	amount: number;
+	reason: string;
+	matchId: string | null;
+	awardedAt: string;
+	/** Ledger rows folded into this award: 1 for a solo or a legacy row. */
+	recipients: number;
+	/** The lowest row id in the award: the stable ordering key. */
+	firstId: number;
 }
 
-/** Per-entry totals over the ledger, largest first. */
+export function rewardAwards(ledger: RewardLedgerRow[]): RewardAward[] {
+	const awards = new Map<string, RewardAward>();
+	for (const row of ledger) {
+		const key = `${row.entry_id}|${row.match_id ?? ''}|${row.reason}`;
+		const a = awards.get(key);
+		if (!a) {
+			awards.set(key, {
+				entryId: row.entry_id,
+				amount: row.amount,
+				reason: row.reason,
+				matchId: row.match_id,
+				awardedAt: row.awarded_at,
+				recipients: 1,
+				firstId: row.id
+			});
+			continue;
+		}
+		a.recipients += 1;
+		if (row.id < a.firstId) {
+			a.firstId = row.id;
+			a.awardedAt = row.awarded_at;
+		}
+	}
+	return [...awards.values()].sort((x, y) => x.firstId - y.firstId);
+}
+
+export interface RewardTotalRow {
+	entryId: string;
+	/** Per registrant: what one member of this entry has been paid. */
+	total: number;
+	/** Distinct awards, not ledger rows. */
+	awards: number;
+	/** The widest an award on this entry went: how many people each total reached. */
+	recipients: number;
+}
+
+/** Per-entry totals over the ledger's AWARDS, largest first. */
 export function rewardTotals(ledger: RewardLedgerRow[]): RewardTotalRow[] {
 	const totals = new Map<string, RewardTotalRow>();
-	for (const row of ledger) {
-		let t = totals.get(row.entry_id);
+	for (const a of rewardAwards(ledger)) {
+		let t = totals.get(a.entryId);
 		if (!t) {
-			t = { entryId: row.entry_id, total: 0, awards: 0 };
-			totals.set(row.entry_id, t);
+			t = { entryId: a.entryId, total: 0, awards: 0, recipients: 0 };
+			totals.set(a.entryId, t);
 		}
-		t.total += row.amount;
+		t.total += a.amount;
 		t.awards += 1;
+		t.recipients = Math.max(t.recipients, a.recipients);
 	}
 	return [...totals.values()].sort(
 		(a, b) => b.total - a.total || a.entryId.localeCompare(b.entryId)
@@ -185,7 +276,17 @@ export function parseConfig(raw: unknown): TournamentConfig {
 		score_entry: o.score_entry === true,
 		best_of_default: typeof o.best_of_default === 'number' ? o.best_of_default : 1,
 		best_of:
-			o.best_of && typeof o.best_of === 'object' ? (o.best_of as Record<string, number>) : {}
+			o.best_of && typeof o.best_of === 'object' ? (o.best_of as Record<string, number>) : {},
+		// A whole number 1..TEAM_SIZE_MAX, else 1: the same range 0192's
+		// normaliser refuses outside of, so a row that reached the table is
+		// read back as it was written and anything else reads as solo.
+		team_size:
+			typeof o.team_size === 'number' &&
+			Number.isInteger(o.team_size) &&
+			o.team_size >= 1 &&
+			o.team_size <= TEAM_SIZE_MAX
+				? o.team_size
+				: 1
 	};
 }
 
@@ -360,6 +461,70 @@ export function poolStandings(poolMatches: QualMatch[]): PoolStandingRow[] {
 /** Entries keyed by id, for the render components. */
 export function entryMap(entries: TournamentEntry[]): Record<string, TournamentEntry> {
 	return Object.fromEntries(entries.map((e) => [e.id, e]));
+}
+
+// ---------------------------------------------------------------------------
+// Registrants (0192). An entry is one or more people; the bracket shows the
+// entry and every surface that names the people reads the member rows.
+// ---------------------------------------------------------------------------
+
+/** The most registrants an entry may hold; mirrors 0192's normaliser. */
+export const TEAM_SIZE_MAX = 6;
+
+/** Members grouped by entry, each list in registration order (created_at,
+ * then id so two rows from one transaction order the same on every read). */
+export function memberMap(
+	members: TournamentEntryMember[]
+): Record<string, TournamentEntryMember[]> {
+	const out: Record<string, TournamentEntryMember[]> = {};
+	const ordered = [...members].sort(
+		(a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+	);
+	for (const m of ordered) (out[m.entry_id] ??= []).push(m);
+	return out;
+}
+
+/** The chosen names of one entry's members, in order; nothing for no rows. */
+export function memberNames(members: TournamentEntryMember[] | undefined): string[] {
+	return (members ?? []).map((m) => m.name);
+}
+
+export function entryIsFull(memberCount: number, teamSize: number): boolean {
+	return memberCount >= Math.max(1, teamSize);
+}
+
+/**
+ * THE ONE CLIENT SPELLING OF "MY ENTRY". Membership first: a teammate who
+ * joined somebody else's entry has no entries.user_id of their own and is
+ * still in the tournament. Then the entry's own user_id, for a row with no
+ * member row -- which cannot exist after 0192's backfill and is kept for a
+ * deployment sitting between the client and the migration.
+ * `tests/tournament-members.test.ts` sweeps the routes for the inline form
+ * this replaces.
+ */
+export function myEntryFor(
+	entries: TournamentEntry[],
+	members: TournamentEntryMember[],
+	userId: string | null | undefined
+): TournamentEntry | null {
+	if (!userId) return null;
+	const mine = members.find((m) => m.user_id === userId);
+	if (mine) {
+		const e = entries.find((x) => x.id === mine.entry_id);
+		if (e) return e;
+	}
+	return entries.find((e) => e.user_id === userId) ?? null;
+}
+
+/**
+ * THE ONE CLIENT SPELLING OF 0192's "NOT STARTED". The bracket is what starts
+ * an event and `tournament_generate_bracket` stamps `live`, so a rename is
+ * open through draft, registration and seeding and locked from live on --
+ * for a host and an admin too. A surface that wants to know whether a
+ * rename control belongs on screen asks this and nothing else.
+ */
+export function entriesLocked(status: TournamentStatus): boolean {
+	return status === 'live' || status === 'complete';
 }
 
 // ---------------------------------------------------------------------------
@@ -625,20 +790,19 @@ export function entryQualRecord(entryId: string, matches: QualMatch[]): QualReco
 	return { wins, losses, matches: mine };
 }
 
-export interface LedgerRunRow extends RewardLedgerRow {
+export interface LedgerRunRow extends RewardAward {
+	/** Per registrant, like every figure on an award. */
 	runningTotal: number;
 }
 
-/** One entry's ledger rows oldest first, each carrying the running total. */
+/** One entry's AWARDS oldest first (by first row id), each carrying the
+ * per-person running total and how many registrants it paid. */
 export function entryLedgerRun(entryId: string, ledger: RewardLedgerRow[]): LedgerRunRow[] {
 	let total = 0;
-	return ledger
-		.filter((r) => r.entry_id === entryId)
-		.sort((a, b) => a.id - b.id)
-		.map((r) => {
-			total += r.amount;
-			return { ...r, runningTotal: total };
-		});
+	return rewardAwards(ledger.filter((r) => r.entry_id === entryId)).map((a) => {
+		total += a.amount;
+		return { ...a, runningTotal: total };
+	});
 }
 
 /** The one place a detail URL is built, so every surface links the same way. */

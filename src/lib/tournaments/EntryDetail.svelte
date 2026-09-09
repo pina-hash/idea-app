@@ -28,6 +28,7 @@
 		isForfeitMatch,
 		matchHref,
 		matchScorelineFor,
+		memberNames,
 		roundLabel,
 		type BracketMatch,
 		type MatchGame,
@@ -35,7 +36,8 @@
 		type QualPool,
 		type RewardLedgerRow,
 		type Tournament,
-		type TournamentEntry
+		type TournamentEntry,
+		type TournamentEntryMember
 	} from './tournaments';
 
 	let {
@@ -47,7 +49,8 @@
 		qualMatches = [],
 		pools = [],
 		games = [],
-		ledger = []
+		ledger = [],
+		members = []
 	}: {
 		tournament: Tournament;
 		entry: TournamentEntry;
@@ -59,6 +62,9 @@
 		games?: MatchGame[];
 		/** The whole tournament's ledger, or just this entry's; filtered here. */
 		ledger?: RewardLedgerRow[];
+		/** The tournament's registrants (0192), or just this entry's; filtered
+		 * here. Chosen names only: this component never sees a profile. */
+		members?: TournamentEntryMember[];
 	} = $props();
 
 	const t = $derived(tournament);
@@ -69,9 +75,19 @@
 
 	const record = $derived(entryBracketRecord(me.id, bracketMatches));
 	const quals = $derived(entryQualRecord(me.id, qualMatches));
+	// Awards, not rows (0192): a team's win is one ledger row per registrant
+	// and `entryLedgerRun` folds them, so every figure here is PER PERSON --
+	// what each registrant on this entry has been paid -- with `× n` beside
+	// an award that reached more than one.
 	const run = $derived(entryLedgerRun(me.id, ledger));
 	const rewardTotal = $derived(run.length ? run[run.length - 1].runningTotal : 0);
 	const isChampion = $derived(t.champion_entry_id === me.id);
+	const mine = $derived(
+		[...members.filter((m) => m.entry_id === me.id)].sort(
+			(a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+		)
+	);
+	const roster = $derived(memberNames(mine));
 
 	function maxRound(bracket: string): number {
 		return Math.max(0, ...bracketMatches.filter((m) => m.bracket === bracket).map((m) => m.round));
@@ -114,11 +130,26 @@
 		style={myStyle}
 		size="lg"
 		seed={me.seed}
+		members={roster}
 		winner={isChampion}
 		event={isChampion ? 'win' : null}
 	/>
 	{#if me.description}<p class="desc">{me.description}</p>{/if}
 	{#if isChampion}<p class="champ tnm-label gold">Champion</p>{/if}
+
+	{#if roster.length}
+		<!-- The people behind the entry, by the names THEY chose for this
+		     tournament. Rendered even for a solo entry named after itself: on
+		     the page about one competitor, who they are is not a footnote. -->
+		<section class="block registrants" data-testid="entry-registrants">
+			<p class="tnm-label">Registrant{roster.length === 1 ? '' : 's'}</p>
+			<ul class="roster">
+				{#each mine as m (m.id)}
+					<li class="roster-name">{m.name}</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 
 	<section class="record">
 		<div class="rec-cell">
@@ -221,16 +252,19 @@
 		<section class="block">
 			<p class="tnm-label gold">Reward ledger</p>
 			<div class="ledger tnm-panel">
-				{#each run as row (row.id)}
+				{#each run as row (row.firstId)}
 					<div class="l-row">
 						<span class="l-reason">{row.reason}</span>
-						{#if row.match_id}
-							<a class="l-link" href={matchHref(t.id, row.match_id)}>match</a>
+						{#if row.matchId}
+							<a class="l-link" href={matchHref(t.id, row.matchId)}>match</a>
 						{:else}
 							<span class="l-link muted">placement</span>
 						{/if}
-						<span class="l-when">{when(row.awarded_at)}</span>
-						<span class="l-amount">+{row.amount}</span>
+						<span class="l-when">{when(row.awardedAt)}</span>
+						<span class="l-amount"
+							>+{row.amount}{#if row.recipients > 1}<span class="l-times"> × {row.recipients}</span
+								>{/if}</span
+						>
 						<span class="l-running">{row.runningTotal}</span>
 					</div>
 				{/each}
@@ -301,6 +335,28 @@
 	}
 	.block {
 		margin-top: 1.5rem;
+	}
+	.registrants {
+		margin-top: 1.1rem;
+	}
+	.roster {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	/* A name chip: the room's ink on its panel (#edede8 on #16211c, 14.10:1),
+	   mono because it is a roster and not prose. */
+	.roster-name {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.82rem;
+		color: var(--tnm-ink);
+		background: var(--tnm-panel);
+		border: 1px solid var(--tnm-line);
+		border-radius: 999px;
+		padding: 0.3rem 0.75rem;
 	}
 	.block .tnm-label {
 		font-size: 0.7rem;
@@ -422,6 +478,9 @@
 	.l-amount {
 		font-size: 0.8rem;
 		color: var(--tnm-ink-dim);
+	}
+	.l-times {
+		font-size: 0.9em;
 	}
 	.l-running {
 		color: var(--tnm-gold);

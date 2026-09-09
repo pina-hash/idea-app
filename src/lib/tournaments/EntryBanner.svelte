@@ -35,7 +35,8 @@
 		event = null,
 		winner = false,
 		dim = false,
-		label = ''
+		label = '',
+		members = []
 	}: {
 		entry?: TournamentEntry | null;
 		style?: EntryStyle | null;
@@ -46,12 +47,24 @@
 		dim?: boolean;
 		/** Optional overline (e.g. a bracket position), shown above the name. */
 		label?: string;
+		/**
+		 * The registrants' CHOSEN names (0192), shown under the entry name when
+		 * they say something the name does not: more than one person, or one
+		 * person who registered under a name other than the entry's. A solo
+		 * entry named after its one member renders nothing here, exactly as
+		 * before 0192.
+		 */
+		members?: string[];
 	} = $props();
 
 	const PARTICLE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
 	const CONFETTI_SLOTS = Array.from({ length: 14 }, (_, i) => i);
 
 	const initial = $derived(entry ? entry.display_name.trim().charAt(0).toUpperCase() : '');
+	const showMembers = $derived(
+		!!entry &&
+			(members.length > 1 || (members.length === 1 && members[0] !== entry.display_name))
+	);
 	const accent = $derived(accentOf(style));
 	const hasAccent = $derived(!!style?.accent_color);
 	const bg = $derived(entry ? backgroundCss(style) : null);
@@ -172,6 +185,9 @@
 				{#if style?.badge}<span class="badge"><BadgeIcon id={style.badge} size="1em" /></span>{/if}
 				<span class="name">{entry ? entry.display_name : 'TBD'}</span>
 			</span>
+			{#if showMembers}
+				<span class="members">{members.join(' · ')}</span>
+			{/if}
 			{#if entry && style?.tagline}
 				<span class="tagline">{style.tagline}</span>
 			{/if}
@@ -468,6 +484,20 @@
 	}
 	.entry-banner.winner .name {
 		text-shadow: 0 0 0.8rem rgba(255, 255, 255, 0.25);
+	}
+	/* The people behind the name, in the banner's own ink at FULL opacity and
+	   the tagline's size: a roster is information where a tagline is
+	   flavour, so it does not take the tagline's 0.82. Mono, so it reads as
+	   a list beside the Rajdhani name. Middots separate; the names are the
+	   registrants' own chosen ones, never an account's. */
+	.members {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: var(--tag);
+		letter-spacing: 0.04em;
+		color: var(--b-ink);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.tagline {
 		font-size: var(--tag);
