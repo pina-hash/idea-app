@@ -113,6 +113,17 @@ export default {
 	presence: [
 		{ selector: '.dev-bar', label: 'harness controls', expectPresent: 1 },
 		{ selector: '.nb-root', label: 'NotebookView mounted', expectPresent: 1 },
+		/* THE HERO IS GONE AND THE BAR IS WHAT REPLACED IT (prompt 0119): one
+		   bar, one privacy note, and no `.hero` anywhere in the room. The
+		   absence has its positive control on the same row set: the bar that
+		   took its place must be present exactly once. */
+		{ selector: '.nb-root .hero', label: 'the old notebook hero (removed by 0119)', expectPresent: 0 },
+		{ selector: '[data-testid="nb-bar"]', label: 'the notebook bar that replaced the hero', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="nb-bar-note"]', label: 'privacy note under the bar', expectPresent: 1, maxPresent: 1 },
+		/* THE EMPTY DETAIL PANE IS NOT RENDERED (IDEA_INTERFACE_STANDARDS 1). On
+		   this route the composer is always mounted, so the split has a detail;
+		   what must never come back is the placeholder sentence. */
+		{ selector: '[data-testid="nb-detail-empty"]', label: 'the old "Pick an entry" placeholder pane (removed by 0119)', expectPresent: 0 },
 		{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 },
 		/*
 			THE POSITIVE CONTROL FOR `/dev/notebook-review-student`'s ABSENCE ROW.
@@ -125,7 +136,14 @@ export default {
 		*/
 		{ selector: '[data-testid="filter-deleted"]', label: "Recently deleted chip (student's own view: a list IS behind it)", expectPresent: 1, maxPresent: 1 }
 	],
-	contrast: [{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 }],
+	contrast: [
+		{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 },
+		/* The one line of the old hero paragraph that survived, now a note under
+		   the bar in the room's --text-2, and the bar's fact chips in --text-1. */
+		{ selector: '.bar-note', label: 'privacy note under the bar', min: 4.5 },
+		{ selector: '.nb-bar .chip.fact', label: 'bar fact chips (entries, drafts)', min: 4.5 },
+		{ selector: '.nb-list .result-count', label: 'list count beside the heading (--text-3, real muted copy in this room)', min: 4.5 }
+	],
 	tapTargets: [
 		{ selector: '.compose-card input[type="text"], .compose-card select', label: 'compose form controls', min: 44 },
 		/*
@@ -154,14 +172,30 @@ export default {
 			fallback-stack limit in ../README.md applies to this number like every
 			other geometry measurement here.
 		*/
-		{ selector: '.pick.free', label: 'free-entry check-in chip (student-facing, no density exemption)', min: 44 }
+		{ selector: '.pick.free', label: 'free-entry check-in chip (student-facing, no density exemption)', min: 44 },
+		/*
+			THE TOOLBAR CONTROLS, AS BOXES (decision 12, closed by prompt 0119 on
+			step 1 of IDEA_INTERFACE_STANDARDS 10: re-laid in the room that was
+			there, which was a second line). `.tool-btn` is every text control in
+			the list pane's tools row -- Select / Done, Expand all / Collapse all
+			at phone width, Clear while a query is active -- and the sort select
+			beside them. Listed whatever they measure; the selector also matches
+			the bulk bar's Clear selection while select mode is on, which this
+			route does not enter.
+		*/
+		{ selector: '.tools .tool-btn, .tools .sort select', label: 'list toolbar controls (Select, Expand all, Sort -- were the decision 12 rows)', min: 44 },
+		/*
+			THE BAR'S OWN CONTROLS: the "check-ins to file" chip is a button and
+			"New entry" (1440 only) is the page's primary action. Both are
+			student-facing at every width.
+		*/
+		{ selector: '.nb-bar .chip-btn, .nb-bar .compose-trigger', label: 'notebook bar controls (check-ins to file, New entry)', min: 44 }
 	],
-	/* TWO `.tap-reach-44` SURFACES, ONE FIXED AND ONE WAITING ON ITS OWNER, and
-	   both are here because 0044 measured every user of that class and found
-	   these two had no row of any kind pointing at them. The class expands a
-	   control's HIT AREA rather than its box, so `tapTargets` would report a
-	   finding on every one of them; `tapReach` walks the hit area in both axes
-	   (../checks.mjs) and is the only check that can tell these apart.
+	/* ONE `.tap-reach-44` SURFACE LEFT ON THIS ROUTE, and it is the fixed one.
+	   The class expands a control's HIT AREA rather than its box, so
+	   `tapTargets` would report a finding on every one of them; `tapReach`
+	   walks the hit area in both axes (../checks.mjs) and is the only check
+	   that can tell these apart.
 
 	   THE SWATCHES ARE FIXED AND THIS ROW IS THE REGRESSION GUARD. They ran
 	   `--tap-reach-w: 0px` (correct: seven on a 32px pitch, and 44px-wide
@@ -171,19 +205,17 @@ export default {
 	   wraps them 5+2 at 375 and 6+1 at 1440 inside the fieldset that was
 	   already there. Measured after: 45 x 45, all seven, both widths.
 
-	   THE TOOLBAR LINKS ARE NOT FIXED AND THIS ROW WILL REPORT THEM. Four of
-	   them -- Select 31.1, Done 25.6, Clear 25.7, Expand all 36.3 -- are under
-	   the floor on width for the same reason, and the fix does not fit: at 44px
-	   the row needs 346.6px against 293px of container at 375, so it buys a
-	   13px document overflow, which 2.12 step 3 refuses at the narrow width.
-	   The arrangement that does fit costs one property on `.tools`, which this
-	   bundle does not own; decision 12 carries the arithmetic and the owner.
-	   The row is here rather than absent BECAUSE it is failing: a number that
-	   regenerates every run with a decision entry against it is the opposite of
-	   the standing finding 2.12 forbids, which is one nobody has to look at. */
+	   THE TOOLBAR TEXT CONTROLS ARE NO LONGER `.tap-reach-44` AND NO LONGER
+	   MEASURED HERE. For weeks this row carried the repo's only two standing
+	   outside-threshold rows -- `.tools .inline-link`, four underlined words
+	   whose reach could not widen the shortest of them past 32.5px, on a
+	   `nowrap` line with no room for 44px boxes at 375 (decision 12). Prompt
+	   0119 rebuilt the toolbar: the words are `.tool-btn` boxes now, 44px on
+	   both axes, on a row that wraps (`flex-wrap: wrap` and `min-width: 0` on
+	   `.tools`, the one-line answer decision 12 measured), and the count moved
+	   up beside the heading. A box is measured by `tapTargets`, below. */
 	tapReach: [
-		{ selector: '.swatch', label: 'folder colour swatches (fixed 2026-09-05)', min: 44 },
-		{ selector: '.tools .inline-link', label: 'toolbar text controls (under the floor on width -- decision 12, with the owner)', min: 44 }
+		{ selector: '.swatch', label: 'folder colour swatches (fixed 2026-09-05)', min: 44 }
 	],
 	/*
 		THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER

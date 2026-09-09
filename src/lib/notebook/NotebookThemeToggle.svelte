@@ -1,11 +1,15 @@
 <script lang="ts">
 	import {
 		NOTEBOOK_THEMES,
+		NOTEBOOK_THEME_FOLLOWING_NOTE,
 		NOTEBOOK_THEME_LABELS,
 		NOTEBOOK_THEME_NOTES,
 		NOTEBOOK_THEME_SHORT,
+		notebookPlateShowing,
 		notebookTheme,
 		setNotebookTheme,
+		siteThemeOnDocument,
+		watchSiteThemeOnDocument,
 		type NotebookTheme
 	} from '$lib/notebook/notebook-theme.svelte';
 
@@ -26,11 +30,36 @@
 	 * the dark one now (the classroom's console register), so a separate dark
 	 * option would be a second name for the state the picker already opens on.
 	 * See notebook-theme.svelte.ts for what happens to a stored 'dark'.
+	 *
+	 * THE TRIGGER NAMES WHAT IS SHOWING, THE MENU NAMES WHAT IS STORED, and
+	 * since the default plate follows the site theme those can differ. With
+	 * the site on Matrix and nothing chosen here, the room IS matrix -- so the
+	 * trigger reads "Matrix" (what a student sees) while the Default row is the
+	 * checked one and its note says it is following the site. Both are read
+	 * from the same two inputs through `notebookPlateShowing`, the JS mirror of
+	 * the stylesheet's own selector pair, so the word and the paint agree.
 	 */
 
 	const theme = $derived(notebookTheme());
-	const short = $derived(NOTEBOOK_THEME_SHORT[theme]);
-	const label = $derived(NOTEBOOK_THEME_LABELS[theme]);
+	/* `<html data-theme>`, as ThemeRoot wrote it. Read off the document rather
+	   than off the site store: the store is the preference and the attribute
+	   is the decision (a session gate sits between them), and the cascade
+	   paints from the attribute. */
+	$effect(() => watchSiteThemeOnDocument());
+	const siteAttr = $derived(siteThemeOnDocument());
+	const showing = $derived(notebookPlateShowing(theme, siteAttr));
+	const following = $derived(theme === 'default' && showing !== 'default');
+	const short = $derived(NOTEBOOK_THEME_SHORT[showing]);
+	const label = $derived(
+		following
+			? `${NOTEBOOK_THEME_LABELS[showing]} (the site theme, followed)`
+			: NOTEBOOK_THEME_LABELS[theme]
+	);
+	function noteFor(option: NotebookTheme): string {
+		return option === 'default' && following
+			? NOTEBOOK_THEME_FOLLOWING_NOTE
+			: NOTEBOOK_THEME_NOTES[option];
+	}
 
 	let open = $state(false);
 	let rootEl = $state<HTMLDivElement | null>(null);
@@ -79,6 +108,13 @@
 				stroke-linecap="round"
 			/>
 		</svg>
+	{:else if which === 'matrix'}
+		<!-- three falling columns of code, the site theme's own signature reduced
+		     to a glyph; nothing in it moves -->
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+			<path d="M6 3.5v9M12 3.5v15M18 3.5v6" stroke-linecap="round" />
+			<path d="M6 16v2M12 21v0.5M18 13v3" stroke-linecap="round" />
+		</svg>
 	{:else if which === 'idea'}
 		<!-- gear: the IDEA emblem's own mark, reduced to a glyph -->
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -110,9 +146,10 @@
 		aria-expanded={open}
 		data-testid="nb-theme-toggle"
 		data-theme-state={theme}
+		data-theme-showing={showing}
 		onclick={() => (open = !open)}
 	>
-		<span class="glyph" aria-hidden="true">{@render glyph(theme)}</span>
+		<span class="glyph" aria-hidden="true">{@render glyph(showing)}</span>
 		<span class="nb-theme-word">{short}</span>
 	</button>
 
@@ -131,7 +168,7 @@
 					<span class="glyph" aria-hidden="true">{@render glyph(option)}</span>
 					<span class="text">
 						<span class="name">{NOTEBOOK_THEME_LABELS[option]}</span>
-						<span class="note">{NOTEBOOK_THEME_NOTES[option]}</span>
+						<span class="note" data-testid="nb-theme-note-{option}">{noteFor(option)}</span>
 					</span>
 					<span class="tick" aria-hidden="true">{option === theme ? '✓' : ''}</span>
 				</button>
@@ -201,7 +238,7 @@
 		top: calc(100% + 0.4rem);
 		right: 0;
 		z-index: 60;
-		min-width: 15rem;
+		min-width: 17rem;
 		padding: var(--space-1);
 		display: grid;
 		gap: var(--space-1);

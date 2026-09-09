@@ -43,7 +43,11 @@ export default {
 		{ selector: 'input[type="file"]', label: 'any file input (no upload transport)', expectPresent: 0, expectVisible: 0 }
 	],
 	contrast: [
-		{ selector: '.nb-root .pane-head h2', label: 'entries pane heading', min: 4.5 }
+		/* `.list-title h2` since prompt 0119 rebuilt the list pane as a head and
+		   a body; `.pane-head` is the compose card's own header now and this
+		   read-only mount has no compose card, so the old selector matched
+		   nothing and the row reported "no match". */
+		{ selector: '.nb-root .list-title h2', label: 'entries pane heading', min: 4.5 }
 	],
 	ignoreConsole: ['\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/']
 };

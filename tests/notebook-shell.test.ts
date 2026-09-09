@@ -400,9 +400,16 @@ describe('the shell is shared, not copied', () => {
 		// panes at the height of the box the caller put the split in, which is
 		// measured rather than assumed.
 		const surfaces = {
-			// Mounted under somebody else's shell in view-as, so it cannot bound
-			// itself at ALL: only the document knows how tall it is.
-			'src/lib/notebook/NotebookView.svelte': 'page',
+			// An application frame of its own (`cr-app`) WHEN IT OWNS THE PAGE --
+			// the frame is keyed on `masthead`, the prop that says so -- and under
+			// /classroom/view-as, mounted beneath somebody else's shell with
+			// `masthead={false}`, no frame at all: `fill` then resolves against an
+			// auto height and degrades to page-flow by construction (split.css's
+			// own words), which is what that mount ran on before. This was `page`
+			// while a ~355px hero sat above the split; prompt 0119 replaced the
+			// hero with one bar and gave the student's notebook the console's
+			// frame. Asserted below: the frame class is conditional, never bare.
+			'src/lib/notebook/NotebookView.svelte': 'fill',
 			// An application frame of its own (`cr-app`), so its parent has a real
 			// height to hand down and both panes can scroll inside it.
 			'src/lib/notebook/ReviewConsole.svelte': 'fill'
@@ -425,6 +432,14 @@ describe('the shell is shared, not copied', () => {
 		// ...and the classroom keeps the default, being the surface the default
 		// is correct for.
 		expect(read('src/routes/classroom/[sectionId]/+layout.svelte')).not.toContain('scroll=');
+		// THE STUDENT NOTEBOOK'S FRAME IS CONDITIONAL ON OWNING THE PAGE. A bare
+		// `class="nb-root cr-app"` would put a 100dvh, overflow-hidden frame under
+		// the classroom's shell on /classroom/view-as and clip the notebook by
+		// exactly that shell's height -- silently, on an admin preview.
+		const view = read('src/lib/notebook/NotebookView.svelte');
+		expect(view).toMatch(/<div class="nb-root" class:cr-app=\{masthead\}/);
+		expect(view).toMatch(/<main class="nb-shell" class:cr-app-body=\{masthead\}/);
+		expect(view).not.toMatch(/class="nb-root cr-app"/);
 	});
 
 	it('fill-height names no viewport height, which is the whole point of it', () => {
@@ -625,8 +640,10 @@ describe('bringing the detail pane into view', () => {
 	 * list's own third assertion is what said to drop each of them, by name
 	 * and in its failure message, which is the shape it was written in: it can
 	 * only shrink. `FoundryMine` stays, because its detail pane is a long
-	 * metadata form and page-flow is the right trade there, exactly as it is
-	 * for the notebook.
+	 * metadata form and page-flow is the right trade there -- as it was for
+	 * the notebook until prompt 0119 gave the student's notebook the review
+	 * console's application frame and moved it to `fill` (see the surfaces
+	 * map above), leaving these three as the ONLY page-flow mounts.
 	 * Every one is another lane's file: this bundle owns `src/lib/notebook/**`,
 	 * `src/routes/notebook/**` and `src/routes/dev/**`, and reaching into a
 	 * surface somebody else is working in to add an effect and a binding is how
@@ -646,8 +663,13 @@ describe('bringing the detail pane into view', () => {
 		const pageFlow = splitMounts().filter((m) => m.scroll === 'page');
 		// The positive control. A walker that found no files, or a tag regex that
 		// stopped matching, would otherwise pass every assertion below vacuously.
-		expect(pageFlow.length).toBeGreaterThanOrEqual(KNOWN_UNREVEALED.length + 1);
+		// This read `+ 1` while the notebook was the one page-flow mount that
+		// REVEALS; since 0119 moved it to `fill` the three exempt mounts are the
+		// whole page-flow population, and the walker is proven by finding all
+		// three of them plus at least one mount that is not page-flow.
+		expect(pageFlow.length).toBeGreaterThanOrEqual(KNOWN_UNREVEALED.length);
 		expect(splitMounts().some((m) => m.scroll !== 'page')).toBe(true);
+		expect(splitMounts().some((m) => m.scroll === 'fill' && m.reveals)).toBe(true);
 	});
 
 	it('every page-flow split reveals its detail pane, except the pinned six', () => {

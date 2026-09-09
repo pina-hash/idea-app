@@ -225,6 +225,15 @@ body:has(.nb-root) {
 :root:has(.nb-root[data-nb-theme='idea']) {
 	--nb-bg: #0b1410;
 }
+/* THE MATRIX PLATE'S MIRROR, in both of the ways the plate is reached: chosen
+   in this room, or the room's default following the site theme. The second
+   selector is the site's own attribute (ThemeRoot writes it on <html>) over an
+   UNSET plate, which is the whole of how "the same as your classes" stays true
+   under a themed site -- see the plate block at the foot of this file. */
+:root:has(.nb-root[data-nb-theme='matrix']),
+:root[data-theme='matrix']:has(.nb-root:not([data-nb-theme])) {
+	--nb-bg: #020402;
+}
 
 /* --- Type ---------------------------------------------------------------- */
 
@@ -420,4 +429,150 @@ body:has(.nb-root) {
 .nb-root input::placeholder,
 .nb-root textarea::placeholder {
 	color: var(--text-3);
+}
+
+/* ==========================================================================
+   THE MATRIX PLATE (report 29 of prompt 0119): the notebook wearing the site's
+   Matrix theme, reached two ways.
+
+   WHERE THIS BLOCK LIVES, AND WHY IT IS NOT IN colors.css. Every other plate's
+   values sit in the design-system token layer beside the light palette, and
+   that is where this belongs too -- it is a set of values for the same --nb-*
+   names. It is HERE because prompt 0119 owns the notebook's theme system
+   (this file, the store, the toggle) and not the design-system layer, which
+   another lane owned at the same time; a plate is a cut-and-paste move for
+   whoever next touches colors.css, and `tests/notebook-theme.test.ts` reads
+   it from this file until then.
+
+   TWO SELECTORS, ONE PLATE. `.nb-root[data-nb-theme='matrix']` is the
+   student choosing Matrix for the notebook, whatever the site is set to.
+   `:root[data-theme='matrix'] .nb-root:not([data-nb-theme])` is the
+   notebook's DEFAULT plate -- "the same surfaces as your classes" -- keeping
+   that promise under a themed site: ThemeRoot puts `data-theme` on <html>
+   while a session holds, matrix.css repaints the register under it, and this
+   selector paints the notebook from the same attribute. Nothing in JS decides
+   it. Specificity (0,4,0) beats the default block's (0,2,0) in colors.css and
+   sits above `[data-nb-theme='idea']`'s (0,2,0), which never matches at the
+   same time anyway. An EXPLICIT light or IDEA plate carries the attribute and
+   is left alone: the room's own control wins inside the room.
+
+   THE VALUES ARE THE SITE THEME'S OWN REGISTER, mapped exactly as the default
+   plate maps the unthemed one (colors.css, DEFAULT block): six tokens one to
+   one, written as literals for the reason that block gives (an alias in this
+   direction closes a cycle, and a var() resolves where it is declared).
+
+     --nb-bg           <- --surface-0 under matrix   #020402
+     --nb-surface      <- --surface-1               #080e09
+     --nb-surface-dim  <- --surface-2               #0c150d
+     --nb-ink          <- --text-1                  #dce8dc
+     --nb-ink-soft     <- --text-2                  #8fae94
+     --nb-boundary     <- --boundary                #64826b
+
+   `tests/notebook-theme.test.ts` asserts those six against
+   design-system/themes/matrix.css, so the site theme and this plate cannot
+   drift apart without a red test -- which is the "agree where agreeing is
+   right" half of the brief made checkable.
+
+   WHAT IS AUTHORED, because the register has no counterpart, computed against
+   THIS plate's grounds (WCAG, hex over hex, `tests/notebook-theme.test.ts`
+   recomputes each):
+
+     --nb-ink-faint   matrix's --text-3 (#4f6853) is decorative in the
+                      classroom and real muted copy here, and measures
+                      3.37 / 3.19 / 3.05 on bg / surface / surface-dim -- the
+                      same failure the default plate's block records for the
+                      unthemed --text-3. hsl(128 12% 50%) clears at
+                      5.75 / 5.45 / 5.20 and sits 12 lightness points under
+                      --nb-ink-soft, so the two tiers stay tellable.
+     --nb-ink-hover   the ink at ~80% lightness on its own hue (12.77 on the
+                      card); the button's label is --nb-bg.
+     --nb-masthead    matrix's --surface-2, the register's "toolbars and
+                      header bars" value, 1.11:1 against the page, with the
+                      hairline edge the default plate takes for the same
+                      reason (an opaque neutral does not separate on a page
+                      this deep).
+
+   THE ACCENT IS THE IDEA PLATE'S MINT, NOT THE RAIN'S #00FF41. matrix.css
+   spends the vivid phosphor on the rain alone and pulls every text tier to
+   12-21% saturation so the semantic six read as accents again; a full-chroma
+   link colour here would undo that one room over. #6cf4b5 is already measured
+   against the grid's seven status inks (colors.css, the IDEA block: 15.75+
+   CIEDE2000 from every one, against the 15.18 the grid already asks of a
+   reader), and those inks are identical on every dark plate, so the
+   separations hold here unchanged. 14.15:1 on the card; the brass stays on the
+   meta line, as on IDEA.
+
+   THE RAIN DOES NOT ENTER THE ROOM, and that is the one divergence with a
+   reason. `.nb-root` is opaque and `body:has(.nb-root) .bg-fx` is hidden
+   above, so the canvas ThemeRoot mounts inside `.bg-fx` is never behind the
+   notebook. Letting it through would mean a transparent page ground under a
+   list whose rows paint their titles straight onto it, and the rain's
+   legibility figure (matrix-rain.ts) is measured against the portal's content
+   band, not against a 26rem list of entry titles. A photograph of a notebook
+   page over falling glyphs is also not a reading surface. So under Matrix the
+   notebook is the theme's grounds, tiers and boundary with no motion, which is
+   also what a reduced-motion reader of the portal gets.
+
+   THE PHOTO ISLAND, THE FOLDERS AND THE GRID INKS are the dark plates' own:
+   folders re-measure 8.7-10.5 on this ground, the four filled cells keep the
+   default plate's PINNED fills (the glyph-on-fill ratios are therefore the
+   default plate's exactly: 4.90 / 5.07 / 5.30 / 5.11), and the three unfilled
+   cells sit on a card deeper than the default's, so excused 9.72, missing
+   5.83 (edge 4.91) and scheduled clear by more than they did there.
+   ========================================================================== */
+.nb-root[data-nb-theme='matrix'],
+:root[data-theme='matrix'] .nb-root:not([data-nb-theme]) {
+	--nb-bg: #020402;
+	--nb-surface: #080e09;
+	--nb-surface-dim: #0c150d;
+	--nb-ink: #dce8dc;
+	--nb-ink-soft: #8fae94;
+	/* AUTHORED. See the block comment. */
+	--nb-ink-faint: #708f74;
+	--nb-ink-hover: #c1d7c1;
+	--nb-hairline: rgba(255, 255, 255, 0.08);
+	--nb-hairline-strong: rgba(255, 255, 255, 0.16);
+	/* matrix.css's --boundary, to the byte: 4.85 / 4.59 / 4.38 on the three
+	   grounds, clear of the 3:1 a boundary carries. */
+	--nb-boundary: #64826b;
+	--nb-masthead: #0c150d;
+	--nb-masthead-line: 1px solid var(--nb-hairline);
+	--nb-accent: #6cf4b5;
+	--nb-accent-ink: var(--nb-accent);
+	--nb-accent-wash: rgba(108, 244, 181, 0.15);
+	--nb-meta-accent: var(--gold);
+	--nb-ok: color-mix(in srgb, var(--teal) 60%, #dff5e6);
+	--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
+	--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
+	--nb-folder-slate: #a6b4c2;
+	--nb-folder-sage: #9dc491;
+	--nb-folder-clay: #e09873;
+	--nb-folder-sky: #86b6de;
+	--nb-folder-plum: #c79ecd;
+	/* Re-declared, not inherited: the var()-resolves-where-declared trap in
+	   its fourth form (see the IDEA block in colors.css). */
+	--nb-folder-gold: var(--gold);
+	--nb-folder-none: var(--nb-ink-faint);
+	--nb-shot-ground: rgba(2, 4, 2, 0.98);
+	--nb-shot-plate: #010201;
+	--nb-shot-scrim: rgba(2, 4, 2, 0.72);
+	--nb-shot-ink: #eef4ee;
+	--nb-shot-ink-deep: #020402;
+	--nb-shot-ink-bright: #f6faf6;
+	--nb-cell-ontime: #86bf7e;
+	--nb-cell-late: #db9d60;
+	--nb-cell-await: var(--cyan);
+	--nb-cell-flagged: #e69494;
+	--nb-cell-excused: var(--ice);
+	--nb-cell-missing: var(--dim);
+	--nb-cell-missing-edge: var(--gear);
+	--nb-cell-scheduled: var(--violet-ink);
+	--nb-cell-ontime-fill: #2b452d;
+	--nb-cell-late-fill: #42361d;
+	--nb-cell-await-fill: #1f3c33;
+	--nb-cell-flagged-fill: #4c302c;
+	--nb-cell-ring: rgba(220, 232, 220, 0.55);
+	/* The true shade the two other dark plates take (effects.css): a shadow
+	   tinted with an ink is invisible on a ground this deep. */
+	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42);
 }
