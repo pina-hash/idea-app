@@ -3487,6 +3487,18 @@ resolve it without editing them: the `static/IDEA/` icon mirror,
 never match. When adding legacy HTML, check its references against all three and
 flag anything else (per-page assets).
 
+**`static/IDEA/` ALSO HOLDS THE SITE'S OWN ICON SET, AND THAT IS NOT A LEGACY
+DECISION.** `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`,
+`icon-192.png`, `icon-512.png` and `icon-maskable-512.png` sit there rather than
+at the static root because every one of those names is SLUG-SHAPED, and a
+slug-shaped file at the root is served ahead of the `[shortlink]` catch-all --
+so it has to join `RESERVED_SLUGS` and `_app_short_link_reserved` in the same
+breath, which is a migration. `static/manifest.webmanifest` stays at the root
+because it is already reserved. `tests/site-icons.test.ts` asserts the root
+stays clear of an unreserved slug-shaped file, so this cannot ship again by
+accident. **`IDEA` itself is uppercase, so no slug can ever equal it** -- which
+is why that directory needs no reservation of its own.
+
 ### The freeze, and its one exception
 
 **Do not modify the internals of carried-over legacy files.** The exception is

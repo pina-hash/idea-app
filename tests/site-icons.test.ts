@@ -18,11 +18,12 @@
 // number somebody has to update rather than a property somebody has to keep.
 
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Window } from 'happy-dom';
+import { RESERVED_SLUGS, SLUG_RE } from '../src/lib/short-links';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const STATIC = join(ROOT, 'static');
@@ -168,9 +169,9 @@ describe('the head references files that exist', () => {
 	it('links exactly the icon set, and every href resolves under static/', () => {
 		const icons = headLinks.filter((l) => /icon|manifest/.test(l.rel ?? ''));
 		expect(icons.map((l) => `${l.rel} ${l.href}`)).toEqual([
-			'icon /favicon.ico',
-			'icon /favicon.svg',
-			'apple-touch-icon /apple-touch-icon.png',
+			'icon /IDEA/favicon.ico',
+			'icon /IDEA/favicon.svg',
+			'apple-touch-icon /IDEA/apple-touch-icon.png',
 			'manifest /manifest.webmanifest'
 		]);
 		for (const link of icons) {
@@ -179,9 +180,9 @@ describe('the head references files that exist', () => {
 	});
 
 	it('declares the ico for any size and the svg by type', () => {
-		const ico = headLinks.find((l) => l.href === '/favicon.ico');
+		const ico = headLinks.find((l) => l.href === '/IDEA/favicon.ico');
 		expect(ico?.sizes).toBe('any');
-		const svg = headLinks.find((l) => l.href === '/favicon.svg');
+		const svg = headLinks.find((l) => l.href === '/IDEA/favicon.svg');
 		expect(svg?.type).toBe('image/svg+xml');
 	});
 
@@ -224,7 +225,7 @@ describe('the manifest', () => {
 // ---- the files themselves -------------------------------------------------
 
 describe('favicon.ico', () => {
-	const frames = readIco(read('/favicon.ico'));
+	const frames = readIco(read('/IDEA/favicon.ico'));
 
 	it('parses and carries a 16x16 and a 32x32 frame', () => {
 		const sizes = frames.map((f) => `${f.width}x${f.height}`);
@@ -249,8 +250,8 @@ describe('favicon.ico', () => {
 });
 
 describe.each([
-	['/icon-192.png', 192],
-	['/icon-512.png', 512]
+	['/IDEA/icon-192.png', 192],
+	['/IDEA/icon-512.png', 512]
 ])('%s', (href, size) => {
 	const png = readPng(read(href));
 
@@ -270,7 +271,7 @@ describe.each([
 });
 
 describe('apple-touch-icon.png', () => {
-	const png = readPng(read('/apple-touch-icon.png'));
+	const png = readPng(read('/IDEA/apple-touch-icon.png'));
 
 	it('is 180x180', () => {
 		expect(png.width).toBe(180);
@@ -286,7 +287,7 @@ describe('apple-touch-icon.png', () => {
 });
 
 describe('icon-maskable-512.png', () => {
-	const png = readPng(read('/icon-maskable-512.png'));
+	const png = readPng(read('/IDEA/icon-maskable-512.png'));
 
 	it('is 512x512', () => {
 		expect(png.width).toBe(512);
@@ -306,7 +307,7 @@ describe('icon-maskable-512.png', () => {
 });
 
 describe('favicon.svg', () => {
-	const source = readFileSync(staticPath('/favicon.svg'), 'utf8');
+	const source = readFileSync(staticPath('/IDEA/favicon.svg'), 'utf8');
 	const doc = new (new Window().DOMParser)().parseFromString(source, 'image/svg+xml');
 
 	it('parses as XML with an svg root', () => {
@@ -323,5 +324,60 @@ describe('favicon.svg', () => {
 		expect(source).not.toMatch(/background/i);
 		// The positive control: the drawing it SHOULD contain is there.
 		expect(doc.querySelectorAll('path').length).toBeGreaterThan(0);
+	});
+});
+
+// ---- where the icons are allowed to live ---------------------------------
+
+describe('the static root stays clear of unreserved slug-shaped files', () => {
+	// WHY THIS IS HERE, IN THIS FILE. The first cut of this bundle put all six
+	// icons at the static root, and every one of them is slug-shaped -- a
+	// leading `/` path served ahead of the `[shortlink]` catch-all, which is
+	// exactly what `_app_short_link_reserved` exists to keep in step with.
+	// `tests/short-link-reserved-names.test.ts` caught it, and the fix it
+	// asked for was a migration this bundle could not write, so the icons live
+	// under `/IDEA/` instead. That test owns the RULE; this one is the tripwire
+	// on the surface most likely to break it again, so a session adding an icon
+	// reads the reason beside the icons rather than in a file about short links.
+
+	const rootFiles = readdirSync(STATIC, { withFileTypes: true })
+		.filter((entry) => entry.isFile())
+		.map((entry) => entry.name);
+
+	it('every slug-shaped file at the static root is reserved', () => {
+		// The positive control for the sweep itself: a root that listed no
+		// files at all would satisfy the filter below vacuously.
+		expect(rootFiles.length).toBeGreaterThan(0);
+		const unreserved = rootFiles.filter(
+			(name) => SLUG_RE.test(name) && !RESERVED_SLUGS.includes(name)
+		);
+		expect(unreserved).toEqual([]);
+	});
+
+	it('the six icons are under /IDEA/ and not at the root', () => {
+		for (const name of [
+			'favicon.ico',
+			'favicon.svg',
+			'apple-touch-icon.png',
+			'icon-192.png',
+			'icon-512.png',
+			'icon-maskable-512.png'
+		]) {
+			expect(existsSync(join(STATIC, 'IDEA', name))).toBe(true);
+			expect(rootFiles).not.toContain(name);
+			// The predicate's own positive control: each of these names IS
+			// slug-shaped and IS unreserved, so the sweep above would have
+			// flagged it had the file been left at the root.
+			expect(SLUG_RE.test(name)).toBe(true);
+			expect(RESERVED_SLUGS).not.toContain(name);
+		}
+	});
+
+	it('`IDEA` itself can never be typed as a slug, which is why it is not reserved', () => {
+		// Uppercase, so the shape guard both the route and app_short_link_upsert
+		// enforce refuses it before any reserved check is reached. This is the
+		// same exclusion `tests/short-link-reserved-names.test.ts` asserts.
+		expect(SLUG_RE.test('IDEA')).toBe(false);
+		expect(existsSync(join(STATIC, 'IDEA'))).toBe(true);
 	});
 });

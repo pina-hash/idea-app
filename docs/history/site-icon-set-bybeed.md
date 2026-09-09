@@ -11,42 +11,45 @@ declared `rel="icon"` and `rel="apple-touch-icon"` as the SAME file --
 `/IDEA/android-chrome-512x512.png`, a 512px PNG out of the legacy icon mirror --
 and `static/manifest.webmanifest` named that file plus `/IDEA/favicon-32x32.png`,
 declaring the 512 as `purpose: "any maskable"` when it is a transparent-cornered
-tile with no maskable safe zone in it. A browser asking for `/favicon.ico`, which
-every browser does whether or not a page declares one, got a 404.
+tile with no maskable safe zone in it. There was no `.ico` anywhere in the tree,
+no SVG icon, and no separately sized Apple touch icon.
 
-This bundle lands six rendered icons at the static root, repoints the head and
+This bundle lands six rendered icons under `static/IDEA/`, repoints the head and
 the manifest at them, puts the two Python generators that produced them under
 `tools/`, and adds a test that reads the BYTES rather than the filenames.
 
-**IT DOES NOT LAND ON `main`, AND THE REASON IS THE ONE THING A PERSON HAS TO
-ACT ON.** See "What is blocked" below: the six new files are slug-shaped
-top-level entries under `static/`, so `tests/short-link-reserved-names.test.ts`
-reddens until they are reserved -- and reserving them means a migration, which
-this bundle was not permitted. The work is pushed to
-`claude/site-icon-set-bybeed` and is complete apart from that one coupling.
+**THE ICONS LIVE UNDER `static/IDEA/`, NOT AT THE STATIC ROOT, AND THAT IS THE
+ONE DECISION WORTH READING.** The first half of this bundle put them at the root,
+which reddened `tests/short-link-reserved-names.test.ts` and could only have been
+cleared by a migration this bundle was not permitted. See "The root was the wrong
+place" below. Everything else here is as it was.
 
-## What is on the branch
+## What landed
 
-- `static/favicon.ico` (5 frames: 16, 24, 32, 48, 64, each a PNG payload at
-  32bpp), `static/favicon.svg`, `static/apple-touch-icon.png` (180x180),
-  `static/icon-192.png`, `static/icon-512.png`, `static/icon-maskable-512.png`.
+- `static/IDEA/favicon.ico` (5 frames: 16, 24, 32, 48, 64, each a PNG payload at
+  32bpp), `static/IDEA/favicon.svg`, `static/IDEA/apple-touch-icon.png`
+  (180x180), `static/IDEA/icon-192.png`, `static/IDEA/icon-512.png`,
+  `static/IDEA/icon-maskable-512.png`.
   Placed byte-for-byte as delivered, md5-checked against the attachment after
-  the copy. Not re-encoded, not optimised, not stripped -- each carries a
+  the copy AND again after the `git mv` into `static/IDEA/`. Not re-encoded, not optimised, not stripped -- each carries a
   `caBX` chunk (and the SVG a `<c2pa:manifest>`) of content-credential
   provenance from the tool that rendered it, which is left alone.
-- `src/app.html`: `favicon.ico` at `sizes="any"`, `favicon.svg` by
-  `type="image/svg+xml"`, `apple-touch-icon.png`, the manifest, and
+- `src/app.html`: `/IDEA/favicon.ico` at `sizes="any"`, `/IDEA/favicon.svg` by
+  `type="image/svg+xml"`, `/IDEA/apple-touch-icon.png`, the manifest (still at
+  `/manifest.webmanifest`, which was already there and already reserved), and
   `theme-color` moved from `#020A04` to `#0A0C0D` to match the icons' own
   graphite ground.
-- `static/manifest.webmanifest`: `icon-192.png` and `icon-512.png` at
-  `purpose: "any"`, `icon-maskable-512.png` at `purpose: "maskable"`, each with
+- `static/manifest.webmanifest`: `/IDEA/icon-192.png` and `/IDEA/icon-512.png` at
+  `purpose: "any"`, `/IDEA/icon-maskable-512.png` at `purpose: "maskable"`, each with
   its real `sizes` and `type`. The old single `"any maskable"` entry is gone --
   one file cannot honestly be both, because the two want opposite things at the
   edges.
 - `tools/idea_icon_gen.py` and `tools/idea_logo_vector.py`, and one line in
   `CLAUDE.md`'s Commands block saying they are the only place icon and logo
   geometry is edited.
-- `tests/site-icons.test.ts`, 18 assertions.
+- A second `CLAUDE.md` paragraph, under Asset paths, saying that `static/IDEA/`
+  now holds the site's own icon set as well as the legacy mirror, and why.
+- `tests/site-icons.test.ts`, 21 assertions.
 
 ## The three properties the test exists for, and why a file listing cannot see them
 
@@ -101,76 +104,92 @@ with a positive control that the paths it SHOULD contain are there.
      `expected 1 to be +0`.
   5. the `image/svg+xml` link removed from the head: 2 failed.
   6. `favicon.ico` rebuilt with only its 48 and 64 frames: 1 failed.
-  Clean re-run afterwards: 18 passed.
+  Clean re-run afterwards: 21 passed.
+  A seventh, added with the move: an unreserved slug-shaped file copied back to
+  the static root reddened BOTH new root assertions (`expected [ 'favicon.ico' ]
+  to deeply equal []`), and the root was restored. An eighth, `git mv`-ing
+  `icon-192.png` back to the root, failed the file at COLLECTION rather than at
+  an assertion -- the module reads the icons at import time -- which is a
+  failure either way but a less legible one, and is why the root sweep is
+  written to fail on its own terms.
 - `svelte-check`: **0 errors, 37 warnings** (31 `state_referenced_locally`,
   5 `css_unused_selector`, 1 `perf_avoid_nested_class`), re-derived rather than
   read off `CLAUDE.md`. A `.env` with placeholder `PUBLIC_SUPABASE_*` values was
   written before the sync, per the phantom-error rule; it is gitignored.
 - `node tools/claude-md-check.mjs`: agrees with the tree.
-- Full suite: **6521 passed, 1 failed** -- the one below.
+- Full suite: **327 files, 6525 passed, 0 failed**, after the move.
 
-## What is blocked, and what closes it
+## The root was the wrong place
 
-`tests/short-link-reserved-names.test.ts` fails:
+`tests/short-link-reserved-names.test.ts` failed on the first half of this
+bundle:
 
     every slug-shaped top-level static entry is reserved
     expected [ 'apple-touch-icon.png', 'favicon.ico', 'favicon.svg',
                'icon-192.png', 'icon-512.png', 'icon-maskable-512.png' ]
     to deeply equal []
 
-This is correct and is the test doing its job. `SLUG_RE` is
-`/^[a-z0-9][a-z0-9._-]{0,60}$/`, which matches a dotted filename -- which is why
-`robots.txt`, `push-sw.js` and `manifest.webmanifest` are already in
-`RESERVED_SLUGS`. A static file at the root is served ahead of the
-`[shortlink]` catch-all, so a short link with any of those six slugs could never
-be reached, and 0156's own reasoning applies: accepting such a slug does not
-create a working link, it only misleads whoever created it.
+That test was right. `SLUG_RE` is `/^[a-z0-9][a-z0-9._-]{0,60}$/`, which matches
+a dotted filename -- which is why `robots.txt`, `push-sw.js` and
+`manifest.webmanifest` are already in `RESERVED_SLUGS`. A static file at the root
+is served ahead of the `[shortlink]` catch-all, so a short link with any of those
+six slugs could never be reached, and 0156's own reasoning applies: accepting
+such a slug does not create a working link, it only misleads whoever created it.
 
-**Adding the six names to `RESERVED_SLUGS` alone does not fix it, and that is
-the whole difficulty.** The same file's second half reads
+**Adding the six names to `RESERVED_SLUGS` was not available, and that is what
+decided the move.** The same file's second half reads
 `_app_short_link_reserved`'s own `prosrc` out of a real migrated database and
 asserts the SQL set and the TypeScript set are EQUAL, both directions, with a
 length check ruling out a duplicate masking a missing name. So the TypeScript
-list cannot move without the function moving with it, and the function moves
-only in a migration.
+list cannot move without the function moving with it, and the function moves only
+in a migration -- which this bundle's ledger entry does not permit, and which
+would in any case be a global change to the one production database in service of
+where six static files sit.
 
-This bundle's ledger entry says `Migration permitted: no`, and
-`src/lib/short-links.ts` is not on its Owns line, so neither half was written
-here. The branch therefore carries the icons with `src/lib/short-links.ts`
-untouched: one failing assertion that names exactly the missing work, rather
-than two failing assertions from a half-done fix.
+So the icons went into `static/IDEA/` instead, `git mv`, all six md5-identical
+across the move. **`IDEA` is uppercase, so `SLUG_RE` refuses it and no slug can
+ever equal it** -- the same exclusion the reserved-names test already asserts for
+`_platform`. Nothing under that directory can collide with a short link, ever,
+without a migration and without a reservation.
 
-**What closes it** is one bundle doing both halves together, in the shape
-`0166_short_link_reserve_maps.sql` already sets:
+- **`static/manifest.webmanifest` stayed at the root**: it was already there
+  before this bundle, is already in `RESERVED_SLUGS`, and was never part of the
+  problem. Only the six icon files moved.
+- **The `/IDEA/` prefix is not redirected out from under them.** `hooks.server.ts`
+  keys its legacy 308s on EXACT paths -- `/IDEA` and `/IDEA/coins`, nothing else
+  -- so `/IDEA/favicon.ico` reaches the static asset. Read from the hook rather
+  than assumed.
+- **`tests/site-icons.test.ts` carries the tripwire now**, three assertions: no
+  unreserved slug-shaped FILE at the static root, the six icons present under
+  `static/IDEA/` and absent from the root, and `IDEA` itself unmatched by
+  `SLUG_RE`. It is in the icons' own test on purpose -- a session adding a
+  seventh icon reads the reason beside the icons rather than in a file about
+  short links, and reddens there first.
 
-- a migration that `create or replace`s `public._app_short_link_reserved` with
-  the current thirty-three names plus `apple-touch-icon.png`, `favicon.ico`,
-  `favicon.svg`, `icon-192.png`, `icon-512.png` and `icon-maskable-512.png` in
-  alphabetical order, taking the existing set from 0166's body rather than
-  retyping it, naming the roles on its `revoke` (a bare `from public` does not
-  close a function on this project), and reporting any `app_short_links` row
-  already holding one of those six slugs rather than deleting it;
-- the same six names added to `RESERVED_SLUGS` in `src/lib/short-links.ts`;
-- the same six added to the hand-transcribed list in
-  `tests/short-link-redirect.test.ts`, which asserts each reserved name is
-  refused at creation.
-
-The migration number must come from `node tools/migration-claims.mjs` at the
-time, not from `ls supabase/migrations/`: at this writing 0189 is the highest
-landed and 0190 and 0191 are both held by lanes in flight.
+**WHAT THIS COSTS, STATED PLAINLY: `/favicon.ico` AT THE ROOT IS STILL A 404.**
+Every current browser honours `<link rel="icon">`, so the declared icons resolve;
+what does not is the bare root request some crawlers and tools make without
+reading the document. Closing that needs either the migration above or a
+`src/routes/favicon.ico/+server.ts` redirect, and neither was this bundle's to
+take.
 
 ## Deliberately not done
 
-- **`static/IDEA/` is untouched, and nothing was removed from it.** The prompt
-  asked for any icon file nothing references to be deleted afterwards; there is
-  none. Every one of the nine files in that mirror still has a referrer after
-  this change: `static/push-sw.js` uses `android-chrome-512x512.png` as the push
+- **NOTHING WAS REMOVED FROM `static/IDEA/`, and the six new files sit beside
+  what was already there.** The prompt asked for any icon file nothing
+  references to be deleted afterwards; there is none. Every one of the nine
+  files that mirror already held still has a referrer after this change: `static/push-sw.js` uses `android-chrome-512x512.png` as the push
   notification icon and `favicon-32x32.png` as its badge, nine legacy assignment
   documents and the coin ledger reference the per-programme variants through
   `rewriteLegacyLinks`, and `idea-gear.png` / `idea-logo-text.png` are the
   brand marks `AnimatedLogo.svelte` and the FSP day-2 bundle draw. The mirror is
-  legacy serve-path machinery under the freeze; this bundle adds a root icon set
-  beside it and repoints only the two consumers it owns.
+  legacy serve-path machinery under the freeze, and this bundle edits none of it
+  -- it adds six new names into the same directory and repoints only the two
+  consumers it owns. The directory therefore now holds two unrelated things: the
+  legacy mirror, frozen, and the current icon set. `CLAUDE.md`'s Asset paths
+  section says so, because a reader finding `favicon.svg` next to
+  `md2-android-chrome-512x512.png` would otherwise have no way to tell which is
+  which.
 - **`/IDEA/logo.svg`, `/IDEA/idea-logo.svg`, `/IDEA/x.svg`, `/IDEA/gear.png` and
   `/IDEA/this-object-was-deleted-0076.png` are referenced and do not exist.**
   All five are FIXTURE paths -- SVG-refusal cases in the classroom figure gate,
@@ -189,3 +208,19 @@ landed and 0190 and 0191 are both held by lanes in flight.
   are asserted from the source rather than from a rendered document. What a
   maskable crop actually looks like at 512 is a visual judgement nobody has made
   yet.
+
+## Open, for a person rather than a session
+
+**`static/push-sw.js` still points push notifications at the OLD icons** --
+`icon: '/IDEA/android-chrome-512x512.png'` and
+`badge: '/IDEA/favicon-32x32.png'`, lines 32 and 33. Switching them to
+`/IDEA/icon-192.png` and `/IDEA/icon-maskable-512.png` is a one-line change on
+each, and **nobody has authorised it**, so this bundle did not make it. It is not
+a defect: both files are still there and both still serve, so every push
+notification renders the icon it has always rendered. It is a consistency gap
+that will read as an oversight to whoever finds it next, which is why it is
+written down here rather than left to be rediscovered. A notification badge is
+also the one place a maskable icon is genuinely wanted, so the swap is probably
+right -- but "probably right" is not authorisation, and the two files it names
+are also the two the nine legacy assignment documents reference, so anyone
+changing them should read the mirror's other callers first.
