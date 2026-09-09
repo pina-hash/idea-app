@@ -84,7 +84,15 @@ const alias = {
 		new URL('./tests/stubs/env-static-public.ts', import.meta.url)
 	),
 	'$app/navigation': fileURLToPath(new URL('./tests/stubs/app-navigation.ts', import.meta.url)),
-	'virtual:site-versions': fileURLToPath(new URL('./tests/stubs/site-versions.ts', import.meta.url))
+	'virtual:site-versions': fileURLToPath(new URL('./tests/stubs/site-versions.ts', import.meta.url)),
+	// The LAZY half of the same substrate: vite.config.ts emits two modules
+	// so the 1,433-record commit log stops riding a shared chunk onto every
+	// route. Aliased for the same reason as its sibling -- without a
+	// stand-in, the two surfaces that `await import()` it cannot be
+	// imported here at all.
+	'virtual:site-changelog': fileURLToPath(
+		new URL('./tests/stubs/site-changelog.ts', import.meta.url)
+	)
 };
 
 /**

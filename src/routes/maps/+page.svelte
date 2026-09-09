@@ -10,16 +10,21 @@
 	 * to (0162 grants it to `anon` deliberately). Nothing on this page asks who
 	 * the caller is.
 	 *
-	 * THE MASTHEAD IS THE PAGE'S OWN, NOT A `maps/+layout.svelte`, AND THAT IS
-	 * DELIBERATE. A layout at `src/routes/maps/` would also wrap
-	 * `/maps/edit` and `/maps/edit/shelf`, which render their own header --
-	 * so the viewer would silently put a second masthead on top of the editor,
-	 * a surface this lane does not own and must not change. `ProfileMenu`
-	 * renders NOTHING when signed out (its own rule), so the same header is
-	 * correct for an anonymous visitor and for an admin who wandered in.
+	 * THE PAGE IS AN APPLICATION FRAME, `.cr-app` + `.cr-app-body`, the shape
+	 * split.css provides for a room that IS the viewport (prompt 0112): above
+	 * the breakpoint the map takes the window, below it the document scrolls
+	 * as every phone page does. The portal chrome -- logo, the way into the
+	 * editor, Home, the account menu -- is handed to the viewer as a snippet
+	 * and rendered at the top of ITS panel, the way a map puts its own mark
+	 * inside the search panel rather than on a bar above the whole map. A
+	 * `maps/+layout.svelte` would also wrap `/maps/edit`, which renders its
+	 * own header, so the chrome stays here. `ProfileMenu` renders NOTHING when
+	 * signed out (its own rule), so the same row is correct for an anonymous
+	 * visitor and for an admin who wandered in.
 	 */
 	import { page } from '$app/state';
 	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+	import '$lib/shell/split.css';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -75,46 +80,53 @@
 	/>
 </svelte:head>
 
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
+{#snippet chrome()}
+	<a class="logo-mark mv-logo" href="/" aria-label="IDEA home"><AnimatedLogo width={88} /></a>
+	<div class="mv-chrome-right">
 		<MapsEditEntry scope={entryScope} />
 		<a class="btn secondary" href="/">&lsaquo; Home</a>
 		<ProfileMenu />
 	</div>
-</div>
+{/snippet}
 
-{#if data.mapsError}
-	<p class="mv-load-error" role="status">
-		The map could not be loaded. Try again in a moment.
-	</p>
-{/if}
-
-<MapsViewer
-	data={data.maps}
-	search={page.url.searchParams}
-	supabaseUrl={PUBLIC_SUPABASE_URL}
-	{transports}
-	initialResults={data.mapsSearchResults}
-/>
-
-<footer class="mv-footer">
+{#snippet footer()}
 	<VersionBadge app="maps" />
-</footer>
+{/snippet}
+
+<main class="mv-shell cr-app" data-testid="maps-viewer-shell">
+	<div class="cr-app-body">
+		<MapsViewer
+			data={data.maps}
+			search={page.url.searchParams}
+			supabaseUrl={PUBLIC_SUPABASE_URL}
+			{transports}
+			initialResults={data.mapsSearchResults}
+			notice={data.mapsError ? 'The map could not be loaded. Try again in a moment.' : null}
+			{chrome}
+			{footer}
+		/>
+	</div>
+</main>
 
 <style>
-	.mv-footer {
-		max-width: 78rem;
-		margin: 0 auto;
-		padding: 0 var(--space-4) var(--space-6);
+	/* `main` in app.css is a reading column: 880px, centred, padded. This
+	   main is the application frame, and it takes the window. */
+	.mv-shell {
+		min-height: 0;
+		max-width: none;
+		margin: 0;
+		padding: 0;
 	}
-	.mv-load-error {
-		max-width: 78rem;
-		margin: var(--space-4) auto 0;
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid var(--crimson);
-		border-radius: var(--radius-card);
-		color: var(--crimson);
-		font-family: var(--font-display);
+	.mv-logo {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+	}
+	.mv-chrome-right {
+		margin-left: auto;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-3);
 	}
 </style>

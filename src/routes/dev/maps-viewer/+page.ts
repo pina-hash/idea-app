@@ -1,5 +1,7 @@
 import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';
+import type { MapsSearchRow } from '$lib/maps/transports';
+import { mapsViewerFixture, memoryMapsViewerTransports } from './fixture';
 
 /**
  * THE PUBLIC MAPS VIEWER HARNESS. Dev-only: 404s in a production build, needs
@@ -15,10 +17,34 @@ import { error } from '@sveltejs/kit';
  *
  * The `state` parameter names a starting position; everything after that is
  * ordinary navigation inside the component.
+ *
+ * AND IT ANSWERS `q` THE WAY THE ROUTE DOES. `/maps`'s server load runs the
+ * search for `?q=` and hands the rows in as `initialResults`, which is the
+ * no-JavaScript path; a harness that skipped that step rendered "nothing
+ * matches caliper" on every staged-route state while the caliper sat in the
+ * fixture, which is a harness measuring a page the route never shows. The
+ * same in-memory transport the page mounts answers it here.
  */
 export const prerender = false;
 
-export const load = ({ url }: { url: URL }) => {
+/** The named states' query strings live in the page; only `q` is needed here. */
+const STATE_QUERY: Record<string, string> = {
+	search: 'caliper',
+	'stage-start': 'caliper',
+	'stage-room': 'caliper',
+	'stage-unit': 'caliper',
+	'stage-elevation': 'caliper',
+	'stage-end': 'caliper'
+};
+
+export const load = async ({ url }: { url: URL }) => {
 	if (!dev) error(404, 'Not found');
-	return { state: url.searchParams.get('state') };
+	const state = url.searchParams.get('state');
+	const q = (state ? STATE_QUERY[state] : url.searchParams.get('q')) ?? '';
+	let initialResults: MapsSearchRow[] = [];
+	if (q.trim()) {
+		const outcome = await memoryMapsViewerTransports(mapsViewerFixture()).search(q.trim());
+		if (outcome.ok) initialResults = outcome.data;
+	}
+	return { state, initialResults };
 };
