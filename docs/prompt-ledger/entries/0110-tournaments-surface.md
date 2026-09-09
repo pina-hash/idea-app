@@ -11,7 +11,7 @@
 - Migration permitted: exactly one. Claims: 0192.
 - Lands on: `integration`. The migration is applied by Mr. Pina, so this bundle does
   not merge to `main`.
-- Status: issued
+- Status: pushed
 - Branch: `claude/tournaments-surface-scroll-yqplco`
 - Notes: prompts 0077 and 0091 already landed work here. Read their `docs/history/`
   entries before building; roughly half of any open list on this codebase turns out
