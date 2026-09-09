@@ -11,8 +11,8 @@
   `docs/history/` entry.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration`, then `main` against the six-item checklist.
-- Status: issued
-- Branch: assigned by the harness.
+- Status: pushed
+- Branch: `claude/rubric-descriptors-save-bug-4zg5hv`.
 - Notes: reported on the IDEA209H Unit 1 final report and presentation. Mr. Cosso
   teaches Block 4 independently with no Claude access, so a fix requiring an
   undocumented judgment call from him is a defect rather than a workaround.

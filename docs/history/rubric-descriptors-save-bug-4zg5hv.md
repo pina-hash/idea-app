@@ -203,10 +203,15 @@ every text measurement is in the fallback stack.
 
 ## The suite, and the full pass the README obliged
 
-**`npm test` in full: 328 files, 6529 tests, 332.4s.** The first run came back **327 files
-and 6527 tests passing with 2 failures**, both in `tests/derived-numbers.test.ts` and both
-naming the two new route specs as unmeasured. After the regeneration below that file is
-**18 of 18 green**, and the suite has no other failure.
+**`npm test` in full, on the merged tree: 328 files, 6529 tests, 0 failures.** The run
+BEFORE the counts regions were regenerated came back **327 files and 6527 tests passing
+with 2 failures**, both in `tests/derived-numbers.test.ts` and both naming the two new
+route specs as unmeasured. After the regeneration below that file is 18 of 18 green and
+the suite is clean. `origin/main` (`54bf64f2`, prompt 0105's blade export fix and its
+ledger flip) merged into this branch with NO conflict -- it touches legacy HTML and docs
+and shares no file with this lane, so the README counts block needed no hunk-by-hunk
+resolution this time. `svelte-check` re-run after the merge: still 0 errors, 37 warnings.
+`node tools/claude-md-check.mjs` and `npm run history:verify` both clean.
 
 **That pair is why this bundle ran a full browser pass rather than only its own routes.**
 Adding a route spec puts a file in the tree the README's `counts:measured` region has never
