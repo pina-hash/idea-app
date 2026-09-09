@@ -216,7 +216,9 @@ those rooms really mount.
   `tests/derived-numbers.test.ts` and both the 0116 shape -- the README's
   measured region had never covered the seven new specs. The full pass below
   regenerated it and the file is green again (18 passed); nothing else in
-  the suite moved.
+  the suite moved. **On the merged tree, with the second pass's region: 346
+  files / 6822 tests / 0 failures** (the extra file and tests are 0119's and
+  0121's, swept in by the merge).
 - `npm run verify:browser` with Vite started separately on 5199 (boot 3.0s
   here; the harness reported "reused a server already on
   http://127.0.0.1:5199", server boot 51-395ms): thirteen specs this bundle
