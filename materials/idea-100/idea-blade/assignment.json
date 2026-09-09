@@ -1,0 +1,228 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 4,
+    "theme": "idea-green",
+    "title": "IDEA-Blade 01 - Concept and Role Charter",
+    "course": "IDEA100",
+    "dueDate": "2026-09-11",
+    "totalPoints": 50,
+    "assignmentId": "idea100-blade-01",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "IDEA-Blade"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "submission",
+      "intro": "You do the work in the assignment page, not here. This is where the finished file goes.",
+      "title": "Upload Your Completed Assignment",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": " "
+        },
+        {
+          "id": "blade01-file",
+          "type": "imageZone",
+          "points": 50,
+          "captions": false,
+          "minImages": 1
+        }
+      ],
+      "points": 50,
+      "rubric": [
+        {
+          "id": "identity",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Named, themed, consistent",
+              "points": 10,
+              "descriptor": "Every identity field is filled, the theme is stated in the team's own words, and the combat personality follows from the theme rather than being picked separately."
+            },
+            {
+              "label": "Proficient",
+              "short": "Filled, theme loose",
+              "points": 7,
+              "descriptor": "Every field is filled, but the theme and the combat personality do not clearly connect to each other."
+            },
+            {
+              "label": "Developing",
+              "short": "Fields left empty",
+              "points": 4,
+              "descriptor": "One or more identity fields are empty, or answers are single words with no reasoning behind them."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "The module is empty or holds placeholder text."
+            }
+          ],
+          "criterion": "Module 01, Blade Identity"
+        },
+        {
+          "id": "rationale",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Form argued from theme",
+              "points": 10,
+              "descriptor": "The visual characteristics are specific, each one is tied to the stated theme, and the blind-test answer describes what someone would actually see."
+            },
+            {
+              "label": "Proficient",
+              "short": "Described, not argued",
+              "points": 7,
+              "descriptor": "The characteristics are described but the connection to the theme is asserted rather than explained."
+            },
+            {
+              "label": "Developing",
+              "short": "Generic description",
+              "points": 4,
+              "descriptor": "The answers would fit almost any blade, or the blind test is left unanswered."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "The module is empty or holds placeholder text."
+            }
+          ],
+          "criterion": "Module 02, Design Rationale"
+        },
+        {
+          "id": "momentum",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Reasoned from mass placement",
+              "points": 10,
+              "descriptor": "The answer explains where mass sits relative to the axis and what that does to the blade, and it matches the design the team actually described."
+            },
+            {
+              "label": "Proficient",
+              "short": "Correct, not applied",
+              "points": 7,
+              "descriptor": "The physics is stated correctly but is not connected to this team's design."
+            },
+            {
+              "label": "Developing",
+              "short": "Restates the prompt",
+              "points": 4,
+              "descriptor": "The answer repeats the question or names a term without using it."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "The module is empty or holds placeholder text."
+            }
+          ],
+          "criterion": "Module 03, Angular Momentum Analysis"
+        },
+        {
+          "id": "sketches",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Dimensioned, readable, captioned",
+              "points": 10,
+              "descriptor": "Sketches are uploaded, in focus, carry real numbers rather than proportions, and each caption says what the view shows."
+            },
+            {
+              "label": "Proficient",
+              "short": "Clear, thin on numbers",
+              "points": 7,
+              "descriptor": "Sketches are readable and captioned but carry few or no dimensions."
+            },
+            {
+              "label": "Developing",
+              "short": "One image, or unreadable",
+              "points": 4,
+              "descriptor": "A single image, or images too dark or blurred to read, or captions missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No sketches in the file."
+            }
+          ],
+          "criterion": "Module 04, Technical Sketches"
+        },
+        {
+          "id": "mfgplan",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Processes matched, everyone owns",
+              "points": 5,
+              "descriptor": "Each named process is one the shop can actually run, each is matched to a named component, and every team member appears as an Owner on at least one row."
+            },
+            {
+              "label": "Proficient",
+              "short": "One member unassigned",
+              "points": 3,
+              "descriptor": "Processes are real and matched to components, but at least one team member owns no row."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague or unmatched",
+              "points": 1,
+              "descriptor": "Processes are named in general terms, or are not matched to specific components."
+            },
+            {
+              "label": "Absent",
+              "short": "Table empty",
+              "points": 0,
+              "descriptor": "The table is empty or holds placeholder text."
+            }
+          ],
+          "criterion": "Module 05, Manufacturing Plan and Role Charter"
+        },
+        {
+          "id": "contact",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Rule applied to this design",
+              "points": 5,
+              "descriptor": "The answer explains how this blade transfers force on contact and cites the rulebook's contact rule correctly."
+            },
+            {
+              "label": "Proficient",
+              "short": "Rule stated, not applied",
+              "points": 3,
+              "descriptor": "The contact rule is stated correctly but not applied to this team's design."
+            },
+            {
+              "label": "Developing",
+              "short": "Rule misread",
+              "points": 1,
+              "descriptor": "The answer misstates what the rule requires, or answers a different question."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "The module is empty or holds placeholder text."
+            }
+          ],
+          "criterion": "Module 06, Contact Compliance"
+        }
+      ],
+      "aiLevel": 1
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
