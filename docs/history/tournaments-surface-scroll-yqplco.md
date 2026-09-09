@@ -44,6 +44,15 @@ Baseline measured before anything changed: `svelte-check` 0 errors / 37 warnings
 `npm run verify:counts -- --check` agreeing with the tree, and the nine existing
 tournament test files at 139 of 139 in 5.3s. Every figure below is against that.
 
+**`origin/main` moved 50 commits while this ran** (prompts 0104 through 0114,
+`main` at `999e0612` by the end) and was merged into the branch here, never on
+`main`. Nothing on it touched a file this bundle owns; the one conflict was
+the README's static counts block, hunk by hunk, resolved by regenerating the
+block from the merged tree (155 specs, 67 routes, 95 `/dev` pages, 310 runs;
+`npm run verify:counts -- --check` agrees). svelte-check on the merged tree is
+the same 0 errors / 37 warnings with the same breakdown; `0192` is still the
+only claim on its number after the merge (`node tools/migration-claims.mjs`).
+
 ## What was asked, and what the tree said
 
 Prompts 0077 and 0091 were read first, as the ledger said to, and about half of what a
@@ -440,6 +449,24 @@ knowing the nine new specs, which by rule is regenerated only on a committed
 tree (see the follow-up below); the two in `tests/grant-surface.test.ts` were
 the roster table undeclared in the anon registry, declared now. The re-run
 after both is under "The follow-up".
+
+## The follow-up: the README's measured region, and the suite on the merged tree
+
+`npm run verify:readme` ran once, on the committed merged tree at `c50a322`
+(the working tree carried this entry uncommitted, which the block records as
+"dirty at measurement"; a document cannot move a measurement): **310
+route/width runs, 5,180 measurements, 2 outside threshold, 745.3s**, the
+selftest's 70 controls (36 negative, 34 positive) with 0 failures, and
+`covered` 155 of the static region's 155, so every tournament spec is in the
+measured half for the first time. The two outside rows are the notebook
+toolbar's text controls at 375 and 1440, decision 12's standing finding with
+its owner, the same two rows the previous block carried; nothing from this
+bundle is outside threshold in a full run.
+
+The full suite on the same tree, after that regeneration, serialised through
+`npm test` at 13:01-13:06 UTC: **341 files, 6,730 tests, 0 failed, 302s.**
+The four first-run failures are gone for the two reasons above, and the eight
+files main brought in run green beside this bundle's.
 
 ## Not verified
 
