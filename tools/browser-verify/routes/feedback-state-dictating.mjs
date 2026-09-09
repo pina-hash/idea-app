@@ -39,12 +39,25 @@ export default {
 			waitMs: 100
 		},
 		{
-			/* Press DICTATE and wait for the FINAL sentence to land in the field:
-			   the predicate is the thing wanted, not the click having happened. */
+			/* Press DICTATE ONCE. The control is a TOGGLE, and the scripted final
+			   sentence lands 900ms after start(): a click step whose predicate
+			   was "the sentence landed" re-clicked at 400ms, which is STOP, and
+			   the sentence never came (measured, the first full run). So this
+			   step's predicate is the pressed state, which the first click
+			   satisfies at once, and the sentence is waited on below. */
 			click: '.fb-dictate',
+			until: '() => document.querySelector(".fb-dictate")?.getAttribute("aria-pressed") === "true"',
+			attempts: 3,
+			waitMs: 150
+		},
+		{
+			/* Then wait for the FINAL sentence to land in the field, re-reading
+			   rather than re-pressing: the evaluate is a no-op and the predicate
+			   is the thing wanted. */
+			evaluate: '() => {}',
 			until: '() => document.querySelector("#fb-msg").value.startsWith("I typed this first the launch button")',
-			attempts: 6,
-			waitMs: 400
+			attempts: 8,
+			gapMs: 300
 		}
 	],
 	presence: [
