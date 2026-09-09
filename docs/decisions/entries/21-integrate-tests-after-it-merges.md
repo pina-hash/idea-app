@@ -106,6 +106,80 @@ edit here cannot be fixed on a branch: it is fixed by landing a revert on `main`
 a deploy. That is the whole argument for this being a bundle that runs alone, and for the
 decision being Mr. Pina's rather than a lane's.
 
+## FOUND WHILE THIS BUNDLE WAS LANDING: the merged-tree suite has never once run
+
+This section was written after the rest of the entry, from this bundle's own
+Integrate run, and it **changes the recommendation above rather than merely
+adding to it.**
+
+`merged_suite` runs `npm ci` and then `npm test`, and nothing between them runs
+`svelte-kit sync`. A fresh `npm ci` checkout has no `.svelte-kit`, so vitest dies
+during startup with `Tsconfig not found` before a single test executes.
+`merged_suite` therefore returns 2 -- "the suite could not be run at all" -- on
+EVERY run in which the tree moved, and has done since it landed.
+
+**`ci.yml` does not hit this because it runs `npm run check` (which is
+`svelte-kit sync && svelte-check`) as a step BEFORE `npm test`**, so the
+generated tsconfig is on disk by the time the suite starts. `integrate.yml` has
+no equivalent step. Two workflows running "the same" suite differ by one
+generated directory, and only one of them generates it.
+
+**Measured, with a positive control, rather than inferred:**
+
+- Integrate run 34411071492 (22:13Z, 2026-09-09) merged this bundle's branch,
+  pushed `integration`, deleted the branch, and then failed with
+  `[RESOLVE_ERROR] Could not resolve 'node:module' in \0rolldown/runtime.js ...
+  Tsconfig not found`.
+- **The control that says it is not this bundle's doing:** run 34398008856
+  (19:56Z, three and a half hours before this branch existed) merged nothing but
+  a `materials/` fast-forward of `main` and failed with the same error at the
+  same step.
+- Reproduced locally on the merged tree: with `.svelte-kit` present `npm test`
+  reaches `RUN v4.1.10`; with the directory moved aside it dies at startup on
+  `Tsconfig not found`; with the directory deleted and `npx svelte-kit sync` run
+  once, it reaches `RUN v4.1.10` again. The local failure surfaces as
+  `[TSCONFIG_ERROR]` against `tests/db/cluster.ts` rather than the runner's
+  `[RESOLVE_ERROR]` against rolldown's runtime -- the same missing generated
+  tsconfig, reported by a different first consumer of it, which is worth knowing
+  because the two messages do not look alike.
+- The trap is already written down in `CLAUDE.md`, under the toolchain traps, as
+  the thing that bites a fresh `npm ci` checkout. The workflow was written
+  against it and does not do what it says.
+
+**Three consequences, and the second is the one that changes the proposal.**
+
+1. **The safety net added to catch a red merged tree has never caught one.** The
+   cross-file failure it was built for (`5877f19`) would pass through it today,
+   because the suite does not run. Every Integrate run that merges anything goes
+   red for this reason, so the signal that a merged tree is genuinely broken is
+   indistinguishable from the signal that the suite could not start -- and both
+   have been arriving as the same red mark for days.
+2. **THE ORDERING CHANGE PROPOSED ABOVE MUST NOT LAND FIRST.** This entry
+   recommends failing closed on return code 2. With the missing sync still in
+   place, return code 2 is not a rare infrastructure fault, it is the PERMANENT
+   state -- so a fail-closed gate shipped today would push nothing, delete
+   nothing and block every lane in the repository, immediately and
+   indefinitely. **The sync fix is a prerequisite for the reordering, and the
+   safe order is: add the sync step, watch one Integrate run report a real
+   verdict, and only then move the call.**
+3. **It sharpens what `merged_suite`'s three return codes are worth.** A gate
+   whose "cannot say" branch is permanently taken is a gate with one reachable
+   answer, which is the vacuous-control failure this repository has been bitten
+   by repeatedly -- here aimed at a workflow rather than at a test.
+
+**The proposed fix for this half, separately from the reordering:** add
+`npx svelte-kit sync` between the `npm ci` and the `npm test` inside
+`merged_suite`, treating a sync failure the way an `npm ci` failure is already
+treated (return 2, "could not be run"). `tools/integrate-gate-proof.sh` already
+cuts that function between markers, so the proof gains a case with a stub `npm`
+that reaches `npm test` only when the sync ran. This is a smaller change than
+the reordering, it is independently useful, and it is the one that has to go
+first.
+
+**It is still not made here.** The file is the one every lane depends on to
+land, and the fact that this bundle discovered the defect BY being merged and
+deleted by it is the argument for that, not against it.
+
 ## Context
 
 - `.github/workflows/integrate.yml` -- the `merged_suite` block and its "AFTER THE PUSH
