@@ -7,7 +7,7 @@
   `docs/history/` entry. It owns NO source file.
 - Migration permitted: no. Claims: none.
 - Lands on: `main` (the merge itself) and `integration` (the reconciling merge).
-- Status: issued
+- Status: pushed
 - Branch: claude/overnight-merge-reconciliation-cub8ku
 - Notes: **This bundle runs UNATTENDED.** Mr. Pina is asleep and authorised
   every merge and deploy in it in advance. He cannot answer a question, so
@@ -54,3 +54,12 @@
   `claude/**` branch into `integration` when its CI goes green and its ledger
   entry reads `pushed`, then deletes it; a branch that vanishes has landed and
   is not a problem.
+
+  **OUTCOME.** `integration` was landed on `main` at `5e7b44f1` and the two are
+  level in both directions, 0 commits either way. CI run 34344181802 concluded
+  success on `a3f26f1d`, the exact tip merged. The migration check was empty at
+  every reading and 0110 had not written 0192, so the stop rule never fired and
+  the gate 4 substitution applied as written. Production was read rather than
+  inferred: `Assignments v1.12 · 5e7b44f · local build`, the pushed sha, two
+  minutes after the push. Nothing was cherry-picked and no source file was
+  touched.
