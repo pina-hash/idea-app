@@ -10,7 +10,7 @@
 - Migration permitted: no. Claims: none.
 - Lands on: `main` (the merge itself) and `integration` (the regenerated region
   and the reconciling merge).
-- Status: issued
+- Status: pushed
 - Branch: `claude/migration-0192-verification-0dqhto`, branched from
   `origin/integration` at `6ae630fe`.
 - Notes: **THE HARNESS REISSUED PROMPT 0115'S BRANCH NAME**, so the
@@ -69,3 +69,24 @@
   matching that file's own expected set. **This container cannot reach the
   production database and verifies none of those seven values.** They are a
   person's transcription and are recorded as such.
+
+  **OUTCOME OF THE MEASUREMENT.** The pass ran on a clean committed tree
+  (`dirty: false`, sha `18b1d33`) with Vite pre-started on 5199 and reused
+  (`server boot 834ms`): **312 route/width runs, 5238 measurements, 156 of 156
+  specs covered, 796.0s**, selftest 70 controls / 0 failures. The nine
+  previously unmeasured routes came back CLEAN -- 18 runs, HTTP 200, 0 rows
+  outside threshold, 0 console errors. **The only two rows outside threshold in
+  the whole run are the known standing ones**: `/dev/notebook` `tap-reach`
+  toolbar text controls at 375 and at 1440 (decision 12, with the owner).
+  Nothing was widened, no spec deleted, no digit hand-edited; only the measured
+  region moved, the static region already agreeing with the tree.
+
+  `tests/derived-numbers.test.ts` is GREEN, 18 passed. Full suite **344 files /
+  6760 tests, 0 failures** (the brief's 343 + 1 file and 6751 + 9 tests are
+  prompt 0115's `tournament-pair-recipients`, swept in by `integrate.yml`).
+  `svelte-check` 0 errors / 37 warnings at 31/5/1. `npm ci` left
+  `package-lock.json` untouched.
+
+  The landing follows; its gate record is carried in the merge commit to `main`,
+  which is the durable place for it, and the deploy is confirmed by READING
+  production rather than from push output.
