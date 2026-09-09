@@ -34,6 +34,17 @@ export default {
 		SO EVERY NUMBER BELOW IS ABOUT THE BOX AS IT RENDERS WITHOUT A SESSION,
 		which is exactly what a signed-out visitor gets and therefore worth
 		measuring on its own account.
+
+		PROMPT 0111 ADDED TWO THINGS TO THIS BOX AND BOTH ARE MEASURED HERE.
+		The IDEA theme: every colour below is now the portal's own token
+		(--bg1/--bg0 plate, --white ink, --text-2 secondary, --green accent,
+		--boundary edges), so the contrast rows are the theme's numbers and not
+		the old neutral-blue defaults'. And DICTATION: the harness hands the
+		first relocated mount a scripted speech recogniser, so the control
+		renders here exactly as it does in Chrome or Safari; its resting state
+		is measured in this spec and its listening state in
+		feedback-state-dictating.mjs next door, because the word on the control
+		changes between the two.
 	*/
 	prepare: [
 		{
@@ -87,6 +98,28 @@ export default {
 			expectPresent: 1,
 			maxPresent: 1,
 			expectVisible: 1
+		},
+		{
+			selector: '.fb-dictate',
+			label: 'the dictate control, with the harness recogniser in play',
+			expectPresent: 1,
+			maxPresent: 1,
+			expectVisible: 1
+		},
+		{
+			selector: '.fb-dictate-note',
+			label: 'the sentence saying where the audio goes',
+			expectPresent: 1,
+			maxPresent: 1,
+			expectVisible: 1
+		},
+		{
+			/* At rest nothing is being heard and nothing has been refused, so
+			   neither of these renders; the note above is the positive control
+			   for the same subtree. */
+			selector: '.fb-dictate-heard, .fb-dictate-error',
+			label: 'no interim text and no refusal before anything is said',
+			expectPresent: 0
 		}
 	],
 	textContains: [
@@ -99,11 +132,29 @@ export default {
 			selector: '.fb-shot-absent',
 			label: 'the absence names its reason rather than leaving a gap',
 			must: ['screenshot']
+		},
+		{
+			selector: '.fb-dictate',
+			label: 'the control carries the word, not only a glyph',
+			must: ['DICTATE'],
+			mustNot: ['STOP']
+		},
+		{
+			selector: '.fb-dictate-note',
+			label: 'the note says whose service hears the audio',
+			must: ['browser', 'speech service']
 		}
 	],
 	contrast: [
 		{ selector: 'label[for="fb-tried"]', label: 'tried field label', min: 4.5 },
-		{ selector: '.fb-shot-absent', label: 'the no-attach sentence', min: 4.5 }
+		{ selector: '.fb-shot-absent', label: 'the no-attach sentence', min: 4.5 },
+		{ selector: '.fb-title', label: 'the box title on the themed plate', min: 4.5 },
+		{ selector: '.fb-note', label: 'the opening note on the themed plate', min: 4.5 },
+		{ selector: '.fb-kind.on', label: 'the selected kind chip, accent ink on the field fill', min: 4.5 },
+		{ selector: '.fb-btn-primary', label: 'SEND, accent ink on the control fill', min: 4.5 },
+		{ selector: '.fb-count', label: 'the characters-left count', min: 4.5 },
+		{ selector: '.fb-dictate', label: 'the dictate control word', min: 4.5 },
+		{ selector: '.fb-dictate-note', label: 'the where-the-audio-goes sentence', min: 4.5 }
 	],
 	tapTargets: [
 		/*
@@ -111,7 +162,8 @@ export default {
 			rather than the inline-in-prose exemption.
 		*/
 		{ selector: '#fb-tried', label: 'the tried textarea', min: 44 },
-		{ selector: '.fb-box .fb-btn', label: 'the box buttons (cancel, send)', min: 44 },
-		{ selector: '.fb-box .fb-kind', label: 'the four kind chips', min: 44 }
+		{ selector: '.fb-box .fb-btn', label: 'the box buttons (dictate, cancel, send)', min: 44 },
+		{ selector: '.fb-box .fb-kind', label: 'the four kind chips', min: 44 },
+		{ selector: '.fb-dictate', label: 'the dictate control on its own', min: 44 }
 	]
 };
