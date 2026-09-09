@@ -124,6 +124,38 @@ pushed and 0112 with its history entry already written. An `issued` entry means
 a session is still running, so none of the three was landable, and
 `integrate.yml` will not sweep them either. Nothing was hurried on their behalf.
 
+### The stop rule fired on the fourth pass, which is how this bundle was meant to end
+
+The loop ran four full passes and landed eight prompts' worth of work --
+0104, 0106, 0109 and 0113, then 0108, then 0112 and this bundle's own records,
+then 0111 -- taking `main` `917d976f` -> `5e7b44f1` -> `1e258835` -> `999e0612`
+-> `09433a98`, each merge behind its own independently re-read gates and each
+confirmed against the production stamp rather than against a push.
+
+At 13:22 UTC prompt 0110 set its ledger to `pushed`, `integrate.yml` swept
+`claude/tournaments-surface-scroll-yqplco` into `integration` and deleted it,
+and
+
+```
+git diff --name-only origin/main...origin/integration -- supabase/migrations/
+```
+
+printed a file for the first time all night:
+`supabase/migrations/0192_tournament_entry_members_and_admin_hosts.sql`, claimed
+by `docs/prompt-ledger/entries/0110-tournaments-surface.md` under
+`Migration permitted: exactly one. Claims: 0192.` **`main` was not advanced past
+`09433a98`, and nothing was cherry-picked around the migration.** That is the
+prompt's own instruction and the reason for it is not procedural: this container
+cannot reach the production database, Mr. Pina applies migrations by hand in the
+Supabase SQL editor, and `main` deploys `ideabosco.com` -- so landing 0110's
+tournaments work would put application code in front of students against a
+schema that does not exist yet.
+
+**A numbering fact the hand-apply needs, found while checking this:** 0190 and
+0191 do not exist on any ref in the repository. Prompt 0099 claimed both and
+wrote neither, so `main`'s highest migration is 0189 and 0192 follows it
+directly. The gap is in the ledger, not in the chain.
+
 ### An instrument error worth writing down, because it nearly produced a false finding
 
 Mid-run the session concluded the CI test suite had been executing for 17, then
