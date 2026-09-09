@@ -9,7 +9,7 @@
 - Migration permitted: no. Claims: none.
 - Lands on: `main` (the merge itself) and `integration` (the reconciling merge
   and the `push.ts` change).
-- Status: issued
+- Status: pushed
 - Branch: `claude/migration-0192-verification-0dqhto`
 - Notes: this bundle exists because ledger 0114 stopped exactly where it was
   told to. Its stop rule fired at 13:22 UTC on 2026-09-09 when prompt 0110 set
@@ -70,3 +70,51 @@
   only, so after 0192 made an entry a ROSTER a linked teammate never hears that
   their next match is set. This bundle owns that file and makes exactly the
   change that entry describes, with a test that fails without it.
+
+  **OUTCOME: STOPPED, WITH `main` NOT ADVANCED.** The migration gate PASSED --
+  `0192` was the only migration in the range, so ledger 0114's stop rule did not
+  fire and this bundle's premise held. The landing then stopped one step later,
+  on a different rule.
+
+  Steps 1 and 3 passed: `main` (`09433a98`) was already an ancestor of
+  `integration` (`4b416b1e`), so no reconciling merge was needed; both ledger
+  entries new on `integration` (0110, 0114) read `pushed`; and
+  `git merge-tree --write-tree` returned clean, exit 0, zero conflict markers.
+
+  **Step 2 is what stopped it.** CI dispatched on `integration`'s current tip
+  with the FULL forty-character sha (run 34359474234) concluded FAILURE in
+  5m22s -- five and a half minutes, so a real red tree and not ledger 0114's
+  fifteen-second short-sha `actions/checkout` failure. Two tests red in
+  `tests/derived-numbers.test.ts` against 342 of 343 files passing: 9 of the 17
+  `tournaments-view-*.mjs` route specs on `integration` are missing from the
+  measured region of `tools/browser-verify/README.md`. Verified independently
+  against the committed tree, name for name, without running the suite.
+
+  That file is prompt 0110's owned surface ("the generated regions of its
+  README") and the repair is `npm run verify:readme`, a browser run of about six
+  minutes that writes MEASUREMENTS. It is not this bundle's to write, and the
+  one permission this prompt gives over that README is for resolving a CONFLICT
+  in its counts block -- there was no conflict, and the short block is the
+  measured region, not the counts block. So `integration` was NOT merged into
+  `main`, nothing was cherry-picked around it, and production still serves
+  prompt 0111's landing: read rather than inferred, `Assignments v1.13 ·
+  09433a9 · local build`.
+
+  **The one source change LANDED on this branch.** `src/lib/server/push.ts` now
+  notifies the whole roster rather than the captain alone, with
+  `tests/tournament-pair-recipients.test.ts` driving the real
+  `sweepPairNotifications`. Mutation-proved both directions (reverting the
+  recipient line reddens 1 of 9; removing the members read reddens 5), with
+  `push.ts` restored from a COPY and md5-identical after each. CI green on
+  `ef89489e`, dispatched with the full sha (run 34361678229). It is NOT
+  deployed: it reaches production only when the landing above can happen.
+
+  **`deploy.date` was reported and not fixed, as instructed.** `deriveDeploy`
+  compares `VERCEL_GIT_COMMIT_SHA` against the head of a `--no-merges` git log;
+  `main` advances by `--no-ff` merge commits now, which that log excludes, so
+  the two never agree and the date is emptied. 0108 did not cause it. Full
+  reasoning in this bundle's `docs/history/` entry.
+
+  **This branch will stand rather than vanish**, because `integrate.yml` runs
+  the suite on the tree it pushes and that merged tree still carries
+  `integration`'s own red. Per `CLAUDE.md` that is a signal, not a leftover.
