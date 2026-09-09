@@ -433,7 +433,15 @@ body {
 .identity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* === MFG TABLE === */
-.mfg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/*
+   THE OWNER COLUMN MADE THIS TABLE TOO WIDE FOR A PHONE.
+   Measured at 375px: four columns overflowed the module body by 7px, five
+   overflow it by 64px, and the ancestor's overflow is visible, so the last
+   column was simply clipped and unreachable. The table scrolls inside its own
+   container instead, with its own scrollbar (never hidden), and prints whole.
+*/
+.mfg-scroll { overflow-x: auto; }
+.mfg-table { width: 100%; min-width: 460px; border-collapse: collapse; font-size: 13px; }
 .mfg-table th { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.12); background: rgba(0,255,65,0.03); }
 .mfg-table th:first-child { width: 36px; text-align: center; }
 .mfg-table th:nth-child(2), .mfg-table th:nth-child(3) { width: 20%; }
@@ -558,6 +566,8 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
   .checklist-section { display: none !important; }
   input[type="text"], textarea { display: none !important; }
   input[type="checkbox"], input[type="radio"] { display: none !important; }
+  .mfg-scroll { overflow: visible !important; }
+  .mfg-table { min-width: 0 !important; }
   .print-mirror { display: block !important; }
   .sketch-preview { display: flex !important; }
   .module, .header, .declaration-block, .rulebook-block { break-inside: avoid; page-break-inside: avoid; }
@@ -952,6 +962,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
   <div class="module-body">
     <p class="prompt">Identify at least 3 manufacturing processes your team plans to use. For each, list which component(s) it will produce, who on the team owns it, and briefly explain why that process is the right choice. Note: two variations of the same process (e.g. two different print settings) count as one.</p>
     <p class="prompt" style="color:var(--cyan);">Every member of the team owns at least one row, and that is the role charter.</p>
+    <div class="mfg-scroll">
     <table class="mfg-table" id="mfg-table">
       <thead><tr><th>#</th><th>Process</th><th>Component(s)</th><th>Owner</th><th>Why This Process?</th></tr></thead>
       <tbody id="mfg-tbody">
@@ -962,6 +973,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
         <tr data-row="05" class="extra"><td>05</td><td><textarea data-field="mfg-05-p" placeholder="Optional" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-p"></div></td><td><textarea data-field="mfg-05-c" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-c"></div></td><td><textarea data-field="mfg-05-o" placeholder="Team member" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-o"></div></td><td><textarea data-field="mfg-05-w" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-w"></div></td></tr>
       </tbody>
     </table>
+    </div>
     <button class="add-row-btn" onclick="addMfgRow()">[ + Add Process ]</button>
   </div>
   <div class="rubric-panel" id="rubric-05">
@@ -1367,6 +1379,29 @@ function downloadHTML(){
   const old = clone.querySelector('#__ib_data__');
   if (old) old.remove();
   const data = collectData();
+  /*
+     THE EXPORT IS A BLANK TEMPLATE PLUS ITS DATA, NEVER A TEMPLATE PLUS ITS
+     DATA PLUS A PICTURE OF ITS DATA.
+     Two regions are built by script from the saved data on every open: the
+     sketch previews (from _images) and any manufacturing row past the fifth
+     (from _mfgRowCount). Cloning the LIVE document copies those rendered nodes
+     into the file as markup, and then loadData() builds them AGAIN on open.
+     Measured before this reset: one sketch came back as two preview items, the
+     first with a blank caption (an input's live value is not serialized into
+     outerHTML), and six mfg rows came back as seven with two elements sharing
+     data-field="mfg-06-p". Emptying them in the CLONE costs nothing, because
+     the data is what restores them, and it drops the duplicated base64 from
+     the file as well.
+  */
+  const clonePreview = clone.querySelector('#sketch-preview');
+  if (clonePreview) clonePreview.innerHTML = '';
+  const cloneTbody = clone.querySelector('#mfg-tbody');
+  if (cloneTbody){
+    cloneTbody.querySelectorAll('tr').forEach(tr => {
+      const n = parseInt(tr.dataset.row, 10);
+      if (!(n >= 1 && n <= 5)) tr.remove();
+    });
+  }
   const sc = document.createElement('script');
   sc.id = '__ib_data__';
   sc.textContent = 'window.__IB_DATA__=' + JSON.stringify(data) + ';';
