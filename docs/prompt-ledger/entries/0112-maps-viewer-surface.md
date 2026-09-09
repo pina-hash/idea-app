@@ -3,7 +3,7 @@
 - By: router chat for IDEA portal work
 - Owns: `src/routes/maps/` EXCEPT `edit/`, `src/lib/maps/viewer/**`, the public read paths in `src/lib/maps/transports.ts`, `src/routes/dev/maps-viewer/**`, `tests/maps-viewer*`, `tools/browser-verify/routes/maps-viewer*.mjs` and `maps-media*.mjs`, the generated regions of its README, `docs/prompt-ledger/entries/0112-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
-- Status: issued
+- Status: pushed
 - Branch: claude/maps-viewer-surface-alxaev
 - Notes: Two things from Mr. Pina. One, the black "The map" banner at the top of
   the page looks out of place: that is `nav.mv-crumbs` in
