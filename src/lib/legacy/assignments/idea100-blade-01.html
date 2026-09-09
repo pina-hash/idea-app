@@ -960,7 +960,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
     <button class="rubric-toggle" id="rt-05" onclick="toggleRubric(5)">[ Rubric ]</button>
   </div>
   <div class="module-body">
-    <p class="prompt">Identify at least 3 manufacturing processes your team plans to use. For each, list which component(s) it will produce, who on the team owns it, and briefly explain why that process is the right choice. Note: two variations of the same process (e.g. two different print settings) count as one.</p>
+    <p class="prompt">Identify the manufacturing processes your team plans to use. For each, list which component(s) it will produce, who on the team owns it, and briefly explain why that process is the right choice.</p>
     <p class="prompt" style="color:var(--cyan);">Every member of the team owns at least one row, and that is the role charter.</p>
     <div class="mfg-scroll">
     <table class="mfg-table" id="mfg-table">
@@ -979,10 +979,9 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
   <div class="rubric-panel" id="rubric-05">
     <div class="rubric-inner">
       <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
-      <div class="rubric-row"><div class="rubric-criteria"><strong>3 or more distinct processes</strong> identified - similar processes (two print profiles, two cut methods) count as one<br><span style="color:var(--dim);">2 pts: three or more distinct processes. 1 pt: two. 0 pts: fewer than two.</span></div><div class="rubric-pts">2 pts</div></div>
-      <div class="rubric-row"><div class="rubric-criteria">Each process is <strong>mapped to a specific named component</strong> - not "various parts"<br><span style="color:var(--dim);">1 pt: every row names a specific component. 0 pts: any row is vague or blank.</span></div><div class="rubric-pts">1 pt</div></div>
-      <div class="rubric-row"><div class="rubric-criteria"><strong>Every team member appears as an owner</strong> on at least one row<br><span style="color:var(--dim);">1 pt: every member listed in the header owns a row. 0 pts: any member owns none.</span></div><div class="rubric-pts">1 pt</div></div>
-      <div class="rubric-row"><div class="rubric-criteria">Justifications are <strong>specific and reasonable</strong> - "because it can make complex shapes" is acceptable; "because it is the right process" is not<br><span style="color:var(--dim);">1 pt: justifications are specific. 0 pts: generic or blank.</span></div><div class="rubric-pts">1 pt</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Each named process is <strong>real and mapped to a specific named component</strong> - not "various parts"</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Justifications are <strong>specific and reasonable</strong> - "because it can make complex shapes" is acceptable; "because it is the right process" is not</div><div class="rubric-pts">1 pt</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Every team member appears as an Owner</strong> on at least one row</div><div class="rubric-pts">2 pts</div></div>
     </div>
   </div>
 </div>
@@ -1566,16 +1565,60 @@ function renderImageItem(dataUrl, name, caption){
   preview.appendChild(wrapper);
 }
 
+/*
+   DOWNSCALE BEFORE STORING (D1).
+   A phone photo of a sketch is routinely 4 MB, which is roughly 5.5 MB of
+   base64 and exceeds the localStorage quota on its own. setItem is
+   all-or-nothing, so ONE such photo stopped every field of typed text from
+   saving too. Re-encoding at a 1600px maximum edge takes that photo to a few
+   hundred KB, which removes the failure rather than warning about it.
+
+   The original filename is kept. A file the canvas cannot decode falls back to
+   the raw data URL, so an unusual image still uploads rather than vanishing.
+*/
+const IMG_MAX_EDGE = 1600;
+const IMG_JPEG_QUALITY = 0.85;
+
+function downscaleDataUrl(dataUrl){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { resolve(dataUrl); return; }
+        const scale = Math.min(1, IMG_MAX_EDGE / Math.max(w, h));
+        if (scale === 1 && dataUrl.length < 700000) { resolve(dataUrl); return; }
+        const cw = Math.max(1, Math.round(w * scale));
+        const ch = Math.max(1, Math.round(h * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        const ctx = canvas.getContext('2d');
+        /* JPEG has no alpha, so paint the page's own ground under it rather
+           than letting a transparent PNG composite onto black. */
+        ctx.fillStyle = '#050F07';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(img, 0, 0, cw, ch);
+        const out = canvas.toDataURL('image/jpeg', IMG_JPEG_QUALITY);
+        resolve(out && out.length < dataUrl.length ? out : dataUrl);
+      } catch(err){ resolve(dataUrl); }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function addImageFiles(files){
   Array.from(files).forEach(file => {
     if (!file.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = e => {
-      const imgObj = {name: file.name, caption: '', dataUrl: e.target.result};
-      images.push(imgObj);
-      renderImageItem(imgObj.dataUrl, imgObj.name, '');
-      updateImageCount();
-      saveToStorage();
+      downscaleDataUrl(e.target.result).then(dataUrl => {
+        const imgObj = {name: file.name, caption: '', dataUrl: dataUrl};
+        images.push(imgObj);
+        renderImageItem(imgObj.dataUrl, imgObj.name, '');
+        updateImageCount();
+        saveToStorage();
+      });
     };
     reader.readAsDataURL(file);
   });

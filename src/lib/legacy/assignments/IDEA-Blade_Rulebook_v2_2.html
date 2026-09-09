@@ -83,7 +83,7 @@ nav a:hover{color:var(--green);text-shadow:var(--glow-g);}
 .card.gold-accent .card-title{color:var(--gold);}
 
 /* SPEC GRID */
-.spec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;margin-bottom:16px;}
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-bottom:16px;}
 .spec-cell{background:var(--bg2);border:1px solid rgba(0,255,65,.15);padding:18px 16px;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s;}
 .spec-cell:hover{border-color:rgba(0,255,65,.45);box-shadow:0 0 14px rgba(0,255,65,.08);}
 .spec-cell::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--green);box-shadow:var(--glow-g);animation:pulse-bar 3s ease-in-out infinite;}
@@ -350,8 +350,8 @@ nav a.active::after{content:'';display:block;height:2px;background:var(--green);
     <button id="wt-add">+ ADD COMPONENT</button>
     <div id="wt-bar-bg"><div id="wt-bar"></div></div>
     <div id="wt-nums">
-      <span id="wt-total">0g / 907g</span>
-      <span id="wt-remain">907g remaining</span>
+      <span id="wt-total">0g / 680g</span>
+      <span id="wt-remain">680g remaining</span>
     </div>
   </div>
 </div>
@@ -427,19 +427,13 @@ nav a.active::after{content:'';display:block;height:2px;background:var(--green);
       </div>
       <div class="spec-cell"><div class="spec-scan"></div>
         <div class="spec-label">Max Weight</div>
-        <div class="spec-value">2 lbs</div>
-        <div class="spec-note">907g max — includes hex shaft, weighed fight-ready</div>
+        <div class="spec-value">1.5 lbs</div>
+        <div class="spec-note">680g max, includes hex shaft, weighed fight-ready</div>
       </div>
-      <div class="spec-cell"><div class="spec-scan"></div>
-        <div class="spec-label">Processes</div>
-        <div class="spec-value">3+</div>
-        <div class="spec-note">At least 3 distinct manufacturing processes required</div>
-      </div>
-      <div class="spec-cell"><div class="spec-scan"></div>
-        <div class="spec-label">Fastener</div>
-        <div class="spec-value">3+</div>
-        <div class="spec-note">At least 3 mechanical fasteners incorporated into the design</div>
-      </div>
+    </div>
+
+    <div class="callout" style="margin-top:16px;">
+      <strong>Design Guidance, Not Inspected:</strong> A blade should use more than one manufacturing process, and it should be held together with real mechanical fasteners rather than adhesive alone. Neither is checked against a number at inspection.
     </div>
 
     <div class="img-slot live" id="img-dimensions"><div class="img-zoom-hint">CLICK TO EXPAND</div>
@@ -732,11 +726,10 @@ nav a.active::after{content:'';display:block;height:2px;background:var(--green);
       Every blade must pass a full inspection before entering the bracket. A cleared blade stays cleared until a modification is declared. All items below are checked at every inspection.
     </p>
     <ul class="checklist">
-      <li><div class="check-icon">✓</div><div><span class="check-label">Weight</span>Blade weighed as fully assembled and fight-ready. Must be 2 lbs (907g) or under. Any component attached during the match must be present at weigh-in.</div></li>
+      <li><div class="check-icon">✓</div><div><span class="check-label">Weight</span>Blade weighed as fully assembled and fight-ready. Must be 1.5 lbs (680g) or under. Any component attached during the match must be present at weigh-in.</div></li>
       <li><div class="check-icon">✓</div><div><span class="check-label">Full Height</span>Measured base tip to top of body, below hex extension. Must read 3.00" ±0.1" (2.90"–3.10").</div></li>
       <li><div class="check-icon">✓</div><div><span class="check-label">Hex Extension</span>Extension above full height must be 0.50" ±0.05" (0.45"–0.55"). Must mate to the standard launcher without forcing.</div></li>
       <li><div class="check-icon">✓</div><div><span class="check-label">Diameter</span>Maximum outer diameter of 5" in any direction, all components in place.</div></li>
-      <li><div class="check-icon">✓</div><div><span class="check-label">Fastener Presence</span>At least 3 mechanical fasteners visibly incorporated into the assembly.</div></li>
       <li><div class="check-icon">✓</div><div><span class="check-label">Blade Engagement Angle</span>Contact edges must present an inward-facing surface in the direction of rotation. Inspector will visually verify. Deflecting edges are non-compliant.</div></li>
       <li><div class="check-icon">✓</div><div><span class="check-label">Structural Integrity</span>Fully assembled, secure, and free of loose components. Parts that detach during a match may trigger a mandatory re-inspection.</div></li>
       <li><div class="check-icon">✓</div><div><span class="check-label">Launcher Compatibility</span>Blade must load onto the standard launcher without forcing, tools, or modification to the launcher.</div></li>
@@ -823,6 +816,8 @@ nav a.active::after{content:'';display:block;height:2px;background:var(--green);
             <li>Blade Handler defined: one member declared per match, the only member at the launch zone. Everywhere this rulebook says "competitor", under team entry it means the declared Blade Handler.</li>
             <li>A team is eliminated, not a student.</li>
             <li>Section 03 notes the IDEA100 Rotation 1 format: double elimination with eight teams.</li>
+            <li>Max weight lowered from 2 lbs (907g) to 1.5 lbs (680g), for material use. The weight budget widget counts against the new cap.</li>
+            <li>The 3+ processes and 3+ fasteners minimums are withdrawn as inspected specifications. Both now read as design guidance, and Fastener Presence is removed from the Section 05 inspection checklist, which goes from eight items to seven.</li>
             <li>Numbering note: this file has carried the name v2_2 while its own version log read v1. Numbering resumes at 3.0 so the two agree from here on. There was no 2.x release, and nothing from one is missing; 2.x is skipped deliberately rather than lost.</li>
             <li>No specification, foul, penalty, inspection item or match day step changed in this version.</li>
           </ul>
@@ -1300,7 +1295,7 @@ document.addEventListener('dblclick', e => {
 
 // ── WEIGHT TRACKER ───────────────────────────────────────────────────────────
 (function(){
-  const MAX_G = 907;
+  const MAX_G = 680;
   const body  = document.getElementById('wt-body');
   const rows  = document.getElementById('wt-rows');
   const addBtn= document.getElementById('wt-add');
