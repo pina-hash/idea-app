@@ -2150,9 +2150,15 @@ async function loadGradingAcrossSections(
 	supabase: SupabaseClient,
 	itemId: string
 ): Promise<TxResult<BulkGradingLoad>> {
-	const [rosterRes, postingsRes] = await Promise.all([
+	// THE WORK READ JOINS THE WAVE RATHER THAN FOLLOWING IT. It takes `itemId`
+	// and nothing else -- not the roster, not the postings, not the intersection
+	// below -- so awaiting it after them bought one serialized round trip on the
+	// grading surface and no ordering guarantee anybody needs. Six reads in one
+	// wave, not two then four.
+	const [rosterRes, postingsRes, work] = await Promise.all([
 		loadSectionRoster(supabase, null),
-		supabase.from('classroom_postings').select(POSTING_SELECT).eq('item_id', itemId)
+		supabase.from('classroom_postings').select(POSTING_SELECT).eq('item_id', itemId),
+		loadItemWork(supabase, itemId)
 	]);
 	if (!rosterRes.ok) return rosterRes;
 	if (postingsRes.error) return fail(postingsRes.error);
@@ -2165,11 +2171,10 @@ async function loadGradingAcrossSections(
 	);
 	const seen = new Set(sections.map((s) => s.id));
 
-	// THE SAME WORK READ THE PER-SECTION CONSOLE MAKES, and deliberately the same
-	// function: the work was never section-scoped, so the only difference between
-	// the two consoles is which roster is put in front of it.
-	const work = await loadItemWork(supabase, itemId);
-
+	// The work above is THE SAME READ THE PER-SECTION CONSOLE MAKES, and
+	// deliberately the same function: the work was never section-scoped, so the
+	// only difference between the two consoles is which roster is put in front
+	// of it.
 	return {
 		ok: true,
 		data: {

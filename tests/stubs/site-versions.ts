@@ -19,20 +19,17 @@
  * no-version case is covered from the same stub by asking for an app id that
  * has no entry, which is how a stamp with the version withheld renders.
  */
-import { buildSiteVersions, FIELD, REC } from '../../src/lib/site-versions';
+import { site } from './site-versions-source';
 
-const LOG = [
-	`${REC}9f3c1aa${FIELD}Aug 18, 2026${FIELD}2026-08-18T16:52:25-07:00${FIELD}Give the class page a gutter`,
-	'src/lib/classroom/ClassView.svelte',
-	`${REC}1b2c3d4${FIELD}Aug 17, 2026${FIELD}2026-08-17T09:10:00-07:00${FIELD}Fix the notebook's second scrollbar`,
-	'src/lib/notebook/NotebookView.svelte',
-	`${REC}5e6f7a8${FIELD}Aug 16, 2026${FIELD}2026-08-16T09:10:00-07:00${FIELD}Add a classroom reference viewer`,
-	'src/routes/reference/[itemId]/+page.svelte',
-	'README.md'
-].join('\n');
-
-const site = buildSiteVersions(LOG, { complete: true, envSha: null });
-
-export const entries = site.entries;
+/*
+ * THE EAGER HALF ONLY. `entries` moved to `virtual:site-changelog` (and to
+ * ./site-changelog.ts beside this file) because it was reaching every route in
+ * the site through a shared chunk; see vite.config.ts. This stub mirrors the
+ * plugin's export set exactly, so a test that imports a surface still reaching
+ * for `entries` here fails to resolve it, which is the same answer the build
+ * gives.
+ */
 export const apps = site.apps;
 export const deploy = site.deploy;
+export const total = site.entries.length;
+export const latest = site.entries[0] ?? null;

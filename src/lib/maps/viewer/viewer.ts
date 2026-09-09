@@ -479,3 +479,207 @@ export function mapsKindWord(node: MapsNode): string {
 	if (node.kind === 'compartment' && node.subtype) return node.subtype;
 	return MAPS_KIND_LABELS[node.kind];
 }
+
+// ---------------------------------------------------------------------------
+// The map pane -- what is DRAWN for a position, which is not always the
+// position's own plan.
+// ---------------------------------------------------------------------------
+
+/**
+ * What the map pane shows for one level.
+ *
+ * THE RULE: THE DEEPEST DRAWABLE FRAME AT OR ABOVE THE LEVEL, WITH THE LEVEL
+ * MARKED WHEN THE FRAME IS ITS PARENT'S. A room with placed units draws its
+ * own plan; a unit with compartments draws its own elevation; a compartment
+ * has no drawing of its own and gets its UNIT's elevation with itself marked
+ * "here"; a unit nobody has given compartments yet gets its ROOM's plan with
+ * itself marked. That is the map behaving the way a person expects a map to:
+ * selecting a place never blanks the map, it shows the place on the nearest
+ * drawing that can hold it (prompt 0112). Before this rule a compartment level
+ * drew nothing at all and the item card sat over an empty pane.
+ *
+ * `hereId` IS A DIFFERENT STATE FROM `markId`. Gold marks the thing that was
+ * FOUND (the staged route's next link); "here" marks the thing that is OPEN.
+ * The two coincide on no stage -- the last stage of a node target marks
+ * nothing -- and both are drawn with a word beside the colour.
+ *
+ * THE DIRECTORY IS THE ONE PLACE THE RULE LOOKS DOWN RATHER THAN UP. Root
+ * nodes usually carry an outline and no position (a building is drawn, a
+ * site is not, spec 4.1), so the directory's own plan is empty. One root is
+ * then drawn as ITSELF -- the whole map is that building, and an empty pane
+ * at the top of a map is the wrong first impression -- and several roots are
+ * laid out side by side at their true sizes with a caption saying their
+ * positions are not recorded: honest about size, and honest about placement.
+ */
+export type MapsDrawing =
+	| {
+			kind: 'plan';
+			/** The container whose plan this is. Null is the site (every root). */
+			frame: MapsNode | null;
+			view: MapsPlanView;
+			hereId: string | null;
+			/** True when the shapes were laid out by this module, not by an author. */
+			synthetic: boolean;
+	  }
+	| { kind: 'elevation'; unit: MapsNode; slots: MapsElevationSlot[]; hereId: string | null }
+	| { kind: 'none' };
+
+export function mapsDrawing(data: MapsViewerData, at: string | null): MapsDrawing {
+	const byId = new Map(data.nodes.map((n) => [n.id, n]));
+	let hereId: string | null = null;
+	let cursor: string | null = at && byId.has(at) ? at : null;
+	const seen = new Set<string>();
+	for (;;) {
+		const node = cursor ? (byId.get(cursor) ?? null) : null;
+		if (node?.kind === 'unit') {
+			const slots = mapsViewerElevation(data, node.id);
+			if (slots.length > 0) return { kind: 'elevation', unit: node, slots, hereId };
+		}
+		const view = mapsPlanView(data, cursor);
+		if (mapsHasPlan(view)) return { kind: 'plan', frame: node, view, hereId, synthetic: false };
+		if (!node || !cursor) break;
+		if (seen.has(cursor)) break;
+		seen.add(cursor);
+		hereId = cursor;
+		cursor = node.parent_id;
+	}
+	// The top of the map, and nothing above it drew: look down once.
+	const roots = mapsChildren(data.nodes, null);
+	if (roots.length === 1) {
+		const own = mapsPlanView(data, roots[0].id);
+		if (mapsHasPlan(own)) return { kind: 'plan', frame: roots[0], view: own, hereId, synthetic: false };
+	}
+	const site = mapsSitePlanView(data);
+	if (mapsHasPlan(site)) return { kind: 'plan', frame: null, view: site, hereId, synthetic: true };
+	return { kind: 'none' };
+}
+
+/**
+ * Every root with an outline, in a row, at its true size. Used only when the
+ * roots carry no positions of their own; the gap between them is a tenth of
+ * the widest, which is enough to read them as separate and little enough that
+ * the frame is still mostly building.
+ */
+export function mapsSitePlanView(data: MapsViewerData): MapsPlanView {
+	const roots = mapsChildren(data.nodes, null);
+	const drawable = roots.filter((r) => mapsNodeContent(r).outline);
+	const unplaced = roots.filter((r) => !mapsNodeContent(r).outline);
+	const shapes: MapsPlanShape[] = [];
+	let x = 0;
+	let widest = 0;
+	const sized = drawable.map((root) => {
+		const content = mapsNodeContent(root);
+		const corners = mapsShapeCorners(content.outline!, content.rotation_deg);
+		const minX = Math.min(...corners.map(([px]) => px));
+		const minY = Math.min(...corners.map(([, py]) => py));
+		const maxX = Math.max(...corners.map(([px]) => px));
+		widest = Math.max(widest, maxX - minX);
+		return { root, corners, minX, minY };
+	});
+	const gap = widest * 0.1;
+	for (const { root, corners, minX, minY } of sized) {
+		const points = corners.map(([px, py]) => [px - minX + x, py - minY] as [number, number]);
+		const box = points.reduce<MapsBox>(
+			(acc, [px, py]) => ({
+				minX: Math.min(acc.minX, px),
+				minY: Math.min(acc.minY, py),
+				maxX: Math.max(acc.maxX, px),
+				maxY: Math.max(acc.maxY, py)
+			}),
+			{ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+		);
+		shapes.push({ node: root, box, points });
+		x = box.maxX + gap;
+	}
+	const frame = shapes.reduce<MapsBox | null>((acc, s) => {
+		if (!acc) return { ...s.box };
+		return {
+			minX: Math.min(acc.minX, s.box.minX),
+			minY: Math.min(acc.minY, s.box.minY),
+			maxX: Math.max(acc.maxX, s.box.maxX),
+			maxY: Math.max(acc.maxY, s.box.maxY)
+		};
+	}, null);
+	return { frame: frame ?? { minX: 0, minY: 0, maxX: 0, maxY: 0 }, shapes, unplaced };
+}
+
+// ---------------------------------------------------------------------------
+// Zoom and pan -- the viewBox arithmetic, kept pure so it is assertable.
+// ---------------------------------------------------------------------------
+
+export interface MapsViewBox {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+/** The furthest in a plan zooms. Eight is a 30in chest filling a 400in room's pane. */
+export const MAPS_ZOOM_MAX = 8;
+/** One button press, one wheel notch's worth. */
+export const MAPS_ZOOM_STEP = 1.5;
+
+export function mapsClampZoom(zoom: number): number {
+	if (!Number.isFinite(zoom)) return 1;
+	return Math.min(MAPS_ZOOM_MAX, Math.max(1, zoom));
+}
+
+/**
+ * The viewBox for a zoom level centred on a point, CLAMPED so the frame can
+ * never be panned out of view: at zoom 1 the box IS the base and the centre is
+ * ignored; at any deeper zoom the box slides inside the base and stops at its
+ * edges. A map that can be dragged into an empty pane with nothing on it is
+ * one a person cannot find their way back from.
+ */
+export function mapsZoomedBox(base: MapsViewBox, zoom: number, cx: number, cy: number): MapsViewBox {
+	const z = mapsClampZoom(zoom);
+	const w = base.w / z;
+	const h = base.h / z;
+	const x = Math.min(base.x + base.w - w, Math.max(base.x, cx - w / 2));
+	const y = Math.min(base.y + base.h - h, Math.max(base.y, cy - h / 2));
+	return { x, y, w, h };
+}
+
+/**
+ * Zoom by a factor ABOUT A POINT, keeping that point where it is on screen --
+ * which is what a wheel over a plan does in every map anybody has used: the
+ * thing under the pointer stays under the pointer and the rest moves. Zooming
+ * about the centre instead makes the thing you were looking at slide away.
+ */
+export function mapsZoomAbout(
+	current: { zoom: number; cx: number; cy: number },
+	factor: number,
+	px: number,
+	py: number
+): { zoom: number; cx: number; cy: number } {
+	const zoom = mapsClampZoom(current.zoom * factor);
+	const ratio = current.zoom / zoom;
+	return {
+		zoom,
+		cx: px - (px - current.cx) * ratio,
+		cy: py - (py - current.cy) * ratio
+	};
+}
+
+/**
+ * A scale bar for the current rendered scale: the longest round length that
+ * fits the bar's room, labelled in feet once it is a whole number of them.
+ * Null below one pixel per inch of the shortest candidate, which is a drawing
+ * too small to put a bar on.
+ */
+const SCALE_CANDIDATES_IN = [1, 2, 3, 6, 12, 24, 36, 48, 60, 120, 240, 360, 600, 1200, 2400];
+export function mapsScaleBar(
+	pxPerIn: number,
+	maxPx = 160
+): { inches: number; px: number; label: string } | null {
+	if (!Number.isFinite(pxPerIn) || pxPerIn <= 0) return null;
+	let pick: number | null = null;
+	for (const inches of SCALE_CANDIDATES_IN) {
+		if (inches * pxPerIn <= maxPx) pick = inches;
+	}
+	if (pick === null) return null;
+	const px = pick * pxPerIn;
+	if (px < 8) return null;
+	const label = pick >= 12 && pick % 12 === 0 ? `${pick / 12} ft` : `${pick} in`;
+	return { inches: pick, px, label };
+}

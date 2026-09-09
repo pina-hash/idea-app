@@ -36,8 +36,23 @@ async function loadProfile(supabase: SupabaseClient, userId: string) {
  * resolving it once here keeps every component from asking separately.
  */
 export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, cookies }) => {
-	const userProfile = claims ? await loadProfile(supabase, claims.sub) : null;
-	const admin = claims ? await isAdmin(supabase, claims.sub) : false;
+	/*
+	 * THE TWO READS ARE INDEPENDENT, SO THEY GO TOGETHER. This ran as two
+	 * sequential awaits, which made every authenticated page load in the site
+	 * pay both round trips end to end. Nothing links them: `isAdmin` calls the
+	 * `is_admin()` RPC, which resolves the caller from their own JWT claims and
+	 * reads nothing this profile load produces. (Its pre-0067 fallback does read
+	 * `profiles`, but as its own query keyed on the same `claims.sub` -- it does
+	 * not consume `userProfile` either, so it is independent too.)
+	 *
+	 * `Promise.all` and NOT `allSettled`: a rejection here is a failed layout
+	 * load, which is what `+error.svelte` and the `handleError` correlation id
+	 * exist for. Swallowing one would hand every page a silently empty profile.
+	 */
+	const [userProfile, admin] = await Promise.all([
+		claims ? loadProfile(supabase, claims.sub) : Promise.resolve(null),
+		claims ? isAdmin(supabase, claims.sub) : Promise.resolve(false)
+	]);
 
 	return {
 		claims,

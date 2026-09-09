@@ -40,8 +40,35 @@ export default {
 		},
 		{
 			selector: '[data-testid="maps-viewer-plan"]',
-			label: 'NO plan behind the card: the card is the level',
+			label: 'NO plan behind the card: a drawer is drawn on its chest, not on a plan',
 			expectPresent: 0
+		},
+		{
+			/* PROMPT 0112: the map pane is never empty while there is something
+			   to draw. The card sits beside the chest's front with Drawer 1
+			   picked out as the open thing. */
+			selector: '[data-testid="maps-viewer-stack"]',
+			label: 'the chest\'s front elevation, behind the card',
+			expectPresent: 1,
+			expectVisible: 1
+		},
+		{
+			selector: '[data-testid="maps-viewer-stack"] [data-here]',
+			label: 'exactly one compartment marked as the open one',
+			expectPresent: 1,
+			expectVisible: 1,
+			maxPresent: 1
+		},
+		{
+			selector: '[data-testid="maps-card-way"]',
+			label: 'NO "Show me the way" on a card the route arrived at: the trail above IS the way',
+			expectPresent: 0
+		},
+		{
+			selector: '[data-testid="maps-card-copy"]',
+			label: 'the copy-link control: the address is the position',
+			expectPresent: 1,
+			expectVisible: 1
 		}
 	],
 	textContains: [
@@ -59,6 +86,11 @@ export default {
 			selector: '[data-testid="maps-viewer-trail"]',
 			label: 'and the walk says it is over',
 			must: ['You are there.']
+		},
+		{
+			selector: '[data-testid="maps-viewer-stack"] [data-here]',
+			label: 'the open drawer says so in words, not only in weight',
+			must: ['you are here']
 		}
 	],
 	contrast: [
@@ -67,6 +99,10 @@ export default {
 		{ selector: '[data-testid="maps-viewer-card"] dd', label: 'the fact values', min: 4.5 },
 		{ selector: '[data-testid="maps-viewer-card"] .mv-chip', label: 'an alias or tag chip', min: 4.5 },
 		{ selector: '[data-testid="maps-viewer-card"] .mv-card-where a', label: 'the link back to the container', min: 4.5 }
+	],
+	tapTargets: [
+		{ selector: '[data-testid="maps-card-copy"]', label: 'Copy link', min: 44 },
+		{ selector: '[data-testid="maps-viewer-stack"] a', label: 'every compartment on the chest behind the card', min: 44 }
 	],
 	tapReach: [
 		{
