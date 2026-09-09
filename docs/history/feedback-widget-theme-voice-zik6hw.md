@@ -250,7 +250,15 @@ unchanged.
   `css_unused_selector` / 1 `perf_avoid_nested_class` -- the baseline exactly.
   The first draft reported 39: the two extra were the deliberate once-at-mount
   read of the `dictation` prop, now `untrack`ed with the reason beside it.
-- Full suite: SUITE_PLACEHOLDER
+- Full suite, once at the end on the tree with `origin/main` merged twice
+  (`999e0612` the second time): 337 files, 6,597 tests, all passing, 339 s.
+  The prompt's baseline of 327 / 6,525 is the pre-merge tree; the other
+  lanes' files account for the rest beside this bundle's two files and 21
+  tests. A first run taken while the first merge landed under it reported
+  3 failures, one in the rubric surface (green on re-run) and two in
+  `derived-numbers`, which is what forced the full measured pass rather than
+  a two-route one: the merged tree carried route specs the README's measured
+  region had never covered.
 - Browser harness, the FULL measured pass (`npm run verify:readme`, Chromium
   141.0.7390.37, every spec at 375 and 1440, fallback font stack,
   reduced-motion only where the motion check flips it): 290 runs, 4,454
