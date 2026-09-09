@@ -118,6 +118,39 @@ interface ClaimedMatch {
 }
 
 /**
+ * WHO HEARS ABOUT A MATCH. An entry became a ROSTER in 0192, so the two
+ * captain columns stopped being the whole audience: a linked teammate is a
+ * competitor in that match and never heard it was set. This is the union of
+ * both entries' member accounts and both captain columns, deduplicated.
+ *
+ * THE CAPTAIN COLUMNS STAY IN THE UNION AS THE FALLBACK, which is what makes
+ * this safe to deploy before 0192 reaches a database: the members read comes
+ * back empty there, the map is empty, and the answer is exactly the two
+ * captains this function returned before. An account may sit in both halves
+ * (a captain is normally a member of their own entry too) and the dedupe is
+ * what stops them being pushed the same match twice.
+ *
+ * It is named rather than written inline at its one call site so the rule has
+ * one implementation a test can drive, instead of a second copy in the test.
+ */
+export function pairRecipients(
+	a: { id: string; user_id: string | null },
+	b: { id: string; user_id: string | null },
+	membersByEntry: Map<string, string[]>
+): string[] {
+	const seen = new Set<string>();
+	for (const u of [
+		a.user_id,
+		b.user_id,
+		...(membersByEntry.get(a.id) ?? []),
+		...(membersByEntry.get(b.id) ?? [])
+	]) {
+		if (u) seen.add(u);
+	}
+	return [...seen];
+}
+
+/**
  * The "your next match is set" sweep. Atomically CLAIMS every fully-paired,
  * not-yet-notified, not-complete bracket match of the tournament (one UPDATE
  * ... WHERE pair_notified_at IS NULL, so concurrent sweeps never double-send),
@@ -142,13 +175,27 @@ export async function sweepPairNotifications(tournamentId: string): Promise<numb
 	const matches = (claimed ?? []) as ClaimedMatch[];
 	if (!matches.length) return 0;
 
-	const [{ data: t }, { data: entryRows }] = await Promise.all([
+	const [{ data: t }, { data: entryRows }, { data: memberRows }] = await Promise.all([
 		admin.from('tournaments').select('name').eq('id', tournamentId).maybeSingle(),
 		admin
 			.from('tournament_entries')
 			.select('id, user_id, display_name')
+			.eq('tournament_id', tournamentId),
+		// 0192's roster. A deployment without it answers `data: null` rather
+		// than throwing, which lands on the captain fallback in pairRecipients.
+		admin
+			.from('tournament_entry_members')
+			.select('entry_id, user_id')
 			.eq('tournament_id', tournamentId)
+			.not('user_id', 'is', null)
 	]);
+	const membersByEntry = new Map<string, string[]>();
+	for (const m of (memberRows ?? []) as { entry_id: string; user_id: string | null }[]) {
+		if (!m.user_id) continue;
+		const list = membersByEntry.get(m.entry_id);
+		if (list) list.push(m.user_id);
+		else membersByEntry.set(m.entry_id, [m.user_id]);
+	}
 	const entries = new Map(
 		(entryRows ?? []).map((e: { id: string; user_id: string | null; display_name: string }) => [
 			e.id,
@@ -162,7 +209,7 @@ export async function sweepPairNotifications(tournamentId: string): Promise<numb
 		const a = entries.get(m.entry_a_id);
 		const b = entries.get(m.entry_b_id);
 		if (!a || !b) continue;
-		const linked = [a.user_id, b.user_id].filter((u): u is string => !!u);
+		const linked = pairRecipients(a, b, membersByEntry);
 		if (!linked.length) continue;
 		attempted += await sendPushToUsers(admin, linked, {
 			title: 'Your next match is set',
