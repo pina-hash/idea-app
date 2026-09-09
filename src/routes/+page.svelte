@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { entries as changelog } from 'virtual:site-versions';
+	import { total as changelogTotal } from 'virtual:site-versions';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
-	import { groupEntriesByMonth } from '$lib/site-versions';
+	import { groupEntriesByMonth, type VersionEntry } from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import Pending from '$lib/Pending.svelte';
 	import HomeTour from '$lib/tour/HomeTour.svelte';
 	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
 	import {
@@ -144,6 +145,42 @@
 	// header's "Take the tour" control replays it manually at any time.
 	let homeTour: ReturnType<typeof HomeTour> | undefined = $state();
 
+	/**
+	 * THE COMMIT LOG ARRIVES WHEN THE PANEL IS OPENED, NEVER WITH THE PAGE.
+	 *
+	 * This is the public, signed-out landing page, and the log is the single
+	 * largest thing the site could put on it: 1,433 records, measured at
+	 * 247,850 bytes (54,894 gzipped) in a real build, growing every time the
+	 * classroom's GitHub export commits on a teacher pressing save. Worse, it
+	 * did not stay here -- importing it beside `deploy` put it in a shared
+	 * Rollup chunk that the root layout and the client entry both pull, so
+	 * every route in the site paid for it. See vite.config.ts for that
+	 * measurement and for why a second virtual module is the only fix.
+	 *
+	 * `changelogTotal` IS THE COUNT AND STAYS EAGER, so the "<filtered> /
+	 * <total>" readout and the has-any-history branch below are correct before
+	 * a single entry has been fetched. Without it an unopened panel would say
+	 * "No updates recorded yet." on a site with 1,433 of them.
+	 */
+	let changelog = $state<VersionEntry[]>([]);
+	let changelogLoading = $state(false);
+	/* Plain, NOT `$state`: the "already started" latch is written on the same
+	   path that writes `changelog`, and reading it reactively there would make
+	   this handler depend on a value it sets. */
+	let changelogStarted = false;
+
+	async function loadChangelog() {
+		if (changelogStarted) return;
+		changelogStarted = true;
+		changelogLoading = true;
+		try {
+			const mod = await import('virtual:site-changelog');
+			changelog = mod.entries;
+		} finally {
+			changelogLoading = false;
+		}
+	}
+
 	// Changelog filters: by page/app, by change type, by date range.
 	let filterApp = $state('all');
 	let filterType = $state('all');
@@ -249,6 +286,10 @@
 		const toggleChangelog = () => {
 			changelogBtn?.classList.toggle('open');
 			changelogBody?.classList.toggle('open');
+			/* Fetch on the first open only; `loadChangelog` latches. Opening is
+			   the one signal that the log is about to be read, and the panel
+			   starts closed on every load. */
+			void loadChangelog();
 		};
 		changelogBtn?.addEventListener('click', toggleChangelog);
 		cleanups.push(() => changelogBtn?.removeEventListener('click', toggleChangelog));
@@ -484,7 +525,9 @@
 			<span class="changelog-arrow">&#9660;</span>
 		</button>
 		<div class="changelog-body" id="changelog-body">
-			{#if changelog.length}
+			{#if changelogLoading}
+				<Pending label="Loading the changelog" />
+			{:else if changelogTotal}
 				<div class="changelog-filters">
 					<select class="cl-select" bind:value={filterApp} aria-label="Filter by page or app">
 						<option value="all">All pages</option>
@@ -509,27 +552,38 @@
 					{#if filtersActive}
 						<button class="text-btn" type="button" onclick={clearFilters}>Clear</button>
 					{/if}
-					<span class="cl-count">{filteredLog.length} / {changelog.length}</span>
+					<span class="cl-count">{filteredLog.length} / {changelogTotal}</span>
 				</div>
-				{#each logMonths as month (month.key)}
-					<div class="cl-month">{month.label}</div>
-					{#each month.entries as entry (entry.sha)}
+				<!--
+					GUARDED ON THE LOADED LOG, NOT ON THE FILTERS. An `{:else}` on the
+					each fires for "nothing matched" AND for "nothing fetched yet",
+					and the second one is not a filter result: before the panel is
+					opened `changelog` is legitimately empty, and reporting that as
+					"No updates match these filters" blames a filter nobody set.
+				-->
+				{#if changelog.length}
+					{#each logMonths as month (month.key)}
+						<div class="cl-month">{month.label}</div>
+						{#each month.entries as entry (entry.sha)}
+							<div class="changelog-entry">
+								<span class="changelog-date">{entry.date}</span>
+								<span class="changelog-note">{entry.note}</span>
+								<span class="cl-tags">
+									{#each entry.apps as a (a)}
+										<span class="cl-tag">{appLabel(a)}</span>
+									{/each}
+									<span class="cl-tag cl-type cl-type-{entry.type}"
+										>{changeTypeLabel(entry.type)}</span
+									>
+								</span>
+							</div>
+						{/each}
+					{:else}
 						<div class="changelog-entry">
-							<span class="changelog-date">{entry.date}</span>
-							<span class="changelog-note">{entry.note}</span>
-							<span class="cl-tags">
-								{#each entry.apps as a (a)}
-									<span class="cl-tag">{appLabel(a)}</span>
-								{/each}
-								<span class="cl-tag cl-type cl-type-{entry.type}">{changeTypeLabel(entry.type)}</span>
-							</span>
+							<span class="changelog-note">No updates match these filters.</span>
 						</div>
 					{/each}
-				{:else}
-					<div class="changelog-entry">
-						<span class="changelog-note">No updates match these filters.</span>
-					</div>
-				{/each}
+				{/if}
 			{:else}
 				<div class="changelog-entry">
 					<span class="changelog-note">No updates recorded yet.</span>
