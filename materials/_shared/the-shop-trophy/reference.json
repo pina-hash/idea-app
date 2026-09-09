@@ -79,7 +79,7 @@
         },
         {
           "type": "instructions",
-          "content": "### The topper is different\n\nThere is no model for the topper. You design it yourself in the xTool software. Two rules:\n\n- **2 inches maximum** width or diameter\n- **A 1/4 inch hole dead center**\n\nEverything else is yours. Sketch your design on paper first, same standard as the others."
+          "content": "### The topper is different\n\nThere is no model for the topper. You design it yourself in the xTool software. Two rules:\n\n- **2.5 inches maximum** width or diameter\n- **A 1/4 inch hole dead center**\n\nEverything else is yours. Sketch your design on paper first, same standard as the others."
         }
       ]
     },
