@@ -14,7 +14,7 @@
   it would need there is reported rather than made.
 - Migration permitted: no. Claims: none.
 - Lands on: the branch. Merge is not granted by this prompt's ending.
-- Status: issued
+- Status: pushed
 - Branch: `claude/notebook-ui-theme-overhaul-0gnx0f`, branched from
   `origin/main` at `b03a9410` (HEAD, `origin/main` and `origin/integration`
   identical at session start; clone unshallowed, `origin/integration`
@@ -90,4 +90,13 @@
   (`.pane-head h2` no longer exists on the read-only mount, so its contrast
   row matched nothing); that file is outside the `notebook*.mjs` pattern and
   the one-line touch is reported here.
+
+  **FINAL.** Full harness run over `2dcb31f` (clean tree, Vite pre-started on
+  5199 and reused): **316 route/width runs, 5318 measurements, 0 outside
+  threshold, 810.1s**, selftest 70 controls / 0 failures; both README regions
+  regenerated on that commit (`dirty: false`), 158 specs, `derived-numbers`
+  green. Full suite once at the end: **345 files / 6770 tests, 0 failures,
+  316s**. `origin/main` had not moved from `b03a9410`, so there was nothing to
+  pull. Pushed with `-u`, never force. Four commits: the ledger, the work, the
+  README regions, the history entry; this status flip is the last change.
 
