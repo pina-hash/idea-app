@@ -319,8 +319,24 @@ concern keyed on `complete`.
 2. **The landing itself.** Steps 1 and 3 of the prompt passed (`main` is an
    ancestor of `integration`, both new ledger entries read `pushed`, `merge-tree`
    clean); step 2 is what stopped it. Nothing was cherry-picked around it.
-3. **This branch will stand rather than vanish.** `integrate.yml` merges a green
-   `claude/**` branch into `integration` and runs the suite on the merged tree
-   afterwards; that merged tree still carries the `derived-numbers` failure from
-   `integration`'s side, so the sweep will report red. Per `CLAUDE.md` a standing
-   `claude/**` branch is a signal, and this is what it is signalling.
+3. **This branch DID land and was deleted, and the Integrate run went red.**
+   Corrected in place, minutes after being written, because the first version of
+   this line predicted the opposite and was wrong: it said the branch would stand
+   as a signal. `integrate.yml` merges, pushes and DELETES first and runs the
+   suite last -- "AFTER THE PUSH AND AFTER THE DELETES, WHICH IS THE WHOLE OF
+   WHERE IT MAY GO", in its own comment, for a reason it also gives: `npm ci` and
+   the suite are the two things most able to be killed from outside, and running
+   them first would discard a whole sweep of individually fine merges. So the
+   order is fixed and a red merged tree cannot prevent the merge.
+
+   What actually happened: run 34363724495 merged
+   `claude/migration-0192-verification-0dqhto` into `integration` at `fbcf7caf`,
+   deleted the branch, ran the suite on the merged tree, and concluded FAILURE --
+   on `integration`'s own pre-existing `derived-numbers` red, not on anything
+   this bundle added. Verified after the sweep: the `push.ts` change is on
+   `integration`, the migration range is still `0192` alone, and the same 9 specs
+   are still missing from the measured block.
+
+   **So the signal is the red Integrate run, not a standing branch**, and reading
+   `CLAUDE.md`'s "a standing branch is a signal" as implying the converse is the
+   mistake this line made.

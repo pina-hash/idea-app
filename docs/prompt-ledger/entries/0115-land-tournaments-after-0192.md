@@ -115,6 +115,11 @@
   the two never agree and the date is emptied. 0108 did not cause it. Full
   reasoning in this bundle's `docs/history/` entry.
 
-  **This branch will stand rather than vanish**, because `integrate.yml` runs
-  the suite on the tree it pushes and that merged tree still carries
-  `integration`'s own red. Per `CLAUDE.md` that is a signal, not a leftover.
+  **This branch landed and was deleted; the Integrate run went red.** An earlier
+  draft of this line predicted it would stand, which was wrong: `integrate.yml`
+  merges, pushes and deletes BEFORE running the suite, deliberately. Run
+  34363724495 took the branch into `integration` at `fbcf7caf`, deleted it, and
+  then failed on `integration`'s pre-existing `derived-numbers` red. The
+  `push.ts` change is on `integration`; the migration range is still `0192`
+  alone; the 9 specs are still unmeasured. **`integration` remains red and
+  undeployable until they are measured.**
