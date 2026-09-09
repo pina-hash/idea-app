@@ -96,6 +96,34 @@ complete history to read), and an unattended bundle guessing at build metadata
 is exactly the improvisation this prompt forbade. It is left for a waking
 session to judge whether it is transient.
 
+### It landed TWICE, because the loop is the point
+
+The bundle is a loop, not a single merge, and the second pass is what shows why.
+After the first landing the bundle's own branch was swept into `integration` by
+`integrate.yml` and deleted -- which is the correct, documented outcome and not a
+leftover -- putting `integration` five commits ahead again. CI was dispatched on
+that tip (`ef8e3df5`) and went green, **and by the time the gates were re-read
+the tip had already moved**: prompt 0108's loading lane had landed underneath it,
+making `integration` `eecb6880`. The green run was therefore stale, and the rule
+that saves this is the prompt's own -- wait for CI on the CURRENT tip, never an
+older run. CI was re-dispatched on `eecb6880`, went green (run 34346541626), the
+tip was confirmed to have HELD this time, and only then was the merge taken.
+
+So `main` went `917d976f` -> `5e7b44f1` -> `1e258835`, each one gated
+independently and each one confirmed against production:
+`Assignments v1.12 · 5e7b44f · local build`, then
+`Assignments v1.13 · 1e25883 · local build`. Both reconciling merges back onto
+`integration` fast-forwarded, so neither permitted conflict resolution was
+exercised in either direction, and `static/classroom-updates.json` was never in
+a range at all.
+
+**Gate 5 refused the third pass, which is the gate working rather than an
+obstacle.** At the last reading prompts 0110 (tournaments), 0111 (feedback) and
+0112 (maps) all still read `Status: issued` -- 0111 and 0112 with real work
+pushed and 0112 with its history entry already written. An `issued` entry means
+a session is still running, so none of the three was landable, and
+`integrate.yml` will not sweep them either. Nothing was hurried on their behalf.
+
 ### An instrument error worth writing down, because it nearly produced a false finding
 
 Mid-run the session concluded the CI test suite had been executing for 17, then
