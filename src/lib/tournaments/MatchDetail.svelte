@@ -22,6 +22,8 @@
 		isForfeitMatch,
 		matchHref,
 		matchTimeline,
+		memberMap,
+		memberNames,
 		roundLabel,
 		type BracketMatch,
 		type MatchEvent,
@@ -30,7 +32,8 @@
 		type QualPool,
 		type RewardLedgerRow,
 		type Tournament,
-		type TournamentEntry
+		type TournamentEntry,
+		type TournamentEntryMember
 	} from './tournaments';
 
 	let {
@@ -44,7 +47,8 @@
 		events = [],
 		games = [],
 		siblings = [],
-		ledger = []
+		ledger = [],
+		members = []
 	}: {
 		tournament: Tournament;
 		kind: 'bracket' | 'qual';
@@ -58,11 +62,14 @@
 		/** Sibling bracket matches: only used for round labels and advancement. */
 		siblings?: BracketMatch[];
 		ledger?: RewardLedgerRow[];
+		/** The tournament's registrants (0192); the two banners name theirs. */
+		members?: TournamentEntryMember[];
 	} = $props();
 
 	const t = $derived(tournament);
 	const byId = $derived(entryMap(entries));
 	const styles = $derived(styleMap(styleRows));
+	const membersById = $derived(memberMap(members));
 
 	const bm = $derived(match);
 	const qm = $derived(qualMatch);
@@ -139,6 +146,7 @@
 					<EntryBanner
 						entry={byId[side] ?? null}
 						style={styles[side] ?? null}
+						members={memberNames(membersById[side])}
 						size="md"
 						label={i === 0 ? 'Side A' : 'Side B'}
 						winner={decided && winnerId === side}
@@ -157,7 +165,7 @@
 		<p class="outcome" class:by-forfeit={forfeit}>
 			<strong>{byId[winnerId].display_name}</strong>
 			{#if forfeit}
-				advanced by forfeit{bm?.forfeit_reason ? ` — ${bm.forfeit_reason}` : ''}
+				advanced by forfeit{bm?.forfeit_reason ? `, ${bm.forfeit_reason}` : ''}
 			{:else if isBye}
 				advanced on a bye
 			{:else}

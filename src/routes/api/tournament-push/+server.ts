@@ -32,6 +32,12 @@ import type { RequestHandler } from './$types';
  *   { action: 'correct-result',  tournamentId, matchId, result, reason }
  *   { action: 'ping',            matchId, entryId }        (immediate, any state)
  *
+ * A PING REACHES EVERY LINKED REGISTRANT (0192, item 7): `tournament_ping_entry`
+ * now returns `user_ids`, every member of the entry with an account, and
+ * the send goes to all of them. `user_id` (the first of them) is still
+ * returned by the RPC and is the fallback here for a deployment sitting
+ * between this client and the migration, where only the one key exists.
+ *
  * The first three run the Phase 1 RPC, then sweep the tournament for
  * newly-paired bracket matches (both slots filled, pair_notified_at null) and
  * push both competitors "your next match is set". The sweep's claim is one
@@ -76,24 +82,34 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			tournament_id: string;
 			tournament_name: string;
 			user_id: string;
+			user_ids?: unknown;
 			entry_name: string;
 			opponent_name: string | null;
 			bracket: string;
 			round: number;
 		};
 		const admin = serviceClient()!;
-		const sent = await sendPushToUsers(admin, [target.user_id], {
+		const userIds = Array.isArray(target.user_ids)
+			? target.user_ids.filter((u): u is string => typeof u === 'string' && u.length > 0)
+			: [];
+		const recipients = userIds.length ? userIds : [target.user_id];
+		const sent = await sendPushToUsers(admin, recipients, {
 			title: `You're up, ${target.entry_name}`,
 			body: `${matchLabel(target.bracket, target.round)}${
 				target.opponent_name ? ` vs ${target.opponent_name}` : ''
-			} — head to the arena · ${target.tournament_name}`,
+			}. Head to the arena · ${target.tournament_name}`,
 			url: `/tournaments/${target.tournament_id}`,
 			tag: `ping-${str('matchId')}-${str('entryId')}`
 		});
 		return json({
 			ok: true,
 			sent,
-			note: sent === 0 ? 'That account has no subscribed devices.' : undefined
+			note:
+				sent === 0
+					? recipients.length > 1
+						? 'None of those accounts has a subscribed device.'
+						: 'That account has no subscribed devices.'
+					: undefined
 		});
 	}
 

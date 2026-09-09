@@ -662,7 +662,7 @@ describe('the routes that still surface a raw upstream sentence', () => {
 		// POSITIVE CONTROL for the sweep itself. A pattern that matched nothing
 		// would report a clean tree, and clean is what nobody investigates.
 		expect(hits.length).toBeGreaterThan(0);
-		expect(hits).toContain('routes/tournaments/[id]/+page.svelte:195');
+		expect(hits).toContain('routes/tournaments/[id]/+page.svelte:392');
 
 		const seen = [...new Set(hits.map((h) => h.split(':')[0]))].sort();
 		expect(seen).toEqual([

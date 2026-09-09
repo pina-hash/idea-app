@@ -24,6 +24,7 @@
 		};
 		let channel = data.supabase.channel(`tournament-entry-${data.entry.id}`);
 		for (const table of [
+			'tournament_entry_members',
 			'tournament_bracket_matches',
 			'tournament_qual_matches',
 			'tournament_match_games',
@@ -56,7 +57,7 @@
 	</div>
 </div>
 
-<main class="entry-route">
+<main class="entry-route tnm-page">
 	<EntryDetail
 		tournament={t}
 		entry={data.entry}
@@ -67,6 +68,7 @@
 		pools={data.pools}
 		games={data.games}
 		ledger={data.ledger}
+		members={data.members}
 	/>
 	<footer class="page-footer">
 		<a class="back" href="/tournaments/{t.id}">Back to the bracket</a>
@@ -75,11 +77,6 @@
 </main>
 
 <style>
-	.entry-route {
-		max-width: 52rem;
-		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
-	}
 	.page-footer {
 		margin-top: 1.6rem;
 		display: flex;

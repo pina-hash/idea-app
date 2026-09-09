@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import TvStage from '$lib/tournaments/TvStage.svelte';
 	import { styleMap } from '$lib/tournaments/entry-styles';
+	import { memberMap } from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
 
 	/**
@@ -15,6 +16,7 @@
 
 	const t = $derived(data.tournament);
 	const styles = $derived(styleMap(data.entryStyles));
+	const members = $derived(memberMap(data.members));
 	const shareUrl = $derived(`${page.url.origin}/tournaments/${t.id}`);
 
 	// The same channel shape the public live view uses -- no polling anywhere.
@@ -27,6 +29,7 @@
 		let channel = data.supabase.channel(`tournament-tv-${t.id}`);
 		for (const table of [
 			'tournament_entries',
+			'tournament_entry_members',
 			'tournament_bracket_matches',
 			'tournament_match_games',
 			'tournament_entry_styles'
@@ -60,5 +63,6 @@
 	{styles}
 	matches={data.bracketMatches}
 	games={data.games}
+	{members}
 	{shareUrl}
 />

@@ -269,3 +269,106 @@
 	border-color: var(--tnm-accent);
 	background: var(--tnm-accent-wash);
 }
+
+/* ==========================================================================
+   THE PAGE MEASURE, AND THE FURNITURE THE BOARD AND THE EVENT PAGE SHARE
+   (prompt 0110). Room-level so every route under /tournaments reads the
+   same rules; a route picks a measure with a class and writes no width of
+   its own.
+
+   THE MEASURES ARE `src/lib/design-system/effects.css`'s and are not
+   restated as numbers here: --measure-page 60rem (the standard listing),
+   --measure-split 92rem (two panes), --measure-console 100% (the window,
+   less the gutter), --measure-reading 46rem (one column of prose). Mr.
+   Pina runs the event page on a 2844x1450 screen and the bracket was
+   cut off in an 880px column; the CONSOLE measure is what hands it the
+   window, and `.tnm-prose` is what keeps a sentence inside that window
+   at a width a person can read.
+   ========================================================================== */
+
+/* The page column. `width: 100%` + `box-sizing: border-box` so the gutter
+ * is inside the measure and never adds to it (a 100% measure plus a padding
+ * is a horizontal scrollbar). `--tnm-gutter` is a hook the shell may set;
+ * 1.2rem matches the app's own page padding. */
+.tnm-root .tnm-page {
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0 auto;
+	padding: 0 var(--tnm-gutter, 1.2rem) 3rem;
+	max-width: var(--measure-page);
+}
+/* The board and the host console: a grid of cards wants the split measure. */
+.tnm-root .tnm-page.wide {
+	max-width: var(--measure-split);
+}
+/* The event page: the window, less the gutter. The bracket is the widest
+ * thing in the app and it takes what it is given. */
+.tnm-root .tnm-page.console {
+	max-width: var(--measure-console);
+}
+/* Prose inside a console stays a reading measure: widening a page is not
+ * widening a sentence (the coin desk's own rule). */
+.tnm-root .tnm-prose {
+	max-width: var(--measure-reading);
+}
+
+/* THE CHIP'S GLYPH (item 3): every status chip carries a glyph AND a word,
+ * and the word is the signal -- the glyph is `aria-hidden` wherever it is
+ * rendered. The live chip's glyph is `.tnm-live`'s pulsing dot, drawn by
+ * that class's own `::before`; open and done get a span. Sized to the
+ * chip's own em so it scales with the font, and inherits the chip's colour
+ * so the open `+` is ink (#edede8 on the panel: 14.10:1) and the done mark
+ * is gold (#e0ac4e on the panel: 8.03:1 -- both measured against
+ * --tnm-panel, the ground a card puts a chip on). */
+.tnm-root .tnm-status .g {
+	display: inline-block;
+	line-height: 1;
+	font-size: 1.1em;
+	flex: none;
+}
+.tnm-root .tnm-status.open .g {
+	font-weight: 700;
+}
+.tnm-root .tnm-status.done .g {
+	font-size: 0.95em;
+}
+
+/* An action row. Every `.btn` in it clears the 44px floor as a
+ * `min-height`, never a height (the rounding-both-ways trap): the app's
+ * own `.btn` measures 39.4px on its own, so the floor is restated here
+ * for the room rather than trusted. */
+.tnm-root .tnm-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	align-items: center;
+}
+.tnm-root .tnm-actions .btn {
+	min-height: 44px;
+	box-sizing: border-box;
+}
+
+/* Two columns above 64rem (1024px, the app's desktop line): now-playing
+ * beside up-next, rewards beside entries. `minmax(0, 1fr)` so a long name
+ * in one column cannot push the other off the page (the min-content trap).
+ * Below the line the two stack in source order, which is the phone. */
+@media (min-width: 64rem) {
+	.tnm-root .tnm-two {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 1.4rem;
+		align-items: start;
+	}
+}
+
+/* THE BRACKET IN FULL SCREEN (item 2, the second caller of fullscreen.ts).
+ * The Fullscreen API paints the element on a black backdrop with nothing
+ * around it; the room's plate goes back under it, a gutter keeps the first
+ * round off the bezel, and `overflow: auto` keeps a bracket wider than the
+ * screen scrollable -- a 32-entry losers bracket is wider than 2844px at
+ * the 13.5rem floor -- rather than clipped. */
+.tnm-root .bracket-stage:fullscreen {
+	background: var(--tnm-bg);
+	padding: 1.5rem;
+	overflow: auto;
+}

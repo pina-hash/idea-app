@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import { TEAM_SIZE_MAX } from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -12,6 +13,10 @@
 	let scoreEntry = $state(false);
 	let bestOfDefault = $state(1);
 	let bestOfGrandFinal = $state(0); // 0 = same as default
+	// Registrants per entry (0192, item 7): 1 is a solo event, up to
+	// TEAM_SIZE_MAX. The server's normaliser refuses anything outside 1..6.
+	let teamSize = $state(1);
+	const teamSizes = Array.from({ length: TEAM_SIZE_MAX }, (_, i) => i + 1);
 	let busy = $state(false);
 	let errorMsg = $state('');
 
@@ -31,7 +36,8 @@
 				quals_enabled: qualsEnabled,
 				score_entry: scoreEntry,
 				best_of_default: bestOfDefault,
-				best_of
+				best_of,
+				team_size: teamSize
 			}
 		});
 		busy = false;
@@ -55,7 +61,7 @@
 	</div>
 </div>
 
-<main class="new-page">
+<main class="new-page tnm-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Tournaments</div>
 		<h1>New tournament</h1>
@@ -87,6 +93,14 @@
 			</select>
 		</label>
 		<label class="frow">
+			<span>Registrants per entry</span>
+			<select bind:value={teamSize} data-field="team_size">
+				{#each teamSizes as n (n)}
+					<option value={n}>{n === 1 ? 'Solo' : `Teams of up to ${n}`}</option>
+				{/each}
+			</select>
+		</label>
+		<label class="frow">
 			<span>Grand final</span>
 			<select bind:value={bestOfGrandFinal}>
 				<option value={0}>Same as default</option>
@@ -101,10 +115,11 @@
 </main>
 
 <style>
+	/* A form, not a listing: the page measure narrowed to the form measure
+	 * (design-system --measure-form, 48rem) so a select does not stretch
+	 * across a listing width. */
 	.new-page {
-		max-width: 42rem;
-		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		max-width: var(--measure-form, 48rem);
 	}
 	.frow {
 		display: flex;
@@ -119,9 +134,17 @@
 		text-transform: uppercase;
 		color: var(--dim);
 	}
+	/* 44px floor on every field (CLAUDE.md, the student-facing tap target):
+	 * any signed-in account can open this page and its root declares no
+	 * instructor-only class. `min-height`, never a height, so a textarea
+	 * still grows; border-box so the floor is the box a finger meets. Before
+	 * this rule the selects measured about 35px (1rem text + 2 x 0.45rem
+	 * padding + 2px border). */
 	.frow input[type='text'],
 	.frow textarea,
 	.frow select {
+		box-sizing: border-box;
+		min-height: 44px;
 		background: var(--bg0);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
 		border-radius: 4px;
@@ -130,10 +153,13 @@
 		font-size: 1rem;
 		padding: 0.45rem 0.6rem;
 	}
+	/* A checkbox is measured at its label (the thing a finger hits), and a
+	 * one-line label is about 19px tall: the same 44px floor, on the label. */
 	.frow.toggle {
 		flex-direction: row;
 		align-items: center;
 		gap: 0.6rem;
+		min-height: 44px;
 	}
 	.frow.toggle > span {
 		text-transform: none;

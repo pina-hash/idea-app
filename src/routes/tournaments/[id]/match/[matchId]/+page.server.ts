@@ -8,7 +8,8 @@ import type {
 	QualPool,
 	RewardLedgerRow,
 	Tournament,
-	TournamentEntry
+	TournamentEntry,
+	TournamentEntryMember
 } from '$lib/tournaments/tournaments';
 import type { EntryStyle } from '$lib/tournaments/entry-styles';
 
@@ -56,34 +57,37 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		qualPool = (pool as QualPool | null) ?? null;
 	}
 
-	const [entriesRes, stylesRes, eventsRes, gamesRes, bracketRes, ledgerRes] = await Promise.all([
-		supabase.from('tournament_entries').select('*').eq('tournament_id', params.id),
-		supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
-		supabase
-			.from('tournament_match_events')
-			.select('*')
-			.eq('tournament_id', params.id)
-			.eq('match_id', params.matchId)
-			.order('id'),
-		supabase
-			.from('tournament_match_games')
-			.select('*')
-			.eq('bracket_match_id', params.matchId)
-			.order('game_number'),
-		// The sibling matches are only needed to label this one's round
-		// ("Winners Final" vs "Winners Round 2") and to name where each side
-		// goes next.
-		supabase
-			.from('tournament_bracket_matches')
-			.select('id,bracket,round,slot,status,winner_id,entry_a_id,entry_b_id')
-			.eq('tournament_id', params.id),
-		supabase
-			.from('tournament_reward_ledger')
-			.select('*')
-			.eq('tournament_id', params.id)
-			.eq('match_id', params.matchId)
-			.order('id')
-	]);
+	const [entriesRes, membersRes, stylesRes, eventsRes, gamesRes, bracketRes, ledgerRes] =
+		await Promise.all([
+			supabase.from('tournament_entries').select('*').eq('tournament_id', params.id),
+			// The registrants (0192): the two banners name theirs.
+			supabase.from('tournament_entry_members').select('*').eq('tournament_id', params.id),
+			supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
+			supabase
+				.from('tournament_match_events')
+				.select('*')
+				.eq('tournament_id', params.id)
+				.eq('match_id', params.matchId)
+				.order('id'),
+			supabase
+				.from('tournament_match_games')
+				.select('*')
+				.eq('bracket_match_id', params.matchId)
+				.order('game_number'),
+			// The sibling matches are only needed to label this one's round
+			// ("Winners Final" vs "Winners Round 2") and to name where each side
+			// goes next.
+			supabase
+				.from('tournament_bracket_matches')
+				.select('id,bracket,round,slot,status,winner_id,entry_a_id,entry_b_id')
+				.eq('tournament_id', params.id),
+			supabase
+				.from('tournament_reward_ledger')
+				.select('*')
+				.eq('tournament_id', params.id)
+				.eq('match_id', params.matchId)
+				.order('id')
+		]);
 
 	return {
 		tournament: tournament as Tournament,
@@ -95,6 +99,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		qualMatch,
 		qualPool,
 		entries: (entriesRes.data ?? []) as TournamentEntry[],
+		// Fails soft to empty pre-0192.
+		members: (membersRes.data ?? []) as TournamentEntryMember[],
 		entryStyles: (stylesRes.data ?? []) as EntryStyle[],
 		events: (eventsRes.data ?? []) as MatchEvent[],
 		games: (gamesRes.data ?? []) as MatchGame[],

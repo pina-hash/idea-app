@@ -14,8 +14,11 @@ import type {
 	QualPool,
 	RewardLedgerRow,
 	RewardRule,
-	TournamentEntry
+	TournamentEntry,
+	TournamentEntryMember,
+	TournamentStatus
 } from '$lib/tournaments/tournaments';
+import { entriesLocked } from '$lib/tournaments/tournaments';
 import type { EntryStyle } from '$lib/tournaments/entry-styles';
 
 let counter = 0;
@@ -35,6 +38,30 @@ export interface Sim {
 	/** Mirror of tournament_match_events: the append-only audit stream that
 	 * the Phase 3a match detail page reconstructs its timeline from. */
 	events: MatchEvent[];
+	/**
+	 * Mirror of 0192's `tournament_entry_members`: every entry has at least
+	 * one row (its CAPTAIN, whose user_id is the entry's own), and a team
+	 * entry has more. Entries 1 and 2 are teams of two so a second name
+	 * shows on a banner, a roster and a ledger beside the solo ones.
+	 */
+	members: TournamentEntryMember[];
+	/** `config.team_size` (0192): the cap the members RPCs refuse past. */
+	teamSize: number;
+}
+
+/**
+ * THE HARNESS'S SIGNED-IN VIEWER: the captain of entry 1 (Vortex). Every
+ * captain's account id is `u-<entry name, lowercased>` and the sim's
+ * directory (`simAccountFor`) resolves any `@boscotech.net` address to
+ * `u-<local part>`, so `vortex@boscotech.net` is an account already in the
+ * tournament and `sam@boscotech.net` is one that is not -- both refusal
+ * paths of `tournament_add_entry_member` are reachable by typing.
+ */
+export const SIM_VIEWER_ID = 'u-vortex';
+
+export function simAccountFor(email: string): string | null {
+	const m = /^([a-z0-9._-]+)@boscotech\.net$/i.exec(email.trim());
+	return m ? `u-${m[1].toLowerCase()}` : null;
 }
 
 /**
@@ -189,16 +216,49 @@ export function buildSim(n: number): Sim {
 	counter = 0;
 	eventSeq = 0;
 	resetClock();
-	const entries: TournamentEntry[] = Array.from({ length: n }, (_, i) => ({
-		id: uid('e'),
-		tournament_id: 'sim',
-		user_id: null,
-		display_name: NAMES[i % NAMES.length] + (i >= NAMES.length ? ` ${i + 1}` : ''),
-		description: '',
-		thumbnail_url: null,
-		seed: i + 1,
-		created_at: new Date().toISOString()
-	}));
+	const registeredAt = Date.now() - 3 * 60 * 60 * 1000;
+	const entries: TournamentEntry[] = Array.from({ length: n }, (_, i) => {
+		const display_name = NAMES[i % NAMES.length] + (i >= NAMES.length ? ` ${i + 1}` : '');
+		return {
+			id: uid('e'),
+			tournament_id: 'sim',
+			// Every entry registered from an account (the post-0192 shape, where
+			// the backfill gave each one a linked captain).
+			user_id: `u-${display_name.toLowerCase().replace(/\s+/g, '')}`,
+			display_name,
+			description: '',
+			thumbnail_url: null,
+			seed: i + 1,
+			created_at: new Date(registeredAt + i * 60_000).toISOString()
+		};
+	});
+	// One captain member per entry, named as the entry the way 0192's
+	// backfill names it -- except the two team entries, whose captains chose
+	// a person's name and who each brought an UNLINKED teammate (no account,
+	// the walk-up shape). The teammate's stamp is one second later so
+	// `memberMap`'s created_at order is the registration order.
+	const members: TournamentEntryMember[] = [];
+	entries.forEach((e, i) => {
+		const team = i === 0 ? ['Azad', 'Diego'] : i === 1 ? ['Priya', 'Mateo'] : null;
+		members.push({
+			id: uid('mb'),
+			entry_id: e.id,
+			tournament_id: 'sim',
+			user_id: e.user_id,
+			name: team ? team[0] : e.display_name,
+			created_at: e.created_at
+		});
+		if (team) {
+			members.push({
+				id: uid('mb'),
+				entry_id: e.id,
+				tournament_id: 'sim',
+				user_id: null,
+				name: team[1],
+				created_at: new Date(Date.parse(e.created_at) + 1000).toISOString()
+			});
+		}
+	});
 
 	let p = 1;
 	while (p < n) p *= 2;
@@ -212,7 +272,9 @@ export function buildSim(n: number): Sim {
 		rewardRules: [],
 		ledger: [],
 		styles: sampleStyles(entries),
-		events: []
+		events: [],
+		members,
+		teamSize: 2
 	};
 
 	const placement = seedPlacement(p);
@@ -354,17 +416,33 @@ export function setSimRewardRules(
 
 let ledgerSeq = 0;
 
+/**
+ * Mirrors 0192's `_tournament_award`: ONE LEDGER ROW PER MEMBER of the
+ * entry, each for the full amount, so a team of two that wins a 10-coin
+ * match writes two 10-coin rows (`rewardAwards` folds them back into one
+ * award on every reading surface). An entry with no member row -- which the
+ * backfill makes impossible and the sim never builds -- takes the single
+ * legacy row so a payout is never silently skipped.
+ */
 function award(sim: Sim, entryId: string, amount: number, reason: string, matchId: string | null) {
-	sim.ledger.push({
-		id: ++ledgerSeq,
-		tournament_id: 'sim',
-		entry_id: entryId,
-		user_id: null,
-		amount,
-		reason,
-		match_id: matchId,
-		awarded_at: new Date().toISOString()
-	});
+	const awardedAt = new Date().toISOString();
+	const rows = membersOf(sim, entryId);
+	const recipients = rows.length
+		? rows.map((m) => ({ user_id: m.user_id, member_id: m.id as string | null }))
+		: [{ user_id: sim.entries.find((e) => e.id === entryId)?.user_id ?? null, member_id: null }];
+	for (const r of recipients) {
+		sim.ledger.push({
+			id: ++ledgerSeq,
+			tournament_id: 'sim',
+			entry_id: entryId,
+			user_id: r.user_id,
+			amount,
+			reason,
+			match_id: matchId,
+			awarded_at: awardedAt,
+			member_id: r.member_id
+		});
+	}
 }
 
 /** Mirrors the win + round-bonus block of tournament_submit_match_result:
@@ -763,4 +841,178 @@ export function forfeitMatch(sim: Sim, matchId: string, winnerId: string, reason
 	completeMatch(sim, m, winnerId, 'completed', { forfeit: true, reason, forfeited_by: loser });
 	resolveByes(sim);
 	return true;
+}
+
+// ---------------------------------------------------------------------------
+// Prompt 0110: the members model (0192), so the REAL EntryTeamPanel and
+// RegisterEntry can be driven against transports that refuse exactly what
+// the RPCs refuse -- the window, the capacity, the last member, the captain's
+// row, and the lock from `live` on. Each function takes the TOURNAMENT
+// STATUS explicitly: the sim always carries a built bracket (`Sim.status` is
+// live or complete), and a pre-bracket status is the harness's fiction, so
+// it is an argument rather than a second status field that could disagree.
+// Every refusal sentence below is the migration's own, verbatim, because the
+// panel renders it and a student reads one of them on the real page.
+// ---------------------------------------------------------------------------
+
+export type SimResult = { ok: true; id: string | null } | { ok: false; error: string };
+const refuse = (error: string): SimResult => ({ ok: false, error });
+const accept = (id: string | null = null): SimResult => ({ ok: true, id });
+
+/** 0192's "registration window": teammates come and go only in it. */
+const inWindow = (status: TournamentStatus) =>
+	status === 'registration_open' || status === 'seeding';
+
+const byCreated = (a: TournamentEntryMember, b: TournamentEntryMember) =>
+	a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
+
+/** One entry's members in registration order (the memberMap order). */
+export function membersOf(sim: Sim, entryId: string): TournamentEntryMember[] {
+	return sim.members.filter((m) => m.entry_id === entryId).sort(byCreated);
+}
+
+function trimmedName(name: string): string | null {
+	const n = name.trim();
+	return n.length >= 1 && n.length <= 40 ? n : null;
+}
+
+/** An account on ANY entry of the tournament: a member row, or an entry's
+ * own registering account (one entry per account per tournament). */
+function accountInTournament(sim: Sim, userId: string): boolean {
+	return (
+		sim.members.some((m) => m.user_id === userId) || sim.entries.some((e) => e.user_id === userId)
+	);
+}
+
+/** The captain's row: the member whose user_id is the entry's own, or for an
+ * unlinked entry the oldest member. */
+function isCaptainRow(sim: Sim, entry: TournamentEntry, m: TournamentEntryMember): boolean {
+	if (entry.user_id !== null) return m.user_id === entry.user_id;
+	return membersOf(sim, entry.id)[0]?.id === m.id;
+}
+
+/** Mirrors tournament_update_entry's name path: open until the bracket. */
+export function renameEntry(sim: Sim, status: TournamentStatus, entryId: string, name: string): SimResult {
+	const e = sim.entries.find((x) => x.id === entryId);
+	if (!e) return refuse('Entry not found.');
+	if (entriesLocked(status)) return refuse('Entry names lock once the bracket is generated.');
+	const n = trimmedName(name);
+	if (!n) return refuse('Display name must be 1 to 40 characters.');
+	e.display_name = n;
+	return accept(e.id);
+}
+
+/** Mirrors tournament_rename_entry_member: the same lock as the entry name. */
+export function renameMember(sim: Sim, status: TournamentStatus, memberId: string, name: string): SimResult {
+	const m = sim.members.find((x) => x.id === memberId);
+	if (!m) return refuse('Registrant not found.');
+	if (entriesLocked(status)) return refuse('Entry names lock once the bracket is generated.');
+	const n = trimmedName(name);
+	if (!n) return refuse('Teammate names must be 1 to 40 characters.');
+	m.name = n;
+	return accept(m.id);
+}
+
+/**
+ * Mirrors tournament_add_entry_member: a captain (or a host) adding a
+ * teammate by name, optionally linking an account by email through the
+ * sim's directory (`simAccountFor`). Window, capacity, then the account
+ * checks, in the RPC's order. Linking by email is a MANAGER's act (0110):
+ * a captain adds unlinked teammates by name only, and a teammate with an
+ * account joins through `joinEntry`, the consent path, so `manager` is
+ * the caller's host/admin standing and defaults to a plain captain.
+ */
+export function addMember(
+	sim: Sim,
+	status: TournamentStatus,
+	entryId: string,
+	name: string,
+	email: string | null = null,
+	manager = false
+): SimResult {
+	const e = sim.entries.find((x) => x.id === entryId);
+	if (!e) return refuse('Entry not found.');
+	if (!inWindow(status))
+		return refuse('Teammates can only be added while registration is open or during seeding.');
+	const count = membersOf(sim, entryId).length;
+	if (count >= sim.teamSize) return refuse(`This entry is full (${count} of ${sim.teamSize}).`);
+	const n = trimmedName(name);
+	if (!n) return refuse('Teammate names must be 1 to 40 characters.');
+	let userId: string | null = null;
+	if (email && email.trim()) {
+		if (!manager)
+			return refuse(
+				'Only a tournament host or a site admin can add a teammate by account. Teammates with an account can join the entry themselves.'
+			);
+		userId = simAccountFor(email);
+		if (!userId) return refuse('No account found for that email.');
+		if (accountInTournament(sim, userId))
+			return refuse('That account is already registered in this tournament.');
+	}
+	const m: TournamentEntryMember = {
+		id: uid('mb'),
+		entry_id: e.id,
+		tournament_id: 'sim',
+		user_id: userId,
+		name: n,
+		created_at: nowIso()
+	};
+	sim.members.push(m);
+	return accept(m.id);
+}
+
+/** Mirrors tournament_join_entry: a signed-in account joining an entry that
+ * has room, while registration is OPEN (seeding is too late to join). */
+export function joinEntry(
+	sim: Sim,
+	status: TournamentStatus,
+	entryId: string,
+	name: string,
+	userId: string
+): SimResult {
+	const e = sim.entries.find((x) => x.id === entryId);
+	if (!e) return refuse('Entry not found.');
+	if (status !== 'registration_open') return refuse('Registration is not open for this tournament.');
+	const count = membersOf(sim, entryId).length;
+	if (count >= sim.teamSize) return refuse(`This entry is full (${count} of ${sim.teamSize}).`);
+	if (accountInTournament(sim, userId)) return refuse('You are already registered for this tournament.');
+	const n = trimmedName(name);
+	if (!n) return refuse('Your roster name must be 1 to 40 characters.');
+	const m: TournamentEntryMember = {
+		id: uid('mb'),
+		entry_id: e.id,
+		tournament_id: 'sim',
+		user_id: userId,
+		name: n,
+		created_at: nowIso()
+	};
+	sim.members.push(m);
+	return accept(m.id);
+}
+
+/**
+ * Mirrors tournament_remove_entry_member: the window, then the two rows the
+ * RPC will not remove -- the LAST member (an entry needs one) and the
+ * captain's while teammates remain (the registering account stays; withdraw
+ * the entry instead). Both are the sentences EntryTeamPanel prints in place
+ * of a Remove control, so a control the panel DOES offer never lands here.
+ */
+export function removeMember(sim: Sim, status: TournamentStatus, memberId: string): SimResult {
+	const m = sim.members.find((x) => x.id === memberId);
+	if (!m) return refuse('Registrant not found.');
+	const e = sim.entries.find((x) => x.id === m.entry_id);
+	if (!e) return refuse('Entry not found.');
+	if (!inWindow(status))
+		return refuse('Teammates can only be removed while registration is open or during seeding.');
+	const rows = membersOf(sim, e.id);
+	if (rows.length <= 1)
+		return refuse(
+			'An entry needs at least one registrant. A host or a site admin can remove the entry instead.'
+		);
+	if (isCaptainRow(sim, e, m))
+		return refuse(
+			'The registering account stays on the entry. A host or a site admin can remove the entry to withdraw it.'
+		);
+	sim.members = sim.members.filter((x) => x.id !== memberId);
+	return accept(memberId);
 }
