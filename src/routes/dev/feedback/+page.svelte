@@ -5,6 +5,10 @@
 	import { describeBuild, FEEDBACK_EXCLUSIONS } from '$lib/feedback/context';
 	import { submitAnonymousFeedback } from '$lib/feedback/feedback';
 	import type { FeedbackEntry, FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
+	import type {
+		SpeechRecognitionErrorLike,
+		SpeechRecognitionEventLike
+	} from '$lib/feedback/dictation';
 
 	/**
 	 * THE HARNESS MOUNTS THE REAL THING, never a copy: SiteFeedback, the
@@ -186,6 +190,57 @@
 			: [{ rule, routeId: '/notebook', status: 500 as number | null }]
 	);
 
+	/**
+	 * A SCRIPTED SPEECH RECOGNISER, so dictation is drivable here with no
+	 * microphone and no speech service. It answers the SAME four events the
+	 * browser's own does, through the same `SpeechRecognitionLike` shape:
+	 *   * `transcribe`: after start(), an interim fragment at 350ms and a final
+	 *     sentence at 900ms, then `end` on stop() -- which is what proves the
+	 *     append rule on a field somebody has already typed into;
+	 *   * `refused`: `not-allowed` at once, the microphone-denied case;
+	 *   * `none`: no constructor at all, which is Firefox and every
+	 *     third-party iPad browser, so the control must not render.
+	 * The box resolves its constructor ONCE at mount, so the mode is a `{#key}`.
+	 */
+	let speechMode = $state<'transcribe' | 'refused' | 'none'>('transcribe');
+	const HEARD_INTERIM = 'the launch';
+	const HEARD_FINAL = 'the launch button did nothing';
+	function fakeSpeech(mode: 'transcribe' | 'refused') {
+		return class FakeSpeechRecognition {
+			lang = '';
+			continuous = false;
+			interimResults = false;
+			onstart: ((ev: unknown) => void) | null = null;
+			onresult: ((ev: SpeechRecognitionEventLike) => void) | null = null;
+			onerror: ((ev: SpeechRecognitionErrorLike) => void) | null = null;
+			onend: ((ev: unknown) => void) | null = null;
+			#timers: ReturnType<typeof setTimeout>[] = [];
+			start() {
+				this.onstart?.({});
+				if (mode === 'refused') {
+					this.onerror?.({ error: 'not-allowed' });
+					this.#timers.push(setTimeout(() => this.onend?.({}), 0));
+					return;
+				}
+				const result = (isFinal: boolean, transcript: string): SpeechRecognitionEventLike => ({
+					resultIndex: 0,
+					results: [{ isFinal, length: 1, 0: { transcript } }]
+				});
+				this.#timers.push(setTimeout(() => this.onresult?.(result(false, HEARD_INTERIM)), 350));
+				this.#timers.push(setTimeout(() => this.onresult?.(result(true, HEARD_FINAL)), 900));
+			}
+			stop() {
+				this.#timers.forEach(clearTimeout);
+				this.#timers = [];
+				setTimeout(() => this.onend?.({}), 0);
+			}
+			abort() {
+				this.stop();
+			}
+		};
+	}
+	const dictation = $derived(speechMode === 'none' ? null : fakeSpeech(speechMode));
+
 	let view = $state<'capture' | 'exclusions' | 'console'>('capture');
 </script>
 
@@ -226,15 +281,18 @@
 				same box, no floating position.
 			</p>
 			<div class="hx-row">
-				<SiteFeedback
-					place="relocated"
-					routeId="/dev/feedback"
-					pathname="/dev/feedback"
-					role="teacher"
-					sectionId="s-1"
-					{build}
-					{submit}
-				/>
+				{#key speechMode}
+					<SiteFeedback
+						place="relocated"
+						routeId="/dev/feedback"
+						pathname="/dev/feedback"
+						role="teacher"
+						sectionId="s-1"
+						{build}
+						{submit}
+						{dictation}
+					/>
+				{/key}
 				<SiteFeedback
 					place="relocated"
 					routeId="/dev/feedback"
@@ -261,6 +319,24 @@
 					/></span
 				>
 			</p>
+		</section>
+
+		<section class="hx-card">
+			<h2>Dictation, scripted</h2>
+			<p class="hx-note">
+				The first relocated trigger above mounts the box with a stand-in speech recogniser
+				(no microphone, no service). Type something into the message first, then press
+				DICTATE: the sentence <code>{HEARD_FINAL}</code> is APPENDED after what you typed,
+				never in place of it. "refused" answers the microphone-denied case; "none" is a
+				browser with no speech API, where the control must not render at all.
+			</p>
+			<div class="hx-row">
+				{#each [{ id: 'transcribe' as const, label: 'transcribes a sentence' }, { id: 'refused' as const, label: 'microphone REFUSED' }, { id: 'none' as const, label: 'no speech API (control absent)' }] as m (m.id)}
+					<button class="hx-btn" class:on={speechMode === m.id} onclick={() => (speechMode = m.id)}>
+						{m.label}
+					</button>
+				{/each}
+			</div>
 		</section>
 
 		<section class="hx-card">

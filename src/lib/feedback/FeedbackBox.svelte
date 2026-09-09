@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import {
@@ -21,6 +21,13 @@
 		formatScreenshotBytes,
 		type ScreenshotUpload
 	} from './screenshot';
+	import {
+		DICTATION_NOTE,
+		Dictation,
+		appendDictation,
+		dictationConstructor,
+		type SpeechRecognitionCtor
+	} from './dictation';
 
 	/**
 	 * Shared in-app feedback / suggestion box. App-AGNOSTIC by design: GREENLINE
@@ -62,6 +69,7 @@
 		askContact = false,
 		uploadScreenshot = null,
 		screenshotNote = null,
+		dictation = undefined,
 		title = 'Send feedback',
 		note = 'Tell us what you noticed. It goes straight to the team.'
 	}: {
@@ -106,6 +114,16 @@
 		 * lacks one reads as a bug on a form every other surface offers it on.
 		 */
 		screenshotNote?: string | null;
+		/**
+		 * VOICE TO TEXT. `undefined` (the default, and what every real mount
+		 * passes) asks the window for `SpeechRecognition` and renders the
+		 * control only where one exists; `null` refuses it outright; a
+		 * constructor hands in a stand-in, which is what the dev harness does
+		 * so the control is drivable with no microphone. See `dictation.ts`
+		 * for where the audio goes (the browser's own service, nowhere else)
+		 * and the one rule about text (append, never replace).
+		 */
+		dictation?: SpeechRecognitionCtor | null;
 		title?: string;
 		note?: string;
 	} = $props();
@@ -188,6 +206,51 @@
 	let dragging = $state(false);
 
 	/**
+	 * DICTATION, resolved once at mount. On the server, and in a browser with
+	 * no speech constructor (Firefox, every third-party iPad browser), `dict`
+	 * is null and NOTHING RENDERS: the same absence-is-the-mechanism rule as
+	 * the attach control, so an unsupported device sees the plain textarea
+	 * rather than a microphone button that fails when pressed.
+	 *
+	 * A FINAL SENTENCE IS APPENDED TO WHAT IS IN THE FIELD NOW -- typed while
+	 * the person was also speaking, pasted, or dictated earlier -- and the
+	 * field is read fresh at that moment rather than snapshotted at start, so
+	 * nothing anybody typed in between is lost. `typed()` then reports the
+	 * edit to the save machine exactly as a keystroke would, gate included.
+	 */
+	const speechCtor: SpeechRecognitionCtor | null = untrack(() =>
+		dictation === undefined ? dictationConstructor() : dictation
+	);
+	let listening = $state(false);
+	/** What the service is hearing and has not committed yet. Shown BESIDE the
+	 * field, never written into it. */
+	let heard = $state('');
+	let dictError = $state<string | null>(null);
+	const dict = speechCtor
+		? new Dictation(speechCtor, {
+				onFinal: (text) => {
+					message = appendDictation(message, text);
+					typed();
+				},
+				onInterim: (text) => (heard = text),
+				onListening: (on) => {
+					listening = on;
+					// Hand the caret back where the words landed, so a keyboard
+					// user can carry on from the end of what was just heard.
+					if (!on) areaEl?.focus();
+				},
+				onError: (text) => (dictError = text)
+			})
+		: null;
+
+	function toggleDictation() {
+		if (!dict || sending) return;
+		dictError = null;
+		if (dict.listening) dict.stop();
+		else dict.start();
+	}
+
+	/**
 	 * `autosave: false` because a write MINTS A RECORD: a debounce here would
 	 * file a report per pause in someone's typing. The machine still moves to
 	 * `dirty`, which is what the indicator and the send control read; it just
@@ -235,6 +298,8 @@
 			// The object URL outlives this component unless it is revoked, and a
 			// box opened and closed a dozen times is a dozen leaked blobs.
 			clearPreview();
+			// A microphone left open by a closed box is worse than a leaked blob.
+			dict?.destroy();
 		};
 	});
 
@@ -278,6 +343,9 @@
 	function send() {
 		// A scripted dispatch at the disabled control must not mint a row either.
 		if (sending) return;
+		// What is sent is what is on screen at the press; a sentence still being
+		// heard would land in a field whose report has already left.
+		dict?.stop();
 		// A `submit` that throws rather than resolving is handled inside the
 		// SaveState, which treats a throw as a retryable failure; there is no
 		// busy flag here left to strand.
@@ -288,6 +356,7 @@
 	/** Reset back to an empty form so a player can send a second note without
 	 * closing and reopening the box. */
 	function again() {
+		dict?.stop();
 		save.reset();
 		message = '';
 		contact = '';
@@ -384,9 +453,47 @@
 				{/each}
 			</div>
 
-			<label class="fb-label" for="fb-msg">
-				{FEEDBACK_KINDS.find((k) => k.id === kind)?.hint ?? 'What happened?'}
-			</label>
+			<div class="fb-label-row">
+				<label class="fb-label" for="fb-msg">
+					{FEEDBACK_KINDS.find((k) => k.id === kind)?.hint ?? 'What happened?'}
+				</label>
+				{#if dict}
+					<!--
+						THE WORD CHANGES WITH THE STATE and the dot is never the only
+						signal. `aria-pressed` makes it a toggle to assistive tech; the
+						status line below says what listening means in this box.
+					-->
+					<button
+						type="button"
+						class="fb-btn fb-dictate"
+						class:listening
+						aria-pressed={listening}
+						disabled={sending}
+						onclick={toggleDictation}
+					>
+						{#if listening}
+							<span class="fb-dictate-dot" aria-hidden="true"></span>
+							STOP
+						{:else}
+							<svg
+								class="fb-dictate-mic"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.8"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<rect x="9" y="3" width="6" height="11" rx="3" />
+								<path d="M5 11a7 7 0 0 0 14 0" />
+								<path d="M12 18v3" />
+							</svg>
+							DICTATE
+						{/if}
+					</button>
+				{/if}
+			</div>
 			<!-- OFF WHILE A SEND IS IN FLIGHT, every field alike: what is on its way
 			     is what was on screen at the press, and typing into that is how a
 			     second report gets minted. See `typed()` for the half that holds
@@ -402,6 +509,22 @@
 				maxlength={FEEDBACK_MAX_LEN}
 				placeholder="What happened, and what were you doing at the time?"
 			></textarea>
+			{#if dict}
+				<!-- ONE STATUS, ONE PREVIEW, ONE REFUSAL, each its own element. The
+				     status is a live region so a screen reader hears the microphone
+				     open and close; the preview is not, because it changes several
+				     times a second and the committed text reaches the field anyway. -->
+				<p class="fb-dictate-status" role="status">
+					{listening ? 'Listening. Each sentence is added to the box when you pause.' : ''}
+				</p>
+				{#if heard}
+					<p class="fb-dictate-heard" aria-hidden="true">{heard}</p>
+				{/if}
+				{#if dictError}
+					<p class="fb-dictate-error" role="alert">{dictError}</p>
+				{/if}
+				<p class="fb-dictate-note">{DICTATION_NOTE}</p>
+			{/if}
 
 			<!--
 				WHAT DID YOU TRY. Optional, and the label says so: the 2026-08-31
@@ -539,7 +662,20 @@
 <style>
 	/* Neutral defaults; a host design system overrides these from outside
 	   (e.g. `.glb .fb-scrim { --fb-accent: #2ae57e; }`) rather than this
-	   component growing per-app branches. */
+	   component growing per-app branches.
+
+	   THE OVERRIDE HAS TO LAND ON THE SCRIM ITSELF, NOT ON AN ANCESTOR. These
+	   are declared HERE, so a host that sets `--fb-accent` on a wrapper
+	   element is beaten by this block on the descendant and changes nothing
+	   -- which is exactly how the portal's box stayed blue for months while
+	   `SiteFeedback` believed it was handing its tokens down. A host writes
+	   `.host :global(.fb-scrim) { ... }`, the way GREENLINE does.
+
+	   EVERY PAINTED VALUE IS A HOOK. The fills used to be literals (a blue-black
+	   field, a blue-black chip, a blue-black button gradient) beside a token set
+	   whose comment said "driven entirely" by tokens -- so a host could recolour
+	   the accent and still get blue controls. The defaults below are those exact
+	   literals, so a host that sets nothing new renders byte-identically. */
 	.fb-scrim {
 		--fb-bg: #0b1016;
 		--fb-bg-deep: #05080b;
@@ -551,6 +687,26 @@
 		--fb-accent: #7fd0ff;
 		--fb-danger: #ff8f6b;
 		--fb-font: inherit;
+		/* Chrome type: the title, the kind chips, the labels, the buttons and
+		   the count. Defaults to the body face, so a host with one face sets
+		   one token. */
+		--fb-font-mono: var(--fb-font);
+		/* The veil over the page behind the box. */
+		--fb-shade: rgba(2, 3, 4, 0.82);
+		/* The text fields, the kind chips and the buttons. A whole background
+		   value each, so a host may hand in a flat token or a gradient. */
+		--fb-field: rgba(5, 8, 11, 0.75);
+		--fb-chip: rgba(10, 15, 21, 0.6);
+		--fb-control: linear-gradient(180deg, rgba(23, 30, 37, 0.85), rgba(9, 13, 17, 0.9));
+		/* The accent-tinted edges: the primary button's, and the selected kind
+		   chip's. A host whose accent is darker than the neutral default's can
+		   hand in the full accent here, because a 45% tint of a mid-lightness
+		   green does not clear the 3:1 a control's outer edge owes. */
+		--fb-accent-edge: color-mix(in srgb, var(--fb-accent) 45%, transparent);
+		--fb-accent-edge-on: color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		/* An open microphone is a LIVE state. Defaults to the danger tone; the
+		   portal points it at its reserved live/rec colour. */
+		--fb-live: var(--fb-danger);
 
 		position: fixed;
 		inset: 0;
@@ -559,7 +715,7 @@
 		align-items: center;
 		justify-content: center;
 		padding: 1rem;
-		background: rgba(2, 3, 4, 0.82);
+		background: var(--fb-shade);
 		font-family: var(--fb-font);
 	}
 	.fb-box {
@@ -589,6 +745,7 @@
 	}
 	.fb-title {
 		flex: 1;
+		font-family: var(--fb-font-mono);
 		font-size: 0.94rem;
 		font-weight: 600;
 		letter-spacing: 0.1em;
@@ -603,6 +760,9 @@
 		border: 1px solid transparent;
 		border-radius: 3px;
 		color: var(--fb-ink-faint);
+		/* A bare <button> takes the UA face (Arial, measured) unless told
+		   otherwise; the glyph rides on the chrome face like the title. */
+		font-family: var(--fb-font-mono);
 		font-size: 0.8rem;
 		line-height: 1;
 		padding: 0.2rem 0.35rem;
@@ -630,11 +790,12 @@
 		flex: 1 1 auto;
 		min-height: 44px;
 		padding: 0.32rem 0.6rem;
-		background: rgba(10, 15, 21, 0.6);
+		background: var(--fb-chip);
 		border: 1px solid var(--fb-line);
 		border-radius: 2px;
 		color: var(--fb-ink-dim);
 		font: inherit;
+		font-family: var(--fb-font-mono);
 		font-size: 0.72rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -650,13 +811,14 @@
 	}
 	.fb-kind.on {
 		color: var(--fb-accent);
-		border-color: color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		border-color: var(--fb-accent-edge-on);
 		box-shadow: 0 0 10px color-mix(in srgb, var(--fb-accent) 18%, transparent);
 	}
 	.fb-label {
 		display: block;
 		margin-bottom: 0.28rem;
 		color: var(--fb-ink-faint);
+		font-family: var(--fb-font-mono);
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
 	}
@@ -665,7 +827,7 @@
 		box-sizing: border-box;
 		resize: vertical;
 		padding: 0.5rem 0.6rem;
-		background: rgba(5, 8, 11, 0.75);
+		background: var(--fb-field);
 		border: 1px solid var(--fb-line-strong);
 		border-radius: 2px;
 		color: var(--fb-ink);
@@ -687,7 +849,7 @@
 		min-height: 44px;
 		margin-bottom: 0.3rem;
 		padding: 0.5rem 0.6rem;
-		background: rgba(5, 8, 11, 0.75);
+		background: var(--fb-field);
 		border: 1px solid var(--fb-line-strong);
 		border-radius: 2px;
 		color: var(--fb-ink);
@@ -710,6 +872,82 @@
 
 	.fb-area-tried {
 		margin-bottom: 0.6rem;
+	}
+
+	/* The message label and the dictate control share a row; the label keeps
+	   its `for`, the row takes the label's bottom margin. */
+	.fb-label-row {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 0.5rem;
+		margin-bottom: 0.28rem;
+	}
+	.fb-label-row .fb-label {
+		margin-bottom: 0;
+		min-width: 0;
+	}
+	.fb-dictate {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex: none;
+		padding: 0.3rem 0.7rem;
+	}
+	.fb-dictate.listening {
+		color: var(--fb-ink);
+		border-color: var(--fb-live);
+	}
+	.fb-dictate-mic {
+		width: 0.9rem;
+		height: 0.9rem;
+	}
+	.fb-dictate-dot {
+		width: 0.55rem;
+		height: 0.55rem;
+		border-radius: 50%;
+		background: var(--fb-live);
+	}
+	/* The status line keeps its box while empty so the field below does not
+	   jump when listening starts. */
+	.fb-dictate-status,
+	.fb-dictate-heard,
+	.fb-dictate-note {
+		margin: 0.3rem 0 0;
+		font-size: 0.68rem;
+		line-height: 1.45;
+	}
+	.fb-dictate-status {
+		min-height: 1em;
+		color: var(--fb-ink-dim);
+	}
+	.fb-dictate-heard {
+		color: var(--fb-ink);
+		font-style: italic;
+	}
+	.fb-dictate-note {
+		color: var(--fb-ink-faint);
+		margin-bottom: 0.6rem;
+	}
+	.fb-dictate-error {
+		margin: 0.3rem 0 0;
+		color: var(--fb-danger);
+		font-size: 0.7rem;
+		line-height: 1.45;
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.fb-dictate-dot {
+			animation: fb-live-pulse 1.2s ease-in-out infinite;
+		}
+		@keyframes fb-live-pulse {
+			0%,
+			100% {
+				opacity: 1;
+			}
+			50% {
+				opacity: 0.35;
+			}
+		}
 	}
 	/* Off for exactly the length of a send. `.fb-btn:disabled` below is the
 	   same reading on the buttons; the fields take it here so a box mid-send
@@ -823,6 +1061,7 @@
 	.fb-count {
 		flex: 1;
 		color: var(--fb-ink-faint);
+		font-family: var(--fb-font-mono);
 		font-size: 0.66rem;
 		letter-spacing: 0.06em;
 	}
@@ -832,11 +1071,12 @@
 	.fb-btn {
 		min-height: 44px;
 		min-width: 44px;
-		background: linear-gradient(180deg, rgba(23, 30, 37, 0.85), rgba(9, 13, 17, 0.9));
+		background: var(--fb-control);
 		border: 1px solid var(--fb-line);
 		border-radius: 2px;
 		color: var(--fb-ink-dim);
 		font: inherit;
+		font-family: var(--fb-font-mono);
 		font-size: 0.72rem;
 		font-weight: 600;
 		letter-spacing: 0.16em;
@@ -858,7 +1098,7 @@
 	}
 	.fb-btn-primary {
 		color: var(--fb-accent);
-		border-color: color-mix(in srgb, var(--fb-accent) 45%, transparent);
+		border-color: var(--fb-accent-edge);
 	}
 	.fb-btn-primary:hover:not(:disabled),
 	.fb-btn-primary:focus-visible:not(:disabled) {

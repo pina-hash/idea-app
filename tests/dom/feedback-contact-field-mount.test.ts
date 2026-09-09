@@ -107,11 +107,20 @@ function drive(props: Record<string, unknown> = {}, hold = false): Driven {
 	return { m, sent, release: () => release() };
 }
 
-/** Press the report trigger and let the box render. */
-function openBox(d: Driven): void {
+/**
+ * Press the report trigger and let the box render. THE BOX ARRIVES ON A
+ * DYNAMIC IMPORT (prompt 0111), so the press is followed by a short bounded
+ * poll for the field rather than a synchronous flush.
+ */
+async function openBox(d: Driven): Promise<void> {
 	const trigger = d.m.one('.sfb-trigger');
 	click(trigger);
-	d.m.flush();
+	for (let i = 0; i < 100; i++) {
+		d.m.flush();
+		if (d.m.all('#fb-msg').length) return;
+		await new Promise((r) => setTimeout(r, 10));
+	}
+	throw new Error('the box did not mount within 1s of the press');
 }
 
 const contactField = (m: Mounted) => m.all<HTMLInputElement>('#fb-contact');
@@ -129,7 +138,7 @@ describe('the box is closed until somebody presses the trigger', () => {
 			expect(d.m.all('[role="dialog"]')).toHaveLength(0);
 			expect(contactField(d.m)).toHaveLength(0);
 
-			openBox(d);
+			await openBox(d);
 
 			expect(d.m.all('[role="dialog"]')).toHaveLength(1);
 			// POSITIVE CONTROL for every absence below: the box really did render
@@ -161,7 +170,7 @@ describe('an optional contact is offered only where there is no account', () => 
 	it('renders the field, said to be optional, for an anonymous reporter', async () => {
 		const d = drive({ anonymous: true });
 		try {
-			openBox(d);
+			await openBox(d);
 
 			const fields = contactField(d.m);
 			expect(fields).toHaveLength(1);
@@ -183,7 +192,7 @@ describe('an optional contact is offered only where there is no account', () => 
 	it('renders no contact field at all for a signed-in reporter', async () => {
 		const d = drive({ anonymous: false });
 		try {
-			openBox(d);
+			await openBox(d);
 
 			expect(contactField(d.m)).toHaveLength(0);
 			expect(d.m.all('label[for="fb-contact"]')).toHaveLength(0);
@@ -204,7 +213,7 @@ describe('what the write actually receives', () => {
 	it('carries the typed contact when the field was offered', async () => {
 		const d = drive({ anonymous: true });
 		try {
-			openBox(d);
+			await openBox(d);
 			typeInto(d.m, messageField(d.m), TYPED);
 			typeInto(d.m, contactField(d.m)[0], CONTACT);
 			click(d.m.one('.fb-btn-primary'));
@@ -227,7 +236,7 @@ describe('what the write actually receives', () => {
 		// the spread is what keeps that impossible from this side.
 		const d = drive({ anonymous: false });
 		try {
-			openBox(d);
+			await openBox(d);
 			typeInto(d.m, messageField(d.m), TYPED);
 			click(d.m.one('.fb-btn-primary'));
 			await d.m.settle();
@@ -248,7 +257,7 @@ describe('what the write actually receives', () => {
 		// the one thing the box must not file.
 		const d = drive({ anonymous: true });
 		try {
-			openBox(d);
+			await openBox(d);
 			const send = d.m.one<HTMLButtonElement>('.fb-btn-primary');
 			expect(send.disabled).toBe(true);
 			click(send);
@@ -275,7 +284,7 @@ describe('what the write actually receives', () => {
 		// write is held open here so there IS such a moment to look at.
 		const d = drive({ anonymous: true }, true);
 		try {
-			openBox(d);
+			await openBox(d);
 			typeInto(d.m, messageField(d.m), TYPED);
 			expect(d.m.target.textContent).not.toContain('Thanks, that went through');
 
