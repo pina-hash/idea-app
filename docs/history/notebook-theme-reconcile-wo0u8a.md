@@ -242,8 +242,34 @@ Nothing was reverted, and no landed decision was traded for anything above.
 - **`tests/notebook-theme.test.ts` 35 -> 38**, `tests/notebook-shell.test.ts`
   63 -> 67. Every notebook and theme test file run together: **45 files, 1066
   tests, 0 failed.**
+- **The full suite, serially: 346 files, 6829 tests, 0 failed, 343.6s.**
+- **A FULL browser pass on the committed tree: 328 route/width runs, 5622
+  measurements, 2 outside threshold, 836.0s**, on the Vite started separately on
+  5199 and reused (server boot 59ms). The measured region of
+  `tools/browser-verify/README.md` is regenerated from that run's own JSON with
+  `--from`, never edited; the static region was checked with
+  `verify:counts --check` and is unchanged, because this bundle added rows to
+  existing route specs and no new spec.
+  - **THE TWO OUTSIDE ROWS ARE NOT THIS BUNDLE'S AND ARE NOT NEW**:
+    `tap-target [FRC review queue controls ($lib/frc, reported only)]` on
+    `/dev/portal-admin` at both widths, smallest 74.6 x 18.4. The committed
+    measured region this bundle replaced already recorded the same two, by
+    name. `$lib/frc` is 0124's surface.
+  - **THE PROMPT'S STATED BASELINE IS STALE AND SAYING SO IS THE POINT.** It
+    gave "316 runs and 5,356 measurements, 0 outside threshold"; the measured
+    region committed on `integration` records **328 runs, 5604 measurements, 2
+    outside** as of 2026-09-09. So the bundle's own delta is +18 measurements
+    over the same 328 runs, with the outside count unmoved -- which is what the
+    arithmetic has to be read against, and is not a number this session could
+    have got from the prompt.
+  - The region records the sha the tree was at when it was WRITTEN
+    (`a8fa260`), which is one markdown file (this bundle's ledger entry) ahead
+    of the commit the run actually measured (`fc50ffe8`). `--from` is the
+    generator's own documented mode for reusing a report and it computes
+    dirtiness at write time; an earlier attempt recorded `dirty: true` for
+    exactly that reason and was discarded and redone on a clean tree rather
+    than committed.
 - `node tools/claude-md-check.mjs`: CLAUDE.md agrees with the tree.
-- The full suite is reported in the ledger entry's final note.
 
 ### One test assertion was generalized rather than deleted
 
@@ -276,6 +302,17 @@ left as a gap.
   the harness README's two standing limits.
 - No screenshots were read by eye; every geometric claim above is a measured
   box, a `scrollWidth`/`clientWidth` pair or a computed style.
+- **The full suite was run twice**: at `d4427f8d` (346 / 6829 / 0, 331.6s) and
+  again on the final tree (346 / 6829 / 0, 343.6s, the figure quoted above),
+  because the commits between the two change a docblock comment and one
+  markdown file and a figure should describe the tree being pushed.
+- `pkill` WAS used once, and only to stop a browser pass this session had
+  itself started, with a pattern scoped to `browser-verify/run.mjs` -- never
+  `pkill -f vite`, and the dev server on 5199 was confirmed alive (HTTP 200)
+  immediately afterwards and reused by the rerun at a 59ms boot. The pass was
+  restarted from scratch rather than kept, because a comment had been edited
+  while it ran and a measured region must not claim a tree it was not measured
+  on.
 
 ## Left undone, by name
 
