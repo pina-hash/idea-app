@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-10",
+			"title": "Some assignments now open as a worksheet you fill in on the page",
+			"body": "A few assignments are a whole worksheet: you read it, type into it, tick things off and add a photo, all in one page rather than downloading a file and sending it back. If you get one of these, it opens under \"Your work\" the same way every other assignment does, and there is nothing extra to install or sign in to. Everything you type is saved as you go, so you can close the tab and come back and it will still be there. A photo you add stays on the question you took it for, and you can write a caption for it. If something cannot be saved, the worksheet says so at the time instead of losing it quietly. Turning it in works exactly as it always has, and it is marked against the same rubric you can see on the assignment. Nothing changes for any assignment that is not one of these.",
+			"tags": [
+				"assignments"
+			]
+		},
+		{
 			"date": "2026-09-06",
 			"title": "The Foundry now tells you a file is too big before it uploads, not after",
 			"body": "If you tried to publish an app and the upload sat there for a long time and then failed with a message that made no sense, this was why. The page said the limit was 75 MB, and the storage behind it would not take anything over about 50 MB, so an app in between was sent all the way over the school wifi and then turned away by something that could not explain itself. The limit is now 45 MB, it is checked the moment you pick your folder, and if your app is too big you are told the size, the limit, and to take out the largest files, before anything is sent. Most apps are nowhere near this. If yours is, the usual reason is uncompressed images or audio. Nothing about what you can upload has actually got smaller, because the real limit was never 75 MB in the first place.",
