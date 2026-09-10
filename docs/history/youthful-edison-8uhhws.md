@@ -199,9 +199,18 @@ elsewhere.
   `PUBLIC_SUPABASE_*` placeholders exported.
 - Full suite **371 files / 7339 tests**, all passed. Baseline was 368 / 7321:
   three files added (8 + 5 + 5 = 18 tests), and 7321 + 18 = 7339 exactly.
-- The browser harness's measured region regenerated once at the end, on a clean
-  committed tree, with Vite started by hand on 5199 and warmed. The numbers are
-  in `tools/browser-verify/README.md` and in ledger 0139.
+- `npm run verify:readme` **362 runs / 6310 measurements / 0 outside threshold /
+  929.1s on `100fda2`**, identical to baseline because this bundle adds no route
+  spec. `--selftest` 70 controls (36 negative, 34 positive), 0 instrument
+  failures. Regenerated once at the end on a clean committed tree, with Vite
+  started by hand on 5199 and 155 of its 156 URLs warmed to HTTP 200 first --
+  the exception being `/dev/foundry-admin/refusal`, whose 403 is that fixture's
+  own subject.
+- The browser leg's own rows, from the two html-assignment specs at 375px and
+  1440px: `ready=3`, `height>0=true`, `src=/hx/worksheet`, `frames=1`,
+  `listening=yes`, `sandbox=allow-scripts`, `expectedOrigin=null`, and a
+  well-formed `idea:change` naming the worksheet's own field ACCEPTED against
+  three forgeries DROPPED. 64 measurements, 0 outside threshold.
 
 ## Not verified
 

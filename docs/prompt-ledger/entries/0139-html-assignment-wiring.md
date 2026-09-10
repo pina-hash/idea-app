@@ -79,7 +79,7 @@
   | typing saves, reload restores, ALL SIX BLOCK TYPES | real Postgres, the REAL `HxAnswers` over `createHtmlAnswerTransports` | 5 response rows (the image block has none, correctly), every one restored through `hxValuesFromResponses` |
   | an image lands and comes back | real Postgres, the eight-argument `classroom_add_submission_file` reached through the REAL `classroom_open_submission` + `storageObjectKey` | 1 file on its block, `application/octet-stream`, restored onto its own field by `hxImagesFromFiles`, its row named by `hxFileIdsByField`, and a caption written back through `classroom_set_submission_file_caption` |
   | the answer mirror is genuinely reactive | a REAL effect root in `tests/dom/` | an effect reading `values` re-ran on the change and read the new value; one reading `saved` re-ran on the acknowledgement; both against a first run that read `undefined` |
-  | a student opens it and the frame renders | real Chromium, the REAL `HtmlAssignmentFrame` against the REAL `/hx/` route | see MEASURED below |
+  | a student opens it and the frame renders | real Chromium (141.0.7390.37), the REAL `HtmlAssignmentFrame` against the REAL `/hx/` route, at 375px and 1440px | `ready=3`, `height>0=true`, `src=/hx/worksheet`, `frames=1`, `listening=yes`, `sandbox=allow-scripts`, `expectedOrigin=null`; a well-formed `idea:change` naming the document's own field ACCEPTED against three forgeries DROPPED; 64 measurements, 0 outside threshold |
   | a spec-backed item is untouched | the existing `tests/db/html-assignment-spec-path-unchanged.test.ts` | green, unmodified |
 
   **THE TWO INSTRUMENT GAPS, STATED RATHER THAN PAPERED OVER.** node-postgres
@@ -109,7 +109,22 @@
   **MEASURED.** svelte-check 0 errors / 37 warnings / 31-5-1, exactly baseline,
   re-derived after `npx svelte-kit sync` with the two `PUBLIC_SUPABASE_*`
   placeholders exported. Full suite **371 files / 7339 tests**, all passed
-  (baseline 368 / 7321: three files added, eighteen tests).
+  (baseline 368 / 7321: three files added, eighteen tests -- 8 + 5 + 5, and
+  7321 + 18 = 7339 exactly).
+
+  `npm run verify:readme` **362 runs / 6310 measurements / 0 outside threshold /
+  929.1s on `100fda2`**, identical to the baseline 362 / 6310 / 0 because this
+  bundle adds no route spec; `--selftest` 70 controls (36 negative, 34
+  positive), 0 instrument failures; `Route specs the run covered` 181, equal to
+  the static region's 181. Regenerated ONCE, at the end, with Vite started by
+  hand on 5199 (never `pkill -f`, which matches the shell running it) and every
+  one of its 156 URLs warmed first -- **155 of 156 to HTTP 200**, the one
+  exception being `/dev/foundry-admin/refusal`, whose 403 is that fixture's own
+  subject. `npm run verify:counts -- --check` agreed with the tree before the
+  run and `tests/derived-numbers.test.ts` was 18/18 after it. The two
+  html-assignment specs were re-run alone afterwards to capture the browser
+  leg's own rows for the table above; that is `verify:browser`, which writes no
+  generated region.
 
   **NOT VERIFIED.** No signed-in `/classroom/<section>/item/<id>` page was
   driven: there is no Docker daemon, no Supabase CLI and no PostgREST, auth or
