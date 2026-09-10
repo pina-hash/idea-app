@@ -34,6 +34,7 @@
 //   3. The floor is a SETTING. Moving it moves both sides together, and neither
 //      side is ever computed from the caller's own parameter.
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { startTestDb, createUser, type TestDb, type SeededUser } from './harness';
 
@@ -454,4 +455,44 @@ describe('0194: a sub-floor run reaches the review console', () => {
 		expect(names).toContain('rank_state');
 		expect(names.some((n) => /floor|threshold|ms$/.test(n))).toBe(false);
 	});
+});
+
+// ---------------------------------------------------------------------------
+// RE-APPLIABILITY. Its own database, because it applies the file TWICE.
+//
+// CLAUDE.md: "Re-pasting a migration is ordinary -- someone re-pastes, or a
+// first attempt failed partway and gets retried -- so a migration that only
+// works once fails exactly then, with the schema half-built."
+//
+// AND THE SECOND HALF IS THE ONE THAT WOULD COST SOMETHING REAL: a re-paste
+// must not overwrite a floor he has edited. `0015`'s singleton seeds with
+// `on conflict do nothing` for exactly that reason and this file copies it, so
+// this is the assertion that says the copy actually took.
+// ---------------------------------------------------------------------------
+describe('0194 re-applies', () => {
+	let twice: TestDb;
+	afterAll(async () => {
+		await twice?.stop();
+	});
+
+	it('applies twice with no error, and seeds the singleton once', async () => {
+		twice = await startTestDb([...CHAIN, '0194_gauntlet_verification_floor.sql']);
+		const { rows } = await twice.sql<{ n: string; floor: number }>(
+			`select count(*)::text n, min(speedrun_floor_ms) floor from public.gauntlet_rank_settings`
+		);
+		expect(rows[0].n).toBe('1');
+		expect(rows[0].floor).toBe(30000);
+	}, 300_000);
+
+	it('does not overwrite an edited floor on a re-paste', async () => {
+		// Nothing round, so the number coming back could not be a default.
+		await twice.sql(`update public.gauntlet_rank_settings set speedrun_floor_ms = 12345 where id`);
+		await twice.sql(
+			readFileSync('supabase/migrations/0194_gauntlet_verification_floor.sql', 'utf8')
+		);
+		const { rows } = await twice.sql<{ floor: number }>(
+			`select speedrun_floor_ms floor from public.gauntlet_rank_settings`
+		);
+		expect(rows[0].floor).toBe(12345);
+	}, 120_000);
 });
