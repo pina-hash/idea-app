@@ -26,12 +26,12 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Photograph the pages you wrote at each station and upload them here. Five pages, one per station.\n\n**Take the photo flat, straight on, in good light.** If the page is not readable, it does not count. Check each photo before you upload it.\n\n**What a station record has to show.** For each station:\n\n- The machine and the part.\n- The settings you actually used. Speed, feed, depth, power, passes, whatever that machine has. As used, not as planned.\n- The tool or workholding you chose. You explain why in your presentation, not here.\n- Any measurement you took at the machine, and which operation it followed.\n- **What happened.** A problem, a mistake, a measurement that came out wrong, or something you changed mid-cut. This is the part that gets graded here.\n\n**This is graded on what the records say, not on how neat your notebook is.** Handwriting, margins, and page layout are scored in the Documentation Check, once, and never again here.\n\nIf a page is missing because you never wrote it, write it now from what you remember and say on the page that it was written after the fact. A late honest record is worth more than a blank."
+          "content": "Photograph the pages you wrote at each station and upload them here. Five pages, one per station.\n\n**Take the photo flat, straight on, in good light.** If the page is not readable, it does not count. Check each photo before you upload it.\n\n**What a station record has to show.** For each station:\n\n- The machine and the part.\n- The settings you actually used. Speed, feed, depth, power, passes, whatever that machine has. As used, not as planned.\n- The tool or workholding you chose. You explain why in your presentation, not here.\n- **What happened.** A problem, a mistake, a measurement that came out wrong, or something you changed mid-cut. This is the part that gets graded here.\n\n**Graded on what the records say, not on how neat they are.** Handwriting and layout are scored once, in the Documentation Check, and never here.\n\nMissing a page? Write it now from memory and mark it as written late. A late honest record beats a blank."
         },
         {
           "id": "z1",
           "type": "imageZone",
-          "points": 20,
+          "points": 16,
           "printAs": "notebookRef",
           "captions": true,
           "minImages": 5
@@ -45,9 +45,9 @@
             "Each record names the machine and the part",
             "Each record has the settings I actually used",
             "Each record names the tool or workholding I used",
-            "Each record says what happened at that machine"
+            "Each record names something specific that happened: a problem, a mistake, a measurement that came out wrong, or a change mid-cut"
           ],
-          "points": 15
+          "points": 19
         }
       ],
       "points": 35,
@@ -57,20 +57,20 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "5 readable pages",
-              "points": 10,
-              "descriptor": "Five station pages uploaded and every one is readable."
+              "short": "5 readable, machine and part",
+              "points": 6,
+              "descriptor": "Five station pages uploaded, every one readable, and every one names its machine and its part."
             },
             {
               "label": "Proficient",
-              "short": "5 pages, one poor",
-              "points": 8,
-              "descriptor": "Five pages uploaded with one hard to read."
+              "short": "5 pages, one gap",
+              "points": 5,
+              "descriptor": "Five pages uploaded with one hard to read, or one missing its machine or part."
             },
             {
               "label": "Developing",
               "short": "3 or 4 pages",
-              "points": 4,
+              "points": 2,
               "descriptor": "Three or four stations captured."
             },
             {
@@ -80,37 +80,37 @@
               "descriptor": "Two stations or fewer captured."
             }
           ],
-          "criterion": "Records present and readable"
+          "criterion": "Records present, readable, identified"
         },
         {
           "id": "r2",
           "levels": [
             {
               "label": "Complete",
-              "short": "All 5 carry real settings",
-              "points": 13,
-              "descriptor": "All five records carry the settings actually used at that machine, specific to the machine."
+              "short": "All 5 carry settings and tool",
+              "points": 15,
+              "descriptor": "All five records carry the settings actually used at that machine and name the tool or workholding used, in terms specific to that machine."
             },
             {
               "label": "Proficient",
-              "short": "4 carry real settings",
-              "points": 10,
-              "descriptor": "Four records carry specific settings, or all five with one recording planned rather than used values."
+              "short": "One gap in one record",
+              "points": 12,
+              "descriptor": "One of the two is missing from one record, or one record gives planned rather than used values."
             },
             {
               "label": "Developing",
-              "short": "2 or 3 carry settings",
-              "points": 5,
-              "descriptor": "Two or three records carry specific settings; the rest name the operation only."
+              "short": "Gaps in 2 or 3",
+              "points": 6,
+              "descriptor": "One or both missing from two or three records, or those records name the operation only."
             },
             {
               "label": "Absent",
-              "short": "0 or 1",
+              "short": "Gaps in most",
               "points": 0,
-              "descriptor": "One record or none carries settings."
+              "descriptor": "Settings and tooling are absent from most records."
             }
           ],
-          "criterion": "Settings as used"
+          "criterion": "Settings and tooling as used"
         },
         {
           "id": "r3",
@@ -118,19 +118,19 @@
             {
               "label": "Complete",
               "short": "All 5 record a real event",
-              "points": 12,
+              "points": 14,
               "descriptor": "All five records name something that actually happened at that machine: a problem, a mistake, a measurement that came out wrong, or something changed mid-cut."
             },
             {
               "label": "Proficient",
               "short": "4 record a real event",
-              "points": 9,
+              "points": 11,
               "descriptor": "Four records name a specific event; one is a general statement."
             },
             {
               "label": "Developing",
               "short": "2 or 3 record an event",
-              "points": 4,
+              "points": 5,
               "descriptor": "Two or three records name a specific event."
             },
             {
@@ -153,12 +153,12 @@
       "blocks": [
         {
           "type": "instructions",
-          "content": "Photograph your five drawings and upload them here. One per part.\n\nFlat, straight on, in good light, dimensions legible.\n\n**The standard has not changed:** someone who has never seen the model could make the part from your drawing. Every dimension needed to manufacture it, every feature.\n\nThe topper drawing is your own design sketch with its two constraints marked: the 2.5 inch maximum across, and the 1/4 inch hole at the center.\n\nIf you changed something between drawing the part and making it, mark the change on the drawing and note why. A drawing that matches the part you actually made is worth more than a clean one that does not."
+          "content": "Photograph your five drawings and upload them here. One per part.\n\nFlat, straight on, in good light, dimensions legible.\n\n**The standard has not changed:** someone who has never seen the model could make the part from your drawing. Every dimension needed to manufacture it, every feature.\n\nThe topper drawing is your own design sketch with its two constraints marked: the 2.5 inch maximum across, and the 1/4 inch hole at the center.\n\nChanged something between drawing the part and making it? Mark it on the drawing. A drawing that matches the part you actually made beats a clean one that does not."
         },
         {
           "id": "z2",
           "type": "imageZone",
-          "points": 15,
+          "points": 10,
           "printAs": "sketch",
           "captions": true,
           "minImages": 5
@@ -172,7 +172,7 @@
             "Every dimension needed to make the part is on the drawing",
             "My topper drawing shows the 2.5 in limit and the center hole"
           ],
-          "points": 10
+          "points": 15
         }
       ],
       "points": 25,
@@ -183,19 +183,19 @@
             {
               "label": "Complete",
               "short": "5 legible drawings",
-              "points": 10,
+              "points": 6,
               "descriptor": "Five drawings uploaded and every one is legible."
             },
             {
               "label": "Proficient",
               "short": "5, one hard to read",
-              "points": 8,
+              "points": 5,
               "descriptor": "Five uploaded with one hard to read."
             },
             {
               "label": "Developing",
               "short": "3 or 4 drawings",
-              "points": 4,
+              "points": 2,
               "descriptor": "Three or four drawings uploaded."
             },
             {
@@ -213,19 +213,19 @@
             {
               "label": "Complete",
               "short": "All 5 fully dimensioned",
-              "points": 15,
-              "descriptor": "All five drawings carry every dimension and feature needed to make the part with no guessing."
+              "points": 19,
+              "descriptor": "All five drawings carry every dimension and feature needed to make the part with no guessing, and the topper sketch marks its 2.5 inch limit and its center hole."
             },
             {
               "label": "Proficient",
               "short": "One gap in one drawing",
-              "points": 12,
-              "descriptor": "One dimension or feature missing from one drawing."
+              "points": 15,
+              "descriptor": "One dimension or feature missing from one drawing, or the topper sketch is missing one of its two constraint marks."
             },
             {
               "label": "Developing",
               "short": "Gaps in 2 or 3",
-              "points": 6,
+              "points": 7,
               "descriptor": "Dimensions or features missing from two or three drawings."
             },
             {
@@ -253,7 +253,7 @@
         {
           "id": "z3",
           "type": "imageZone",
-          "points": 5,
+          "points": 4,
           "printAs": "attach",
           "captions": true,
           "minImages": 1
@@ -261,7 +261,7 @@
         {
           "id": "f1",
           "type": "textField",
-          "points": 10,
+          "points": 11,
           "prompt": "What did not fit, and why do you think it did not? Name the part and the feature. If everything fit the first time, say so and name the fit that was tightest and what made it tight.",
           "maxSentences": 6,
           "minSentences": 3
@@ -275,7 +275,7 @@
             {
               "label": "Complete",
               "short": "Assembled, standing, clear",
-              "points": 5,
+              "points": 4,
               "descriptor": "Photo shows the trophy assembled from all five parts and standing on its own."
             },
             {
@@ -305,13 +305,13 @@
             {
               "label": "Complete",
               "short": "Named part, feature, reason",
-              "points": 10,
-              "descriptor": "Names the specific part and feature involved and gives a reason tied to how it was made or measured."
+              "points": 11,
+              "descriptor": "Names the specific part and feature that did not fit, or the tightest fit if all fit, and gives a reason tied to how it was made or measured."
             },
             {
               "label": "Proficient",
               "short": "Named, reason thin",
-              "points": 8,
+              "points": 9,
               "descriptor": "Names the part and feature but the reason is general."
             },
             {
