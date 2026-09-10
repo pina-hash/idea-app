@@ -4,20 +4,20 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "5 readable pages",
-        "points": 10,
-        "descriptor": "Five station pages uploaded and every one is readable."
+        "short": "5 readable, machine and part",
+        "points": 6,
+        "descriptor": "Five station pages uploaded, every one readable, and every one names its machine and its part."
       },
       {
         "label": "Proficient",
-        "short": "5 pages, one poor",
-        "points": 8,
-        "descriptor": "Five pages uploaded with one hard to read."
+        "short": "5 pages, one gap",
+        "points": 5,
+        "descriptor": "Five pages uploaded with one hard to read, or one missing its machine or part."
       },
       {
         "label": "Developing",
         "short": "3 or 4 pages",
-        "points": 4,
+        "points": 2,
         "descriptor": "Three or four stations captured."
       },
       {
@@ -27,8 +27,8 @@
         "descriptor": "Two stations or fewer captured."
       }
     ],
-    "points": 10,
-    "criterion": "Your five station records: Records present and readable",
+    "points": 6,
+    "criterion": "Your five station records: Records present, readable, identified",
     "incomplete": false
   },
   {
@@ -36,31 +36,31 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All 5 carry real settings",
-        "points": 13,
-        "descriptor": "All five records carry the settings actually used at that machine, specific to the machine."
+        "short": "All 5 carry settings and tool",
+        "points": 15,
+        "descriptor": "All five records carry the settings actually used at that machine and name the tool or workholding used, in terms specific to that machine."
       },
       {
         "label": "Proficient",
-        "short": "4 carry real settings",
-        "points": 10,
-        "descriptor": "Four records carry specific settings, or all five with one recording planned rather than used values."
+        "short": "One gap in one record",
+        "points": 12,
+        "descriptor": "One of the two is missing from one record, or one record gives planned rather than used values."
       },
       {
         "label": "Developing",
-        "short": "2 or 3 carry settings",
-        "points": 5,
-        "descriptor": "Two or three records carry specific settings; the rest name the operation only."
+        "short": "Gaps in 2 or 3",
+        "points": 6,
+        "descriptor": "One or both missing from two or three records, or those records name the operation only."
       },
       {
         "label": "Absent",
-        "short": "0 or 1",
+        "short": "Gaps in most",
         "points": 0,
-        "descriptor": "One record or none carries settings."
+        "descriptor": "Settings and tooling are absent from most records."
       }
     ],
-    "points": 13,
-    "criterion": "Your five station records: Settings as used",
+    "points": 15,
+    "criterion": "Your five station records: Settings and tooling as used",
     "incomplete": false
   },
   {
@@ -69,19 +69,19 @@
       {
         "label": "Complete",
         "short": "All 5 record a real event",
-        "points": 12,
+        "points": 14,
         "descriptor": "All five records name something that actually happened at that machine: a problem, a mistake, a measurement that came out wrong, or something changed mid-cut."
       },
       {
         "label": "Proficient",
         "short": "4 record a real event",
-        "points": 9,
+        "points": 11,
         "descriptor": "Four records name a specific event; one is a general statement."
       },
       {
         "label": "Developing",
         "short": "2 or 3 record an event",
-        "points": 4,
+        "points": 5,
         "descriptor": "Two or three records name a specific event."
       },
       {
@@ -91,7 +91,7 @@
         "descriptor": "One record or none names anything that happened."
       }
     ],
-    "points": 12,
+    "points": 14,
     "criterion": "Your five station records: What happened at the machine",
     "incomplete": false
   },
@@ -101,19 +101,19 @@
       {
         "label": "Complete",
         "short": "5 legible drawings",
-        "points": 10,
+        "points": 6,
         "descriptor": "Five drawings uploaded and every one is legible."
       },
       {
         "label": "Proficient",
         "short": "5, one hard to read",
-        "points": 8,
+        "points": 5,
         "descriptor": "Five uploaded with one hard to read."
       },
       {
         "label": "Developing",
         "short": "3 or 4 drawings",
-        "points": 4,
+        "points": 2,
         "descriptor": "Three or four drawings uploaded."
       },
       {
@@ -123,7 +123,7 @@
         "descriptor": "Two drawings or fewer."
       }
     ],
-    "points": 10,
+    "points": 6,
     "criterion": "Your five drawings: Drawings present and legible",
     "incomplete": false
   },
@@ -133,19 +133,19 @@
       {
         "label": "Complete",
         "short": "All 5 fully dimensioned",
-        "points": 15,
-        "descriptor": "All five drawings carry every dimension and feature needed to make the part with no guessing."
+        "points": 19,
+        "descriptor": "All five drawings carry every dimension and feature needed to make the part with no guessing, and the topper sketch marks its 2.5 inch limit and its center hole."
       },
       {
         "label": "Proficient",
         "short": "One gap in one drawing",
-        "points": 12,
-        "descriptor": "One dimension or feature missing from one drawing."
+        "points": 15,
+        "descriptor": "One dimension or feature missing from one drawing, or the topper sketch is missing one of its two constraint marks."
       },
       {
         "label": "Developing",
         "short": "Gaps in 2 or 3",
-        "points": 6,
+        "points": 7,
         "descriptor": "Dimensions or features missing from two or three drawings."
       },
       {
@@ -155,7 +155,7 @@
         "descriptor": "Most drawings could not be used to make the part."
       }
     ],
-    "points": 15,
+    "points": 19,
     "criterion": "Your five drawings: Manufacturable from the drawing",
     "incomplete": false
   },
@@ -165,7 +165,7 @@
       {
         "label": "Complete",
         "short": "Assembled, standing, clear",
-        "points": 5,
+        "points": 4,
         "descriptor": "Photo shows the trophy assembled from all five parts and standing on its own."
       },
       {
@@ -187,7 +187,7 @@
         "descriptor": "No assembly photo uploaded."
       }
     ],
-    "points": 5,
+    "points": 4,
     "criterion": "Assemble the trophy: Assembled and photographed",
     "incomplete": false
   },
@@ -197,13 +197,13 @@
       {
         "label": "Complete",
         "short": "Named part, feature, reason",
-        "points": 10,
-        "descriptor": "Names the specific part and feature involved and gives a reason tied to how it was made or measured."
+        "points": 11,
+        "descriptor": "Names the specific part and feature that did not fit, or the tightest fit if all fit, and gives a reason tied to how it was made or measured."
       },
       {
         "label": "Proficient",
         "short": "Named, reason thin",
-        "points": 8,
+        "points": 9,
         "descriptor": "Names the part and feature but the reason is general."
       },
       {
@@ -219,7 +219,7 @@
         "descriptor": "No response."
       }
     ],
-    "points": 10,
+    "points": 11,
     "criterion": "Assemble the trophy: What fit and what did not",
     "incomplete": false
   }
