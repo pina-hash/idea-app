@@ -15,7 +15,7 @@
 - Lands on: `main` (cycle 1, at `7f1bcc57`, deploy read back from production).
   **Cycle 2 did NOT land: `integration` is red on a nondeterministic test in
   ledger 0120's bundle, which this bundle does not own.**
-- Status: issued
+- Status: pushed
 - Branch: `claude/ledger-0130-derived-numbers-b629zb`, branched from
   `origin/integration` at `97475435`.
 - Notes: a repair bundle and a landing bundle in one.
