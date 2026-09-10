@@ -22,6 +22,7 @@
 
 /** An observation code as `gauntlet_run_review` spells it. */
 export type ObservationCode =
+	| 'pending_verification'
 	| 'fast_finish'
 	| 'submit_volume_unseen'
 	| 'clock_exceeds_run'
@@ -40,6 +41,11 @@ export interface Explained {
 }
 
 export const OBSERVATIONS: Record<ObservationCode, Explained> = {
+	pending_verification: {
+		label: 'Held for verification',
+		meaning:
+			'The board is holding this run rather than giving it a place, because its server clock is under the floor you set for the board. The student can see that it is held and has been told you can see it. This is the board\u2019s own decision about the run, not the "finished quickly" lens above. Narrowing that lens cannot hide a held run from this list.'
+	},
 	fast_finish: {
 		label: 'Finished quickly',
 		meaning:

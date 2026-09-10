@@ -86,8 +86,31 @@
 					<span class="challenge-meta dim">
 						{c.material ?? 'Material TBD'} &middot; {c.massUnit} units
 					</span>
-					{#if c.cleared}
+					<!--
+						0194: THREE OUTCOMES, NOT TWO. `cleared` is read from the
+						student's own `submissions` rows, so a run the board is
+						HOLDING is cleared -- and this rendered `Rank #` with
+						nothing after the hash for exactly that case, because
+						`c.rank` was null and Svelte prints null as an empty
+						string. It was already wrong before 0194 (a sub-floor run
+						had no board row at all, so the rank was null then too);
+						0194 makes it worse by giving the row a real time to print
+						beside the dangling hash, and gives it the state that
+						fixes it.
+
+						The middle branch names no threshold, per the rule in
+						`RANK_STATES`.
+					-->
+					{#if c.cleared && c.rankState === 'pending_verification'}
+						<span class="challenge-meta">
+							Best {formatTime(c.bestTime)} &middot; held for verification
+						</span>
+					{:else if c.cleared && c.rank != null}
 						<span class="challenge-meta">Best {formatTime(c.bestTime)} &middot; Rank #{c.rank}</span>
+					{:else if c.cleared}
+						<!-- Cleared, but this deployment has no board row to read a
+						     rank from. Say the true, narrower thing. -->
+						<span class="challenge-meta">Best {formatTime(c.bestTime)}</span>
 					{:else}
 						<span class="challenge-meta dim">Not cleared yet</span>
 					{/if}

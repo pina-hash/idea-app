@@ -83,7 +83,12 @@ const CHAIN = [
 	'0148_gauntlet_knowledge_clock.sql',
 	'0150_gauntlet_connect_run_analysis.sql',
 	'0151_gauntlet_meter_practice.sql',
-	'0152_gauntlet_run_review.sql'
+	'0152_gauntlet_run_review.sql',
+	// 0194 REWRITES this function's body (it adds the `pending_verification`
+	// observation), so a chain stopping at 0152 would sweep a vocabulary the
+	// tree no longer ships and pass while the two halves disagreed.
+	'0154_gauntlet_rank_what_is_checkable.sql',
+	'0194_gauntlet_verification_floor.sql'
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -949,10 +954,20 @@ describe('0152 gauntlet_run_review', () => {
 
 		it('every observation code the function can emit has a sentence, and vice versa', async () => {
 			const fromSql = (await sqlObservationCodes()).sort();
-			// POSITIVE CONTROL for the extraction: if the regex stops matching, this
-			// is what says so, rather than an empty set agreeing with an empty set.
-			expect(fromSql.length).toBe(6);
+			// POSITIVE CONTROL for the extraction: if the regex stops matching,
+			// this is what says so, rather than an empty set agreeing with an
+			// empty set.
+			//
+			// A FLOOR RATHER THAN AN EXACT COUNT. This pinned 6 and a migration
+			// adding a seventh observation (0194) necessarily broke it -- with
+			// the only available fix being to write down whatever the new number
+			// is, which records what last happened and checks nothing. The rule
+			// the control is actually for is "the extraction found the codes",
+			// and a named code plus a non-trivial floor says that without being
+			// a ratchet. The real assertion is the set equality below.
+			expect(fromSql.length).toBeGreaterThanOrEqual(6);
 			expect(fromSql).toContain('fast_finish');
+			expect(fromSql).toContain('telemetry_absent');
 
 			expect(fromSql).toEqual(Object.keys(OBSERVATIONS).sort());
 			for (const code of fromSql) expect(isObservationCode(code)).toBe(true);

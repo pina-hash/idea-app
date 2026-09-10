@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { canAuthorGauntlet } from '$lib/server/gauntlet-authoring';
+import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -49,6 +50,36 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			canAuthorGauntlet(supabase, claims.sub)
 		]);
 
+	// 0194: THE REVIEW CONSOLE'S ONE ROUTE INTO THE UI.
+	//
+	// `/gauntlet/run-review` has existed since 0152 and NOTHING IN `src/` HAS
+	// EVER LINKED TO IT -- it was reachable only by typing the URL. That is what
+	// made `0154`'s promise ("every unranked run is a run the console already
+	// reports") true of the data and false of anybody's day, and it is half of
+	// what decision 19 says a held state buys: a queue for the page to be a
+	// queue OF.
+	//
+	// ADMIN ONLY, AND ASKED ONLY FOR ADMINS. The count is null for everybody
+	// else, never zero: a zero would be a claim about a queue this caller may
+	// not read, and the card keys on null to render nothing at all.
+	// `gauntlet_run_review` is deliberately NOT on the author tier (0155 left it
+	// on `is_admin()` because authoring a question is not a licence to read what
+	// was answered), so this reads `isAdmin` and not `canAuthor`.
+	const admin = await isAdmin(supabase, claims.sub);
+	let heldCount: number | null = null;
+	if (admin) {
+		// A FILTER on a new column fails exactly as selecting one does --
+		// PostgREST refuses `42703` and fails the whole request -- and 0194 is
+		// applied by hand, so this is try-then-fall-back rather than a ladder
+		// with a second rung: there is no narrower way to ask this question, and
+		// the honest answer on a pre-0194 deployment is "cannot tell".
+		const { count, error: countError } = await supabase
+			.from('gauntlet_leaderboard')
+			.select('user_id', { count: 'exact', head: true })
+			.eq('rank_state', 'pending_verification');
+		heldCount = countError ? null : (count ?? 0);
+	}
+
 	const totals: Record<string, number> = {};
 	const idsByMode: Record<string, string[]> = {};
 	for (const c of challenges ?? []) {
@@ -73,6 +104,15 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
 		canAuthorGauntlet: canAuthor,
+		// `isAdmin` IS NOT RETURNED HERE. The root layout already puts it on
+		// `page.data`, and page data merges OVER layout data -- so returning a
+		// second copy would shadow the one every other surface reads with an
+		// answer computed a second way. `admin` above is local, and its only job
+		// is deciding whether to ASK for the count.
+		//
+		// Null means either "not an admin" or "0194 is not applied here". The
+		// card renders a way in with no number on it in both cases.
+		heldCount,
 		modeStats: { totals, cleared, idsByMode },
 		progression: progression ?? null
 	};

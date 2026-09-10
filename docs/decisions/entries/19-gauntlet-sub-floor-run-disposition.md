@@ -1,9 +1,19 @@
 # 19 What happens to a GAUNTLET run under the plausibility floor
 - Raised: 2026-09-09  By: prompt 0109, `claude/docs-standards-ledger-hihkhd`
-- Status: open
-- Decision: The FIRST half is answered and is not what this entry asks. Mr. Pina said
-  on 2026-09-09: KEEP the floor, and make the cutoff a setting he owns. What is open
-  is the SECOND half -- what a sub-floor run should look like once it exists.
+- Status: decided, and BUILT (2026-09-10, prompt 0120,
+  `claude/gauntlet-verification-floor-oclq47`, migration `0194`)
+- Decision: Mr. Pina answered BOTH halves on 2026-09-09: KEEP the floor, make the
+  cutoff a setting he owns, and give a sub-floor run a STATUS rather than
+  silently unranking it. `pending verification` is the shape, which is the
+  default this entry recorded below.
+
+  **Everything under the headings below is preserved as it was written, on
+  2026-09-09, while the second half was still open.** It is the reasoning the
+  decision was made against, including the counter-argument he made it in spite
+  of, and it is not edited to match what was built -- a decision entry is dated
+  reasoning, not a description of the tree. Where a measurement below has since
+  been acted on, `docs/history/gauntlet-verification-floor-oclq47.md` says what
+  was done and what it cost.
 - Default this assistant would pick: give the run a `pending verification` state that
   is VISIBLE on the board rather than dropping it out of the view, because `0154`
   pinned the floor to `0152`'s review-console threshold precisely so that no run
@@ -123,3 +133,38 @@ and that is the trade only he can make.
   `tools/deploy-probe.mjs`.
 - `gauntlet_room_board` (0010) has no floor and is unaffected. `0154` names that as
   out of scope and still open; it is a third question this entry does not ask.
+
+
+## What was built (2026-09-10, added when the entry was closed)
+
+Recorded here because the entry's own "what it unblocks" line underestimated it:
+it read "one migration on the view plus one sentence on the Speedrun result
+card", and the second half of the first sentence was right while the first was
+not quite.
+
+* **The floor is `gauntlet_rank_settings.speedrun_floor_ms`**, a singleton on
+  `gauntlet_speedrun_ruleset`'s shape, with `gauntlet_rank_settings_get` /
+  `_set` both admin only and the table granted to NOBODY. The form is on
+  `/gauntlet/run-review`, directly above the list it decides the contents of.
+* **A held run stays ON the board** carrying `rank_state = 'pending_verification'`
+  and a NULL `rank`, and the `distinct on` prefers a ranked row so a student
+  holding both keeps their honest seat.
+* **The apply-time pin this entry said would have to move DID move**, and to
+  something stronger than an equality: the board never drops the run at all, and
+  `gauntlet_run_review` emits a `pending_verification` observation from the same
+  settings row rather than from `p_fast_finish_seconds` -- so a teacher
+  narrowing their own lens cannot hide a held run.
+* **The live gap this entry flagged is closed.** `p_fast_finish_seconds` is
+  still a per-request parameter and still means "your floor, not a rule about
+  the part"; what changed is that the box now DEFAULTS to the board's own
+  number instead of a hard 30, and the held-run observation is independent of
+  the box either way. The entry's suggestion that one setting should own both
+  numbers was NOT taken: they are two different questions and the surface now
+  says so in words.
+* **`/gauntlet/run-review` has a route into the UI**, an admin-only card on the
+  dojo landing carrying the held count. The entry's observation that the page
+  was reachable only by typing the URL was confirmed against the tree and is
+  what made this part of the same bundle.
+* **The counter-argument stands unaddressed, deliberately.** A held state is
+  still a public mark on a public board. Nothing built here softens that; it was
+  the trade he made with that sentence in front of him.

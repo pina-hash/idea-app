@@ -1,6 +1,13 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { DEFAULT_SPEEDRUN_RULESET, MODELS_BUCKET, type SpeedrunFraming, type SpeedrunRuleset } from '$lib/gauntlet';
+import {
+	DEFAULT_SPEEDRUN_RULESET,
+	MODELS_BUCKET,
+	type RankState,
+	type SpeedrunFraming,
+	type SpeedrunRuleset
+} from '$lib/gauntlet';
+import { readBoard } from '$lib/gauntlet/board-selects';
 import { nextUncleared } from '$lib/gauntlet/next-challenge';
 
 /** One row of the named-field projection in the load below. */
@@ -68,19 +75,45 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		error(404, 'Challenge not found.');
 	}
 
-	const { data: board } = await supabase
-		.from('gauntlet_leaderboard')
-		.select('user_id, player, score_metric, rank')
-		.eq('challenge_id', params.id)
-		.order('rank', { ascending: true })
-		.limit(50);
+	// 0194: THE BOARD CARRIES A STATE NOW, and both reads go down the ladder in
+	// `$lib/gauntlet/board-selects` because 0194 is applied by hand.
+	//
+	// `nullsFirst: false` IS THE LOAD-BEARING HALF OF THE ORDER. A held row's
+	// rank is NULL, and Postgres sorts NULLs FIRST on an ascending order by
+	// default -- so without it every held run would sit ABOVE rank 1, which is
+	// the opposite of what a held run has earned and reads as the board being
+	// led by a run nobody can see a number for.
+	type BoardRow = {
+		user_id: string;
+		player: string;
+		score_metric: number | null;
+		rank: number | null;
+		rank_state?: RankState;
+	};
+	const { rows: board, rankStateReady } = await readBoard<BoardRow>(
+		(columns) =>
+			supabase
+				.from('gauntlet_leaderboard')
+				.select(columns)
+				.eq('challenge_id', params.id)
+				.order('rank', { ascending: true, nullsFirst: false })
+				.limit(50)
+				.then(({ data, error }) => ({ data: data as unknown as BoardRow[] | null, error })),
+		['user_id, player, score_metric, rank, rank_state', 'user_id, player, score_metric, rank']
+	);
 
-	const { data: myBest } = await supabase
-		.from('gauntlet_leaderboard')
-		.select('score_metric, rank')
-		.eq('challenge_id', params.id)
-		.eq('user_id', claims.sub)
-		.maybeSingle();
+	type MyRow = { score_metric: number | null; rank: number | null; rank_state?: RankState };
+	const { rows: myRows } = await readBoard<MyRow>(
+		(columns) =>
+			supabase
+				.from('gauntlet_leaderboard')
+				.select(columns)
+				.eq('challenge_id', params.id)
+				.eq('user_id', claims.sub)
+				.then(({ data, error }) => ({ data: data as unknown as MyRow[] | null, error })),
+		['score_metric, rank, rank_state', 'score_metric, rank']
+	);
+	const myBest = myRows[0] ?? null;
 
 	// Rebuilt from the named projection rather than read off `prompt`, so the
 	// object the page renders can only ever hold what the select above listed.
@@ -185,14 +218,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		},
 		modelUrl,
 		ruleset: (rules ?? DEFAULT_SPEEDRUN_RULESET) as SpeedrunRuleset,
-		board: (board ?? []) as Array<{
-			user_id: string;
-			player: string;
-			score_metric: number | null;
-			rank: number;
-		}>,
+		board,
+		rankStateReady,
 		myUserId: claims.sub,
-		myBest: myBest ?? null
+		myBest
 	};
 };
 

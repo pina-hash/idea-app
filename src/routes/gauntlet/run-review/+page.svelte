@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PageData } from './$types';
+	import type { ActionData, PageData } from './$types';
 	import {
 		OBSERVATIONS,
 		TELEMETRY,
@@ -23,7 +23,11 @@
 	 * own vocabulary by `tests/gauntlet-run-review.test.ts`.
 	 */
 
-	let { data }: { data: PageData } = $props();
+	// `form` is OPTIONAL rather than required. SvelteKit always passes it (null
+	// when no action has run), so the default is never taken in the app -- what
+	// it buys is that the page can be mounted with data alone, which is how
+	// every existing test drives it and how a harness should be able to.
+	let { data, form = null }: { data: PageData; form?: ActionData } = $props();
 
 	const rows = $derived(data.rows);
 	const filters = $derived(data.filters);
@@ -119,6 +123,69 @@
 				a fast student. Ask them how they built it.
 			</li>
 		</ul>
+	</section>
+
+	<!--
+		0194: THE BOARD'S FLOOR. This is the only place it can be changed, and it
+		sits directly above the list it decides the contents of.
+
+		IT IS ABOVE THE LENS FORM ON PURPOSE. The two numbers underneath each
+		other used to be one number doing both jobs; separating them only helps
+		if it is obvious which is which, so the board's own decision comes first
+		and the reader's lens second, in the order they matter.
+	-->
+	<section class="card rr-controls">
+		<h2>The board's verification floor</h2>
+		<p class="rr-help">
+			A Speedrun run whose server clock is under this is held for verification: it stays on the
+			board, it takes no place, and it is listed here. The student is told it is held and that you
+			can see it. Nobody is told the number.
+		</p>
+
+		{#if data.settingsMissing}
+			<p class="warn">
+				Migration 0194 is not on the database yet, so there is no setting to change. The board is
+				using its built in floor of 30 seconds.
+			</p>
+		{:else if data.boardFloorMs == null}
+			<p class="warn">
+				The floor could not be read, so this is not showing you a number it is not sure of. The
+				board is still applying whatever is set.
+			</p>
+		{:else}
+			<!--
+				A PLAIN POST, deliberately not `use:enhance`. Saving the floor
+				changes what the list underneath is, so the full reload this does
+				is the correct outcome rather than a cost: an enhanced submit
+				would leave a stale list under a new number. It also keeps this
+				page importable by `tests/gauntlet-run-review-route.test.ts`,
+				which mounts the real component -- `$app/forms` has no stub in
+				`vitest.config.ts`, and that file belongs to another bundle.
+			-->
+			<form class="rr-fields" method="POST" action="?/setFloor">
+				<label class="rr-field">
+					<span class="rr-label">Hold a run under (seconds)</span>
+					<input
+						class="ff-input"
+						type="number"
+						name="floorSeconds"
+						min="0"
+						max="600"
+						step="1"
+						value={Math.round(data.boardFloorMs / 1000)}
+					/>
+					<span class="rr-help">
+						0 holds nothing on the clock. A run that recorded no clock at all is held at every
+						setting, because there is nothing to check it against.
+					</span>
+				</label>
+				<button class="btn tap-44" type="submit">Save the floor</button>
+			</form>
+		{/if}
+
+		{#if form?.floorMessage}
+			<p class:warn={!form.floorOk} class:rr-help={form.floorOk}>{form.floorMessage}</p>
+		{/if}
 	</section>
 
 	<form class="card rr-controls" method="GET">

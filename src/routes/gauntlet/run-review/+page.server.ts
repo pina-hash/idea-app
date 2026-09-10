@@ -1,6 +1,6 @@
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/admin';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import type { ObservationCode, TelemetryState } from './observations';
 
 /**
@@ -85,7 +85,35 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, url }
 	// function; this pair is convenience, the function's is the real clamp.
 	const challengeId = url.searchParams.get('challenge') || null;
 	const sinceHours = intParam(url.searchParams.get('hours'), 720, 1, 8760);
-	const fastFinishSeconds = intParam(url.searchParams.get('floor'), 30, 0, 3600);
+	// 0194: THE BOARD'S OWN FLOOR, read ONCE and used for both jobs below -- the
+	// number shown in the settings card, and the DEFAULT of the lens box.
+	//
+	// IT IS READ, NEVER ASSUMED. The box defaulted to a hard 30, which was
+	// `0154`'s literal restated in a third place, so the day the floor moved
+	// this page would have shown a lens that no longer matched the board with
+	// nothing saying so. A teacher may still narrow the box for themselves; the
+	// held-run observation is independent of it either way, which is what makes
+	// narrowing safe.
+	//
+	// PGRST202 ALONE means 0194 is not applied yet -- never the message, so a
+	// runtime failure inside the function fails closed rather than degrading to
+	// a guess about the floor.
+	const { data: settings, error: settingsError } = await supabase.rpc('gauntlet_rank_settings_get');
+	const settingsMissing = settingsError?.code === UNDEFINED_FUNCTION;
+	const boardFloorMs =
+		!settingsError && settings && typeof settings === 'object'
+			? ((settings as { speedrun_floor_ms?: number }).speedrun_floor_ms ?? null)
+			: null;
+
+	// 30 is `0152`'s own default and `0154`'s literal: a page that could not
+	// read the setting shows the number it has always shown rather than
+	// inventing one.
+	const fastFinishSeconds = intParam(
+		url.searchParams.get('floor'),
+		boardFloorMs == null ? 30 : Math.round(boardFloorMs / 1000),
+		0,
+		3600
+	);
 	const includeAbsent = url.searchParams.get('absent') === '1';
 	const observedOnly = url.searchParams.get('all') !== '1';
 
@@ -113,6 +141,72 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, url }
 		challenges: (challenges ?? []) as Array<{ id: string; title: string }>,
 		filters: { challengeId, sinceHours, fastFinishSeconds, includeAbsent, observedOnly },
 		notApplied,
-		readError: !notApplied && rpcError ? rpcError.message : null
+		readError: !notApplied && rpcError ? rpcError.message : null,
+		// 0194. `boardFloorMs` null with `settingsMissing` true is "the migration
+		// is not applied here"; null WITHOUT it is a real read failure, and the
+		// page says which. Neither renders as a number.
+		boardFloorMs,
+		settingsMissing
 	};
+};
+
+/**
+ * THE FLOOR IS A SETTING MR. PINA OWNS (0194), and this is where he owns it.
+ *
+ * IT LIVES ON THIS PAGE AND NOT IN `/admin` DELIBERATELY. The number's whole
+ * effect is the list underneath it: raising it holds more runs and puts them
+ * here, lowering it releases them. A settings screen somewhere else would mean
+ * changing a number and then going to look for what it did.
+ *
+ * THE ROUTE IS NOT THE BOUNDARY. `gauntlet_rank_settings_set` re-checks
+ * `is_admin()` in its own body and RAISES for anybody else; the `isAdmin` call
+ * in the load is convenience, exactly as it is for the report itself.
+ */
+export const actions: Actions = {
+	setFloor: async ({ request, locals: { supabase, claims } }) => {
+		if (!claims) error(404, 'Not found');
+		if (!(await isAdmin(supabase, claims.sub))) error(404, 'Not found');
+
+		const form = await request.formData();
+		const raw = String(form.get('floorSeconds') ?? '').trim();
+		const seconds = Number(raw);
+		// Checked here as well as in the database, because a refusal a person
+		// can read where they are typing beats one that arrives as an RPC error.
+		// The database's is still the boundary and still runs.
+		if (raw === '' || !Number.isFinite(seconds) || seconds < 0 || seconds > 600) {
+			return fail(400, {
+				floorMessage: 'Enter a whole number of seconds between 0 and 600.',
+				floorOk: false
+			});
+		}
+
+		const { data, error: rpcError } = await supabase.rpc('gauntlet_rank_settings_set', {
+			p_speedrun_floor_ms: Math.round(seconds) * 1000
+		});
+		if (rpcError) {
+			return fail(rpcError.code === UNDEFINED_FUNCTION ? 400 : 500, {
+				floorMessage:
+					rpcError.code === UNDEFINED_FUNCTION
+						? 'Migration 0194 is not on the database yet, so there is no setting to change.'
+						: rpcError.message,
+				floorOk: false
+			});
+		}
+
+		// A CONSIDERED REFUSAL IS NOT A FAILURE TO RETRY. The RPC answers
+		// `{ok:false, message}` for a number out of range, and that sentence is
+		// shown verbatim rather than re-toned here.
+		const result = (data ?? {}) as { ok?: boolean; message?: string; speedrun_floor_ms?: number };
+		if (result.ok !== true) {
+			return fail(400, {
+				floorMessage: result.message ?? 'The floor was not changed.',
+				floorOk: false
+			});
+		}
+
+		return {
+			floorOk: true,
+			floorMessage: `The board now holds a run under ${Math.round((result.speedrun_floor_ms ?? 0) / 1000)} seconds for verification.`
+		};
+	}
 };

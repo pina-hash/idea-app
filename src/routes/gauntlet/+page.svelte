@@ -19,7 +19,10 @@
 	};
 
 	let { data } = $props();
-	let { supabase, userName, userRole, canAuthorGauntlet, modeStats } = $derived(data);
+	// `isAdmin` comes from the ROOT LAYOUT's data, which every surface reads;
+	// the page load deliberately does not return a second copy of it.
+	let { supabase, userName, userRole, canAuthorGauntlet, isAdmin, heldCount, modeStats } =
+		$derived(data);
 
 	const liveCount = MODES.filter((m) => m.status === 'live').length;
 	const totalCleared = $derived(
@@ -121,6 +124,35 @@
 				<div class="author-sub">Create and manage challenges across every mode.</div>
 			</div>
 			<span class="btn secondary">Open authoring &rsaquo;</span>
+		</a>
+	{/if}
+
+	<!-- 0194: the review console's ONE route into the UI. Admin only, and not on
+	     the author tier: 0155 left `gauntlet_run_review` on `is_admin()`
+	     deliberately, because authoring a question is not a licence to read what
+	     was answered. Before this the page was reachable only by typing the URL.
+
+	     THE COUNT IS OMITTED RATHER THAN ZEROED when it is null, which is both
+	     "not an admin" (unreachable here) and "0194 is not applied yet". A card
+	     saying "0 held" on a deployment that cannot count them would be a claim
+	     nobody checked. -->
+	{#if isAdmin}
+		<a class="card author-callout" href="/gauntlet/run-review">
+			<div>
+				<div class="author-title">Ranked run review</div>
+				<div class="author-sub">
+					{#if heldCount != null && heldCount > 0}
+						{heldCount}
+						{heldCount === 1 ? 'run is' : 'runs are'} held for verification. Recorded facts and
+						observations for ranked Speedrun runs.
+					{:else if heldCount === 0}
+						No runs are held. Recorded facts and observations for ranked Speedrun runs.
+					{:else}
+						Recorded facts and observations for ranked Speedrun runs.
+					{/if}
+				</div>
+			</div>
+			<span class="btn secondary">Open review &rsaquo;</span>
 		</a>
 	{/if}
 

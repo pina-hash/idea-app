@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { GauntletSeries } from '$lib/gauntlet';
+import { rankStateOf, type GauntletSeries, type RankState } from '$lib/gauntlet';
+import { readBoard } from '$lib/gauntlet/board-selects';
 
 /**
  * One row of the named-field projection in the load below. PostgREST flattens a `->>`
@@ -74,11 +75,32 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.order('sort_order', { ascending: true })
 		.order('name', { ascending: true });
 
-	const { data: mine } = await supabase
-		.from('gauntlet_leaderboard')
-		.select('challenge_id, score_metric, rank')
-		.eq('user_id', claims.sub)
-		.eq('mode', 'speedrun');
+	// 0194: the board now carries a STATE, and it is read through the ladder in
+	// `$lib/gauntlet/board-selects` because 0194 is applied by hand -- a
+	// deployment between this code and the migration would otherwise report an
+	// empty board on every Speedrun page.
+	const { rows: mine } = await readBoard<{
+		challenge_id: string;
+		score_metric: number | null;
+		rank: number | null;
+		rank_state?: RankState;
+	}>((columns) =>
+		supabase
+			.from('gauntlet_leaderboard')
+			.select(columns)
+			.eq('user_id', claims.sub)
+			.eq('mode', 'speedrun')
+			.then(({ data, error }) => ({
+				data: data as unknown as Array<{
+					challenge_id: string;
+					score_metric: number | null;
+					rank: number | null;
+					rank_state?: RankState;
+				}> | null,
+				error
+			})),
+		['challenge_id, score_metric, rank, rank_state', 'challenge_id, score_metric, rank']
+	);
 
 	// A student's own history, never the board: the board (above) is a RANKING
 	// and, since 0154, drops a passing run under the 30s plausibility floor from
@@ -92,7 +114,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.eq('user_id', claims.sub)
 		.eq('mode', 'speedrun');
 
-	const byChallenge = new Map((mine ?? []).map((r) => [r.challenge_id as string, r]));
+	const byChallenge = new Map(mine.map((r) => [r.challenge_id, r]));
 	const clearedIds = new Set(
 		(mySubmissions ?? [])
 			.filter((s) => s.is_correct === true)
@@ -115,8 +137,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			seriesId: row.series_id ?? null,
 			seriesOrder: row.series_order ?? null,
 			cleared: clearedIds.has(row.id),
-			bestTime: (best?.score_metric ?? null) as number | null,
-			rank: (best?.rank ?? null) as number | null
+			bestTime: best?.score_metric ?? null,
+			rank: best?.rank ?? null,
+			// 0194: null when there is no board row at all (never played, or a
+			// pre-0194 deployment that dropped a held run), so the tile can tell
+			// "held" apart from "not attempted" -- which are the two things the
+			// old null rank ran together.
+			rankState: best ? rankStateOf(best) : null
 		};
 	});
 
@@ -125,5 +152,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		userRole: profile?.role ?? 'student',
 		challenges: list,
 		series: (series ?? []) as GauntletSeries[]
+		// `rankStateReady` IS DELIBERATELY NOT RETURNED. The ladder above still
+		// uses it to pick a rung, but this page has no branch that needs it: a
+		// held run has no board row at all on a pre-0194 deployment, so
+		// `rankState` is null and the tile falls to its "cleared, no rank to
+		// show" branch, which is the true, narrower sentence for that state.
+		// Returning a flag nothing reads is the dormant fallback this codebase
+		// keeps paying for. The DETAIL page does read it, because there the
+		// chip is a thing that would otherwise be guessed at.
 	};
 };
