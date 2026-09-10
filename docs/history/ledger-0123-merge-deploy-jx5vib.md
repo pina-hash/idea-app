@@ -88,3 +88,48 @@ SECOND reading rather than the first. Taking the baseline cost one request and
 turned a claim this bundle would otherwise have had to make on one data point
 into a claim on two.
 
+
+**CI WAS DISPATCHED ON THE FULL FORTY-CHARACTER SHA, AND THE VERDICT WAS READ
+OFF THE AGGREGATOR RATHER THAN OFF THE ROLLED-UP CONCLUSION.** Run
+`34427266362`, `workflow_dispatch` with `ref` set to
+`21b0801d9babfc66f606a81163948d2185fd6ae1`. Both halves of that sentence are
+guards against a specific way this check reports success over nothing: a SHORT
+sha makes `actions/checkout` fail, and because every later step is
+`if: always()`, they run against an EMPTY workspace and report success, in a run
+that finishes in under a minute. And `ci.yml` marks its four real steps
+`continue-on-error: true`, which rewrites each one's `conclusion` to `success`
+and leaves the truth in `outcome`, so the job-level conclusion is not the
+verdict. The aggregator step prints the four outcomes:
+
+    ref tested:         21b0801d9babfc66f606a81163948d2185fd6ae1 (HEAD)
+    check:              success
+    test:               success
+    vanguard-changelog: success
+    history-verify:     success
+
+The workspace was real rather than empty, which is checkable from the timings
+rather than assumed: checkout took 7s, the type and a11y check 29s, the suite
+3m25s (01:54:20 to 01:57:45), and `history:verify` reassembled 168 entries and
+2252747 bytes to a matching sha256. A run against an empty checkout has none of
+those.
+
+**WAITING WAS DONE AGAINST THE CLOCK, NOT AGAINST ARITHMETIC.** Ledger 0114
+recorded a session diagnosing a healthy job as hung by polling before its own
+timer had elapsed and reading its own estimate rather than the time; this
+session started to do the same thing and caught it -- three polls in, the
+container clock said 01:54:59 against a suite that had started at 01:54:20, so
+39 seconds had passed where the poll count suggested several minutes. The fix
+was to stop timing and start blocking on the condition itself: an until-loop on
+the run's own `status` field, and afterwards a second one on production's own
+stamp. Both halves of the report below are a read of the thing being claimed
+rather than a read of how long it had been since something was sent.
+
+**THE MERGE.** `main` `131aeec2` + `integration` `21b0801d` -> `02ede0f3`, with
+`--no-ff` so the lane reverts as one commit; two parents confirmed on the
+result, and the migration diff re-checked as empty against the merge itself
+before pushing. Then the reconciling merge in the other direction:
+`integration` `21b0801d` + `main` `02ede0f3` -> `da06d32e`, pushed, which puts
+`integration` back to a superset of `main` so the next lane's `merge-tree`
+starts clean. Neither merge conflicted, so no file was resolved and the
+permitted-conflict list stayed unexercised. Nothing was force-pushed and no
+source file was touched by this bundle.
