@@ -240,15 +240,106 @@ export interface ChallengeDetail extends ChallengeSummary {
 	prompt: KnowledgePrompt;
 }
 
-/** A row from the `gauntlet_leaderboard` view. */
+/**
+ * WHAT A BOARD ROW SAYS ABOUT ITSELF (0194). The FIRST status a board row has
+ * ever carried -- before it, membership was binary and a run was either in the
+ * view or not.
+ *
+ * `ranked`               a seat on the board, numbered.
+ * `pending_verification` the run passed and is HELD: it is on the board, it
+ *                        holds no seat, and a teacher has it in front of them.
+ *
+ * A THIRD VALUE IS A REAL DECISION AND NOT A STRING. Every renderer below is
+ * exhaustive over this union, so adding one without its word, its glyph and its
+ * hue is a type error rather than a chip that renders blank.
+ */
+export type RankState = 'ranked' | 'pending_verification';
+
+/**
+ * A row from the `gauntlet_leaderboard` view.
+ *
+ * `rank` IS NULLABLE SINCE 0194, and that is the load-bearing half of the
+ * type. A held run is present with a null rank, so a reader that treated the
+ * presence of a row as "this student is ranked" is now wrong -- which is
+ * exactly what the compiler now says, at every such site.
+ *
+ * `rank_state` IS OPTIONAL BECAUSE 0194 IS APPLIED BY HAND. A deployment
+ * sitting between this code and the migration is a real state; the loaders read
+ * the column through a ladder and say so with their own `rankStateReady` flag,
+ * so `undefined` here means "this deployment cannot tell", never "ranked".
+ */
 export interface LeaderboardRow {
 	challenge_id: string;
 	user_id: string;
 	player: string;
 	is_correct: boolean | null;
 	score_metric: number | null;
-	rank: number;
+	rank: number | null;
 	created_at: string;
+	rank_state?: RankState;
+}
+
+/**
+ * THE WORDS FOR A RANK STATE, STATED ONCE.
+ *
+ * Every sentence here is addressed to THE STUDENT WHOSE RUN IT IS, and every
+ * one obeys two rules that are not negotiable:
+ *
+ *   1. IT NAMES NO THRESHOLD. Decision 19's whole argument for a status rather
+ *      than an explanation is that a held state says something true without
+ *      handing a forger the number. There is no count of seconds in this file
+ *      and there must not be one -- the number lives in `gauntlet_rank_settings`
+ *      and is not readable by a student by any path.
+ *   2. IT SAYS WHAT HAPPENS NEXT. "Held" with no next step reads as a dead end,
+ *      and the honest fast student is the one this costs most.
+ *
+ * There is no word here for dishonesty, for the same reason `observations.ts`
+ * has none: nothing about a clock distinguishes a very fast honest run from the
+ * other kind, which `0152` says in its own header and `0154` repeats.
+ */
+export interface RankStateWords {
+	/** A few words, for the chip beside a row. */
+	label: string;
+	/** What happened and what comes next. One or two sentences, to the student. */
+	detail: string;
+	/**
+	 * The board's `#` cell where a rank number would be. NEVER BLANK: an
+	 * empty cell in a numbered column reads as a rendering fault, and the
+	 * word explaining it is in the chip beside the player, not here.
+	 *
+	 * An EN dash, not an em dash, which this repo's copy convention rules
+	 * out. It is a table's no-value mark rather than prose either way.
+	 */
+	rankCell: string;
+}
+
+export const RANK_STATES: Record<RankState, RankStateWords> = {
+	ranked: {
+		label: 'Ranked',
+		detail: 'This run holds a place on the board.',
+		rankCell: ''
+	},
+	pending_verification: {
+		label: 'Pending verification',
+		detail:
+			'This run passed and is on the board, held for a teacher to check before it takes a place. Nothing is lost and there is nothing to redo: your time is recorded and your instructor can see it. Ask them if you would like it looked at sooner.',
+		rankCell: '\u2013'
+	}
+};
+
+/**
+ * The state of a board row, for a deployment that may or may not have 0194.
+ *
+ * A MISSING COLUMN IS NOT `ranked`. Where the ladder could not read
+ * `rank_state`, the honest answer about a row is the one the board itself gives
+ * -- a row with a rank has a seat -- and NOT a guess that everything is fine.
+ * That is why this reads `rank` rather than defaulting the string: pre-0194 a
+ * held run has no row at all, so a row that IS there and HAS a rank is ranked,
+ * and the one shape this can be wrong about does not exist on that schema.
+ */
+export function rankStateOf(row: Pick<LeaderboardRow, 'rank' | 'rank_state'>): RankState {
+	if (row.rank_state) return row.rank_state;
+	return row.rank == null ? 'pending_verification' : 'ranked';
 }
 
 /** The grading result returned by the `gauntlet_submit` RPC (knowledge modes). */
