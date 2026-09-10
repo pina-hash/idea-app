@@ -28,14 +28,17 @@ import type { RequestHandler } from './$types';
  * by `document.cookie`: the host a student's uploaded document runs on is
  * exactly the question.
  *
- * THE SANDBOX IS THE OTHER HALF AND NEITHER IS SUFFICIENT ALONE. The frame
- * attribute is `sandbox="allow-scripts"` with no `allow-same-origin`, which is
- * what puts a FRAMED document in an opaque origin. Note what that does NOT
- * cover: the contract's CSP carries no `sandbox` directive, so a student who
- * navigates STRAIGHT to a `/hx/` URL gets the real sandbox origin rather than an
- * opaque one. That gap is discussed where the policy is built
- * (`../_headers.ts`) and reported rather than closed here -- the CSP is
- * normative and four lanes are building against it.
+ * THE SANDBOX IS THE OTHER HALF AND IT IS SENT TWO WAYS, WHICH IS NOT
+ * REDUNDANCY. The frame attribute is `sandbox="allow-scripts"` with no
+ * `allow-same-origin`, which is what puts a FRAMED document in an opaque
+ * origin; the CSP carries the SAME flags as a `sandbox` DIRECTIVE, which is
+ * what puts a DIRECTLY NAVIGATED one there too. 0126 shipped without the
+ * directive and measured the gap: a student who types or pastes a `/hx/` URL
+ * reached the real origin rather than an opaque one, and with
+ * `PUBLIC_HX_SANDBOX_ORIGIN` unset -- production's configuration -- that real
+ * origin is `ideabosco.com`, where the session cookies live and are readable
+ * by `document.cookie`. The directive is built in `../_headers.ts` from
+ * `HX_SANDBOX_FLAGS`, the same constant the attribute reads.
  *
  * WHAT THIS FILE ACTUALLY DECIDES IS THREE THINGS: whether the request arrived
  * on the origin this route answers on, whether the document exists, and what

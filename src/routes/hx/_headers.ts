@@ -1,3 +1,5 @@
+import { HX_SANDBOX_FLAGS } from '$lib/classroom/html-assignment/bridge.ts';
+
 /**
  * THE HEADER SET AND THE HOST GATE FOR A SERVED HTML-ASSIGNMENT DOCUMENT.
  *
@@ -120,19 +122,55 @@ export function hxPortalOriginIsRequestHost(
  *   frame-ancestors <portal>
  *                           only the portal may embed it.
  *
- * THE `sandbox` DIRECTIVE IS NOT HERE, AND THAT IS DELIBERATE RATHER THAN AN
- * OMISSION. The contract states this policy exactly and does not include one.
- * Adding a CSP `sandbox` would cover a DIRECT navigation to a `/hx/` URL as
- * well as a framed one, which is a real gap and is worth closing -- but it is a
- * change to a normative document four lanes are building against, so it is
- * reported rather than made. What already holds without it: the document is on
- * a host that carries no session cookie of the portal's, `connect-src 'none'`
- * refuses every outbound request, `form-action 'none'` refuses every
- * submission, and there is nothing on that origin worth reaching. See this
- * lane's history entry.
+ *   sandbox <HX_SANDBOX_FLAGS>
+ *                           THE ONE THAT COVERS A DIRECT NAVIGATION, AND IT
+ *                           WAS ADDED AFTER 0126 MEASURED ITS ABSENCE. Read
+ *                           the paragraph below before changing it.
+ *
+ * THE `sandbox` DIRECTIVE AND THE IFRAME `sandbox` ATTRIBUTE ARE NOT
+ * REDUNDANT, AND THE DIRECTIVE IS THE HALF THAT COVERS PRODUCTION AS IT IS
+ * ACTUALLY CONFIGURED.
+ *
+ * WHAT 0126 MEASURED AND LEFT OPEN. The attribute is on the `<iframe>`, so it
+ * governs a document the PORTAL FRAMED and nothing else. A student who
+ * navigates STRAIGHT to `/hx/<docId>` -- typed, pasted, or followed from a
+ * link -- reaches the same bytes with no frame around them and therefore no
+ * attribute, so the document is NOT placed in an opaque origin. With
+ * `PUBLIC_HX_SANDBOX_ORIGIN` UNSET, which is production's configuration today,
+ * `hxOnServingHost` below answers true for every host and the route answers on
+ * `ideabosco.com` -- the host the portal's session cookies live on, and the
+ * host `@supabase/ssr` writes them `httpOnly: false` so `document.cookie` can
+ * read them. An uploaded document navigated to directly would then run in that
+ * origin, with that session. That is the gap this directive closes.
+ *
+ * IT IS THE SAME STRING THE ATTRIBUTE CARRIES, IMPORTED, NEVER RETYPED.
+ * `HX_SANDBOX_FLAGS` in `bridge.ts` is the one spelling; `HtmlAssignmentFrame`
+ * writes it into the element and this writes it into the header, exactly as
+ * `foundrySandboxFlags` has two readers for the identical reason. A second
+ * literal here is a framed document and a navigated one that drift apart with
+ * nothing able to compare them.
+ *
+ * `allow-scripts` ALONE, AND `allow-same-origin` MUST NEVER JOIN IT. The pair
+ * cancels the sandbox: a document same-origin with its parent reaches
+ * `parent.document`, strips the attribute off its own `<iframe>` and reloads
+ * with full rights. Foundry grants the flag conditionally because its bundles
+ * answer on a host that is by construction not the portal; this route has no
+ * such guarantee -- with the sandbox origin unset it answers on the portal
+ * host itself -- so the strict set is the only correct answer here and the
+ * condition Foundry can assert is one this route cannot.
+ *
+ * WHAT IT DOES NOT REPLACE. `PUBLIC_HX_SANDBOX_ORIGIN` stays supported and
+ * remains the stronger deployment: a second host carries no session cookie at
+ * all, which is an ABSENCE rather than a browser honouring a directive. The
+ * directive makes that configuration DEFENCE IN DEPTH rather than a
+ * prerequisite. `connect-src 'none'` and `form-action 'none'` are independent
+ * levers and neither is evidence about this one.
  */
 export function hxDocumentCsp(portalOrigin: string): string {
 	return [
+		// FIRST, matching `foundryBundleCsp`'s ordering. Position is not
+		// load-bearing to a browser; being read first by a person is.
+		`sandbox ${HX_SANDBOX_FLAGS}`,
 		"default-src 'none'",
 		"script-src 'unsafe-inline'",
 		"style-src 'unsafe-inline'",

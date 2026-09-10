@@ -422,19 +422,41 @@ describe('the served document: frame-ancestors', () => {
 		expect(hxPortalOriginIsRequestHost('', '')).toBe(true);
 	});
 
-	// THE WHOLE POLICY, PINNED AGAINST THE CONTRACT, BYTE FOR BYTE. A directive
-	// dropped or reordered here is a document served under a policy nobody
-	// compared, and it renders identically.
+	// THE WHOLE POLICY, PINNED BYTE FOR BYTE. A directive dropped or reordered
+	// here is a document served under a policy nobody compared, and it renders
+	// identically.
 	it('produces exactly the contract policy in production', () => {
 		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).toBe(
-			"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+			"sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; " +
+				"style-src 'unsafe-inline'; " +
 				"img-src data: blob:; connect-src 'none'; form-action 'none'; " +
 				'frame-ancestors https://ideabosco.com'
 		);
 	});
 
+	// THE DIRECTIVE 0134 ADDED, AND WHY IT IS ASSERTED APART FROM THE WHOLE
+	// POLICY ABOVE. The byte-for-byte pin reddens for any edit at all, which
+	// makes it useless for saying WHICH property was lost. This one names the
+	// property: a directly navigated document is placed in an opaque origin.
+	// The gap it closes is real -- with `PUBLIC_HX_SANDBOX_ORIGIN` unset the
+	// route answers on the cookie-carrying portal host, where the iframe
+	// attribute governs nothing because there is no iframe.
+	it('sandboxes a directly navigated document, with the frame\'s own flags', () => {
+		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).toContain(`sandbox ${HX_SANDBOX_FLAGS}`);
+	});
+
+	// The pair that cancels a sandbox outright. Foundry grants
+	// `allow-same-origin` conditionally because its bundles answer on a host
+	// that is by construction not the portal; this route has no such guarantee,
+	// so the strict set is the only correct answer here.
+	it('never grants allow-same-origin beside allow-scripts', () => {
+		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).not.toContain('allow-same-origin');
+		expect(hxDocumentCsp('http://127.0.0.1:5199')).not.toContain('allow-same-origin');
+	});
+
 	it('keeps every non-negotiable directive whatever the portal origin is', () => {
 		const csp = hxDocumentCsp('http://127.0.0.1:5199');
+		expect(csp).toContain('sandbox allow-scripts');
 		expect(csp).toContain("connect-src 'none'");
 		expect(csp).toContain("default-src 'none'");
 		expect(csp).toContain("form-action 'none'");
