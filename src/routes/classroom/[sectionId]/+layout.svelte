@@ -13,6 +13,7 @@
 		type ClassViewPrefs
 	} from '$lib/classroom/classroom';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
+	import { createClassroomLive } from '$lib/classroom/live';
 	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
 	import {
 		createCheckInTransports,
@@ -20,6 +21,7 @@
 		createReferenceTransports,
 		createTeacherEngineTransports,
 		createHallPassTransports,
+		createLayoutTransports,
 		createSongQueueTransports,
 		createUnitTransports,
 		deckTransports,
@@ -83,6 +85,23 @@
 	const hallPassTransports = createHallPassTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const songQueueTransports = createSongQueueTransports(data.supabase);
+	/**
+	 * THE LIVE NOTICE BUS FOR THE TWO TOOLS (prompt 0118), built ONCE: the pass
+	 * and the queue share one channel per section, reference-counted inside,
+	 * so one instance here is what makes that sharing real. Read `live.ts`'s
+	 * header for why it is a broadcast and not `postgres_changes`.
+	 */
+	// svelte-ignore state_referenced_locally
+	const live = createClassroomLive(data.supabase);
+	/**
+	 * THE 0193 WRITES, built once and handed down ONLY when the load's probe
+	 * says the columns exist (`layoutReady`). Null removes the placement, order
+	 * and rename controls everywhere -- the honest state of a deployment where
+	 * the migration has not been pasted yet, not a degraded one.
+	 */
+	// svelte-ignore state_referenced_locally
+	const layoutTransports = createLayoutTransports(data.supabase);
+	const liveLayoutTransports = $derived(data.layoutReady ? layoutTransports : null);
 
 	/**
 	 * THE ONE CLOCK ON THIS SURFACE.
@@ -132,11 +151,14 @@
 	 * would take them with it; layout state survives every navigation inside
 	 * this class, which is exactly the span a teacher writes a post across.
 	 *
-	 * It takes the DETAIL PANE. It used to open inside the list, which since the
-	 * split is ~26rem wide, while the pane a full authoring form belongs in sat
-	 * empty beside it. The item underneath stays mounted and hidden, so closing
-	 * the composer puts you back on what you were reading -- and the item's
-	 * route never changed, so nothing reloads.
+	 * It takes the WHOLE VIEWPORT now (prompt 0118, item EIGHT): a fixed
+	 * `role="dialog"` layer with its own Close and its own scroller, rendered
+	 * as a sibling of the split below. It used to take the split's detail pane,
+	 * and before that it opened inside the list -- which, since the split, is
+	 * ~26rem wide. Whatever was on screen stays mounted underneath, untouched,
+	 * so closing the composer puts you back on what you were reading with its
+	 * scroll and its open panels intact, and the route never changed, so
+	 * nothing reloads.
 	 */
 	let composing = $state(false);
 	let composerDirty = $state(false);
@@ -283,42 +305,50 @@
 
 {#snippet classList()}
 	<!--
-		THE HALL PASS SITS ABOVE THE CLASS CONTENT, AND THAT IS THE FEATURE.
-		Below 1024px this pane IS the class page, full width, so first-in-the-pane
-		is zero scrolling and one tap from opening the class. A student who needs
-		it needs it in about a second; anywhere further down and it is a scroll on
-		the one surface where scrolling is the whole cost.
+		THE TWO TOOLS SIT ABOVE THE CLASS CONTENT, IN ONE ROW, AND THAT IS THE
+		FEATURE (prompt 0118, items SIX and TEN). Below 1024px this pane IS the
+		class page, full width, so first-in-the-pane is zero scrolling and one
+		tap from opening the class. A student who needs the pass needs it in
+		about a second; anywhere further down and it is a scroll on the one
+		surface where scrolling is the whole cost.
 
-		It is rendered ONLY when the load came back with a state, which is the
-		fail-soft path for a database without 0143 (applied by hand, separately
-		from this deploy). No state, no card -- never a card that cannot work.
-	-->
-	{#if data.hallPass}
-		<HallPass
-			sectionId={data.section.id}
-			state={data.hallPass}
-			transports={hallPassTransports}
-			{now}
-		/>
-	{/if}
-	<!--
-		THE SONG QUEUE SITS BENEATH THE PASS, and the order is an argument rather
-		than a preference. The pass earns the top of the pane because its whole
-		value is the second it takes; a song request is never urgent and is done
-		once a period with time to spare. Putting it first would cost the pass the
-		property it was placed there for.
+		`tool` folds each card into a trigger with a live status chip and a
+		dialog holding the SAME card -- two cards stacked at the top of a 26rem
+		pane used to push the class content a screen down. The pass keeps the
+		first slot: its whole value is the second it takes, and a song request
+		is never urgent. `live` is the shared notice bus, so a pass opened on
+		one phone moves the chip on every other open page of this class without
+		waiting for the poll (which stays, as the floor).
 
-		Rendered ONLY when the load came back with a state, which is the fail-soft
-		path for a database without 0145 (applied by hand, separately from this
-		deploy). No state, no card -- never a card that cannot work.
+		Each is rendered ONLY when the load came back with a state, the fail-soft
+		path for a database without 0143 / 0145 (applied by hand, separately from
+		this deploy). No state, no trigger -- never a control that cannot work.
+		The ROW renders only when at least one of them does, so a class with
+		neither carries no empty strip.
 	-->
-	{#if data.songQueue}
-		<SongQueue
-			sectionId={data.section.id}
-			state={data.songQueue}
-			transports={songQueueTransports}
-			{now}
-		/>
+	{#if data.hallPass || data.songQueue}
+		<div class="class-tools" data-testid="class-tools">
+			{#if data.hallPass}
+				<HallPass
+					sectionId={data.section.id}
+					state={data.hallPass}
+					transports={hallPassTransports}
+					{now}
+					{live}
+					tool
+				/>
+			{/if}
+			{#if data.songQueue}
+				<SongQueue
+					sectionId={data.section.id}
+					state={data.songQueue}
+					transports={songQueueTransports}
+					{now}
+					{live}
+					tool
+				/>
+			{/if}
+		</div>
 	{/if}
 	<ClassView
 		section={data.section}
@@ -333,7 +363,7 @@
 		work={data.work}
 		{collapsed}
 		{selectedItemId}
-		asPane={!!selectedItemId || composing}
+		asPane={!!selectedItemId}
 		{composing}
 		onCompose={data.canManage ? toggleComposer : null}
 		notice={composeNotice}
@@ -342,6 +372,7 @@
 		{unitTransports}
 		{deckTransports}
 		{teacherTransports}
+		layoutTransports={liveLayoutTransports}
 		{notebookHref}
 		fetchPreview={fetchLinkPreviewClient}
 		loadExportStatuses={(ids) => loadExportStatuses(data.supabase, ids)}
@@ -350,53 +381,76 @@
 	/>
 {/snippet}
 
-{#snippet composer()}
-	<!-- Keyed on the OPEN, so a fresh compose is a fresh form and a close
-	     genuinely disposes the staged handles rather than leaving them to be
-	     re-adopted by the next one. -->
-	{#key composing}
-		<section class="card compose-card">
-			<h2 class="compose-title">New post</h2>
-			<ContentComposer
-				mode="create"
-				sections={data.sections}
-				initialTargets={[data.section.id]}
-				{transports}
-				{deckTransports}
-				{teacherTransports}
-				{referenceTransports}
-				attachmentsEnabled={data.attachmentsEnabled}
-				instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
-				checkInTransports={liveCheckInTransports}
-				onsaved={composerSaved}
-				ondirtychange={(d) => (composerDirty = d)}
-				oncancel={closeComposer}
-			/>
-		</section>
-	{/key}
-{/snippet}
-
 {#if split}
-	<!-- `hasDetail` is what hides the list below the breakpoint, so composing
-	     reports one: a phone gets the composer full width exactly as it gets an
-	     item full width. -->
-	<ClassSplit
-		hasDetail={!!selectedItemId || composing}
-		nav={classList}
-		overlay={composing ? composer : null}
-	>
+	<!-- THE SPLIT NO LONGER KNOWS ABOUT THE COMPOSER (prompt 0118, item EIGHT).
+	     `overlay` is null and `hasDetail` is the item alone: the composer is a
+	     full-viewport layer now (see below), so the panes underneath keep the
+	     geometry they had before it opened and get it back untouched when it
+	     closes. -->
+	<ClassSplit hasDetail={!!selectedItemId} nav={classList} overlay={null}>
 		{@render children()}
 	</ClassSplit>
 {:else}
 	{@render children()}
 {/if}
 
+<!--
+	THE COMPOSER, AS A SIBLING OF THE SPLIT AND STILL IN THE LAYOUT. It used to
+	take the split's detail pane through `overlay`; it takes the whole viewport
+	now (`screen` on ContentComposer: a fixed `role="dialog"` layer with its
+	own header, its own Close and its own scroller), so the pane it used to
+	fold into is no longer the frame. WHAT HAS NOT MOVED IS WHERE IT IS
+	MOUNTED: this is layout state, above every page route in the class, which
+	is the whole reason it is here at all -- the staged File handles exist
+	nowhere but in this browser's memory, and a route change inside the class
+	must not destroy them. `{#if composing}` is what makes a fresh compose a
+	fresh form and a close genuinely dispose the staged handles.
+
+	`.compose-card` is the wrapper Surface B's specs select the kind toggle
+	through (`.compose-card .kind-toggle`); it is `display: contents` because
+	the layer inside it is fixed and the wrapper must take no box of its own.
+-->
+{#if composing}
+	<div class="compose-card" data-testid="compose-card">
+		<ContentComposer
+			mode="create"
+			sections={data.sections}
+			initialTargets={[data.section.id]}
+			{transports}
+			{deckTransports}
+			{teacherTransports}
+			{referenceTransports}
+			attachmentsEnabled={data.attachmentsEnabled}
+			instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
+			checkInTransports={liveCheckInTransports}
+			layoutTransports={liveLayoutTransports}
+			screen
+			onsaved={composerSaved}
+			ondirtychange={(d) => (composerDirty = d)}
+			oncancel={closeComposer}
+		/>
+	</div>
+{/if}
+
 <style>
 	.compose-card {
-		padding: var(--space-5);
+		display: contents;
 	}
-	.compose-title {
-		margin: 0 0 var(--space-4);
-		font-size: 1.05rem;
+	/* THE TOOLS ROW: the two triggers side by side, wrapping to two rows where
+	   the pane is too narrow for both words and both chips (a 375px phone with
+	   "1 out · Ana Reyes" on one and "2 waiting" on the other). Each trigger
+	   sizes itself; the row only decides the gap and that they share a line.
+	   Sits where the two cards sat, at the top of the class pane. */
+	.class-tools {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: stretch;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-3);
+		min-width: 0;
+	}
+	.class-tools > :global(*) {
+		flex: 1 1 12rem;
+		min-width: 0;
 	}
 </style>

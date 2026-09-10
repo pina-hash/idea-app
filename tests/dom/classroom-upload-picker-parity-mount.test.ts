@@ -48,6 +48,7 @@
 // claim and is not made here. See `tests/dom/mount.ts`.
 
 import { describe, expect, it } from 'vitest';
+import { flushSync, mount, unmount } from 'svelte';
 import type { Component } from 'svelte';
 import FileUploadPanel from '$lib/classroom/FileUploadPanel.svelte';
 import { mountInto } from './mount';
@@ -326,6 +327,383 @@ describe('a failed file stays staged, and Retry retries EXACTLY the remainder', 
 			expect(attempts).toEqual([]);
 		} finally {
 			await m.stop();
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// THE STAGED LIST IS ORDERED AND EDITABLE (prompt 0118, the FOUR file half).
+//
+// Three things about a staged row that did not exist before, each measured
+// through the panel's own exported `files()` because that is the array the
+// composer reads for its draft signature and the picture picker, and the
+// order `runAll` uploads in:
+//
+//   - RENAME: the entry's `File` is replaced by a new handle under the typed
+//     name, same bytes, same type, same lastModified.
+//   - REORDER: ArrowDown on a grip and the worded Move buttons both reorder
+//     `files()`, through `sortDrag`'s keyboard path and the panel's one
+//     `moveEntry`.
+//   - `runAll` IS SEQUENTIAL, IN LIST ORDER. The record RPC assigns
+//     `sort_order = max + 1`, so arrival order is the stored order; concurrent
+//     uploads arrived in whatever order the network finished them. Measured
+//     here as an ARGUMENT LIST plus a concurrency high-water mark: a
+//     `Promise.all` that happened to resolve in order would pass the list and
+//     fail the mark.
+//
+// These mount with `mount()` directly rather than `mountInto`, because the
+// claims are about the component's EXPORTS (`add`, `files`, `runAll`) and the
+// shared instrument does not hand the exports back.
+// ---------------------------------------------------------------------------
+
+interface PanelExports {
+	add(list: File[]): void;
+	files(): File[];
+	count(): number;
+	runAll(target: string): Promise<string[]>;
+}
+
+function mountPanel(upload: (args: { file: File }) => Promise<UploadOutcome>) {
+	const target = document.createElement('div');
+	document.body.appendChild(target);
+	const app = mount(Panel, {
+		target,
+		props: { role: 'attachment', itemId: 'item-1', upload }
+	}) as unknown as PanelExports;
+	flushSync();
+	const all = <T extends Element>(s: string) => Array.from(target.querySelectorAll(s)) as T[];
+	return {
+		app,
+		target,
+		all,
+		flush: () => flushSync(),
+		async settle() {
+			flushSync();
+			await new Promise((r) => setTimeout(r, 30));
+			flushSync();
+		},
+		async stop() {
+			await unmount(app as unknown as Record<string, unknown>);
+			target.remove();
+		}
+	};
+}
+
+const keyOn = (el: Element, k: string) =>
+	el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+
+const fileNames = (p: { app: PanelExports }) => p.app.files().map((f) => f.name);
+
+describe('the drop zone is present at rest, and the staged list is ordered and editable', () => {
+	it('renders the dashed zone with its sentence before anything is staged', async () => {
+		const { upload } = recordingUpload(new Set());
+		const p = mountPanel(upload);
+		try {
+			expect(p.all('[data-testid="fup-zone"]')).toHaveLength(1);
+			const hint = p.all('.fup-drop-hint');
+			expect(hint).toHaveLength(1);
+			expect(hint[0].textContent ?? '').toMatch(/drag files here.*paste an image/i);
+			// And no row control over no rows.
+			expect(p.all('[data-testid="fup-grip"]')).toHaveLength(0);
+			expect(p.all('[data-testid="fup-rename-start"]')).toHaveLength(0);
+		} finally {
+			await p.stop();
+		}
+	});
+
+	it('a rename replaces the handle under the new name: files()[i].name changes, bytes and type do not', async () => {
+		const { upload } = recordingUpload(new Set());
+		const p = mountPanel(upload);
+		try {
+			const original = new File(['hello'], 'a.txt', { type: 'text/plain', lastModified: 1700000000000 });
+			p.app.add([original, txt('b.txt')]);
+			p.flush();
+			expect(fileNames(p)).toEqual(['a.txt', 'b.txt']);
+
+			p.all<HTMLButtonElement>('[data-testid="fup-rename-start"]')[0].click();
+			p.flush();
+			const input = p.all<HTMLInputElement>('[data-testid="fup-rename-input"]')[0];
+			expect(input, 'no rename input opened').toBeDefined();
+			expect(input.value).toBe('a.txt');
+			// The row being renamed shows the editor instead of its name line.
+			expect(p.all('.fup-name')).toHaveLength(1);
+
+			input.value = 'renamed.txt';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			keyOn(input, 'Enter');
+			p.flush();
+
+			expect(fileNames(p)).toEqual(['renamed.txt', 'b.txt']);
+			const renamed = p.app.files()[0];
+			expect(renamed).not.toBe(original);
+			expect(renamed.size).toBe(original.size);
+			expect(renamed.type).toBe('text/plain');
+			expect(renamed.lastModified).toBe(1700000000000);
+			expect(p.all('[data-testid="fup-rename-input"]')).toHaveLength(0);
+			expect(p.all('.fup-name')).toHaveLength(2);
+		} finally {
+			await p.stop();
+		}
+	});
+
+	it('Escape cancels a rename and an empty name cancels it too; the Save / Cancel buttons are the same paths', async () => {
+		const { upload } = recordingUpload(new Set());
+		const p = mountPanel(upload);
+		try {
+			p.app.add([txt('a.txt'), txt('b.txt')]);
+			p.flush();
+
+			p.all<HTMLButtonElement>('[data-testid="fup-rename-start"]')[0].click();
+			p.flush();
+			let input = p.all<HTMLInputElement>('[data-testid="fup-rename-input"]')[0];
+			input.value = 'nope.txt';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			keyOn(input, 'Escape');
+			p.flush();
+			expect(fileNames(p)).toEqual(['a.txt', 'b.txt']);
+			expect(p.all('[data-testid="fup-rename-input"]')).toHaveLength(0);
+
+			p.all<HTMLButtonElement>('[data-testid="fup-rename-start"]')[0].click();
+			p.flush();
+			input = p.all<HTMLInputElement>('[data-testid="fup-rename-input"]')[0];
+			input.value = '   ';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			p.all<HTMLButtonElement>('button').find((b) => /save name/i.test(b.textContent ?? ''))!.click();
+			p.flush();
+			expect(fileNames(p)).toEqual(['a.txt', 'b.txt']);
+
+			p.all<HTMLButtonElement>('[data-testid="fup-rename-start"]')[1].click();
+			p.flush();
+			input = p.all<HTMLInputElement>('[data-testid="fup-rename-input"]')[0];
+			input.value = 'second.txt';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			p.all<HTMLButtonElement>('button').find((b) => /save name/i.test(b.textContent ?? ''))!.click();
+			p.flush();
+			expect(fileNames(p)).toEqual(['a.txt', 'second.txt']);
+		} finally {
+			await p.stop();
+		}
+	});
+
+	it('ArrowDown on a grip reorders files(); ArrowUp at the top and ArrowDown at the bottom do nothing', async () => {
+		const { upload } = recordingUpload(new Set());
+		const p = mountPanel(upload);
+		try {
+			p.app.add([txt('a.txt'), txt('b.txt'), txt('c.txt')]);
+			p.flush();
+			expect(p.all('[data-testid="fup-grip"]')).toHaveLength(3);
+
+			keyOn(p.all('[data-testid="fup-grip"]')[0], 'ArrowDown');
+			p.flush();
+			expect(fileNames(p)).toEqual(['b.txt', 'a.txt', 'c.txt']);
+
+			keyOn(p.all('[data-testid="fup-grip"]')[0], 'ArrowUp');
+			keyOn(p.all('[data-testid="fup-grip"]')[2], 'ArrowDown');
+			p.flush();
+			expect(fileNames(p)).toEqual(['b.txt', 'a.txt', 'c.txt']);
+
+			// The worded buttons are the same move.
+			p.all<HTMLButtonElement>('[data-testid="fup-move-up"]')[2].click();
+			p.flush();
+			expect(fileNames(p)).toEqual(['b.txt', 'c.txt', 'a.txt']);
+			p.all<HTMLButtonElement>('[data-testid="fup-move-down"]')[0].click();
+			p.flush();
+			expect(fileNames(p)).toEqual(['c.txt', 'b.txt', 'a.txt']);
+			// The rows on screen follow.
+			expect(p.all('.fup-name').map((n) => (n.textContent ?? '').trim())).toEqual([
+				'c.txt',
+				'b.txt',
+				'a.txt'
+			]);
+		} finally {
+			await p.stop();
+		}
+	});
+
+	it('a single staged row has no grip and no Move: there is nothing to move past', async () => {
+		const { upload } = recordingUpload(new Set());
+		const p = mountPanel(upload);
+		try {
+			p.app.add([txt('only.txt')]);
+			p.flush();
+			expect(p.all('.fup-row')).toHaveLength(1);
+			expect(p.all('[data-testid="fup-grip"]')).toHaveLength(0);
+			expect(p.all('[data-testid="fup-move-up"]')).toHaveLength(0);
+			// Rename is still offered: one row can still be misnamed.
+			expect(p.all('[data-testid="fup-rename-start"]')).toHaveLength(1);
+		} finally {
+			await p.stop();
+		}
+	});
+
+	it('runAll uploads ONE AT A TIME, in list order, after a reorder, and still attempts every file', async () => {
+		// The transport holds each upload open until released, and counts how
+		// many are open at once. `Promise.all` would open all three before any
+		// resolved (high-water mark 3); sequential never exceeds 1.
+		const started: string[] = [];
+		let open = 0;
+		let highWater = 0;
+		const release: (() => void)[] = [];
+		const upload = async ({ file }: { file: File }): Promise<UploadOutcome> => {
+			started.push(file.name);
+			open += 1;
+			highWater = Math.max(highWater, open);
+			await new Promise<void>((r) => release.push(r));
+			open -= 1;
+			if (file.name === 'b.txt') {
+				return {
+					ok: false,
+					gate: 'too_large',
+					message: `${file.name} is 210 MB. The limit is 200 MB.`,
+					retryable: true
+				};
+			}
+			return { ok: true, storageKey: `item-1/${file.name}` };
+		};
+		const p = mountPanel(upload);
+		try {
+			p.app.add([txt('a.txt'), txt('b.txt'), txt('c.txt')]);
+			p.flush();
+			// Move c to the top, so list order and staging order differ.
+			p.all<HTMLButtonElement>('[data-testid="fup-move-up"]')[2].click();
+			p.all<HTMLButtonElement>('[data-testid="fup-move-up"]')[1].click();
+			p.flush();
+			expect(fileNames(p)).toEqual(['c.txt', 'a.txt', 'b.txt']);
+
+			const done = p.app.runAll('item-1');
+			await p.settle();
+			// Only the FIRST is open; the second has not been asked for yet.
+			expect(started).toEqual(['c.txt']);
+			expect(open).toBe(1);
+
+			release.shift()!();
+			await p.settle();
+			expect(started).toEqual(['c.txt', 'a.txt']);
+			release.shift()!();
+			await p.settle();
+			expect(started).toEqual(['c.txt', 'a.txt', 'b.txt']);
+			release.shift()!();
+			const failures = await done;
+			await p.settle();
+
+			expect(highWater).toBe(1);
+			// EVERY FILE WAS STILL ATTEMPTED, in the order shown, and only the
+			// failure stayed with its own message.
+			expect(started).toEqual(['c.txt', 'a.txt', 'b.txt']);
+			expect(failures).toEqual(['b.txt: b.txt is 210 MB. The limit is 200 MB.']);
+			expect(fileNames(p)).toEqual(['b.txt']);
+		} finally {
+			await p.stop();
+		}
+	});
+
+	it('a file added WHILE the batch is in flight survives it, staged (the batch is a snapshot, the list is not)', async () => {
+		// THE DEFECT THIS PINS: the first runAll rebuilt `entries` from its
+		// pre-batch results, so a screenshot pasted into the composer during a
+		// save was silently discarded -- never uploaded, not staged, count 0.
+		const release: (() => void)[] = [];
+		const started: string[] = [];
+		const counts: number[] = [];
+		const upload = async ({ file }: { file: File }): Promise<UploadOutcome> => {
+			started.push(file.name);
+			await new Promise<void>((r) => release.push(r));
+			return { ok: true, storageKey: `item-1/${file.name}` };
+		};
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const app = mount(Panel, {
+			target,
+			props: {
+				role: 'attachment',
+				itemId: 'item-1',
+				upload,
+				oncountchange: (n: number) => counts.push(n)
+			}
+		}) as unknown as PanelExports;
+		const settle = async () => {
+			flushSync();
+			await new Promise((r) => setTimeout(r, 30));
+			flushSync();
+		};
+		try {
+			app.add([txt('a.txt')]);
+			flushSync();
+			const done = app.runAll('item-1');
+			await settle();
+			expect(started).toEqual(['a.txt']);
+			// Mid-batch: a second file arrives the way a pasted screenshot does.
+			app.add([txt('pasted.png')]);
+			await settle();
+			expect(app.files().map((f) => f.name)).toEqual(['a.txt', 'pasted.png']);
+			release.shift()!();
+			const failures = await done;
+			await settle();
+			// a.txt landed and left the list AS IT LANDED; pasted.png was never
+			// part of the batch and is STILL HERE, staged, for the next save.
+			expect(failures).toEqual([]);
+			expect(started).toEqual(['a.txt']);
+			expect(app.files().map((f) => f.name)).toEqual(['pasted.png']);
+			expect(counts.at(-1)).toBe(1);
+			// POSITIVE CONTROL: a second save now uploads exactly the survivor.
+			const again = app.runAll('item-1');
+			await settle();
+			release.shift()!();
+			await again;
+			await settle();
+			expect(started).toEqual(['a.txt', 'pasted.png']);
+			expect(app.files()).toEqual([]);
+		} finally {
+			await unmount(app as unknown as Record<string, unknown>);
+			target.remove();
+		}
+	});
+
+	it('a rename left open when the batch starts is COMMITTED, and a colliding one is refused BY NAME in the report', async () => {
+		const started: string[] = [];
+		const upload = async ({ file }: { file: File }): Promise<UploadOutcome> => {
+			started.push(file.name);
+			return { ok: true, storageKey: `item-1/${file.name}` };
+		};
+		const p = mountPanel(upload);
+		try {
+			p.app.add([txt('draft.txt'), txt('other.txt')]);
+			p.flush();
+			// Open a rename on the first row and type a new name, but do not
+			// press Enter: this is the box a person leaves open when they reach
+			// for Save.
+			p.all<HTMLButtonElement>('[data-testid="fup-rename-start"]')[0].click();
+			p.flush();
+			const input = p.all<HTMLInputElement>('[data-testid="fup-rename-input"]')[0];
+			input.value = 'final.txt';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			p.flush();
+			let failures = await p.app.runAll('item-1');
+			await p.settle();
+			// The typed name is what uploaded, and nothing is reported.
+			expect(started).toEqual(['final.txt', 'other.txt']);
+			expect(failures).toEqual([]);
+			expect(p.all('[data-testid="fup-rename-input"]')).toHaveLength(0);
+
+			// THE ONE REFUSAL: the open rename collides with a sibling. The file
+			// keeps its old name, uploads under it, and the report SAYS so.
+			started.length = 0;
+			p.app.add([txt('one.txt'), txt('two.txt')]);
+			p.flush();
+			p.all<HTMLButtonElement>('[data-testid="fup-rename-start"]')[0].click();
+			p.flush();
+			const again = p.all<HTMLInputElement>('[data-testid="fup-rename-input"]')[0];
+			again.value = 'two.txt';
+			again.dispatchEvent(new Event('input', { bubbles: true }));
+			p.flush();
+			failures = await p.app.runAll('item-1');
+			await p.settle();
+			expect(started).toEqual(['one.txt', 'two.txt']);
+			expect(failures).toEqual([
+				'one.txt: the new name "two.txt" was not applied, another file here already has it'
+			]);
+			expect(p.all('[data-testid="fup-rename-input"]')).toHaveLength(0);
+		} finally {
+			await p.stop();
 		}
 	});
 });

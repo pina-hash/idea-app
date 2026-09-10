@@ -69,6 +69,12 @@ import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTra
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
 import { uploadClassroomFile } from './file-upload';
 import {
+	RENAME_REFUSALS,
+	withItemLayout,
+	type ClassroomLayoutTransports,
+	type RenameRefusal
+} from './attachments';
+import {
 	normalizeItemRow,
 	normalizeSectionRow,
 	normalizeUnitRow,
@@ -169,6 +175,19 @@ export const ITEM_SELECT_SCHEDULED = `${ITEM_SELECT_RICH}, publish_at`;
 export const ITEM_SELECT_UNITS = `${ITEM_SELECT_SCHEDULED}, unit_id`;
 
 /**
+ * ITEM_SELECT_UNITS plus 0193's two placement columns -- the widest rung.
+ *
+ * Its own rung, for the reason every rung above has one: 0193 is applied by
+ * hand and separately, and PostgREST refuses the WHOLE select for one unknown
+ * column. Degrading past it costs a read only the PLACEMENT of an item's
+ * files and links -- every surface renders an item with no layout as "below
+ * the text", which is what every item read before 0193 -- and the reorder,
+ * placement and rename controls, which the callers remove by handing no
+ * layout transports to a surface whose read could not tell.
+ */
+export const ITEM_SELECT_LAYOUT = `${ITEM_SELECT_UNITS}, files_placement, links_placement`;
+
+/**
  * Run an item query with the rich body if the backend has it, without if not.
  *
  * Takes a FUNCTION OF THE SELECT STRING rather than a finished query because
@@ -181,6 +200,8 @@ export const ITEM_SELECT_UNITS = `${ITEM_SELECT_SCHEDULED}, unit_id`;
 export async function selectItemsWithDoc<T extends { error: { message?: string } | null }>(
 	run: (select: string) => PromiseLike<T>
 ): Promise<T> {
+	const layout = await run(ITEM_SELECT_LAYOUT);
+	if (!layout.error) return layout;
 	const units = await run(ITEM_SELECT_UNITS);
 	if (!units.error) return units;
 	const scheduled = await run(ITEM_SELECT_SCHEDULED);
@@ -389,7 +410,14 @@ export async function itemsForSection(
 			.order('created_at', { ascending: false })
 	);
 	return {
-		items: ((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeItemRow),
+		// The layout rides BESIDE the item (0193): `normalizeItemRow` names its
+		// columns one by one and is not this module's to widen, so the two
+		// placement columns are attached after it -- and only when the rung that
+		// carried them answered, so an older read stays "could not tell" rather
+		// than claiming the default as a fact.
+		items: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) =>
+			withItemLayout(normalizeItemRow(row), row)
+		),
 		error
 	};
 }
@@ -407,7 +435,9 @@ export async function itemById(
 	const { data } = await selectItemsWithDoc((select) =>
 		supabase.from('classroom_items').select(select).eq('id', itemId).maybeSingle()
 	);
-	return data ? normalizeItemRow(data as unknown as Record<string, unknown>) : null;
+	if (!data) return null;
+	const row = data as unknown as Record<string, unknown>;
+	return withItemLayout(normalizeItemRow(row), row);
 }
 
 /**
@@ -1786,6 +1816,74 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 			});
 			if (error) return fail(error);
 			return { ok: true, data: Array.isArray(data) ? (data as string[]) : [] };
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// WHERE FILES AND LINKS SIT, AND IN WHAT ORDER (0193).
+// ---------------------------------------------------------------------------
+
+/**
+ * A rename answers `{ok:true, filename}` or a structured refusal; the two
+ * refusals a surface must show gracefully are mapped onto the ONE vocabulary
+ * in `attachments.ts`, which the composer's own pre-check also speaks.
+ * Anything else (a raised misuse) is one flat sentence, never the raw error.
+ */
+function renameOutcome(data: unknown, error: { message?: string } | null): TxResult<{ filename: string }> {
+	if (error) return { ok: false, message: 'Could not rename that file. Try again.' };
+	const row = (data ?? {}) as Record<string, unknown>;
+	if (row.ok === true && typeof row.filename === 'string') {
+		return { ok: true, data: { filename: row.filename } };
+	}
+	const reason = row.reason as RenameRefusal | undefined;
+	if (reason && reason in RENAME_REFUSALS) return { ok: false, message: RENAME_REFUSALS[reason] };
+	return { ok: false, message: 'Could not rename that file. Try again.' };
+}
+
+/**
+ * The 0193 writes. Built beside the other transports and handed to a surface
+ * ONLY when the item read that fed it answered the layout rung -- a surface
+ * given null removes every ordering, placement and rename control, which is
+ * the read-only case and the honest state of a deployment before 0193 alike.
+ */
+export function createLayoutTransports(supabase: SupabaseClient): ClassroomLayoutTransports {
+	return {
+		async setItemLayout(itemId, layout) {
+			const { error } = await supabase.rpc('classroom_set_item_layout', {
+				p_item_id: itemId,
+				p_files_placement: layout.files,
+				p_links_placement: layout.links
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async setAttachmentOrder(itemId, attachmentIds) {
+			const { error } = await supabase.rpc('classroom_set_attachment_order', {
+				p_item_id: itemId,
+				p_attachment_ids: attachmentIds
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async renameAttachment(attachmentId, filename) {
+			const { data, error } = await supabase.rpc('classroom_rename_attachment', {
+				p_attachment_id: attachmentId,
+				p_filename: filename
+			});
+			return renameOutcome(data, error);
+		},
+		async setInstructorAttachmentOrder(itemId, attachmentIds) {
+			const { error } = await supabase.rpc('classroom_set_instructor_attachment_order', {
+				p_item_id: itemId,
+				p_attachment_ids: attachmentIds
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async renameInstructorAttachment(attachmentId, filename) {
+			const { data, error } = await supabase.rpc('classroom_rename_instructor_attachment', {
+				p_attachment_id: attachmentId,
+				p_filename: filename
+			});
+			return renameOutcome(data, error);
 		}
 	};
 }

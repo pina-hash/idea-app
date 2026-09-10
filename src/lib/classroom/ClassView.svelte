@@ -7,6 +7,9 @@
 	import Pending from '$lib/Pending.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import UnitManager from '$lib/classroom/UnitManager.svelte';
+	import { sortDrag } from '$lib/classroom/sort-drag';
+	import { itemLayoutOf, type ClassroomLayoutTransports } from '$lib/classroom/attachments';
+	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
 	import type { DeckTransports } from '$lib/classroom/deck';
 	import {
@@ -106,7 +109,8 @@
 		teacherTransports = null,
 		loadExportStatuses = null,
 		retryExport = null,
-		onchanged = null
+		onchanged = null,
+		layoutTransports = null
 	}: {
 		section: ClassroomSection;
 		items: ClassroomItem[];
@@ -192,6 +196,13 @@
 		/** Null hides Retry -- a deployment with no token never exports at all. */
 		retryExport?: ((itemId: string) => Promise<TxResult<ExportOutcome>>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
+		/**
+		 * The 0193 writes (placement, attachment order, rename), handed straight
+		 * to the row editor's composer. Null on a deployment the layout probe
+		 * could not confirm the columns on, which is what removes those controls
+		 * from the composer rather than offering a write the database refuses.
+		 */
+		layoutTransports?: ClassroomLayoutTransports | null;
 	} = $props();
 
 	let unitsOpen = $state(false);
@@ -312,12 +323,6 @@
 	 * the flashing noise the standard warns about.
 	 */
 	let bulkPending = $state<string | null>(null);
-	/** Row being dragged, and which group it came from -- a drop outside that
-	 *  group is ignored rather than treated as a file-into-a-unit action,
-	 *  which has its own control. */
-	let dragGroupId = $state<string | null>(null);
-	let dragItemId = $state<string | null>(null);
-	let dragOverId = $state<string | null>(null);
 
 	const shownNotice = $derived(localNotice ?? notice);
 
@@ -497,43 +502,54 @@
 		await run(() => transports.setOrder(ids));
 	}
 
-	/* ---- drag to reorder (native DnD, initiated only from the grip) ----
+	/* ---- drag to reorder, and drag to FILE (prompt 0118, items TWELVE and SEVEN)
 	 *
-	 * A drag is scoped to the group it started in: `dragGroupId` is recorded at
-	 * dragstart, and a drop in a different group's list is ignored -- moving an
-	 * item to another unit is the picker's job (and the bulk file action's),
-	 * each of which renumbers the destination on its own. */
-	function onDragStart(e: DragEvent, groupId: string, itemId: string) {
-		if (!editable) return;
-		dragGroupId = groupId;
-		dragItemId = itemId;
-		dragOverId = itemId;
-		if (e.dataTransfer) {
-			e.dataTransfer.effectAllowed = 'move';
-			// Firefox refuses to start a drag without payload.
-			e.dataTransfer.setData('text/plain', itemId);
-		}
+	 * `sortDrag` (`$lib/classroom/sort-drag`) replaced the native HTML5 drag
+	 * this list used to wire up: the row follows the pointer, the rows it
+	 * passes ease out of its way, touch works, and the arrow keys on a focused
+	 * grip are the same commit. The action reorders nothing itself; it hands
+	 * back INDICES over the `[data-sort-item]` rows of one group's list, and
+	 * the two commits below turn those into the writes this list always made.
+	 *
+	 * THE INDICES ARE MAPPED THROUGH THE DOM, NOT THROUGH `group.items`. In the
+	 * unfiled group a notebook check-in row sits BETWEEN item rows (it is not a
+	 * `classroom_items` row and carries no `data-sort-item`, so a dragged item
+	 * passes over one without shifting it), and a row list that interleaves
+	 * something the index never counted is exactly where "index 3" stops being
+	 * "the fourth item". Reading the ids off the sortable rows themselves keeps
+	 * the arithmetic against the rows the person actually saw move.
+	 *
+	 * `busy` KEEPS ITS MEANING: a drop is one round trip (two for a pin
+	 * crossing), the row landing where it was dropped is the acknowledgement,
+	 * and nothing here reports pending -- see `bulkPending` for why a single
+	 * write gets no word. */
+	function sortableIds(groupId: string): string[] {
+		// `getElementById` rather than a selector: a unit id is a uuid, and the
+		// list's own `id` attribute is the one place it is already spelled.
+		const list = document.getElementById(`group-${groupId}`);
+		if (!list || !menuHost?.contains(list)) return [];
+		return Array.from(list.querySelectorAll<HTMLElement>('[data-sort-item]')).map(
+			(row) => row.dataset.itemId ?? ''
+		);
 	}
-	function onDragOver(e: DragEvent, groupId: string, itemId: string) {
-		if (!dragItemId || dragGroupId !== groupId) return;
-		e.preventDefault();
-		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-		dragOverId = itemId;
+
+	function sortOptions(groupId: string, groupItems: ClassroomItem[]) {
+		return {
+			items: '[data-sort-item]',
+			disabled: !editable || busy,
+			zones: '.group-card',
+			ondrop: (from: number, to: number) => void dropReorder(groupId, groupItems, from, to),
+			ondropzone: (from: number, zone: HTMLElement) => void dropIntoZone(groupId, from, zone)
+		};
 	}
-	function onDragEnd() {
-		dragGroupId = null;
-		dragItemId = null;
-		dragOverId = null;
-	}
-	async function onDrop(e: DragEvent, groupId: string, groupItems: ClassroomItem[], dropId: string) {
-		e.preventDefault();
-		const fromId = dragItemId;
-		const fromGroup = dragGroupId;
-		dragGroupId = null;
-		dragItemId = null;
-		dragOverId = null;
-		if (!transports || !fromId || fromGroup !== groupId || fromId === dropId) return;
-		const toIndex = groupItems.findIndex((i) => i.id === dropId);
+
+	async function dropReorder(groupId: string, groupItems: ClassroomItem[], from: number, to: number) {
+		if (!transports) return;
+		const ids = sortableIds(groupId);
+		const fromId = ids[from];
+		const toId = ids[to];
+		if (!fromId || !toId || fromId === toId) return;
+		const toIndex = groupItems.findIndex((i) => i.id === toId);
 		if (toIndex < 0) return;
 		const result = dragReorder(groupItems, fromId, toIndex);
 		if (!result) return;
@@ -558,6 +574,21 @@
 		}
 		busy = false;
 		await onchanged?.();
+	}
+
+	/**
+	 * A row released over ANOTHER group's card is filed there. The card is the
+	 * zone (`.group-card`, carrying `data-group-id`), and the commit is the
+	 * same `fileInto` the row menu's Unit picker runs -- one path, so a drag
+	 * cannot renumber the destination differently from a pick.
+	 */
+	async function dropIntoZone(groupId: string, from: number, zone: HTMLElement) {
+		const fromId = sortableIds(groupId)[from];
+		const target = zone.dataset.groupId;
+		if (!fromId || !target || target === groupId) return;
+		const item = items.find((i) => i.id === fromId);
+		if (!item) return;
+		await fileInto(item, target);
 	}
 
 	/** Filing: one click and a pick, the fast path a teacher uses many times. */
@@ -765,7 +796,33 @@
 		if (outcome.succeededIds.length) await onchanged?.();
 	}
 
+	/**
+	 * WHETHER THE ROW EDITOR HOLDS WORK, reported by the composer itself
+	 * (`ondirtychange`) and asked before any close discards it -- the guard
+	 * the section layout's create composer has always had (`closeComposer`),
+	 * and ItemDetail's edit composer gained with the full-screen layer. The
+	 * layer answers Escape with `oncancel`, so without this one keypress threw
+	 * away a half-written edit with no question; a close of an untouched
+	 * editor still asks nothing.
+	 */
+	let editDirty = $state(false);
+
+	function confirmDiscardEdit(): boolean {
+		if (editing === null || !editDirty) return true;
+		return window.confirm(`${COMPOSER_DISCARD_WARNING}\n\nDiscard it?`);
+	}
+
+	function closeRowEditor() {
+		if (!confirmDiscardEdit()) return;
+		editDirty = false;
+		editing = null;
+	}
+
 	function toggleEdit(id: string) {
+		// Closing this editor, or opening another row's over it, both discard
+		// what is in it; opening one over nothing discards nothing.
+		if (editing !== null && !confirmDiscardEdit()) return;
+		editDirty = false;
 		editing = editing === id ? null : id;
 		openMenu = null;
 		armDelete = null;
@@ -774,6 +831,7 @@
 	}
 
 	async function saved() {
+		editDirty = false;
 		editing = null;
 		await onchanged?.();
 	}
@@ -902,23 +960,43 @@
 	{#if updated(item)}<span class="chip updated-chip">Updated</span>{/if}
 {/snippet}
 
+{#snippet detailLinks(item: ClassroomItem)}
+	{#if item.links.length}
+		<div class="link-list" data-testid="detail-links">
+			{#each item.links as l (l.id ?? l.url)}
+				<LinkPreviewCard link={l} {fetchPreview} />
+			{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet detailFiles(item: ClassroomItem)}
+	{#if item.attachments.length}
+		<div data-testid="detail-files">
+			<AttachmentList attachments={item.attachments} />
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet detail(item: ClassroomItem)}
+	<!--
+		WHERE THE LINKS AND FILES SIT IS THE AUTHOR'S CALL (0193): `itemLayoutOf`
+		reads the placement the row carries and answers the default (below) for
+		a row that carries none, so a pre-0193 read renders exactly as it always
+		did. The two resource blocks are snippets so "above" and "below" are the
+		SAME markup in a different slot, never two copies that drift.
+	-->
+	{@const layout = itemLayoutOf(item)}
 	<div class="row-detail" data-testid="row-detail">
+		{#if layout.links === 'top'}{@render detailLinks(item)}{/if}
+		{#if layout.files === 'top'}{@render detailFiles(item)}{/if}
 		{#if item.kind === 'post'}
 			<ItemBody {item} compact />
 		{:else if item.body.trim()}
 			<ItemBody {item} compact />
 		{/if}
-		{#if item.links.length}
-			<div class="link-list">
-				{#each item.links as l (l.id ?? l.url)}
-					<LinkPreviewCard link={l} {fetchPreview} />
-				{/each}
-			</div>
-		{/if}
-		{#if item.attachments.length}
-			<AttachmentList attachments={item.attachments} />
-		{/if}
+		{#if layout.links !== 'top'}{@render detailLinks(item)}{/if}
+		{#if layout.files !== 'top'}{@render detailFiles(item)}{/if}
 		{#if canManage && ((item.instructorLinks?.length ?? 0) > 0 || (item.instructorAttachments?.length ?? 0) > 0)}
 			<div class="instructor-note-box">
 				<span class="instructor-note-label">
@@ -989,20 +1067,25 @@
 		canManage || item.kind !== 'assignment'
 			? null
 			: (work[item.id] ?? { state: 'not-started' as const, score: null })}
+	<!--
+		`data-sort-item` + `data-item-id` are what `sortDrag` and `sortableIds`
+		read; a check-in row carries neither, so it is never a drag's subject or
+		its index. `groupId` is not read on the row any more -- the list the row
+		sits in is the scope, which is what the action gives for free.
+	-->
 	<li
 		class="row-wrap"
 		class:editing={editing === item.id}
 		class:selected={selectedItemId === item.id}
-		class:drag-over={editable && dragItemId !== null && dragItemId !== item.id && dragOverId === item.id && dragGroupId === groupId}
-		ondragover={(e) => onDragOver(e, groupId, item.id)}
-		ondrop={(e) => onDrop(e, groupId, groupItems, item.id)}
+		data-sort-item
+		data-item-id={item.id}
 	>
 		<div class="row" data-testid="item-row" data-selected={selectedItemId === item.id ? 'true' : undefined}>
 			{#if editable}
 				<label class="row-select-hit">
 					<input
 						type="checkbox"
-						class="row-select"
+						class="row-select cr-check"
 						checked={bulkSelected.has(item.id)}
 						aria-label="Select {itemTitle(item)}"
 						data-testid="row-select-{item.id}"
@@ -1010,15 +1093,24 @@
 						onchange={() => toggleSelected(item.id)}
 					/>
 				</label>
-				<span
+				<!--
+					THE GRIP IS A REAL BUTTON NOW: focusable, so ArrowUp / ArrowDown
+					on it commit a one-step move through the same `ondrop` a drag
+					uses, and named, so assistive tech reads what it is for. It is
+					the one control on the row that is a GLYPH ALONE, and the
+					visible-word rule is met by the row menu's own "Move up" /
+					"Move down", which stay for exactly that reason (the action's
+					header says the same). `data-sort-handle` is what the action
+					grabs; it also sets `touch-action: none` there, which is what
+					lets a finger drag rather than scroll.
+				-->
+				<button
+					type="button"
 					class="row-grip"
-					aria-hidden="true"
-					title="Drag to reorder"
-					draggable="true"
+					data-sort-handle
 					data-testid="row-grip-{item.id}"
-					ondragstart={(e) => onDragStart(e, groupId, item.id)}
-					ondragend={onDragEnd}
-				>&#10495;</span>
+					aria-label="Reorder {itemTitle(item)}: drag, or use the arrow keys"
+				><span aria-hidden="true">&#10495;</span></button>
 			{/if}
 			<button
 				type="button"
@@ -1176,6 +1268,7 @@
 								<label class="menu-unit">
 									<span class="menu-unit-label">Unit</span>
 									<select
+										class="cr-select"
 										value={item.unit_id ?? UNFILED_GROUP_ID}
 										disabled={busy}
 										data-testid="row-unit"
@@ -1199,6 +1292,12 @@
 		{#if editable && editing === item.id && editingItem}
 			{#key item.id}
 				<div class="row-editor">
+					<!--
+						`screen`, NOT `compact`: the editor takes a full-viewport layer
+						(prompt 0118, item EIGHT) rather than folding a whole authoring
+						form into a 26rem pane row. `layoutTransports` is what offers the
+						0193 placement and order controls; null removes them.
+					-->
 					<ContentComposer
 						mode="edit"
 						item={editingItem}
@@ -1206,9 +1305,11 @@
 						transports={transports!}
 						{attachmentsEnabled}
 						{instructorAttachmentsEnabled}
-						compact
+						screen
+						{layoutTransports}
 						onsaved={saved}
-						oncancel={() => (editing = null)}
+						ondirtychange={(d) => (editDirty = d)}
+						oncancel={closeRowEditor}
 					/>
 				</div>
 			{/key}
@@ -1426,6 +1527,7 @@
 				<label class="bulk-unit">
 					<span class="sr-only">File the selection into a unit</span>
 					<select
+						class="cr-select"
 						value=""
 						disabled={busy}
 						data-testid="bulk-unit-select"
@@ -1533,7 +1635,14 @@
 		{#each groups as group (group.id)}
 			{@const entries = entriesFor(group.id, group.items)}
 			{@const folded = isCollapsed(group.id)}
-			<section class="card group-card" data-testid="unit-group">
+			<!--
+				THE CARD IS THE DROP ZONE for a row dragged out of another group
+				(`sortDrag`'s `zones`), and `data-group-id` is what the commit
+				reads to know where it landed. The unfiled group is a zone too:
+				dragging a row onto "Not in a unit" unfiles it, which is the same
+				thing its menu's "No unit" does.
+			-->
+			<section class="card group-card" data-testid="unit-group" data-group-id={group.id}>
 				{#if !bare}
 					<!--
 						THE HEADER IS A ROW NOW, not a single button: a checkbox or a
@@ -1577,17 +1686,62 @@
 								{allSelected(groupIds) ? 'Deselect all' : 'Select all'}
 							</button>
 						{/if}
+						<!--
+							FILING BY CLICK (prompt 0118, item SEVEN). Once something is
+							ticked, every OPEN group header offers itself as the
+							destination: "tick these, press the unit" is the gesture, and
+							it puts the target where the person is already looking rather
+							than in a select box two scrolls up. The bulk bar KEEPS its
+							File into... select as the keyboard-and-screen-reader spelling
+							of the same write (`bulkFileInto`, one function, both doors).
+							A folded group gets none, for the reason its select-all gets
+							none: a target you cannot see the contents of.
+						-->
+						{#if editable && !folded && unitTransports && bulkSelected.size > 0}
+							<button
+								type="button"
+								class="btn secondary tiny group-file-here"
+								disabled={busy}
+								data-testid="group-file-here"
+								data-group-id={group.id}
+								aria-label="File here: {bulkSelected.size} selected item{bulkSelected.size === 1 ? '' : 's'} into {group.label}"
+								onclick={() => bulkFileInto([...bulkSelected], group.id)}
+							>
+								File here
+							</button>
+						{/if}
 					</div>
 				{/if}
 
 				{#if !folded}
-					<ul class="rows" id={`group-${group.id}`}>
+					<!--
+						ONE ACTION PER LIST. Its `disabled` follows `editable` and `busy`
+						(a student's list is never sortable; a list mid-write is not
+						either), and the two commits are closed over THIS group so an
+						index the action hands back is read against the rows it counted.
+					-->
+					<ul class="rows" id={`group-${group.id}`} use:sortDrag={sortOptions(group.id, group.items)}>
 						{#if entries.length === 0}
-							<li class="empty-row">
+							<!--
+								THE EMPTY UNIT SAYS HOW TO FILL IT, and now leads with the two
+								fast paths: drag a row here, or tick rows and press this
+								card's own File here. The menu and the bar are named too,
+								because a person who has neither a pointer to drag with nor
+								anything ticked yet still needs a door. Dashed, like every
+								drop target in the room, so an empty card reads as a place
+								things go rather than a heading over nothing. It keys on the
+								SAME predicate the doors it names key on -- dragging needs
+								`editable`, and every filing path (`fileInto`, the row menu's
+								Unit picker, the bar's select, File here) needs
+								`unitTransports` -- so a manager the page could not hand a
+								transport to is promised nothing it cannot do.
+							-->
+							<li class="empty-row" class:drop-hint={editable && !!unitTransports} data-testid="group-empty-hint">
 								<p class="note">
-									{#if canManage}
-										Nothing filed here yet. Open a row's actions menu (&#8942;) and pick this unit
-										under Unit, or tick several rows and use File into&hellip; in the bar above.
+									{#if editable && unitTransports}
+										Drag items here, or tick items and press File here. You can also open a
+										row's actions menu (&#8942;) and pick this unit under Unit, or use File
+										into&hellip; in the bar above.
 									{:else}
 										Nothing here yet.
 									{/if}
@@ -1835,11 +1989,12 @@
 		display: inline-flex;
 		align-items: center;
 	}
-	.bulk-unit select {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		padding: 0.28rem 0.4rem;
-		min-height: 44px;
+	/* The select is `.cr-select` (classroom.css): 44px, the room's own chevron
+	   and a dark open list. Nothing here re-states its box -- a scoped rule
+	   outranks the shared one and is how two selects stop matching. */
+	.bulk-unit {
+		display: inline-flex;
+		min-width: 0;
 	}
 	/* The same crimson the per-row menu's own Delete carries -- reserved for
 	   this kind of destructive action, never a general accent. */
@@ -1977,13 +2132,22 @@
 		background: var(--surface-2);
 		box-shadow: inset 3px 0 0 var(--green);
 	}
-	/* Where a dragged row would land -- a rule on the row it is over, the same
-	   shape PieceChainBuilder's `.dropinto` uses. */
-	.row-wrap.drag-over {
-		box-shadow: inset 0 2px 0 0 var(--green);
-	}
 	.empty-row {
 		padding: 0.3rem 0.1rem;
+	}
+	/* AN EMPTY UNIT IS A DROP TARGET AND LOOKS LIKE ONE: the dashed rule every
+	   drop zone in the classroom wears, in the boundary token (it is the only
+	   thing separating the hint from the card, so it carries meaning and
+	   clears 3:1). The active state, while a row is actually over the card,
+	   is `[data-sort-zone-active]` in classroom.css and is green. */
+	.empty-row.drop-hint {
+		margin: 0.2rem 0;
+		padding: 0.5rem 0.7rem;
+		border: 1px dashed var(--boundary);
+		border-radius: var(--radius-card);
+	}
+	.empty-row.drop-hint .note {
+		margin: 0;
 	}
 	/* THE COMPACT ROW: one line of content, everything at a glance. Thirty items
 	   used to be thirty cards; this is thirty rows. */
@@ -2013,26 +2177,54 @@
 		place-items: center;
 		cursor: pointer;
 	}
+	/* The box itself is `.cr-check` (classroom.css, 20px, redrawn in the
+	   room's tokens); this only keeps the cursor on the input as well as on
+	   the label around it. */
 	.row-select {
-		width: 18px;
-		height: 18px;
 		margin: 0;
 		cursor: pointer;
 	}
-	/* The mouse-only reorder affordance -- keyboard and assistive tech use the
-	   menu's Move up / Move down, which stay for exactly this reason. */
+	/* THE GRIP IS THE ONE CONTROL ON THE ROW THAT IS 44px WIDE, and that is
+	   the tap-target floor rather than an exception to it: it is what a finger
+	   holds for the length of a drag, on a phone, where the old HTML5 grip did
+	   nothing at all and was hidden. The checkbox and the expand control keep
+	   their documented 30px width (each is a tap, and each sits beside
+	   something it must not eat into); a grab is held, not tapped, and a held
+	   control that slips off a 30px box mid-drag drops the row somewhere
+	   nobody chose. The cost is name width on the crowded row, measured on
+	   /dev/classroom?view=class-bulk: 169px -> 120.25px at 375 (where the
+	   grip used to be hidden outright) and 227.3px -> 213.25px at 1440,
+	   still two clamped lines and still contained, which that route's own
+	   spec keeps reading. `min-height` and never a height, per the floor
+	   rule. */
 	.row-grip {
+		appearance: none;
 		flex: none;
-		width: 30px;
+		width: 44px;
 		min-height: 44px;
+		padding: 0;
 		display: grid;
 		place-items: center;
+		background: none;
+		border: 1px solid transparent;
+		border-radius: var(--radius-card);
 		color: var(--text-2);
 		cursor: grab;
+		font: inherit;
 		font-size: 0.85rem;
 		user-select: none;
 	}
-	.row-grip:active {
+	.row-grip:hover {
+		color: var(--text-1);
+	}
+	.row-grip:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: -2px;
+	}
+	/* `.is-dragging` is set by the action at runtime, so it is global to the
+	   compiler's eye. */
+	.row-grip:active,
+	:global(.is-dragging) .row-grip {
 		cursor: grabbing;
 	}
 	.row-expand {
@@ -2346,12 +2538,9 @@
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
+	/* `.cr-select` draws it; the menu only decides it takes the menu's width. */
 	.menu-unit select {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		padding: 0.2rem 0.3rem;
 		width: 100%;
-		min-height: 36px;
 	}
 
 	.row-detail {
@@ -2456,21 +2645,16 @@
 
 	/* Phone: a row is still two lines whenever its name fits one, and the name
 	   is what takes a second line when it does not -- see `.row-title`. Only the
-	   detail's indent gives way. */
+	   detail's indent gives way.
+
+	   THE GRIP IS NOT HIDDEN HERE ANY MORE. It used to be, because an HTML5
+	   drag has no touch equivalent and a control nobody can operate was
+	   costing the name 30px. `sortDrag` is pointer-based and sets
+	   `touch-action: none` on the handle, so a finger reorders now -- the
+	   phone is where the grip earns its width rather than where it is dead. */
 	@media (max-width: 640px) {
 		.row-detail {
 			padding-left: 0.4rem;
-		}
-		/* THE GRIP IS INERT ON A PHONE AND WAS COSTING THE NAME 30px THERE.
-		   It initiates an HTML5 drag, which has no touch equivalent at all -- so
-		   below this breakpoint it is a control nobody can operate, sitting in
-		   the middle of the row that identifies the item. Measured at 375px on
-		   the harness's crowded class: the name goes 134.3px to 164.3px, which
-		   is 44 characters of the long title to 55. Reordering is still reachable
-		   from the row menu's Move up / Move down, which is already the keyboard
-		   and assistive-tech path and says so. */
-		.row-grip {
-			display: none;
 		}
 	}
 </style>

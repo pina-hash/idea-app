@@ -75,7 +75,11 @@ export default {
 		and 1440 -- 7 characters of 121 -- and the column is 356px at every
 		width the pane ships at, so widening the page bought it nothing. The
 		title line wraps now and the name clamps at two lines: 227.3px / 76
-		characters at 1440, 169px / 55 at 375.
+		characters at 1440, 169px / 55 at 375 -- and since the grip became a
+		44px pointer-drag button that is no longer hidden on a phone (prompt
+		0118, item TWELVE), 213.25px at 1440 and 120.25px at 375, measured on
+		this route. Still two clamped lines, still contained, which is what the
+		probe below reads.
 
 		`scrollWidth === clientWidth` on the name is what says the clamp is
 		doing the containing rather than the row overflowing -- and the old rule

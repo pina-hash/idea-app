@@ -12,7 +12,20 @@ export default {
 		{ selector: '[data-testid="insp-group-private"]', label: 'group: instructor only', expectPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="insp-group-post"]', label: 'group: this post', expectPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="item-edit-toggle"]', label: 'Edit, in the header row', expectPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="insp-quick-grade"]', label: 'Grade, in the header row', expectPresent: 1, expectVisible: 1 }
+		{ selector: '[data-testid="insp-quick-grade"]', label: 'Grade, in the header row', expectPresent: 1, expectVisible: 1 },
+		/* THE EDITOR LAYER IS ABSENT AT REST (prompt 0118, item EIGHT). The two
+		   `...-layout-*` specs press Edit post and assert it present; this row
+		   is the other direction, beside the Edit control itself as the positive
+		   control that the strip rendered at all. */
+		{ selector: '[role="dialog"].composer-screen', label: 'the editor layer, ABSENT until Edit post is pressed', expectPresent: 0 },
+		/* THE DEFAULT PLACEMENT (0193): no `layout` attached, so the Links and
+		   Files cards sit BELOW the body, which is what every pre-0193 item
+		   renders. The `...-placement-top` spec is the other direction on the
+		   same fixture. */
+		{ selector: '[data-testid="item-links-card"][data-placement="bottom"]', label: 'Links card, placed below (the default)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="item-files-card"][data-placement="bottom"]', label: 'Files card, placed below (the default)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="item-links-card"][data-placement="top"]', label: 'Links card above, ABSENT by default', expectPresent: 0 },
+		{ selector: '[data-testid="item-files-card"][data-placement="top"]', label: 'Files card above, ABSENT by default', expectPresent: 0 }
 	],
 	/* NO GROUP MAY BE EMPTY, and a count is the only honest way to say it: a
 	   presence assertion of 0 on a selector nothing matches passes whether the
@@ -42,6 +55,21 @@ export default {
 				return [unlabelled.length, blocks.length];
 			}`,
 			expected: [0, 6]
+		},
+		{
+			label: 'document order by default: body, then Links, then Files',
+			evaluate: `() => {
+				const q = (s) => document.querySelector(s);
+				const nodes = [
+					['body', q('[data-testid="item-body-disclosure"]')],
+					['links', q('[data-testid="item-links-card"]')],
+					['files', q('[data-testid="item-files-card"]')]
+				];
+				if (nodes.some(([, n]) => !n)) return ['missing ' + nodes.filter(([, n]) => !n).map(([k]) => k).join(',')];
+				const ok = nodes.every(([, n], i) => i === 0 || (nodes[i - 1][1].compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+				return [ok ? 'body < links < files' : 'out of order'];
+			}`,
+			expected: ['body < links < files']
 		}
 	],
 	contrast: [

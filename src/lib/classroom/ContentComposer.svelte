@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
@@ -7,7 +7,21 @@
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
-	import { imageChoices } from '$lib/classroom/attachments';
+	import {
+		DEFAULT_ITEM_LAYOUT,
+		RENAME_REFUSALS,
+		imageChoices,
+		itemLayoutOf,
+		renameBlockedReason,
+		renameCollides,
+		renamedAttachmentFilename,
+		sameLayout,
+		sameOrder,
+		type ClassroomLayoutTransports,
+		type ItemLayout,
+		type ResourcePlacement
+	} from '$lib/classroom/attachments';
+	import { movedList, sortDrag } from '$lib/classroom/sort-drag';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
@@ -43,17 +57,25 @@
 		isoToLocalInput,
 		localInputToIso,
 		sectionTitle,
+		type ClassroomAttachment,
 		type ClassroomComposerTransports,
 		type ClassroomItem,
 		type ClassroomItemKind,
-		type ClassroomSection
+		type ClassroomSection,
+		type TxResult
 	} from '$lib/classroom/classroom';
 	import {
 		DEFAULT_DUE_TIME,
 		joinDueInput,
 		splitDueInput
 	} from '$lib/classroom/due-default';
-	import { claimPaste, dropTarget, filesFromClipboard } from '$lib/file-drop';
+	import {
+		claimPaste,
+		createDropController,
+		dropTarget,
+		filesFromClipboard,
+		type DragLikeEvent
+	} from '$lib/file-drop';
 
 	/**
 	 * THE content editor for every classroom item -- announcement, assignment
@@ -114,6 +136,9 @@
 		attachmentsEnabled = true,
 		instructorAttachmentsEnabled = true,
 		compact = false,
+		screen = false,
+		layoutTransports = null,
+		figureSources = [],
 		onsaved,
 		ondirtychange = null,
 		oncancel = null
@@ -161,6 +186,38 @@
 		instructorAttachmentsEnabled?: boolean;
 		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
+		/**
+		 * THE EDITOR AS A FULL-VIEWPORT LAYER (prompt 0118, item EIGHT). The
+		 * form is the same form -- the same `.composer` root, the same controls,
+		 * the same testids -- inside a fixed `role="dialog"` with a header
+		 * carrying the title and a Close, the sticky actions row beneath it, and
+		 * the form scrolling INSIDE the layer while the document behind it does
+		 * not. The class pane is 26rem wide above 1024px and a whole authoring
+		 * form folded into one of its rows was the report; a phone got the same
+		 * form as a card it could not scroll past. `compact` is ignored here:
+		 * the layer already decides the frame, and a bordered card inside a
+		 * full-screen dialog is a box in a box.
+		 */
+		screen?: boolean;
+		/**
+		 * THE 0193 WRITES -- placement, file order, file rename -- and ABSENCE IS
+		 * THE MECHANISM: null removes every one of those controls, which is the
+		 * read-only case and the honest state of a deployment where the
+		 * migration has not been pasted yet. The layout load answers that with
+		 * its narrowest probe (`layoutReady`) and the caller passes the object
+		 * or nothing; this component never guesses.
+		 */
+		layoutTransports?: ClassroomLayoutTransports | null;
+		/**
+		 * DOCUMENTS OTHER THAN THE BODY THAT CAN NAME A FILE AS A FIGURE -- an
+		 * assignment spec, a reference document -- so the rename pre-check can
+		 * refuse BEFORE the round trip with the same sentence the database
+		 * answers with after it. The body itself is always checked (the editor's
+		 * live document and the stored one); these are whatever the mounting
+		 * page already holds. Missing one is not a hole: the RPC re-checks the
+		 * spec text on its own and answers `referenced` in the same words.
+		 */
+		figureSources?: unknown[];
 		onsaved: (info: {
 			kind: ClassroomItemKind;
 			published: boolean;
@@ -443,6 +500,300 @@
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
 
+	// --- Where the files and links sit, and in what order (0193) ------------
+	//
+	// PLACEMENT IS NOT CONTENT, and it is written through its own RPC after the
+	// item exists, exactly the way everything else that hangs off an id is.
+	// `classroom_set_item_layout` stamps no `edited_at` and mints no revision:
+	// moving the files above the writing does not change what the writing
+	// says, so no student gets an "Updated" badge for it.
+	//
+	// SEEDED ONCE from the row being edited (a keyed remount is what resets
+	// it, as for every other field here). `savedLayout` is what the DATABASE
+	// holds, advanced on each successful write, so a retry after a half-landed
+	// save re-sends only what is still different -- the same shape as
+	// `createdItemId`. On a create the item carries nothing, so the seed is
+	// the default and the write happens only for a placement OFF it.
+	// svelte-ignore state_referenced_locally
+	let layout = $state<ItemLayout>(itemLayoutOf(item));
+	// svelte-ignore state_referenced_locally
+	let savedLayout: ItemLayout = itemLayoutOf(item);
+	/**
+	 * THE ORDER OF THE FILES THE ITEM ALREADY CARRIES IS `existing`'S OWN
+	 * ORDER. A reorder rearranges that array; `AttachmentList` renders the
+	 * prop's order and calls back with the id array, so there is one list and
+	 * one order rather than a second array of ids kept in step with it.
+	 * `savedOrder` is what the database holds -- advanced on a successful
+	 * write, and filtered to the ids still present so a REMOVAL (which the
+	 * delete RPC has already recorded) never reads as a reorder to send.
+	 */
+	const existingOrder = $derived(existing.map((a) => a.id));
+	// `$state`, not a plain `let`: the draft signature below asks `orderMoved`
+	// against this copy, so a successful write has to be a change the derived
+	// can see -- or a saved rearrangement keeps reading as unsaved work.
+	// svelte-ignore state_referenced_locally
+	let savedOrder = $state<string[]>(existing.map((a) => a.id));
+	/** Has this list been rearranged relative to what the database holds,
+	 *  counting only the rows that still exist. */
+	function orderMoved(current: string[], saved: string[]): boolean {
+		const present = new Set(current);
+		return !sameOrder(
+			current,
+			saved.filter((id) => present.has(id))
+		);
+	}
+
+	/** The one place the two segmented controls write. */
+	function place(group: keyof ItemLayout, value: ResourcePlacement) {
+		layout = { ...layout, [group]: value };
+	}
+
+	function reorderExisting(ids: string[]) {
+		const byId = new Map(existing.map((a) => [a.id, a]));
+		const next = ids.map((id) => byId.get(id)).filter((a): a is ClassroomAttachment => !!a);
+		if (next.length === existing.length) existing = next;
+	}
+	function reorderInstructorExisting(ids: string[]) {
+		const byId = new Map(instructorExisting.map((a) => [a.id, a]));
+		const next = ids.map((id) => byId.get(id)).filter((a): a is ClassroomAttachment => !!a);
+		if (next.length === instructorExisting.length) instructorExisting = next;
+	}
+
+	/**
+	 * WHY A RENAME OF THIS FILE WOULD LEAVE SOMETHING BROKEN, in the sentence
+	 * the database would use. Asked of what this composer HOLDS -- the editor's
+	 * live document, which the database cannot see until it is saved, the
+	 * stored body, and whatever figure sources the page handed in -- and
+	 * `AttachmentList` shows the sentence in place of the rename control.
+	 * Instructor-only files cannot be figures, so they take no such check.
+	 */
+	function renameBlocked(a: ClassroomAttachment): string | null {
+		const reason = renameBlockedReason(a.filename, {
+			referencedIn: [bodyDoc, item?.body_doc, ...figureSources]
+		});
+		return reason ? RENAME_REFUSALS[reason] : null;
+	}
+
+	/**
+	 * RENAME AN EXISTING FILE, IMMEDIATELY -- not on save. The name is the
+	 * alias every `attachment:` reference resolves against, so it is a fact
+	 * about the row rather than part of a draft, and a rename that waited for
+	 * the save would leave the picture picker offering a name the row no
+	 * longer has. The pre-checks run first so the ordinary refusals cost no
+	 * round trip and read identically to the database's own; the RPC re-checks
+	 * every one of them regardless. On success the row is updated in place,
+	 * which is what moves `bodyImages` too.
+	 */
+	async function renameExisting(
+		a: ClassroomAttachment,
+		filename: string
+	): Promise<TxResult<{ filename: string }>> {
+		if (!layoutTransports) return { ok: false, message: 'Renaming is not available here.' };
+		const next = renamedAttachmentFilename(filename);
+		if (!next) return { ok: false, message: RENAME_REFUSALS.empty };
+		const blocked = renameBlocked(a);
+		if (blocked) return { ok: false, message: blocked };
+		if (renameCollides(next, existing.map((x) => x.filename), a.filename)) {
+			return { ok: false, message: RENAME_REFUSALS.taken };
+		}
+		const res = await layoutTransports.renameAttachment(a.id, next);
+		if (res.ok) {
+			existing = existing.map((x) => (x.id === a.id ? { ...x, filename: res.data.filename } : x));
+		}
+		return res;
+	}
+	/** The instructor variant: same shape, no figure check (an instructor file
+	 *  cannot be a figure), its own sibling set, its own RPC. */
+	async function renameInstructorExisting(
+		a: ClassroomAttachment,
+		filename: string
+	): Promise<TxResult<{ filename: string }>> {
+		if (!layoutTransports) return { ok: false, message: 'Renaming is not available here.' };
+		const next = renamedAttachmentFilename(filename);
+		if (!next) return { ok: false, message: RENAME_REFUSALS.empty };
+		if (renameCollides(next, instructorExisting.map((x) => x.filename), a.filename)) {
+			return { ok: false, message: RENAME_REFUSALS.taken };
+		}
+		const res = await layoutTransports.renameInstructorAttachment(a.id, next);
+		if (res.ok) {
+			instructorExisting = instructorExisting.map((x) =>
+				x.id === a.id ? { ...x, filename: res.data.filename } : x
+			);
+		}
+		return res;
+	}
+
+	/**
+	 * A LINK ROW MOVES THROUGH ONE SPELLING, whether the grip was dragged, an
+	 * arrow key was pressed on it, or a Move button was clicked: `sortDrag`
+	 * hands `(from, to)` to this and so do the buttons. The array order IS the
+	 * stored sort (`classroom_item_resources` is a full-set replacement), so
+	 * the reorder persists through the ordinary save with nothing new to write.
+	 */
+	function moveLink(from: number, to: number) {
+		if (to < 0 || to >= links.length || from === to) return;
+		links = movedList(links, from, to);
+	}
+	function moveInstructorLink(from: number, to: number) {
+		if (to < 0 || to >= instructorLinks.length || from === to) return;
+		instructorLinks = movedList(instructorLinks, from, to);
+	}
+
+	// --- The composer-wide drop zone (prompt 0118, item NINE) ---------------
+	//
+	// A file dropped ANYWHERE on the form lands on the student-facing list.
+	// Before this the only drop targets were the two upload panels' own boxes,
+	// a few centimetres tall, in a form several screens long -- so a file
+	// dropped on the title, the body or the links opened in a new tab and the
+	// form was gone.
+	//
+	// THE NESTED PANELS TAKE THEIR OWN DROPS FIRST, and the root STANDS DOWN.
+	// Each FileUploadPanel (and the staged-deck box) carries `dropTarget`, whose
+	// `drop` calls `preventDefault` before it reads the files; a drop bubbles,
+	// so by the time it reaches this root `defaultPrevented` says a closer
+	// surface already staged it. The shared action does not read that flag --
+	// it was written for a surface with no droppable descendants -- which is
+	// why this is the shared CONTROLLER behind a listener that asks first,
+	// rather than a second copy of the drag state machine or a `stopPropagation`
+	// in a panel that has no idea what is above it. Measured the other way: the
+	// action on the root staged a screenshot dropped on the instructor-only
+	// panel TWICE, the second time onto the list the whole class can read --
+	// the same defect `claimPaste` exists for, on the drop event.
+	//
+	// The paste half is NOT registered here: the root's own `onpaste` already
+	// routes a pasted image and already asks `claimPaste`.
+	let composerDragActive = $state(false);
+	function composerDropZone(node: HTMLElement, initial: { disabled: boolean }) {
+		let disabled = initial.disabled;
+		const controller = createDropController({
+			onfiles: (files) => {
+				filePanel?.add(files);
+				pasteHint = `${files.length} dropped file${files.length === 1 ? '' : 's'} attached.`;
+				setTimeout(() => (pasteHint = null), 4000);
+			},
+			onactive: (a) => (composerDragActive = a)
+		});
+		const asDrag = (e: Event) => e as unknown as DragLikeEvent;
+		const onDragEnter = (e: Event) => {
+			if (!disabled) controller.dragEnter(asDrag(e));
+		};
+		const onDragOver = (e: Event) => {
+			if (!disabled) controller.dragOver(asDrag(e));
+		};
+		const onDragLeave = () => {
+			if (!disabled) controller.dragLeave();
+		};
+		const onDrop = (e: Event) => {
+			if (disabled) return;
+			if (e.defaultPrevented) {
+				// A closer surface took it. Only the feedback is reset here; the
+				// files are already where the person dropped them.
+				controller.dragLeave();
+				composerDragActive = false;
+				return;
+			}
+			void controller.drop(asDrag(e));
+		};
+		node.addEventListener('dragenter', onDragEnter);
+		node.addEventListener('dragover', onDragOver);
+		node.addEventListener('dragleave', onDragLeave);
+		node.addEventListener('drop', onDrop);
+		return {
+			update(next: { disabled: boolean }) {
+				disabled = next.disabled;
+				if (disabled) composerDragActive = false;
+			},
+			destroy() {
+				node.removeEventListener('dragenter', onDragEnter);
+				node.removeEventListener('dragover', onDragOver);
+				node.removeEventListener('dragleave', onDragLeave);
+				node.removeEventListener('drop', onDrop);
+			}
+		};
+	}
+
+	// --- Screen mode (prompt 0118, item EIGHT) ------------------------------
+	//
+	// Everything a modal layer owes and the markup cannot express on its own:
+	// the document behind it stops scrolling, Escape closes it, focus lands
+	// inside it on mount and goes back where it was on destroy. All of it is
+	// keyed on `screen` so the inline shapes (the console card, `compact`) are
+	// byte-identical to what they were.
+	// ONE `$props.id()` per component (Svelte refuses a second); the dialog's
+	// heading id is derived from the datalist's, lazily, because that id is
+	// declared further down beside the field that uses it.
+	const screenTitleId = $derived.by(() => `${categoryListId}-title`);
+	const screenTitle = $derived(
+		mode === 'create'
+			? 'New post'
+			: `Edit ${(ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'post').toLowerCase()}`
+	);
+	let screenEl = $state<HTMLDivElement | null>(null);
+	let titleInput = $state<HTMLInputElement | null>(null);
+
+	const FOCUSABLE =
+		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+		'textarea:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+
+	$effect(() => {
+		if (!screen) return;
+		// BODY SCROLL, LOCKED AND RESTORED TO WHATEVER IT WAS -- not to '', which
+		// would erase a value some other surface had set. The layer scrolls
+		// inside itself; the page underneath is exactly where it was when the
+		// dialog closes, which is the whole point of the item staying mounted.
+		const previousOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		// FOCUS RETURNS TO THE CONTROL THAT OPENED THIS. Captured before the
+		// title takes it, and restored on destroy only if it is still in the
+		// document -- the Edit post button is, a row menu item may not be.
+		const opener = document.activeElement as HTMLElement | null;
+		const onKey = (e: KeyboardEvent) => {
+			// A NESTED CONTROL THAT HANDLED ITS OWN ESCAPE HAS SAID SO. The
+			// attachment rename input, a staged file's rename and the editor's
+			// link popover each cancel THEMSELVES on Escape and `preventDefault`
+			// it on the way; this listener sits on the document, so it hears the
+			// same keypress afterwards -- and without this line one Escape in a
+			// rename box closed the whole editor over a form full of work.
+			// MEASURED before the fix: rename cancelled 1, `oncancel` 1.
+			if (e.defaultPrevented) return;
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				oncancel?.();
+				return;
+			}
+			// TAB STAYS INSIDE THE LAYER. `aria-modal` tells a reader the rest of
+			// the page is inert; this is what makes it true for a keyboard --
+			// without it Tab walks off the last control into the masthead
+			// behind the dialog, which is on screen to nobody.
+			if (e.key !== 'Tab' || !screenEl) return;
+			const nodes = Array.from(screenEl.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+				(n) => n.offsetParent !== null || n === document.activeElement
+			);
+			if (!nodes.length) return;
+			const first = nodes[0];
+			const last = nodes[nodes.length - 1];
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault();
+				last.focus();
+			} else if (!e.shiftKey && document.activeElement === last) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+		document.addEventListener('keydown', onKey);
+		// INTO THE TITLE, after the frame that mounts it. The title is on every
+		// kind (optional on an announcement, required elsewhere), which is why
+		// it and not the body editor is the landing: the editor mounts a tick
+		// later and exposes no focus method, and a focus call that races a
+		// mount is a silent no-op (CLAUDE.md: key an autofocus on the element).
+		void tick().then(() => untrack(() => titleInput?.focus()));
+		return () => {
+			document.removeEventListener('keydown', onKey);
+			document.body.style.overflow = previousOverflow;
+			if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus();
+		};
+	});
+
 	/**
 	 * THE PICTURES THE BODY EDITOR MAY OFFER (0041).
 	 *
@@ -501,6 +852,10 @@
 	);
 	// svelte-ignore state_referenced_locally
 	let instructorExisting = $state([...(item?.instructorAttachments ?? [])]);
+	/** The instructor list's own order and saved copy: see `existingOrder`. */
+	const instructorExistingOrder = $derived(instructorExisting.map((a) => a.id));
+	// svelte-ignore state_referenced_locally
+	let savedInstructorOrder = $state<string[]>(instructorExisting.map((a) => a.id));
 	let instructorPanel = $state<FileUploadPanel | null>(null);
 	let instructorStagedCount = $state(0);
 	let instructorRemovingId = $state<string | null>(null);
@@ -763,7 +1118,21 @@
 		deck: stagedDeck,
 		spec: stagedSpec,
 		checkIn: stagedCheckIn,
-		rubric: stagedRubric
+		rubric: stagedRubric,
+		// 0193: a placement or a rearrangement is work the guard must see, and
+		// neither types a word or moves a byte, so nothing above would notice.
+		layout,
+		// THE SAME COMPARISON THE SAVE MAKES, not the raw id list. `existing`
+		// also shrinks when a row is REMOVED, and that removal is an immediate
+		// RPC the database has already recorded -- so the raw list read as an
+		// unsaved change (MEASURED: `ondirtychange` false,true on Remove alone)
+		// and the discard guard asked about work that was not there to lose.
+		// Null unless the rows still present sit in a different order from
+		// what the database holds, which is exactly when a save would write.
+		existingOrder: orderMoved(existingOrder, savedOrder) ? existingOrder : null,
+		instructorExistingOrder: orderMoved(instructorExistingOrder, savedInstructorOrder)
+			? instructorExistingOrder
+			: null
 	});
 
 	/**
@@ -986,13 +1355,51 @@
 		}
 
 		/**
+		 * PLACEMENT AND ORDER (0193), BEFORE THE UPLOADS, and the order of these
+		 * two blocks is load-bearing rather than tidy. `classroom_set_attachment_order`
+		 * refuses any array that is not EXACTLY the item's attachment set -- so
+		 * it has to run while the set is still the rows this form opened on,
+		 * before `runAll` records new ones the array could not name. The new
+		 * rows take `max + 1` and land after everything, which is where a file
+		 * added just now belongs. Each write is attempted on its own, is named
+		 * in the report if it fails, and advances its `saved*` copy only when it
+		 * lands, so a retry re-sends exactly what is still different.
+		 *
+		 * GATED ON THE TRANSPORT, never on the control having been shown: with
+		 * no `layoutTransports` there was no control, so nothing here can have
+		 * moved off its seed and the comparison below is false by construction.
+		 */
+		if (layoutTransports) {
+			if (!sameLayout(layout, savedLayout)) {
+				const sent = { ...layout };
+				const res = await layoutTransports.setItemLayout(itemId, sent);
+				if (res.ok) savedLayout = sent;
+				else failures.push(`where the files and links sit: ${res.message}`);
+			}
+			if (orderMoved(existingOrder, savedOrder)) {
+				const sent = [...existingOrder];
+				const res = await layoutTransports.setAttachmentOrder(itemId, sent);
+				if (res.ok) savedOrder = sent;
+				else failures.push(`file order: ${res.message}`);
+			}
+			if (orderMoved(instructorExistingOrder, savedInstructorOrder)) {
+				const sent = [...instructorExistingOrder];
+				const res = await layoutTransports.setInstructorAttachmentOrder(itemId, sent);
+				if (res.ok) savedInstructorOrder = sent;
+				else failures.push(`instructor file order: ${res.message}`);
+			}
+		}
+
+		/**
 		 * BOTH LISTS AT ONCE, AND EVERY FILE IN EACH ATTEMPTED -- now through ONE
 		 * mechanism rather than two.
 		 *
-		 * `runAll` uploads a panel's files concurrently, catches each one
-		 * individually so a throw cannot reject the batch and discard the others'
-		 * results, keeps whatever failed staged with its own message and its own
-		 * Retry, and returns one line per failure. Two panels, the same guarantee,
+		 * `runAll` uploads a panel's files ONE AT A TIME IN LIST ORDER (the
+		 * record RPC stores arrival order, so the staged order is the stored
+		 * order), catches each one individually so a throw cannot end the batch
+		 * and discard the others' results, keeps whatever failed staged with its
+		 * own message and its own Retry, and returns one line per failure. Two
+		 * panels, the same guarantee,
 		 * and the same guarantee a student gets on a hand-in.
 		 *
 		 * The instructor list used to be a hand-rolled `Promise.all` over a `File[]`
@@ -1202,6 +1609,10 @@
 			stagedCheckIn = null;
 			stagedCheckInSessionId = null;
 			deckIssue = null;
+			// The next post starts from the default placement, and the database
+			// holds the default for a row that does not exist yet.
+			layout = { ...DEFAULT_ITEM_LAYOUT };
+			savedLayout = { ...DEFAULT_ITEM_LAYOUT };
 			// The editor is remounted by bumping its key rather than reset
 			// through it: `bodyDoc` is what the parent holds, and a keyed
 			// remount is the one way to be sure the two agree afterwards.
@@ -1263,7 +1674,127 @@
 	{/if}
 {/snippet}
 
-<div class="composer" class:compact onpaste={onPaste}>
+<!--
+	WHERE A RESOURCE GROUP SITS (0193). A radio group of two words each, not a
+	checkbox reading "above": both answers are states somebody chose, and a
+	tick that means "above" leaves "below" as the absence of a decision. 44px
+	each because a teacher sets this on a phone as readily as anywhere. It is
+	rendered ONLY when the transport that can write it exists -- absence is
+	the mechanism, so a deployment without the migration shows nothing here
+	rather than a control whose save would fail.
+-->
+{#snippet placeCheck()}
+	<svg class="place-check" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M5 12.5l4.5 4.5L19 7.5" />
+	</svg>
+{/snippet}
+
+{#snippet placement(group: 'files' | 'links', testId: string)}
+	{#if layoutTransports}
+		<div
+			class="place-picker"
+			role="radiogroup"
+			aria-label={group === 'files' ? 'Where the files sit' : 'Where the links sit'}
+			data-testid={testId}
+		>
+			<span class="place-label">{group === 'files' ? 'Files:' : 'Links:'}</span>
+			<!-- THE CHECKED OPTION CARRIES A MARK, not only a hue: the word is the
+			     same on both states, so a check glyph (aria-hidden, the word and
+			     `aria-checked` beside it say the same thing) and a heavier weight
+			     are what tell them apart for anyone who cannot read the green. -->
+			<button
+				type="button"
+				role="radio"
+				class="place-opt"
+				aria-checked={layout[group] === 'top'}
+				onclick={() => place(group, 'top')}
+			>
+				{#if layout[group] === 'top'}{@render placeCheck()}{/if}
+				Above the text
+			</button>
+			<button
+				type="button"
+				role="radio"
+				class="place-opt"
+				aria-checked={layout[group] === 'bottom'}
+				onclick={() => place(group, 'bottom')}
+			>
+				{#if layout[group] === 'bottom'}{@render placeCheck()}{/if}
+				Below the text
+			</button>
+		</div>
+	{/if}
+{/snippet}
+
+<!--
+	THE ORDER CONTROLS ON A LINK ROW. The grip is a real button so a keyboard
+	reaches it (`sortDrag` commits ArrowUp/ArrowDown on a focused handle), and
+	the two Move buttons beside it are the visible-word spelling of the same
+	move -- the grip alone is a glyph, and every control carries a word. All
+	three go through ONE `move(from, to)`. NOT GATED ON THE 0193 TRANSPORTS,
+	unlike the file order beside it: a link's position has been stored by the
+	existing save since 0082 (`classroom_item_resources` is a full-set
+	replacement whose array order is the sort), so the control needs no new
+	write and works on a deployment where the files cannot yet move. Offered
+	only where there is a second link to move past.
+-->
+{#snippet linkTools(index: number, total: number, move: (from: number, to: number) => void, what: string)}
+	{#if total > 1}
+		<span class="order-tools">
+			<button
+				type="button"
+				class="btn secondary order-btn order-grip"
+				data-sort-handle
+				aria-label="Reorder {what} {index + 1}: drag, or use the arrow keys"
+				title="Drag to reorder"
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+					<circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+					<circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+					<circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+				</svg>
+			</button>
+			<button
+				type="button"
+				class="btn secondary order-btn"
+				aria-disabled={index === 0}
+				aria-label="Move {what} {index + 1} up"
+				onclick={() => move(index, index - 1)}
+			>
+				Move up
+			</button>
+			<button
+				type="button"
+				class="btn secondary order-btn"
+				aria-disabled={index === total - 1}
+				aria-label="Move {what} {index + 1} down"
+				onclick={() => move(index, index + 1)}
+			>
+				Move down
+			</button>
+		</span>
+	{/if}
+{/snippet}
+
+<!--
+	THE FORM IS ONE SNIPPET RENDERED IN ONE OF TWO FRAMES. Inline (the console
+	card, a `compact` row) it is exactly the markup it always was; in `screen`
+	mode the same snippet sits inside the dialog layer below. Two copies of the
+	form would be two sets of controls to keep in step, and the one nobody is
+	looking at is the one that drifts.
+
+	THE DROP ZONE IS THE WHOLE FORM (`composerDropZone`, script above): a file
+	let go anywhere on it lands on the student-facing list, and the overlay at
+	the end of the snippet says so while a file drag is over it.
+-->
+{#snippet form()}
+<div
+	class="composer"
+	class:compact={compact && !screen}
+	class:is-screen={screen}
+	onpaste={onPaste}
+	use:composerDropZone={{ disabled: !attachmentsEnabled || busy }}
+>
 	<div class="composer-actions top" data-testid="composer-actions-top">
 		{@render actions('top')}
 		<!-- The indicator rides the top row too, because a person who saves from
@@ -1293,6 +1824,7 @@
 		<input
 			type="text"
 			bind:value={title}
+			bind:this={titleInput}
 			placeholder={editingKind === 'material' ? 'Course syllabus' : 'Bridge sketch'}
 		/>
 	</label>
@@ -1386,20 +1918,36 @@
 
 	<div class="resources-editor">
 		<span class="mini-label">Links</span>
-		{#each links as r, i (i)}
-			<div class="resource-row">
-				<input type="text" placeholder="Label" bind:value={r.label} />
-				<input type="url" placeholder="https://..." bind:value={r.url} />
-				<button
-					type="button"
-					class="btn secondary tiny"
-					aria-label="Remove link"
-					onclick={() => (links = links.filter((_, j) => j !== i))}
-				>
-					&times;
-				</button>
-			</div>
-		{/each}
+		{@render placement('links', 'place-links')}
+		<!-- `sortDrag` on the LIST, a handle in each row; it never reorders the
+		     DOM, `moveLink` does, and the keyed each re-renders the rows in the
+		     new order. Disabled, not absent, without the transport: the rows
+		     carry no handle then, so there is nothing for it to grab. -->
+		<div
+			class="resource-rows"
+			use:sortDrag={{ items: '.resource-row', ondrop: moveLink, disabled: busy }}
+		>
+			{#each links as r, i (i)}
+				<div class="resource-row" data-sort-item>
+					<input type="text" placeholder="Label" bind:value={r.label} />
+					<input type="url" placeholder="https://..." bind:value={r.url} />
+					<span class="row-tools">
+						{@render linkTools(i, links.length, moveLink, 'link')}
+						<!-- A WORD, NOT A GLYPH, and `order-btn` rather than `tiny`:
+						     it sits in the same row as three 44px worded controls, and
+						     the chip class would pin it to 24px (see the CSS note). -->
+						<button
+							type="button"
+							class="btn secondary order-btn"
+							aria-label="Remove link {i + 1}"
+							onclick={() => (links = links.filter((_, j) => j !== i))}
+						>
+							Remove
+						</button>
+					</span>
+				</div>
+			{/each}
+		</div>
 		<button
 			type="button"
 			class="btn secondary tiny"
@@ -1412,8 +1960,13 @@
 	{#if attachmentsEnabled}
 		<div class="attach-editor">
 			<span class="mini-label">Files</span>
-			<p class="hint">
-				Attach a file, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste a screenshot straight in.
+			{@render placement('files', 'place-files')}
+			<!-- THE PASTE CUE, at body weight rather than as a hint: it is the one
+			     sentence that says a screenshot needs no picker at all, and a hint
+			     in --text-2 under a label is the line nobody reads. -->
+			<p class="paste-cue" data-testid="composer-paste-cue">
+				Drop a file anywhere on this form, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste a
+				screenshot straight in.
 			</p>
 			<!-- THE SHARED PANEL. Same component, same failure semantics and same
 			     words as a student's hand-in; `autoStart` is false here because on
@@ -1442,11 +1995,17 @@
 				     offered unconditionally here. This is where an author is when
 				     they need it: the file is on screen and the prose editor is a
 				     few centimetres away. -->
+				<!-- THE ORDER, THE RENAME AND THE BLOCK all ride the transport's
+				     presence (0193): null removes each control, and the list is
+				     exactly what it was before any of them existed. -->
 				<AttachmentList
 					attachments={existing}
 					onremove={removeExisting}
 					removing={removingId}
 					figureRefs
+					onreorder={layoutTransports ? reorderExisting : null}
+					onrename={layoutTransports ? renameExisting : null}
+					renameBlocked={layoutTransports ? renameBlocked : null}
 				/>
 			{/if}
 		</div>
@@ -1604,20 +2163,32 @@
 		</p>
 
 		<div class="resources-editor">
-			{#each instructorLinks as r, i (i)}
-				<div class="resource-row">
-					<input type="text" placeholder="Label" bind:value={r.label} />
-					<input type="url" placeholder="https://..." bind:value={r.url} />
-					<button
-						type="button"
-						class="btn secondary tiny"
-						aria-label="Remove instructor link"
-						onclick={() => (instructorLinks = instructorLinks.filter((_, j) => j !== i))}
-					>
-						&times;
-					</button>
-				</div>
-			{/each}
+			<div
+				class="resource-rows"
+				use:sortDrag={{
+					items: '.resource-row',
+					ondrop: moveInstructorLink,
+					disabled: busy
+				}}
+			>
+				{#each instructorLinks as r, i (i)}
+					<div class="resource-row" data-sort-item>
+						<input type="text" placeholder="Label" bind:value={r.label} />
+						<input type="url" placeholder="https://..." bind:value={r.url} />
+						<span class="row-tools">
+							{@render linkTools(i, instructorLinks.length, moveInstructorLink, 'instructor link')}
+							<button
+								type="button"
+								class="btn secondary order-btn"
+								aria-label="Remove instructor link {i + 1}"
+								onclick={() => (instructorLinks = instructorLinks.filter((_, j) => j !== i))}
+							>
+								Remove
+							</button>
+						</span>
+					</div>
+				{/each}
+			</div>
 			<button
 				type="button"
 				class="btn secondary tiny"
@@ -1648,6 +2219,8 @@
 					onremove={removeInstructorExisting}
 					removing={instructorRemovingId}
 					resolveSrc={(a) => instructorAttachmentSrc(a.id)}
+					onreorder={layoutTransports ? reorderInstructorExisting : null}
+					onrename={layoutTransports ? renameInstructorExisting : null}
 				/>
 			{/if}
 		{/if}
@@ -1738,7 +2311,52 @@
 	{#if msg}
 		<p class="feedback" class:ok={msg.ok} class:error={!msg.ok}>{msg.text}</p>
 	{/if}
+	{#if composerDragActive}
+		<!-- `pointer-events: none`, so the drop still lands on whatever is under
+		     the pointer -- a nested panel takes its own, the form takes the rest. -->
+		<div class="composer-drop-overlay" data-testid="composer-drop-overlay" aria-hidden="true">
+			Drop to attach
+		</div>
+	{/if}
 </div>
+{/snippet}
+
+{#if screen}
+	<!--
+		THE LAYER. `role="dialog"` + `aria-modal` on a FIXED element above the
+		masthead (z-index 60: the masthead is 1, the lightbox and the legacy
+		header are 100, the navigation bar 1000 -- see app.css), a header row
+		that names what is being edited and carries the one control that has
+		to be reachable without scrolling, then the form scrolling inside. The
+		form's own sticky actions row sticks to the top of THIS scroller, under
+		the header, exactly as it stuck to the top of the page before.
+	-->
+	<div
+		class="composer-screen"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby={screenTitleId}
+		data-testid="composer-screen"
+		bind:this={screenEl}
+	>
+		<div class="composer-screen-head">
+			<h2 class="composer-screen-title" id={screenTitleId}>{screenTitle}</h2>
+			<button
+				type="button"
+				class="btn secondary composer-screen-close"
+				data-testid="composer-screen-close"
+				onclick={() => oncancel?.()}
+			>
+				Close
+			</button>
+		</div>
+		<div class="composer-screen-body">
+			{@render form()}
+		</div>
+	</div>
+{:else}
+	{@render form()}
+{/if}
 
 <style>
 	/* The TOP copy of the actions row. It is sticky rather than merely first,
@@ -1775,6 +2393,183 @@
 
 	.composer {
 		display: block;
+		/* The drop overlay is positioned against the form, so the form is the
+		   containing block. Nothing else here reads this. */
+		position: relative;
+	}
+	/* The composer-wide drop overlay (item NINE). A veil over the whole form
+	   that says where a file will land; `pointer-events: none` so the drop
+	   itself still reaches the element under the pointer. Same green wash as
+	   the deck box's overlay, so a drag reads the same everywhere on the form. */
+	.composer-drop-overlay {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-card);
+		outline: 2px dashed var(--green);
+		outline-offset: -2px;
+		background: color-mix(in srgb, var(--green) 14%, var(--surface-1));
+		font-family: var(--font-mono);
+		font-size: 1rem;
+		letter-spacing: 0.06em;
+		color: var(--text-1, var(--white));
+		pointer-events: none;
+	}
+
+	/* --- The full-viewport frame (item EIGHT) ------------------------------
+	   Fixed, above the masthead (1) and below the lightbox (100): 60. Flex
+	   column, so the header keeps its height and the body takes the rest and
+	   scrolls on its own -- `min-height: 0` is what lets a flex child shrink
+	   below its content and actually scroll. `100dvh` so a phone's browser
+	   chrome sliding away does not leave the Close row under it. */
+	.composer-screen {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		display: flex;
+		flex-direction: column;
+		height: 100dvh;
+		background: var(--surface-0);
+		color: var(--text-1);
+	}
+	.composer-screen-head {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--cr-gutter, 1rem);
+		border-bottom: 1px solid var(--boundary);
+		background: var(--surface-1);
+	}
+	.composer-screen-title {
+		margin: 0;
+		font-size: 1rem;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.composer-screen-close {
+		flex: none;
+		min-height: 44px;
+		min-width: 44px;
+	}
+	.composer-screen-body {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		/* At least 16px of gutter at every width; the measure keeps a 1440px
+		   form from running the whole viewport wide. */
+		padding: var(--space-3) max(var(--cr-gutter, 1rem), 16px) var(--space-6);
+	}
+	.composer-screen-body > .composer {
+		/* THE FORM'S OWN MEASURE, a literal rather than a `--measure-*` token:
+		   those are PAGE measures (`classroomMeasure` in nav.ts) and this layer
+		   is not a page. 64rem is where a two-input link row and the placement
+		   controls stop gaining width; the reading measure would fold the row. */
+		max-width: 64rem;
+		margin: 0 auto;
+	}
+
+	/* --- Placement (item FOUR) ---------------------------------------------
+	   A radio group drawn as a segmented pair. 44px per option; the CHECKED
+	   state is a check GLYPH, a heavier weight, a fill and an edge together,
+	   so colour is never the only signal -- the word alone cannot be it,
+	   because it is the same word in both states. */
+	.place-picker {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1) var(--space-2);
+		margin: 0.1rem 0 0.2rem;
+	}
+	.place-label {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.place-opt {
+		appearance: none;
+		min-height: 44px;
+		padding: 0.4rem 0.9rem;
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		background: var(--surface-2);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.place-opt[aria-checked='true'] {
+		color: var(--green);
+		border-color: var(--green);
+		background: color-mix(in srgb, var(--green) 12%, var(--surface-2));
+		font-weight: 700;
+	}
+	.place-check {
+		width: 0.9rem;
+		height: 0.9rem;
+		margin-right: 0.35rem;
+		vertical-align: -0.15em;
+	}
+	.place-opt:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+
+	/* --- Link rows with order controls (item FIVE) -------------------------- */
+	.resource-rows {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+	.row-tools,
+	.order-tools {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	/* 44px ON EVERY ORDER CONTROL, and NOT `.btn.tiny`. The chip class carries
+	   `min-height: 24px` from classroom.css at the same specificity as a
+	   scoped rule here, and it is declared later, so a `min-height: 44px` on
+	   a `.tiny` button lost silently -- MEASURED by the browser pass: grips
+	   at 44x26.9 and Move buttons at 69x24 while the placement options beside
+	   them cleared 44. So these buttons are not chips; they take the chip's
+	   type size and padding through their own class, and the floor holds.
+	   The row's Remove control is the fourth member of the same row and takes
+	   the same class, so the row is one height rather than three 44s and a
+	   24. */
+	.order-tools > .order-btn,
+	.row-tools > .order-btn {
+		min-height: 44px;
+		font-size: 0.65rem;
+		padding: 0.28rem 0.7rem;
+	}
+	.order-tools > .order-grip {
+		min-width: 44px;
+		padding: 0 0.5rem;
+		cursor: grab;
+	}
+	.order-grip svg {
+		width: 1rem;
+		height: 1rem;
+	}
+	.order-tools .btn[aria-disabled='true'] {
+		opacity: 0.45;
+	}
+	/* The paste cue sits at body weight on purpose -- see the markup. */
+	.paste-cue {
+		margin: 0;
+		color: var(--text-1);
+		font-size: 0.9rem;
+		line-height: 1.45;
 	}
 	.composer.compact {
 		border: 1px solid var(--line-strong);

@@ -1259,6 +1259,18 @@
 				"profile",
 				"theme"
 			]
+		},
+		{
+			"date": "2026-09-10",
+			"title": "The hall pass and class music are buttons now, posts drag more smoothly, and the editor fills the screen",
+			"body": "The hall pass and the class music are two buttons at the top of your class page instead of two cards. The button itself shows what is going on (pass free or taken, how many songs are waiting, whether yours was approved) and it updates on its own when something changes, so you do not need to refresh; tapping it opens the same card as before. For teachers, dragging a post up or down its unit is smoother and works on a phone, a post can be dragged straight onto another unit to file it there, and ticking several posts shows a File here button on each unit. Writing or editing a post now opens a full-screen editor with its own Close button; you can drop a file anywhere on it to attach it, there is a visible box for dragging files in or pasting a screenshot, and a file can be renamed before or after it is uploaded. Files and links on a post can be put in the order you want, and shown above the text instead of below it.",
+			"tags": [
+				"classroom",
+				"hall pass",
+				"music",
+				"posts",
+				"files"
+			]
 		}
 	]
 }

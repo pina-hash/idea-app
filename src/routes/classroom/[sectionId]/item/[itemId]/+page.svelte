@@ -8,11 +8,13 @@
 		createReferenceTransports,
 		createRevisionTransports,
 		createCheckInTransports,
+		createLayoutTransports,
 		createTeacherEngineTransports,
 		deckTransports,
 		fetchLinkPreviewClient
 	} from '$lib/classroom/transports';
 	import { checkInsForItem } from '$lib/classroom/class-check-ins';
+	import { itemLayoutKnown } from '$lib/classroom/attachments';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -32,6 +34,19 @@
 	const revisionTransports = createRevisionTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const checkInTransports = createCheckInTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const layoutTransports = createLayoutTransports(data.supabase);
+
+	/**
+	 * THE 0193 WRITES, handed down ONLY when this item's own read answered the
+	 * layout rung. `itemLayoutKnown` is false on a project without the
+	 * migration, where every RPC behind these would answer `PGRST202`, and
+	 * absence is what removes the controls -- no flag for ItemDetail to read.
+	 * A manager's only, because the composer these feed is a manager's.
+	 */
+	const liveLayoutTransports = $derived(
+		data.canManage && itemLayoutKnown(data.item) ? layoutTransports : null
+	);
 
 	/**
 	 * The instructor working copy's writes (0128). Built only when the LOAD
@@ -98,6 +113,7 @@
 	revisionTransports={data.canManage ? revisionTransports : null}
 	checkIns={itemCheckIns}
 	checkInTransports={liveCheckInTransports}
+	layoutTransports={liveLayoutTransports}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}

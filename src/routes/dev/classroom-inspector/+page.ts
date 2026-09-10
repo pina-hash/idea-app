@@ -27,6 +27,17 @@ import type { PageLoad } from './$types';
  *   ?case=student     canManage false. The whole region is absent; this is the
  *                     positive control for every "instructor-only" claim.
  *
+ * `?layout=1` hands the 0193 layout transports (placement, file order,
+ * rename) to ItemDetail, so its edit composer offers those controls; anything
+ * else hands null and the controls are absent. Two specs read the same
+ * fixture under each value, which is how the gating is measured in BOTH
+ * directions rather than only the direction that happens to render.
+ *
+ * `?placement=top` attaches a 0193 layout to the fixture that puts the links
+ * and the files ABOVE the body, so ItemDetail's other render path is on screen
+ * for a spec to order-check; the default (no `layout` attached) is the below
+ * path, which is the control.
+ *
  * `?open=1` opens the inspector on load. The open flag is module state in
  * `inspector.svelte.ts` and starts collapsed, which is correct for the product
  * and inconvenient for a harness that has to measure the body -- so the page

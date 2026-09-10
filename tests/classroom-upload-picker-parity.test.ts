@@ -81,6 +81,38 @@ describe('FileUploadPanel: the picker survives the drop target', () => {
 		expect(html).not.toContain('Drop files here');
 	});
 
+	it('THE ZONE IS IN THE SERVED MARKUP, at rest, and the picker sits inside it (0118 NINE)', () => {
+		// A drop zone nobody can see is a listener nobody is told about. The
+		// dashed box is server-rendered, so it is on screen before hydration
+		// and needs no drag to appear -- and the sentence keeps its class, which
+		// is what a sweep for the wording looks for.
+		const start = html.indexOf('data-testid="fup-zone"');
+		expect(start, 'no .fup-zone in the render').toBeGreaterThan(-1);
+		// Nothing is staged, so from the zone's start to the end of the render
+		// IS the zone: the sentence and the picker both sit inside it, and
+		// neither appears before it. (Svelte appends its scoping hash to the
+		// class, so the block is anchored on the testid rather than on
+		// `class="fup-zone"`.)
+		const zone = html.slice(start);
+		expect(zone).toContain('fup-drop-hint');
+		expect(zone).toContain('type="file"');
+		expect(zone).toMatch(/Ctrl\+V/);
+		expect(html.slice(0, start)).not.toContain('fup-drop-hint');
+		expect(html.slice(0, start)).not.toContain('type="file"');
+		// One zone per panel, never two.
+		expect(html.match(/data-testid="fup-zone"/g)).toHaveLength(1);
+	});
+
+	it('nothing staged means no row controls: no grip, no Move, no Rename in the initial render', () => {
+		// The ordering and renaming controls belong to a ROW, and there is no
+		// row until a file is picked; a control rendered here would be a
+		// control over nothing.
+		expect(html).not.toContain('data-testid="fup-grip"');
+		expect(html).not.toContain('data-testid="fup-move-up"');
+		expect(html).not.toContain('data-testid="fup-rename-start"');
+		expect(html).not.toContain('data-sort-handle');
+	});
+
 	it('offering the camera button keeps its own accept + capture, unaffected', () => {
 		const withCamera = strip(
 			render(FileUploadPanel, {
