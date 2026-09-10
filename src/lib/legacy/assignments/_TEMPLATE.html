@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- EDIT: the browser tab title. Course code, assignment number, assignment name. -->
+<title>IDEA-000 | Assignment 00: Assignment Title</title>
+<link rel="icon" type="image/png" sizes="512x512" href="/IDEA/ib-android-chrome-512x512.png">
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #020A04;
+  --bg1: #050F07;
+  --bg2: #081209;
+  --green: #00FF41;
+  --gold: #C8FF00;
+  --cyan: #00F0FF;
+  --amber: #FF8C00;
+  --teal: #00AA88;
+  --violet: #5500AA;
+  --white: #E8FFE8;
+  --dim: #4A7A52;
+  --ice: #88DDFF;
+  --glow-green: 0 0 10px rgba(0,255,65,0.8), 0 0 28px rgba(0,255,65,0.3);
+  --glow-gold: 0 0 10px rgba(200,255,0,0.8), 0 0 28px rgba(200,255,0,0.3);
+  --glow-amber: 0 0 10px rgba(255,140,0,0.8), 0 0 28px rgba(255,140,0,0.3);
+  --glow-cyan: 0 0 10px rgba(0,240,255,0.8), 0 0 28px rgba(0,240,255,0.3);
+  --glow-teal: 0 0 10px rgba(0,170,136,0.8), 0 0 28px rgba(0,170,136,0.3);
+}
+
+body {
+  background: var(--bg0);
+  color: var(--white);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* === SCROLL PROGRESS BAR === */
+#scroll-progress {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0%;
+  height: 2px;
+  background: var(--green);
+  box-shadow: var(--glow-green);
+  z-index: 1001;
+  transition: width 0.08s linear;
+  pointer-events: none;
+}
+
+/* === TOOLBAR === */
+#toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(2, 10, 4, 0.9);
+  border-bottom: 1px solid rgba(0,255,65,0.18);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tb-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 7px 14px;
+  border: 1px solid rgba(0,255,65,0.28);
+  background: rgba(0,255,65,0.04);
+  color: var(--green);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.tb-btn:hover { background: rgba(0,255,65,0.12); border-color: rgba(0,255,65,0.6); }
+.tb-btn.danger { border-color: rgba(255,140,0,0.28); color: var(--amber); background: rgba(255,140,0,0.03); }
+.tb-btn.danger:hover { background: rgba(255,140,0,0.1); border-color: rgba(255,140,0,0.6); }
+#tb-score {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  padding: 6px 12px;
+  border: 1px solid rgba(200,255,0,0.2);
+  background: rgba(200,255,0,0.04);
+  white-space: nowrap;
+}
+#tb-save-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  margin-left: auto;
+  transition: color 0.3s;
+}
+#tb-save-status.flash { color: var(--green); }
+
+/* === BACKGROUND CANVAS === */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+/* === PAGE === */
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 32px 60px;
+}
+
+/* === VERSION WARNING === */
+#version-warning {
+  display: none;
+  background: rgba(255,140,0,0.08);
+  border: 1px solid var(--amber);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 1px;
+  line-height: 1.6;
+}
+
+/* === HEADER === */
+.header {
+  border: 1px solid rgba(0,255,65,0.28);
+  border-bottom: 3px solid var(--green);
+  background: rgba(5,15,7,0.97);
+  padding: 28px 32px 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+}
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+.brand-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 4px; }
+.brand-title { font-family: 'Orbitron', sans-serif; font-size: 30px; font-weight: 900; color: var(--green); letter-spacing: 4px; text-shadow: var(--glow-green); line-height: 1; display: block; margin-bottom: 4px; }
+.brand-sub { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 2px; display: block; }
+.brand-note { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: rgba(74,122,82,0.55); letter-spacing: 1px; display: block; margin-top: 7px; font-style: italic; }
+.badge-num { font-family: 'Orbitron', sans-serif; font-size: 42px; font-weight: 900; color: rgba(0,255,65,0.12); line-height: 1; text-align: right; display: block; }
+.badge-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 2px; text-align: right; display: block; }
+.header-title { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; color: var(--green); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,255,65,0.12); }
+.student-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 0.7fr; gap: 12px; margin-bottom: 14px; }
+.info-field { display: flex; flex-direction: column; gap: 4px; }
+.info-field label, .field-row label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; display: block; }
+.info-field input, .field-row input[type="text"] {
+  background: var(--bg2);
+  border: 1px solid rgba(0,255,65,0.12);
+  border-bottom: 1px solid var(--dim);
+  color: var(--green);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  padding: 9px 12px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.info-field input:focus, .field-row input[type="text"]:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(0,255,65,0.1);
+}
+.info-field input[readonly] { color: var(--cyan); cursor: default; border-color: rgba(0,240,255,0.15); }
+.info-field input::placeholder, .field-row input::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+
+/* === SUBMISSION INSTRUCTIONS === */
+.mod-scope { font-family: 'Share Tech Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 2px; padding: 2px 7px; border: 1px solid; text-transform: uppercase; white-space: nowrap; margin-right: 8px; }
+.mod-scope.team { color: var(--cyan); border-color: rgba(0,240,255,0.45); background: rgba(0,240,255,0.07); }
+.mod-scope.individual { color: var(--gold); border-color: rgba(200,255,0,0.45); background: rgba(200,255,0,0.07); }
+.submit-callout { border: 1px solid rgba(255,140,0,0.18); background: rgba(255,140,0,0.03); padding: 12px 16px; margin-bottom: 16px; }
+.copy-notice { display: none; font-family: 'Share Tech Mono', monospace; font-size: 11px; line-height: 1.6; color: var(--amber); letter-spacing: 0.5px; margin-bottom: 16px; padding: 12px 16px; border: 1px solid rgba(255,140,0,0.3); border-left: 3px solid var(--amber); background: rgba(255,140,0,0.05); }
+.copy-notice strong { color: var(--amber); }
+.storage-warn { font-family: 'Share Tech Mono', monospace; font-size: 11px; line-height: 1.6; color: var(--amber); letter-spacing: 0.5px; margin-top: 10px; padding: 8px 12px; border: 1px solid rgba(255,140,0,0.22); border-left: 3px solid var(--amber); background: rgba(255,140,0,0.04); }
+.storage-warn strong { color: var(--amber); }
+.submit-note { font-family: 'Share Tech Mono', monospace; font-size: 10px; line-height: 1.6; color: var(--amber); letter-spacing: 0.5px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,140,0,0.15); }
+.submit-callout-title { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 3px; color: var(--amber); text-transform: uppercase; margin-bottom: 8px; }
+.submit-steps { display: flex; gap: 0; flex-wrap: wrap; }
+.submit-step { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 140px; padding: 4px 8px; }
+.step-num { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; color: var(--amber); flex-shrink: 0; line-height: 1.4; }
+.step-text { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.5; }
+.step-text em { color: var(--green); font-style: normal; }
+
+/* === TOTAL BAR === */
+.total-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0,255,65,0.04);
+  border: 1px solid rgba(0,255,65,0.18);
+  margin-bottom: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 2px;
+}
+.total-bar strong {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 13px;
+  color: var(--gold);
+  letter-spacing: 3px;
+  animation: glow-breathe-gold 3s ease-in-out infinite;
+}
+@keyframes glow-breathe-gold {
+  0%, 100% { text-shadow: 0 0 4px rgba(200,255,0,0.2); }
+  50% { text-shadow: var(--glow-gold); }
+}
+
+/* === MODULES === */
+.module {
+  border: 1px solid rgba(0,255,65,0.18);
+  background: var(--bg1);
+  margin-bottom: 20px;
+  position: relative;
+  break-inside: avoid;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+  overflow: hidden;
+}
+.module.visible { opacity: 1; transform: translateY(0); }
+.module::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: linear-gradient(180deg, var(--green), rgba(0,255,65,0.05));
+  z-index: 1;
+}
+.module::after {
+  content: '';
+  position: absolute;
+  top: -100%; left: 0; right: 0;
+  height: 100%;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,255,65,0.035) 50%, transparent 100%);
+  pointer-events: none;
+  transition: top 0.55s ease;
+  z-index: 0;
+}
+.module:hover::after { top: 100%; }
+
+.module-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 12px 24px;
+  border-bottom: 1px solid rgba(0,255,65,0.12);
+  background: rgba(0,255,65,0.03);
+  position: relative;
+  z-index: 1;
+}
+.mod-num { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; color: var(--dim); letter-spacing: 1px; background: rgba(0,255,65,0.07); padding: 3px 8px; border: 1px solid rgba(0,255,65,0.18); }
+.mod-title { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--green); flex: 1; text-transform: uppercase; }
+.mod-pts {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  background: rgba(200,255,0,0.05);
+  border: 1px solid rgba(200,255,0,0.18);
+  padding: 3px 10px;
+  animation: glow-breathe-pts 4s ease-in-out infinite;
+}
+@keyframes glow-breathe-pts {
+  0%, 100% { text-shadow: 0 0 4px rgba(200,255,0,0.15); }
+  50% { text-shadow: var(--glow-gold); }
+}
+.mod-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(74,122,82,0.3);
+  border: 1px solid rgba(74,122,82,0.4);
+  flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+.mod-dot.complete { background: var(--green); border-color: var(--green); box-shadow: 0 0 8px rgba(0,255,65,0.55); }
+.rubric-toggle { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 1px; padding: 3px 10px; border: 1px solid rgba(0,255,65,0.18); background: transparent; color: var(--dim); cursor: pointer; text-transform: uppercase; transition: color 0.2s, background 0.2s; white-space: nowrap; }
+.rubric-toggle:hover { color: var(--green); background: rgba(0,255,65,0.05); }
+.rubric-toggle.open { color: rgba(74,122,82,0.7); }
+.module-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
+
+/* === RUBRIC PANEL === */
+.rubric-panel { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+.rubric-panel.open { max-height: 700px; border-top: 1px solid rgba(0,255,65,0.1); }
+.rubric-inner { padding: 12px 24px 16px; background: rgba(0,255,65,0.015); }
+.rubric-title-row { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid rgba(0,255,65,0.08); margin-bottom: 2px; display: flex; justify-content: space-between; }
+.rubric-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(0,255,65,0.04); }
+.rubric-row:last-child { border-bottom: none; }
+.rubric-criteria { font-size: 13px; color: var(--dim); line-height: 1.5; flex: 1; }
+.rubric-criteria strong { color: var(--white); font-weight: 600; }
+.rubric-pts { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); white-space: nowrap; padding-top: 2px; }
+.rubric-levels { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.7; margin-top: 5px; }
+
+/* === FORM FIELDS === */
+.field-row { display: flex; flex-direction: column; gap: 5px; }
+.field-row textarea {
+  background: var(--bg2);
+  border: 1px solid rgba(0,255,65,0.12);
+  border-bottom: 1px solid var(--dim);
+  color: var(--green);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  width: 100%;
+  min-height: 80px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field-row textarea:focus { border-color: var(--green); box-shadow: 0 0 8px rgba(0,255,65,0.08), inset 0 0 4px rgba(0,255,65,0.03); }
+.field-row textarea::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+.sent-count { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; padding: 4px 8px; border-left: 2px solid var(--dim); color: var(--dim); transition: color 0.2s, border-color 0.2s; display: flex; align-items: center; gap: 6px; }
+.sent-count.met { color: var(--green); border-left-color: var(--green); }
+.sent-count.unmet.active { color: var(--amber); border-left-color: var(--amber); }
+.sent-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.prompt { font-size: 13px; color: var(--dim); font-style: italic; line-height: 1.7; padding: 10px 14px; border-left: 2px solid rgba(0,255,65,0.1); background: rgba(0,255,65,0.02); }
+.sub-label { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; padding: 6px 0 2px; border-bottom: 1px solid rgba(0,255,65,0.07); margin-bottom: 2px; }
+.working-note { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--amber); letter-spacing: 1px; padding: 4px 10px; border: 1px solid rgba(255,140,0,0.18); background: rgba(255,140,0,0.03); display: inline-block; margin-bottom: 2px; }
+.identity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* === IMAGE UPLOAD === */
+.drop-zone { border: 1px dashed rgba(0,255,65,0.2); background: var(--bg2); padding: 24px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: background 0.2s, border-color 0.2s; user-select: none; }
+.drop-zone:hover, .drop-zone.drag-over { background: rgba(0,255,65,0.06); border-color: var(--dim); }
+.drop-icon { font-family: 'Orbitron', sans-serif; font-size: 18px; color: rgba(0,255,65,0.15); letter-spacing: 2px; }
+.drop-label { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; }
+.drop-sub { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: rgba(74,122,82,0.55); letter-spacing: 1px; }
+.img-count { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; padding: 4px 8px; border-left: 2px solid var(--dim); color: var(--dim); display: flex; align-items: center; gap: 6px; transition: color 0.2s, border-color 0.2s; }
+.img-count.partial { color: var(--amber); border-left-color: var(--amber); }
+.img-count.met { color: var(--green); border-left-color: var(--green); }
+.sketch-preview { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.preview-item { position: relative; border: 1px solid rgba(0,255,65,0.18); background: #000; display: flex; flex-direction: column; cursor: pointer; }
+.preview-item img { max-height: 130px; max-width: 180px; min-width: 80px; object-fit: contain; display: block; }
+.preview-caption { background: var(--bg2); border: none; border-top: 1px solid rgba(0,255,65,0.08); color: var(--green); font-family: 'Share Tech Mono', monospace; font-size: 9px; padding: 4px 6px; outline: none; width: 100%; max-width: 180px; }
+.preview-caption::placeholder { color: var(--dim); font-style: italic; }
+.remove-img { position: absolute; top: 3px; right: 3px; background: rgba(255,140,0,0.6); border: none; color: #fff; font-size: 12px; width: 18px; height: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.remove-img:hover { background: rgba(255,140,0,0.9); }
+
+/* === LIGHTBOX === */
+#lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 9999; align-items: center; justify-content: center; }
+#lightbox.active { display: flex; }
+#lightbox-img { max-width: 92vw; max-height: 90vh; object-fit: contain; border: 1px solid rgba(0,255,65,0.25); display: block; }
+#lightbox-close { position: absolute; top: 20px; right: 24px; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--dim); cursor: pointer; letter-spacing: 2px; padding: 6px 12px; border: 1px solid rgba(0,255,65,0.18); background: rgba(2,10,4,0.8); transition: color 0.2s; }
+#lightbox-close:hover { color: var(--green); }
+
+/* === PRINT MIRRORS === */
+.print-mirror { display: none; color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; padding: 10px 12px; border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim); background: var(--bg2); min-height: 34px; width: 100%; }
+.print-mirror.single-line { white-space: normal; overflow: visible; min-height: auto; }
+
+/* === DECLARATION === */
+.declaration-block { border: 1px solid rgba(0,255,65,0.18); background: rgba(0,255,65,0.02); padding: 18px 22px; margin-bottom: 20px; }
+.declaration-title { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 3px; color: var(--green); text-transform: uppercase; margin-bottom: 10px; }
+.declaration-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); line-height: 1.8; margin-bottom: 14px; }
+.decl-checkbox { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.decl-checkbox input[type="checkbox"] { accent-color: var(--green); width: 16px; height: 16px; margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+.decl-checkbox-label { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--white); letter-spacing: 0.5px; line-height: 1.6; }
+
+/* === SUBMISSION CHECKLIST === */
+.checklist-section { border: 1px solid rgba(0,255,65,0.18); background: var(--bg1); margin-bottom: 20px; }
+.checklist-section-header { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid rgba(0,255,65,0.12); background: rgba(0,255,65,0.03); }
+.checklist-section-title { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 3px; color: var(--green); text-transform: uppercase; }
+.checklist-body { padding: 12px 20px; display: flex; flex-direction: column; gap: 5px; }
+.checklist-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.06); background: rgba(0,255,65,0.01); cursor: pointer; transition: transform 0.15s ease, background 0.15s ease; }
+.checklist-item:hover { transform: translateX(6px); background: rgba(0,255,65,0.04); }
+.checklist-item input[type="checkbox"] { accent-color: var(--green); width: 14px; height: 14px; margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+.checklist-item-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.6; }
+.checklist-item input:checked + .checklist-item-text { color: var(--green); }
+
+/* === INSTRUCTOR TABLE (print only) === */
+.instructor-table { display: none; }
+
+/* === FOOTER === */
+.footer { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; padding: 14px 20px; border: 1px solid rgba(0,255,65,0.12); background: var(--bg1); font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 2px; flex-wrap: wrap; gap: 10px; }
+.footer-pts { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; color: var(--gold); letter-spacing: 3px; }
+
+/* === CLEAR DIALOG === */
+#clear-dialog { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 9998; align-items: center; justify-content: center; }
+#clear-dialog.active { display: flex; }
+.clear-box { border: 2px solid var(--amber); background: var(--bg1); padding: 30px 36px; max-width: 420px; text-align: center; }
+.clear-box-title { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; color: var(--amber); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
+.clear-box-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); line-height: 1.8; margin-bottom: 22px; }
+.clear-box-btns { display: flex; gap: 12px; justify-content: center; }
+
+/* === PREFLIGHT DIALOG === */
+#preflight-dialog { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 9997; align-items: center; justify-content: center; }
+#preflight-dialog.active { display: flex; }
+.preflight-box { border: 2px solid var(--amber); background: var(--bg1); padding: 24px 28px; max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.preflight-title { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; color: var(--amber); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 6px; }
+.preflight-subtitle { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 1px; margin-bottom: 14px; }
+.preflight-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.preflight-issue { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--amber); letter-spacing: 0.5px; padding: 5px 0; border-bottom: 1px solid rgba(255,140,0,0.1); display: flex; gap: 8px; }
+.preflight-issue::before { content: '[!]'; color: var(--amber); flex-shrink: 0; }
+.preflight-ok-msg { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--green); letter-spacing: 1px; margin-bottom: 16px; }
+.preflight-btns { display: flex; gap: 12px; }
+
+/* === PREFERS REDUCED MOTION === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .module { opacity: 1 !important; transform: none !important; }
+  .module::after { display: none !important; }
+}
+
+/* === PRINT === */
+@page { size: letter; margin: 0.75in; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  #bg-canvas, #scroll-progress, #toolbar, .submit-callout, .sent-count, .drop-zone,
+  .remove-img, .rubric-toggle, .rubric-panel,
+  #clear-dialog, #preflight-dialog, #lightbox, .img-count,
+  .checklist-section { display: none !important; }
+  input[type="text"], textarea { display: none !important; }
+  input[type="checkbox"], input[type="radio"] { display: none !important; }
+  .print-mirror { display: block !important; }
+  .sketch-preview { display: flex !important; }
+  .module, .header, .declaration-block { break-inside: avoid; page-break-inside: avoid; }
+  .page { padding: 16px 0 40px; }
+  .brand-title { text-shadow: none !important; }
+  .module { opacity: 1 !important; transform: none !important; background: var(--bg1) !important; }
+  .module::after { display: none !important; }
+  .instructor-table {
+    display: table !important;
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 24px;
+    page-break-inside: avoid;
+  }
+  .instructor-table th, .instructor-table td {
+    border: 1px solid rgba(0,255,65,0.25);
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    text-align: left;
+  }
+  .instructor-table th { background: rgba(0,255,65,0.05); color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+  .instructor-table td { color: var(--white); min-height: 32px; vertical-align: top; }
+  .instructor-table .score-cell { min-width: 60px; }
+  .decl-checkbox { padding: 8px 12px; }
+}
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <button class="tb-btn" onclick="printWithPreflight()">[ Print / Export PDF ]</button>
+  <button class="tb-btn" onclick="saveToStorage()">[ Save Progress ]</button>
+  <button class="tb-btn" onclick="downloadWithPreflight()">[ Download with Data ]</button>
+  <button class="tb-btn danger" onclick="showClearDialog()">[ Clear All ]</button>
+  <span id="tb-score">0 / 0 pts</span>
+  <span id="tb-save-status">Auto-save on</span>
+</div>
+
+<!-- BG CANVAS -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- LIGHTBOX (part of the OPTIONAL image zone: delete with it) -->
+<div id="lightbox" onclick="closeLightbox(event)">
+  <img id="lightbox-img" src="" alt="">
+  <div id="lightbox-close" onclick="closeLightbox()">[ESC / CLOSE]</div>
+</div>
+
+<!-- CLEAR DIALOG -->
+<div id="clear-dialog">
+  <div class="clear-box">
+    <div class="clear-box-title">Clear All Progress?</div>
+    <div class="clear-box-text">This will permanently erase all fields, images, and saved data for this assignment. This cannot be undone.</div>
+    <div class="clear-box-btns">
+      <button class="tb-btn danger" onclick="confirmClear()" style="cursor:pointer">[ Yes, Clear Everything ]</button>
+      <button class="tb-btn" onclick="hideClearDialog()" style="cursor:pointer">[ Cancel ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- PREFLIGHT DIALOG -->
+<div id="preflight-dialog">
+  <div class="preflight-box">
+    <div class="preflight-title" id="preflight-title">Completeness Check</div>
+    <div class="preflight-subtitle" id="preflight-subtitle">The following items are incomplete. You can go back and fix them, or continue anyway.</div>
+    <div class="preflight-list" id="preflight-list"></div>
+    <div class="preflight-btns">
+      <button class="tb-btn danger" id="preflight-proceed" onclick="proceedPreflight()" style="cursor:pointer">[ Continue Anyway ]</button>
+      <button class="tb-btn" onclick="hidePreflight()" style="cursor:pointer">[ Go Back ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- VERSION WARNING -->
+<div id="version-warning"></div>
+
+<div class="page">
+
+<!-- ===================================================================
+     HEADER
+     EDIT: the four brand lines and the assignment number badge. Nothing
+     here is read by any script except the fields carrying data-field.
+     =================================================================== -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <span class="brand-label">Don Bosco Technical Institute &nbsp;|&nbsp; IDEA-000</span>
+      <span class="brand-title">ASSIGNMENT</span>
+      <span class="brand-sub">One line saying what this course unit is</span>
+    </div>
+    <div style="text-align:right">
+      <span class="badge-num">00</span>
+      <span class="badge-label">Assignment</span>
+    </div>
+  </div>
+  <!-- EDIT: the assignment's own title, as a student reads it. -->
+  <div class="header-title">Assignment Title</div>
+  <div class="student-grid">
+    <div class="info-field">
+      <label>Student Name</label>
+      <input type="text" id="student-name" data-field="student-name" placeholder="Full name" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="student-name"></div>
+    </div>
+    <!-- OPTIONAL: Team Name. Delete this info-field AND its manifest header
+         block together if the assignment is not a team build. -->
+    <div class="info-field">
+      <label>Team Name</label>
+      <input type="text" id="team-name" data-field="team-name" placeholder="Your team's name" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="team-name"></div>
+    </div>
+    <div class="info-field">
+      <label>Date</label>
+      <input type="text" id="student-date" data-field="student-date" placeholder="MM / DD / YYYY" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="student-date"></div>
+    </div>
+    <div class="info-field">
+      <label>Version</label>
+      <!-- Filled from BUILD_VERSION on load. Edit the constant, not this. -->
+      <input type="text" id="build-version-field" value="" readonly>
+    </div>
+    <div class="info-field">
+      <label>Due Date</label>
+      <!--
+        BREAKS A COPIED ASSIGNMENT (3 of 4): THE DUE DATE.
+        This is a read-only value the author types, and it is the one field a
+        copied assignment carries over silently and wrongly. Nothing computes
+        it and nothing warns about it, so a document copied in October still
+        shows the date it was copied from. Set it every time, and keep the
+        SPACED format ("09 / 11 / 2026") -- it is what the date fields beside
+        it use and what students read on every other assignment.
+      -->
+      <input type="text" value="00 / 00 / 0000" readonly>
+    </div>
+  </div>
+</div>
+
+<!-- OPENED-AS-COPY NOTICE -->
+<div class="copy-notice" id="copy-notice">
+  This file was opened as a copy. It has <strong>not</strong> been saved over the work already stored in this browser, and nothing you type here is being auto-saved. Use <strong>[ Download with Data ]</strong> to keep any changes you make.
+</div>
+
+<!-- SUBMISSION INSTRUCTIONS -->
+<div class="submit-callout">
+  <div class="submit-callout-title">Submission Instructions</div>
+  <div class="submit-steps">
+    <div class="submit-step"><div class="step-num">01</div><div class="step-text">Complete every module below</div></div>
+    <div class="submit-step"><div class="step-num">02</div><div class="step-text">Click <em>[ Download with Data ]</em> in the toolbar above</div></div>
+    <div class="submit-step"><div class="step-num">03</div><div class="step-text">Upload the downloaded <em>.html</em> file to <em>IDEA Classroom</em></div></div>
+  </div>
+  <div class="submit-note">[ Print / Export PDF ] is still there if you want a paper copy. A PDF is not a submission: it loses your images, your score, and every field you typed.</div>
+</div>
+
+<!-- TOTAL BAR. The points come from the manifest. -->
+<div class="total-bar">
+  <span>Assignment Weight</span>
+  <strong id="total-bar-pts">0 Points</strong>
+  <span>Click [ Rubric ] in any module header to see grading criteria</span>
+</div>
+
+<!-- ===================================================================
+     MODULE ONE - SHORT ANSWER
+     A module is this block of markup PLUS its entry in the manifest at the
+     bottom of the file. Both, every time: a module with no manifest entry
+     scores nothing and a manifest entry with no markup is refused on import.
+
+     data-module must equal the manifest module's "id".
+     The number, the title, the scope chip, the points chip and the whole
+     rubric panel are filled from the manifest on load. EDIT THE MANIFEST,
+     not the empty spans.
+     =================================================================== -->
+<div class="module" data-module="module-one" id="mod-module-one">
+  <div class="module-header">
+    <span class="mod-num"></span>
+    <span class="mod-title"></span>
+    <span class="mod-scope"></span>
+    <span class="mod-pts"></span>
+    <span class="mod-dot"></span>
+    <button class="rubric-toggle" onclick="toggleRubric('module-one')">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <!-- EDIT: the prompt a student reads before answering. -->
+    <p class="prompt">Placeholder prompt. Say what the student is being asked to do here and what a good answer looks like. Two or three sentences is usually enough.</p>
+    <div class="sub-label">Placeholder Sub-heading</div>
+    <div class="field-row">
+      <!--
+        A SHORT ANSWER FIELD.
+        data-field is the only thing that matters mechanically. It must match a
+        block's "field" in the manifest exactly, and it must be unique in this
+        document. data-mirror on the div beneath it must match, or the answer
+        prints blank.
+      -->
+      <label>Placeholder label for a one-line answer</label>
+      <input type="text" data-field="m1-summary" placeholder="Placeholder hint for the student" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="m1-summary"></div>
+    </div>
+    <div class="field-row">
+      <!--
+        A LONG ANSWER FIELD WITH A SENTENCE MINIMUM.
+        data-min on the counter is the minimum, and it must equal
+        "minSentences" on the matching manifest block. data-field-ref must
+        equal the textarea's data-field. Change the number in three places or
+        the counter, the completeness dot and the grading console disagree.
+      -->
+      <label>Placeholder label for a written answer</label>
+      <textarea data-field="m1-reasoning" placeholder="Placeholder hint. Say what to include and how specific to be."></textarea>
+      <div class="print-mirror" data-mirror="m1-reasoning"></div>
+      <div class="sent-count" data-min="3" data-field-ref="m1-reasoning"><span class="sent-dot"></span><span><span class="current">0</span> / 3 sentences minimum</span></div>
+    </div>
+  </div>
+  <div class="rubric-panel" id="rubric-module-one"><div class="rubric-inner js-built"></div></div>
+</div>
+
+<!-- ===================================================================
+     MODULE TWO - IMAGE ZONE
+     THE WHOLE IMAGE ZONE IS OPTIONAL. To remove it from an assignment,
+     delete: this module's markup, its manifest module, the #lightbox markup
+     near the top, and in the script the IMAGE ZONE section (addImageFiles,
+     downscaleDataUrl, renderImageItem, updateImageCount, openLightbox,
+     closeLightbox), the drop-zone wiring in the init block, and IMAGE_MIN.
+     Nothing else depends on it.
+     =================================================================== -->
+<div class="module" data-module="module-two" id="mod-module-two">
+  <div class="module-header">
+    <span class="mod-num"></span>
+    <span class="mod-title"></span>
+    <span class="mod-scope"></span>
+    <span class="mod-pts"></span>
+    <span class="mod-dot"></span>
+    <button class="rubric-toggle" onclick="toggleRubric('module-two')">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <!-- EDIT: say what the images must show and how many. -->
+    <p class="prompt">Placeholder prompt for the image zone. Say what each image must show, how legible it has to be, and what to write in the caption. Set IMAGE_MIN in the script to the number required.</p>
+    <div class="drop-zone" id="sketch-drop-zone">
+      <div class="drop-icon">[ + ]</div>
+      <div class="drop-label">Click or Drag to Add Images</div>
+      <div class="drop-sub">Add more at any time</div>
+    </div>
+    <!-- The file input carries the image block's data-field. It is how the
+         manifest names the image zone; the pictures themselves travel in the
+         saved data's _images list, never in this input's value. -->
+    <input type="file" id="sketch-file-input" data-field="m2-images" accept="image/*" multiple style="display:none">
+    <div class="img-count" id="img-count"><span class="sent-dot"></span><span id="img-count-text"></span></div>
+    <div class="storage-warn">Once you add images, save your work with <strong>[ Download with Data ]</strong> rather than relying on auto-save. Photos are large, and the browser's auto-save can run out of room.</div>
+    <div class="sketch-preview js-built" id="sketch-preview"></div>
+    <div class="field-row">
+      <label>Placeholder label for a written answer about the images</label>
+      <textarea data-field="m2-notes" placeholder="Placeholder hint for the student."></textarea>
+      <div class="print-mirror" data-mirror="m2-notes"></div>
+      <div class="sent-count" data-min="2" data-field-ref="m2-notes"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+  </div>
+  <div class="rubric-panel" id="rubric-module-two"><div class="rubric-inner js-built"></div></div>
+</div>
+
+<!-- ACADEMIC INTEGRITY DECLARATION. EDIT the wording; keep the checkbox. -->
+<div class="declaration-block">
+  <div class="declaration-title">Academic Integrity Declaration</div>
+  <div class="declaration-text">
+    Placeholder declaration text. State what counts as this student's own work on this assignment, what may be shared with a team, and that using AI tools to generate responses without disclosure is academic dishonesty and will result in a zero.
+  </div>
+  <label class="decl-checkbox">
+    <input type="checkbox" data-field="declaration">
+    <span class="decl-checkbox-label">I confirm that this submission is my own work and accurately represents my thinking at this stage of the project.</span>
+  </label>
+</div>
+
+<!-- INSTRUCTOR SCORING TABLE (print only). Rows come from the manifest. -->
+<table class="instructor-table">
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Description</th>
+      <th class="score-cell">Pts Possible</th>
+      <th class="score-cell">Pts Earned</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody class="js-built" id="instructor-tbody"></tbody>
+</table>
+
+<!-- SUBMISSION CHECKLIST. EDIT the rows; every one needs a unique
+     data-field AND a matching manifest header block. -->
+<div class="checklist-section">
+  <div class="checklist-section-header">
+    <span class="checklist-section-title">Submission Checklist</span>
+  </div>
+  <div class="checklist-body">
+    <label class="checklist-item"><input type="checkbox" data-field="check-download"><span class="checklist-item-text">File saved with [ Download with Data ] after the last edit</span></label>
+    <label class="checklist-item"><input type="checkbox" data-field="check-upload"><span class="checklist-item-text">Downloaded .html file uploaded to IDEA Classroom before the deadline</span></label>
+  </div>
+</div>
+
+<!-- FOOTER. EDIT the left line; the points come from the manifest. -->
+<div class="footer">
+  <span>ASSIGNMENT &nbsp;|&nbsp; Assignment 00 &nbsp;|&nbsp; Don Bosco Technical Institute &nbsp;|&nbsp; IDEA-000</span>
+  <span class="footer-pts" id="footer-pts"></span>
+</div>
+
+</div><!-- end .page -->
+
+<!-- ===================================================================
+     THE MANIFEST.
+     This is what IDEA Classroom reads when the file is imported. It is the
+     one place points, criteria and module scope are written down: the module
+     headers, the rubric panels, the total bar, the footer and the
+     instructor scoring table are all filled from it on load.
+
+     RULES THE IMPORTER ENFORCES, so a mistake here is refused rather than
+     shipped:
+       - Every "field" here needs a [data-field] in the document, and every
+         [data-field] in the document needs a block here. Both directions.
+       - Every "id" is permanent. It is the column a student's answer is
+         stored under. Renaming one after a class has answered orphans that
+         work. Rename the "field" instead, which is free.
+       - Ids are letters, digits, - and _, up to 40 characters.
+       - A criterion carries 3 or 4 levels, strictly descending, the top
+         worth the criterion maximum and the bottom worth 0. Two levels is a
+         checklist item, not a criterion.
+       - A criterion needs at least as many points as it has levels above
+         zero, so a 1-point criterion cannot be written at all.
+       - Criteria sum to their module. Modules sum to "points".
+       - "short" is what the grading console prints on the level button: six
+         words at most, and no full stop at the end.
+       - No weekday names and no British spellings, anywhere a student reads.
+     =================================================================== -->
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3,
+  "kind": "html-assignment",
+  "title": "IDEA-000 Assignment 00: Assignment Title",
+  "course": "IDEA-000",
+  "points": 20,
+  "header": [
+    { "id": "hdr-student-name", "field": "student-name", "type": "text" },
+    { "id": "hdr-team-name", "field": "team-name", "type": "text" },
+    { "id": "hdr-date", "field": "student-date", "type": "text" },
+    { "id": "hdr-declaration", "field": "declaration", "type": "checkbox" },
+    { "id": "hdr-check-download", "field": "check-download", "type": "checkbox" },
+    { "id": "hdr-check-upload", "field": "check-upload", "type": "checkbox" }
+  ],
+  "modules": [
+    {
+      "id": "module-one",
+      "title": "Module One Title",
+      "points": 10,
+      "audience": "team",
+      "blocks": [
+        { "id": "module-one-summary", "field": "m1-summary", "type": "text" },
+        { "id": "module-one-reasoning", "field": "m1-reasoning", "type": "longText", "minSentences": 3 }
+      ],
+      "criteria": [
+        {
+          "id": "one-answer",
+          "text": "Placeholder criterion. The one-line answer names something specific rather than a generic word.",
+          "points": 4,
+          "levels": [
+            { "points": 4, "label": "Complete", "short": "Specific and considered", "descriptor": "Placeholder. Describe what a full-credit answer contains, concretely enough that two graders reading it would land on the same score." },
+            { "points": 3, "label": "Proficient", "short": "Specific but thin", "descriptor": "Placeholder. Describe the answer that is on the right track but under-developed." },
+            { "points": 1, "label": "Developing", "short": "Vague or generic", "descriptor": "Placeholder. Describe the answer that is present but says nothing a reader can act on." },
+            { "points": 0, "label": "Absent", "short": "Empty or placeholder text", "descriptor": "Placeholder. Nothing was written, or what was written is filler." }
+          ]
+        },
+        {
+          "id": "one-reasoning",
+          "text": "Placeholder criterion. The written answer gives real reasoning and meets its sentence minimum.",
+          "points": 6,
+          "levels": [
+            { "points": 6, "label": "Complete", "short": "Reasoned and specific", "descriptor": "Placeholder. Describe the full-credit written answer." },
+            { "points": 3, "label": "Proficient", "short": "Reasoning is thin", "descriptor": "Placeholder. Describe the half-credit written answer." },
+            { "points": 0, "label": "Absent", "short": "Missing or off topic", "descriptor": "Placeholder. Nothing usable was written." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "module-two",
+      "title": "Module Two Title",
+      "points": 10,
+      "audience": "individual",
+      "blocks": [
+        { "id": "module-two-images", "field": "m2-images", "type": "image" },
+        { "id": "module-two-notes", "field": "m2-notes", "type": "longText", "minSentences": 2 }
+      ],
+      "criteria": [
+        {
+          "id": "two-images",
+          "text": "Placeholder criterion. The required images are present, legible and captioned.",
+          "points": 6,
+          "levels": [
+            { "points": 6, "label": "Complete", "short": "All views present and legible", "descriptor": "Placeholder. Describe what a full-credit set of images shows." },
+            { "points": 3, "label": "Proficient", "short": "Present but hard to read", "descriptor": "Placeholder. Describe the half-credit set." },
+            { "points": 0, "label": "Absent", "short": "Missing or unusable", "descriptor": "Placeholder. No usable images were uploaded." }
+          ]
+        },
+        {
+          "id": "two-notes",
+          "text": "Placeholder criterion. The written answer explains what the images show.",
+          "points": 4,
+          "levels": [
+            { "points": 4, "label": "Complete", "short": "Explains the images clearly", "descriptor": "Placeholder. Describe the full-credit written answer." },
+            { "points": 2, "label": "Proficient", "short": "Explanation is thin", "descriptor": "Placeholder. Describe the half-credit written answer." },
+            { "points": 0, "label": "Absent", "short": "Missing or off topic", "descriptor": "Placeholder. Nothing usable was written." }
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+
+<script>
+/* ================================================================
+   IDEA HTML ASSIGNMENT TEMPLATE
+   Start a new assignment by copying this file, then work through
+   docs/standards/IDEA_HTML_ASSIGNMENT_TEMPLATE.md.
+   ================================================================ */
+
+/*
+   BREAKS A COPIED ASSIGNMENT (1 of 4): THE STORAGE KEY.
+   THIS IS THE ONE THAT DOES REAL HARM. Every field a student types is
+   auto-saved into localStorage under this exact string. Two assignments
+   sharing one key share one saved record, so opening the second one writes
+   over the first one's work, in the student's browser, with no warning and no
+   undo. It is silent: nothing on screen says anything until they reopen the
+   other assignment and find it holding this one's answers.
+   SET IT TO THIS FILE'S OWN SLUG (the filename without .html) EVERY TIME.
+*/
+const STORAGE_KEY = 'idea000-assignment-00';
+
+/* EDIT when the document itself changes after students have saved work.
+   A saved file from an older version loads with a warning rather than
+   silently mis-restoring. Also shown in the header's Version field. */
+const BUILD_VERSION = 'v1';
+
+/* OPTIONAL IMAGE ZONE: how many images the image module requires.
+   Delete with the image zone. */
+const IMAGE_MIN = 2;
+
+const MANIFEST = JSON.parse(document.getElementById('idea-manifest').textContent);
+const TOTAL_PTS = MANIFEST.points;
+const ALL_BLOCKS = (MANIFEST.header || []).concat(...MANIFEST.modules.map(m => m.blocks));
+
+const images = [];
+let autoSaveInterval = null;
+/*
+   READ-ONLY COPY MODE (see the boot path).
+   True when this file was opened with embedded data while THIS browser already
+   held saved work under the same key. Every write is suppressed while it is
+   set, so the notice on screen ("not saved over existing work, not auto-saved")
+   is true rather than merely reassuring. Auto-save is the half that would
+   otherwise eat the work three seconds later.
+*/
+let openedAsCopy = false;
+
+/* -------- BACKGROUND CANVAS (Matrix Rain) -------- */
+(function(){
+  const canvas = document.getElementById('bg-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const chars = 'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ01234567></>+-'.split('');
+  let drops = [], cols = 0, lastTime = 0;
+  const COL_W = 18, FS = 14, FPS = 16;
+  function init(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / COL_W);
+    drops = Array.from({length: cols}, () => Math.random() * -50);
+    ctx.fillStyle = '#020A04';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  function draw(ts){
+    requestAnimationFrame(draw);
+    if (ts - lastTime < 1000 / FPS) return;
+    lastTime = ts;
+    ctx.fillStyle = 'rgba(2,10,4,0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = FS + 'px "Share Tech Mono",monospace';
+    for (let i = 0; i < cols; i++){
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const y = drops[i] * COL_W;
+      ctx.fillStyle = Math.random() > 0.95 ? 'rgba(180,255,210,0.7)' : 'rgba(0,180,80,0.2)';
+      ctx.fillText(ch, i * COL_W, y);
+      if (y > canvas.height && Math.random() > 0.97) drops[i] = 0;
+      drops[i] += 0.5;
+    }
+  }
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    init();
+    requestAnimationFrame(draw);
+    window.addEventListener('resize', init);
+  }
+})();
+
+/* -------- SCROLL PROGRESS -------- */
+window.addEventListener('scroll', function(){
+  const el = document.getElementById('scroll-progress');
+  if (!el) return;
+  const doc = document.documentElement;
+  const pct = doc.scrollTop / (doc.scrollHeight - doc.clientHeight);
+  el.style.width = Math.min(pct * 100, 100) + '%';
+}, {passive: true});
+
+/*
+   -------- EVERYTHING THE MANIFEST DRAWS --------
+   The module number, title, scope chip and points chip, every rubric panel,
+   the total bar, the footer total and the instructor scoring table are built
+   from the manifest, so points and criteria are written down exactly once.
+   An author edits the manifest; nothing here needs touching.
+   Every container this fills carries class="js-built", which is what the
+   export empties (see downloadHTML).
+*/
+function renderFromManifest(){
+  const bar = document.getElementById('total-bar-pts');
+  if (bar) bar.textContent = TOTAL_PTS + ' Points';
+  const foot = document.getElementById('footer-pts');
+  if (foot) foot.textContent = TOTAL_PTS + ' Points Total';
+  const ver = document.getElementById('build-version-field');
+  if (ver) ver.value = BUILD_VERSION;
+  const tbody = document.getElementById('instructor-tbody');
+  if (tbody) tbody.innerHTML = '';
+
+  MANIFEST.modules.forEach((mod, i) => {
+    const num = String(i + 1).padStart(2, '0');
+    const root = document.querySelector('[data-module="' + mod.id + '"]');
+    if (root){
+      const set = (sel, text) => { const el = root.querySelector(sel); if (el) el.textContent = text; };
+      set('.mod-num', num);
+      set('.mod-title', mod.title);
+      set('.mod-pts', mod.points + (mod.points === 1 ? ' pt' : ' pts'));
+      const scope = root.querySelector('.mod-scope');
+      if (scope){
+        if (mod.audience){ scope.textContent = mod.audience; scope.classList.add(mod.audience); }
+        else scope.remove();
+      }
+      const inner = document.querySelector('#rubric-' + mod.id + ' .rubric-inner');
+      if (inner){
+        inner.innerHTML = '';
+        const head = document.createElement('div');
+        head.className = 'rubric-title-row';
+        head.innerHTML = '<span>Grading Criteria</span><span>Points</span>';
+        inner.appendChild(head);
+        (mod.criteria || []).forEach(c => {
+          const max = c.levels[0].points;
+          const row = document.createElement('div');
+          row.className = 'rubric-row';
+          const txt = document.createElement('div');
+          txt.className = 'rubric-criteria';
+          txt.textContent = c.text;
+          const lv = document.createElement('div');
+          lv.className = 'rubric-levels';
+          lv.textContent = c.levels.map(l => l.points + ' ' + l.short).join('   |   ');
+          txt.appendChild(lv);
+          const pts = document.createElement('div');
+          pts.className = 'rubric-pts';
+          pts.textContent = max + (max === 1 ? ' pt' : ' pts');
+          row.appendChild(txt);
+          row.appendChild(pts);
+          inner.appendChild(row);
+        });
+      }
+    }
+    if (tbody){
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td></td><td></td><td></td><td>&nbsp;</td><td>&nbsp;</td>';
+      tr.children[0].textContent = num;
+      tr.children[1].textContent = mod.title + (mod.audience ? ' (' + mod.audience.toUpperCase() + ')' : '');
+      tr.children[2].textContent = mod.points;
+      tbody.appendChild(tr);
+    }
+  });
+
+  if (tbody){
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="2"><strong>Total</strong></td><td></td><td>&nbsp;</td><td>&nbsp;</td>';
+    tr.children[1].textContent = TOTAL_PTS;
+    tbody.appendChild(tr);
+  }
+}
+
+/* -------- RUBRIC TOGGLES -------- */
+function toggleRubric(id){
+  const panel = document.getElementById('rubric-' + id);
+  const btn = document.querySelector('[data-module="' + id + '"] .rubric-toggle');
+  if (!panel || !btn) return;
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.textContent = open ? '[ Close ]' : '[ Rubric ]';
+}
+
+/* -------- SENTENCE COUNTER -------- */
+function countSentences(text){
+  if (!text.trim()) return 0;
+  const m = text.trim().match(/[^.!?]+[.!?]+/g) || [];
+  const left = text.trim().replace(/[^.!?]+[.!?]+/g, '').trim();
+  return m.length + (left.length > 10 ? 1 : 0);
+}
+
+/* -------- FORM HELPERS -------- */
+function autoResize(ta){ ta.style.height = '0'; ta.style.height = ta.scrollHeight + 'px'; }
+function resizeAll(){ document.querySelectorAll('textarea[data-field]').forEach(autoResize); }
+
+function updateMirror(field, value){
+  document.querySelectorAll('[data-mirror="' + field + '"]').forEach(m => { m.textContent = value; });
+}
+
+function updateCounter(fieldId, text){
+  const counter = document.querySelector('.sent-count[data-field-ref="' + fieldId + '"]');
+  if (!counter) return;
+  const min = parseInt(counter.dataset.min), count = countSentences(text);
+  counter.querySelector('.current').textContent = count;
+  const has = text.trim().length > 0;
+  counter.classList.toggle('met', count >= min);
+  counter.classList.toggle('unmet', has && count < min);
+  counter.classList.toggle('active', has);
+}
+
+/* -------- SCORE & DOTS -------- */
+function getFieldVal(f){ const el = document.querySelector('[data-field="' + f + '"]'); return el ? String(el.value || '').trim() : ''; }
+function sentOk(f, min){ return countSentences(getFieldVal(f)) >= min; }
+function notEmpty(f){ return getFieldVal(f).length > 0; }
+
+/*
+   WHAT COUNTS AS ANSWERED, FOR ONE MANIFEST BLOCK.
+   One predicate drives the module dots, the running score and the preflight
+   list, so a student can never see a green dot beside a module the
+   completeness check is about to complain about.
+*/
+function blockSatisfied(b){
+  if (b.type === 'image') return images.length >= IMAGE_MIN;
+  const el = document.querySelector('[data-field="' + b.field + '"]');
+  if (!el) return false;
+  if (el.type === 'checkbox' || el.type === 'radio') return !!el.checked;
+  if (!notEmpty(b.field)) return false;
+  return b.minSentences ? sentOk(b.field, b.minSentences) : true;
+}
+
+function moduleComplete(id){
+  const mod = MANIFEST.modules.find(m => m.id === id);
+  return !!mod && (mod.blocks || []).every(blockSatisfied);
+}
+
+function updateScoreAndDots(){
+  let score = 0;
+  MANIFEST.modules.forEach(mod => {
+    const complete = moduleComplete(mod.id);
+    const dot = document.querySelector('[data-module="' + mod.id + '"] .mod-dot');
+    if (dot) dot.classList.toggle('complete', complete);
+    if (complete) score += mod.points;
+  });
+  const tbScore = document.getElementById('tb-score');
+  if (tbScore) tbScore.textContent = score + ' / ' + TOTAL_PTS + ' pts';
+}
+
+/* -------- SAVE STATUS -------- */
+let saveTimer = null;
+function flashSave(){
+  const el = document.getElementById('tb-save-status');
+  if (!el) return;
+  el.textContent = 'Saved'; el.classList.add('flash');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { el.textContent = 'Auto-save on'; el.classList.remove('flash'); }, 2000);
+}
+
+/* -------- SAVE & LOAD -------- */
+function collectData(){
+  const data = { _version: BUILD_VERSION };
+  document.querySelectorAll('[data-field]').forEach(el => {
+    /* A file input's value is a filename, never an answer. The image zone's
+       pictures travel in _images below. */
+    if (el.type === 'file') return;
+    if (el.type === 'radio'){ if (el.checked) data[el.dataset.field] = el.value; }
+    else if (el.type === 'checkbox') data[el.dataset.field] = el.checked;
+    else data[el.dataset.field] = el.value;
+  });
+  data._images = images.map(i => ({name: i.name, caption: i.caption || '', dataUrl: i.dataUrl}));
+  return data;
+}
+
+function saveToStorage(){
+  if (openedAsCopy) return;
+  const data = collectData();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    flashSave();
+  } catch(e){
+    /*
+       setItem is all-or-nothing, so when it throws NOTHING was written, text
+       included. The work on screen is intact and still exports; what stopped
+       is auto-save. Say both, because "Storage full" alone reads as "your work
+       is gone".
+    */
+    const el = document.getElementById('tb-save-status');
+    if (el) el.textContent = 'Storage full - auto-save is OFF. Your work is still here: use [ Download with Data ] to save it.';
+  }
+}
+
+function loadData(data){
+  if (!data) return;
+  if (data._version && data._version !== BUILD_VERSION){
+    const w = document.getElementById('version-warning');
+    if (w){
+      w.style.display = 'block';
+      w.textContent = 'Warning: saved data is from version ' + data._version + '. This document is ' + BUILD_VERSION + '. Some fields may not restore correctly.';
+    }
+  }
+  Object.entries(data).forEach(([key, val]) => {
+    if (key.startsWith('_')) return;
+    document.querySelectorAll('[data-field="' + key + '"]').forEach(el => {
+      if (el.type === 'file') return;
+      if (el.type === 'radio'){ el.checked = (el.value === val); }
+      else if (el.type === 'checkbox'){ el.checked = !!val; }
+      else {
+        el.value = val;
+        if (el.tagName === 'TEXTAREA') requestAnimationFrame(() => autoResize(el));
+        updateMirror(key, val);
+        updateCounter(key, val);
+      }
+    });
+  });
+  if (data._images && Array.isArray(data._images)){
+    data._images.forEach(i => { images.push(i); renderImageItem(i); });
+  }
+  updateImageCount();
+  updateScoreAndDots();
+}
+
+function loadFromStorage(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) loadData(JSON.parse(raw));
+  } catch(e){}
+}
+
+/* -------- DOWNLOAD WITH DATA -------- */
+function downloadHTML(){
+  const clone = document.documentElement.cloneNode(true);
+  const old = clone.querySelector('#__ib_data__');
+  if (old) old.remove();
+  const data = collectData();
+  /*
+     BREAKS A COPIED ASSIGNMENT (4 of 4): THE EXPORT MUST BE A BLANK TEMPLATE
+     PLUS ITS DATA, NEVER A TEMPLATE PLUS ITS DATA PLUS A PICTURE OF ITS DATA.
+     Several regions are built by script from the saved data on every open --
+     here the image previews, the rubric panels and the instructor scoring
+     table. Writing the LIVE nodes into the exported file copies them as
+     markup, and then the boot path builds them AGAIN when it opens. Measured
+     on Blade 01 before this was fixed (commit 22016bbd): one sketch came back
+     as two preview items, the first with a blank caption because an input's
+     live value is not serialized into outerHTML, and six table rows came back
+     as seven with two elements sharing one data-field -- which is the exact
+     duplicate that makes an answer unstorable.
+     EVERY SCRIPT-BUILT CONTAINER CARRIES class="js-built" AND IS EMPTIED HERE.
+     If you add a region that script fills by appending nodes, give it that
+     class. Emptying costs nothing: the embedded data is what restores it.
+  */
+  clone.querySelectorAll('.js-built').forEach(el => { el.innerHTML = ''; });
+  const sc = document.createElement('script');
+  sc.id = '__ib_data__';
+  sc.textContent = 'window.__IB_DATA__=' + JSON.stringify(data) + ';';
+  clone.querySelector('head').appendChild(sc);
+  /*
+     BREAKS A COPIED ASSIGNMENT (2 of 4): THE EXPORT FILENAME PREFIX.
+     This is what a student's submitted file is called, and it is how a pile of
+     downloads in a teacher's folder is told apart. A copied assignment that
+     kept the old prefix hands in thirty files named after the wrong
+     assignment. Set it to this assignment's own course and number.
+     KEEP THE [data-field="student-name"] SELECTOR BELOW: the student's name is
+     the other half of the filename, and it is read from that field.
+  */
+  const EXPORT_PREFIX = 'IDEA000_ASSIGNMENT_00_';
+  const name = (document.querySelector('[data-field="student-name"]')?.value || 'Student').trim().replace(/\s+/g,'_') || 'Student';
+  const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = EXPORT_PREFIX + name + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* -------- CLEAR DIALOG -------- */
+function showClearDialog(){ document.getElementById('clear-dialog').classList.add('active'); }
+function hideClearDialog(){ document.getElementById('clear-dialog').classList.remove('active'); }
+function confirmClear(){
+  hideClearDialog();
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+  /* The key is empty now, so there is no longer anybody else's work to protect. */
+  openedAsCopy = false;
+  const cn = document.getElementById('copy-notice');
+  if (cn) cn.style.display = 'none';
+  document.querySelectorAll('[data-field]').forEach(el => {
+    if (el.type === 'file') return;
+    if (el.type === 'radio' || el.type === 'checkbox') el.checked = false;
+    else el.value = '';
+  });
+  document.querySelectorAll('[data-mirror]').forEach(el => { el.textContent = ''; });
+  document.querySelectorAll('textarea[data-field]').forEach(ta => { ta.style.height = ''; });
+  document.querySelectorAll('.sent-count').forEach(sc => {
+    sc.querySelector('.current').textContent = '0';
+    sc.classList.remove('met','unmet','active');
+  });
+  images.length = 0;
+  const preview = document.getElementById('sketch-preview');
+  if (preview) preview.innerHTML = '';
+  updateImageCount();
+  updateScoreAndDots();
+}
+
+/* -------- PREFLIGHT + PRINT -------- */
+/*
+   THE COMPLETENESS CHECK IS THE MANIFEST, WALKED.
+   Anything the manifest declares is something a student is expected to
+   answer, so there is no second list of "required fields" to keep in step
+   with it. Adding a block adds it here; deleting one removes it here.
+*/
+function runPreflight(){
+  const issues = [];
+  const check = (b, where) => {
+    if (blockSatisfied(b)) return;
+    const label = b.field.replace(/-/g, ' ');
+    if (b.type === 'image'){
+      issues.push(where + ': ' + images.length + '/' + IMAGE_MIN + ' images minimum');
+      return;
+    }
+    const el = document.querySelector('[data-field="' + b.field + '"]');
+    if (!el){ issues.push(where + ': ' + label + ' has no input in this document'); return; }
+    if (el.type === 'checkbox' || el.type === 'radio'){ issues.push(where + ': ' + label + ' is not checked'); return; }
+    if (!notEmpty(b.field)){ issues.push(where + ': ' + label + ' is empty'); return; }
+    issues.push(where + ': ' + label + ' (' + countSentences(getFieldVal(b.field)) + '/' + b.minSentences + ' sentences)');
+  };
+  (MANIFEST.header || []).forEach(b => check(b, 'Header'));
+  MANIFEST.modules.forEach(mod => (mod.blocks || []).forEach(b => check(b, mod.title)));
+  return issues;
+}
+
+/*
+   ONE GUARD, BOTH ACTIONS.
+   Download with Data is the SUBMISSION, so it runs the same completeness
+   check printing does. Only the wording and the proceed control differ, and
+   the pending action is what proceedPreflight() replays.
+*/
+let preflightAction = null;
+
+function preflightWith(action){
+  preflightAction = action;
+  const issues = runPreflight();
+  if (issues.length === 0){ runPreflightAction(); return; }
+  const isDownload = action === 'download';
+  document.getElementById('preflight-title').textContent =
+    isDownload ? 'Pre-Submission Check' : 'Pre-Print Check';
+  document.getElementById('preflight-subtitle').textContent = isDownload
+    ? 'The following items are incomplete. You can go back and fix them, or download anyway.'
+    : 'The following items are incomplete. You can go back and fix them, or print anyway.';
+  document.getElementById('preflight-proceed').textContent =
+    isDownload ? '[ Download Anyway ]' : '[ Print Anyway ]';
+  const list = document.getElementById('preflight-list');
+  list.innerHTML = '';
+  issues.forEach(issue => {
+    const div = document.createElement('div');
+    div.className = 'preflight-issue';
+    div.textContent = issue;
+    list.appendChild(div);
+  });
+  document.getElementById('preflight-dialog').classList.add('active');
+}
+
+function runPreflightAction(){
+  const a = preflightAction;
+  preflightAction = null;
+  if (a === 'download') downloadHTML();
+  else window.print();
+}
+
+function printWithPreflight(){ preflightWith('print'); }
+function downloadWithPreflight(){ preflightWith('download'); }
+function hidePreflight(){ preflightAction = null; document.getElementById('preflight-dialog').classList.remove('active'); }
+function proceedPreflight(){ document.getElementById('preflight-dialog').classList.remove('active'); runPreflightAction(); }
+
+/* ================================================================
+   OPTIONAL IMAGE ZONE - everything to the next banner comment.
+   Delete this whole section with the image module. See the note above
+   the module-two markup for the full list of what goes with it.
+   ================================================================ */
+function updateImageCount(){
+  const count = images.length;
+  const el = document.getElementById('img-count');
+  const txt = document.getElementById('img-count-text');
+  if (!el || !txt) return;
+  txt.textContent = count + ' image' + (count !== 1 ? 's' : '') + ' uploaded  |  ' +
+    (count < IMAGE_MIN ? IMAGE_MIN + ' minimum required' : 'Minimum met');
+  el.classList.toggle('met', count >= IMAGE_MIN);
+  el.classList.toggle('partial', count > 0 && count < IMAGE_MIN);
+  updateScoreAndDots();
+}
+
+/*
+   THE ROW HOLDS THE IMAGE OBJECT ITSELF, NEVER A SEARCH BY dataUrl.
+   Blade 01 found its row again with images.findIndex(i => i.dataUrl === url),
+   which is the same string for two copies of one picture -- so a student who
+   uploaded the same file twice edited or removed the FIRST one whichever row
+   they clicked. Closing over the object is exact and is also less code.
+*/
+function renderImageItem(imgObj){
+  const preview = document.getElementById('sketch-preview');
+  if (!preview) return;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'preview-item';
+  const img = document.createElement('img');
+  img.src = imgObj.dataUrl;
+  img.alt = imgObj.name || 'Uploaded image';
+  img.onclick = () => openLightbox(imgObj.dataUrl);
+  const cap = document.createElement('input');
+  cap.type = 'text';
+  cap.className = 'preview-caption';
+  cap.placeholder = 'Caption';
+  cap.value = imgObj.caption || '';
+  cap.onclick = e => e.stopPropagation();
+  cap.oninput = () => {
+    imgObj.caption = cap.value;
+    saveToStorage();
+  };
+  const btn = document.createElement('button');
+  btn.className = 'remove-img';
+  btn.textContent = '×';
+  btn.onclick = e => {
+    e.stopPropagation();
+    const idx = images.indexOf(imgObj);
+    if (idx !== -1) images.splice(idx, 1);
+    wrapper.remove();
+    updateImageCount();
+    saveToStorage();
+  };
+  wrapper.appendChild(btn);
+  wrapper.appendChild(img);
+  wrapper.appendChild(cap);
+  preview.appendChild(wrapper);
+}
+
+/*
+   DOWNSCALE BEFORE STORING.
+   A phone photo is routinely 4 MB, which is roughly 5.5 MB of base64 and
+   exceeds the localStorage quota on its own. setItem is all-or-nothing, so
+   ONE such photo stopped every field of typed text from saving too.
+   Re-encoding at a 1600px maximum edge takes that photo to a few hundred KB,
+   which removes the failure rather than warning about it.
+
+   The original filename is kept. A file the canvas cannot decode falls back
+   to the raw data URL, so an unusual image still uploads rather than
+   vanishing.
+*/
+const IMG_MAX_EDGE = 1600;
+const IMG_JPEG_QUALITY = 0.85;
+
+function downscaleDataUrl(dataUrl){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { resolve(dataUrl); return; }
+        const scale = Math.min(1, IMG_MAX_EDGE / Math.max(w, h));
+        if (scale === 1 && dataUrl.length < 700000) { resolve(dataUrl); return; }
+        const cw = Math.max(1, Math.round(w * scale));
+        const ch = Math.max(1, Math.round(h * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        const ctx = canvas.getContext('2d');
+        /* JPEG has no alpha, so paint the page's own ground under it rather
+           than letting a transparent PNG composite onto black. */
+        ctx.fillStyle = '#050F07';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(img, 0, 0, cw, ch);
+        const out = canvas.toDataURL('image/jpeg', IMG_JPEG_QUALITY);
+        resolve(out && out.length < dataUrl.length ? out : dataUrl);
+      } catch(err){ resolve(dataUrl); }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/*
+   ONE FILE AT A TIME, IN THE ORDER THEY WERE PICKED.
+   Blade 01 started a FileReader per file and pushed from each callback, so the
+   order the pictures ended up in was the order they happened to finish
+   decoding, not the order they were chosen. Measured on two small PNGs picked
+   as "top, side": they came back side-first, so a student captioning the rows
+   top-to-bottom captions the wrong pictures. Awaiting each file costs nothing
+   a person can feel and makes the order the one they chose.
+*/
+async function addImageFiles(files){
+  for (const file of Array.from(files)){
+    if (!file.type.startsWith('image/')) continue;
+    const raw = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+    if (!raw) continue;
+    const imgObj = {name: file.name, caption: '', dataUrl: await downscaleDataUrl(raw)};
+    images.push(imgObj);
+    renderImageItem(imgObj);
+    updateImageCount();
+    saveToStorage();
+  }
+}
+
+function openLightbox(src){
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox(e){
+  const box = document.getElementById('lightbox');
+  if (!box) return;
+  if (!e || e.target === box || e.target === document.getElementById('lightbox-close')){
+    box.classList.remove('active');
+    document.getElementById('lightbox-img').src = '';
+  }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+/* ================================================================
+   END OF THE OPTIONAL IMAGE ZONE
+   ================================================================ */
+
+/* -------- MODULE ENTRANCE ANIMATION -------- */
+function initAnimations(){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.querySelectorAll('.module').forEach(m => m.classList.add('visible'));
+    return;
+  }
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, {threshold: 0.08});
+  document.querySelectorAll('.module').forEach(m => obs.observe(m));
+}
+
+/* -------- DATE AUTO-POPULATE -------- */
+function autoFillDate(){
+  const dateField = document.querySelector('[data-field="student-date"]');
+  if (!dateField || dateField.value.trim()) return;
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2,'0');
+  const dd = String(now.getDate()).padStart(2,'0');
+  const yyyy = now.getFullYear();
+  dateField.value = mm + ' / ' + dd + ' / ' + yyyy;
+  updateMirror('student-date', dateField.value);
+}
+
+/* -------- INIT -------- */
+document.addEventListener('DOMContentLoaded', () => {
+  renderFromManifest();
+
+  document.querySelectorAll('textarea[data-field]').forEach(ta => {
+    ta.addEventListener('input', () => {
+      autoResize(ta);
+      updateMirror(ta.dataset.field, ta.value);
+      updateCounter(ta.dataset.field, ta.value);
+      updateScoreAndDots();
+      saveToStorage();
+    });
+  });
+  document.querySelectorAll('input[type="text"][data-field]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      updateMirror(inp.dataset.field, inp.value);
+      updateScoreAndDots();
+      saveToStorage();
+    });
+  });
+  document.querySelectorAll('input[type="radio"][data-field], input[type="checkbox"][data-field]').forEach(r => {
+    r.addEventListener('change', () => { updateScoreAndDots(); saveToStorage(); });
+  });
+
+  /* OPTIONAL IMAGE ZONE: this wiring goes with it. Both lookups are guarded,
+     so deleting the markup alone does not break the rest of the boot path. */
+  const fileInput = document.getElementById('sketch-file-input');
+  const dropZone = document.getElementById('sketch-drop-zone');
+  if (fileInput && dropZone){
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => { addImageFiles(fileInput.files); fileInput.value = ''; });
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); addImageFiles(e.dataTransfer.files); });
+  }
+
+  /*
+     OPENING A TEAMMATE'S FILE MUST NOT EAT YOUR OWN WORK.
+     A team assignment gets passed around, and this used to write the opened
+     file's data over whatever was saved under this key, with no prompt and no
+     undo. Now: write it only when there is nothing saved yet. Otherwise load
+     it into the page for reading WITHOUT persisting it, and say so on screen.
+  */
+  if (window.__IB_DATA__){
+    let existing = null;
+    try { existing = localStorage.getItem(STORAGE_KEY); } catch(e){ existing = null; }
+    if (!existing){
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(window.__IB_DATA__)); } catch(e){}
+      loadFromStorage();
+    } else {
+      openedAsCopy = true;
+      loadData(window.__IB_DATA__);
+    }
+  } else {
+    loadFromStorage();
+  }
+  if (openedAsCopy){
+    const n = document.getElementById('copy-notice');
+    if (n) n.style.display = 'block';
+    const st = document.getElementById('tb-save-status');
+    if (st) st.textContent = 'Auto-save OFF (opened as a copy)';
+  }
+  autoFillDate();
+
+  autoSaveInterval = setInterval(saveToStorage, 30000);
+
+  window.addEventListener('resize', resizeAll);
+  document.fonts.ready.then(() => { resizeAll(); });
+  requestAnimationFrame(() => { resizeAll(); });
+
+  initAnimations();
+  updateImageCount();
+  updateScoreAndDots();
+});
+</script>
+</body>
+</html>
