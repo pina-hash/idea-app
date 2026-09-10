@@ -327,6 +327,54 @@ host that is not it, and every frame on the preview would blank.
 - **`prefers-reduced-motion: reduce` was not exercised** on the harness page.
   Nothing here animates.
 
+### THE ONE THING THIS LANE BREAKS AND CANNOT FIX: `/hx` MUST BE A RESERVED SLUG
+
+**`tests/short-link-reserved-names.test.ts` goes red on this branch, with two
+failures, and it is right to.** This lane adds a top-level route directory
+`src/routes/hx/`, and `hx` is SLUG-SHAPED. SvelteKit resolves a real
+single-segment route ahead of the `[shortlink]` catch-all, so a short link
+created at `ideabosco.com/hx` would never be reached -- and that test exists
+precisely so a route added later reddens the suite instead of drifting silently
+the way the list did for a year. `/a` and `/b`, Foundry's two bundle mounts, are
+in `RESERVED_SLUGS` for exactly this reason.
+
+**The fix is three parts and this lane may make none of them:**
+
+1. `hx` added to `RESERVED_SLUGS` in `src/lib/short-links.ts` -- a file outside
+   this lane's owned surface.
+2. A new migration redefining `public._app_short_link_reserved` to name the
+   identical set (the pattern of `0156` and `0166`, the latter of which added
+   `maps` for the same reason). **This lane is `Migration permitted: no`, and
+   the repo's own rule is that migration work happens on `main`, never on a
+   branch, because there is one production database and a migration is global
+   whichever branch its file sits on.**
+3. `CHAIN` in `tests/short-link-reserved-names.test.ts` extended with that
+   migration, because the SQL-to-TypeScript check reads the LAST definition to
+   apply.
+
+**Doing part 1 alone was considered and refused.** It would trade the two
+current failures for two different ones -- the SQL-to-TypeScript check asserts
+exact set equality against the deployed function -- and it would leave the
+client and the database disagreeing about the reserved set, which is the thing
+`src/lib/short-links.ts`'s own comment ("change both together") exists to
+prevent. Two failures that say "the migration has not been written" are more
+honest than two that say "the code and the database now disagree".
+
+**The other five failures in a full run are NOT this lane's.**
+`tests/derived-numbers.test.ts` was already red on `origin/integration` before
+any of this work -- verified by stashing the whole branch and re-running: 5
+failures over **11** unmeasured route specs, which this lane makes 12. See "Left
+undone" below.
+
+A third file, `tests/notebook-guidance-propagates.test.ts`, produced an
+unhandled `57P01 terminating connection due to administrator command` on the
+first full run -- the shared embedded Postgres cluster shutting down under an
+open connection -- and did not recur on either of the two runs after it. It
+passes in isolation. It touches nothing this lane wrote.
+
+Full-suite figures on this branch: **356 files, 7050 tests, 7043 passed, 7
+failed** -- 5 pre-existing, 2 introduced here and diagnosed above.
+
 ### Left undone, deliberately
 
 - **The measured half of `tools/browser-verify/README.md` was NOT regenerated.**

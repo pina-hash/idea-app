@@ -16,7 +16,7 @@
   existed at any point during this lane; none was created and none imported.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration` only. Nothing merged to `main`.
-- Status: issued
+- Status: pushed
 - Branch: `claude/html-assignment-manifest-contract-tpr7eg`, from
   `origin/integration` at `fd8e136e`. The branch NAME says "manifest", which is
   0127's subject; it is the name the harness minted for this session and the
@@ -48,6 +48,21 @@
   `https://sandbox.ideabosco.com` in the Vercel env. Until both, the route
   answers on any host, which is correct for dev and preview and is NOT correct
   for production.
+- BLOCKER THIS LANE CANNOT FIX, and the reason it is reported rather than
+  patched: `/hx` is a top-level slug-shaped route, so it must join
+  `RESERVED_SLUGS` in `src/lib/short-links.ts` AND
+  `public._app_short_link_reserved` in a new migration, exactly as `0166` did
+  for `maps` and as `/a` and `/b` already are for Foundry. Both files are
+  outside this lane's owned surface and the migration is outside its
+  permission, so `tests/short-link-reserved-names.test.ts` is RED on this
+  branch with two failures. Fixing only the TypeScript half was refused: it
+  trades those two failures for two others and leaves the client and the
+  database disagreeing about the reserved set.
+- Full suite on this branch: 356 files, 7050 tests, 7 failed. TWO are the
+  reserved-slug pair above. FIVE are `tests/derived-numbers.test.ts`, which was
+  already red on `origin/integration` before this lane -- verified by stashing
+  the branch and re-running -- over 11 unmeasured route specs, which this lane
+  makes 12.
 - Files this lane could not write, and which the integration bundle owes:
   `.env.example` needs a stanza for `PUBLIC_HX_SANDBOX_ORIGIN` and
   `PUBLIC_HX_PORTAL_ORIGIN`, and `CLAUDE.md` needs the two variables and the
