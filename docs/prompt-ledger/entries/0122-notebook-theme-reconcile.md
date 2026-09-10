@@ -11,7 +11,7 @@
   own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration`.
-- Status: pushed
+- Status: issued
 - Branch: `claude/notebook-theme-reconcile-wo0u8a`, branched from
   `origin/integration` at `21b0801d`.
 - Notes: THE SITUATION WAS A FORK. Ledger 0119 was issued once and run twice.
