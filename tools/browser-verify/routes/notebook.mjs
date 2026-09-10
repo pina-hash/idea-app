@@ -136,7 +136,37 @@ export default {
 			matching -- so the SAME component, on the student's own view, with a
 			pre-seeded trash fixture behind it, must still render exactly one.
 		*/
-		{ selector: '[data-testid="filter-deleted"]', label: "Recently deleted chip (student's own view: a list IS behind it)", expectPresent: 1, maxPresent: 1 }
+		{ selector: '[data-testid="filter-deleted"]', label: "Recently deleted chip (student's own view: a list IS behind it)", expectPresent: 1, maxPresent: 1 },
+		/*
+			THE APPLICATION FRAME, AND ITS ABSENCE ROW IS ON
+			`/dev/classroom-view-as-notebook`. Above the breakpoint `cr-app` makes
+			this room the viewport and each pane of the split owns its own scroll;
+			it is keyed on `masthead`, so the view-as mount takes no frame and
+			`scroll="fill"` degrades to page-flow. A frame that arrived
+			unconditionally would look right here and clip the notebook by exactly
+			the classroom shell's height there, silently, on an admin preview --
+			so the two rows are one assertion in two places and neither is worth
+			anything alone.
+
+			THE ROW IS MEASURED AT BOTH WIDTHS ON PURPOSE even though the frame's
+			viewport height is a desktop rule: the CLASS is unconditional on width
+			and only its `height`/`overflow` are inside the media query, so a
+			phone-width run that stopped finding it would mean the keying itself
+			had changed.
+		*/
+		{ selector: '.nb-root.cr-app', label: 'the application frame (this component owns the page)', expectPresent: 1, maxPresent: 1 },
+		/* The list pane is a head and a body: the head stays put above the
+		   breakpoint while the body scrolls. Structure only -- that the head
+		   does not MOVE is geometry this harness has no check type for, and is
+		   measured in the bundle's own report. */
+		{ selector: '.nb-pane-card > .list-head', label: 'the list pane head', expectPresent: 1, maxPresent: 1 },
+		{ selector: '.nb-pane-card > .list-body', label: 'the list pane scrolling body', expectPresent: 1, maxPresent: 1 },
+		/* The rail and the filters are IN the body, which is the ordering this
+		   bundle measured (in the head they were 277px of a 569px pane and left
+		   the list 111px). A rule that moved either back into the head reddens
+		   here rather than only looking cramped. */
+		{ selector: '.list-body .rail', label: 'the folder rail scrolls with the list', expectPresent: 1, maxPresent: 1 },
+		{ selector: '.list-head .rail, .list-head .chips', label: 'no rail or filter chips in the pinned head (must be absent)', expectPresent: 0 }
 	],
 	contrast: [
 		{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 },

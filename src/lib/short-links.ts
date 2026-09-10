@@ -38,9 +38,10 @@ export const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
  * [shortlink] catch-all, so one of these would never be reached -- accepting
  * it would only mislead whoever created it.
  *
- * Mirrors _app_short_link_reserved, redefined in 0156 and again in 0166
- * (0093's and 0156's own copies are immutable applied records and are never
- * edited to match this one); change both together.
+ * Mirrors _app_short_link_reserved, redefined in 0156, again in 0166 (`maps`)
+ * and again in 0196 (`hx`, the ported-HTML-assignment serving route at
+ * `/hx/<docId>`) -- 0093's, 0156's and 0166's own copies are immutable applied
+ * records and are never edited to match this one; change both together.
  * tests/short-link-reserved-names.test.ts asserts they agree, and separately
  * walks the real route tree so a route added later reddens the suite instead
  * of drifting silently the way this list did for a year.
@@ -73,6 +74,7 @@ export const RESERVED_SLUGS = [
 	'fsp-tech-selection',
 	'gauntlet',
 	'greenline',
+	'hx',
 	'manifest.webmanifest',
 	'maps',
 	'notebook',

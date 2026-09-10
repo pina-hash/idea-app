@@ -10,6 +10,8 @@
 	import RunResults from '$lib/gauntlet/RunResults.svelte';
 	import LiveTelemetry from '$lib/gauntlet/LiveTelemetry.svelte';
 	import PostRunAnalysis from '$lib/gauntlet/PostRunAnalysis.svelte';
+	import RankStateChip from '$lib/gauntlet/RankStateChip.svelte';
+	import { RANK_STATES, rankStateOf } from '$lib/gauntlet';
 	import {
 		supportsDocumentPip,
 		openPipWindow,
@@ -40,6 +42,7 @@
 		userRole,
 		challenge,
 		board,
+		rankStateReady,
 		myUserId,
 		myBest,
 		modelUrl,
@@ -52,7 +55,7 @@
 	// PB context frozen at reveal time: the realtime result triggers
 	// invalidateAll(), which folds the new run into myBest, so the results
 	// screen compares against this pre-run snapshot instead.
-	let bestBeforeRun = $state<{ score_metric: number | null; rank: number } | null>(null);
+	let bestBeforeRun = $state<{ score_metric: number | null; rank: number | null } | null>(null);
 
 	const framing = $derived(challenge.framing);
 	const unit = $derived(framing.mass_unit ?? 'g');
@@ -899,8 +902,29 @@
 					backHref="/gauntlet/speedrun"
 					onRetry={reset}
 				/>
-				{#if result.is_correct && myBest}
+				<!-- 0194: THE THIRD BRANCH, WHICH IS THE ONE THAT NEVER RENDERED.
+				     Before this, a run that PASSED and did not rank fell between
+				     the two branches below: `is_correct` was true so the miss
+				     sentence was skipped, and there was no board row so the rank
+				     sentence was skipped too. The student read "Pass, verified",
+				     saw no rank line, and found themselves missing from the table
+				     underneath, with nothing anywhere saying why.
+
+				     The sentence names no threshold, deliberately -- see
+				     `RANK_STATES` for the two rules every word here obeys. -->
+				{#if result.is_correct && myBest && rankStateOf(myBest) === 'pending_verification'}
+					<RankStateChip state="pending_verification" explain />
+				{:else if result.is_correct && myBest && myBest.rank != null}
 					<p class="instructions">Ranked <strong>#{myBest.rank}</strong> on the board.</p>
+				{:else if result.is_correct && !myBest}
+					<!-- No board row at all. On a deployment carrying 0194 this
+					     cannot happen for a pass; before it, it is exactly the
+					     held case, and saying nothing is what this bundle exists
+					     to stop. So it says the true, narrower thing. -->
+					<p class="instructions">
+						Your run is recorded. It is not showing a place on the board yet, and your
+						instructor can see it.
+					</p>
 				{:else if !result.is_correct}
 					<p class="instructions">A miss is recorded but does not rank. Adjust your model and run again.</p>
 				{/if}
@@ -932,9 +956,16 @@
 			</thead>
 			<tbody>
 				{#each board as row (row.user_id)}
+					{@const state = rankStateOf(row)}
 					<tr class:me={row.user_id === myUserId}>
-						<td class="rank-col">{row.rank}</td>
-						<td>{row.player}{#if row.user_id === myUserId}<span class="you">you</span>{/if}</td>
+						<!-- NEVER AN EMPTY CELL in a numbered column: a blank reads
+						     as a rendering fault, and the word explaining it is in
+						     the chip beside the player. -->
+						<td class="rank-col">{row.rank ?? RANK_STATES[state].rankCell}</td>
+						<td>
+							{row.player}{#if row.user_id === myUserId}<span class="you">you</span>{/if}
+							{#if rankStateReady}<RankStateChip {state} />{/if}
+						</td>
 						<td class="time-col">{formatTime(row.score_metric)}</td>
 					</tr>
 				{/each}
@@ -943,7 +974,15 @@
 	{/if}
 
 	{#if myBest && !board.some((r) => r.user_id === myUserId)}
-		<p class="dim board-note">Your best verified run: rank #{myBest.rank}, {formatTime(myBest.score_metric)}.</p>
+		{#if myBest.rank != null}
+			<p class="dim board-note">Your best verified run: rank #{myBest.rank}, {formatTime(myBest.score_metric)}.</p>
+		{:else}
+			<!-- 0194: a held run has no rank to print, and "rank #null" is what
+			     the single sentence this replaces would have rendered. -->
+			<p class="dim board-note">
+				Your best verified run: {formatTime(myBest.score_metric)}, held for verification.
+			</p>
+		{/if}
 	{/if}
 </main>
 

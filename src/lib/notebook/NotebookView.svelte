@@ -151,6 +151,7 @@
 		readOnly = false,
 		homeHref = '/',
 		masthead = true,
+		ownsPage = undefined,
 		historyReady = true,
 		coalescingReady = false,
 		viewerId,
@@ -299,6 +300,28 @@
 		 * the link.
 		 */
 		masthead?: boolean;
+		/**
+		 * WHETHER THIS COMPONENT IS THE WHOLE PAGE, which is what decides
+		 * whether it takes the application frame (`cr-app`: above 1024px the
+		 * room IS the viewport and each pane of the split owns its own scroll).
+		 * Undefined means "the same answer as `masthead`", because a mount that
+		 * suppresses the masthead is by definition already inside somebody
+		 * else's bar -- so /classroom/view-as needs to say nothing and gets the
+		 * right answer from the prop it already sets.
+		 *
+		 * THE ONE MOUNT WHERE THAT DEFAULT IS WRONG SAYS SO, AND IT WAS
+		 * MEASURED. `/notebook/review/student/<email>` keeps the masthead AND
+		 * renders a back strip above the room and a staff Deleted section
+		 * BELOW it. With the frame on, `.nb-root` was 900px starting at y=127
+		 * at 1440 -- 127px past the fold -- inside a 1463px document, with the
+		 * Deleted section at y=1051 reachable only by scrolling past a
+		 * full-viewport frame: the document scrolling around panes that also
+		 * scroll, which is the "bar inside a bar" this whole geometry exists to
+		 * avoid. It passes `ownsPage={false}` and flows.
+		 *
+		 * A mount that owns the page states nothing and gets the frame.
+		 */
+		ownsPage?: boolean;
 		/**
 		 * A note can be DELETED and an entry can show a HISTORY (0119). False
 		 * turns both off the same way `deletionReady` turns off 0116/0117: no
@@ -468,6 +491,15 @@
 	 * USES the width it is given: see `.entries` below.
 	 */
 	const detailHasContent = $derived(showEntry || composerMounted);
+
+	/**
+	 * WHETHER TO TAKE THE APPLICATION FRAME. `ownsPage` when the caller said so,
+	 * otherwise `masthead` -- see the prop's own comment for why that default is
+	 * the honest one and for the mount that has to override it. Written once,
+	 * read by both class directives, so the wrapper and the body can never
+	 * disagree about which shape this is.
+	 */
+	const framed = $derived(ownsPage ?? masthead);
 
 	/** The split's detail pane, for revealDetailPane. See $lib/shell/reveal.ts. */
 	let detailEl = $state<HTMLElement | null>(null);
@@ -2256,6 +2288,19 @@
 	$effect(() => {
 		if (!deletedOffered) showingDeleted = false;
 	});
+
+	/**
+	 * NOTHING TO LIST -- asked ONCE, because the pane is a head and a body now
+	 * and both halves have to answer it. The head withholds the search and the
+	 * list controls (a search box over nothing is a control whose only outcome is
+	 * the state you are already in); the body renders the empty-state line in
+	 * their place. Two spellings of the same question is the pair that stops
+	 * agreeing, which is why this is a derived and not the condition written
+	 * twice. The deleted view is NOT empty for this purpose: it is a separately
+	 * loaded list that `entries` never contained, and its own empty state lives
+	 * inside it.
+	 */
+	const listEmpty = $derived(entries.length === 0 && !showingDeleted);
 	let restoringId = $state<string | null>(null);
 	let restoreError = $state<string | null>(null);
 
@@ -2334,425 +2379,483 @@
 	}}
 />
 
-<!-- .nb-root scopes the notebook's editorial theme (notebook-theme.css) and
-     keeps it out of every other surface; data-nb-theme names the plate, and
-     its absence is the default plate, which follows the site theme. -->
-<div class="nb-root" data-nb-theme={notebookThemeAttr()}>
+<!--
+	.nb-root scopes the notebook's editorial theme (notebook-theme.css) and
+	keeps it out of every other surface; data-nb-theme names the plate, and its
+	absence is the default plate, which follows the site theme.
+
+	`cr-app` IS THE APPLICATION FRAME, AND ONLY WHEN THIS COMPONENT OWNS THE
+	PAGE. Above 1024px the frame is the viewport and the body under the head
+	takes what is left, so each pane of the split scrolls on its own -- the
+	review console's shape, and IDEA_INTERFACE_STANDARDS 1 ("the page does not
+	scroll; the panes do").
+
+	THE KEY IS A PROP, NEVER A BRANCH ON THE MOUNT. `framed` is `ownsPage` when
+	a caller states it and `masthead` otherwise -- see the two props' own
+	comments for why that default is honest and for the one mount that overrides
+	it. So /classroom/view-as, which already passes `masthead={false}` because
+	it sits under ClassroomShell, needs to say nothing.
+
+	AND THE ABSENCE OF THE FRAME IS WHAT MAKES `scroll="fill"` SAFE EVERYWHERE
+	ELSE: without a bounded parent, `height: 100%` resolves against an auto
+	height, the panes grow to their content and the surface degrades to exactly
+	`page-flow` -- split.css's own words -- so an unframed mount keeps the page
+	flow it has always run on with nothing special-casing it.
+-->
+<div class="nb-root" class:cr-app={framed} data-nb-theme={notebookThemeAttr()}>
 {#if masthead}
 	<NotebookMasthead backHref={homeHref} backLabel="Home" />
 {/if}
 
 {#snippet navPane()}
 	<!--
-		THE NAVIGATION PANE: the folder rail, the filters and the list. Above the
-		breakpoint it is bounded by the pane's own frame, so it drops the card
-		chrome it wears at phone width (see .nb-pane-card below) -- a card inside
-		a frame is two boxes saying the same thing.
+		THE NAVIGATION PANE: a head that stays and a body that scrolls, holding
+		the folder rail, the filters and the list. Above the breakpoint it is
+		bounded by the pane's own frame, so it drops the card chrome it wears at
+		phone width (see .nb-pane-card below) -- a card inside a frame is two
+		boxes saying the same thing.
 	-->
 	<section class="card nb-pane-card" data-testid="nb-entries">
-		<div class="pane-head">
-			<h2>{readOnly ? 'Entries' : 'My entries'}</h2>
-			{#if !readOnly && wide}
-				<!--
-					THE PANE KEEPS ONLY THE TRIGGER. The form itself is far too wide for
-					26rem and takes the detail pane; this is the one control that opens
-					it. Below the breakpoint there is nothing to trigger -- the form is
-					the first block on the page, as it has always been -- so it is not
-					rendered there at all.
-				-->
-				<button
-					type="button"
-					class="btn secondary compose-trigger"
-					data-testid="nb-compose-trigger"
-					aria-pressed={composerMounted && !showEntry}
-					onclick={toggleComposer}
-				>
-					New entry
-				</button>
-			{/if}
-		</div>
+		<!--
+			THE LIST PANE IS A HEAD AND A BODY, AND WHICH ROW GOES WHERE WAS A
+			MEASUREMENT RATHER THAN A TASTE. Above the breakpoint the pane is
+			bounded, so its direct child may fill it (`max-height: 100%`, which
+			split.css grants a fill-height nav pane exactly so a surface can keep
+			a header on screen while its body scrolls) and the head stays put
+			while the list moves under it.
 
-		{#if entries.length === 0 && !showingDeleted}
-			<p class="note empty-state">
-				{#if readOnly}
-					Nothing in this notebook yet.
-				{:else}
-					No entries yet. Photograph a page or write a note and it will show up here.
-				{/if}
-				{#if deletedOffered}
+			THE FOLDER RAIL AND THE FILTER CHIPS ARE IN THE BODY, NOT THE HEAD, AND
+			THAT WAS A MEASUREMENT. Measured at 1440 on the harness fixture, the
+			pane is 569px and the two of them are 277px of it (the rail wraps to
+			lines of 44px chips in a 26rem pane and the filters take two more), so
+			in the head the head would be 458 of 569 and the list would have 111px
+			to scroll in. In the body the head is 181 and the list has 388. A
+			folder and a filter are SET ONCE and then read; the search and the
+			sort are used WHILE scanning, so those two are what stay.
+
+			A FLEX COLUMN, NEVER A GRID. A grid with an implicit `auto` track
+			sizes that track to its widest item's min-content contribution, and at
+			phone width the folder rail's is the sum of its chips -- its strip
+			SCROLLS below the breakpoint rather than wrapping -- which puts the
+			rail's whole content width on the pane and the document. Block and
+			column-flex children take the container's width instead and let the
+			strip scroll inside it.
+		-->
+		<div class="list-head">
+			<div class="pane-head">
+				<h2>{readOnly ? 'Entries' : 'My entries'}</h2>
+				{#if !readOnly && wide}
+					<!--
+						THE PANE KEEPS ONLY THE TRIGGER. The form itself is far too wide for
+						26rem and takes the detail pane; this is the one control that opens
+						it. Below the breakpoint there is nothing to trigger -- the form is
+						the first block on the page, as it has always been -- so it is not
+						rendered there at all.
+					-->
 					<button
 						type="button"
-						class="inline-link deleted-link tap-reach-44"
-						data-testid="filter-deleted-empty"
-						onclick={() => (showingDeleted = true)}
+						class="btn secondary compose-trigger"
+						data-testid="nb-compose-trigger"
+						aria-pressed={composerMounted && !showEntry}
+						onclick={toggleComposer}
 					>
-						{DELETED_FILTER.label} ({deletedEntries.length})
+						New entry
 					</button>
-				{/if}
-			</p>
-		{:else}
-			<!--
-				A STUDENT WHOSE ONLY WORK IS A DRAFT still has entries (0118: "it is
-				in this feed and nowhere else"), so the branch above never fires for
-				them -- and without this, nothing here would say so either, which
-				would read as "no work at all" the moment the feed itself is scanned
-				rather than read entry by entry. Says it once, plainly, above the
-				feed; each entry's own Draft chip is what makes it unmistakable card
-				by card.
-			-->
-			{#if draftsReady && !showingDeleted && entries.length > 0 && entries.every((e) => e.submitted_at === null)}
-				<p class="note empty-state" data-testid="nb-all-drafts-note">
-					{readOnly
-						? 'Everything in this notebook is still a draft -- nothing has been turned in yet.'
-						: "Everything below is a draft. Add to it, then turn it in when you're ready."}
-				</p>
-			{/if}
-			{#if !showingDeleted && foldersReady && managerOpen && folderTransports}
-				<FolderManager
-					{folders}
-					counts={counts as Map<string, number>}
-					busy={folderBusy}
-					onSave={saveFolder}
-					onDelete={deleteFolder}
-					onClose={() => (managerOpen = false)}
-				/>
-			{/if}
-
-			{#if !showingDeleted && foldersReady}
-				<FolderRail
-					{folders}
-					{counts}
-					{selection}
-					onSelect={(next) => (selection = next)}
-					onManage={folderTransports ? () => (managerOpen = !managerOpen) : undefined}
-				/>
-			{/if}
-
-			<div class="toolbar">
-				{#if !showingDeleted}
-					<label class="search">
-						<span class="sr-only">{searchLabel}</span>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-							<circle cx="11" cy="11" r="7" />
-							<path d="M20 20l-3.5-3.5" />
-						</svg>
-						<input
-							type="search"
-							bind:value={search}
-							placeholder="Search titles and notes"
-							data-testid="nb-search"
-						/>
-					</label>
-				{/if}
-
-				<!--
-					THE DELETED CHIP LIVES IN THE SAME .chips GROUP AS THE FOUR
-					AND-COMPOSABLE FILTERS ABOVE IT, but it is not one of them: it
-					is not unioned into EntryFilterId (see notebook-folders.ts), so
-					toggling it swaps the whole pane to a separately-loaded list
-					rather than narrowing `entries`, which never contains a
-					deleted row to narrow to begin with.
-				-->
-				<div class="chips" role="group" aria-label="Filters">
-					{#if !showingDeleted}
-						{#each ENTRY_FILTERS as f (f.id)}
-							<button
-								type="button"
-								class="chip-toggle"
-								class:on={filters.includes(f.id)}
-								aria-pressed={filters.includes(f.id)}
-								title={filterHint(f.id, f.hint)}
-								data-testid="filter-{f.id}"
-								onclick={() => toggleFilter(f.id)}
-							>
-								{f.label}
-							</button>
-						{/each}
-					{/if}
-					<!--
-						GATED ON `deletedOffered`, WHICH INCLUDES THE LENGTH. `deletionReady`
-						alone asks whether 0117 is APPLIED and says nothing about whether
-						this caller was handed an answer -- and both it and `deletedEntries`
-						default to on/empty, so every read-only mount (the per-student review
-						page, /classroom/view-as's notebook), neither of which loads a
-						deleted list at all, drew a chip whose only possible outcome was the
-						empty state below it. The empty-state link above already asked both
-						questions; this asked only the first.
-					-->
-					{#if deletedOffered}
-						<button
-							type="button"
-							class="chip-toggle deleted-toggle"
-							class:on={showingDeleted}
-							aria-pressed={showingDeleted}
-							title={filterHint('deleted', DELETED_FILTER.hint)}
-							data-testid="filter-deleted"
-							onclick={() => (showingDeleted = !showingDeleted)}
-						>
-							{DELETED_FILTER.label}{#if deletedEntries.length} ({deletedEntries.length}){/if}
-						</button>
-					{/if}
-					<!--
-						DRAFTS, following the Recently deleted toggle it sits beside. Unlike
-						that one this IS an ordinary EntryFilterId (a draft never leaves
-						`entries`), so it stays out of the ENTRY_FILTERS loop above only
-						because it alone needs draftsReady to gate it.
-					-->
-					{#if !showingDeleted && draftsReady}
-						<button
-							type="button"
-							class="chip-toggle"
-							class:on={filters.includes(DRAFT_FILTER.id)}
-							aria-pressed={filters.includes(DRAFT_FILTER.id)}
-							title={filterHint(DRAFT_FILTER.id, DRAFT_FILTER.hint)}
-							data-testid="filter-drafts"
-							onclick={() => toggleFilter(DRAFT_FILTER.id)}
-						>
-							{DRAFT_FILTER.label}
-						</button>
-					{/if}
-				</div>
-
-				{#if !showingDeleted}
-				<!--
-					THE LIST CONTROLS ARE A LINE OF THEIR OWN, AND ITS BUTTONS ARE
-					BOXES, NOT REACHES. This row used to sit at the right end of the
-					filter line as three underlined words with a `.tap-reach-44` hit
-					area and `--tap-reach-w: 0px` -- correct for a word inside a
-					sentence, and wrong here, where the shortest word ("Select",
-					"Done", "Clear") walked 32.5px wide against a 44px floor. That
-					was the repo's only standing outside-threshold pair, at 375 and
-					1440, for weeks (decision 12, item 2). The arithmetic that kept
-					it standing was the ROW: at 375 it had 293px and needed 346px at
-					44px each, so widening the words alone bought a 13px overflow.
-
-					Giving the controls their own wrapping line dissolves the
-					arithmetic: nothing shares the line with the sort and the
-					count except by choice, so each control can be an ordinary
-					44px box (IDEA_INTERFACE_STANDARDS 10) and the line takes a
-					second row at phone width instead of the page taking a
-					scrollbar. The harness measures them as boxes now
-					(`tapTargets`), which is the check a box should face.
-				-->
-				<div class="tools">
-					<span class="result-count" data-testid="result-count">
-						{visible.length === entries.length
-							? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
-							: `${visible.length} of ${entries.length}`}
-					</span>
-					{#if pinsReady}
-						<label class="sort">
-							<!-- Visible, where it was screen-reader-only: the
-							     select's own text ("Newest first") describes an
-							     ORDER without saying that changing it is what this
-							     control is for. -->
-							<span class="sort-label">Sort</span>
-							<select bind:value={sort} data-testid="sort-select">
-								{#each ENTRY_SORTS as option (option.id)}
-									<option value={option.id}>{option.label}</option>
-								{/each}
-							</select>
-						</label>
-					{/if}
-					<div class="tool-set">
-						{#if narrowed}
-							<button type="button" class="tool-btn" data-testid="clear-query" onclick={clearQuery}>
-								Clear
-							</button>
-						{/if}
-						<!-- Nothing to expand above the breakpoint: the rows there open
-						     into the pane beside them rather than in place. -->
-						{#if !wide}
-							<button
-								type="button"
-								class="tool-btn"
-								data-testid="expand-toggle"
-								onclick={() => (expanded.size ? collapseAll() : expandAll())}
-							>
-								{expanded.size ? 'Collapse all' : 'Expand all'}
-							</button>
-						{/if}
-						{#if foldersReady && folderTransports}
-							<button
-								type="button"
-								class="tool-btn"
-								class:on={selectMode}
-								aria-pressed={selectMode}
-								data-testid="select-toggle"
-								onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
-							>
-								{selectMode ? 'Done' : 'Select'}
-							</button>
-						{/if}
-					</div>
-				</div>
 				{/if}
 			</div>
 
-			{#if showingDeleted}
-				<!--
-					THE DELETED VIEW: the caller's own removed entries (0117), from
-					`deletedEntries` -- a SEPARATE list that was never part of `entries`
-					and is never rendered through the normal NotebookEntryCard/groups
-					pipeline below. Every row carries a Restore control OR, when staff
-					removed it, an inline refusal -- never both, and never the folder,
-					pin, copy or delete controls a live entry offers.
-				-->
-				<div class="deleted-view" data-testid="deleted-list">
-					{#if deletedEntries.length === 0}
-						<p class="note empty-state" data-testid="deleted-empty">
-							Nothing here. Deleted entries stay for a while after you remove them.
-						</p>
-					{:else}
-						<ol class="entries deleted-entries">
-							{#each deletedEntries as entry (entry.id)}
-								<li class="deleted-row" data-testid="deleted-entry">
-									<div class="deleted-main">
-										<span class="deleted-title">{deletedEntryTitle(entry)}</span>
-										<span class="deleted-meta">Deleted {deletedWhen(entry.deleted_at)}</span>
-									</div>
-									{#if entry.restorable && restoreEntry}
-										<button
-											type="button"
-											class="btn secondary restore-btn"
-											disabled={restoringId === entry.id}
-											data-testid="restore-entry"
-											onclick={() => restoreOne(entry.id)}
-										>
-											{restoringId === entry.id ? 'Restoring...' : 'Restore'}
-										</button>
-									{:else}
-										<p class="deleted-refusal">
-											Your instructor removed this entry. Ask them to restore it for you.
-										</p>
-									{/if}
-								</li>
-							{/each}
-						</ol>
+			{#if !listEmpty}
+				<div class="toolbar">
+					{#if !showingDeleted}
+						<label class="search">
+							<span class="sr-only">{searchLabel}</span>
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<circle cx="11" cy="11" r="7" />
+								<path d="M20 20l-3.5-3.5" />
+							</svg>
+							<input
+								type="search"
+								bind:value={search}
+								placeholder="Search titles and notes"
+								data-testid="nb-search"
+							/>
+						</label>
 					{/if}
-					{#if restoreError}
-						<p class="feedback error" role="alert">{restoreError}</p>
-					{/if}
-				</div>
-			{:else}
+					{#if !showingDeleted}
+					<!--
+						THE LIST CONTROLS ARE A LINE OF THEIR OWN, AND ITS BUTTONS ARE
+						BOXES, NOT REACHES. This row used to sit at the right end of the
+						filter line as three underlined words with a `.tap-reach-44` hit
+						area and `--tap-reach-w: 0px` -- correct for a word inside a
+						sentence, and wrong here, where the shortest word ("Select",
+						"Done", "Clear") walked 32.5px wide against a 44px floor. That
+						was the repo's only standing outside-threshold pair, at 375 and
+						1440, for weeks (decision 12, item 2). The arithmetic that kept
+						it standing was the ROW: at 375 it had 293px and needed 346px at
+						44px each, so widening the words alone bought a 13px overflow.
 
-			{#if selectMode}
-				<div class="bulk" data-testid="bulk-bar">
-					<span class="bulk-count">
-						{picked.size === 0
-							? 'Select entries to move'
-							: `${picked.size} selected`}
-					</span>
-					<label class="bulk-move">
-						<span class="sr-only">Move selected entries to</span>
-						<select bind:value={moveTarget} disabled={folderBusy || picked.size === 0}>
-							<option value="">Unfiled</option>
-							{#each orderedFolders as f (f.id)}
-								<option value={f.id}>{f.name}</option>
-							{/each}
-						</select>
-					</label>
-					<button
-						type="button"
-						class="btn small"
-						data-testid="bulk-move"
-						disabled={folderBusy || picked.size === 0}
-						onclick={moveSelected}
-					>
-						{folderBusy ? 'Moving...' : 'Move'}
-					</button>
-					{#if picked.size}
-						<button type="button" class="inline-link tap-reach-44" onclick={() => picked.clear()}>
-							Clear selection
-						</button>
-					{/if}
-				</div>
-				{#if bulkError}
-					<p class="feedback error" role="alert">{bulkError}</p>
-				{/if}
-			{/if}
-
-			{#if visible.length === 0}
-				<p class="note empty-state" data-testid="no-matches">
-					Nothing here matches what you are looking for.
-					<button type="button" class="inline-link tap-reach-44" onclick={clearQuery}>Clear the filters</button>
-				</p>
-			{:else}
-				{#each groups as group (group.key)}
-					<div class="group">
-						<h3 class="group-head">{group.label}</h3>
-						<ol class="entries">
-							{#each group.entries as entry (entry.id)}
-								<li>
-									<!--
-										foldersReady / pinsReady say the MIGRATION is applied, so
-										the folder chip and the pin indicator render from them.
-										Whether the card offers a CONTROL is a SEPARATE question,
-										answered by the presence of onMove / onPin -- which is
-										what lets a read-only preview report a student's own
-										filing and pins truthfully while offering no way to
-										change either.
-									-->
-									<!--
-										THE VARIANT IS THE ONE THING THE VIEWPORT DECIDES IN JS
-										(see $lib/shell/split.svelte.ts). Above the breakpoint a
-										row is a compact list item that selects into the pane
-										beside it; below it, it is the full card that expands in
-										place, exactly as it always has.
-									-->
-									<NotebookEntryCard
-										{entry}
-										{folders}
-										variant={wide ? 'row' : 'full'}
-										current={selectedId === entry.id}
-										onOpen={() => selectEntry(entry.id)}
-										collapsed={!expanded.has(entry.id)}
-										onToggle={() => toggleEntry(entry.id)}
-										{selectMode}
-										selected={picked.has(entry.id)}
-										onSelectChange={(on) => togglePick(entry.id, on)}
-										{uploadReady}
-										{notesReady}
-										{foldersReady}
-										{pinsReady}
-										{historyReady}
-										{viewerId}
-										onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
-										onAddNote={addNote ? saveNoteToEntry : undefined}
-										onEditNote={editNote ? saveNoteEdit : undefined}
-										onMove={folderTransports ? moveOne : undefined}
-										onPin={setPinned ? pinEntry : undefined}
-										onDelete={deleteEntry ? deleteOne : undefined}
-										onRemovePhoto={removePhoto ? removePhotoOne : undefined}
-										onRetitle={setEntryLabel ? retitleOne : undefined}
-										onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
-										onSubmit={submitEntry ? submitOne : undefined}
-										onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
-										onDeleteNote={deleteNote ? deleteNoteOne : undefined}
-										onRestoreNote={restoreNote ? restoreNoteOne : undefined}
-										onNoteDirty={noteEditorDirty}
-									/>
-								</li>
-							{/each}
-						</ol>
+						Giving the controls their own wrapping line dissolves the
+						arithmetic: nothing shares the line with the sort and the
+						count except by choice, so each control can be an ordinary
+						44px box (IDEA_INTERFACE_STANDARDS 10) and the line takes a
+						second row at phone width instead of the page taking a
+						scrollbar. The harness measures them as boxes now
+						(`tapTargets`), which is the check a box should face.
+					-->
+					<div class="tools">
+						<span class="result-count" data-testid="result-count">
+							{visible.length === entries.length
+								? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
+								: `${visible.length} of ${entries.length}`}
+						</span>
+						{#if pinsReady}
+							<label class="sort">
+								<!-- Visible, where it was screen-reader-only: the
+								     select's own text ("Newest first") describes an
+								     ORDER without saying that changing it is what this
+								     control is for. -->
+								<span class="sort-label">Sort</span>
+								<select bind:value={sort} data-testid="sort-select">
+									{#each ENTRY_SORTS as option (option.id)}
+										<option value={option.id}>{option.label}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+						<div class="tool-set">
+							{#if narrowed}
+								<button type="button" class="tool-btn" data-testid="clear-query" onclick={clearQuery}>
+									Clear
+								</button>
+							{/if}
+							<!-- Nothing to expand above the breakpoint: the rows there open
+							     into the pane beside them rather than in place. -->
+							{#if !wide}
+								<button
+									type="button"
+									class="tool-btn"
+									data-testid="expand-toggle"
+									onclick={() => (expanded.size ? collapseAll() : expandAll())}
+								>
+									{expanded.size ? 'Collapse all' : 'Expand all'}
+								</button>
+							{/if}
+							{#if foldersReady && folderTransports}
+								<button
+									type="button"
+									class="tool-btn"
+									class:on={selectMode}
+									aria-pressed={selectMode}
+									data-testid="select-toggle"
+									onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
+								>
+									{selectMode ? 'Done' : 'Select'}
+								</button>
+							{/if}
+						</div>
 					</div>
-				{/each}
+					{/if}
+				</div>
+			{/if}
+		</div>
 
-				{#if more > 0}
-					<div class="more">
+		<!-- THE BODY: everything that scrolls. Under page-flow (below the
+		     breakpoint, and the view-as mount at any width) the pane is auto
+		     height, so this box has nothing to scroll inside and the whole
+		     column flows exactly as it did before it had a head. -->
+		<div class="list-body">
+			{#if listEmpty}
+				<p class="note empty-state">
+					{#if readOnly}
+						Nothing in this notebook yet.
+					{:else}
+						No entries yet. Photograph a page or write a note and it will show up here.
+					{/if}
+					{#if deletedOffered}
 						<button
 							type="button"
-							class="btn secondary"
-							data-testid="show-older"
-							onclick={() => (shown += PAGE)}
+							class="inline-link deleted-link tap-reach-44"
+							data-testid="filter-deleted-empty"
+							onclick={() => (showingDeleted = true)}
 						>
-							Show older ({more} more)
+							{DELETED_FILTER.label} ({deletedEntries.length})
 						</button>
+					{/if}
+				</p>
+			{:else}
+				<!--
+					A STUDENT WHOSE ONLY WORK IS A DRAFT still has entries (0118: "it is
+					in this feed and nowhere else"), so the branch above never fires for
+					them -- and without this, nothing here would say so either, which
+					would read as "no work at all" the moment the feed itself is scanned
+					rather than read entry by entry. Says it once, plainly, above the
+					feed; each entry's own Draft chip is what makes it unmistakable card
+					by card.
+				-->
+				{#if draftsReady && !showingDeleted && entries.length > 0 && entries.every((e) => e.submitted_at === null)}
+					<p class="note empty-state" data-testid="nb-all-drafts-note">
+						{readOnly
+							? 'Everything in this notebook is still a draft -- nothing has been turned in yet.'
+							: "Everything below is a draft. Add to it, then turn it in when you're ready."}
+					</p>
+				{/if}
+				{#if !showingDeleted && foldersReady && managerOpen && folderTransports}
+					<FolderManager
+						{folders}
+						counts={counts as Map<string, number>}
+						busy={folderBusy}
+						onSave={saveFolder}
+						onDelete={deleteFolder}
+						onClose={() => (managerOpen = false)}
+					/>
+				{/if}
+
+				<!-- Rail and chips together: one filtering block, one rule under it. -->
+				<div class="list-filters">
+					{#if !showingDeleted && foldersReady}
+						<FolderRail
+							{folders}
+							{counts}
+							{selection}
+							onSelect={(next) => (selection = next)}
+							onManage={folderTransports ? () => (managerOpen = !managerOpen) : undefined}
+						/>
+					{/if}
+
+						<!--
+							THE DELETED CHIP LIVES IN THE SAME .chips GROUP AS THE FOUR
+							AND-COMPOSABLE FILTERS ABOVE IT, but it is not one of them: it
+							is not unioned into EntryFilterId (see notebook-folders.ts), so
+							toggling it swaps the whole pane to a separately-loaded list
+							rather than narrowing `entries`, which never contains a
+							deleted row to narrow to begin with.
+						-->
+						<div class="chips" role="group" aria-label="Filters">
+							{#if !showingDeleted}
+								{#each ENTRY_FILTERS as f (f.id)}
+									<button
+										type="button"
+										class="chip-toggle"
+										class:on={filters.includes(f.id)}
+										aria-pressed={filters.includes(f.id)}
+										title={filterHint(f.id, f.hint)}
+										data-testid="filter-{f.id}"
+										onclick={() => toggleFilter(f.id)}
+									>
+										{f.label}
+									</button>
+								{/each}
+							{/if}
+							<!--
+								GATED ON `deletedOffered`, WHICH INCLUDES THE LENGTH. `deletionReady`
+								alone asks whether 0117 is APPLIED and says nothing about whether
+								this caller was handed an answer -- and both it and `deletedEntries`
+								default to on/empty, so every read-only mount (the per-student review
+								page, /classroom/view-as's notebook), neither of which loads a
+								deleted list at all, drew a chip whose only possible outcome was the
+								empty state below it. The empty-state link above already asked both
+								questions; this asked only the first.
+							-->
+							{#if deletedOffered}
+								<button
+									type="button"
+									class="chip-toggle deleted-toggle"
+									class:on={showingDeleted}
+									aria-pressed={showingDeleted}
+									title={filterHint('deleted', DELETED_FILTER.hint)}
+									data-testid="filter-deleted"
+									onclick={() => (showingDeleted = !showingDeleted)}
+								>
+									{DELETED_FILTER.label}{#if deletedEntries.length} ({deletedEntries.length}){/if}
+								</button>
+							{/if}
+							<!--
+								DRAFTS, following the Recently deleted toggle it sits beside. Unlike
+								that one this IS an ordinary EntryFilterId (a draft never leaves
+								`entries`), so it stays out of the ENTRY_FILTERS loop above only
+								because it alone needs draftsReady to gate it.
+							-->
+							{#if !showingDeleted && draftsReady}
+								<button
+									type="button"
+									class="chip-toggle"
+									class:on={filters.includes(DRAFT_FILTER.id)}
+									aria-pressed={filters.includes(DRAFT_FILTER.id)}
+									title={filterHint(DRAFT_FILTER.id, DRAFT_FILTER.hint)}
+									data-testid="filter-drafts"
+									onclick={() => toggleFilter(DRAFT_FILTER.id)}
+								>
+									{DRAFT_FILTER.label}
+								</button>
+							{/if}
+						</div>
+				</div>
+
+				{#if showingDeleted}
+					<!--
+						THE DELETED VIEW: the caller's own removed entries (0117), from
+						`deletedEntries` -- a SEPARATE list that was never part of `entries`
+						and is never rendered through the normal NotebookEntryCard/groups
+						pipeline below. Every row carries a Restore control OR, when staff
+						removed it, an inline refusal -- never both, and never the folder,
+						pin, copy or delete controls a live entry offers.
+					-->
+					<div class="deleted-view" data-testid="deleted-list">
+						{#if deletedEntries.length === 0}
+							<p class="note empty-state" data-testid="deleted-empty">
+								Nothing here. Deleted entries stay for a while after you remove them.
+							</p>
+						{:else}
+							<ol class="entries deleted-entries">
+								{#each deletedEntries as entry (entry.id)}
+									<li class="deleted-row" data-testid="deleted-entry">
+										<div class="deleted-main">
+											<span class="deleted-title">{deletedEntryTitle(entry)}</span>
+											<span class="deleted-meta">Deleted {deletedWhen(entry.deleted_at)}</span>
+										</div>
+										{#if entry.restorable && restoreEntry}
+											<button
+												type="button"
+												class="btn secondary restore-btn"
+												disabled={restoringId === entry.id}
+												data-testid="restore-entry"
+												onclick={() => restoreOne(entry.id)}
+											>
+												{restoringId === entry.id ? 'Restoring...' : 'Restore'}
+											</button>
+										{:else}
+											<p class="deleted-refusal">
+												Your instructor removed this entry. Ask them to restore it for you.
+											</p>
+										{/if}
+									</li>
+								{/each}
+							</ol>
+						{/if}
+						{#if restoreError}
+							<p class="feedback error" role="alert">{restoreError}</p>
+						{/if}
 					</div>
+				{:else}
+
+				{#if selectMode}
+					<div class="bulk" data-testid="bulk-bar">
+						<span class="bulk-count">
+							{picked.size === 0
+								? 'Select entries to move'
+								: `${picked.size} selected`}
+						</span>
+						<label class="bulk-move">
+							<span class="sr-only">Move selected entries to</span>
+							<select bind:value={moveTarget} disabled={folderBusy || picked.size === 0}>
+								<option value="">Unfiled</option>
+								{#each orderedFolders as f (f.id)}
+									<option value={f.id}>{f.name}</option>
+								{/each}
+							</select>
+						</label>
+						<button
+							type="button"
+							class="btn small"
+							data-testid="bulk-move"
+							disabled={folderBusy || picked.size === 0}
+							onclick={moveSelected}
+						>
+							{folderBusy ? 'Moving...' : 'Move'}
+						</button>
+						{#if picked.size}
+							<button type="button" class="inline-link tap-reach-44" onclick={() => picked.clear()}>
+								Clear selection
+							</button>
+						{/if}
+					</div>
+					{#if bulkError}
+						<p class="feedback error" role="alert">{bulkError}</p>
+					{/if}
+				{/if}
+
+				{#if visible.length === 0}
+					<p class="note empty-state" data-testid="no-matches">
+						Nothing here matches what you are looking for.
+						<button type="button" class="inline-link tap-reach-44" onclick={clearQuery}>Clear the filters</button>
+					</p>
+				{:else}
+					{#each groups as group (group.key)}
+						<div class="group">
+							<h3 class="group-head">{group.label}</h3>
+							<ol class="entries">
+								{#each group.entries as entry (entry.id)}
+									<li>
+										<!--
+											foldersReady / pinsReady say the MIGRATION is applied, so
+											the folder chip and the pin indicator render from them.
+											Whether the card offers a CONTROL is a SEPARATE question,
+											answered by the presence of onMove / onPin -- which is
+											what lets a read-only preview report a student's own
+											filing and pins truthfully while offering no way to
+											change either.
+										-->
+										<!--
+											THE VARIANT IS THE ONE THING THE VIEWPORT DECIDES IN JS
+											(see $lib/shell/split.svelte.ts). Above the breakpoint a
+											row is a compact list item that selects into the pane
+											beside it; below it, it is the full card that expands in
+											place, exactly as it always has.
+										-->
+										<NotebookEntryCard
+											{entry}
+											{folders}
+											variant={wide ? 'row' : 'full'}
+											current={selectedId === entry.id}
+											onOpen={() => selectEntry(entry.id)}
+											collapsed={!expanded.has(entry.id)}
+											onToggle={() => toggleEntry(entry.id)}
+											{selectMode}
+											selected={picked.has(entry.id)}
+											onSelectChange={(on) => togglePick(entry.id, on)}
+											{uploadReady}
+											{notesReady}
+											{foldersReady}
+											{pinsReady}
+											{historyReady}
+											{viewerId}
+											onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+											onAddNote={addNote ? saveNoteToEntry : undefined}
+											onEditNote={editNote ? saveNoteEdit : undefined}
+											onMove={folderTransports ? moveOne : undefined}
+											onPin={setPinned ? pinEntry : undefined}
+											onDelete={deleteEntry ? deleteOne : undefined}
+											onRemovePhoto={removePhoto ? removePhotoOne : undefined}
+											onRetitle={setEntryLabel ? retitleOne : undefined}
+											onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
+											onSubmit={submitEntry ? submitOne : undefined}
+											onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
+											onDeleteNote={deleteNote ? deleteNoteOne : undefined}
+											onRestoreNote={restoreNote ? restoreNoteOne : undefined}
+											onNoteDirty={noteEditorDirty}
+										/>
+									</li>
+								{/each}
+							</ol>
+						</div>
+					{/each}
+
+					{#if more > 0}
+						<div class="more">
+							<button
+								type="button"
+								class="btn secondary"
+								data-testid="show-older"
+								onclick={() => (shown += PAGE)}
+							>
+								Show older ({more} more)
+							</button>
+						</div>
+					{/if}
+				{/if}
 				{/if}
 			{/if}
-			{/if}
-		{/if}
+		</div>
 	</section>
 {/snippet}
 
@@ -3003,35 +3106,17 @@
 					</div>
 				{/if}
 
-				<div class="actions">
-					<button class="btn" type="submit" data-testid="nb-turn-in" disabled={busy || !canTurnIn}>
-						{busy ? 'Saving...' : 'Turn in'}
-					</button>
-					<!--
-						SAVE DRAFT IS BUTTON-TYPE, so pressing Enter in the form always
-						turns the entry in (the primary action) and never quietly saves a
-						draft instead.
-					-->
-					{#if draftsReady}
-						<button
-							type="button"
-							class="btn secondary"
-							data-testid="nb-save-draft"
-							disabled={busy || !canSaveDraft}
-							onclick={onSaveDraftClick}
-						>
-							{busy ? 'Saving...' : 'Save draft'}
-						</button>
-					{/if}
-					{#if progress}<span class="progress">{progress}</span>{/if}
-					<!-- WHERE AN AUTOSAVE SPEAKS. Per-instance and inside the surface
-					     that owns the work, never a shell banner; `saved` carries the
-					     clock time of the acknowledgement, and a failed write offers
-					     its own Retry. -->
-					{#if autosaveReady}
-						<SaveIndicator state={save} />
-					{/if}
-				</div>
+				<!--
+					EVERY EXPLANATORY SENTENCE SITS ABOVE THE ACTIONS ROW, and that is
+					forced by the row being PINNED rather than a preference about reading
+					order. Above the breakpoint the row is `position: sticky; bottom: 0`
+					inside the detail pane's own scroll (see the media query), so anything
+					under it is a paragraph that can never be reached: the sticky row
+					stops at the foot of the pane and the copy is pinned out of sight
+					behind it. They read in the order a student needs them -- what happens
+					to the writing, then what is stopping the save -- and the controls
+					they describe are underneath.
+				-->
 				<!-- SAID PLAINLY, because the two halves of this form are persisted
 				     in completely different ways and nothing on screen would
 				     otherwise show it. A staged photo is a file in this browser and
@@ -3086,6 +3171,49 @@
 						This draft is saved. Turn it in when you are ready, or add more first.
 					</p>
 				{/if}
+
+				<!--
+					PINNED TO THE FOOT OF THE PANE above the breakpoint, so Turn in and
+					Save draft -- the two acts this whole form exists for -- are on screen
+					however far down it the student is. Measured before: at 1440 the
+					row sat at y=1376 in a 900px viewport -- 476px below the fold --
+					and the only way to it was scrolling the DOCUMENT, which took the
+					feed beside it off screen on the way. It now sits at the foot of
+					a 619px pane whose form scrolls 1171px underneath it. Below the
+					breakpoint it flows exactly
+					where it always did: a bar pinned over a phone's viewport covers the
+					control a thumb is reaching for, and the phone form is short enough
+					that the row is reached by scrolling to the end of it.
+				-->
+				<div class="actions">
+					<button class="btn" type="submit" data-testid="nb-turn-in" disabled={busy || !canTurnIn}>
+						{busy ? 'Saving...' : 'Turn in'}
+					</button>
+					<!--
+						SAVE DRAFT IS BUTTON-TYPE, so pressing Enter in the form always
+						turns the entry in (the primary action) and never quietly saves a
+						draft instead.
+					-->
+					{#if draftsReady}
+						<button
+							type="button"
+							class="btn secondary"
+							data-testid="nb-save-draft"
+							disabled={busy || !canSaveDraft}
+							onclick={onSaveDraftClick}
+						>
+							{busy ? 'Saving...' : 'Save draft'}
+						</button>
+					{/if}
+					{#if progress}<span class="progress">{progress}</span>{/if}
+					<!-- WHERE AN AUTOSAVE SPEAKS. Per-instance and inside the surface
+					     that owns the work, never a shell banner; `saved` carries the
+					     clock time of the acknowledgement, and a failed write offers
+					     its own Retry. -->
+					{#if autosaveReady}
+						<SaveIndicator state={save} />
+					{/if}
+				</div>
 			</form>
 		</section>
 	{/if}
@@ -3133,7 +3261,7 @@
 
 {/snippet}
 
-<main class="nb-shell">
+<main class="nb-shell" class:cr-app-body={framed}>
 	<!--
 		THE PAGE HEAD, NOT A HERO. The three-line paragraph that used to open this
 		page ("Photograph your engineering notebook pages...") was reading material
@@ -3260,27 +3388,43 @@
 			always looked like. The classroom swaps instead, because there a detail
 			IS the page.
 
-			`scroll="page"`: ONE scrollbar. The masthead, hero and version badge
-			around this split put ~355px above it and ~100px below, so
-			viewport-height panes -- correct in the classroom, where the chrome is
-			a breadcrumb and a tab bar -- left the document scrolling as well, and
-			a bar inside a bar is what a classroom reported. The document owns it
-			here and the compose pane sticks beside the feed. It is also the only
-			answer that survives /classroom/view-as, which mounts this whole
-			component under the classroom's own shell and impersonation banner.
+			`scroll="fill"`, WHERE THIS USED TO BE `page`. The argument for `page`
+			was the HERO: ~355px of chrome above the split and ~100px below it left
+			viewport-height panes overflowing the viewport, so the document scrolled
+			as well and a bar sat inside a bar. The hero is a head now -- measured
+			242px of chrome above the split at 1440, inside `cr-app`'s own frame,
+			which measures itself and gives the body the rest -- so nothing here
+			names a chrome height and there is no arithmetic left to be wrong about.
+			What `page` cost was the thing this pane is for: at 1440 the document
+			ran 1677px against a 900px viewport, so scrolling to the foot of a
+			1130px compose form took the feed off screen with it and scrolling the
+			feed took Turn in off screen.
+
+			THE OTHER HALF OF THE `page` ARGUMENT WAS /classroom/view-as, AND THE
+			FRAME ANSWERS IT WITHOUT A BRANCH HERE. That mount passes
+			`masthead={false}`, takes no `cr-app`, and `fill` then resolves against
+			an auto height and degrades to page-flow by construction (split.css's
+			own words). `revealDetailPane` is kept for exactly that mount, where the
+			detail column still starts wherever the document has scrolled to.
+
+			`hasDetail` IS "SOMETHING IS OPEN": the entry you picked, or the compose
+			form. With neither the detail pane is not rendered and the list takes
+			the whole measure in `auto-fit` columns.
 		-->
-		<ClassSplit
-			narrow="stack"
-			scroll="page"
-			bind:detailEl
-			hasDetail={detailHasContent}
-			nav={navPane}
-		>
-			{@render detailPane()}
-		</ClassSplit>
+		<div class="nb-split">
+			<ClassSplit
+				narrow="stack"
+				scroll="fill"
+				bind:detailEl
+				hasDetail={detailHasContent}
+				nav={navPane}
+			>
+				{@render detailPane()}
+			</ClassSplit>
+		</div>
 	{/if}
 
-	<div class="nb-block">
+	<div class="nb-block nb-foot">
 		<VersionBadge app="portal" />
 	</div>
 </main>
@@ -3298,11 +3442,51 @@
 	   and end on exactly the same line. */
 	/* app.css caps every <main> at 880px and gives it its own side padding.
 	   Both are the single-column shell's, and this one spans the split. */
+	/* A HEAD AND A BODY, the review console's shape: one column, and the ONE
+	   growable child (the split) says so itself. Not a grid with named rows --
+	   the number of blocks above the split is not fixed (a notice strip
+	   appears, an availability banner renders), and a grid would put the split
+	   in an auto row the moment one of them did, which is the shape that stops
+	   bounding it and hands the page a second scrollbar. */
 	.nb-shell {
 		max-width: none;
 		/* Tighter at the top than the hero it replaced needed: the head is two
 		   lines and a strip of chips, and the work starts under it. */
 		padding: var(--space-5) 0 4.5rem;
+		display: flex;
+		flex-direction: column;
+		/* `margin: 0` IS LOAD-BEARING AND IS NOT TIDINESS. app.css gives every
+		   `main` a `margin: 0 auto`, and `cr-app` makes `.nb-root` a flex COLUMN
+		   at every width (only its viewport HEIGHT is above the breakpoint), so
+		   this element became a flex item -- and an auto cross-axis margin
+		   SWITCHES OFF `align-items: stretch`. The item is then sized
+		   `fit-content`, which cannot go below its own min-content, and the
+		   folder rail's is ~700px. Measured at 375 with the auto margin still
+		   in place: the shell laid out at 699.7px inside a 375px root and put
+		   325px of overflow on the document. `min-width: 0` does NOT fix this
+		   and was tried -- the computed min-width was already 0 on every box in
+		   the chain; the automatic minimum is a different mechanism from the one
+		   that was biting. With the margin gone the item stretches to 375 and
+		   the rail's strip scrolls inside it, exactly as it did when this was an
+		   ordinary block. */
+		margin: 0;
+		min-width: 0;
+	}
+	/* The bounded parent `scroll="fill"` needs: it takes the rest of the body's
+	   column and the split takes all of it. Under page-flow -- no frame, which
+	   is the view-as mount, or any width below the breakpoint -- this is an
+	   auto-height flex row and the split simply flows. */
+	.nb-split {
+		display: flex;
+		flex: 1 1 auto;
+		min-height: 0;
+		/* Same trap one level in: the split's own panes size themselves. */
+		min-width: 0;
+	}
+	/* Pinned at the foot of the frame, as the review console's is, rather than
+	   growing to absorb the column. */
+	.nb-foot {
+		flex: none;
 	}
 	.nb-block {
 		max-width: var(--measure-split);
@@ -3324,6 +3508,39 @@
 	}
 	.nb-shell h2 {
 		margin-top: 0;
+	}
+	/* --- the list pane: a head and a body ---------------------------------
+	   The column shape is INERT until the pane is bounded -- above the
+	   breakpoint split.css gives a fill-height nav pane's direct child
+	   `max-height: 100%`, at which point the head stays and the body scrolls.
+	   Everywhere else (a phone, the view-as mount) this is an auto-height
+	   column, `overflow-y: auto` has nothing to scroll, and the pane flows. */
+	.nb-pane-card {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		min-width: 0;
+	}
+	/* Block-level children, never a grid track: see the markup comment for the
+	   folder rail's min-content contribution and what a grid does with it. */
+	.list-head {
+		flex: none;
+		min-width: 0;
+	}
+	.list-body {
+		flex: 1 1 auto;
+		min-height: 0;
+		min-width: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+	/* The rail and the chips are one filtering block with one rule under it,
+	   which is the rule the toolbar used to carry before the two halves parted
+	   company. */
+	.list-filters {
+		padding-bottom: var(--space-4);
+		margin-bottom: var(--space-2);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.pane-head {
 		display: flex;
@@ -3360,7 +3577,20 @@
 			background: none;
 			box-shadow: none;
 			padding: 0;
-			margin-bottom: 0;
+			/* BOTH margins, not just the bottom one. `.card`'s 1.25rem top margin
+			   is outside the box `max-height: 100%` caps, so the pane's own
+			   scrollport overflowed by exactly that margin -- a 20px second
+			   scrollbar on the pane, which scrolls the head this bundle just
+			   pinned. Measured 637 against a 617px scrollport before, 617 after. */
+			margin: 0;
+		}
+		/* Inside the frame the body IS the viewport's remainder, so the 4.5rem
+		   of tail the single-column page carries is 4.5rem the panes do not
+		   get. It is only ever the frame's, which is why it is compounded with
+		   `.cr-app-body` rather than written on `.nb-shell`: the view-as mount
+		   is still a document and still wants its tail. */
+		.nb-shell.cr-app-body {
+			padding-bottom: var(--space-3);
 		}
 		/* A FORM IS NOT PROSE, and it is not a photograph either. The detail pane
 		   reaches ~920px at 1440, where a single-line text input stops being
@@ -3368,6 +3598,29 @@
 		   ENTRY keeps the whole pane, because a notebook page wants every pixel. */
 		.compose-card {
 			max-width: var(--measure-form);
+			/* The card's own bottom padding would otherwise sit BELOW the pinned
+			   row as a strip of card the row cannot cover; the row carries the
+			   spacing instead. */
+			padding-bottom: 0;
+		}
+		/* THE ACTIONS ROW IS PINNED TO THE FOOT OF THE PANE'S OWN SCROLL. The
+		   nearest scrollport is `.cr-detail`, which `scroll="fill"` makes the
+		   scrolling box, so `bottom: 0` is the foot of the pane rather than of
+		   the document. It takes the CARD'S OWN SURFACE and a hairline rather
+		   than sitting translucent: the form scrolls underneath it, and a
+		   see-through bar over moving text is unreadable in exactly the moment
+		   somebody is deciding whether to press it.
+
+		   The bottom padding is the card's, given back to the row so the two
+		   buttons are not flush against the pane's edge. */
+		.actions {
+			position: sticky;
+			bottom: 0;
+			z-index: 1;
+			margin-top: var(--space-3);
+			padding: var(--space-3) 0 var(--space-2);
+			background: var(--surface-1);
+			border-top: 1px solid var(--hairline);
 		}
 	}
 	/* ---- the page head -------------------------------------------------
@@ -3747,12 +4000,20 @@
 	   what put three text controls under the 44px floor: the line they shared
 	   with the sort and the count had no room to give them. A grid of rows
 	   has nothing to share. */
+	/* A COLUMN AND NOT A GRID, for the reason the markup comment gives: a
+	   single implicit `auto` track sizes to its widest item's min-content, and
+	   a row of controls that must WRAP has a large one. A column-flex child
+	   takes the container's width and wraps inside it. */
 	.toolbar {
-		display: grid;
+		display: flex;
+		flex-direction: column;
 		gap: var(--space-2);
 		padding-bottom: var(--space-4);
 		margin-bottom: var(--space-2);
 		border-bottom: 1px solid var(--hairline);
+	}
+	.toolbar > * {
+		min-width: 0;
 	}
 	.search {
 		/* 22px measured (the label is the target; the input inside it has no

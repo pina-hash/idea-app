@@ -16,8 +16,6 @@
  * identical values whatever the site theme is.
  */
 
-import type { SiteTheme } from '$lib/theme';
-
 export type NotebookTheme = 'default' | 'light' | 'idea' | 'matrix';
 
 /** The storage key, named here so the module and its tests cannot disagree.
@@ -89,12 +87,38 @@ export const NOTEBOOK_THEME_SHORT: Record<NotebookTheme, string> = {
 };
 
 /**
- * Which plate is PAINTED for a choice under a given site theme. The default
- * plate defers to the site theme (the CSS does this on its own; this is the
- * same rule stated once in TypeScript, so a harness and the picker can read
- * it); every explicit choice paints itself.
+ * THE SITE THEME AS THE DOCUMENT CARRIES IT -- the value of `<html
+ * data-theme>` -- and NOT the preference store. Both functions below take it,
+ * because both are mirrors of a CSS selector
+ * (`:root[data-theme='matrix'] .nb-root:not([data-nb-theme])`) that keys on
+ * the attribute, and a mirror keyed on a different input is a second
+ * definition rather than a mirror.
+ *
+ * THE TWO REALLY DO DIVERGE, MEASURED. `ThemeRoot` writes the attribute only
+ * while there is a SESSION (see `$lib/theme.svelte.ts` for why: the control
+ * that turns a theme off lives in ProfileMenu, which renders nothing when
+ * signed out). Driven in Chromium with `data-theme="matrix"` on `<html>` and
+ * the store untouched, the room painted the matrix ground (#020402) while the
+ * picker -- reading the store -- reported `data-plate="default"` and told the
+ * student "Following the site theme: the same surfaces as your classes",
+ * against a black notebook. Reading the store here would be a second copy of
+ * ThemeRoot's session gate, and a second copy is the one that stops agreeing.
+ *
+ * `undefined`/`null` is the ordinary answer for "no site theme", which is what
+ * the default IDEA palette is, and it is also the pre-observer state.
  */
-export function notebookPlate(theme: NotebookTheme, site: SiteTheme): 'default' | 'light' | 'idea' | 'matrix' {
+export type SiteThemeAttr = string | null | undefined;
+
+/**
+ * Which plate is PAINTED for a choice under the site theme the document is
+ * carrying. The default plate defers to it (the CSS does this on its own;
+ * this is the same rule stated once in TypeScript, so a harness and the
+ * picker can read it); every explicit choice paints itself.
+ */
+export function notebookPlate(
+	theme: NotebookTheme,
+	site: SiteThemeAttr
+): 'default' | 'light' | 'idea' | 'matrix' {
 	if (theme === DEFAULT_NOTEBOOK_THEME && site === 'matrix') return 'matrix';
 	return theme;
 }
@@ -105,7 +129,23 @@ export function notebookPlate(theme: NotebookTheme, site: SiteTheme): 'default' 
  * classroom's own surfaces; on Matrix it names Matrix, so a student who
  * picked it on the site can see why the notebook already looks like it.
  */
-export function notebookDefaultNote(site: SiteTheme): string {
+export function notebookDefaultNote(site: SiteThemeAttr): string {
 	if (site === 'matrix') return 'Following the site theme: Matrix right now';
 	return 'Following the site theme: the same surfaces as your classes';
+}
+
+/**
+ * THE PICKER TRIGGER'S ACCESSIBLE NAME, and the one place the two answers are
+ * said together. The visible WORD on the trigger stays the CHOSEN state,
+ * deliberately: the menu it opens ticks that row, and a control reading
+ * "Matrix" over a menu whose current row is "Default" contradicts itself. But
+ * a reader whose notebook is black and whose control says "Default" is told
+ * nothing by that word alone, so the name carries the painted plate as well,
+ * and only when the two differ -- "Appearance: Default, showing Matrix".
+ */
+export function notebookPickerName(theme: NotebookTheme, site: SiteThemeAttr): string {
+	const painted = notebookPlate(theme, site);
+	const chosen = NOTEBOOK_THEME_LABELS[theme];
+	if (painted === theme) return `Appearance: ${chosen}`;
+	return `Appearance: ${chosen}, showing ${NOTEBOOK_THEME_LABELS[painted]}`;
 }
