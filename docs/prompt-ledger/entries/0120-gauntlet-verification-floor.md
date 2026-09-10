@@ -12,7 +12,7 @@
   `docs/decisions/entries/` for decision 19 ONLY, and its own `docs/history/`
   entry.
 - Migration permitted: exactly one. Claims: 0194.
-- Status: issued
+- Status: pushed
 - Branch: `claude/gauntlet-verification-floor-oclq47`, branched from
   `origin/main` at `131aeec2`. It lands on `integration` only; this lane does not
   merge to `main`.
