@@ -1,0 +1,226 @@
+[
+  {
+    "id": "records-r1",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "5 readable pages",
+        "points": 10,
+        "descriptor": "Five station pages uploaded and every one is readable."
+      },
+      {
+        "label": "Proficient",
+        "short": "5 pages, one poor",
+        "points": 8,
+        "descriptor": "Five pages uploaded with one hard to read."
+      },
+      {
+        "label": "Developing",
+        "short": "3 or 4 pages",
+        "points": 4,
+        "descriptor": "Three or four stations captured."
+      },
+      {
+        "label": "Absent",
+        "short": "2 or fewer",
+        "points": 0,
+        "descriptor": "Two stations or fewer captured."
+      }
+    ],
+    "points": 10,
+    "criterion": "Your five station records: Records present and readable",
+    "incomplete": false
+  },
+  {
+    "id": "records-r2",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All 5 carry real settings",
+        "points": 13,
+        "descriptor": "All five records carry the settings actually used at that machine, specific to the machine."
+      },
+      {
+        "label": "Proficient",
+        "short": "4 carry real settings",
+        "points": 10,
+        "descriptor": "Four records carry specific settings, or all five with one recording planned rather than used values."
+      },
+      {
+        "label": "Developing",
+        "short": "2 or 3 carry settings",
+        "points": 5,
+        "descriptor": "Two or three records carry specific settings; the rest name the operation only."
+      },
+      {
+        "label": "Absent",
+        "short": "0 or 1",
+        "points": 0,
+        "descriptor": "One record or none carries settings."
+      }
+    ],
+    "points": 13,
+    "criterion": "Your five station records: Settings as used",
+    "incomplete": false
+  },
+  {
+    "id": "records-r3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All 5 record a real event",
+        "points": 12,
+        "descriptor": "All five records name something that actually happened at that machine: a problem, a mistake, a measurement that came out wrong, or something changed mid-cut."
+      },
+      {
+        "label": "Proficient",
+        "short": "4 record a real event",
+        "points": 9,
+        "descriptor": "Four records name a specific event; one is a general statement."
+      },
+      {
+        "label": "Developing",
+        "short": "2 or 3 record an event",
+        "points": 4,
+        "descriptor": "Two or three records name a specific event."
+      },
+      {
+        "label": "Absent",
+        "short": "0 or 1",
+        "points": 0,
+        "descriptor": "One record or none names anything that happened."
+      }
+    ],
+    "points": 12,
+    "criterion": "Your five station records: What happened at the machine",
+    "incomplete": false
+  },
+  {
+    "id": "drawings-r4",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "5 legible drawings",
+        "points": 10,
+        "descriptor": "Five drawings uploaded and every one is legible."
+      },
+      {
+        "label": "Proficient",
+        "short": "5, one hard to read",
+        "points": 8,
+        "descriptor": "Five uploaded with one hard to read."
+      },
+      {
+        "label": "Developing",
+        "short": "3 or 4 drawings",
+        "points": 4,
+        "descriptor": "Three or four drawings uploaded."
+      },
+      {
+        "label": "Absent",
+        "short": "2 or fewer",
+        "points": 0,
+        "descriptor": "Two drawings or fewer."
+      }
+    ],
+    "points": 10,
+    "criterion": "Your five drawings: Drawings present and legible",
+    "incomplete": false
+  },
+  {
+    "id": "drawings-r5",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All 5 fully dimensioned",
+        "points": 15,
+        "descriptor": "All five drawings carry every dimension and feature needed to make the part with no guessing."
+      },
+      {
+        "label": "Proficient",
+        "short": "One gap in one drawing",
+        "points": 12,
+        "descriptor": "One dimension or feature missing from one drawing."
+      },
+      {
+        "label": "Developing",
+        "short": "Gaps in 2 or 3",
+        "points": 6,
+        "descriptor": "Dimensions or features missing from two or three drawings."
+      },
+      {
+        "label": "Absent",
+        "short": "Gaps in most",
+        "points": 0,
+        "descriptor": "Most drawings could not be used to make the part."
+      }
+    ],
+    "points": 15,
+    "criterion": "Your five drawings: Manufacturable from the drawing",
+    "incomplete": false
+  },
+  {
+    "id": "assembly-r6",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Assembled, standing, clear",
+        "points": 5,
+        "descriptor": "Photo shows the trophy assembled from all five parts and standing on its own."
+      },
+      {
+        "label": "Proficient",
+        "short": "Assembled, poor photo",
+        "points": 3,
+        "descriptor": "Trophy is assembled but the photo is unclear or does not show all five parts."
+      },
+      {
+        "label": "Developing",
+        "short": "Partly assembled",
+        "points": 1,
+        "descriptor": "Some parts assembled, or parts shown laid out rather than together."
+      },
+      {
+        "label": "Absent",
+        "short": "No photo",
+        "points": 0,
+        "descriptor": "No assembly photo uploaded."
+      }
+    ],
+    "points": 5,
+    "criterion": "Assemble the trophy: Assembled and photographed",
+    "incomplete": false
+  },
+  {
+    "id": "assembly-r7",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Named part, feature, reason",
+        "points": 10,
+        "descriptor": "Names the specific part and feature involved and gives a reason tied to how it was made or measured."
+      },
+      {
+        "label": "Proficient",
+        "short": "Named, reason thin",
+        "points": 8,
+        "descriptor": "Names the part and feature but the reason is general."
+      },
+      {
+        "label": "Developing",
+        "short": "General statement",
+        "points": 4,
+        "descriptor": "Says something fit or did not without naming the part or feature."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing written",
+        "points": 0,
+        "descriptor": "No response."
+      }
+    ],
+    "points": 10,
+    "criterion": "Assemble the trophy: What fit and what did not",
+    "incomplete": false
+  }
+]
