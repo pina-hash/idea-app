@@ -46,7 +46,13 @@
 	<div class="app-header">
 		<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
-			<a class="btn secondary" href="/admin">Site Admins</a>
+			<!-- `/admin` is not its own app any more (ledger 0117 merged it into
+			     the console) and its load 303s an admin to this exact anchor, so
+			     the link names the destination rather than the old front door: a
+			     redirect nobody can see is a round trip, and the label went on
+			     promising a page that no longer exists. "Site admins" is the
+			     panel's own title on the console it lands in. -->
+			<a class="btn secondary" href="/dashboard#panel-admins">Site admins</a>
 			<a class="btn secondary" href="/dashboard">Dashboard</a>
 			<a class="btn secondary" href="/">&lsaquo; Home</a>
 			<ProfileMenu />
