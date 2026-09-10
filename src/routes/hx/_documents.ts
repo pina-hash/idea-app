@@ -1,11 +1,19 @@
 /**
- * THE DOCUMENTS `/hx/<docId>` SERVES, WHICH FOR NOW ARE TWO HARDCODED STRINGS.
+ * THE TWO DEV FIXTURES `/hx/<docId>` SERVES, WHICH ARE NOT AND NEVER WERE ROWS.
  *
- * THIS LANE BUILDS THE BOUNDARY AND NOTHING ELSE -- no database, no import UI,
- * no grading -- so a document is a constant here rather than a row. When the
- * import path lands, this module is what it replaces: the route asks for bytes
- * by `docId` and does not care where they came from, which is the seam that
- * makes the swap a one-function change rather than a rewrite of the handler.
+ * A REAL DOCUMENT NOW COMES FROM THE DATABASE. `$lib/server/html-assignment-document`
+ * reads the row a teacher's import wrote, with the service role, and re-checks
+ * every rule RLS would have enforced; the route consults THIS module first and
+ * only in development. What is left here is the harness's worksheet and the
+ * containment probe -- fixtures, kept because the browser-verify route and the
+ * sandbox proof drive them and neither can wait on an import.
+ *
+ * THE TWO NAMESPACES PROVABLY CANNOT COLLIDE. Every id here is a WORD
+ * (`worksheet`, `probe`); a stored document is addressed by `document_id`, a
+ * uuid column, and `hxStoredDocument` refuses anything that is not a uuid
+ * before it asks the database. So a fixture cannot shadow a real document and a
+ * real document cannot be reached by a fixture name. **Do not name a fixture
+ * with a uuid**, which is the one edit that would end that.
  *
  * THE `_` PREFIX IS THE ROUTE-DIRECTORY ESCAPE HATCH, and it is deliberate
  * rather than decorative. SvelteKit routes are `+`-prefixed files; anything
@@ -35,11 +43,11 @@ export interface HxDocument {
 	devOnly: boolean;
 	/**
 	 * The field-to-block map a parent would have built from this document's
-	 * stored manifest at import. It lives beside the document ONLY because there
-	 * is no import path yet; the moment there is, the parent reads it from what
-	 * it stored and this goes away. Nothing on the serving side reads it -- the
-	 * route never sends a manifest anywhere -- so it cannot become a second
-	 * source of truth by accident.
+	 * stored manifest at import. It lives beside the FIXTURE because a fixture
+	 * has no import behind it to have stored one; a real document's map is read
+	 * off `classroom_html_assignments.manifest` and never from here. Nothing on
+	 * the serving side reads it -- the route never sends a manifest anywhere --
+	 * so it cannot become a second source of truth by accident.
 	 */
 	fieldToBlockId: Record<string, string>;
 }

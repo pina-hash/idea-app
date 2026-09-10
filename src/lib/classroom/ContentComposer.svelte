@@ -61,6 +61,10 @@
 		type StagedHtmlAssignment
 	} from '$lib/classroom/html-assignment/store';
 	import {
+		manifestRubricTotal,
+		manifestToRubric
+	} from '$lib/classroom/html-assignment/rubric';
+	import {
 		ITEM_KINDS,
 		courseCategorySuggestions,
 		formatBytes,
@@ -1626,17 +1630,51 @@
 		 * different lane. The semantics are deliberately identical, and a bundle
 		 * that folds the two together should keep them.
 		 */
+		let htmlRubricWritten = false;
 		if (stagedHtml && htmlAssignmentTransports) {
 			const applied = await applyStagedHtmlAssignment(
 				itemId,
 				stagedHtml,
-				htmlAssignmentTransports
+				{
+					...htmlAssignmentTransports,
+					// THE RUBRIC WRITE IS `classroom_set_rubric`, WHICH THIS FORM
+					// ALREADY HOLDS. Filled in here rather than required of whoever
+					// mounts the composer, for the same reason `applyStagedExtras`
+					// gets its own copy two blocks up: a mounting surface that simply
+					// did not know about this field would otherwise post a document
+					// with nothing to grade it against, and be told so as a failure
+					// on every single post. A parent that DOES pass one wins.
+					setRubric:
+						htmlAssignmentTransports.setRubric ??
+						(teacherTransports
+							? (id: string, criteria: RubricCriterion[] | null) =>
+									teacherTransports.setRubric(id, criteria)
+							: null)
+				},
+				// The document's rubric replaces a DERIVED one and never a built
+				// one -- `stagedRubricAfterManifest`'s decision, which is
+				// `stagedRubricAfterSpec`'s. A rubric staged in the builder was
+				// already written by `applyStagedExtras` above, so the two cannot
+				// both write: whichever owns it, the other returns nothing to do.
+				{ rubric: stagedRubric, derived: stagedRubricDerived }
 			);
 			stagedHtml = applied.staged;
 			if (applied.staged == null) {
 				htmlIssues = [];
 				htmlWarnings = [];
 			}
+			// A RUBRIC THAT DID NOT LAND IS STAGED, not lost. The document itself
+			// DID land, so retrying it would mint a second revision of a document
+			// nobody changed; staged here, the next save writes exactly the rubric
+			// through `applyStagedExtras`, which is the same RPC.
+			if (applied.rubric) {
+				stagedRubric = applied.rubric;
+				stagedRubricDerived = applied.rubricDerived === true;
+			} else if (applied.rubricWritten) {
+				stagedRubric = null;
+				stagedRubricDerived = true;
+			}
+			htmlRubricWritten = applied.rubricWritten === true;
 			failures.push(...applied.failures);
 		}
 
@@ -1666,7 +1704,7 @@
 			hadFiles ? 'Files attached.' : '',
 			hadDeck ? 'Deck uploaded.' : '',
 			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : '',
-			hadRubric ? 'Rubric attached.' : '',
+			hadRubric || htmlRubricWritten ? 'Rubric attached.' : '',
 			hadHtml ? 'Document attached.' : '',
 			hadCheckIn ? 'Check-in scheduled.' : ''
 		].filter(Boolean);
@@ -2262,8 +2300,11 @@
 				<p class="hint">
 					From <strong>{stagedHtml.filename}</strong>. Students work inside the document;
 					every answer is stored against this assignment and graded here, the same as any
-					other. Correcting it later means uploading the document again, which keeps the
-					old one as a revision.
+					other. Its rubric comes with it: {manifestToRubric(stagedHtml.manifest).length}
+					criteria worth {manifestRubricTotal(stagedHtml.manifest)} points, written onto this
+					assignment when you post, and rewritten each time you upload a corrected document.
+					A rubric you build yourself here is left alone. Correcting it later means uploading
+					the document again, which keeps the old one as a revision.
 				</p>
 				<span class="tool-actions">
 					<button

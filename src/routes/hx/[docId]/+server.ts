@@ -1,5 +1,6 @@
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/public';
+import { hxStoredDocument } from '$lib/server/html-assignment-document';
 import { hxDocument } from '../_documents';
 import { hxDocumentHeaders, hxOnServingHost, hxPortalOrigin } from '../_headers';
 import type { RequestHandler } from './$types';
@@ -41,17 +42,40 @@ import type { RequestHandler } from './$types';
  * `HX_SANDBOX_FLAGS`, the same constant the attribute reads.
  *
  * WHAT THIS FILE ACTUALLY DECIDES IS THREE THINGS: whether the request arrived
- * on the origin this route answers on, whether the document exists, and what
- * headers the bytes carry. The bytes themselves come from `../_documents`,
- * which is two hardcoded strings for this lane and is the seam the import path
- * replaces.
+ * on the origin this route answers on, whether a document may be served, and
+ * what headers the bytes carry. The bytes themselves come from
+ * `$lib/server/html-assignment-document`, which reads the row a teacher's
+ * import wrote and re-checks every rule RLS would have enforced -- this host
+ * holds no session, so nothing here can satisfy a policy and the check has to
+ * be explicit. Read that module's header before changing what is served.
+ *
+ * THE DEV FIXTURES ARE CONSULTED FIRST, AND ONLY IN DEVELOPMENT, AND THE TWO
+ * NAMESPACES PROVABLY CANNOT COLLIDE. `../_documents` holds `worksheet` and
+ * `probe` -- the documents the browser-verify harness drives and the hostile
+ * containment probe -- and their ids are deliberately NOT uuids, while
+ * `document_id` is a uuid column that `hxStoredDocument` refuses anything else
+ * for. So a fixture can never shadow a real document, and a real document can
+ * never be reached by a fixture name.
+ *
+ * ORDER: FIXTURE, THEN DATABASE. The other order would work too and is
+ * strictly slower for the case that matters locally -- the local `.env` names a
+ * PLACEHOLDER Supabase project which cannot answer for anything, so putting the
+ * database first means every harness page load waits for a lookup that is
+ * guaranteed to miss. `dev` gates the whole branch rather than the `devOnly`
+ * flag alone: a fixture served from a production host is exactly the "a
+ * production surface that serves an attack document has to explain itself"
+ * argument `../_documents` already makes about the probe, and it applies to the
+ * benign fixture too.
  */
 
 /**
- * ONE REFUSAL FOR EVERYTHING. An unknown document id, the probe document in
- * production, a `/hx/` path on the wrong host and a method that is not GET or
- * HEAD are indistinguishable from outside. `no-store` so a 404 for a document
- * that is about to be imported is not cached into the next viewer's browser.
+ * ONE REFUSAL FOR EVERYTHING. An unparseable handle, an unknown document, an
+ * UNPUBLISHED or scheduled-ahead one, a dev fixture asked for in production, a
+ * deployment with no service key, a `/hx/` path on the wrong host and a method
+ * that is not GET or HEAD are all indistinguishable from outside -- which is
+ * what stops a document handle being probed for. `no-store` so a 404 for a
+ * document that is about to be published is not cached into the next viewer's
+ * browser.
  */
 function notFound(): Response {
 	return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
@@ -60,8 +84,16 @@ function notFound(): Response {
 const handle: RequestHandler = async ({ params, url, request }) => {
 	if (!hxOnServingHost(url.origin, env.PUBLIC_HX_SANDBOX_ORIGIN)) return notFound();
 
-	const doc = hxDocument(params.docId ?? '', dev);
-	if (!doc) return notFound();
+	const docId = params.docId ?? '';
+	const fixture = dev ? hxDocument(docId, dev) : null;
+	let html: string;
+	if (fixture) {
+		html = fixture.html;
+	} else {
+		const stored = await hxStoredDocument(docId);
+		if (!stored.ok) return notFound();
+		html = stored.html;
+	}
 
 	const headers = hxDocumentHeaders(
 		hxPortalOrigin(env.PUBLIC_HX_PORTAL_ORIGIN, env.PUBLIC_HX_SANDBOX_ORIGIN, url.origin)
@@ -69,7 +101,7 @@ const handle: RequestHandler = async ({ params, url, request }) => {
 
 	if (request.method === 'HEAD') return new Response(null, { headers });
 
-	const bytes = new TextEncoder().encode(doc.html);
+	const bytes = new TextEncoder().encode(html);
 	headers.set('content-length', String(bytes.byteLength));
 	return new Response(bytes as unknown as BodyInit, { headers });
 };

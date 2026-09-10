@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import {
 	HTML_ID_RE,
 	manifestBlocks,
-	validateHtmlManifest
+	validateHtmlManifest,
+	type HtmlAssignmentManifest
 } from '../src/lib/classroom/html-assignment/manifest.ts';
 
 /**
@@ -32,11 +33,21 @@ const ORIGINAL = resolve(ROOT, 'src/lib/legacy/assignments/idea100-blade-01.html
 const fixture = readFileSync(FIXTURE, 'utf8');
 const harness = readFileSync(HARNESS, 'utf8');
 
-type Level = { points: number; label: string; short: string; descriptor: string };
-type Criterion = { id: string; text: string; points: number; levels: Level[] };
-type Block = { id: string; field: string; type: string; minSentences?: number };
-type Module = { id: string; title: string; points: number; audience?: string; blocks: Block[]; criteria: Criterion[] };
-type Manifest = { schemaVersion: number; kind: string; title: string; course: string; points: number; modules: Module[] };
+/*
+	THE SHAPE COMES FROM `manifest.ts`, NOT FROM A SECOND COPY OF IT HERE.
+
+	This file used to declare its own `Level`, `Criterion`, `Block`, `Module` and
+	`Manifest`, which is the duplication rule in its quietest form: the copy was
+	written before `header` existed, so it did not have the field, and a test
+	reading `manifest.header` off it was a type error in a file that had not
+	changed. A local shape also cannot go stale loudly -- it simply describes a
+	manifest that no longer exists while every assertion over it keeps passing.
+
+	`HtmlAssignmentManifest` is what the validator returns and what every real
+	caller holds, so asking for it here is what keeps this file describing the
+	same object the importer does.
+*/
+type Manifest = HtmlAssignmentManifest;
 
 function manifestOf(html: string): Manifest {
 	const m = html.match(

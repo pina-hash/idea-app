@@ -286,19 +286,27 @@
 	const htmlWrites = $derived.by(() => {
 		const answers = htmlAnswers;
 		if (!answers) return null;
+		/*
+			THE ONE PLACE THE CONTROLLER'S NAMES BECOME THE FRAME'S. Called
+			THROUGH the object rather than passed as method references, so a
+			class-shaped controller keeps its `this`; and an optional method
+			that is absent leaves the callback `undefined`, which is what
+			removes the behaviour down through the frame rather than handing it
+			a handler that does nothing.
+		*/
 		return {
 			onchange: (change: { blockId: string; field: string; value: string | boolean }) =>
-				answers.onchange(change),
-			onimage: answers.onimage
+				answers.change(change),
+			onimage: answers.image
 				? (image: { blockId: string; field: string; name: string; bytes: string }) =>
-						answers.onimage?.(image)
+						void answers.image?.(image)
 				: undefined,
-			onimageremove: answers.onimageremove
-				? (image: { blockId: string; field: string }) => answers.onimageremove?.(image)
+			onimageremove: answers.imageRemove
+				? (image: { blockId: string; field: string }) => void answers.imageRemove?.(image)
 				: undefined,
-			onimagecaption: answers.onimagecaption
+			onimagecaption: answers.imageCaption
 				? (image: { blockId: string; field: string; caption: string }) =>
-						answers.onimagecaption?.(image)
+						void answers.imageCaption?.(image)
 				: undefined
 		};
 	});

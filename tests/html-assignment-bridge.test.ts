@@ -538,10 +538,11 @@ describe('the served document: the real route handler', () => {
 	}
 
 	it('serves a known document with the contract policy', async () => {
+		setDev(true);
 		const res = await withEnv(
 			{ PUBLIC_HX_SANDBOX_ORIGIN: SANDBOX, PUBLIC_HX_PORTAL_ORIGIN: undefined },
 			() => get('worksheet')
-		);
+		).finally(() => setDev(false));
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-security-policy')).toBe(hxDocumentCsp(HX_PORTAL_ORIGIN));
 		const body = await res.text();
@@ -575,9 +576,10 @@ describe('the served document: the real route handler', () => {
 	});
 
 	it('answers HEAD with the headers and no body', async () => {
+		setDev(true);
 		const res = await withEnv({ PUBLIC_HX_SANDBOX_ORIGIN: SANDBOX }, () =>
 			get('worksheet', { method: 'HEAD' })
-		);
+		).finally(() => setDev(false));
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-security-policy')).toBeTruthy();
 		expect(await res.text()).toBe('');
@@ -616,6 +618,43 @@ describe('the probe document is development only', () => {
 		expect((await call()).status).toBe(200);
 		setDev(false);
 		delete process.env.PUBLIC_HX_SANDBOX_ORIGIN;
+	});
+});
+
+describe('a fixture is a development source and never a served production document', () => {
+	/*
+		THE PROPERTY THIS BUNDLE'S ROUTE CHANGE INTRODUCED, PINNED IN BOTH
+		DIRECTIONS. `worksheet` is `devOnly: false` in the fixture module, which
+		used to mean "served in every environment". The ROUTE now decides
+		separately: it reads the database, and consults the fixture module only
+		in development. So on the production sandbox host a `/hx/` path resolves
+		a `document_id` uuid or 404s, and a `/dev` worksheet nobody imported can
+		never be served there. The two namespaces provably cannot collide,
+		because a fixture id is a word and `hxStoredDocument` refuses anything
+		that is not a uuid.
+
+		Without this case the only thing between a `/dev` fixture and the
+		production sandbox host would be that nobody had written it down.
+	*/
+	it('404s a non-devOnly fixture id outside development, and serves it inside', async () => {
+		const href = `${SANDBOX}/hx/worksheet`;
+		const call = () =>
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			HX_GET({ params: { docId: 'worksheet' }, url: new URL(href), request: new Request(href) } as any) as Promise<Response>;
+		process.env.PUBLIC_HX_SANDBOX_ORIGIN = SANDBOX;
+		setDev(false);
+		expect((await call()).status).toBe(404);
+		setDev(true);
+		expect((await call()).status).toBe(200);
+		setDev(false);
+		delete process.env.PUBLIC_HX_SANDBOX_ORIGIN;
+	});
+
+	// The module-level flag still separates the two INSIDE development, which is
+	// the distinction it exists for now.
+	it('still withholds the hostile probe from a development-less caller', () => {
+		expect(hxDocument('probe', false)).toBeNull();
+		expect(hxDocument('worksheet', true)).not.toBeNull();
 	});
 });
 

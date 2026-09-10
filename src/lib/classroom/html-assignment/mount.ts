@@ -228,10 +228,28 @@ export interface HtmlAssignmentAnswers {
 	readonly images: Record<string, HxImageState>;
 	/** The last acknowledgement to hand down, or null for none yet. */
 	readonly saved: { at: string; ok: boolean; reason?: string | null } | null;
+	/*
+		NAMED AFTER THE CONTROLLER, NOT AFTER THE FRAME'S CALLBACKS, and the two
+		were briefly spelled differently.
+
+		This interface first read `onchange` / `onimage` / `onimageremove` /
+		`onimagecaption`, mirroring `HtmlAssignmentFrame`'s frozen callback
+		contract. That is a defensible name for a prop and the wrong name for
+		THIS: the object satisfying it is `HxAnswers`, whose methods are
+		`change` / `image` / `imageRemove` / `imageCaption`, and an interface
+		that describes its one implementation under different names buys nothing
+		and needs an adapter at every mount. The frame's names stay the frame's;
+		the translation happens once, where the callbacks are built.
+
+		A METHOD RETURNING A PROMISE SATISFIES A `void` RETURN, which is what
+		lets the three async ones sit here unchanged. The mount deliberately does
+		not await them: an upload is not something a document's message handler
+		waits on, and the acknowledgement travels back through `saved`.
+	*/
 	/** Required: a controller that cannot take a change is not an answer path,
 	    and offering one would produce the writable-but-unsaving worksheet. */
-	onchange: (change: { blockId: string; field: string; value: string | boolean }) => void;
-	onimage?: (image: { blockId: string; field: string; name: string; bytes: string }) => void;
-	onimageremove?: (image: { blockId: string; field: string }) => void;
-	onimagecaption?: (image: { blockId: string; field: string; caption: string }) => void;
+	change: (change: { blockId: string; field: string; value: string | boolean }) => void;
+	image?: (image: { blockId: string; field: string; name: string; bytes: string }) => void;
+	imageRemove?: (image: { blockId: string; field: string }) => void;
+	imageCaption?: (image: { blockId: string; field: string; caption: string }) => void;
 }
