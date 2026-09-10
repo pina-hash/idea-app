@@ -133,3 +133,54 @@ before pushing. Then the reconciling merge in the other direction:
 starts clean. Neither merge conflicted, so no file was resolved and the
 permitted-conflict list stayed unexercised. Nothing was force-pushed and no
 source file was touched by this bundle.
+
+**THE DEPLOY WAS CONFIRMED BY READING PRODUCTION, ON A LOOP AGAINST THE STAMP
+ITSELF.** Push output says what was sent, not what is serving, and the gap
+between the two is a Vercel build. Polled at 30s from the push, the stamp at
+`/assignments/IDEA-Blade_Rulebook_v2_2` read `131aeec` twice and then:
+
+    Assignments v1.14 · 02ede0f · Sep 10, 2026
+
+`02ede0f` is the sha that was pushed, so the deploy is the merge and not
+something earlier. **The date field renders a real date, `Sep 10, 2026`, and not
+`local build`** -- which is the second confirmation of prompt 0121's fix and the
+first taken deliberately rather than found. `02ede0f3` has two parents, so this
+is genuinely the merge-commit case `deriveDeploy` used to fail on: before
+`a3d114c7` its corroboration ran over a build-time `git log --no-merges`, which
+by construction cannot contain the commit a merge-built deployment is built
+from, so it found nothing to corroborate and withheld the date.
+
+**THE VERSION NUMBER DID NOT MOVE AND THAT IS CORRECT, NOT A SECOND DEFECT.**
+`v1.14` before the merge and `v1.14` after it. A version here is a COMMIT COUNT
+taken over `--no-merges`, so a merge commit adds nothing to it by design; the
+34 files of prompt 0117's lane arrived as commits that had already been counted
+on their own branch. A reader expecting the number to tick with every deploy
+would read this as the stamp being stuck.
+
+**THE SECOND PASS OF THE LOOP LANDED NOTHING, BECAUSE THERE WAS NOTHING.** On
+re-fetch, `main` was `02ede0f3` and `integration` `da06d32e`, ahead by exactly
+one commit -- the reconciling merge this bundle had just pushed, which carries
+no content of its own. `git diff origin/main origin/integration` was empty and
+both refs resolved to the SAME tree, `58b0eae6`, which is also the exact tree
+`git merge-tree --write-tree` had predicted before the first merge. No lane was
+swept into `integration` during the roughly seven minutes this bundle held the
+window, and the migration diff was still empty at the second reading. So the
+loop ended having merged once in each direction.
+
+**NOT VERIFIED, AND SAID PLAINLY.** The applied state of production's schema was
+not read: `DEPLOY_PROBE_URL` is unset here and no instrument in this container
+can reach the live database, which is exactly why the gate 4 substitution had to
+be invoked rather than satisfied. Nothing was signed in to on production -- the
+stamp is served to an anonymous reader on a public assignment page, which is the
+whole reason it is the instrument for this check -- so no signed-in surface of
+prompt 0117's lane (the admin console, the profile panel, the dashboard) was
+looked at after the deploy. `npm run verify:browser` was not run: this bundle
+changed no source file, and `node_modules` is absent in this container.
+
+**ONE INCIDENTAL FINDING, REPORTED AND NOT ACTED ON.** The prompt's
+permitted-conflict list named `static/classroom-updates.json`; the file is at the
+REPOSITORY ROOT, `classroom-updates.json`, and `static/classroom-updates.json`
+does not exist. It made no difference here -- neither merge conflicted, so the
+list was never consulted -- but a future landing bundle resolving a conflict by
+that path would be looking for a file that is not there. `CLAUDE.md` gives the
+root path correctly.

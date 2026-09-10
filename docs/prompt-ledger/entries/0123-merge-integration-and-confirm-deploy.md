@@ -10,7 +10,7 @@
   `docs/history/` entry. It owns NO source file.
 - Migration permitted: no. Claims: none.
 - Lands on: `main`.
-- Status: issued
+- Status: pushed
 - Branch: `claude/ledger-0123-merge-deploy-jx5vib`, branched from `origin/main`
   at `131aeec2`.
 - Notes: a landing bundle, not a change bundle.
