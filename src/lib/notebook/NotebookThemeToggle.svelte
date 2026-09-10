@@ -19,8 +19,11 @@
 	 * notebook screens (the student feed and the review console) so the choice
 	 * is reachable wherever the theme applies.
 	 *
-	 * Presentation only: the preference lives in the store and the PALETTES
-	 * live in the token layer -- this knows neither.
+	 * Presentation only: the notebook's own preference lives in the store and
+	 * the PALETTES live in the token layer -- this WRITES neither. What it does
+	 * read, besides that preference, is the document's own site-theme
+	 * attribute, and only so it can say which plate is painted; see the last
+	 * paragraph below.
 	 *
 	 * IT IS A MENU, WHERE IT USED TO BE A CYCLE, and the third palette is what
 	 * forced that. Cycling three states was already borderline, and -- worse --
