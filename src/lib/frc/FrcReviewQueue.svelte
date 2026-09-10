@@ -170,6 +170,16 @@
 		font-weight: 700;
 		color: var(--green, #00ff41);
 		text-decoration: none;
+		/* 44px as a MIN-HEIGHT, never a height, so the floor can only round up
+		   (IDEA_INTERFACE_STANDARDS 10). This is a control that owns its space
+		   in the row, not a link inside a sentence, so the prose exemption in
+		   that same section does not reach it -- and at 18.4px it cleared
+		   neither floor. The row keeps `align-items: baseline`, so the time
+		   beside it still sits on this link's own text baseline. */
+		display: inline-flex;
+		align-items: center;
+		min-width: 0;
+		min-height: 44px;
 	}
 	.frq-link:hover {
 		text-decoration: underline;
@@ -197,7 +207,21 @@
 		background: none;
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
 		border-radius: 3px;
-		padding: 0.35rem 0.6rem;
+		/* 44px as a MIN-HEIGHT, never a height (IDEA_INTERFACE_STANDARDS 10),
+		   matching `.gdq-btn` in $lib/greenline/DecalReviewQueue.svelte, which
+		   is this component's mirror and took the same fix first. Neither
+		   surface that mounts this queue declares an instructor-only density
+		   class -- the dashboard's root is `legacy-index admin-console` and
+		   FrcReviewConsole's is the light FRC room -- so there is no 24px
+		   exception to take and the cost is row height. `.frq-actions` already
+		   wraps, so a narrow column gets two lines rather than two shrunken
+		   controls. `justify-content` because inline-flex drops a button's own
+		   centring. */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0.35rem 0.8rem;
 		cursor: pointer;
 	}
 	.frq-btn:hover:not(:disabled) {

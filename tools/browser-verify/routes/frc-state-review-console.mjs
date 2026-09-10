@@ -35,8 +35,20 @@ export default {
 		{ selector: '.head .lead', label: 'console lead copy on the FRC plate', min: 4.5 },
 		{ selector: '.frr-queue .frq-student', label: 'submitter name on the dark queue panel', min: 4.5 }
 	],
+	/*
+		44px, NOT 24. This row read `min: 24` until ledger 0124, which is a
+		SPEC asserting the instructor-density floor about a surface that never
+		declared it -- the thing IDEA_INTERFACE_STANDARDS 10 names outright
+		("a property a surface declares, not one a bundle asserts about it").
+		FrcReviewConsole's root carries no such class, so the floor here is
+		the student one at every width, and the queue's own rules now meet it.
+		The link is measured too: "Open model" is a control that owns its
+		space in the row, not a link inside a sentence, so the prose exemption
+		does not reach it.
+	*/
 	tapTargets: [
-		{ selector: '.frr-queue .frq-btn', label: 'approve / revision controls', min: 24 }
+		{ selector: '.frr-queue .frq-btn', label: 'approve / revision controls', min: 44 },
+		{ selector: '.frr-queue .frq-link', label: 'Open model links', min: 44 }
 	],
 	/*
 		A WRITE CLAIM no static presence read can settle: pressing Approve on
